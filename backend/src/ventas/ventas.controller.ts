@@ -2,11 +2,14 @@ import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/co
 import { VentasService } from './ventas.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CreateVentaDto } from './dto/create-venta.dto';
 
 @Controller('ventas')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 export class VentasController {
   constructor(private readonly ventasService: VentasService) {}
 
@@ -22,22 +25,12 @@ export class VentasController {
   }
 
   @Post()
+  @Roles('ADMIN', 'CAJERO', 'VENDEDOR')
   async create(
     @TenantId() tenantId: string,
     @CurrentUser('sub') usuarioId: string,
-    @Body()
-    body: {
-      clienteId?: string;
-      metodoPago?: any;
-      descuento?: number;
-      notas?: string;
-      detalles: {
-        productoId: string;
-        cantidad: number;
-        precioUnitario?: number;
-      }[];
-    },
+    @Body() dto: CreateVentaDto,
   ) {
-    return this.ventasService.create(tenantId, usuarioId, body);
+    return this.ventasService.create(tenantId, usuarioId, dto);
   }
 }
