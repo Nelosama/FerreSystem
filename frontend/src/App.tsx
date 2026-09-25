@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { TenantProvider } from './context/TenantContext';
 import { Sidebar } from './components/Sidebar';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import { DashboardPage } from './pages/DashboardPage';
 import { InventarioPage } from './pages/InventarioPage';
 import { POSPage } from './pages/POSPage';
@@ -29,53 +30,65 @@ export const App: React.FC = () => {
           {/* Ruta pública de login */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Rutas con Sidebar institucional */}
+          {/* Rutas con Sidebar institucional y autenticación protegida */}
           <Route
             path="/"
             element={
-              <AppLayout>
-                <DashboardPage />
-              </AppLayout>
+              <ProtectedRoute>
+                <AppLayout>
+                  <DashboardPage />
+                </AppLayout>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/inventario"
             element={
-              <AppLayout>
-                <InventarioPage />
-              </AppLayout>
+              <ProtectedRoute allowedRoles={['ADMIN', 'BODEGUERO']}>
+                <AppLayout>
+                  <InventarioPage />
+                </AppLayout>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/pos"
             element={
-              <AppLayout>
-                <POSPage />
-              </AppLayout>
+              <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']}>
+                <AppLayout>
+                  <POSPage />
+                </AppLayout>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/cotizaciones"
             element={
-              <AppLayout>
-                <CotizacionesPage />
-              </AppLayout>
+              <ProtectedRoute allowedRoles={['ADMIN', 'VENDEDOR', 'CAJERO']}>
+                <AppLayout>
+                  <CotizacionesPage />
+                </AppLayout>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/configuracion"
             element={
-              <AppLayout>
-                <ConfiguracionPage />
-              </AppLayout>
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <AppLayout>
+                  <ConfiguracionPage />
+                </AppLayout>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/admin"
             element={
-              <AppLayout>
-                <SuperAdminPage />
-              </AppLayout>
+              <ProtectedRoute allowedRoles={['SUPERADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <SuperAdminPage />
+                </AppLayout>
+              </ProtectedRoute>
             }
           />
 
