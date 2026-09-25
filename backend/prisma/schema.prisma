@@ -186,6 +186,7 @@ model Producto {
 
   @@unique([tenantId, codigo])
   @@index([tenantId])
+  @@index([tenantId, activo])
   @@index([tenantId, nombre])
   @@index([tenantId, codigoBarras])
   @@map("productos")
@@ -262,6 +263,7 @@ model Venta {
 
   @@unique([tenantId, numeroVenta])
   @@index([tenantId])
+  @@index([tenantId, estado])
   @@index([tenantId, createdAt])
   @@map("ventas")
 }
