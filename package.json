@@ -4,7 +4,7 @@
   "private": true,
   "description": "Monorepo root for FerreSystem Multi-tenant SaaS",
   "scripts": {
-    "dev": "bash dev.sh",
+    "dev": "node dev.js",
     "dev:backend": "cd backend && npm run start:dev",
     "dev:frontend": "cd frontend && npm run dev",
     "build:backend": "cd backend && npm run build",
