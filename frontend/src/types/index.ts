@@ -1,4 +1,4 @@
-export type Rol = 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR';
+export type Rol = 'SUPERADMIN' | 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR';
 
 export interface TenantInfo {
   id: string;

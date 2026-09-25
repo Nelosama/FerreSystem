@@ -5,8 +5,8 @@
   "description": "Monorepo root for FerreSystem Multi-tenant SaaS",
   "scripts": {
     "dev": "node dev.js",
-    "start": "node dev.js --no-watch",
-    "dev:backend": "cd backend && npm run start:dev",
+    "start": "node dev.js",
+    "dev:backend": "cd backend && npm run start",
     "dev:frontend": "cd frontend && npm run dev",
     "build:backend": "cd backend && npm run build",
     "build:frontend": "cd frontend && npm run build"
