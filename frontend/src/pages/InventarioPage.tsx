@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Search, Plus, AlertTriangle, Check, X } from 'lucide-react';
+import { formatLempiras } from '../utils/format';
 
 interface Producto {
   id: string;
@@ -213,10 +214,12 @@ export const InventarioPage: React.FC = () => {
                       <td>
                         <span className="badge badge-dark">{p.categoria}</span>
                       </td>
-                      <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
-                        L. {p.precioVenta.toFixed(2)}
+                      <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {formatLempiras(p.precioVenta)}
                       </td>
-                      <td style={{ textAlign: 'right', color: '#78716C' }}>L. {p.precioCosto.toFixed(2)}</td>
+                      <td style={{ textAlign: 'right', color: '#78716C', whiteSpace: 'nowrap' }}>
+                        {formatLempiras(p.precioCosto)}
+                      </td>
                       <td
                         style={{
                           textAlign: 'center',

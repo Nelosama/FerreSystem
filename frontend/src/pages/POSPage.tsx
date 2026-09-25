@@ -14,6 +14,7 @@ import {
   Printer,
   X,
 } from 'lucide-react';
+import { formatLempiras } from '../utils/format';
 
 interface CartItem {
   productoId: string;
@@ -135,7 +136,7 @@ export const POSPage: React.FC = () => {
                   <div style={styles.skuBadge}>{prod.codigo}</div>
                   <div style={styles.productName}>{prod.nombre}</div>
                   <div style={styles.priceRow}>
-                    <span style={styles.priceText}>L. {prod.precio.toFixed(2)}</span>
+                    <span style={styles.priceText}>{formatLempiras(prod.precio)}</span>
                     <span style={styles.stockText}>{prod.stock} disp.</span>
                   </div>
                 </div>
@@ -190,7 +191,7 @@ export const POSPage: React.FC = () => {
                     <div style={{ flex: 1 }}>
                       <div style={styles.cartItemName}>{item.nombre}</div>
                       <div style={styles.cartItemPrice}>
-                        {item.cantidad} x L. {item.precioUnitario.toFixed(2)}
+                        {item.cantidad} x {formatLempiras(item.precioUnitario)}
                       </div>
                     </div>
 
@@ -213,7 +214,7 @@ export const POSPage: React.FC = () => {
                     </div>
 
                     <div style={styles.itemSubtotal}>
-                      L. {(item.cantidad * item.precioUnitario).toFixed(2)}
+                      {formatLempiras(item.cantidad * item.precioUnitario)}
                     </div>
 
                     <button
@@ -232,15 +233,15 @@ export const POSPage: React.FC = () => {
             <div style={styles.totalsSection}>
               <div style={styles.totalRow}>
                 <span style={styles.totalLabel}>SUBTOTAL:</span>
-                <span style={styles.totalVal}>L. {subtotal.toFixed(2)}</span>
+                <span style={styles.totalVal}>{formatLempiras(subtotal)}</span>
               </div>
               <div style={styles.totalRow}>
                 <span style={styles.totalLabel}>ISV (15%):</span>
-                <span style={styles.totalVal}>L. {isv.toFixed(2)}</span>
+                <span style={styles.totalVal}>{formatLempiras(isv)}</span>
               </div>
               <div style={{ ...styles.totalRow, ...styles.grandTotalRow }}>
                 <span style={styles.grandTotalLabel}>TOTAL A PAGAR:</span>
-                <span style={styles.grandTotalVal}>L. {total.toFixed(2)}</span>
+                <span style={styles.grandTotalVal}>{formatLempiras(total)}</span>
               </div>
             </div>
 
@@ -277,7 +278,7 @@ export const POSPage: React.FC = () => {
               style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1 }}
             >
               <CheckCircle size={20} strokeWidth={2.5} />
-              <span>COBRAR L. {total.toFixed(2)}</span>
+              <span>COBRAR {formatLempiras(total)}</span>
             </button>
           </div>
         </div>
@@ -338,7 +339,7 @@ export const POSPage: React.FC = () => {
                       <td style={{ textAlign: 'left' }}>{i.nombre}</td>
                       <td style={{ textAlign: 'center' }}>{i.cantidad}</td>
                       <td style={{ textAlign: 'right' }}>
-                        L. {(i.cantidad * i.precioUnitario).toFixed(2)}
+                        {formatLempiras(i.cantidad * i.precioUnitario)}
                       </td>
                     </tr>
                   ))}
@@ -348,10 +349,10 @@ export const POSPage: React.FC = () => {
               <div style={styles.ticketDashed} />
 
               <div style={styles.ticketTotals}>
-                <div>Subtotal: L. {subtotal.toFixed(2)}</div>
-                <div>ISV (15%): L. {isv.toFixed(2)}</div>
+                <div>Subtotal: {formatLempiras(subtotal)}</div>
+                <div>ISV (15%): {formatLempiras(isv)}</div>
                 <div style={{ fontSize: '15px', fontWeight: 900, marginTop: '4px' }}>
-                  TOTAL PAGADO: L. {total.toFixed(2)}
+                  TOTAL PAGADO: {formatLempiras(total)}
                 </div>
                 <div style={{ fontSize: '11px', marginTop: '2px' }}>
                   Método de Pago: {metodoPago}

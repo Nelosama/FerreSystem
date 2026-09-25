@@ -12,6 +12,7 @@ import {
   Printer,
   X,
 } from 'lucide-react';
+import { formatLempiras } from '../utils/format';
 
 interface Cotizacion {
   id: string;
@@ -180,17 +181,22 @@ export const CotizacionesPage: React.FC = () => {
                     </span>
                   </td>
                   <td style={{ textAlign: 'center' }}>{c.itemsCount}</td>
-                  <td style={{ textAlign: 'right', color: '#78716C' }}>L. {c.subtotal.toFixed(2)}</td>
-                  <td style={{ textAlign: 'right', color: '#78716C' }}>L. {c.isv.toFixed(2)}</td>
+                  <td style={{ textAlign: 'right', color: '#78716C', whiteSpace: 'nowrap' }}>
+                    {formatLempiras(c.subtotal)}
+                  </td>
+                  <td style={{ textAlign: 'right', color: '#78716C', whiteSpace: 'nowrap' }}>
+                    {formatLempiras(c.isv)}
+                  </td>
                   <td
                     style={{
                       textAlign: 'right',
                       fontFamily: 'var(--font-display)',
                       fontWeight: 800,
                       fontSize: '14px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    L. {c.total.toFixed(2)}
+                    {formatLempiras(c.total)}
                   </td>
                   <td style={{ textAlign: 'center' }}>{getStatusBadge(c.estado)}</td>
                   <td style={{ textAlign: 'center' }}>
@@ -242,7 +248,7 @@ export const CotizacionesPage: React.FC = () => {
               </p>
               <div style={styles.convertDetailBox}>
                 <div><strong>Cliente:</strong> {modalConvertir.cliente}</div>
-                <div><strong>Total a cobrar:</strong> L. {modalConvertir.total.toFixed(2)} (Incluye ISV 15%)</div>
+                <div><strong>Total a cobrar:</strong> {formatLempiras(modalConvertir.total)} (Incluye ISV 15%)</div>
                 <div><strong>Acción automática:</strong> Descontará inventario y generará secuencial de venta oficial.</div>
               </div>
             </div>
@@ -320,16 +326,18 @@ export const CotizacionesPage: React.FC = () => {
                 <tbody>
                   <tr>
                     <td style={{ padding: '8px 0' }}>Partida de Materiales de Construcción & Herramientas</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>L. {modalPdf.subtotal.toFixed(2)}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', whiteSpace: 'nowrap' }}>
+                      {formatLempiras(modalPdf.subtotal)}
+                    </td>
                   </tr>
                 </tbody>
               </table>
 
               <div style={{ borderTop: '1px solid #D6D3D1', paddingTop: '10px', textAlign: 'right', fontSize: '12px' }}>
-                <div>Subtotal: L. {modalPdf.subtotal.toFixed(2)}</div>
-                <div>ISV (15%): L. {modalPdf.isv.toFixed(2)}</div>
+                <div>Subtotal: {formatLempiras(modalPdf.subtotal)}</div>
+                <div>ISV (15%): {formatLempiras(modalPdf.isv)}</div>
                 <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--color-primary)', marginTop: '4px' }}>
-                  TOTAL OFERTADO: L. {modalPdf.total.toFixed(2)}
+                  TOTAL OFERTADO: {formatLempiras(modalPdf.total)}
                 </div>
               </div>
 

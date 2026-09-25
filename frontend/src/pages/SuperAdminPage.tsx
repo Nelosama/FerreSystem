@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, CheckCircle, Building, ShoppingCart, Power } from 'lucide-react';
+import { formatNumber } from '../utils/format';
 import { TopBar } from '../components/TopBar';
 
 interface TenantItem {
@@ -129,7 +130,7 @@ export const SuperAdminPage: React.FC = () => {
           <div className="industrial-card" style={styles.metricCard}>
             <ShoppingCart size={24} strokeWidth={2.4} color="var(--color-primary)" />
             <div style={styles.metricValue}>
-              {tenants.reduce((acc, t) => acc + t.ventasCount, 0)}
+              {formatNumber(tenants.reduce((acc, t) => acc + t.ventasCount, 0))}
             </div>
             <div style={styles.metricLabel}>VENTAS TOTALES PROCESADAS</div>
           </div>
@@ -193,7 +194,7 @@ export const SuperAdminPage: React.FC = () => {
                   </td>
                   <td style={{ textAlign: 'center', fontWeight: 700 }}>{t.usuariosCount}</td>
                   <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--color-primary)' }}>
-                    {t.ventasCount}
+                    {formatNumber(t.ventasCount)}
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     {t.estado === 'ACTIVO' ? (
