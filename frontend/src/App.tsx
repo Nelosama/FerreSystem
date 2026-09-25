@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { TenantProvider } from './context/TenantContext';
+import { MockDataProvider } from './context/MockDataContext';
 import { Sidebar } from './components/Sidebar';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { DashboardPage } from './pages/DashboardPage';
@@ -25,7 +26,8 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 export const App: React.FC = () => {
   return (
     <TenantProvider>
-      <BrowserRouter>
+      <MockDataProvider>
+        <BrowserRouter>
         <Routes>
           {/* Ruta pública de login */}
           <Route path="/login" element={<LoginPage />} />
@@ -94,8 +96,9 @@ export const App: React.FC = () => {
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+          </Routes>
+        </BrowserRouter>
+      </MockDataProvider>
     </TenantProvider>
   );
 };

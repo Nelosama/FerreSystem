@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
+import { useMockData, type ProductItem } from '../context/MockDataContext';
 import {
   Search,
   Plus,
@@ -24,36 +25,24 @@ interface CartItem {
   cantidad: number;
 }
 
-const CAT_ITEMS = [
-  { id: 'p-1', codigo: 'HER-001', nombre: 'Martillo de Uña Curva 16oz', precio: 245.00, stock: 24 },
-  { id: 'p-2', codigo: 'CON-001', nombre: 'Cemento Bijao Gris 42.5kg', precio: 220.00, stock: 180 },
-  { id: 'p-3', codigo: 'CON-002', nombre: 'Varilla Corrugada 3/8" (6m)', precio: 165.00, stock: 5 },
-  { id: 'p-4', codigo: 'PLO-001', nombre: 'Tubo PVC Sanitario 4" x 6m', precio: 380.00, stock: 3 },
-  { id: 'p-5', codigo: 'ELE-001', nombre: 'Cable THHN 12 AWG (100m)', precio: 1450.00, stock: 2 },
-  { id: 'p-6', codigo: 'HER-002', nombre: 'Cinta Métrica 8m Truper', precio: 185.00, stock: 15 },
-];
-
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
+  const { productos, registrarVenta } = useMockData();
 
-  const [cart, setCart] = useState<CartItem[]>([
-    { productoId: 'p-1', codigo: 'HER-001', nombre: 'Martillo de Uña Curva 16oz', precioUnitario: 245.00, cantidad: 2 },
-    { productoId: 'p-2', codigo: 'CON-001', nombre: 'Cemento Bijao Gris 42.5kg', precioUnitario: 220.00, cantidad: 5 },
-  ]);
-
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState('');
   const [clienteNombre, setClienteNombre] = useState('Consumidor Final');
   const [clienteRtn, setClienteRtn] = useState('');
   const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO'>('EFECTIVO');
   const [modalTicket, setModalTicket] = useState(false);
-  const [numeroVentaGenerado, setNumeroVentaGenerado] = useState(1043);
+  const [numeroVentaGenerado, setNumeroVentaGenerado] = useState<number | null>(null);
 
   // Cálculos fiscales hondureños
   const subtotal = cart.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
   const isv = Math.round(subtotal * 0.15 * 100) / 100;
   const total = subtotal + isv;
 
-  const agregarAlCarrito = (prod: (typeof CAT_ITEMS)[0]) => {
+  const agregarAlCarrito = (prod: ProductItem) => {
     const existe = cart.find((i) => i.productoId === prod.id);
     if (existe) {
       setCart(
@@ -68,7 +57,7 @@ export const POSPage: React.FC = () => {
           productoId: prod.id,
           codigo: prod.codigo,
           nombre: prod.nombre,
-          precioUnitario: prod.precio,
+          precioUnitario: prod.precioVenta,
           cantidad: 1,
         },
       ]);
@@ -95,7 +84,23 @@ export const POSPage: React.FC = () => {
 
   const handleCobrar = () => {
     if (cart.length === 0) return;
-    setNumeroVentaGenerado((prev) => prev + 1);
+
+    const ventaRegistrada = registrarVenta({
+      clienteNombre,
+      clienteRtn,
+      subtotal,
+      isv,
+      total,
+      metodoPago,
+      items: cart.map((i) => ({
+        productoId: i.productoId,
+        nombre: i.nombre,
+        precioUnitario: i.precioUnitario,
+        cantidad: i.cantidad,
+      })),
+    });
+
+    setNumeroVentaGenerado(ventaRegistrada.numeroVenta);
     setModalTicket(true);
   };
 
@@ -122,25 +127,27 @@ export const POSPage: React.FC = () => {
             </div>
 
             <div style={styles.catalogGrid}>
-              {CAT_ITEMS.filter(
-                (p) =>
-                  p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-                  p.codigo.toLowerCase().includes(search.toLowerCase()),
-              ).map((prod) => (
-                <div
-                  key={prod.id}
-                  className="industrial-card"
-                  style={styles.productCard}
-                  onClick={() => agregarAlCarrito(prod)}
-                >
-                  <div style={styles.skuBadge}>{prod.codigo}</div>
-                  <div style={styles.productName}>{prod.nombre}</div>
-                  <div style={styles.priceRow}>
-                    <span style={styles.priceText}>{formatLempiras(prod.precio)}</span>
-                    <span style={styles.stockText}>{prod.stock} disp.</span>
+              {productos
+                .filter(
+                  (p) =>
+                    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
+                    p.codigo.toLowerCase().includes(search.toLowerCase()),
+                )
+                .map((prod) => (
+                  <div
+                    key={prod.id}
+                    className="industrial-card"
+                    style={styles.productCard}
+                    onClick={() => agregarAlCarrito(prod)}
+                  >
+                    <div style={styles.skuBadge}>{prod.codigo}</div>
+                    <div style={styles.productName}>{prod.nombre}</div>
+                    <div style={styles.priceRow}>
+                      <span style={styles.priceText}>{formatLempiras(prod.precioVenta)}</span>
+                      <span style={styles.stockText}>{prod.stockActual} disp.</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
 

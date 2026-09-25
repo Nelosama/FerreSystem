@@ -1,6 +1,7 @@
 import React from 'react';
-import { Calendar, Clock, UserCheck } from 'lucide-react';
+import { Calendar, Clock, UserCheck, LogOut } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
+import { useNavigate } from 'react-router-dom';
 
 interface TopBarProps {
   title: string;
@@ -11,10 +12,23 @@ export const TopBar: React.FC<TopBarProps> = ({
   title,
   subtitle = 'Turno Actual: 08:00 AM - 05:00 PM',
 }) => {
-  const { user } = useTenant();
+  const { user, logout } = useTenant();
+  const navigate = useNavigate();
 
-  // Formato de fecha del día de hoy
-  const hoyFormatted = 'HOY, 25 SEP 2026';
+  // Formato de fecha del día de hoy generado dinámicamente en español
+  const getDynamicDate = () => {
+    const date = new Date();
+    const day = date.getDate();
+    const monthNames = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    const month = monthNames[date.getMonth()];
+    const year = date.getFullYear();
+    return `HOY, ${day} ${month} ${year}`;
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <header style={styles.header}>
@@ -33,14 +47,26 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Badge de Fecha Oficial */}
         <div style={styles.dateBadge}>
           <Calendar size={15} strokeWidth={2.5} />
-          <span>{hoyFormatted}</span>
+          <span>{getDynamicDate()}</span>
         </div>
 
-        {/* Info Cajero/Admin */}
+        {/* Info Cajero/Admin y Botón de Cerrar Sesión */}
         {user && (
-          <div style={styles.userBadge}>
-            <UserCheck size={14} strokeWidth={2.4} color="var(--color-primary)" />
-            <span>{user.nombre}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={styles.userBadge}>
+              <UserCheck size={14} strokeWidth={2.4} color="var(--color-primary)" />
+              <span>{user.nombre}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={styles.logoutBtn}
+              title="Cerrar Sesión"
+            >
+              <LogOut size={14} strokeWidth={2.4} />
+              <span>SALIR</span>
+            </button>
           </div>
         )}
       </div>
@@ -128,5 +154,21 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 12px',
     border: '1.5px solid var(--color-border)',
     borderRadius: 'var(--radius-xs)',
+  },
+  logoutBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    backgroundColor: '#FEE2E2',
+    color: '#991B1B',
+    fontFamily: 'var(--font-display)',
+    fontWeight: 800,
+    fontSize: '11px',
+    letterSpacing: '0.03em',
+    padding: '8px 12px',
+    border: '1.5px solid #EF4444',
+    borderRadius: 'var(--radius-xs)',
+    cursor: 'pointer',
+    transition: 'all 150ms ease',
   },
 };
