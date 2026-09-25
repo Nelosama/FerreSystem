@@ -72,6 +72,7 @@ export const LoginPage: React.FC = () => {
             colorPrimario: '#1C1917',
           },
         );
+        setLoading(false);
         navigate('/admin');
       } else {
         const response = await api.post('/auth/login', { email, password });
@@ -91,14 +92,14 @@ export const LoginPage: React.FC = () => {
             colorPrimario: tenant.colorPrimario || '#EA580C',
           },
         );
+        setLoading(false);
         navigate('/');
       }
     } catch (err: any) {
       console.warn('Backend login connection issue, switching to local demo mode fallback:', err);
       // Fallback a modo demo si la BD local no está inicializada aún
-      executeDemoLogin();
-    } finally {
       setLoading(false);
+      executeDemoLogin();
     }
   };
 

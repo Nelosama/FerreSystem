@@ -4,6 +4,7 @@ import type { TenantInfo, UserInfo } from '../types';
 interface TenantContextType {
   tenant: TenantInfo;
   user: UserInfo | null;
+  isAuthenticated: boolean;
   updateBranding: (colorPrimario: string, nombreComercial: string) => void;
   login: (user: UserInfo, tenant: TenantInfo) => void;
   logout: () => void;
@@ -67,7 +68,16 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   return (
-    <TenantContext.Provider value={{ tenant, user, updateBranding, login, logout }}>
+    <TenantContext.Provider
+      value={{
+        tenant,
+        user,
+        isAuthenticated: !!user,
+        updateBranding,
+        login,
+        logout,
+      }}
+    >
       {children}
     </TenantContext.Provider>
   );
