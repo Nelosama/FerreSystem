@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Box, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Box, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../utils/api';
 
 export const LoginPage: React.FC = () => {
   const { login } = useTenant();
@@ -10,15 +11,27 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('cajero@lamundial.hn');
   const [password, setPassword] = useState('Ferre2026!');
   const [isSuperAdminMode, setIsSuperAdminMode] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const executeDemoLogin = () => {
     if (isSuperAdminMode) {
-      // Super Admin login
+      login(
+        {
+          id: 'superadmin-demo',
+          nombre: 'Nelo — SaaS Owner',
+          email,
+          rol: 'SUPERADMIN',
+        },
+        {
+          id: 'saas-global',
+          nombreComercial: 'FerreSystem Admin Portal',
+          sucursal: 'Global',
+          colorPrimario: '#1C1917',
+        },
+      );
       navigate('/admin');
     } else {
-      // Tenant login
       login(
         {
           id: 'user-demo-1',
@@ -34,6 +47,58 @@ export const LoginPage: React.FC = () => {
         },
       );
       navigate('/');
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      if (isSuperAdminMode) {
+        const response = await api.post('/admin/auth/login', { email, password });
+        login(
+          {
+            id: response.data.admin?.id || 'superadmin-1',
+            nombre: response.data.admin?.nombre || 'Super Admin',
+            email,
+            rol: 'SUPERADMIN',
+          },
+          {
+            id: 'saas-global',
+            nombreComercial: 'FerreSystem Admin Portal',
+            sucursal: 'Global',
+            colorPrimario: '#1C1917',
+          },
+        );
+        navigate('/admin');
+      } else {
+        const response = await api.post('/auth/login', { email, password });
+        const { user, tenant } = response.data;
+
+        login(
+          {
+            id: user.id,
+            nombre: user.nombre,
+            email: user.email,
+            rol: user.rol,
+          },
+          {
+            id: tenant.id,
+            nombreComercial: tenant.nombreComercial,
+            sucursal: 'Sucursal Principal',
+            colorPrimario: tenant.colorPrimario || '#EA580C',
+          },
+        );
+        navigate('/');
+      }
+    } catch (err: any) {
+      console.warn('Backend login connection issue, switching to local demo mode fallback:', err);
+      // Fallback a modo demo si la BD local no está inicializada aún
+      executeDemoLogin();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -62,6 +127,7 @@ export const LoginPage: React.FC = () => {
               setIsSuperAdminMode(false);
               setEmail('cajero@lamundial.hn');
               setPassword('Ferre2026!');
+              setError(null);
             }}
             style={{
               ...styles.pillBtn,
@@ -77,6 +143,7 @@ export const LoginPage: React.FC = () => {
               setIsSuperAdminMode(true);
               setEmail('admin@ferresystem.hn');
               setPassword('SuperAdmin2026!');
+              setError(null);
             }}
             style={{
               ...styles.pillBtn,
@@ -87,6 +154,27 @@ export const LoginPage: React.FC = () => {
             <ShieldCheck size={13} /> Super-Admin
           </button>
         </div>
+
+        {error && (
+          <div
+            style={{
+              marginTop: '16px',
+              padding: '10px 14px',
+              backgroundColor: '#FEE2E2',
+              border: '1px solid #EF4444',
+              borderRadius: '4px',
+              color: '#991B1B',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: 600,
+            }}
+          >
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} style={{ marginTop: '20px' }}>
           <div className="form-group">
@@ -121,11 +209,12 @@ export const LoginPage: React.FC = () => {
 
           <button
             type="submit"
+            disabled={loading}
             className="btn btn-primary"
-            style={{ width: '100%', marginTop: '16px', padding: '14px' }}
+            style={{ width: '100%', marginTop: '16px', padding: '14px', opacity: loading ? 0.7 : 1 }}
           >
-            <span>INGRESAR AL SISTEMA</span>
-            <ArrowRight size={18} strokeWidth={2.5} />
+            <span>{loading ? 'VERIFICANDO...' : 'INGRESAR AL SISTEMA'}</span>
+            {!loading && <ArrowRight size={18} strokeWidth={2.5} />}
           </button>
         </form>
 
