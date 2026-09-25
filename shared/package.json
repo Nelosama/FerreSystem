@@ -1,0 +1,14 @@
+{
+  "name": "@ferresystem/shared",
+  "version": "1.0.0",
+  "description": "Tipos TypeScript compartidos entre backend, frontend y mobile",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
