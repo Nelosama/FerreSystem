@@ -4,10 +4,13 @@ const path = require('path');
 const isWindows = process.platform === 'win32';
 const npmCmd = isWindows ? 'npm.cmd' : 'npm';
 
-console.log('🚀 Iniciando FerreSystem en modo desarrollo (Multi-platform Node launcher)...\n');
+// Determinar el comando de backend según argumentos de CLI (watch por defecto, o start)
+const backendScript = process.argv.includes('--no-watch') ? 'start' : 'start:dev';
+
+console.log('🚀 Iniciando FerreSystem (Multi-platform Node launcher)...\n');
 
 // Iniciar Backend
-const backend = spawn(npmCmd, ['run', 'start:dev'], {
+const backend = spawn(npmCmd, ['run', backendScript], {
   cwd: path.join(__dirname, 'backend'),
   stdio: 'inherit',
   shell: true,
