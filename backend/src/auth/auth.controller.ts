@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -11,7 +12,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
-    @Body() loginDto: { email: string; password: string },
+    @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.authService.login(loginDto, res);
