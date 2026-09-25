@@ -19,7 +19,7 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // Global validation pipe
+  // Global validation pipe with whitelist stripping
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
