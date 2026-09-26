@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
+import { useMockData, type QuotationItem } from '../context/MockDataContext';
 import {
   FileText,
   Plus,
@@ -11,102 +12,69 @@ import {
   FileCheck,
   Printer,
   X,
+  Check,
 } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 
-interface Cotizacion {
-  id: string;
-  numero: number;
-  cliente: string;
-  rtn?: string;
-  fechaValidez: string;
-  subtotal: number;
-  isv: number;
-  total: number;
-  estado: 'BORRADOR' | 'ENVIADA' | 'APROBADA' | 'RECHAZADA' | 'CONVERTIDA';
-  itemsCount: number;
-}
-
-const COTIZACIONES_DATA: Cotizacion[] = [
-  {
-    id: 'cot-1',
-    numero: 8,
-    cliente: 'Constructora del Norte S. de R.L.',
-    rtn: '05019001234567',
-    fechaValidez: '25/09/2026', // Vence hoy!
-    subtotal: 18500.00,
-    isv: 2775.00,
-    total: 21275.00,
-    estado: 'APROBADA',
-    itemsCount: 4,
-  },
-  {
-    id: 'cot-2',
-    numero: 7,
-    cliente: 'Ferretería El Progreso (Subdistribuidor)',
-    rtn: '05021980001234',
-    fechaValidez: '25/09/2026', // Vence hoy!
-    subtotal: 8400.00,
-    isv: 1260.00,
-    total: 9660.00,
-    estado: 'ENVIADA',
-    itemsCount: 2,
-  },
-  {
-    id: 'cot-3',
-    numero: 6,
-    cliente: 'Ing. Roberto Flores',
-    fechaValidez: '25/09/2026', // Vence hoy!
-    subtotal: 3200.00,
-    isv: 480.00,
-    total: 3680.00,
-    estado: 'BORRADOR',
-    itemsCount: 3,
-  },
-  {
-    id: 'cot-4',
-    numero: 5,
-    cliente: 'Inversiones Industriales Cortés',
-    fechaValidez: '28/09/2026',
-    subtotal: 45000.00,
-    isv: 6750.00,
-    total: 51750.00,
-    estado: 'ENVIADA',
-    itemsCount: 8,
-  },
-  {
-    id: 'cot-5',
-    numero: 4,
-    cliente: 'Taller Mecánico San José',
-    fechaValidez: '18/09/2026',
-    subtotal: 6200.00,
-    isv: 930.00,
-    total: 7130.00,
-    estado: 'CONVERTIDA',
-    itemsCount: 5,
-  },
-];
-
 export const CotizacionesPage: React.FC = () => {
   const { tenant } = useTenant();
-  const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>(COTIZACIONES_DATA);
-  const [modalConvertir, setModalConvertir] = useState<Cotizacion | null>(null);
-  const [modalPdf, setModalPdf] = useState<Cotizacion | null>(null);
+  const { cotizaciones, agregarCotizacion, convertirCotizacionAVenta } = useMockData();
+  const [modalConvertir, setModalConvertir] = useState<QuotationItem | null>(null);
+  const [modalPdf, setModalPdf] = useState<QuotationItem | null>(null);
+  const [modalNueva, setModalNueva] = useState(false);
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
+  // Form para nueva cotización rápida
+  const [formCliente, setFormCliente] = useState('');
+  const [formRtn, setFormRtn] = useState('');
+  const [formSubtotal, setFormSubtotal] = useState('');
+
+  const handleCrearCotizacion = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formCliente || !formSubtotal) return;
+
+    const subtotal = parseFloat(formSubtotal) || 0;
+    const isv = Math.round(subtotal * 0.15 * 100) / 100;
+    const total = subtotal + isv;
+
+    // Calcular fecha validez (+7 días)
+    const fechaVal = new Date();
+    fechaVal.setDate(fechaVal.getDate() + 7);
+    const day = fechaVal.getDate().toString().padStart(2, '0');
+    const month = (fechaVal.getMonth() + 1).toString().padStart(2, '0');
+    const year = fechaVal.getFullYear();
+    const fechaValidezFormatted = `${day}/${month}/${year}`;
+
+    agregarCotizacion({
+      cliente: formCliente.trim(),
+      rtn: formRtn.trim() || undefined,
+      subtotal,
+      isv,
+      total,
+      fechaValidez: fechaValidezFormatted,
+      estado: 'ENVIADA',
+      itemsCount: 1,
+    });
+
+    setModalNueva(false);
+    setFormCliente('');
+    setFormRtn('');
+    setFormSubtotal('');
+    setMensajeExito('¡Cotización registrada exitosamente!');
+    setTimeout(() => setMensajeExito(null), 4000);
+  };
+
   // Conversión con un clic a venta
-  const handleConvertir = (cot: Cotizacion) => {
-    setCotizaciones(
-      cotizaciones.map((c) => (c.id === cot.id ? { ...c, estado: 'CONVERTIDA' } : c)),
-    );
+  const handleConvertir = (cot: QuotationItem) => {
+    convertirCotizacionAVenta(cot.id);
     setModalConvertir(null);
     setMensajeExito(
-      `¡Cotización #${cot.numero} convertida exitosamente a Venta! Stock descontado y registrada en POS.`,
+      `¡Cotización #${cot.numero} convertida exitosamente a Venta! Registrada en POS y reporte.`,
     );
     setTimeout(() => setMensajeExito(null), 5000);
   };
 
-  const getStatusBadge = (estado: Cotizacion['estado']) => {
+  const getStatusBadge = (estado: QuotationItem['estado']) => {
     switch (estado) {
       case 'APROBADA':
         return <span className="badge badge-success"><CheckCircle2 size={11} /> APROBADA</span>;
@@ -141,7 +109,7 @@ export const CotizacionesPage: React.FC = () => {
             </p>
           </div>
 
-          <button type="button" className="btn btn-primary" onClick={() => alert('Creación de cotización rápida en POS')}>
+          <button type="button" className="btn btn-primary" onClick={() => setModalNueva(true)}>
             <Plus size={18} strokeWidth={2.5} />
             <span>NUEVA COTIZACIÓN</span>
           </button>
@@ -269,6 +237,73 @@ export const CotizacionesPage: React.FC = () => {
                 CONFIRMAR Y CONVERTIR
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Creación de Nueva Cotización Rápida */}
+      {modalNueva && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                CREAR NUEVA COTIZACIÓN
+              </h2>
+              <button type="button" onClick={() => setModalNueva(false)} style={styles.closeBtn}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCrearCotizacion} style={{ marginTop: '16px' }}>
+              <div className="form-group">
+                <label className="form-label">CLIENTE O EMPRESA</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Constructora San Pedro"
+                  value={formCliente}
+                  onChange={(e) => setFormCliente(e.target.value)}
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">RTN (OPCIONAL)</label>
+                <input
+                  type="text"
+                  placeholder="05019000123456"
+                  value={formRtn}
+                  onChange={(e) => setFormRtn(e.target.value)}
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">MONTO SUBTOTAL (L.)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  placeholder="0.00"
+                  value={formSubtotal}
+                  onChange={(e) => setFormSubtotal(e.target.value)}
+                  className="form-input"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setModalNueva(false)}
+                >
+                  CANCELAR
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  <Check size={16} strokeWidth={2.6} /> GUARDAR COTIZACIÓN
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

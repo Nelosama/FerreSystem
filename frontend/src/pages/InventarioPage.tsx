@@ -2,90 +2,10 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Search, Plus, AlertTriangle, Check, X } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
-
-interface Producto {
-  id: string;
-  codigo: string;
-  nombre: string;
-  categoria: string;
-  precioVenta: number;
-  precioCosto: number;
-  stockActual: number;
-  stockMinimo: number;
-  unidadMedida: string;
-}
-
-const PRODUCTOS_INICIALES: Producto[] = [
-  {
-    id: 'p-1',
-    codigo: 'HER-001',
-    nombre: 'Martillo de Uña Curva 16oz Stanley',
-    categoria: 'Herramientas',
-    precioVenta: 245.00,
-    precioCosto: 160.00,
-    stockActual: 24,
-    stockMinimo: 8,
-    unidadMedida: 'UNIDAD',
-  },
-  {
-    id: 'p-2',
-    codigo: 'CON-001',
-    nombre: 'Cemento Bijao Gris Uso General 42.5kg',
-    categoria: 'Construcción',
-    precioVenta: 220.00,
-    precioCosto: 185.00,
-    stockActual: 180,
-    stockMinimo: 50,
-    unidadMedida: 'UNIDAD',
-  },
-  {
-    id: 'p-3',
-    codigo: 'CON-002',
-    nombre: 'Varilla Corrugada 3/8" Grado 40 (6m)',
-    categoria: 'Construcción',
-    precioVenta: 165.00,
-    precioCosto: 130.00,
-    stockActual: 5,
-    stockMinimo: 40,
-    unidadMedida: 'UNIDAD',
-  },
-  {
-    id: 'p-4',
-    codigo: 'PLO-001',
-    nombre: 'Tubo PVC Sanitario 4" x 6m Durman',
-    categoria: 'Plomería',
-    precioVenta: 380.00,
-    precioCosto: 275.00,
-    stockActual: 3,
-    stockMinimo: 15,
-    unidadMedida: 'UNIDAD',
-  },
-  {
-    id: 'p-5',
-    codigo: 'ELE-001',
-    nombre: 'Cable THHN Calibre 12 AWG Rollo 100m',
-    categoria: 'Electricidad',
-    precioVenta: 1450.00,
-    precioCosto: 1100.00,
-    stockActual: 2,
-    stockMinimo: 10,
-    unidadMedida: 'UNIDAD',
-  },
-  {
-    id: 'p-6',
-    codigo: 'HER-002',
-    nombre: 'Cinta Métrica 8m / 26ft Truper Grip',
-    categoria: 'Herramientas',
-    precioVenta: 185.00,
-    precioCosto: 115.00,
-    stockActual: 15,
-    stockMinimo: 6,
-    unidadMedida: 'UNIDAD',
-  },
-];
+import { useMockData } from '../context/MockDataContext';
 
 export const InventarioPage: React.FC = () => {
-  const [productos, setProductos] = useState<Producto[]>(PRODUCTOS_INICIALES);
+  const { productos, agregarProducto } = useMockData();
   const [search, setSearch] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('TODAS');
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -113,8 +33,7 @@ export const InventarioPage: React.FC = () => {
     e.preventDefault();
     if (!formCodigo || !formNombre || !formPrecioVenta) return;
 
-    const nuevo: Producto = {
-      id: `p-${Date.now()}`,
+    agregarProducto({
       codigo: formCodigo.toUpperCase().trim(),
       nombre: formNombre.trim(),
       categoria: formCategoria,
@@ -123,9 +42,8 @@ export const InventarioPage: React.FC = () => {
       stockActual: parseInt(formStockActual, 10) || 0,
       stockMinimo: parseInt(formStockMinimo, 10) || 5,
       unidadMedida: 'UNIDAD',
-    };
+    });
 
-    setProductos([nuevo, ...productos]);
     setModalAbierto(false);
     // Limpiar formulario
     setFormCodigo('');
