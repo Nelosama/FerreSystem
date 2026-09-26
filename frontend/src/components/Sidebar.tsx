@@ -8,6 +8,7 @@ import {
   Sliders,
   Box,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 
@@ -15,7 +16,10 @@ export const Sidebar: React.FC = () => {
   const { tenant, user } = useTenant();
   const userRole = user?.rol;
 
-  const isRoleAllowed = (allowedRoles?: string[]) => {
+  const isRoleAllowed = (allowedRoles?: string[], requiredPermiso?: string) => {
+    if (requiredPermiso && user?.permisos) {
+      if (user.permisos.includes(requiredPermiso)) return true;
+    }
     if (!allowedRoles || allowedRoles.length === 0) return true;
     if (!userRole) return false;
     return allowedRoles.includes(userRole);
@@ -51,10 +55,18 @@ export const Sidebar: React.FC = () => {
 
   const adminNavItems = [
     {
+      path: '/usuarios',
+      label: 'USUARIOS',
+      icon: Users,
+      allowedRoles: ['ADMIN'],
+      requiredPermiso: 'usuarios.gestionar',
+    },
+    {
       path: '/configuracion',
       label: 'CONFIGURACIÓN',
       icon: Sliders,
       allowedRoles: ['ADMIN'],
+      requiredPermiso: 'configuracion.editar',
     },
     {
       path: '/admin',
@@ -66,7 +78,7 @@ export const Sidebar: React.FC = () => {
   ];
 
   const visibleMainNav = mainNavItems.filter((item) => isRoleAllowed(item.allowedRoles));
-  const visibleAdminNav = adminNavItems.filter((item) => isRoleAllowed(item.allowedRoles));
+  const visibleAdminNav = adminNavItems.filter((item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso));
 
   return (
     <aside style={styles.sidebar}>

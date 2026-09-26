@@ -22,6 +22,9 @@ export const LoginPage: React.FC = () => {
           nombre: 'Nelo — SaaS Owner',
           email,
           rol: 'SUPERADMIN',
+          permisos: ['usuarios.gestionar', 'configuracion.editar'],
+          descuentoMaximo: 100,
+          activo: true,
         },
         {
           id: 'saas-global',
@@ -32,12 +35,49 @@ export const LoginPage: React.FC = () => {
       );
       navigate('/admin');
     } else {
+      // Buscar usuario en localStorage o fallback
+      const savedUsersRaw = localStorage.getItem('ferre_users');
+      const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
+      const userEncontrado = savedUsers.find(
+        (u: any) => u.email.toLowerCase().trim() === email.toLowerCase().trim(),
+      );
+
+      if (userEncontrado && userEncontrado.activo === false) {
+        setError('Este usuario ha sido desactivado por el administrador');
+        return;
+      }
+
+      const usuarioFinal = userEncontrado || {
+        id: 'user-demo-1',
+        nombre: 'Carlos Ramos (Cajero Principal)',
+        email,
+        rol: 'ADMIN',
+        permisos: [
+          'pos.vender',
+          'pos.anular_venta',
+          'pos.aplicar_descuento',
+          'inventario.ver',
+          'inventario.editar',
+          'cotizaciones.crear',
+          'cotizaciones.aprobar',
+          'cotizaciones.convertir_venta',
+          'reportes.ver',
+          'usuarios.gestionar',
+          'configuracion.editar',
+        ],
+        descuentoMaximo: 100,
+        activo: true,
+      };
+
       login(
         {
-          id: 'user-demo-1',
-          nombre: 'Carlos Ramos (Cajero Principal)',
-          email,
-          rol: 'ADMIN',
+          id: usuarioFinal.id,
+          nombre: usuarioFinal.nombre,
+          email: usuarioFinal.email,
+          rol: usuarioFinal.rolBase || usuarioFinal.rol || 'ADMIN',
+          permisos: usuarioFinal.permisos || [],
+          descuentoMaximo: usuarioFinal.descuentoMaximo ?? 100,
+          activo: usuarioFinal.activo ?? true,
         },
         {
           id: 'tenant-demo-1',

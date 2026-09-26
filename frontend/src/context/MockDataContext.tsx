@@ -25,6 +25,16 @@ export interface QuotationItem {
   itemsCount: number;
 }
 
+export interface Usuario {
+  id: string;
+  nombre: string;
+  email: string;
+  rolBase: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR';
+  permisos: string[];
+  descuentoMaximo: number;
+  activo: boolean;
+}
+
 export interface SaleRecord {
   id: string;
   numeroVenta: number;
@@ -43,14 +53,54 @@ export interface SaleRecord {
   }>;
 }
 
+export const PERMISOS_DEFAULT_POR_ROL: Record<'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR', { permisos: string[]; descuentoMaximo: number }> = {
+  ADMIN: {
+    permisos: [
+      'pos.vender',
+      'pos.anular_venta',
+      'pos.aplicar_descuento',
+      'inventario.ver',
+      'inventario.editar',
+      'cotizaciones.crear',
+      'cotizaciones.aprobar',
+      'cotizaciones.convertir_venta',
+      'reportes.ver',
+      'usuarios.gestionar',
+      'configuracion.editar',
+    ],
+    descuentoMaximo: 100,
+  },
+  CAJERO: {
+    permisos: ['pos.vender', 'pos.aplicar_descuento', 'inventario.ver'],
+    descuentoMaximo: 10,
+  },
+  BODEGUERO: {
+    permisos: ['inventario.ver', 'inventario.editar'],
+    descuentoMaximo: 0,
+  },
+  VENDEDOR: {
+    permisos: [
+      'pos.vender',
+      'cotizaciones.crear',
+      'cotizaciones.aprobar',
+      'cotizaciones.convertir_venta',
+      'pos.aplicar_descuento',
+    ],
+    descuentoMaximo: 15,
+  },
+};
+
 interface MockDataContextType {
   productos: ProductItem[];
   cotizaciones: QuotationItem[];
   ventas: SaleRecord[];
+  usuarios: Usuario[];
   agregarProducto: (producto: Omit<ProductItem, 'id'>) => ProductItem;
   agregarCotizacion: (cotizacion: Omit<QuotationItem, 'id' | 'numero'>) => QuotationItem;
   convertirCotizacionAVenta: (cotizacionId: string) => void;
   registrarVenta: (venta: Omit<SaleRecord, 'id' | 'numeroVenta' | 'fecha'>) => SaleRecord;
+  agregarUsuario: (usuario: Omit<Usuario, 'id'>) => Usuario;
+  actualizarUsuario: (id: string, data: Partial<Omit<Usuario, 'id'>>) => void;
 }
 
 const INITIAL_PRODUCTOS: ProductItem[] = [
@@ -196,6 +246,45 @@ const INITIAL_VENTAS: SaleRecord[] = [
   },
 ];
 
+const INITIAL_USUARIOS: Usuario[] = [
+  {
+    id: 'user-demo-admin',
+    nombre: 'Carlos Ramos (Admin Ferretería)',
+    email: 'admin@lamundial.hn',
+    rolBase: 'ADMIN',
+    permisos: PERMISOS_DEFAULT_POR_ROL.ADMIN.permisos,
+    descuentoMaximo: 100,
+    activo: true,
+  },
+  {
+    id: 'user-demo-1',
+    nombre: 'Carlos Ramos (Cajero)',
+    email: 'cajero@lamundial.hn',
+    rolBase: 'CAJERO',
+    permisos: PERMISOS_DEFAULT_POR_ROL.CAJERO.permisos,
+    descuentoMaximo: 10,
+    activo: true,
+  },
+  {
+    id: 'user-demo-bodeguero',
+    nombre: 'Jorge Mendoza (Bodeguero)',
+    email: 'bodega@lamundial.hn',
+    rolBase: 'BODEGUERO',
+    permisos: PERMISOS_DEFAULT_POR_ROL.BODEGUERO.permisos,
+    descuentoMaximo: 0,
+    activo: true,
+  },
+  {
+    id: 'user-demo-vendedor',
+    nombre: 'Ana Martínez (Vendedora)',
+    email: 'vendedor@lamundial.hn',
+    rolBase: 'VENDEDOR',
+    permisos: PERMISOS_DEFAULT_POR_ROL.VENDEDOR.permisos,
+    descuentoMaximo: 15,
+    activo: true,
+  },
+];
+
 const MockDataContext = createContext<MockDataContextType | undefined>(undefined);
 
 export const MockDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -214,6 +303,11 @@ export const MockDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return saved ? JSON.parse(saved) : INITIAL_VENTAS;
   });
 
+  const [usuarios, setUsuarios] = useState<Usuario[]>(() => {
+    const saved = localStorage.getItem('ferre_users');
+    return saved ? JSON.parse(saved) : INITIAL_USUARIOS;
+  });
+
   useEffect(() => {
     localStorage.setItem('ferre_mock_productos', JSON.stringify(productos));
   }, [productos]);
@@ -225,6 +319,10 @@ export const MockDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     localStorage.setItem('ferre_mock_ventas', JSON.stringify(ventas));
   }, [ventas]);
+
+  useEffect(() => {
+    localStorage.setItem('ferre_users', JSON.stringify(usuarios));
+  }, [usuarios]);
 
   const agregarProducto = (productoData: Omit<ProductItem, 'id'>): ProductItem => {
     const nuevo: ProductItem = {
@@ -296,16 +394,34 @@ export const MockDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
+  const agregarUsuario = (usuarioData: Omit<Usuario, 'id'>): Usuario => {
+    const nuevo: Usuario = {
+      ...usuarioData,
+      id: `usr-${Date.now()}`,
+    };
+    setUsuarios((prev) => [nuevo, ...prev]);
+    return nuevo;
+  };
+
+  const actualizarUsuario = (id: string, data: Partial<Omit<Usuario, 'id'>>) => {
+    setUsuarios((prev) =>
+      prev.map((u) => (u.id === id ? { ...u, ...data } : u)),
+    );
+  };
+
   return (
     <MockDataContext.Provider
       value={{
         productos,
         cotizaciones,
         ventas,
+        usuarios,
         agregarProducto,
         agregarCotizacion,
         convertirCotizacionAVenta,
         registrarVenta,
+        agregarUsuario,
+        actualizarUsuario,
       }}
     >
       {children}

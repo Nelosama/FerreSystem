@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { TenantProvider } from './context/TenantContext';
 import { MockDataProvider } from './context/MockDataContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { Sidebar } from './components/Sidebar';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { DashboardPage } from './pages/DashboardPage';
@@ -10,6 +11,7 @@ import { POSPage } from './pages/POSPage';
 import { CotizacionesPage } from './pages/CotizacionesPage';
 import { ConfiguracionPage } from './pages/ConfiguracionPage';
 import { SuperAdminPage } from './pages/SuperAdminPage';
+import { UsuariosPage } from './pages/UsuariosPage';
 import { LoginPage } from './pages/LoginPage';
 import './App.css';
 
@@ -27,7 +29,8 @@ export const App: React.FC = () => {
   return (
     <TenantProvider>
       <MockDataProvider>
-        <BrowserRouter>
+        <NotificationProvider>
+          <BrowserRouter>
         <Routes>
           {/* Ruta pública de login */}
           <Route path="/login" element={<LoginPage />} />
@@ -39,6 +42,16 @@ export const App: React.FC = () => {
               <ProtectedRoute>
                 <AppLayout>
                   <DashboardPage />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/usuarios"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <AppLayout>
+                  <UsuariosPage />
                 </AppLayout>
               </ProtectedRoute>
             }
@@ -96,8 +109,9 @@ export const App: React.FC = () => {
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
+            </Routes>
+          </BrowserRouter>
+        </NotificationProvider>
       </MockDataProvider>
     </TenantProvider>
   );

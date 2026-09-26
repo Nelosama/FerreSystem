@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { useMockData, type ProductItem } from '../context/MockDataContext';
+import { useNotification, type SolicitudDescuento } from '../context/NotificationContext';
 import {
   Search,
   Plus,
@@ -14,6 +15,9 @@ import {
   Banknote,
   Printer,
   X,
+  ShieldAlert,
+  Loader2,
+  Percent,
 } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 
@@ -28,19 +32,63 @@ interface CartItem {
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
   const { productos, registrarVenta } = useMockData();
+  const { solicitudes, solicitarDescuento } = useNotification();
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState('');
   const [clienteNombre, setClienteNombre] = useState('Consumidor Final');
   const [clienteRtn, setClienteRtn] = useState('');
   const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO'>('EFECTIVO');
+  const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(0);
   const [modalTicket, setModalTicket] = useState(false);
   const [numeroVentaGenerado, setNumeroVentaGenerado] = useState<number | null>(null);
 
-  // Cálculos fiscales hondureños
-  const subtotal = cart.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
+  // Solicitud de autorización de descuento
+  const [solicitudActiva, setSolicitudActiva] = useState<SolicitudDescuento | null>(null);
+  const [esperandoAutorizacion, setEsperandoAutorizacion] = useState(false);
+  const [mensajeEstado, setMensajeEstado] = useState<string | null>(null);
+
+  // Límite de descuento del usuario actual (10% por defecto si no definido)
+  const descuentoMaximoPermitido = user?.descuentoMaximo ?? 10;
+  const esDescuentoExcedido = descuentoPorcentaje > descuentoMaximoPermitido;
+
+  // Escuchar cambios en la solicitud activa
+  React.useEffect(() => {
+    if (!solicitudActiva) return;
+    const solActualizada = solicitudes.find((s) => s.id === solicitudActiva.id);
+    if (solActualizada && solActualizada.estado !== 'PENDIENTE') {
+      setEsperandoAutorizacion(false);
+      if (solActualizada.estado === 'APROBADA') {
+        setMensajeEstado(`¡Descuento del ${solActualizada.descuentoPorcentaje}% APROBADO por ${solActualizada.respondidoPor || 'Administrador'}!`);
+      } else if (solActualizada.estado === 'RECHAZADA') {
+        setMensajeEstado(`Solicitud RECHAZADA por ${solActualizada.respondidoPor || 'Administrador'}. Por favor ajuste el porcentaje.`);
+        setDescuentoPorcentaje(0);
+      }
+      setSolicitudActiva(null);
+    }
+  }, [solicitudes, solicitudActiva]);
+
+  // Cálculos fiscales hondureños con descuento
+  const subtotalBruto = cart.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
+  const montoDescuento = Math.round(subtotalBruto * (descuentoPorcentaje / 100) * 100) / 100;
+  const subtotal = subtotalBruto - montoDescuento;
   const isv = Math.round(subtotal * 0.15 * 100) / 100;
   const total = subtotal + isv;
+
+  const handleSolicitarAutorizacion = () => {
+    if (!user) return;
+    setMensajeEstado(null);
+    const nuevaSol = solicitarDescuento({
+      cajeroId: user.id,
+      cajeroNombre: user.nombre,
+      subtotal: subtotalBruto,
+      totalOriginal: Math.round((subtotalBruto * 1.15) * 100) / 100,
+      descuentoPorcentaje,
+      totalConDescuento: total,
+    });
+    setSolicitudActiva(nuevaSol);
+    setEsperandoAutorizacion(true);
+  };
 
   const agregarAlCarrito = (prod: ProductItem) => {
     const existe = cart.find((i) => i.productoId === prod.id);
@@ -236,12 +284,70 @@ export const POSPage: React.FC = () => {
               )}
             </div>
 
+            {/* Sección de Descuento y Autorización */}
+            <div style={styles.descuentoSection}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700, fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Percent size={13} color="var(--color-primary)" /> APLICAR DESCUENTO (%)
+                </label>
+                <span style={{ fontSize: '10px', color: '#78716C' }}>Límite cajero: {descuentoMaximoPermitido}%</span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={descuentoPorcentaje}
+                  onChange={(e) => {
+                    setDescuentoPorcentaje(Math.min(100, Math.max(0, Number(e.target.value))));
+                    setMensajeEstado(null);
+                  }}
+                  className="form-input"
+                  style={{ padding: '6px 10px', fontSize: '13px', width: '90px', fontWeight: 800 }}
+                />
+                {montoDescuento > 0 && (
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#DC2626' }}>
+                    -{formatLempiras(montoDescuento)}
+                  </span>
+                )}
+              </div>
+
+              {esDescuentoExcedido && (
+                <div style={styles.alertaDescuentoBox}>
+                  <ShieldAlert size={16} color="#DC2626" />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: '11px', color: '#991B1B' }}>
+                      DESCUENTO EXCEDE TU LÍMITE PERMITIDO ({descuentoMaximoPermitido}%)
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#B91C1C', marginTop: '2px' }}>
+                      Requiere aprobación en tiempo real de un Administrador.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {mensajeEstado && (
+                <div style={{ ...styles.alertaDescuentoBox, backgroundColor: mensajeEstado.includes('APROBADO') ? '#DCFCE7' : '#FEE2E2', borderColor: mensajeEstado.includes('APROBADO') ? '#15803D' : '#EF4444' }}>
+                  <div style={{ fontWeight: 700, fontSize: '11px', color: mensajeEstado.includes('APROBADO') ? '#15803D' : '#991B1B' }}>
+                    {mensajeEstado}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Totales Fiscales */}
             <div style={styles.totalsSection}>
               <div style={styles.totalRow}>
-                <span style={styles.totalLabel}>SUBTOTAL:</span>
-                <span style={styles.totalVal}>{formatLempiras(subtotal)}</span>
+                <span style={styles.totalLabel}>SUBTOTAL BRUTO:</span>
+                <span style={styles.totalVal}>{formatLempiras(subtotalBruto)}</span>
               </div>
+              {montoDescuento > 0 && (
+                <div style={styles.totalRow}>
+                  <span style={{ ...styles.totalLabel, color: '#DC2626' }}>DESCUENTO ({descuentoPorcentaje}%):</span>
+                  <span style={{ ...styles.totalVal, color: '#DC2626' }}>-{formatLempiras(montoDescuento)}</span>
+                </div>
+              )}
               <div style={styles.totalRow}>
                 <span style={styles.totalLabel}>ISV (15%):</span>
                 <span style={styles.totalVal}>{formatLempiras(isv)}</span>
@@ -276,17 +382,39 @@ export const POSPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Botón de Cobro Final */}
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleCobrar}
-              disabled={cart.length === 0}
-              style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1 }}
-            >
-              <CheckCircle size={20} strokeWidth={2.5} />
-              <span>COBRAR {formatLempiras(total)}</span>
-            </button>
+            {/* Botón de Cobro o Solicitar Autorización */}
+            {esDescuentoExcedido ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSolicitarAutorizacion}
+                disabled={esperandoAutorizacion}
+                style={{ ...styles.checkoutBtn, backgroundColor: '#DC2626', borderColor: '#B91C1C' }}
+              >
+                {esperandoAutorizacion ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    <span>ESPERANDO APROBACIÓN ADMIN...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldAlert size={18} />
+                    <span>SOLICITAR AUTORIZACIÓN A ADMIN</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleCobrar}
+                disabled={cart.length === 0}
+                style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1 }}
+              >
+                <CheckCircle size={20} strokeWidth={2.5} />
+                <span>COBRAR {formatLempiras(total)}</span>
+              </button>
+            )}
           </div>
         </div>
       </main>
@@ -576,6 +704,23 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#DC2626',
     cursor: 'pointer',
     padding: '4px',
+  },
+  descuentoSection: {
+    padding: '10px 0',
+    borderTop: '1px solid var(--color-border-subtle)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  alertaDescuentoBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 10px',
+    backgroundColor: '#FEE2E2',
+    border: '1.5px solid #EF4444',
+    borderRadius: 'var(--radius-xs)',
+    marginTop: '4px',
   },
   totalsSection: {
     borderTop: '2px solid var(--color-border)',
