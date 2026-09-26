@@ -42,6 +42,8 @@ interface TenantItem {
   usuariosCount: number;
   sucursalesCount: number;
   colorPrimario: string;
+  logoUrl?: string | null;
+  modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
   sucursalesList?: SubSucursalItem[];
   modulosHabilitados?: string[];
 }
@@ -69,6 +71,7 @@ const CATALOGO_MODULOS = [
   { key: 'pedidos_especiales', label: 'Pedidos Especiales / Backorder', desc: 'Encargos sin stock y avisos' },
   { key: 'listas_precio', label: 'Listas de Precio / Segmentos', desc: 'Descuentos por tipo de cliente' },
   { key: 'comisiones_venta', label: 'Comisiones de Venta', desc: 'Cálculo de incentivos por vendedor' },
+  { key: 'reportes', label: 'Módulo de Reportes & KPIs', desc: 'Análisis de ventas, inventario, cotizaciones y operaciones' },
   { key: 'configuracion', label: 'Configuración / Marca', desc: 'Ajustes de tienda y white-label' },
 ];
 
@@ -187,6 +190,8 @@ export const SuperAdminPage: React.FC = () => {
   const [editTelefono, setEditTelefono] = useState('');
   const [editPlan, setEditPlan] = useState('');
   const [editColorPrimario, setEditColorPrimario] = useState('#EA580C');
+  const [editLogoUrl, setEditLogoUrl] = useState('');
+  const [editModoNavegacion, setEditModoNavegacion] = useState<'SIDEBAR' | 'TOPNAV'>('SIDEBAR');
 
   // Formulario nuevo tenant
   const [nombreComercial, setNombreComercial] = useState('');
@@ -248,6 +253,8 @@ export const SuperAdminPage: React.FC = () => {
         nombreComercial: modalSuplantarUser.nombreComercial,
         sucursal: 'Sucursal Centro (Principal)',
         colorPrimario: modalSuplantarUser.colorPrimario,
+        logoUrl: modalSuplantarUser.logoUrl,
+        modoNavegacion: modalSuplantarUser.modoNavegacion,
         modulosHabilitados: modalSuplantarUser.modulosHabilitados,
       },
       {
@@ -583,8 +590,10 @@ export const SuperAdminPage: React.FC = () => {
                                 setEditTelefono(t.telefono);
                                 setEditPlan(t.plan);
                                 setEditColorPrimario(t.colorPrimario);
+                                setEditLogoUrl(t.logoUrl || '');
+                                setEditModoNavegacion(t.modoNavegacion || 'SIDEBAR');
                               }}
-                              title="Editar marca, color y datos de la ferretería"
+                              title="Editar marca, logo, color y datos de la ferretería"
                             >
                               <Edit2 size={13} /> MARCA
                             </button>
@@ -1093,12 +1102,14 @@ export const SuperAdminPage: React.FC = () => {
                           telefono: editTelefono,
                           plan: editPlan,
                           colorPrimario: editColorPrimario,
+                          logoUrl: editLogoUrl.trim() || null,
+                          modoNavegacion: editModoNavegacion,
                         }
                       : t,
                   ),
                 );
                 setModalEditarTenant(null);
-                setMensajeExito(`¡Configuración de marca para "${editNombreComercial}" actualizada!`);
+                setMensajeExito(`¡Configuración de marca e imagen para "${editNombreComercial}" actualizada!`);
                 setTimeout(() => setMensajeExito(null), 4000);
               }}
               style={{ marginTop: '16px' }}
@@ -1112,6 +1123,55 @@ export const SuperAdminPage: React.FC = () => {
                   onChange={(e) => setEditNombreComercial(e.target.value)}
                   className="form-input"
                 />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">URL LOGO PERSONALIZADO (IMAGEN CORPORATIVA)</label>
+                <input
+                  type="url"
+                  placeholder="https://ejemplo.com/logo.png"
+                  value={editLogoUrl}
+                  onChange={(e) => setEditLogoUrl(e.target.value)}
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">ESTRUCTURA Y MODO DE NAVEGACIÓN</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditModoNavegacion('SIDEBAR')}
+                    style={{
+                      padding: '8px',
+                      fontWeight: 800,
+                      fontSize: '11px',
+                      backgroundColor: editModoNavegacion === 'SIDEBAR' ? '#1C1917' : '#FAFAF9',
+                      color: editModoNavegacion === 'SIDEBAR' ? '#FAFAF9' : '#1C1917',
+                      border: editModoNavegacion === 'SIDEBAR' ? '2px solid #EA580C' : '1px solid #D6D3D1',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    MENÚ LATERAL (SIDEBAR)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditModoNavegacion('TOPNAV')}
+                    style={{
+                      padding: '8px',
+                      fontWeight: 800,
+                      fontSize: '11px',
+                      backgroundColor: editModoNavegacion === 'TOPNAV' ? '#1C1917' : '#FAFAF9',
+                      color: editModoNavegacion === 'TOPNAV' ? '#FAFAF9' : '#1C1917',
+                      border: editModoNavegacion === 'TOPNAV' ? '2px solid #EA580C' : '1px solid #D6D3D1',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    MENÚ SUPERIOR (TOPNAV)
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>

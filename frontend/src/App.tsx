@@ -66,6 +66,9 @@ const ListasPrecioPage = React.lazy(() =>
 const ComisionesPage = React.lazy(() =>
   import('./pages/ComisionesPage').then(m => ({ default: m.ComisionesPage }))
 );
+const ReportesPage = React.lazy(() =>
+  import('./pages/ReportesPage').then(m => ({ default: m.ReportesPage }))
+);
 
 // Componente de carga para Suspense acorde al estilo industrial
 const PageLoader: React.FC = () => (
@@ -97,12 +100,17 @@ const HomeRoute: React.FC = () => {
   return <DashboardPage />;
 };
 
-// Layout principal que incluye el Sidebar institucional
+// Layout principal que admite modo Sidebar lateral o modo TopNav horizontal
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { tenant } = useTenant();
+  const isTopNav = tenant.modoNavegacion === 'TOPNAV';
+
   return (
-    <div className="app-container">
-      <Sidebar />
-      <div className="main-content">{children}</div>
+    <div className={isTopNav ? "app-container-topnav" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
+      {!isTopNav && <Sidebar />}
+      <div className="main-content" style={isTopNav ? { flex: 1, width: '100%' } : undefined}>
+        {children}
+      </div>
     </div>
   );
 };
@@ -127,6 +135,16 @@ export const App: React.FC = () => {
                       <ProtectedRoute>
                         <AppLayout>
                           <HomeRoute />
+                        </AppLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/reportes"
+                    element={
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredPermiso="reportes.ver">
+                        <AppLayout>
+                          <ReportesPage />
                         </AppLayout>
                       </ProtectedRoute>
                     }

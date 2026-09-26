@@ -19,6 +19,7 @@ export interface SaleRecord {
   numeroVenta: number;
   clienteNombre: string;
   clienteRtn?: string;
+  vendedorNombre?: string;
   subtotal: number;
   isv: number;
   total: number;
@@ -29,6 +30,7 @@ export interface SaleRecord {
     nombre: string;
     precioUnitario: number;
     cantidad: number;
+    categoria?: string;
   }>;
 }
 
@@ -362,12 +364,89 @@ const INITIAL_VENTAS: SaleRecord[] = [
     id: 'v-1',
     numeroVenta: 1042,
     clienteNombre: 'Consumidor Final',
+    vendedorNombre: 'Carlos Ramos (Cajero)',
     subtotal: 37026.09,
     isv: 5553.91,
     total: 42580.00,
     metodoPago: 'EFECTIVO',
     fecha: new Date().toISOString(),
-    items: [],
+    items: [
+      {
+        productoId: 'p-1',
+        nombre: 'Martillo de Uña Curva 16oz Stanley',
+        precioUnitario: 245.00,
+        cantidad: 10,
+        categoria: 'Herramientas',
+      },
+      {
+        productoId: 'p-2',
+        nombre: 'Cemento Bijao Gris Uso General 42.5kg',
+        precioUnitario: 220.00,
+        cantidad: 150,
+        categoria: 'Construcción',
+      },
+      {
+        productoId: 'p-clv-1',
+        nombre: 'Clavos de Acero Concreto 2.5"',
+        precioUnitario: 19.13,
+        cantidad: 360,
+        categoria: 'Fijación',
+      },
+    ],
+  },
+  {
+    id: 'v-2',
+    numeroVenta: 1041,
+    clienteNombre: 'Constructora del Norte S. de R.L.',
+    vendedorNombre: 'Ana Martínez (Vendedora)',
+    subtotal: 12500.00,
+    isv: 1875.00,
+    total: 14375.00,
+    metodoPago: 'CREDITO',
+    fecha: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    items: [
+      {
+        productoId: 'p-alz-1',
+        nombre: 'Aluzinc natural 0.40 mm HG',
+        precioUnitario: 39.00,
+        cantidad: 200,
+        categoria: 'Construcción',
+      },
+      {
+        productoId: 'p-3',
+        nombre: 'Varilla Corrugada 3/8" Grado 40 (6m)',
+        precioUnitario: 165.00,
+        cantidad: 25,
+        categoria: 'Construcción',
+      },
+    ],
+  },
+  {
+    id: 'v-3',
+    numeroVenta: 1040,
+    clienteNombre: 'Taller Mecánico San José',
+    vendedorNombre: 'Carlos Ramos (Admin Ferretería)',
+    subtotal: 6200.00,
+    isv: 930.00,
+    total: 7130.00,
+    metodoPago: 'TARJETA',
+    fecha: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    items: [
+      {
+        productoId: 'p-6',
+        nombre: 'Cinta Métrica 8m / 26ft Truper Grip',
+        precioUnitario: 185.00,
+        cantidad: 10,
+        categoria: 'Herramientas',
+      },
+      {
+        productoId: 'p-5',
+        nombre: 'Cable THHN Calibre 12 AWG Rollo 100m',
+        precioUnitario: 1450.00,
+        cantidad: 3,
+        categoria: 'Electricidad',
+      },
+    ],
   },
 ];
 
