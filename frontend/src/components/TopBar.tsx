@@ -1,7 +1,8 @@
 import React from 'react';
-import { Calendar, Clock, UserCheck, LogOut, Bell, Check, X, ShieldAlert, GitBranch } from 'lucide-react';
+import { Calendar, Clock, UserCheck, LogOut, Bell, Check, X, ShieldAlert, GitBranch, Languages } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useNotification, type SolicitudDescuento } from '../context/NotificationContext';
+import { useI18n } from '../context/I18nContext';
 import { useNavigate } from 'react-router-dom';
 import { formatLempiras } from '../utils/format';
 
@@ -16,6 +17,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 }) => {
   const { user, tenant, isImpersonating, stopImpersonating, switchSucursal, logout } = useTenant();
   const { solicitudes, responderSolicitud } = useNotification();
+  const { locale, setLocale, t } = useI18n();
   const navigate = useNavigate();
 
   const [panelNotificaciones, setPanelNotificaciones] = React.useState(false);
@@ -226,6 +228,44 @@ export const TopBar: React.FC<TopBarProps> = ({
             )}
           </div>
         )}
+
+        {/* Selector de Idioma Global ES / EN */}
+        <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#FFFFFF', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-xs)', padding: '2px' }}>
+          <button
+            type="button"
+            onClick={() => setLocale('es')}
+            style={{
+              padding: '4px 8px',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 800,
+              fontSize: '11px',
+              border: 'none',
+              borderRadius: '2px',
+              backgroundColor: locale === 'es' ? 'var(--color-primary)' : 'transparent',
+              color: locale === 'es' ? '#FFFFFF' : '#44403C',
+              cursor: 'pointer',
+            }}
+          >
+            ES
+          </button>
+          <button
+            type="button"
+            onClick={() => setLocale('en')}
+            style={{
+              padding: '4px 8px',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 800,
+              fontSize: '11px',
+              border: 'none',
+              borderRadius: '2px',
+              backgroundColor: locale === 'en' ? 'var(--color-primary)' : 'transparent',
+              color: locale === 'en' ? '#FFFFFF' : '#44403C',
+              cursor: 'pointer',
+            }}
+          >
+            EN
+          </button>
+        </div>
 
         {/* Badge de Fecha Oficial */}
         <div style={styles.dateBadge}>

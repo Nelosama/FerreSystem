@@ -148,5 +148,30 @@
     "language": "Idioma del Sistema",
     "currency": "Moneda Principal",
     "tax": "Impuesto de Ventas"
+  },
+  "topbar": {
+    "shift_info": "Turno Actual: 08:00 AM - 05:00 PM",
+    "logout": "SALIR",
+    "support_mode": "MODO SOPORTE TÉCNICO ACTIVO",
+    "exit_support": "SALIR DE MODO SOPORTE Y VOLVER AL PORTAL SAAS"
+  },
+  "reports": {
+    "title": "MÓDULO DE REPORTES & KPIS",
+    "subtitle": "Análisis Ejecutivo, Métricas Operativas & Inteligencia de Negocio",
+    "global_filter": "FILTRO DE FECHAS GLOBAL",
+    "from": "DESDE",
+    "to": "HASTA",
+    "today": "HOY",
+    "this_week": "ESTA SEMANA",
+    "this_month": "ESTE MES",
+    "custom": "PERSONALIZADO",
+    "export_csv": "EXPORTAR CSV",
+    "tabs": {
+      "sales": "VENTAS",
+      "inventory": "INVENTARIO",
+      "quotations": "COTIZACIONES",
+      "operations": "OPERACIONES",
+      "customers": "CLIENTES"
+    }
   }
 }

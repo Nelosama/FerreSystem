@@ -100,12 +100,17 @@ const HomeRoute: React.FC = () => {
   return <DashboardPage />;
 };
 
-// Layout principal que incluye el Sidebar institucional
+// Layout principal que admite modo Sidebar lateral o modo TopNav horizontal
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { tenant } = useTenant();
+  const isTopNav = tenant.modoNavegacion === 'TOPNAV';
+
   return (
-    <div className="app-container">
-      <Sidebar />
-      <div className="main-content">{children}</div>
+    <div className={isTopNav ? "app-container-topnav" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
+      {!isTopNav && <Sidebar />}
+      <div className="main-content" style={isTopNav ? { flex: 1, width: '100%' } : undefined}>
+        {children}
+      </div>
     </div>
   );
 };

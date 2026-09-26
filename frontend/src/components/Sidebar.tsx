@@ -187,13 +187,23 @@ export const Sidebar: React.FC = () => {
       {/* Brand Header */}
       <div style={styles.brandHeader}>
         <div style={styles.logoRow}>
-          <div style={styles.logoIcon}>
-            <Box size={28} strokeWidth={2.5} color="var(--color-primary)" />
-          </div>
-          <div style={styles.brandName}>
-            <span style={styles.brandFerre}>Ferre</span>
-            <span style={styles.brandSystem}>System</span>
-          </div>
+          {tenant.logoUrl ? (
+            <img
+              src={tenant.logoUrl}
+              alt="Tenant Logo"
+              style={{ height: '36px', width: 'auto', maxHeight: '42px', objectFit: 'contain' }}
+            />
+          ) : (
+            <div style={styles.logoIcon}>
+              <Box size={28} strokeWidth={2.5} color="var(--color-primary)" />
+            </div>
+          )}
+          {!tenant.logoUrl && (
+            <div style={styles.brandName}>
+              <span style={styles.brandFerre}>Ferre</span>
+              <span style={styles.brandSystem}>System</span>
+            </div>
+          )}
         </div>
         <div style={styles.tenantName}>
           {tenant.nombreComercial || 'LA MUNDIAL - SUCURSAL CENTRO'}

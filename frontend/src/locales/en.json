@@ -148,5 +148,30 @@
     "language": "System Language",
     "currency": "Primary Currency",
     "tax": "Sales Tax"
+  },
+  "topbar": {
+    "shift_info": "Current Shift: 08:00 AM - 05:00 PM",
+    "logout": "LOGOUT",
+    "support_mode": "TECHNICAL SUPPORT MODE ACTIVE",
+    "exit_support": "EXIT SUPPORT MODE & RETURN TO SAAS PORTAL"
+  },
+  "reports": {
+    "title": "REPORTS & KPIS MODULE",
+    "subtitle": "Executive Analytics, Operational Metrics & Business Intelligence",
+    "global_filter": "GLOBAL DATE FILTER",
+    "from": "FROM",
+    "to": "TO",
+    "today": "TODAY",
+    "this_week": "THIS WEEK",
+    "this_month": "THIS MONTH",
+    "custom": "CUSTOM",
+    "export_csv": "EXPORT CSV",
+    "tabs": {
+      "sales": "SALES",
+      "inventory": "INVENTORY",
+      "quotations": "QUOTATIONS",
+      "operations": "OPERATIONS",
+      "customers": "CUSTOMERS"
+    }
   }
 }

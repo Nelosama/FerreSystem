@@ -65,10 +65,14 @@ export const ConfiguracionPage: React.FC = () => {
 
   const [nombre, setNombre] = useState(currentSelectedTenant.nombreComercial);
   const [sucursal, setSucursal] = useState(currentSelectedTenant.sucursal || 'Sucursal Principal');
+  const [logoUrl, setLogoUrl] = useState(currentSelectedTenant.logoUrl || '');
   const [color, setColor] = useState(currentSelectedTenant.colorPrimario || '#EA580C');
   const [rubro, setRubro] = useState<Rubro>((currentSelectedTenant.rubro || tenant.rubro || Rubro.FERRETERIA) as Rubro);
   const [estiloUI, setEstiloUI] = useState<'INDUSTRIAL' | 'MINIMALISTA' | 'MODERNO'>(
     (currentSelectedTenant.estiloUI || tenant.estiloUI || 'INDUSTRIAL') as any,
+  );
+  const [modoNavegacion, setModoNavegacion] = useState<'SIDEBAR' | 'TOPNAV'>(
+    (currentSelectedTenant.modoNavegacion || tenant.modoNavegacion || 'SIDEBAR') as any,
   );
   const [fuenteTitulos, setFuenteTitulos] = useState<'Archivo' | 'Space Grotesk' | 'Poppins' | 'Montserrat'>(
     (currentSelectedTenant.fuenteTitulos || tenant.fuenteTitulos || 'Archivo') as any,
@@ -97,9 +101,11 @@ export const ConfiguracionPage: React.FC = () => {
     if (currentSelectedTenant) {
       setNombre(currentSelectedTenant.nombreComercial);
       setSucursal(currentSelectedTenant.sucursal || 'Sucursal Principal');
+      setLogoUrl(currentSelectedTenant.logoUrl || '');
       setColor(currentSelectedTenant.colorPrimario || '#EA580C');
       setRubro((currentSelectedTenant.rubro || Rubro.FERRETERIA) as Rubro);
       setEstiloUI((currentSelectedTenant.estiloUI || 'INDUSTRIAL') as any);
+      setModoNavegacion((currentSelectedTenant.modoNavegacion || 'SIDEBAR') as any);
       setFuenteTitulos((currentSelectedTenant.fuenteTitulos || 'Archivo') as any);
       setFuenteCuerpo((currentSelectedTenant.fuenteCuerpo || 'Inter') as any);
       setMonedaSimbolo(currentSelectedTenant.moneda?.simbolo || 'L.');
@@ -129,9 +135,11 @@ export const ConfiguracionPage: React.FC = () => {
             ...t,
             nombreComercial: nombre,
             sucursal,
+            logoUrl: logoUrl.trim() || null,
             colorPrimario: color,
             rubro,
             estiloUI,
+            modoNavegacion,
             fuenteTitulos,
             fuenteCuerpo,
             moneda: updatedMoneda,
@@ -152,9 +160,11 @@ export const ConfiguracionPage: React.FC = () => {
       updateTenantConfig({
         nombreComercial: nombre,
         sucursal,
+        logoUrl: logoUrl.trim() || null,
         colorPrimario: color,
         rubro,
         estiloUI,
+        modoNavegacion,
         fuenteTitulos,
         fuenteCuerpo,
         moneda: updatedMoneda,
@@ -322,6 +332,18 @@ export const ConfiguracionPage: React.FC = () => {
               />
             </div>
 
+            {/* URL del Logo Personalizado de la Empresa */}
+            <div className="form-group">
+              <label className="form-label">URL LOGO PERSONALIZADO (IMAGEN CORPORATIVA)</label>
+              <input
+                type="url"
+                placeholder="https://ejemplo.com/logo-ferreteria.png"
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                className="form-input"
+              />
+            </div>
+
             {/* Selector de Rubro Comercial */}
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -389,38 +411,46 @@ export const ConfiguracionPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Selector de Estilo de Interfaz (3 Temas) */}
+            {/* Selector de Estilo de Interfaz y Modo de Navegación */}
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Layout size={14} color="var(--color-primary)" />
-                <span>ESTILO DE INTERFAZ / TEMA DE DISEÑO</span>
+                <span>MODO DE NAVEGACIÓN Y ESTRUCTURA DE PÁGINA</span>
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '6px' }}>
-                {[
-                  { key: 'INDUSTRIAL', name: 'INDUSTRIAL', desc: 'Sidebar charcoal, bordes 2px duros' },
-                  { key: 'MINIMALISTA', name: 'MINIMALISTA', desc: 'Sidebar claro, bordes 1px, esquinas 10px' },
-                  { key: 'MODERNO', name: 'MODERNO', desc: 'Sidebar color primario, bordes suaves 12px' },
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => setEstiloUI(item.key as any)}
-                    style={{
-                      padding: '10px 8px',
-                      backgroundColor: estiloUI === item.key ? '#1C1917' : '#FAFAF9',
-                      color: estiloUI === item.key ? '#FAFAF9' : '#1C1917',
-                      border: estiloUI === item.key ? '2px solid #EA580C' : '1.5px solid #D6D3D1',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <div style={{ fontWeight: 900, fontSize: '11px' }}>{item.name}</div>
-                    <div style={{ fontSize: '9px', color: estiloUI === item.key ? '#A8A29E' : '#78716C', marginTop: '2px' }}>
-                      {item.desc}
-                    </div>
-                  </button>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setModoNavegacion('SIDEBAR')}
+                  style={{
+                    padding: '10px',
+                    backgroundColor: modoNavegacion === 'SIDEBAR' ? '#1C1917' : '#FAFAF9',
+                    color: modoNavegacion === 'SIDEBAR' ? '#FAFAF9' : '#1C1917',
+                    border: modoNavegacion === 'SIDEBAR' ? '2px solid var(--color-primary)' : '1.5px solid #D6D3D1',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ fontWeight: 900, fontSize: '11px' }}>MENÚ LATERAL (SIDEBAR)</div>
+                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>Panel vertical a la izquierda</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setModoNavegacion('TOPNAV')}
+                  style={{
+                    padding: '10px',
+                    backgroundColor: modoNavegacion === 'TOPNAV' ? '#1C1917' : '#FAFAF9',
+                    color: modoNavegacion === 'TOPNAV' ? '#FAFAF9' : '#1C1917',
+                    border: modoNavegacion === 'TOPNAV' ? '2px solid var(--color-primary)' : '1.5px solid #D6D3D1',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ fontWeight: 900, fontSize: '11px' }}>MENÚ SUPERIOR (TOPNAV)</div>
+                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>Navegación horizontal completa</div>
+                </button>
               </div>
             </div>
 
