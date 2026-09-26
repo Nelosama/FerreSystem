@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Body, Param, UseGuards } from '@nestjs/common';
 import { CotizacionesService } from './cotizaciones.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
@@ -31,6 +31,26 @@ export class CotizacionesController {
     @Body() dto: CreateCotizacionDto,
   ) {
     return this.cotizacionesService.create(tenantId, usuarioId, dto);
+  }
+
+  @Put(':id')
+  @Roles('ADMIN', 'VENDEDOR', 'CAJERO')
+  async update(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: CreateCotizacionDto,
+  ) {
+    return this.cotizacionesService.update(tenantId, id, dto);
+  }
+
+  @Post(':id/duplicar')
+  @Roles('ADMIN', 'VENDEDOR', 'CAJERO')
+  async duplicate(
+    @TenantId() tenantId: string,
+    @CurrentUser('sub') usuarioId: string,
+    @Param('id') id: string,
+  ) {
+    return this.cotizacionesService.duplicate(tenantId, usuarioId, id);
   }
 
   @Patch(':id/estado')

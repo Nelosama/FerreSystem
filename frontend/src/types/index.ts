@@ -39,13 +39,16 @@ export interface ProductItem {
   codigo: string;
   codigoBarras?: string;
   nombre: string;
+  descripcion?: string;
   categoria: string;
   precioVenta: number;
   precioCosto: number;
   stockActual: number;
   stockMinimo: number;
   unidadMedida: string;
-  stockBajo: boolean;
+  usaMedida?: boolean;
+  activo?: boolean;
+  stockBajo?: boolean;
 }
 
 export interface SaleItem {
@@ -60,12 +63,55 @@ export interface SaleItem {
   itemsCount: number;
 }
 
+export interface QuotationDetailItem {
+  id: string;
+  productoId: string;
+  codigoProducto: string;
+  descripcionProducto: string;
+  unidadMedida: string;
+  usaMedida: boolean;
+  cantidad: number;
+  medida: number;
+  totalMedida: number;
+  precioLista: number;
+  precioUnitario: number;
+  precioModificado?: boolean;
+  descuento: number;
+  tipoDescuento: 'PORCENTAJE' | 'MONTO';
+  exento: boolean;
+  subtotal: number;
+  isv: number;
+  totalLinea: number;
+}
+
 export interface QuotationItem {
   id: string;
-  numeroCotizacion: number;
+  numero: number;
+  numeroCotizacion?: number;
   cliente: string;
-  total: number;
-  estado: 'BORRADOR' | 'ENVIADA' | 'APROBADA' | 'RECHAZADA' | 'VENCIDA' | 'CONVERTIDA';
+  rtn?: string;
+  telefono?: string;
+  email?: string;
+  direccion?: string;
+  usuarioId?: string;
+  usuarioNombre?: string;
+  fechaEmision?: string;
   fechaValidez: string;
-  vencePronto: boolean;
+  diasValidez?: number;
+  condicionesPago?: string;
+  subtotal: number;
+  descuentoGeneral?: number;
+  tipoDescuentoGeneral?: 'PORCENTAJE' | 'MONTO';
+  porcentajeIsv?: number;
+  isv: number;
+  descuento?: number;
+  total: number;
+  estado: 'BORRADOR' | 'EMITIDA' | 'ENVIADA' | 'APROBADA' | 'RECHAZADA' | 'VENCIDA' | 'CONVERTIDA';
+  notas?: string;
+  itemsCount: number;
+  detalles?: QuotationDetailItem[];
+  vencePronto?: boolean;
+  porVencerHoy?: boolean;
+  vencida?: boolean;
+  createdAt?: string;
 }

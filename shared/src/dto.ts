@@ -117,6 +117,7 @@ export interface ProductoResumen {
   stockActual: number;
   stockMinimo: number;
   unidadMedida: UnidadMedida;
+  usaMedida?: boolean;
   activo: boolean;
   categoria: CategoriaDto | null;
   imagenUrl: string | null;
@@ -218,44 +219,81 @@ export interface DetalleCotizacionDto {
   productoId: string;
   productoNombre: string;
   productoCodigo: string;
+  unidadMedida: string;
+  usaMedida: boolean;
   cantidad: number;
+  medida: number;
+  totalMedida: number;
+  precioLista: number;
   precioUnitario: number;
+  precioModificado?: boolean;
+  descuento: number;
+  tipoDescuento: 'PORCENTAJE' | 'MONTO';
+  exento: boolean;
   subtotal: number;
+  isv: number;
+  totalLinea: number;
 }
 
 export interface CotizacionResumen {
   id: string;
   numeroCotizacion: number;
+  clienteId?: string | null;
   clienteNombre: string;
+  clienteRtn?: string | null;
+  clienteTelefono?: string | null;
+  clienteEmail?: string | null;
+  clienteDireccion?: string | null;
+  usuarioId: string;
   usuarioNombre: string;
   subtotal: number;
+  descuentoGeneral: number;
+  tipoDescuentoGeneral: 'PORCENTAJE' | 'MONTO';
+  porcentajeIsv: number;
   isv: number;
   descuento: number;
   total: number;
   estado: EstadoCotizacion;
   fechaValidez: string;
+  condicionesPago?: string;
+  diasValidez?: number;
+  notas?: string | null;
   createdAt: string;
 }
 
 export interface CotizacionCompleta extends CotizacionResumen {
-  clienteId: string;
-  usuarioId: string;
-  notas: string | null;
   ventaId: string | null;
   detalles: DetalleCotizacionDto[];
   updatedAt: string;
 }
 
 export interface CrearCotizacionRequest {
-  clienteId: string;
-  fechaValidez: string;
-  descuento?: number;
+  clienteId?: string;
+  clienteNombre?: string;
+  clienteRtn?: string;
+  clienteTelefono?: string;
+  clienteEmail?: string;
+  clienteDireccion?: string;
+  fechaValidez?: string;
+  diasValidez?: number;
+  condicionesPago?: string;
+  descuentoGeneral?: number;
+  tipoDescuentoGeneral?: 'PORCENTAJE' | 'MONTO';
+  porcentajeIsv?: number;
   notas?: string;
   detalles: {
     productoId: string;
     cantidad: number;
-    precioUnitario: number;
+    medida?: number;
+    precioUnitario?: number;
+    descuento?: number;
+    tipoDescuento?: 'PORCENTAJE' | 'MONTO';
+    exento?: boolean;
   }[];
+}
+
+export interface ActualizarCotizacionRequest extends Partial<CrearCotizacionRequest> {
+  estado?: EstadoCotizacion;
 }
 
 // ─── Dashboard ───────────────────────────────────────────────

@@ -28,11 +28,17 @@ enum EstadoTenant {
 
 enum UnidadMedida {
   UNIDAD
-  CAJA
+  PIE
   METRO
+  METRO_CUADRADO
+  METRO_CUBICO
+  LIBRA
   KG
   GALON
-  LIBRA
+  LITRO
+  CAJA
+  PAQUETE
+  OTRO
 }
 
 enum TipoCliente {
@@ -173,6 +179,7 @@ model Producto {
   stockActual   Int         @default(0) @map("stock_actual")
   stockMinimo   Int         @default(0) @map("stock_minimo")
   unidadMedida  UnidadMedida @default(UNIDAD) @map("unidad_medida")
+  usaMedida     Boolean     @default(false) @map("usa_medida")
   activo        Boolean     @default(true)
   imagenUrl     String?     @map("imagen_url")
   createdAt     DateTime    @default(now()) @map("created_at")
@@ -293,28 +300,38 @@ model DetalleVenta {
 // ============================================================
 
 model Cotizacion {
-  id                String           @id @default(uuid())
-  tenantId          String           @map("tenant_id")
-  numeroCotizacion  Int              @map("numero_cotizacion")
-  clienteId         String           @map("cliente_id")
-  usuarioId         String           @map("usuario_id")
-  subtotal          Decimal          @db.Decimal(12, 2)
-  isv               Decimal          @db.Decimal(12, 2)
-  descuento         Decimal          @default(0) @db.Decimal(12, 2)
-  total             Decimal          @db.Decimal(12, 2)
-  estado            EstadoCotizacion @default(BORRADOR)
-  fechaValidez      DateTime         @map("fecha_validez") @db.Date
-  notas             String?
-  ventaId           String?          @unique @map("venta_id")
-  createdAt         DateTime         @default(now()) @map("created_at")
-  updatedAt         DateTime         @updatedAt @map("updated_at")
+  id                    String           @id @default(uuid())
+  tenantId              String           @map("tenant_id")
+  numeroCotizacion      Int              @map("numero_cotizacion")
+  clienteId             String?          @map("cliente_id")
+  clienteNombre         String           @default("") @map("cliente_nombre")
+  clienteRtn            String?          @map("cliente_rtn")
+  clienteTelefono       String?          @map("cliente_telefono")
+  clienteEmail          String?          @map("cliente_email")
+  clienteDireccion      String?          @map("cliente_direccion")
+  usuarioId             String           @map("usuario_id")
+  subtotal              Decimal          @db.Decimal(12, 2)
+  porcentajeIsv         Decimal          @default(15.00) @map("porcentaje_isv") @db.Decimal(5, 2)
+  isv                   Decimal          @db.Decimal(12, 2)
+  descuento             Decimal          @default(0) @db.Decimal(12, 2)
+  descuentoGeneral      Decimal          @default(0) @map("descuento_general") @db.Decimal(12, 2)
+  tipoDescuentoGeneral String           @default("MONTO") @map("tipo_descuento_general")
+  total                 Decimal          @db.Decimal(12, 2)
+  estado                EstadoCotizacion @default(BORRADOR)
+  fechaValidez          DateTime         @map("fecha_validez") @db.Date
+  diasValidez           Int              @default(15) @map("dias_validez")
+  condicionesPago       String           @default("CONTADO") @map("condiciones_pago")
+  notas                 String?
+  ventaId               String?          @unique @map("venta_id")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
 
   // Relaciones
-  tenant            Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  cliente           Cliente             @relation(fields: [clienteId], references: [id])
-  usuario           Usuario             @relation(fields: [usuarioId], references: [id])
-  venta             Venta?              @relation(fields: [ventaId], references: [id], onDelete: SetNull)
-  detalles          DetalleCotizacion[]
+  tenant                Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cliente               Cliente?            @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  usuario               Usuario             @relation(fields: [usuarioId], references: [id])
+  venta                 Venta?              @relation(fields: [ventaId], references: [id], onDelete: SetNull)
+  detalles              DetalleCotizacion[]
 
   @@unique([tenantId, numeroCotizacion])
   @@index([tenantId])
@@ -328,16 +345,28 @@ model Cotizacion {
 // ============================================================
 
 model DetalleCotizacion {
-  id             String    @id @default(uuid())
-  cotizacionId   String    @map("cotizacion_id")
-  productoId     String    @map("producto_id")
-  cantidad       Decimal   @db.Decimal(12, 2)
-  precioUnitario Decimal   @map("precio_unitario") @db.Decimal(12, 2)
-  subtotal       Decimal   @db.Decimal(12, 2)
+  id                  String     @id @default(uuid())
+  cotizacionId        String     @map("cotizacion_id")
+  productoId          String     @map("producto_id")
+  codigoProducto      String     @default("") @map("codigo_producto")
+  descripcionProducto String     @default("") @map("descripcion_producto")
+  unidadMedida        String     @default("UNIDAD") @map("unidad_medida")
+  usaMedida           Boolean    @default(false) @map("usa_medida")
+  cantidad            Decimal    @db.Decimal(12, 2)
+  medida              Decimal    @default(1.00) @map("medida") @db.Decimal(12, 2)
+  totalMedida         Decimal    @default(1.00) @map("total_medida") @db.Decimal(12, 2)
+  precioLista         Decimal    @default(0) @map("precio_lista") @db.Decimal(12, 2)
+  precioUnitario      Decimal    @map("precio_unitario") @db.Decimal(12, 2)
+  descuento           Decimal    @default(0) @map("descuento") @db.Decimal(12, 2)
+  tipoDescuento       String     @default("MONTO") @map("tipo_descuento")
+  exento              Boolean    @default(false) @map("exento")
+  subtotal            Decimal    @db.Decimal(12, 2)
+  isv                 Decimal    @default(0) @map("isv") @db.Decimal(12, 2)
+  totalLinea          Decimal    @default(0) @map("total_linea") @db.Decimal(12, 2)
 
   // Relaciones
-  cotizacion     Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
-  producto       Producto   @relation(fields: [productoId], references: [id])
+  cotizacion          Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  producto            Producto   @relation(fields: [productoId], references: [id])
 
   @@index([cotizacionId])
   @@map("detalles_cotizacion")
