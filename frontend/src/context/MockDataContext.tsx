@@ -33,6 +33,7 @@ export interface Usuario {
   permisos: string[];
   descuentoMaximo: number;
   activo: boolean;
+  sucursalActual?: string;
 }
 
 export interface SaleRecord {
@@ -255,6 +256,7 @@ const INITIAL_USUARIOS: Usuario[] = [
     permisos: PERMISOS_DEFAULT_POR_ROL.ADMIN.permisos,
     descuentoMaximo: 100,
     activo: true,
+    sucursalActual: 'Sucursal Centro (Principal)',
   },
   {
     id: 'user-demo-1',
@@ -264,6 +266,7 @@ const INITIAL_USUARIOS: Usuario[] = [
     permisos: PERMISOS_DEFAULT_POR_ROL.CAJERO.permisos,
     descuentoMaximo: 10,
     activo: true,
+    sucursalActual: 'Sucursal Centro (Principal)',
   },
   {
     id: 'user-demo-bodeguero',
@@ -273,6 +276,7 @@ const INITIAL_USUARIOS: Usuario[] = [
     permisos: PERMISOS_DEFAULT_POR_ROL.BODEGUERO.permisos,
     descuentoMaximo: 0,
     activo: true,
+    sucursalActual: 'Sucursal San Pedro (Norte)',
   },
   {
     id: 'user-demo-vendedor',
@@ -282,6 +286,7 @@ const INITIAL_USUARIOS: Usuario[] = [
     permisos: PERMISOS_DEFAULT_POR_ROL.VENDEDOR.permisos,
     descuentoMaximo: 15,
     activo: true,
+    sucursalActual: 'Sucursal Choluteca (Sur)',
   },
 ];
 

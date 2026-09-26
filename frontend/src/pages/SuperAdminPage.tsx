@@ -14,6 +14,8 @@ import {
   UserCheck,
   GitBranch,
   ExternalLink,
+  Search,
+  X,
 } from 'lucide-react';
 import { formatNumber } from '../utils/format';
 import { TopBar } from '../components/TopBar';
@@ -128,6 +130,8 @@ export const SuperAdminPage: React.FC = () => {
   const [modalNuevoAdmin, setModalNuevoAdmin] = useState(false);
   const [modalEditarAdmin, setModalEditarAdmin] = useState<AdminUserItem | null>(null);
   const [modalResetPassAdmin, setModalResetPassAdmin] = useState<AdminUserItem | null>(null);
+  const [modalSuplantarUser, setModalSuplantarUser] = useState<TenantItem | null>(null);
+  const [busquedaSuplantar, setBusquedaSuplantar] = useState('');
 
   // Formulario nuevo tenant
   const [nombreComercial, setNombreComercial] = useState('');
@@ -155,30 +159,26 @@ export const SuperAdminPage: React.FC = () => {
     );
   };
 
-  const handleSuplantarAdmin = (tenantItem: TenantItem) => {
-    // Buscar o simular usuario Admin de esta ferretería
-    const adminEncontrado = adminUsers.find((a) => a.tenantId === tenantItem.id) || {
-      id: `adm-sup-${tenantItem.id}`,
-      nombre: `Admin (${tenantItem.nombreComercial})`,
-      email: tenantItem.contacto,
-      tenantId: tenantItem.id,
-      tenantNombre: tenantItem.nombreComercial,
-      activo: true,
-      fechaCreacion: '2026-01-01',
-    };
+  const abrirModalSuplantar = (tenantItem: TenantItem) => {
+    setModalSuplantarUser(tenantItem);
+    setBusquedaSuplantar('');
+  };
+
+  const ejecutarSuplantacion = (usrObj: { id: string; nombre: string; email: string; rol: any }) => {
+    if (!modalSuplantarUser) return;
 
     impersonateTenantAdmin(
       {
-        id: tenantItem.id,
-        nombreComercial: tenantItem.nombreComercial,
-        sucursal: 'Sucursal Principal',
-        colorPrimario: tenantItem.colorPrimario,
+        id: modalSuplantarUser.id,
+        nombreComercial: modalSuplantarUser.nombreComercial,
+        sucursal: 'Sucursal Centro (Principal)',
+        colorPrimario: modalSuplantarUser.colorPrimario,
       },
       {
-        id: adminEncontrado.id,
-        nombre: adminEncontrado.nombre,
-        email: adminEncontrado.email,
-        rol: 'ADMIN',
+        id: usrObj.id,
+        nombre: usrObj.nombre,
+        email: usrObj.email,
+        rol: usrObj.rol,
         permisos: [
           'pos.vender',
           'pos.anular_venta',
@@ -197,6 +197,7 @@ export const SuperAdminPage: React.FC = () => {
       },
     );
 
+    setModalSuplantarUser(null);
     navigate('/');
   };
 
@@ -473,8 +474,8 @@ export const SuperAdminPage: React.FC = () => {
                           <button
                             type="button"
                             className="btn btn-sm btn-primary"
-                            onClick={() => handleSuplantarAdmin(t)}
-                            title="Entrar remotamente al menú del cliente para dar soporte técnico"
+                            onClick={() => abrirModalSuplantar(t)}
+                            title="Elegir usuario del cliente para entrar en modo soporte remoto"
                             style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
                           >
                             <ExternalLink size={13} /> SOPORTE REMOTO (SUPLANTAR)
@@ -859,6 +860,130 @@ export const SuperAdminPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: ELECCIÓN / BÚSQUEDA DE USUARIO A SUPLANTAR */}
+      {modalSuplantarUser && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '600px' }}>
+            <div style={styles.modalHeader}>
+              <div>
+                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                  SOPORTE REMOTO • SELECCIONAR USUARIO A SUPLANTAR
+                </h2>
+                <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700 }}>
+                  CLIENTE: {modalSuplantarUser.nombreComercial}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalSuplantarUser(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ marginTop: '16px' }}>
+              {/* Input Búsqueda de Usuario */}
+              <div className="form-group">
+                <label className="form-label">BUSCAR USUARIO POR NOMBRE O CORREO</label>
+                <div style={{ position: 'relative' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#78716C' }} />
+                  <input
+                    type="text"
+                    placeholder="Ej. Carlos Ramos, cajero, admin..."
+                    value={busquedaSuplantar}
+                    onChange={(e) => setBusquedaSuplantar(e.target.value)}
+                    className="form-input"
+                    style={{ paddingLeft: '36px' }}
+                  />
+                </div>
+              </div>
+
+              {/* Lista de Usuarios de la Empresa Disponibles para Suplantar */}
+              <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1.5px solid #D6D3D1', borderRadius: '4px', marginTop: '12px' }}>
+                {[
+                  {
+                    id: 'usr-admin-1',
+                    nombre: `Carlos Ramos (Administrador General)`,
+                    email: modalSuplantarUser.contacto,
+                    rol: 'ADMIN',
+                    cargo: 'Dueño / Gerente de Sucursal',
+                  },
+                  {
+                    id: 'usr-cajero-1',
+                    nombre: 'Carlos Ramos (Cajero Principal)',
+                    email: 'cajero@lamundial.hn',
+                    rol: 'CAJERO',
+                    cargo: 'Cajero POS / Facturación',
+                  },
+                  {
+                    id: 'usr-bodega-1',
+                    nombre: 'Jorge Mendoza (Bodeguero)',
+                    email: 'bodega@lamundial.hn',
+                    rol: 'BODEGUERO',
+                    cargo: 'Encargado de Inventario & Stock',
+                  },
+                  {
+                    id: 'usr-vendedor-1',
+                    nombre: 'Ana Martínez (Vendedora)',
+                    email: 'vendedor@lamundial.hn',
+                    rol: 'VENDEDOR',
+                    cargo: 'Ventas de Mostrador & Cotizaciones',
+                  },
+                ]
+                  .filter(
+                    (u) =>
+                      u.nombre.toLowerCase().includes(busquedaSuplantar.toLowerCase().trim()) ||
+                      u.email.toLowerCase().includes(busquedaSuplantar.toLowerCase().trim()) ||
+                      u.cargo.toLowerCase().includes(busquedaSuplantar.toLowerCase().trim()),
+                  )
+                  .map((u) => (
+                    <div
+                      key={u.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 16px',
+                        borderBottom: '1px solid #E7E5E4',
+                        backgroundColor: '#FAFAF9',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '13px' }}>
+                          {u.nombre}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#78716C' }}>
+                          {u.email} • <span style={{ fontWeight: 600 }}>{u.cargo}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => ejecutarSuplantacion(u)}
+                        className="btn btn-sm btn-primary"
+                        style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800, padding: '6px 12px' }}
+                      >
+                        <ExternalLink size={13} /> SUPLANTAR ESTE USUARIO
+                      </button>
+                    </div>
+                  ))}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setModalSuplantarUser(null)}
+                >
+                  CANCELAR
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
