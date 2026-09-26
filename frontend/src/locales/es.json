@@ -1,0 +1,45 @@
+{
+  "menu": {
+    "dashboard": "PANEL DE CONTROL",
+    "inventory": "INVENTARIO Y CATÁLOGO",
+    "pos": "PUNTO DE VENTA POS",
+    "quotations": "COTIZACIONES",
+    "layaway": "APARTADOS",
+    "cash_drawer": "ARQUEO DE CAJA",
+    "purchase_orders": "ÓRDENES DE COMPRA",
+    "transfers": "TRANSFERENCIAS",
+    "warranties": "GARANTÍAS & SERIES",
+    "special_orders": "PEDIDOS ESPECIALES",
+    "price_lists": "LISTAS DE PRECIO",
+    "commissions": "COMISIONES VENTA",
+    "configuration": "CONFIGURACIÓN GLOBAL",
+    "super_admin": "PANEL SUPER ADMIN"
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "accept": "Aceptar",
+    "search": "Buscar...",
+    "status": "Estado",
+    "actions": "Acciones",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "pending": "Pendiente",
+    "completed": "Completado",
+    "cancelled": "Cancelado"
+  },
+  "pos": {
+    "title": "Punto de Venta",
+    "cart": "Carrito de Compras",
+    "total": "Total a Pagar",
+    "checkout": "Procesar Venta",
+    "cash": "Efectivo",
+    "card": "Tarjeta",
+    "credit": "Crédito"
+  },
+  "config": {
+    "language": "Idioma del Sistema",
+    "currency": "Moneda Principal",
+    "tax": "Impuesto de Ventas"
+  }
+}

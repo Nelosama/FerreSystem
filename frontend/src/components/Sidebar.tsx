@@ -8,12 +8,43 @@ import {
   Sliders,
   Box,
   ShieldCheck,
+  Bookmark,
+  DollarSign,
+  Truck,
+  GitBranch,
+  Shield,
+  Clock,
+  Tags,
+  Percent,
 } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
+import { useRubroConfig } from '../hooks/useRubroConfig';
 
 export const Sidebar: React.FC = () => {
   const { tenant, user } = useTenant();
+  const rubroConfig = useRubroConfig();
   const userRole = user?.rol;
+
+  const modulosHabilitados = tenant.modulosHabilitados || [
+    'inventario',
+    'pos',
+    'cotizaciones',
+    'usuarios',
+    'configuracion',
+    'apartados',
+    'arqueo_caja',
+    'ordenes_compra',
+    'transferencias_sucursal',
+    'garantias',
+    'pedidos_especiales',
+    'listas_precio',
+    'comisiones_venta',
+  ];
+
+  const isModuleEnabled = (moduleKey?: string) => {
+    if (!moduleKey) return true;
+    return modulosHabilitados.includes(moduleKey);
+  };
 
   const isRoleAllowed = (allowedRoles?: string[], requiredPermiso?: string) => {
     if (!userRole) return false;
@@ -42,21 +73,80 @@ export const Sidebar: React.FC = () => {
     },
     {
       path: '/inventario',
-      label: 'INVENTARIO',
+      label: rubroConfig.nombreCatalogo.toUpperCase(),
       icon: PackageSearch,
       allowedRoles: ['ADMIN', 'BODEGUERO'],
+      moduleKey: 'inventario',
     },
     {
       path: '/pos',
       label: 'PUNTO DE VENTA',
       icon: Calculator,
       allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+      moduleKey: 'pos',
     },
     {
       path: '/cotizaciones',
       label: 'COTIZACIONES',
       icon: ClipboardList,
       allowedRoles: ['ADMIN', 'VENDEDOR', 'CAJERO'],
+      moduleKey: 'cotizaciones',
+    },
+    {
+      path: '/apartados',
+      label: 'APARTADOS',
+      icon: Bookmark,
+      allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+      moduleKey: 'apartados',
+    },
+    {
+      path: '/arqueo-caja',
+      label: 'ARQUEO DE CAJA',
+      icon: DollarSign,
+      allowedRoles: ['ADMIN', 'CAJERO'],
+      moduleKey: 'arqueo_caja',
+    },
+    {
+      path: '/ordenes-compra',
+      label: 'ÓRDENES DE COMPRA',
+      icon: Truck,
+      allowedRoles: ['ADMIN', 'BODEGUERO'],
+      moduleKey: 'ordenes_compra',
+    },
+    {
+      path: '/transferencias',
+      label: 'TRANSFERENCIAS',
+      icon: GitBranch,
+      allowedRoles: ['ADMIN', 'BODEGUERO'],
+      moduleKey: 'transferencias_sucursal',
+    },
+    {
+      path: '/garantias',
+      label: 'GARANTÍAS & SERIES',
+      icon: Shield,
+      allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+      moduleKey: 'garantias',
+    },
+    {
+      path: '/pedidos-especiales',
+      label: 'PEDIDOS ESPECIALES',
+      icon: Clock,
+      allowedRoles: ['ADMIN', 'VENDEDOR', 'CAJERO'],
+      moduleKey: 'pedidos_especiales',
+    },
+    {
+      path: '/listas-precio',
+      label: 'LISTAS DE PRECIO',
+      icon: Tags,
+      allowedRoles: ['ADMIN', 'VENDEDOR'],
+      moduleKey: 'listas_precio',
+    },
+    {
+      path: '/comisiones',
+      label: 'COMISIONES VENTA',
+      icon: Percent,
+      allowedRoles: ['ADMIN'],
+      moduleKey: 'comisiones_venta',
     },
   ];
 
@@ -75,7 +165,9 @@ export const Sidebar: React.FC = () => {
     },
   ];
 
-  const visibleMainNav = mainNavItems.filter((item) => isRoleAllowed(item.allowedRoles));
+  const visibleMainNav = mainNavItems.filter(
+    (item) => isRoleAllowed(item.allowedRoles) && isModuleEnabled(item.moduleKey),
+  );
   const visibleAdminNav = adminNavItems.filter((item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso));
 
   return (
@@ -111,7 +203,7 @@ export const Sidebar: React.FC = () => {
                     ...(isActive ? styles.navItemActive : {}),
                   })}
                 >
-                  <Icon size={20} strokeWidth={2.4} />
+                  <Icon size={18} strokeWidth={2.4} />
                   <span>{item.label}</span>
                 </NavLink>
               </li>
@@ -136,7 +228,7 @@ export const Sidebar: React.FC = () => {
                       ...(isActive ? styles.navItemActive : {}),
                     })}
                   >
-                    <Icon size={20} strokeWidth={2.4} />
+                    <Icon size={18} strokeWidth={2.4} />
                     <span>{item.label}</span>
                   </NavLink>
                 </li>
@@ -210,19 +302,19 @@ const styles: Record<string, React.CSSProperties> = {
     listStyle: 'none',
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px',
+    gap: '4px',
     padding: 0,
     margin: 0,
   },
   navItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    padding: '12px 14px',
+    gap: '10px',
+    padding: '10px 12px',
     fontFamily: 'var(--font-display)',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: 700,
-    letterSpacing: '0.04em',
+    letterSpacing: '0.03em',
     color: 'var(--color-sidebar-text)',
     textDecoration: 'none',
     borderRadius: 'var(--radius-xs)',
@@ -237,6 +329,6 @@ const styles: Record<string, React.CSSProperties> = {
   divider: {
     height: '1px',
     backgroundColor: '#292524',
-    margin: '20px 0 16px',
+    margin: '16px 0 12px',
   },
 };

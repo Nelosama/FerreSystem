@@ -17,6 +17,7 @@ import {
   X,
   Server,
   Trash2,
+  Layers,
 } from 'lucide-react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
@@ -42,6 +43,7 @@ interface TenantItem {
   sucursalesCount: number;
   colorPrimario: string;
   sucursalesList?: SubSucursalItem[];
+  modulosHabilitados?: string[];
 }
 
 interface AdminUserItem {
@@ -54,15 +56,21 @@ interface AdminUserItem {
   fechaCreacion: string;
 }
 
-interface AdminUserItem {
-  id: string;
-  nombre: string;
-  email: string;
-  tenantId: string;
-  tenantNombre: string;
-  activo: boolean;
-  fechaCreacion: string;
-}
+const CATALOGO_MODULOS = [
+  { key: 'inventario', label: 'Inventario / Catálogo', desc: 'Gestión de productos y stock' },
+  { key: 'pos', label: 'Punto de Venta POS', desc: 'Facturación rápida de mostrador' },
+  { key: 'cotizaciones', label: 'Cotizaciones / Proformas', desc: 'Presupuestos y conversión a venta' },
+  { key: 'usuarios', label: 'Gestión de Usuarios', desc: 'Control de cajeros, vendedores y roles' },
+  { key: 'apartados', label: 'Apartados / Layaway', desc: 'Reserva con abonos parciales' },
+  { key: 'arqueo_caja', label: 'Arqueo & Cierre de Caja', desc: 'Conteo físico vs ventas por turno' },
+  { key: 'ordenes_compra', label: 'Órdenes de Compra & Proveedores', desc: 'Recepción y reabastecimiento' },
+  { key: 'transferencias_sucursal', label: 'Transferencias Inter-Sucursal', desc: 'Movimiento de stock entre sedes' },
+  { key: 'garantias', label: 'Garantías & Números de Serie', desc: 'Seguimiento por S/N de equipos' },
+  { key: 'pedidos_especiales', label: 'Pedidos Especiales / Backorder', desc: 'Encargos sin stock y avisos' },
+  { key: 'listas_precio', label: 'Listas de Precio / Segmentos', desc: 'Descuentos por tipo de cliente' },
+  { key: 'comisiones_venta', label: 'Comisiones de Venta', desc: 'Cálculo de incentivos por vendedor' },
+  { key: 'configuracion', label: 'Configuración / Marca', desc: 'Ajustes de tienda y white-label' },
+];
 
 const INITIAL_TENANTS: TenantItem[] = [
   {
@@ -75,6 +83,7 @@ const INITIAL_TENANTS: TenantItem[] = [
     usuariosCount: 4,
     sucursalesCount: 3,
     colorPrimario: '#EA580C',
+    modulosHabilitados: CATALOGO_MODULOS.map((m) => m.key),
     sucursalesList: [
       { id: 'suc-1', nombre: 'Sucursal Centro (Principal)', direccion: 'Barrio El Centro', telefono: '+504 2550-1234', encargado: 'Carlos Ramos', activa: true },
       { id: 'suc-2', nombre: 'Sucursal Circunvalación', direccion: 'Ave. Circunvalación', telefono: '+504 2550-5678', encargado: 'Mario Rivera', activa: true },
@@ -91,6 +100,7 @@ const INITIAL_TENANTS: TenantItem[] = [
     usuariosCount: 2,
     sucursalesCount: 1,
     colorPrimario: '#0284C7',
+    modulosHabilitados: ['inventario', 'pos', 'cotizaciones', 'usuarios', 'configuracion', 'arqueo_caja'],
   },
   {
     id: 't-3',
@@ -102,6 +112,7 @@ const INITIAL_TENANTS: TenantItem[] = [
     usuariosCount: 1,
     sucursalesCount: 1,
     colorPrimario: '#DC2626',
+    modulosHabilitados: ['inventario', 'pos', 'cotizaciones'],
   },
 ];
 
@@ -158,6 +169,7 @@ export const SuperAdminPage: React.FC = () => {
   const [modalNuevoTenant, setModalNuevoTenant] = useState(false);
   const [modalEditarTenant, setModalEditarTenant] = useState<TenantItem | null>(null);
   const [modalSucursalesTenant, setModalSucursalesTenant] = useState<TenantItem | null>(null);
+  const [modalModulosTenant, setModalModulosTenant] = useState<TenantItem | null>(null);
   const [modalNuevoAdmin, setModalNuevoAdmin] = useState(false);
   const [modalEditarAdmin, setModalEditarAdmin] = useState<AdminUserItem | null>(null);
   const [modalResetPassAdmin, setModalResetPassAdmin] = useState<AdminUserItem | null>(null);
@@ -202,6 +214,26 @@ export const SuperAdminPage: React.FC = () => {
     );
   };
 
+  const toggleModuloTenant = (tenantId: string, moduleKey: string) => {
+    setTenants(
+      tenants.map((t) => {
+        if (t.id === tenantId) {
+          const currentMods = t.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key);
+          const has = currentMods.includes(moduleKey);
+          const updated = has ? currentMods.filter((k) => k !== moduleKey) : [...currentMods, moduleKey];
+          return { ...t, modulosHabilitados: updated };
+        }
+        return t;
+      }),
+    );
+    if (modalModulosTenant && modalModulosTenant.id === tenantId) {
+      const currentMods = modalModulosTenant.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key);
+      const has = currentMods.includes(moduleKey);
+      const updated = has ? currentMods.filter((k) => k !== moduleKey) : [...currentMods, moduleKey];
+      setModalModulosTenant({ ...modalModulosTenant, modulosHabilitados: updated });
+    }
+  };
+
   const abrirModalSuplantar = (tenantItem: TenantItem) => {
     setModalSuplantarUser(tenantItem);
     setBusquedaSuplantar('');
@@ -216,6 +248,7 @@ export const SuperAdminPage: React.FC = () => {
         nombreComercial: modalSuplantarUser.nombreComercial,
         sucursal: 'Sucursal Centro (Principal)',
         colorPrimario: modalSuplantarUser.colorPrimario,
+        modulosHabilitados: modalSuplantarUser.modulosHabilitados,
       },
       {
         id: usrObj.id,
@@ -267,6 +300,7 @@ export const SuperAdminPage: React.FC = () => {
       usuariosCount: 1,
       sucursalesCount: 1,
       colorPrimario,
+      modulosHabilitados: CATALOGO_MODULOS.map((m) => m.key),
     };
 
     const nuevoAdmin: AdminUserItem = {
@@ -448,7 +482,7 @@ export const SuperAdminPage: React.FC = () => {
               <div>
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>CLIENTES TENANTS (FERRETERÍAS)</h2>
                 <p style={{ fontSize: '12px', color: '#78716C' }}>
-                  Aprovisionamiento de nuevos clientes independientes y control de estado de suscripción.
+                  Aprovisionamiento de nuevos clientes independientes, control de módulos habilitados y estado de suscripción.
                 </p>
               </div>
 
@@ -470,99 +504,112 @@ export const SuperAdminPage: React.FC = () => {
                     <th>CONTACTO PRINCIPAL</th>
                     <th>TELÉFONO</th>
                     <th style={{ textAlign: 'center' }}>PLAN SUSCRIPCIÓN</th>
+                    <th style={{ textAlign: 'center' }}>MÓDULOS ACTIVOS</th>
                     <th style={{ textAlign: 'center' }}>COLOR MARCA</th>
-                    <th style={{ textAlign: 'center' }}>USUARIOS</th>
                     <th style={{ textAlign: 'center' }}>ESTADO</th>
                     <th style={{ textAlign: 'center' }}>ACCIONES</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tenants.map((t) => (
-                    <tr key={t.id}>
-                      <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
-                        <div>{t.nombreComercial}</div>
-                        <div style={{ fontSize: '10px', color: '#78716C', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                          <GitBranch size={11} /> <span>{t.sucursalesCount} Sucursal(es) Conectada(s)</span>
-                        </div>
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{t.contacto}</td>
-                      <td style={{ color: '#78716C' }}>{t.telefono}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className="badge badge-dark" style={{ fontSize: '11px' }}>{t.plan}</span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                          <span
-                            style={{
-                              width: '16px',
-                              height: '16px',
-                              borderRadius: '2px',
-                              border: '1px solid #1C1917',
-                              backgroundColor: t.colorPrimario,
-                            }}
-                          />
-                          <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>{t.colorPrimario}</span>
-                        </div>
-                      </td>
-                      <td style={{ textAlign: 'center', fontWeight: 700 }}>{t.usuariosCount}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        {t.estado === 'ACTIVO' ? (
-                          <span className="badge badge-success">ACTIVO</span>
-                        ) : (
-                          <span className="badge badge-danger">SUSPENDIDO</span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', gap: '6px' }}>
+                  {tenants.map((t) => {
+                    const modCount = t.modulosHabilitados ? t.modulosHabilitados.length : CATALOGO_MODULOS.length;
+                    return (
+                      <tr key={t.id}>
+                        <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
+                          <div>{t.nombreComercial}</div>
+                          <div style={{ fontSize: '10px', color: '#78716C', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                            <GitBranch size={11} /> <span>{t.sucursalesCount} Sucursal(es) Conectada(s)</span>
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{t.contacto}</td>
+                        <td style={{ color: '#78716C' }}>{t.telefono}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="badge badge-dark" style={{ fontSize: '11px' }}>{t.plan}</span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
                           <button
                             type="button"
                             className="btn btn-sm btn-secondary"
-                            onClick={() => {
-                              setModalSucursalesTenant(t);
-                              setNuevaSucursalNombre('');
-                              setNuevaSucursalDireccion('');
-                              setNuevaSucursalTelefono('');
-                              setNuevaSucursalEncargado('');
-                            }}
-                            title="Gestionar y crear sub-sucursales para esta empresa"
+                            onClick={() => setModalModulosTenant(t)}
+                            title="Control de Módulos Activos"
+                            style={{ fontWeight: 800 }}
                           >
-                            <GitBranch size={13} /> SUCURSALES
+                            <Layers size={13} color="var(--color-primary)" /> {modCount} / {CATALOGO_MODULOS.length} MÓDULOS
                           </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-secondary"
-                            onClick={() => {
-                              setModalEditarTenant(t);
-                              setEditNombreComercial(t.nombreComercial);
-                              setEditTelefono(t.telefono);
-                              setEditPlan(t.plan);
-                              setEditColorPrimario(t.colorPrimario);
-                            }}
-                            title="Editar marca, color y datos de la ferretería"
-                          >
-                            <Edit2 size={13} /> MARCA
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary"
-                            onClick={() => abrirModalSuplantar(t)}
-                            title="Elegir usuario del cliente para entrar en modo soporte remoto"
-                            style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
-                          >
-                            <ExternalLink size={13} /> SOPORTE REMOTO (SUPLANTAR)
-                          </button>
-                          <button
-                            type="button"
-                            className={`btn btn-sm ${t.estado === 'ACTIVO' ? 'btn-secondary' : 'btn-primary'}`}
-                            onClick={() => toggleEstadoTenant(t.id)}
-                          >
-                            <Power size={13} strokeWidth={2.5} />
-                            {t.estado === 'ACTIVO' ? 'SUSPENDER' : 'ACTIVAR'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <span
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '2px',
+                                border: '1px solid #1C1917',
+                                backgroundColor: t.colorPrimario,
+                              }}
+                            />
+                            <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>{t.colorPrimario}</span>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {t.estado === 'ACTIVO' ? (
+                            <span className="badge badge-success">ACTIVO</span>
+                          ) : (
+                            <span className="badge badge-danger">SUSPENDIDO</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', gap: '6px' }}>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-secondary"
+                              onClick={() => {
+                                setModalSucursalesTenant(t);
+                                setNuevaSucursalNombre('');
+                                setNuevaSucursalDireccion('');
+                                setNuevaSucursalTelefono('');
+                                setNuevaSucursalEncargado('');
+                              }}
+                              title="Gestionar y crear sub-sucursales para esta empresa"
+                            >
+                              <GitBranch size={13} /> SUCURSALES
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-secondary"
+                              onClick={() => {
+                                setModalEditarTenant(t);
+                                setEditNombreComercial(t.nombreComercial);
+                                setEditTelefono(t.telefono);
+                                setEditPlan(t.plan);
+                                setEditColorPrimario(t.colorPrimario);
+                              }}
+                              title="Editar marca, color y datos de la ferretería"
+                            >
+                              <Edit2 size={13} /> MARCA
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary"
+                              onClick={() => abrirModalSuplantar(t)}
+                              title="Elegir usuario del cliente para entrar en modo soporte remoto"
+                              style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
+                            >
+                              <ExternalLink size={13} /> SOPORTE REMOTO (SUPLANTAR)
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn btn-sm ${t.estado === 'ACTIVO' ? 'btn-secondary' : 'btn-primary'}`}
+                              onClick={() => toggleEstadoTenant(t.id)}
+                            >
+                              <Power size={13} strokeWidth={2.5} />
+                              {t.estado === 'ACTIVO' ? 'SUSPENDER' : 'ACTIVAR'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -746,87 +793,91 @@ export const SuperAdminPage: React.FC = () => {
                     </td>
                     <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
                   </tr>
-                  <tr>
-                    <td style={{ fontWeight: 800 }}>COTIZACIONES (/cotizaciones)</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 700 }}>
-                      <Lock size={14} style={{ verticalAlign: 'middle', marginRight: 4, display: 'inline-block' }} /> OCULTO / DENEGADO
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      PERMITIDO
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D' }}>PERMITIDO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      PERMITIDO
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 800 }}>GESTIÓN DE USUARIOS LOCAL (/usuarios)</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEF3C7', color: '#B45309', fontWeight: 700 }}>
-                      GESTIONA ADMINS EN SAAS
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      PERMITIDO (Su Tienda)
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 800 }}>CONFIGURACIÓN DE LA FERRETERÍA (/configuracion)</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEF3C7', color: '#B45309', fontWeight: 700 }}>
-                      VÍA MODO SOPORTE
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      PERMITIDO (Su Tienda)
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                  </tr>
                 </tbody>
               </table>
-            </div>
-
-            {/* Resumen de Hallazgos y Ajustes Aplicados */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginTop: '24px' }}>
-              <div className="industrial-card" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <ShieldCheck size={20} color="var(--color-primary)" />
-                  <h3 style={{ fontSize: '14px', textTransform: 'uppercase', fontFamily: 'var(--font-display)', fontWeight: 800 }}>
-                    1. ROL Y PROPÓSITO DEL SUPER ADMIN
-                  </h3>
-                </div>
-                <ul style={{ fontSize: '13px', lineHeight: '1.6', color: '#44403C', paddingLeft: '18px' }}>
-                  <li>
-                    <strong>Dueño de la Aplicación (Proveedor SaaS):</strong> No gestiona operaciones comerciales cotidianas. Su función es dar mantenimiento a los clientes, controlar suscripciones y usuarios Admin.
-                  </li>
-                  <li style={{ marginTop: '8px' }}>
-                    <strong>Soporte Técnico por Suplantación Remota:</strong> Para resolver dudas o corregir errores del cliente en vivo, el Super Admin usa la opción <code>SOPORTE REMOTO (SUPLANTAR)</code> para ver e interactuar temporalmente con el menú exacto del cliente.
-                  </li>
-                </ul>
-              </div>
-
-              <div className="industrial-card" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <GitBranch size={20} color="#0284C7" />
-                  <h3 style={{ fontSize: '14px', textTransform: 'uppercase', fontFamily: 'var(--font-display)', fontWeight: 800 }}>
-                    2. AISLAMIENTO MULTI-SUCURSAL Y CLIENTES
-                  </h3>
-                </div>
-                <ul style={{ fontSize: '13px', lineHeight: '1.6', color: '#44403C', paddingLeft: '18px' }}>
-                  <li>
-                    <strong>Aislamiento Total de Datos:</strong> Cada ferretería/sucursal maneja su inventario, ventas y caja de forma 100% aislada sin mezcla de información.
-                  </li>
-                  <li style={{ marginTop: '8px' }}>
-                    <strong>Selector de Sucursal para el Cliente:</strong> Un cliente con múltiples sucursales puede cambiar entre ellas desde el selector de la barra superior sin contaminar reportes inter-sucursales.
-                  </li>
-                </ul>
-              </div>
             </div>
           </div>
         )}
       </main>
+
+      {/* MODAL CONTROL DE MÓDULOS HABILITADOS POR CLIENTE */}
+      {modalModulosTenant && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '620px' }}>
+            <div style={styles.modalHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <div>
+                  <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                    CONTROL DE MÓDULOS HABILITADOS (SUPER ADMIN)
+                  </h2>
+                  <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700, marginTop: '2px' }}>
+                    EMPRESA: {modalModulosTenant.nombreComercial}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalModulosTenant(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '16px', maxHeight: '380px', overflowY: 'auto' }}>
+              <div style={{ fontSize: '12px', color: '#78716C', marginBottom: '12px' }}>
+                Active o desactive los módulos que este cliente tiene contratados. Los módulos desactivados no aparecerán en el Sidebar del cliente.
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
+                {CATALOGO_MODULOS.map((m) => {
+                  const activeMods = modalModulosTenant.modulosHabilitados || CATALOGO_MODULOS.map((x) => x.key);
+                  const isEnabled = activeMods.includes(m.key);
+
+                  return (
+                    <label
+                      key={m.key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        backgroundColor: isEnabled ? '#DCFCE7' : '#FAFAF9',
+                        border: isEnabled ? '1.5px solid #16A34A' : '1.5px solid #D6D3D1',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isEnabled}
+                        onChange={() => toggleModuloTenant(modalModulosTenant.id, m.key)}
+                        style={{ marginTop: '3px', cursor: 'pointer' }}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '12px', color: isEnabled ? '#15803D' : '#44403C' }}>
+                          {m.label}
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#78716C' }}>{m.desc}</div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setModalModulosTenant(null)}
+              >
+                <Check size={16} /> GUARDAR MÓDULOS HABILITADOS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL GESTIONAR SUB-SUCURSALES DE UN TENANT */}
       {modalSucursalesTenant && (

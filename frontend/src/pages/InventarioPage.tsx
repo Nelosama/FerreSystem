@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
-import { Search, Plus, AlertTriangle, Check, X } from 'lucide-react';
+import { Search, Plus, AlertTriangle, Check, X, Calendar, ShieldCheck } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useMockData } from '../context/MockDataContext';
+import { useRubroConfig } from '../hooks/useRubroConfig';
 
 export const InventarioPage: React.FC = () => {
   const { productos, agregarProducto } = useMockData();
+  const rubroConfig = useRubroConfig();
+
   const [search, setSearch] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('TODAS');
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -13,13 +16,20 @@ export const InventarioPage: React.FC = () => {
   // Form State
   const [formCodigo, setFormCodigo] = useState('');
   const [formNombre, setFormNombre] = useState('');
-  const [formCategoria, setFormCategoria] = useState('Herramientas');
+  const [formCategoria, setFormCategoria] = useState(rubroConfig.categoriasDefault[0] || 'General');
+  const [formUnidadMedida, setFormUnidadMedida] = useState(rubroConfig.unidadesMedida[0] || 'unidad');
   const [formPrecioVenta, setFormPrecioVenta] = useState('');
   const [formPrecioCosto, setFormPrecioCosto] = useState('');
   const [formStockActual, setFormStockActual] = useState('');
   const [formStockMinimo, setFormStockMinimo] = useState('');
 
-  const categorias = ['TODAS', 'Herramientas', 'Construcción', 'Plomería', 'Electricidad'];
+  // Rubro specific fields
+  const [formFechaVencimiento, setFormFechaVencimiento] = useState('');
+  const [formLote, setFormLote] = useState('');
+  const [formNumeroSerie, setFormNumeroSerie] = useState('');
+  const [formMesesGarantia, setFormMesesGarantia] = useState('');
+
+  const categorias = ['TODAS', ...rubroConfig.categoriasDefault];
 
   const productosFiltrados = productos.filter((p) => {
     const matchSearch =
@@ -41,7 +51,12 @@ export const InventarioPage: React.FC = () => {
       precioCosto: parseFloat(formPrecioCosto) || 0,
       stockActual: parseInt(formStockActual, 10) || 0,
       stockMinimo: parseInt(formStockMinimo, 10) || 5,
-      unidadMedida: 'UNIDAD',
+      unidadMedida: formUnidadMedida,
+      fechaVencimiento: rubroConfig.activarVencimientos ? formFechaVencimiento : undefined,
+      lote: rubroConfig.activarVencimientos ? formLote : undefined,
+      numeroSerie: rubroConfig.activarGarantiaSerie ? formNumeroSerie : undefined,
+      mesesGarantia: rubroConfig.activarGarantiaSerie ? parseInt(formMesesGarantia, 10) || 0 : undefined,
+      requiereGarantia: rubroConfig.activarGarantiaSerie && !!formNumeroSerie,
     });
 
     setModalAbierto(false);
@@ -52,11 +67,15 @@ export const InventarioPage: React.FC = () => {
     setFormPrecioCosto('');
     setFormStockActual('');
     setFormStockMinimo('');
+    setFormFechaVencimiento('');
+    setFormLote('');
+    setFormNumeroSerie('');
+    setFormMesesGarantia('');
   };
 
   return (
     <div style={styles.container}>
-      <TopBar title="CATÁLOGO E INVENTARIO" subtitle="Control de Stock y Precios" />
+      <TopBar title={rubroConfig.nombreCatalogo.toUpperCase()} subtitle="Control de Stock y Precios por Rubro" />
 
       <main style={styles.content}>
         {/* Barra de Filtros y Acción */}
@@ -96,7 +115,7 @@ export const InventarioPage: React.FC = () => {
             style={{ marginLeft: 'auto' }}
           >
             <Plus size={18} strokeWidth={2.5} />
-            <span>NUEVO PRODUCTO</span>
+            <span>NUEVO ARTÍCULO</span>
           </button>
         </div>
 
@@ -108,6 +127,7 @@ export const InventarioPage: React.FC = () => {
                 <th>CÓDIGO SKU</th>
                 <th>NOMBRE DEL ARTÍCULO</th>
                 <th>CATEGORÍA</th>
+                <th>UNIDAD</th>
                 <th style={{ textAlign: 'right' }}>PRECIO VENTA</th>
                 <th style={{ textAlign: 'right' }}>PRECIO COSTO</th>
                 <th style={{ textAlign: 'center' }}>STOCK ACTUAL</th>
@@ -118,7 +138,7 @@ export const InventarioPage: React.FC = () => {
             <tbody>
               {productosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#78716C' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '36px', color: '#78716C' }}>
                     No se encontraron productos coincidentes
                   </td>
                 </tr>
@@ -128,9 +148,28 @@ export const InventarioPage: React.FC = () => {
                   return (
                     <tr key={p.id}>
                       <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{p.codigo}</td>
-                      <td style={{ fontWeight: 600 }}>{p.nombre}</td>
+                      <td style={{ fontWeight: 600 }}>
+                        <div>{p.nombre}</div>
+                        {(p.fechaVencimiento || p.numeroSerie) && (
+                          <div style={{ fontSize: '10px', color: '#78716C', display: 'flex', gap: '8px', marginTop: '2px' }}>
+                            {p.fechaVencimiento && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <Calendar size={11} /> Vence: {p.fechaVencimiento} {p.lote ? `(Lote: ${p.lote})` : ''}
+                              </span>
+                            )}
+                            {p.numeroSerie && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#0284C7' }}>
+                                <ShieldCheck size={11} /> S/N: {p.numeroSerie} ({p.mesesGarantia || 12}m garantía)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td>
                         <span className="badge badge-dark">{p.categoria}</span>
+                      </td>
+                      <td style={{ fontSize: '12px', color: '#78716C', textTransform: 'lowercase' }}>
+                        {p.unidadMedida}
                       </td>
                       <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, whiteSpace: 'nowrap' }}>
                         {formatLempiras(p.precioVenta)}
@@ -190,7 +229,7 @@ export const InventarioPage: React.FC = () => {
                   <input
                     type="text"
                     required
-                    placeholder="Ej. HER-005"
+                    placeholder="Ej. ART-005"
                     value={formCodigo}
                     onChange={(e) => setFormCodigo(e.target.value)}
                     className="form-input"
@@ -204,10 +243,14 @@ export const InventarioPage: React.FC = () => {
                     onChange={(e) => setFormCategoria(e.target.value)}
                     className="form-select"
                   >
-                    <option value="Herramientas">Herramientas</option>
-                    <option value="Construcción">Construcción</option>
-                    <option value="Plomería">Plomería</option>
-                    <option value="Electricidad">Electricidad</option>
+                    {(rubroConfig.categoriasDefault.length > 0
+                      ? rubroConfig.categoriasDefault
+                      : ['General', 'Otros']
+                    ).map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -217,7 +260,7 @@ export const InventarioPage: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="Ej. Llave Stilson 14 Pulgadas Pesada"
+                  placeholder="Ej. Nombre del producto"
                   value={formNombre}
                   onChange={(e) => setFormNombre(e.target.value)}
                   className="form-input"
@@ -225,6 +268,21 @@ export const InventarioPage: React.FC = () => {
               </div>
 
               <div style={styles.formRow}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label">UNIDAD DE MEDIDA</label>
+                  <select
+                    value={formUnidadMedida}
+                    onChange={(e) => setFormUnidadMedida(e.target.value)}
+                    className="form-select"
+                  >
+                    {rubroConfig.unidadesMedida.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="form-group" style={{ flex: 1 }}>
                   <label className="form-label">PRECIO VENTA (L.)</label>
                   <input
@@ -274,6 +332,56 @@ export const InventarioPage: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Campos dinámicos según RubroConfig */}
+              {rubroConfig.activarVencimientos && (
+                <div style={{ ...styles.formRow, marginTop: '10px', padding: '10px', backgroundColor: '#FEF3C7', borderRadius: '4px' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label" style={{ color: '#B45309' }}>FECHA VENCIMIENTO (OPCIONAL)</label>
+                    <input
+                      type="date"
+                      value={formFechaVencimiento}
+                      onChange={(e) => setFormFechaVencimiento(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label" style={{ color: '#B45309' }}>NÚMERO DE LOTE</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. LOT-2026-X"
+                      value={formLote}
+                      onChange={(e) => setFormLote(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {rubroConfig.activarGarantiaSerie && (
+                <div style={{ ...styles.formRow, marginTop: '10px', padding: '10px', backgroundColor: '#E0F2FE', borderRadius: '4px' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label" style={{ color: '#0369A1' }}>NÚMERO DE SERIE</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. SN-987654321"
+                      value={formNumeroSerie}
+                      onChange={(e) => setFormNumeroSerie(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label" style={{ color: '#0369A1' }}>GARANTÍA (MESES)</label>
+                    <input
+                      type="number"
+                      placeholder="Ej. 12"
+                      value={formMesesGarantia}
+                      onChange={(e) => setFormMesesGarantia(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button
@@ -363,7 +471,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   modalContent: {
     width: '100%',
-    maxWidth: '560px',
+    maxWidth: '580px',
   },
   modalHeader: {
     display: 'flex',

@@ -13,6 +13,29 @@ export type Permiso =
   | 'usuarios.gestionar'
   | 'configuracion.editar';
 
+export enum Rubro {
+  FERRETERIA = 'FERRETERIA',
+  PULPERIA = 'PULPERIA',
+  MINIMARKET = 'MINIMARKET',
+  FARMACIA = 'FARMACIA',
+  PAPELERIA = 'PAPELERIA',
+  DISTRIBUIDORA = 'DISTRIBUIDORA',
+  AGROSERVICIO = 'AGROSERVICIO',
+  REPUESTOS_AUTOMOTRICES = 'REPUESTOS_AUTOMOTRICES',
+  ELECTRODOMESTICOS = 'ELECTRODOMESTICOS',
+  GENERAL = 'GENERAL',
+}
+
+export interface MonedaConfig {
+  simbolo: string;
+  codigo: string;
+}
+
+export interface ImpuestoConfig {
+  nombre: string;
+  tasa: number;
+}
+
 export interface TenantInfo {
   id: string;
   nombreComercial: string;
@@ -22,6 +45,14 @@ export interface TenantInfo {
   direccion?: string;
   telefono?: string;
   email?: string;
+  rubro?: Rubro | keyof typeof Rubro;
+  modulosHabilitados?: string[];
+  estiloUI?: 'INDUSTRIAL' | 'MINIMALISTA' | 'MODERNO';
+  fuenteTitulos?: 'Archivo' | 'Space Grotesk' | 'Poppins' | 'Montserrat';
+  fuenteCuerpo?: 'Inter' | 'IBM Plex Sans' | 'Nunito Sans';
+  moneda?: MonedaConfig;
+  impuesto?: ImpuestoConfig;
+  idioma?: 'es' | 'en';
 }
 
 export interface UserInfo {
@@ -49,6 +80,11 @@ export interface ProductItem {
   usaMedida?: boolean;
   activo?: boolean;
   stockBajo?: boolean;
+  fechaVencimiento?: string;
+  lote?: string;
+  numeroSerie?: string;
+  mesesGarantia?: number;
+  requiereGarantia?: boolean;
 }
 
 export interface SaleItem {
