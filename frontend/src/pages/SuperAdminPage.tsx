@@ -3,7 +3,6 @@ import {
   Plus,
   CheckCircle,
   Building,
-  ShoppingCart,
   Power,
   Users,
   ShieldCheck,
@@ -16,8 +15,8 @@ import {
   ExternalLink,
   Search,
   X,
+  Server,
 } from 'lucide-react';
-import { formatNumber } from '../utils/format';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate } from 'react-router-dom';
@@ -30,7 +29,7 @@ interface TenantItem {
   plan: string;
   estado: 'ACTIVO' | 'SUSPENDIDO';
   usuariosCount: number;
-  ventasCount: number;
+  sucursalesCount: number;
   colorPrimario: string;
 }
 
@@ -50,10 +49,10 @@ const INITIAL_TENANTS: TenantItem[] = [
     nombreComercial: 'LA MUNDIAL - SUCURSAL CENTRO',
     contacto: 'admin@lamundial.hn',
     telefono: '+504 2550-1234',
-    plan: 'Plan Pro Ferretero',
+    plan: 'Plan Enterprise',
     estado: 'ACTIVO',
     usuariosCount: 4,
-    ventasCount: 1042,
+    sucursalesCount: 3,
     colorPrimario: '#EA580C',
   },
   {
@@ -61,10 +60,10 @@ const INITIAL_TENANTS: TenantItem[] = [
     nombreComercial: 'FERRETERÍA EL MARTILLO DE ORO',
     contacto: 'admin@elmartillodeoro.hn',
     telefono: '+504 2233-4455',
-    plan: 'Plan Básico',
+    plan: 'Plan Pyme Ferretero',
     estado: 'ACTIVO',
     usuariosCount: 2,
-    ventasCount: 310,
+    sucursalesCount: 1,
     colorPrimario: '#0284C7',
   },
   {
@@ -75,7 +74,7 @@ const INITIAL_TENANTS: TenantItem[] = [
     plan: 'Plan Básico',
     estado: 'SUSPENDIDO',
     usuariosCount: 1,
-    ventasCount: 85,
+    sucursalesCount: 1,
     colorPrimario: '#DC2626',
   },
 ];
@@ -222,7 +221,7 @@ export const SuperAdminPage: React.FC = () => {
       plan: 'Plan Pro (Trial)',
       estado: 'ACTIVO',
       usuariosCount: 1,
-      ventasCount: 0,
+      sucursalesCount: 1,
       colorPrimario,
     };
 
@@ -351,11 +350,11 @@ export const SuperAdminPage: React.FC = () => {
           </div>
 
           <div className="industrial-card" style={styles.metricCard}>
-            <ShoppingCart size={24} strokeWidth={2.4} color="var(--color-primary)" />
+            <Server size={24} strokeWidth={2.4} color="var(--color-primary)" />
             <div style={styles.metricValue}>
-              {formatNumber(tenants.reduce((acc, t) => acc + t.ventasCount, 0))}
+              {tenants.reduce((acc, t) => acc + t.sucursalesCount, 0)}
             </div>
-            <div style={styles.metricLabel}>VENTAS TOTALES PROCESADAS</div>
+            <div style={styles.metricLabel}>TOTAL SUCURSALES CONECTADAS</div>
           </div>
         </div>
 
@@ -426,9 +425,9 @@ export const SuperAdminPage: React.FC = () => {
                     <th>NOMBRE COMERCIAL</th>
                     <th>CONTACTO PRINCIPAL</th>
                     <th>TELÉFONO</th>
+                    <th style={{ textAlign: 'center' }}>PLAN SUSCRIPCIÓN</th>
                     <th style={{ textAlign: 'center' }}>COLOR MARCA</th>
                     <th style={{ textAlign: 'center' }}>USUARIOS</th>
-                    <th style={{ textAlign: 'center' }}>VENTAS POS</th>
                     <th style={{ textAlign: 'center' }}>ESTADO</th>
                     <th style={{ textAlign: 'center' }}>ACCIONES</th>
                   </tr>
@@ -439,11 +438,14 @@ export const SuperAdminPage: React.FC = () => {
                       <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
                         <div>{t.nombreComercial}</div>
                         <div style={{ fontSize: '10px', color: '#78716C', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                          <GitBranch size={11} /> <span>3 Sucursales Conectadas</span>
+                          <GitBranch size={11} /> <span>{t.sucursalesCount} Sucursal(es) Conectada(s)</span>
                         </div>
                       </td>
                       <td style={{ fontWeight: 600 }}>{t.contacto}</td>
                       <td style={{ color: '#78716C' }}>{t.telefono}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge badge-dark" style={{ fontSize: '11px' }}>{t.plan}</span>
+                      </td>
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                           <span
@@ -459,9 +461,6 @@ export const SuperAdminPage: React.FC = () => {
                         </div>
                       </td>
                       <td style={{ textAlign: 'center', fontWeight: 700 }}>{t.usuariosCount}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--color-primary)' }}>
-                        {formatNumber(t.ventasCount)}
-                      </td>
                       <td style={{ textAlign: 'center' }}>
                         {t.estado === 'ACTIVO' ? (
                           <span className="badge badge-success">ACTIVO</span>
