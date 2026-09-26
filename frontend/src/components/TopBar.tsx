@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Clock, UserCheck, LogOut, Bell, Check, X } from 'lucide-react';
+import { Calendar, Clock, UserCheck, LogOut, Bell, Check, X, ShieldAlert, GitBranch } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useNotification, type SolicitudDescuento } from '../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
@@ -14,11 +14,39 @@ export const TopBar: React.FC<TopBarProps> = ({
   title,
   subtitle = 'Turno Actual: 08:00 AM - 05:00 PM',
 }) => {
-  const { user, logout } = useTenant();
+  const { user, tenant, isImpersonating, stopImpersonating, switchSucursal, logout } = useTenant();
   const { solicitudes, responderSolicitud } = useNotification();
   const navigate = useNavigate();
 
   const [panelNotificaciones, setPanelNotificaciones] = React.useState(false);
+
+  // Cargar dinámicamente las sucursales creadas por el Super Admin para esta empresa
+  const sucursalesDisponibles = React.useMemo(() => {
+    const defaultList = [
+      { id: 'suc-1', nombre: 'Sucursal Centro (Principal)' },
+      { id: 'suc-2', nombre: 'Sucursal San Pedro (Norte)' },
+      { id: 'suc-3', nombre: 'Sucursal Choluteca (Sur)' },
+    ];
+
+    const saasTenantsRaw = localStorage.getItem('ferre_saas_tenants');
+    if (saasTenantsRaw) {
+      try {
+        const saasTenants = JSON.parse(saasTenantsRaw);
+        const match = saasTenants.find(
+          (t: any) => t.id === tenant.id || t.nombreComercial === tenant.nombreComercial,
+        );
+        if (match && match.sucursalesList && match.sucursalesList.length > 0) {
+          return match.sucursalesList.map((s: any) => ({
+            id: s.id,
+            nombre: s.nombre,
+          }));
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return defaultList;
+  }, [tenant.id, tenant.nombreComercial]);
 
   // Verificar si el usuario tiene permiso para autorizar (ADMIN o permiso usuarios.gestionar)
   const puedeAutorizar =
@@ -50,14 +78,58 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <header style={styles.header}>
+      {/* Banner de Modo Soporte Técnico (Impersonación de Super Admin) */}
+      {isImpersonating && (
+        <div style={styles.supportBanner}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShieldAlert size={18} color="#9A3412" />
+            <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#9A3412' }}>
+              MODO SOPORTE TÉCNICO ACTIVO: Estás suplantando remotamente al Administrador de {tenant.nombreComercial}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              stopImpersonating();
+              navigate('/admin');
+            }}
+            className="btn btn-sm"
+            style={styles.exitSupportBtn}
+          >
+            <LogOut size={13} /> SALIR DE MODO SOPORTE Y VOLVER AL PORTAL SAAS
+          </button>
+        </div>
+      )}
+
       <div style={styles.titleContainer}>
         <div style={styles.headingWrapper}>
           <h1 style={styles.mainTitle}>{title}</h1>
           <div style={styles.accentUnderline} />
         </div>
-        <div style={styles.shiftInfo}>
-          <Clock size={14} strokeWidth={2.4} style={{ color: 'var(--color-text-muted)' }} />
-          <span>{subtitle}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={styles.shiftInfo}>
+            <Clock size={14} strokeWidth={2.4} style={{ color: 'var(--color-text-muted)' }} />
+            <span>{subtitle}</span>
+          </div>
+
+          {/* Selector de Sucursales (Para clientes multi-sucursal) */}
+          {user?.rol === 'ADMIN' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <GitBranch size={13} color="var(--color-primary)" />
+              <select
+                value={tenant.sucursal || 'Sucursal Centro (Principal)'}
+                onChange={(e) => switchSucursal(e.target.value, tenant.id)}
+                style={styles.sucursalSelect}
+              >
+                {sucursalesDisponibles.map((s: any) => (
+                  <option key={s.id} value={s.nombre}>
+                    {s.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -191,6 +263,35 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '2px solid var(--color-border)',
     flexWrap: 'wrap',
     gap: '16px',
+    position: 'relative',
+  },
+  supportBanner: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFEDD5',
+    border: '2px solid #EA580C',
+    padding: '10px 16px',
+    borderRadius: 'var(--radius-xs)',
+    marginBottom: '8px',
+  },
+  exitSupportBtn: {
+    backgroundColor: '#EA580C',
+    color: '#FFFFFF',
+    fontWeight: 800,
+    fontSize: '11px',
+    border: '1px solid #C2410C',
+  },
+  sucursalSelect: {
+    padding: '3px 8px',
+    fontFamily: 'var(--font-display)',
+    fontWeight: 700,
+    fontSize: '11px',
+    border: '1.5px solid var(--color-border)',
+    borderRadius: 'var(--radius-xs)',
+    backgroundColor: '#FFFFFF',
+    cursor: 'pointer',
   },
   titleContainer: {
     display: 'flex',

@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   XCircle,
+  GitBranch,
 } from 'lucide-react';
 
 const TODOS_LOS_PERMISOS = [
@@ -37,9 +38,16 @@ export const UsuariosPage: React.FC = () => {
   const [formEmail, setFormEmail] = useState('');
   const [formPassword, setFormPassword] = useState('');
   const [formRolBase, setFormRolBase] = useState<'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR'>('CAJERO');
+  const [formSucursalActual, setFormSucursalActual] = useState('Sucursal Centro (Principal)');
   const [formPermisos, setFormPermisos] = useState<string[]>([]);
   const [formDescuentoMaximo, setFormDescuentoMaximo] = useState<number>(10);
   const [formActivo, setFormActivo] = useState(true);
+
+  const SUCURSALES_OPCIONES = [
+    'Sucursal Centro (Principal)',
+    'Sucursal San Pedro (Norte)',
+    'Sucursal Choluteca (Sur)',
+  ];
 
   const abrirNuevoUsuario = () => {
     setUsuarioEditando(null);
@@ -47,6 +55,7 @@ export const UsuariosPage: React.FC = () => {
     setFormEmail('');
     setFormPassword('Ferre2026!');
     setFormRolBase('CAJERO');
+    setFormSucursalActual('Sucursal Centro (Principal)');
     setFormPermisos(PERMISOS_DEFAULT_POR_ROL.CAJERO.permisos);
     setFormDescuentoMaximo(PERMISOS_DEFAULT_POR_ROL.CAJERO.descuentoMaximo);
     setFormActivo(true);
@@ -59,6 +68,7 @@ export const UsuariosPage: React.FC = () => {
     setFormEmail(usr.email);
     setFormPassword('');
     setFormRolBase(usr.rolBase);
+    setFormSucursalActual(usr.sucursalActual || 'Sucursal Centro (Principal)');
     setFormPermisos(usr.permisos);
     setFormDescuentoMaximo(usr.descuentoMaximo);
     setFormActivo(usr.activo);
@@ -89,6 +99,7 @@ export const UsuariosPage: React.FC = () => {
         nombre: formNombre.trim(),
         email: formEmail.trim(),
         rolBase: formRolBase,
+        sucursalActual: formSucursalActual,
         permisos: formPermisos,
         descuentoMaximo: formDescuentoMaximo,
         activo: formActivo,
@@ -98,6 +109,7 @@ export const UsuariosPage: React.FC = () => {
         nombre: formNombre.trim(),
         email: formEmail.trim(),
         rolBase: formRolBase,
+        sucursalActual: formSucursalActual,
         permisos: formPermisos,
         descuentoMaximo: formDescuentoMaximo,
         activo: formActivo,
@@ -133,6 +145,7 @@ export const UsuariosPage: React.FC = () => {
               <tr>
                 <th>NOMBRE DEL USUARIO</th>
                 <th>CORREO ELECTRÓNICO</th>
+                <th>SUCURSAL ASIGNADA</th>
                 <th style={{ textAlign: 'center' }}>ROL BASE</th>
                 <th style={{ textAlign: 'center' }}>DESC. MÁXIMO</th>
                 <th style={{ textAlign: 'center' }}>PERMISOS ACTIVOS</th>
@@ -145,6 +158,11 @@ export const UsuariosPage: React.FC = () => {
                 <tr key={u.id}>
                   <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{u.nombre}</td>
                   <td style={{ fontWeight: 600, color: '#444' }}>{u.email}</td>
+                  <td>
+                    <span className="badge badge-neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <GitBranch size={11} /> {u.sucursalActual || 'Sucursal Centro (Principal)'}
+                    </span>
+                  </td>
                   <td style={{ textAlign: 'center' }}>
                     <span className="badge badge-dark">{u.rolBase}</span>
                   </td>
@@ -240,6 +258,21 @@ export const UsuariosPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label">SUCURSAL DE TRABAJO (TRASLADO / ASIGNACIÓN)</label>
+                  <select
+                    value={formSucursalActual}
+                    onChange={(e) => setFormSucursalActual(e.target.value)}
+                    className="form-select"
+                  >
+                    {SUCURSALES_OPCIONES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ flex: 1 }}>
                   <label className="form-label">ROL BASE</label>
                   <select
                     value={formRolBase}
@@ -254,7 +287,9 @@ export const UsuariosPage: React.FC = () => {
                     <option value="VENDEDOR">VENDEDOR</option>
                   </select>
                 </div>
+              </div>
 
+              <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
                   <label className="form-label">DESCUENTO MÁXIMO PERMITIDO (%)</label>
                   <input

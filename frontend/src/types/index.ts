@@ -19,6 +19,9 @@ export interface TenantInfo {
   sucursal?: string;
   logoUrl?: string | null;
   colorPrimario: string;
+  direccion?: string;
+  telefono?: string;
+  email?: string;
 }
 
 export interface UserInfo {

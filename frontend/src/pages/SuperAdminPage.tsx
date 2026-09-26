@@ -3,7 +3,6 @@ import {
   Plus,
   CheckCircle,
   Building,
-  ShoppingCart,
   Power,
   Users,
   ShieldCheck,
@@ -12,9 +11,25 @@ import {
   Check,
   Lock,
   UserCheck,
+  GitBranch,
+  ExternalLink,
+  Search,
+  X,
+  Server,
+  Trash2,
 } from 'lucide-react';
-import { formatNumber } from '../utils/format';
 import { TopBar } from '../components/TopBar';
+import { useTenant } from '../context/TenantContext';
+import { useNavigate } from 'react-router-dom';
+
+interface SubSucursalItem {
+  id: string;
+  nombre: string;
+  direccion: string;
+  telefono: string;
+  encargado: string;
+  activa: boolean;
+}
 
 interface TenantItem {
   id: string;
@@ -24,8 +39,19 @@ interface TenantItem {
   plan: string;
   estado: 'ACTIVO' | 'SUSPENDIDO';
   usuariosCount: number;
-  ventasCount: number;
+  sucursalesCount: number;
   colorPrimario: string;
+  sucursalesList?: SubSucursalItem[];
+}
+
+interface AdminUserItem {
+  id: string;
+  nombre: string;
+  email: string;
+  tenantId: string;
+  tenantNombre: string;
+  activo: boolean;
+  fechaCreacion: string;
 }
 
 interface AdminUserItem {
@@ -44,21 +70,26 @@ const INITIAL_TENANTS: TenantItem[] = [
     nombreComercial: 'LA MUNDIAL - SUCURSAL CENTRO',
     contacto: 'admin@lamundial.hn',
     telefono: '+504 2550-1234',
-    plan: 'Plan Pro Ferretero',
+    plan: 'Plan Enterprise',
     estado: 'ACTIVO',
     usuariosCount: 4,
-    ventasCount: 1042,
+    sucursalesCount: 3,
     colorPrimario: '#EA580C',
+    sucursalesList: [
+      { id: 'suc-1', nombre: 'Sucursal Centro (Principal)', direccion: 'Barrio El Centro', telefono: '+504 2550-1234', encargado: 'Carlos Ramos', activa: true },
+      { id: 'suc-2', nombre: 'Sucursal Circunvalación', direccion: 'Ave. Circunvalación', telefono: '+504 2550-5678', encargado: 'Mario Rivera', activa: true },
+      { id: 'suc-3', nombre: 'Sucursal Chamelecón', direccion: 'Col. Chamelecón', telefono: '+504 2550-9900', encargado: 'Ana Martínez', activa: true },
+    ],
   },
   {
     id: 't-2',
     nombreComercial: 'FERRETERÍA EL MARTILLO DE ORO',
     contacto: 'admin@elmartillodeoro.hn',
     telefono: '+504 2233-4455',
-    plan: 'Plan Básico',
+    plan: 'Plan Pyme Ferretero',
     estado: 'ACTIVO',
     usuariosCount: 2,
-    ventasCount: 310,
+    sucursalesCount: 1,
     colorPrimario: '#0284C7',
   },
   {
@@ -69,7 +100,7 @@ const INITIAL_TENANTS: TenantItem[] = [
     plan: 'Plan Básico',
     estado: 'SUSPENDIDO',
     usuariosCount: 1,
-    ventasCount: 85,
+    sucursalesCount: 1,
     colorPrimario: '#DC2626',
   },
 ];
@@ -105,6 +136,9 @@ const INITIAL_ADMIN_USERS: AdminUserItem[] = [
 ];
 
 export const SuperAdminPage: React.FC = () => {
+  const { impersonateTenantAdmin } = useTenant();
+  const navigate = useNavigate();
+
   const [tabActiva, setTabActiva] = useState<'tenants' | 'admins' | 'analisis'>('tenants');
   const [tenants, setTenants] = useState<TenantItem[]>(INITIAL_TENANTS);
   const [adminUsers, setAdminUsers] = useState<AdminUserItem[]>(() => {
@@ -113,14 +147,34 @@ export const SuperAdminPage: React.FC = () => {
   });
 
   useEffect(() => {
+    localStorage.setItem('ferre_saas_tenants', JSON.stringify(tenants));
+  }, [tenants]);
+
+  useEffect(() => {
     localStorage.setItem('ferre_saas_admins', JSON.stringify(adminUsers));
   }, [adminUsers]);
 
   // Modales
   const [modalNuevoTenant, setModalNuevoTenant] = useState(false);
+  const [modalEditarTenant, setModalEditarTenant] = useState<TenantItem | null>(null);
+  const [modalSucursalesTenant, setModalSucursalesTenant] = useState<TenantItem | null>(null);
   const [modalNuevoAdmin, setModalNuevoAdmin] = useState(false);
   const [modalEditarAdmin, setModalEditarAdmin] = useState<AdminUserItem | null>(null);
   const [modalResetPassAdmin, setModalResetPassAdmin] = useState<AdminUserItem | null>(null);
+  const [modalSuplantarUser, setModalSuplantarUser] = useState<TenantItem | null>(null);
+  const [busquedaSuplantar, setBusquedaSuplantar] = useState('');
+
+  // Formulario Nueva Sub-Sucursal
+  const [nuevaSucursalNombre, setNuevaSucursalNombre] = useState('');
+  const [nuevaSucursalDireccion, setNuevaSucursalDireccion] = useState('');
+  const [nuevaSucursalTelefono, setNuevaSucursalTelefono] = useState('');
+  const [nuevaSucursalEncargado, setNuevaSucursalEncargado] = useState('');
+
+  // Formulario Editar Tenant / Marca
+  const [editNombreComercial, setEditNombreComercial] = useState('');
+  const [editTelefono, setEditTelefono] = useState('');
+  const [editPlan, setEditPlan] = useState('');
+  const [editColorPrimario, setEditColorPrimario] = useState('#EA580C');
 
   // Formulario nuevo tenant
   const [nombreComercial, setNombreComercial] = useState('');
@@ -148,6 +202,48 @@ export const SuperAdminPage: React.FC = () => {
     );
   };
 
+  const abrirModalSuplantar = (tenantItem: TenantItem) => {
+    setModalSuplantarUser(tenantItem);
+    setBusquedaSuplantar('');
+  };
+
+  const ejecutarSuplantacion = (usrObj: { id: string; nombre: string; email: string; rol: any }) => {
+    if (!modalSuplantarUser) return;
+
+    impersonateTenantAdmin(
+      {
+        id: modalSuplantarUser.id,
+        nombreComercial: modalSuplantarUser.nombreComercial,
+        sucursal: 'Sucursal Centro (Principal)',
+        colorPrimario: modalSuplantarUser.colorPrimario,
+      },
+      {
+        id: usrObj.id,
+        nombre: usrObj.nombre,
+        email: usrObj.email,
+        rol: usrObj.rol,
+        permisos: [
+          'pos.vender',
+          'pos.anular_venta',
+          'pos.aplicar_descuento',
+          'inventario.ver',
+          'inventario.editar',
+          'cotizaciones.crear',
+          'cotizaciones.aprobar',
+          'cotizaciones.convertir_venta',
+          'reportes.ver',
+          'usuarios.gestionar',
+          'configuracion.editar',
+        ],
+        descuentoMaximo: 100,
+        activo: true,
+      },
+    );
+
+    setModalSuplantarUser(null);
+    navigate('/');
+  };
+
   const toggleEstadoAdmin = (id: string) => {
     setAdminUsers(
       adminUsers.map((a) => (a.id === id ? { ...a, activo: !a.activo } : a)),
@@ -169,7 +265,7 @@ export const SuperAdminPage: React.FC = () => {
       plan: 'Plan Pro (Trial)',
       estado: 'ACTIVO',
       usuariosCount: 1,
-      ventasCount: 0,
+      sucursalesCount: 1,
       colorPrimario,
     };
 
@@ -298,11 +394,11 @@ export const SuperAdminPage: React.FC = () => {
           </div>
 
           <div className="industrial-card" style={styles.metricCard}>
-            <ShoppingCart size={24} strokeWidth={2.4} color="var(--color-primary)" />
+            <Server size={24} strokeWidth={2.4} color="var(--color-primary)" />
             <div style={styles.metricValue}>
-              {formatNumber(tenants.reduce((acc, t) => acc + t.ventasCount, 0))}
+              {tenants.reduce((acc, t) => acc + t.sucursalesCount, 0)}
             </div>
-            <div style={styles.metricLabel}>VENTAS TOTALES PROCESADAS</div>
+            <div style={styles.metricLabel}>TOTAL SUCURSALES CONECTADAS</div>
           </div>
         </div>
 
@@ -373,9 +469,9 @@ export const SuperAdminPage: React.FC = () => {
                     <th>NOMBRE COMERCIAL</th>
                     <th>CONTACTO PRINCIPAL</th>
                     <th>TELÉFONO</th>
+                    <th style={{ textAlign: 'center' }}>PLAN SUSCRIPCIÓN</th>
                     <th style={{ textAlign: 'center' }}>COLOR MARCA</th>
                     <th style={{ textAlign: 'center' }}>USUARIOS</th>
-                    <th style={{ textAlign: 'center' }}>VENTAS POS</th>
                     <th style={{ textAlign: 'center' }}>ESTADO</th>
                     <th style={{ textAlign: 'center' }}>ACCIONES</th>
                   </tr>
@@ -384,10 +480,16 @@ export const SuperAdminPage: React.FC = () => {
                   {tenants.map((t) => (
                     <tr key={t.id}>
                       <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
-                        {t.nombreComercial}
+                        <div>{t.nombreComercial}</div>
+                        <div style={{ fontSize: '10px', color: '#78716C', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                          <GitBranch size={11} /> <span>{t.sucursalesCount} Sucursal(es) Conectada(s)</span>
+                        </div>
                       </td>
                       <td style={{ fontWeight: 600 }}>{t.contacto}</td>
                       <td style={{ color: '#78716C' }}>{t.telefono}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge badge-dark" style={{ fontSize: '11px' }}>{t.plan}</span>
+                      </td>
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                           <span
@@ -403,9 +505,6 @@ export const SuperAdminPage: React.FC = () => {
                         </div>
                       </td>
                       <td style={{ textAlign: 'center', fontWeight: 700 }}>{t.usuariosCount}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--color-primary)' }}>
-                        {formatNumber(t.ventasCount)}
-                      </td>
                       <td style={{ textAlign: 'center' }}>
                         {t.estado === 'ACTIVO' ? (
                           <span className="badge badge-success">ACTIVO</span>
@@ -414,14 +513,53 @@ export const SuperAdminPage: React.FC = () => {
                         )}
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          className={`btn btn-sm ${t.estado === 'ACTIVO' ? 'btn-secondary' : 'btn-primary'}`}
-                          onClick={() => toggleEstadoTenant(t.id)}
-                        >
-                          <Power size={13} strokeWidth={2.5} />
-                          {t.estado === 'ACTIVO' ? 'SUSPENDER' : 'ACTIVAR'}
-                        </button>
+                        <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => {
+                              setModalSucursalesTenant(t);
+                              setNuevaSucursalNombre('');
+                              setNuevaSucursalDireccion('');
+                              setNuevaSucursalTelefono('');
+                              setNuevaSucursalEncargado('');
+                            }}
+                            title="Gestionar y crear sub-sucursales para esta empresa"
+                          >
+                            <GitBranch size={13} /> SUCURSALES
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => {
+                              setModalEditarTenant(t);
+                              setEditNombreComercial(t.nombreComercial);
+                              setEditTelefono(t.telefono);
+                              setEditPlan(t.plan);
+                              setEditColorPrimario(t.colorPrimario);
+                            }}
+                            title="Editar marca, color y datos de la ferretería"
+                          >
+                            <Edit2 size={13} /> MARCA
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary"
+                            onClick={() => abrirModalSuplantar(t)}
+                            title="Elegir usuario del cliente para entrar en modo soporte remoto"
+                            style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
+                          >
+                            <ExternalLink size={13} /> SOPORTE REMOTO (SUPLANTAR)
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${t.estado === 'ACTIVO' ? 'btn-secondary' : 'btn-primary'}`}
+                            onClick={() => toggleEstadoTenant(t.id)}
+                          >
+                            <Power size={13} strokeWidth={2.5} />
+                            {t.estado === 'ACTIVO' ? 'SUSPENDER' : 'ACTIVAR'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -635,12 +773,12 @@ export const SuperAdminPage: React.FC = () => {
                     <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
                   </tr>
                   <tr>
-                    <td style={{ fontWeight: 800 }}>CONFIGURACIÓN DEL SISTEMA (/configuracion)</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      <CheckCircle size={16} style={{ verticalAlign: 'middle', marginRight: 4, display: 'inline-block' }} /> ACCESO TOTAL
+                    <td style={{ fontWeight: 800 }}>CONFIGURACIÓN DE LA FERRETERÍA (/configuracion)</td>
+                    <td style={{ textAlign: 'center', backgroundColor: '#FEF3C7', color: '#B45309', fontWeight: 700 }}>
+                      VÍA MODO SOPORTE
                     </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 700 }}>
-                      <Lock size={14} style={{ verticalAlign: 'middle', marginRight: 4, display: 'inline-block' }} /> OCULTO / DENEGADO
+                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
+                      PERMITIDO (Su Tienda)
                     </td>
                     <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
                     <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
@@ -656,32 +794,32 @@ export const SuperAdminPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                   <ShieldCheck size={20} color="var(--color-primary)" />
                   <h3 style={{ fontSize: '14px', textTransform: 'uppercase', fontFamily: 'var(--font-display)', fontWeight: 800 }}>
-                    1. SEPARACIÓN DE JERARQUÍAS Y NIVELES
+                    1. ROL Y PROPÓSITO DEL SUPER ADMIN
                   </h3>
                 </div>
                 <ul style={{ fontSize: '13px', lineHeight: '1.6', color: '#44403C', paddingLeft: '18px' }}>
                   <li>
-                    <strong>Super Admin (SaaS Global):</strong> Mantiene a los usuarios administradores de las ferreterías (Tenants), aprovisiona nuevos clientes y gestiona el estado de suscripciones. No realiza ventas ni inventario físico operativo.
+                    <strong>Dueño de la Aplicación (Proveedor SaaS):</strong> No gestiona operaciones comerciales cotidianas. Su función es dar mantenimiento a los clientes, controlar suscripciones y usuarios Admin.
                   </li>
                   <li style={{ marginTop: '8px' }}>
-                    <strong>Admin de Ferretería (Tenant Admin):</strong> Administra a los usuarios operativos de su propia sucursal (Cajeros, Bodegueros, Vendedores) y configura parámetros del local. No tiene acceso al panel SaaS del Super Admin.
+                    <strong>Soporte Técnico por Suplantación Remota:</strong> Para resolver dudas o corregir errores del cliente en vivo, el Super Admin usa la opción <code>SOPORTE REMOTO (SUPLANTAR)</code> para ver e interactuar temporalmente con el menú exacto del cliente.
                   </li>
                 </ul>
               </div>
 
               <div className="industrial-card" style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <CheckCircle size={20} color="#15803D" />
+                  <GitBranch size={20} color="#0284C7" />
                   <h3 style={{ fontSize: '14px', textTransform: 'uppercase', fontFamily: 'var(--font-display)', fontWeight: 800 }}>
-                    2. AJUSTES APLICADOS EN RUTAS Y MENÚS
+                    2. AISLAMIENTO MULTI-SUCURSAL Y CLIENTES
                   </h3>
                 </div>
                 <ul style={{ fontSize: '13px', lineHeight: '1.6', color: '#44403C', paddingLeft: '18px' }}>
                   <li>
-                    <strong>Restricción de Menús Operativos:</strong> Se ocultaron de la barra lateral del Super Admin las opciones de POS, Inventario, Cotizaciones y Configuración local de tienda.
+                    <strong>Aislamiento Total de Datos:</strong> Cada ferretería/sucursal maneja su inventario, ventas y caja de forma 100% aislada sin mezcla de información.
                   </li>
                   <li style={{ marginTop: '8px' }}>
-                    <strong>Protección Estricta de la Ruta /admin:</strong> Se removió la tolerancia para el rol ADMIN en <code>/admin</code>, garantizando que sólo el rol <code>SUPERADMIN</code> pueda acceder a este portal.
+                    <strong>Selector de Sucursal para el Cliente:</strong> Un cliente con múltiples sucursales puede cambiar entre ellas desde el selector de la barra superior sin contaminar reportes inter-sucursales.
                   </li>
                 </ul>
               </div>
@@ -689,6 +827,299 @@ export const SuperAdminPage: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* MODAL GESTIONAR SUB-SUCURSALES DE UN TENANT */}
+      {modalSucursalesTenant && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '650px' }}>
+            <div style={styles.modalHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <div>
+                  <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                    GESTIÓN DE SUB-SUCURSALES PARA EL ADMIN
+                  </h2>
+                  <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700, marginTop: '2px' }}>
+                    EMPRESA: {modalSucursalesTenant.nombreComercial}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalSucursalesTenant(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '16px' }}>
+              {/* Formulario Crear Nueva Sub-Sucursal */}
+              <div style={{ padding: '14px', backgroundColor: '#FAFAF9', border: '1.5px solid #D6D3D1', borderRadius: '4px', marginBottom: '16px' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                  AÑADIR NUEVA SUCURSAL A ESTE CLIENTE
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">NOMBRE DE LA SUCURSAL / SEDE</label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Sucursal Choloma / Norte"
+                    value={nuevaSucursalNombre}
+                    onChange={(e) => setNuevaSucursalNombre(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">DIRECCIÓN</label>
+                    <input
+                      type="text"
+                      placeholder="Barrio / Plaza Comercial"
+                      value={nuevaSucursalDireccion}
+                      onChange={(e) => setNuevaSucursalDireccion(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">TELÉFONO</label>
+                    <input
+                      type="text"
+                      placeholder="+504 2550-0000"
+                      value={nuevaSucursalTelefono}
+                      onChange={(e) => setNuevaSucursalTelefono(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => {
+                      if (!nuevaSucursalNombre.trim()) return;
+
+                      const nuevaSubSucursal: SubSucursalItem = {
+                        id: `suc-${Date.now()}`,
+                        nombre: nuevaSucursalNombre.trim(),
+                        direccion: nuevaSucursalDireccion.trim() || 'Dirección Principal',
+                        telefono: nuevaSucursalTelefono.trim() || modalSucursalesTenant.telefono,
+                        encargado: nuevaSucursalEncargado.trim() || 'Administrador Asignado',
+                        activa: true,
+                      };
+
+                      const currentList = modalSucursalesTenant.sucursalesList || [];
+                      const updatedList = [...currentList, nuevaSubSucursal];
+
+                      setTenants(
+                        tenants.map((t) =>
+                          t.id === modalSucursalesTenant.id
+                            ? {
+                                ...t,
+                                sucursalesCount: updatedList.length,
+                                sucursalesList: updatedList,
+                              }
+                            : t,
+                        ),
+                      );
+
+                      setModalSucursalesTenant({
+                        ...modalSucursalesTenant,
+                        sucursalesCount: updatedList.length,
+                        sucursalesList: updatedList,
+                      });
+
+                      setNuevaSucursalNombre('');
+                      setNuevaSucursalDireccion('');
+                      setNuevaSucursalTelefono('');
+                      setMensajeExito(`¡Sub-sucursal "${nuevaSubSucursal.nombre}" habilitada para ${modalSucursalesTenant.nombreComercial}!`);
+                      setTimeout(() => setMensajeExito(null), 4000);
+                    }}
+                  >
+                    <Plus size={14} /> CREAR SUCURSAL
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista de Sucursales de esta Empresa */}
+              <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
+                <table className="industrial-table">
+                  <thead>
+                    <tr>
+                      <th>SUCURSAL</th>
+                      <th>DIRECCIÓN</th>
+                      <th>TELÉFONO</th>
+                      <th style={{ textAlign: 'center' }}>ESTADO</th>
+                      <th style={{ textAlign: 'center' }}>ACCIONES</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(modalSucursalesTenant.sucursalesList || [
+                      { id: 's1', nombre: 'Sucursal Principal', direccion: 'Barrio El Centro', telefono: modalSucursalesTenant.telefono, encargado: 'Admin', activa: true },
+                    ]).map((s) => (
+                      <tr key={s.id}>
+                        <td style={{ fontWeight: 800 }}>{s.nombre}</td>
+                        <td style={{ color: '#78716C' }}>{s.direccion}</td>
+                        <td style={{ color: '#78716C' }}>{s.telefono}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="badge badge-success">HABILITADA</span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger"
+                            title="Eliminar Sub-Sucursal"
+                            onClick={() => {
+                              const currentList = modalSucursalesTenant.sucursalesList || [];
+                              const updatedList = currentList.filter((item) => item.id !== s.id);
+
+                              setTenants(
+                                tenants.map((t) =>
+                                  t.id === modalSucursalesTenant.id
+                                    ? {
+                                        ...t,
+                                        sucursalesCount: updatedList.length,
+                                        sucursalesList: updatedList,
+                                      }
+                                    : t,
+                                ),
+                              );
+
+                              setModalSucursalesTenant({
+                                ...modalSucursalesTenant,
+                                sucursalesCount: updatedList.length,
+                                sucursalesList: updatedList,
+                              });
+
+                              setMensajeExito(`¡Sub-sucursal "${s.nombre}" eliminada exitosamente!`);
+                              setTimeout(() => setMensajeExito(null), 4000);
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setModalSucursalesTenant(null)}
+                >
+                  CERRAR
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR TENANT Y MARCA */}
+      {modalEditarTenant && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                CONFIGURAR MARCA Y COLOR DE TENANT
+              </h2>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setTenants(
+                  tenants.map((t) =>
+                    t.id === modalEditarTenant.id
+                      ? {
+                          ...t,
+                          nombreComercial: editNombreComercial.toUpperCase().trim(),
+                          telefono: editTelefono,
+                          plan: editPlan,
+                          colorPrimario: editColorPrimario,
+                        }
+                      : t,
+                  ),
+                );
+                setModalEditarTenant(null);
+                setMensajeExito(`¡Configuración de marca para "${editNombreComercial}" actualizada!`);
+                setTimeout(() => setMensajeExito(null), 4000);
+              }}
+              style={{ marginTop: '16px' }}
+            >
+              <div className="form-group">
+                <label className="form-label">NOMBRE COMERCIAL DE LA FERRETERÍA</label>
+                <input
+                  type="text"
+                  required
+                  value={editNombreComercial}
+                  onChange={(e) => setEditNombreComercial(e.target.value)}
+                  className="form-input"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label">TELÉFONO DE CONTACTO</label>
+                  <input
+                    type="text"
+                    value={editTelefono}
+                    onChange={(e) => setEditTelefono(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label">PLAN DE SUSCRIPCIÓN</label>
+                  <input
+                    type="text"
+                    value={editPlan}
+                    onChange={(e) => setEditPlan(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">COLOR ASIGNADO A LA FERRETERÍA (HEX)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input
+                    type="color"
+                    value={editColorPrimario}
+                    onChange={(e) => setEditColorPrimario(e.target.value)}
+                    style={{ width: '50px', height: '42px', cursor: 'pointer', border: '2px solid #292524' }}
+                  />
+                  <input
+                    type="text"
+                    value={editColorPrimario}
+                    onChange={(e) => setEditColorPrimario(e.target.value)}
+                    className="form-input"
+                    style={{ fontFamily: 'monospace', fontWeight: 700 }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setModalEditarTenant(null)}
+                >
+                  CANCELAR
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  <Check size={16} strokeWidth={2.6} /> GUARDAR CONFIGURACIÓN
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 1: NUEVO TENANT */}
       {modalNuevoTenant && (
@@ -793,6 +1224,130 @@ export const SuperAdminPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: ELECCIÓN / BÚSQUEDA DE USUARIO A SUPLANTAR */}
+      {modalSuplantarUser && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '600px' }}>
+            <div style={styles.modalHeader}>
+              <div>
+                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                  SOPORTE REMOTO • SELECCIONAR USUARIO A SUPLANTAR
+                </h2>
+                <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700 }}>
+                  CLIENTE: {modalSuplantarUser.nombreComercial}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalSuplantarUser(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ marginTop: '16px' }}>
+              {/* Input Búsqueda de Usuario */}
+              <div className="form-group">
+                <label className="form-label">BUSCAR USUARIO POR NOMBRE O CORREO</label>
+                <div style={{ position: 'relative' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#78716C' }} />
+                  <input
+                    type="text"
+                    placeholder="Ej. Carlos Ramos, cajero, admin..."
+                    value={busquedaSuplantar}
+                    onChange={(e) => setBusquedaSuplantar(e.target.value)}
+                    className="form-input"
+                    style={{ paddingLeft: '36px' }}
+                  />
+                </div>
+              </div>
+
+              {/* Lista de Usuarios de la Empresa Disponibles para Suplantar */}
+              <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1.5px solid #D6D3D1', borderRadius: '4px', marginTop: '12px' }}>
+                {[
+                  {
+                    id: 'usr-admin-1',
+                    nombre: `Carlos Ramos (Administrador General)`,
+                    email: modalSuplantarUser.contacto,
+                    rol: 'ADMIN',
+                    cargo: 'Dueño / Gerente de Sucursal',
+                  },
+                  {
+                    id: 'usr-cajero-1',
+                    nombre: 'Carlos Ramos (Cajero Principal)',
+                    email: 'cajero@lamundial.hn',
+                    rol: 'CAJERO',
+                    cargo: 'Cajero POS / Facturación',
+                  },
+                  {
+                    id: 'usr-bodega-1',
+                    nombre: 'Jorge Mendoza (Bodeguero)',
+                    email: 'bodega@lamundial.hn',
+                    rol: 'BODEGUERO',
+                    cargo: 'Encargado de Inventario & Stock',
+                  },
+                  {
+                    id: 'usr-vendedor-1',
+                    nombre: 'Ana Martínez (Vendedora)',
+                    email: 'vendedor@lamundial.hn',
+                    rol: 'VENDEDOR',
+                    cargo: 'Ventas de Mostrador & Cotizaciones',
+                  },
+                ]
+                  .filter(
+                    (u) =>
+                      u.nombre.toLowerCase().includes(busquedaSuplantar.toLowerCase().trim()) ||
+                      u.email.toLowerCase().includes(busquedaSuplantar.toLowerCase().trim()) ||
+                      u.cargo.toLowerCase().includes(busquedaSuplantar.toLowerCase().trim()),
+                  )
+                  .map((u) => (
+                    <div
+                      key={u.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 16px',
+                        borderBottom: '1px solid #E7E5E4',
+                        backgroundColor: '#FAFAF9',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '13px' }}>
+                          {u.nombre}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#78716C' }}>
+                          {u.email} • <span style={{ fontWeight: 600 }}>{u.cargo}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => ejecutarSuplantacion(u)}
+                        className="btn btn-sm btn-primary"
+                        style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800, padding: '6px 12px' }}
+                      >
+                        <ExternalLink size={13} /> SUPLANTAR ESTE USUARIO
+                      </button>
+                    </div>
+                  ))}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setModalSuplantarUser(null)}
+                >
+                  CANCELAR
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
