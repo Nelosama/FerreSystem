@@ -121,16 +121,27 @@ export const SuperAdminPage: React.FC = () => {
   });
 
   useEffect(() => {
+    localStorage.setItem('ferre_saas_tenants', JSON.stringify(tenants));
+  }, [tenants]);
+
+  useEffect(() => {
     localStorage.setItem('ferre_saas_admins', JSON.stringify(adminUsers));
   }, [adminUsers]);
 
   // Modales
   const [modalNuevoTenant, setModalNuevoTenant] = useState(false);
+  const [modalEditarTenant, setModalEditarTenant] = useState<TenantItem | null>(null);
   const [modalNuevoAdmin, setModalNuevoAdmin] = useState(false);
   const [modalEditarAdmin, setModalEditarAdmin] = useState<AdminUserItem | null>(null);
   const [modalResetPassAdmin, setModalResetPassAdmin] = useState<AdminUserItem | null>(null);
   const [modalSuplantarUser, setModalSuplantarUser] = useState<TenantItem | null>(null);
   const [busquedaSuplantar, setBusquedaSuplantar] = useState('');
+
+  // Formulario Editar Tenant / Marca
+  const [editNombreComercial, setEditNombreComercial] = useState('');
+  const [editTelefono, setEditTelefono] = useState('');
+  const [editPlan, setEditPlan] = useState('');
+  const [editColorPrimario, setEditColorPrimario] = useState('#EA580C');
 
   // Formulario nuevo tenant
   const [nombreComercial, setNombreComercial] = useState('');
@@ -472,6 +483,20 @@ export const SuperAdminPage: React.FC = () => {
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
                           <button
                             type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => {
+                              setModalEditarTenant(t);
+                              setEditNombreComercial(t.nombreComercial);
+                              setEditTelefono(t.telefono);
+                              setEditPlan(t.plan);
+                              setEditColorPrimario(t.colorPrimario);
+                            }}
+                            title="Editar marca, color y datos de la ferretería"
+                          >
+                            <Edit2 size={13} /> EDITAR MARCA
+                          </button>
+                          <button
+                            type="button"
                             className="btn btn-sm btn-primary"
                             onClick={() => abrirModalSuplantar(t)}
                             title="Elegir usuario del cliente para entrar en modo soporte remoto"
@@ -755,6 +780,107 @@ export const SuperAdminPage: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* MODAL EDITAR TENANT Y MARCA */}
+      {modalEditarTenant && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                CONFIGURAR MARCA Y COLOR DE TENANT
+              </h2>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setTenants(
+                  tenants.map((t) =>
+                    t.id === modalEditarTenant.id
+                      ? {
+                          ...t,
+                          nombreComercial: editNombreComercial.toUpperCase().trim(),
+                          telefono: editTelefono,
+                          plan: editPlan,
+                          colorPrimario: editColorPrimario,
+                        }
+                      : t,
+                  ),
+                );
+                setModalEditarTenant(null);
+                setMensajeExito(`¡Configuración de marca para "${editNombreComercial}" actualizada!`);
+                setTimeout(() => setMensajeExito(null), 4000);
+              }}
+              style={{ marginTop: '16px' }}
+            >
+              <div className="form-group">
+                <label className="form-label">NOMBRE COMERCIAL DE LA FERRETERÍA</label>
+                <input
+                  type="text"
+                  required
+                  value={editNombreComercial}
+                  onChange={(e) => setEditNombreComercial(e.target.value)}
+                  className="form-input"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label">TELÉFONO DE CONTACTO</label>
+                  <input
+                    type="text"
+                    value={editTelefono}
+                    onChange={(e) => setEditTelefono(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label">PLAN DE SUSCRIPCIÓN</label>
+                  <input
+                    type="text"
+                    value={editPlan}
+                    onChange={(e) => setEditPlan(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">COLOR ASIGNADO A LA FERRETERÍA (HEX)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input
+                    type="color"
+                    value={editColorPrimario}
+                    onChange={(e) => setEditColorPrimario(e.target.value)}
+                    style={{ width: '50px', height: '42px', cursor: 'pointer', border: '2px solid #292524' }}
+                  />
+                  <input
+                    type="text"
+                    value={editColorPrimario}
+                    onChange={(e) => setEditColorPrimario(e.target.value)}
+                    className="form-input"
+                    style={{ fontFamily: 'monospace', fontWeight: 700 }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setModalEditarTenant(null)}
+                >
+                  CANCELAR
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  <Check size={16} strokeWidth={2.6} /> GUARDAR CONFIGURACIÓN
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 1: NUEVO TENANT */}
       {modalNuevoTenant && (

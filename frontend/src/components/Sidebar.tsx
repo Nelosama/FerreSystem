@@ -71,10 +71,9 @@ export const Sidebar: React.FC = () => {
     },
     {
       path: '/configuracion',
-      label: 'CONFIGURACIÓN',
+      label: 'CONFIGURACIÓN GLOBAL',
       icon: Sliders,
-      allowedRoles: ['ADMIN'],
-      requiredPermiso: 'configuracion.editar',
+      allowedRoles: ['SUPERADMIN'],
     },
   ];
 

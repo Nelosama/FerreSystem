@@ -54,13 +54,27 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Inyección dinámica de variables CSS por Tenant (White-labeling)
   useEffect(() => {
     const root = document.documentElement;
-    const color = tenant.colorPrimario || '#EA580C';
+    // Buscar la configuración actualizada que definió el Super Admin para esta ferretería
+    let color = tenant.colorPrimario || '#EA580C';
+    const saasTenantsRaw = localStorage.getItem('ferre_saas_tenants');
+    if (saasTenantsRaw) {
+      try {
+        const saasTenants = JSON.parse(saasTenantsRaw);
+        const match = saasTenants.find((t: any) => t.id === tenant.id || t.nombreComercial === tenant.nombreComercial);
+        if (match && match.colorPrimario) {
+          color = match.colorPrimario;
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
+
     root.style.setProperty('--color-primary', color);
     root.style.setProperty('--color-primary-hover', adjustColorBrightness(color, -15));
     root.style.setProperty('--color-primary-active', adjustColorBrightness(color, -30));
     root.style.setProperty('--color-primary-light', `${color}1F`);
     root.style.setProperty('--color-sidebar-active-bg', color);
-  }, [tenant.colorPrimario]);
+  }, [tenant.id, tenant.nombreComercial, tenant.colorPrimario]);
 
   const updateBranding = (colorPrimario: string, nombreComercial: string) => {
     const updated = { ...tenant, colorPrimario, nombreComercial };
