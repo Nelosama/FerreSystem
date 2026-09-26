@@ -17,14 +17,12 @@ export const Sidebar: React.FC = () => {
   const userRole = user?.rol;
 
   const isRoleAllowed = (allowedRoles?: string[], requiredPermiso?: string) => {
-    if (!userRole) return false;
-    if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
-      return false;
-    }
     if (requiredPermiso && user?.permisos) {
-      return user.permisos.includes(requiredPermiso);
+      if (user.permisos.includes(requiredPermiso)) return true;
     }
-    return true;
+    if (!allowedRoles || allowedRoles.length === 0) return true;
+    if (!userRole) return false;
+    return allowedRoles.includes(userRole);
   };
 
   const mainNavItems = [
@@ -33,7 +31,7 @@ export const Sidebar: React.FC = () => {
       label: 'PANEL DE CONTROL',
       icon: LayoutGrid,
       exact: true,
-      allowedRoles: ['ADMIN', 'CAJERO', 'BODEGUERO', 'VENDEDOR'],
+      allowedRoles: undefined, // Todos los usuarios autenticados
     },
     {
       path: '/inventario',
