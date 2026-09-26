@@ -14,8 +14,23 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useMockData } from '../context/MockDataContext';
+import { formatLempiras } from '../utils/format';
 
 export const DashboardPage: React.FC = () => {
+  const { productos, cotizaciones, ventas } = useMockData();
+
+  // 1. Total Ventas del Día
+  const totalVentasDia = ventas.reduce((acc, v) => acc + v.total, 0);
+
+  // 2. Alertas de Stock (Productos con stockActual <= stockMinimo)
+  const productosStockBajo = productos.filter((p) => p.stockActual <= p.stockMinimo);
+
+  // 3. Cotizaciones Pendientes (BORRADOR, ENVIADA, APROBADA)
+  const cotizacionesPendientes = cotizaciones.filter(
+    (c) => c.estado === 'ENVIADA' || c.estado === 'APROBADA' || c.estado === 'BORRADOR',
+  );
+
   return (
     <div style={styles.container}>
       <TopBar title="RESUMEN OPERATIVO" subtitle="Turno Actual: 08:00 AM - 05:00 PM" />
@@ -26,22 +41,22 @@ export const DashboardPage: React.FC = () => {
           {/* Tarjeta 1: Ventas del Día */}
           <MetricCard
             title="VENTAS DEL DÍA (HNL)"
-            value="L. 42,580.00"
+            value={formatLempiras(totalVentasDia)}
             badgeText="+12% vs ayer"
             badgeVariant="success"
             badgeIcon={<TrendingUp size={13} strokeWidth={2.6} />}
             watermarkIcon={<Coins size={110} strokeWidth={1.5} />}
           />
 
-          {/* Tarjeta 2: Alertas de Stock (Con borde y acento naranja de alerta) */}
+          {/* Tarjeta 2: Alertas de Stock */}
           <MetricCard
             title="ALERTAS DE STOCK"
-            value="14"
+            value={productosStockBajo.length.toString()}
             valueSuffix="items"
-            highlightValue={true}
-            isHighlighted={true}
+            highlightValue={productosStockBajo.length > 0}
+            isHighlighted={productosStockBajo.length > 0}
             badgeText="Requieren reabastecimiento"
-            badgeVariant="warning"
+            badgeVariant={productosStockBajo.length > 0 ? 'warning' : 'neutral'}
             badgeIcon={<AlertTriangle size={13} strokeWidth={2.6} />}
             watermarkIcon={<AlertCircle size={110} strokeWidth={1.5} />}
           />
@@ -49,8 +64,8 @@ export const DashboardPage: React.FC = () => {
           {/* Tarjeta 3: Cotizaciones Pendientes */}
           <MetricCard
             title="COTIZACIONES PENDIENTES"
-            value="8"
-            badgeText="3 por vencer hoy"
+            value={cotizacionesPendientes.length.toString()}
+            badgeText="Presupuestos activos"
             badgeVariant="neutral"
             badgeIcon={<Clock size={13} strokeWidth={2.6} />}
             watermarkIcon={<FileText size={110} strokeWidth={1.5} />}
@@ -60,7 +75,7 @@ export const DashboardPage: React.FC = () => {
         {/* Tendencia Semanal */}
         <WeeklyTrend />
 
-        {/* Sección Operativa Rápida (Atajos de POS y Alertas urgentes) */}
+        {/* Sección Operativa Rápida */}
         <div style={styles.quickOpsGrid}>
           {/* Card de Accesos Rápidos para el Cajero */}
           <div className="industrial-card" style={styles.actionCard}>
@@ -86,21 +101,23 @@ export const DashboardPage: React.FC = () => {
               </Link>
             </div>
             <div style={styles.alertsList}>
-              <div style={styles.alertRow}>
-                <div>
-                  <div style={styles.itemTitle}>Varilla Corrugada 3/8" Grado 40 (6m)</div>
-                  <div style={styles.itemMeta}>Cód: CON-002 • Mínimo requerido: 40 unidades</div>
+              {productosStockBajo.length === 0 ? (
+                <div style={{ fontSize: '13px', color: '#78716C', padding: '12px 0' }}>
+                  No hay productos con stock bajo en este momento.
                 </div>
-                <span className="badge badge-danger">5 en bodega</span>
-              </div>
-
-              <div style={styles.alertRow}>
-                <div>
-                  <div style={styles.itemTitle}>Cable THHN Calibre 12 AWG (100m)</div>
-                  <div style={styles.itemMeta}>Cód: ELE-001 • Mínimo requerido: 10 rollos</div>
-                </div>
-                <span className="badge badge-danger">2 en bodega</span>
-              </div>
+              ) : (
+                productosStockBajo.slice(0, 3).map((p) => (
+                  <div key={p.id} style={styles.alertRow}>
+                    <div>
+                      <div style={styles.itemTitle}>{p.nombre}</div>
+                      <div style={styles.itemMeta}>
+                        Cód: {p.codigo} • Mínimo requerido: {p.stockMinimo} unidades
+                      </div>
+                    </div>
+                    <span className="badge badge-danger">{p.stockActual} en bodega</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

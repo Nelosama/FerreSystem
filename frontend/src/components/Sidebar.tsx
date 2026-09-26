@@ -8,11 +8,79 @@ import {
   Sliders,
   Box,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 
 export const Sidebar: React.FC = () => {
-  const { tenant } = useTenant();
+  const { tenant, user } = useTenant();
+  const userRole = user?.rol;
+
+  const isRoleAllowed = (allowedRoles?: string[], requiredPermiso?: string) => {
+    if (!userRole) return false;
+    if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+      return false;
+    }
+    if (requiredPermiso && user?.permisos) {
+      return user.permisos.includes(requiredPermiso);
+    }
+    return true;
+  };
+
+  const mainNavItems = [
+    {
+      path: '/',
+      label: 'PANEL DE CONTROL',
+      icon: LayoutGrid,
+      exact: true,
+      allowedRoles: ['ADMIN', 'CAJERO', 'BODEGUERO', 'VENDEDOR'],
+    },
+    {
+      path: '/inventario',
+      label: 'INVENTARIO',
+      icon: PackageSearch,
+      allowedRoles: ['ADMIN', 'BODEGUERO'],
+    },
+    {
+      path: '/pos',
+      label: 'PUNTO DE VENTA',
+      icon: Calculator,
+      allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+    },
+    {
+      path: '/cotizaciones',
+      label: 'COTIZACIONES',
+      icon: ClipboardList,
+      allowedRoles: ['ADMIN', 'VENDEDOR', 'CAJERO'],
+    },
+  ];
+
+  const adminNavItems = [
+    {
+      path: '/usuarios',
+      label: 'USUARIOS',
+      icon: Users,
+      allowedRoles: ['ADMIN'],
+      requiredPermiso: 'usuarios.gestionar',
+    },
+    {
+      path: '/configuracion',
+      label: 'CONFIGURACIÓN',
+      icon: Sliders,
+      allowedRoles: ['ADMIN'],
+      requiredPermiso: 'configuracion.editar',
+    },
+    {
+      path: '/admin',
+      label: 'SUPER ADMIN (SAAS)',
+      icon: ShieldCheck,
+      allowedRoles: ['SUPERADMIN'],
+      isSuperAdminStyle: true,
+    },
+  ];
+
+  const visibleMainNav = mainNavItems.filter((item) => isRoleAllowed(item.allowedRoles));
+  const visibleAdminNav = adminNavItems.filter((item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso));
 
   return (
     <aside style={styles.sidebar}>
@@ -35,93 +103,54 @@ export const Sidebar: React.FC = () => {
       {/* Navigation List */}
       <nav style={styles.navContainer}>
         <ul style={styles.navList}>
-          <li>
-            <NavLink
-              to="/"
-              end
-              style={({ isActive }) => ({
-                ...styles.navItem,
-                ...(isActive ? styles.navItemActive : {}),
-              })}
-            >
-              <LayoutGrid size={20} strokeWidth={2.4} />
-              <span>PANEL DE CONTROL</span>
-            </NavLink>
-          </li>
-
-          <li>
-            <NavLink
-              to="/inventario"
-              style={({ isActive }) => ({
-                ...styles.navItem,
-                ...(isActive ? styles.navItemActive : {}),
-              })}
-            >
-              <PackageSearch size={20} strokeWidth={2.4} />
-              <span>INVENTARIO</span>
-            </NavLink>
-          </li>
-
-          <li>
-            <NavLink
-              to="/pos"
-              style={({ isActive }) => ({
-                ...styles.navItem,
-                ...(isActive ? styles.navItemActive : {}),
-              })}
-            >
-              <Calculator size={20} strokeWidth={2.4} />
-              <span>PUNTO DE VENTA</span>
-            </NavLink>
-          </li>
-
-          <li>
-            <NavLink
-              to="/cotizaciones"
-              style={({ isActive }) => ({
-                ...styles.navItem,
-                ...(isActive ? styles.navItemActive : {}),
-              })}
-            >
-              <ClipboardList size={20} strokeWidth={2.4} />
-              <span>COTIZACIONES</span>
-            </NavLink>
-          </li>
+          {visibleMainNav.map((item) => {
+            const Icon = item.icon;
+            return (
+              <li key={item.path}>
+                <NavLink
+                  to={item.path}
+                  end={item.exact}
+                  style={({ isActive }) => ({
+                    ...styles.navItem,
+                    ...(isActive ? styles.navItemActive : {}),
+                  })}
+                >
+                  <Icon size={20} strokeWidth={2.4} />
+                  <span>{item.label}</span>
+                </NavLink>
+              </li>
+            );
+          })}
         </ul>
 
-        {/* Divider */}
-        <div style={styles.divider} />
+        {/* Divider (Only show if admin items are visible) */}
+        {visibleAdminNav.length > 0 && <div style={styles.divider} />}
 
         {/* Configuration and Admin */}
-        <ul style={styles.navList}>
-          <li>
-            <NavLink
-              to="/configuracion"
-              style={({ isActive }) => ({
-                ...styles.navItem,
-                ...(isActive ? styles.navItemActive : {}),
-              })}
-            >
-              <Sliders size={20} strokeWidth={2.4} />
-              <span>CONFIGURACIÓN</span>
-            </NavLink>
-          </li>
-
-          <li>
-            <NavLink
-              to="/admin"
-              style={({ isActive }) => ({
-                ...styles.navItem,
-                ...(isActive ? styles.navItemActive : {}),
-                fontSize: '11px',
-                color: '#A8A29E',
-              })}
-            >
-              <ShieldCheck size={18} strokeWidth={2.2} />
-              <span>SUPER ADMIN (SAAS)</span>
-            </NavLink>
-          </li>
-        </ul>
+        {visibleAdminNav.length > 0 && (
+          <ul style={styles.navList}>
+            {visibleAdminNav.map((item) => {
+              const Icon = item.icon;
+              return (
+                <li key={item.path}>
+                  <NavLink
+                    to={item.path}
+                    style={({ isActive }) => ({
+                      ...styles.navItem,
+                      ...(isActive ? styles.navItemActive : {}),
+                      ...(item.isSuperAdminStyle
+                        ? { fontSize: '11px', color: '#A8A29E' }
+                        : {}),
+                    })}
+                  >
+                    <Icon size={item.isSuperAdminStyle ? 18 : 20} strokeWidth={item.isSuperAdminStyle ? 2.2 : 2.4} />
+                    <span>{item.label}</span>
+                  </NavLink>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </nav>
     </aside>
   );

@@ -1,4 +1,17 @@
-export type Rol = 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR';
+export type Rol = 'SUPERADMIN' | 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR';
+
+export type Permiso =
+  | 'pos.vender'
+  | 'pos.anular_venta'
+  | 'pos.aplicar_descuento'
+  | 'inventario.ver'
+  | 'inventario.editar'
+  | 'cotizaciones.crear'
+  | 'cotizaciones.aprobar'
+  | 'cotizaciones.convertir_venta'
+  | 'reportes.ver'
+  | 'usuarios.gestionar'
+  | 'configuracion.editar';
 
 export interface TenantInfo {
   id: string;
@@ -13,6 +26,9 @@ export interface UserInfo {
   nombre: string;
   email: string;
   rol: Rol;
+  permisos?: string[];
+  descuentoMaximo?: number;
+  activo?: boolean;
 }
 
 export interface ProductItem {
