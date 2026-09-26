@@ -21,6 +21,15 @@ import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate } from 'react-router-dom';
 
+interface SubSucursalItem {
+  id: string;
+  nombre: string;
+  direccion: string;
+  telefono: string;
+  encargado: string;
+  activa: boolean;
+}
+
 interface TenantItem {
   id: string;
   nombreComercial: string;
@@ -31,6 +40,7 @@ interface TenantItem {
   usuariosCount: number;
   sucursalesCount: number;
   colorPrimario: string;
+  sucursalesList?: SubSucursalItem[];
 }
 
 interface AdminUserItem {
@@ -54,6 +64,11 @@ const INITIAL_TENANTS: TenantItem[] = [
     usuariosCount: 4,
     sucursalesCount: 3,
     colorPrimario: '#EA580C',
+    sucursalesList: [
+      { id: 'suc-1', nombre: 'Sucursal Centro (Principal)', direccion: 'Barrio El Centro', telefono: '+504 2550-1234', encargado: 'Carlos Ramos', activa: true },
+      { id: 'suc-2', nombre: 'Sucursal Circunvalación', direccion: 'Ave. Circunvalación', telefono: '+504 2550-5678', encargado: 'Mario Rivera', activa: true },
+      { id: 'suc-3', nombre: 'Sucursal Chamelecón', direccion: 'Col. Chamelecón', telefono: '+504 2550-9900', encargado: 'Ana Martínez', activa: true },
+    ],
   },
   {
     id: 't-2',
@@ -131,11 +146,18 @@ export const SuperAdminPage: React.FC = () => {
   // Modales
   const [modalNuevoTenant, setModalNuevoTenant] = useState(false);
   const [modalEditarTenant, setModalEditarTenant] = useState<TenantItem | null>(null);
+  const [modalSucursalesTenant, setModalSucursalesTenant] = useState<TenantItem | null>(null);
   const [modalNuevoAdmin, setModalNuevoAdmin] = useState(false);
   const [modalEditarAdmin, setModalEditarAdmin] = useState<AdminUserItem | null>(null);
   const [modalResetPassAdmin, setModalResetPassAdmin] = useState<AdminUserItem | null>(null);
   const [modalSuplantarUser, setModalSuplantarUser] = useState<TenantItem | null>(null);
   const [busquedaSuplantar, setBusquedaSuplantar] = useState('');
+
+  // Formulario Nueva Sub-Sucursal
+  const [nuevaSucursalNombre, setNuevaSucursalNombre] = useState('');
+  const [nuevaSucursalDireccion, setNuevaSucursalDireccion] = useState('');
+  const [nuevaSucursalTelefono, setNuevaSucursalTelefono] = useState('');
+  const [nuevaSucursalEncargado, setNuevaSucursalEncargado] = useState('');
 
   // Formulario Editar Tenant / Marca
   const [editNombreComercial, setEditNombreComercial] = useState('');
@@ -485,6 +507,20 @@ export const SuperAdminPage: React.FC = () => {
                             type="button"
                             className="btn btn-sm btn-secondary"
                             onClick={() => {
+                              setModalSucursalesTenant(t);
+                              setNuevaSucursalNombre('');
+                              setNuevaSucursalDireccion('');
+                              setNuevaSucursalTelefono('');
+                              setNuevaSucursalEncargado('');
+                            }}
+                            title="Gestionar y crear sub-sucursales para esta empresa"
+                          >
+                            <GitBranch size={13} /> SUCURSALES
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => {
                               setModalEditarTenant(t);
                               setEditNombreComercial(t.nombreComercial);
                               setEditTelefono(t.telefono);
@@ -493,7 +529,7 @@ export const SuperAdminPage: React.FC = () => {
                             }}
                             title="Editar marca, color y datos de la ferretería"
                           >
-                            <Edit2 size={13} /> EDITAR MARCA
+                            <Edit2 size={13} /> MARCA
                           </button>
                           <button
                             type="button"
@@ -780,6 +816,163 @@ export const SuperAdminPage: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* MODAL GESTIONAR SUB-SUCURSALES DE UN TENANT */}
+      {modalSucursalesTenant && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '650px' }}>
+            <div style={styles.modalHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <div>
+                  <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                    GESTIÓN DE SUB-SUCURSALES PARA EL ADMIN
+                  </h2>
+                  <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700, marginTop: '2px' }}>
+                    EMPRESA: {modalSucursalesTenant.nombreComercial}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalSucursalesTenant(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '16px' }}>
+              {/* Formulario Crear Nueva Sub-Sucursal */}
+              <div style={{ padding: '14px', backgroundColor: '#FAFAF9', border: '1.5px solid #D6D3D1', borderRadius: '4px', marginBottom: '16px' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                  AÑADIR NUEVA SUCURSAL A ESTE CLIENTE
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">NOMBRE DE LA SUCURSAL / SEDE</label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Sucursal Choloma / Norte"
+                    value={nuevaSucursalNombre}
+                    onChange={(e) => setNuevaSucursalNombre(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">DIRECCIÓN</label>
+                    <input
+                      type="text"
+                      placeholder="Barrio / Plaza Comercial"
+                      value={nuevaSucursalDireccion}
+                      onChange={(e) => setNuevaSucursalDireccion(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">TELÉFONO</label>
+                    <input
+                      type="text"
+                      placeholder="+504 2550-0000"
+                      value={nuevaSucursalTelefono}
+                      onChange={(e) => setNuevaSucursalTelefono(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => {
+                      if (!nuevaSucursalNombre.trim()) return;
+
+                      const nuevaSubSucursal: SubSucursalItem = {
+                        id: `suc-${Date.now()}`,
+                        nombre: nuevaSucursalNombre.trim(),
+                        direccion: nuevaSucursalDireccion.trim() || 'Dirección Principal',
+                        telefono: nuevaSucursalTelefono.trim() || modalSucursalesTenant.telefono,
+                        encargado: nuevaSucursalEncargado.trim() || 'Administrador Asignado',
+                        activa: true,
+                      };
+
+                      const currentList = modalSucursalesTenant.sucursalesList || [];
+                      const updatedList = [...currentList, nuevaSubSucursal];
+
+                      setTenants(
+                        tenants.map((t) =>
+                          t.id === modalSucursalesTenant.id
+                            ? {
+                                ...t,
+                                sucursalesCount: updatedList.length,
+                                sucursalesList: updatedList,
+                              }
+                            : t,
+                        ),
+                      );
+
+                      setModalSucursalesTenant({
+                        ...modalSucursalesTenant,
+                        sucursalesCount: updatedList.length,
+                        sucursalesList: updatedList,
+                      });
+
+                      setNuevaSucursalNombre('');
+                      setNuevaSucursalDireccion('');
+                      setNuevaSucursalTelefono('');
+                      setMensajeExito(`¡Sub-sucursal "${nuevaSubSucursal.nombre}" habilitada para ${modalSucursalesTenant.nombreComercial}!`);
+                      setTimeout(() => setMensajeExito(null), 4000);
+                    }}
+                  >
+                    <Plus size={14} /> CREAR SUCURSAL
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista de Sucursales de esta Empresa */}
+              <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
+                <table className="industrial-table">
+                  <thead>
+                    <tr>
+                      <th>SUCURSAL</th>
+                      <th>DIRECCIÓN</th>
+                      <th>TELÉFONO</th>
+                      <th style={{ textAlign: 'center' }}>ESTADO</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(modalSucursalesTenant.sucursalesList || [
+                      { id: 's1', nombre: 'Sucursal Principal', direccion: 'Barrio El Centro', telefono: modalSucursalesTenant.telefono, encargado: 'Admin', activa: true },
+                    ]).map((s) => (
+                      <tr key={s.id}>
+                        <td style={{ fontWeight: 800 }}>{s.nombre}</td>
+                        <td style={{ color: '#78716C' }}>{s.direccion}</td>
+                        <td style={{ color: '#78716C' }}>{s.telefono}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="badge badge-success">HABILITADA</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setModalSucursalesTenant(null)}
+                >
+                  CERRAR
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL EDITAR TENANT Y MARCA */}
       {modalEditarTenant && (

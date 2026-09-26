@@ -20,12 +20,33 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   const [panelNotificaciones, setPanelNotificaciones] = React.useState(false);
 
-  // Lista simulada de sucursales para el cliente en caso de tener varias
-  const SUCURSALES_DEMO = [
-    { id: 't-1', nombre: 'Sucursal Centro (Principal)' },
-    { id: 't-1-norte', nombre: 'Sucursal San Pedro (Norte)' },
-    { id: 't-1-sur', nombre: 'Sucursal Choluteca (Sur)' },
-  ];
+  // Cargar dinámicamente las sucursales creadas por el Super Admin para esta empresa
+  const sucursalesDisponibles = React.useMemo(() => {
+    const defaultList = [
+      { id: 'suc-1', nombre: 'Sucursal Centro (Principal)' },
+      { id: 'suc-2', nombre: 'Sucursal San Pedro (Norte)' },
+      { id: 'suc-3', nombre: 'Sucursal Choluteca (Sur)' },
+    ];
+
+    const saasTenantsRaw = localStorage.getItem('ferre_saas_tenants');
+    if (saasTenantsRaw) {
+      try {
+        const saasTenants = JSON.parse(saasTenantsRaw);
+        const match = saasTenants.find(
+          (t: any) => t.id === tenant.id || t.nombreComercial === tenant.nombreComercial,
+        );
+        if (match && match.sucursalesList && match.sucursalesList.length > 0) {
+          return match.sucursalesList.map((s: any) => ({
+            id: s.id,
+            nombre: s.nombre,
+          }));
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return defaultList;
+  }, [tenant.id, tenant.nombreComercial]);
 
   // Verificar si el usuario tiene permiso para autorizar (ADMIN o permiso usuarios.gestionar)
   const puedeAutorizar =
@@ -101,7 +122,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 onChange={(e) => switchSucursal(e.target.value, tenant.id)}
                 style={styles.sucursalSelect}
               >
-                {SUCURSALES_DEMO.map((s) => (
+                {sucursalesDisponibles.map((s: any) => (
                   <option key={s.id} value={s.nombre}>
                     {s.nombre}
                   </option>
