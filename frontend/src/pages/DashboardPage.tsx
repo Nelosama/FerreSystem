@@ -16,11 +16,13 @@ import {
 import { Link } from 'react-router-dom';
 import { useMockData } from '../context/MockDataContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
+import { useI18n } from '../context/I18nContext';
 import { formatLempiras } from '../utils/format';
 
 export const DashboardPage: React.FC = () => {
   const { productos, cotizaciones, ventas } = useMockData();
   const rubroConfig = useRubroConfig();
+  const { t } = useI18n();
 
   // 1. Total Ventas del Día
   const totalVentasDia = ventas.reduce((acc, v) => acc + v.total, 0);
@@ -35,14 +37,14 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="RESUMEN OPERATIVO" subtitle="Turno Actual: 08:00 AM - 05:00 PM" />
+      <TopBar title={t('dashboard.title')} subtitle={t('dashboard.subtitle')} />
 
       <main style={styles.content}>
         {/* Metric Cards Grid */}
         <div style={styles.metricsGrid}>
           {/* Tarjeta 1: Ventas del Día */}
           <MetricCard
-            title="VENTAS DEL DÍA (HNL)"
+            title={t('dashboard.sales_today')}
             value={formatLempiras(totalVentasDia)}
             badgeText="+12% vs ayer"
             badgeVariant="success"
@@ -52,7 +54,7 @@ export const DashboardPage: React.FC = () => {
 
           {/* Tarjeta 2: Alertas de Stock */}
           <MetricCard
-            title="ALERTAS DE STOCK"
+            title={t('dashboard.stock_alerts')}
             value={productosStockBajo.length.toString()}
             valueSuffix="items"
             highlightValue={productosStockBajo.length > 0}
@@ -65,7 +67,7 @@ export const DashboardPage: React.FC = () => {
 
           {/* Tarjeta 3: Cotizaciones Pendientes */}
           <MetricCard
-            title="COTIZACIONES PENDIENTES"
+            title={t('dashboard.pending_quotations')}
             value={cotizacionesPendientes.length.toString()}
             badgeText="Presupuestos activos"
             badgeVariant="neutral"
@@ -81,15 +83,15 @@ export const DashboardPage: React.FC = () => {
         <div style={styles.quickOpsGrid}>
           {/* Card de Accesos Rápidos para el Cajero */}
           <div className="industrial-card" style={styles.actionCard}>
-            <h3 style={styles.sectionHeader}>OPERACIONES RÁPIDAS DE CAJA</h3>
+            <h3 style={styles.sectionHeader}>{t('dashboard.quick_ops')}</h3>
             <div style={styles.buttonsRow}>
               <Link to="/pos" className="btn btn-primary" style={{ flex: 1 }}>
                 <ShoppingCart size={18} strokeWidth={2.4} />
-                <span>NUEVA VENTA POS</span>
+                <span>{t('dashboard.new_pos_sale')}</span>
               </Link>
               <Link to="/cotizaciones" className="btn btn-secondary" style={{ flex: 1 }}>
                 <PlusCircle size={18} strokeWidth={2.4} />
-                <span>CREAR COTIZACIÓN</span>
+                <span>{t('dashboard.create_quotation')}</span>
               </Link>
             </div>
           </div>
@@ -97,15 +99,15 @@ export const DashboardPage: React.FC = () => {
           {/* Card de Alertas Críticas de Inventario */}
           <div className="industrial-card" style={styles.alertsCard}>
             <div style={styles.alertsHeader}>
-              <h3 style={styles.sectionHeader}>ALERTAS URGENTES DE INVENTARIO</h3>
+              <h3 style={styles.sectionHeader}>{t('dashboard.urgent_stock_alerts')}</h3>
               <Link to="/inventario" style={styles.viewAllLink}>
-                Ver catálogo <ArrowRight size={14} />
+                {t('dashboard.view_catalog')} <ArrowRight size={14} />
               </Link>
             </div>
             <div style={styles.alertsList}>
               {productosStockBajo.length === 0 ? (
                 <div style={{ fontSize: '13px', color: '#78716C', padding: '12px 0' }}>
-                  No hay productos con stock bajo en este momento.
+                  {t('dashboard.no_stock_alerts')}
                 </div>
               ) : (
                 productosStockBajo.slice(0, 3).map((p) => {

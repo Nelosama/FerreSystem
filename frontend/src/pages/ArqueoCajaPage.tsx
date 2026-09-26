@@ -3,6 +3,7 @@ import { TopBar } from '../components/TopBar';
 import { Calculator, CheckCircle, Clock } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useMockData } from '../context/MockDataContext';
+import { useI18n } from '../context/I18nContext';
 
 export interface ArqueoRecord {
   id: string;
@@ -40,6 +41,7 @@ const INITIAL_ARQUEOS: ArqueoRecord[] = [
 
 export const ArqueoCajaPage: React.FC = () => {
   const { ventas } = useMockData();
+  const { t } = useI18n();
   const [arqueos, setArqueos] = useState<ArqueoRecord[]>(() => {
     const saved = localStorage.getItem('ferre_mock_arqueos');
     return saved ? JSON.parse(saved) : INITIAL_ARQUEOS;
@@ -89,7 +91,7 @@ export const ArqueoCajaPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="ARQUEO Y CIERRE DE CAJA" subtitle="Control diario de efectivo por cajero y turno" />
+      <TopBar title={t('cash_drawer.title')} subtitle={t('cash_drawer.subtitle')} />
 
       <main style={styles.content}>
         {mensajeExito && (

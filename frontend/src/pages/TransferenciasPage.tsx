@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { GitBranch, ArrowRight, Plus, CheckCircle } from 'lucide-react';
 import { useMockData } from '../context/MockDataContext';
+import { useI18n } from '../context/I18nContext';
 
 export interface TransferenciaItem {
   id: string;
@@ -33,6 +34,7 @@ const INITIAL_TRANSFERENCIAS: TransferenciaItem[] = [
 
 export const TransferenciasPage: React.FC = () => {
   const { productos } = useMockData();
+  const { t } = useI18n();
   const [transferencias, setTransferencias] = useState<TransferenciaItem[]>(() => {
     const saved = localStorage.getItem('ferre_mock_transferencias');
     return saved ? JSON.parse(saved) : INITIAL_TRANSFERENCIAS;
@@ -78,7 +80,7 @@ export const TransferenciasPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="TRANSFERENCIAS ENTRE SUCURSALES" subtitle="Movimiento e Intercambio de Stock Inter-Sede" />
+      <TopBar title={t('transfers.title')} subtitle={t('transfers.subtitle')} />
 
       <main style={styles.content}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>

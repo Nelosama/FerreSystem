@@ -3,6 +3,7 @@ import { TopBar } from '../components/TopBar';
 import { Calendar } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useMockData } from '../context/MockDataContext';
+import { useI18n } from '../context/I18nContext';
 
 export interface VendedorComision {
   usuarioId: string;
@@ -15,6 +16,7 @@ export interface VendedorComision {
 
 export const ComisionesPage: React.FC = () => {
   const { usuarios, ventas } = useMockData();
+  const { t } = useI18n();
 
   const [porcentajes, setPorcentajes] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem('ferre_mock_comisiones_pct');
@@ -39,7 +41,7 @@ export const ComisionesPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="REPORTE Y CÁLCULO DE COMISIONES DE VENTA" subtitle="Incentivos por desempeño y volumen facturado" />
+      <TopBar title={t('commissions.title')} subtitle={t('commissions.subtitle')} />
 
       <main style={styles.content}>
         {/* Filtro por Fecha */}

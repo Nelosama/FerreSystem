@@ -1,7 +1,8 @@
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { Rubro } from '../types';
-import { RUBROS_CONFIG_LOCALIZED, RubroConfig } from '../config/rubros';
+import { RUBROS_CONFIG_LOCALIZED } from '../config/rubros';
+import type { RubroConfig } from '../config/rubros';
 
 export function useRubroConfig(): RubroConfig {
   const { tenant } = useTenant();

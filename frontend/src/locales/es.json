@@ -26,16 +26,122 @@
     "inactive": "Inactivo",
     "pending": "Pendiente",
     "completed": "Completado",
-    "cancelled": "Cancelado"
+    "cancelled": "Cancelado",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "tax": "ISV / Impuesto",
+    "client": "Cliente",
+    "date": "Fecha",
+    "notes": "Notas"
+  },
+  "dashboard": {
+    "title": "RESUMEN OPERATIVO",
+    "subtitle": "Turno Actual: 08:00 AM - 05:00 PM",
+    "sales_today": "VENTAS DEL DÍA",
+    "stock_alerts": "ALERTAS DE STOCK",
+    "pending_quotations": "COTIZACIONES PENDIENTES",
+    "quick_ops": "OPERACIONES RÁPIDAS DE CAJA",
+    "new_pos_sale": "NUEVA VENTA POS",
+    "create_quotation": "CREAR COTIZACIÓN",
+    "urgent_stock_alerts": "ALERTAS URGENTES DE INVENTARIO",
+    "view_catalog": "Ver catálogo",
+    "no_stock_alerts": "No hay productos con stock bajo en este momento."
   },
   "pos": {
-    "title": "Punto de Venta",
+    "title": "PUNTO DE VENTA",
+    "subtitle": "Terminal de Ventas y Cobro Rápido",
     "cart": "Carrito de Compras",
     "total": "Total a Pagar",
     "checkout": "Procesar Venta",
     "cash": "Efectivo",
     "card": "Tarjeta",
-    "credit": "Crédito"
+    "credit": "Crédito",
+    "search_products": "Buscar por código o nombre de producto...",
+    "clear_cart": "Vaciar Carrito",
+    "select_client": "Seleccionar Cliente",
+    "process_sale": "PROCESAR VENTA (F12)"
+  },
+  "quotations": {
+    "title": "GESTIÓN DE COTIZACIONES",
+    "subtitle": "Presupuestos y Cotizaciones de Proforma",
+    "new_quotation": "NUEVA COTIZACIÓN",
+    "client": "Cliente",
+    "validity": "Validez",
+    "total": "Total",
+    "status": "Estado",
+    "actions": "Acciones",
+    "search_quotations": "Buscar por número o cliente...",
+    "convert_to_sale": "Convertir a Venta",
+    "print_proforma": "Imprimir Proforma"
+  },
+  "inventory": {
+    "title": "INVENTARIO Y CATÁLOGO",
+    "subtitle": "Control de Stock y Precios por Rubro",
+    "new_product": "NUEVO PRODUCTO",
+    "search": "Buscar en catálogo...",
+    "code": "Código",
+    "product": "Producto",
+    "category": "Categoría",
+    "stock": "Stock",
+    "price": "Precio Venta",
+    "cost": "Precio Costo"
+  },
+  "layaway": {
+    "title": "APARTADOS Y RESERVAS",
+    "subtitle": "Planes de Pago y Reserva de Mercadería",
+    "new_layaway": "NUEVO APARTADO",
+    "search": "Buscar apartado...",
+    "balance_due": "Saldo Pendiente"
+  },
+  "cash_drawer": {
+    "title": "ARQUEO Y CIERRE DE CAJA",
+    "subtitle": "Arqueo de Efectivo y Control Turno",
+    "open_drawer": "Apertura de Caja",
+    "close_drawer": "Cierre de Caja",
+    "initial_cash": "Efectivo Inicial",
+    "system_total": "Total Sistema"
+  },
+  "purchase_orders": {
+    "title": "ÓRDENES DE COMPRA",
+    "subtitle": "Reabastecimiento y Pedidos a Proveedores",
+    "new_order": "NUEVA ÓRDEN DE COMPRA",
+    "supplier": "Proveedor",
+    "expected_date": "Fecha Estimada"
+  },
+  "transfers": {
+    "title": "TRANSFERENCIAS ENTRE SUCURSALES",
+    "subtitle": "Envío y Recepción de Stock Inter-Sucursal",
+    "new_transfer": "NUEVA TRANSFERENCIA",
+    "origin": "Origen",
+    "destination": "Destino"
+  },
+  "warranties": {
+    "title": "GARANTÍAS Y NÚMEROS DE SERIE",
+    "subtitle": "Seguimiento de Series y Reclamos de Garantía",
+    "new_claim": "REGISTRAR GARANTÍA",
+    "serial_number": "Número de Serie",
+    "warranty_months": "Meses de Garantía"
+  },
+  "special_orders": {
+    "title": "PEDIDOS ESPECIALES",
+    "subtitle": "Solicitudes Bajo Encargo y Anticipos",
+    "new_special_order": "NUEVO PEDIDO ESPECIAL",
+    "advance_payment": "Anticipo",
+    "estimated_delivery": "Entrega Estimada"
+  },
+  "price_lists": {
+    "title": "LISTAS DE PRECIO Y DESCUENTOS",
+    "subtitle": "Precios Diferenciados y Tarifas Especiales",
+    "new_list": "NUEVA LISTA DE PRECIOS",
+    "discount_percentage": "% Descuento Global"
+  },
+  "commissions": {
+    "title": "COMISIONES DE VENTA",
+    "subtitle": "Cálculo y Liquidación de Comisiones a Vendedores",
+    "seller": "Vendedor",
+    "total_sales": "Total Ventas",
+    "commission_rate": "% Comisión",
+    "earned": "Comisión Ganada"
   },
   "config": {
     "language": "Idioma del Sistema",

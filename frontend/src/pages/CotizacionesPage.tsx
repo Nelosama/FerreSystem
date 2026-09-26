@@ -27,9 +27,11 @@ import {
   PackageCheck,
 } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
+import { useI18n } from '../context/I18nContext';
 
 export const CotizacionesPage: React.FC = () => {
   const { tenant, user } = useTenant();
+  const { t } = useI18n();
   const {
     cotizaciones,
     productos,
@@ -445,7 +447,7 @@ export const CotizacionesPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="COTIZACIONES & PROFORMAS" subtitle="Gestión Comercial y Conversión a Facturación POS" />
+      <TopBar title={t('quotations.title')} subtitle={t('quotations.subtitle')} />
 
       <main style={styles.content}>
         {/* Banner de Notificación */}
@@ -557,7 +559,7 @@ export const CotizacionesPage: React.FC = () => {
           {isAdminOrSeller && (
             <button type="button" className="btn btn-primary" onClick={handleAbrirNueva}>
               <Plus size={18} strokeWidth={2.5} />
-              <span>NUEVA COTIZACIÓN</span>
+              <span>{t('quotations.new_quotation')}</span>
             </button>
           )}
         </div>

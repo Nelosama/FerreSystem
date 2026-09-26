@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Plus, Search, Bell, CheckCircle } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
+import { useI18n } from '../context/I18nContext';
 
 export interface PedidoEspecialItem {
   id: string;
@@ -41,6 +42,7 @@ const INITIAL_PEDIDOS: PedidoEspecialItem[] = [
 ];
 
 export const PedidosEspecialesPage: React.FC = () => {
+  const { t } = useI18n();
   const [pedidos, setPedidos] = useState<PedidoEspecialItem[]>(() => {
     const saved = localStorage.getItem('ferre_mock_pedidos_especiales');
     return saved ? JSON.parse(saved) : INITIAL_PEDIDOS;
@@ -95,7 +97,7 @@ export const PedidosEspecialesPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="PEDIDOS ESPECIALES (BACKORDER)" subtitle="Encargos de productos sin stock & Notificación a clientes" />
+      <TopBar title={t('special_orders.title')} subtitle={t('special_orders.subtitle')} />
 
       <main style={styles.content}>
         {notificacionExito && (
