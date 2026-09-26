@@ -8,7 +8,6 @@ import {
   Sliders,
   Box,
   ShieldCheck,
-  Users,
 } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 
@@ -61,7 +60,13 @@ export const Sidebar: React.FC = () => {
     },
   ];
 
-  const adminNavItems = [
+  const adminNavItems: {
+    path: string;
+    label: string;
+    icon: any;
+    allowedRoles?: string[];
+    requiredPermiso?: string;
+  }[] = [
     {
       path: '/configuracion',
       label: 'CONFIGURACIÓN GLOBAL',

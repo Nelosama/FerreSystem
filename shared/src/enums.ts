@@ -20,11 +20,17 @@ export enum EstadoTenant {
 // --- Unidades de medida ---
 export enum UnidadMedida {
   UNIDAD = 'UNIDAD',
-  CAJA = 'CAJA',
+  PIE = 'PIE',
   METRO = 'METRO',
+  METRO_CUADRADO = 'METRO_CUADRADO',
+  METRO_CUBICO = 'METRO_CUBICO',
+  LIBRA = 'LIBRA',
   KG = 'KG',
   GALON = 'GALON',
-  LIBRA = 'LIBRA',
+  LITRO = 'LITRO',
+  CAJA = 'CAJA',
+  PAQUETE = 'PAQUETE',
+  OTRO = 'OTRO',
 }
 
 // --- Tipo de cliente ---
