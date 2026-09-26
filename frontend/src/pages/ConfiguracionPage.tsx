@@ -13,25 +13,67 @@ const PRESET_COLORS = [
 ];
 
 export const ConfiguracionPage: React.FC = () => {
-  const { tenant, updateBranding, updateTenantConfig } = useTenant();
+  const { tenant, updateTenantConfig } = useTenant();
 
-  const [nombre, setNombre] = useState(tenant.nombreComercial);
-  const [sucursal, setSucursal] = useState(tenant.sucursal || 'Sucursal Centro');
-  const [color, setColor] = useState(tenant.colorPrimario);
-  const [direccion, setDireccion] = useState(tenant.direccion || 'Barrio El Centro, 3ra Ave, 4ta Calle, San Pedro Sula');
-  const [telefono, setTelefono] = useState(tenant.telefono || '+504 2550-1234');
-  const [email, setEmail] = useState(tenant.email || 'ventas@lamundial.hn');
+  // Cargar lista de tenants registradas en el SaaS
+  const [tenantsList, setTenantsList] = useState<any[]>(() => {
+    const saved = localStorage.getItem('ferre_saas_tenants');
+    return saved
+      ? JSON.parse(saved)
+      : [
+          {
+            id: 't-1',
+            nombreComercial: 'LA MUNDIAL - SUCURSAL CENTRO',
+            contacto: 'admin@lamundial.hn',
+            telefono: '+504 2550-1234',
+            colorPrimario: '#EA580C',
+            direccion: 'Barrio El Centro, 3ra Ave, 4ta Calle, San Pedro Sula',
+          },
+          {
+            id: 't-2',
+            nombreComercial: 'FERRETERÍA EL MARTILLO DE ORO',
+            contacto: 'admin@elmartillodeoro.hn',
+            telefono: '+504 2233-4455',
+            colorPrimario: '#0284C7',
+            direccion: 'Col. Palmira, Ave. República de Chile, Tegucigalpa',
+          },
+        ];
+  });
+
+  const [selectedTenantId, setSelectedTenantId] = useState<string>(
+    tenantsList[0]?.id || tenant.id || 't-1',
+  );
+
+  const currentSelectedTenant =
+    tenantsList.find((t) => t.id === selectedTenantId) || tenantsList[0] || tenant;
+
+  const [nombre, setNombre] = useState(currentSelectedTenant.nombreComercial);
+  const [sucursal, setSucursal] = useState(currentSelectedTenant.sucursal || 'Sucursal Principal');
+  const [color, setColor] = useState(currentSelectedTenant.colorPrimario || '#EA580C');
+  const [direccion, setDireccion] = useState(
+    currentSelectedTenant.direccion || 'Barrio El Centro, San Pedro Sula',
+  );
+  const [telefono, setTelefono] = useState(currentSelectedTenant.telefono || '+504 2550-1234');
+  const [email, setEmail] = useState(
+    currentSelectedTenant.contacto || currentSelectedTenant.email || 'contacto@ferreteria.hn',
+  );
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
 
-  // Sync component state when tenant updates (e.g., initial render or reset)
+  // Cuando cambia el tenant seleccionado en el combo
   React.useEffect(() => {
-    setNombre(tenant.nombreComercial);
-    if (tenant.sucursal) setSucursal(tenant.sucursal);
-    setColor(tenant.colorPrimario);
-    if (tenant.direccion) setDireccion(tenant.direccion);
-    if (tenant.telefono) setTelefono(tenant.telefono);
-    if (tenant.email) setEmail(tenant.email);
-  }, [tenant]);
+    if (currentSelectedTenant) {
+      setNombre(currentSelectedTenant.nombreComercial);
+      setSucursal(currentSelectedTenant.sucursal || 'Sucursal Principal');
+      setColor(currentSelectedTenant.colorPrimario || '#EA580C');
+      setDireccion(
+        currentSelectedTenant.direccion || 'Barrio El Centro, San Pedro Sula',
+      );
+      setTelefono(currentSelectedTenant.telefono || '+504 2550-1234');
+      setEmail(
+        currentSelectedTenant.contacto || currentSelectedTenant.email || 'contacto@ferreteria.hn',
+      );
+    }
+  }, [selectedTenantId]);
 
   // Validación de contraste básica WCAG contra texto blanco
   const contrastRatio = getLuminance(color);
@@ -39,14 +81,38 @@ export const ConfiguracionPage: React.FC = () => {
 
   const handleGuardar = (e: React.FormEvent) => {
     e.preventDefault();
-    updateTenantConfig({
-      nombreComercial: nombre,
-      sucursal,
-      colorPrimario: color,
-      direccion,
-      telefono,
-      email,
-    });
+
+    // Actualizar lista de tenants en SaaS
+    const updatedList = tenantsList.map((t) =>
+      t.id === selectedTenantId
+        ? {
+            ...t,
+            nombreComercial: nombre,
+            sucursal,
+            colorPrimario: color,
+            direccion,
+            telefono,
+            contacto: email,
+            email,
+          }
+        : t,
+    );
+
+    setTenantsList(updatedList);
+    localStorage.setItem('ferre_saas_tenants', JSON.stringify(updatedList));
+
+    // Si coincide con la empresa activa actual, actualizar context también
+    if (selectedTenantId === tenant.id || nombre === tenant.nombreComercial) {
+      updateTenantConfig({
+        nombreComercial: nombre,
+        sucursal,
+        colorPrimario: color,
+        direccion,
+        telefono,
+        email,
+      });
+    }
+
     setGuardadoExitoso(true);
     setTimeout(() => setGuardadoExitoso(false), 4000);
   };
@@ -68,11 +134,64 @@ export const ConfiguracionPage: React.FC = () => {
       <TopBar title="CONFIGURACIÓN Y MARCA" subtitle="Personalización White-Label por Tenant" />
 
       <main style={styles.content}>
+        {/* Selector de Empresa para Super Admin */}
+        <div
+          className="industrial-card"
+          style={{
+            padding: '16px 20px',
+            marginBottom: '20px',
+            backgroundColor: '#1C1917',
+            color: '#FFFFFF',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontWeight: 800,
+                fontSize: '13px',
+                color: '#EA580C',
+                textTransform: 'uppercase',
+              }}
+            >
+              SELECCIONAR CLIENTE / FERRETERÍA A CONFIGURAR
+            </div>
+            <div style={{ fontSize: '11px', color: '#A8A29E' }}>
+              Elija la empresa para modificar su marca, logo y paleta de color.
+            </div>
+          </div>
+
+          <div style={{ minWidth: '280px' }}>
+            <select
+              value={selectedTenantId}
+              onChange={(e) => setSelectedTenantId(e.target.value)}
+              className="form-select"
+              style={{
+                backgroundColor: '#292524',
+                color: '#FAFAF9',
+                borderColor: '#44403C',
+                fontWeight: 700,
+              }}
+            >
+              {tenantsList.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nombreComercial}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {guardadoExitoso && (
           <div style={styles.successBanner}>
             <Check size={20} strokeWidth={2.6} color="#15803D" />
             <span style={{ fontWeight: 700 }}>
-              ¡Marca y variables CSS actualizadas en tiempo real en todo el sistema!
+              ¡Marca y paleta guardadas correctamente para "{nombre}"!
             </span>
           </div>
         )}
@@ -168,10 +287,7 @@ export const ConfiguracionPage: React.FC = () => {
               <input
                 type="color"
                 value={color}
-                onChange={(e) => {
-                  setColor(e.target.value);
-                  updateBranding(e.target.value, nombre);
-                }}
+                onChange={(e) => setColor(e.target.value)}
                 style={styles.nativeColorInput}
               />
               <div style={{ flex: 1 }}>
@@ -179,12 +295,7 @@ export const ConfiguracionPage: React.FC = () => {
                 <input
                   type="text"
                   value={color}
-                  onChange={(e) => {
-                    setColor(e.target.value);
-                    if (/^#[0-9A-F]{6}$/i.test(e.target.value)) {
-                      updateBranding(e.target.value, nombre);
-                    }
-                  }}
+                  onChange={(e) => setColor(e.target.value)}
                   className="form-input"
                   style={{ fontFamily: 'monospace', fontWeight: 700 }}
                 />
@@ -209,10 +320,7 @@ export const ConfiguracionPage: React.FC = () => {
                   <button
                     key={p.hex}
                     type="button"
-                    onClick={() => {
-                      setColor(p.hex);
-                      updateBranding(p.hex, nombre);
-                    }}
+                    onClick={() => setColor(p.hex)}
                     style={{
                       ...styles.presetBtn,
                       borderColor: color.toUpperCase() === p.hex.toUpperCase() ? '#1C1917' : '#D6D3D1',
