@@ -5,9 +5,14 @@ interface TenantContextType {
   tenant: TenantInfo;
   user: UserInfo | null;
   isAuthenticated: boolean;
+  isImpersonating: boolean;
+  originalSuperAdminUser: UserInfo | null;
   updateBranding: (colorPrimario: string, nombreComercial: string) => void;
   login: (user: UserInfo, tenant: TenantInfo) => void;
   logout: () => void;
+  impersonateTenantAdmin: (targetTenant: TenantInfo, targetAdminUser: UserInfo) => void;
+  stopImpersonating: () => void;
+  switchSucursal: (targetSucursalName: string, targetTenantId: string) => void;
 }
 
 const DEFAULT_TENANT: TenantInfo = {
@@ -29,6 +34,16 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [user, setUser] = useState<UserInfo | null>(() => {
     const saved = localStorage.getItem('ferre_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [originalSuperAdminUser, setOriginalSuperAdminUser] = useState<UserInfo | null>(() => {
+    const saved = localStorage.getItem('ferre_original_superadmin_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [originalTenant, setOriginalTenant] = useState<TenantInfo | null>(() => {
+    const saved = localStorage.getItem('ferre_original_superadmin_tenant');
     return saved ? JSON.parse(saved) : null;
   });
 
@@ -56,9 +71,49 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('ferre_tenant', JSON.stringify(newTenant));
   };
 
+  const impersonateTenantAdmin = (targetTenant: TenantInfo, targetAdminUser: UserInfo) => {
+    if (user?.rol === 'SUPERADMIN') {
+      setOriginalSuperAdminUser(user);
+      setOriginalTenant(tenant);
+      localStorage.setItem('ferre_original_superadmin_user', JSON.stringify(user));
+      localStorage.setItem('ferre_original_superadmin_tenant', JSON.stringify(tenant));
+    }
+    setUser(targetAdminUser);
+    setTenant(targetTenant);
+    localStorage.setItem('ferre_user', JSON.stringify(targetAdminUser));
+    localStorage.setItem('ferre_tenant', JSON.stringify(targetTenant));
+  };
+
+  const stopImpersonating = () => {
+    if (originalSuperAdminUser && originalTenant) {
+      setUser(originalSuperAdminUser);
+      setTenant(originalTenant);
+      localStorage.setItem('ferre_user', JSON.stringify(originalSuperAdminUser));
+      localStorage.setItem('ferre_tenant', JSON.stringify(originalTenant));
+    }
+    setOriginalSuperAdminUser(null);
+    setOriginalTenant(null);
+    localStorage.removeItem('ferre_original_superadmin_user');
+    localStorage.removeItem('ferre_original_superadmin_tenant');
+  };
+
+  const switchSucursal = (targetSucursalName: string, targetTenantId: string) => {
+    const updatedTenant = {
+      ...tenant,
+      id: targetTenantId,
+      sucursal: targetSucursalName,
+    };
+    setTenant(updatedTenant);
+    localStorage.setItem('ferre_tenant', JSON.stringify(updatedTenant));
+  };
+
   const logout = () => {
     setUser(null);
+    setOriginalSuperAdminUser(null);
+    setOriginalTenant(null);
     localStorage.removeItem('ferre_user');
+    localStorage.removeItem('ferre_original_superadmin_user');
+    localStorage.removeItem('ferre_original_superadmin_tenant');
   };
 
   return (
@@ -67,9 +122,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         tenant,
         user,
         isAuthenticated: !!user,
+        isImpersonating: !!originalSuperAdminUser,
+        originalSuperAdminUser,
         updateBranding,
         login,
         logout,
+        impersonateTenantAdmin,
+        stopImpersonating,
+        switchSucursal,
       }}
     >
       {children}
