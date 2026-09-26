@@ -13,14 +13,25 @@ const PRESET_COLORS = [
 ];
 
 export const ConfiguracionPage: React.FC = () => {
-  const { tenant, updateBranding } = useTenant();
+  const { tenant, updateBranding, updateTenantConfig } = useTenant();
 
   const [nombre, setNombre] = useState(tenant.nombreComercial);
+  const [sucursal, setSucursal] = useState(tenant.sucursal || 'Sucursal Centro');
   const [color, setColor] = useState(tenant.colorPrimario);
-  const [direccion, setDireccion] = useState('Barrio El Centro, 3ra Ave, 4ta Calle, San Pedro Sula');
-  const [telefono, setTelefono] = useState('+504 2550-1234');
-  const [email, setEmail] = useState('ventas@lamundial.hn');
+  const [direccion, setDireccion] = useState(tenant.direccion || 'Barrio El Centro, 3ra Ave, 4ta Calle, San Pedro Sula');
+  const [telefono, setTelefono] = useState(tenant.telefono || '+504 2550-1234');
+  const [email, setEmail] = useState(tenant.email || 'ventas@lamundial.hn');
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
+
+  // Sync component state when tenant updates (e.g., initial render or reset)
+  React.useEffect(() => {
+    setNombre(tenant.nombreComercial);
+    if (tenant.sucursal) setSucursal(tenant.sucursal);
+    setColor(tenant.colorPrimario);
+    if (tenant.direccion) setDireccion(tenant.direccion);
+    if (tenant.telefono) setTelefono(tenant.telefono);
+    if (tenant.email) setEmail(tenant.email);
+  }, [tenant]);
 
   // Validación de contraste básica WCAG contra texto blanco
   const contrastRatio = getLuminance(color);
@@ -28,14 +39,28 @@ export const ConfiguracionPage: React.FC = () => {
 
   const handleGuardar = (e: React.FormEvent) => {
     e.preventDefault();
-    updateBranding(color, nombre);
+    updateTenantConfig({
+      nombreComercial: nombre,
+      sucursal,
+      colorPrimario: color,
+      direccion,
+      telefono,
+      email,
+    });
     setGuardadoExitoso(true);
     setTimeout(() => setGuardadoExitoso(false), 4000);
   };
 
   const handleRestablecerDefault = () => {
     setColor('#EA580C');
-    updateBranding('#EA580C', nombre);
+    updateTenantConfig({
+      nombreComercial: nombre,
+      sucursal,
+      colorPrimario: '#EA580C',
+      direccion,
+      telefono,
+      email,
+    });
   };
 
   return (
@@ -67,6 +92,17 @@ export const ConfiguracionPage: React.FC = () => {
                 required
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">NOMBRE DE SUCURSAL / SEDE</label>
+              <input
+                type="text"
+                required
+                value={sucursal}
+                onChange={(e) => setSucursal(e.target.value)}
                 className="form-input"
               />
             </div>

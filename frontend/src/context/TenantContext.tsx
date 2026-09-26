@@ -8,6 +8,7 @@ interface TenantContextType {
   isImpersonating: boolean;
   originalSuperAdminUser: UserInfo | null;
   updateBranding: (colorPrimario: string, nombreComercial: string) => void;
+  updateTenantConfig: (updates: Partial<TenantInfo>) => void;
   login: (user: UserInfo, tenant: TenantInfo) => void;
   logout: () => void;
   impersonateTenantAdmin: (targetTenant: TenantInfo, targetAdminUser: UserInfo) => void;
@@ -21,6 +22,9 @@ const DEFAULT_TENANT: TenantInfo = {
   sucursal: 'Sucursal Centro',
   colorPrimario: '#EA580C',
   logoUrl: null,
+  direccion: 'Barrio El Centro, 3ra Ave, 4ta Calle, San Pedro Sula',
+  telefono: '+504 2550-1234',
+  email: 'ventas@lamundial.hn',
 };
 
 
@@ -60,6 +64,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const updateBranding = (colorPrimario: string, nombreComercial: string) => {
     const updated = { ...tenant, colorPrimario, nombreComercial };
+    setTenant(updated);
+    localStorage.setItem('ferre_tenant', JSON.stringify(updated));
+  };
+
+  const updateTenantConfig = (updates: Partial<TenantInfo>) => {
+    const updated = { ...tenant, ...updates };
     setTenant(updated);
     localStorage.setItem('ferre_tenant', JSON.stringify(updated));
   };
@@ -125,6 +135,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isImpersonating: !!originalSuperAdminUser,
         originalSuperAdminUser,
         updateBranding,
+        updateTenantConfig,
         login,
         logout,
         impersonateTenantAdmin,
