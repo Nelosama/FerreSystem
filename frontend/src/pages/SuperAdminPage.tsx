@@ -16,6 +16,7 @@ import {
   Search,
   X,
   Server,
+  Trash2,
 } from 'lucide-react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
@@ -941,6 +942,7 @@ export const SuperAdminPage: React.FC = () => {
                       <th>DIRECCIÓN</th>
                       <th>TELÉFONO</th>
                       <th style={{ textAlign: 'center' }}>ESTADO</th>
+                      <th style={{ textAlign: 'center' }}>ACCIONES</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -953,6 +955,40 @@ export const SuperAdminPage: React.FC = () => {
                         <td style={{ color: '#78716C' }}>{s.telefono}</td>
                         <td style={{ textAlign: 'center' }}>
                           <span className="badge badge-success">HABILITADA</span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger"
+                            title="Eliminar Sub-Sucursal"
+                            onClick={() => {
+                              const currentList = modalSucursalesTenant.sucursalesList || [];
+                              const updatedList = currentList.filter((item) => item.id !== s.id);
+
+                              setTenants(
+                                tenants.map((t) =>
+                                  t.id === modalSucursalesTenant.id
+                                    ? {
+                                        ...t,
+                                        sucursalesCount: updatedList.length,
+                                        sucursalesList: updatedList,
+                                      }
+                                    : t,
+                                ),
+                              );
+
+                              setModalSucursalesTenant({
+                                ...modalSucursalesTenant,
+                                sucursalesCount: updatedList.length,
+                                sucursalesList: updatedList,
+                              });
+
+                              setMensajeExito(`¡Sub-sucursal "${s.nombre}" eliminada exitosamente!`);
+                              setTimeout(() => setMensajeExito(null), 4000);
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </td>
                       </tr>
                     ))}

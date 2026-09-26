@@ -10,17 +10,17 @@ export const LoginPage: React.FC = () => {
 
   const [email, setEmail] = useState('cajero@lamundial.hn');
   const [password, setPassword] = useState('Ferre2026!');
-  const [isSuperAdminMode, setIsSuperAdminMode] = useState(false);
+  const [isSuperAdminMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const executeDemoLogin = () => {
-    if (isSuperAdminMode) {
+  const executeRoleLogin = (selectedRole: 'SUPERADMIN' | 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR') => {
+    if (selectedRole === 'SUPERADMIN') {
       login(
         {
           id: 'superadmin-demo',
-          nombre: 'Nelo — SaaS Owner',
-          email,
+          nombre: 'Ing. Nelo — SaaS Owner',
+          email: 'admin@ferresystem.hn',
           rol: 'SUPERADMIN',
           permisos: ['usuarios.gestionar', 'configuracion.editar'],
           descuentoMaximo: 100,
@@ -35,49 +35,59 @@ export const LoginPage: React.FC = () => {
       );
       navigate('/admin');
     } else {
-      // Buscar usuario en localStorage o fallback
-      const savedUsersRaw = localStorage.getItem('ferre_users');
-      const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
-      const userEncontrado = savedUsers.find(
-        (u: any) => u.email.toLowerCase().trim() === email.toLowerCase().trim(),
-      );
-
-      if (userEncontrado && userEncontrado.activo === false) {
-        setError('Este usuario ha sido desactivado por el administrador');
-        return;
-      }
-
-      const usuarioFinal = userEncontrado || {
-        id: 'user-demo-1',
-        nombre: 'Carlos Ramos (Cajero Principal)',
-        email,
-        rol: 'ADMIN',
-        permisos: [
-          'pos.vender',
-          'pos.anular_venta',
-          'pos.aplicar_descuento',
-          'inventario.ver',
-          'inventario.editar',
-          'cotizaciones.crear',
-          'cotizaciones.aprobar',
-          'cotizaciones.convertir_venta',
-          'reportes.ver',
-          'usuarios.gestionar',
-          'configuracion.editar',
-        ],
-        descuentoMaximo: 100,
-        activo: true,
+      const roleProfiles = {
+        ADMIN: {
+          id: 'usr-admin-1',
+          nombre: 'Carlos Ramos (Administrador General)',
+          email: 'admin@lamundial.hn',
+          rol: 'ADMIN' as const,
+          permisos: [
+            'pos.vender',
+            'pos.anular_venta',
+            'pos.aplicar_descuento',
+            'inventario.ver',
+            'inventario.editar',
+            'cotizaciones.crear',
+            'cotizaciones.aprobar',
+            'cotizaciones.convertir_venta',
+            'reportes.ver',
+            'usuarios.gestionar',
+            'configuracion.editar',
+          ],
+        },
+        CAJERO: {
+          id: 'usr-cajero-1',
+          nombre: 'Carlos Ramos (Cajero Principal)',
+          email: 'cajero@lamundial.hn',
+          rol: 'CAJERO' as const,
+          permisos: ['pos.vender', 'cotizaciones.crear'],
+        },
+        BODEGUERO: {
+          id: 'usr-bodega-1',
+          nombre: 'Jorge Mendoza (Bodeguero)',
+          email: 'bodega@lamundial.hn',
+          rol: 'BODEGUERO' as const,
+          permisos: ['inventario.ver', 'inventario.editar'],
+        },
+        VENDEDOR: {
+          id: 'usr-vendedor-1',
+          nombre: 'Ana Martínez (Vendedora)',
+          email: 'vendedor@lamundial.hn',
+          rol: 'VENDEDOR' as const,
+          permisos: ['pos.vender', 'cotizaciones.crear'],
+        },
       };
 
+      const prof = roleProfiles[selectedRole];
       login(
         {
-          id: usuarioFinal.id,
-          nombre: usuarioFinal.nombre,
-          email: usuarioFinal.email,
-          rol: usuarioFinal.rolBase || usuarioFinal.rol || 'ADMIN',
-          permisos: usuarioFinal.permisos || [],
-          descuentoMaximo: usuarioFinal.descuentoMaximo ?? 100,
-          activo: usuarioFinal.activo ?? true,
+          id: prof.id,
+          nombre: prof.nombre,
+          email: prof.email,
+          rol: prof.rol,
+          permisos: prof.permisos,
+          descuentoMaximo: selectedRole === 'ADMIN' ? 100 : 15,
+          activo: true,
         },
         {
           id: 'tenant-demo-1',
@@ -88,6 +98,10 @@ export const LoginPage: React.FC = () => {
       );
       navigate('/');
     }
+  };
+
+  const executeDemoLogin = () => {
+    executeRoleLogin(isSuperAdminMode ? 'SUPERADMIN' : 'ADMIN');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -160,40 +174,53 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Demo Fast Login Pills */}
-        <div style={styles.demoPills}>
-          <button
-            type="button"
-            onClick={() => {
-              setIsSuperAdminMode(false);
-              setEmail('cajero@lamundial.hn');
-              setPassword('Ferre2026!');
-              setError(null);
-            }}
-            style={{
-              ...styles.pillBtn,
-              backgroundColor: !isSuperAdminMode ? '#1C1917' : '#FFFFFF',
-              color: !isSuperAdminMode ? '#FAFAF9' : '#1C1917',
-            }}
-          >
-            Ferretería (La Mundial)
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setIsSuperAdminMode(true);
-              setEmail('admin@ferresystem.hn');
-              setPassword('SuperAdmin2026!');
-              setError(null);
-            }}
-            style={{
-              ...styles.pillBtn,
-              backgroundColor: isSuperAdminMode ? '#1C1917' : '#FFFFFF',
-              color: isSuperAdminMode ? '#FAFAF9' : '#1C1917',
-            }}
-          >
-            <ShieldCheck size={13} /> Super-Admin
-          </button>
+        {/* Quick Login Role Pills */}
+        <div style={{ marginTop: '16px' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '10px', color: '#78716C', textTransform: 'uppercase', marginBottom: '6px' }}>
+            ACCESO RÁPIDO DIRECTO POR ROL:
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={() => executeRoleLogin('SUPERADMIN')}
+              style={{ ...styles.rolePill, backgroundColor: '#1C1917', color: '#FAFAF9' }}
+              title="Ingresar como Super Admin (Dueño SaaS)"
+            >
+              <ShieldCheck size={11} /> SuperAdmin
+            </button>
+            <button
+              type="button"
+              onClick={() => executeRoleLogin('ADMIN')}
+              style={{ ...styles.rolePill, backgroundColor: '#EA580C', color: '#FFFFFF' }}
+              title="Ingresar como Admin de Ferretería"
+            >
+              Admin
+            </button>
+            <button
+              type="button"
+              onClick={() => executeRoleLogin('CAJERO')}
+              style={{ ...styles.rolePill, backgroundColor: '#0284C7', color: '#FFFFFF' }}
+              title="Ingresar como Cajero POS"
+            >
+              Cajero
+            </button>
+            <button
+              type="button"
+              onClick={() => executeRoleLogin('BODEGUERO')}
+              style={{ ...styles.rolePill, backgroundColor: '#15803D', color: '#FFFFFF' }}
+              title="Ingresar como Bodeguero"
+            >
+              Bodega
+            </button>
+            <button
+              type="button"
+              onClick={() => executeRoleLogin('VENDEDOR')}
+              style={{ ...styles.rolePill, backgroundColor: '#D97706', color: '#FFFFFF' }}
+              title="Ingresar como Vendedor"
+            >
+              Vendedor
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -312,17 +339,16 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '8px',
     marginTop: '20px',
   },
-  pillBtn: {
-    flex: 1,
-    padding: '8px',
+  rolePill: {
+    padding: '6px 8px',
     fontFamily: 'var(--font-display)',
-    fontWeight: 700,
-    fontSize: '11px',
+    fontWeight: 800,
+    fontSize: '10px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '6px',
-    border: '1.5px solid #1C1917',
+    gap: '4px',
+    border: '1px solid #1C1917',
     borderRadius: 'var(--radius-xs)',
     cursor: 'pointer',
   },
