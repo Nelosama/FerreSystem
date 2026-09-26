@@ -17,21 +17,29 @@ export const Sidebar: React.FC = () => {
   const userRole = user?.rol;
 
   const isRoleAllowed = (allowedRoles?: string[], requiredPermiso?: string) => {
-    if (requiredPermiso && user?.permisos) {
-      if (user.permisos.includes(requiredPermiso)) return true;
-    }
-    if (!allowedRoles || allowedRoles.length === 0) return true;
     if (!userRole) return false;
-    return allowedRoles.includes(userRole);
+    if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+      return false;
+    }
+    if (requiredPermiso) {
+      return user?.permisos?.includes(requiredPermiso) ?? false;
+    }
+    return true;
   };
 
   const mainNavItems = [
+    {
+      path: '/admin',
+      label: 'PANEL SUPER ADMIN',
+      icon: ShieldCheck,
+      allowedRoles: ['SUPERADMIN'],
+    },
     {
       path: '/',
       label: 'PANEL DE CONTROL',
       icon: LayoutGrid,
       exact: true,
-      allowedRoles: undefined, // Todos los usuarios autenticados
+      allowedRoles: ['ADMIN', 'CAJERO', 'BODEGUERO', 'VENDEDOR'],
     },
     {
       path: '/inventario',
@@ -67,13 +75,6 @@ export const Sidebar: React.FC = () => {
       icon: Sliders,
       allowedRoles: ['ADMIN'],
       requiredPermiso: 'configuracion.editar',
-    },
-    {
-      path: '/admin',
-      label: 'SUPER ADMIN (SAAS)',
-      icon: ShieldCheck,
-      allowedRoles: ['SUPERADMIN'],
-      isSuperAdminStyle: true,
     },
   ];
 
@@ -136,12 +137,9 @@ export const Sidebar: React.FC = () => {
                     style={({ isActive }) => ({
                       ...styles.navItem,
                       ...(isActive ? styles.navItemActive : {}),
-                      ...(item.isSuperAdminStyle
-                        ? { fontSize: '11px', color: '#A8A29E' }
-                        : {}),
                     })}
                   >
-                    <Icon size={item.isSuperAdminStyle ? 18 : 20} strokeWidth={item.isSuperAdminStyle ? 2.2 : 2.4} />
+                    <Icon size={20} strokeWidth={2.4} />
                     <span>{item.label}</span>
                   </NavLink>
                 </li>
