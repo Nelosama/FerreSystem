@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Plus, CheckCircle } from 'lucide-react';
+import { useI18n } from '../context/I18nContext';
 
 export interface ListaPrecioItem {
   id: string;
@@ -17,6 +18,7 @@ const INITIAL_LISTAS: ListaPrecioItem[] = [
 ];
 
 export const ListasPrecioPage: React.FC = () => {
+  const { t } = useI18n();
   const [listas, setListas] = useState<ListaPrecioItem[]>(() => {
     const saved = localStorage.getItem('ferre_mock_listas_precio');
     return saved ? JSON.parse(saved) : INITIAL_LISTAS;
@@ -49,7 +51,7 @@ export const ListasPrecioPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="LISTAS DE PRECIO Y SEGMENTACIÓN DE CLIENTES" subtitle="Tarifas Diferenciadas (Consumidor | Mayorista | Contratista)" />
+      <TopBar title={t('price_lists.title')} subtitle={t('price_lists.subtitle')} />
 
       <main style={styles.content}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>

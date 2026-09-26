@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { ShieldCheck, Search, Plus, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useI18n } from '../context/I18nContext';
 
 export interface RegistroGarantiaItem {
   id: string;
@@ -43,6 +44,7 @@ const INITIAL_GARANTIAS: RegistroGarantiaItem[] = [
 ];
 
 export const GarantiasPage: React.FC = () => {
+  const { t } = useI18n();
   const [garantias, setGarantias] = useState<RegistroGarantiaItem[]>(() => {
     const saved = localStorage.getItem('ferre_mock_garantias');
     return saved ? JSON.parse(saved) : INITIAL_GARANTIAS;
@@ -99,7 +101,7 @@ export const GarantiasPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="MÓDULO DE GARANTÍAS Y NÚMEROS DE SERIE" subtitle="Consulta y Registro de Pólizas de Garantía de Equipos" />
+      <TopBar title={t('warranties.title')} subtitle={t('warranties.subtitle')} />
 
       <main style={styles.content}>
         <div style={styles.actionsBar}>

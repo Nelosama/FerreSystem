@@ -51,18 +51,25 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Inyección dinámica de variables CSS por Tenant (White-labeling)
+  // Inyección dinámica de variables CSS por Tenant (White-labeling, Estilo UI y Tipografía)
   useEffect(() => {
     const root = document.documentElement;
     // Buscar la configuración actualizada que definió el Super Admin para esta ferretería
     let color = tenant.colorPrimario || '#EA580C';
+    let estiloUI = tenant.estiloUI || 'INDUSTRIAL';
+    let fuenteTitulos = tenant.fuenteTitulos || 'Archivo';
+    let fuenteCuerpo = tenant.fuenteCuerpo || 'Inter';
+
     const saasTenantsRaw = localStorage.getItem('ferre_saas_tenants');
     if (saasTenantsRaw) {
       try {
         const saasTenants = JSON.parse(saasTenantsRaw);
         const match = saasTenants.find((t: any) => t.id === tenant.id || t.nombreComercial === tenant.nombreComercial);
-        if (match && match.colorPrimario) {
-          color = match.colorPrimario;
+        if (match) {
+          if (match.colorPrimario) color = match.colorPrimario;
+          if (match.estiloUI) estiloUI = match.estiloUI;
+          if (match.fuenteTitulos) fuenteTitulos = match.fuenteTitulos;
+          if (match.fuenteCuerpo) fuenteCuerpo = match.fuenteCuerpo;
         }
       } catch (e) {
         // Fallback
@@ -73,8 +80,42 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     root.style.setProperty('--color-primary-hover', adjustColorBrightness(color, -15));
     root.style.setProperty('--color-primary-active', adjustColorBrightness(color, -30));
     root.style.setProperty('--color-primary-light', `${color}1F`);
-    root.style.setProperty('--color-sidebar-active-bg', color);
-  }, [tenant.id, tenant.nombreComercial, tenant.colorPrimario]);
+
+    // Estilo de interfaz (INDUSTRIAL, MINIMALISTA, MODERNO)
+    if (estiloUI === 'MINIMALISTA') {
+      root.style.setProperty('--color-sidebar-bg', '#FFFFFF');
+      root.style.setProperty('--color-sidebar-text', '#1C1917');
+      root.style.setProperty('--color-sidebar-active-bg', color);
+      root.style.setProperty('--radius-sm', '6px');
+      root.style.setProperty('--radius-md', '10px');
+      root.style.setProperty('--shadow-hard', '0 2px 8px rgba(0,0,0,0.08)');
+      root.style.setProperty('--shadow-hard-sm', '0 1px 3px rgba(0,0,0,0.1)');
+      root.style.setProperty('--shadow-hard-primary', `0 2px 8px ${color}33`);
+    } else if (estiloUI === 'MODERNO') {
+      root.style.setProperty('--color-sidebar-bg', color);
+      root.style.setProperty('--color-sidebar-text', '#FFFFFF');
+      root.style.setProperty('--color-sidebar-active-bg', adjustColorBrightness(color, -20));
+      root.style.setProperty('--radius-sm', '8px');
+      root.style.setProperty('--radius-md', '12px');
+      root.style.setProperty('--shadow-hard', '0 4px 14px rgba(0,0,0,0.12)');
+      root.style.setProperty('--shadow-hard-sm', '0 2px 6px rgba(0,0,0,0.1)');
+      root.style.setProperty('--shadow-hard-primary', `0 4px 14px ${color}40`);
+    } else {
+      // INDUSTRIAL (Default)
+      root.style.setProperty('--color-sidebar-bg', '#1C1917');
+      root.style.setProperty('--color-sidebar-text', '#D6D3D1');
+      root.style.setProperty('--color-sidebar-active-bg', color);
+      root.style.setProperty('--radius-sm', '3px');
+      root.style.setProperty('--radius-md', '4px');
+      root.style.setProperty('--shadow-hard', '3px 3px 0px #1C1917');
+      root.style.setProperty('--shadow-hard-sm', '2px 2px 0px #1C1917');
+      root.style.setProperty('--shadow-hard-primary', `3px 3px 0px ${color}`);
+    }
+
+    // Tipografías
+    root.style.setProperty('--font-display', `'${fuenteTitulos}', sans-serif`);
+    root.style.setProperty('--font-body', `'${fuenteCuerpo}', sans-serif`);
+  }, [tenant.id, tenant.nombreComercial, tenant.colorPrimario, tenant.estiloUI, tenant.fuenteTitulos, tenant.fuenteCuerpo]);
 
   const updateBranding = (colorPrimario: string, nombreComercial: string) => {
     const updated = { ...tenant, colorPrimario, nombreComercial };

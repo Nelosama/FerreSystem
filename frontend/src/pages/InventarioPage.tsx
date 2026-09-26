@@ -4,10 +4,12 @@ import { Search, Plus, AlertTriangle, Check, X, Calendar, ShieldCheck } from 'lu
 import { formatLempiras } from '../utils/format';
 import { useMockData } from '../context/MockDataContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
+import { useI18n } from '../context/I18nContext';
 
 export const InventarioPage: React.FC = () => {
   const { productos, agregarProducto } = useMockData();
   const rubroConfig = useRubroConfig();
+  const { t } = useI18n();
 
   const [search, setSearch] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('TODAS');
@@ -115,7 +117,7 @@ export const InventarioPage: React.FC = () => {
             style={{ marginLeft: 'auto' }}
           >
             <Plus size={18} strokeWidth={2.5} />
-            <span>NUEVO ARTÍCULO</span>
+            <span>{t('inventory.new_product')}</span>
           </button>
         </div>
 

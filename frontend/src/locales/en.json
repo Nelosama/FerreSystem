@@ -26,16 +26,122 @@
     "inactive": "Inactive",
     "pending": "Pending",
     "completed": "Completed",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "tax": "Tax / VAT",
+    "client": "Customer",
+    "date": "Date",
+    "notes": "Notes"
+  },
+  "dashboard": {
+    "title": "OPERATIONAL SUMMARY",
+    "subtitle": "Current Shift: 08:00 AM - 05:00 PM",
+    "sales_today": "TODAY'S SALES",
+    "stock_alerts": "STOCK ALERTS",
+    "pending_quotations": "PENDING QUOTATIONS",
+    "quick_ops": "QUICK POS OPERATIONS",
+    "new_pos_sale": "NEW POS SALE",
+    "create_quotation": "CREATE QUOTATION",
+    "urgent_stock_alerts": "URGENT INVENTORY ALERTS",
+    "view_catalog": "View catalog",
+    "no_stock_alerts": "No low stock products at this time."
   },
   "pos": {
-    "title": "Point of Sale",
+    "title": "POINT OF SALE",
+    "subtitle": "Sales Terminal & Checkout",
     "cart": "Shopping Cart",
     "total": "Total Amount",
     "checkout": "Complete Sale",
     "cash": "Cash",
     "card": "Card",
-    "credit": "Credit"
+    "credit": "Credit",
+    "search_products": "Search by product code or name...",
+    "clear_cart": "Clear Cart",
+    "select_client": "Select Customer",
+    "process_sale": "COMPLETE SALE (F12)"
+  },
+  "quotations": {
+    "title": "QUOTATION MANAGEMENT",
+    "subtitle": "Proforma Estimates and Quotations",
+    "new_quotation": "NEW QUOTATION",
+    "client": "Customer",
+    "validity": "Validity",
+    "total": "Total",
+    "status": "Status",
+    "actions": "Actions",
+    "search_quotations": "Search by number or customer...",
+    "convert_to_sale": "Convert to POS Sale",
+    "print_proforma": "Print Proforma"
+  },
+  "inventory": {
+    "title": "INVENTORY & CATALOG",
+    "subtitle": "Stock & Price Control by Industry",
+    "new_product": "NEW PRODUCT",
+    "search": "Search catalog...",
+    "code": "Code",
+    "product": "Product",
+    "category": "Category",
+    "stock": "Stock",
+    "price": "Selling Price",
+    "cost": "Cost Price"
+  },
+  "layaway": {
+    "title": "LAYAWAY RESERVATIONS",
+    "subtitle": "Payment Plans & Merchandise Hold",
+    "new_layaway": "NEW LAYAWAY",
+    "search": "Search layaway...",
+    "balance_due": "Balance Due"
+  },
+  "cash_drawer": {
+    "title": "CASH DRAWER & RECONCILIATION",
+    "subtitle": "Cash Count & Shift Closing",
+    "open_drawer": "Open Cash Register",
+    "close_drawer": "Close Cash Register",
+    "initial_cash": "Starting Cash",
+    "system_total": "System Total"
+  },
+  "purchase_orders": {
+    "title": "PURCHASE ORDERS",
+    "subtitle": "Restocking & Supplier Orders",
+    "new_order": "NEW PURCHASE ORDER",
+    "supplier": "Supplier",
+    "expected_date": "Expected Date"
+  },
+  "transfers": {
+    "title": "INTER-BRANCH TRANSFERS",
+    "subtitle": "Inter-Branch Stock Sending & Receiving",
+    "new_transfer": "NEW TRANSFER",
+    "origin": "Source Branch",
+    "destination": "Destination Branch"
+  },
+  "warranties": {
+    "title": "WARRANTIES & SERIAL NUMBERS",
+    "subtitle": "Serial Number Tracking & Warranty Claims",
+    "new_claim": "REGISTER WARRANTY",
+    "serial_number": "Serial Number",
+    "warranty_months": "Warranty Months"
+  },
+  "special_orders": {
+    "title": "SPECIAL ORDERS",
+    "subtitle": "Custom Customer Orders & Downpayments",
+    "new_special_order": "NEW SPECIAL ORDER",
+    "advance_payment": "Down Payment",
+    "estimated_delivery": "Estimated Delivery"
+  },
+  "price_lists": {
+    "title": "PRICE LISTS & DISCOUNTS",
+    "subtitle": "Tiered Pricing & Special Rates",
+    "new_list": "NEW PRICE LIST",
+    "discount_percentage": "% Global Discount"
+  },
+  "commissions": {
+    "title": "SALES COMMISSIONS",
+    "subtitle": "Commission Calculation & Seller Payouts",
+    "seller": "Sales Representative",
+    "total_sales": "Total Sales",
+    "commission_rate": "% Commission Rate",
+    "earned": "Earned Commission"
   },
   "config": {
     "language": "System Language",

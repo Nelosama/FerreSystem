@@ -3,6 +3,7 @@ import { TopBar } from '../components/TopBar';
 import { Plus, Search, DollarSign, CheckCircle, XCircle } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useMockData } from '../context/MockDataContext';
+import { useI18n } from '../context/I18nContext';
 
 export interface ApartadoItem {
   id: string;
@@ -63,6 +64,7 @@ const INITIAL_APARTADOS: ApartadoItem[] = [
 
 export const ApartadosPage: React.FC = () => {
   const { productos } = useMockData();
+  const { t } = useI18n();
   const [apartados, setApartados] = useState<ApartadoItem[]>(() => {
     const saved = localStorage.getItem('ferre_mock_apartados');
     return saved ? JSON.parse(saved) : INITIAL_APARTADOS;
@@ -170,7 +172,7 @@ export const ApartadosPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="MÓDULO DE APARTADOS (LAYAWAY)" subtitle="Reserva de Productos & Pagos Parciales" />
+      <TopBar title={t('layaway.title')} subtitle={t('layaway.subtitle')} />
 
       <main style={styles.content}>
         <div style={styles.actionsBar}>
@@ -191,7 +193,7 @@ export const ApartadosPage: React.FC = () => {
             className="btn btn-primary"
             onClick={() => setModalNuevo(true)}
           >
-            <Plus size={18} /> NUEVO APARTADO
+            <Plus size={18} /> {t('layaway.new_layaway')}
           </button>
         </div>
 

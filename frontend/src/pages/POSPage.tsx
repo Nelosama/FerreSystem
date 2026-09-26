@@ -3,6 +3,7 @@ import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { useMockData, type ProductItem } from '../context/MockDataContext';
 import { useNotification, type SolicitudDescuento } from '../context/NotificationContext';
+import { useI18n } from '../context/I18nContext';
 import {
   Search,
   Plus,
@@ -33,6 +34,7 @@ export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
   const { productos, registrarVenta } = useMockData();
   const { solicitudes, solicitarDescuento } = useNotification();
+  const { t } = useI18n();
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState('');
@@ -154,7 +156,7 @@ export const POSPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="PUNTO DE VENTA (POS)" subtitle="Terminal de Caja Rápida" />
+      <TopBar title={t('pos.title')} subtitle={t('pos.subtitle')} />
 
       <main style={styles.content}>
         {/* Layout en dos columnas: Izquierda catálogo rápido, Derecha Carrito & Cobro */}
@@ -165,7 +167,7 @@ export const POSPage: React.FC = () => {
               <Search size={18} strokeWidth={2.4} style={styles.searchIcon} />
               <input
                 type="text"
-                placeholder="Escanear código de barras o teclear nombre..."
+                placeholder={t('pos.search_products')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="form-input"
@@ -203,7 +205,7 @@ export const POSPage: React.FC = () => {
           <div className="industrial-card" style={styles.cartColumn}>
             {/* Cabecera del ticket */}
             <div style={styles.cartHeader}>
-              <div style={styles.cartTitle}>ORDEN DE CAJA ACTUAL</div>
+              <div style={styles.cartTitle}>{t('pos.cart').toUpperCase()}</div>
               <span className="badge badge-dark">ITEMS: {cart.length}</span>
             </div>
 

@@ -19,10 +19,12 @@ import {
 } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
+import { useI18n } from '../context/I18nContext';
 
 export const Sidebar: React.FC = () => {
   const { tenant, user } = useTenant();
   const rubroConfig = useRubroConfig();
+  const { t } = useI18n();
   const userRole = user?.rol;
 
   const modulosHabilitados = tenant.modulosHabilitados || [
@@ -60,13 +62,13 @@ export const Sidebar: React.FC = () => {
   const mainNavItems = [
     {
       path: '/admin',
-      label: 'PANEL SUPER ADMIN',
+      label: t('menu.super_admin'),
       icon: ShieldCheck,
       allowedRoles: ['SUPERADMIN'],
     },
     {
       path: '/',
-      label: 'PANEL DE CONTROL',
+      label: t('menu.dashboard'),
       icon: LayoutGrid,
       exact: true,
       allowedRoles: ['ADMIN', 'CAJERO', 'BODEGUERO', 'VENDEDOR'],
@@ -80,70 +82,70 @@ export const Sidebar: React.FC = () => {
     },
     {
       path: '/pos',
-      label: 'PUNTO DE VENTA',
+      label: t('menu.pos'),
       icon: Calculator,
       allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
       moduleKey: 'pos',
     },
     {
       path: '/cotizaciones',
-      label: 'COTIZACIONES',
+      label: t('menu.quotations'),
       icon: ClipboardList,
       allowedRoles: ['ADMIN', 'VENDEDOR', 'CAJERO'],
       moduleKey: 'cotizaciones',
     },
     {
       path: '/apartados',
-      label: 'APARTADOS',
+      label: t('menu.layaway'),
       icon: Bookmark,
       allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
       moduleKey: 'apartados',
     },
     {
       path: '/arqueo-caja',
-      label: 'ARQUEO DE CAJA',
+      label: t('menu.cash_drawer'),
       icon: DollarSign,
       allowedRoles: ['ADMIN', 'CAJERO'],
       moduleKey: 'arqueo_caja',
     },
     {
       path: '/ordenes-compra',
-      label: 'ÓRDENES DE COMPRA',
+      label: t('menu.purchase_orders'),
       icon: Truck,
       allowedRoles: ['ADMIN', 'BODEGUERO'],
       moduleKey: 'ordenes_compra',
     },
     {
       path: '/transferencias',
-      label: 'TRANSFERENCIAS',
+      label: t('menu.transfers'),
       icon: GitBranch,
       allowedRoles: ['ADMIN', 'BODEGUERO'],
       moduleKey: 'transferencias_sucursal',
     },
     {
       path: '/garantias',
-      label: 'GARANTÍAS & SERIES',
+      label: t('menu.warranties'),
       icon: Shield,
       allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
       moduleKey: 'garantias',
     },
     {
       path: '/pedidos-especiales',
-      label: 'PEDIDOS ESPECIALES',
+      label: t('menu.special_orders'),
       icon: Clock,
       allowedRoles: ['ADMIN', 'VENDEDOR', 'CAJERO'],
       moduleKey: 'pedidos_especiales',
     },
     {
       path: '/listas-precio',
-      label: 'LISTAS DE PRECIO',
+      label: t('menu.price_lists'),
       icon: Tags,
       allowedRoles: ['ADMIN', 'VENDEDOR'],
       moduleKey: 'listas_precio',
     },
     {
       path: '/comisiones',
-      label: 'COMISIONES VENTA',
+      label: t('menu.commissions'),
       icon: Percent,
       allowedRoles: ['ADMIN'],
       moduleKey: 'comisiones_venta',
@@ -159,7 +161,7 @@ export const Sidebar: React.FC = () => {
   }[] = [
     {
       path: '/configuracion',
-      label: 'CONFIGURACIÓN GLOBAL',
+      label: t('menu.configuration'),
       icon: Sliders,
       allowedRoles: ['SUPERADMIN'],
     },
@@ -248,15 +250,15 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-sidebar-text)',
     display: 'flex',
     flexDirection: 'column',
-    borderRight: '2px solid #292524',
+    borderRight: '1px solid var(--color-border-subtle)',
     flexShrink: 0,
     minHeight: '100vh',
     userSelect: 'none',
   },
   brandHeader: {
     padding: '24px 20px 20px',
-    borderBottom: '1px solid #292524',
-    backgroundColor: '#161413',
+    borderBottom: '1px solid rgba(128, 128, 128, 0.2)',
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
   },
   logoRow: {
     display: 'flex',
@@ -275,7 +277,7 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '-0.02em',
   },
   brandFerre: {
-    color: '#FAFAF9',
+    color: 'var(--color-sidebar-text)',
   },
   brandSystem: {
     color: 'var(--color-primary)',
@@ -284,7 +286,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'var(--font-display)',
     fontSize: '10px',
     fontWeight: 700,
-    color: '#A8A29E',
+    color: 'var(--color-sidebar-text)',
+    opacity: 0.75,
     marginTop: '6px',
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
@@ -317,18 +320,18 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.03em',
     color: 'var(--color-sidebar-text)',
     textDecoration: 'none',
-    borderRadius: 'var(--radius-xs)',
+    borderRadius: 'var(--radius-sm)',
     transition: 'all 150ms ease',
   },
   navItemActive: {
     backgroundColor: 'var(--color-sidebar-active-bg)',
     color: '#FFFFFF',
     fontWeight: 800,
-    boxShadow: '2px 2px 0px rgba(0,0,0,0.5)',
+    boxShadow: 'var(--shadow-hard-sm)',
   },
   divider: {
     height: '1px',
-    backgroundColor: '#292524',
+    backgroundColor: 'rgba(128, 128, 128, 0.2)',
     margin: '16px 0 12px',
   },
 };

@@ -3,6 +3,7 @@ import { TopBar } from '../components/TopBar';
 import { Truck, Plus, PackageCheck, Building2, Check } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useMockData } from '../context/MockDataContext';
+import { useI18n } from '../context/I18nContext';
 
 export interface ProveedorItem {
   id: string;
@@ -52,6 +53,7 @@ const INITIAL_ORDENES: OrdenCompraItem[] = [
 
 export const OrdenesCompraPage: React.FC = () => {
   const { productos } = useMockData();
+  const { t } = useI18n();
   const [proveedores, setProveedores] = useState<ProveedorItem[]>(() => {
     const saved = localStorage.getItem('ferre_mock_proveedores');
     return saved ? JSON.parse(saved) : INITIAL_PROVEEDORES;
@@ -148,7 +150,7 @@ export const OrdenesCompraPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="ÓRDENES DE COMPRA Y PROVEEDORES" subtitle="Recepción de Inventario y Control de Abastecimiento" />
+      <TopBar title={t('purchase_orders.title')} subtitle={t('purchase_orders.subtitle')} />
 
       <main style={styles.content}>
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
