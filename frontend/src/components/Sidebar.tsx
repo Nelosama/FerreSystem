@@ -16,6 +16,7 @@ import {
   Clock,
   Tags,
   Percent,
+  BarChart3,
 } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
@@ -41,6 +42,7 @@ export const Sidebar: React.FC = () => {
     'pedidos_especiales',
     'listas_precio',
     'comisiones_venta',
+    'reportes',
   ];
 
   const isModuleEnabled = (moduleKey?: string) => {
@@ -150,6 +152,14 @@ export const Sidebar: React.FC = () => {
       allowedRoles: ['ADMIN'],
       moduleKey: 'comisiones_venta',
     },
+    {
+      path: '/reportes',
+      label: t('menu.reports') || 'REPORTES',
+      icon: BarChart3,
+      allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+      requiredPermiso: 'reportes.ver',
+      moduleKey: 'reportes',
+    },
   ];
 
   const adminNavItems: {
@@ -168,7 +178,7 @@ export const Sidebar: React.FC = () => {
   ];
 
   const visibleMainNav = mainNavItems.filter(
-    (item) => isRoleAllowed(item.allowedRoles) && isModuleEnabled(item.moduleKey),
+    (item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso) && isModuleEnabled(item.moduleKey),
   );
   const visibleAdminNav = adminNavItems.filter((item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso));
 

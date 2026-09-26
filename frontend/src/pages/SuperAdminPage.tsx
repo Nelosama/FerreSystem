@@ -69,6 +69,7 @@ const CATALOGO_MODULOS = [
   { key: 'pedidos_especiales', label: 'Pedidos Especiales / Backorder', desc: 'Encargos sin stock y avisos' },
   { key: 'listas_precio', label: 'Listas de Precio / Segmentos', desc: 'Descuentos por tipo de cliente' },
   { key: 'comisiones_venta', label: 'Comisiones de Venta', desc: 'Cálculo de incentivos por vendedor' },
+  { key: 'reportes', label: 'Módulo de Reportes & KPIs', desc: 'Análisis de ventas, inventario, cotizaciones y operaciones' },
   { key: 'configuracion', label: 'Configuración / Marca', desc: 'Ajustes de tienda y white-label' },
 ];
 
