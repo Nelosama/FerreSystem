@@ -66,6 +66,9 @@ const ListasPrecioPage = React.lazy(() =>
 const ComisionesPage = React.lazy(() =>
   import('./pages/ComisionesPage').then(m => ({ default: m.ComisionesPage }))
 );
+const ReportesPage = React.lazy(() =>
+  import('./pages/ReportesPage').then(m => ({ default: m.ReportesPage }))
+);
 
 // Componente de carga para Suspense acorde al estilo industrial
 const PageLoader: React.FC = () => (
@@ -127,6 +130,16 @@ export const App: React.FC = () => {
                       <ProtectedRoute>
                         <AppLayout>
                           <HomeRoute />
+                        </AppLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/reportes"
+                    element={
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredPermiso="reportes.ver">
+                        <AppLayout>
+                          <ReportesPage />
                         </AppLayout>
                       </ProtectedRoute>
                     }

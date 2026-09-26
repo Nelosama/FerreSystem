@@ -12,6 +12,7 @@
     "special_orders": "PEDIDOS ESPECIALES",
     "price_lists": "LISTAS DE PRECIO",
     "commissions": "COMISIONES VENTA",
+    "reports": "REPORTES",
     "configuration": "CONFIGURACIÓN GLOBAL",
     "super_admin": "PANEL SUPER ADMIN"
   },
