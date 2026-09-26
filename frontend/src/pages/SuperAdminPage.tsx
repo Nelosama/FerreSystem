@@ -635,12 +635,12 @@ export const SuperAdminPage: React.FC = () => {
                     <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
                   </tr>
                   <tr>
-                    <td style={{ fontWeight: 800 }}>CONFIGURACIÓN LOCAL (/configuracion)</td>
+                    <td style={{ fontWeight: 800 }}>CONFIGURACIÓN DEL SISTEMA (/configuracion)</td>
+                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
+                      <CheckCircle size={16} style={{ verticalAlign: 'middle', marginRight: 4, display: 'inline-block' }} /> ACCESO TOTAL
+                    </td>
                     <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 700 }}>
                       <Lock size={14} style={{ verticalAlign: 'middle', marginRight: 4, display: 'inline-block' }} /> OCULTO / DENEGADO
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      PERMITIDO
                     </td>
                     <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
                     <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
