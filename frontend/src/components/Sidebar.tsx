@@ -63,13 +63,6 @@ export const Sidebar: React.FC = () => {
 
   const adminNavItems = [
     {
-      path: '/usuarios',
-      label: 'USUARIOS',
-      icon: Users,
-      allowedRoles: ['ADMIN'],
-      requiredPermiso: 'usuarios.gestionar',
-    },
-    {
       path: '/configuracion',
       label: 'CONFIGURACIÓN GLOBAL',
       icon: Sliders,

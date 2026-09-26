@@ -54,6 +54,16 @@ interface AdminUserItem {
   fechaCreacion: string;
 }
 
+interface AdminUserItem {
+  id: string;
+  nombre: string;
+  email: string;
+  tenantId: string;
+  tenantNombre: string;
+  activo: boolean;
+  fechaCreacion: string;
+}
+
 const INITIAL_TENANTS: TenantItem[] = [
   {
     id: 't-1',
