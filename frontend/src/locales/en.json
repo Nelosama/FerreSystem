@@ -1,0 +1,45 @@
+{
+  "menu": {
+    "dashboard": "DASHBOARD",
+    "inventory": "INVENTORY & CATALOG",
+    "pos": "POINT OF SALE (POS)",
+    "quotations": "QUOTATIONS",
+    "layaway": "LAYAWAY RESERVATIONS",
+    "cash_drawer": "CASH DRAWER CLOSE",
+    "purchase_orders": "PURCHASE ORDERS",
+    "transfers": "BRANCH TRANSFERS",
+    "warranties": "WARRANTIES & SERIALS",
+    "special_orders": "SPECIAL ORDERS",
+    "price_lists": "PRICE LISTS",
+    "commissions": "SALES COMMISSIONS",
+    "configuration": "GLOBAL SETTINGS",
+    "super_admin": "SUPER ADMIN PANEL"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "accept": "Accept",
+    "search": "Search...",
+    "status": "Status",
+    "actions": "Actions",
+    "active": "Active",
+    "inactive": "Inactive",
+    "pending": "Pending",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  },
+  "pos": {
+    "title": "Point of Sale",
+    "cart": "Shopping Cart",
+    "total": "Total Amount",
+    "checkout": "Complete Sale",
+    "cash": "Cash",
+    "card": "Card",
+    "credit": "Credit"
+  },
+  "config": {
+    "language": "System Language",
+    "currency": "Primary Currency",
+    "tax": "Sales Tax"
+  }
+}

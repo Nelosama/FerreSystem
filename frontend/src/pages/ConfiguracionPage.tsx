@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
-import { Palette, Building2, Check, RefreshCw, AlertTriangle, Image as ImageIcon } from 'lucide-react';
+import { useI18n } from '../context/I18nContext';
+import { Rubro } from '../types';
+import { RUBROS_CONFIG } from '../config/rubros';
+import { Palette, Building2, Check, RefreshCw, Store, Layout, Type, Eye, Languages, Coins, Receipt } from 'lucide-react';
 
 const PRESET_COLORS = [
   { name: 'Naranja Óxido (FerreSystem)', hex: '#EA580C' },
@@ -14,6 +17,7 @@ const PRESET_COLORS = [
 
 export const ConfiguracionPage: React.FC = () => {
   const { tenant, updateTenantConfig } = useTenant();
+  const { locale, setLocale } = useI18n();
 
   // Cargar lista de tenants registradas en el SaaS
   const [tenantsList, setTenantsList] = useState<any[]>(() => {
@@ -27,6 +31,12 @@ export const ConfiguracionPage: React.FC = () => {
             contacto: 'admin@lamundial.hn',
             telefono: '+504 2550-1234',
             colorPrimario: '#EA580C',
+            rubro: Rubro.FERRETERIA,
+            estiloUI: 'INDUSTRIAL',
+            fuenteTitulos: 'Archivo',
+            fuenteCuerpo: 'Inter',
+            moneda: { simbolo: 'L.', codigo: 'HNL' },
+            impuesto: { nombre: 'ISV', tasa: 15 },
             direccion: 'Barrio El Centro, 3ra Ave, 4ta Calle, San Pedro Sula',
           },
           {
@@ -35,6 +45,12 @@ export const ConfiguracionPage: React.FC = () => {
             contacto: 'admin@elmartillodeoro.hn',
             telefono: '+504 2233-4455',
             colorPrimario: '#0284C7',
+            rubro: Rubro.FERRETERIA,
+            estiloUI: 'MINIMALISTA',
+            fuenteTitulos: 'Poppins',
+            fuenteCuerpo: 'Inter',
+            moneda: { simbolo: 'L.', codigo: 'HNL' },
+            impuesto: { nombre: 'ISV', tasa: 15 },
             direccion: 'Col. Palmira, Ave. República de Chile, Tegucigalpa',
           },
         ];
@@ -50,6 +66,23 @@ export const ConfiguracionPage: React.FC = () => {
   const [nombre, setNombre] = useState(currentSelectedTenant.nombreComercial);
   const [sucursal, setSucursal] = useState(currentSelectedTenant.sucursal || 'Sucursal Principal');
   const [color, setColor] = useState(currentSelectedTenant.colorPrimario || '#EA580C');
+  const [rubro, setRubro] = useState<Rubro>((currentSelectedTenant.rubro || tenant.rubro || Rubro.FERRETERIA) as Rubro);
+  const [estiloUI, setEstiloUI] = useState<'INDUSTRIAL' | 'MINIMALISTA' | 'MODERNO'>(
+    (currentSelectedTenant.estiloUI || tenant.estiloUI || 'INDUSTRIAL') as any,
+  );
+  const [fuenteTitulos, setFuenteTitulos] = useState<'Archivo' | 'Space Grotesk' | 'Poppins' | 'Montserrat'>(
+    (currentSelectedTenant.fuenteTitulos || tenant.fuenteTitulos || 'Archivo') as any,
+  );
+  const [fuenteCuerpo, setFuenteCuerpo] = useState<'Inter' | 'IBM Plex Sans' | 'Nunito Sans'>(
+    (currentSelectedTenant.fuenteCuerpo || tenant.fuenteCuerpo || 'Inter') as any,
+  );
+
+  // Moneda e Impuesto
+  const [monedaSimbolo, setMonedaSimbolo] = useState(currentSelectedTenant.moneda?.simbolo || 'L.');
+  const [monedaCodigo, setMonedaCodigo] = useState(currentSelectedTenant.moneda?.codigo || 'HNL');
+  const [impuestoNombre, setImpuestoNombre] = useState(currentSelectedTenant.impuesto?.nombre || 'ISV');
+  const [impuestoTasa, setImpuestoTasa] = useState(currentSelectedTenant.impuesto?.tasa?.toString() || '15');
+
   const [direccion, setDireccion] = useState(
     currentSelectedTenant.direccion || 'Barrio El Centro, San Pedro Sula',
   );
@@ -65,6 +98,14 @@ export const ConfiguracionPage: React.FC = () => {
       setNombre(currentSelectedTenant.nombreComercial);
       setSucursal(currentSelectedTenant.sucursal || 'Sucursal Principal');
       setColor(currentSelectedTenant.colorPrimario || '#EA580C');
+      setRubro((currentSelectedTenant.rubro || Rubro.FERRETERIA) as Rubro);
+      setEstiloUI((currentSelectedTenant.estiloUI || 'INDUSTRIAL') as any);
+      setFuenteTitulos((currentSelectedTenant.fuenteTitulos || 'Archivo') as any);
+      setFuenteCuerpo((currentSelectedTenant.fuenteCuerpo || 'Inter') as any);
+      setMonedaSimbolo(currentSelectedTenant.moneda?.simbolo || 'L.');
+      setMonedaCodigo(currentSelectedTenant.moneda?.codigo || 'HNL');
+      setImpuestoNombre(currentSelectedTenant.impuesto?.nombre || 'ISV');
+      setImpuestoTasa(currentSelectedTenant.impuesto?.tasa?.toString() || '15');
       setDireccion(
         currentSelectedTenant.direccion || 'Barrio El Centro, San Pedro Sula',
       );
@@ -75,12 +116,11 @@ export const ConfiguracionPage: React.FC = () => {
     }
   }, [selectedTenantId]);
 
-  // Validación de contraste básica WCAG contra texto blanco
-  const contrastRatio = getLuminance(color);
-  const isLowContrast = contrastRatio > 0.7; // Si el color es demasiado claro para texto blanco
-
   const handleGuardar = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const updatedMoneda = { simbolo: monedaSimbolo, codigo: monedaCodigo };
+    const updatedImpuesto = { nombre: impuestoNombre, tasa: parseFloat(impuestoTasa) || 15 };
 
     // Actualizar lista de tenants en SaaS
     const updatedList = tenantsList.map((t) =>
@@ -90,6 +130,12 @@ export const ConfiguracionPage: React.FC = () => {
             nombreComercial: nombre,
             sucursal,
             colorPrimario: color,
+            rubro,
+            estiloUI,
+            fuenteTitulos,
+            fuenteCuerpo,
+            moneda: updatedMoneda,
+            impuesto: updatedImpuesto,
             direccion,
             telefono,
             contacto: email,
@@ -107,6 +153,12 @@ export const ConfiguracionPage: React.FC = () => {
         nombreComercial: nombre,
         sucursal,
         colorPrimario: color,
+        rubro,
+        estiloUI,
+        fuenteTitulos,
+        fuenteCuerpo,
+        moneda: updatedMoneda,
+        impuesto: updatedImpuesto,
         direccion,
         telefono,
         email,
@@ -119,10 +171,23 @@ export const ConfiguracionPage: React.FC = () => {
 
   const handleRestablecerDefault = () => {
     setColor('#EA580C');
+    setEstiloUI('INDUSTRIAL');
+    setFuenteTitulos('Archivo');
+    setFuenteCuerpo('Inter');
+    setMonedaSimbolo('L.');
+    setMonedaCodigo('HNL');
+    setImpuestoNombre('ISV');
+    setImpuestoTasa('15');
     updateTenantConfig({
       nombreComercial: nombre,
       sucursal,
       colorPrimario: '#EA580C',
+      rubro,
+      estiloUI: 'INDUSTRIAL',
+      fuenteTitulos: 'Archivo',
+      fuenteCuerpo: 'Inter',
+      moneda: { simbolo: 'L.', codigo: 'HNL' },
+      impuesto: { nombre: 'ISV', tasa: 15 },
       direccion,
       telefono,
       email,
@@ -159,10 +224,10 @@ export const ConfiguracionPage: React.FC = () => {
                 textTransform: 'uppercase',
               }}
             >
-              SELECCIONAR CLIENTE / FERRETERÍA A CONFIGURAR
+              SELECCIONAR CLIENTE / EMPRESA A CONFIGURAR
             </div>
             <div style={{ fontSize: '11px', color: '#A8A29E' }}>
-              Elija la empresa para modificar su marca, logo y paleta de color.
+              Elija la empresa para modificar su marca, rubro, idioma, tema visual y paleta de color.
             </div>
           </div>
 
@@ -191,7 +256,7 @@ export const ConfiguracionPage: React.FC = () => {
           <div style={styles.successBanner}>
             <Check size={20} strokeWidth={2.6} color="#15803D" />
             <span style={{ fontWeight: 700 }}>
-              ¡Marca y paleta guardadas correctamente para "{nombre}"!
+              ¡Configuración de marca, idioma y fiscal guardadas correctamente para "{nombre}"!
             </span>
           </div>
         )}
@@ -201,10 +266,52 @@ export const ConfiguracionPage: React.FC = () => {
           <div className="industrial-card" style={styles.card}>
             <div style={styles.cardHeader}>
               <Building2 size={20} strokeWidth={2.4} color="var(--color-primary)" />
-              <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>DATOS COMERCIALES DE LA FERRETERÍA</h2>
+              <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>DATOS COMERCIALES Y LOCALE</h2>
             </div>
 
+            {/* Selector de Idioma (I18n ES / EN) */}
             <div className="form-group" style={{ marginTop: '16px' }}>
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Languages size={14} color="var(--color-primary)" />
+                <span>IDIOMA DEL SISTEMA / SYSTEM LANGUAGE</span>
+              </label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setLocale('es')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    fontWeight: 800,
+                    backgroundColor: locale === 'es' ? '#1C1917' : '#FAFAF9',
+                    color: locale === 'es' ? '#FAFAF9' : '#1C1917',
+                    border: '1.5px solid #1C1917',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Español (ES)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocale('en')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    fontWeight: 800,
+                    backgroundColor: locale === 'en' ? '#1C1917' : '#FAFAF9',
+                    color: locale === 'en' ? '#FAFAF9' : '#1C1917',
+                    border: '1.5px solid #1C1917',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  English (EN)
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group">
               <label className="form-label">NOMBRE COMERCIAL (APARECE EN SIDEBAR Y FACTURAS)</label>
               <input
                 type="text"
@@ -215,71 +322,155 @@ export const ConfiguracionPage: React.FC = () => {
               />
             </div>
 
+            {/* Selector de Rubro Comercial */}
             <div className="form-group">
-              <label className="form-label">NOMBRE DE SUCURSAL / SEDE</label>
-              <input
-                type="text"
-                required
-                value={sucursal}
-                onChange={(e) => setSucursal(e.target.value)}
-                className="form-input"
-              />
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Store size={14} color="var(--color-primary)" />
+                <span>RUBRO / GIRO COMERCIAL (MOTOR MULTI-RUBRO)</span>
+              </label>
+              <select
+                value={rubro}
+                onChange={(e) => setRubro(e.target.value as Rubro)}
+                className="form-select"
+                style={{ fontWeight: 700 }}
+              >
+                {Object.keys(Rubro).map((rKey) => {
+                  const cfg = RUBROS_CONFIG[rKey as Rubro];
+                  return (
+                    <option key={rKey} value={rKey}>
+                      {rKey} — {cfg?.nombreCatalogo || rKey}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">DIRECCIÓN FÍSICA</label>
-              <input
-                type="text"
-                value={direccion}
-                onChange={(e) => setDireccion(e.target.value)}
-                className="form-input"
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '14px' }}>
+            {/* Configuración de Moneda e Impuesto */}
+            <div style={{ display: 'flex', gap: '12px' }}>
               <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">TELÉFONO DE CONTACTO</label>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Coins size={14} color="var(--color-primary)" />
+                  <span>SÍMBOLO MONEDA</span>
+                </label>
                 <input
                   type="text"
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
+                  required
+                  value={monedaSimbolo}
+                  onChange={(e) => setMonedaSimbolo(e.target.value)}
                   className="form-input"
+                  style={{ fontWeight: 800 }}
                 />
               </div>
 
               <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">EMAIL DE NOTIFICACIONES</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="form-input"
-                />
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Receipt size={14} color="var(--color-primary)" />
+                  <span>IMPUESTO (%)</span>
+                </label>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    required
+                    value={impuestoNombre}
+                    onChange={(e) => setImpuestoNombre(e.target.value)}
+                    className="form-input"
+                    style={{ width: '70px', fontWeight: 800 }}
+                  />
+                  <input
+                    type="number"
+                    required
+                    value={impuestoTasa}
+                    onChange={(e) => setImpuestoTasa(e.target.value)}
+                    className="form-input"
+                    style={{ fontWeight: 800 }}
+                  />
+                  <span style={{ fontWeight: 800 }}>%</span>
+                </div>
               </div>
             </div>
 
-            <div className="form-group" style={{ marginTop: '8px' }}>
-              <label className="form-label">LOGOTIPO DEL TENANT (SUPABASE STORAGE)</label>
-              <div style={styles.logoDropArea}>
-                <ImageIcon size={32} strokeWidth={1.5} color="#78716C" />
-                <div style={{ fontSize: '12px', fontWeight: 600, marginTop: '6px' }}>
-                  Haga clic para subir logo de su ferretería
-                </div>
-                <div style={{ fontSize: '10px', color: '#78716C' }}>PNG, JPG o SVG (Máximo 2MB)</div>
+            {/* Selector de Estilo de Interfaz (3 Temas) */}
+            <div className="form-group">
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Layout size={14} color="var(--color-primary)" />
+                <span>ESTILO DE INTERFAZ / TEMA DE DISEÑO</span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '6px' }}>
+                {[
+                  { key: 'INDUSTRIAL', name: 'INDUSTRIAL', desc: 'Sidebar charcoal, bordes 2px duros' },
+                  { key: 'MINIMALISTA', name: 'MINIMALISTA', desc: 'Sidebar claro, bordes 1px, esquinas 10px' },
+                  { key: 'MODERNO', name: 'MODERNO', desc: 'Sidebar color primario, bordes suaves 12px' },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setEstiloUI(item.key as any)}
+                    style={{
+                      padding: '10px 8px',
+                      backgroundColor: estiloUI === item.key ? '#1C1917' : '#FAFAF9',
+                      color: estiloUI === item.key ? '#FAFAF9' : '#1C1917',
+                      border: estiloUI === item.key ? '2px solid #EA580C' : '1.5px solid #D6D3D1',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, fontSize: '11px' }}>{item.name}</div>
+                    <div style={{ fontSize: '9px', color: estiloUI === item.key ? '#A8A29E' : '#78716C', marginTop: '2px' }}>
+                      {item.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tipografía de Títulos y Cuerpo */}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Type size={14} color="var(--color-primary)" />
+                  <span>FUENTE TÍTULOS</span>
+                </label>
+                <select
+                  value={fuenteTitulos}
+                  onChange={(e) => setFuenteTitulos(e.target.value as any)}
+                  className="form-select"
+                >
+                  <option value="Archivo">Archivo (Industrial)</option>
+                  <option value="Space Grotesk">Space Grotesk (Tech)</option>
+                  <option value="Poppins">Poppins (Clean)</option>
+                  <option value="Montserrat">Montserrat (Elegante)</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Type size={14} color="var(--color-primary)" />
+                  <span>FUENTE CUERPO</span>
+                </label>
+                <select
+                  value={fuenteCuerpo}
+                  onChange={(e) => setFuenteCuerpo(e.target.value as any)}
+                  className="form-select"
+                >
+                  <option value="Inter">Inter (Estándar UI)</option>
+                  <option value="IBM Plex Sans">IBM Plex Sans (Técnico)</option>
+                  <option value="Nunito Sans">Nunito Sans (Redondeado)</option>
+                </select>
               </div>
             </div>
           </div>
 
-          {/* Columna Derecha: White-Labeling y Selector de Color Primario */}
+          {/* Columna Derecha: White-Labeling y Selector de Color Primario & Preview */}
           <div className="industrial-card" style={styles.card}>
             <div style={styles.cardHeader}>
               <Palette size={20} strokeWidth={2.4} color="var(--color-primary)" />
-              <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>COLOR DE MARCA (WHITE-LABEL)</h2>
+              <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>COLOR DE MARCA & VISTA PREVIA EN VIVO</h2>
             </div>
 
             <p style={{ fontSize: '12px', color: '#78716C', marginTop: '12px' }}>
-              El color seleccionado se inyecta en variables CSS globales (`--color-primary`) afectando de inmediato
-              el sidebar, botones primarios, bordes de alerta y documentos PDF.
+              El color seleccionado se inyecta en variables CSS globales (`--color-primary`) afectando el sidebar,
+              botones primarios, bordes de alerta y documentos PDF.
             </p>
 
             {/* Selector de color HEX interactivo */}
@@ -301,16 +492,6 @@ export const ConfiguracionPage: React.FC = () => {
                 />
               </div>
             </div>
-
-            {/* Advertencia de accesibilidad WCAG si el contraste es muy bajo */}
-            {isLowContrast && (
-              <div style={styles.warningBox}>
-                <AlertTriangle size={16} strokeWidth={2.5} color="#C2410C" />
-                <span style={{ fontSize: '11px', color: '#C2410C', fontWeight: 600 }}>
-                  Aviso WCAG: Este color es muy claro. Los botones con texto blanco podrían tener bajo contraste.
-                </span>
-              </div>
-            )}
 
             {/* Paletas recomendadas */}
             <div style={{ marginTop: '16px' }}>
@@ -334,18 +515,32 @@ export const ConfiguracionPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Vista previa en vivo */}
-            <div style={styles.previewBox}>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase' }}>
-                VISTA PREVIA DE BOTÓN ACTIVO
+            {/* VISTA PREVIA EN VIVO DEL TEMA Y FUENTES */}
+            <div style={{ ...styles.previewBox, marginTop: '20px', border: '2px solid #1C1917' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                <Eye size={14} color={color} /> VISTA PREVIA EN VIVO ({locale.toUpperCase()})
               </div>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                <button type="button" className="btn btn-primary btn-sm">
-                  BOTÓN PRIMARIO
-                </button>
-                <button type="button" className="btn btn-secondary btn-sm">
-                  SECUNDARIO
-                </button>
+              <div
+                style={{
+                  padding: '16px',
+                  backgroundColor: estiloUI === 'MINIMALISTA' ? '#F5F5F4' : estiloUI === 'MODERNO' ? color : '#1C1917',
+                  color: estiloUI === 'MINIMALISTA' ? '#1C1917' : '#FFFFFF',
+                  borderRadius: estiloUI === 'MODERNO' ? '12px' : estiloUI === 'MINIMALISTA' ? '10px' : '2px',
+                  border: '1px solid #44403C',
+                }}
+              >
+                <div style={{ fontFamily: `"${fuenteTitulos}", sans-serif`, fontWeight: 800, fontSize: '15px' }}>
+                  {nombre || 'NOMBRE DE TIENDA'}
+                </div>
+                <div style={{ fontFamily: `"${fuenteCuerpo}", sans-serif`, fontSize: '12px', marginTop: '4px', opacity: 0.85 }}>
+                  Moneda: {monedaSimbolo} ({monedaCodigo}) • Impuesto: {impuestoNombre} {impuestoTasa}%
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                  <button type="button" style={{ padding: '6px 12px', backgroundColor: color, color: '#FFFFFF', border: 'none', borderRadius: '4px', fontWeight: 800, fontSize: '11px' }}>
+                    BOTÓN ACTIVO
+                  </button>
+                  <span className="badge badge-success">SISTEMA OK</span>
+                </div>
               </div>
             </div>
 
@@ -355,7 +550,7 @@ export const ConfiguracionPage: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={handleRestablecerDefault}
               >
-                <RefreshCw size={14} /> POR DEFECTO (#EA580C)
+                <RefreshCw size={14} /> RESTABLECER
               </button>
               <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
                 <Check size={16} strokeWidth={2.6} /> APLICAR CAMBIOS
@@ -367,16 +562,6 @@ export const ConfiguracionPage: React.FC = () => {
     </div>
   );
 };
-
-// Estimación simple de luminancia para validar contraste WCAG
-function getLuminance(hex: string): number {
-  const cleanHex = hex.replace('#', '');
-  if (cleanHex.length !== 6) return 0.5;
-  const r = parseInt(cleanHex.substr(0, 2), 16) / 255;
-  const g = parseInt(cleanHex.substr(2, 2), 16) / 255;
-  const b = parseInt(cleanHex.substr(4, 2), 16) / 255;
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
@@ -417,14 +602,6 @@ const styles: Record<string, React.CSSProperties> = {
     paddingBottom: '12px',
     borderBottom: '2px solid var(--color-border)',
   },
-  logoDropArea: {
-    border: '2px dashed var(--color-border)',
-    borderRadius: 'var(--radius-xs)',
-    padding: '24px',
-    textAlign: 'center',
-    backgroundColor: '#FAFAF9',
-    cursor: 'pointer',
-  },
   colorPickerRow: {
     display: 'flex',
     alignItems: 'center',
@@ -439,16 +616,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     padding: 0,
     backgroundColor: 'transparent',
-  },
-  warningBox: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '10px 12px',
-    backgroundColor: '#FFEDD5',
-    border: '1.5px solid var(--color-primary)',
-    borderRadius: 'var(--radius-xs)',
-    marginTop: '10px',
   },
   presetsGrid: {
     display: 'grid',
@@ -479,6 +646,5 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1.5px solid var(--color-border)',
     borderRadius: 'var(--radius-xs)',
     padding: '14px',
-    marginTop: '18px',
   },
 };

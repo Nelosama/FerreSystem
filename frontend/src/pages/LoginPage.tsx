@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Box, Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
@@ -10,98 +10,72 @@ export const LoginPage: React.FC = () => {
 
   const [email, setEmail] = useState('cajero@lamundial.hn');
   const [password, setPassword] = useState('Ferre2026!');
-  const [isSuperAdminMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const executeRoleLogin = (selectedRole: 'SUPERADMIN' | 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR') => {
-    if (selectedRole === 'SUPERADMIN') {
-      login(
-        {
-          id: 'superadmin-demo',
-          nombre: 'Ing. Nelo — SaaS Owner',
-          email: 'admin@ferresystem.hn',
-          rol: 'SUPERADMIN',
-          permisos: ['usuarios.gestionar', 'configuracion.editar'],
-          descuentoMaximo: 100,
-          activo: true,
-        },
-        {
-          id: 'saas-global',
-          nombreComercial: 'FerreSystem Admin Portal',
-          sucursal: 'Global',
-          colorPrimario: '#1C1917',
-        },
-      );
-      navigate('/admin');
-    } else {
-      const roleProfiles = {
-        ADMIN: {
-          id: 'usr-admin-1',
-          nombre: 'Carlos Ramos (Administrador General)',
-          email: 'admin@lamundial.hn',
-          rol: 'ADMIN' as const,
-          permisos: [
-            'pos.vender',
-            'pos.anular_venta',
-            'pos.aplicar_descuento',
-            'inventario.ver',
-            'inventario.editar',
-            'cotizaciones.crear',
-            'cotizaciones.aprobar',
-            'cotizaciones.convertir_venta',
-            'reportes.ver',
-            'usuarios.gestionar',
-            'configuracion.editar',
-          ],
-        },
-        CAJERO: {
-          id: 'usr-cajero-1',
-          nombre: 'Carlos Ramos (Cajero Principal)',
-          email: 'cajero@lamundial.hn',
-          rol: 'CAJERO' as const,
-          permisos: ['pos.vender', 'cotizaciones.crear'],
-        },
-        BODEGUERO: {
-          id: 'usr-bodega-1',
-          nombre: 'Jorge Mendoza (Bodeguero)',
-          email: 'bodega@lamundial.hn',
-          rol: 'BODEGUERO' as const,
-          permisos: ['inventario.ver', 'inventario.editar'],
-        },
-        VENDEDOR: {
-          id: 'usr-vendedor-1',
-          nombre: 'Ana Martínez (Vendedora)',
-          email: 'vendedor@lamundial.hn',
-          rol: 'VENDEDOR' as const,
-          permisos: ['pos.vender', 'cotizaciones.crear'],
-        },
-      };
+  const executeRoleLogin = (selectedRole: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR') => {
+    const roleProfiles = {
+      ADMIN: {
+        id: 'usr-admin-1',
+        nombre: 'Carlos Ramos (Administrador General)',
+        email: 'admin@lamundial.hn',
+        rol: 'ADMIN' as const,
+        permisos: [
+          'pos.vender',
+          'pos.anular_venta',
+          'pos.aplicar_descuento',
+          'inventario.ver',
+          'inventario.editar',
+          'cotizaciones.crear',
+          'cotizaciones.aprobar',
+          'cotizaciones.convertir_venta',
+          'reportes.ver',
+          'usuarios.gestionar',
+          'configuracion.editar',
+        ],
+      },
+      CAJERO: {
+        id: 'usr-cajero-1',
+        nombre: 'Carlos Ramos (Cajero Principal)',
+        email: 'cajero@lamundial.hn',
+        rol: 'CAJERO' as const,
+        permisos: ['pos.vender', 'cotizaciones.crear'],
+      },
+      BODEGUERO: {
+        id: 'usr-bodega-1',
+        nombre: 'Jorge Mendoza (Bodeguero)',
+        email: 'bodega@lamundial.hn',
+        rol: 'BODEGUERO' as const,
+        permisos: ['inventario.ver', 'inventario.editar'],
+      },
+      VENDEDOR: {
+        id: 'usr-vendedor-1',
+        nombre: 'Ana Martínez (Vendedora)',
+        email: 'vendedor@lamundial.hn',
+        rol: 'VENDEDOR' as const,
+        permisos: ['pos.vender', 'cotizaciones.crear'],
+      },
+    };
 
-      const prof = roleProfiles[selectedRole];
-      login(
-        {
-          id: prof.id,
-          nombre: prof.nombre,
-          email: prof.email,
-          rol: prof.rol,
-          permisos: prof.permisos,
-          descuentoMaximo: selectedRole === 'ADMIN' ? 100 : 15,
-          activo: true,
-        },
-        {
-          id: 'tenant-demo-1',
-          nombreComercial: 'LA MUNDIAL - SUCURSAL CENTRO',
-          sucursal: 'Sucursal Centro',
-          colorPrimario: '#EA580C',
-        },
-      );
-      navigate('/');
-    }
-  };
-
-  const executeDemoLogin = () => {
-    executeRoleLogin(isSuperAdminMode ? 'SUPERADMIN' : 'ADMIN');
+    const prof = roleProfiles[selectedRole];
+    login(
+      {
+        id: prof.id,
+        nombre: prof.nombre,
+        email: prof.email,
+        rol: prof.rol,
+        permisos: prof.permisos,
+        descuentoMaximo: selectedRole === 'ADMIN' ? 100 : 15,
+        activo: true,
+      },
+      {
+        id: 'tenant-demo-1',
+        nombreComercial: 'LA MUNDIAL - SUCURSAL CENTRO',
+        sucursal: 'Sucursal Centro',
+        colorPrimario: '#EA580C',
+      },
+    );
+    navigate('/');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,50 +84,29 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      if (isSuperAdminMode) {
-        const response = await api.post('/admin/auth/login', { email, password });
-        login(
-          {
-            id: response.data.admin?.id || 'superadmin-1',
-            nombre: response.data.admin?.nombre || 'Super Admin',
-            email,
-            rol: 'SUPERADMIN',
-          },
-          {
-            id: 'saas-global',
-            nombreComercial: 'FerreSystem Admin Portal',
-            sucursal: 'Global',
-            colorPrimario: '#1C1917',
-          },
-        );
-        setLoading(false);
-        navigate('/admin');
-      } else {
-        const response = await api.post('/auth/login', { email, password });
-        const { user, tenant } = response.data;
+      const response = await api.post('/auth/login', { email, password });
+      const { user, tenant } = response.data;
 
-        login(
-          {
-            id: user.id,
-            nombre: user.nombre,
-            email: user.email,
-            rol: user.rol,
-          },
-          {
-            id: tenant.id,
-            nombreComercial: tenant.nombreComercial,
-            sucursal: 'Sucursal Principal',
-            colorPrimario: tenant.colorPrimario || '#EA580C',
-          },
-        );
-        setLoading(false);
-        navigate('/');
-      }
+      login(
+        {
+          id: user.id,
+          nombre: user.nombre,
+          email: user.email,
+          rol: user.rol,
+        },
+        {
+          id: tenant.id,
+          nombreComercial: tenant.nombreComercial,
+          sucursal: 'Sucursal Principal',
+          colorPrimario: tenant.colorPrimario || '#EA580C',
+        },
+      );
+      setLoading(false);
+      navigate('/');
     } catch (err: any) {
       console.warn('Backend login connection issue, switching to local demo mode fallback:', err);
-      // Fallback a modo demo si la BD local no está inicializada aún
       setLoading(false);
-      executeDemoLogin();
+      executeRoleLogin('ADMIN');
     }
   };
 
@@ -169,9 +122,7 @@ export const LoginPage: React.FC = () => {
             <span style={{ color: '#1C1917' }}>Ferre</span>
             <span style={{ color: 'var(--color-primary)' }}>System</span>
           </div>
-          <div style={styles.subtitle}>
-            {isSuperAdminMode ? 'PORTAL DE GESTIÓN SAAS • DUEÑO' : 'SISTEMA DE GESTIÓN PARA FERRETERÍAS'}
-          </div>
+          <div style={styles.subtitle}>SISTEMA DE GESTIÓN PARA FERRETERÍAS</div>
         </div>
 
         {/* Quick Login Role Pills */}
@@ -180,14 +131,6 @@ export const LoginPage: React.FC = () => {
             ACCESO RÁPIDO DIRECTO POR ROL:
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '6px' }}>
-            <button
-              type="button"
-              onClick={() => executeRoleLogin('SUPERADMIN')}
-              style={{ ...styles.rolePill, backgroundColor: '#1C1917', color: '#FAFAF9' }}
-              title="Ingresar como Super Admin (Dueño SaaS)"
-            >
-              <ShieldCheck size={11} /> SuperAdmin
-            </button>
             <button
               type="button"
               onClick={() => executeRoleLogin('ADMIN')}
@@ -333,11 +276,6 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.06em',
     color: '#78716C',
     marginTop: '4px',
-  },
-  demoPills: {
-    display: 'flex',
-    gap: '8px',
-    marginTop: '20px',
   },
   rolePill: {
     padding: '6px 8px',

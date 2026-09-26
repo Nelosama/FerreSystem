@@ -15,10 +15,12 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMockData } from '../context/MockDataContext';
+import { useRubroConfig } from '../hooks/useRubroConfig';
 import { formatLempiras } from '../utils/format';
 
 export const DashboardPage: React.FC = () => {
   const { productos, cotizaciones, ventas } = useMockData();
+  const rubroConfig = useRubroConfig();
 
   // 1. Total Ventas del Día
   const totalVentasDia = ventas.reduce((acc, v) => acc + v.total, 0);
@@ -106,17 +108,20 @@ export const DashboardPage: React.FC = () => {
                   No hay productos con stock bajo en este momento.
                 </div>
               ) : (
-                productosStockBajo.slice(0, 3).map((p) => (
-                  <div key={p.id} style={styles.alertRow}>
-                    <div>
-                      <div style={styles.itemTitle}>{p.nombre}</div>
-                      <div style={styles.itemMeta}>
-                        Cód: {p.codigo} • Mínimo requerido: {p.stockMinimo} unidades
+                productosStockBajo.slice(0, 3).map((p) => {
+                  const mensajeProcesado = rubroConfig.mensajeStockBajo.replace('{producto}', p.nombre);
+                  return (
+                    <div key={p.id} style={styles.alertRow}>
+                      <div>
+                        <div style={styles.itemTitle}>{mensajeProcesado}</div>
+                        <div style={styles.itemMeta}>
+                          Cód: {p.codigo} • Mínimo requerido: {p.stockMinimo} unidades
+                        </div>
                       </div>
+                      <span className="badge badge-danger">{p.stockActual} en stock</span>
                     </div>
-                    <span className="badge badge-danger">{p.stockActual} en bodega</span>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
