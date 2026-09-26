@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
+import { useMockData, type ProductItem } from '../context/MockDataContext';
+import { useNotification, type SolicitudDescuento } from '../context/NotificationContext';
 import {
   Search,
   Plus,
@@ -13,6 +15,9 @@ import {
   Banknote,
   Printer,
   X,
+  ShieldAlert,
+  Loader2,
+  Percent,
 } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 
@@ -24,36 +29,68 @@ interface CartItem {
   cantidad: number;
 }
 
-const CAT_ITEMS = [
-  { id: 'p-1', codigo: 'HER-001', nombre: 'Martillo de Uña Curva 16oz', precio: 245.00, stock: 24 },
-  { id: 'p-2', codigo: 'CON-001', nombre: 'Cemento Bijao Gris 42.5kg', precio: 220.00, stock: 180 },
-  { id: 'p-3', codigo: 'CON-002', nombre: 'Varilla Corrugada 3/8" (6m)', precio: 165.00, stock: 5 },
-  { id: 'p-4', codigo: 'PLO-001', nombre: 'Tubo PVC Sanitario 4" x 6m', precio: 380.00, stock: 3 },
-  { id: 'p-5', codigo: 'ELE-001', nombre: 'Cable THHN 12 AWG (100m)', precio: 1450.00, stock: 2 },
-  { id: 'p-6', codigo: 'HER-002', nombre: 'Cinta Métrica 8m Truper', precio: 185.00, stock: 15 },
-];
-
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
+  const { productos, registrarVenta } = useMockData();
+  const { solicitudes, solicitarDescuento } = useNotification();
 
-  const [cart, setCart] = useState<CartItem[]>([
-    { productoId: 'p-1', codigo: 'HER-001', nombre: 'Martillo de Uña Curva 16oz', precioUnitario: 245.00, cantidad: 2 },
-    { productoId: 'p-2', codigo: 'CON-001', nombre: 'Cemento Bijao Gris 42.5kg', precioUnitario: 220.00, cantidad: 5 },
-  ]);
-
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState('');
   const [clienteNombre, setClienteNombre] = useState('Consumidor Final');
   const [clienteRtn, setClienteRtn] = useState('');
   const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO'>('EFECTIVO');
+  const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(0);
   const [modalTicket, setModalTicket] = useState(false);
-  const [numeroVentaGenerado, setNumeroVentaGenerado] = useState(1043);
+  const [numeroVentaGenerado, setNumeroVentaGenerado] = useState<number | null>(null);
 
-  // Cálculos fiscales hondureños
-  const subtotal = cart.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
+  // Solicitud de autorización de descuento
+  const [solicitudActiva, setSolicitudActiva] = useState<SolicitudDescuento | null>(null);
+  const [esperandoAutorizacion, setEsperandoAutorizacion] = useState(false);
+  const [mensajeEstado, setMensajeEstado] = useState<string | null>(null);
+
+  // Límite de descuento del usuario actual (10% por defecto si no definido)
+  const descuentoMaximoPermitido = user?.descuentoMaximo ?? 10;
+  const esDescuentoExcedido = descuentoPorcentaje > descuentoMaximoPermitido;
+
+  // Escuchar cambios en la solicitud activa
+  React.useEffect(() => {
+    if (!solicitudActiva) return;
+    const solActualizada = solicitudes.find((s) => s.id === solicitudActiva.id);
+    if (solActualizada && solActualizada.estado !== 'PENDIENTE') {
+      setEsperandoAutorizacion(false);
+      if (solActualizada.estado === 'APROBADA') {
+        setMensajeEstado(`¡Descuento del ${solActualizada.descuentoPorcentaje}% APROBADO por ${solActualizada.respondidoPor || 'Administrador'}!`);
+      } else if (solActualizada.estado === 'RECHAZADA') {
+        setMensajeEstado(`Solicitud RECHAZADA por ${solActualizada.respondidoPor || 'Administrador'}. Por favor ajuste el porcentaje.`);
+        setDescuentoPorcentaje(0);
+      }
+      setSolicitudActiva(null);
+    }
+  }, [solicitudes, solicitudActiva]);
+
+  // Cálculos fiscales hondureños con descuento
+  const subtotalBruto = cart.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
+  const montoDescuento = Math.round(subtotalBruto * (descuentoPorcentaje / 100) * 100) / 100;
+  const subtotal = subtotalBruto - montoDescuento;
   const isv = Math.round(subtotal * 0.15 * 100) / 100;
   const total = subtotal + isv;
 
-  const agregarAlCarrito = (prod: (typeof CAT_ITEMS)[0]) => {
+  const handleSolicitarAutorizacion = () => {
+    if (!user) return;
+    setMensajeEstado(null);
+    const nuevaSol = solicitarDescuento({
+      cajeroId: user.id,
+      cajeroNombre: user.nombre,
+      subtotal: subtotalBruto,
+      totalOriginal: Math.round((subtotalBruto * 1.15) * 100) / 100,
+      descuentoPorcentaje,
+      totalConDescuento: total,
+    });
+    setSolicitudActiva(nuevaSol);
+    setEsperandoAutorizacion(true);
+  };
+
+  const agregarAlCarrito = (prod: ProductItem) => {
     const existe = cart.find((i) => i.productoId === prod.id);
     if (existe) {
       setCart(
@@ -68,7 +105,7 @@ export const POSPage: React.FC = () => {
           productoId: prod.id,
           codigo: prod.codigo,
           nombre: prod.nombre,
-          precioUnitario: prod.precio,
+          precioUnitario: prod.precioVenta,
           cantidad: 1,
         },
       ]);
@@ -95,7 +132,23 @@ export const POSPage: React.FC = () => {
 
   const handleCobrar = () => {
     if (cart.length === 0) return;
-    setNumeroVentaGenerado((prev) => prev + 1);
+
+    const ventaRegistrada = registrarVenta({
+      clienteNombre,
+      clienteRtn,
+      subtotal,
+      isv,
+      total,
+      metodoPago,
+      items: cart.map((i) => ({
+        productoId: i.productoId,
+        nombre: i.nombre,
+        precioUnitario: i.precioUnitario,
+        cantidad: i.cantidad,
+      })),
+    });
+
+    setNumeroVentaGenerado(ventaRegistrada.numeroVenta);
     setModalTicket(true);
   };
 
@@ -122,25 +175,27 @@ export const POSPage: React.FC = () => {
             </div>
 
             <div style={styles.catalogGrid}>
-              {CAT_ITEMS.filter(
-                (p) =>
-                  p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-                  p.codigo.toLowerCase().includes(search.toLowerCase()),
-              ).map((prod) => (
-                <div
-                  key={prod.id}
-                  className="industrial-card"
-                  style={styles.productCard}
-                  onClick={() => agregarAlCarrito(prod)}
-                >
-                  <div style={styles.skuBadge}>{prod.codigo}</div>
-                  <div style={styles.productName}>{prod.nombre}</div>
-                  <div style={styles.priceRow}>
-                    <span style={styles.priceText}>{formatLempiras(prod.precio)}</span>
-                    <span style={styles.stockText}>{prod.stock} disp.</span>
+              {productos
+                .filter(
+                  (p) =>
+                    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
+                    p.codigo.toLowerCase().includes(search.toLowerCase()),
+                )
+                .map((prod) => (
+                  <div
+                    key={prod.id}
+                    className="industrial-card"
+                    style={styles.productCard}
+                    onClick={() => agregarAlCarrito(prod)}
+                  >
+                    <div style={styles.skuBadge}>{prod.codigo}</div>
+                    <div style={styles.productName}>{prod.nombre}</div>
+                    <div style={styles.priceRow}>
+                      <span style={styles.priceText}>{formatLempiras(prod.precioVenta)}</span>
+                      <span style={styles.stockText}>{prod.stockActual} disp.</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
 
@@ -229,12 +284,70 @@ export const POSPage: React.FC = () => {
               )}
             </div>
 
+            {/* Sección de Descuento y Autorización */}
+            <div style={styles.descuentoSection}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700, fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Percent size={13} color="var(--color-primary)" /> APLICAR DESCUENTO (%)
+                </label>
+                <span style={{ fontSize: '10px', color: '#78716C' }}>Límite cajero: {descuentoMaximoPermitido}%</span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={descuentoPorcentaje}
+                  onChange={(e) => {
+                    setDescuentoPorcentaje(Math.min(100, Math.max(0, Number(e.target.value))));
+                    setMensajeEstado(null);
+                  }}
+                  className="form-input"
+                  style={{ padding: '6px 10px', fontSize: '13px', width: '90px', fontWeight: 800 }}
+                />
+                {montoDescuento > 0 && (
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#DC2626' }}>
+                    -{formatLempiras(montoDescuento)}
+                  </span>
+                )}
+              </div>
+
+              {esDescuentoExcedido && (
+                <div style={styles.alertaDescuentoBox}>
+                  <ShieldAlert size={16} color="#DC2626" />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: '11px', color: '#991B1B' }}>
+                      DESCUENTO EXCEDE TU LÍMITE PERMITIDO ({descuentoMaximoPermitido}%)
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#B91C1C', marginTop: '2px' }}>
+                      Requiere aprobación en tiempo real de un Administrador.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {mensajeEstado && (
+                <div style={{ ...styles.alertaDescuentoBox, backgroundColor: mensajeEstado.includes('APROBADO') ? '#DCFCE7' : '#FEE2E2', borderColor: mensajeEstado.includes('APROBADO') ? '#15803D' : '#EF4444' }}>
+                  <div style={{ fontWeight: 700, fontSize: '11px', color: mensajeEstado.includes('APROBADO') ? '#15803D' : '#991B1B' }}>
+                    {mensajeEstado}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Totales Fiscales */}
             <div style={styles.totalsSection}>
               <div style={styles.totalRow}>
-                <span style={styles.totalLabel}>SUBTOTAL:</span>
-                <span style={styles.totalVal}>{formatLempiras(subtotal)}</span>
+                <span style={styles.totalLabel}>SUBTOTAL BRUTO:</span>
+                <span style={styles.totalVal}>{formatLempiras(subtotalBruto)}</span>
               </div>
+              {montoDescuento > 0 && (
+                <div style={styles.totalRow}>
+                  <span style={{ ...styles.totalLabel, color: '#DC2626' }}>DESCUENTO ({descuentoPorcentaje}%):</span>
+                  <span style={{ ...styles.totalVal, color: '#DC2626' }}>-{formatLempiras(montoDescuento)}</span>
+                </div>
+              )}
               <div style={styles.totalRow}>
                 <span style={styles.totalLabel}>ISV (15%):</span>
                 <span style={styles.totalVal}>{formatLempiras(isv)}</span>
@@ -269,17 +382,39 @@ export const POSPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Botón de Cobro Final */}
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleCobrar}
-              disabled={cart.length === 0}
-              style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1 }}
-            >
-              <CheckCircle size={20} strokeWidth={2.5} />
-              <span>COBRAR {formatLempiras(total)}</span>
-            </button>
+            {/* Botón de Cobro o Solicitar Autorización */}
+            {esDescuentoExcedido ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSolicitarAutorizacion}
+                disabled={esperandoAutorizacion}
+                style={{ ...styles.checkoutBtn, backgroundColor: '#DC2626', borderColor: '#B91C1C' }}
+              >
+                {esperandoAutorizacion ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    <span>ESPERANDO APROBACIÓN ADMIN...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldAlert size={18} />
+                    <span>SOLICITAR AUTORIZACIÓN A ADMIN</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleCobrar}
+                disabled={cart.length === 0}
+                style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1 }}
+              >
+                <CheckCircle size={20} strokeWidth={2.5} />
+                <span>COBRAR {formatLempiras(total)}</span>
+              </button>
+            )}
           </div>
         </div>
       </main>
@@ -569,6 +704,23 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#DC2626',
     cursor: 'pointer',
     padding: '4px',
+  },
+  descuentoSection: {
+    padding: '10px 0',
+    borderTop: '1px solid var(--color-border-subtle)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  alertaDescuentoBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 10px',
+    backgroundColor: '#FEE2E2',
+    border: '1.5px solid #EF4444',
+    borderRadius: 'var(--radius-xs)',
+    marginTop: '4px',
   },
   totalsSection: {
     borderTop: '2px solid var(--color-border)',

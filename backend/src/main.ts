@@ -39,4 +39,4 @@ async function bootstrap() {
   console.log(`=================================================\n`);
 }
 
-bootstrap();
+void bootstrap();
