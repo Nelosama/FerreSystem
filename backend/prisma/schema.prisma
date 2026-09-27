@@ -72,6 +72,11 @@ enum TipoSecuencia {
   COTIZACION
 }
 
+enum ModoNavegacion {
+  SIDEBAR
+  TOPNAV
+}
+
 // ============================================================
 // SUPER ADMIN — Tabla separada, sin tenant_id
 // ============================================================
@@ -100,6 +105,8 @@ model Tenant {
   email            String?
   logoUrl          String?      @map("logo_url")
   colorPrimario    String       @default("#EA580C") @map("color_primario")
+  modoNavegacion   ModoNavegacion @default(SIDEBAR) @map("modo_navegacion")
+  plan             String       @default("Plan Pro")
   estado           EstadoTenant @default(ACTIVO)
   createdAt        DateTime     @default(now()) @map("created_at")
   updatedAt        DateTime     @updatedAt @map("updated_at")
@@ -112,8 +119,29 @@ model Tenant {
   ventas           Venta[]
   cotizaciones     Cotizacion[]
   secuencias       SecuenciaTenant[]
+  modulos          TenantModule[]
 
   @@map("tenants")
+}
+
+// ============================================================
+// TENANT MODULE — Módulos habilitados por tenant (Servicios)
+// ============================================================
+
+model TenantModule {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  moduleKey String   @map("module_key")
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, moduleKey])
+  @@index([tenantId])
+  @@map("tenant_modules")
 }
 
 // ============================================================

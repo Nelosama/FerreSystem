@@ -6,6 +6,7 @@ import { MockDataProvider } from './context/MockDataContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { I18nProvider } from './context/I18nContext';
 import { Sidebar } from './components/Sidebar';
+import { TopNavigation } from './components/TopNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 import './App.css';
@@ -107,7 +108,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className={isTopNav ? "app-container-topnav" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
-      {!isTopNav && <Sidebar />}
+      {isTopNav ? <TopNavigation /> : <Sidebar />}
       <div className="main-content" style={isTopNav ? { flex: 1, width: '100%' } : undefined}>
         {children}
       </div>
@@ -142,7 +143,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/reportes"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredPermiso="reportes.ver">
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredPermiso="reportes.ver" requiredModule="reportes">
                         <AppLayout>
                           <ReportesPage />
                         </AppLayout>
@@ -152,7 +153,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/usuarios"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                      <ProtectedRoute allowedRoles={['ADMIN']} requiredModule="usuarios">
                         <AppLayout>
                           <UsuariosPage />
                         </AppLayout>
@@ -162,7 +163,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/inventario"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'BODEGUERO']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'BODEGUERO']} requiredModule="inventario">
                         <AppLayout>
                           <InventarioPage />
                         </AppLayout>
@@ -172,7 +173,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/pos"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="pos">
                         <AppLayout>
                           <POSPage />
                         </AppLayout>
@@ -182,7 +183,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/cotizaciones"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'VENDEDOR', 'CAJERO']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'VENDEDOR', 'CAJERO']} requiredModule="cotizaciones">
                         <AppLayout>
                           <CotizacionesPage />
                         </AppLayout>
@@ -194,7 +195,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/apartados"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="apartados">
                         <AppLayout>
                           <ApartadosPage />
                         </AppLayout>
@@ -204,7 +205,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/arqueo-caja"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO']} requiredModule="arqueo_caja">
                         <AppLayout>
                           <ArqueoCajaPage />
                         </AppLayout>
@@ -214,7 +215,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/ordenes-compra"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'BODEGUERO']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'BODEGUERO']} requiredModule="ordenes_compra">
                         <AppLayout>
                           <OrdenesCompraPage />
                         </AppLayout>
@@ -224,7 +225,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/transferencias"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'BODEGUERO']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'BODEGUERO']} requiredModule="transferencias_sucursal">
                         <AppLayout>
                           <TransferenciasPage />
                         </AppLayout>
@@ -234,7 +235,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/garantias"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="garantias">
                         <AppLayout>
                           <GarantiasPage />
                         </AppLayout>
@@ -244,7 +245,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/pedidos-especiales"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'VENDEDOR', 'CAJERO']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'VENDEDOR', 'CAJERO']} requiredModule="pedidos_especiales">
                         <AppLayout>
                           <PedidosEspecialesPage />
                         </AppLayout>
@@ -254,7 +255,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/listas-precio"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'VENDEDOR']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'VENDEDOR']} requiredModule="listas_precio">
                         <AppLayout>
                           <ListasPrecioPage />
                         </AppLayout>
@@ -264,7 +265,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/comisiones"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                      <ProtectedRoute allowedRoles={['ADMIN']} requiredModule="comisiones_venta">
                         <AppLayout>
                           <ComisionesPage />
                         </AppLayout>
@@ -275,7 +276,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/configuracion"
                     element={
-                      <ProtectedRoute allowedRoles={['SUPERADMIN']}>
+                      <ProtectedRoute allowedRoles={['SUPERADMIN', 'ADMIN']} requiredModule="configuracion">
                         <AppLayout>
                           <ConfiguracionPage />
                         </AppLayout>

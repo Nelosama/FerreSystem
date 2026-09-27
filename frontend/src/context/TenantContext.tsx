@@ -51,30 +51,57 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Inyección dinámica de variables CSS por Tenant (White-labeling, Estilo UI y Tipografía)
+  // Sincronización continua de la configuración del Tenant desde ferre_saas_tenants y variables CSS
   useEffect(() => {
+    const syncTenantFromStorage = () => {
+      const saasTenantsRaw = localStorage.getItem('ferre_saas_tenants');
+      if (saasTenantsRaw) {
+        try {
+          const saasTenants = JSON.parse(saasTenantsRaw);
+          const match = saasTenants.find(
+            (t: any) => t.id === tenant.id || t.nombreComercial === tenant.nombreComercial,
+          );
+          if (match) {
+            let needsUpdate = false;
+            const updates: Partial<TenantInfo> = {};
+
+            if (match.colorPrimario && match.colorPrimario !== tenant.colorPrimario) {
+              updates.colorPrimario = match.colorPrimario;
+              needsUpdate = true;
+            }
+            if (match.modoNavegacion && match.modoNavegacion !== tenant.modoNavegacion) {
+              updates.modoNavegacion = match.modoNavegacion;
+              needsUpdate = true;
+            }
+            if (
+              match.modulosHabilitados &&
+              JSON.stringify(match.modulosHabilitados) !== JSON.stringify(tenant.modulosHabilitados)
+            ) {
+              updates.modulosHabilitados = match.modulosHabilitados;
+              needsUpdate = true;
+            }
+
+            if (needsUpdate) {
+              setTenant((prev) => {
+                const updated = { ...prev, ...updates };
+                localStorage.setItem('ferre_tenant', JSON.stringify(updated));
+                return updated;
+              });
+            }
+          }
+        } catch (e) {
+          // Fallback
+        }
+      }
+    };
+
+    syncTenantFromStorage();
+
     const root = document.documentElement;
-    // Buscar la configuración actualizada que definió el Super Admin para esta ferretería
     let color = tenant.colorPrimario || '#EA580C';
     let estiloUI = tenant.estiloUI || 'INDUSTRIAL';
     let fuenteTitulos = tenant.fuenteTitulos || 'Archivo';
     let fuenteCuerpo = tenant.fuenteCuerpo || 'Inter';
-
-    const saasTenantsRaw = localStorage.getItem('ferre_saas_tenants');
-    if (saasTenantsRaw) {
-      try {
-        const saasTenants = JSON.parse(saasTenantsRaw);
-        const match = saasTenants.find((t: any) => t.id === tenant.id || t.nombreComercial === tenant.nombreComercial);
-        if (match) {
-          if (match.colorPrimario) color = match.colorPrimario;
-          if (match.estiloUI) estiloUI = match.estiloUI;
-          if (match.fuenteTitulos) fuenteTitulos = match.fuenteTitulos;
-          if (match.fuenteCuerpo) fuenteCuerpo = match.fuenteCuerpo;
-        }
-      } catch (e) {
-        // Fallback
-      }
-    }
 
     root.style.setProperty('--color-primary', color);
     root.style.setProperty('--color-primary-hover', adjustColorBrightness(color, -15));

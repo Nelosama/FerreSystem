@@ -149,6 +149,19 @@
     "currency": "Moneda Principal",
     "tax": "Impuesto de Ventas"
   },
+  "superadmin": {
+    "title": "PANEL SUPER-ADMIN (SAAS)",
+    "tenants_count": "FERRETERÍAS REGISTRADAS",
+    "admins_count": "USUARIOS ADMINISTRADORES",
+    "active_subscriptions": "SUSCRIPCIONES ACTIVAS",
+    "total_branches": "TOTAL SUCURSALES CONECTADAS",
+    "tab_tenants": "CLIENTES (EMPRESAS)",
+    "tab_services": "CATÁLOGO DE SERVICIOS",
+    "tab_admins": "USUARIOS ADMIN",
+    "tab_audit": "AUDITORÍA SAAS",
+    "tenants_header": "ADMINISTRACIÓN DE CLIENTES & EMPRESAS (TENANTS)",
+    "tenants_desc": "Aprovisionamiento de nuevos clientes, contratación de servicios y modo de navegación."
+  },
   "topbar": {
     "shift_info": "Turno Actual: 08:00 AM - 05:00 PM",
     "logout": "SALIR",
