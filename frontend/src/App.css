@@ -26,9 +26,26 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.mobile-bottom-nav {
+  display: none !important;
+}
+
 @media (max-width: 768px) {
+  .desktop-sidebar-nav,
+  .topbar-desktop-only {
+    display: none !important;
+  }
+
+  .mobile-bottom-nav {
+    display: flex !important;
+  }
+
   .app-container {
     flex-direction: column;
+  }
+
+  .main-content {
+    padding-bottom: 72px;
   }
 
   .content-body {

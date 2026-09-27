@@ -110,14 +110,14 @@ export const TopBar: React.FC<TopBarProps> = ({
           <div style={styles.accentUnderline} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={styles.shiftInfo}>
+          <div className="topbar-desktop-only" style={styles.shiftInfo}>
             <Clock size={14} strokeWidth={2.4} style={{ color: 'var(--color-text-muted)' }} />
             <span>{subtitle}</span>
           </div>
 
           {/* Selector de Sucursales (Para clientes multi-sucursal) */}
           {user?.rol === 'ADMIN' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div className="topbar-desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <GitBranch size={13} color="var(--color-primary)" />
               <select
                 value={tenant.sucursal || 'Sucursal Centro (Principal)'}
@@ -230,7 +230,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         )}
 
         {/* Selector de Idioma Global ES / EN */}
-        <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#FFFFFF', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-xs)', padding: '2px' }}>
+        <div className="topbar-desktop-only" style={{ display: 'flex', alignItems: 'center', backgroundColor: '#FFFFFF', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-xs)', padding: '2px' }}>
           <button
             type="button"
             onClick={() => setLocale('es')}

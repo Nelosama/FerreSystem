@@ -60,7 +60,7 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside style={styles.sidebar}>
+    <aside className="desktop-sidebar-nav" style={styles.sidebar}>
       {/* Brand Header */}
       <div style={styles.brandHeader}>
         <div style={styles.logoRow}>

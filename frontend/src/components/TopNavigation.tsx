@@ -114,7 +114,7 @@ export const TopNavigation: React.FC = () => {
   );
 
   return (
-    <header style={styles.topNavContainer}>
+    <header className="desktop-sidebar-nav" style={styles.topNavContainer}>
       <div style={styles.brandContainer}>
         {tenant.logoUrl ? (
           <img
