@@ -1,16 +1,43 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
-import { Box } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import {
+  Box,
+  ChevronDown,
+  ShoppingCart,
+  Package,
+  Users,
+  Briefcase,
+  BarChart2,
+  Settings,
+  ShieldCheck,
+} from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { NAVIGATION_ITEMS, type NavigationItem } from '../config/navigation';
+
+const CATEGORY_CONFIG: Record<
+  string,
+  { label: string; icon: any }
+> = {
+  SYSTEM: { label: 'SUPER ADMIN', icon: ShieldCheck },
+  OPERACION: { label: 'OPERACIONES', icon: ShoppingCart },
+  INVENTARIO: { label: 'INVENTARIO', icon: Package },
+  CLIENTES: { label: 'CLIENTES', icon: Users },
+  GESTION: { label: 'GESTIÓN', icon: Briefcase },
+  ANALISIS: { label: 'ANÁLISIS', icon: BarChart2 },
+  CONFIGURACION: { label: 'CONFIGURACIÓN', icon: Settings },
+};
 
 export const TopNavigation: React.FC = () => {
   const { tenant, user } = useTenant();
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
   const userRole = user?.rol;
+  const location = useLocation();
+
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const navRef = useRef<HTMLDivElement>(null);
 
   const defaultModules = [
     'inventario',
@@ -30,6 +57,21 @@ export const TopNavigation: React.FC = () => {
   ];
 
   const modulosHabilitados = tenant.modulosHabilitados || defaultModules;
+
+  // Close dropdown when clicking outside or navigating
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(event.target as Node)) {
+        setOpenCategory(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setOpenCategory(null);
+  }, [location.pathname]);
 
   const isModuleEnabled = (moduleKey?: string) => {
     if (!moduleKey) return true;
@@ -59,6 +101,18 @@ export const TopNavigation: React.FC = () => {
     return translated && translated !== item.labelKey ? translated : item.defaultLabel;
   };
 
+  // Group items by category
+  const groupedItems = visibleItems.reduce((acc, item) => {
+    const cat = item.category || 'OPERACION';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(item);
+    return acc;
+  }, {} as Record<string, NavigationItem[]>);
+
+  const categories = Object.keys(CATEGORY_CONFIG).filter(
+    (catKey) => groupedItems[catKey] && groupedItems[catKey].length > 0,
+  );
+
   return (
     <header style={styles.topNavContainer}>
       <div style={styles.brandContainer}>
@@ -79,27 +133,88 @@ export const TopNavigation: React.FC = () => {
         <span style={styles.tenantTag}>{tenant.nombreComercial}</span>
       </div>
 
-      <nav style={styles.navWrapper}>
-        <ul style={styles.navList}>
-          {visibleItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <li key={item.key}>
+      <nav ref={navRef} style={styles.navWrapper}>
+        <div style={styles.categoriesRow}>
+          {categories.map((catKey) => {
+            const items = groupedItems[catKey];
+            const config = CATEGORY_CONFIG[catKey] || { label: catKey, icon: Box };
+            const CategoryIcon = config.icon;
+            const isOpen = openCategory === catKey;
+
+            // Check if any item in this category is currently active
+            const hasActiveRoute = items.some((it) =>
+              it.exact ? location.pathname === it.route : location.pathname.startsWith(it.route) && it.route !== '/',
+            );
+
+            // If category only has 1 item, render directly as a link for faster access
+            if (items.length === 1) {
+              const single = items[0];
+              const ItemIcon = single.icon;
+              return (
                 <NavLink
-                  to={item.route}
-                  end={item.exact}
+                  key={catKey}
+                  to={single.route}
+                  end={single.exact}
                   style={({ isActive }) => ({
-                    ...styles.navItem,
-                    ...(isActive ? styles.navItemActive : {}),
+                    ...styles.categoryBtn,
+                    ...(isActive ? styles.categoryBtnActive : {}),
                   })}
                 >
-                  <Icon size={16} strokeWidth={2.2} />
-                  <span>{getLabel(item)}</span>
+                  <ItemIcon size={15} strokeWidth={2.2} />
+                  <span>{getLabel(single)}</span>
                 </NavLink>
-              </li>
+              );
+            }
+
+            return (
+              <div key={catKey} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setOpenCategory(isOpen ? null : catKey)}
+                  style={{
+                    ...styles.categoryBtn,
+                    ...(hasActiveRoute ? styles.categoryBtnActive : {}),
+                    ...(isOpen ? styles.categoryBtnOpen : {}),
+                  }}
+                >
+                  <CategoryIcon size={15} strokeWidth={2.2} />
+                  <span>{config.label}</span>
+                  <ChevronDown
+                    size={14}
+                    style={{
+                      transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 150ms ease',
+                    }}
+                  />
+                </button>
+
+                {/* Dropdown Menu */}
+                {isOpen && (
+                  <div style={styles.dropdownMenu}>
+                    {items.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <NavLink
+                          key={item.key}
+                          to={item.route}
+                          end={item.exact}
+                          onClick={() => setOpenCategory(null)}
+                          style={({ isActive }) => ({
+                            ...styles.dropdownItem,
+                            ...(isActive ? styles.dropdownItemActive : {}),
+                          })}
+                        >
+                          <Icon size={16} strokeWidth={2.2} />
+                          <span>{getLabel(item)}</span>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
-        </ul>
+        </div>
       </nav>
     </header>
   );
@@ -114,8 +229,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 24px',
     borderBottom: '2px solid var(--color-border)',
     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    flexWrap: 'wrap',
-    gap: '12px',
+    position: 'relative',
     zIndex: 100,
   },
   brandContainer: {
@@ -136,20 +250,59 @@ const styles: Record<string, React.CSSProperties> = {
   navWrapper: {
     display: 'flex',
     alignItems: 'center',
-    overflowX: 'auto',
   },
-  navList: {
+  categoriesRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  categoryBtn: {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    listStyle: 'none',
-    padding: 0,
-    margin: 0,
+    padding: '8px 14px',
+    fontFamily: 'var(--font-display)',
+    fontSize: '11px',
+    fontWeight: 800,
+    letterSpacing: '0.04em',
+    color: '#D6D3D1',
+    backgroundColor: 'transparent',
+    border: '1.5px solid transparent',
+    borderRadius: 'var(--radius-sm)',
+    cursor: 'pointer',
+    textDecoration: 'none',
+    transition: 'all 150ms ease',
+    whiteSpace: 'nowrap',
   },
-  navItem: {
+  categoryBtnActive: {
+    backgroundColor: 'var(--color-primary)',
+    color: '#FFFFFF',
+    borderColor: 'var(--color-primary)',
+  },
+  categoryBtnOpen: {
+    backgroundColor: '#292524',
+    borderColor: '#44403C',
+    color: '#FFFFFF',
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 'calc(100% + 6px)',
+    left: 0,
+    minWidth: '210px',
+    backgroundColor: '#1C1917',
+    border: '2px solid var(--color-border)',
+    borderRadius: 'var(--radius-xs)',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+    padding: '6px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    zIndex: 1000,
+  },
+  dropdownItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
+    gap: '10px',
     padding: '8px 12px',
     fontFamily: 'var(--font-display)',
     fontSize: '11px',
@@ -157,11 +310,10 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.03em',
     color: '#D6D3D1',
     textDecoration: 'none',
-    borderRadius: 'var(--radius-sm)',
-    whiteSpace: 'nowrap',
+    borderRadius: '2px',
     transition: 'all 150ms ease',
   },
-  navItemActive: {
+  dropdownItemActive: {
     backgroundColor: 'var(--color-primary)',
     color: '#FFFFFF',
     fontWeight: 800,
