@@ -149,6 +149,19 @@
     "currency": "Primary Currency",
     "tax": "Sales Tax"
   },
+  "superadmin": {
+    "title": "SUPER-ADMIN PANEL (SAAS)",
+    "tenants_count": "REGISTERED TENANTS",
+    "admins_count": "ADMINISTRATOR USERS",
+    "active_subscriptions": "ACTIVE SUBSCRIPTIONS",
+    "total_branches": "TOTAL CONNECTED BRANCHES",
+    "tab_tenants": "CLIENTS (COMPANIES)",
+    "tab_services": "SERVICES CATALOG",
+    "tab_admins": "ADMIN USERS",
+    "tab_audit": "SAAS AUDIT",
+    "tenants_header": "CLIENTS & COMPANIES MANAGEMENT (TENANTS)",
+    "tenants_desc": "Provisioning new clients, contracting services, and navigation mode."
+  },
   "topbar": {
     "shift_info": "Current Shift: 08:00 AM - 05:00 PM",
     "logout": "LOGOUT",

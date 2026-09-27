@@ -9,7 +9,6 @@ import {
   KeyRound,
   Edit2,
   Check,
-  Lock,
   UserCheck,
   GitBranch,
   ExternalLink,
@@ -18,10 +17,14 @@ import {
   Server,
   Trash2,
   Layers,
+  Layout,
 } from 'lucide-react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate } from 'react-router-dom';
+import { CATALOGO_MODULOS } from '../config/modulesCatalog';
+import { useI18n } from '../context/I18nContext';
+import { api } from '../utils/api';
 
 interface SubSucursalItem {
   id: string;
@@ -58,22 +61,14 @@ interface AdminUserItem {
   fechaCreacion: string;
 }
 
-const CATALOGO_MODULOS = [
-  { key: 'inventario', label: 'Inventario / Catálogo', desc: 'Gestión de productos y stock' },
-  { key: 'pos', label: 'Punto de Venta POS', desc: 'Facturación rápida de mostrador' },
-  { key: 'cotizaciones', label: 'Cotizaciones / Proformas', desc: 'Presupuestos y conversión a venta' },
-  { key: 'usuarios', label: 'Gestión de Usuarios', desc: 'Control de cajeros, vendedores y roles' },
-  { key: 'apartados', label: 'Apartados / Layaway', desc: 'Reserva con abonos parciales' },
-  { key: 'arqueo_caja', label: 'Arqueo & Cierre de Caja', desc: 'Conteo físico vs ventas por turno' },
-  { key: 'ordenes_compra', label: 'Órdenes de Compra & Proveedores', desc: 'Recepción y reabastecimiento' },
-  { key: 'transferencias_sucursal', label: 'Transferencias Inter-Sucursal', desc: 'Movimiento de stock entre sedes' },
-  { key: 'garantias', label: 'Garantías & Números de Serie', desc: 'Seguimiento por S/N de equipos' },
-  { key: 'pedidos_especiales', label: 'Pedidos Especiales / Backorder', desc: 'Encargos sin stock y avisos' },
-  { key: 'listas_precio', label: 'Listas de Precio / Segmentos', desc: 'Descuentos por tipo de cliente' },
-  { key: 'comisiones_venta', label: 'Comisiones de Venta', desc: 'Cálculo de incentivos por vendedor' },
-  { key: 'reportes', label: 'Módulo de Reportes & KPIs', desc: 'Análisis de ventas, inventario, cotizaciones y operaciones' },
-  { key: 'configuracion', label: 'Configuración / Marca', desc: 'Ajustes de tienda y white-label' },
-];
+interface AuditLogItem {
+  id: string;
+  fecha: string;
+  accion: string;
+  tenantNombre: string;
+  detalles: string;
+  usuario: string;
+}
 
 const INITIAL_TENANTS: TenantItem[] = [
   {
@@ -86,6 +81,7 @@ const INITIAL_TENANTS: TenantItem[] = [
     usuariosCount: 4,
     sucursalesCount: 3,
     colorPrimario: '#EA580C',
+    modoNavegacion: 'SIDEBAR',
     modulosHabilitados: CATALOGO_MODULOS.map((m) => m.key),
     sucursalesList: [
       { id: 'suc-1', nombre: 'Sucursal Centro (Principal)', direccion: 'Barrio El Centro', telefono: '+504 2550-1234', encargado: 'Carlos Ramos', activa: true },
@@ -103,6 +99,7 @@ const INITIAL_TENANTS: TenantItem[] = [
     usuariosCount: 2,
     sucursalesCount: 1,
     colorPrimario: '#0284C7',
+    modoNavegacion: 'SIDEBAR',
     modulosHabilitados: ['inventario', 'pos', 'cotizaciones', 'usuarios', 'configuracion', 'arqueo_caja'],
   },
   {
@@ -115,6 +112,7 @@ const INITIAL_TENANTS: TenantItem[] = [
     usuariosCount: 1,
     sucursalesCount: 1,
     colorPrimario: '#DC2626',
+    modoNavegacion: 'TOPNAV',
     modulosHabilitados: ['inventario', 'pos', 'cotizaciones'],
   },
 ];
@@ -149,16 +147,60 @@ const INITIAL_ADMIN_USERS: AdminUserItem[] = [
   },
 ];
 
+const INITIAL_AUDIT_LOGS: AuditLogItem[] = [
+  {
+    id: 'log-1',
+    fecha: '2026-03-15 10:30',
+    accion: 'CREAR_TENANT',
+    tenantNombre: 'LA MUNDIAL - SUCURSAL CENTRO',
+    detalles: 'Empresa aprovisionada con plan Enterprise',
+    usuario: 'Super Admin',
+  },
+  {
+    id: 'log-2',
+    fecha: '2026-03-16 14:15',
+    accion: 'ACTUALIZAR_SERVICIOS',
+    tenantNombre: 'FERRETERÍA EL MARTILLO DE ORO',
+    detalles: 'Servicios de Arqueo de Caja activados',
+    usuario: 'Super Admin',
+  },
+];
+
 export const SuperAdminPage: React.FC = () => {
   const { impersonateTenantAdmin } = useTenant();
   const navigate = useNavigate();
+  const { t } = useI18n();
 
-  const [tabActiva, setTabActiva] = useState<'tenants' | 'admins' | 'analisis'>('tenants');
-  const [tenants, setTenants] = useState<TenantItem[]>(INITIAL_TENANTS);
+  const [tabActiva, setTabActiva] = useState<'dashboard' | 'tenants' | 'modulos' | 'admins' | 'auditoria'>('tenants');
+
+  const [tenants, setTenants] = useState<TenantItem[]>(() => {
+    const saved = localStorage.getItem('ferre_saas_tenants');
+    return saved ? JSON.parse(saved) : INITIAL_TENANTS;
+  });
+
   const [adminUsers, setAdminUsers] = useState<AdminUserItem[]>(() => {
     const saved = localStorage.getItem('ferre_saas_admins');
     return saved ? JSON.parse(saved) : INITIAL_ADMIN_USERS;
   });
+
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(() => {
+    const saved = localStorage.getItem('ferre_saas_audit');
+    return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
+  });
+
+  useEffect(() => {
+    // Intentar cargar la lista real desde el backend NestJS si está disponible
+    api
+      .get('/admin/tenants')
+      .then((res) => {
+        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+          setTenants(res.data);
+        }
+      })
+      .catch(() => {
+        // Fallback a localStorage / datos iniciales si corre en modo standalone
+      });
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('ferre_saas_tenants', JSON.stringify(tenants));
@@ -168,11 +210,17 @@ export const SuperAdminPage: React.FC = () => {
     localStorage.setItem('ferre_saas_admins', JSON.stringify(adminUsers));
   }, [adminUsers]);
 
+  useEffect(() => {
+    localStorage.setItem('ferre_saas_audit', JSON.stringify(auditLogs));
+  }, [auditLogs]);
+
   // Modales
   const [modalNuevoTenant, setModalNuevoTenant] = useState(false);
   const [modalEditarTenant, setModalEditarTenant] = useState<TenantItem | null>(null);
   const [modalSucursalesTenant, setModalSucursalesTenant] = useState<TenantItem | null>(null);
   const [modalModulosTenant, setModalModulosTenant] = useState<TenantItem | null>(null);
+  const [tempModulosTenant, setTempModulosTenant] = useState<string[]>([]);
+  const [modalNavegacionTenant, setModalNavegacionTenant] = useState<TenantItem | null>(null);
   const [modalNuevoAdmin, setModalNuevoAdmin] = useState(false);
   const [modalEditarAdmin, setModalEditarAdmin] = useState<AdminUserItem | null>(null);
   const [modalResetPassAdmin, setModalResetPassAdmin] = useState<AdminUserItem | null>(null);
@@ -211,32 +259,93 @@ export const SuperAdminPage: React.FC = () => {
 
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
-  const toggleEstadoTenant = (id: string) => {
-    setTenants(
-      tenants.map((t) =>
-        t.id === id ? { ...t, estado: t.estado === 'ACTIVO' ? 'SUSPENDIDO' : 'ACTIVO' } : t,
-      ),
-    );
+  const registrarAuditoria = (accion: string, tenantNombre: string, detalles: string) => {
+    const nuevoLog: AuditLogItem = {
+      id: `log-${Date.now()}`,
+      fecha: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      accion,
+      tenantNombre,
+      detalles,
+      usuario: 'Super Admin',
+    };
+    setAuditLogs([nuevoLog, ...auditLogs]);
   };
 
-  const toggleModuloTenant = (tenantId: string, moduleKey: string) => {
+  const toggleEstadoTenant = (id: string) => {
+    const target = tenants.find((t) => t.id === id);
+    if (!target) return;
+    const nuevoEstado = target.estado === 'ACTIVO' ? 'SUSPENDIDO' : 'ACTIVO';
     setTenants(
-      tenants.map((t) => {
-        if (t.id === tenantId) {
-          const currentMods = t.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key);
-          const has = currentMods.includes(moduleKey);
-          const updated = has ? currentMods.filter((k) => k !== moduleKey) : [...currentMods, moduleKey];
-          return { ...t, modulosHabilitados: updated };
-        }
-        return t;
-      }),
+      tenants.map((t) => (t.id === id ? { ...t, estado: nuevoEstado } : t)),
     );
-    if (modalModulosTenant && modalModulosTenant.id === tenantId) {
-      const currentMods = modalModulosTenant.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key);
-      const has = currentMods.includes(moduleKey);
-      const updated = has ? currentMods.filter((k) => k !== moduleKey) : [...currentMods, moduleKey];
-      setModalModulosTenant({ ...modalModulosTenant, modulosHabilitados: updated });
+    registrarAuditoria('CAMBIO_ESTADO_TENANT', target.nombreComercial, `Estado cambiado a ${nuevoEstado}`);
+    setMensajeExito(`¡Estado de ${target.nombreComercial} actualizado a ${nuevoEstado}!`);
+    setTimeout(() => setMensajeExito(null), 4000);
+  };
+
+  const abrirModalModulos = (tenantItem: TenantItem) => {
+    setModalModulosTenant(tenantItem);
+    setTempModulosTenant(tenantItem.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key));
+  };
+
+  const toggleTempModulo = (moduleKey: string) => {
+    if (tempModulosTenant.includes(moduleKey)) {
+      setTempModulosTenant(tempModulosTenant.filter((k) => k !== moduleKey));
+    } else {
+      setTempModulosTenant([...tempModulosTenant, moduleKey]);
     }
+  };
+
+  const activarTodosModulos = () => {
+    setTempModulosTenant(CATALOGO_MODULOS.map((m) => m.key));
+  };
+
+  const desactivarOpcionalesModulos = () => {
+    const coreKeys = CATALOGO_MODULOS.filter((m) => m.isCore).map((m) => m.key);
+    setTempModulosTenant(coreKeys.length > 0 ? coreKeys : ['configuracion', 'pos']);
+  };
+
+  const guardarModulosTenant = () => {
+    if (!modalModulosTenant) return;
+    const modulesPayload = CATALOGO_MODULOS.map((m) => ({
+      moduleKey: m.key,
+      enabled: tempModulosTenant.includes(m.key),
+    }));
+
+    api
+      .put(`/admin/tenants/${modalModulosTenant.id}/modules`, { modules: modulesPayload })
+      .catch(() => {});
+
+    setTenants(
+      tenants.map((tItem) =>
+        tItem.id === modalModulosTenant.id ? { ...tItem, modulosHabilitados: tempModulosTenant } : tItem,
+      ),
+    );
+    registrarAuditoria(
+      'ACTUALIZAR_SERVICIOS',
+      modalModulosTenant.nombreComercial,
+      `Módulos activos actualizados: ${tempModulosTenant.length} de ${CATALOGO_MODULOS.length}`,
+    );
+    setMensajeExito(`¡Servicios y módulos para "${modalModulosTenant.nombreComercial}" guardados correctamente!`);
+    setModalModulosTenant(null);
+    setTimeout(() => setMensajeExito(null), 4000);
+  };
+
+  const guardarNavegacionTenant = (tenantId: string, modo: 'SIDEBAR' | 'TOPNAV') => {
+    const target = tenants.find((tItem) => tItem.id === tenantId);
+    if (!target) return;
+
+    api
+      .patch(`/admin/tenants/${tenantId}`, { modoNavegacion: modo })
+      .catch(() => {});
+
+    setTenants(
+      tenants.map((tItem) => (tItem.id === tenantId ? { ...tItem, modoNavegacion: modo } : tItem)),
+    );
+    registrarAuditoria('CAMBIO_NAVEGACION', target.nombreComercial, `Modo de navegación cambiado a ${modo}`);
+    setModalNavegacionTenant(null);
+    setMensajeExito(`¡Tipo de navegación para "${target.nombreComercial}" cambiado a ${modo}!`);
+    setTimeout(() => setMensajeExito(null), 4000);
   };
 
   const abrirModalSuplantar = (tenantItem: TenantItem) => {
@@ -247,6 +356,8 @@ export const SuperAdminPage: React.FC = () => {
   const ejecutarSuplantacion = (usrObj: { id: string; nombre: string; email: string; rol: any }) => {
     if (!modalSuplantarUser) return;
 
+    registrarAuditoria('IMPERSONACION_INICIADA', modalSuplantarUser.nombreComercial, `Suplantando a ${usrObj.nombre} (${usrObj.email})`);
+
     impersonateTenantAdmin(
       {
         id: modalSuplantarUser.id,
@@ -254,8 +365,8 @@ export const SuperAdminPage: React.FC = () => {
         sucursal: 'Sucursal Centro (Principal)',
         colorPrimario: modalSuplantarUser.colorPrimario,
         logoUrl: modalSuplantarUser.logoUrl,
-        modoNavegacion: modalSuplantarUser.modoNavegacion,
-        modulosHabilitados: modalSuplantarUser.modulosHabilitados,
+        modoNavegacion: modalSuplantarUser.modoNavegacion || 'SIDEBAR',
+        modulosHabilitados: modalSuplantarUser.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key),
       },
       {
         id: usrObj.id,
@@ -302,11 +413,12 @@ export const SuperAdminPage: React.FC = () => {
       nombreComercial: nombreComercial.toUpperCase().trim(),
       contacto: adminEmail.trim(),
       telefono: telefono || '+504 9000-0000',
-      plan: 'Plan Pro (Trial)',
+      plan: 'Plan Pro',
       estado: 'ACTIVO',
       usuariosCount: 1,
       sucursalesCount: 1,
       colorPrimario,
+      modoNavegacion: 'SIDEBAR',
       modulosHabilitados: CATALOGO_MODULOS.map((m) => m.key),
     };
 
@@ -323,10 +435,12 @@ export const SuperAdminPage: React.FC = () => {
     setTenants([nuevoTenant, ...tenants]);
     setAdminUsers([nuevoAdmin, ...adminUsers]);
     setModalNuevoTenant(false);
+
+    registrarAuditoria('CREAR_TENANT', nuevoTenant.nombreComercial, `Cliente y Administrador (${nuevoAdmin.email}) aprovisionados`);
+
     setMensajeExito(`¡Ferretería "${nuevoTenant.nombreComercial}" y su usuario Admin creados exitosamente!`);
     setTimeout(() => setMensajeExito(null), 5000);
 
-    // Limpiar
     setNombreComercial('');
     setAdminNombre('');
     setAdminEmail('');
@@ -338,19 +452,22 @@ export const SuperAdminPage: React.FC = () => {
     e.preventDefault();
     if (!formAdminNombre || !formAdminEmail || !formAdminPassword) return;
 
-    const t = tenants.find((item) => item.id === formAdminTenantId);
+    const tObj = tenants.find((item) => item.id === formAdminTenantId);
     const nuevoAdmin: AdminUserItem = {
       id: `adm-${Date.now()}`,
       nombre: formAdminNombre.trim(),
       email: formAdminEmail.trim(),
       tenantId: formAdminTenantId,
-      tenantNombre: t ? t.nombreComercial : 'Ferretería General',
+      tenantNombre: tObj ? tObj.nombreComercial : 'Ferretería General',
       activo: formAdminActivo,
       fechaCreacion: new Date().toISOString().split('T')[0],
     };
 
     setAdminUsers([nuevoAdmin, ...adminUsers]);
     setModalNuevoAdmin(false);
+
+    registrarAuditoria('CREAR_ADMIN', nuevoAdmin.tenantNombre, `Nuevo Administrador asignado: ${nuevoAdmin.nombre}`);
+
     setMensajeExito(`¡Administrador "${nuevoAdmin.nombre}" asignado a "${nuevoAdmin.tenantNombre}"!`);
     setTimeout(() => setMensajeExito(null), 4000);
 
@@ -363,7 +480,7 @@ export const SuperAdminPage: React.FC = () => {
     e.preventDefault();
     if (!modalEditarAdmin) return;
 
-    const t = tenants.find((item) => item.id === formAdminTenantId);
+    const tObj = tenants.find((item) => item.id === formAdminTenantId);
     setAdminUsers(
       adminUsers.map((a) =>
         a.id === modalEditarAdmin.id
@@ -372,7 +489,7 @@ export const SuperAdminPage: React.FC = () => {
               nombre: formAdminNombre.trim(),
               email: formAdminEmail.trim(),
               tenantId: formAdminTenantId,
-              tenantNombre: t ? t.nombreComercial : a.tenantNombre,
+              tenantNombre: tObj ? tObj.nombreComercial : a.tenantNombre,
               activo: formAdminActivo,
             }
           : a,
@@ -404,7 +521,7 @@ export const SuperAdminPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="PANEL SUPER-ADMIN (SAAS)" subtitle="Portal del Dueño de FerreSystem • Control Global & Menús" />
+      <TopBar title={t('superadmin.title') || "PANEL SUPER-ADMIN (SAAS)"} subtitle="Portal del Dueño de FerreSystem • Control Global & Módulos" />
 
       <main style={styles.content}>
         {mensajeExito && (
@@ -419,27 +536,27 @@ export const SuperAdminPage: React.FC = () => {
           <div className="industrial-card" style={styles.metricCard}>
             <Building size={24} strokeWidth={2.4} color="var(--color-primary)" />
             <div style={styles.metricValue}>{tenants.length}</div>
-            <div style={styles.metricLabel}>FERRETERÍAS REGISTRADAS</div>
+            <div style={styles.metricLabel}>{t('superadmin.tenants_count') || "FERRETERÍAS REGISTRADAS"}</div>
           </div>
 
           <div className="industrial-card" style={styles.metricCard}>
             <UserCheck size={24} strokeWidth={2.4} color="#0284C7" />
             <div style={styles.metricValue}>{adminUsers.length}</div>
-            <div style={styles.metricLabel}>USUARIOS ADMINISTRADORES</div>
+            <div style={styles.metricLabel}>{t('superadmin.admins_count') || "USUARIOS ADMINISTRADORES"}</div>
           </div>
 
           <div className="industrial-card" style={styles.metricCard}>
             <CheckCircle size={24} strokeWidth={2.4} color="#15803D" />
-            <div style={styles.metricValue}>{tenants.filter((t) => t.estado === 'ACTIVO').length}</div>
-            <div style={styles.metricLabel}>SUSCRIPCIONES ACTIVAS</div>
+            <div style={styles.metricValue}>{tenants.filter((tItem) => tItem.estado === 'ACTIVO').length}</div>
+            <div style={styles.metricLabel}>{t('superadmin.active_subscriptions') || "SUSCRIPCIONES ACTIVAS"}</div>
           </div>
 
           <div className="industrial-card" style={styles.metricCard}>
             <Server size={24} strokeWidth={2.4} color="var(--color-primary)" />
             <div style={styles.metricValue}>
-              {tenants.reduce((acc, t) => acc + t.sucursalesCount, 0)}
+              {tenants.reduce((acc, tItem) => acc + (tItem.sucursalesCount || 1), 0)}
             </div>
-            <div style={styles.metricLabel}>TOTAL SUCURSALES CONECTADAS</div>
+            <div style={styles.metricLabel}>{t('superadmin.total_branches') || "TOTAL SUCURSALES CONECTADAS"}</div>
           </div>
         </div>
 
@@ -454,7 +571,19 @@ export const SuperAdminPage: React.FC = () => {
             }}
           >
             <Building size={16} />
-            <span>FERRETERÍAS (TENANTS)</span>
+            <span>{t('superadmin.tab_tenants') || "CLIENTES (EMPRESAS)"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTabActiva('modulos')}
+            style={{
+              ...styles.tabBtn,
+              ...(tabActiva === 'modulos' ? styles.tabBtnActive : {}),
+            }}
+          >
+            <Layers size={16} />
+            <span>{t('superadmin.tab_services') || "CATÁLOGO DE SERVICIOS"}</span>
           </button>
 
           <button
@@ -466,30 +595,32 @@ export const SuperAdminPage: React.FC = () => {
             }}
           >
             <Users size={16} />
-            <span>MANTENIMIENTO DE USUARIOS ADMIN</span>
+            <span>{t('superadmin.tab_admins') || "USUARIOS ADMIN"}</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setTabActiva('analisis')}
+            onClick={() => setTabActiva('auditoria')}
             style={{
               ...styles.tabBtn,
-              ...(tabActiva === 'analisis' ? styles.tabBtnActive : {}),
+              ...(tabActiva === 'auditoria' ? styles.tabBtnActive : {}),
             }}
           >
             <ShieldCheck size={16} />
-            <span>ANÁLISIS DE PERMISOS Y MENÚS</span>
+            <span>{t('superadmin.tab_audit') || "AUDITORÍA SAAS"}</span>
           </button>
         </div>
 
-        {/* TAB 1: GESTIÓN DE TENANTS */}
+        {/* TAB 1: GESTIÓN DE TENANTS / CLIENTES */}
         {tabActiva === 'tenants' && (
           <div>
             <div style={styles.headerRow}>
               <div>
-                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>CLIENTES TENANTS (FERRETERÍAS)</h2>
+                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                  {t('superadmin.tenants_header') || "ADMINISTRACIÓN DE CLIENTES & EMPRESAS (TENANTS)"}
+                </h2>
                 <p style={{ fontSize: '12px', color: '#78716C' }}>
-                  Aprovisionamiento de nuevos clientes independientes, control de módulos habilitados y estado de suscripción.
+                  {t('superadmin.tenants_desc') || "Aprovisionamiento de nuevos clientes, contratación de servicios y modo de navegación."}
                 </p>
               </div>
 
@@ -499,7 +630,7 @@ export const SuperAdminPage: React.FC = () => {
                 onClick={() => setModalNuevoTenant(true)}
               >
                 <Plus size={18} strokeWidth={2.5} />
-                <span>NUEVO TENANT (FERRETERÍA)</span>
+                <span>NUEVO CLIENTE / TENANT</span>
               </button>
             </div>
 
@@ -507,59 +638,60 @@ export const SuperAdminPage: React.FC = () => {
               <table className="industrial-table">
                 <thead>
                   <tr>
-                    <th>NOMBRE COMERCIAL</th>
+                    <th>EMPRESA / CLIENTE</th>
                     <th>CONTACTO PRINCIPAL</th>
-                    <th>TELÉFONO</th>
-                    <th style={{ textAlign: 'center' }}>PLAN SUSCRIPCIÓN</th>
-                    <th style={{ textAlign: 'center' }}>MÓDULOS ACTIVOS</th>
-                    <th style={{ textAlign: 'center' }}>COLOR MARCA</th>
+                    <th style={{ textAlign: 'center' }}>PLAN</th>
+                    <th style={{ textAlign: 'center' }}>NAVEGACIÓN</th>
+                    <th style={{ textAlign: 'center' }}>SERVICIOS HABILITADOS</th>
                     <th style={{ textAlign: 'center' }}>ESTADO</th>
-                    <th style={{ textAlign: 'center' }}>ACCIONES</th>
+                    <th style={{ textAlign: 'center' }}>ACCIONES SAAS</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tenants.map((t) => {
-                    const modCount = t.modulosHabilitados ? t.modulosHabilitados.length : CATALOGO_MODULOS.length;
+                  {tenants.map((tItem) => {
+                    const activeMods = tItem.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key);
+                    const modCount = activeMods.length;
+                    const modoNav = tItem.modoNavegacion || 'SIDEBAR';
+
                     return (
-                      <tr key={t.id}>
+                      <tr key={tItem.id}>
                         <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
-                          <div>{t.nombreComercial}</div>
+                          <div>{tItem.nombreComercial}</div>
                           <div style={{ fontSize: '10px', color: '#78716C', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                            <GitBranch size={11} /> <span>{t.sucursalesCount} Sucursal(es) Conectada(s)</span>
+                            <GitBranch size={11} /> <span>{tItem.sucursalesCount || 1} Sucursal(es) Conectada(s)</span>
                           </div>
                         </td>
-                        <td style={{ fontWeight: 600 }}>{t.contacto}</td>
-                        <td style={{ color: '#78716C' }}>{t.telefono}</td>
+                        <td style={{ fontWeight: 600 }}>
+                          <div>{tItem.contacto}</div>
+                          <div style={{ fontSize: '11px', color: '#78716C' }}>{tItem.telefono}</div>
+                        </td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className="badge badge-dark" style={{ fontSize: '11px' }}>{t.plan}</span>
+                          <span className="badge badge-dark" style={{ fontSize: '11px' }}>{tItem.plan || 'Plan Pro'}</span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <button
                             type="button"
                             className="btn btn-sm btn-secondary"
-                            onClick={() => setModalModulosTenant(t)}
-                            title="Control de Módulos Activos"
-                            style={{ fontWeight: 800 }}
+                            onClick={() => setModalNavegacionTenant(tItem)}
+                            style={{ fontWeight: 800, fontSize: '10px' }}
+                            title="Cambiar entre Menú Lateral o Menú Superior"
                           >
-                            <Layers size={13} color="var(--color-primary)" /> {modCount} / {CATALOGO_MODULOS.length} MÓDULOS
+                            <Layout size={12} color="var(--color-primary)" /> {modoNav}
                           </button>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            <span
-                              style={{
-                                width: '16px',
-                                height: '16px',
-                                borderRadius: '2px',
-                                border: '1px solid #1C1917',
-                                backgroundColor: t.colorPrimario,
-                              }}
-                            />
-                            <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>{t.colorPrimario}</span>
-                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => abrirModalModulos(tItem)}
+                            title="Administrar Servicios y Módulos Contratados"
+                            style={{ fontWeight: 800 }}
+                          >
+                            <Layers size={13} color="var(--color-primary)" /> {modCount} / {CATALOGO_MODULOS.length} SERVICIOS
+                          </button>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          {t.estado === 'ACTIVO' ? (
+                          {tItem.estado === 'ACTIVO' ? (
                             <span className="badge badge-success">ACTIVO</span>
                           ) : (
                             <span className="badge badge-danger">SUSPENDIDO</span>
@@ -570,14 +702,22 @@ export const SuperAdminPage: React.FC = () => {
                             <button
                               type="button"
                               className="btn btn-sm btn-secondary"
+                              onClick={() => abrirModalModulos(tItem)}
+                              title="Administrar Servicios Contratados"
+                            >
+                              SERVICIOS
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-secondary"
                               onClick={() => {
-                                setModalSucursalesTenant(t);
+                                setModalSucursalesTenant(tItem);
                                 setNuevaSucursalNombre('');
                                 setNuevaSucursalDireccion('');
                                 setNuevaSucursalTelefono('');
                                 setNuevaSucursalEncargado('');
                               }}
-                              title="Gestionar y crear sub-sucursales para esta empresa"
+                              title="Gestionar sub-sucursales"
                             >
                               <GitBranch size={13} /> SUCURSALES
                             </button>
@@ -585,34 +725,34 @@ export const SuperAdminPage: React.FC = () => {
                               type="button"
                               className="btn btn-sm btn-secondary"
                               onClick={() => {
-                                setModalEditarTenant(t);
-                                setEditNombreComercial(t.nombreComercial);
-                                setEditTelefono(t.telefono);
-                                setEditPlan(t.plan);
-                                setEditColorPrimario(t.colorPrimario);
-                                setEditLogoUrl(t.logoUrl || '');
-                                setEditModoNavegacion(t.modoNavegacion || 'SIDEBAR');
+                                setModalEditarTenant(tItem);
+                                setEditNombreComercial(tItem.nombreComercial);
+                                setEditTelefono(tItem.telefono);
+                                setEditPlan(tItem.plan);
+                                setEditColorPrimario(tItem.colorPrimario);
+                                setEditLogoUrl(tItem.logoUrl || '');
+                                setEditModoNavegacion(tItem.modoNavegacion || 'SIDEBAR');
                               }}
-                              title="Editar marca, logo, color y datos de la ferretería"
+                              title="Editar Marca y Datos General"
                             >
                               <Edit2 size={13} /> MARCA
                             </button>
                             <button
                               type="button"
                               className="btn btn-sm btn-primary"
-                              onClick={() => abrirModalSuplantar(t)}
-                              title="Elegir usuario del cliente para entrar en modo soporte remoto"
+                              onClick={() => abrirModalSuplantar(tItem)}
+                              title="Entrar como administrador o usuario para soporte remoto"
                               style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
                             >
-                              <ExternalLink size={13} /> SOPORTE REMOTO (SUPLANTAR)
+                              <ExternalLink size={13} /> IMPERSONAR
                             </button>
                             <button
                               type="button"
-                              className={`btn btn-sm ${t.estado === 'ACTIVO' ? 'btn-secondary' : 'btn-primary'}`}
-                              onClick={() => toggleEstadoTenant(t.id)}
+                              className={`btn btn-sm ${tItem.estado === 'ACTIVO' ? 'btn-secondary' : 'btn-primary'}`}
+                              onClick={() => toggleEstadoTenant(tItem.id)}
                             >
                               <Power size={13} strokeWidth={2.5} />
-                              {t.estado === 'ACTIVO' ? 'SUSPENDER' : 'ACTIVAR'}
+                              {tItem.estado === 'ACTIVO' ? 'SUSPENDER' : 'ACTIVAR'}
                             </button>
                           </div>
                         </td>
@@ -625,7 +765,50 @@ export const SuperAdminPage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 2: MANTENIMIENTO DE USUARIOS ADMIN */}
+        {/* TAB 2: CATÁLOGO DE SERVICIOS GLOBAL */}
+        {tabActiva === 'modulos' && (
+          <div>
+            <div style={styles.headerRow}>
+              <div>
+                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                  CATÁLOGO GLOBAL DE MÓDULOS & SERVICIOS
+                </h2>
+                <p style={{ fontSize: '12px', color: '#78716C' }}>
+                  Especificación técnica y comercial de los módulos disponibles en la plataforma SaaS.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px', marginTop: '20px' }}>
+              {CATALOGO_MODULOS.map((mod) => (
+                <div key={mod.key} className="industrial-card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span className="badge badge-dark" style={{ fontSize: '10px' }}>{mod.categoria}</span>
+                    {mod.isCore ? (
+                      <span className="badge badge-warning" style={{ fontSize: '10px' }}>CORE / ESENCIAL</span>
+                    ) : (
+                      <span className="badge badge-success" style={{ fontSize: '10px' }}>CONTRATABLE</span>
+                    )}
+                  </div>
+
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '15px', color: '#1C1917' }}>
+                    {mod.nombre}
+                  </div>
+
+                  <div style={{ fontSize: '12px', color: '#78716C', flex: 1 }}>
+                    {mod.descripcion}
+                  </div>
+
+                  <div style={{ fontSize: '11px', fontFamily: 'monospace', color: '#EA580C', fontWeight: 700, paddingTop: '8px', borderTop: '1px solid #E7E5E4' }}>
+                    key: {mod.key}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: MANTENIMIENTO DE USUARIOS ADMIN */}
         {tabActiva === 'admins' && (
           <div>
             <div style={styles.headerRow}>
@@ -634,7 +817,7 @@ export const SuperAdminPage: React.FC = () => {
                   MANTENIMIENTO DE USUARIOS ADMINISTRADORES (ADMIN)
                 </h2>
                 <p style={{ fontSize: '12px', color: '#78716C' }}>
-                  Gestión centralizada por el Super Admin sobre los administradores de cada ferretería.
+                  Gestión centralizada sobre los administradores autorizados de cada cliente.
                 </p>
               </div>
 
@@ -661,7 +844,7 @@ export const SuperAdminPage: React.FC = () => {
                   <tr>
                     <th>NOMBRE DEL ADMINISTRADOR</th>
                     <th>CORREO ELECTRÓNICO (LOGIN)</th>
-                    <th>FERRETERÍA (TENANT)</th>
+                    <th>EMPRESA / TENANT</th>
                     <th style={{ textAlign: 'center' }}>FECHA ALTA</th>
                     <th style={{ textAlign: 'center' }}>ESTADO</th>
                     <th style={{ textAlign: 'center' }}>ACCIONES DE SUPER ADMIN</th>
@@ -720,88 +903,43 @@ export const SuperAdminPage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 3: ANÁLISIS DE PERMISOS Y MENÚS */}
-        {tabActiva === 'analisis' && (
+        {/* TAB 4: AUDITORÍA SAAS */}
+        {tabActiva === 'auditoria' && (
           <div>
             <div style={styles.headerRow}>
               <div>
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                  ANÁLISIS DE CONTROL DE ACCESOS Y MENÚS POR ROL
+                  REGISTRO DE AUDITORÍA DE ACCIONES CRÍTICAS SAAS
                 </h2>
                 <p style={{ fontSize: '12px', color: '#78716C' }}>
-                  Auditoría completa de visibilidad de menús y niveles de jerarquía operacional.
+                  Historial de cambios en suscripciones, habilitación de módulos e impersonaciones.
                 </p>
               </div>
             </div>
 
-            {/* Matriz de Visibilidad de Menús */}
             <div className="table-container" style={{ marginTop: '20px' }}>
               <table className="industrial-table">
                 <thead>
                   <tr>
-                    <th>RUTAS Y MENÚS DEL SISTEMA</th>
-                    <th style={{ textAlign: 'center', backgroundColor: '#1C1917', color: '#FFFFFF' }}>
-                      SUPER ADMIN (SAAS)
-                    </th>
-                    <th style={{ textAlign: 'center' }}>ADMIN FERRETERÍA</th>
-                    <th style={{ textAlign: 'center' }}>CAJERO</th>
-                    <th style={{ textAlign: 'center' }}>BODEGUERO</th>
-                    <th style={{ textAlign: 'center' }}>VENDEDOR</th>
+                    <th>FECHA / HORA</th>
+                    <th>ACCIÓN</th>
+                    <th>CLIENTE / TENANT</th>
+                    <th>DETALLES DE LA OPERACIÓN</th>
+                    <th style={{ textAlign: 'center' }}>EJECUTADO POR</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td style={{ fontWeight: 800 }}>PANEL SUPER ADMIN (/admin)</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      <CheckCircle size={16} style={{ verticalAlign: 'middle', marginRight: 4, display: 'inline-block' }} /> ACCESO TOTAL
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 700 }}>
-                      <Lock size={14} style={{ verticalAlign: 'middle', marginRight: 4, display: 'inline-block' }} /> OCULTO / DENEGADO
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 800 }}>PANEL DE CONTROL TIENDA (/)</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEF3C7', color: '#B45309', fontWeight: 700 }}>
-                      REDIRECCIONA A /ADMIN
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      PERMITIDO
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D' }}>PERMITIDO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D' }}>PERMITIDO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D' }}>PERMITIDO</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 800 }}>PUNTO DE VENTA POS (/pos)</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 700 }}>
-                      <Lock size={14} style={{ verticalAlign: 'middle', marginRight: 4, display: 'inline-block' }} /> OCULTO / DENEGADO
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      PERMITIDO
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      PERMITIDO
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D' }}>PERMITIDO</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 800 }}>INVENTARIO Y CATALOGO (/inventario)</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 700 }}>
-                      <Lock size={14} style={{ verticalAlign: 'middle', marginRight: 4, display: 'inline-block' }} /> OCULTO / DENEGADO
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      PERMITIDO
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 800 }}>
-                      PERMITIDO
-                    </td>
-                    <td style={{ textAlign: 'center', backgroundColor: '#FEE2E2', color: '#991B1B' }}>OCULTO</td>
-                  </tr>
+                  {auditLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td style={{ fontSize: '11px', fontFamily: 'monospace' }}>{log.fecha}</td>
+                      <td>
+                        <span className="badge badge-dark" style={{ fontSize: '10px' }}>{log.accion}</span>
+                      </td>
+                      <td style={{ fontWeight: 800 }}>{log.tenantNombre}</td>
+                      <td style={{ fontSize: '12px', color: '#444' }}>{log.detalles}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 700 }}>{log.usuario}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -809,18 +947,18 @@ export const SuperAdminPage: React.FC = () => {
         )}
       </main>
 
-      {/* MODAL CONTROL DE MÓDULOS HABILITADOS POR CLIENTE */}
+      {/* MODAL 1: ADMINISTRAR SERVICIOS Y MÓDULOS DE UN TENANT */}
       {modalModulosTenant && (
         <div style={styles.modalOverlay}>
-          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '620px' }}>
+          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '750px' }}>
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                 <div>
                   <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                    CONTROL DE MÓDULOS HABILITADOS (SUPER ADMIN)
+                    ADMINISTRAR SERVICIOS Y MÓDULOS CONTRATADOS
                   </h2>
-                  <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700, marginTop: '2px' }}>
-                    EMPRESA: {modalModulosTenant.nombreComercial}
+                  <div style={{ fontSize: '13px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>
+                    CLIENTE: {modalModulosTenant.nombreComercial} ({modalModulosTenant.plan})
                   </div>
                 </div>
                 <button
@@ -833,15 +971,35 @@ export const SuperAdminPage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ marginTop: '16px', maxHeight: '380px', overflowY: 'auto' }}>
-              <div style={{ fontSize: '12px', color: '#78716C', marginBottom: '12px' }}>
-                Active o desactive los módulos que este cliente tiene contratados. Los módulos desactivados no aparecerán en el Sidebar del cliente.
+            <div style={{ marginTop: '16px', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                <span style={{ fontSize: '12px', color: '#78716C' }}>
+                  Marque los módulos que el cliente tiene habilitados. Los cambios no se aplican hasta pulsar <strong>Guardar Cambios</strong>.
+                </span>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    onClick={activarTodosModulos}
+                    style={{ fontSize: '10px', fontWeight: 800 }}
+                  >
+                    ACTIVAR TODOS
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    onClick={desactivarOpcionalesModulos}
+                    style={{ fontSize: '10px', fontWeight: 800 }}
+                  >
+                    DESACTIVAR OPCIONALES
+                  </button>
+                </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '12px' }}>
                 {CATALOGO_MODULOS.map((m) => {
-                  const activeMods = modalModulosTenant.modulosHabilitados || CATALOGO_MODULOS.map((x) => x.key);
-                  const isEnabled = activeMods.includes(m.key);
+                  const isEnabled = tempModulosTenant.includes(m.key);
 
                   return (
                     <label
@@ -849,25 +1007,29 @@ export const SuperAdminPage: React.FC = () => {
                       style={{
                         display: 'flex',
                         alignItems: 'flex-start',
-                        gap: '10px',
-                        padding: '10px 12px',
+                        gap: '12px',
+                        padding: '12px',
                         backgroundColor: isEnabled ? '#DCFCE7' : '#FAFAF9',
                         border: isEnabled ? '1.5px solid #16A34A' : '1.5px solid #D6D3D1',
                         borderRadius: '4px',
                         cursor: 'pointer',
+                        transition: 'all 150ms ease',
                       }}
                     >
                       <input
                         type="checkbox"
                         checked={isEnabled}
-                        onChange={() => toggleModuloTenant(modalModulosTenant.id, m.key)}
-                        style={{ marginTop: '3px', cursor: 'pointer' }}
+                        onChange={() => toggleTempModulo(m.key)}
+                        style={{ marginTop: '3px', cursor: 'pointer', width: '16px', height: '16px' }}
                       />
                       <div>
-                        <div style={{ fontWeight: 800, fontSize: '12px', color: isEnabled ? '#15803D' : '#44403C' }}>
-                          {m.label}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 800, fontSize: '13px', color: isEnabled ? '#15803D' : '#44403C' }}>
+                            {m.nombre}
+                          </span>
+                          <span className="badge badge-dark" style={{ fontSize: '9px' }}>{m.categoria}</span>
                         </div>
-                        <div style={{ fontSize: '10px', color: '#78716C' }}>{m.desc}</div>
+                        <div style={{ fontSize: '11px', color: '#78716C', marginTop: '2px' }}>{m.descripcion}</div>
                       </div>
                     </label>
                   );
@@ -875,20 +1037,109 @@ export const SuperAdminPage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px', paddingTop: '12px', borderTop: '1px solid #E7E5E4' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setModalModulosTenant(null)}
+              >
+                CANCELAR
+              </button>
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={() => setModalModulosTenant(null)}
+                onClick={guardarModulosTenant}
               >
-                <Check size={16} /> GUARDAR MÓDULOS HABILITADOS
+                <Check size={16} strokeWidth={2.6} /> GUARDAR CAMBIOS DE SERVICIO
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL GESTIONAR SUB-SUCURSALES DE UN TENANT */}
+      {/* MODAL 2: CONFIGURAR TIPO DE NAVEGACIÓN */}
+      {modalNavegacionTenant && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '480px' }}>
+            <div style={styles.modalHeader}>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                CONFIGURACIÓN DE NAVEGACIÓN
+              </h2>
+              <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>
+                EMPRESA: {modalNavegacionTenant.nombreComercial}
+              </div>
+            </div>
+
+            <div style={{ marginTop: '16px' }}>
+              <p style={{ fontSize: '12px', color: '#78716C' }}>
+                Seleccione el formato de menú visual con el que interactuarán los usuarios de este cliente:
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '14px' }}>
+                <button
+                  type="button"
+                  onClick={() => guardarNavegacionTenant(modalNavegacionTenant.id, 'SIDEBAR')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 18px',
+                    backgroundColor: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? '#1C1917' : '#FAFAF9',
+                    color: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? '#FFFFFF' : '#1C1917',
+                    border: '2px solid #1C1917',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-display)',
+                    fontWeight: 800,
+                  }}
+                >
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontSize: '13px' }}>○ MENÚ LATERAL (SIDEBAR)</div>
+                    <div style={{ fontSize: '11px', opacity: 0.8, fontWeight: 400 }}>Panel lateral izquierdo tradicional</div>
+                  </div>
+                  {(modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' && <CheckCircle size={18} color="#EA580C" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => guardarNavegacionTenant(modalNavegacionTenant.id, 'TOPNAV')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 18px',
+                    backgroundColor: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? '#1C1917' : '#FAFAF9',
+                    color: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? '#FFFFFF' : '#1C1917',
+                    border: '2px solid #1C1917',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-display)',
+                    fontWeight: 800,
+                  }}
+                >
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontSize: '13px' }}>○ MENÚ SUPERIOR (TOPNAV)</div>
+                    <div style={{ fontSize: '11px', opacity: 0.8, fontWeight: 400 }}>Barra de navegación horizontal superior</div>
+                  </div>
+                  {modalNavegacionTenant.modoNavegacion === 'TOPNAV' && <CheckCircle size={18} color="#EA580C" />}
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setModalNavegacionTenant(null)}
+                >
+                  CERRAR
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: SUB-SUCURSALES */}
       {modalSucursalesTenant && (
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '650px' }}>
@@ -896,7 +1147,7 @@ export const SuperAdminPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                 <div>
                   <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                    GESTIÓN DE SUB-SUCURSALES PARA EL ADMIN
+                    GESTIÓN DE SUB-SUCURSALES
                   </h2>
                   <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700, marginTop: '2px' }}>
                     EMPRESA: {modalSucursalesTenant.nombreComercial}
@@ -913,7 +1164,6 @@ export const SuperAdminPage: React.FC = () => {
             </div>
 
             <div style={{ marginTop: '16px' }}>
-              {/* Formulario Crear Nueva Sub-Sucursal */}
               <div style={{ padding: '14px', backgroundColor: '#FAFAF9', border: '1.5px solid #D6D3D1', borderRadius: '4px', marginBottom: '16px' }}>
                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', marginBottom: '8px' }}>
                   AÑADIR NUEVA SUCURSAL A ESTE CLIENTE
@@ -974,14 +1224,14 @@ export const SuperAdminPage: React.FC = () => {
                       const updatedList = [...currentList, nuevaSubSucursal];
 
                       setTenants(
-                        tenants.map((t) =>
-                          t.id === modalSucursalesTenant.id
+                        tenants.map((tItem) =>
+                          tItem.id === modalSucursalesTenant.id
                             ? {
-                                ...t,
+                                ...tItem,
                                 sucursalesCount: updatedList.length,
                                 sucursalesList: updatedList,
                               }
-                            : t,
+                            : tItem,
                         ),
                       );
 
@@ -994,7 +1244,7 @@ export const SuperAdminPage: React.FC = () => {
                       setNuevaSucursalNombre('');
                       setNuevaSucursalDireccion('');
                       setNuevaSucursalTelefono('');
-                      setMensajeExito(`¡Sub-sucursal "${nuevaSubSucursal.nombre}" habilitada para ${modalSucursalesTenant.nombreComercial}!`);
+                      setMensajeExito(`¡Sub-sucursal "${nuevaSubSucursal.nombre}" habilitada!`);
                       setTimeout(() => setMensajeExito(null), 4000);
                     }}
                   >
@@ -1003,7 +1253,6 @@ export const SuperAdminPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Lista de Sucursales de esta Empresa */}
               <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
                 <table className="industrial-table">
                   <thead>
@@ -1036,14 +1285,14 @@ export const SuperAdminPage: React.FC = () => {
                               const updatedList = currentList.filter((item) => item.id !== s.id);
 
                               setTenants(
-                                tenants.map((t) =>
-                                  t.id === modalSucursalesTenant.id
+                                tenants.map((tItem) =>
+                                  tItem.id === modalSucursalesTenant.id
                                     ? {
-                                        ...t,
+                                        ...tItem,
                                         sucursalesCount: updatedList.length,
                                         sucursalesList: updatedList,
                                       }
-                                    : t,
+                                    : tItem,
                                 ),
                               );
 
@@ -1080,13 +1329,13 @@ export const SuperAdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL EDITAR TENANT Y MARCA */}
+      {/* MODAL 4: EDITAR TENANT MARCA */}
       {modalEditarTenant && (
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                CONFIGURAR MARCA Y COLOR DE TENANT
+                CONFIGURAR MARCA Y DATOS DE EMPRESA
               </h2>
             </div>
 
@@ -1094,10 +1343,10 @@ export const SuperAdminPage: React.FC = () => {
               onSubmit={(e) => {
                 e.preventDefault();
                 setTenants(
-                  tenants.map((t) =>
-                    t.id === modalEditarTenant.id
+                  tenants.map((tItem) =>
+                    tItem.id === modalEditarTenant.id
                       ? {
-                          ...t,
+                          ...tItem,
                           nombreComercial: editNombreComercial.toUpperCase().trim(),
                           telefono: editTelefono,
                           plan: editPlan,
@@ -1105,11 +1354,11 @@ export const SuperAdminPage: React.FC = () => {
                           logoUrl: editLogoUrl.trim() || null,
                           modoNavegacion: editModoNavegacion,
                         }
-                      : t,
+                      : tItem,
                   ),
                 );
                 setModalEditarTenant(null);
-                setMensajeExito(`¡Configuración de marca e imagen para "${editNombreComercial}" actualizada!`);
+                setMensajeExito(`¡Configuración de marca para "${editNombreComercial}" actualizada!`);
                 setTimeout(() => setMensajeExito(null), 4000);
               }}
               style={{ marginTop: '16px' }}
@@ -1137,7 +1386,7 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">ESTRUCTURA Y MODO DE NAVEGACIÓN</label>
+                <label className="form-label">MODO DE NAVEGACIÓN</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <button
                     type="button"
@@ -1232,19 +1481,19 @@ export const SuperAdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 1: NUEVO TENANT */}
+      {/* MODAL 5: NUEVO TENANT */}
       {modalNuevoTenant && (
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                CREAR NUEVO TENANT (FERRETERÍA)
+                CREAR NUEVO TENANT / CLIENTE
               </h2>
             </div>
 
             <form onSubmit={handleCrearTenant} style={{ marginTop: '16px' }}>
               <div className="form-group">
-                <label className="form-label">NOMBRE COMERCIAL DE LA FERRETERÍA</label>
+                <label className="form-label">NOMBRE COMERCIAL DE LA EMPRESA</label>
                 <input
                   type="text"
                   required
@@ -1339,14 +1588,14 @@ export const SuperAdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 5: ELECCIÓN / BÚSQUEDA DE USUARIO A SUPLANTAR */}
+      {/* MODAL 6: IMPERSONACIÓN DE USUARIO */}
       {modalSuplantarUser && (
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '600px' }}>
             <div style={styles.modalHeader}>
               <div>
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                  SOPORTE REMOTO • SELECCIONAR USUARIO A SUPLANTAR
+                  SOPORTE REMOTO • SELECCIONAR USUARIO A IMPERSONAR
                 </h2>
                 <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700 }}>
                   CLIENTE: {modalSuplantarUser.nombreComercial}
@@ -1362,7 +1611,6 @@ export const SuperAdminPage: React.FC = () => {
             </div>
 
             <div style={{ marginTop: '16px' }}>
-              {/* Input Búsqueda de Usuario */}
               <div className="form-group">
                 <label className="form-label">BUSCAR USUARIO POR NOMBRE O CORREO</label>
                 <div style={{ position: 'relative' }}>
@@ -1378,7 +1626,6 @@ export const SuperAdminPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Lista de Usuarios de la Empresa Disponibles para Suplantar */}
               <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1.5px solid #D6D3D1', borderRadius: '4px', marginTop: '12px' }}>
                 {[
                   {
@@ -1443,7 +1690,7 @@ export const SuperAdminPage: React.FC = () => {
                         className="btn btn-sm btn-primary"
                         style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800, padding: '6px 12px' }}
                       >
-                        <ExternalLink size={13} /> SUPLANTAR ESTE USUARIO
+                        <ExternalLink size={13} /> IMPERSONAR USUARIO
                       </button>
                     </div>
                   ))}
@@ -1463,27 +1710,27 @@ export const SuperAdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 2: NUEVO USUARIO ADMIN */}
+      {/* MODAL 7: NUEVO USUARIO ADMIN */}
       {modalNuevoAdmin && (
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                NUEVO USUARIO ADMINISTRADOR DE FERRETERÍA
+                NUEVO USUARIO ADMINISTRADOR
               </h2>
             </div>
 
             <form onSubmit={handleCrearAdmin} style={{ marginTop: '16px' }}>
               <div className="form-group">
-                <label className="form-label">FERRETERÍA (TENANT PERTENECIENTE)</label>
+                <label className="form-label">EMPRESA / TENANT</label>
                 <select
                   value={formAdminTenantId}
                   onChange={(e) => setFormAdminTenantId(e.target.value)}
                   className="form-select"
                 >
-                  {tenants.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.nombreComercial}
+                  {tenants.map((tItem) => (
+                    <option key={tItem.id} value={tItem.id}>
+                      {tItem.nombreComercial}
                     </option>
                   ))}
                 </select>
@@ -1544,7 +1791,7 @@ export const SuperAdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 3: EDITAR ADMIN */}
+      {/* MODAL 8: EDITAR ADMIN */}
       {modalEditarAdmin && (
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
@@ -1556,15 +1803,15 @@ export const SuperAdminPage: React.FC = () => {
 
             <form onSubmit={handleGuardarEdicionAdmin} style={{ marginTop: '16px' }}>
               <div className="form-group">
-                <label className="form-label">FERRETERÍA ASIGNADA</label>
+                <label className="form-label">EMPRESA / TENANT</label>
                 <select
                   value={formAdminTenantId}
                   onChange={(e) => setFormAdminTenantId(e.target.value)}
                   className="form-select"
                 >
-                  {tenants.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.nombreComercial}
+                  {tenants.map((tItem) => (
+                    <option key={tItem.id} value={tItem.id}>
+                      {tItem.nombreComercial}
                     </option>
                   ))}
                 </select>
@@ -1604,7 +1851,7 @@ export const SuperAdminPage: React.FC = () => {
                       checked={formAdminActivo === true}
                       onChange={() => setFormAdminActivo(true)}
                     />
-                    Activo (Permitir Ingreso)
+                    Activo
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#DC2626' }}>
                     <input
@@ -1635,19 +1882,19 @@ export const SuperAdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 4: RESTABLECER CONTRASEÑA */}
+      {/* MODAL 9: RESTABLECER CONTRASEÑA */}
       {modalResetPassAdmin && (
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                RESTABLECER CONTRASEÑA DE ADMINISTRADOR
+                RESTABLECER CONTRASEÑA DE ADMIN
               </h2>
             </div>
 
             <form onSubmit={handleResetPassword} style={{ marginTop: '16px' }}>
               <p style={{ fontSize: '13px', color: '#444' }}>
-                Cambiar contraseña para el usuario <strong>{modalResetPassAdmin.nombre}</strong> (<code>{modalResetPassAdmin.email}</code>).
+                Cambiar contraseña para <strong>{modalResetPassAdmin.nombre}</strong> (<code>{modalResetPassAdmin.email}</code>).
               </p>
 
               <div className="form-group" style={{ marginTop: '12px' }}>
@@ -1736,6 +1983,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '24px',
     borderBottom: '2px solid #292524',
     paddingBottom: '8px',
+    overflowX: 'auto',
   },
   tabBtn: {
     display: 'flex',
@@ -1751,6 +1999,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: '2px solid #D6D3D1',
     borderRadius: 'var(--radius-xs)',
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
     transition: 'all 150ms ease',
   },
   tabBtnActive: {

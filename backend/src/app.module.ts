@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
+import { TenantModuleGuard } from './common/guards/tenant-module.guard';
 import { AuthModule } from './auth/auth.module';
 import { SuperAdminModule } from './super-admin/super-admin.module';
 import { TenantsModule } from './tenants/tenants.module';
@@ -25,6 +27,12 @@ import { DashboardModule } from './dashboard/dashboard.module';
     VentasModule,
     CotizacionesModule,
     DashboardModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: TenantModuleGuard,
+    },
   ],
 })
 export class AppModule {}
