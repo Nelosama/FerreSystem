@@ -8,13 +8,19 @@ export class TenantsService {
   async getTenantSettings(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
+      include: {
+        modulos: true,
+      },
     });
 
     if (!tenant) {
       throw new NotFoundException('Ferretería no encontrada');
     }
 
-    return tenant;
+    return {
+      ...tenant,
+      modulosHabilitados: tenant.modulos.filter((m) => m.enabled).map((m) => m.moduleKey),
+    };
   }
 
   async updateTenantBranding(

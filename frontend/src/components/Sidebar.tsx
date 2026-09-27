@@ -1,26 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import {
-  LayoutGrid,
-  PackageSearch,
-  Calculator,
-  ClipboardList,
-  Sliders,
-  Box,
-  ShieldCheck,
-  Bookmark,
-  DollarSign,
-  Truck,
-  GitBranch,
-  Shield,
-  Clock,
-  Tags,
-  Percent,
-  BarChart3,
-} from 'lucide-react';
+import { Box } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
+import { NAVIGATION_ITEMS, type NavigationItem } from '../config/navigation';
 
 export const Sidebar: React.FC = () => {
   const { tenant, user } = useTenant();
@@ -28,7 +12,7 @@ export const Sidebar: React.FC = () => {
   const { t } = useI18n();
   const userRole = user?.rol;
 
-  const modulosHabilitados = tenant.modulosHabilitados || [
+  const defaultModules = [
     'inventario',
     'pos',
     'cotizaciones',
@@ -44,6 +28,8 @@ export const Sidebar: React.FC = () => {
     'comisiones_venta',
     'reportes',
   ];
+
+  const modulosHabilitados = tenant.modulosHabilitados || defaultModules;
 
   const isModuleEnabled = (moduleKey?: string) => {
     if (!moduleKey) return true;
@@ -61,126 +47,17 @@ export const Sidebar: React.FC = () => {
     return true;
   };
 
-  const mainNavItems = [
-    {
-      path: '/admin',
-      label: t('menu.super_admin'),
-      icon: ShieldCheck,
-      allowedRoles: ['SUPERADMIN'],
-    },
-    {
-      path: '/',
-      label: t('menu.dashboard'),
-      icon: LayoutGrid,
-      exact: true,
-      allowedRoles: ['ADMIN', 'CAJERO', 'BODEGUERO', 'VENDEDOR'],
-    },
-    {
-      path: '/inventario',
-      label: rubroConfig.nombreCatalogo.toUpperCase(),
-      icon: PackageSearch,
-      allowedRoles: ['ADMIN', 'BODEGUERO'],
-      moduleKey: 'inventario',
-    },
-    {
-      path: '/pos',
-      label: t('menu.pos'),
-      icon: Calculator,
-      allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
-      moduleKey: 'pos',
-    },
-    {
-      path: '/cotizaciones',
-      label: t('menu.quotations'),
-      icon: ClipboardList,
-      allowedRoles: ['ADMIN', 'VENDEDOR', 'CAJERO'],
-      moduleKey: 'cotizaciones',
-    },
-    {
-      path: '/apartados',
-      label: t('menu.layaway'),
-      icon: Bookmark,
-      allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
-      moduleKey: 'apartados',
-    },
-    {
-      path: '/arqueo-caja',
-      label: t('menu.cash_drawer'),
-      icon: DollarSign,
-      allowedRoles: ['ADMIN', 'CAJERO'],
-      moduleKey: 'arqueo_caja',
-    },
-    {
-      path: '/ordenes-compra',
-      label: t('menu.purchase_orders'),
-      icon: Truck,
-      allowedRoles: ['ADMIN', 'BODEGUERO'],
-      moduleKey: 'ordenes_compra',
-    },
-    {
-      path: '/transferencias',
-      label: t('menu.transfers'),
-      icon: GitBranch,
-      allowedRoles: ['ADMIN', 'BODEGUERO'],
-      moduleKey: 'transferencias_sucursal',
-    },
-    {
-      path: '/garantias',
-      label: t('menu.warranties'),
-      icon: Shield,
-      allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
-      moduleKey: 'garantias',
-    },
-    {
-      path: '/pedidos-especiales',
-      label: t('menu.special_orders'),
-      icon: Clock,
-      allowedRoles: ['ADMIN', 'VENDEDOR', 'CAJERO'],
-      moduleKey: 'pedidos_especiales',
-    },
-    {
-      path: '/listas-precio',
-      label: t('menu.price_lists'),
-      icon: Tags,
-      allowedRoles: ['ADMIN', 'VENDEDOR'],
-      moduleKey: 'listas_precio',
-    },
-    {
-      path: '/comisiones',
-      label: t('menu.commissions'),
-      icon: Percent,
-      allowedRoles: ['ADMIN'],
-      moduleKey: 'comisiones_venta',
-    },
-    {
-      path: '/reportes',
-      label: t('menu.reports') || 'REPORTES',
-      icon: BarChart3,
-      allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
-      requiredPermiso: 'reportes.ver',
-      moduleKey: 'reportes',
-    },
-  ];
-
-  const adminNavItems: {
-    path: string;
-    label: string;
-    icon: any;
-    allowedRoles?: string[];
-    requiredPermiso?: string;
-  }[] = [
-    {
-      path: '/configuracion',
-      label: t('menu.configuration'),
-      icon: Sliders,
-      allowedRoles: ['SUPERADMIN'],
-    },
-  ];
-
-  const visibleMainNav = mainNavItems.filter(
+  const visibleItems = NAVIGATION_ITEMS.filter(
     (item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso) && isModuleEnabled(item.moduleKey),
   );
-  const visibleAdminNav = adminNavItems.filter((item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso));
+
+  const getLabel = (item: NavigationItem) => {
+    if (item.key === 'inventario') {
+      return rubroConfig.nombreCatalogo.toUpperCase();
+    }
+    const translated = t(item.labelKey);
+    return translated && translated !== item.labelKey ? translated : item.defaultLabel;
+  };
 
   return (
     <aside style={styles.sidebar}>
@@ -213,12 +90,12 @@ export const Sidebar: React.FC = () => {
       {/* Navigation List */}
       <nav style={styles.navContainer}>
         <ul style={styles.navList}>
-          {visibleMainNav.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             return (
-              <li key={item.path}>
+              <li key={item.key}>
                 <NavLink
-                  to={item.path}
+                  to={item.route}
                   end={item.exact}
                   style={({ isActive }) => ({
                     ...styles.navItem,
@@ -226,38 +103,12 @@ export const Sidebar: React.FC = () => {
                   })}
                 >
                   <Icon size={18} strokeWidth={2.4} />
-                  <span>{item.label}</span>
+                  <span>{getLabel(item)}</span>
                 </NavLink>
               </li>
             );
           })}
         </ul>
-
-        {/* Divider (Only show if admin items are visible) */}
-        {visibleAdminNav.length > 0 && <div style={styles.divider} />}
-
-        {/* Configuration and Admin */}
-        {visibleAdminNav.length > 0 && (
-          <ul style={styles.navList}>
-            {visibleAdminNav.map((item) => {
-              const Icon = item.icon;
-              return (
-                <li key={item.path}>
-                  <NavLink
-                    to={item.path}
-                    style={({ isActive }) => ({
-                      ...styles.navItem,
-                      ...(isActive ? styles.navItemActive : {}),
-                    })}
-                  >
-                    <Icon size={18} strokeWidth={2.4} />
-                    <span>{item.label}</span>
-                  </NavLink>
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </nav>
     </aside>
   );
@@ -348,10 +199,5 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#FFFFFF',
     fontWeight: 800,
     boxShadow: 'var(--shadow-hard-sm)',
-  },
-  divider: {
-    height: '1px',
-    backgroundColor: 'rgba(128, 128, 128, 0.2)',
-    margin: '16px 0 12px',
   },
 };

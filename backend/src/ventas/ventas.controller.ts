@@ -6,9 +6,11 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequiredModule } from '../common/decorators/required-module.decorator';
 import { CreateVentaDto } from './dto/create-venta.dto';
 
 @Controller('ventas')
+@RequiredModule('pos')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 export class VentasController {
   constructor(private readonly ventasService: VentasService) {}
