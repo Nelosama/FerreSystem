@@ -4,59 +4,59 @@ import { useTenant } from '../context/TenantContext';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 
+const roleProfiles = {
+  ADMIN: {
+    id: 'usr-admin-1',
+    nombre: 'Carlos Ramos (Administrador General)',
+    email: 'admin@lamundial.hn',
+    rol: 'ADMIN' as const,
+    permisos: [
+      'pos.vender',
+      'pos.anular_venta',
+      'pos.aplicar_descuento',
+      'inventario.ver',
+      'inventario.editar',
+      'cotizaciones.crear',
+      'cotizaciones.aprobar',
+      'cotizaciones.convertir_venta',
+      'reportes.ver',
+      'usuarios.gestionar',
+      'configuracion.editar',
+    ],
+  },
+  CAJERO: {
+    id: 'usr-cajero-1',
+    nombre: 'Carlos Ramos (Cajero Principal)',
+    email: 'cajero@lamundial.hn',
+    rol: 'CAJERO' as const,
+    permisos: ['pos.vender', 'cotizaciones.crear'],
+  },
+  BODEGUERO: {
+    id: 'usr-bodega-1',
+    nombre: 'Jorge Mendoza (Bodeguero)',
+    email: 'bodega@lamundial.hn',
+    rol: 'BODEGUERO' as const,
+    permisos: ['inventario.ver', 'inventario.editar'],
+  },
+  VENDEDOR: {
+    id: 'usr-vendedor-1',
+    nombre: 'Ana Martínez (Vendedora)',
+    email: 'vendedor@lamundial.hn',
+    rol: 'VENDEDOR' as const,
+    permisos: ['pos.vender', 'cotizaciones.crear'],
+  },
+};
+
 export const LoginPage: React.FC = () => {
   const { login } = useTenant();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('cajero@lamundial.hn');
-  const [password, setPassword] = useState('Ferre2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const executeRoleLogin = (selectedRole: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR') => {
-    const roleProfiles = {
-      ADMIN: {
-        id: 'usr-admin-1',
-        nombre: 'Carlos Ramos (Administrador General)',
-        email: 'admin@lamundial.hn',
-        rol: 'ADMIN' as const,
-        permisos: [
-          'pos.vender',
-          'pos.anular_venta',
-          'pos.aplicar_descuento',
-          'inventario.ver',
-          'inventario.editar',
-          'cotizaciones.crear',
-          'cotizaciones.aprobar',
-          'cotizaciones.convertir_venta',
-          'reportes.ver',
-          'usuarios.gestionar',
-          'configuracion.editar',
-        ],
-      },
-      CAJERO: {
-        id: 'usr-cajero-1',
-        nombre: 'Carlos Ramos (Cajero Principal)',
-        email: 'cajero@lamundial.hn',
-        rol: 'CAJERO' as const,
-        permisos: ['pos.vender', 'cotizaciones.crear'],
-      },
-      BODEGUERO: {
-        id: 'usr-bodega-1',
-        nombre: 'Jorge Mendoza (Bodeguero)',
-        email: 'bodega@lamundial.hn',
-        rol: 'BODEGUERO' as const,
-        permisos: ['inventario.ver', 'inventario.editar'],
-      },
-      VENDEDOR: {
-        id: 'usr-vendedor-1',
-        nombre: 'Ana Martínez (Vendedora)',
-        email: 'vendedor@lamundial.hn',
-        rol: 'VENDEDOR' as const,
-        permisos: ['pos.vender', 'cotizaciones.crear'],
-      },
-    };
-
     const prof = roleProfiles[selectedRole];
     login(
       {
@@ -78,6 +78,27 @@ export const LoginPage: React.FC = () => {
     navigate('/');
   };
 
+  const handleDemoLogin = (emailInput: string, passwordInput: string): boolean => {
+    const cleanEmail = emailInput.trim().toLowerCase();
+
+    if (passwordInput !== 'Ferre2026!') {
+      setError('Correo o contraseña incorrectos');
+      return false;
+    }
+
+    const matchedKey = (Object.keys(roleProfiles) as Array<keyof typeof roleProfiles>).find(
+      (key) => roleProfiles[key].email.toLowerCase() === cleanEmail
+    );
+
+    if (matchedKey) {
+      executeRoleLogin(matchedKey);
+      return true;
+    } else {
+      setError('Correo o contraseña incorrectos');
+      return false;
+    }
+  };
+
   const executeSuperAdminLogin = (superAdmin: { id: string; nombre: string; email: string }) => {
     login(
       {
@@ -97,14 +118,6 @@ export const LoginPage: React.FC = () => {
       },
     );
     navigate('/admin');
-  };
-
-  const executeSuperAdminDemo = () => {
-    executeSuperAdminLogin({
-      id: 'superadmin-demo',
-      nombre: 'Ing. Nelo - SaaS Owner',
-      email: 'admin@ferresystem.hn',
-    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -136,12 +149,15 @@ export const LoginPage: React.FC = () => {
         const response = await api.post('/admin/auth/login', { email, password });
         executeSuperAdminLogin(response.data.superAdmin);
       } catch (err: any) {
-        if (err.response) {
-          const message = err.response.data?.message;
-          setError(Array.isArray(message) ? message.join(', ') : message || 'Credenciales inválidas');
-        } else {
+        if (!err.response) {
           console.warn('Backend login connection issue, switching to local demo mode fallback:', err);
-          executeRoleLogin('ADMIN');
+          handleDemoLogin(email, password);
+        } else {
+          const isDemoSuccess = handleDemoLogin(email, password);
+          if (!isDemoSuccess && err.response.data?.message) {
+            const message = err.response.data?.message;
+            setError(Array.isArray(message) ? message.join(', ') : message || 'Correo o contraseña incorrectos');
+          }
         }
       }
     } finally {
@@ -162,55 +178,6 @@ export const LoginPage: React.FC = () => {
             <span style={{ color: 'var(--color-primary)' }}>System</span>
           </div>
           <div style={styles.subtitle}>SISTEMA DE GESTIÓN PARA FERRETERÍAS</div>
-        </div>
-
-        {/* Quick Login Role Pills */}
-        <div style={{ marginTop: '16px' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '10px', color: '#78716C', textTransform: 'uppercase', marginBottom: '6px' }}>
-            ACCESO RÁPIDO DIRECTO POR ROL:
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '6px' }}>
-            <button
-              type="button"
-              onClick={() => executeRoleLogin('ADMIN')}
-              style={{ ...styles.rolePill, backgroundColor: '#EA580C', color: '#FFFFFF' }}
-              title="Ingresar como Admin de Ferretería"
-            >
-              Admin
-            </button>
-            <button
-              type="button"
-              onClick={() => executeRoleLogin('CAJERO')}
-              style={{ ...styles.rolePill, backgroundColor: '#0284C7', color: '#FFFFFF' }}
-              title="Ingresar como Cajero POS"
-            >
-              Cajero
-            </button>
-            <button
-              type="button"
-              onClick={() => executeRoleLogin('BODEGUERO')}
-              style={{ ...styles.rolePill, backgroundColor: '#15803D', color: '#FFFFFF' }}
-              title="Ingresar como Bodeguero"
-            >
-              Bodega
-            </button>
-            <button
-              type="button"
-              onClick={() => executeRoleLogin('VENDEDOR')}
-              style={{ ...styles.rolePill, backgroundColor: '#D97706', color: '#FFFFFF' }}
-              title="Ingresar como Vendedor"
-            >
-              Vendedor
-            </button>
-            <button
-              type="button"
-              onClick={executeSuperAdminDemo}
-              style={{ ...styles.rolePill, backgroundColor: '#1C1917', color: '#FFFFFF' }}
-              title="Ingresar como Super Admin SaaS"
-            >
-              Super Admin
-            </button>
-          </div>
         </div>
 
         {error && (
@@ -244,6 +211,7 @@ export const LoginPage: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder="correo@empresa.com"
                 className="form-input"
                 style={{ paddingLeft: '36px' }}
               />
@@ -259,6 +227,7 @@ export const LoginPage: React.FC = () => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
                 className="form-input"
                 style={{ paddingLeft: '36px' }}
               />
@@ -323,19 +292,6 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.06em',
     color: '#78716C',
     marginTop: '4px',
-  },
-  rolePill: {
-    padding: '6px 8px',
-    fontFamily: 'var(--font-display)',
-    fontWeight: 800,
-    fontSize: '10px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '4px',
-    border: '1px solid #1C1917',
-    borderRadius: 'var(--radius-xs)',
-    cursor: 'pointer',
   },
   inputWrapper: {
     position: 'relative',
