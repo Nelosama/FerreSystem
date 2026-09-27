@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { ShieldCheck, Search, Plus, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
+import { useTenant } from '../context/TenantContext';
 
 export interface RegistroGarantiaItem {
   id: string;
@@ -43,16 +44,40 @@ const INITIAL_GARANTIAS: RegistroGarantiaItem[] = [
   },
 ];
 
+const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
+
 export const GarantiasPage: React.FC = () => {
+  const { tenant } = useTenant();
   const { t } = useI18n();
-  const [garantias, setGarantias] = useState<RegistroGarantiaItem[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_garantias');
-    return saved ? JSON.parse(saved) : INITIAL_GARANTIAS;
-  });
+  const currentTenantId = tenant?.id || 'tenant-demo-1';
+  const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
+
+  const loadGarantias = (tId: string): RegistroGarantiaItem[] => {
+    const saved = localStorage.getItem(`ferre_mock_garantias_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_garantias');
+      return legacy ? JSON.parse(legacy) : INITIAL_GARANTIAS;
+    }
+    return [];
+  };
+
+  const [garantias, setGarantias] = useState<RegistroGarantiaItem[]>(() =>
+    loadGarantias(currentTenantId),
+  );
 
   React.useEffect(() => {
-    localStorage.setItem('ferre_mock_garantias', JSON.stringify(garantias));
-  }, [garantias]);
+    if (loadedTenantId !== currentTenantId) {
+      setGarantias(loadGarantias(currentTenantId));
+      setLoadedTenantId(currentTenantId);
+    }
+  }, [currentTenantId, loadedTenantId]);
+
+  React.useEffect(() => {
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_garantias_${currentTenantId}`, JSON.stringify(garantias));
+    }
+  }, [garantias, currentTenantId, loadedTenantId]);
 
   const [search, setSearch] = useState('');
   const [modalNuevo, setModalNuevo] = useState(false);

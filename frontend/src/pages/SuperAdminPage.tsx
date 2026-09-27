@@ -25,6 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import { CATALOGO_MODULOS } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
+import { Rubro } from '../types';
 
 interface SubSucursalItem {
   id: string;
@@ -47,6 +48,7 @@ interface TenantItem {
   colorPrimario: string;
   logoUrl?: string | null;
   modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
+  rubro?: Rubro | keyof typeof Rubro;
   sucursalesList?: SubSucursalItem[];
   modulosHabilitados?: string[];
 }
@@ -248,6 +250,7 @@ export const SuperAdminPage: React.FC = () => {
   const [adminPassword, setAdminPassword] = useState('');
   const [telefono, setTelefono] = useState('');
   const [colorPrimario, setColorPrimario] = useState('#EA580C');
+  const [nuevoRubro, setNuevoRubro] = useState<Rubro>(Rubro.FERRETERIA);
 
   // Formulario Admin User
   const [formAdminNombre, setFormAdminNombre] = useState('');
@@ -366,6 +369,7 @@ export const SuperAdminPage: React.FC = () => {
         colorPrimario: modalSuplantarUser.colorPrimario,
         logoUrl: modalSuplantarUser.logoUrl,
         modoNavegacion: modalSuplantarUser.modoNavegacion || 'SIDEBAR',
+        rubro: modalSuplantarUser.rubro || Rubro.FERRETERIA,
         modulosHabilitados: modalSuplantarUser.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key),
       },
       {
@@ -419,6 +423,7 @@ export const SuperAdminPage: React.FC = () => {
       sucursalesCount: 1,
       colorPrimario,
       modoNavegacion: 'SIDEBAR',
+      rubro: nuevoRubro,
       modulosHabilitados: CATALOGO_MODULOS.map((m) => m.key),
     };
 
@@ -1375,6 +1380,26 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               <div className="form-group">
+                <label className="form-label">RUBRO O GIRO COMERCIAL</label>
+                <select
+                  value={nuevoRubro}
+                  onChange={(e) => setNuevoRubro(e.target.value as Rubro)}
+                  className="form-select"
+                >
+                  <option value={Rubro.FERRETERIA}>Ferretería y Materiales de Construcción</option>
+                  <option value={Rubro.PULPERIA}>Pulpería / Mini Abastos</option>
+                  <option value={Rubro.MINIMARKET}>Minimarket / Súper Conveniencia</option>
+                  <option value={Rubro.FARMACIA}>Farmacia y Salud</option>
+                  <option value={Rubro.PAPELERIA}>Papelería y Útiles de Oficina</option>
+                  <option value={Rubro.DISTRIBUIDORA}>Distribuidora Mayorista</option>
+                  <option value={Rubro.AGROSERVICIO}>Agroservicio y Veterinaria</option>
+                  <option value={Rubro.REPUESTOS_AUTOMOTRICES}>Repuestos Automotrices</option>
+                  <option value={Rubro.ELECTRODOMESTICOS}>Electrodomésticos y Tecnología</option>
+                  <option value={Rubro.GENERAL}>Comercio General</option>
+                </select>
+              </div>
+
+              <div className="form-group">
                 <label className="form-label">URL LOGO PERSONALIZADO (IMAGEN CORPORATIVA)</label>
                 <input
                   type="url"
@@ -1502,6 +1527,26 @@ export const SuperAdminPage: React.FC = () => {
                   onChange={(e) => setNombreComercial(e.target.value)}
                   className="form-input"
                 />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">RUBRO O GIRO COMERCIAL</label>
+                <select
+                  value={nuevoRubro}
+                  onChange={(e) => setNuevoRubro(e.target.value as Rubro)}
+                  className="form-select"
+                >
+                  <option value={Rubro.FERRETERIA}>Ferretería y Materiales de Construcción</option>
+                  <option value={Rubro.PULPERIA}>Pulpería / Mini Abastos</option>
+                  <option value={Rubro.MINIMARKET}>Minimarket / Súper Conveniencia</option>
+                  <option value={Rubro.FARMACIA}>Farmacia y Salud</option>
+                  <option value={Rubro.PAPELERIA}>Papelería y Útiles de Oficina</option>
+                  <option value={Rubro.DISTRIBUIDORA}>Distribuidora Mayorista</option>
+                  <option value={Rubro.AGROSERVICIO}>Agroservicio y Veterinaria</option>
+                  <option value={Rubro.REPUESTOS_AUTOMOTRICES}>Repuestos Automotrices</option>
+                  <option value={Rubro.ELECTRODOMESTICOS}>Electrodomésticos y Tecnología</option>
+                  <option value={Rubro.GENERAL}>Comercio General</option>
+                </select>
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>

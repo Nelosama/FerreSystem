@@ -3,6 +3,7 @@ import { TopBar } from '../components/TopBar';
 import { GitBranch, ArrowRight, Plus, CheckCircle } from 'lucide-react';
 import { useMockData } from '../context/MockDataContext';
 import { useI18n } from '../context/I18nContext';
+import { useTenant } from '../context/TenantContext';
 
 export interface TransferenciaItem {
   id: string;
@@ -32,17 +33,42 @@ const INITIAL_TRANSFERENCIAS: TransferenciaItem[] = [
   },
 ];
 
+const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
+
 export const TransferenciasPage: React.FC = () => {
   const { productos } = useMockData();
+  const { tenant } = useTenant();
   const { t } = useI18n();
-  const [transferencias, setTransferencias] = useState<TransferenciaItem[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_transferencias');
-    return saved ? JSON.parse(saved) : INITIAL_TRANSFERENCIAS;
-  });
+
+  const currentTenantId = tenant?.id || 'tenant-demo-1';
+  const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
+
+  const loadTransferencias = (tId: string): TransferenciaItem[] => {
+    const saved = localStorage.getItem(`ferre_mock_transferencias_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_transferencias');
+      return legacy ? JSON.parse(legacy) : INITIAL_TRANSFERENCIAS;
+    }
+    return [];
+  };
+
+  const [transferencias, setTransferencias] = useState<TransferenciaItem[]>(() =>
+    loadTransferencias(currentTenantId),
+  );
 
   React.useEffect(() => {
-    localStorage.setItem('ferre_mock_transferencias', JSON.stringify(transferencias));
-  }, [transferencias]);
+    if (loadedTenantId !== currentTenantId) {
+      setTransferencias(loadTransferencias(currentTenantId));
+      setLoadedTenantId(currentTenantId);
+    }
+  }, [currentTenantId, loadedTenantId]);
+
+  React.useEffect(() => {
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_transferencias_${currentTenantId}`, JSON.stringify(transferencias));
+    }
+  }, [transferencias, currentTenantId, loadedTenantId]);
 
   const [modalNuevo, setModalNuevo] = useState(false);
   const [sucOrigen, setSucOrigen] = useState('Sucursal Centro (Principal)');

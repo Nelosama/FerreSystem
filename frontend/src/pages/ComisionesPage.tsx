@@ -4,6 +4,7 @@ import { Calendar } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useMockData } from '../context/MockDataContext';
 import { useI18n } from '../context/I18nContext';
+import { useTenant } from '../context/TenantContext';
 
 export interface VendedorComision {
   usuarioId: string;
@@ -14,18 +15,43 @@ export interface VendedorComision {
   comisionPagar: number;
 }
 
+const DEFAULT_PORCENTAJES = { 'user-demo-vendedor': 3.0, 'user-demo-1': 1.5, 'user-demo-admin': 2.0 };
+const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
+
 export const ComisionesPage: React.FC = () => {
   const { usuarios, ventas } = useMockData();
+  const { tenant } = useTenant();
   const { t } = useI18n();
 
-  const [porcentajes, setPorcentajes] = useState<Record<string, number>>(() => {
-    const saved = localStorage.getItem('ferre_mock_comisiones_pct');
-    return saved ? JSON.parse(saved) : { 'user-demo-vendedor': 3.0, 'user-demo-1': 1.5, 'user-demo-admin': 2.0 };
-  });
+  const currentTenantId = tenant?.id || 'tenant-demo-1';
+  const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
+
+  const loadPorcentajes = (tId: string): Record<string, number> => {
+    const saved = localStorage.getItem(`ferre_mock_comisiones_pct_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_comisiones_pct');
+      return legacy ? JSON.parse(legacy) : DEFAULT_PORCENTAJES;
+    }
+    return {};
+  };
+
+  const [porcentajes, setPorcentajes] = useState<Record<string, number>>(() =>
+    loadPorcentajes(currentTenantId),
+  );
 
   React.useEffect(() => {
-    localStorage.setItem('ferre_mock_comisiones_pct', JSON.stringify(porcentajes));
-  }, [porcentajes]);
+    if (loadedTenantId !== currentTenantId) {
+      setPorcentajes(loadPorcentajes(currentTenantId));
+      setLoadedTenantId(currentTenantId);
+    }
+  }, [currentTenantId, loadedTenantId]);
+
+  React.useEffect(() => {
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_comisiones_pct_${currentTenantId}`, JSON.stringify(porcentajes));
+    }
+  }, [porcentajes, currentTenantId, loadedTenantId]);
 
   const [fechaInicio, setFechaInicio] = useState('2026-03-01');
   const [fechaFin, setFechaInicioFin] = useState('2026-03-31');

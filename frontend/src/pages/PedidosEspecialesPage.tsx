@@ -3,6 +3,7 @@ import { TopBar } from '../components/TopBar';
 import { Plus, Search, Bell, CheckCircle } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useI18n } from '../context/I18nContext';
+import { useTenant } from '../context/TenantContext';
 
 export interface PedidoEspecialItem {
   id: string;
@@ -41,16 +42,40 @@ const INITIAL_PEDIDOS: PedidoEspecialItem[] = [
   },
 ];
 
+const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
+
 export const PedidosEspecialesPage: React.FC = () => {
+  const { tenant } = useTenant();
   const { t } = useI18n();
-  const [pedidos, setPedidos] = useState<PedidoEspecialItem[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_pedidos_especiales');
-    return saved ? JSON.parse(saved) : INITIAL_PEDIDOS;
-  });
+  const currentTenantId = tenant?.id || 'tenant-demo-1';
+  const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
+
+  const loadPedidos = (tId: string): PedidoEspecialItem[] => {
+    const saved = localStorage.getItem(`ferre_mock_pedidos_especiales_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_pedidos_especiales');
+      return legacy ? JSON.parse(legacy) : INITIAL_PEDIDOS;
+    }
+    return [];
+  };
+
+  const [pedidos, setPedidos] = useState<PedidoEspecialItem[]>(() =>
+    loadPedidos(currentTenantId),
+  );
 
   React.useEffect(() => {
-    localStorage.setItem('ferre_mock_pedidos_especiales', JSON.stringify(pedidos));
-  }, [pedidos]);
+    if (loadedTenantId !== currentTenantId) {
+      setPedidos(loadPedidos(currentTenantId));
+      setLoadedTenantId(currentTenantId);
+    }
+  }, [currentTenantId, loadedTenantId]);
+
+  React.useEffect(() => {
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_pedidos_especiales_${currentTenantId}`, JSON.stringify(pedidos));
+    }
+  }, [pedidos, currentTenantId, loadedTenantId]);
 
   const [search, setSearch] = useState('');
   const [modalNuevo, setModalNuevo] = useState(false);

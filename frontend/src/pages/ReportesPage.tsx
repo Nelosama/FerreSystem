@@ -401,17 +401,17 @@ export const ReportesPage: React.FC = () => {
   // Apartados
   const apartadosDatos = useMemo(() => {
     if (!isModuleEnabled('apartados')) return null;
-    const raw = localStorage.getItem('ferre_mock_apartados');
+    const raw = localStorage.getItem(`ferre_mock_apartados_${tenant.id}`);
     const list: any[] = raw ? JSON.parse(raw) : [];
     const activos = list.filter((a) => a.estado === 'ACTIVO');
     const pendienteCobro = activos.reduce((acc, a) => acc + (a.saldoPendiente || 0), 0);
     return { cantidadActivos: activos.length, pendienteCobro };
-  }, [isModuleEnabled]);
+  }, [isModuleEnabled, tenant.id]);
 
   // Arqueos de Caja
   const arqueosDatos = useMemo(() => {
     if (!isModuleEnabled('arqueo_caja')) return null;
-    const raw = localStorage.getItem('ferre_mock_arqueos');
+    const raw = localStorage.getItem(`ferre_mock_arqueos_${tenant.id}`);
     const list: any[] = raw ? JSON.parse(raw) : [];
 
     const filtrados = list.filter((arq) => {
@@ -421,12 +421,12 @@ export const ReportesPage: React.FC = () => {
 
     const totalDiferencias = filtrados.reduce((acc, a) => acc + (a.diferencia || 0), 0);
     return { historial: filtrados, totalDiferencias };
-  }, [isModuleEnabled, startMs, endMs]);
+  }, [isModuleEnabled, startMs, endMs, tenant.id]);
 
   // Órdenes de Compra
   const ordenesCompraDatos = useMemo(() => {
     if (!isModuleEnabled('ordenes_compra')) return null;
-    const raw = localStorage.getItem('ferre_mock_ordenes');
+    const raw = localStorage.getItem(`ferre_mock_ordenes_${tenant.id}`);
     const list: any[] = raw ? JSON.parse(raw) : [];
 
     const filtradas = list.filter((o) => {
@@ -439,43 +439,43 @@ export const ReportesPage: React.FC = () => {
     const montoTotal = filtradas.reduce((acc, o) => acc + (o.montoTotal || 0), 0);
 
     return { pendientes, recibidas, montoTotal, totalCount: filtradas.length };
-  }, [isModuleEnabled, startMs, endMs]);
+  }, [isModuleEnabled, startMs, endMs, tenant.id]);
 
   // Transferencias
   const transferenciasDatos = useMemo(() => {
     if (!isModuleEnabled('transferencias_sucursal')) return null;
-    const raw = localStorage.getItem('ferre_mock_transferencias');
+    const raw = localStorage.getItem(`ferre_mock_transferencias_${tenant.id}`);
     const list: any[] = raw ? JSON.parse(raw) : [];
 
     const enTransito = list.filter((t) => t.estado === 'EN_TRANSITO').length;
     const recibidas = list.filter((t) => t.estado === 'RECIBIDA').length;
 
     return { enTransito, recibidas, totalCount: list.length };
-  }, [isModuleEnabled]);
+  }, [isModuleEnabled, tenant.id]);
 
   // Garantías
   const garantiasDatos = useMemo(() => {
     if (!isModuleEnabled('garantias')) return null;
-    const raw = localStorage.getItem('ferre_mock_garantias');
+    const raw = localStorage.getItem(`ferre_mock_garantias_${tenant.id}`);
     const list: any[] = raw ? JSON.parse(raw) : [];
 
     const vigentes = list.filter((g) => g.estado === 'VIGENTE').length;
     const vencidas = list.filter((g) => g.estado === 'VENCIDA' || g.estado === 'RECHAZADA').length;
 
     return { vigentes, vencidas, totalCount: list.length };
-  }, [isModuleEnabled]);
+  }, [isModuleEnabled, tenant.id]);
 
   // Pedidos Especiales
   const pedidosEspecialesDatos = useMemo(() => {
     if (!isModuleEnabled('pedidos_especiales')) return null;
-    const raw = localStorage.getItem('ferre_mock_pedidos_especiales');
+    const raw = localStorage.getItem(`ferre_mock_pedidos_especiales_${tenant.id}`);
     const list: any[] = raw ? JSON.parse(raw) : [];
 
     const pendientes = list.filter((p) => p.estado === 'PENDIENTE_NOTIFICAR' || p.estado === 'SOLICITADO').length;
     const entregados = list.filter((p) => p.estado === 'ENTREGADO').length;
 
     return { pendientes, entregados, totalCount: list.length };
-  }, [isModuleEnabled]);
+  }, [isModuleEnabled, tenant.id]);
 
   // ==========================================
   // METRICAS DE LA PESTAÑA CLIENTES
@@ -483,7 +483,7 @@ export const ReportesPage: React.FC = () => {
 
   // Segmentos de Clientes (Si listas_precio está habilitado)
   const clientesSegmentosDatos = useMemo(() => {
-    const rawListas = localStorage.getItem('ferre_mock_listas_precio');
+    const rawListas = localStorage.getItem(`ferre_mock_listas_precio_${tenant.id}`);
     const listas: any[] = rawListas ? JSON.parse(rawListas) : [];
 
     // Clientes extraídos de ventas + cotizaciones
@@ -513,7 +513,7 @@ export const ReportesPage: React.FC = () => {
       listasPrecioHabilitado: isModuleEnabled('listas_precio'),
       listasCount: listas.length,
     };
-  }, [ventas, cotizaciones, isModuleEnabled]);
+  }, [ventas, cotizaciones, isModuleEnabled, tenant.id]);
 
   // Clientes Activos vs Inactivos
   const clientesActividadDatos = useMemo(() => {

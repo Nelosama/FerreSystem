@@ -4,6 +4,7 @@ import { Plus, Search, DollarSign, CheckCircle, XCircle } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useMockData } from '../context/MockDataContext';
 import { useI18n } from '../context/I18nContext';
+import { useTenant } from '../context/TenantContext';
 
 export interface ApartadoItem {
   id: string;
@@ -62,17 +63,41 @@ const INITIAL_APARTADOS: ApartadoItem[] = [
   },
 ];
 
+const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
+
 export const ApartadosPage: React.FC = () => {
   const { productos } = useMockData();
+  const { tenant } = useTenant();
   const { t } = useI18n();
-  const [apartados, setApartados] = useState<ApartadoItem[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_apartados');
-    return saved ? JSON.parse(saved) : INITIAL_APARTADOS;
-  });
+  const currentTenantId = tenant?.id || 'tenant-demo-1';
+  const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
+
+  const loadApartados = (tId: string): ApartadoItem[] => {
+    const saved = localStorage.getItem(`ferre_mock_apartados_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_apartados');
+      return legacy ? JSON.parse(legacy) : INITIAL_APARTADOS;
+    }
+    return [];
+  };
+
+  const [apartados, setApartados] = useState<ApartadoItem[]>(() =>
+    loadApartados(currentTenantId),
+  );
 
   React.useEffect(() => {
-    localStorage.setItem('ferre_mock_apartados', JSON.stringify(apartados));
-  }, [apartados]);
+    if (loadedTenantId !== currentTenantId) {
+      setApartados(loadApartados(currentTenantId));
+      setLoadedTenantId(currentTenantId);
+    }
+  }, [currentTenantId, loadedTenantId]);
+
+  React.useEffect(() => {
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_apartados_${currentTenantId}`, JSON.stringify(apartados));
+    }
+  }, [apartados, currentTenantId, loadedTenantId]);
 
   const [search, setSearch] = useState('');
   const [modalNuevo, setModalNuevo] = useState(false);

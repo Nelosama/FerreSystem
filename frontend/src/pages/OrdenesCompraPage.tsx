@@ -4,6 +4,7 @@ import { Truck, Plus, PackageCheck, Building2, Check } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useMockData } from '../context/MockDataContext';
 import { useI18n } from '../context/I18nContext';
+import { useTenant } from '../context/TenantContext';
 
 export interface ProveedorItem {
   id: string;
@@ -51,26 +52,62 @@ const INITIAL_ORDENES: OrdenCompraItem[] = [
   },
 ];
 
+const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
+
 export const OrdenesCompraPage: React.FC = () => {
   const { productos } = useMockData();
+  const { tenant } = useTenant();
   const { t } = useI18n();
-  const [proveedores, setProveedores] = useState<ProveedorItem[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_proveedores');
-    return saved ? JSON.parse(saved) : INITIAL_PROVEEDORES;
-  });
+  const currentTenantId = tenant?.id || 'tenant-demo-1';
+  const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
 
-  const [ordenes, setOrdenes] = useState<OrdenCompraItem[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_ordenes');
-    return saved ? JSON.parse(saved) : INITIAL_ORDENES;
-  });
+  const loadProveedores = (tId: string): ProveedorItem[] => {
+    const saved = localStorage.getItem(`ferre_mock_proveedores_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_proveedores');
+      return legacy ? JSON.parse(legacy) : INITIAL_PROVEEDORES;
+    }
+    return [];
+  };
+
+  const loadOrdenes = (tId: string): OrdenCompraItem[] => {
+    const saved = localStorage.getItem(`ferre_mock_ordenes_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_ordenes');
+      return legacy ? JSON.parse(legacy) : INITIAL_ORDENES;
+    }
+    return [];
+  };
+
+  const [proveedores, setProveedores] = useState<ProveedorItem[]>(() =>
+    loadProveedores(currentTenantId),
+  );
+
+  const [ordenes, setOrdenes] = useState<OrdenCompraItem[]>(() =>
+    loadOrdenes(currentTenantId),
+  );
 
   React.useEffect(() => {
-    localStorage.setItem('ferre_mock_proveedores', JSON.stringify(proveedores));
-  }, [proveedores]);
+    if (loadedTenantId !== currentTenantId) {
+      setProveedores(loadProveedores(currentTenantId));
+      setOrdenes(loadOrdenes(currentTenantId));
+      setLoadedTenantId(currentTenantId);
+    }
+  }, [currentTenantId, loadedTenantId]);
 
   React.useEffect(() => {
-    localStorage.setItem('ferre_mock_ordenes', JSON.stringify(ordenes));
-  }, [ordenes]);
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_proveedores_${currentTenantId}`, JSON.stringify(proveedores));
+    }
+  }, [proveedores, currentTenantId, loadedTenantId]);
+
+  React.useEffect(() => {
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_ordenes_${currentTenantId}`, JSON.stringify(ordenes));
+    }
+  }, [ordenes, currentTenantId, loadedTenantId]);
 
   const [tab, setTab] = useState<'ordenes' | 'proveedores'>('ordenes');
   const [search, setSearch] = useState('');

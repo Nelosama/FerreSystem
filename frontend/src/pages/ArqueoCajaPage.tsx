@@ -52,21 +52,44 @@ const INITIAL_ARQUEOS: ArqueoRecord[] = [
   },
 ];
 
+const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
+
 export const ArqueoCajaPage: React.FC = () => {
   const { ventas } = useMockData();
   const { tenant, user } = useTenant();
   const { t } = useI18n();
 
-  const [arqueos, setArqueos] = useState<ArqueoRecord[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_arqueos');
-    return saved ? JSON.parse(saved) : INITIAL_ARQUEOS;
-  });
+  const currentTenantId = tenant?.id || 'tenant-demo-1';
+  const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
+
+  const loadArqueos = (tId: string): ArqueoRecord[] => {
+    const saved = localStorage.getItem(`ferre_mock_arqueos_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_arqueos');
+      return legacy ? JSON.parse(legacy) : INITIAL_ARQUEOS;
+    }
+    return [];
+  };
+
+  const [arqueos, setArqueos] = useState<ArqueoRecord[]>(() =>
+    loadArqueos(currentTenantId),
+  );
 
   const [modalImprimir, setModalImprimir] = useState<ArqueoRecord | null>(null);
 
   React.useEffect(() => {
-    localStorage.setItem('ferre_mock_arqueos', JSON.stringify(arqueos));
-  }, [arqueos]);
+    if (loadedTenantId !== currentTenantId) {
+      setArqueos(loadArqueos(currentTenantId));
+      setLoadedTenantId(currentTenantId);
+    }
+  }, [currentTenantId, loadedTenantId]);
+
+  React.useEffect(() => {
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_arqueos_${currentTenantId}`, JSON.stringify(arqueos));
+    }
+  }, [arqueos, currentTenantId, loadedTenantId]);
 
   // Cálculos de ventas en el turno actual por método de pago
   const ventasEfectivoTurno = ventas
