@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Plus, CheckCircle } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
+import { useTenant } from '../context/TenantContext';
 
 export interface ListaPrecioItem {
   id: string;
@@ -17,16 +18,40 @@ const INITIAL_LISTAS: ListaPrecioItem[] = [
   { id: 'lp-3', nombreSegmento: 'Contratista / Maestro de Obra', descuentoPorcentaje: 7, descripcion: 'Descuento especial del 7% en volúmenes', clientesCount: 35 },
 ];
 
+const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
+
 export const ListasPrecioPage: React.FC = () => {
+  const { tenant } = useTenant();
   const { t } = useI18n();
-  const [listas, setListas] = useState<ListaPrecioItem[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_listas_precio');
-    return saved ? JSON.parse(saved) : INITIAL_LISTAS;
-  });
+  const currentTenantId = tenant?.id || 'tenant-demo-1';
+  const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
+
+  const loadListas = (tId: string): ListaPrecioItem[] => {
+    const saved = localStorage.getItem(`ferre_mock_listas_precio_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_listas_precio');
+      return legacy ? JSON.parse(legacy) : INITIAL_LISTAS;
+    }
+    return [];
+  };
+
+  const [listas, setListas] = useState<ListaPrecioItem[]>(() =>
+    loadListas(currentTenantId),
+  );
 
   React.useEffect(() => {
-    localStorage.setItem('ferre_mock_listas_precio', JSON.stringify(listas));
-  }, [listas]);
+    if (loadedTenantId !== currentTenantId) {
+      setListas(loadListas(currentTenantId));
+      setLoadedTenantId(currentTenantId);
+    }
+  }, [currentTenantId, loadedTenantId]);
+
+  React.useEffect(() => {
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_listas_precio_${currentTenantId}`, JSON.stringify(listas));
+    }
+  }, [listas, currentTenantId, loadedTenantId]);
 
   const [modalNuevo, setModalNuevo] = useState(false);
   const [segNombre, setSegNombre] = useState('');

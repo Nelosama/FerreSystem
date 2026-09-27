@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ProductItem, QuotationItem, QuotationDetailItem } from '../types';
+import { Rubro } from '../types';
+import { RUBROS_CONFIG_LOCALIZED } from '../config/rubros';
+import { useTenant } from './TenantContext';
 
 export type { ProductItem, QuotationItem, QuotationDetailItem };
 
@@ -645,44 +648,165 @@ const INITIAL_USUARIOS: Usuario[] = [
   },
 ];
 
+function getInitialProductosForRubro(rubroKey?: string): ProductItem[] {
+  const rubroEnum = (rubroKey || Rubro.FERRETERIA) as Rubro;
+  const config = RUBROS_CONFIG_LOCALIZED[rubroEnum] || RUBROS_CONFIG_LOCALIZED[Rubro.FERRETERIA];
+  const categorias = config.categoriasDefault.map((c) => c.es);
+  const unidad = config.unidadesMedida[0]?.es || 'unidad';
+
+  if (categorias.length === 0) {
+    return [
+      {
+        id: `p-seed-1`,
+        codigo: 'PRD-001',
+        nombre: 'Producto Muestra 1',
+        descripcion: 'Producto inicial de muestra',
+        categoria: 'General',
+        precioVenta: 100.00,
+        precioCosto: 70.00,
+        stockActual: 50,
+        stockMinimo: 10,
+        unidadMedida: unidad,
+        usaMedida: false,
+        activo: true,
+        stockBajo: false,
+      },
+    ];
+  }
+
+  return categorias.slice(0, 3).map((cat, idx) => ({
+    id: `p-seed-${idx + 1}`,
+    codigo: `PRD-00${idx + 1}`,
+    nombre: `Ejemplo ${cat}`,
+    descripcion: `Producto de muestra para categoría ${cat}`,
+    categoria: cat,
+    precioVenta: (idx + 1) * 50 + 25,
+    precioCosto: (idx + 1) * 35 + 10,
+    stockActual: 20 + idx * 10,
+    stockMinimo: 5,
+    unidadMedida: unidad,
+    usaMedida: false,
+    activo: true,
+    stockBajo: false,
+  }));
+}
+
+function getInitialUsuariosForTenant(tenant: any): Usuario[] {
+  return [
+    {
+      id: `usr-admin-${tenant?.id || 'new'}`,
+      nombre: `Administrador (${tenant?.nombreComercial || 'Empresa'})`,
+      email: tenant?.email || `admin@${tenant?.id || 'empresa'}.hn`,
+      rolBase: 'ADMIN',
+      permisos: PERMISOS_DEFAULT_POR_ROL.ADMIN.permisos,
+      descuentoMaximo: 100,
+      activo: true,
+      sucursalActual: tenant?.sucursal || 'Sucursal Principal',
+    },
+  ];
+}
+
+const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
+
 const MockDataContext = createContext<MockDataContextType | undefined>(undefined);
 
 export const MockDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [productos, setProductos] = useState<ProductItem[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_productos');
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTOS;
-  });
+  const { tenant } = useTenant();
+  const currentTenantId = tenant?.id || 'tenant-demo-1';
+  const [loadedTenantId, setLoadedTenantId] = useState<string>(currentTenantId);
 
-  const [cotizaciones, setCotizaciones] = useState<QuotationItem[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_cotizaciones');
-    return saved ? JSON.parse(saved) : INITIAL_COTIZACIONES;
-  });
+  const loadProductosForTenant = (tId: string, rubro?: string): ProductItem[] => {
+    const saved = localStorage.getItem(`ferre_mock_productos_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_productos');
+      return legacy ? JSON.parse(legacy) : INITIAL_PRODUCTOS;
+    }
+    return getInitialProductosForRubro(rubro);
+  };
 
-  const [ventas, setVentas] = useState<SaleRecord[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_ventas');
-    return saved ? JSON.parse(saved) : INITIAL_VENTAS;
-  });
+  const loadCotizacionesForTenant = (tId: string): QuotationItem[] => {
+    const saved = localStorage.getItem(`ferre_mock_cotizaciones_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_cotizaciones');
+      return legacy ? JSON.parse(legacy) : INITIAL_COTIZACIONES;
+    }
+    return [];
+  };
 
-  const [usuarios, setUsuarios] = useState<Usuario[]>(() => {
-    const saved = localStorage.getItem('ferre_users');
-    return saved ? JSON.parse(saved) : INITIAL_USUARIOS;
-  });
+  const loadVentasForTenant = (tId: string): SaleRecord[] => {
+    const saved = localStorage.getItem(`ferre_mock_ventas_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_mock_ventas');
+      return legacy ? JSON.parse(legacy) : INITIAL_VENTAS;
+    }
+    return [];
+  };
+
+  const loadUsuariosForTenant = (tObj: any): Usuario[] => {
+    const tId = tObj?.id || 'tenant-demo-1';
+    const saved = localStorage.getItem(`ferre_users_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (isDemoTenant(tId)) {
+      const legacy = localStorage.getItem('ferre_users');
+      return legacy ? JSON.parse(legacy) : INITIAL_USUARIOS;
+    }
+    return getInitialUsuariosForTenant(tObj);
+  };
+
+  const [productos, setProductos] = useState<ProductItem[]>(() =>
+    loadProductosForTenant(currentTenantId, tenant?.rubro),
+  );
+
+  const [cotizaciones, setCotizaciones] = useState<QuotationItem[]>(() =>
+    loadCotizacionesForTenant(currentTenantId),
+  );
+
+  const [ventas, setVentas] = useState<SaleRecord[]>(() =>
+    loadVentasForTenant(currentTenantId),
+  );
+
+  const [usuarios, setUsuarios] = useState<Usuario[]>(() =>
+    loadUsuariosForTenant(tenant),
+  );
+
+  // Re-sync on tenant change
+  useEffect(() => {
+    if (loadedTenantId !== currentTenantId) {
+      setProductos(loadProductosForTenant(currentTenantId, tenant?.rubro));
+      setCotizaciones(loadCotizacionesForTenant(currentTenantId));
+      setVentas(loadVentasForTenant(currentTenantId));
+      setUsuarios(loadUsuariosForTenant(tenant));
+      setLoadedTenantId(currentTenantId);
+    }
+  }, [currentTenantId, tenant, loadedTenantId]);
+
+  // Persistence per tenant
+  useEffect(() => {
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_productos_${currentTenantId}`, JSON.stringify(productos));
+    }
+  }, [productos, currentTenantId, loadedTenantId]);
 
   useEffect(() => {
-    localStorage.setItem('ferre_mock_productos', JSON.stringify(productos));
-  }, [productos]);
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_cotizaciones_${currentTenantId}`, JSON.stringify(cotizaciones));
+    }
+  }, [cotizaciones, currentTenantId, loadedTenantId]);
 
   useEffect(() => {
-    localStorage.setItem('ferre_mock_cotizaciones', JSON.stringify(cotizaciones));
-  }, [cotizaciones]);
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_mock_ventas_${currentTenantId}`, JSON.stringify(ventas));
+    }
+  }, [ventas, currentTenantId, loadedTenantId]);
 
   useEffect(() => {
-    localStorage.setItem('ferre_mock_ventas', JSON.stringify(ventas));
-  }, [ventas]);
-
-  useEffect(() => {
-    localStorage.setItem('ferre_users', JSON.stringify(usuarios));
-  }, [usuarios]);
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(`ferre_users_${currentTenantId}`, JSON.stringify(usuarios));
+    }
+  }, [usuarios, currentTenantId, loadedTenantId]);
 
   const agregarProducto = (productoData: Omit<ProductItem, 'id'>): ProductItem => {
     const nuevo: ProductItem = {

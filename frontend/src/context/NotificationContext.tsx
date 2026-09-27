@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useTenant } from './TenantContext';
 
 export interface SolicitudDescuento {
   id: string;
@@ -19,20 +20,46 @@ interface NotificationContextType {
   responderSolicitud: (id: string, nuevoEstado: 'APROBADA' | 'RECHAZADA', respondidoPor: string) => void;
 }
 
-const STORAGE_KEY = 'ferre_solicitudes_descuento';
-
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [solicitudes, setSolicitudes] = useState<SolicitudDescuento[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const { tenant } = useTenant();
+  const currentTenantId = tenant?.id || 'tenant-demo-1';
+  const storageKey = `ferre_solicitudes_descuento_${currentTenantId}`;
+
+  const [loadedTenantId, setLoadedTenantId] = useState<string>(currentTenantId);
+
+  const loadSolicitudes = (tId: string): SolicitudDescuento[] => {
+    const saved = localStorage.getItem(`ferre_solicitudes_descuento_${tId}`);
+    if (saved) return JSON.parse(saved);
+    if (tId === 'tenant-demo-1' || tId === 't-1') {
+      const legacy = localStorage.getItem('ferre_solicitudes_descuento');
+      return legacy ? JSON.parse(legacy) : [];
+    }
+    return [];
+  };
+
+  const [solicitudes, setSolicitudes] = useState<SolicitudDescuento[]>(() =>
+    loadSolicitudes(currentTenantId),
+  );
+
+  useEffect(() => {
+    if (loadedTenantId !== currentTenantId) {
+      setSolicitudes(loadSolicitudes(currentTenantId));
+      setLoadedTenantId(currentTenantId);
+    }
+  }, [currentTenantId, loadedTenantId]);
+
+  useEffect(() => {
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(storageKey, JSON.stringify(solicitudes));
+    }
+  }, [solicitudes, currentTenantId, loadedTenantId, storageKey]);
 
   // Escuchar cambios de localStorage en otras pestañas
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) {
+      if (e.key === storageKey) {
         if (e.newValue) {
           setSolicitudes(JSON.parse(e.newValue));
         } else {
@@ -45,7 +72,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [storageKey]);
 
   const solicitarDescuento = (
     data: Omit<SolicitudDescuento, 'id' | 'estado' | 'fecha'>,
@@ -59,7 +86,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const actualizadas = [nueva, ...solicitudes];
     setSolicitudes(actualizadas);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizadas));
+    localStorage.setItem(storageKey, JSON.stringify(actualizadas));
     return nueva;
   };
 
@@ -72,7 +99,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       s.id === id ? { ...s, estado: nuevoEstado, respondidoPor } : s,
     );
     setSolicitudes(actualizadas);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizadas));
+    localStorage.setItem(storageKey, JSON.stringify(actualizadas));
   };
 
   return (
