@@ -25,7 +25,7 @@ import { TopBar } from '../components/TopBar';
 import { MetricCard } from '../components/MetricCard';
 import { useMockData } from '../context/MockDataContext';
 import { useTenant } from '../context/TenantContext';
-import { exportToCSV } from '../utils/csvExport';
+import { exportToExcel } from '../utils/excelExport';
 
 type PresetRango = 'HOY' | 'SEMANA' | 'MES' | 'PERSONALIZADO';
 type TabName = 'VENTAS' | 'INVENTARIO' | 'COTIZACIONES' | 'OPERACIONES' | 'CLIENTES';
@@ -144,13 +144,14 @@ export const ReportesPage: React.FC = () => {
   // Cotizaciones del período actual
   const cotizacionesPeriodo = useMemo(() => {
     return cotizaciones.filter((c) => {
-      // Normalizar fecha de emisión (es-HN format "DD/MM/YYYY" o ISO)
+      const fecha = c.fechaEmision || c.createdAt || '';
+      if (!fecha) return false;
       let cTime = 0;
-      if (c.fechaEmision.includes('/')) {
-        const parts = c.fechaEmision.split('/');
+      if (fecha.includes('/')) {
+        const parts = fecha.split('/');
         cTime = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00.000Z`).getTime();
       } else {
-        cTime = new Date(c.fechaEmision).getTime();
+        cTime = new Date(fecha).getTime();
       }
       return cTime >= startMs && cTime <= endMs;
     });
@@ -705,9 +706,9 @@ export const ReportesPage: React.FC = () => {
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
-                  onClick={() => exportToCSV('ventas_por_categoria', ventasPorCategoria)}
+                  onClick={() => exportToExcel('ventas_por_categoria', ventasPorCategoria)}
                 >
-                  <Download size={14} /> EXPORTAR CSV
+                  <Download size={14} /> EXPORTAR EXCEL
                 </button>
               </div>
 
@@ -768,9 +769,9 @@ export const ReportesPage: React.FC = () => {
                   <button
                     type="button"
                     className="btn btn-sm btn-secondary"
-                    onClick={() => exportToCSV('ventas_por_vendedor', ventasPorVendedor)}
+                    onClick={() => exportToExcel('ventas_por_vendedor', ventasPorVendedor)}
                   >
-                    <Download size={14} /> CSV
+                    <Download size={14} /> EXCEL
                   </button>
                 </div>
 
@@ -816,9 +817,9 @@ export const ReportesPage: React.FC = () => {
                   <button
                     type="button"
                     className="btn btn-sm btn-secondary"
-                    onClick={() => exportToCSV('ventas_por_metodo_pago', ventasPorMetodoPago)}
+                    onClick={() => exportToExcel('ventas_por_metodo_pago', ventasPorMetodoPago)}
                   >
-                    <Download size={14} /> CSV
+                    <Download size={14} /> EXCEL
                   </button>
                 </div>
 
@@ -857,9 +858,9 @@ export const ReportesPage: React.FC = () => {
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
-                  onClick={() => exportToCSV('top_10_clientes', top10Clientes)}
+                  onClick={() => exportToExcel('top_10_clientes', top10Clientes)}
                 >
-                  <Download size={14} /> EXPORTAR CSV
+                  <Download size={14} /> EXPORTAR EXCEL
                 </button>
               </div>
 
@@ -952,9 +953,9 @@ export const ReportesPage: React.FC = () => {
                   <button
                     type="button"
                     className="btn btn-sm btn-secondary"
-                    onClick={() => exportToCSV('top_10_mas_vendidos', top10MasVendidos)}
+                    onClick={() => exportToExcel('top_10_mas_vendidos', top10MasVendidos)}
                   >
-                    <Download size={14} /> CSV
+                    <Download size={14} /> EXCEL
                   </button>
                 </div>
 
@@ -1004,9 +1005,9 @@ export const ReportesPage: React.FC = () => {
                   <button
                     type="button"
                     className="btn btn-sm btn-secondary"
-                    onClick={() => exportToCSV('top_10_menor_rotacion', top10MenorRotacion)}
+                    onClick={() => exportToExcel('top_10_menor_rotacion', top10MenorRotacion)}
                   >
-                    <Download size={14} /> CSV
+                    <Download size={14} /> EXCEL
                   </button>
                 </div>
 
@@ -1066,9 +1067,9 @@ export const ReportesPage: React.FC = () => {
                   <button
                     type="button"
                     className="btn btn-sm btn-secondary"
-                    onClick={() => exportToCSV(`productos_sin_movimiento_${diasSinMovimiento}_dias`, productosSinMovimiento)}
+                    onClick={() => exportToExcel(`productos_sin_movimiento_${diasSinMovimiento}_dias`, productosSinMovimiento)}
                   >
-                    <Download size={14} /> EXPORTAR CSV
+                    <Download size={14} /> EXPORTAR EXCEL
                   </button>
                 </div>
               </div>
@@ -1128,9 +1129,9 @@ export const ReportesPage: React.FC = () => {
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
-                  onClick={() => exportToCSV('margen_ganancia_productos', productosMargenGanancia)}
+                  onClick={() => exportToExcel('margen_ganancia_productos', productosMargenGanancia)}
                 >
-                  <Download size={14} /> EXPORTAR CSV
+                  <Download size={14} /> EXPORTAR EXCEL
                 </button>
               </div>
 
@@ -1186,9 +1187,9 @@ export const ReportesPage: React.FC = () => {
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
-                  onClick={() => exportToCSV('productos_stock_bajo', productosStockBajo)}
+                  onClick={() => exportToExcel('productos_stock_bajo', productosStockBajo)}
                 >
-                  <Download size={14} /> EXPORTAR CSV
+                  <Download size={14} /> EXPORTAR EXCEL
                 </button>
               </div>
 
@@ -1278,9 +1279,9 @@ export const ReportesPage: React.FC = () => {
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
-                  onClick={() => exportToCSV('desglose_cotizaciones_estado', Object.entries(cotizacionesMetricas.desgloseEstado).map(([estado, cantidad]) => ({ estado, cantidad })))}
+                  onClick={() => exportToExcel('desglose_cotizaciones_estado', Object.entries(cotizacionesMetricas.desgloseEstado).map(([estado, cantidad]) => ({ estado, cantidad })))}
                 >
-                  <Download size={14} /> EXPORTAR CSV
+                  <Download size={14} /> EXPORTAR EXCEL
                 </button>
               </div>
 
@@ -1322,9 +1323,9 @@ export const ReportesPage: React.FC = () => {
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
-                  onClick={() => exportToCSV('cotizaciones_proximas_vencer', cotizacionesMetricas.proximasVencer)}
+                  onClick={() => exportToExcel('cotizaciones_proximas_vencer', cotizacionesMetricas.proximasVencer)}
                 >
-                  <Download size={14} /> EXPORTAR CSV
+                  <Download size={14} /> EXPORTAR EXCEL
                 </button>
               </div>
 
@@ -1425,9 +1426,9 @@ export const ReportesPage: React.FC = () => {
                   <button
                     type="button"
                     className="btn btn-sm btn-secondary"
-                    onClick={() => exportToCSV('historial_arqueos_caja', arqueosDatos.historial)}
+                    onClick={() => exportToExcel('historial_arqueos_caja', arqueosDatos.historial)}
                   >
-                    <Download size={14} /> EXPORTAR CSV
+                    <Download size={14} /> EXPORTAR EXCEL
                   </button>
                 </div>
 
@@ -1648,9 +1649,9 @@ export const ReportesPage: React.FC = () => {
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
-                  onClick={() => exportToCSV('clientes_por_segmento', Object.entries(clientesSegmentosDatos.segmentosMap).map(([segmento, cantidad]) => ({ segmento, cantidad })))}
+                  onClick={() => exportToExcel('clientes_por_segmento', Object.entries(clientesSegmentosDatos.segmentosMap).map(([segmento, cantidad]) => ({ segmento, cantidad })))}
                 >
-                  <Download size={14} /> EXPORTAR CSV
+                  <Download size={14} /> EXPORTAR EXCEL
                 </button>
               </div>
 

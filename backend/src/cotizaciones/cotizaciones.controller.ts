@@ -6,9 +6,11 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequiredModule } from '../common/decorators/required-module.decorator';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
 
 @Controller('cotizaciones')
+@RequiredModule('cotizaciones')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 export class CotizacionesController {
   constructor(private readonly cotizacionesService: CotizacionesService) {}

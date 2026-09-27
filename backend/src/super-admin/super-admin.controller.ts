@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Param, UseGuards, Res, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Put, Patch, Body, Param, UseGuards, Res, HttpCode, HttpStatus } from '@nestjs/common';
 import { SuperAdminService } from './super-admin.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../common/guards/super-admin.guard';
@@ -48,5 +48,39 @@ export class SuperAdminController {
     @Body() body: { estado: 'ACTIVO' | 'SUSPENDIDO' },
   ) {
     return this.superAdminService.toggleTenantStatus(id, body.estado);
+  }
+
+  @Get('tenants/:id/modules')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async getTenantModules(@Param('id') id: string) {
+    return this.superAdminService.getTenantModules(id);
+  }
+
+  @Put('tenants/:id/modules')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async updateTenantModules(
+    @Param('id') id: string,
+    @Body() body: { modules: { moduleKey: string; enabled: boolean }[] },
+  ) {
+    return this.superAdminService.updateTenantModules(id, body.modules);
+  }
+
+  @Patch('tenants/:id')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async updateTenantConfig(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      nombreComercial?: string;
+      direccion?: string;
+      telefono?: string;
+      email?: string;
+      colorPrimario?: string;
+      logoUrl?: string;
+      modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
+      plan?: string;
+    },
+  ) {
+    return this.superAdminService.updateTenantConfig(id, body);
   }
 }

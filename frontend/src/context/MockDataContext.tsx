@@ -210,19 +210,29 @@ const INITIAL_PRODUCTOS: ProductItem[] = [
   },
 ];
 
+const now = new Date();
+const daysAgo = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+const daysAgoFormatted = (days: number) => {
+  const d = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 const INITIAL_COTIZACIONES: QuotationItem[] = [
   {
     id: 'cot-1',
-    numero: 8,
-    numeroCotizacion: 8,
+    numero: 12,
+    numeroCotizacion: 12,
     cliente: 'Constructora del Norte S. de R.L.',
     rtn: '05019001234567',
     telefono: '+504 9876-5432',
     email: 'compras@constructoranorte.hn',
     direccion: 'Zona Industrial Choloma, Cortés',
     usuarioNombre: 'Carlos Ramos (Admin Ferretería)',
-    fechaEmision: new Date().toLocaleDateString('es-HN'),
-    fechaValidez: '15/10/2026',
+    fechaEmision: daysAgoFormatted(2),
+    fechaValidez: daysAgoFormatted(-13),
     diasValidez: 15,
     condicionesPago: 'Contado / Transferencia',
     subtotal: 16333.26,
@@ -278,14 +288,14 @@ const INITIAL_COTIZACIONES: QuotationItem[] = [
   },
   {
     id: 'cot-2',
-    numero: 7,
-    numeroCotizacion: 7,
+    numero: 11,
+    numeroCotizacion: 11,
     cliente: 'Ferretería El Progreso (Subdistribuidor)',
     rtn: '05021980001234',
     telefono: '+504 2647-1122',
     usuarioNombre: 'Carlos Ramos (Cajero)',
-    fechaEmision: '20/09/2026',
-    fechaValidez: '10/10/2026',
+    fechaEmision: daysAgoFormatted(12),
+    fechaValidez: daysAgoFormatted(3),
     diasValidez: 15,
     condicionesPago: 'Crédito 15 días',
     subtotal: 8400.00,
@@ -299,13 +309,13 @@ const INITIAL_COTIZACIONES: QuotationItem[] = [
   },
   {
     id: 'cot-3',
-    numero: 6,
-    numeroCotizacion: 6,
+    numero: 10,
+    numeroCotizacion: 10,
     cliente: 'Ing. Roberto Flores',
     telefono: '+504 3311-2244',
     usuarioNombre: 'Carlos Ramos (Admin Ferretería)',
-    fechaEmision: '22/09/2026',
-    fechaValidez: '07/10/2026',
+    fechaEmision: daysAgoFormatted(25),
+    fechaValidez: daysAgoFormatted(-10),
     diasValidez: 15,
     condicionesPago: 'Contado',
     subtotal: 3200.00,
@@ -319,13 +329,13 @@ const INITIAL_COTIZACIONES: QuotationItem[] = [
   },
   {
     id: 'cot-4',
-    numero: 5,
-    numeroCotizacion: 5,
+    numero: 9,
+    numeroCotizacion: 9,
     cliente: 'Inversiones Industriales Cortés',
     rtn: '05019003322114',
     usuarioNombre: 'Carlos Ramos (Admin Ferretería)',
-    fechaEmision: '18/09/2026',
-    fechaValidez: '05/10/2026',
+    fechaEmision: daysAgoFormatted(45),
+    fechaValidez: daysAgoFormatted(30),
     diasValidez: 15,
     condicionesPago: 'Crédito 30 días',
     subtotal: 45000.00,
@@ -339,13 +349,13 @@ const INITIAL_COTIZACIONES: QuotationItem[] = [
   },
   {
     id: 'cot-5',
-    numero: 4,
-    numeroCotizacion: 4,
+    numero: 8,
+    numeroCotizacion: 8,
     cliente: 'Taller Mecánico San José',
     rtn: '05011985004411',
     usuarioNombre: 'Carlos Ramos (Admin Ferretería)',
-    fechaEmision: '10/09/2026',
-    fechaValidez: '25/09/2026',
+    fechaEmision: daysAgoFormatted(70),
+    fechaValidez: daysAgoFormatted(55),
     diasValidez: 15,
     condicionesPago: 'Contado',
     subtotal: 6200.00,
@@ -360,6 +370,7 @@ const INITIAL_COTIZACIONES: QuotationItem[] = [
 ];
 
 const INITIAL_VENTAS: SaleRecord[] = [
+  // Mes 1 (Hoy - Hace 5 días)
   {
     id: 'v-1',
     numeroVenta: 1042,
@@ -369,7 +380,7 @@ const INITIAL_VENTAS: SaleRecord[] = [
     isv: 5553.91,
     total: 42580.00,
     metodoPago: 'EFECTIVO',
-    fecha: new Date().toISOString(),
+    fecha: daysAgo(1),
     items: [
       {
         productoId: 'p-1',
@@ -403,7 +414,7 @@ const INITIAL_VENTAS: SaleRecord[] = [
     isv: 1875.00,
     total: 14375.00,
     metodoPago: 'CREDITO',
-    fecha: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    fecha: daysAgo(4),
     items: [
       {
         productoId: 'p-alz-1',
@@ -421,6 +432,8 @@ const INITIAL_VENTAS: SaleRecord[] = [
       },
     ],
   },
+
+  // Mes 1 (Hace 12 - 20 días)
   {
     id: 'v-3',
     numeroVenta: 1040,
@@ -430,7 +443,7 @@ const INITIAL_VENTAS: SaleRecord[] = [
     isv: 930.00,
     total: 7130.00,
     metodoPago: 'TARJETA',
-    fecha: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    fecha: daysAgo(15),
     items: [
       {
         productoId: 'p-6',
@@ -445,6 +458,145 @@ const INITIAL_VENTAS: SaleRecord[] = [
         precioUnitario: 1450.00,
         cantidad: 3,
         categoria: 'Electricidad',
+      },
+    ],
+  },
+  {
+    id: 'v-4',
+    numeroVenta: 1039,
+    clienteNombre: 'Inversiones Industriales Cortés',
+    vendedorNombre: 'Ana Martínez (Vendedora)',
+    subtotal: 28400.00,
+    isv: 4260.00,
+    total: 32660.00,
+    metodoPago: 'CREDITO',
+    fecha: daysAgo(22),
+    items: [
+      {
+        productoId: 'p-2',
+        nombre: 'Cemento Bijao Gris Uso General 42.5kg',
+        precioUnitario: 220.00,
+        cantidad: 100,
+        categoria: 'Construcción',
+      },
+      {
+        productoId: 'p-4',
+        nombre: 'Tubo PVC Sanitario 4" x 6m Durman',
+        precioUnitario: 380.00,
+        cantidad: 16,
+        categoria: 'Plomería',
+      },
+    ],
+  },
+
+  // Mes 2 (Hace 35 - 55 días)
+  {
+    id: 'v-5',
+    numeroVenta: 1038,
+    clienteNombre: 'Ferretería El Progreso',
+    vendedorNombre: 'Carlos Ramos (Cajero)',
+    subtotal: 18900.00,
+    isv: 2835.00,
+    total: 21735.00,
+    metodoPago: 'EFECTIVO',
+    fecha: daysAgo(38),
+    items: [
+      {
+        productoId: 'p-1',
+        nombre: 'Martillo de Uña Curva 16oz Stanley',
+        precioUnitario: 245.00,
+        cantidad: 20,
+        categoria: 'Herramientas',
+      },
+      {
+        productoId: 'p-clv-1',
+        nombre: 'Clavos de Acero Concreto 2.5"',
+        precioUnitario: 19.13,
+        cantidad: 500,
+        categoria: 'Fijación',
+      },
+    ],
+  },
+  {
+    id: 'v-6',
+    numeroVenta: 1037,
+    clienteNombre: 'Ing. Roberto Flores',
+    vendedorNombre: 'Ana Martínez (Vendedora)',
+    subtotal: 15600.00,
+    isv: 2340.00,
+    total: 17940.00,
+    metodoPago: 'TARJETA',
+    fecha: daysAgo(48),
+    items: [
+      {
+        productoId: 'p-alz-1',
+        nombre: 'Aluzinc natural 0.40 mm HG',
+        precioUnitario: 39.00,
+        cantidad: 300,
+        categoria: 'Construcción',
+      },
+      {
+        productoId: 'p-6',
+        nombre: 'Cinta Métrica 8m / 26ft Truper Grip',
+        precioUnitario: 185.00,
+        cantidad: 20,
+        categoria: 'Herramientas',
+      },
+    ],
+  },
+
+  // Mes 3 (Hace 65 - 85 días)
+  {
+    id: 'v-7',
+    numeroVenta: 1036,
+    clienteNombre: 'Constructora del Norte S. de R.L.',
+    vendedorNombre: 'Carlos Ramos (Admin Ferretería)',
+    subtotal: 54000.00,
+    isv: 8100.00,
+    total: 62100.00,
+    metodoPago: 'CREDITO',
+    fecha: daysAgo(68),
+    items: [
+      {
+        productoId: 'p-2',
+        nombre: 'Cemento Bijao Gris Uso General 42.5kg',
+        precioUnitario: 220.00,
+        cantidad: 200,
+        categoria: 'Construcción',
+      },
+      {
+        productoId: 'p-3',
+        nombre: 'Varilla Corrugada 3/8" Grado 40 (6m)',
+        precioUnitario: 165.00,
+        cantidad: 60,
+        categoria: 'Construcción',
+      },
+    ],
+  },
+  {
+    id: 'v-8',
+    numeroVenta: 1035,
+    clienteNombre: 'Consumidor Final',
+    vendedorNombre: 'Carlos Ramos (Cajero)',
+    subtotal: 8200.00,
+    isv: 1230.00,
+    total: 9430.00,
+    metodoPago: 'EFECTIVO',
+    fecha: daysAgo(82),
+    items: [
+      {
+        productoId: 'p-5',
+        nombre: 'Cable THHN Calibre 12 AWG Rollo 100m',
+        precioUnitario: 1450.00,
+        cantidad: 5,
+        categoria: 'Electricidad',
+      },
+      {
+        productoId: 'p-1',
+        nombre: 'Martillo de Uña Curva 16oz Stanley',
+        precioUnitario: 245.00,
+        cantidad: 4,
+        categoria: 'Herramientas',
       },
     ],
   },
