@@ -7,6 +7,7 @@ import { NotificationProvider } from './context/NotificationContext';
 import { I18nProvider } from './context/I18nContext';
 import { Sidebar } from './components/Sidebar';
 import { TopNavigation } from './components/TopNavigation';
+import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 import './App.css';
@@ -112,6 +113,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className="main-content" style={isTopNav ? { flex: 1, width: '100%' } : undefined}>
         {children}
       </div>
+      <BottomNavigation />
     </div>
   );
 };
