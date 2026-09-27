@@ -123,6 +123,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 value={tenant.sucursal || 'Sucursal Centro (Principal)'}
                 onChange={(e) => switchSucursal(e.target.value, tenant.id)}
                 style={styles.sucursalSelect}
+                aria-label="Seleccionar sucursal"
               >
                 {sucursalesDisponibles.map((s: any) => (
                   <option key={s.id} value={s.nombre}>
@@ -144,6 +145,8 @@ export const TopBar: React.FC<TopBarProps> = ({
               onClick={() => setPanelNotificaciones(!panelNotificaciones)}
               style={styles.bellBtn}
               title="Solicitudes de Autorización"
+              aria-label="Solicitudes de autorización"
+              aria-expanded={panelNotificaciones}
             >
               <Bell size={16} strokeWidth={2.5} />
               {solicitudesPendientes.length > 0 && (
@@ -153,7 +156,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
             {/* Panel Flotante de Notificaciones */}
             {panelNotificaciones && (
-              <div style={styles.notifPanel}>
+              <div style={styles.notifPanel} role="region" aria-label="Panel de solicitudes de autorización">
                 <div style={styles.notifHeader}>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px' }}>
                     SOLICITUDES DE AUTORIZACIÓN ({solicitudesPendientes.length})
@@ -162,6 +165,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     type="button"
                     onClick={() => setPanelNotificaciones(false)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                    aria-label="Cerrar panel de notificaciones"
                   >
                     <X size={16} />
                   </button>

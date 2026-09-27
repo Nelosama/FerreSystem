@@ -78,6 +78,35 @@ export const LoginPage: React.FC = () => {
     navigate('/');
   };
 
+  const executeSuperAdminLogin = (superAdmin: { id: string; nombre: string; email: string }) => {
+    login(
+      {
+        id: superAdmin.id,
+        nombre: superAdmin.nombre,
+        email: superAdmin.email,
+        rol: 'SUPERADMIN',
+        permisos: ['usuarios.gestionar', 'configuracion.editar'],
+        descuentoMaximo: 100,
+        activo: true,
+      },
+      {
+        id: 'saas-global',
+        nombreComercial: 'FerreSystem Admin Portal',
+        sucursal: 'Global',
+        colorPrimario: '#1C1917',
+      },
+    );
+    navigate('/admin');
+  };
+
+  const executeSuperAdminDemo = () => {
+    executeSuperAdminLogin({
+      id: 'superadmin-demo',
+      nombre: 'Ing. Nelo - SaaS Owner',
+      email: 'admin@ferresystem.hn',
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -101,12 +130,22 @@ export const LoginPage: React.FC = () => {
           colorPrimario: tenant.colorPrimario || '#EA580C',
         },
       );
-      setLoading(false);
       navigate('/');
-    } catch (err: any) {
-      console.warn('Backend login connection issue, switching to local demo mode fallback:', err);
+    } catch {
+      try {
+        const response = await api.post('/admin/auth/login', { email, password });
+        executeSuperAdminLogin(response.data.superAdmin);
+      } catch (err: any) {
+        if (err.response) {
+          const message = err.response.data?.message;
+          setError(Array.isArray(message) ? message.join(', ') : message || 'Credenciales inválidas');
+        } else {
+          console.warn('Backend login connection issue, switching to local demo mode fallback:', err);
+          executeRoleLogin('ADMIN');
+        }
+      }
+    } finally {
       setLoading(false);
-      executeRoleLogin('ADMIN');
     }
   };
 
@@ -162,6 +201,14 @@ export const LoginPage: React.FC = () => {
               title="Ingresar como Vendedor"
             >
               Vendedor
+            </button>
+            <button
+              type="button"
+              onClick={executeSuperAdminDemo}
+              style={{ ...styles.rolePill, backgroundColor: '#1C1917', color: '#FFFFFF' }}
+              title="Ingresar como Super Admin SaaS"
+            >
+              Super Admin
             </button>
           </div>
         </div>
