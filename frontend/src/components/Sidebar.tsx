@@ -16,6 +16,7 @@ import {
   Clock,
   Tags,
   Percent,
+  BarChart3,
 } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
@@ -41,6 +42,7 @@ export const Sidebar: React.FC = () => {
     'pedidos_especiales',
     'listas_precio',
     'comisiones_venta',
+    'reportes',
   ];
 
   const isModuleEnabled = (moduleKey?: string) => {
@@ -150,6 +152,14 @@ export const Sidebar: React.FC = () => {
       allowedRoles: ['ADMIN'],
       moduleKey: 'comisiones_venta',
     },
+    {
+      path: '/reportes',
+      label: t('menu.reports') || 'REPORTES',
+      icon: BarChart3,
+      allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+      requiredPermiso: 'reportes.ver',
+      moduleKey: 'reportes',
+    },
   ];
 
   const adminNavItems: {
@@ -168,7 +178,7 @@ export const Sidebar: React.FC = () => {
   ];
 
   const visibleMainNav = mainNavItems.filter(
-    (item) => isRoleAllowed(item.allowedRoles) && isModuleEnabled(item.moduleKey),
+    (item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso) && isModuleEnabled(item.moduleKey),
   );
   const visibleAdminNav = adminNavItems.filter((item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso));
 
@@ -177,13 +187,23 @@ export const Sidebar: React.FC = () => {
       {/* Brand Header */}
       <div style={styles.brandHeader}>
         <div style={styles.logoRow}>
-          <div style={styles.logoIcon}>
-            <Box size={28} strokeWidth={2.5} color="var(--color-primary)" />
-          </div>
-          <div style={styles.brandName}>
-            <span style={styles.brandFerre}>Ferre</span>
-            <span style={styles.brandSystem}>System</span>
-          </div>
+          {tenant.logoUrl ? (
+            <img
+              src={tenant.logoUrl}
+              alt="Tenant Logo"
+              style={{ height: '36px', width: 'auto', maxHeight: '42px', objectFit: 'contain' }}
+            />
+          ) : (
+            <div style={styles.logoIcon}>
+              <Box size={28} strokeWidth={2.5} color="var(--color-primary)" />
+            </div>
+          )}
+          {!tenant.logoUrl && (
+            <div style={styles.brandName}>
+              <span style={styles.brandFerre}>Ferre</span>
+              <span style={styles.brandSystem}>System</span>
+            </div>
+          )}
         </div>
         <div style={styles.tenantName}>
           {tenant.nombreComercial || 'LA MUNDIAL - SUCURSAL CENTRO'}
