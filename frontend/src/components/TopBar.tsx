@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Clock, UserCheck, LogOut, Bell, Check, X, ShieldAlert, GitBranch, Languages } from 'lucide-react';
+import { Calendar, Clock, UserCheck, LogOut, Bell, Check, X, ShieldAlert, GitBranch } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useNotification, type SolicitudDescuento } from '../context/NotificationContext';
 import { useI18n } from '../context/I18nContext';
@@ -17,7 +17,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 }) => {
   const { user, tenant, isImpersonating, stopImpersonating, switchSucursal, logout } = useTenant();
   const { solicitudes, responderSolicitud } = useNotification();
-  const { locale, setLocale, t } = useI18n();
+  const { locale, setLocale } = useI18n();
   const navigate = useNavigate();
 
   const [panelNotificaciones, setPanelNotificaciones] = React.useState(false);

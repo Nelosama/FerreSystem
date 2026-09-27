@@ -6,7 +6,7 @@ import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { NAVIGATION_ITEMS, type NavigationItem } from '../config/navigation';
 
-export const Sidebar: React.FC = () => {
+export const TopNavigation: React.FC = () => {
   const { tenant, user } = useTenant();
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
@@ -60,35 +60,26 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside style={styles.sidebar}>
-      {/* Brand Header */}
-      <div style={styles.brandHeader}>
-        <div style={styles.logoRow}>
-          {tenant.logoUrl ? (
-            <img
-              src={tenant.logoUrl}
-              alt="Tenant Logo"
-              style={{ height: '36px', width: 'auto', maxHeight: '42px', objectFit: 'contain' }}
-            />
-          ) : (
-            <div style={styles.logoIcon}>
-              <Box size={28} strokeWidth={2.5} color="var(--color-primary)" />
-            </div>
-          )}
-          {!tenant.logoUrl && (
-            <div style={styles.brandName}>
-              <span style={styles.brandFerre}>Ferre</span>
-              <span style={styles.brandSystem}>System</span>
-            </div>
-          )}
-        </div>
-        <div style={styles.tenantName}>
-          {tenant.nombreComercial || 'LA MUNDIAL - SUCURSAL CENTRO'}
-        </div>
+    <header style={styles.topNavContainer}>
+      <div style={styles.brandContainer}>
+        {tenant.logoUrl ? (
+          <img
+            src={tenant.logoUrl}
+            alt="Logo"
+            style={{ height: '32px', width: 'auto', maxHeight: '36px', objectFit: 'contain' }}
+          />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Box size={22} strokeWidth={2.5} color="var(--color-primary)" />
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '18px', color: '#FFFFFF' }}>
+              Ferre<span style={{ color: 'var(--color-primary)' }}>System</span>
+            </span>
+          </div>
+        )}
+        <span style={styles.tenantTag}>{tenant.nombreComercial}</span>
       </div>
 
-      {/* Navigation List */}
-      <nav style={styles.navContainer}>
+      <nav style={styles.navWrapper}>
         <ul style={styles.navList}>
           {visibleItems.map((item) => {
             const Icon = item.icon;
@@ -102,7 +93,7 @@ export const Sidebar: React.FC = () => {
                     ...(isActive ? styles.navItemActive : {}),
                   })}
                 >
-                  <Icon size={18} strokeWidth={2.4} />
+                  <Icon size={16} strokeWidth={2.2} />
                   <span>{getLabel(item)}</span>
                 </NavLink>
               </li>
@@ -110,94 +101,69 @@ export const Sidebar: React.FC = () => {
           })}
         </ul>
       </nav>
-    </aside>
+    </header>
   );
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  sidebar: {
-    width: '240px',
-    backgroundColor: 'var(--color-sidebar-bg)',
-    color: 'var(--color-sidebar-text)',
-    display: 'flex',
-    flexDirection: 'column',
-    borderRight: '1px solid var(--color-border-subtle)',
-    flexShrink: 0,
-    minHeight: '100vh',
-    userSelect: 'none',
-  },
-  brandHeader: {
-    padding: '24px 20px 20px',
-    borderBottom: '1px solid rgba(128, 128, 128, 0.2)',
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
-  },
-  logoRow: {
+  topNavContainer: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    justifyContent: 'space-between',
+    backgroundColor: '#1C1917',
+    padding: '8px 24px',
+    borderBottom: '2px solid var(--color-border)',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    flexWrap: 'wrap',
+    gap: '12px',
+    zIndex: 100,
   },
-  logoIcon: {
+  brandContainer: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: '12px',
   },
-  brandName: {
+  tenantTag: {
     fontFamily: 'var(--font-display)',
-    fontSize: '22px',
     fontWeight: 800,
-    letterSpacing: '-0.02em',
-  },
-  brandFerre: {
-    color: 'var(--color-sidebar-text)',
-  },
-  brandSystem: {
-    color: 'var(--color-primary)',
-  },
-  tenantName: {
-    fontFamily: 'var(--font-display)',
-    fontSize: '10px',
-    fontWeight: 700,
-    color: 'var(--color-sidebar-text)',
-    opacity: 0.75,
-    marginTop: '6px',
+    fontSize: '11px',
     letterSpacing: '0.04em',
+    color: '#A8A29E',
+    borderLeft: '1px solid #44403C',
+    paddingLeft: '10px',
     textTransform: 'uppercase',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
   },
-  navContainer: {
-    padding: '16px 12px',
+  navWrapper: {
     display: 'flex',
-    flexDirection: 'column',
-    flex: 1,
+    alignItems: 'center',
+    overflowX: 'auto',
   },
   navList: {
-    listStyle: 'none',
     display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
+    alignItems: 'center',
+    gap: '6px',
+    listStyle: 'none',
     padding: 0,
     margin: 0,
   },
   navItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
-    padding: '10px 12px',
+    gap: '6px',
+    padding: '8px 12px',
     fontFamily: 'var(--font-display)',
     fontSize: '11px',
     fontWeight: 700,
     letterSpacing: '0.03em',
-    color: 'var(--color-sidebar-text)',
+    color: '#D6D3D1',
     textDecoration: 'none',
     borderRadius: 'var(--radius-sm)',
+    whiteSpace: 'nowrap',
     transition: 'all 150ms ease',
   },
   navItemActive: {
-    backgroundColor: 'var(--color-sidebar-active-bg)',
+    backgroundColor: 'var(--color-primary)',
     color: '#FFFFFF',
     fontWeight: 800,
-    boxShadow: 'var(--shadow-hard-sm)',
   },
 };

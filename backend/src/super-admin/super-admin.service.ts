@@ -67,6 +67,7 @@ export class SuperAdminService {
     const tenants = await this.prisma.tenant.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
+        modulos: true,
         _count: {
           select: {
             usuarios: true,
@@ -85,13 +86,100 @@ export class SuperAdminService {
       email: t.email,
       logoUrl: t.logoUrl,
       colorPrimario: t.colorPrimario,
+      modoNavegacion: t.modoNavegacion,
+      plan: t.plan,
       estado: t.estado,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
       cantidadUsuarios: t._count.usuarios,
       cantidadProductos: t._count.productos,
       cantidadVentas: t._count.ventas,
+      modulosHabilitados: t.modulos.filter((m) => m.enabled).map((m) => m.moduleKey),
     }));
+  }
+
+  async getTenantModules(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      include: { modulos: true },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Ferretería no encontrada');
+    }
+
+    return tenant.modulos;
+  }
+
+  async updateTenantModules(tenantId: string, modules: { moduleKey: string; enabled: boolean }[]) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Ferretería no encontrada');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      for (const item of modules) {
+        await tx.tenantModule.upsert({
+          where: {
+            tenantId_moduleKey: {
+              tenantId,
+              moduleKey: item.moduleKey,
+            },
+          },
+          update: { enabled: item.enabled },
+          create: {
+            tenantId,
+            moduleKey: item.moduleKey,
+            enabled: item.enabled,
+          },
+        });
+      }
+
+      const updatedModules = await tx.tenantModule.findMany({
+        where: { tenantId },
+      });
+
+      return updatedModules;
+    });
+  }
+
+  async updateTenantConfig(
+    tenantId: string,
+    dto: {
+      nombreComercial?: string;
+      direccion?: string;
+      telefono?: string;
+      email?: string;
+      colorPrimario?: string;
+      logoUrl?: string;
+      modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
+      plan?: string;
+    },
+  ) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Ferretería no encontrada');
+    }
+
+    return this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        ...(dto.nombreComercial ? { nombreComercial: dto.nombreComercial } : {}),
+        ...(dto.direccion !== undefined ? { direccion: dto.direccion } : {}),
+        ...(dto.telefono !== undefined ? { telefono: dto.telefono } : {}),
+        ...(dto.email !== undefined ? { email: dto.email } : {}),
+        ...(dto.colorPrimario ? { colorPrimario: dto.colorPrimario } : {}),
+        ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
+        ...(dto.modoNavegacion ? { modoNavegacion: dto.modoNavegacion } : {}),
+        ...(dto.plan ? { plan: dto.plan } : {}),
+      },
+    });
   }
 
   async createTenant(dto: {
@@ -125,6 +213,32 @@ export class SuperAdminService {
           { tenantId: tenant.id, tipo: 'VENTA', ultimoNumero: 0 },
           { tenantId: tenant.id, tipo: 'COTIZACION', ultimoNumero: 0 },
         ],
+      });
+
+      // 3. Crear los módulos por defecto asignados al nuevo tenant
+      const defaultModules = [
+        'pos',
+        'cotizaciones',
+        'pedidos_especiales',
+        'apartados',
+        'inventario',
+        'ordenes_compra',
+        'transferencias_sucursal',
+        'garantias',
+        'listas_precio',
+        'usuarios',
+        'comisiones_venta',
+        'arqueo_caja',
+        'reportes',
+        'configuracion',
+      ];
+
+      await tx.tenantModule.createMany({
+        data: defaultModules.map((moduleKey) => ({
+          tenantId: tenant.id,
+          moduleKey,
+          enabled: true,
+        })),
       });
 
       // 3. Crear el usuario Administrador del tenant

@@ -144,13 +144,14 @@ export const ReportesPage: React.FC = () => {
   // Cotizaciones del período actual
   const cotizacionesPeriodo = useMemo(() => {
     return cotizaciones.filter((c) => {
-      // Normalizar fecha de emisión (es-HN format "DD/MM/YYYY" o ISO)
+      const fecha = c.fechaEmision || c.createdAt || '';
+      if (!fecha) return false;
       let cTime = 0;
-      if (c.fechaEmision.includes('/')) {
-        const parts = c.fechaEmision.split('/');
+      if (fecha.includes('/')) {
+        const parts = fecha.split('/');
         cTime = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00.000Z`).getTime();
       } else {
-        cTime = new Date(c.fechaEmision).getTime();
+        cTime = new Date(fecha).getTime();
       }
       return cTime >= startMs && cTime <= endMs;
     });
