@@ -919,7 +919,7 @@ export const MockDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       productoId: d.productoId,
       nombre: d.descripcionProducto,
       precioUnitario: d.precioUnitario,
-      cantidad: d.cantidad,
+      cantidad: d.usaMedida ? (d.totalMedida || (d.cantidad * (d.medida || 1))) : d.cantidad,
     }));
 
     // Descontar stock e ingresar registro de venta oficial
