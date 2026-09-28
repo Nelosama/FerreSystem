@@ -81,22 +81,95 @@ export const LoginPage: React.FC = () => {
   const handleDemoLogin = (emailInput: string, passwordInput: string): boolean => {
     const cleanEmail = emailInput.trim().toLowerCase();
 
-    if (passwordInput !== 'Ferre2026!') {
-      setError('Correo o contraseña incorrectos');
-      return false;
-    }
-
     const matchedKey = (Object.keys(roleProfiles) as Array<keyof typeof roleProfiles>).find(
       (key) => roleProfiles[key].email.toLowerCase() === cleanEmail
     );
 
     if (matchedKey) {
+      if (passwordInput !== 'Ferre2026!') {
+        setError('Correo o contraseña incorrectos');
+        return false;
+      }
       executeRoleLogin(matchedKey);
       return true;
-    } else {
-      setError('Correo o contraseña incorrectos');
-      return false;
     }
+
+    try {
+      const savedAdminsRaw = localStorage.getItem('ferre_saas_admins');
+      const savedTenantsRaw = localStorage.getItem('ferre_saas_tenants');
+
+      if (savedAdminsRaw && savedTenantsRaw) {
+        const savedAdmins = JSON.parse(savedAdminsRaw);
+        const savedTenants = JSON.parse(savedTenantsRaw);
+
+        const matchedAdmin = savedAdmins.find(
+          (a: any) => a.email && a.email.trim().toLowerCase() === cleanEmail
+        );
+
+        if (matchedAdmin) {
+          if (matchedAdmin.activo === false) {
+            setError('El usuario se encuentra inactivo / suspendido');
+            return false;
+          }
+
+          const expectedPass = matchedAdmin.password || 'Ferre2026!';
+          if (passwordInput !== expectedPass) {
+            setError('Correo o contraseña incorrectos');
+            return false;
+          }
+
+          const matchedTenant = savedTenants.find((t: any) => t.id === matchedAdmin.tenantId);
+
+          if (matchedTenant) {
+            if (matchedTenant.estado === 'SUSPENDIDO') {
+              setError('La cuenta del tenant se encuentra suspendida');
+              return false;
+            }
+
+            login(
+              {
+                id: matchedAdmin.id || `usr-admin-${Date.now()}`,
+                nombre: matchedAdmin.nombre || 'Administrador',
+                email: matchedAdmin.email,
+                rol: 'ADMIN',
+                permisos: [
+                  'pos.vender',
+                  'pos.anular_venta',
+                  'pos.aplicar_descuento',
+                  'inventario.ver',
+                  'inventario.editar',
+                  'cotizaciones.crear',
+                  'cotizaciones.aprobar',
+                  'cotizaciones.convertir_venta',
+                  'reportes.ver',
+                  'usuarios.gestionar',
+                  'configuracion.editar',
+                ],
+                descuentoMaximo: 100,
+                activo: true,
+              },
+              {
+                id: matchedTenant.id,
+                nombreComercial: matchedTenant.nombreComercial,
+                sucursal: 'Sucursal Principal',
+                colorPrimario: matchedTenant.colorPrimario || '#EA580C',
+                logoUrl: matchedTenant.logoUrl || null,
+                modoNavegacion: matchedTenant.modoNavegacion || 'SIDEBAR',
+                rubro: matchedTenant.rubro,
+                modulosHabilitados: matchedTenant.modulosHabilitados,
+              }
+            );
+            navigate('/');
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error reading saas admins/tenants from localStorage:', e);
+    }
+
+    setError('Correo o contraseña incorrectos');
+    return false;
   };
 
   const executeSuperAdminLogin = (superAdmin: { id: string; nombre: string; email: string }) => {

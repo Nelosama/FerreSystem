@@ -57,6 +57,7 @@ interface AdminUserItem {
   id: string;
   nombre: string;
   email: string;
+  password?: string;
   tenantId: string;
   tenantNombre: string;
   activo: boolean;
@@ -431,6 +432,7 @@ export const SuperAdminPage: React.FC = () => {
       id: `adm-${Date.now()}`,
       nombre: adminNombre.trim() || 'Admin Ferretería',
       email: adminEmail.trim(),
+      password: adminPassword.trim(),
       tenantId: newTenantId,
       tenantNombre: nuevoTenant.nombreComercial,
       activo: true,
@@ -462,6 +464,7 @@ export const SuperAdminPage: React.FC = () => {
       id: `adm-${Date.now()}`,
       nombre: formAdminNombre.trim(),
       email: formAdminEmail.trim(),
+      password: formAdminPassword.trim(),
       tenantId: formAdminTenantId,
       tenantNombre: tObj ? tObj.nombreComercial : 'Ferretería General',
       activo: formAdminActivo,
@@ -509,6 +512,14 @@ export const SuperAdminPage: React.FC = () => {
   const handleResetPassword = (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalResetPassAdmin || !nuevaPasswordInput) return;
+
+    setAdminUsers(
+      adminUsers.map((a) =>
+        a.id === modalResetPassAdmin.id
+          ? { ...a, password: nuevaPasswordInput.trim() }
+          : a,
+      ),
+    );
 
     setModalResetPassAdmin(null);
     setNuevaPasswordInput('');
