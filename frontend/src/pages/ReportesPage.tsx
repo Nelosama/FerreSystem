@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { TopBar } from '../components/TopBar';
 import { MetricCard } from '../components/MetricCard';
-import { useMockData } from '../context/MockDataContext';
+import { api } from '../utils/api';
 import { useTenant } from '../context/TenantContext';
 import { exportToExcel } from '../utils/excelExport';
 
@@ -31,8 +31,29 @@ type PresetRango = 'HOY' | 'SEMANA' | 'MES' | 'PERSONALIZADO';
 type TabName = 'VENTAS' | 'INVENTARIO' | 'COTIZACIONES' | 'OPERACIONES' | 'CLIENTES';
 
 export const ReportesPage: React.FC = () => {
-  const { productos, cotizaciones, ventas } = useMockData();
   const { tenant } = useTenant();
+
+  const [productos, setProductos] = React.useState<any[]>([]);
+  const [cotizaciones, setCotizaciones] = React.useState<any[]>([]);
+  const [ventas, setVentas] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    const fetchReportData = async () => {
+      try {
+        const [resP, resC, resV] = await Promise.all([
+          api.get('/productos'),
+          api.get('/cotizaciones'),
+          api.get('/ventas'),
+        ]);
+        if (Array.isArray(resP.data)) setProductos(resP.data);
+        if (Array.isArray(resC.data)) setCotizaciones(resC.data);
+        if (Array.isArray(resV.data)) setVentas(resV.data);
+      } catch (err) {
+        console.error('Error fetching report data:', err);
+      }
+    };
+    fetchReportData();
+  }, []);
 
   // Permisos de módulos habilitados para el tenant
   const modulosHabilitados = useMemo(
@@ -160,11 +181,11 @@ export const ReportesPage: React.FC = () => {
   // ==========================================
   // METRICAS DE LA PESTAÑA VENTAS
   // ==========================================
-  const totalVendido = useMemo(() => ventasPeriodo.reduce((acc, v) => acc + v.total, 0), [ventasPeriodo]);
+  const totalVendido = useMemo(() => ventasPeriodo.reduce((acc: number, v: any) => acc + (v.total || 0), 0), [ventasPeriodo]);
   const cantidadTransacciones = ventasPeriodo.length;
   const ticketPromedio = cantidadTransacciones > 0 ? totalVendido / cantidadTransacciones : 0;
 
-  const totalVendidoAnterior = useMemo(() => ventasPeriodoAnterior.reduce((acc, v) => acc + v.total, 0), [ventasPeriodoAnterior]);
+  const totalVendidoAnterior = useMemo(() => ventasPeriodoAnterior.reduce((acc: number, v: any) => acc + (v.total || 0), 0), [ventasPeriodoAnterior]);
   const variacionVentas = totalVendidoAnterior > 0
     ? ((totalVendido - totalVendidoAnterior) / totalVendidoAnterior) * 100
     : totalVendido > 0 ? 100 : 0;
@@ -172,16 +193,16 @@ export const ReportesPage: React.FC = () => {
   // Ventas por categoría
   const ventasPorCategoria = useMemo(() => {
     const catMap: Record<string, { total: number; cantidad: number }> = {};
-    ventasPeriodo.forEach((v) => {
-      v.items.forEach((item) => {
+    ventasPeriodo.forEach((v: any) => {
+      (v.items || v.detalles || []).forEach((item: any) => {
         let cat = item.categoria;
         if (!cat) {
           const prodObj = productos.find((p) => p.id === item.productoId);
           cat = prodObj?.categoria || 'General';
         }
         if (!catMap[cat]) catMap[cat] = { total: 0, cantidad: 0 };
-        catMap[cat].total += item.precioUnitario * item.cantidad;
-        catMap[cat].cantidad += item.cantidad;
+        catMap[cat].total += (item.precioUnitario || 0) * (item.cantidad || 0);
+        catMap[cat].cantidad += item.cantidad || 0;
       });
     });
 
@@ -272,9 +293,10 @@ export const ReportesPage: React.FC = () => {
     const cutoffTime = Date.now() - diasSinMovimiento * 24 * 60 * 60 * 1000;
     const productosVendidosRecientes = new Set<string>();
 
-    ventas.forEach((v) => {
-      if (new Date(v.fecha).getTime() >= cutoffTime) {
-        v.items.forEach((item) => productosVendidosRecientes.add(item.productoId));
+    ventas.forEach((v: any) => {
+      const fStr = v.fecha || v.createdAt;
+      if (fStr && new Date(fStr).getTime() >= cutoffTime) {
+        (v.items || v.detalles || []).forEach((item: any) => productosVendidosRecientes.add(item.productoId));
       }
     });
 
@@ -284,11 +306,11 @@ export const ReportesPage: React.FC = () => {
   // Cantidad vendida acumulada por producto en el rango de fechas
   const productosConVentaRango = useMemo(() => {
     const map: Record<string, { cantidad: number; totalMonto: number }> = {};
-    ventasPeriodo.forEach((v) => {
-      v.items.forEach((item) => {
+    ventasPeriodo.forEach((v: any) => {
+      (v.items || v.detalles || []).forEach((item: any) => {
         if (!map[item.productoId]) map[item.productoId] = { cantidad: 0, totalMonto: 0 };
-        map[item.productoId].cantidad += item.cantidad;
-        map[item.productoId].totalMonto += item.precioUnitario * item.cantidad;
+        map[item.productoId].cantidad += item.cantidad || 0;
+        map[item.productoId].totalMonto += (item.precioUnitario || 0) * (item.cantidad || 0);
       });
     });
     return map;
@@ -365,8 +387,8 @@ export const ReportesPage: React.FC = () => {
       CONVERTIDA: convertidas.length,
     };
 
-    const valorTotalCotizado = cotizacionesPeriodo.reduce((acc, c) => acc + c.total, 0);
-    const valorConvertido = convertidas.reduce((acc, c) => acc + c.total, 0);
+  const valorTotalCotizado = cotizacionesPeriodo.reduce((acc: number, c: any) => acc + (c.total || 0), 0);
+  const valorConvertido = convertidas.reduce((acc: number, c: any) => acc + (c.total || 0), 0);
 
     // Próximas a vencer (siguientes 7 días)
     const hoyMs = Date.now();

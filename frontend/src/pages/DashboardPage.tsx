@@ -14,26 +14,32 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useMockData } from '../context/MockDataContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { formatLempiras } from '../utils/format';
+import { api } from '../utils/api';
 
 export const DashboardPage: React.FC = () => {
-  const { productos, cotizaciones, ventas } = useMockData();
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
 
-  // 1. Total Ventas del Día
-  const totalVentasDia = ventas.reduce((acc, v) => acc + v.total, 0);
+  const [dashboardData, setDashboardData] = React.useState<any>(null);
 
-  // 2. Alertas de Stock (Productos con stockActual <= stockMinimo)
-  const productosStockBajo = productos.filter((p) => p.stockActual <= p.stockMinimo);
+  React.useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        const res = await api.get('/dashboard');
+        setDashboardData(res.data);
+      } catch (err) {
+        console.error('Error al cargar datos del dashboard:', err);
+      }
+    };
+    fetchDashboard();
+  }, []);
 
-  // 3. Cotizaciones Pendientes (BORRADOR, ENVIADA, APROBADA)
-  const cotizacionesPendientes = cotizaciones.filter(
-    (c) => c.estado === 'ENVIADA' || c.estado === 'APROBADA' || c.estado === 'BORRADOR',
-  );
+  const totalVentasDia = dashboardData?.ventasDelDia?.total || 0;
+  const productosStockBajo = dashboardData?.alertasStock?.items || [];
+  const cotizacionesPendientesCount = dashboardData?.cotizacionesPendientes?.cantidad || 0;
 
   return (
     <div style={styles.container}>
@@ -68,7 +74,7 @@ export const DashboardPage: React.FC = () => {
           {/* Tarjeta 3: Cotizaciones Pendientes */}
           <MetricCard
             title={t('dashboard.pending_quotations')}
-            value={cotizacionesPendientes.length.toString()}
+            value={cotizacionesPendientesCount.toString()}
             badgeText="Presupuestos activos"
             badgeVariant="neutral"
             badgeIcon={<Clock size={13} strokeWidth={2.6} />}
@@ -110,7 +116,7 @@ export const DashboardPage: React.FC = () => {
                   {t('dashboard.no_stock_alerts')}
                 </div>
               ) : (
-                productosStockBajo.slice(0, 3).map((p) => {
+                productosStockBajo.slice(0, 3).map((p: any) => {
                   const mensajeProcesado = rubroConfig.mensajeStockBajo.replace('{producto}', p.nombre);
                   return (
                     <div key={p.id} style={styles.alertRow}>

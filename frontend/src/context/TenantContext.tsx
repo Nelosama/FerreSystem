@@ -19,14 +19,11 @@ interface TenantContextType {
 }
 
 const DEFAULT_TENANT: TenantInfo = {
-  id: 'tenant-demo-1',
-  nombreComercial: 'LA MUNDIAL - SUCURSAL CENTRO',
-  sucursal: 'Sucursal Centro',
+  id: '',
+  nombreComercial: 'FerreSystem',
+  sucursal: 'Sucursal Principal',
   colorPrimario: '#EA580C',
   logoUrl: null,
-  direccion: 'Barrio El Centro, 3ra Ave, 4ta Calle, San Pedro Sula',
-  telefono: '+504 2550-1234',
-  email: 'ventas@lamundial.hn',
 };
 
 

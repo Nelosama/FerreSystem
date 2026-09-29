@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Calendar } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
-import { useMockData } from '../context/MockDataContext';
 import { useI18n } from '../context/I18nContext';
-import { useTenant } from '../context/TenantContext';
+import { api } from '../utils/api';
 
 export interface VendedorComision {
   usuarioId: string;
@@ -15,48 +14,40 @@ export interface VendedorComision {
   comisionPagar: number;
 }
 
-const DEFAULT_PORCENTAJES = { 'user-demo-vendedor': 3.0, 'user-demo-1': 1.5, 'user-demo-admin': 2.0 };
-const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
-
 export const ComisionesPage: React.FC = () => {
-  const { usuarios, ventas } = useMockData();
-  const { tenant } = useTenant();
   const { t } = useI18n();
 
-  const currentTenantId = tenant?.id || 'tenant-demo-1';
-  const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
-
-  const loadPorcentajes = (tId: string): Record<string, number> => {
-    const saved = localStorage.getItem(`ferre_mock_comisiones_pct_${tId}`);
-    if (saved) return JSON.parse(saved);
-    if (isDemoTenant(tId)) {
-      const legacy = localStorage.getItem('ferre_mock_comisiones_pct');
-      return legacy ? JSON.parse(legacy) : DEFAULT_PORCENTAJES;
-    }
-    return {};
-  };
-
-  const [porcentajes, setPorcentajes] = useState<Record<string, number>>(() =>
-    loadPorcentajes(currentTenantId),
-  );
-
-  React.useEffect(() => {
-    if (loadedTenantId !== currentTenantId) {
-      setPorcentajes(loadPorcentajes(currentTenantId));
-      setLoadedTenantId(currentTenantId);
-    }
-  }, [currentTenantId, loadedTenantId]);
-
-  React.useEffect(() => {
-    if (loadedTenantId === currentTenantId) {
-      localStorage.setItem(`ferre_mock_comisiones_pct_${currentTenantId}`, JSON.stringify(porcentajes));
-    }
-  }, [porcentajes, currentTenantId, loadedTenantId]);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [ventas, setVentas] = useState<any[]>([]);
+  const [porcentajes, setPorcentajes] = useState<Record<string, number>>({});
 
   const [fechaInicio, setFechaInicio] = useState('2026-03-01');
   const [fechaFin, setFechaFin] = useState('2026-03-31');
 
-  const vendedores = usuarios.filter((u) => u.rolBase === 'VENDEDOR' || u.rolBase === 'CAJERO' || u.rolBase === 'ADMIN');
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [resUsers, resVentas] = await Promise.all([
+          api.get('/usuarios'),
+          api.get('/ventas'),
+        ]);
+        if (Array.isArray(resUsers.data)) {
+          setUsuarios(resUsers.data);
+        }
+        if (Array.isArray(resVentas.data)) {
+          setVentas(resVentas.data);
+        }
+      } catch (err) {
+        console.error('Error al cargar datos para comisiones:', err);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const vendedores = usuarios.filter((u) => {
+    const rol = u.rolBase || u.rol;
+    return rol === 'VENDEDOR' || rol === 'CAJERO' || rol === 'ADMIN';
+  });
 
   const handleCambiarPct = (userId: string, val: string) => {
     const num = parseFloat(val) || 0;

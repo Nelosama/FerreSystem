@@ -2,7 +2,6 @@ import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { TenantProvider } from './context/TenantContext';
-import { MockDataProvider } from './context/MockDataContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { I18nProvider } from './context/I18nContext';
 import { Sidebar } from './components/Sidebar';
@@ -125,7 +124,6 @@ export const App: React.FC = () => {
   return (
     <TenantProvider>
       <I18nProvider>
-        <MockDataProvider>
           <NotificationProvider>
             <BrowserRouter>
               <Suspense fallback={<PageLoader />}>
@@ -315,7 +313,6 @@ export const App: React.FC = () => {
               </Suspense>
             </BrowserRouter>
           </NotificationProvider>
-        </MockDataProvider>
       </I18nProvider>
     </TenantProvider>
   );
