@@ -1,12 +1,31 @@
 import axios from 'axios';
 
+const getBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (!envUrl) return '/api';
+  const cleanUrl = envUrl.replace(/\/+$/, '');
+  return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
+};
+
 export const api = axios.create({
-  baseURL: '/api',
+  baseURL: getBaseUrl(),
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Request Interceptor for attaching JWT Bearer token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('ferre_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
 
 // Response Interceptor for handling token refresh on 401 Unauthorized
 api.interceptors.response.use(
@@ -17,9 +36,13 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/login')) {
       originalRequest._retry = true;
       try {
-        await api.post('/auth/refresh');
+        const refreshResponse = await api.post('/auth/refresh');
+        if (refreshResponse.data?.accessToken) {
+          localStorage.setItem('ferre_token', refreshResponse.data.accessToken);
+        }
         return api(originalRequest);
       } catch (refreshError) {
+        localStorage.removeItem('ferre_token');
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }

@@ -41,10 +41,13 @@ export const SuperAdminLoginPage: React.FC = () => {
 
     try {
       const response = await api.post('/admin/auth/login', { email, password });
+      if (response.data?.accessToken) {
+        localStorage.setItem('ferre_token', response.data.accessToken);
+      }
       login(
         {
-          id: response.data.admin?.id || 'superadmin-1',
-          nombre: response.data.admin?.nombre || 'Super Admin',
+          id: response.data.admin?.id || response.data.superAdmin?.id || 'superadmin-1',
+          nombre: response.data.admin?.nombre || response.data.superAdmin?.nombre || 'Super Admin',
           email,
           rol: 'SUPERADMIN',
         },
