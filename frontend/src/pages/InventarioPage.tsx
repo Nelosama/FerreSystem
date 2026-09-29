@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
-import { Search, Plus, AlertTriangle, Check, X, Calendar, ShieldCheck } from 'lucide-react';
+import { Search, Plus, Upload, AlertTriangle, Check, X, Calendar, ShieldCheck } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useMockData } from '../context/MockDataContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
+import { ImportarProductosModal } from '../components/ImportarProductosModal';
 
 export const InventarioPage: React.FC = () => {
   const { productos, agregarProducto } = useMockData();
@@ -14,6 +15,7 @@ export const InventarioPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('TODAS');
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [importModalAbierto, setImportModalAbierto] = useState(false);
 
   // Form State
   const [formCodigo, setFormCodigo] = useState('');
@@ -110,15 +112,25 @@ export const InventarioPage: React.FC = () => {
             ))}
           </div>
 
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setModalAbierto(true)}
-            style={{ marginLeft: 'auto' }}
-          >
-            <Plus size={18} strokeWidth={2.5} />
-            <span>{t('inventory.new_product')}</span>
-          </button>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setImportModalAbierto(true)}
+            >
+              <Upload size={18} strokeWidth={2.2} />
+              <span>{t('inventory.import_products')}</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setModalAbierto(true)}
+            >
+              <Plus size={18} strokeWidth={2.5} />
+              <span>{t('inventory.new_product')}</span>
+            </button>
+          </div>
         </div>
 
         {/* Tabla Industrial de Productos */}
@@ -208,6 +220,12 @@ export const InventarioPage: React.FC = () => {
           </table>
         </div>
       </main>
+
+      {/* Modal de Importación Masiva */}
+      <ImportarProductosModal
+        isOpen={importModalAbierto}
+        onClose={() => setImportModalAbierto(false)}
+      />
 
       {/* Modal de Creación */}
       {modalAbierto && (
