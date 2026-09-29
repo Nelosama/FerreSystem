@@ -14,6 +14,7 @@ export const Sidebar: React.FC = () => {
 
   const defaultModules = [
     'inventario',
+    'levantamiento',
     'pos',
     'cotizaciones',
     'usuarios',
