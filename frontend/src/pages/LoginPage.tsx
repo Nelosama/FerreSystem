@@ -200,7 +200,11 @@ export const LoginPage: React.FC = () => {
 
     try {
       const response = await api.post('/auth/login', { email, password });
-      const { user, tenant } = response.data;
+      const { accessToken, user, tenant } = response.data;
+
+      if (accessToken) {
+        localStorage.setItem('ferre_token', accessToken);
+      }
 
       login(
         {
@@ -220,7 +224,10 @@ export const LoginPage: React.FC = () => {
     } catch {
       try {
         const response = await api.post('/admin/auth/login', { email, password });
-        executeSuperAdminLogin(response.data.superAdmin);
+        if (response.data?.accessToken) {
+          localStorage.setItem('ferre_token', response.data.accessToken);
+        }
+        executeSuperAdminLogin(response.data.superAdmin || response.data.admin);
       } catch (err: any) {
         if (!err.response) {
           console.warn('Backend login connection issue, switching to local demo mode fallback:', err);

@@ -11,6 +11,7 @@ import { ClientesModule } from './clientes/clientes.module';
 import { VentasModule } from './ventas/ventas.module';
 import { CotizacionesModule } from './cotizaciones/cotizaciones.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     VentasModule,
     CotizacionesModule,
     DashboardModule,
+    UsuariosModule,
   ],
   providers: [
     {

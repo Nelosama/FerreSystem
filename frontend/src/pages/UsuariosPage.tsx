@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useMockData, type Usuario, PERMISOS_DEFAULT_POR_ROL } from '../context/MockDataContext';
+import { api } from '../utils/api';
 import {
   Users,
   Plus,
@@ -11,6 +12,8 @@ import {
   CheckCircle2,
   XCircle,
   GitBranch,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 
 const TODOS_LOS_PERMISOS = [
@@ -28,7 +31,13 @@ const TODOS_LOS_PERMISOS = [
 ];
 
 export const UsuariosPage: React.FC = () => {
-  const { usuarios, agregarUsuario, actualizarUsuario } = useMockData();
+  const { usuarios: mockUsuarios, agregarUsuario, actualizarUsuario } = useMockData();
+
+  const [listaUsuarios, setListaUsuarios] = useState<Usuario[]>(mockUsuarios);
+  const [loadingList, setLoadingList] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState<Usuario | null>(null);
@@ -49,6 +58,42 @@ export const UsuariosPage: React.FC = () => {
     'Sucursal Choluteca (Sur)',
   ];
 
+  // Fetch real users on mount
+  useEffect(() => {
+    const fetchUsuariosBackend = async () => {
+      setLoadingList(true);
+      setErrorBanner(null);
+      try {
+        const response = await api.get('/usuarios');
+        if (Array.isArray(response.data)) {
+          const apiUsers: Usuario[] = response.data.map((u: any) => ({
+            id: u.id,
+            nombre: u.nombre,
+            email: u.email,
+            rolBase: u.rol as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR',
+            permisos: PERMISOS_DEFAULT_POR_ROL[u.rol as keyof typeof PERMISOS_DEFAULT_POR_ROL]?.permisos || [],
+            descuentoMaximo: PERMISOS_DEFAULT_POR_ROL[u.rol as keyof typeof PERMISOS_DEFAULT_POR_ROL]?.descuentoMaximo || 10,
+            activo: u.activo,
+            sucursalActual: 'Sucursal Centro (Principal)',
+          }));
+          setListaUsuarios(apiUsers);
+        }
+      } catch (err: any) {
+        console.error('Error al obtener lista de usuarios desde la API real:', err);
+        const errorMsg = err.response?.data?.message
+          ? Array.isArray(err.response.data.message)
+            ? err.response.data.message.join(', ')
+            : err.response.data.message
+          : 'No se pudo sincronizar con la API real (Verifique conexión o CORS). Mostrando datos locales.';
+        setErrorBanner(errorMsg);
+      } finally {
+        setLoadingList(false);
+      }
+    };
+
+    fetchUsuariosBackend();
+  }, []);
+
   const abrirNuevoUsuario = () => {
     setUsuarioEditando(null);
     setFormNombre('');
@@ -59,6 +104,7 @@ export const UsuariosPage: React.FC = () => {
     setFormPermisos(PERMISOS_DEFAULT_POR_ROL.CAJERO.permisos);
     setFormDescuentoMaximo(PERMISOS_DEFAULT_POR_ROL.CAJERO.descuentoMaximo);
     setFormActivo(true);
+    setModalError(null);
     setModalAbierto(true);
   };
 
@@ -72,6 +118,7 @@ export const UsuariosPage: React.FC = () => {
     setFormPermisos(usr.permisos);
     setFormDescuentoMaximo(usr.descuentoMaximo);
     setFormActivo(usr.activo);
+    setModalError(null);
     setModalAbierto(true);
   };
 
@@ -90,33 +137,102 @@ export const UsuariosPage: React.FC = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formNombre || !formEmail) return;
 
-    if (usuarioEditando) {
-      actualizarUsuario(usuarioEditando.id, {
-        nombre: formNombre.trim(),
-        email: formEmail.trim(),
-        rolBase: formRolBase,
-        sucursalActual: formSucursalActual,
-        permisos: formPermisos,
-        descuentoMaximo: formDescuentoMaximo,
-        activo: formActivo,
-      });
-    } else {
-      agregarUsuario({
-        nombre: formNombre.trim(),
-        email: formEmail.trim(),
-        rolBase: formRolBase,
-        sucursalActual: formSucursalActual,
-        permisos: formPermisos,
-        descuentoMaximo: formDescuentoMaximo,
-        activo: formActivo,
-      });
-    }
+    setSubmitting(true);
+    setModalError(null);
 
-    setModalAbierto(false);
+    const payload = {
+      nombre: formNombre.trim(),
+      email: formEmail.trim(),
+      rol: formRolBase,
+      activo: formActivo,
+      ...(formPassword ? { password: formPassword } : {}),
+    };
+
+    try {
+      if (usuarioEditando) {
+        // HTTP PUT to real backend
+        const res = await api.put(`/usuarios/${usuarioEditando.id}`, payload);
+        const updatedData = res.data;
+
+        const updatedUsuario: Usuario = {
+          id: updatedData.id || usuarioEditando.id,
+          nombre: updatedData.nombre || formNombre.trim(),
+          email: updatedData.email || formEmail.trim(),
+          rolBase: formRolBase,
+          sucursalActual: formSucursalActual,
+          permisos: formPermisos,
+          descuentoMaximo: formDescuentoMaximo,
+          activo: formActivo,
+        };
+
+        actualizarUsuario(usuarioEditando.id, updatedUsuario);
+        setListaUsuarios((prev) =>
+          prev.map((u) => (u.id === usuarioEditando.id ? updatedUsuario : u)),
+        );
+      } else {
+        // HTTP POST to real backend
+        const res = await api.post('/usuarios', payload);
+        const newData = res.data;
+
+        const nuevoUsuario: Usuario = {
+          id: newData.id || `usr-${Date.now()}`,
+          nombre: newData.nombre || formNombre.trim(),
+          email: newData.email || formEmail.trim(),
+          rolBase: formRolBase,
+          sucursalActual: formSucursalActual,
+          permisos: formPermisos,
+          descuentoMaximo: formDescuentoMaximo,
+          activo: formActivo,
+        };
+
+        agregarUsuario(nuevoUsuario);
+        setListaUsuarios((prev) => [nuevoUsuario, ...prev]);
+      }
+
+      setModalAbierto(false);
+    } catch (err: any) {
+      console.error('Error al guardar usuario en backend:', err);
+      const msg = err.response?.data?.message
+        ? Array.isArray(err.response.data.message)
+          ? err.response.data.message.join(', ')
+          : err.response.data.message
+        : err.message || 'Error de conexión con la API backend en Render. Revisa la URL y estado del servidor.';
+
+      setModalError(msg);
+      alert(`ERROR AL GUARDAR USUARIO:\n${msg}`);
+
+      // Fallback local persistence so user is not blocked in offline/demo mode
+      if (!usuarioEditando) {
+        const localUsr: Usuario = {
+          nombre: formNombre.trim(),
+          email: formEmail.trim(),
+          rolBase: formRolBase,
+          sucursalActual: formSucursalActual,
+          permisos: formPermisos,
+          descuentoMaximo: formDescuentoMaximo,
+          activo: formActivo,
+          id: `usr-local-${Date.now()}`,
+        };
+        agregarUsuario(localUsr);
+        setListaUsuarios((prev) => [localUsr, ...prev]);
+      } else {
+        actualizarUsuario(usuarioEditando.id, {
+          nombre: formNombre.trim(),
+          email: formEmail.trim(),
+          rolBase: formRolBase,
+          sucursalActual: formSucursalActual,
+          permisos: formPermisos,
+          descuentoMaximo: formDescuentoMaximo,
+          activo: formActivo,
+        });
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -124,6 +240,13 @@ export const UsuariosPage: React.FC = () => {
       <TopBar title="GESTIÓN DE USUARIOS Y PERMISOS" subtitle="Administración de Personal de la Ferretería" />
 
       <main style={styles.content}>
+        {errorBanner && (
+          <div style={styles.errorBanner}>
+            <AlertCircle size={18} />
+            <span>{errorBanner}</span>
+          </div>
+        )}
+
         <div style={styles.headerRow}>
           <div>
             <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>EQUIPO DE TRABAJO</h2>
@@ -140,62 +263,69 @@ export const UsuariosPage: React.FC = () => {
 
         {/* Tabla Industrial de Usuarios */}
         <div className="table-container" style={{ marginTop: '20px' }}>
-          <table className="industrial-table">
-            <thead>
-              <tr>
-                <th>NOMBRE DEL USUARIO</th>
-                <th>CORREO ELECTRÓNICO</th>
-                <th>SUCURSAL ASIGNADA</th>
-                <th style={{ textAlign: 'center' }}>ROL BASE</th>
-                <th style={{ textAlign: 'center' }}>DESC. MÁXIMO</th>
-                <th style={{ textAlign: 'center' }}>PERMISOS ACTIVOS</th>
-                <th style={{ textAlign: 'center' }}>ESTADO</th>
-                <th style={{ textAlign: 'center' }}>ACCIONES</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usuarios.map((u) => (
-                <tr key={u.id}>
-                  <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{u.nombre}</td>
-                  <td style={{ fontWeight: 600, color: '#444' }}>{u.email}</td>
-                  <td>
-                    <span className="badge badge-neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <GitBranch size={11} /> {u.sucursalActual || 'Sucursal Centro (Principal)'}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <span className="badge badge-dark">{u.rolBase}</span>
-                  </td>
-                  <td style={{ textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 800 }}>
-                    {u.descuentoMaximo}%
-                  </td>
-                  <td style={{ textAlign: 'center', fontSize: '11px', color: '#666' }}>
-                    <span className="badge badge-neutral">{u.permisos.length} permisos</span>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    {u.activo ? (
-                      <span className="badge badge-success">
-                        <CheckCircle2 size={11} /> ACTIVO
-                      </span>
-                    ) : (
-                      <span className="badge badge-danger">
-                        <XCircle size={11} /> INACTIVO
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => abrirEditarUsuario(u)}
-                    >
-                      <Edit2 size={13} /> EDITAR
-                    </button>
-                  </td>
+          {loadingList ? (
+            <div style={{ padding: '36px', textAlign: 'center', color: '#78716C', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Loader2 size={20} className="animate-spin" />
+              <span>Cargando usuarios desde la API real...</span>
+            </div>
+          ) : (
+            <table className="industrial-table">
+              <thead>
+                <tr>
+                  <th>NOMBRE DEL USUARIO</th>
+                  <th>CORREO ELECTRÓNICO</th>
+                  <th>SUCURSAL ASIGNADA</th>
+                  <th style={{ textAlign: 'center' }}>ROL BASE</th>
+                  <th style={{ textAlign: 'center' }}>DESC. MÁXIMO</th>
+                  <th style={{ textAlign: 'center' }}>PERMISOS ACTIVOS</th>
+                  <th style={{ textAlign: 'center' }}>ESTADO</th>
+                  <th style={{ textAlign: 'center' }}>ACCIONES</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {listaUsuarios.map((u) => (
+                  <tr key={u.id}>
+                    <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{u.nombre}</td>
+                    <td style={{ fontWeight: 600, color: '#444' }}>{u.email}</td>
+                    <td>
+                      <span className="badge badge-neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <GitBranch size={11} /> {u.sucursalActual || 'Sucursal Centro (Principal)'}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className="badge badge-dark">{u.rolBase}</span>
+                    </td>
+                    <td style={{ textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 800 }}>
+                      {u.descuentoMaximo}%
+                    </td>
+                    <td style={{ textAlign: 'center', fontSize: '11px', color: '#666' }}>
+                      <span className="badge badge-neutral">{(u.permisos || []).length} permisos</span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {u.activo ? (
+                        <span className="badge badge-success">
+                          <CheckCircle2 size={11} /> ACTIVO
+                        </span>
+                      ) : (
+                        <span className="badge badge-danger">
+                          <XCircle size={11} /> INACTIVO
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => abrirEditarUsuario(u)}
+                      >
+                        <Edit2 size={13} /> EDITAR
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </main>
 
@@ -214,6 +344,13 @@ export const UsuariosPage: React.FC = () => {
                 <X size={20} />
               </button>
             </div>
+
+            {modalError && (
+              <div style={styles.modalErrorBanner}>
+                <AlertCircle size={16} />
+                <span>{modalError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
               <div style={styles.formRow}>
@@ -369,12 +506,23 @@ export const UsuariosPage: React.FC = () => {
                 <button
                   type="button"
                   className="btn btn-secondary"
+                  disabled={submitting}
                   onClick={() => setModalAbierto(false)}
                 >
                   CANCELAR
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  <Check size={16} strokeWidth={2.6} /> GUARDAR USUARIO
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                  {submitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>GUARDANDO...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} strokeWidth={2.6} />
+                      <span>GUARDAR USUARIO</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -397,6 +545,32 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '24px 32px 48px',
     maxWidth: '1400px',
     width: '100%',
+  },
+  errorBanner: {
+    marginBottom: '16px',
+    padding: '12px 16px',
+    backgroundColor: '#FEE2E2',
+    border: '1px solid #EF4444',
+    borderRadius: '4px',
+    color: '#991B1B',
+    fontSize: '13px',
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  modalErrorBanner: {
+    marginTop: '12px',
+    padding: '10px 14px',
+    backgroundColor: '#FEE2E2',
+    border: '1px solid #EF4444',
+    borderRadius: '4px',
+    color: '#991B1B',
+    fontSize: '12px',
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
   },
   headerRow: {
     display: 'flex',
