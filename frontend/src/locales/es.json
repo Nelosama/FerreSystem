@@ -92,7 +92,23 @@
     "subtitle": "Planes de Pago y Reserva de Mercadería",
     "new_layaway": "NUEVO APARTADO",
     "search": "Buscar apartado...",
-    "balance_due": "Saldo Pendiente"
+    "balance_due": "Saldo Pendiente",
+    "new_layaway_modal_title": "CREAR RESERVA DE APARTADO",
+    "client_full_name": "NOMBRE COMPLETO DEL CLIENTE",
+    "contact_phone": "TELÉFONO DE CONTACTO",
+    "reserved_product": "PRODUCTO A RESERVAR",
+    "quantity": "CANTIDAD",
+    "initial_downpayment": "ABONO INICIAL (L.)",
+    "estimated_total": "TOTAL A PAGAR",
+    "pending_balance": "SALDO PENDIENTE",
+    "confirm_reservation": "CONFIRMAR RESERVA",
+    "cancel": "CANCELAR",
+    "register_payment_title": "REGISTRAR ABONO • ",
+    "amount_to_pay": "MONTO A ABONAR (L.)",
+    "note": "NOTA / OBSERVACIÓN",
+    "register_payment": "REGISTRAR PAGO",
+    "pay": "ABONAR",
+    "cancel_reservation": "CANCELAR"
   },
   "cash_drawer": {
     "title": "ARQUEO Y CIERRE DE CAJA",
@@ -120,8 +136,14 @@
     "title": "GARANTÍAS Y NÚMEROS DE SERIE",
     "subtitle": "Seguimiento de Series y Reclamos de Garantía",
     "new_claim": "REGISTRAR GARANTÍA",
-    "serial_number": "Número de Serie",
-    "warranty_months": "Meses de Garantía"
+    "register_warranty_title": "REGISTRAR GARANTÍA Y SERIE",
+    "serial_number": "NÚMERO DE SERIE ÚNICO (S/N)",
+    "equipment_name": "NOMBRE DEL EQUIPO O HERRAMIENTA",
+    "client_name": "NOMBRE DEL CLIENTE",
+    "client_phone": "TELÉFONO CLIENTE",
+    "invoice_number": "NÚMERO DE FACTURA",
+    "warranty_duration": "DURACIÓN GARANTÍA (MESES)",
+    "cancel": "CANCELAR"
   },
   "special_orders": {
     "title": "PEDIDOS ESPECIALES",

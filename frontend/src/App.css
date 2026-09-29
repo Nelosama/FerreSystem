@@ -51,4 +51,15 @@
   .content-body {
     padding: 16px;
   }
+
+  .table-actions-cell {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .table-actions-cell button,
+  .table-actions-cell select {
+    width: 100% !important;
+    justify-content: center !important;
+  }
 }

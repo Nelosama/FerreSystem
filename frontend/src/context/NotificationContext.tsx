@@ -14,10 +14,23 @@ export interface SolicitudDescuento {
   respondidoPor?: string;
 }
 
+export interface NotificacionTransferencia {
+  id: string;
+  codigo: string;
+  productoNombre: string;
+  cantidad: number;
+  sucursalOrigen: string;
+  sucursalDestino: string;
+  fecha: string;
+  leida?: boolean;
+}
+
 interface NotificationContextType {
   solicitudes: SolicitudDescuento[];
+  notificacionesTransferencia: NotificacionTransferencia[];
   solicitarDescuento: (solicitud: Omit<SolicitudDescuento, 'id' | 'estado' | 'fecha'>) => SolicitudDescuento;
   responderSolicitud: (id: string, nuevoEstado: 'APROBADA' | 'RECHAZADA', respondidoPor: string) => void;
+  notificarTransferencia: (trf: Omit<NotificacionTransferencia, 'id' | 'fecha' | 'leida'>) => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -26,6 +39,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const { tenant } = useTenant();
   const currentTenantId = tenant?.id || 'tenant-demo-1';
   const storageKey = `ferre_solicitudes_descuento_${currentTenantId}`;
+  const transferStorageKey = `ferre_notificaciones_transferencia_${currentTenantId}`;
 
   const [loadedTenantId, setLoadedTenantId] = useState<string>(currentTenantId);
 
@@ -39,13 +53,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return [];
   };
 
+  const loadNotificacionesTransferencia = (tId: string): NotificacionTransferencia[] => {
+    const saved = localStorage.getItem(`ferre_notificaciones_transferencia_${tId}`);
+    return saved ? JSON.parse(saved) : [];
+  };
+
   const [solicitudes, setSolicitudes] = useState<SolicitudDescuento[]>(() =>
     loadSolicitudes(currentTenantId),
+  );
+
+  const [notificacionesTransferencia, setNotificacionesTransferencia] = useState<NotificacionTransferencia[]>(() =>
+    loadNotificacionesTransferencia(currentTenantId),
   );
 
   useEffect(() => {
     if (loadedTenantId !== currentTenantId) {
       setSolicitudes(loadSolicitudes(currentTenantId));
+      setNotificacionesTransferencia(loadNotificacionesTransferencia(currentTenantId));
       setLoadedTenantId(currentTenantId);
     }
   }, [currentTenantId, loadedTenantId]);
@@ -56,6 +80,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [solicitudes, currentTenantId, loadedTenantId, storageKey]);
 
+  useEffect(() => {
+    if (loadedTenantId === currentTenantId) {
+      localStorage.setItem(transferStorageKey, JSON.stringify(notificacionesTransferencia));
+    }
+  }, [notificacionesTransferencia, currentTenantId, loadedTenantId, transferStorageKey]);
+
   // Escuchar cambios de localStorage en otras pestañas
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
@@ -65,6 +95,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         } else {
           setSolicitudes([]);
         }
+      } else if (e.key === transferStorageKey) {
+        if (e.newValue) {
+          setNotificacionesTransferencia(JSON.parse(e.newValue));
+        } else {
+          setNotificacionesTransferencia([]);
+        }
       }
     };
 
@@ -72,7 +108,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [storageKey]);
+  }, [storageKey, transferStorageKey]);
 
   const solicitarDescuento = (
     data: Omit<SolicitudDescuento, 'id' | 'estado' | 'fecha'>,
@@ -102,12 +138,29 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     localStorage.setItem(storageKey, JSON.stringify(actualizadas));
   };
 
+  const notificarTransferencia = (
+    trfData: Omit<NotificacionTransferencia, 'id' | 'fecha' | 'leida'>,
+  ) => {
+    const nueva: NotificacionTransferencia = {
+      ...trfData,
+      id: `trf-notif-${Date.now()}`,
+      fecha: new Date().toISOString(),
+      leida: false,
+    };
+
+    const actualizadas = [nueva, ...notificacionesTransferencia];
+    setNotificacionesTransferencia(actualizadas);
+    localStorage.setItem(transferStorageKey, JSON.stringify(actualizadas));
+  };
+
   return (
     <NotificationContext.Provider
       value={{
         solicitudes,
+        notificacionesTransferencia,
         solicitarDescuento,
         responderSolicitud,
+        notificarTransferencia,
       }}
     >
       {children}

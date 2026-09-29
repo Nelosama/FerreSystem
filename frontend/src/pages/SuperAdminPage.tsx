@@ -73,6 +73,18 @@ interface AuditLogItem {
   usuario: string;
 }
 
+export interface SupportHistoryItem {
+  id: string;
+  superAdminNombre: string;
+  tenantId: string;
+  tenantNombre: string;
+  categoria: 'Reporte de error' | 'Solicitud del cliente' | 'Verificación de pago' | 'Otro';
+  descripcion: string;
+  fechaInicio: string;
+  fechaFin: string | null;
+  modoEdicionActivado: boolean;
+}
+
 const INITIAL_TENANTS: TenantItem[] = [
   {
     id: 't-1',
@@ -174,7 +186,7 @@ export const SuperAdminPage: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useI18n();
 
-  const [tabActiva, setTabActiva] = useState<'dashboard' | 'tenants' | 'modulos' | 'admins' | 'auditoria'>('tenants');
+  const [tabActiva, setTabActiva] = useState<'dashboard' | 'tenants' | 'modulos' | 'admins' | 'auditoria' | 'soporte_historial'>('tenants');
 
   const [tenants, setTenants] = useState<TenantItem[]>(() => {
     const saved = localStorage.getItem('ferre_saas_tenants');
@@ -189,6 +201,11 @@ export const SuperAdminPage: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(() => {
     const saved = localStorage.getItem('ferre_saas_audit');
     return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
+  });
+
+  const [supportLogs, setSupportLogs] = useState<SupportHistoryItem[]>(() => {
+    const saved = localStorage.getItem('ferre_mock_auditoria_soporte');
+    return saved ? JSON.parse(saved) : [];
   });
 
   useEffect(() => {
@@ -217,6 +234,10 @@ export const SuperAdminPage: React.FC = () => {
     localStorage.setItem('ferre_saas_audit', JSON.stringify(auditLogs));
   }, [auditLogs]);
 
+  useEffect(() => {
+    localStorage.setItem('ferre_mock_auditoria_soporte', JSON.stringify(supportLogs));
+  }, [supportLogs]);
+
   // Modales
   const [modalNuevoTenant, setModalNuevoTenant] = useState(false);
   const [modalEditarTenant, setModalEditarTenant] = useState<TenantItem | null>(null);
@@ -229,6 +250,11 @@ export const SuperAdminPage: React.FC = () => {
   const [modalResetPassAdmin, setModalResetPassAdmin] = useState<AdminUserItem | null>(null);
   const [modalSuplantarUser, setModalSuplantarUser] = useState<TenantItem | null>(null);
   const [busquedaSuplantar, setBusquedaSuplantar] = useState('');
+
+  // Modal obligatorio de motivo de soporte
+  const [usuarioASuplantar, setUsuarioASuplantar] = useState<{ id: string; nombre: string; email: string; rol: any } | null>(null);
+  const [soporteCategoria, setSoporteCategoria] = useState<'Reporte de error' | 'Solicitud del cliente' | 'Verificación de pago' | 'Otro'>('Reporte de error');
+  const [soporteDescripcion, setSoporteDescripcion] = useState('');
 
   // Formulario Nueva Sub-Sucursal
   const [nuevaSucursalNombre, setNuevaSucursalNombre] = useState('');
@@ -357,10 +383,41 @@ export const SuperAdminPage: React.FC = () => {
     setBusquedaSuplantar('');
   };
 
-  const ejecutarSuplantacion = (usrObj: { id: string; nombre: string; email: string; rol: any }) => {
-    if (!modalSuplantarUser) return;
+  const abrirFormularioMotivoSuplantar = (usrObj: { id: string; nombre: string; email: string; rol: any }) => {
+    setUsuarioASuplantar(usrObj);
+    setSoporteCategoria('Reporte de error');
+    setSoporteDescripcion('');
+  };
 
-    registrarAuditoria('IMPERSONACION_INICIADA', modalSuplantarUser.nombreComercial, `Suplantando a ${usrObj.nombre} (${usrObj.email})`);
+  const ejecutarSuplantacionConMotivo = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalSuplantarUser || !usuarioASuplantar) return;
+    if (!soporteDescripcion.trim()) return;
+
+    const sessionId = `sup-${Date.now()}`;
+    const nowFormatted = new Date().toISOString().replace('T', ' ').slice(0, 16);
+
+    const nuevoRegistroSoporte: SupportHistoryItem = {
+      id: sessionId,
+      superAdminNombre: 'Super Admin',
+      tenantId: modalSuplantarUser.id,
+      tenantNombre: modalSuplantarUser.nombreComercial,
+      categoria: soporteCategoria,
+      descripcion: soporteDescripcion.trim(),
+      fechaInicio: nowFormatted,
+      fechaFin: null,
+      modoEdicionActivado: false,
+    };
+
+    const updatedSupportLogs = [nuevoRegistroSoporte, ...supportLogs];
+    setSupportLogs(updatedSupportLogs);
+    localStorage.setItem('ferre_mock_auditoria_soporte', JSON.stringify(updatedSupportLogs));
+
+    registrarAuditoria(
+      'IMPERSONACION_INICIADA',
+      modalSuplantarUser.nombreComercial,
+      `Suplantando a ${usuarioASuplantar.nombre} (${usuarioASuplantar.email}) - Motivo: [${soporteCategoria}] ${soporteDescripcion.trim()}`
+    );
 
     impersonateTenantAdmin(
       {
@@ -374,10 +431,10 @@ export const SuperAdminPage: React.FC = () => {
         modulosHabilitados: modalSuplantarUser.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key),
       },
       {
-        id: usrObj.id,
-        nombre: usrObj.nombre,
-        email: usrObj.email,
-        rol: usrObj.rol,
+        id: usuarioASuplantar.id,
+        nombre: usuarioASuplantar.nombre,
+        email: usuarioASuplantar.email,
+        rol: usuarioASuplantar.rol,
         permisos: [
           'pos.vender',
           'pos.anular_venta',
@@ -394,8 +451,10 @@ export const SuperAdminPage: React.FC = () => {
         descuentoMaximo: 100,
         activo: true,
       },
+      sessionId
     );
 
+    setUsuarioASuplantar(null);
     setModalSuplantarUser(null);
     navigate('/');
   };
@@ -625,6 +684,18 @@ export const SuperAdminPage: React.FC = () => {
             <ShieldCheck size={16} />
             <span>{t('superadmin.tab_audit') || "AUDITORÍA SAAS"}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setTabActiva('soporte_historial')}
+            style={{
+              ...styles.tabBtn,
+              ...(tabActiva === 'soporte_historial' ? styles.tabBtnActive : {}),
+            }}
+          >
+            <KeyRound size={16} />
+            <span>HISTORIAL DE SOPORTE</span>
+          </button>
         </div>
 
         {/* TAB 1: GESTIÓN DE TENANTS / CLIENTES */}
@@ -775,6 +846,69 @@ export const SuperAdminPage: React.FC = () => {
                       </tr>
                     );
                   })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: HISTORIAL DE SOPORTE */}
+        {tabActiva === 'soporte_historial' && (
+          <div>
+            <div style={styles.headerRow}>
+              <div>
+                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                  HISTORIAL DE ACCESOS Y SOPORTE REMOTO
+                </h2>
+                <p style={{ fontSize: '12px', color: '#78716C' }}>
+                  Registro obligatorio de impersonaciones a clientes con motivos, duración y activación de modo edición.
+                </p>
+              </div>
+            </div>
+
+            <div className="table-container" style={{ marginTop: '20px' }}>
+              <table className="industrial-table">
+                <thead>
+                  <tr>
+                    <th>SUPERADMIN</th>
+                    <th>TENANT / CLIENTE</th>
+                    <th>CATEGORÍA MOTIVO</th>
+                    <th>DESCRIPCIÓN</th>
+                    <th style={{ textAlign: 'center' }}>INICIO</th>
+                    <th style={{ textAlign: 'center' }}>FIN / DURACIÓN</th>
+                    <th style={{ textAlign: 'center' }}>MODO EDICIÓN</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {supportLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: '#78716C' }}>
+                        No hay registros de sesiones de soporte remoto.
+                      </td>
+                    </tr>
+                  ) : (
+                    supportLogs.map((s) => (
+                      <tr key={s.id}>
+                        <td style={{ fontWeight: 800 }}>{s.superAdminNombre}</td>
+                        <td style={{ fontWeight: 700 }}>{s.tenantNombre}</td>
+                        <td>
+                          <span className="badge badge-dark" style={{ fontSize: '10px' }}>{s.categoria}</span>
+                        </td>
+                        <td style={{ fontSize: '12px', color: '#444' }}>{s.descripcion}</td>
+                        <td style={{ textAlign: 'center', fontSize: '11px', fontFamily: 'monospace' }}>{s.fechaInicio}</td>
+                        <td style={{ textAlign: 'center', fontSize: '11px', fontFamily: 'monospace' }}>
+                          {s.fechaFin ? s.fechaFin : <span className="badge badge-warning" style={{ fontSize: '9px' }}>EN CURSO</span>}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {s.modoEdicionActivado ? (
+                            <span className="badge badge-danger" style={{ fontSize: '10px' }}>ACTIVADO</span>
+                          ) : (
+                            <span className="badge badge-secondary" style={{ fontSize: '10px' }}>SOLO LECTURA</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1742,7 +1876,7 @@ export const SuperAdminPage: React.FC = () => {
 
                       <button
                         type="button"
-                        onClick={() => ejecutarSuplantacion(u)}
+                        onClick={() => abrirFormularioMotivoSuplantar(u)}
                         className="btn btn-sm btn-primary"
                         style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800, padding: '6px 12px' }}
                       >
@@ -1762,6 +1896,74 @@ export const SuperAdminPage: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6.1: MOTIVO OBLIGATORIO DE IMPERSONACIÓN */}
+      {usuarioASuplantar && modalSuplantarUser && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '500px' }}>
+            <div style={styles.modalHeader}>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                MOTIVO OBLIGATORIO DE ACCESO DE SOPORTE
+              </h2>
+              <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>
+                Ingresando como: {usuarioASuplantar.nombre} ({modalSuplantarUser.nombreComercial})
+              </div>
+            </div>
+
+            <form onSubmit={ejecutarSuplantacionConMotivo} style={{ marginTop: '16px' }}>
+              <div className="form-group">
+                <label className="form-label">CATEGORÍA DEL MOTIVO *</label>
+                <select
+                  value={soporteCategoria}
+                  onChange={(e) => setSoporteCategoria(e.target.value as any)}
+                  className="form-select"
+                  required
+                >
+                  <option value="Reporte de error">Reporte de error</option>
+                  <option value="Solicitud del cliente">Solicitud del cliente</option>
+                  <option value="Verificación de pago">Verificación de pago</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">DESCRIPCIÓN BREVE (OBLIGATORIO) *</label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="Escriba el detalle de la solicitud o motivo del soporte..."
+                  value={soporteDescripcion}
+                  onChange={(e) => setSoporteDescripcion(e.target.value)}
+                  className="form-input"
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ padding: '10px 12px', backgroundColor: '#FEF3C7', borderRadius: '4px', fontSize: '11px', color: '#B45309', fontWeight: 600 }}>
+                🔒 La sesión iniciará automáticamente en <strong>MODO SOLO LECTURA</strong> por seguridad.
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setUsuarioASuplantar(null)}
+                >
+                  CANCELAR
+                </button>
+                <button
+                  type="submit"
+                  disabled={!soporteDescripcion.trim()}
+                  className="btn btn-primary"
+                  style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
+                >
+                  INICIAR SOPORTE REMOTO
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

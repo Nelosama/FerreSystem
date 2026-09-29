@@ -15,6 +15,7 @@ export interface Usuario {
   descuentoMaximo: number;
   activo: boolean;
   sucursalActual?: string;
+  comisionPorcentaje?: number;
 }
 
 export interface SaleRecord {

@@ -47,7 +47,7 @@ const INITIAL_GARANTIAS: RegistroGarantiaItem[] = [
 const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
 
 export const GarantiasPage: React.FC = () => {
-  const { tenant } = useTenant();
+  const { tenant, isReadOnly } = useTenant();
   const { t } = useI18n();
   const currentTenantId = tenant?.id || 'tenant-demo-1';
   const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
@@ -142,8 +142,14 @@ export const GarantiasPage: React.FC = () => {
             />
           </div>
 
-          <button type="button" className="btn btn-primary" onClick={() => setModalNuevo(true)}>
-            <Plus size={18} /> REGISTRAR GARANTÍA
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={isReadOnly}
+            onClick={() => setModalNuevo(true)}
+            title={isReadOnly ? 'Modo solo lectura — soporte activo' : undefined}
+          >
+            <Plus size={18} /> {t('warranties.register_warranty_title')}
           </button>
         </div>
 
@@ -199,11 +205,11 @@ export const GarantiasPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>REGISTRAR GARANTÍA Y SERIE</h2>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('warranties.register_warranty_title')}</h2>
             </div>
             <form onSubmit={handleCrearGarantia} style={{ marginTop: '16px' }}>
               <div className="form-group">
-                <label className="form-label">NÚMERO DE SERIE ÚNICO (S/N)</label>
+                <label className="form-label">{t('warranties.serial_number')}</label>
                 <input
                   type="text"
                   required
@@ -216,7 +222,7 @@ export const GarantiasPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">NOMBRE DEL EQUIPO O HERRAMIENTA</label>
+                <label className="form-label">{t('warranties.equipment_name')}</label>
                 <input
                   type="text"
                   required
@@ -228,7 +234,7 @@ export const GarantiasPage: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">NOMBRE DEL CLIENTE</label>
+                  <label className="form-label">{t('warranties.client_name')}</label>
                   <input
                     type="text"
                     required
@@ -239,7 +245,7 @@ export const GarantiasPage: React.FC = () => {
                   />
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">TELÉFONO CLIENTE</label>
+                  <label className="form-label">{t('warranties.client_phone')}</label>
                   <input
                     type="text"
                     required
@@ -253,7 +259,7 @@ export const GarantiasPage: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">NÚMERO DE FACTURA</label>
+                  <label className="form-label">{t('warranties.invoice_number')}</label>
                   <input
                     type="text"
                     required
@@ -263,7 +269,7 @@ export const GarantiasPage: React.FC = () => {
                   />
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">DURACIÓN GARANTÍA (MESES)</label>
+                  <label className="form-label">{t('warranties.warranty_duration')}</label>
                   <input
                     type="number"
                     min="1"
@@ -277,10 +283,10 @@ export const GarantiasPage: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setModalNuevo(false)}>
-                  CANCELAR
+                  {t('warranties.cancel')}
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  <ShieldCheck size={16} /> REGISTRAR GARANTÍA
+                <button type="submit" className="btn btn-primary" disabled={isReadOnly}>
+                  <ShieldCheck size={16} /> {t('warranties.new_claim')}
                 </button>
               </div>
             </form>
