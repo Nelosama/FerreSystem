@@ -41,6 +41,7 @@ export const TopNavigation: React.FC = () => {
 
   const defaultModules = [
     'inventario',
+    'levantamiento',
     'pos',
     'cotizaciones',
     'usuarios',

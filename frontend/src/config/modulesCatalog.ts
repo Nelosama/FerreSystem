@@ -44,6 +44,13 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
     categoria: 'INVENTARIO',
   },
   {
+    key: 'levantamiento',
+    labelKey: 'menu.stock_taking',
+    nombre: 'Levantamiento de Inventario',
+    descripcion: 'Herramienta ligera offline para conteo físico inicial de productos desde celular',
+    categoria: 'INVENTARIO',
+  },
+  {
     key: 'ordenes_compra',
     labelKey: 'menu.purchase_orders',
     nombre: 'Órdenes de Compra & Proveedores',

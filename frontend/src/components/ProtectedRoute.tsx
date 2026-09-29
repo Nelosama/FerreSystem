@@ -48,6 +48,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (requiredModule) {
     const defaultModules = [
       'inventario',
+    'levantamiento',
       'pos',
       'cotizaciones',
       'usuarios',

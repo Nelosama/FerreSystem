@@ -71,6 +71,9 @@ const ComisionesPage = React.lazy(() =>
 const ReportesPage = React.lazy(() =>
   import('./pages/ReportesPage').then(m => ({ default: m.ReportesPage }))
 );
+const LevantamientoPage = React.lazy(() =>
+  import('./pages/LevantamientoPage').then(m => ({ default: m.LevantamientoPage }))
+);
 
 // Componente de carga para Suspense acorde al estilo industrial
 const PageLoader: React.FC = () => (
@@ -138,6 +141,16 @@ export const App: React.FC = () => {
                       <ProtectedRoute>
                         <AppLayout>
                           <HomeRoute />
+                        </AppLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/levantamiento"
+                    element={
+                      <ProtectedRoute allowedRoles={['ADMIN', 'BODEGUERO']} requiredModule="levantamiento">
+                        <AppLayout>
+                          <LevantamientoPage />
                         </AppLayout>
                       </ProtectedRoute>
                     }

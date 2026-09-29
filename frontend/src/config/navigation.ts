@@ -106,6 +106,16 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     category: 'INVENTARIO',
   },
   {
+    key: 'levantamiento',
+    labelKey: 'menu.stock_taking',
+    defaultLabel: 'LEVANTAMIENTO',
+    route: '/levantamiento',
+    icon: ClipboardList,
+    moduleKey: 'levantamiento',
+    allowedRoles: ['ADMIN', 'BODEGUERO'],
+    category: 'INVENTARIO',
+  },
+  {
     key: 'ordenes_compra',
     labelKey: 'menu.purchase_orders',
     defaultLabel: 'ÓRDENES DE COMPRA',
