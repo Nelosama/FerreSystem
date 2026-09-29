@@ -19,8 +19,10 @@ import {
   ShieldAlert,
   Loader2,
   Percent,
+  Download,
 } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
+import { descargarReciboPDF } from '../components/ReciboPDF';
 
 interface CartItem {
   productoId: string;
@@ -503,7 +505,42 @@ export const POSPage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '20px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (!numeroVentaGenerado) return;
+                  await descargarReciboPDF(
+                    {
+                      tipo: 'VENTA',
+                      numeroDocumento: numeroVentaGenerado,
+                      fechaEmision: new Date().toLocaleDateString('es-HN'),
+                      clienteNombre: clienteNombre || 'Consumidor Final',
+                      clienteRtn: clienteRtn || undefined,
+                      vendedorNombre: user?.nombre || 'Cajero',
+                      metodoPago,
+                      items: cart.map((item) => ({
+                        codigo: item.codigo,
+                        descripcion: item.nombre,
+                        cantidad: item.cantidad,
+                        precioUnitario: item.precioUnitario,
+                        subtotal: item.cantidad * item.precioUnitario,
+                        totalLinea: item.cantidad * item.precioUnitario,
+                      })),
+                      subtotal,
+                      descuento: montoDescuento,
+                      isv,
+                      total,
+                      tenant,
+                    },
+                    `Venta-${numeroVentaGenerado}.pdf`
+                  );
+                }}
+                style={{ flex: '1 1 100%', backgroundColor: tenant.colorPrimario, borderColor: tenant.colorPrimario }}
+              >
+                <Download size={16} strokeWidth={2.4} /> DESCARGAR COMPROBANTE
+              </button>
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -514,7 +551,7 @@ export const POSPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-secondary"
                 onClick={() => {
                   setModalTicket(false);
                   setCart([]);
