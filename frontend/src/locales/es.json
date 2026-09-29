@@ -71,6 +71,8 @@
     "finalize_session": "Finalizar Levantamiento",
     "confirm_finalize": "¿Deseas marcar este levantamiento como FINALIZADO?",
     "no_records": "Aún no has capturado ningún producto en este levantamiento.",
+    "no_active_sessions": "No tienes ningún levantamiento activo",
+    "no_active_sessions_desc": "Crea tu primer levantamiento para iniciar la captura física de inventario desde tu teléfono o tablet.",
     "export_csv": "EXPORTAR CSV"
   },
   "common": {

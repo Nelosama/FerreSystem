@@ -71,6 +71,8 @@
     "finalize_session": "Finalize Stock Count",
     "confirm_finalize": "Are you sure you want to mark this stock count as COMPLETED?",
     "no_records": "No products captured in this stock count session yet.",
+    "no_active_sessions": "You have no active stock count sessions",
+    "no_active_sessions_desc": "Create your first stock count session to start physical inventory capture from your mobile or tablet.",
     "export_csv": "EXPORT CSV"
   },
   "common": {
