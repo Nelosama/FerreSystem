@@ -157,6 +157,11 @@ export class VentasService {
       const isv = Math.round(baseGravable * 0.15 * 100) / 100;
       const total = Math.round((baseGravable + isv) * 100) / 100;
 
+      // Verificar si existe una caja abierta para el usuario en este tenant
+      const cajaActiva = await tx.caja.findFirst({
+        where: { tenantId, usuarioId, estado: 'ABIERTA' },
+      });
+
       // 4. Crear la venta en base de datos
       const venta = await tx.venta.create({
         data: {
@@ -164,6 +169,7 @@ export class VentasService {
           numeroVenta,
           clienteId: dto.clienteId || null,
           usuarioId,
+          cajaId: cajaActiva?.id || null,
           subtotal: subtotalTotal,
           isv,
           descuento,

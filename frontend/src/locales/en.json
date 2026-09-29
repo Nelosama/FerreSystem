@@ -153,11 +153,23 @@
   },
   "cash_drawer": {
     "title": "CASH DRAWER & RECONCILIATION",
-    "subtitle": "Cash Count & Shift Closing",
+    "subtitle": "Cash Count, Physical Audit & Shift Closing",
     "open_drawer": "Open Cash Register",
     "close_drawer": "Close Cash Register",
     "initial_cash": "Starting Cash",
-    "system_total": "System Total"
+    "system_total": "System Total",
+    "expected_cash": "Expected Cash",
+    "counted_cash": "Counted Cash",
+    "difference": "Difference",
+    "surplus": "Surplus",
+    "shortage": "Shortage",
+    "exact": "Balanced",
+    "income": "Manual Income",
+    "expense": "Manual Expense",
+    "no_open_drawer": "No Active Drawer Session",
+    "open_session": "Start Shift & Open Drawer",
+    "register_movement": "Register Movement",
+    "print_receipt": "Print PDF Receipt"
   },
   "purchase_orders": {
     "title": "PURCHASE ORDERS",

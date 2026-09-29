@@ -22,6 +22,17 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    const savedTenant = localStorage.getItem('ferre_tenant');
+    if (savedTenant) {
+      try {
+        const parsed = JSON.parse(savedTenant);
+        if (parsed?.id) {
+          config.headers['x-tenant-id'] = parsed.id;
+        }
+      } catch {}
+    }
+
     return config;
   },
   (error) => Promise.reject(error),

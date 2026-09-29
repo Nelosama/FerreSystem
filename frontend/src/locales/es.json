@@ -153,11 +153,23 @@
   },
   "cash_drawer": {
     "title": "ARQUEO Y CIERRE DE CAJA",
-    "subtitle": "Arqueo de Efectivo y Control Turno",
+    "subtitle": "Control de Efectivo, Arqueo Físico y Cierre de Turno",
     "open_drawer": "Apertura de Caja",
     "close_drawer": "Cierre de Caja",
     "initial_cash": "Efectivo Inicial",
-    "system_total": "Total Sistema"
+    "system_total": "Total Sistema",
+    "expected_cash": "Efectivo Esperado",
+    "counted_cash": "Efectivo Contado",
+    "difference": "Diferencia",
+    "surplus": "Sobrante",
+    "shortage": "Faltante",
+    "exact": "Cuadrado",
+    "income": "Ingreso Manual",
+    "expense": "Egreso Manual",
+    "no_open_drawer": "Sin Caja Abierta",
+    "open_session": "Iniciar Turno y Abrir Caja",
+    "register_movement": "Registrar Movimiento",
+    "print_receipt": "Imprimir Cierre PDF"
   },
   "purchase_orders": {
     "title": "ÓRDENES DE COMPRA",

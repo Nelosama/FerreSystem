@@ -51,11 +51,23 @@ enum MetodoPago {
   EFECTIVO
   TARJETA
   CREDITO
+  TRANSFERENCIA
+  OTRO
 }
 
 enum EstadoVenta {
   COMPLETADA
   ANULADA
+}
+
+enum EstadoCaja {
+  ABIERTA
+  CERRADA
+}
+
+enum TipoMovimientoCaja {
+  INGRESO
+  EGRESO
 }
 
 enum EstadoCotizacion {
@@ -120,6 +132,8 @@ model Tenant {
   cotizaciones     Cotizacion[]
   secuencias       SecuenciaTenant[]
   modulos          TenantModule[]
+  cajas            Caja[]
+  movimientosCaja  MovimientoCaja[]
 
   @@map("tenants")
 }
@@ -160,9 +174,12 @@ model Usuario {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relaciones
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  ventas       Venta[]
-  cotizaciones Cotizacion[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ventas          Venta[]
+  cotizaciones    Cotizacion[]
+  cajas           Caja[]           @relation("CajasUsuario")
+  cajasCerradas   Caja[]           @relation("CajasUsuarioCierre")
+  movimientosCaja MovimientoCaja[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -280,6 +297,7 @@ model Venta {
   numeroVenta Int         @map("numero_venta")
   clienteId   String?     @map("cliente_id")
   usuarioId   String      @map("usuario_id")
+  cajaId      String?     @map("caja_id")
   subtotal    Decimal     @db.Decimal(12, 2)
   isv         Decimal     @db.Decimal(12, 2)
   descuento   Decimal     @default(0) @db.Decimal(12, 2)
@@ -293,6 +311,7 @@ model Venta {
   tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   cliente     Cliente?       @relation(fields: [clienteId], references: [id], onDelete: SetNull)
   usuario     Usuario        @relation(fields: [usuarioId], references: [id])
+  caja        Caja?          @relation(fields: [cajaId], references: [id], onDelete: SetNull)
   detalles    DetalleVenta[]
   cotizacion  Cotizacion?    // Si fue generada desde una cotización
 
@@ -398,4 +417,63 @@ model DetalleCotizacion {
 
   @@index([cotizacionId])
   @@map("detalles_cotizacion")
+}
+
+// ============================================================
+// CAJA — Sesión de caja física
+// ============================================================
+
+model Caja {
+  id              String          @id @default(uuid())
+  tenantId        String          @map("tenant_id")
+  usuarioId       String          @map("usuario_id")
+  usuarioCierreId String?         @map("usuario_cierre_id")
+  montoInicial    Decimal         @map("monto_inicial") @db.Decimal(12, 2)
+  montoEsperado   Decimal?        @map("monto_esperado") @db.Decimal(12, 2)
+  montoContado    Decimal?        @map("monto_contado") @db.Decimal(12, 2)
+  diferencia      Decimal?        @map("diferencia") @db.Decimal(12, 2)
+  tipoDiferencia  String?         @map("tipo_diferencia")
+  estado          EstadoCaja      @default(ABIERTA)
+  observaciones   String?
+  fechaApertura   DateTime        @default(now()) @map("fecha_apertura")
+  fechaCierre     DateTime?       @map("fecha_cierre")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  // Relaciones
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuario         Usuario         @relation("CajasUsuario", fields: [usuarioId], references: [id])
+  usuarioCierre   Usuario?        @relation("CajasUsuarioCierre", fields: [usuarioCierreId], references: [id])
+  movimientos     MovimientoCaja[]
+  ventas          Venta[]
+
+  @@index([tenantId])
+  @@index([tenantId, usuarioId, estado])
+  @@map("cajas")
+}
+
+// ============================================================
+// MOVIMIENTO DE CAJA — Entradas y Salidas manuales
+// ============================================================
+
+model MovimientoCaja {
+  id          String              @id @default(uuid())
+  tenantId    String              @map("tenant_id")
+  cajaId      String              @map("caja_id")
+  usuarioId   String              @map("usuario_id")
+  tipo        TipoMovimientoCaja
+  concepto    String
+  monto       Decimal             @db.Decimal(12, 2)
+  metodoPago  MetodoPago          @default(EFECTIVO) @map("metodo_pago")
+  observacion String?
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  // Relaciones
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caja        Caja                @relation(fields: [cajaId], references: [id], onDelete: Cascade)
+  usuario     Usuario             @relation(fields: [usuarioId], references: [id])
+
+  @@index([tenantId])
+  @@index([cajaId])
+  @@map("movimientos_caja")
 }
