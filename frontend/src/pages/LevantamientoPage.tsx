@@ -72,7 +72,7 @@ const mapApiItem = (raw: any): LevantamientoItem => ({
   levantamientoId: raw.levantamientoId ? String(raw.levantamientoId) : undefined,
   descripcion: raw.descripcion || raw.description || '',
   cantidad: Number(raw.cantidad ?? raw.quantity ?? 0),
-  unidadMedida: raw.unidadMedida || raw.unit || 'Unidad',
+  unidadMedida: raw.unidad || raw.unidadMedida || raw.unit || 'Unidad',
   codigo: raw.codigo || raw.code || undefined,
   codigoBarras: raw.codigoBarras || raw.barcode || undefined,
   marca: raw.marca || raw.brand || undefined,
@@ -259,29 +259,15 @@ export const LevantamientoPage: React.FC = () => {
     setSaveStatus('SAVING');
     setLastErrorMsg(null);
 
-    // Payload sending both English and Spanish property names for complete DTO compatibility
+    // Clean DTO payload matching NestJS CreateLevantamientoItemDto
     const payload = {
-      description: cleanDesc,
       descripcion: cleanDesc,
-      quantity: Math.max(0, cantidad),
       cantidad: Math.max(0, cantidad),
-      unit: unidadMedida || 'Unidad',
-      unidadMedida: unidadMedida || 'Unidad',
-      code: codigo.trim() || undefined,
+      unidad: unidadMedida || 'Unidad',
       codigo: codigo.trim() || undefined,
-      barcode: codigoBarras.trim() || undefined,
-      codigoBarras: codigoBarras.trim() || undefined,
-      brand: marca.trim() || undefined,
       marca: marca.trim() || undefined,
-      category: categoria.trim() || undefined,
       categoria: categoria.trim() || undefined,
-      estimatedPrice: precioEst ? parseFloat(precioEst) : undefined,
-      precioEst: precioEst ? parseFloat(precioEst) : undefined,
-      location: ubicacion.trim() || undefined,
-      ubicacion: ubicacion.trim() || undefined,
-      notes: notas.trim() || undefined,
       notas: notas.trim() || undefined,
-      photoUrl: fotoUrl || undefined,
     };
 
     try {
