@@ -15,8 +15,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   title,
   subtitle = 'Turno Actual: 08:00 AM - 05:00 PM',
 }) => {
-  const { user, tenant, isImpersonating, stopImpersonating, switchSucursal, logout } = useTenant();
-  const { solicitudes, responderSolicitud } = useNotification();
+  const { user, tenant, isImpersonating, isReadOnly, enableEditMode, stopImpersonating, switchSucursal, logout } = useTenant();
+  const [modalConfirmEditMode, setModalConfirmEditMode] = React.useState(false);
+  const { solicitudes, notificacionesTransferencia, responderSolicitud } = useNotification();
   const { locale, setLocale } = useI18n();
   const navigate = useNavigate();
 
@@ -57,7 +58,14 @@ export const TopBar: React.FC<TopBarProps> = ({
     user?.permisos?.includes('usuarios.gestionar') ||
     user?.permisos?.includes('pos.aplicar_descuento');
 
+  // Filtrar notificaciones de transferencia para la sucursal activa actual
+  const sucursalUsuarioActiva = tenant.sucursal || 'Sucursal Centro (Principal)';
+  const transferenciasParaEstaSucursal = (notificacionesTransferencia || []).filter(
+    (t) => t.sucursalDestino.toLowerCase().trim() === sucursalUsuarioActiva.toLowerCase().trim(),
+  );
+
   const solicitudesPendientes = solicitudes.filter((s) => s.estado === 'PENDIENTE');
+  const totalNotificacionesPendientes = solicitudesPendientes.length + transferenciasParaEstaSucursal.length;
 
   const handleResponder = (sol: SolicitudDescuento, decision: 'APROBADA' | 'RECHAZADA') => {
     responderSolicitud(sol.id, decision, user?.nombre || 'Administrador');
@@ -83,24 +91,74 @@ export const TopBar: React.FC<TopBarProps> = ({
       {/* Banner de Modo Soporte Técnico (Impersonación de Super Admin) */}
       {isImpersonating && (
         <div style={styles.supportBanner}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <ShieldAlert size={18} color="#9A3412" />
             <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#9A3412' }}>
               MODO SOPORTE TÉCNICO ACTIVO: Estás suplantando remotamente al Administrador de {tenant.nombreComercial}
+              {isReadOnly ? ' (MODO SOLO LECTURA)' : ' (MODO EDICIÓN ACTIVADO)'}
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              stopImpersonating();
-              navigate('/admin');
-            }}
-            className="btn btn-sm"
-            style={styles.exitSupportBtn}
-          >
-            <LogOut size={13} /> SALIR DE MODO SOPORTE Y VOLVER AL PORTAL SAAS
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {isReadOnly && (
+              <button
+                type="button"
+                onClick={() => setModalConfirmEditMode(true)}
+                className="btn btn-sm"
+                style={{ backgroundColor: '#DC2626', color: '#FFFFFF', fontWeight: 800, fontSize: '11px', border: '1px solid #991B1B' }}
+              >
+                ACTIVAR MODO EDICIÓN
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                stopImpersonating();
+                navigate('/admin');
+              }}
+              className="btn btn-sm"
+              style={styles.exitSupportBtn}
+            >
+              <LogOut size={13} /> SALIR DE MODO SOPORTE Y VOLVER AL PORTAL SAAS
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmación Activar Modo Edición */}
+      {modalConfirmEditMode && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={{ width: '100%', maxWidth: '450px', backgroundColor: '#FFFFFF', padding: '20px' }}>
+            <div style={{ paddingBottom: '10px', borderBottom: '2px solid var(--color-border)', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '15px' }}>
+              CONFIRMAR ACTIVACIÓN DE MODO EDICIÓN
+            </div>
+
+            <div style={{ padding: '16px 0', fontSize: '13px', color: '#444' }}>
+              ¿Confirmas que necesitas modificar datos de este cliente?
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setModalConfirmEditMode(false)}
+              >
+                CANCELAR
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{ backgroundColor: '#DC2626', borderColor: '#991B1B', fontWeight: 800 }}
+                onClick={() => {
+                  enableEditMode();
+                  setModalConfirmEditMode(false);
+                }}
+              >
+                CONFIRMAR Y ACTIVAR EDICIÓN
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -137,29 +195,29 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       <div style={styles.actionsContainer}>
-        {/* Campana de Notificaciones para solicitudes de descuento */}
-        {puedeAutorizar && (
+        {/* Campana de Notificaciones (Solicitudes & Transferencias) */}
+        {(puedeAutorizar || transferenciasParaEstaSucursal.length > 0) && (
           <div style={{ position: 'relative' }}>
             <button
               type="button"
               onClick={() => setPanelNotificaciones(!panelNotificaciones)}
               style={styles.bellBtn}
-              title="Solicitudes de Autorización"
-              aria-label="Solicitudes de autorización"
+              title="Notificaciones del Sistema"
+              aria-label="Notificaciones del sistema"
               aria-expanded={panelNotificaciones}
             >
               <Bell size={16} strokeWidth={2.5} />
-              {solicitudesPendientes.length > 0 && (
-                <span style={styles.bellBadge}>{solicitudesPendientes.length}</span>
+              {totalNotificacionesPendientes > 0 && (
+                <span style={styles.bellBadge}>{totalNotificacionesPendientes}</span>
               )}
             </button>
 
             {/* Panel Flotante de Notificaciones */}
             {panelNotificaciones && (
-              <div style={styles.notifPanel} role="region" aria-label="Panel de solicitudes de autorización">
+              <div style={styles.notifPanel} role="region" aria-label="Panel de notificaciones">
                 <div style={styles.notifHeader}>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px' }}>
-                    SOLICITUDES DE AUTORIZACIÓN ({solicitudesPendientes.length})
+                    NOTIFICACIONES ({totalNotificacionesPendientes})
                   </div>
                   <button
                     type="button"
@@ -172,9 +230,29 @@ export const TopBar: React.FC<TopBarProps> = ({
                 </div>
 
                 <div style={styles.notifList}>
-                  {solicitudes.length === 0 ? (
+                  {/* Sección Transferencias Entrantes */}
+                  {transferenciasParaEstaSucursal.length > 0 && (
+                    <div style={{ backgroundColor: '#EFF6FF', padding: '8px 12px', borderBottom: '1.5px solid #BFDBFE' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#1D4ED8', textTransform: 'uppercase' }}>
+                        📦 TRASLADOS RECIBIDOS ({transferenciasParaEstaSucursal.length})
+                      </div>
+                      {transferenciasParaEstaSucursal.map((trf) => (
+                        <div key={trf.id} style={{ marginTop: '6px', padding: '6px', backgroundColor: '#FFFFFF', borderRadius: '4px', border: '1px solid #93C5FD' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#1E40AF' }}>
+                            {trf.productoNombre} (Cant: {trf.cantidad})
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#475569' }}>
+                            Enviado desde: <strong>{trf.sucursalOrigen}</strong>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Sección Solicitudes Descuento */}
+                  {solicitudes.length === 0 && transferenciasParaEstaSucursal.length === 0 ? (
                     <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: '#78716C' }}>
-                      No hay solicitudes registradas
+                      No hay notificaciones registradas
                     </div>
                   ) : (
                     solicitudes.slice(0, 5).map((sol) => (
@@ -477,5 +555,18 @@ const styles: Record<string, React.CSSProperties> = {
   notifItem: {
     padding: '10px 12px',
     borderBottom: '1px solid #E7E5E4',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1100,
+    padding: '20px',
   },
 };

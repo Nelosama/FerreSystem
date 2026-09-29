@@ -67,7 +67,7 @@ const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
 
 export const ApartadosPage: React.FC = () => {
   const { productos } = useMockData();
-  const { tenant } = useTenant();
+  const { tenant, isReadOnly } = useTenant();
   const { t } = useI18n();
   const currentTenantId = tenant?.id || 'tenant-demo-1';
   const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
@@ -266,17 +266,20 @@ export const ApartadosPage: React.FC = () => {
                           <button
                             type="button"
                             className="btn btn-sm btn-primary"
+                            disabled={isReadOnly}
                             onClick={() => setModalAbono(a)}
+                            title={isReadOnly ? 'Modo solo lectura — soporte activo' : undefined}
                           >
-                            <DollarSign size={13} /> ABONAR
+                            <DollarSign size={13} /> {t('layaway.pay')}
                           </button>
                           <button
                             type="button"
                             className="btn btn-sm btn-secondary"
+                            disabled={isReadOnly}
                             onClick={() => handleCancelarApartado(a.id)}
-                            title="Liberar reserva de stock"
+                            title={isReadOnly ? 'Modo solo lectura — soporte activo' : 'Liberar reserva de stock'}
                           >
-                            <XCircle size={13} /> CANCELAR
+                            <XCircle size={13} /> {t('layaway.cancel_reservation')}
                           </button>
                         </>
                       )}
@@ -294,11 +297,11 @@ export const ApartadosPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>CREAR RESERVA DE APARTADO</h2>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('layaway.new_layaway_modal_title')}</h2>
             </div>
             <form onSubmit={handleCrearApartado} style={{ marginTop: '16px' }}>
               <div className="form-group">
-                <label className="form-label">NOMBRE COMPLETO DEL CLIENTE</label>
+                <label className="form-label">{t('layaway.client_full_name')}</label>
                 <input
                   type="text"
                   required
@@ -311,7 +314,7 @@ export const ApartadosPage: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">TELÉFONO DE CONTACTO</label>
+                  <label className="form-label">{t('layaway.contact_phone')}</label>
                   <input
                     type="text"
                     required
@@ -322,7 +325,7 @@ export const ApartadosPage: React.FC = () => {
                   />
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">PRODUCTO A RESERVAR</label>
+                  <label className="form-label">{t('layaway.reserved_product')}</label>
                   <select
                     value={selectedProdId}
                     onChange={(e) => setSelectedProdId(e.target.value)}
@@ -339,7 +342,7 @@ export const ApartadosPage: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">CANTIDAD</label>
+                  <label className="form-label">{t('layaway.quantity')}</label>
                   <input
                     type="number"
                     min="1"
@@ -350,7 +353,7 @@ export const ApartadosPage: React.FC = () => {
                   />
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">ABONO INICIAL (L.)</label>
+                  <label className="form-label">{t('layaway.initial_downpayment')}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -363,15 +366,15 @@ export const ApartadosPage: React.FC = () => {
               </div>
 
               <div style={{ padding: '10px 14px', backgroundColor: '#FEF3C7', borderRadius: '4px', fontSize: '12px', fontWeight: 700, color: '#B45309' }}>
-                TOTAL A PAGAR: {formatLempiras(totalEstimado)} • SALDO PENDIENTE: {formatLempiras(Math.max(0, totalEstimado - (parseFloat(abonoInicial) || 0)))}
+                {t('layaway.estimated_total')}: {formatLempiras(totalEstimado)} • {t('layaway.pending_balance')}: {formatLempiras(Math.max(0, totalEstimado - (parseFloat(abonoInicial) || 0)))}
               </div>
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setModalNuevo(false)}>
-                  CANCELAR
+                  {t('layaway.cancel')}
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  <CheckCircle size={16} /> CONFIRMAR RESERVA
+                <button type="submit" className="btn btn-primary" disabled={isReadOnly}>
+                  <CheckCircle size={16} /> {t('layaway.confirm_reservation')}
                 </button>
               </div>
             </form>
@@ -384,7 +387,7 @@ export const ApartadosPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>REGISTRAR ABONO • {modalAbono.codigo}</h2>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('layaway.register_payment_title')}{modalAbono.codigo}</h2>
             </div>
             <form onSubmit={handleRegistrarAbono} style={{ marginTop: '16px' }}>
               <div style={{ fontSize: '13px', marginBottom: '12px', color: '#44403C' }}>
@@ -392,7 +395,7 @@ export const ApartadosPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">MONTO A ABONAR (L.)</label>
+                <label className="form-label">{t('layaway.amount_to_pay')}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -405,7 +408,7 @@ export const ApartadosPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">NOTA / OBSERVACIÓN</label>
+                <label className="form-label">{t('layaway.note')}</label>
                 <input
                   type="text"
                   placeholder="Ej. Pago parcial en efectivo"
@@ -417,10 +420,10 @@ export const ApartadosPage: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setModalAbono(null)}>
-                  CANCELAR
+                  {t('layaway.cancel')}
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  <DollarSign size={16} /> REGISTRAR PAGO
+                <button type="submit" className="btn btn-primary" disabled={isReadOnly}>
+                  <DollarSign size={16} /> {t('layaway.register_payment')}
                 </button>
               </div>
             </form>

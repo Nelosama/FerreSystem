@@ -106,7 +106,23 @@
     "subtitle": "Payment Plans & Merchandise Hold",
     "new_layaway": "NEW LAYAWAY",
     "search": "Search layaway...",
-    "balance_due": "Balance Due"
+    "balance_due": "Balance Due",
+    "new_layaway_modal_title": "CREATE LAYAWAY RESERVATION",
+    "client_full_name": "CUSTOMER FULL NAME",
+    "contact_phone": "CONTACT PHONE",
+    "reserved_product": "PRODUCT TO RESERVE",
+    "quantity": "QUANTITY",
+    "initial_downpayment": "INITIAL DOWN PAYMENT ($)",
+    "estimated_total": "TOTAL TO PAY",
+    "pending_balance": "PENDING BALANCE",
+    "confirm_reservation": "CONFIRM RESERVATION",
+    "cancel": "CANCEL",
+    "register_payment_title": "REGISTER PAYMENT • ",
+    "amount_to_pay": "AMOUNT TO PAY ($)",
+    "note": "NOTE / REMARK",
+    "register_payment": "REGISTER PAYMENT",
+    "pay": "PAY",
+    "cancel_reservation": "CANCEL"
   },
   "cash_drawer": {
     "title": "CASH DRAWER & RECONCILIATION",
@@ -134,8 +150,14 @@
     "title": "WARRANTIES & SERIAL NUMBERS",
     "subtitle": "Serial Number Tracking & Warranty Claims",
     "new_claim": "REGISTER WARRANTY",
-    "serial_number": "Serial Number",
-    "warranty_months": "Warranty Months"
+    "register_warranty_title": "REGISTER WARRANTY AND SERIAL",
+    "serial_number": "UNIQUE SERIAL NUMBER (S/N)",
+    "equipment_name": "EQUIPMENT OR TOOL NAME",
+    "client_name": "CUSTOMER NAME",
+    "client_phone": "CUSTOMER PHONE",
+    "invoice_number": "INVOICE NUMBER",
+    "warranty_duration": "WARRANTY DURATION (MONTHS)",
+    "cancel": "CANCEL"
   },
   "special_orders": {
     "title": "SPECIAL ORDERS",
