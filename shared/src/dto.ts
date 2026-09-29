@@ -11,6 +11,7 @@ import {
   MetodoPago,
   EstadoVenta,
   EstadoCotizacion,
+  EstadoLevantamiento,
 } from './enums';
 
 // ─── Auth ────────────────────────────────────────────────────
@@ -344,6 +345,61 @@ export interface RespuestaPaginada<T> {
     totalPages: number;
   };
 }
+
+// ─── Levantamiento de Inventario ──────────────────────────────
+
+export interface LevantamientoItemDto {
+  id: string;
+  levantamientoId: string;
+  descripcion: string;
+  cantidad: number;
+  unidad: string;
+  codigo?: string | null;
+  marca?: string | null;
+  categoria?: string | null;
+  notas?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LevantamientoResumen {
+  id: string;
+  nombre: string;
+  descripcion?: string | null;
+  estado: EstadoLevantamiento;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  totalItems?: number;
+}
+
+export interface LevantamientoCompleto extends LevantamientoResumen {
+  items: LevantamientoItemDto[];
+}
+
+export interface CrearLevantamientoRequest {
+  nombre: string;
+  descripcion?: string;
+  estado?: EstadoLevantamiento;
+}
+
+export interface ActualizarLevantamientoRequest {
+  nombre?: string;
+  descripcion?: string;
+  estado?: EstadoLevantamiento;
+}
+
+export interface CrearLevantamientoItemRequest {
+  descripcion: string;
+  cantidad: number;
+  unidad?: string;
+  codigo?: string;
+  marca?: string;
+  categoria?: string;
+  notas?: string;
+}
+
+export interface ActualizarLevantamientoItemRequest extends Partial<CrearLevantamientoItemRequest> {}
 
 // ─── Super Admin ─────────────────────────────────────────────
 
