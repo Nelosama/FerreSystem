@@ -4,6 +4,7 @@ import { GitBranch, ArrowRight, Plus, CheckCircle } from 'lucide-react';
 import { useMockData } from '../context/MockDataContext';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
+import { useNotification } from '../context/NotificationContext';
 
 export interface TransferenciaItem {
   id: string;
@@ -39,6 +40,7 @@ export const TransferenciasPage: React.FC = () => {
   const { productos } = useMockData();
   const { tenant } = useTenant();
   const { t } = useI18n();
+  const { notificarTransferencia } = useNotification();
 
   const currentTenantId = tenant?.id || 'tenant-demo-1';
   const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
@@ -95,6 +97,16 @@ export const TransferenciasPage: React.FC = () => {
     };
 
     setTransferencias([nueva, ...transferencias]);
+
+    // Generar notificación entre pestañas para la sucursal destino
+    notificarTransferencia({
+      codigo: nueva.codigo,
+      productoNombre: nueva.productoNombre,
+      cantidad: nueva.cantidad,
+      sucursalOrigen: nueva.sucursalOrigen,
+      sucursalDestino: nueva.sucursalDestino,
+    });
+
     setModalNuevo(false);
   };
 

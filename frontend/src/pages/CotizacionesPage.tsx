@@ -30,7 +30,7 @@ import { formatLempiras } from '../utils/format';
 import { useI18n } from '../context/I18nContext';
 
 export const CotizacionesPage: React.FC = () => {
-  const { tenant, user } = useTenant();
+  const { tenant, user, isReadOnly } = useTenant();
   const { t } = useI18n();
   const {
     cotizaciones,
@@ -557,7 +557,13 @@ export const CotizacionesPage: React.FC = () => {
           </div>
 
           {isAdminOrSeller && (
-            <button type="button" className="btn btn-primary" onClick={handleAbrirNueva}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={isReadOnly}
+              title={isReadOnly ? 'Modo solo lectura — soporte activo' : undefined}
+              onClick={handleAbrirNueva}
+            >
               <Plus size={18} strokeWidth={2.5} />
               <span>{t('quotations.new_quotation')}</span>
             </button>
@@ -624,7 +630,7 @@ export const CotizacionesPage: React.FC = () => {
                     </td>
                     <td style={{ textAlign: 'center' }}>{getStatusBadge(c.estado)}</td>
                     <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <div className="table-actions-cell" style={{ display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' }}>
                         {/* Ver PDF Proforma */}
                         <button
                           type="button"
@@ -639,8 +645,9 @@ export const CotizacionesPage: React.FC = () => {
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
+                          disabled={isReadOnly}
                           onClick={() => handleDuplicar(c)}
-                          title="Duplicar esta cotización"
+                          title={isReadOnly ? 'Modo solo lectura — soporte activo' : 'Duplicar esta cotización'}
                         >
                           <Copy size={13} />
                         </button>
@@ -650,8 +657,9 @@ export const CotizacionesPage: React.FC = () => {
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
+                            disabled={isReadOnly}
                             onClick={() => handleAbrirEditar(c)}
-                            title="Editar borrador de cotización"
+                            title={isReadOnly ? 'Modo solo lectura — soporte activo' : 'Editar borrador de cotización'}
                           >
                             <Edit3 size={13} />
                           </button>
@@ -662,8 +670,9 @@ export const CotizacionesPage: React.FC = () => {
                           <button
                             type="button"
                             className="btn btn-primary btn-sm"
+                            disabled={isReadOnly}
                             onClick={() => setModalConvertir(c)}
-                            title="Convertir a Factura/Venta POS"
+                            title={isReadOnly ? 'Modo solo lectura — soporte activo' : 'Convertir a Factura/Venta POS'}
                           >
                             <ArrowRightCircle size={13} /> A VENTA
                           </button>
@@ -673,9 +682,10 @@ export const CotizacionesPage: React.FC = () => {
                         {isAdminOrSeller && c.estado !== 'CONVERTIDA' && (
                           <select
                             value={c.estado}
+                            disabled={isReadOnly}
                             onChange={(e) => handleCambiarEstado(c.id, e.target.value as any)}
                             style={styles.stateSelect}
-                            title="Cambiar estado manualmente"
+                            title={isReadOnly ? 'Modo solo lectura — soporte activo' : 'Cambiar estado manualmente'}
                           >
                             <option value="BORRADOR">BORRADOR</option>
                             <option value="ENVIADA">ENVIADA</option>

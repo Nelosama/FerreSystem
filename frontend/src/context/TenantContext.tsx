@@ -6,13 +6,15 @@ interface TenantContextType {
   user: UserInfo | null;
   isAuthenticated: boolean;
   isImpersonating: boolean;
+  isReadOnly: boolean;
   originalSuperAdminUser: UserInfo | null;
   updateBranding: (colorPrimario: string, nombreComercial: string) => void;
   updateTenantConfig: (updates: Partial<TenantInfo>) => void;
   login: (user: UserInfo, tenant: TenantInfo) => void;
   logout: () => void;
-  impersonateTenantAdmin: (targetTenant: TenantInfo, targetAdminUser: UserInfo) => void;
+  impersonateTenantAdmin: (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string) => void;
   stopImpersonating: () => void;
+  enableEditMode: () => void;
   switchSucursal: (targetSucursalName: string, targetTenantId: string) => void;
 }
 
@@ -49,6 +51,15 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [originalTenant, setOriginalTenant] = useState<TenantInfo | null>(() => {
     const saved = localStorage.getItem('ferre_original_superadmin_tenant');
     return saved ? JSON.parse(saved) : null;
+  });
+
+  const [isReadOnlyState, setIsReadOnlyState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('ferre_is_read_only');
+    return saved ? JSON.parse(saved) : true;
+  });
+
+  const [activeSupportSessionId, setActiveSupportSessionId] = useState<string | null>(() => {
+    return localStorage.getItem('ferre_active_support_session_id');
   });
 
   // Sincronización continua de la configuración del Tenant desde ferre_saas_tenants y variables CSS
@@ -163,7 +174,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('ferre_tenant', JSON.stringify(newTenant));
   };
 
-  const impersonateTenantAdmin = (targetTenant: TenantInfo, targetAdminUser: UserInfo) => {
+  const impersonateTenantAdmin = (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string) => {
     if (user?.rol === 'SUPERADMIN') {
       setOriginalSuperAdminUser(user);
       setOriginalTenant(tenant);
@@ -172,11 +183,54 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     setUser(targetAdminUser);
     setTenant(targetTenant);
+    setIsReadOnlyState(true);
     localStorage.setItem('ferre_user', JSON.stringify(targetAdminUser));
     localStorage.setItem('ferre_tenant', JSON.stringify(targetTenant));
+    localStorage.setItem('ferre_is_read_only', JSON.stringify(true));
+
+    if (supportSessionId) {
+      setActiveSupportSessionId(supportSessionId);
+      localStorage.setItem('ferre_active_support_session_id', supportSessionId);
+    }
+  };
+
+  const enableEditMode = () => {
+    setIsReadOnlyState(false);
+    localStorage.setItem('ferre_is_read_only', JSON.stringify(false));
+
+    if (activeSupportSessionId) {
+      const logsRaw = localStorage.getItem('ferre_mock_auditoria_soporte');
+      if (logsRaw) {
+        try {
+          const logs = JSON.parse(logsRaw);
+          const updated = logs.map((log: any) =>
+            log.id === activeSupportSessionId ? { ...log, modoEdicionActivado: true } : log,
+          );
+          localStorage.setItem('ferre_mock_auditoria_soporte', JSON.stringify(updated));
+        } catch (e) {
+          // Fallback
+        }
+      }
+    }
   };
 
   const stopImpersonating = () => {
+    if (activeSupportSessionId) {
+      const logsRaw = localStorage.getItem('ferre_mock_auditoria_soporte');
+      if (logsRaw) {
+        try {
+          const logs = JSON.parse(logsRaw);
+          const nowFormatted = new Date().toISOString().replace('T', ' ').slice(0, 16);
+          const updated = logs.map((log: any) =>
+            log.id === activeSupportSessionId && !log.fechaFin ? { ...log, fechaFin: nowFormatted } : log,
+          );
+          localStorage.setItem('ferre_mock_auditoria_soporte', JSON.stringify(updated));
+        } catch (e) {
+          // Fallback
+        }
+      }
+    }
+
     if (originalSuperAdminUser && originalTenant) {
       setUser(originalSuperAdminUser);
       setTenant(originalTenant);
@@ -185,8 +239,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     setOriginalSuperAdminUser(null);
     setOriginalTenant(null);
+    setIsReadOnlyState(false);
+    setActiveSupportSessionId(null);
     localStorage.removeItem('ferre_original_superadmin_user');
     localStorage.removeItem('ferre_original_superadmin_tenant');
+    localStorage.removeItem('ferre_is_read_only');
+    localStorage.removeItem('ferre_active_support_session_id');
   };
 
   const switchSucursal = (targetSucursalName: string, targetTenantId: string) => {
@@ -215,7 +273,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         user,
         isAuthenticated: !!user,
         isImpersonating: !!originalSuperAdminUser,
+        isReadOnly: !!originalSuperAdminUser && isReadOnlyState,
         originalSuperAdminUser,
+        enableEditMode,
         updateBranding,
         updateTenantConfig,
         login,

@@ -54,11 +54,9 @@ export const ComisionesPage: React.FC = () => {
   }, [porcentajes, currentTenantId, loadedTenantId]);
 
   const [fechaInicio, setFechaInicio] = useState('2026-03-01');
-  const [fechaFin, setFechaInicioFin] = useState('2026-03-31');
+  const [fechaFin, setFechaFin] = useState('2026-03-31');
 
   const vendedores = usuarios.filter((u) => u.rolBase === 'VENDEDOR' || u.rolBase === 'CAJERO' || u.rolBase === 'ADMIN');
-
-  const totalVentasRegistradas = ventas.reduce((acc, v) => acc + v.total, 0);
 
   const handleCambiarPct = (userId: string, val: string) => {
     const num = parseFloat(val) || 0;
@@ -79,7 +77,7 @@ export const ComisionesPage: React.FC = () => {
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="form-input" style={{ width: '150px' }} />
             <span>hasta</span>
-            <input type="date" value={fechaFin} onChange={(e) => setFechaInicioFin(e.target.value)} className="form-input" style={{ width: '150px' }} />
+            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className="form-input" style={{ width: '150px' }} />
           </div>
         </div>
 
@@ -96,9 +94,23 @@ export const ComisionesPage: React.FC = () => {
             </thead>
             <tbody>
               {vendedores.map((u) => {
-                const pct = porcentajes[u.id] ?? 2.0;
-                const ventasUser = u.rolBase === 'VENDEDOR' ? totalVentasRegistradas * 0.6 : totalVentasRegistradas * 0.4;
-                const comision = (ventasUser * pct) / 100;
+                const pct = porcentajes[u.id] ?? u.comisionPorcentaje ?? 5.0;
+
+                // Filtrar ventas reales por usuario y rango de fechas
+                const ventasFiltradasUser = ventas.filter((v) => {
+                  if (!v.fecha) return false;
+                  const fechaVentaStr = v.fecha.split('T')[0];
+                  const esFechaValida = fechaVentaStr >= fechaInicio && fechaVentaStr <= fechaFin;
+
+                  const esMismoUsuario =
+                    v.vendedorNombre &&
+                    v.vendedorNombre.toLowerCase().includes(u.nombre.toLowerCase().split(' ')[0]);
+
+                  return esFechaValida && esMismoUsuario;
+                });
+
+                const totalVendidoPeriodo = ventasFiltradasUser.reduce((acc, v) => acc + v.total, 0);
+                const comisionPagar = (totalVendidoPeriodo * pct) / 100;
 
                 return (
                   <tr key={u.id}>
@@ -117,9 +129,9 @@ export const ComisionesPage: React.FC = () => {
                         <span style={{ fontWeight: 800 }}>%</span>
                       </div>
                     </td>
-                    <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatLempiras(ventasUser)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatLempiras(totalVendidoPeriodo)}</td>
                     <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 900, color: '#16A34A', fontSize: '15px' }}>
-                      {formatLempiras(comision)}
+                      {formatLempiras(comisionPagar)}
                     </td>
                   </tr>
                 );
