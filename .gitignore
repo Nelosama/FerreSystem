@@ -34,7 +34,7 @@ npm-debug.log*
 coverage/
 
 # Prisma
-backend/prisma/migrations/
+# backend/prisma/migrations/
 backend/prisma/dev.db
 
 # Temporary

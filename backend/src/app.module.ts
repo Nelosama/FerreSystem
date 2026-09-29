@@ -12,6 +12,7 @@ import { VentasModule } from './ventas/ventas.module';
 import { CotizacionesModule } from './cotizaciones/cotizaciones.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
+import { LevantamientosModule } from './levantamientos/levantamientos.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     CotizacionesModule,
     DashboardModule,
     UsuariosModule,
+    LevantamientosModule,
   ],
   providers: [
     {

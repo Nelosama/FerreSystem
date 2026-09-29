@@ -77,6 +77,13 @@ enum ModoNavegacion {
   TOPNAV
 }
 
+enum EstadoLevantamiento {
+  BORRADOR
+  EN_PROGRESO
+  REVISION
+  FINALIZADO
+}
+
 // ============================================================
 // SUPER ADMIN — Tabla separada, sin tenant_id
 // ============================================================
@@ -120,6 +127,7 @@ model Tenant {
   cotizaciones     Cotizacion[]
   secuencias       SecuenciaTenant[]
   modulos          TenantModule[]
+  levantamientos   Levantamiento[]
 
   @@map("tenants")
 }
@@ -398,4 +406,52 @@ model DetalleCotizacion {
 
   @@index([cotizacionId])
   @@map("detalles_cotizacion")
+}
+
+// ============================================================
+// LEVANTAMIENTO DE INVENTARIO
+// ============================================================
+
+model Levantamiento {
+  id          String              @id @default(uuid())
+  tenantId    String              @map("tenant_id")
+  nombre      String
+  descripcion String?
+  estado      EstadoLevantamiento @default(BORRADOR)
+  createdBy   String?             @map("created_by")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  // Relaciones
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items       LevantamientoItem[]
+
+  @@index([tenantId])
+  @@index([tenantId, estado])
+  @@index([tenantId, createdAt])
+  @@map("levantamientos")
+}
+
+// ============================================================
+// ITEM DE LEVANTAMIENTO DE INVENTARIO
+// ============================================================
+
+model LevantamientoItem {
+  id              String        @id @default(uuid())
+  levantamientoId String        @map("levantamiento_id")
+  descripcion     String
+  cantidad        Decimal       @db.Decimal(12, 2)
+  unidad          String        @default("unidad")
+  codigo          String?
+  marca           String?
+  categoria       String?
+  notas           String?
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relaciones
+  levantamiento   Levantamiento @relation(fields: [levantamientoId], references: [id], onDelete: Cascade)
+
+  @@index([levantamientoId])
+  @@map("levantamiento_items")
 }

@@ -69,6 +69,14 @@ export enum TipoSecuencia {
   COTIZACION = 'COTIZACION',
 }
 
+// --- Estado de levantamiento de inventario ---
+export enum EstadoLevantamiento {
+  BORRADOR = 'BORRADOR',
+  EN_PROGRESO = 'EN_PROGRESO',
+  REVISION = 'REVISION',
+  FINALIZADO = 'FINALIZADO',
+}
+
 // --- Tipo de token JWT ---
 export enum TipoToken {
   TENANT = 'tenant',
