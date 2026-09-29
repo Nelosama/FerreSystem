@@ -67,6 +67,35 @@ const COMMON_UNITS = [
   'Paquete',
 ];
 
+const mapApiItem = (raw: any): LevantamientoItem => ({
+  id: String(raw.id),
+  levantamientoId: raw.levantamientoId ? String(raw.levantamientoId) : undefined,
+  descripcion: raw.descripcion || raw.description || '',
+  cantidad: Number(raw.cantidad ?? raw.quantity ?? 0),
+  unidadMedida: raw.unidadMedida || raw.unit || 'Unidad',
+  codigo: raw.codigo || raw.code || undefined,
+  codigoBarras: raw.codigoBarras || raw.barcode || undefined,
+  marca: raw.marca || raw.brand || undefined,
+  categoria: raw.categoria || raw.category || undefined,
+  precioEst: raw.precioEst ?? raw.estimatedPrice ?? raw.price ?? undefined,
+  ubicacion: raw.ubicacion || raw.location || undefined,
+  notas: raw.notas || raw.notes || undefined,
+  fotoUrl: raw.fotoUrl || raw.photoUrl || undefined,
+  fechaCreacion: raw.fechaCreacion || raw.createdAt || new Date().toISOString(),
+  syncStatus: 'SAVED',
+});
+
+const mapApiSession = (s: any): LevantamientoSession => ({
+  id: String(s.id),
+  nombre: s.nombre || s.name || '',
+  descripcion: s.descripcion || s.description || undefined,
+  estado: (s.estado || s.status || 'BORRADOR') as LevantamientoStatus,
+  fechaCreacion: s.fechaCreacion || s.createdAt || new Date().toISOString(),
+  fechaActualizacion: s.fechaActualizacion || s.updatedAt,
+  itemsCount: s._count?.items ?? s.items?.length ?? 0,
+  items: Array.isArray(s.items) ? s.items.map(mapApiItem) : [],
+});
+
 export const LevantamientoPage: React.FC = () => {
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
@@ -75,7 +104,10 @@ export const LevantamientoPage: React.FC = () => {
   const [sessions, setSessions] = useState<LevantamientoSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [loadingSessions, setLoadingSessions] = useState<boolean>(true);
+  const [fetchSessionsError, setFetchSessionsError] = useState<string | null>(null);
+
   const [loadingItems, setLoadingItems] = useState<boolean>(false);
+  const [fetchItemsError, setFetchItemsError] = useState<string | null>(null);
 
   // New Session Modal / Form state
   const [showCreateSessionModal, setShowCreateSessionModal] = useState<boolean>(false);
@@ -123,24 +155,17 @@ export const LevantamientoPage: React.FC = () => {
   // Load Sessions from API
   const fetchSessionsFromApi = async () => {
     setLoadingSessions(true);
+    setFetchSessionsError(null);
     try {
       const response = await api.get('/levantamientos');
       if (response.data && Array.isArray(response.data)) {
-        setSessions(
-          response.data.map((s: any) => ({
-            id: s.id,
-            nombre: s.nombre,
-            descripcion: s.descripcion,
-            estado: s.estado || 'BORRADOR',
-            fechaCreacion: s.fechaCreacion || s.createdAt || new Date().toISOString(),
-            fechaActualizacion: s.fechaActualizacion || s.updatedAt,
-            itemsCount: s._count?.items ?? s.items?.length ?? 0,
-            items: s.items || [],
-          }))
-        );
+        setSessions(response.data.map(mapApiSession));
+      } else {
+        setSessions([]);
       }
     } catch (err: any) {
-      console.warn('API /levantamientos fetch warning:', err);
+      const detail = err?.response?.data?.message || err?.message || '';
+      setFetchSessionsError(`${t('stock_taking.fetch_sessions_error')} ${detail ? `(${detail})` : ''}`);
     } finally {
       setLoadingSessions(false);
     }
@@ -153,25 +178,23 @@ export const LevantamientoPage: React.FC = () => {
   // Load Items from API when opening session
   const fetchItemsForSession = async (sessionId: string) => {
     setLoadingItems(true);
+    setFetchItemsError(null);
     try {
-      let itemsData: LevantamientoItem[] = [];
-      try {
-        const response = await api.get(`/levantamientos/${sessionId}/items`);
-        if (response.data && Array.isArray(response.data)) {
-          itemsData = response.data;
-        }
-      } catch {
-        const response = await api.get(`/levantamientos/${sessionId}`);
-        if (response.data && Array.isArray(response.data.items)) {
-          itemsData = response.data.items;
-        }
-      }
+      const response = await api.get(`/levantamientos/${sessionId}/items`);
+      const rawItems = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.items)
+        ? response.data.items
+        : [];
+
+      const itemsData = rawItems.map(mapApiItem);
 
       setSessions((prev) =>
-        prev.map((s) => (s.id === sessionId ? { ...s, items: itemsData } : s))
+        prev.map((s) => (s.id === sessionId ? { ...s, items: itemsData, itemsCount: itemsData.length } : s))
       );
     } catch (err: any) {
-      console.warn('API /levantamientos/:id/items fetch error:', err);
+      const detail = err?.response?.data?.message || err?.message || '';
+      setFetchItemsError(`${t('stock_taking.fetch_items_error')} ${detail ? `(${detail})` : ''}`);
     } finally {
       setLoadingItems(false);
     }
@@ -193,17 +216,12 @@ export const LevantamientoPage: React.FC = () => {
     try {
       const response = await api.post('/levantamientos', {
         nombre: newSessionNombre.trim(),
+        name: newSessionNombre.trim(),
         descripcion: newSessionDesc.trim() || undefined,
+        description: newSessionDesc.trim() || undefined,
       });
 
-      const created: LevantamientoSession = {
-        id: response.data.id,
-        nombre: response.data.nombre || newSessionNombre.trim(),
-        descripcion: response.data.descripcion || newSessionDesc.trim() || undefined,
-        estado: response.data.estado || 'BORRADOR',
-        fechaCreacion: response.data.fechaCreacion || new Date().toISOString(),
-        items: [],
-      };
+      const created = mapApiSession(response.data);
 
       setSessions((prev) => [created, ...prev]);
       setActiveSessionId(created.id);
@@ -241,39 +259,41 @@ export const LevantamientoPage: React.FC = () => {
     setSaveStatus('SAVING');
     setLastErrorMsg(null);
 
+    // Payload sending both English and Spanish property names for complete DTO compatibility
     const payload = {
+      description: cleanDesc,
       descripcion: cleanDesc,
+      quantity: Math.max(0, cantidad),
       cantidad: Math.max(0, cantidad),
+      unit: unidadMedida || 'Unidad',
       unidadMedida: unidadMedida || 'Unidad',
+      code: codigo.trim() || undefined,
       codigo: codigo.trim() || undefined,
+      barcode: codigoBarras.trim() || undefined,
       codigoBarras: codigoBarras.trim() || undefined,
+      brand: marca.trim() || undefined,
       marca: marca.trim() || undefined,
+      category: categoria.trim() || undefined,
       categoria: categoria.trim() || undefined,
+      estimatedPrice: precioEst ? parseFloat(precioEst) : undefined,
       precioEst: precioEst ? parseFloat(precioEst) : undefined,
+      location: ubicacion.trim() || undefined,
       ubicacion: ubicacion.trim() || undefined,
+      notes: notas.trim() || undefined,
       notas: notas.trim() || undefined,
-      fotoUrl: fotoUrl || undefined,
+      photoUrl: fotoUrl || undefined,
     };
 
     try {
       let savedItem: LevantamientoItem;
 
       if (editingItemId) {
-        // Edit existing item via API
         const response = await api.patch(`/levantamientos/${activeSession.id}/items/${editingItemId}`, payload);
-        savedItem = {
-          ...response.data,
-          id: response.data.id || editingItemId,
-          syncStatus: 'SAVED',
-        };
+        savedItem = mapApiItem(response.data || payload);
+        if (!savedItem.id) savedItem.id = editingItemId;
       } else {
-        // Create new item via API
         const response = await api.post(`/levantamientos/${activeSession.id}/items`, payload);
-        savedItem = {
-          ...response.data,
-          id: response.data.id,
-          syncStatus: 'SAVED',
-        };
+        savedItem = mapApiItem(response.data);
       }
 
       setSaveStatus('SUCCESS');
@@ -296,13 +316,14 @@ export const LevantamientoPage: React.FC = () => {
             estado: sess.estado === 'BORRADOR' ? 'EN_PROGRESO' : sess.estado,
             fechaActualizacion: new Date().toISOString(),
             items: updatedItems,
+            itemsCount: updatedItems.length,
           };
         })
       );
 
       showToast(editingItemId ? t('stock_taking.saved') : t('stock_taking.item_added_success'));
 
-      // Reset form input for continuous fast keying
+      // Clear ONLY variable fields, retaining current location & unit for rapid continuous workflow
       setDescripcion('');
       setCantidad(1);
       setCodigo('');
@@ -362,6 +383,7 @@ export const LevantamientoPage: React.FC = () => {
             ? {
                 ...s,
                 items: s.items.filter((i) => i.id !== itemId),
+                itemsCount: Math.max(0, (s.itemsCount || s.items.length) - 1),
                 fechaActualizacion: new Date().toISOString(),
               }
             : s
@@ -385,7 +407,7 @@ export const LevantamientoPage: React.FC = () => {
     if (!window.confirm(t('stock_taking.confirm_finalize'))) return;
 
     try {
-      await api.patch(`/levantamientos/${activeSession.id}`, { estado: 'FINALIZADO' });
+      await api.patch(`/levantamientos/${activeSession.id}`, { estado: 'FINALIZADO', status: 'FINALIZADO' });
 
       setSessions((prev) =>
         prev.map((s) =>
@@ -502,6 +524,7 @@ export const LevantamientoPage: React.FC = () => {
               onClick={() => {
                 setActiveSessionId(null);
                 setEditingItemId(null);
+                setFetchItemsError(null);
               }}
               style={{ fontSize: '12px', padding: '8px 14px' }}
             >
@@ -629,9 +652,10 @@ export const LevantamientoPage: React.FC = () => {
 
                   <input
                     type="number"
+                    step="any"
                     min="0"
                     value={cantidad}
-                    onChange={(e) => setCantidad(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    onChange={(e) => setCantidad(Math.max(0, parseFloat(e.target.value) || 0))}
                     style={styles.quantityInput}
                   />
 
@@ -891,6 +915,20 @@ export const LevantamientoPage: React.FC = () => {
                 <RefreshCw size={20} className="spin" />
                 <p style={{ fontSize: '13px', marginTop: '8px' }}>Cargando registros...</p>
               </div>
+            ) : fetchItemsError ? (
+              <div style={{ ...styles.errorBox, marginTop: '16px' }}>
+                <AlertCircle size={18} color="#DC2626" />
+                <span style={{ flex: 1, fontSize: '13px', color: '#B91C1C' }}>{fetchItemsError}</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => fetchItemsForSession(activeSession.id)}
+                  style={{ fontSize: '12px', padding: '4px 10px' }}
+                >
+                  <RefreshCw size={14} />
+                  <span>{t('stock_taking.retry')}</span>
+                </button>
+              </div>
             ) : filteredItems.length === 0 ? (
               <p style={{ fontSize: '13px', color: '#78716C', textAlign: 'center', padding: '24px 0' }}>
                 {t('stock_taking.no_records')}
@@ -1023,6 +1061,22 @@ export const LevantamientoPage: React.FC = () => {
             <div className="industrial-card" style={{ padding: '40px 20px', textAlign: 'center', color: '#78716C' }}>
               <RefreshCw size={24} className="spin" style={{ marginBottom: '8px' }} />
               <p style={{ fontSize: '14px', margin: 0 }}>{t('stock_taking.saving')}</p>
+            </div>
+          ) : fetchSessionsError ? (
+            <div className="industrial-card" style={{ padding: '24px' }}>
+              <div style={styles.errorBox}>
+                <AlertCircle size={20} color="#DC2626" />
+                <span style={{ flex: 1, fontSize: '14px', color: '#B91C1C', fontWeight: 600 }}>{fetchSessionsError}</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={fetchSessionsFromApi}
+                  style={{ fontSize: '12px', padding: '6px 12px' }}
+                >
+                  <RefreshCw size={14} />
+                  <span>{t('stock_taking.retry')}</span>
+                </button>
+              </div>
             </div>
           ) : sessions.length === 0 ? (
             <div className="industrial-card" style={{ padding: '40px 20px', textAlign: 'center' }}>

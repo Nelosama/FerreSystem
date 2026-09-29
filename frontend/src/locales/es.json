@@ -73,6 +73,8 @@
     "no_records": "Aún no has capturado ningún producto en este levantamiento.",
     "no_active_sessions": "No tienes ningún levantamiento activo",
     "no_active_sessions_desc": "Crea tu primer levantamiento para iniciar la captura física de inventario desde tu teléfono o tablet.",
+    "fetch_sessions_error": "No fue posible cargar los levantamientos desde el servidor.",
+    "fetch_items_error": "No fue posible cargar los registros del levantamiento.",
     "export_csv": "EXPORTAR CSV"
   },
   "common": {

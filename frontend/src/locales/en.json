@@ -73,6 +73,8 @@
     "no_records": "No products captured in this stock count session yet.",
     "no_active_sessions": "You have no active stock count sessions",
     "no_active_sessions_desc": "Create your first stock count session to start physical inventory capture from your mobile or tablet.",
+    "fetch_sessions_error": "Failed to load stock counts from server.",
+    "fetch_items_error": "Failed to load stock count items.",
     "export_csv": "EXPORT CSV"
   },
   "common": {
