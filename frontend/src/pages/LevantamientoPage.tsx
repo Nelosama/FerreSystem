@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ClipboardList,
   Plus,
-  Minus,
   Camera,
   Check,
   FileSpreadsheet,
@@ -10,88 +9,231 @@ import {
   Search,
   Trash2,
   FolderOpen,
-  Layers,
-  Sparkles,
-  RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  RefreshCw,
+  Edit2,
+  CheckCircle2,
+  FileText,
 } from 'lucide-react';
 import { useRubroConfig } from '../hooks/useRubroConfig';
-import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { exportToCSV } from '../utils/csvExport';
+import { api } from '../utils/api';
 
-export interface CountedProduct {
+export type LevantamientoStatus = 'BORRADOR' | 'EN_PROGRESO' | 'REVISION' | 'FINALIZADO';
+
+export interface LevantamientoItem {
   id: string;
-  nombre: string;
-  categoria: string;
+  levantamientoId?: string;
+  descripcion: string;
   cantidad: number;
   unidadMedida: string;
+  codigo?: string;
+  codigoBarras?: string;
+  marca?: string;
+  categoria?: string;
+  precioEst?: number;
+  ubicacion?: string;
+  notas?: string;
   fotoUrl?: string;
-  fechaCreacion: string;
+  fechaCreacion?: string;
+  syncStatus?: 'SAVED' | 'SAVING' | 'ERROR';
 }
+
+export interface LevantamientoSession {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  estado: LevantamientoStatus;
+  fechaCreacion: string;
+  fechaActualizacion?: string;
+  itemsCount?: number;
+  items: LevantamientoItem[];
+}
+
+const COMMON_UNITS = [
+  'Unidad',
+  'Caja',
+  'Bolsa',
+  'Saco',
+  'Metro',
+  'Kilogramo',
+  'Litro',
+  'Par',
+  'Juego',
+  'Rollo',
+  'Paquete',
+];
+
+const mapApiItem = (raw: any): LevantamientoItem => ({
+  id: String(raw.id),
+  levantamientoId: raw.levantamientoId ? String(raw.levantamientoId) : undefined,
+  descripcion: raw.descripcion || raw.description || '',
+  cantidad: Number(raw.cantidad ?? raw.quantity ?? 0),
+  unidadMedida: raw.unidadMedida || raw.unit || 'Unidad',
+  codigo: raw.codigo || raw.code || undefined,
+  codigoBarras: raw.codigoBarras || raw.barcode || undefined,
+  marca: raw.marca || raw.brand || undefined,
+  categoria: raw.categoria || raw.category || undefined,
+  precioEst: raw.precioEst ?? raw.estimatedPrice ?? raw.price ?? undefined,
+  ubicacion: raw.ubicacion || raw.location || undefined,
+  notas: raw.notas || raw.notes || undefined,
+  fotoUrl: raw.fotoUrl || raw.photoUrl || undefined,
+  fechaCreacion: raw.fechaCreacion || raw.createdAt || new Date().toISOString(),
+  syncStatus: 'SAVED',
+});
+
+const mapApiSession = (s: any): LevantamientoSession => ({
+  id: String(s.id),
+  nombre: s.nombre || s.name || '',
+  descripcion: s.descripcion || s.description || undefined,
+  estado: (s.estado || s.status || 'BORRADOR') as LevantamientoStatus,
+  fechaCreacion: s.fechaCreacion || s.createdAt || new Date().toISOString(),
+  fechaActualizacion: s.fechaActualizacion || s.updatedAt,
+  itemsCount: s._count?.items ?? s.items?.length ?? 0,
+  items: Array.isArray(s.items) ? s.items.map(mapApiItem) : [],
+});
 
 export const LevantamientoPage: React.FC = () => {
   const rubroConfig = useRubroConfig();
-  const { tenant } = useTenant();
   const { t } = useI18n();
 
-  const categories =
-    rubroConfig.categoriasDefault.length > 0
-      ? rubroConfig.categoriasDefault
-      : ['General', 'Otros'];
+  // API State
+  const [sessions, setSessions] = useState<LevantamientoSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [loadingSessions, setLoadingSessions] = useState<boolean>(true);
+  const [fetchSessionsError, setFetchSessionsError] = useState<string | null>(null);
 
-  const storageKey = `ferre_stock_taking_${tenant.id}`;
+  const [loadingItems, setLoadingItems] = useState<boolean>(false);
+  const [fetchItemsError, setFetchItemsError] = useState<string | null>(null);
 
-  const [items, setItems] = useState<CountedProduct[]>(() => {
-    const saved = localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) : [];
-  });
+  // New Session Modal / Form state
+  const [showCreateSessionModal, setShowCreateSessionModal] = useState<boolean>(false);
+  const [newSessionNombre, setNewSessionNombre] = useState<string>('');
+  const [newSessionDesc, setNewSessionDesc] = useState<string>('');
+  const [creatingSession, setCreatingSession] = useState<boolean>(false);
 
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [showSummary, setShowSummary] = useState<boolean>(false);
-
-  // Quick count form states
-  const [nombre, setNombre] = useState<string>('');
+  // Capture Form States
+  const [descripcion, setDescripcion] = useState<string>('');
   const [cantidad, setCantidad] = useState<number>(1);
-  const [unidadMedida, setUnidadMedida] = useState<string>(
-    rubroConfig.unidadesMedida[0] || 'unidad'
-  );
+  const [unidadMedida, setUnidadMedida] = useState<string>('Unidad');
+
+  // More Info Accordion Toggle
+  const [showMoreInfo, setShowMoreInfo] = useState<boolean>(false);
+
+  // Secondary Optional Fields
+  const [codigo, setCodigo] = useState<string>('');
+  const [codigoBarras, setCodigoBarras] = useState<string>('');
+  const [marca, setMarca] = useState<string>('');
+  const [categoria, setCategoria] = useState<string>('');
+  const [precioEst, setPrecioEst] = useState<string>('');
+  const [ubicacion, setUbicacion] = useState<string>('');
+  const [notas, setNotas] = useState<string>('');
   const [fotoUrl, setFotoUrl] = useState<string>('');
+
+  // Edit Mode & Sync Statuses
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'IDLE' | 'SAVING' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const [lastErrorMsg, setLastErrorMsg] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Sync with localStorage
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(items));
-  }, [items, storageKey]);
+  // Filter & Search inside session
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Set default unit when category or rubro config changes
-  useEffect(() => {
-    if (rubroConfig.unidadesMedida.length > 0 && !unidadMedida) {
-      setUnidadMedida(rubroConfig.unidadesMedida[0]);
-    }
-  }, [rubroConfig.unidadesMedida]);
+  // Refs for auto-focus
+  const descripcionInputRef = useRef<HTMLInputElement>(null);
+
+  const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Helper for matching product in current category
-  const categoryItems = selectedCategory
-    ? items.filter((i) => i.categoria === selectedCategory)
-    : [];
+  // Load Sessions from API
+  const fetchSessionsFromApi = async () => {
+    setLoadingSessions(true);
+    setFetchSessionsError(null);
+    try {
+      const response = await api.get('/levantamientos');
+      if (response.data && Array.isArray(response.data)) {
+        setSessions(response.data.map(mapApiSession));
+      } else {
+        setSessions([]);
+      }
+    } catch (err: any) {
+      const detail = err?.response?.data?.message || err?.message || '';
+      setFetchSessionsError(`${t('stock_taking.fetch_sessions_error')} ${detail ? `(${detail})` : ''}`);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
 
-  const matchedExistingProduct = selectedCategory
-    ? categoryItems.find(
-        (i) => i.nombre.trim().toLowerCase() === nombre.trim().toLowerCase()
-      )
-    : undefined;
+  useEffect(() => {
+    fetchSessionsFromApi();
+  }, []);
 
-  const handleSelectAutocomplete = (prod: CountedProduct) => {
-    setNombre(prod.nombre);
-    setUnidadMedida(prod.unidadMedida);
-    if (prod.fotoUrl && !fotoUrl) {
-      setFotoUrl(prod.fotoUrl);
+  // Load Items from API when opening session
+  const fetchItemsForSession = async (sessionId: string) => {
+    setLoadingItems(true);
+    setFetchItemsError(null);
+    try {
+      const response = await api.get(`/levantamientos/${sessionId}/items`);
+      const rawItems = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.items)
+        ? response.data.items
+        : [];
+
+      const itemsData = rawItems.map(mapApiItem);
+
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, items: itemsData, itemsCount: itemsData.length } : s))
+      );
+    } catch (err: any) {
+      const detail = err?.response?.data?.message || err?.message || '';
+      setFetchItemsError(`${t('stock_taking.fetch_items_error')} ${detail ? `(${detail})` : ''}`);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  const handleSelectSession = (sessionId: string) => {
+    setActiveSessionId(sessionId);
+    fetchItemsForSession(sessionId);
+  };
+
+  // Create new Levantamiento Session via API
+  const handleCreateSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSessionNombre.trim() || creatingSession) return;
+
+    setCreatingSession(true);
+    setLastErrorMsg(null);
+
+    try {
+      const response = await api.post('/levantamientos', {
+        nombre: newSessionNombre.trim(),
+        name: newSessionNombre.trim(),
+        descripcion: newSessionDesc.trim() || undefined,
+        description: newSessionDesc.trim() || undefined,
+      });
+
+      const created = mapApiSession(response.data);
+
+      setSessions((prev) => [created, ...prev]);
+      setActiveSessionId(created.id);
+      setShowCreateSessionModal(false);
+      setNewSessionNombre('');
+      setNewSessionDesc('');
+      showToast(t('stock_taking.saved'));
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Error al crear levantamiento';
+      setLastErrorMsg(Array.isArray(msg) ? msg.join(', ') : msg);
+    } finally {
+      setCreatingSession(false);
     }
   };
 
@@ -106,144 +248,254 @@ export const LevantamientoPage: React.FC = () => {
     }
   };
 
-  const handleSaveAndAddAnother = (e?: React.FormEvent) => {
+  // Main Action: GUARDAR Y SIGUIENTE (POST /levantamientos/:id/items or PATCH)
+  const handleSaveAndNext = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
-    const cleanNombre = nombre.trim();
-    if (!cleanNombre || !selectedCategory) return;
+    if (!activeSession || saveStatus === 'SAVING') return;
+    const cleanDesc = descripcion.trim();
+    if (!cleanDesc) return;
 
-    if (editingId) {
-      // Direct edit mode
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === editingId
-            ? {
-                ...i,
-                nombre: cleanNombre,
-                cantidad: Math.max(1, cantidad),
-                unidadMedida,
-                fotoUrl: fotoUrl || i.fotoUrl,
-              }
-            : i
-        )
-      );
-      showToast(t('stock_taking.saved_success'));
-      setEditingId(null);
-    } else {
-      // Check duplicate/matching in current category
-      const existingIndex = items.findIndex(
-        (i) =>
-          i.categoria === selectedCategory &&
-          i.nombre.trim().toLowerCase() === cleanNombre.toLowerCase()
-      );
+    setSaveStatus('SAVING');
+    setLastErrorMsg(null);
 
-      if (existingIndex >= 0) {
-        // Sum quantity to existing product
-        setItems((prev) =>
-          prev.map((item, idx) =>
-            idx === existingIndex
-              ? {
-                  ...item,
-                  cantidad: item.cantidad + Math.max(1, cantidad),
-                  unidadMedida,
-                  fotoUrl: fotoUrl || item.fotoUrl,
-                }
-              : item
-          )
-        );
-        showToast(
-          `${t('stock_taking.saved_success')} (+${cantidad} ${unidadMedida})`
-        );
+    // Payload sending both English and Spanish property names for complete DTO compatibility
+    const payload = {
+      description: cleanDesc,
+      descripcion: cleanDesc,
+      quantity: Math.max(0, cantidad),
+      cantidad: Math.max(0, cantidad),
+      unit: unidadMedida || 'Unidad',
+      unidadMedida: unidadMedida || 'Unidad',
+      code: codigo.trim() || undefined,
+      codigo: codigo.trim() || undefined,
+      barcode: codigoBarras.trim() || undefined,
+      codigoBarras: codigoBarras.trim() || undefined,
+      brand: marca.trim() || undefined,
+      marca: marca.trim() || undefined,
+      category: categoria.trim() || undefined,
+      categoria: categoria.trim() || undefined,
+      estimatedPrice: precioEst ? parseFloat(precioEst) : undefined,
+      precioEst: precioEst ? parseFloat(precioEst) : undefined,
+      location: ubicacion.trim() || undefined,
+      ubicacion: ubicacion.trim() || undefined,
+      notes: notas.trim() || undefined,
+      notas: notas.trim() || undefined,
+      photoUrl: fotoUrl || undefined,
+    };
+
+    try {
+      let savedItem: LevantamientoItem;
+
+      if (editingItemId) {
+        const response = await api.patch(`/levantamientos/${activeSession.id}/items/${editingItemId}`, payload);
+        savedItem = mapApiItem(response.data || payload);
+        if (!savedItem.id) savedItem.id = editingItemId;
       } else {
-        // Create new counted product
-        const newItem: CountedProduct = {
-          id: 'ST-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-          nombre: cleanNombre,
-          categoria: selectedCategory,
-          cantidad: Math.max(1, cantidad),
-          unidadMedida: unidadMedida || rubroConfig.unidadesMedida[0] || 'unidad',
-          fotoUrl: fotoUrl || undefined,
-          fechaCreacion: new Date().toISOString(),
-        };
-        setItems((prev) => [newItem, ...prev]);
-        showToast(t('stock_taking.saved_success'));
+        const response = await api.post(`/levantamientos/${activeSession.id}/items`, payload);
+        savedItem = mapApiItem(response.data);
       }
-    }
 
-    // Reset form fields for fast next entry
-    setNombre('');
-    setCantidad(1);
-    setFotoUrl('');
+      setSaveStatus('SUCCESS');
+
+      // Update Session items in state
+      setSessions((prevSessions) =>
+        prevSessions.map((sess) => {
+          if (sess.id !== activeSession.id) return sess;
+          const existingIdx = sess.items.findIndex((i) => i.id === savedItem.id);
+          let updatedItems = [...sess.items];
+
+          if (existingIdx >= 0) {
+            updatedItems[existingIdx] = savedItem;
+          } else {
+            updatedItems = [savedItem, ...updatedItems];
+          }
+
+          return {
+            ...sess,
+            estado: sess.estado === 'BORRADOR' ? 'EN_PROGRESO' : sess.estado,
+            fechaActualizacion: new Date().toISOString(),
+            items: updatedItems,
+            itemsCount: updatedItems.length,
+          };
+        })
+      );
+
+      showToast(editingItemId ? t('stock_taking.saved') : t('stock_taking.item_added_success'));
+
+      // Clear ONLY variable fields, retaining current location & unit for rapid continuous workflow
+      setDescripcion('');
+      setCantidad(1);
+      setCodigo('');
+      setCodigoBarras('');
+      setMarca('');
+      setCategoria('');
+      setPrecioEst('');
+      setNotas('');
+      setFotoUrl('');
+      setEditingItemId(null);
+      setSaveStatus('IDLE');
+
+      setTimeout(() => {
+        descripcionInputRef.current?.focus();
+      }, 50);
+    } catch (err: any) {
+      setSaveStatus('ERROR');
+      const errDetail = err?.response?.data?.message
+        ? (Array.isArray(err.response.data.message) ? err.response.data.message.join(', ') : err.response.data.message)
+        : (err?.message || t('stock_taking.save_error'));
+
+      setLastErrorMsg(`${t('stock_taking.save_error')} (${errDetail})`);
+    }
   };
 
-  const handleStartEdit = (prod: CountedProduct) => {
-    setEditingId(prod.id);
-    setNombre(prod.nombre);
-    setCantidad(prod.cantidad);
-    setUnidadMedida(prod.unidadMedida);
-    setFotoUrl(prod.fotoUrl || '');
+  const handleStartEdit = (item: LevantamientoItem) => {
+    setEditingItemId(item.id);
+    setDescripcion(item.descripcion);
+    setCantidad(item.cantidad);
+    setUnidadMedida(item.unidadMedida);
+    setCodigo(item.codigo || '');
+    setCodigoBarras(item.codigoBarras || '');
+    setMarca(item.marca || '');
+    setCategoria(item.categoria || '');
+    setPrecioEst(item.precioEst ? String(item.precioEst) : '');
+    setUbicacion(item.ubicacion || '');
+    setNotas(item.notas || '');
+    setFotoUrl(item.fotoUrl || '');
+
+    if (item.codigo || item.codigoBarras || item.marca || item.categoria || item.precioEst || item.fotoUrl || item.notas) {
+      setShowMoreInfo(true);
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDeleteItem = (id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
-    if (editingId === id) {
-      setEditingId(null);
-      setNombre('');
-      setCantidad(1);
-      setFotoUrl('');
+  const handleDeleteItem = async (itemId: string) => {
+    if (!activeSession) return;
+    if (!window.confirm(t('stock_taking.confirm_delete_item'))) return;
+
+    try {
+      await api.delete(`/levantamientos/${activeSession.id}/items/${itemId}`);
+
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === activeSession.id
+            ? {
+                ...s,
+                items: s.items.filter((i) => i.id !== itemId),
+                itemsCount: Math.max(0, (s.itemsCount || s.items.length) - 1),
+                fechaActualizacion: new Date().toISOString(),
+              }
+            : s
+        )
+      );
+
+      if (editingItemId === itemId) {
+        setEditingItemId(null);
+        setDescripcion('');
+        setCantidad(1);
+      }
+      showToast(t('stock_taking.saved'));
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Error al eliminar registro';
+      alert(Array.isArray(msg) ? msg.join(', ') : msg);
     }
   };
 
-  const handleClearAll = () => {
-    if (window.confirm(t('stock_taking.confirm_clear'))) {
-      setItems([]);
-      localStorage.removeItem(storageKey);
-      showToast('Levantamiento reiniciado.');
+  const handleFinalizeSession = async () => {
+    if (!activeSession) return;
+    if (!window.confirm(t('stock_taking.confirm_finalize'))) return;
+
+    try {
+      await api.patch(`/levantamientos/${activeSession.id}`, { estado: 'FINALIZADO', status: 'FINALIZADO' });
+
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === activeSession.id
+            ? { ...s, estado: 'FINALIZADO', fechaActualizacion: new Date().toISOString() }
+            : s
+        )
+      );
+      showToast(t('stock_taking.saved'));
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Error al finalizar levantamiento';
+      alert(Array.isArray(msg) ? msg.join(', ') : msg);
     }
   };
 
   const handleExportCSV = () => {
-    if (items.length === 0) {
-      alert('No hay productos contados para exportar.');
-      return;
-    }
+    if (!activeSession || activeSession.items.length === 0) return;
 
-    // EXACT CSV columns requested for importer template:
-    // (nombre, codigo, categoria, precioCosto, precioVenta, stockActual, stockMinimo, unidadMedida)
-    const exportData = items.map((item) => ({
-      nombre: item.nombre,
-      codigo: '',
-      categoria: item.categoria,
-      precioCosto: '',
-      precioVenta: '',
-      stockActual: item.cantidad,
-      stockMinimo: '',
+    const exportData = activeSession.items.map((item) => ({
+      descripcion: item.descripcion,
+      cantidad: item.cantidad,
       unidadMedida: item.unidadMedida,
+      codigo: item.codigo || '',
+      codigoBarras: item.codigoBarras || '',
+      marca: item.marca || '',
+      categoria: item.categoria || '',
+      precioEst: item.precioEst || '',
+      ubicacion: item.ubicacion || '',
+      notas: item.notas || '',
     }));
 
     const dateStr = new Date().toISOString().split('T')[0];
-    exportToCSV(`Levantamiento_Inventario_${dateStr}.csv`, exportData, [
-      { key: 'nombre', label: 'nombre' },
-      { key: 'codigo', label: 'codigo' },
-      { key: 'categoria', label: 'categoria' },
-      { key: 'precioCosto', label: 'precioCosto' },
-      { key: 'precioVenta', label: 'precioVenta' },
-      { key: 'stockActual', label: 'stockActual' },
-      { key: 'stockMinimo', label: 'stockMinimo' },
+    exportToCSV(`Levantamiento_${activeSession.nombre.replace(/\s+/g, '_')}_${dateStr}.csv`, exportData, [
+      { key: 'descripcion', label: 'descripcion' },
+      { key: 'cantidad', label: 'cantidad' },
       { key: 'unidadMedida', label: 'unidadMedida' },
+      { key: 'codigo', label: 'codigo' },
+      { key: 'codigoBarras', label: 'codigoBarras' },
+      { key: 'marca', label: 'marca' },
+      { key: 'categoria', label: 'categoria' },
+      { key: 'precioEst', label: 'precioEst' },
+      { key: 'ubicacion', label: 'ubicacion' },
+      { key: 'notas', label: 'notas' },
     ]);
   };
 
-  const totalUniqueProducts = items.length;
-  const totalUnits = items.reduce((acc, i) => acc + i.cantidad, 0);
+  const filteredItems = (activeSession?.items || []).filter((item) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      item.descripcion.toLowerCase().includes(q) ||
+      (item.codigo && item.codigo.toLowerCase().includes(q)) ||
+      (item.marca && item.marca.toLowerCase().includes(q))
+    );
+  });
+
+  const getStatusBadgeClass = (st: LevantamientoStatus) => {
+    switch (st) {
+      case 'BORRADOR':
+        return 'badge badge-secondary';
+      case 'EN_PROGRESO':
+        return 'badge badge-primary';
+      case 'REVISION':
+        return 'badge badge-warning';
+      case 'FINALIZADO':
+        return 'badge badge-success';
+    }
+  };
+
+  const getStatusText = (st: LevantamientoStatus) => {
+    switch (st) {
+      case 'BORRADOR':
+        return t('stock_taking.status_draft');
+      case 'EN_PROGRESO':
+        return t('stock_taking.status_in_progress');
+      case 'REVISION':
+        return t('stock_taking.status_review');
+      case 'FINALIZADO':
+        return t('stock_taking.status_completed');
+    }
+  };
 
   return (
     <div style={styles.container}>
       {/* Toast Notification */}
       {toastMessage && (
         <div style={styles.toast}>
-          <Check size={18} color="#FFFFFF" />
+          <CheckCircle2 size={18} color="#FFFFFF" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -264,297 +516,168 @@ export const LevantamientoPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Global Action Toolbar */}
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '12px' }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => {
-              setShowSummary(!showSummary);
-              setSelectedCategory(null);
-            }}
-            style={{ fontSize: '12px', padding: '8px 14px' }}
-          >
-            <Layers size={16} />
-            <span>{showSummary ? t('stock_taking.back_to_categories') : t('stock_taking.view_summary')}</span>
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleExportCSV}
-            disabled={items.length === 0}
-            style={{ fontSize: '12px', padding: '8px 14px' }}
-          >
-            <FileSpreadsheet size={16} />
-            <span>{t('stock_taking.export_csv')}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Overview Stats Cards */}
-      <div style={styles.statsGrid}>
-        <div className="industrial-card" style={styles.statCard}>
-          <span style={styles.statLabel}>{t('stock_taking.total_counted_products')}</span>
-          <span style={styles.statValue}>{totalUniqueProducts}</span>
-        </div>
-        <div className="industrial-card" style={styles.statCard}>
-          <span style={styles.statLabel}>{t('stock_taking.total_counted_units')}</span>
-          <span style={{ ...styles.statValue, color: 'var(--color-primary)' }}>{totalUnits}</span>
-        </div>
-      </div>
-
-      {/* VIEW 1: SUMMARY SCREEN */}
-      {showSummary ? (
-        <div style={{ marginTop: '20px' }}>
-          <div className="industrial-card" style={{ padding: '20px' }}>
-            <div style={styles.sectionHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase', margin: 0 }}>
-                {t('stock_taking.summary_title')}
-              </h2>
-              {items.length > 0 && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={handleClearAll}
-                  style={{ fontSize: '12px', color: '#DC2626' }}
-                >
-                  <RotateCcw size={14} />
-                  <span>{t('stock_taking.clear_all')}</span>
-                </button>
-              )}
-            </div>
-
-            {/* Category summary progress breakdown */}
-            <div style={styles.summaryCategoryGrid}>
-              {categories.map((cat) => {
-                const catProds = items.filter((i) => i.categoria === cat);
-                const catUnits = catProds.reduce((acc, i) => acc + i.cantidad, 0);
-
-                return (
-                  <div
-                    key={cat}
-                    style={styles.summaryCatCard}
-                    onClick={() => {
-                      setSelectedCategory(cat);
-                      setShowSummary(false);
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 800, fontSize: '13px' }}>{cat}</span>
-                      <span className="badge badge-primary">{catProds.length} prod</span>
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#78716C', marginTop: '6px' }}>
-                      Total unidades contadas: <strong>{catUnits}</strong>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Full product table list */}
-            <h3 style={{ fontSize: '14px', marginTop: '24px', textTransform: 'uppercase' }}>
-              Detalle Completo de Productos Contados ({items.length})
-            </h3>
-
-            {items.length === 0 ? (
-              <p style={{ fontSize: '13px', color: '#78716C', textAlign: 'center', padding: '24px 0' }}>
-                No hay productos contados aún. Selecciona una categoría para comenzar el conteo.
-              </p>
-            ) : (
-              <div className="table-container" style={{ marginTop: '12px' }}>
-                <table className="industrial-table" style={{ fontSize: '13px' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: '50px' }}>FOTO</th>
-                      <th>PRODUCTO</th>
-                      <th>CATEGORÍA</th>
-                      <th style={{ textAlign: 'center' }}>CANTIDAD</th>
-                      <th>UNIDAD</th>
-                      <th style={{ textAlign: 'right' }}>ACCIONES</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item) => (
-                      <tr key={item.id}>
-                        <td style={{ textAlign: 'center' }}>
-                          {item.fotoUrl ? (
-                            <img
-                              src={item.fotoUrl}
-                              alt={item.nombre}
-                              style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '4px' }}
-                            />
-                          ) : (
-                            <div style={styles.noPhotoPlaceholder}>-</div>
-                          )}
-                        </td>
-                        <td style={{ fontWeight: 700 }}>{item.nombre}</td>
-                        <td>
-                          <span className="badge badge-secondary">{item.categoria}</span>
-                        </td>
-                        <td style={{ textAlign: 'center', fontWeight: 800, fontSize: '14px' }}>
-                          {item.cantidad}
-                        </td>
-                        <td style={{ textTransform: 'lowercase' }}>{item.unidadMedida}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteItem(item.id)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626' }}
-                            title="Eliminar registro"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+        {activeSession && (
+          <div style={{ marginTop: '12px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setActiveSessionId(null);
+                setEditingItemId(null);
+                setFetchItemsError(null);
+              }}
+              style={{ fontSize: '12px', padding: '8px 14px' }}
+            >
+              <ArrowLeft size={16} />
+              <span>{t('stock_taking.back_to_sessions')}</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleExportCSV}
+              disabled={activeSession.items.length === 0}
+              style={{ fontSize: '12px', padding: '8px 14px' }}
+            >
+              <FileSpreadsheet size={16} />
+              <span>{t('stock_taking.export_csv')}</span>
+            </button>
           </div>
-        </div>
-      ) : selectedCategory ? (
-        /* VIEW 2: FAST COUNT SCREEN FOR SELECTED CATEGORY */
+        )}
+      </div>
+
+      {/* VIEW 1: ACTIVE LEVANTAMIENTO CAPTURE INTERFACE */}
+      {activeSession ? (
         <div style={{ marginTop: '16px' }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => {
-              setSelectedCategory(null);
-              setEditingId(null);
-              setNombre('');
-              setCantidad(1);
-              setFotoUrl('');
-            }}
-            style={{ marginBottom: '14px', fontSize: '12px' }}
-          >
-            <ArrowLeft size={16} />
-            <span>{t('stock_taking.back_to_categories')}</span>
-          </button>
-
-          <div className="industrial-card" style={styles.countCard}>
-            <div style={styles.countHeader}>
+          {/* Active Session Info Bar */}
+          <div className="industrial-card" style={{ padding: '16px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  {t('stock_taking.quick_count')}
+                <span className={getStatusBadgeClass(activeSession.estado)}>
+                  {getStatusText(activeSession.estado)}
                 </span>
-                <h2 style={{ fontSize: '18px', margin: 0, textTransform: 'uppercase' }}>
-                  {selectedCategory}
+                <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '6px 0 2px 0' }}>
+                  {activeSession.nombre}
                 </h2>
-              </div>
-              <span className="badge badge-primary" style={{ fontSize: '12px', padding: '6px 12px' }}>
-                {categoryItems.length} registrados
-              </span>
-            </div>
-
-            <form onSubmit={handleSaveAndAddAnother} style={{ marginTop: '16px' }}>
-              {/* Product Name & Autocomplete */}
-              <div style={styles.fieldGroup}>
-                <label style={styles.fieldLabel}>
-                  {t('stock_taking.product_name')} *
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    placeholder={t('stock_taking.product_name_placeholder')}
-                    className="industrial-input"
-                    style={{ width: '100%', paddingRight: '36px', fontSize: '15px', fontWeight: 600 }}
-                    required
-                    autoFocus
-                  />
-                  <Search
-                    size={18}
-                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}
-                  />
-                </div>
-
-                {/* Autocomplete suggestions dropdown for THIS category */}
-                {nombre.trim().length > 1 &&
-                  categoryItems.filter(
-                    (i) =>
-                      i.nombre.toLowerCase().includes(nombre.toLowerCase().trim()) &&
-                      i.nombre.toLowerCase() !== nombre.toLowerCase().trim()
-                  ).length > 0 && (
-                    <div style={styles.autocompleteDropdown}>
-                      {categoryItems
-                        .filter(
-                          (i) =>
-                            i.nombre.toLowerCase().includes(nombre.toLowerCase().trim()) &&
-                            i.nombre.toLowerCase() !== nombre.toLowerCase().trim()
-                        )
-                        .slice(0, 5)
-                        .map((prod) => (
-                          <div
-                            key={prod.id}
-                            style={styles.suggestionRow}
-                            onClick={() => handleSelectAutocomplete(prod)}
-                          >
-                            <span style={{ fontWeight: 700 }}>{prod.nombre}</span>
-                            <span style={{ fontSize: '11px', color: '#78716C' }}>
-                              ({prod.cantidad} {prod.unidadMedida} previo)
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-
-                {/* Match existing warning indicator */}
-                {matchedExistingProduct && !editingId && (
-                  <div style={styles.matchAlert}>
-                    <Sparkles size={16} color="#D97706" />
-                    <span>
-                      Este producto ya existe en esta categoría ({matchedExistingProduct.cantidad} {matchedExistingProduct.unidadMedida}). {t('stock_taking.matching_existing')}
-                    </span>
-                  </div>
+                {activeSession.descripcion && (
+                  <p style={{ fontSize: '12px', color: '#78716C', margin: 0 }}>
+                    {activeSession.descripcion}
+                  </p>
                 )}
               </div>
 
-              {/* Quantity Stepper (Mobile Friendly Touch Controls) */}
-              <div style={{ ...styles.fieldGroup, marginTop: '16px' }}>
-                <label style={styles.fieldLabel}>{t('stock_taking.quantity')} *</label>
-                <div style={styles.stepperContainer}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '11px', color: '#78716C', textTransform: 'uppercase', fontWeight: 800 }}>
+                    {t('stock_taking.total_records')}
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--color-primary)' }}>
+                    {activeSession.items.length}
+                  </div>
+                </div>
+
+                {activeSession.estado !== 'FINALIZADO' && (
                   <button
                     type="button"
-                    style={styles.stepperBtn}
-                    onClick={() => setCantidad((prev) => Math.max(1, prev - 1))}
+                    className="btn btn-secondary"
+                    onClick={handleFinalizeSession}
+                    style={{ fontSize: '12px', padding: '8px 12px' }}
                   >
-                    <Minus size={22} />
+                    <Check size={16} />
+                    <span>{t('stock_taking.finalize_session')}</span>
                   </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Ultra-Fast Capture Card */}
+          <div className="industrial-card" style={styles.captureCard}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardHeaderTag}>
+                {t('stock_taking.quick_count')}
+              </span>
+              {saveStatus === 'SAVING' && (
+                <span style={styles.savingTag}>
+                  <RefreshCw size={14} className="spin" /> {t('stock_taking.saving')}
+                </span>
+              )}
+            </div>
+
+            <form onSubmit={handleSaveAndNext} style={{ marginTop: '14px' }}>
+              {/* Field 1: Descripción (Required, Prominent) */}
+              <div style={styles.fieldGroup}>
+                <label style={styles.fieldLabel}>
+                  {t('stock_taking.description')} *
+                </label>
+                <input
+                  ref={descripcionInputRef}
+                  type="text"
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  placeholder={t('stock_taking.description_placeholder')}
+                  className="industrial-input"
+                  style={{ width: '100%', fontSize: '16px', fontWeight: 700, padding: '12px 14px' }}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {/* Field 2: Cantidad (Direct input + Quick Touch Steppers) */}
+              <div style={{ ...styles.fieldGroup, marginTop: '16px' }}>
+                <label style={styles.fieldLabel}>{t('stock_taking.quantity')} *</label>
+                <div style={styles.quantityContainer}>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      style={styles.touchBtnSecondary}
+                      onClick={() => setCantidad((prev) => Math.max(0, prev - 10))}
+                    >
+                      -10
+                    </button>
+                    <button
+                      type="button"
+                      style={styles.touchBtnSecondary}
+                      onClick={() => setCantidad((prev) => Math.max(0, prev - 5))}
+                    >
+                      -5
+                    </button>
+                    <button
+                      type="button"
+                      style={styles.touchBtnSecondary}
+                      onClick={() => setCantidad((prev) => Math.max(0, prev - 1))}
+                    >
+                      -1
+                    </button>
+                  </div>
 
                   <input
                     type="number"
-                    min="1"
+                    step="any"
+                    min="0"
                     value={cantidad}
-                    onChange={(e) => setCantidad(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                    style={styles.stepperInput}
+                    onChange={(e) => setCantidad(Math.max(0, parseFloat(e.target.value) || 0))}
+                    style={styles.quantityInput}
                   />
 
-                  <button
-                    type="button"
-                    style={styles.stepperBtn}
-                    onClick={() => setCantidad((prev) => prev + 1)}
-                  >
-                    <Plus size={22} />
-                  </button>
-
-                  {/* Quick increment buttons */}
-                  <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
+                  <div style={{ display: 'flex', gap: '6px' }}>
                     <button
                       type="button"
-                      className="btn btn-secondary"
+                      style={styles.touchBtnPrimary}
+                      onClick={() => setCantidad((prev) => prev + 1)}
+                    >
+                      +1
+                    </button>
+                    <button
+                      type="button"
+                      style={styles.touchBtnPrimary}
                       onClick={() => setCantidad((prev) => prev + 5)}
-                      style={{ padding: '8px 12px', fontSize: '12px', fontWeight: 800 }}
                     >
                       +5
                     </button>
                     <button
                       type="button"
-                      className="btn btn-secondary"
+                      style={styles.touchBtnPrimary}
                       onClick={() => setCantidad((prev) => prev + 10)}
-                      style={{ padding: '8px 12px', fontSize: '12px', fontWeight: 800 }}
                     >
                       +10
                     </button>
@@ -562,136 +685,291 @@ export const LevantamientoPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Unit of Measure & Camera Input Row */}
-              <div style={styles.unitAndPhotoRow}>
-                {/* Unit Dropdown */}
-                <div style={{ flex: 1 }}>
-                  <label style={styles.fieldLabel}>{t('stock_taking.unit_of_measure')}</label>
-                  <select
-                    value={unidadMedida}
-                    onChange={(e) => setUnidadMedida(e.target.value)}
-                    className="industrial-select"
-                    style={{ width: '100%', height: '42px', fontSize: '14px', fontWeight: 600 }}
-                  >
-                    {(rubroConfig.unidadesMedida.length > 0
-                      ? rubroConfig.unidadesMedida
-                      : ['unidad', 'caja', 'metro', 'kg']
-                    ).map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Photo Input (Mobile Camera direct trigger via capture="environment") */}
-                <div>
-                  <label style={styles.fieldLabel}>{t('stock_taking.take_photo')}</label>
-                  <label
-                    className="btn btn-secondary"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      height: '42px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      padding: '0 14px',
-                    }}
-                  >
-                    <Camera size={18} style={{ color: fotoUrl ? '#16A34A' : 'var(--color-primary)' }} />
-                    <span>{fotoUrl ? t('stock_taking.photo_added') : 'Foto'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handlePhotoCapture}
-                      style={{ display: 'none' }}
-                    />
-                  </label>
-                </div>
+              {/* Field 3: Unidad de Medida */}
+              <div style={{ ...styles.fieldGroup, marginTop: '16px' }}>
+                <label style={styles.fieldLabel}>{t('stock_taking.unit_of_measure')}</label>
+                <select
+                  value={unidadMedida}
+                  onChange={(e) => setUnidadMedida(e.target.value)}
+                  className="industrial-select"
+                  style={{ width: '100%', height: '44px', fontSize: '15px', fontWeight: 600 }}
+                >
+                  {(rubroConfig.unidadesMedida.length > 0
+                    ? rubroConfig.unidadesMedida
+                    : COMMON_UNITS
+                  ).map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* Photo Preview Thumbnail */}
-              {fotoUrl && (
-                <div style={styles.photoPreviewBox}>
-                  <img src={fotoUrl} alt="Preview" style={styles.photoPreviewImg} />
+              {/* Accordion: + Más Información (Secondary fields) */}
+              <div style={{ marginTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowMoreInfo(!showMoreInfo)}
+                  style={styles.accordionToggle}
+                >
+                  <span>{showMoreInfo ? t('stock_taking.hide_more_info') : t('stock_taking.more_info')}</span>
+                  {showMoreInfo ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
+
+                {showMoreInfo && (
+                  <div style={styles.accordionContent}>
+                    <div style={styles.secondaryGrid}>
+                      <div>
+                        <label style={styles.fieldLabel}>{t('stock_taking.code')}</label>
+                        <input
+                          type="text"
+                          value={codigo}
+                          onChange={(e) => setCodigo(e.target.value)}
+                          placeholder="Ej. FER-1001"
+                          className="industrial-input"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.fieldLabel}>{t('stock_taking.barcode')}</label>
+                        <input
+                          type="text"
+                          value={codigoBarras}
+                          onChange={(e) => setCodigoBarras(e.target.value)}
+                          placeholder="Ej. 750123456789"
+                          className="industrial-input"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.fieldLabel}>{t('stock_taking.brand')}</label>
+                        <input
+                          type="text"
+                          value={marca}
+                          onChange={(e) => setMarca(e.target.value)}
+                          placeholder="Ej. Truper, Stanley"
+                          className="industrial-input"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.fieldLabel}>{t('stock_taking.category')}</label>
+                        <select
+                          value={categoria}
+                          onChange={(e) => setCategoria(e.target.value)}
+                          className="industrial-select"
+                          style={{ width: '100%', height: '38px' }}
+                        >
+                          <option value="">-- Sin categoría --</option>
+                          {rubroConfig.categoriasDefault.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={styles.fieldLabel}>{t('stock_taking.price')}</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={precioEst}
+                          onChange={(e) => setPrecioEst(e.target.value)}
+                          placeholder="0.00"
+                          className="industrial-input"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.fieldLabel}>{t('stock_taking.location')}</label>
+                        <input
+                          type="text"
+                          value={ubicacion}
+                          onChange={(e) => setUbicacion(e.target.value)}
+                          placeholder="Ej. Pasillo 3, Estante B"
+                          className="industrial-input"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Photo capture optional */}
+                    <div style={{ marginTop: '14px' }}>
+                      <label style={styles.fieldLabel}>{t('stock_taking.photo')}</label>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
+                        <label
+                          className="btn btn-secondary"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                          }}
+                        >
+                          <Camera size={18} style={{ color: fotoUrl ? '#16A34A' : 'var(--color-primary)' }} />
+                          <span>{fotoUrl ? t('stock_taking.photo_added') : t('stock_taking.take_photo')}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handlePhotoCapture}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
+
+                        {fotoUrl && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <img src={fotoUrl} alt="Preview" style={styles.photoPreviewThumb} />
+                            <button
+                              type="button"
+                              onClick={() => setFotoUrl('')}
+                              style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: '12px' }}
+                            >
+                              {t('stock_taking.remove_photo')}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Notes field */}
+                    <div style={{ marginTop: '12px' }}>
+                      <label style={styles.fieldLabel}>{t('stock_taking.notes')}</label>
+                      <textarea
+                        value={notas}
+                        onChange={(e) => setNotas(e.target.value)}
+                        placeholder="Observaciones adicionales..."
+                        className="industrial-input"
+                        rows={2}
+                        style={{ width: '100%', resize: 'none' }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Error display with Retry option */}
+              {lastErrorMsg && (
+                <div style={styles.errorBox}>
+                  <AlertCircle size={18} color="#DC2626" />
+                  <span style={{ flex: 1, fontSize: '13px', color: '#B91C1C' }}>{lastErrorMsg}</span>
                   <button
                     type="button"
-                    onClick={() => setFotoUrl('')}
-                    style={styles.removePhotoBtn}
+                    className="btn btn-secondary"
+                    onClick={() => handleSaveAndNext()}
+                    style={{ fontSize: '12px', padding: '4px 10px' }}
                   >
-                    Quitar foto
+                    <RefreshCw size={14} />
+                    <span>{t('stock_taking.retry')}</span>
                   </button>
                 </div>
               )}
 
-              {/* Action Button: Guardar y agregar otro */}
+              {/* Primary Action Button: GUARDAR Y SIGUIENTE */}
               <div style={{ marginTop: '20px' }}>
                 <button
                   type="submit"
                   className="btn btn-primary"
+                  disabled={saveStatus === 'SAVING'}
                   style={{
-                    width: '100%',
-                    padding: '14px',
-                    fontSize: '15px',
-                    fontWeight: 800,
-                    justifyContent: 'center',
-                    letterSpacing: '0.03em',
+                    ...styles.primarySaveBtn,
+                    opacity: saveStatus === 'SAVING' ? 0.7 : 1,
                   }}
                 >
-                  <Plus size={20} />
+                  <Plus size={22} />
                   <span>
-                    {editingId ? 'Actualizar Producto' : t('stock_taking.save_and_add_another')}
+                    {editingItemId ? t('common.save') : t('stock_taking.save_and_next')}
                   </span>
                 </button>
               </div>
             </form>
           </div>
 
-          {/* List of items already counted in THIS category */}
+          {/* Captured Items List & Search */}
           <div className="industrial-card" style={{ marginTop: '20px', padding: '16px' }}>
-            <h3 style={{ fontSize: '14px', textTransform: 'uppercase', marginBottom: '12px' }}>
-              {t('stock_taking.items_in_category')} ({categoryItems.length})
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 800, margin: 0, textTransform: 'uppercase' }}>
+                {t('stock_taking.items_list')} ({activeSession.items.length})
+              </h3>
 
-            {categoryItems.length === 0 ? (
-              <p style={{ fontSize: '13px', color: '#78716C', textAlign: 'center', padding: '16px 0' }}>
-                {t('stock_taking.no_items_in_category')}
+              {/* Search Bar */}
+              <div style={{ position: 'relative', minWidth: '240px' }}>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t('stock_taking.search_placeholder')}
+                  className="industrial-input"
+                  style={{ width: '100%', paddingLeft: '32px', fontSize: '13px' }}
+                />
+                <Search
+                  size={16}
+                  style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}
+                />
+              </div>
+            </div>
+
+            {loadingItems ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#78716C' }}>
+                <RefreshCw size={20} className="spin" />
+                <p style={{ fontSize: '13px', marginTop: '8px' }}>Cargando registros...</p>
+              </div>
+            ) : fetchItemsError ? (
+              <div style={{ ...styles.errorBox, marginTop: '16px' }}>
+                <AlertCircle size={18} color="#DC2626" />
+                <span style={{ flex: 1, fontSize: '13px', color: '#B91C1C' }}>{fetchItemsError}</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => fetchItemsForSession(activeSession.id)}
+                  style={{ fontSize: '12px', padding: '4px 10px' }}
+                >
+                  <RefreshCw size={14} />
+                  <span>{t('stock_taking.retry')}</span>
+                </button>
+              </div>
+            ) : filteredItems.length === 0 ? (
+              <p style={{ fontSize: '13px', color: '#78716C', textAlign: 'center', padding: '24px 0' }}>
+                {t('stock_taking.no_records')}
               </p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {categoryItems.map((item) => (
-                  <div key={item.id} style={styles.itemRowCard}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {filteredItems.map((item) => (
+                  <div key={item.id} style={styles.itemCard}>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1 }}>
                       {item.fotoUrl ? (
-                        <img
-                          src={item.fotoUrl}
-                          alt={item.nombre}
-                          style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '4px' }}
-                        />
+                        <img src={item.fotoUrl} alt={item.descripcion} style={styles.itemPhotoThumb} />
                       ) : (
-                        <div style={styles.noPhotoPlaceholder}>-</div>
+                        <div style={styles.noPhotoPlaceholder}>
+                          <FileText size={18} />
+                        </div>
                       )}
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: '14px' }}>{item.nombre}</div>
-                        <div style={{ fontSize: '12px', color: '#78716C', marginTop: '2px' }}>
+
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--color-text-main)' }}>
+                          {item.descripcion}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#78716C', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 800, color: 'var(--color-primary)' }}>
-                            {item.cantidad}
-                          </span>{' '}
-                          {item.unidadMedida}
+                            {item.cantidad} {item.unidadMedida}
+                          </span>
+                          {item.codigo && <span>• Cód: <strong>{item.codigo}</strong></span>}
+                          {item.marca && <span>• Marca: {item.marca}</span>}
+                          {item.ubicacion && <span>• Ubic: {item.ubicacion}</span>}
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button
                         type="button"
                         className="btn btn-secondary"
                         onClick={() => handleStartEdit(item)}
-                        style={{ padding: '6px 10px', fontSize: '11px' }}
+                        style={{ padding: '6px 10px', fontSize: '12px' }}
                       >
-                        Editar
+                        <Edit2 size={14} />
+                        <span>{t('stock_taking.edit_item')}</span>
                       </button>
                       <button
                         type="button"
@@ -708,47 +986,155 @@ export const LevantamientoPage: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* VIEW 3: CATEGORY SELECTION LIST (DEFAULT HOME) */
+        /* VIEW 2: SESSIONS LIST & CREATION (DEFAULT SCREEN) */
         <div style={{ marginTop: '20px' }}>
-          <div style={styles.categoryHeader}>
-            <FolderOpen size={20} style={{ color: 'var(--color-primary)' }} />
-            <h2 style={{ fontSize: '16px', textTransform: 'uppercase', margin: 0 }}>
-              {t('stock_taking.categories_title')}
-            </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <FolderOpen size={20} style={{ color: 'var(--color-primary)' }} />
+              <h2 style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase', margin: 0 }}>
+                {t('stock_taking.sessions_title')}
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setShowCreateSessionModal(true)}
+              style={{ fontSize: '13px', padding: '10px 16px' }}
+            >
+              <Plus size={18} />
+              <span>{t('stock_taking.new_session')}</span>
+            </button>
           </div>
 
-          <div style={styles.categoryGrid}>
-            {categories.map((cat) => {
-              const count = items.filter((i) => i.categoria === cat).length;
-              const totalCatUnits = items
-                .filter((i) => i.categoria === cat)
-                .reduce((acc, i) => acc + i.cantidad, 0);
+          {/* Modal / Form for Creating Session */}
+          {showCreateSessionModal && (
+            <div className="industrial-card" style={{ padding: '20px', marginBottom: '20px', border: '2px solid var(--color-primary)' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 800, margin: '0 0 14px 0', textTransform: 'uppercase' }}>
+                {t('stock_taking.create_session_title')}
+              </h3>
+              <form onSubmit={handleCreateSession}>
+                <div style={styles.fieldGroup}>
+                  <label style={styles.fieldLabel}>{t('stock_taking.session_name')} *</label>
+                  <input
+                    type="text"
+                    value={newSessionNombre}
+                    onChange={(e) => setNewSessionNombre(e.target.value)}
+                    placeholder={t('stock_taking.session_name_placeholder')}
+                    className="industrial-input"
+                    style={{ width: '100%', fontSize: '14px' }}
+                    required
+                    autoFocus
+                  />
+                </div>
 
-              return (
+                <div style={{ ...styles.fieldGroup, marginTop: '12px' }}>
+                  <label style={styles.fieldLabel}>{t('stock_taking.session_desc')}</label>
+                  <input
+                    type="text"
+                    value={newSessionDesc}
+                    onChange={(e) => setNewSessionDesc(e.target.value)}
+                    placeholder={t('stock_taking.session_desc_placeholder')}
+                    className="industrial-input"
+                    style={{ width: '100%', fontSize: '14px' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowCreateSessionModal(false)}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={creatingSession}>
+                    {creatingSession ? t('stock_taking.saving') : t('stock_taking.create_and_start')}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Sessions List */}
+          {loadingSessions ? (
+            <div className="industrial-card" style={{ padding: '40px 20px', textAlign: 'center', color: '#78716C' }}>
+              <RefreshCw size={24} className="spin" style={{ marginBottom: '8px' }} />
+              <p style={{ fontSize: '14px', margin: 0 }}>{t('stock_taking.saving')}</p>
+            </div>
+          ) : fetchSessionsError ? (
+            <div className="industrial-card" style={{ padding: '24px' }}>
+              <div style={styles.errorBox}>
+                <AlertCircle size={20} color="#DC2626" />
+                <span style={{ flex: 1, fontSize: '14px', color: '#B91C1C', fontWeight: 600 }}>{fetchSessionsError}</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={fetchSessionsFromApi}
+                  style={{ fontSize: '12px', padding: '6px 12px' }}
+                >
+                  <RefreshCw size={14} />
+                  <span>{t('stock_taking.retry')}</span>
+                </button>
+              </div>
+            </div>
+          ) : sessions.length === 0 ? (
+            <div className="industrial-card" style={{ padding: '40px 20px', textAlign: 'center' }}>
+              <ClipboardList size={40} style={{ color: '#9CA3AF', marginBottom: '12px' }} />
+              <h3 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 6px 0' }}>
+                {t('stock_taking.no_active_sessions')}
+              </h3>
+              <p style={{ fontSize: '13px', color: '#78716C', margin: '0 0 16px 0' }}>
+                {t('stock_taking.no_active_sessions_desc')}
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setShowCreateSessionModal(true)}
+              >
+                <Plus size={18} />
+                <span>{t('stock_taking.new_session')}</span>
+              </button>
+            </div>
+          ) : (
+            <div style={styles.sessionsGrid}>
+              {sessions.map((sess) => (
                 <div
-                  key={cat}
+                  key={sess.id}
                   className="industrial-card"
-                  style={styles.categoryCard}
-                  onClick={() => setSelectedCategory(cat)}
+                  style={styles.sessionCard}
+                  onClick={() => handleSelectSession(sess.id)}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <h3 style={{ fontSize: '15px', fontWeight: 800, margin: 0 }}>{cat}</h3>
-                    <span
-                      className={count > 0 ? 'badge badge-primary' : 'badge badge-secondary'}
-                      style={{ fontSize: '11px' }}
-                    >
-                      {t('stock_taking.products_count').replace('{count}', String(count))}
+                    <span className={getStatusBadgeClass(sess.estado)}>
+                      {getStatusText(sess.estado)}
+                    </span>
+                    <span style={{ fontSize: '12px', color: '#78716C' }}>
+                      {new Date(sess.fechaCreacion).toLocaleDateString()}
                     </span>
                   </div>
 
-                  <div style={{ marginTop: '12px', fontSize: '12px', color: '#78716C', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>{count > 0 ? `${totalCatUnits} unidades` : 'Sin contar'}</span>
-                    <span style={{ fontWeight: 800, color: 'var(--color-primary)' }}>Tocar para contar &rarr;</span>
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, margin: '10px 0 4px 0' }}>
+                    {sess.nombre}
+                  </h3>
+                  {sess.descripcion && (
+                    <p style={{ fontSize: '12px', color: '#78716C', margin: '0 0 12px 0' }}>
+                      {sess.descripcion}
+                    </p>
+                  )}
+
+                  <div style={styles.sessionFooter}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-main)' }}>
+                      <strong>{sess.itemsCount ?? sess.items.length}</strong> {t('stock_taking.total_records').toLowerCase()}
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-primary)' }}>
+                      {t('stock_taking.continue_session')} &rarr;
+                    </span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -758,7 +1144,7 @@ export const LevantamientoPage: React.FC = () => {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     padding: '20px',
-    maxWidth: '1000px',
+    maxWidth: '900px',
     margin: '0 auto',
     paddingBottom: '100px',
   },
@@ -795,55 +1181,30 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
     zIndex: 9999,
   },
-  statsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: '12px',
-    marginTop: '16px',
-  },
-  statCard: {
-    padding: '14px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-  },
-  statLabel: {
-    fontSize: '11px',
-    fontWeight: 800,
-    color: 'var(--color-text-muted)',
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-  },
-  statValue: {
-    fontSize: '24px',
-    fontWeight: 900,
-    fontFamily: 'var(--font-display)',
-  },
-  categoryHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    marginBottom: '14px',
-  },
-  categoryGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-    gap: '14px',
-  },
-  categoryCard: {
-    padding: '16px',
-    cursor: 'pointer',
-    transition: 'transform 0.15s ease, border-color 0.15s ease',
-  },
-  countCard: {
+  captureCard: {
     padding: '20px',
   },
-  countHeader: {
+  cardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: '12px',
+    paddingBottom: '10px',
     borderBottom: '1px solid var(--color-border)',
+  },
+  cardHeaderTag: {
+    fontSize: '12px',
+    fontWeight: 900,
+    color: 'var(--color-primary)',
+    letterSpacing: '0.05em',
+    textTransform: 'uppercase',
+  },
+  savingTag: {
+    fontSize: '12px',
+    color: 'var(--color-primary)',
+    fontWeight: 700,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
   },
   fieldGroup: {
     display: 'flex',
@@ -857,106 +1218,119 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.03em',
     color: 'var(--color-text-main)',
   },
-  stepperContainer: {
+  quantityContainer: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
+    justifyContent: 'space-between',
     flexWrap: 'wrap',
   },
-  stepperBtn: {
-    width: '46px',
-    height: '46px',
+  touchBtnSecondary: {
+    minWidth: '42px',
+    height: '44px',
+    padding: '0 8px',
     borderRadius: '6px',
     border: '2px solid var(--color-border)',
-    backgroundColor: '#FFFFFF',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: '#F5F5F4',
     color: 'var(--color-text-main)',
+    fontWeight: 800,
+    fontSize: '13px',
+    cursor: 'pointer',
   },
-  stepperInput: {
-    width: '80px',
-    height: '46px',
+  touchBtnPrimary: {
+    minWidth: '42px',
+    height: '44px',
+    padding: '0 8px',
+    borderRadius: '6px',
+    border: '2px solid var(--color-primary)',
+    backgroundColor: '#FFEDD5',
+    color: 'var(--color-primary-dark, #C2410C)',
+    fontWeight: 800,
+    fontSize: '13px',
+    cursor: 'pointer',
+  },
+  quantityInput: {
+    width: '76px',
+    height: '44px',
     textAlign: 'center',
     fontSize: '18px',
-    fontWeight: 800,
+    fontWeight: 900,
     border: '2px solid var(--color-border)',
     borderRadius: '6px',
   },
-  unitAndPhotoRow: {
-    display: 'flex',
-    gap: '12px',
-    alignItems: 'flex-end',
-    marginTop: '16px',
-  },
-  photoPreviewBox: {
-    marginTop: '12px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '8px',
+  accordionToggle: {
+    width: '100%',
+    padding: '10px',
+    backgroundColor: '#FAFAF9',
     border: '1px dashed var(--color-border)',
     borderRadius: '6px',
-  },
-  photoPreviewImg: {
-    width: '50px',
-    height: '50px',
-    objectFit: 'cover',
-    borderRadius: '4px',
-  },
-  removePhotoBtn: {
-    fontSize: '12px',
-    color: '#DC2626',
-    background: 'none',
-    border: 'none',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     cursor: 'pointer',
+    fontSize: '13px',
     fontWeight: 700,
+    color: 'var(--color-text-main)',
   },
-  autocompleteDropdown: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    border: '2px solid var(--color-border)',
-    borderRadius: '4px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-    zIndex: 10,
-    marginTop: '4px',
-  },
-  suggestionRow: {
-    padding: '10px 14px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    cursor: 'pointer',
-    borderBottom: '1px solid #F5F5F4',
-  },
-  matchAlert: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '8px 12px',
-    backgroundColor: '#FEF3C7',
-    border: '1px solid #FCD34D',
-    borderRadius: '4px',
-    fontSize: '12px',
-    color: '#92400E',
-    marginTop: '6px',
-  },
-  itemRowCard: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '10px 14px',
+  accordionContent: {
+    marginTop: '12px',
+    padding: '14px',
     border: '1px solid var(--color-border)',
     borderRadius: '6px',
     backgroundColor: '#FFFFFF',
   },
+  secondaryGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+    gap: '12px',
+  },
+  photoPreviewThumb: {
+    width: '40px',
+    height: '40px',
+    objectFit: 'cover',
+    borderRadius: '4px',
+    border: '1px solid var(--color-border)',
+  },
+  errorBox: {
+    marginTop: '14px',
+    padding: '10px 14px',
+    backgroundColor: '#FEE2E2',
+    border: '1px solid #FCA5A5',
+    borderRadius: '6px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  primarySaveBtn: {
+    width: '100%',
+    padding: '14px',
+    fontSize: '16px',
+    fontWeight: 900,
+    justifyContent: 'center',
+    letterSpacing: '0.04em',
+    minHeight: '50px',
+  },
+  itemCard: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 14px',
+    border: '1px solid var(--color-border)',
+    borderRadius: '6px',
+    backgroundColor: '#FFFFFF',
+    flexWrap: 'wrap',
+    gap: '10px',
+  },
+  itemPhotoThumb: {
+    width: '44px',
+    height: '44px',
+    objectFit: 'cover',
+    borderRadius: '4px',
+    border: '1px solid var(--color-border)',
+  },
   noPhotoPlaceholder: {
-    width: '42px',
-    height: '42px',
+    width: '44px',
+    height: '44px',
     backgroundColor: '#F5F5F4',
     border: '1px solid var(--color-border)',
     borderRadius: '4px',
@@ -964,26 +1338,23 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     color: '#9CA3AF',
-    fontWeight: 700,
   },
-  sectionHeader: {
+  sessionsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+    gap: '16px',
+  },
+  sessionCard: {
+    padding: '16px',
+    cursor: 'pointer',
+    transition: 'transform 0.15s ease, border-color 0.15s ease',
+  },
+  sessionFooter: {
+    marginTop: '14px',
+    paddingTop: '10px',
+    borderTop: '1px solid var(--color-border)',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: '12px',
-    borderBottom: '2px solid var(--color-border)',
-  },
-  summaryCategoryGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-    gap: '12px',
-    marginTop: '16px',
-  },
-  summaryCatCard: {
-    padding: '12px',
-    border: '1.5px solid var(--color-border)',
-    borderRadius: '6px',
-    backgroundColor: '#FAFAF9',
-    cursor: 'pointer',
   },
 };
