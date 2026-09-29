@@ -5,7 +5,6 @@ import { PrismaService } from '../prisma/prisma.service';
 
 describe('LevantamientosService', () => {
   let service: LevantamientosService;
-  let prisma: PrismaService;
 
   const mockPrisma = {
     levantamiento: {
@@ -36,7 +35,6 @@ describe('LevantamientosService', () => {
     }).compile();
 
     service = module.get<LevantamientosService>(LevantamientosService);
-    prisma = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(() => {
@@ -238,6 +236,32 @@ describe('LevantamientosService', () => {
       const result = await service.removeItem('tenant-A', 'lev-1', 'item-1');
       expect(result.success).toBe(true);
       expect(mockPrisma.levantamientoItem.delete).toHaveBeenCalledWith({ where: { id: 'item-1' } });
+    });
+  });
+
+  describe('Verificación de Aislamiento Estricto por Tenant (Cross-Tenant Access)', () => {
+    it('debe impedir que Tenant B consulte levantamientos de Tenant A', async () => {
+      mockPrisma.levantamiento.findFirst.mockResolvedValue(null);
+
+      await expect(service.findOne('tenant-B', 'lev-tenant-A')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.levantamiento.findFirst).toHaveBeenCalledWith({
+        where: { id: 'lev-tenant-A', tenantId: 'tenant-B' },
+        include: { items: { orderBy: { createdAt: 'desc' } } },
+      });
+    });
+
+    it('debe impedir que Tenant B actualice o modifique un levantamiento de Tenant A', async () => {
+      mockPrisma.levantamiento.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.update('tenant-B', 'lev-tenant-A', { nombre: 'Intento de hack' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('debe impedir que Tenant B elimine un levantamiento de Tenant A', async () => {
+      mockPrisma.levantamiento.findFirst.mockResolvedValue(null);
+
+      await expect(service.remove('tenant-B', 'lev-tenant-A')).rejects.toThrow(NotFoundException);
     });
   });
 });
