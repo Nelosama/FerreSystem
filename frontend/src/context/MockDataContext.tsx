@@ -80,6 +80,10 @@ interface MockDataContextType {
   ventas: SaleRecord[];
   usuarios: Usuario[];
   agregarProducto: (producto: Omit<ProductItem, 'id'>) => ProductItem;
+  importarProductosBatch: (
+    items: Omit<ProductItem, 'id'>[],
+    sobrescribirDuplicados: boolean
+  ) => { importadosCount: number; actualizadosCount: number };
   agregarCotizacion: (cotizacion: Omit<QuotationItem, 'id' | 'numero'>) => QuotationItem;
   actualizarCotizacion: (id: string, cotizacionData: Partial<QuotationItem>) => void;
   duplicarCotizacion: (id: string, usuarioNombre?: string) => QuotationItem;
@@ -817,6 +821,65 @@ export const MockDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return nuevo;
   };
 
+  const importarProductosBatch = (
+    items: Omit<ProductItem, 'id'>[],
+    sobrescribirDuplicados: boolean
+  ): { importadosCount: number; actualizadosCount: number } => {
+    let importadosCount = 0;
+    let actualizadosCount = 0;
+
+    setProductos((prevProductos) => {
+      const updatedList = [...prevProductos];
+      const nowTs = Date.now();
+
+      items.forEach((item, idx) => {
+        const codeNormalized = item.codigo.trim().toUpperCase();
+        const existingIdx = updatedList.findIndex(
+          (p) => p.codigo.trim().toUpperCase() === codeNormalized
+        );
+
+        if (existingIdx >= 0) {
+          if (sobrescribirDuplicados) {
+            const existing = updatedList[existingIdx];
+            updatedList[existingIdx] = {
+              ...existing,
+              nombre: item.nombre.trim() || existing.nombre,
+              categoria: item.categoria || existing.categoria,
+              precioVenta: item.precioVenta ?? existing.precioVenta,
+              precioCosto: item.precioCosto ?? existing.precioCosto,
+              stockActual: item.stockActual ?? existing.stockActual,
+              stockMinimo: item.stockMinimo ?? existing.stockMinimo,
+              unidadMedida: item.unidadMedida || existing.unidadMedida,
+              stockBajo: (item.stockActual ?? existing.stockActual) <= (item.stockMinimo ?? existing.stockMinimo),
+            };
+            actualizadosCount++;
+          }
+        } else {
+          const nuevo: ProductItem = {
+            id: `p-${nowTs}-${idx}`,
+            codigo: codeNormalized,
+            nombre: item.nombre.trim(),
+            categoria: item.categoria || 'General',
+            precioVenta: item.precioVenta || 0,
+            precioCosto: item.precioCosto || 0,
+            stockActual: item.stockActual || 0,
+            stockMinimo: item.stockMinimo || 5,
+            unidadMedida: item.unidadMedida || 'unidad',
+            usaMedida: item.usaMedida ?? false,
+            activo: true,
+            stockBajo: (item.stockActual || 0) <= (item.stockMinimo || 5),
+          };
+          updatedList.unshift(nuevo);
+          importadosCount++;
+        }
+      });
+
+      return updatedList;
+    });
+
+    return { importadosCount, actualizadosCount };
+  };
+
   const agregarCotizacion = (
     cotizacionData: Omit<QuotationItem, 'id' | 'numero'>,
   ): QuotationItem => {
@@ -957,6 +1020,7 @@ export const MockDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ventas,
         usuarios,
         agregarProducto,
+        importarProductosBatch,
         agregarCotizacion,
         actualizarCotizacion,
         duplicarCotizacion,
