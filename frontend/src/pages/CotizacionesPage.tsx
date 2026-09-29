@@ -1,12 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
-import {
-  useMockData,
-  type ProductItem,
-  type QuotationItem,
-  type QuotationDetailItem,
-} from '../context/MockDataContext';
+import { api } from '../utils/api';
+import type { ProductItem, QuotationItem, QuotationDetailItem } from '../types';
 import {
   FileText,
   Plus,
@@ -34,15 +30,89 @@ import { descargarReciboPDF } from '../components/ReciboPDF';
 export const CotizacionesPage: React.FC = () => {
   const { tenant, user, isReadOnly } = useTenant();
   const { t } = useI18n();
-  const {
-    cotizaciones,
-    productos,
-    agregarCotizacion,
-    actualizarCotizacion,
-    duplicarCotizacion,
-    actualizarEstadoCotizacion,
-    convertirCotizacionAVenta,
-  } = useMockData();
+
+  const [cotizaciones, setCotizaciones] = useState<QuotationItem[]>([]);
+  const [productos, setProductos] = useState<ProductItem[]>([]);
+
+  const fetchCotizacionesYProductos = useCallback(async () => {
+    try {
+      const [resCot, resProd] = await Promise.all([
+        api.get('/cotizaciones'),
+        api.get('/productos'),
+      ]);
+
+      const formattedCot: QuotationItem[] = resCot.data.map((c: any) => ({
+        id: c.id,
+        numero: c.numeroCotizacion,
+        numeroCotizacion: c.numeroCotizacion,
+        cliente: c.clienteNombre || c.cliente?.nombre || 'Consumidor Final',
+        rtn: c.clienteRtn || c.cliente?.rtn || '',
+        telefono: c.clienteTelefono || c.cliente?.telefono || '',
+        email: c.clienteEmail || c.cliente?.email || '',
+        direccion: c.clienteDireccion || c.cliente?.direccion || '',
+        usuarioNombre: c.usuarioNombre || c.usuario?.nombre || 'Atención en Tienda',
+        fechaEmision: new Date(c.createdAt).toLocaleDateString('es-HN'),
+        fechaValidez: new Date(c.fechaValidez).toLocaleDateString('es-HN'),
+        diasValidez: c.diasValidez,
+        condicionesPago: c.condicionesPago,
+        subtotal: Number(c.subtotal),
+        descuentoGeneral: Number(c.descuentoGeneral),
+        tipoDescuentoGeneral: c.tipoDescuentoGeneral,
+        porcentajeIsv: Number(c.porcentajeIsv),
+        isv: Number(c.isv),
+        descuento: Number(c.descuento),
+        total: Number(c.total),
+        estado: c.estado,
+        itemsCount: c.detalles ? c.detalles.length : 0,
+        notas: c.notas || '',
+        detalles: (c.detalles || []).map((d: any) => ({
+          id: d.id,
+          productoId: d.productoId,
+          codigoProducto: d.codigoProducto,
+          descripcionProducto: d.descripcionProducto,
+          unidadMedida: d.unidadMedida,
+          usaMedida: Boolean(d.usaMedida),
+          cantidad: Number(d.cantidad),
+          medida: Number(d.medida),
+          totalMedida: Number(d.totalMedida),
+          precioLista: Number(d.precioLista),
+          precioUnitario: Number(d.precioUnitario),
+          precioModificado: Number(d.precioUnitario) !== Number(d.precioLista),
+          descuento: Number(d.descuento),
+          tipoDescuento: d.tipoDescuento,
+          exento: Boolean(d.exento),
+          subtotal: Number(d.subtotal),
+          isv: Number(d.isv),
+          totalLinea: Number(d.totalLinea),
+        })),
+      }));
+
+      const formattedProd: ProductItem[] = resProd.data.map((p: any) => ({
+        id: p.id,
+        codigo: p.codigo,
+        nombre: p.nombre,
+        descripcion: p.descripcion,
+        categoria: p.categoria?.nombre || p.categoria || 'General',
+        precioVenta: Number(p.precioVenta),
+        precioCosto: Number(p.precioCosto),
+        stockActual: Number(p.stockActual),
+        stockMinimo: Number(p.stockMinimo),
+        unidadMedida: p.unidadMedida || 'UNIDAD',
+        usaMedida: Boolean(p.usaMedida),
+        activo: Boolean(p.activo),
+        stockBajo: p.stockBajo ?? (Number(p.stockActual) <= Number(p.stockMinimo)),
+      }));
+
+      setCotizaciones(formattedCot);
+      setProductos(formattedProd);
+    } catch (err: any) {
+      console.error('Error al cargar cotizaciones y productos desde backend:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCotizacionesYProductos();
+  }, [fetchCotizacionesYProductos]);
 
   // Permisos de usuario
   const isAdminOrSeller = user?.rol === 'ADMIN' || user?.rol === 'VENDEDOR' || user?.rol === 'SUPERADMIN';
@@ -130,28 +200,42 @@ export const CotizacionesPage: React.FC = () => {
   };
 
   // Duplicar Cotización
-  const handleDuplicar = (cot: QuotationItem) => {
+  const handleDuplicar = async (cot: QuotationItem) => {
     try {
-      const duplicada = duplicarCotizacion(cot.id, user?.nombre);
-      mostrarNotificacion(`Cotización #COT-${duplicada.numero.toString().padStart(4, '0')} creada exitosamente como duplicado en Borrador.`);
-    } catch {
-      mostrarNotificacion('Error al duplicar la cotización', 'error');
+      const res = await api.post(`/cotizaciones/${cot.id}/duplicar`);
+      await fetchCotizacionesYProductos();
+      mostrarNotificacion(`Cotización #COT-${res.data.numeroCotizacion?.toString().padStart(4, '0')} creada exitosamente como duplicado en Borrador.`);
+    } catch (err: any) {
+      console.error('Error al duplicar cotización:', err);
+      mostrarNotificacion(err.response?.data?.message || 'Error al duplicar la cotización en el servidor', 'error');
     }
   };
 
   // Cambiar Estado
-  const handleCambiarEstado = (cotId: string, nuevoEstado: QuotationItem['estado']) => {
-    actualizarEstadoCotizacion(cotId, nuevoEstado);
-    mostrarNotificacion(`Estado de cotización actualizado a ${nuevoEstado}`);
+  const handleCambiarEstado = async (cotId: string, nuevoEstado: QuotationItem['estado']) => {
+    try {
+      await api.patch(`/cotizaciones/${cotId}/estado`, { estado: nuevoEstado });
+      await fetchCotizacionesYProductos();
+      mostrarNotificacion(`Estado de cotización actualizado a ${nuevoEstado}`);
+    } catch (err: any) {
+      console.error('Error al actualizar estado:', err);
+      mostrarNotificacion(err.response?.data?.message || 'Error al actualizar estado en el servidor', 'error');
+    }
   };
 
   // Convertir A Venta
-  const handleConfirmarConvertir = (cot: QuotationItem) => {
-    convertirCotizacionAVenta(cot.id);
-    setModalConvertir(null);
-    mostrarNotificacion(
-      `¡Cotización #COT-${cot.numero.toString().padStart(4, '0')} convertida a Venta! Stock actualizado en inventario.`
-    );
+  const handleConfirmarConvertir = async (cot: QuotationItem) => {
+    try {
+      await api.post(`/cotizaciones/${cot.id}/convertir-venta`);
+      setModalConvertir(null);
+      await fetchCotizacionesYProductos();
+      mostrarNotificacion(
+        `¡Cotización #COT-${cot.numero.toString().padStart(4, '0')} convertida a Venta! Stock actualizado en inventario.`
+      );
+    } catch (err: any) {
+      console.error('Error al convertir cotización a venta:', err);
+      mostrarNotificacion(err.response?.data?.message || 'Error al convertir cotización en el servidor', 'error');
+    }
   };
 
   // Selección de Producto desde el modal
@@ -324,7 +408,7 @@ export const CotizacionesPage: React.FC = () => {
   }, [formItems, formDescuentoGeneral, formTipoDescuentoGeneral, formPorcentajeIsv]);
 
   // Guardar Formulario de Cotización
-  const handleGuardarFormulario = (estadoGuardar: 'BORRADOR' | 'ENVIADA') => {
+  const handleGuardarFormulario = async (estadoGuardar: 'BORRADOR' | 'ENVIADA') => {
     if (!formClienteNombre.trim()) {
       mostrarNotificacion('Debe ingresar el nombre del cliente', 'error');
       return;
@@ -335,47 +419,47 @@ export const CotizacionesPage: React.FC = () => {
       return;
     }
 
-    // Calcular fecha validez
-    const fechaVal = new Date();
-    fechaVal.setDate(fechaVal.getDate() + formDiasValidez);
-    const day = fechaVal.getDate().toString().padStart(2, '0');
-    const month = (fechaVal.getMonth() + 1).toString().padStart(2, '0');
-    const year = fechaVal.getFullYear();
-    const fechaValidezFormatted = `${day}/${month}/${year}`;
-
     const payloadData = {
-      cliente: formClienteNombre.trim(),
-      rtn: formClienteRtn.trim() || undefined,
-      telefono: formClienteTelefono.trim() || undefined,
-      email: formClienteEmail.trim() || undefined,
-      direccion: formClienteDireccion.trim() || undefined,
-      usuarioNombre: user?.nombre || 'Usuario Sistema',
-      fechaEmision: new Date().toLocaleDateString('es-HN'),
-      fechaValidez: fechaValidezFormatted,
+      clienteNombre: formClienteNombre.trim(),
+      clienteRtn: formClienteRtn.trim() || undefined,
+      clienteTelefono: formClienteTelefono.trim() || undefined,
+      clienteEmail: formClienteEmail.trim() || undefined,
+      clienteDireccion: formClienteDireccion.trim() || undefined,
       diasValidez: formDiasValidez,
       condicionesPago: formCondicionesPago,
       porcentajeIsv: formPorcentajeIsv,
-      subtotal: calculosGlobales.subtotalLineas,
       descuentoGeneral: formDescuentoGeneral,
       tipoDescuentoGeneral: formTipoDescuentoGeneral,
-      isv: calculosGlobales.isvTotal,
-      descuento: calculosGlobales.descuentoTotalSum,
-      total: calculosGlobales.totalFinal,
-      estado: estadoGuardar,
       notas: formNotas.trim() || undefined,
-      itemsCount: formItems.length,
-      detalles: formItems,
+      detalles: formItems.map((item) => ({
+        productoId: item.productoId,
+        cantidad: item.cantidad,
+        medida: item.medida,
+        precioUnitario: item.precioUnitario,
+        descuento: item.descuento,
+        tipoDescuento: item.tipoDescuento,
+        exento: item.exento,
+      })),
     };
 
-    if (editingCotizacionId) {
-      actualizarCotizacion(editingCotizacionId, payloadData);
-      mostrarNotificacion(`Cotización actualizada exitosamente.`);
-    } else {
-      const nueva = agregarCotizacion(payloadData);
-      mostrarNotificacion(`Cotización #COT-${nueva.numero.toString().padStart(4, '0')} creada con éxito.`);
-    }
+    try {
+      if (editingCotizacionId) {
+        await api.put(`/cotizaciones/${editingCotizacionId}`, payloadData);
+        mostrarNotificacion(`Cotización actualizada exitosamente.`);
+      } else {
+        const res = await api.post('/cotizaciones', payloadData);
+        if (estadoGuardar === 'ENVIADA' && res.data?.id) {
+          await api.patch(`/cotizaciones/${res.data.id}/estado`, { estado: 'ENVIADA' });
+        }
+        mostrarNotificacion(`Cotización #COT-${res.data.numeroCotizacion?.toString().padStart(4, '0')} creada con éxito.`);
+      }
 
-    setModalForm(false);
+      await fetchCotizacionesYProductos();
+      setModalForm(false);
+    } catch (err: any) {
+      console.error('Error al guardar cotización:', err);
+      mostrarNotificacion(err.response?.data?.message || 'Error al guardar la cotización en el servidor', 'error');
+    }
   };
 
   // Filtrado y búsqueda de cotizaciones

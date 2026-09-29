@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
-import { useMockData, type ProductItem } from '../context/MockDataContext';
+import type { ProductItem } from '../types';
+import { api } from '../utils/api';
 import { useNotification, type SolicitudDescuento } from '../context/NotificationContext';
 import { useI18n } from '../context/I18nContext';
 import {
@@ -34,9 +35,10 @@ interface CartItem {
 
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
-  const { productos, registrarVenta } = useMockData();
   const { solicitudes, solicitarDescuento } = useNotification();
   const { t } = useI18n();
+
+  const [productos, setProductos] = useState<ProductItem[]>([]);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState('');
@@ -46,6 +48,34 @@ export const POSPage: React.FC = () => {
   const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(0);
   const [modalTicket, setModalTicket] = useState(false);
   const [numeroVentaGenerado, setNumeroVentaGenerado] = useState<number | null>(null);
+
+  const fetchProductos = useCallback(async () => {
+    try {
+      const response = await api.get('/productos');
+      const data = response.data.map((p: any) => ({
+        id: p.id,
+        codigo: p.codigo,
+        nombre: p.nombre,
+        descripcion: p.descripcion,
+        categoria: p.categoria?.nombre || p.categoria || 'General',
+        precioVenta: Number(p.precioVenta),
+        precioCosto: Number(p.precioCosto),
+        stockActual: Number(p.stockActual),
+        stockMinimo: Number(p.stockMinimo),
+        unidadMedida: p.unidadMedida || 'UNIDAD',
+        usaMedida: Boolean(p.usaMedida),
+        activo: Boolean(p.activo),
+        stockBajo: p.stockBajo ?? (Number(p.stockActual) <= Number(p.stockMinimo)),
+      }));
+      setProductos(data);
+    } catch (err: any) {
+      console.error('Error al cargar productos en POS:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProductos();
+  }, [fetchProductos]);
 
   // Solicitud de autorización de descuento
   const [solicitudActiva, setSolicitudActiva] = useState<SolicitudDescuento | null>(null);
@@ -134,26 +164,30 @@ export const POSPage: React.FC = () => {
     setCart(cart.filter((i) => i.productoId !== productoId));
   };
 
-  const handleCobrar = () => {
+  const handleCobrar = async () => {
     if (cart.length === 0) return;
 
-    const ventaRegistrada = registrarVenta({
-      clienteNombre,
-      clienteRtn,
-      subtotal,
-      isv,
-      total,
-      metodoPago,
-      items: cart.map((i) => ({
-        productoId: i.productoId,
-        nombre: i.nombre,
-        precioUnitario: i.precioUnitario,
-        cantidad: i.cantidad,
-      })),
-    });
+    try {
+      const res = await api.post('/ventas', {
+        clienteNombre,
+        clienteRtn: clienteRtn || undefined,
+        metodoPago,
+        descuento: montoDescuento,
+        detalles: cart.map((i) => ({
+          productoId: i.productoId,
+          cantidad: i.cantidad,
+          precioUnitario: i.precioUnitario,
+        })),
+      });
 
-    setNumeroVentaGenerado(ventaRegistrada.numeroVenta);
-    setModalTicket(true);
+      const ventaRegistrada = res.data;
+      setNumeroVentaGenerado(ventaRegistrada.numeroVenta);
+      setModalTicket(true);
+      await fetchProductos(); // Refrescar inventario actualizado
+    } catch (err: any) {
+      console.error('Error al procesar cobro de venta:', err);
+      alert(err.response?.data?.message || 'Error al procesar la venta en el servidor');
+    }
   };
 
   return (

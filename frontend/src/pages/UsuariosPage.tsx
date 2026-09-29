@@ -203,33 +203,6 @@ export const UsuariosPage: React.FC = () => {
         : err.message || 'Error de conexión con la API backend en Render. Revisa la URL y estado del servidor.';
 
       setModalError(msg);
-      alert(`ERROR AL GUARDAR USUARIO:\n${msg}`);
-
-      // Fallback local persistence so user is not blocked in offline/demo mode
-      if (!usuarioEditando) {
-        const localUsr: Usuario = {
-          nombre: formNombre.trim(),
-          email: formEmail.trim(),
-          rolBase: formRolBase,
-          sucursalActual: formSucursalActual,
-          permisos: formPermisos,
-          descuentoMaximo: formDescuentoMaximo,
-          activo: formActivo,
-          id: `usr-local-${Date.now()}`,
-        };
-        agregarUsuario(localUsr);
-        setListaUsuarios((prev) => [localUsr, ...prev]);
-      } else {
-        actualizarUsuario(usuarioEditando.id, {
-          nombre: formNombre.trim(),
-          email: formEmail.trim(),
-          rolBase: formRolBase,
-          sucursalActual: formSucursalActual,
-          permisos: formPermisos,
-          descuentoMaximo: formDescuentoMaximo,
-          activo: formActivo,
-        });
-      }
     } finally {
       setSubmitting(false);
     }

@@ -1,21 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { TopBar } from '../components/TopBar';
-import { Search, Plus, Upload, AlertTriangle, Check, X, Calendar, ShieldCheck } from 'lucide-react';
+import { Search, Plus, Upload, AlertTriangle, Check, X, Calendar, ShieldCheck, RefreshCw } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
-import { useMockData } from '../context/MockDataContext';
+import { api } from '../utils/api';
+import type { ProductItem } from '../types';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { ImportarProductosModal } from '../components/ImportarProductosModal';
 
 export const InventarioPage: React.FC = () => {
-  const { productos, agregarProducto } = useMockData();
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
+
+  const [productos, setProductos] = useState<ProductItem[]>([]);
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('TODAS');
   const [modalAbierto, setModalAbierto] = useState(false);
   const [importModalAbierto, setImportModalAbierto] = useState(false);
+
+  const fetchProductos = useCallback(async () => {
+    setErrorText(null);
+    try {
+      const response = await api.get('/productos');
+      // Format response data to match ProductItem interface
+      const data = response.data.map((p: any) => ({
+        id: p.id,
+        codigo: p.codigo,
+        nombre: p.nombre,
+        descripcion: p.descripcion,
+        categoria: p.categoria?.nombre || p.categoria || 'General',
+        precioVenta: Number(p.precioVenta),
+        precioCosto: Number(p.precioCosto),
+        stockActual: Number(p.stockActual),
+        stockMinimo: Number(p.stockMinimo),
+        unidadMedida: p.unidadMedida || 'UNIDAD',
+        usaMedida: Boolean(p.usaMedida),
+        activo: Boolean(p.activo),
+        stockBajo: p.stockBajo ?? (Number(p.stockActual) <= Number(p.stockMinimo)),
+      }));
+      setProductos(data);
+    } catch (err: any) {
+      console.error('Error al cargar productos desde la API:', err);
+      setErrorText('Error al cargar productos desde el servidor.');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProductos();
+  }, [fetchProductos]);
 
   // Form State
   const [formCodigo, setFormCodigo] = useState('');
@@ -43,38 +77,41 @@ export const InventarioPage: React.FC = () => {
     return matchSearch && matchCat;
   });
 
-  const handleCrearProducto = (e: React.FormEvent) => {
+  const handleCrearProducto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formCodigo || !formNombre || !formPrecioVenta) return;
 
-    agregarProducto({
-      codigo: formCodigo.toUpperCase().trim(),
-      nombre: formNombre.trim(),
-      categoria: formCategoria,
-      precioVenta: parseFloat(formPrecioVenta) || 0,
-      precioCosto: parseFloat(formPrecioCosto) || 0,
-      stockActual: parseInt(formStockActual, 10) || 0,
-      stockMinimo: parseInt(formStockMinimo, 10) || 5,
-      unidadMedida: formUnidadMedida,
-      fechaVencimiento: rubroConfig.activarVencimientos ? formFechaVencimiento : undefined,
-      lote: rubroConfig.activarVencimientos ? formLote : undefined,
-      numeroSerie: rubroConfig.activarGarantiaSerie ? formNumeroSerie : undefined,
-      mesesGarantia: rubroConfig.activarGarantiaSerie ? parseInt(formMesesGarantia, 10) || 0 : undefined,
-      requiereGarantia: rubroConfig.activarGarantiaSerie && !!formNumeroSerie,
-    });
+    try {
+      await api.post('/productos', {
+        codigo: formCodigo.toUpperCase().trim(),
+        nombre: formNombre.trim(),
+        categoria: formCategoria,
+        precioVenta: parseFloat(formPrecioVenta) || 0,
+        precioCosto: parseFloat(formPrecioCosto) || 0,
+        stockActual: parseInt(formStockActual, 10) || 0,
+        stockMinimo: parseInt(formStockMinimo, 10) || 5,
+        unidadMedida: formUnidadMedida.toUpperCase(),
+        usaMedida: false,
+      });
 
-    setModalAbierto(false);
-    // Limpiar formulario
-    setFormCodigo('');
-    setFormNombre('');
-    setFormPrecioVenta('');
-    setFormPrecioCosto('');
-    setFormStockActual('');
-    setFormStockMinimo('');
-    setFormFechaVencimiento('');
-    setFormLote('');
-    setFormNumeroSerie('');
-    setFormMesesGarantia('');
+      await fetchProductos();
+      setModalAbierto(false);
+
+      // Limpiar formulario
+      setFormCodigo('');
+      setFormNombre('');
+      setFormPrecioVenta('');
+      setFormPrecioCosto('');
+      setFormStockActual('');
+      setFormStockMinimo('');
+      setFormFechaVencimiento('');
+      setFormLote('');
+      setFormNumeroSerie('');
+      setFormMesesGarantia('');
+    } catch (err: any) {
+      console.error('Error al crear producto:', err);
+      alert(err.response?.data?.message || 'Error al guardar el producto en el servidor');
+    }
   };
 
   return (
@@ -132,6 +169,15 @@ export const InventarioPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {errorText && (
+          <div style={{ marginTop: '16px', padding: '12px 16px', backgroundColor: '#FEE2E2', color: '#991B1B', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{errorText}</span>
+            <button type="button" onClick={fetchProductos} className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px' }}>
+              <RefreshCw size={14} /> Reintentar
+            </button>
+          </div>
+        )}
 
         {/* Tabla Industrial de Productos */}
         <div className="table-container" style={{ marginTop: '20px' }}>

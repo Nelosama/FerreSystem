@@ -8,8 +8,20 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [AppService],
-    }).compile();
+      providers: [
+        AppService,
+        {
+          provide: 'PrismaService',
+          useValue: { $queryRaw: () => Promise.resolve([{ 1: 1 }]) },
+        },
+      ],
+    })
+      .useMocker((token) => {
+        if (typeof token === 'function') {
+          return {};
+        }
+      })
+      .compile();
 
     appController = app.get<AppController>(AppController);
   });
