@@ -221,21 +221,25 @@ export const LoginPage: React.FC = () => {
         },
       );
       navigate('/');
-    } catch {
-      try {
-        const response = await api.post('/admin/auth/login', { email, password });
-        if (response.data?.accessToken) {
-          localStorage.setItem('ferre_token', response.data.accessToken);
-        }
-        executeSuperAdminLogin(response.data.superAdmin || response.data.admin);
-      } catch (err: any) {
-        if (!err.response) {
-          console.warn('Backend login connection issue, switching to local demo mode fallback:', err);
-          handleDemoLogin(email, password);
-        } else {
-          const isDemoSuccess = handleDemoLogin(email, password);
-          if (!isDemoSuccess && err.response.data?.message) {
-            const message = err.response.data?.message;
+    } catch (err: any) {
+      // If backend responded with an HTTP status (e.g. 401 Unauthorized, 400, 403), show error directly without falling back to demo mode
+      if (err.response) {
+        const message = err.response.data?.message;
+        setError(Array.isArray(message) ? message.join(', ') : message || 'Correo o contraseña incorrectos');
+      } else {
+        // Only if network/connection failed completely (no response), attempt superadmin login or local demo fallback
+        try {
+          const superResponse = await api.post('/admin/auth/login', { email, password });
+          if (superResponse.data?.accessToken) {
+            localStorage.setItem('ferre_token', superResponse.data.accessToken);
+          }
+          executeSuperAdminLogin(superResponse.data.superAdmin || superResponse.data.admin);
+        } catch (superErr: any) {
+          if (!superErr.response) {
+            console.warn('Backend login connection issue, switching to local demo mode fallback:', superErr);
+            handleDemoLogin(email, password);
+          } else {
+            const message = superErr.response.data?.message;
             setError(Array.isArray(message) ? message.join(', ') : message || 'Correo o contraseña incorrectos');
           }
         }
