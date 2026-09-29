@@ -25,9 +25,11 @@ import {
   Edit3,
   DollarSign,
   PackageCheck,
+  Download,
 } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useI18n } from '../context/I18nContext';
+import { descargarReciboPDF } from '../components/ReciboPDF';
 
 export const CotizacionesPage: React.FC = () => {
   const { tenant, user, isReadOnly } = useTenant();
@@ -634,11 +636,54 @@ export const CotizacionesPage: React.FC = () => {
                         {/* Ver PDF Proforma */}
                         <button
                           type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => setModalPdf(c)}
-                          title="Ver e Imprimir Documento Proforma"
+                          className="btn btn-primary btn-sm"
+                          onClick={async () => {
+                            await descargarReciboPDF(
+                              {
+                                tipo: 'COTIZACION',
+                                numeroDocumento: c.numero,
+                                fechaEmision: c.fechaEmision,
+                                fechaValidez: c.fechaValidez,
+                                diasValidez: c.diasValidez || 15,
+                                clienteNombre: c.cliente,
+                                clienteRtn: c.rtn,
+                                vendedorNombre: c.usuarioNombre || 'Atención en Tienda',
+                                condicionesPago: c.condicionesPago,
+                                notas: c.notas,
+                                items: (c.detalles && c.detalles.length > 0)
+                                  ? c.detalles.map((d) => ({
+                                      codigo: d.codigoProducto,
+                                      descripcion: d.descripcionProducto,
+                                      cantidad: d.cantidad,
+                                      unidadMedida: d.unidadMedida,
+                                      precioUnitario: d.precioUnitario,
+                                      descuento: d.descuento,
+                                      subtotal: d.subtotal,
+                                      isv: d.isv,
+                                      totalLinea: d.totalLinea,
+                                    }))
+                                  : [
+                                      {
+                                        codigo: 'GENERAL',
+                                        descripcion: 'Partida General de Cotización',
+                                        cantidad: 1,
+                                        precioUnitario: c.subtotal,
+                                        subtotal: c.subtotal,
+                                        totalLinea: c.total,
+                                      },
+                                    ],
+                                subtotal: c.subtotal,
+                                descuento: c.descuento || 0,
+                                isv: c.isv,
+                                total: c.total,
+                                tenant,
+                              },
+                              `Cotizacion-${c.numero}.pdf`
+                            );
+                          }}
+                          title="Descargar Documento PDF Oficial"
                         >
-                          <FileText size={13} /> PDF
+                          <Download size={13} /> Descargar PDF
                         </button>
 
                         {/* Duplicar */}
@@ -1364,11 +1409,63 @@ export const CotizacionesPage: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => window.print()} style={{ flex: 1 }}>
-                <Printer size={16} /> IMPRIMIR PDF PROFORMA
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (!modalPdf) return;
+                  await descargarReciboPDF(
+                    {
+                      tipo: 'COTIZACION',
+                      numeroDocumento: modalPdf.numero,
+                      fechaEmision: modalPdf.fechaEmision,
+                      fechaValidez: modalPdf.fechaValidez,
+                      diasValidez: modalPdf.diasValidez || 15,
+                      clienteNombre: modalPdf.cliente,
+                      clienteRtn: modalPdf.rtn,
+                      vendedorNombre: modalPdf.usuarioNombre || 'Atención en Tienda',
+                      condicionesPago: modalPdf.condicionesPago,
+                      notas: modalPdf.notas,
+                      items: (modalPdf.detalles && modalPdf.detalles.length > 0)
+                        ? modalPdf.detalles.map((d) => ({
+                            codigo: d.codigoProducto,
+                            descripcion: d.descripcionProducto,
+                            cantidad: d.cantidad,
+                            unidadMedida: d.unidadMedida,
+                            precioUnitario: d.precioUnitario,
+                            descuento: d.descuento,
+                            subtotal: d.subtotal,
+                            isv: d.isv,
+                            totalLinea: d.totalLinea,
+                          }))
+                        : [
+                            {
+                              codigo: 'GENERAL',
+                              descripcion: 'Partida General de Cotización',
+                              cantidad: 1,
+                              precioUnitario: modalPdf.subtotal,
+                              subtotal: modalPdf.subtotal,
+                              totalLinea: modalPdf.total,
+                            },
+                          ],
+                      subtotal: modalPdf.subtotal,
+                      descuento: modalPdf.descuento || 0,
+                      isv: modalPdf.isv,
+                      total: modalPdf.total,
+                      tenant,
+                    },
+                    `Cotizacion-${modalPdf.numero}.pdf`
+                  );
+                }}
+                style={{ flex: 1 }}
+              >
+                <Download size={16} /> DESCARGAR PDF
               </button>
-              <button type="button" className="btn btn-primary" onClick={() => setModalPdf(null)} style={{ flex: 1 }}>
-                CERRAR VISTA PREVIA
+              <button type="button" className="btn btn-secondary" onClick={() => window.print()} style={{ flex: 1 }}>
+                <Printer size={16} /> IMPRIMIR
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => setModalPdf(null)} style={{ flex: 1 }}>
+                CERRAR
               </button>
             </div>
           </div>
