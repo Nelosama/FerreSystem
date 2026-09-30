@@ -128,9 +128,10 @@ export class VentasService {
           throw new NotFoundException(`Producto con ID ${item.productoId} no encontrado o inactivo`);
         }
 
-        if (prod.stockActual < item.cantidad) {
+        const stockDisponible = Number(prod.stockActual);
+        if (stockDisponible < item.cantidad) {
           throw new BadRequestException(
-            `Stock insuficiente para "${prod.nombre}". Disponible: ${prod.stockActual}, Solicitado: ${item.cantidad}`,
+            `Stock insuficiente para "${prod.nombre}". Disponible: ${stockDisponible}, Solicitado: ${item.cantidad}`,
           );
         }
 
@@ -138,10 +139,10 @@ export class VentasService {
         const itemSubtotal = Math.round(precioUnitario * item.cantidad * 100) / 100;
         subtotalTotal += itemSubtotal;
 
-        // Descontar inventario
+        // Descontar inventario con precisión decimal exacta
         await tx.producto.update({
           where: { id: prod.id },
-          data: { stockActual: { decrement: Math.round(item.cantidad) } },
+          data: { stockActual: { decrement: item.cantidad } },
         });
 
         detallesParaCrear.push({

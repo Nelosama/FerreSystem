@@ -19,41 +19,31 @@ export const ConfiguracionPage: React.FC = () => {
   const { tenant, updateTenantConfig } = useTenant();
   const { locale, setLocale } = useI18n();
 
-  // Cargar lista de tenants registradas en el SaaS
+  // Cargar datos de la empresa desde el TenantContext (API/PostgreSQL)
   const [tenantsList, setTenantsList] = useState<any[]>(() => {
     const saved = localStorage.getItem('ferre_saas_tenants');
-    return saved
-      ? JSON.parse(saved)
-      : [
-          {
-            id: 't-1',
-            nombreComercial: 'LA MUNDIAL - SUCURSAL CENTRO',
-            contacto: 'admin@lamundial.hn',
-            telefono: '+504 2550-1234',
-            colorPrimario: '#EA580C',
-            rubro: Rubro.FERRETERIA,
-            estiloUI: 'INDUSTRIAL',
-            fuenteTitulos: 'Archivo',
-            fuenteCuerpo: 'Inter',
-            moneda: { simbolo: 'L.', codigo: 'HNL' },
-            impuesto: { nombre: 'ISV', tasa: 15 },
-            direccion: 'Barrio El Centro, 3ra Ave, 4ta Calle, San Pedro Sula',
-          },
-          {
-            id: 't-2',
-            nombreComercial: 'FERRETERÍA EL MARTILLO DE ORO',
-            contacto: 'admin@elmartillodeoro.hn',
-            telefono: '+504 2233-4455',
-            colorPrimario: '#0284C7',
-            rubro: Rubro.FERRETERIA,
-            estiloUI: 'MINIMALISTA',
-            fuenteTitulos: 'Poppins',
-            fuenteCuerpo: 'Inter',
-            moneda: { simbolo: 'L.', codigo: 'HNL' },
-            impuesto: { nombre: 'ISV', tasa: 15 },
-            direccion: 'Col. Palmira, Ave. República de Chile, Tegucigalpa',
-          },
-        ];
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    return [
+      {
+        id: tenant.id || 'current-tenant',
+        nombreComercial: tenant.nombreComercial || 'Mi Empresa',
+        contacto: tenant.email || '',
+        email: tenant.email || '',
+        telefono: tenant.telefono || '',
+        colorPrimario: tenant.colorPrimario || '#EA580C',
+        rubro: tenant.rubro || Rubro.FERRETERIA,
+        estiloUI: tenant.estiloUI || 'INDUSTRIAL',
+        modoNavegacion: tenant.modoNavegacion || 'SIDEBAR',
+        fuenteTitulos: tenant.fuenteTitulos || 'Archivo',
+        fuenteCuerpo: tenant.fuenteCuerpo || 'Inter',
+        moneda: tenant.moneda || { simbolo: 'L.', codigo: 'HNL' },
+        impuesto: tenant.impuesto || { nombre: 'ISV', tasa: 15 },
+        direccion: tenant.direccion || '',
+        logoUrl: tenant.logoUrl || '',
+      },
+    ];
   });
 
   const [selectedTenantId, setSelectedTenantId] = useState<string>(
@@ -88,11 +78,11 @@ export const ConfiguracionPage: React.FC = () => {
   const [impuestoTasa, setImpuestoTasa] = useState(currentSelectedTenant.impuesto?.tasa?.toString() || '15');
 
   const [direccion, setDireccion] = useState(
-    currentSelectedTenant.direccion || 'Barrio El Centro, San Pedro Sula',
+    currentSelectedTenant.direccion || '',
   );
-  const [telefono, setTelefono] = useState(currentSelectedTenant.telefono || '+504 2550-1234');
+  const [telefono, setTelefono] = useState(currentSelectedTenant.telefono || '');
   const [email, setEmail] = useState(
-    currentSelectedTenant.contacto || currentSelectedTenant.email || 'contacto@ferreteria.hn',
+    currentSelectedTenant.contacto || currentSelectedTenant.email || '',
   );
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
 
