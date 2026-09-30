@@ -72,6 +72,13 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
     categoria: 'INVENTARIO',
   },
   {
+    key: 'clientes',
+    labelKey: 'menu.clients',
+    nombre: 'Directorio de Clientes & RTN',
+    descripcion: 'Gestión de clientes, datos fiscales, RTN y clasificación comercial',
+    categoria: 'CLIENTES',
+  },
+  {
     key: 'listas_precio',
     labelKey: 'menu.price_lists',
     nombre: 'Listas de Precio / Segmentos',
