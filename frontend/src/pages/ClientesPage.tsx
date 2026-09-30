@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { TopBar } from '../components/TopBar';
 import { api } from '../utils/api';
+import { useI18n } from '../context/I18nContext';
 import {
   Users,
   Search,
@@ -30,6 +31,7 @@ export interface Cliente {
 }
 
 export const ClientesPage: React.FC = () => {
+  const { t } = useI18n();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -110,10 +112,10 @@ export const ClientesPage: React.FC = () => {
 
     const payload = {
       nombre: formNombre.trim(),
-      rtn: formRtn.trim() || undefined,
-      telefono: formTelefono.trim() || undefined,
-      email: formEmail.trim() || undefined,
-      direccion: formDireccion.trim() || undefined,
+      rtn: formRtn.trim() || null,
+      telefono: formTelefono.trim() || null,
+      email: formEmail.trim() || null,
+      direccion: formDireccion.trim() || null,
       tipo: formTipo,
     };
 
@@ -189,7 +191,7 @@ export const ClientesPage: React.FC = () => {
 
           <button type="button" className="btn btn-primary" onClick={abrirNuevoCliente}>
             <Plus size={18} strokeWidth={2.5} />
-            <span>NUEVO CLIENTE</span>
+            <span>{t('clients.new_client')}</span>
           </button>
         </div>
 
