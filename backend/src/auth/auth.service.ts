@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -7,6 +7,8 @@ import type { Response } from 'express';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
@@ -16,30 +18,78 @@ export class AuthService {
   async login(loginDto: { email: string; password: string }, res: Response) {
     const { email, password } = loginDto;
 
-    // Buscar usuario por email (incluyendo datos de su tenant)
-    const usuario = await this.prisma.usuario.findFirst({
-      where: { email: email.toLowerCase().trim() },
-      include: { tenant: true },
-    });
+    // Etapa 1 & 2: Recepción de petición y normalización de email
+    const normalizedEmail = email?.toLowerCase().trim();
+    this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 1-2] Inicio de intento de login para email normalizado: "${normalizedEmail}"`);
+
+    // Etapa 3 & 4: Consulta en BD con Prisma wrapped en try-catch específico
+    let usuario: any = null;
+    try {
+      this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 3] Ejecutando prisma.usuario.findFirst() para email: "${normalizedEmail}"`);
+      usuario = await this.prisma.usuario.findFirst({
+        where: { email: normalizedEmail },
+        include: { tenant: true },
+      });
+    } catch (error: any) {
+      const errorMsg = error?.message || 'Error desconocido';
+      const errorCode = error?.code || error?.meta?.code || 'N/A';
+      this.logger.error(
+        `[LOGIN_DIAGNOSTIC] [CASO E] ERROR DE BD/PRISMA durante findFirst(). Código: ${errorCode}, Mensaje: ${errorMsg}`,
+        error?.stack,
+      );
+      throw new InternalServerErrorException({
+        statusCode: 500,
+        message: 'Error de conexión o consulta con la base de datos al autenticar',
+        error: 'DatabaseQueryError',
+        code: errorCode,
+      });
+    }
 
     if (!usuario) {
+      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO A] Usuario NO encontrado para email: "${normalizedEmail}"`);
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
+    this.logger.log(
+      `[LOGIN_DIAGNOSTIC] [ETAPA 4] Usuario encontrado - ID: ${usuario.id}, TenantID: ${usuario.tenantId}, Rol: ${usuario.rol}, Activo: ${usuario.activo}`,
+    );
+
+    // Etapa 5: Validación de usuario.activo
     if (!usuario.activo) {
+      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO C] Usuario encontrado pero INACTIVO - ID: ${usuario.id}`);
       throw new UnauthorizedException('Este usuario ha sido desactivado');
     }
+    this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 5] Estado del usuario verificado: ACTIVO`);
 
-    if (usuario.tenant.estado !== 'ACTIVO') {
+    // Etapa 6: Validación de usuario.tenant.estado
+    const tenantEstado = usuario.tenant?.estado;
+    this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 6] Verificando estado del tenant (${usuario.tenantId}): ${tenantEstado}`);
+    if (tenantEstado !== 'ACTIVO') {
+      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO D] Tenant NO está ACTIVO (${usuario.tenantId}) - Estado actual: ${tenantEstado}`);
       throw new UnauthorizedException('La suscripción de la ferretería se encuentra suspendida');
     }
 
-    const passwordValido = await bcrypt.compare(password, usuario.passwordHash);
+    // Etapa 7: Validación de contraseña con bcrypt
+    let passwordValido = false;
+    try {
+      this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 7] Comparando contraseña con bcrypt.compare()`);
+      passwordValido = await bcrypt.compare(password, usuario.passwordHash);
+    } catch (bcryptError: any) {
+      this.logger.error(
+        `[LOGIN_DIAGNOSTIC] [CASO F] Error de ejecución en bcrypt.compare(): ${bcryptError?.message}`,
+        bcryptError?.stack,
+      );
+      throw new InternalServerErrorException('Error al validar credenciales de seguridad');
+    }
+
+    this.logger.log(`[LOGIN_DIAGNOSTIC] Resultado de bcrypt.compare(): ${passwordValido}`);
     if (!passwordValido) {
+      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO B] Contraseña INCORRECTA para usuario ID: ${usuario.id}`);
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    // Generar tokens
+    // Etapa 8: Generación de JWT
+    this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 8] Generando tokens JWT para usuario ID: ${usuario.id}`);
     const payload = {
       sub: usuario.id,
       tenantId: usuario.tenantId,
@@ -65,6 +115,9 @@ export class AuthService {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
       path: '/',
     });
+
+    // Etapa 9: Respuesta exitosa
+    this.logger.log(`[LOGIN_DIAGNOSTIC] [CASO G] Login EXITOSO para usuario ID: ${usuario.id}, TenantID: ${usuario.tenantId}`);
 
     return {
       accessToken,
