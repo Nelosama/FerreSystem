@@ -36,9 +36,11 @@ export const ReportesPage: React.FC = () => {
   const [productos, setProductos] = React.useState<any[]>([]);
   const [cotizaciones, setCotizaciones] = React.useState<any[]>([]);
   const [ventas, setVentas] = React.useState<any[]>([]);
+  const [errorText, setErrorText] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const fetchReportData = async () => {
+      setErrorText(null);
       try {
         const [resP, resC, resV] = await Promise.all([
           api.get('/productos'),
@@ -50,6 +52,7 @@ export const ReportesPage: React.FC = () => {
         if (Array.isArray(resV.data)) setVentas(resV.data);
       } catch (err) {
         console.error('Error fetching report data:', err);
+        setErrorText('No se pudieron obtener los datos para los reportes desde la API real.');
       }
     };
     fetchReportData();
@@ -561,6 +564,25 @@ export const ReportesPage: React.FC = () => {
       <TopBar title="MÓDULO DE REPORTES & KPIS" subtitle="Análisis Ejecutivo, Métricas Operativas & Inteligencia de Negocio" />
 
       <main style={styles.content}>
+        {errorText && (
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px 16px',
+            backgroundColor: '#FEE2E2',
+            border: '1px solid #EF4444',
+            borderRadius: '4px',
+            color: '#991B1B',
+            fontSize: '13px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}>
+            <AlertTriangle size={18} />
+            <span>{errorText}</span>
+          </div>
+        )}
+
         {/* BARRA SUPERIOR DE FILTRO GLOBAL DE FECHAS */}
         <div className="industrial-card" style={styles.globalFilterCard}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

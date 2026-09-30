@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
-import { GitBranch, ArrowRight, Plus, CheckCircle } from 'lucide-react';
+import { GitBranch, ArrowRight, Plus, CheckCircle, AlertCircle } from 'lucide-react';
 import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
@@ -40,12 +40,16 @@ import { useEffect } from 'react';
 
 export const TransferenciasPage: React.FC = () => {
   const [productos, setProductos] = useState<any[]>([]);
+  const [errorText, setErrorText] = useState<string | null>(null);
   const { tenant } = useTenant();
 
   useEffect(() => {
     api.get('/productos').then((res) => {
       if (Array.isArray(res.data)) setProductos(res.data);
-    }).catch(err => console.error(err));
+    }).catch(err => {
+      console.error('Error al cargar productos en transferencias:', err);
+      setErrorText('Error de conexión al obtener el catálogo de productos.');
+    });
   }, []);
   const { t } = useI18n();
   const { notificarTransferencia } = useNotification();
@@ -129,6 +133,25 @@ export const TransferenciasPage: React.FC = () => {
       <TopBar title={t('transfers.title')} subtitle={t('transfers.subtitle')} />
 
       <main style={styles.content}>
+        {errorText && (
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px 16px',
+            backgroundColor: '#FEE2E2',
+            border: '1px solid #EF4444',
+            borderRadius: '4px',
+            color: '#991B1B',
+            fontSize: '13px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}>
+            <AlertCircle size={18} />
+            <span>{errorText}</span>
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div style={{ fontSize: '13px', color: '#78716C', fontWeight: 600 }}>
             Permite mover stock entre sucursales de forma segura descontando el origen y sumando al confirmar destino.

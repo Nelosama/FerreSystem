@@ -18,6 +18,7 @@ import {
   Trash2,
   Layers,
   Layout,
+  AlertCircle,
 } from 'lucide-react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
@@ -208,35 +209,21 @@ export const SuperAdminPage: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [errorText, setErrorText] = useState<string | null>(null);
+
   useEffect(() => {
-    // Intentar cargar la lista real desde el backend NestJS si está disponible
     api
       .get('/admin/tenants')
       .then((res) => {
-        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        if (res.data && Array.isArray(res.data)) {
           setTenants(res.data);
         }
       })
-      .catch(() => {
-        // Fallback a localStorage / datos iniciales si corre en modo standalone
+      .catch((err) => {
+        console.error('Error al obtener tenants desde la API real:', err);
+        setErrorText('No se pudo conectar con la API de administración del servidor backend.');
       });
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('ferre_saas_tenants', JSON.stringify(tenants));
-  }, [tenants]);
-
-  useEffect(() => {
-    localStorage.setItem('ferre_saas_admins', JSON.stringify(adminUsers));
-  }, [adminUsers]);
-
-  useEffect(() => {
-    localStorage.setItem('ferre_saas_audit', JSON.stringify(auditLogs));
-  }, [auditLogs]);
-
-  useEffect(() => {
-    localStorage.setItem('ferre_mock_auditoria_soporte', JSON.stringify(supportLogs));
-  }, [supportLogs]);
 
   // Modales
   const [modalNuevoTenant, setModalNuevoTenant] = useState(false);
@@ -599,6 +586,25 @@ export const SuperAdminPage: React.FC = () => {
       <TopBar title={t('superadmin.title') || "PANEL SUPER-ADMIN (SAAS)"} subtitle="Portal del Dueño de FerreSystem • Control Global & Módulos" />
 
       <main style={styles.content}>
+        {errorText && (
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px 16px',
+            backgroundColor: '#FEE2E2',
+            border: '1px solid #EF4444',
+            borderRadius: '4px',
+            color: '#991B1B',
+            fontSize: '13px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}>
+            <AlertCircle size={18} />
+            <span>{errorText}</span>
+          </div>
+        )}
+
         {mensajeExito && (
           <div style={styles.successBanner}>
             <CheckCircle size={20} strokeWidth={2.5} color="#15803D" />
