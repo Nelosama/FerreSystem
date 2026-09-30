@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ClientesService } from './clientes.service';
+import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
@@ -22,16 +23,22 @@ export class ClientesController {
   @Post()
   async create(
     @TenantId() tenantId: string,
-    @Body()
-    body: {
-      nombre: string;
-      rtn?: string;
-      telefono?: string;
-      email?: string;
-      direccion?: string;
-      tipo?: any;
-    },
+    @Body() dto: CreateClienteDto,
   ) {
-    return this.clientesService.create(tenantId, body);
+    return this.clientesService.create(tenantId, dto);
+  }
+
+  @Put(':id')
+  async update(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateClienteDto,
+  ) {
+    return this.clientesService.update(tenantId, id, dto);
+  }
+
+  @Delete(':id')
+  async delete(@TenantId() tenantId: string, @Param('id') id: string) {
+    return this.clientesService.delete(tenantId, id);
   }
 }

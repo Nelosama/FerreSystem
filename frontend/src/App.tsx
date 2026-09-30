@@ -38,6 +38,9 @@ const SuperAdminLoginPage = React.lazy(() =>
 const UsuariosPage = React.lazy(() =>
   import('./pages/UsuariosPage').then(m => ({ default: m.UsuariosPage }))
 );
+const ClientesPage = React.lazy(() =>
+  import('./pages/ClientesPage').then(m => ({ default: m.ClientesPage }))
+);
 const LoginPage = React.lazy(() =>
   import('./pages/LoginPage').then(m => ({ default: m.LoginPage }))
 );
@@ -139,6 +142,16 @@ export const App: React.FC = () => {
                       <ProtectedRoute>
                         <AppLayout>
                           <HomeRoute />
+                        </AppLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/clientes"
+                    element={
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']}>
+                        <AppLayout>
+                          <ClientesPage />
                         </AppLayout>
                       </ProtectedRoute>
                     }

@@ -148,6 +148,15 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
 
   // CLIENTES
   {
+    key: 'clientes',
+    labelKey: 'menu.clients',
+    defaultLabel: 'CLIENTES',
+    route: '/clientes',
+    icon: Users,
+    allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+    category: 'CLIENTES',
+  },
+  {
     key: 'listas_precio',
     labelKey: 'menu.price_lists',
     defaultLabel: 'LISTAS DE PRECIO',

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
 
 @Injectable()
 export class ClientesService {
@@ -34,17 +35,7 @@ export class ClientesService {
     return cliente;
   }
 
-  async create(
-    tenantId: string,
-    dto: {
-      nombre: string;
-      rtn?: string;
-      telefono?: string;
-      email?: string;
-      direccion?: string;
-      tipo?: any;
-    },
-  ) {
+  async create(tenantId: string, dto: CreateClienteDto) {
     return this.prisma.cliente.create({
       data: {
         tenantId,
@@ -56,5 +47,37 @@ export class ClientesService {
         tipo: dto.tipo || 'CONSUMIDOR_FINAL',
       },
     });
+  }
+
+  async update(tenantId: string, id: string, dto: UpdateClienteDto) {
+    await this.findById(tenantId, id);
+
+    return this.prisma.cliente.update({
+      where: { id },
+      data: {
+        ...(dto.nombre !== undefined ? { nombre: dto.nombre.trim() } : {}),
+        ...(dto.rtn !== undefined ? { rtn: dto.rtn?.trim() || null } : {}),
+        ...(dto.telefono !== undefined ? { telefono: dto.telefono?.trim() || null } : {}),
+        ...(dto.email !== undefined ? { email: dto.email?.trim() || null } : {}),
+        ...(dto.direccion !== undefined ? { direccion: dto.direccion?.trim() || null } : {}),
+        ...(dto.tipo !== undefined ? { tipo: dto.tipo } : {}),
+      },
+    });
+  }
+
+  async delete(tenantId: string, id: string) {
+    // Direct tenant-isolated operation for absolute multi-tenant safety
+    const result = await this.prisma.cliente.deleteMany({
+      where: {
+        id,
+        tenantId,
+      },
+    });
+
+    if (result.count === 0) {
+      throw new NotFoundException('Cliente no encontrado o no pertenece a la organización');
+    }
+
+    return { success: true, count: result.count };
   }
 }
