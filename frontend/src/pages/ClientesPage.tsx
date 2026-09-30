@@ -110,15 +110,14 @@ export const ClientesPage: React.FC = () => {
     setSubmitting(true);
     setModalError(null);
 
-    const payload: Record<string, any> = {
+    const payload = {
       nombre: formNombre.trim(),
+      rtn: formRtn.trim() || null,
+      telefono: formTelefono.trim() || null,
+      email: formEmail.trim() || null,
+      direccion: formDireccion.trim() || null,
       tipo: formTipo,
     };
-
-    if (formRtn.trim()) payload.rtn = formRtn.trim();
-    if (formTelefono.trim()) payload.telefono = formTelefono.trim();
-    if (formEmail.trim()) payload.email = formEmail.trim();
-    if (formDireccion.trim()) payload.direccion = formDireccion.trim();
 
     try {
       if (clienteEditando) {
@@ -192,7 +191,7 @@ export const ClientesPage: React.FC = () => {
 
           <button type="button" className="btn btn-primary" onClick={abrirNuevoCliente}>
             <Plus size={18} strokeWidth={2.5} />
-            <span>{t('clients.new_client') !== 'clients.new_client' ? t('clients.new_client') : 'NUEVO CLIENTE'}</span>
+            <span>{t('clients.new_client')}</span>
           </button>
         </div>
 

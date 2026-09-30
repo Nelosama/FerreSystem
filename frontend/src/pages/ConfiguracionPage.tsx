@@ -19,98 +19,56 @@ export const ConfiguracionPage: React.FC = () => {
   const { tenant, updateTenantConfig } = useTenant();
   const { locale, setLocale } = useI18n();
 
-  // Cargar datos de la empresa desde el TenantContext (API/PostgreSQL)
-  const [tenantsList, setTenantsList] = useState<any[]>(() => {
-    const saved = localStorage.getItem('ferre_saas_tenants');
-    if (saved) {
-      return JSON.parse(saved);
-    }
-    return [
-      {
-        id: tenant.id || 'current-tenant',
-        nombreComercial: tenant.nombreComercial || 'Mi Empresa',
-        contacto: tenant.email || '',
-        email: tenant.email || '',
-        telefono: tenant.telefono || '',
-        colorPrimario: tenant.colorPrimario || '#EA580C',
-        rubro: tenant.rubro || Rubro.FERRETERIA,
-        estiloUI: tenant.estiloUI || 'INDUSTRIAL',
-        modoNavegacion: tenant.modoNavegacion || 'SIDEBAR',
-        fuenteTitulos: tenant.fuenteTitulos || 'Archivo',
-        fuenteCuerpo: tenant.fuenteCuerpo || 'Inter',
-        moneda: tenant.moneda || { simbolo: 'L.', codigo: 'HNL' },
-        impuesto: tenant.impuesto || { nombre: 'ISV', tasa: 15 },
-        direccion: tenant.direccion || '',
-        logoUrl: tenant.logoUrl || '',
-      },
-    ];
-  });
-
-  const [selectedTenantId, setSelectedTenantId] = useState<string>(
-    tenantsList[0]?.id || tenant.id || 't-1',
-  );
-
-  const currentSelectedTenant =
-    tenantsList.find((t) => t.id === selectedTenantId) || tenantsList[0] || tenant;
-
-  const [nombre, setNombre] = useState(currentSelectedTenant.nombreComercial);
-  const [sucursal, setSucursal] = useState(currentSelectedTenant.sucursal || 'Sucursal Principal');
-  const [logoUrl, setLogoUrl] = useState(currentSelectedTenant.logoUrl || '');
-  const [color, setColor] = useState(currentSelectedTenant.colorPrimario || '#EA580C');
-  const [rubro, setRubro] = useState<Rubro>((currentSelectedTenant.rubro || tenant.rubro || Rubro.FERRETERIA) as Rubro);
+  const [nombre, setNombre] = useState(tenant.nombreComercial || '');
+  const [sucursal, setSucursal] = useState(tenant.sucursal || '');
+  const [logoUrl, setLogoUrl] = useState(tenant.logoUrl || '');
+  const [color, setColor] = useState(tenant.colorPrimario || '#EA580C');
+  const [rubro, setRubro] = useState<Rubro>((tenant.rubro || Rubro.FERRETERIA) as Rubro);
   const [estiloUI, setEstiloUI] = useState<'INDUSTRIAL' | 'MINIMALISTA' | 'MODERNO'>(
-    (currentSelectedTenant.estiloUI || tenant.estiloUI || 'INDUSTRIAL') as any,
+    (tenant.estiloUI || 'INDUSTRIAL') as any,
   );
   const [modoNavegacion, setModoNavegacion] = useState<'SIDEBAR' | 'TOPNAV'>(
-    (currentSelectedTenant.modoNavegacion || tenant.modoNavegacion || 'SIDEBAR') as any,
+    (tenant.modoNavegacion || 'SIDEBAR') as any,
   );
   const [fuenteTitulos, setFuenteTitulos] = useState<'Archivo' | 'Space Grotesk' | 'Poppins' | 'Montserrat'>(
-    (currentSelectedTenant.fuenteTitulos || tenant.fuenteTitulos || 'Archivo') as any,
+    (tenant.fuenteTitulos || 'Archivo') as any,
   );
   const [fuenteCuerpo, setFuenteCuerpo] = useState<'Inter' | 'IBM Plex Sans' | 'Nunito Sans'>(
-    (currentSelectedTenant.fuenteCuerpo || tenant.fuenteCuerpo || 'Inter') as any,
+    (tenant.fuenteCuerpo || 'Inter') as any,
   );
 
   // Moneda e Impuesto
-  const [monedaSimbolo, setMonedaSimbolo] = useState(currentSelectedTenant.moneda?.simbolo || 'L.');
-  const [monedaCodigo, setMonedaCodigo] = useState(currentSelectedTenant.moneda?.codigo || 'HNL');
-  const [impuestoNombre, setImpuestoNombre] = useState(currentSelectedTenant.impuesto?.nombre || 'ISV');
-  const [impuestoTasa, setImpuestoTasa] = useState(currentSelectedTenant.impuesto?.tasa?.toString() || '15');
+  const [monedaSimbolo, setMonedaSimbolo] = useState(tenant.moneda?.simbolo || 'L.');
+  const [monedaCodigo, setMonedaCodigo] = useState(tenant.moneda?.codigo || 'HNL');
+  const [impuestoNombre, setImpuestoNombre] = useState(tenant.impuesto?.nombre || 'ISV');
+  const [impuestoTasa, setImpuestoTasa] = useState(tenant.impuesto?.tasa?.toString() || '15');
 
-  const [direccion, setDireccion] = useState(
-    currentSelectedTenant.direccion || '',
-  );
-  const [telefono, setTelefono] = useState(currentSelectedTenant.telefono || '');
-  const [email, setEmail] = useState(
-    currentSelectedTenant.contacto || currentSelectedTenant.email || '',
-  );
+  const [direccion, setDireccion] = useState(tenant.direccion || '');
+  const [telefono, setTelefono] = useState(tenant.telefono || '');
+  const [email, setEmail] = useState(tenant.email || '');
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
 
-  // Cuando cambia el tenant seleccionado en el combo
+  // Sincronizar estados cuando el tenant del contexto cambie o cargue
   React.useEffect(() => {
-    if (currentSelectedTenant) {
-      setNombre(currentSelectedTenant.nombreComercial);
-      setSucursal(currentSelectedTenant.sucursal || 'Sucursal Principal');
-      setLogoUrl(currentSelectedTenant.logoUrl || '');
-      setColor(currentSelectedTenant.colorPrimario || '#EA580C');
-      setRubro((currentSelectedTenant.rubro || Rubro.FERRETERIA) as Rubro);
-      setEstiloUI((currentSelectedTenant.estiloUI || 'INDUSTRIAL') as any);
-      setModoNavegacion((currentSelectedTenant.modoNavegacion || 'SIDEBAR') as any);
-      setFuenteTitulos((currentSelectedTenant.fuenteTitulos || 'Archivo') as any);
-      setFuenteCuerpo((currentSelectedTenant.fuenteCuerpo || 'Inter') as any);
-      setMonedaSimbolo(currentSelectedTenant.moneda?.simbolo || 'L.');
-      setMonedaCodigo(currentSelectedTenant.moneda?.codigo || 'HNL');
-      setImpuestoNombre(currentSelectedTenant.impuesto?.nombre || 'ISV');
-      setImpuestoTasa(currentSelectedTenant.impuesto?.tasa?.toString() || '15');
-      setDireccion(
-        currentSelectedTenant.direccion || 'Barrio El Centro, San Pedro Sula',
-      );
-      setTelefono(currentSelectedTenant.telefono || '+504 2550-1234');
-      setEmail(
-        currentSelectedTenant.contacto || currentSelectedTenant.email || 'contacto@ferreteria.hn',
-      );
+    if (tenant) {
+      setNombre(tenant.nombreComercial || '');
+      setSucursal(tenant.sucursal || '');
+      setLogoUrl(tenant.logoUrl || '');
+      setColor(tenant.colorPrimario || '#EA580C');
+      setRubro((tenant.rubro || Rubro.FERRETERIA) as Rubro);
+      setEstiloUI((tenant.estiloUI || 'INDUSTRIAL') as any);
+      setModoNavegacion((tenant.modoNavegacion || 'SIDEBAR') as any);
+      setFuenteTitulos((tenant.fuenteTitulos || 'Archivo') as any);
+      setFuenteCuerpo((tenant.fuenteCuerpo || 'Inter') as any);
+      setMonedaSimbolo(tenant.moneda?.simbolo || 'L.');
+      setMonedaCodigo(tenant.moneda?.codigo || 'HNL');
+      setImpuestoNombre(tenant.impuesto?.nombre || 'ISV');
+      setImpuestoTasa(tenant.impuesto?.tasa?.toString() || '15');
+      setDireccion(tenant.direccion || '');
+      setTelefono(tenant.telefono || '');
+      setEmail(tenant.email || '');
     }
-  }, [selectedTenantId]);
+  }, [tenant]);
 
   const handleGuardar = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,52 +76,22 @@ export const ConfiguracionPage: React.FC = () => {
     const updatedMoneda = { simbolo: monedaSimbolo, codigo: monedaCodigo };
     const updatedImpuesto = { nombre: impuestoNombre, tasa: parseFloat(impuestoTasa) || 15 };
 
-    // Actualizar lista de tenants en SaaS
-    const updatedList = tenantsList.map((t) =>
-      t.id === selectedTenantId
-        ? {
-            ...t,
-            nombreComercial: nombre,
-            sucursal,
-            logoUrl: logoUrl.trim() || null,
-            colorPrimario: color,
-            rubro,
-            estiloUI,
-            modoNavegacion,
-            fuenteTitulos,
-            fuenteCuerpo,
-            moneda: updatedMoneda,
-            impuesto: updatedImpuesto,
-            direccion,
-            telefono,
-            contacto: email,
-            email,
-          }
-        : t,
-    );
-
-    setTenantsList(updatedList);
-    localStorage.setItem('ferre_saas_tenants', JSON.stringify(updatedList));
-
-    // Si coincide con la empresa activa actual, actualizar context también
-    if (selectedTenantId === tenant.id || nombre === tenant.nombreComercial) {
-      updateTenantConfig({
-        nombreComercial: nombre,
-        sucursal,
-        logoUrl: logoUrl.trim() || null,
-        colorPrimario: color,
-        rubro,
-        estiloUI,
-        modoNavegacion,
-        fuenteTitulos,
-        fuenteCuerpo,
-        moneda: updatedMoneda,
-        impuesto: updatedImpuesto,
-        direccion,
-        telefono,
-        email,
-      });
-    }
+    updateTenantConfig({
+      nombreComercial: nombre,
+      sucursal,
+      logoUrl: logoUrl.trim() || null,
+      colorPrimario: color,
+      rubro,
+      estiloUI,
+      modoNavegacion,
+      fuenteTitulos,
+      fuenteCuerpo,
+      moneda: updatedMoneda,
+      impuesto: updatedImpuesto,
+      direccion,
+      telefono,
+      email,
+    });
 
     setGuardadoExitoso(true);
     setTimeout(() => setGuardadoExitoso(false), 4000);
@@ -199,58 +127,6 @@ export const ConfiguracionPage: React.FC = () => {
       <TopBar title="CONFIGURACIÓN Y MARCA" subtitle="Personalización White-Label por Tenant" />
 
       <main style={styles.content}>
-        {/* Selector de Empresa para Super Admin */}
-        <div
-          className="industrial-card"
-          style={{
-            padding: '16px 20px',
-            marginBottom: '20px',
-            backgroundColor: '#1C1917',
-            color: '#FFFFFF',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '12px',
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontWeight: 800,
-                fontSize: '13px',
-                color: '#EA580C',
-                textTransform: 'uppercase',
-              }}
-            >
-              SELECCIONAR CLIENTE / EMPRESA A CONFIGURAR
-            </div>
-            <div style={{ fontSize: '11px', color: '#A8A29E' }}>
-              Elija la empresa para modificar su marca, rubro, idioma, tema visual y paleta de color.
-            </div>
-          </div>
-
-          <div style={{ minWidth: '280px' }}>
-            <select
-              value={selectedTenantId}
-              onChange={(e) => setSelectedTenantId(e.target.value)}
-              className="form-select"
-              style={{
-                backgroundColor: '#292524',
-                color: '#FAFAF9',
-                borderColor: '#44403C',
-                fontWeight: 700,
-              }}
-            >
-              {tenantsList.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombreComercial}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
 
         {guardadoExitoso && (
           <div style={styles.successBanner}>
