@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
+import { api } from '../utils/api';
 import { Rubro } from '../types';
 import { RUBROS_CONFIG } from '../config/rubros';
 import { Palette, Building2, Check, RefreshCw, Store, Layout, Type, Eye, Languages, Coins, Receipt } from 'lucide-react';
@@ -70,31 +71,45 @@ export const ConfiguracionPage: React.FC = () => {
     }
   }, [tenant]);
 
-  const handleGuardar = (e: React.FormEvent) => {
+  const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const updatedMoneda = { simbolo: monedaSimbolo, codigo: monedaCodigo };
     const updatedImpuesto = { nombre: impuestoNombre, tasa: parseFloat(impuestoTasa) || 15 };
 
-    updateTenantConfig({
-      nombreComercial: nombre,
-      sucursal,
-      logoUrl: logoUrl.trim() || null,
-      colorPrimario: color,
-      rubro,
-      estiloUI,
-      modoNavegacion,
-      fuenteTitulos,
-      fuenteCuerpo,
-      moneda: updatedMoneda,
-      impuesto: updatedImpuesto,
-      direccion,
-      telefono,
-      email,
-    });
+    try {
+      await api.put('/tenant/settings', {
+        nombreComercial: nombre,
+        direccion,
+        telefono,
+        email,
+        colorPrimario: color,
+        logoUrl: logoUrl.trim() || null,
+      });
 
-    setGuardadoExitoso(true);
-    setTimeout(() => setGuardadoExitoso(false), 4000);
+      updateTenantConfig({
+        nombreComercial: nombre,
+        sucursal,
+        logoUrl: logoUrl.trim() || null,
+        colorPrimario: color,
+        rubro,
+        estiloUI,
+        modoNavegacion,
+        fuenteTitulos,
+        fuenteCuerpo,
+        moneda: updatedMoneda,
+        impuesto: updatedImpuesto,
+        direccion,
+        telefono,
+        email,
+      });
+
+      setGuardadoExitoso(true);
+      setTimeout(() => setGuardadoExitoso(false), 4000);
+    } catch (err: any) {
+      console.error('Error al guardar configuración del tenant:', err);
+      alert(err.response?.data?.message || 'Error al guardar la configuración en el servidor.');
+    }
   };
 
   const handleRestablecerDefault = () => {
