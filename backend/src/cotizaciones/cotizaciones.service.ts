@@ -416,17 +416,19 @@ export class CotizacionesService {
         throw new BadRequestException('Esta cotización ya fue convertida previamente a una venta');
       }
 
-      // Verificar y descontar stock por la cantidad solicitada
+      // Verificar y descontar stock por la cantidad solicitada con precisión decimal
       for (const d of cotizacion.detalles) {
-        if (d.producto.stockActual < Number(d.cantidad)) {
+        const stockDisponible = Number(d.producto.stockActual);
+        const cantidadRequerida = Number(d.cantidad);
+        if (stockDisponible < cantidadRequerida) {
           throw new BadRequestException(
-            `Stock insuficiente para "${d.producto.nombre}". Disponible: ${d.producto.stockActual}, Requerido: ${d.cantidad}`,
+            `Stock insuficiente para "${d.producto.nombre}". Disponible: ${stockDisponible}, Requerido: ${cantidadRequerida}`,
           );
         }
 
         await tx.producto.update({
           where: { id: d.producto.id },
-          data: { stockActual: { decrement: Math.round(Number(d.cantidad)) } },
+          data: { stockActual: { decrement: cantidadRequerida } },
         });
       }
 

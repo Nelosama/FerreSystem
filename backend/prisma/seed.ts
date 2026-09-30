@@ -211,30 +211,43 @@ async function main() {
   }
   console.log('✅ Productos del catálogo creados con éxito');
 
-  // 7. Clientes de prueba (con RTN hondureño)
-  const cliente1 = await prisma.cliente.create({
-    data: {
-      tenantId: tenant.id,
-      nombre: 'Constructora del Norte S. de R.L.',
-      rtn: '05019001234567',
-      telefono: '+504 9876-5432',
-      email: 'compras@constructoranorte.hn',
-      direccion: 'Residencial Los Álamos, SPS',
-      tipo: 'CONTRATISTA',
-    },
+  // 7. Clientes de prueba (con RTN hondureño - Idempotente)
+  let cliente1 = await prisma.cliente.findFirst({
+    where: { tenantId: tenant.id, rtn: '05019001234567' },
   });
 
-  await prisma.cliente.create({
-    data: {
-      tenantId: tenant.id,
-      nombre: 'Ferretería El Progreso (Subdistribuidor)',
-      rtn: '05021980001234',
-      telefono: '+504 9911-2233',
-      tipo: 'MAYORISTA',
-    },
+  if (!cliente1) {
+    cliente1 = await prisma.cliente.create({
+      data: {
+        tenantId: tenant.id,
+        nombre: 'Constructora del Norte S. de R.L.',
+        rtn: '05019001234567',
+        telefono: '+504 9876-5432',
+        email: 'compras@constructoranorte.hn',
+        direccion: 'Residencial Los Álamos, SPS',
+        tipo: 'CONTRATISTA',
+      },
+    });
+  }
+
+  let cliente2 = await prisma.cliente.findFirst({
+    where: { tenantId: tenant.id, rtn: '05021980001234' },
   });
 
-  // 8. Cotización de ejemplo
+  if (!cliente2) {
+    await prisma.cliente.create({
+      data: {
+        tenantId: tenant.id,
+        nombre: 'Ferretería El Progreso (Subdistribuidor)',
+        rtn: '05021980001234',
+        telefono: '+504 9911-2233',
+        tipo: 'MAYORISTA',
+      },
+    });
+  }
+  console.log('✅ Clientes de prueba creados/verificados');
+
+  // 8. Cotización de ejemplo (Idempotente con upsert en tenantId_numeroCotizacion)
   const prodVarilla = await prisma.producto.findFirst({ where: { tenantId: tenant.id, codigo: 'CON-002' } });
   const prodCemento = await prisma.producto.findFirst({ where: { tenantId: tenant.id, codigo: 'CON-001' } });
 
@@ -243,28 +256,39 @@ async function main() {
     const isv = subtotal * 0.15;
     const total = subtotal + isv;
 
-    await prisma.cotizacion.create({
-      data: {
-        tenantId: tenant.id,
-        numeroCotizacion: 1,
-        clienteId: cliente1.id,
-        usuarioId: adminTenant.id,
-        subtotal,
-        isv,
-        descuento: 0,
-        total,
-        estado: 'ENVIADA',
-        fechaValidez: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // Vence en 2 días
-        notas: 'Entrega en plantel de construcción incluida',
-        detalles: {
-          create: [
-            { productoId: prodCemento.id, cantidad: 10, precioUnitario: prodCemento.precioVenta, subtotal: 10 * Number(prodCemento.precioVenta) },
-            { productoId: prodVarilla.id, cantidad: 20, precioUnitario: prodVarilla.precioVenta, subtotal: 20 * Number(prodVarilla.precioVenta) },
-          ],
+    const cotizacionExistente = await prisma.cotizacion.findUnique({
+      where: {
+        tenantId_numeroCotizacion: {
+          tenantId: tenant.id,
+          numeroCotizacion: 1,
         },
       },
     });
-    console.log('✅ Cotización de prueba creada');
+
+    if (!cotizacionExistente) {
+      await prisma.cotizacion.create({
+        data: {
+          tenantId: tenant.id,
+          numeroCotizacion: 1,
+          clienteId: cliente1.id,
+          usuarioId: adminTenant.id,
+          subtotal,
+          isv,
+          descuento: 0,
+          total,
+          estado: 'ENVIADA',
+          fechaValidez: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // Vence en 2 días
+          notas: 'Entrega en plantel de construcción incluida',
+          detalles: {
+            create: [
+              { productoId: prodCemento.id, cantidad: 10, precioUnitario: prodCemento.precioVenta, subtotal: 10 * Number(prodCemento.precioVenta) },
+              { productoId: prodVarilla.id, cantidad: 20, precioUnitario: prodVarilla.precioVenta, subtotal: 20 * Number(prodVarilla.precioVenta) },
+            ],
+          },
+        },
+      });
+    }
+    console.log('✅ Cotización de prueba verificada/creada');
   }
 
   console.log('\n🎉 Seed completado exitosamente.');
