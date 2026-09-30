@@ -13,27 +13,6 @@ export const SuperAdminLoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const executeSuperAdminDemo = () => {
-    login(
-      {
-        id: 'superadmin-demo',
-        nombre: 'Ing. Nelo — SaaS Owner',
-        email: 'admin@ferresystem.hn',
-        rol: 'SUPERADMIN',
-        permisos: ['usuarios.gestionar', 'configuracion.editar'],
-        descuentoMaximo: 100,
-        activo: true,
-      },
-      {
-        id: 'saas-global',
-        nombreComercial: 'FerreSystem Admin Portal',
-        sucursal: 'Global',
-        colorPrimario: '#1C1917',
-      },
-    );
-    navigate('/admin');
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -61,9 +40,18 @@ export const SuperAdminLoginPage: React.FC = () => {
       setLoading(false);
       navigate('/admin');
     } catch (err: any) {
-      console.warn('Backend connection issue, falling back to SuperAdmin local demo mode:', err);
+      console.error('Error de autenticación SuperAdmin:', err);
       setLoading(false);
-      executeSuperAdminDemo();
+      if (err.response) {
+        const message = err.response.data?.message;
+        setError(
+          Array.isArray(message)
+            ? message.join(', ')
+            : message || 'Correo o contraseña de SuperAdmin incorrectos'
+        );
+      } else {
+        setError('No se pudo conectar con el servidor backend.');
+      }
     }
   };
 
@@ -135,16 +123,6 @@ export const SuperAdminLoginPage: React.FC = () => {
           </button>
         </form>
 
-        <div style={styles.demoBox}>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={executeSuperAdminDemo}
-            style={{ width: '100%', backgroundColor: '#292524', color: '#FAFAF9', borderColor: '#44403C' }}
-          >
-            ACCESO RÁPIDO SUPER ADMIN (DEMO)
-          </button>
-        </div>
       </div>
     </div>
   );

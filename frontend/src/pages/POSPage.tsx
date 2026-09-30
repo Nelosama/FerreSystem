@@ -39,6 +39,7 @@ export const POSPage: React.FC = () => {
   const { t } = useI18n();
 
   const [productos, setProductos] = useState<ProductItem[]>([]);
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState('');
@@ -50,6 +51,7 @@ export const POSPage: React.FC = () => {
   const [numeroVentaGenerado, setNumeroVentaGenerado] = useState<number | null>(null);
 
   const fetchProductos = useCallback(async () => {
+    setErrorText(null);
     try {
       const response = await api.get('/productos');
       const data = response.data.map((p: any) => ({
@@ -70,6 +72,7 @@ export const POSPage: React.FC = () => {
       setProductos(data);
     } catch (err: any) {
       console.error('Error al cargar productos en POS:', err);
+      setErrorText('Error de conexión con la API de productos.');
     }
   }, []);
 
@@ -195,6 +198,25 @@ export const POSPage: React.FC = () => {
       <TopBar title={t('pos.title')} subtitle={t('pos.subtitle')} />
 
       <main style={styles.content}>
+        {errorText && (
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px 16px',
+            backgroundColor: '#FEE2E2',
+            border: '1px solid #EF4444',
+            borderRadius: '4px',
+            color: '#991B1B',
+            fontSize: '13px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}>
+            <ShieldAlert size={18} />
+            <span>{errorText}</span>
+          </div>
+        )}
+
         {/* Layout en dos columnas: Izquierda catálogo rápido, Derecha Carrito & Cobro */}
         <div style={styles.posGrid}>
           {/* Columna Izquierda: Catálogo y Búsqueda */}
