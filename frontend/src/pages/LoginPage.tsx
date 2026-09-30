@@ -4,49 +4,6 @@ import { useTenant } from '../context/TenantContext';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 
-const roleProfiles = {
-  ADMIN: {
-    id: 'usr-admin-1',
-    nombre: 'Carlos Ramos (Administrador General)',
-    email: 'admin@lamundial.hn',
-    rol: 'ADMIN' as const,
-    permisos: [
-      'pos.vender',
-      'pos.anular_venta',
-      'pos.aplicar_descuento',
-      'inventario.ver',
-      'inventario.editar',
-      'cotizaciones.crear',
-      'cotizaciones.aprobar',
-      'cotizaciones.convertir_venta',
-      'reportes.ver',
-      'usuarios.gestionar',
-      'configuracion.editar',
-    ],
-  },
-  CAJERO: {
-    id: 'usr-cajero-1',
-    nombre: 'Carlos Ramos (Cajero Principal)',
-    email: 'cajero@lamundial.hn',
-    rol: 'CAJERO' as const,
-    permisos: ['pos.vender', 'cotizaciones.crear'],
-  },
-  BODEGUERO: {
-    id: 'usr-bodega-1',
-    nombre: 'Jorge Mendoza (Bodeguero)',
-    email: 'bodega@lamundial.hn',
-    rol: 'BODEGUERO' as const,
-    permisos: ['inventario.ver', 'inventario.editar'],
-  },
-  VENDEDOR: {
-    id: 'usr-vendedor-1',
-    nombre: 'Ana Martínez (Vendedora)',
-    email: 'vendedor@lamundial.hn',
-    rol: 'VENDEDOR' as const,
-    permisos: ['pos.vender', 'cotizaciones.crear'],
-  },
-};
-
 export const LoginPage: React.FC = () => {
   const { login } = useTenant();
   const navigate = useNavigate();
@@ -55,143 +12,6 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const executeRoleLogin = (selectedRole: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR') => {
-    const prof = roleProfiles[selectedRole];
-    login(
-      {
-        id: prof.id,
-        nombre: prof.nombre,
-        email: prof.email,
-        rol: prof.rol,
-        permisos: prof.permisos,
-        descuentoMaximo: selectedRole === 'ADMIN' ? 100 : 15,
-        activo: true,
-      },
-      {
-        id: 'tenant-demo-1',
-        nombreComercial: 'LA MUNDIAL - SUCURSAL CENTRO',
-        sucursal: 'Sucursal Centro',
-        colorPrimario: '#EA580C',
-      },
-    );
-    navigate('/');
-  };
-
-  const handleDemoLogin = (emailInput: string, passwordInput: string): boolean => {
-    const cleanEmail = emailInput.trim().toLowerCase();
-
-    const matchedKey = (Object.keys(roleProfiles) as Array<keyof typeof roleProfiles>).find(
-      (key) => roleProfiles[key].email.toLowerCase() === cleanEmail
-    );
-
-    if (matchedKey) {
-      if (passwordInput !== 'Ferre2026!') {
-        setError('Correo o contraseña incorrectos');
-        return false;
-      }
-      executeRoleLogin(matchedKey);
-      return true;
-    }
-
-    try {
-      const savedAdminsRaw = localStorage.getItem('ferre_saas_admins');
-      const savedTenantsRaw = localStorage.getItem('ferre_saas_tenants');
-
-      if (savedAdminsRaw && savedTenantsRaw) {
-        const savedAdmins = JSON.parse(savedAdminsRaw);
-        const savedTenants = JSON.parse(savedTenantsRaw);
-
-        const matchedAdmin = savedAdmins.find(
-          (a: any) => a.email && a.email.trim().toLowerCase() === cleanEmail
-        );
-
-        if (matchedAdmin) {
-          if (matchedAdmin.activo === false) {
-            setError('El usuario se encuentra inactivo / suspendido');
-            return false;
-          }
-
-          const expectedPass = matchedAdmin.password || 'Ferre2026!';
-          if (passwordInput !== expectedPass) {
-            setError('Correo o contraseña incorrectos');
-            return false;
-          }
-
-          const matchedTenant = savedTenants.find((t: any) => t.id === matchedAdmin.tenantId);
-
-          if (matchedTenant) {
-            if (matchedTenant.estado === 'SUSPENDIDO') {
-              setError('La cuenta del tenant se encuentra suspendida');
-              return false;
-            }
-
-            login(
-              {
-                id: matchedAdmin.id || `usr-admin-${Date.now()}`,
-                nombre: matchedAdmin.nombre || 'Administrador',
-                email: matchedAdmin.email,
-                rol: 'ADMIN',
-                permisos: [
-                  'pos.vender',
-                  'pos.anular_venta',
-                  'pos.aplicar_descuento',
-                  'inventario.ver',
-                  'inventario.editar',
-                  'cotizaciones.crear',
-                  'cotizaciones.aprobar',
-                  'cotizaciones.convertir_venta',
-                  'reportes.ver',
-                  'usuarios.gestionar',
-                  'configuracion.editar',
-                ],
-                descuentoMaximo: 100,
-                activo: true,
-              },
-              {
-                id: matchedTenant.id,
-                nombreComercial: matchedTenant.nombreComercial,
-                sucursal: 'Sucursal Principal',
-                colorPrimario: matchedTenant.colorPrimario || '#EA580C',
-                logoUrl: matchedTenant.logoUrl || null,
-                modoNavegacion: matchedTenant.modoNavegacion || 'SIDEBAR',
-                rubro: matchedTenant.rubro,
-                modulosHabilitados: matchedTenant.modulosHabilitados,
-              }
-            );
-            navigate('/');
-            return true;
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Error reading saas admins/tenants from localStorage:', e);
-    }
-
-    setError('Correo o contraseña incorrectos');
-    return false;
-  };
-
-  const executeSuperAdminLogin = (superAdmin: { id: string; nombre: string; email: string }) => {
-    login(
-      {
-        id: superAdmin.id,
-        nombre: superAdmin.nombre,
-        email: superAdmin.email,
-        rol: 'SUPERADMIN',
-        permisos: ['usuarios.gestionar', 'configuracion.editar'],
-        descuentoMaximo: 100,
-        activo: true,
-      },
-      {
-        id: 'saas-global',
-        nombreComercial: 'FerreSystem Admin Portal',
-        sucursal: 'Global',
-        colorPrimario: '#1C1917',
-      },
-    );
-    navigate('/admin');
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,27 +42,15 @@ export const LoginPage: React.FC = () => {
       );
       navigate('/');
     } catch (err: any) {
-      // If backend responded with an HTTP status (e.g. 401 Unauthorized, 400, 403), show error directly without falling back to demo mode
       if (err.response) {
         const message = err.response.data?.message;
-        setError(Array.isArray(message) ? message.join(', ') : message || 'Correo o contraseña incorrectos');
+        setError(
+          Array.isArray(message)
+            ? message.join(', ')
+            : message || 'Correo o contraseña incorrectos'
+        );
       } else {
-        // Only if network/connection failed completely (no response), attempt superadmin login or local demo fallback
-        try {
-          const superResponse = await api.post('/admin/auth/login', { email, password });
-          if (superResponse.data?.accessToken) {
-            localStorage.setItem('ferre_token', superResponse.data.accessToken);
-          }
-          executeSuperAdminLogin(superResponse.data.superAdmin || superResponse.data.admin);
-        } catch (superErr: any) {
-          if (!superErr.response) {
-            console.warn('Backend login connection issue, switching to local demo mode fallback:', superErr);
-            handleDemoLogin(email, password);
-          } else {
-            const message = superErr.response.data?.message;
-            setError(Array.isArray(message) ? message.join(', ') : message || 'Correo o contraseña incorrectos');
-          }
-        }
+        setError('No se pudo conectar con el servidor. Verifique que el backend en Render esté disponible.');
       }
     } finally {
       setLoading(false);

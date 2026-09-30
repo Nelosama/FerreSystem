@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Calculator, CheckCircle, Clock, Printer, X, ShieldAlert, FileText } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
-import { useMockData } from '../context/MockDataContext';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 
@@ -55,7 +54,7 @@ const INITIAL_ARQUEOS: ArqueoRecord[] = [
 const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
 
 export const ArqueoCajaPage: React.FC = () => {
-  const { ventas } = useMockData();
+  const [ventas] = useState<any[]>([]);
   const { tenant, user } = useTenant();
   const { t } = useI18n();
 

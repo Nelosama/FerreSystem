@@ -1,6 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { TopBar } from '../components/TopBar';
-import { useMockData, type Usuario, PERMISOS_DEFAULT_POR_ROL } from '../context/MockDataContext';
+export interface Usuario {
+  id: string;
+  nombre: string;
+  email: string;
+  rolBase: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR';
+  sucursalActual?: string;
+  permisos: string[];
+  descuentoMaximo: number;
+  activo: boolean;
+}
+
+export const PERMISOS_DEFAULT_POR_ROL = {
+  ADMIN: {
+    permisos: [
+      'pos.vender',
+      'pos.anular_venta',
+      'pos.aplicar_descuento',
+      'inventario.ver',
+      'inventario.editar',
+      'cotizaciones.crear',
+      'cotizaciones.aprobar',
+      'cotizaciones.convertir_venta',
+      'reportes.ver',
+      'usuarios.gestionar',
+      'configuracion.editar',
+    ],
+    descuentoMaximo: 100,
+  },
+  CAJERO: {
+    permisos: ['pos.vender', 'cotizaciones.crear', 'pos.aplicar_descuento'],
+    descuentoMaximo: 15,
+  },
+  BODEGUERO: {
+    permisos: ['inventario.ver', 'inventario.editar'],
+    descuentoMaximo: 0,
+  },
+  VENDEDOR: {
+    permisos: ['pos.vender', 'cotizaciones.crear'],
+    descuentoMaximo: 10,
+  },
+};
 import { api } from '../utils/api';
 import {
   Users,
@@ -31,9 +71,7 @@ const TODOS_LOS_PERMISOS = [
 ];
 
 export const UsuariosPage: React.FC = () => {
-  const { usuarios: mockUsuarios, agregarUsuario, actualizarUsuario } = useMockData();
-
-  const [listaUsuarios, setListaUsuarios] = useState<Usuario[]>(mockUsuarios);
+  const [listaUsuarios, setListaUsuarios] = useState<Usuario[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
@@ -84,7 +122,7 @@ export const UsuariosPage: React.FC = () => {
           ? Array.isArray(err.response.data.message)
             ? err.response.data.message.join(', ')
             : err.response.data.message
-          : 'No se pudo sincronizar con la API real (Verifique conexión o CORS). Mostrando datos locales.';
+          : 'No se pudo conectar con la API de usuarios en el servidor backend.';
         setErrorBanner(errorMsg);
       } finally {
         setLoadingList(false);
@@ -169,7 +207,6 @@ export const UsuariosPage: React.FC = () => {
           activo: formActivo,
         };
 
-        actualizarUsuario(usuarioEditando.id, updatedUsuario);
         setListaUsuarios((prev) =>
           prev.map((u) => (u.id === usuarioEditando.id ? updatedUsuario : u)),
         );
@@ -179,7 +216,7 @@ export const UsuariosPage: React.FC = () => {
         const newData = res.data;
 
         const nuevoUsuario: Usuario = {
-          id: newData.id || `usr-${Date.now()}`,
+          id: newData.id,
           nombre: newData.nombre || formNombre.trim(),
           email: newData.email || formEmail.trim(),
           rolBase: formRolBase,
@@ -189,7 +226,6 @@ export const UsuariosPage: React.FC = () => {
           activo: formActivo,
         };
 
-        agregarUsuario(nuevoUsuario);
         setListaUsuarios((prev) => [nuevoUsuario, ...prev]);
       }
 

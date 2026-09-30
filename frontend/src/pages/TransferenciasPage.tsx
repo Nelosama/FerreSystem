@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { GitBranch, ArrowRight, Plus, CheckCircle } from 'lucide-react';
-import { useMockData } from '../context/MockDataContext';
+import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
 import { useNotification } from '../context/NotificationContext';
@@ -36,9 +36,17 @@ const INITIAL_TRANSFERENCIAS: TransferenciaItem[] = [
 
 const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
 
+import { useEffect } from 'react';
+
 export const TransferenciasPage: React.FC = () => {
-  const { productos } = useMockData();
+  const [productos, setProductos] = useState<any[]>([]);
   const { tenant } = useTenant();
+
+  useEffect(() => {
+    api.get('/productos').then((res) => {
+      if (Array.isArray(res.data)) setProductos(res.data);
+    }).catch(err => console.error(err));
+  }, []);
   const { t } = useI18n();
   const { notificarTransferencia } = useNotification();
 

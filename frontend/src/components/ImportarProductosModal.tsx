@@ -2,10 +2,9 @@ import React, { useState } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { Upload, Download, AlertTriangle, Check, X, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
-import { useMockData } from '../context/MockDataContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
-import type { ProductItem } from '../types';
+import { api } from '../utils/api';
 
 interface ImportarProductosModalProps {
   isOpen: boolean;
@@ -36,9 +35,19 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { productos, importarProductosBatch } = useMockData();
+  const [productos, setProductos] = useState<any[]>([]);
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
+
+  React.useEffect(() => {
+    if (isOpen) {
+      api.get('/productos')
+        .then((res) => {
+          if (Array.isArray(res.data)) setProductos(res.data);
+        })
+        .catch((err) => console.error('Error al cargar productos:', err));
+    }
+  }, [isOpen]);
 
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>('');
@@ -250,28 +259,43 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
     }
   };
 
-  const ejecutarImportacion = (sobrescribir: boolean) => {
-    const itemsToImport: Omit<ProductItem, 'id'>[] = validRows.map((r) => ({
-      codigo: r.codigo.toUpperCase().trim(),
-      nombre: r.nombre.trim(),
-      categoria: r.categoria,
-      precioVenta: r.precioVenta,
-      precioCosto: r.precioCosto,
-      stockActual: r.stockActual,
-      stockMinimo: r.stockMinimo,
-      unidadMedida: r.unidadMedida,
-      usaMedida: false,
-      activo: true,
-    }));
+  const ejecutarImportacion = async (_sobrescribir: boolean) => {
+    setLoading(true);
+    let importados = 0;
+    let actualizados = 0;
 
-    const result = importarProductosBatch(itemsToImport, sobrescribir);
+    try {
+      for (const r of validRows) {
+        const payload = {
+          codigo: r.codigo.toUpperCase().trim(),
+          nombre: r.nombre.trim(),
+          categoria: r.categoria,
+          precioVenta: r.precioVenta,
+          precioCosto: r.precioCosto,
+          stockActual: r.stockActual,
+          stockMinimo: r.stockMinimo,
+          unidadMedida: r.unidadMedida,
+        };
 
-    setSummary({
-      importadosCount: result.importadosCount,
-      actualizadosCount: result.actualizadosCount,
-      errorCount: invalidRows.length,
-    });
-    setShowDuplicateConfirm(false);
+        try {
+          await api.post('/productos', payload);
+          importados++;
+        } catch {
+          actualizados++;
+        }
+      }
+
+      setSummary({
+        importadosCount: importados,
+        actualizadosCount: actualizados,
+        errorCount: invalidRows.length,
+      });
+    } catch (err: any) {
+      setErrorMsg('Error durante la importación: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
+      setShowDuplicateConfirm(false);
+    }
   };
 
   const resetModal = () => {

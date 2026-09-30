@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Plus, Search, DollarSign, CheckCircle, XCircle } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
-import { useMockData } from '../context/MockDataContext';
+import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
 
@@ -65,9 +65,17 @@ const INITIAL_APARTADOS: ApartadoItem[] = [
 
 const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
 
+import { useEffect } from 'react';
+
 export const ApartadosPage: React.FC = () => {
-  const { productos } = useMockData();
+  const [productos, setProductos] = useState<any[]>([]);
   const { tenant, isReadOnly } = useTenant();
+
+  useEffect(() => {
+    api.get('/productos').then((res) => {
+      if (Array.isArray(res.data)) setProductos(res.data);
+    }).catch(err => console.error(err));
+  }, []);
   const { t } = useI18n();
   const currentTenantId = tenant?.id || 'tenant-demo-1';
   const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
