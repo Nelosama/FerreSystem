@@ -3,7 +3,8 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
@@ -15,26 +16,66 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async login(loginDto: { email: string; password: string }, res: Response) {
+  async login(loginDto: LoginDto, res: Response, req?: Request) {
     const { email, password } = loginDto;
+    const targetTenantId = loginDto.tenantId || (req?.headers['x-tenant-id'] as string) || undefined;
 
     // Etapa 1 & 2: Recepción de petición y normalización de email
     const normalizedEmail = email?.toLowerCase().trim();
-    this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 1-2] Inicio de intento de login para email normalizado: "${normalizedEmail}"`);
+    this.logger.log(
+      `[LOGIN_DIAGNOSTIC] [ETAPA 1-2] Inicio de intento de login para email normalizado: "${normalizedEmail}" (TenantId objetivo: ${targetTenantId || 'autodetect'})`,
+    );
 
-    // Etapa 3 & 4: Consulta en BD con Prisma wrapped en try-catch específico
+    // Etapa 3 & 4: Búsqueda en BD considerando multi-tenancy (@@unique([tenantId, email]))
     let usuario: any = null;
     try {
-      this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 3] Ejecutando prisma.usuario.findFirst() para email: "${normalizedEmail}"`);
-      usuario = await this.prisma.usuario.findFirst({
-        where: { email: normalizedEmail },
-        include: { tenant: true },
-      });
+      if (targetTenantId) {
+        this.logger.log(
+          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Buscando usuario específico en tenant: "${targetTenantId}" para email: "${normalizedEmail}"`,
+        );
+        usuario = await this.prisma.usuario.findFirst({
+          where: { tenantId: targetTenantId, email: normalizedEmail },
+          include: { tenant: true },
+        });
+      } else {
+        this.logger.log(
+          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Consultando usuarios globales con email: "${normalizedEmail}"`,
+        );
+        const matchingUsers = await this.prisma.usuario.findMany({
+          where: { email: normalizedEmail },
+          include: { tenant: true },
+        });
+
+        if (matchingUsers.length === 1) {
+          usuario = matchingUsers[0];
+        } else if (matchingUsers.length > 1) {
+          this.logger.log(
+            `[LOGIN_DIAGNOSTIC] Se encontraron ${matchingUsers.length} usuarios con el mismo email en diferentes tenants. Identificando por credenciales.`,
+          );
+          const validUsers: any[] = [];
+          for (const u of matchingUsers) {
+            if (u.passwordHash && (await bcrypt.compare(password, u.passwordHash))) {
+              validUsers.push(u);
+            }
+          }
+
+          if (validUsers.length === 1) {
+            usuario = validUsers[0];
+          } else if (validUsers.length > 1) {
+            throw new UnauthorizedException(
+              'Existen múltiples cuentas con este correo. Debe especificar el identificador de la empresa (Tenant ID).',
+            );
+          }
+        }
+      }
     } catch (error: any) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       const errorMsg = error?.message || 'Error desconocido';
       const errorCode = error?.code || error?.meta?.code || 'N/A';
       this.logger.error(
-        `[LOGIN_DIAGNOSTIC] [CASO E] ERROR DE BD/PRISMA durante findFirst(). Código: ${errorCode}, Mensaje: ${errorMsg}`,
+        `[LOGIN_DIAGNOSTIC] [CASO E] ERROR DE BD/PRISMA durante consulta de usuario. Código: ${errorCode}, Mensaje: ${errorMsg}`,
         error?.stack,
       );
       throw new InternalServerErrorException({
