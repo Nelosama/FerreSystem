@@ -6,7 +6,7 @@
 - **Estilos Visuales**: Variables CSS custom properties (`--color-primary`, `--color-sidebar-bg`, etc.) inyectadas dinámicamente según el tenant activo. Estilo industrial activo por defecto con bordes oscuros de 2px.
 
 ---
-
+   dfh
 ## FASE 1 — Motor Multi-Rubro
 - **Completado**:
   - Creado enum `Rubro` en `src/types/index.ts` con los 10 giros comerciales solicitados (`FERRETERIA`, `PULPERIA`, `MINIMARKET`, `FARMACIA`, `PAPELERIA`, `DISTRIBUIDORA`, `AGROSERVICIO`, `REPUESTOS_AUTOMOTRICES`, `ELECTRODOMESTICOS`, `GENERAL`).
