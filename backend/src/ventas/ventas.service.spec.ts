@@ -80,7 +80,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
     });
 
     expect(mockPrisma.producto.update).toHaveBeenCalledWith({
-      where: { id: 'prod-123' },
+      where: { id: 'prod-123', tenantId: 'tenant-test-id' },
       data: { stockActual: { decrement: 2.5 } },
     });
 

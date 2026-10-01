@@ -33,7 +33,7 @@ export class TenantModuleGuard implements CanActivate {
       return true;
     }
 
-    const tenantId = user?.tenantId || request.headers['x-tenant-id'];
+    const tenantId = user?.tenantId;
 
     if (!tenantId) {
       throw new ForbiddenException('Tenant ID no encontrado en la petición');

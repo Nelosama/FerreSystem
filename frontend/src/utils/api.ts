@@ -2,8 +2,21 @@ import axios from 'axios';
 
 const getBaseUrl = (): string => {
   const envUrl = import.meta.env.VITE_API_URL;
-  if (!envUrl) return '/api';
+  if (!envUrl) {
+    if (import.meta.env.PROD) {
+      throw new Error('VITE_API_URL must be configured for the production frontend.');
+    }
+    return '/api';
+  }
+
   const cleanUrl = envUrl.replace(/\/+$/, '');
+  if (import.meta.env.PROD) {
+    const backendUrl = new URL(cleanUrl);
+    if (backendUrl.protocol !== 'https:' || ['localhost', '127.0.0.1', '::1'].includes(backendUrl.hostname)) {
+      throw new Error('VITE_API_URL must use the HTTPS production backend URL.');
+    }
+  }
+
   return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
 };
 
@@ -33,18 +46,24 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/login')) {
+    const requestUrl = originalRequest?.url || '';
+    const isSuperAdminRequest = requestUrl.startsWith('/admin/');
+    const isAuthRequest = /\/auth\/(login|refresh|logout)(\?|$)/.test(requestUrl);
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
       try {
-        const refreshResponse = await api.post('/auth/refresh');
+        const refreshPath = isSuperAdminRequest ? '/admin/auth/refresh' : '/auth/refresh';
+        const refreshResponse = await api.post(refreshPath);
         if (refreshResponse.data?.accessToken) {
           localStorage.setItem('ferre_token', refreshResponse.data.accessToken);
         }
         return api(originalRequest);
       } catch (refreshError) {
         localStorage.removeItem('ferre_token');
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
+        const loginPath = isSuperAdminRequest ? '/admin/login' : '/login';
+        if (window.location.pathname !== loginPath) {
+          window.location.href = loginPath;
         }
         return Promise.reject(refreshError);
       }

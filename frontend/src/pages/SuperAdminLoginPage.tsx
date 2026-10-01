@@ -8,8 +8,8 @@ export const SuperAdminLoginPage: React.FC = () => {
   const { login } = useTenant();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('admin@ferresystem.hn');
-  const [password, setPassword] = useState('SuperAdmin2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,14 +20,17 @@ export const SuperAdminLoginPage: React.FC = () => {
 
     try {
       const response = await api.post('/admin/auth/login', { email, password });
-      if (response.data?.accessToken) {
-        localStorage.setItem('ferre_token', response.data.accessToken);
+      const accessToken = response.data?.accessToken;
+      const superAdmin = response.data?.superAdmin;
+      if (typeof accessToken !== 'string' || !accessToken || !superAdmin?.id) {
+        throw new Error('La respuesta de autenticación no contiene una sesión válida.');
       }
+      localStorage.setItem('ferre_token', accessToken);
       login(
         {
-          id: response.data.admin?.id || response.data.superAdmin?.id || 'superadmin-1',
-          nombre: response.data.admin?.nombre || response.data.superAdmin?.nombre || 'Super Admin',
-          email,
+          id: superAdmin.id,
+          nombre: superAdmin.nombre,
+          email: superAdmin.email,
           rol: 'SUPERADMIN',
         },
         {

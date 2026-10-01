@@ -13,7 +13,7 @@ import { JwtStrategy } from './jwt.strategy';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'ferresystem-super-secure-dev-secret-key-2026',
+        secret: getJwtSecret(configService),
         signOptions: {
           expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '15m') as any,
         },
@@ -25,3 +25,10 @@ import { JwtStrategy } from './jwt.strategy';
   exports: [AuthService, JwtModule, PassportModule],
 })
 export class AuthModule {}
+
+function getJwtSecret(configService: ConfigService): string {
+  const secret = configService.get<string>('JWT_SECRET');
+  if (!secret) throw new Error('JWT_SECRET must be configured.');
+  if (secret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters.');
+  return secret;
+}

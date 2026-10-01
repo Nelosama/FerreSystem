@@ -92,7 +92,7 @@ export class LevantamientosService {
     }
 
     return this.prisma.levantamiento.update({
-      where: { id },
+      where: { id, tenantId },
       data: {
         ...(dto.nombre !== undefined && { nombre: dto.nombre }),
         ...(dto.descripcion !== undefined && { descripcion: dto.descripcion }),
@@ -111,7 +111,7 @@ export class LevantamientosService {
     }
 
     await this.prisma.levantamiento.delete({
-      where: { id },
+      where: { id, tenantId },
     });
 
     return { success: true, message: 'Levantamiento eliminado correctamente' };
@@ -193,7 +193,7 @@ export class LevantamientosService {
     }
 
     const item = await this.prisma.levantamientoItem.update({
-      where: { id: itemId },
+      where: { id: itemId, levantamientoId },
       data: {
         ...(dto.descripcion !== undefined && { descripcion: dto.descripcion }),
         ...(dto.cantidad !== undefined && { cantidad: dto.cantidad }),
@@ -233,7 +233,7 @@ export class LevantamientosService {
     }
 
     await this.prisma.levantamientoItem.delete({
-      where: { id: itemId },
+      where: { id: itemId, levantamientoId },
     });
 
     return { success: true, message: 'Item eliminado correctamente' };

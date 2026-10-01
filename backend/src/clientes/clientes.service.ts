@@ -53,7 +53,7 @@ export class ClientesService {
     await this.findById(tenantId, id);
 
     return this.prisma.cliente.update({
-      where: { id },
+      where: { id, tenantId },
       data: {
         ...(dto.nombre !== undefined ? { nombre: dto.nombre.trim() } : {}),
         ...(dto.rtn !== undefined ? { rtn: dto.rtn?.trim() || null } : {}),
