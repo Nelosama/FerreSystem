@@ -5,33 +5,10 @@ import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 import type { Response } from 'express';
 import type { Request } from 'express';
 import { CreateTenantDto } from './dto/create-tenant.dto';
-import { LoginDto } from '../auth/dto/login.dto';
 
 @Controller('admin')
 export class SuperAdminController {
   constructor(private readonly superAdminService: SuperAdminService) {}
-
-<<<<<<< Updated upstream
-  @Post('auth/login')
-  @HttpCode(HttpStatus.OK)
-  async login(
-    @Body() loginDto: LoginDto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    return this.superAdminService.login(loginDto, res);
-=======
-  @Post('auth/refresh')
-  @HttpCode(HttpStatus.OK)
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    return this.superAdminService.refresh(req.cookies?.superAdminRefreshToken, res);
-  }
-
-  @Post('auth/logout')
-  @HttpCode(HttpStatus.OK)
-  async logout(@Res({ passthrough: true }) res: Response) {
-    return this.superAdminService.logout(res);
->>>>>>> Stashed changes
-  }
 
   @Post('auth/refresh')
   @HttpCode(HttpStatus.OK)
