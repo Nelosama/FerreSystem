@@ -41,3 +41,5 @@ backend/prisma/dev.db
 # Temporary
 tmp/
 temp/
+.vercel
+.env*

@@ -20,27 +20,51 @@ export const LoginPage: React.FC = () => {
 
     try {
       const response = await api.post('/auth/login', { email, password });
-      const { accessToken, user, tenant } = response.data;
+      const { type, accessToken, user, tenant, superAdmin } = response.data;
 
-      if (accessToken) {
-        localStorage.setItem('ferre_token', accessToken);
+      if (typeof accessToken !== 'string' || !accessToken) {
+        setError('El servidor no devolvió una sesión válida.');
+        return;
       }
 
-      login(
-        {
-          id: user.id,
-          nombre: user.nombre,
-          email: user.email,
-          rol: user.rol,
-        },
-        {
-          id: tenant.id,
-          nombreComercial: tenant.nombreComercial,
-          sucursal: 'Sucursal Principal',
-          colorPrimario: tenant.colorPrimario || '#EA580C',
-        },
-      );
-      navigate('/');
+      if (type === 'super_admin' && superAdmin?.id) {
+        localStorage.setItem('ferre_token', accessToken);
+        login(
+          {
+            id: superAdmin.id,
+            nombre: superAdmin.nombre,
+            email: superAdmin.email,
+            rol: 'SUPERADMIN',
+          },
+          {
+            id: 'saas-global',
+            nombreComercial: 'FerreSystem Admin Portal',
+            sucursal: 'Global',
+            colorPrimario: '#1C1917',
+          },
+        );
+        navigate('/admin');
+      } else if (type === 'tenant' && user?.id && tenant?.id) {
+        localStorage.setItem('ferre_token', accessToken);
+        login(
+          {
+            id: user.id,
+            nombre: user.nombre,
+            email: user.email,
+            rol: user.rol,
+          },
+          {
+            id: tenant.id,
+            nombreComercial: tenant.nombreComercial,
+            sucursal: 'Sucursal Principal',
+            colorPrimario: tenant.colorPrimario || '#EA580C',
+          },
+        );
+        navigate('/');
+      } else {
+        localStorage.removeItem('ferre_token');
+        setError('El servidor devolvió un tipo de sesión desconocido.');
+      }
     } catch (err: any) {
       if (err.response) {
         const message = err.response.data?.message;

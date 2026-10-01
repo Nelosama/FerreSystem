@@ -8,6 +8,7 @@ import type { Response } from 'express';
 export class SuperAdminController {
   constructor(private readonly superAdminService: SuperAdminService) {}
 
+<<<<<<< Updated upstream
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
   async login(
@@ -15,6 +16,18 @@ export class SuperAdminController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.superAdminService.login(loginDto, res);
+=======
+  @Post('auth/refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.superAdminService.refresh(req.cookies?.superAdminRefreshToken, res);
+  }
+
+  @Post('auth/logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Res({ passthrough: true }) res: Response) {
+    return this.superAdminService.logout(res);
+>>>>>>> Stashed changes
   }
 
   @Get('tenants')

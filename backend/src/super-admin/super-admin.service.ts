@@ -13,6 +13,7 @@ export class SuperAdminService {
     private configService: ConfigService,
   ) {}
 
+<<<<<<< Updated upstream
   async login(loginDto: { email: string; password: string }, res: Response) {
     const { email, password } = loginDto;
 
@@ -61,6 +62,42 @@ export class SuperAdminService {
         email: admin.email,
       },
     };
+=======
+  async refresh(refreshToken: string | undefined, res: Response) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('No se encontró el refresh token de Super Admin');
+    }
+
+    let decoded: any;
+    try {
+      decoded = this.jwtService.verify(refreshToken);
+    } catch {
+      res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+      throw new UnauthorizedException('Refresh token de Super Admin expirado o inválido');
+    }
+
+    if (decoded.type !== 'super_admin' || decoded.rol !== 'SUPER_ADMIN' || !decoded.sub) {
+      res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+      throw new UnauthorizedException('Refresh token de Super Admin inválido');
+    }
+
+    const admin = await this.prisma.superAdmin.findUnique({ where: { id: decoded.sub } });
+    if (!admin || !admin.activo) {
+      res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+      throw new UnauthorizedException('Super Admin no autorizado');
+    }
+
+    const accessToken = this.jwtService.sign(
+      { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin' },
+      { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any },
+    );
+    return { accessToken };
+  }
+
+  logout(res: Response) {
+    res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+    return { success: true, message: 'Sesión de Super Admin cerrada correctamente' };
+>>>>>>> Stashed changes
   }
 
   async listTenants() {

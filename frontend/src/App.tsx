@@ -32,9 +32,6 @@ const ConfiguracionPage = React.lazy(() =>
 const SuperAdminPage = React.lazy(() =>
   import('./pages/SuperAdminPage').then(m => ({ default: m.SuperAdminPage }))
 );
-const SuperAdminLoginPage = React.lazy(() =>
-  import('./pages/SuperAdminLoginPage').then(m => ({ default: m.SuperAdminLoginPage }))
-);
 const UsuariosPage = React.lazy(() =>
   import('./pages/UsuariosPage').then(m => ({ default: m.UsuariosPage }))
 );
@@ -133,7 +130,7 @@ export const App: React.FC = () => {
                 <Routes>
                   {/* Rutas públicas de login */}
                   <Route path="/login" element={<LoginPage />} />
-                  <Route path="/admin/login" element={<SuperAdminLoginPage />} />
+                  <Route path="/admin/login" element={<Navigate to="/login" replace />} />
 
                   {/* Rutas con Sidebar institucional y autenticación protegida */}
                   <Route

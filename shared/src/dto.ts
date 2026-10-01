@@ -21,13 +21,15 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface LoginResponse {
+export interface TenantLoginResponse {
+  type: 'tenant';
   accessToken: string;
   user: UsuarioResumen;
   tenant: TenantResumen;
 }
 
 export interface SuperAdminLoginResponse {
+  type: 'super_admin';
   accessToken: string;
   superAdmin: {
     id: string;
@@ -35,6 +37,8 @@ export interface SuperAdminLoginResponse {
     email: string;
   };
 }
+
+export type LoginResponse = TenantLoginResponse | SuperAdminLoginResponse;
 
 export interface RefreshResponse {
   accessToken: string;

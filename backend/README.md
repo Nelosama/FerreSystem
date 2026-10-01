@@ -109,6 +109,14 @@ Check out a few resources that may come in handy when working with NestJS:
 - To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
 - Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
 
+## FerreSystem Production Commands
+
+Run `npm run start:prod` from the backend directory. It applies pending Prisma migrations with `prisma migrate deploy` and then starts the API; it never runs the seed. Configure Render's Start Command to `npm run start:prod`.
+
+The demo seed is an explicit development/initialization operation (`npx prisma db seed`) and is blocked when `NODE_ENV=production`.
+
+To replace the platform Super Admin, use the explicit `npm run admin:replace-super-admin` command only after setting `DATABASE_URL`, `SUPER_ADMIN_PASSWORD`, and `CONFIRM_SUPER_ADMIN_REPLACEMENT` out of band. The confirmation value must match the target email. The operation is transactional, aborts if multiple Super Admin records exist, and does not touch tenant users. Never put the password in command history or logs.
+
 ## Support
 
 Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).

@@ -22,6 +22,58 @@ export class AuthService {
 
     // Etapa 1 & 2: Recepción de petición y normalización de email
     const normalizedEmail = email?.toLowerCase().trim();
+    let superAdmin: any = null;
+    try {
+      superAdmin = await this.prisma.superAdmin.findUnique({ where: { email: normalizedEmail } });
+    } catch (error: any) {
+      const errorCode = error?.code || error?.meta?.code || 'N/A';
+      this.logger.error('[LOGIN_DIAGNOSTIC] Error consultando SuperAdmin.', error?.stack);
+      throw new InternalServerErrorException({
+        statusCode: 500,
+        message: 'Error de conexión o consulta con la base de datos al autenticar',
+        error: 'DatabaseQueryError',
+        code: errorCode,
+      });
+    }
+
+    if (superAdmin) {
+      if (!superAdmin.activo || !(await bcrypt.compare(password, superAdmin.passwordHash))) {
+        throw new UnauthorizedException('Credenciales inválidas');
+      }
+
+      const payload = {
+        sub: superAdmin.id,
+        email: superAdmin.email,
+        rol: 'SUPER_ADMIN',
+        type: 'super_admin',
+      };
+      const accessToken = this.jwtService.sign(payload, {
+        expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
+      });
+      const refreshToken = this.jwtService.sign(payload, {
+        expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
+      });
+      const isProduction = this.configService.get('NODE_ENV') === 'production';
+
+      res.cookie('superAdminRefreshToken', refreshToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/api/admin/auth',
+      });
+
+      return {
+        type: 'super_admin' as const,
+        accessToken,
+        superAdmin: {
+          id: superAdmin.id,
+          nombre: superAdmin.nombre,
+          email: superAdmin.email,
+        },
+      };
+    }
+
     this.logger.log(
       `[LOGIN_DIAGNOSTIC] [ETAPA 1-2] Inicio de intento de login para email normalizado: "${normalizedEmail}" (TenantId objetivo: ${targetTenantId || 'autodetect'})`,
     );
@@ -161,6 +213,7 @@ export class AuthService {
     this.logger.log(`[LOGIN_DIAGNOSTIC] [CASO G] Login EXITOSO para usuario ID: ${usuario.id}, TenantID: ${usuario.tenantId}`);
 
     return {
+      type: 'tenant' as const,
       accessToken,
       user: {
         id: usuario.id,

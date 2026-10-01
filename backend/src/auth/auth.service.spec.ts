@@ -35,6 +35,7 @@ describe('AuthService', () => {
   } as any;
 
   beforeEach(async () => {
+    mockPrisma.superAdmin.findUnique.mockReset();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -53,6 +54,52 @@ describe('AuthService', () => {
 
   it('debe estar definido', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('login unificado de Super Admin', () => {
+    it('autentica Super Admin desde el mismo servicio y emite el tipo de sesión correcto', async () => {
+      const passwordHash = await bcrypt.hash('super-admin-test-password', 4);
+      mockPrisma.superAdmin.findUnique.mockResolvedValue({
+        id: 'sa-1',
+        nombre: 'Platform Admin',
+        email: 'admin@example.com',
+        activo: true,
+        passwordHash,
+      });
+
+      const result = await service.login(
+        { email: ' ADMIN@example.com ', password: 'super-admin-test-password' },
+        mockResponse,
+      );
+
+      expect(result.type).toBe('super_admin');
+      expect(result.superAdmin.id).toBe('sa-1');
+      expect(mockJwtService.sign).toHaveBeenCalledWith(
+        { sub: 'sa-1', email: 'admin@example.com', rol: 'SUPER_ADMIN', type: 'super_admin' },
+        expect.any(Object),
+      );
+      expect(mockResponse.cookie).toHaveBeenCalledWith(
+        'superAdminRefreshToken',
+        'mock-jwt-token',
+        expect.objectContaining({ path: '/api/admin/auth', httpOnly: true }),
+      );
+      expect(mockPrisma.usuario.findMany).not.toHaveBeenCalled();
+    });
+
+    it('no intenta autenticación tenant si falla la contraseña de un email Super Admin existente', async () => {
+      const passwordHash = await bcrypt.hash('correct-super-admin-password', 4);
+      mockPrisma.superAdmin.findUnique.mockResolvedValue({
+        id: 'sa-1',
+        email: 'admin@example.com',
+        activo: true,
+        passwordHash,
+      });
+
+      await expect(
+        service.login({ email: 'admin@example.com', password: 'incorrect-password' }, mockResponse),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.usuario.findMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('login de usuario tenant', () => {
@@ -83,6 +130,7 @@ describe('AuthService', () => {
       );
 
       expect(res.accessToken).toBe('mock-jwt-token');
+      expect(res.type).toBe('tenant');
       expect(res.user.id).toBe('u-1');
       expect(res.tenant.id).toBe('tenant-1');
       expect(mockResponse.cookie).toHaveBeenCalledWith(
@@ -188,6 +236,7 @@ describe('AuthService', () => {
 
       expect(res.user.id).toBe('u-2');
       expect(res.tenant.id).toBe('tenant-2');
+      expect(res.type).toBe('tenant');
     });
 
     it('debe usar el tenantId explícito cuando es provisto en loginDto', async () => {
@@ -214,6 +263,41 @@ describe('AuthService', () => {
         include: { tenant: true },
       });
       expect(res.user.id).toBe('u-2');
+    });
+  });
+
+  describe('refresh y logout tenant', () => {
+    it('refresca únicamente una sesión tenant activa', async () => {
+      mockJwtService.verify.mockReturnValue({ sub: 'u-1', type: 'tenant', tenantId: 'tenant-1' });
+      mockPrisma.usuario.findUnique.mockResolvedValue({
+        id: 'u-1',
+        tenantId: 'tenant-1',
+        rol: 'ADMIN',
+        email: 'admin@tenant.test',
+        activo: true,
+        tenant: { estado: 'ACTIVO' },
+      });
+
+      await expect(service.refresh('tenant-refresh', mockResponse)).resolves.toEqual({
+        accessToken: 'mock-jwt-token',
+      });
+      expect(mockJwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'tenant', tenantId: 'tenant-1' }),
+        expect.any(Object),
+      );
+    });
+
+    it('rechaza un refresh Super Admin en el endpoint tenant y limpia solo su cookie', async () => {
+      mockJwtService.verify.mockReturnValue({ sub: 'sa-1', type: 'super_admin', rol: 'SUPER_ADMIN' });
+
+      await expect(service.refresh('super-admin-refresh', mockResponse)).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.usuario.findUnique).not.toHaveBeenCalled();
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', { path: '/api/auth' });
+    });
+
+    it('logout tenant elimina la cookie tenant', () => {
+      expect(service.logout(mockResponse)).toMatchObject({ success: true });
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', { path: '/api/auth' });
     });
   });
 });
