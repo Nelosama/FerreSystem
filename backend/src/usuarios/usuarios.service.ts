@@ -58,8 +58,7 @@ export class UsuariosService {
       throw new BadRequestException('Ya existe un usuario con este correo electrónico en esta ferretería');
     }
 
-    const passwordToHash = dto.password || 'Ferre2026!';
-    const passwordHash = await bcrypt.hash(passwordToHash, 10);
+    const passwordHash = await bcrypt.hash(dto.password, 10);
 
     const usuario = await this.prisma.usuario.create({
       data: {
@@ -118,7 +117,7 @@ export class UsuariosService {
     }
 
     return this.prisma.usuario.update({
-      where: { id },
+      where: { id, tenantId },
       data: dataToUpdate,
       select: {
         id: true,
@@ -136,7 +135,7 @@ export class UsuariosService {
   async remove(tenantId: string, id: string) {
     await this.findById(tenantId, id);
     return this.prisma.usuario.delete({
-      where: { id },
+      where: { id, tenantId },
       select: { id: true, nombre: true, email: true },
     });
   }

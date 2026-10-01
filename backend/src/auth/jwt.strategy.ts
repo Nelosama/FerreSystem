@@ -14,10 +14,14 @@ export interface JwtValidatedPayload {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(configService: ConfigService) {
+    const secret = configService.get<string>('JWT_SECRET');
+    if (!secret) throw new Error('JWT_SECRET must be configured.');
+    if (secret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters.');
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || 'ferresystem-super-secure-dev-secret-key-2026',
+      secretOrKey: secret,
     });
   }
 

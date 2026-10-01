@@ -86,82 +86,52 @@ export interface SupportHistoryItem {
   modoEdicionActivado: boolean;
 }
 
-const INITIAL_TENANTS: TenantItem[] = [
-  {
-    id: 't-1',
-    nombreComercial: 'LA MUNDIAL - SUCURSAL CENTRO',
-    contacto: 'admin@lamundial.hn',
-    telefono: '+504 2550-1234',
-    plan: 'Plan Enterprise',
-    estado: 'ACTIVO',
-    usuariosCount: 4,
-    sucursalesCount: 3,
-    colorPrimario: '#EA580C',
-    modoNavegacion: 'SIDEBAR',
-    modulosHabilitados: CATALOGO_MODULOS.map((m) => m.key),
-    sucursalesList: [
-      { id: 'suc-1', nombre: 'Sucursal Centro (Principal)', direccion: 'Barrio El Centro', telefono: '+504 2550-1234', encargado: 'Carlos Ramos', activa: true },
-      { id: 'suc-2', nombre: 'Sucursal Circunvalación', direccion: 'Ave. Circunvalación', telefono: '+504 2550-5678', encargado: 'Mario Rivera', activa: true },
-      { id: 'suc-3', nombre: 'Sucursal Chamelecón', direccion: 'Col. Chamelecón', telefono: '+504 2550-9900', encargado: 'Ana Martínez', activa: true },
-    ],
-  },
-  {
-    id: 't-2',
-    nombreComercial: 'FERRETERÍA EL MARTILLO DE ORO',
-    contacto: 'admin@elmartillodeoro.hn',
-    telefono: '+504 2233-4455',
-    plan: 'Plan Pyme Ferretero',
-    estado: 'ACTIVO',
-    usuariosCount: 2,
-    sucursalesCount: 1,
-    colorPrimario: '#0284C7',
-    modoNavegacion: 'SIDEBAR',
-    modulosHabilitados: ['inventario', 'pos', 'cotizaciones', 'usuarios', 'configuracion', 'arqueo_caja'],
-  },
-  {
-    id: 't-3',
-    nombreComercial: 'DISTRIBUIDORA FERRETERA DEL SUR',
-    contacto: 'gerencia@ferreterasur.hn',
-    telefono: '+504 2780-9988',
-    plan: 'Plan Básico',
-    estado: 'SUSPENDIDO',
-    usuariosCount: 1,
-    sucursalesCount: 1,
-    colorPrimario: '#DC2626',
-    modoNavegacion: 'TOPNAV',
-    modulosHabilitados: ['inventario', 'pos', 'cotizaciones'],
-  },
-];
+interface AdminTenantApiRecord {
+  id: string;
+  nombreComercial: string;
+  direccion?: string | null;
+  telefono?: string | null;
+  email?: string | null;
+  logoUrl?: string | null;
+  colorPrimario?: string | null;
+  modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
+  plan: string;
+  estado: 'ACTIVO' | 'SUSPENDIDO';
+  cantidadUsuarios: number;
+  modulosHabilitados: string[];
+  usuarios: { id: string; nombre: string; email: string; activo: boolean; createdAt: string }[];
+}
 
-const INITIAL_ADMIN_USERS: AdminUserItem[] = [
-  {
-    id: 'adm-1',
-    nombre: 'Carlos Ramos',
-    email: 'admin@lamundial.hn',
-    tenantId: 't-1',
-    tenantNombre: 'LA MUNDIAL - SUCURSAL CENTRO',
-    activo: true,
-    fechaCreacion: '2026-01-15',
-  },
-  {
-    id: 'adm-2',
-    nombre: 'Mario Rivera',
-    email: 'admin@elmartillodeoro.hn',
-    tenantId: 't-2',
-    tenantNombre: 'FERRETERÍA EL MARTILLO DE ORO',
-    activo: true,
-    fechaCreacion: '2026-02-10',
-  },
-  {
-    id: 'adm-3',
-    nombre: 'Ing. Gustavo Santos',
-    email: 'gerencia@ferreterasur.hn',
-    tenantId: 't-3',
-    tenantNombre: 'DISTRIBUIDORA FERRETERA DEL SUR',
-    activo: false,
-    fechaCreacion: '2026-03-01',
-  },
-];
+function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
+  const tenants: TenantItem[] = records.map((record) => ({
+    id: record.id,
+    nombreComercial: record.nombreComercial,
+    contacto: record.email || '',
+    telefono: record.telefono || '',
+    plan: record.plan,
+    estado: record.estado,
+    usuariosCount: record.cantidadUsuarios,
+    sucursalesCount: 1,
+    colorPrimario: record.colorPrimario || '#EA580C',
+    logoUrl: record.logoUrl,
+    modoNavegacion: record.modoNavegacion,
+    modulosHabilitados: record.modulosHabilitados,
+  }));
+
+  const adminUsers: AdminUserItem[] = records.flatMap((record) =>
+    record.usuarios.map((user) => ({
+      id: user.id,
+      nombre: user.nombre,
+      email: user.email,
+      tenantId: record.id,
+      tenantNombre: record.nombreComercial,
+      activo: user.activo,
+      fechaCreacion: user.createdAt.slice(0, 10),
+    })),
+  );
+
+  return { tenants, adminUsers };
+}
 
 const INITIAL_AUDIT_LOGS: AuditLogItem[] = [
   {
@@ -189,15 +159,8 @@ export const SuperAdminPage: React.FC = () => {
 
   const [tabActiva, setTabActiva] = useState<'dashboard' | 'tenants' | 'modulos' | 'admins' | 'auditoria' | 'soporte_historial'>('tenants');
 
-  const [tenants, setTenants] = useState<TenantItem[]>(() => {
-    const saved = localStorage.getItem('ferre_saas_tenants');
-    return saved ? JSON.parse(saved) : INITIAL_TENANTS;
-  });
-
-  const [adminUsers, setAdminUsers] = useState<AdminUserItem[]>(() => {
-    const saved = localStorage.getItem('ferre_saas_admins');
-    return saved ? JSON.parse(saved) : INITIAL_ADMIN_USERS;
-  });
+  const [tenants, setTenants] = useState<TenantItem[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminUserItem[]>([]);
 
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(() => {
     const saved = localStorage.getItem('ferre_saas_audit');
@@ -210,13 +173,16 @@ export const SuperAdminPage: React.FC = () => {
   });
 
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [creatingTenant, setCreatingTenant] = useState(false);
 
   useEffect(() => {
     api
-      .get('/admin/tenants')
-      .then((res) => {
-        if (res.data && Array.isArray(res.data)) {
-          setTenants(res.data);
+      .get<AdminTenantApiRecord[]>('/admin/tenants')
+      .then(({ data }) => {
+        if (Array.isArray(data)) {
+          const mapped = mapAdminTenantResponse(data);
+          setTenants(mapped.tenants);
+          setAdminUsers(mapped.adminUsers);
         }
       })
       .catch((err) => {
@@ -264,7 +230,6 @@ export const SuperAdminPage: React.FC = () => {
   const [adminPassword, setAdminPassword] = useState('');
   const [telefono, setTelefono] = useState('');
   const [colorPrimario, setColorPrimario] = useState('#EA580C');
-  const [nuevoRubro, setNuevoRubro] = useState<Rubro>(Rubro.FERRETERIA);
 
   // Formulario Admin User
   const [formAdminNombre, setFormAdminNombre] = useState('');
@@ -288,16 +253,19 @@ export const SuperAdminPage: React.FC = () => {
     setAuditLogs([nuevoLog, ...auditLogs]);
   };
 
-  const toggleEstadoTenant = (id: string) => {
+  const toggleEstadoTenant = async (id: string) => {
     const target = tenants.find((t) => t.id === id);
     if (!target) return;
     const nuevoEstado = target.estado === 'ACTIVO' ? 'SUSPENDIDO' : 'ACTIVO';
-    setTenants(
-      tenants.map((t) => (t.id === id ? { ...t, estado: nuevoEstado } : t)),
-    );
-    registrarAuditoria('CAMBIO_ESTADO_TENANT', target.nombreComercial, `Estado cambiado a ${nuevoEstado}`);
-    setMensajeExito(`¡Estado de ${target.nombreComercial} actualizado a ${nuevoEstado}!`);
-    setTimeout(() => setMensajeExito(null), 4000);
+    try {
+      await api.patch(`/admin/tenants/${id}/status`, { estado: nuevoEstado });
+      setTenants((current) => current.map((t) => (t.id === id ? { ...t, estado: nuevoEstado } : t)));
+      registrarAuditoria('CAMBIO_ESTADO_TENANT', target.nombreComercial, `Estado cambiado a ${nuevoEstado}`);
+      setMensajeExito(`¡Estado de ${target.nombreComercial} actualizado a ${nuevoEstado}!`);
+      setTimeout(() => setMensajeExito(null), 4000);
+    } catch (err: any) {
+      setErrorText(err.response?.data?.message || 'No se pudo actualizar el estado del tenant.');
+    }
   };
 
   const abrirModalModulos = (tenantItem: TenantItem) => {
@@ -322,47 +290,45 @@ export const SuperAdminPage: React.FC = () => {
     setTempModulosTenant(coreKeys.length > 0 ? coreKeys : ['configuracion', 'pos']);
   };
 
-  const guardarModulosTenant = () => {
+  const guardarModulosTenant = async () => {
     if (!modalModulosTenant) return;
     const modulesPayload = CATALOGO_MODULOS.map((m) => ({
       moduleKey: m.key,
       enabled: tempModulosTenant.includes(m.key),
     }));
 
-    api
-      .put(`/admin/tenants/${modalModulosTenant.id}/modules`, { modules: modulesPayload })
-      .catch(() => {});
-
-    setTenants(
-      tenants.map((tItem) =>
+    try {
+      await api.put(`/admin/tenants/${modalModulosTenant.id}/modules`, { modules: modulesPayload });
+      setTenants((current) => current.map((tItem) =>
         tItem.id === modalModulosTenant.id ? { ...tItem, modulosHabilitados: tempModulosTenant } : tItem,
-      ),
-    );
-    registrarAuditoria(
-      'ACTUALIZAR_SERVICIOS',
-      modalModulosTenant.nombreComercial,
-      `Módulos activos actualizados: ${tempModulosTenant.length} de ${CATALOGO_MODULOS.length}`,
-    );
-    setMensajeExito(`¡Servicios y módulos para "${modalModulosTenant.nombreComercial}" guardados correctamente!`);
-    setModalModulosTenant(null);
-    setTimeout(() => setMensajeExito(null), 4000);
+      ));
+      registrarAuditoria(
+        'ACTUALIZAR_SERVICIOS',
+        modalModulosTenant.nombreComercial,
+        `Módulos activos actualizados: ${tempModulosTenant.length} de ${CATALOGO_MODULOS.length}`,
+      );
+      setMensajeExito(`¡Servicios y módulos para "${modalModulosTenant.nombreComercial}" guardados correctamente!`);
+      setModalModulosTenant(null);
+      setTimeout(() => setMensajeExito(null), 4000);
+    } catch (err: any) {
+      setErrorText(err.response?.data?.message || 'No se pudieron actualizar los módulos del tenant.');
+    }
   };
 
-  const guardarNavegacionTenant = (tenantId: string, modo: 'SIDEBAR' | 'TOPNAV') => {
+  const guardarNavegacionTenant = async (tenantId: string, modo: 'SIDEBAR' | 'TOPNAV') => {
     const target = tenants.find((tItem) => tItem.id === tenantId);
     if (!target) return;
 
-    api
-      .patch(`/admin/tenants/${tenantId}`, { modoNavegacion: modo })
-      .catch(() => {});
-
-    setTenants(
-      tenants.map((tItem) => (tItem.id === tenantId ? { ...tItem, modoNavegacion: modo } : tItem)),
-    );
-    registrarAuditoria('CAMBIO_NAVEGACION', target.nombreComercial, `Modo de navegación cambiado a ${modo}`);
-    setModalNavegacionTenant(null);
-    setMensajeExito(`¡Tipo de navegación para "${target.nombreComercial}" cambiado a ${modo}!`);
-    setTimeout(() => setMensajeExito(null), 4000);
+    try {
+      await api.patch(`/admin/tenants/${tenantId}`, { modoNavegacion: modo });
+      setTenants((current) => current.map((tItem) => (tItem.id === tenantId ? { ...tItem, modoNavegacion: modo } : tItem)));
+      registrarAuditoria('CAMBIO_NAVEGACION', target.nombreComercial, `Modo de navegación cambiado a ${modo}`);
+      setModalNavegacionTenant(null);
+      setMensajeExito(`¡Tipo de navegación para "${target.nombreComercial}" cambiado a ${modo}!`);
+      setTimeout(() => setMensajeExito(null), 4000);
+    } catch (err: any) {
+      setErrorText(err.response?.data?.message || 'No se pudo actualizar la navegación del tenant.');
+    }
   };
 
   const abrirModalSuplantar = (tenantItem: TenantItem) => {
@@ -454,51 +420,59 @@ export const SuperAdminPage: React.FC = () => {
     setTimeout(() => setMensajeExito(null), 4000);
   };
 
-  const handleCrearTenant = (e: React.FormEvent) => {
+  const handleCrearTenant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombreComercial || !adminEmail || !adminPassword) return;
-
-    const newTenantId = `t-${Date.now()}`;
-    const nuevoTenant: TenantItem = {
-      id: newTenantId,
-      nombreComercial: nombreComercial.toUpperCase().trim(),
-      contacto: adminEmail.trim(),
-      telefono: telefono || '+504 9000-0000',
-      plan: 'Plan Pro',
-      estado: 'ACTIVO',
-      usuariosCount: 1,
-      sucursalesCount: 1,
-      colorPrimario,
-      modoNavegacion: 'SIDEBAR',
-      rubro: nuevoRubro,
-      modulosHabilitados: CATALOGO_MODULOS.map((m) => m.key),
-    };
-
-    const nuevoAdmin: AdminUserItem = {
-      id: `adm-${Date.now()}`,
-      nombre: adminNombre.trim() || 'Admin Ferretería',
-      email: adminEmail.trim(),
-      password: adminPassword.trim(),
-      tenantId: newTenantId,
-      tenantNombre: nuevoTenant.nombreComercial,
-      activo: true,
-      fechaCreacion: new Date().toISOString().split('T')[0],
-    };
-
-    setTenants([nuevoTenant, ...tenants]);
-    setAdminUsers([nuevoAdmin, ...adminUsers]);
-    setModalNuevoTenant(false);
-
-    registrarAuditoria('CREAR_TENANT', nuevoTenant.nombreComercial, `Cliente y Administrador (${nuevoAdmin.email}) aprovisionados`);
-
-    setMensajeExito(`¡Ferretería "${nuevoTenant.nombreComercial}" y su usuario Admin creados exitosamente!`);
-    setTimeout(() => setMensajeExito(null), 5000);
-
-    setNombreComercial('');
-    setAdminNombre('');
-    setAdminEmail('');
-    setAdminPassword('');
-    setTelefono('');
+    setCreatingTenant(true);
+    setErrorText(null);
+    try {
+      const { data } = await api.post('/admin/tenants', {
+        nombreComercial: nombreComercial.trim(),
+        telefono: telefono.trim() || undefined,
+        email: adminEmail.trim(),
+        adminNombre: adminNombre.trim(),
+        adminEmail: adminEmail.trim(),
+        adminPassword,
+        colorPrimario,
+      });
+      const createdTenant: TenantItem = {
+        id: data.tenant.id,
+        nombreComercial: data.tenant.nombreComercial,
+        contacto: data.tenant.email || data.adminUsuario.email,
+        telefono: data.tenant.telefono || '',
+        plan: data.tenant.plan,
+        estado: data.tenant.estado,
+        usuariosCount: 1,
+        sucursalesCount: 1,
+        colorPrimario: data.tenant.colorPrimario,
+        modoNavegacion: data.tenant.modoNavegacion,
+        modulosHabilitados: data.modulosHabilitados,
+      };
+      const createdAdmin: AdminUserItem = {
+        id: data.adminUsuario.id,
+        nombre: data.adminUsuario.nombre,
+        email: data.adminUsuario.email,
+        tenantId: data.tenant.id,
+        tenantNombre: data.tenant.nombreComercial,
+        activo: true,
+        fechaCreacion: new Date(data.tenant.createdAt).toISOString().slice(0, 10),
+      };
+      setTenants((current) => [createdTenant, ...current]);
+      setAdminUsers((current) => [createdAdmin, ...current]);
+      setModalNuevoTenant(false);
+      registrarAuditoria('CREAR_TENANT', createdTenant.nombreComercial, `Cliente y Administrador (${createdAdmin.email}) aprovisionados`);
+      setMensajeExito(`¡Ferretería "${createdTenant.nombreComercial}" y su usuario Admin creados exitosamente!`);
+      setTimeout(() => setMensajeExito(null), 5000);
+      setNombreComercial('');
+      setAdminNombre('');
+      setAdminEmail('');
+      setAdminPassword('');
+      setTelefono('');
+    } catch (err: any) {
+      setErrorText(err.response?.data?.message || 'No se pudo crear el tenant y su administrador.');
+    } finally {
+      setCreatingTenant(false);
+    }
   };
 
   const handleCrearAdmin = (e: React.FormEvent) => {
@@ -1531,26 +1505,6 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">RUBRO O GIRO COMERCIAL</label>
-                <select
-                  value={nuevoRubro}
-                  onChange={(e) => setNuevoRubro(e.target.value as Rubro)}
-                  className="form-select"
-                >
-                  <option value={Rubro.FERRETERIA}>Ferretería y Materiales de Construcción</option>
-                  <option value={Rubro.PULPERIA}>Pulpería / Mini Abastos</option>
-                  <option value={Rubro.MINIMARKET}>Minimarket / Súper Conveniencia</option>
-                  <option value={Rubro.FARMACIA}>Farmacia y Salud</option>
-                  <option value={Rubro.PAPELERIA}>Papelería y Útiles de Oficina</option>
-                  <option value={Rubro.DISTRIBUIDORA}>Distribuidora Mayorista</option>
-                  <option value={Rubro.AGROSERVICIO}>Agroservicio y Veterinaria</option>
-                  <option value={Rubro.REPUESTOS_AUTOMOTRICES}>Repuestos Automotrices</option>
-                  <option value={Rubro.ELECTRODOMESTICOS}>Electrodomésticos y Tecnología</option>
-                  <option value={Rubro.GENERAL}>Comercio General</option>
-                </select>
-              </div>
-
-              <div className="form-group">
                 <label className="form-label">URL LOGO PERSONALIZADO (IMAGEN CORPORATIVA)</label>
                 <input
                   type="url"
@@ -1680,26 +1634,6 @@ export const SuperAdminPage: React.FC = () => {
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">RUBRO O GIRO COMERCIAL</label>
-                <select
-                  value={nuevoRubro}
-                  onChange={(e) => setNuevoRubro(e.target.value as Rubro)}
-                  className="form-select"
-                >
-                  <option value={Rubro.FERRETERIA}>Ferretería y Materiales de Construcción</option>
-                  <option value={Rubro.PULPERIA}>Pulpería / Mini Abastos</option>
-                  <option value={Rubro.MINIMARKET}>Minimarket / Súper Conveniencia</option>
-                  <option value={Rubro.FARMACIA}>Farmacia y Salud</option>
-                  <option value={Rubro.PAPELERIA}>Papelería y Útiles de Oficina</option>
-                  <option value={Rubro.DISTRIBUIDORA}>Distribuidora Mayorista</option>
-                  <option value={Rubro.AGROSERVICIO}>Agroservicio y Veterinaria</option>
-                  <option value={Rubro.REPUESTOS_AUTOMOTRICES}>Repuestos Automotrices</option>
-                  <option value={Rubro.ELECTRODOMESTICOS}>Electrodomésticos y Tecnología</option>
-                  <option value={Rubro.GENERAL}>Comercio General</option>
-                </select>
-              </div>
-
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
                   <label className="form-label">TELÉFONO</label>
@@ -1758,6 +1692,7 @@ export const SuperAdminPage: React.FC = () => {
                     <input
                       type="password"
                       required
+                      minLength={8}
                       placeholder="••••••••"
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
@@ -1775,8 +1710,8 @@ export const SuperAdminPage: React.FC = () => {
                 >
                   CANCELAR
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  <CheckCircle size={16} strokeWidth={2.6} /> CREAR Y ACTIVAR TENANT
+                <button type="submit" className="btn btn-primary" disabled={creatingTenant}>
+                  <CheckCircle size={16} strokeWidth={2.6} /> {creatingTenant ? 'CREANDO...' : 'CREAR Y ACTIVAR TENANT'}
                 </button>
               </div>
             </form>

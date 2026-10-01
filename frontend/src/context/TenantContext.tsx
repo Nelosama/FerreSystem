@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { TenantInfo, UserInfo } from '../types';
+import { api } from '../utils/api';
 
 interface TenantContextType {
   tenant: TenantInfo;
@@ -255,6 +256,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const logout = () => {
+    const logoutPath = user?.rol === 'SUPERADMIN' ? '/admin/auth/logout' : '/auth/logout';
+    void api.post(logoutPath).catch(() => {});
+    localStorage.removeItem('ferre_token');
     setUser(null);
     setOriginalSuperAdminUser(null);
     setOriginalTenant(null);

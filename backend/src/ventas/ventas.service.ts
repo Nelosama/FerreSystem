@@ -99,6 +99,11 @@ export class VentasService {
 
     // Transacción atómica completa: número correlativo, descuento de inventario y guardado
     return this.prisma.$transaction(async (tx) => {
+          if (dto.clienteId) {
+            const cliente = await tx.cliente.findFirst({ where: { id: dto.clienteId, tenantId } });
+            if (!cliente) throw new NotFoundException('Cliente seleccionado no existe en este tenant');
+          }
+
       // 1. Obtener siguiente número secuencial por tenant con bloqueo atómico
       const result = await tx.$queryRaw<[{ ultimo_numero: number }]>`
         INSERT INTO "secuencias_tenant" ("id", "tenant_id", "tipo", "ultimo_numero")
@@ -141,7 +146,7 @@ export class VentasService {
 
         // Descontar inventario con precisión decimal exacta
         await tx.producto.update({
-          where: { id: prod.id },
+              where: { id: prod.id, tenantId },
           data: { stockActual: { decrement: item.cantidad } },
         });
 
