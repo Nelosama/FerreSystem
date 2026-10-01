@@ -9,7 +9,7 @@ export const SuperAdminLoginPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('admin@ferresystem.hn');
-  const [password, setPassword] = useState('FerreSuperAdmin2026!');
+  const [password, setPassword] = useState('SuperAdmin2026!');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

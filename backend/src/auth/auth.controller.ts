@@ -13,9 +13,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: LoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authService.login(loginDto, res);
+    return this.authService.login(loginDto, res, req);
   }
 
   @Post('refresh')

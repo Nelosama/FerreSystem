@@ -10,7 +10,10 @@ async function main() {
   const superAdminPassword = await bcrypt.hash('SuperAdmin2026!', 10);
   const superAdmin = await prisma.superAdmin.upsert({
     where: { email: 'admin@ferresystem.hn' },
-    update: {},
+    update: {
+      passwordHash: superAdminPassword,
+      activo: true,
+    },
     create: {
       nombre: 'Nelo — SaaS Owner',
       email: 'admin@ferresystem.hn',
@@ -18,7 +21,7 @@ async function main() {
       activo: true,
     },
   });
-  console.log('✅ SuperAdmin creado:', superAdmin.email);
+  console.log('✅ SuperAdmin creado/verificado:', superAdmin.email);
 
   // 2. Tenant de prueba: "La Mundial - Sucursal Centro" (del prototipo)
   let tenant = await prisma.tenant.findFirst({
@@ -36,8 +39,56 @@ async function main() {
         estado: 'ACTIVO',
       },
     });
+  } else {
+    tenant = await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: {
+        direccion: 'Barrio El Centro, 3ra Ave, 4ta Calle, San Pedro Sula',
+        telefono: '+504 2550-1234',
+        email: 'ventas@lamundial.hn',
+        colorPrimario: '#EA580C',
+        estado: 'ACTIVO',
+      },
+    });
   }
-  console.log('✅ Tenant creado:', tenant.nombreComercial);
+  console.log('✅ Tenant creado/verificado:', tenant.nombreComercial);
+
+  // 2b. Módulos por defecto para el Tenant
+  const defaultModules = [
+    'pos',
+    'cotizaciones',
+    'pedidos_especiales',
+    'apartados',
+    'inventario',
+    'ordenes_compra',
+    'transferencias_sucursal',
+    'garantias',
+    'listas_precio',
+    'usuarios',
+    'comisiones_venta',
+    'arqueo_caja',
+    'reportes',
+    'configuracion',
+    'levantamiento',
+  ];
+
+  for (const moduleKey of defaultModules) {
+    await prisma.tenantModule.upsert({
+      where: {
+        tenantId_moduleKey: {
+          tenantId: tenant.id,
+          moduleKey,
+        },
+      },
+      update: { enabled: true },
+      create: {
+        tenantId: tenant.id,
+        moduleKey,
+        enabled: true,
+      },
+    });
+  }
+  console.log('✅ Módulos del Tenant verificados/habilitados');
 
   // 3. Secuencias transaccionales para el tenant
   await prisma.secuenciaTenant.upsert({
@@ -79,7 +130,10 @@ async function main() {
         email: 'cajero@lamundial.hn',
       },
     },
-    update: {},
+    update: {
+      passwordHash: tenantAdminPassword,
+      activo: true,
+    },
     create: {
       tenantId: tenant.id,
       nombre: 'Carlos Ramos (Cajero Principal)',
@@ -89,7 +143,7 @@ async function main() {
       activo: true,
     },
   });
-  console.log('✅ Usuario de ferretería creado:', adminTenant.email);
+  console.log('✅ Usuario de ferretería creado/verificado:', adminTenant.email);
 
   // 5. Categorías
   const catHerramientas = await prisma.categoria.upsert({
@@ -194,7 +248,14 @@ async function main() {
           codigo: prod.codigo,
         },
       },
-      update: {},
+      update: {
+        codigoBarras: prod.codigoBarras,
+        nombre: prod.nombre,
+        categoriaId: prod.categoriaId,
+        precioVenta: prod.precioVenta,
+        precioCosto: prod.precioCosto,
+        unidadMedida: prod.unidadMedida as any,
+      },
       create: {
         tenantId: tenant.id,
         codigo: prod.codigo,
@@ -209,7 +270,7 @@ async function main() {
       },
     });
   }
-  console.log('✅ Productos del catálogo creados con éxito');
+  console.log('✅ Productos del catálogo creados/verificados');
 
   // 7. Clientes de prueba (con RTN hondureño - Idempotente)
   let cliente1 = await prisma.cliente.findFirst({
@@ -228,6 +289,17 @@ async function main() {
         tipo: 'CONTRATISTA',
       },
     });
+  } else {
+    cliente1 = await prisma.cliente.update({
+      where: { id: cliente1.id },
+      data: {
+        nombre: 'Constructora del Norte S. de R.L.',
+        telefono: '+504 9876-5432',
+        email: 'compras@constructoranorte.hn',
+        direccion: 'Residencial Los Álamos, SPS',
+        tipo: 'CONTRATISTA',
+      },
+    });
   }
 
   let cliente2 = await prisma.cliente.findFirst({
@@ -235,7 +307,7 @@ async function main() {
   });
 
   if (!cliente2) {
-    await prisma.cliente.create({
+    cliente2 = await prisma.cliente.create({
       data: {
         tenantId: tenant.id,
         nombre: 'Ferretería El Progreso (Subdistribuidor)',
@@ -244,50 +316,74 @@ async function main() {
         tipo: 'MAYORISTA',
       },
     });
+  } else {
+    cliente2 = await prisma.cliente.update({
+      where: { id: cliente2.id },
+      data: {
+        nombre: 'Ferretería El Progreso (Subdistribuidor)',
+        telefono: '+504 9911-2233',
+        tipo: 'MAYORISTA',
+      },
+    });
   }
   console.log('✅ Clientes de prueba creados/verificados');
 
-  // 8. Cotización de ejemplo (Idempotente con upsert en tenantId_numeroCotizacion)
+  // 8. Cotización de ejemplo (Totalmente Idempotente con upsert en tenantId_numeroCotizacion)
   const prodVarilla = await prisma.producto.findFirst({ where: { tenantId: tenant.id, codigo: 'CON-002' } });
   const prodCemento = await prisma.producto.findFirst({ where: { tenantId: tenant.id, codigo: 'CON-001' } });
 
-  if (prodVarilla && prodCemento) {
+  if (prodVarilla && prodCemento && cliente1) {
     const subtotal = 10 * Number(prodCemento.precioVenta) + 20 * Number(prodVarilla.precioVenta);
     const isv = subtotal * 0.15;
     const total = subtotal + isv;
 
-    const cotizacionExistente = await prisma.cotizacion.findUnique({
+    await prisma.cotizacion.upsert({
       where: {
         tenantId_numeroCotizacion: {
           tenantId: tenant.id,
           numeroCotizacion: 1,
         },
       },
-    });
-
-    if (!cotizacionExistente) {
-      await prisma.cotizacion.create({
-        data: {
-          tenantId: tenant.id,
-          numeroCotizacion: 1,
-          clienteId: cliente1.id,
-          usuarioId: adminTenant.id,
-          subtotal,
-          isv,
-          descuento: 0,
-          total,
-          estado: 'ENVIADA',
-          fechaValidez: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // Vence en 2 días
-          notas: 'Entrega en plantel de construcción incluida',
-          detalles: {
-            create: [
-              { productoId: prodCemento.id, cantidad: 10, precioUnitario: prodCemento.precioVenta, subtotal: 10 * Number(prodCemento.precioVenta) },
-              { productoId: prodVarilla.id, cantidad: 20, precioUnitario: prodVarilla.precioVenta, subtotal: 20 * Number(prodVarilla.precioVenta) },
-            ],
-          },
+      update: {
+        clienteId: cliente1.id,
+        clienteNombre: cliente1.nombre,
+        clienteRtn: cliente1.rtn,
+        clienteTelefono: cliente1.telefono,
+        clienteEmail: cliente1.email,
+        clienteDireccion: cliente1.direccion,
+        usuarioId: adminTenant.id,
+        subtotal,
+        isv,
+        descuento: 0,
+        total,
+        estado: 'ENVIADA',
+        notas: 'Entrega en plantel de construcción incluida',
+      },
+      create: {
+        tenantId: tenant.id,
+        numeroCotizacion: 1,
+        clienteId: cliente1.id,
+        clienteNombre: cliente1.nombre,
+        clienteRtn: cliente1.rtn,
+        clienteTelefono: cliente1.telefono,
+        clienteEmail: cliente1.email,
+        clienteDireccion: cliente1.direccion,
+        usuarioId: adminTenant.id,
+        subtotal,
+        isv,
+        descuento: 0,
+        total,
+        estado: 'ENVIADA',
+        fechaValidez: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // Vence en 2 días
+        notas: 'Entrega en plantel de construcción incluida',
+        detalles: {
+          create: [
+            { productoId: prodCemento.id, cantidad: 10, precioUnitario: prodCemento.precioVenta, subtotal: 10 * Number(prodCemento.precioVenta) },
+            { productoId: prodVarilla.id, cantidad: 20, precioUnitario: prodVarilla.precioVenta, subtotal: 20 * Number(prodVarilla.precioVenta) },
+          ],
         },
-      });
-    }
+      },
+    });
     console.log('✅ Cotización de prueba verificada/creada');
   }
 
