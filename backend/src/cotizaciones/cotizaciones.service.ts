@@ -201,13 +201,12 @@ export class CotizacionesService {
       const cliente = await this.prisma.cliente.findFirst({
         where: { id: dto.clienteId, tenantId },
       });
-      if (cliente) {
-        clienteNombre = cliente.nombre;
-        clienteRtn = cliente.rtn || clienteRtn;
-        clienteTelefono = cliente.telefono || clienteTelefono;
-        clienteEmail = cliente.email || clienteEmail;
-        clienteDireccion = cliente.direccion || clienteDireccion;
-      }
+      if (!cliente) throw new NotFoundException('Cliente seleccionado no existe en este tenant');
+      clienteNombre = cliente.nombre;
+      clienteRtn = cliente.rtn || clienteRtn;
+      clienteTelefono = cliente.telefono || clienteTelefono;
+      clienteEmail = cliente.email || clienteEmail;
+      clienteDireccion = cliente.direccion || clienteDireccion;
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -240,7 +239,7 @@ export class CotizacionesService {
         : new Date(Date.now() + diasVal * 24 * 60 * 60 * 1000);
 
       const updated = await tx.cotizacion.update({
-        where: { id },
+        where: { id, tenantId },
         data: {
           clienteId: dto.clienteId || null,
           clienteNombre,
@@ -382,7 +381,7 @@ export class CotizacionesService {
     }
 
     const updated = await this.prisma.cotizacion.update({
-      where: { id },
+      where: { id, tenantId },
       data: { estado },
       include: {
         cliente: true,
@@ -427,7 +426,7 @@ export class CotizacionesService {
         }
 
         await tx.producto.update({
-          where: { id: d.producto.id },
+          where: { id: d.producto.id, tenantId },
           data: { stockActual: { decrement: cantidadRequerida } },
         });
       }
@@ -470,7 +469,7 @@ export class CotizacionesService {
 
       // Actualizar estado de la cotización
       await tx.cotizacion.update({
-        where: { id: cotizacion.id },
+        where: { id: cotizacion.id, tenantId },
         data: {
           estado: 'CONVERTIDA',
           ventaId: venta.id,

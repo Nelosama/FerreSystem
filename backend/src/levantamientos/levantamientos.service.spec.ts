@@ -138,7 +138,9 @@ describe('LevantamientosService', () => {
 
       const result = await service.remove('tenant-A', 'lev-1');
       expect(result.success).toBe(true);
-      expect(mockPrisma.levantamiento.delete).toHaveBeenCalledWith({ where: { id: 'lev-1' } });
+      expect(mockPrisma.levantamiento.delete).toHaveBeenCalledWith({
+        where: { id: 'lev-1', tenantId: 'tenant-A' },
+      });
     });
   });
 
@@ -235,7 +237,9 @@ describe('LevantamientosService', () => {
 
       const result = await service.removeItem('tenant-A', 'lev-1', 'item-1');
       expect(result.success).toBe(true);
-      expect(mockPrisma.levantamientoItem.delete).toHaveBeenCalledWith({ where: { id: 'item-1' } });
+      expect(mockPrisma.levantamientoItem.delete).toHaveBeenCalledWith({
+        where: { id: 'item-1', levantamientoId: 'lev-1' },
+      });
     });
   });
 

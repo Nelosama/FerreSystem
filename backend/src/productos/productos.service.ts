@@ -101,6 +101,14 @@ export class ProductosService {
       unidadMedida?: any;
     },
   ) {
+    if (dto.categoriaId) {
+      const category = await this.prisma.categoria.findFirst({
+        where: { id: dto.categoriaId, tenantId },
+        select: { id: true },
+      });
+      if (!category) throw new NotFoundException('Categoría no encontrada en este tenant');
+    }
+
     const existeCodigo = await this.prisma.producto.findUnique({
       where: {
         tenantId_codigo: {
@@ -158,9 +166,16 @@ export class ProductosService {
     },
   ) {
     await this.findById(tenantId, id);
+    if (dto.categoriaId) {
+      const category = await this.prisma.categoria.findFirst({
+        where: { id: dto.categoriaId, tenantId },
+        select: { id: true },
+      });
+      if (!category) throw new NotFoundException('Categoría no encontrada en este tenant');
+    }
 
     const p = await this.prisma.producto.update({
-      where: { id },
+      where: { id, tenantId },
       data: {
         ...(dto.codigo && { codigo: dto.codigo.trim() }),
         ...(dto.codigoBarras !== undefined && { codigoBarras: dto.codigoBarras?.trim() || null }),
@@ -190,7 +205,7 @@ export class ProductosService {
     await this.findById(tenantId, id);
 
     return this.prisma.producto.update({
-      where: { id },
+      where: { id, tenantId },
       data: { activo: false },
     });
   }

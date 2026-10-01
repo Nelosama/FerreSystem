@@ -49,9 +49,9 @@ export class SuperAdminService {
     res.cookie('superAdminRefreshToken', refreshToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/admin',
+      path: '/api/admin/auth',
     });
 
     return {
@@ -100,11 +100,56 @@ export class SuperAdminService {
 >>>>>>> Stashed changes
   }
 
+  async refresh(refreshToken: string | undefined, res: Response) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('No se encontró el refresh token de Super Admin');
+    }
+
+    let decoded: any;
+    try {
+      decoded = this.jwtService.verify(refreshToken);
+    } catch {
+      res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+      throw new UnauthorizedException('Refresh token de Super Admin expirado o inválido');
+    }
+
+    if (decoded.type !== 'super_admin' || decoded.rol !== 'SUPER_ADMIN' || !decoded.sub) {
+      res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+      throw new UnauthorizedException('Refresh token de Super Admin inválido');
+    }
+
+    const admin = await this.prisma.superAdmin.findUnique({ where: { id: decoded.sub } });
+    if (!admin || !admin.activo) {
+      res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+      throw new UnauthorizedException('Super Admin no autorizado');
+    }
+
+    const accessToken = this.jwtService.sign(
+      { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin' },
+      { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any },
+    );
+    return { accessToken };
+  }
+
+  logout(res: Response) {
+    res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+    return { success: true, message: 'Sesión de Super Admin cerrada correctamente' };
+  }
+
   async listTenants() {
     const tenants = await this.prisma.tenant.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
         modulos: true,
+        usuarios: {
+          select: {
+            id: true,
+            nombre: true,
+            email: true,
+            activo: true,
+            createdAt: true,
+          },
+        },
         _count: {
           select: {
             usuarios: true,
@@ -132,6 +177,7 @@ export class SuperAdminService {
       cantidadProductos: t._count.productos,
       cantidadVentas: t._count.ventas,
       modulosHabilitados: t.modulos.filter((m) => m.enabled).map((m) => m.moduleKey),
+      usuarios: t.usuarios,
     }));
   }
 
@@ -293,6 +339,7 @@ export class SuperAdminService {
 
       return {
         tenant,
+        modulosHabilitados: defaultModules,
         adminUsuario: {
           id: adminUsuario.id,
           nombre: adminUsuario.nombre,

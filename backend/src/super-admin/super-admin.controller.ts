@@ -1,8 +1,11 @@
-import { Controller, Post, Get, Put, Patch, Body, Param, UseGuards, Res, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Put, Patch, Body, Param, UseGuards, Res, Req, HttpCode, HttpStatus } from '@nestjs/common';
 import { SuperAdminService } from './super-admin.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 import type { Response } from 'express';
+import type { Request } from 'express';
+import { CreateTenantDto } from './dto/create-tenant.dto';
+import { LoginDto } from '../auth/dto/login.dto';
 
 @Controller('admin')
 export class SuperAdminController {
@@ -12,7 +15,7 @@ export class SuperAdminController {
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
   async login(
-    @Body() loginDto: { email: string; password: string },
+    @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.superAdminService.login(loginDto, res);
@@ -30,6 +33,18 @@ export class SuperAdminController {
 >>>>>>> Stashed changes
   }
 
+  @Post('auth/refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.superAdminService.refresh(req.cookies?.superAdminRefreshToken, res);
+  }
+
+  @Post('auth/logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Res({ passthrough: true }) res: Response) {
+    return this.superAdminService.logout(res);
+  }
+
   @Get('tenants')
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   async listTenants() {
@@ -39,17 +54,7 @@ export class SuperAdminController {
   @Post('tenants')
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   async createTenant(
-    @Body()
-    dto: {
-      nombreComercial: string;
-      direccion?: string;
-      telefono?: string;
-      email?: string;
-      adminNombre: string;
-      adminEmail: string;
-      adminPassword: string;
-      colorPrimario?: string;
-    },
+    @Body() dto: CreateTenantDto,
   ) {
     return this.superAdminService.createTenant(dto);
   }

@@ -31,6 +31,27 @@ describe('SuperAdminService', () => {
     service = new SuperAdminService(prisma, jwt, config);
   });
 
+  it('verifies the stored bcrypt hash and issues a super-admin JWT and cross-site cookie', async () => {
+    const passwordHash = await bcrypt.hash('correct horse battery', 4);
+    prisma.superAdmin.findUnique.mockResolvedValue({ ...admin, passwordHash });
+
+    const result = await service.login(
+      { email: ' ADMIN@example.com ', password: 'correct horse battery' },
+      response,
+    );
+
+    expect(result.accessToken).toBe('signed-token');
+    expect(jwt.sign).toHaveBeenCalledWith(
+      { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin' },
+      expect.any(Object),
+    );
+    expect(response.cookie).toHaveBeenCalledWith(
+      'superAdminRefreshToken',
+      'signed-token',
+      expect.objectContaining({ httpOnly: true, secure: true, sameSite: 'none', path: '/api/admin/auth' }),
+    );
+  });
+
   it('refreshes only active super-admin sessions', async () => {
     jwt.verify.mockReturnValue({ sub: admin.id, rol: 'SUPER_ADMIN', type: 'super_admin' });
     prisma.superAdmin.findUnique.mockResolvedValue(admin);

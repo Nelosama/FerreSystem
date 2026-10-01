@@ -204,9 +204,9 @@ export class AuthService {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
-      path: '/',
+      path: '/api/auth',
     });
 
     // Etapa 9: Respuesta exitosa
@@ -266,13 +266,13 @@ export class AuthService {
 
       return { accessToken };
     } catch {
-      res.clearCookie('refreshToken', { path: '/' });
+      res.clearCookie('refreshToken', { path: '/api/auth' });
       throw new UnauthorizedException('Refresh token expirado o inválido');
     }
   }
 
   logout(res: Response) {
-    res.clearCookie('refreshToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/api/auth' });
     return { success: true, message: 'Sesión cerrada correctamente' };
   }
 }

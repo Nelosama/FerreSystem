@@ -4,24 +4,36 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('The demo seed is disabled in production.');
+  }
+
   console.log('🌱 Iniciando seed para FerreSystem...');
 
-  // 1. Super Admin (dueño del SaaS - Nelo)
-  const superAdminPassword = await bcrypt.hash('SuperAdmin2026!', 10);
-  const superAdmin = await prisma.superAdmin.upsert({
-    where: { email: 'admin@ferresystem.hn' },
-    update: {
-      passwordHash: superAdminPassword,
-      activo: true,
-    },
-    create: {
-      nombre: 'Nelo — SaaS Owner',
-      email: 'admin@ferresystem.hn',
-      passwordHash: superAdminPassword,
-      activo: true,
-    },
-  });
-  console.log('✅ SuperAdmin creado/verificado:', superAdmin.email);
+  // 1. Create the platform admin only when absent; never rotate an existing credential from seed.
+  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL?.trim().toLowerCase();
+  const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
+  if (!superAdminEmail) {
+    throw new Error('SUPER_ADMIN_EMAIL is required to seed the platform admin.');
+  }
+
+  let superAdmin = await prisma.superAdmin.findUnique({ where: { email: superAdminEmail } });
+  if (!superAdmin) {
+    if (!superAdminPassword) {
+      throw new Error('SUPER_ADMIN_PASSWORD is required to create a new Super Admin.');
+    }
+    superAdmin = await prisma.superAdmin.create({
+      data: {
+        nombre: 'SaaS Owner',
+        email: superAdminEmail,
+        passwordHash: await bcrypt.hash(superAdminPassword, 10),
+        activo: true,
+      },
+    });
+    console.log('✅ SuperAdmin creado:', superAdmin.email);
+  } else {
+    console.log('✅ SuperAdmin existente; contraseña y estado no modificados:', superAdmin.email);
+  }
 
   // 2. Tenant de prueba: "La Mundial - Sucursal Centro" (del prototipo)
   let tenant = await prisma.tenant.findFirst({
@@ -36,17 +48,6 @@ async function main() {
         telefono: '+504 2550-1234',
         email: 'ventas@lamundial.hn',
         colorPrimario: '#EA580C', // Naranja óxido
-        estado: 'ACTIVO',
-      },
-    });
-  } else {
-    tenant = await prisma.tenant.update({
-      where: { id: tenant.id },
-      data: {
-        direccion: 'Barrio El Centro, 3ra Ave, 4ta Calle, San Pedro Sula',
-        telefono: '+504 2550-1234',
-        email: 'ventas@lamundial.hn',
-        colorPrimario: '#EA580C',
         estado: 'ACTIVO',
       },
     });
@@ -80,7 +81,7 @@ async function main() {
           moduleKey,
         },
       },
-      update: { enabled: true },
+      update: {},
       create: {
         tenantId: tenant.id,
         moduleKey,
@@ -122,27 +123,30 @@ async function main() {
   });
 
   // 4. Usuario Admin del Tenant
-  const tenantAdminPassword = await bcrypt.hash('Ferre2026!', 10);
-  const adminTenant = await prisma.usuario.upsert({
+  let adminTenant = await prisma.usuario.findUnique({
     where: {
       tenantId_email: {
         tenantId: tenant.id,
         email: 'cajero@lamundial.hn',
       },
     },
-    update: {
-      passwordHash: tenantAdminPassword,
-      activo: true,
-    },
-    create: {
-      tenantId: tenant.id,
-      nombre: 'Carlos Ramos (Cajero Principal)',
-      email: 'cajero@lamundial.hn',
-      passwordHash: tenantAdminPassword,
-      rol: 'ADMIN',
-      activo: true,
-    },
   });
+  if (!adminTenant) {
+    const tenantAdminPassword = process.env.TENANT_ADMIN_PASSWORD;
+    if (!tenantAdminPassword) {
+      throw new Error('TENANT_ADMIN_PASSWORD is required to create the demo tenant admin.');
+    }
+    adminTenant = await prisma.usuario.create({
+      data: {
+        tenantId: tenant.id,
+        nombre: 'Carlos Ramos (Cajero Principal)',
+        email: 'cajero@lamundial.hn',
+        passwordHash: await bcrypt.hash(tenantAdminPassword, 10),
+        rol: 'ADMIN',
+        activo: true,
+      },
+    });
+  }
   console.log('✅ Usuario de ferretería creado/verificado:', adminTenant.email);
 
   // 5. Categorías
@@ -248,14 +252,7 @@ async function main() {
           codigo: prod.codigo,
         },
       },
-      update: {
-        codigoBarras: prod.codigoBarras,
-        nombre: prod.nombre,
-        categoriaId: prod.categoriaId,
-        precioVenta: prod.precioVenta,
-        precioCosto: prod.precioCosto,
-        unidadMedida: prod.unidadMedida as any,
-      },
+      update: {},
       create: {
         tenantId: tenant.id,
         codigo: prod.codigo,
@@ -289,17 +286,6 @@ async function main() {
         tipo: 'CONTRATISTA',
       },
     });
-  } else {
-    cliente1 = await prisma.cliente.update({
-      where: { id: cliente1.id },
-      data: {
-        nombre: 'Constructora del Norte S. de R.L.',
-        telefono: '+504 9876-5432',
-        email: 'compras@constructoranorte.hn',
-        direccion: 'Residencial Los Álamos, SPS',
-        tipo: 'CONTRATISTA',
-      },
-    });
   }
 
   let cliente2 = await prisma.cliente.findFirst({
@@ -312,15 +298,6 @@ async function main() {
         tenantId: tenant.id,
         nombre: 'Ferretería El Progreso (Subdistribuidor)',
         rtn: '05021980001234',
-        telefono: '+504 9911-2233',
-        tipo: 'MAYORISTA',
-      },
-    });
-  } else {
-    cliente2 = await prisma.cliente.update({
-      where: { id: cliente2.id },
-      data: {
-        nombre: 'Ferretería El Progreso (Subdistribuidor)',
         telefono: '+504 9911-2233',
         tipo: 'MAYORISTA',
       },
@@ -344,21 +321,7 @@ async function main() {
           numeroCotizacion: 1,
         },
       },
-      update: {
-        clienteId: cliente1.id,
-        clienteNombre: cliente1.nombre,
-        clienteRtn: cliente1.rtn,
-        clienteTelefono: cliente1.telefono,
-        clienteEmail: cliente1.email,
-        clienteDireccion: cliente1.direccion,
-        usuarioId: adminTenant.id,
-        subtotal,
-        isv,
-        descuento: 0,
-        total,
-        estado: 'ENVIADA',
-        notas: 'Entrega en plantel de construcción incluida',
-      },
+      update: {},
       create: {
         tenantId: tenant.id,
         numeroCotizacion: 1,
@@ -388,14 +351,6 @@ async function main() {
   }
 
   console.log('\n🎉 Seed completado exitosamente.');
-  console.log('--------------------------------------------------');
-  console.log('🔑 Credenciales Super Admin:');
-  console.log('   Email: admin@ferresystem.hn');
-  console.log('   Clave: SuperAdmin2026!');
-  console.log('🔑 Credenciales Tenant (La Mundial):');
-  console.log('   Email: cajero@lamundial.hn');
-  console.log('   Clave: Ferre2026!');
-  console.log('--------------------------------------------------');
 }
 
 main()
