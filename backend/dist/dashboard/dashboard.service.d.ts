@@ -4,16 +4,23 @@ export declare class DashboardService {
     constructor(prisma: PrismaService);
     getDashboardData(tenantId: string): Promise<{
         ventasDelDia: {
-            total: any;
-            cantidad: any;
+            total: number;
+            cantidad: number;
             variacionPorcentaje: number;
         };
         alertasStock: {
-            cantidad: any;
-            items: any;
+            cantidad: number;
+            items: {
+                id: string;
+                codigo: string;
+                nombre: string;
+                stockActual: import("@prisma/client/runtime/library").Decimal;
+                stockMinimo: import("@prisma/client/runtime/library").Decimal;
+                unidadMedida: import(".prisma/client").$Enums.UnidadMedida;
+            }[];
         };
         cotizacionesPendientes: {
-            cantidad: any;
+            cantidad: number;
             porVencerHoy: number;
         };
         tendenciaSemanal: {
@@ -22,6 +29,14 @@ export declare class DashboardService {
             total: number;
             esHoy: boolean;
         }[];
-        ultimasVentas: any;
+        ultimasVentas: {
+            id: string;
+            numeroVenta: number;
+            cliente: string;
+            cajero: string;
+            total: number;
+            metodoPago: import(".prisma/client").$Enums.MetodoPago;
+            hora: string;
+        }[];
     }>;
 }

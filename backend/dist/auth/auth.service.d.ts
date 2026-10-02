@@ -11,7 +11,7 @@ export declare class AuthService {
     constructor(prisma: PrismaService, jwtService: JwtService, configService: ConfigService);
     login(loginDto: LoginDto, res: Response, req?: Request): Promise<{
         type: "super_admin";
-        accessToken: any;
+        accessToken: string;
         superAdmin: {
             id: any;
             nombre: any;
@@ -21,7 +21,7 @@ export declare class AuthService {
         tenant?: undefined;
     } | {
         type: "tenant";
-        accessToken: any;
+        accessToken: string;
         user: {
             id: any;
             nombre: any;
@@ -39,7 +39,7 @@ export declare class AuthService {
         superAdmin?: undefined;
     }>;
     refresh(refreshToken: string | undefined, res: Response): Promise<{
-        accessToken: any;
+        accessToken: string;
     }>;
     logout(res: Response): {
         success: boolean;

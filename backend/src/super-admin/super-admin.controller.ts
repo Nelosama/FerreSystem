@@ -1,14 +1,13 @@
-import { Controller, Post, Get, Put, Patch, Body, Param, UseGuards, Res, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Put, Patch, Body, Param, UseGuards, Req, Res, HttpCode, HttpStatus } from '@nestjs/common';
 import { SuperAdminService } from './super-admin.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../common/guards/super-admin.guard';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 @Controller('admin')
 export class SuperAdminController {
   constructor(private readonly superAdminService: SuperAdminService) {}
 
-<<<<<<< Updated upstream
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
   async login(
@@ -16,7 +15,8 @@ export class SuperAdminController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.superAdminService.login(loginDto, res);
-=======
+  }
+
   @Post('auth/refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
@@ -27,8 +27,8 @@ export class SuperAdminController {
   @HttpCode(HttpStatus.OK)
   async logout(@Res({ passthrough: true }) res: Response) {
     return this.superAdminService.logout(res);
->>>>>>> Stashed changes
   }
+
 
   @Get('tenants')
   @UseGuards(JwtAuthGuard, SuperAdminGuard)

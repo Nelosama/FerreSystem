@@ -41,7 +41,6 @@ var __importStar = (this && this.__importStar) || (function () {
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var _a, _b;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SuperAdminService = void 0;
 const common_1 = require("@nestjs/common");
@@ -95,6 +94,34 @@ let SuperAdminService = class SuperAdminService {
                 email: admin.email,
             },
         };
+    }
+    async refresh(refreshToken, res) {
+        if (!refreshToken) {
+            throw new common_1.UnauthorizedException('No se encontró el refresh token de Super Admin');
+        }
+        let decoded;
+        try {
+            decoded = this.jwtService.verify(refreshToken);
+        }
+        catch {
+            res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+            throw new common_1.UnauthorizedException('Refresh token de Super Admin expirado o inválido');
+        }
+        if (decoded.type !== 'super_admin' || decoded.rol !== 'SUPER_ADMIN' || !decoded.sub) {
+            res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+            throw new common_1.UnauthorizedException('Refresh token de Super Admin inválido');
+        }
+        const admin = await this.prisma.superAdmin.findUnique({ where: { id: decoded.sub } });
+        if (!admin || !admin.activo) {
+            res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+            throw new common_1.UnauthorizedException('Super Admin no autorizado');
+        }
+        const accessToken = this.jwtService.sign({ sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin' }, { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') });
+        return { accessToken };
+    }
+    logout(res) {
+        res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+        return { success: true, message: 'Sesión de Super Admin cerrada correctamente' };
     }
     async listTenants() {
         const tenants = await this.prisma.tenant.findMany({
@@ -170,9 +197,7 @@ let SuperAdminService = class SuperAdminService {
         });
     }
     async updateTenantConfig(tenantId, dto) {
-        const tenant = await this.prisma.tenant.findUnique({
-            where: { id: tenantId },
-        });
+        const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
         if (!tenant) {
             throw new common_1.NotFoundException('Ferretería no encontrada');
         }
@@ -269,6 +294,8 @@ let SuperAdminService = class SuperAdminService {
 exports.SuperAdminService = SuperAdminService;
 exports.SuperAdminService = SuperAdminService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService, typeof (_a = typeof jwt_1.JwtService !== "undefined" && jwt_1.JwtService) === "function" ? _a : Object, typeof (_b = typeof config_1.ConfigService !== "undefined" && config_1.ConfigService) === "function" ? _b : Object])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        jwt_1.JwtService,
+        config_1.ConfigService])
 ], SuperAdminService);
 //# sourceMappingURL=super-admin.service.js.map

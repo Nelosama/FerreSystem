@@ -24,6 +24,12 @@ let SuperAdminController = class SuperAdminController {
     async login(loginDto, res) {
         return this.superAdminService.login(loginDto, res);
     }
+    async refresh(req, res) {
+        return this.superAdminService.refresh(req.cookies?.superAdminRefreshToken, res);
+    }
+    async logout(res) {
+        return this.superAdminService.logout(res);
+    }
     async listTenants() {
         return this.superAdminService.listTenants();
     }
@@ -53,6 +59,23 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], SuperAdminController.prototype, "login", null);
+__decorate([
+    (0, common_1.Post)('auth/refresh'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], SuperAdminController.prototype, "refresh", null);
+__decorate([
+    (0, common_1.Post)('auth/logout'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    __param(0, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SuperAdminController.prototype, "logout", null);
 __decorate([
     (0, common_1.Get)('tenants'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, super_admin_guard_1.SuperAdminGuard),

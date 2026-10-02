@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -13,38 +13,30 @@ export class SuperAdminService {
     private configService: ConfigService,
   ) {}
 
-<<<<<<< Updated upstream
   async login(loginDto: { email: string; password: string }, res: Response) {
     const { email, password } = loginDto;
-
     const admin = await this.prisma.superAdmin.findUnique({
       where: { email: email.toLowerCase().trim() },
     });
-
     if (!admin || !admin.activo) {
       throw new UnauthorizedException('Credenciales de Super Admin inválidas');
     }
-
     const passwordValido = await bcrypt.compare(password, admin.passwordHash);
     if (!passwordValido) {
       throw new UnauthorizedException('Credenciales de Super Admin inválidas');
     }
-
     const payload = {
       sub: admin.id,
       email: admin.email,
       rol: 'SUPER_ADMIN',
       type: 'super_admin',
     };
-
     const accessToken = this.jwtService.sign(payload, {
       expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
     });
-
     const refreshToken = this.jwtService.sign(payload, {
       expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
     });
-
     const isProduction = this.configService.get('NODE_ENV') === 'production';
     res.cookie('superAdminRefreshToken', refreshToken, {
       httpOnly: true,
@@ -53,7 +45,6 @@ export class SuperAdminService {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/admin',
     });
-
     return {
       accessToken,
       superAdmin: {
@@ -62,12 +53,12 @@ export class SuperAdminService {
         email: admin.email,
       },
     };
-=======
+  }
+
   async refresh(refreshToken: string | undefined, res: Response) {
     if (!refreshToken) {
       throw new UnauthorizedException('No se encontró el refresh token de Super Admin');
     }
-
     let decoded: any;
     try {
       decoded = this.jwtService.verify(refreshToken);
@@ -75,18 +66,15 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
       throw new UnauthorizedException('Refresh token de Super Admin expirado o inválido');
     }
-
     if (decoded.type !== 'super_admin' || decoded.rol !== 'SUPER_ADMIN' || !decoded.sub) {
       res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
       throw new UnauthorizedException('Refresh token de Super Admin inválido');
     }
-
     const admin = await this.prisma.superAdmin.findUnique({ where: { id: decoded.sub } });
     if (!admin || !admin.activo) {
       res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
       throw new UnauthorizedException('Super Admin no autorizado');
     }
-
     const accessToken = this.jwtService.sign(
       { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin' },
       { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any },
@@ -97,7 +85,6 @@ export class SuperAdminService {
   logout(res: Response) {
     res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
     return { success: true, message: 'Sesión de Super Admin cerrada correctamente' };
->>>>>>> Stashed changes
   }
 
   async listTenants() {
@@ -114,7 +101,6 @@ export class SuperAdminService {
         },
       },
     });
-
     return tenants.map((t) => ({
       id: t.id,
       nombreComercial: t.nombreComercial,
@@ -140,11 +126,9 @@ export class SuperAdminService {
       where: { id: tenantId },
       include: { modulos: true },
     });
-
     if (!tenant) {
       throw new NotFoundException('Ferretería no encontrada');
     }
-
     return tenant.modulos;
   }
 
@@ -152,11 +136,9 @@ export class SuperAdminService {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
-
     if (!tenant) {
       throw new NotFoundException('Ferretería no encontrada');
     }
-
     return this.prisma.$transaction(async (tx) => {
       for (const item of modules) {
         await tx.tenantModule.upsert({
@@ -174,11 +156,9 @@ export class SuperAdminService {
           },
         });
       }
-
       const updatedModules = await tx.tenantModule.findMany({
         where: { tenantId },
       });
-
       return updatedModules;
     });
   }
@@ -196,14 +176,10 @@ export class SuperAdminService {
       plan?: string;
     },
   ) {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-    });
-
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
       throw new NotFoundException('Ferretería no encontrada');
     }
-
     return this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
@@ -230,10 +206,7 @@ export class SuperAdminService {
     colorPrimario?: string;
   }) {
     const emailNormalizado = dto.adminEmail.toLowerCase().trim();
-
-    // Iniciar transacción de base de datos
     return this.prisma.$transaction(async (tx) => {
-      // 1. Crear el tenant
       const tenant = await tx.tenant.create({
         data: {
           nombreComercial: dto.nombreComercial,
@@ -243,16 +216,12 @@ export class SuperAdminService {
           colorPrimario: dto.colorPrimario || '#EA580C',
         },
       });
-
-      // 2. Crear las secuencias transaccionales iniciales para ventas y cotizaciones
       await tx.secuenciaTenant.createMany({
         data: [
           { tenantId: tenant.id, tipo: 'VENTA', ultimoNumero: 0 },
           { tenantId: tenant.id, tipo: 'COTIZACION', ultimoNumero: 0 },
         ],
       });
-
-      // 3. Crear los módulos por defecto asignados al nuevo tenant
       const defaultModules = [
         'pos',
         'cotizaciones',
@@ -269,7 +238,6 @@ export class SuperAdminService {
         'reportes',
         'configuracion',
       ];
-
       await tx.tenantModule.createMany({
         data: defaultModules.map((moduleKey) => ({
           tenantId: tenant.id,
@@ -277,8 +245,6 @@ export class SuperAdminService {
           enabled: true,
         })),
       });
-
-      // 3. Crear el usuario Administrador del tenant
       const passwordHash = await bcrypt.hash(dto.adminPassword, 10);
       const adminUsuario = await tx.usuario.create({
         data: {
@@ -290,7 +256,6 @@ export class SuperAdminService {
           activo: true,
         },
       });
-
       return {
         tenant,
         adminUsuario: {
@@ -307,11 +272,9 @@ export class SuperAdminService {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
-
     if (!tenant) {
       throw new NotFoundException('Ferretería no encontrada');
     }
-
     return this.prisma.tenant.update({
       where: { id: tenantId },
       data: { estado },

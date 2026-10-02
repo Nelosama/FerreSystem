@@ -6,7 +6,7 @@ export declare class AuthController {
     constructor(authService: AuthService);
     login(loginDto: LoginDto, req: Request, res: Response): Promise<{
         type: "super_admin";
-        accessToken: any;
+        accessToken: string;
         superAdmin: {
             id: any;
             nombre: any;
@@ -16,7 +16,7 @@ export declare class AuthController {
         tenant?: undefined;
     } | {
         type: "tenant";
-        accessToken: any;
+        accessToken: string;
         user: {
             id: any;
             nombre: any;
@@ -34,7 +34,7 @@ export declare class AuthController {
         superAdmin?: undefined;
     }>;
     refresh(req: Request, res: Response): Promise<{
-        accessToken: any;
+        accessToken: string;
     }>;
     logout(res: Response): Promise<{
         success: boolean;

@@ -9,6 +9,6 @@ export declare class AppController {
     checkDatabaseHealth(): Promise<{
         status: string;
         database: string;
-        timestamp: any;
+        timestamp: string;
     }>;
 }

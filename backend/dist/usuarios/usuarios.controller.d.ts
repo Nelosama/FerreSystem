@@ -4,9 +4,49 @@ import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 export declare class UsuariosController {
     private readonly usuariosService;
     constructor(usuariosService: UsuariosService);
-    findAll(tenantId: string): Promise<any>;
-    findById(tenantId: string, id: string): Promise<any>;
-    create(tenantId: string, dto: CreateUsuarioDto): Promise<any>;
-    update(tenantId: string, id: string, dto: UpdateUsuarioDto): Promise<any>;
-    remove(tenantId: string, id: string): Promise<any>;
+    findAll(tenantId: string): Promise<{
+        id: string;
+        tenantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        email: string;
+        nombre: string;
+        activo: boolean;
+        rol: import(".prisma/client").$Enums.Rol;
+    }[]>;
+    findById(tenantId: string, id: string): Promise<{
+        id: string;
+        tenantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        email: string;
+        nombre: string;
+        activo: boolean;
+        rol: import(".prisma/client").$Enums.Rol;
+    }>;
+    create(tenantId: string, dto: CreateUsuarioDto): Promise<{
+        id: string;
+        tenantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        email: string;
+        nombre: string;
+        activo: boolean;
+        rol: import(".prisma/client").$Enums.Rol;
+    }>;
+    update(tenantId: string, id: string, dto: UpdateUsuarioDto): Promise<{
+        id: string;
+        tenantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        email: string;
+        nombre: string;
+        activo: boolean;
+        rol: import(".prisma/client").$Enums.Rol;
+    }>;
+    remove(tenantId: string, id: string): Promise<{
+        id: string;
+        email: string;
+        nombre: string;
+    }>;
 }

@@ -2,9 +2,82 @@ import { PrismaService } from '../prisma/prisma.service';
 export declare class ProductosService {
     private prisma;
     constructor(prisma: PrismaService);
-    findAll(tenantId: string, search?: string, categoriaId?: string): Promise<any>;
-    findById(tenantId: string, id: string): Promise<any>;
-    getLowStock(tenantId: string): Promise<any>;
+    findAll(tenantId: string, search?: string, categoriaId?: string): Promise<{
+        precioVenta: number;
+        precioCosto: number;
+        stockBajo: boolean;
+        categoria: {
+            id: string;
+            nombre: string;
+        };
+        id: string;
+        tenantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        nombre: string;
+        activo: boolean;
+        codigoBarras: string | null;
+        codigo: string;
+        descripcion: string | null;
+        categoriaId: string | null;
+        stockActual: import("@prisma/client/runtime/library").Decimal;
+        stockMinimo: import("@prisma/client/runtime/library").Decimal;
+        unidadMedida: import(".prisma/client").$Enums.UnidadMedida;
+        usaMedida: boolean;
+        imagenUrl: string | null;
+    }[]>;
+    findById(tenantId: string, id: string): Promise<{
+        precioVenta: number;
+        precioCosto: number;
+        stockBajo: boolean;
+        categoria: {
+            id: string;
+            tenantId: string;
+            createdAt: Date;
+            updatedAt: Date;
+            nombre: string;
+            descripcion: string | null;
+        };
+        id: string;
+        tenantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        nombre: string;
+        activo: boolean;
+        codigoBarras: string | null;
+        codigo: string;
+        descripcion: string | null;
+        categoriaId: string | null;
+        stockActual: import("@prisma/client/runtime/library").Decimal;
+        stockMinimo: import("@prisma/client/runtime/library").Decimal;
+        unidadMedida: import(".prisma/client").$Enums.UnidadMedida;
+        usaMedida: boolean;
+        imagenUrl: string | null;
+    }>;
+    getLowStock(tenantId: string): Promise<{
+        precioVenta: number;
+        precioCosto: number;
+        stockBajo: boolean;
+        categoria: {
+            id: string;
+            nombre: string;
+        };
+        id: string;
+        tenantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        nombre: string;
+        activo: boolean;
+        codigoBarras: string | null;
+        codigo: string;
+        descripcion: string | null;
+        categoriaId: string | null;
+        stockActual: import("@prisma/client/runtime/library").Decimal;
+        stockMinimo: import("@prisma/client/runtime/library").Decimal;
+        unidadMedida: import(".prisma/client").$Enums.UnidadMedida;
+        usaMedida: boolean;
+        imagenUrl: string | null;
+    }[]>;
     create(tenantId: string, dto: {
         codigo: string;
         codigoBarras?: string;
@@ -16,7 +89,30 @@ export declare class ProductosService {
         stockActual: number;
         stockMinimo: number;
         unidadMedida?: any;
-    }): Promise<any>;
+    }): Promise<{
+        precioVenta: number;
+        precioCosto: number;
+        stockBajo: boolean;
+        categoria: {
+            id: string;
+            nombre: string;
+        };
+        id: string;
+        tenantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        nombre: string;
+        activo: boolean;
+        codigoBarras: string | null;
+        codigo: string;
+        descripcion: string | null;
+        categoriaId: string | null;
+        stockActual: import("@prisma/client/runtime/library").Decimal;
+        stockMinimo: import("@prisma/client/runtime/library").Decimal;
+        unidadMedida: import(".prisma/client").$Enums.UnidadMedida;
+        usaMedida: boolean;
+        imagenUrl: string | null;
+    }>;
     update(tenantId: string, id: string, dto: {
         codigo?: string;
         codigoBarras?: string;
@@ -28,6 +124,47 @@ export declare class ProductosService {
         stockActual?: number;
         stockMinimo?: number;
         unidadMedida?: any;
-    }): Promise<any>;
-    delete(tenantId: string, id: string): Promise<any>;
+    }): Promise<{
+        precioVenta: number;
+        precioCosto: number;
+        stockBajo: boolean;
+        categoria: {
+            id: string;
+            nombre: string;
+        };
+        id: string;
+        tenantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        nombre: string;
+        activo: boolean;
+        codigoBarras: string | null;
+        codigo: string;
+        descripcion: string | null;
+        categoriaId: string | null;
+        stockActual: import("@prisma/client/runtime/library").Decimal;
+        stockMinimo: import("@prisma/client/runtime/library").Decimal;
+        unidadMedida: import(".prisma/client").$Enums.UnidadMedida;
+        usaMedida: boolean;
+        imagenUrl: string | null;
+    }>;
+    delete(tenantId: string, id: string): Promise<{
+        id: string;
+        tenantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        nombre: string;
+        activo: boolean;
+        codigoBarras: string | null;
+        codigo: string;
+        descripcion: string | null;
+        categoriaId: string | null;
+        precioVenta: import("@prisma/client/runtime/library").Decimal;
+        precioCosto: import("@prisma/client/runtime/library").Decimal;
+        stockActual: import("@prisma/client/runtime/library").Decimal;
+        stockMinimo: import("@prisma/client/runtime/library").Decimal;
+        unidadMedida: import(".prisma/client").$Enums.UnidadMedida;
+        usaMedida: boolean;
+        imagenUrl: string | null;
+    }>;
 }

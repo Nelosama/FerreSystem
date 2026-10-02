@@ -8,7 +8,6 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var _a, _b;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UpdateClienteDto = exports.CreateClienteDto = void 0;
 const class_validator_1 = require("class-validator");
@@ -44,7 +43,7 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsEnum)(client_1.TipoCliente, { message: 'El tipo de cliente no es válido' }),
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", typeof (_a = typeof client_1.TipoCliente !== "undefined" && client_1.TipoCliente) === "function" ? _a : Object)
+    __metadata("design:type", String)
 ], CreateClienteDto.prototype, "tipo", void 0);
 class UpdateClienteDto {
 }
@@ -77,6 +76,6 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsEnum)(client_1.TipoCliente, { message: 'El tipo de cliente no es válido' }),
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", typeof (_b = typeof client_1.TipoCliente !== "undefined" && client_1.TipoCliente) === "function" ? _b : Object)
+    __metadata("design:type", String)
 ], UpdateClienteDto.prototype, "tipo", void 0);
 //# sourceMappingURL=create-cliente.dto.js.map
