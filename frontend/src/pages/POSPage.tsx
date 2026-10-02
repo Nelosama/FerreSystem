@@ -1,0 +1,950 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { TopBar } from '../components/TopBar';
+import { useTenant } from '../context/TenantContext';
+import type { ProductItem } from '../types';
+import { api } from '../utils/api';
+import { useNotification, type SolicitudDescuento } from '../context/NotificationContext';
+import { useI18n } from '../context/I18nContext';
+import {
+  Search,
+  Plus,
+  Minus,
+  Trash2,
+  CheckCircle,
+  Receipt,
+  User,
+  CreditCard,
+  Banknote,
+  Printer,
+  X,
+  ShieldAlert,
+  Loader2,
+  Percent,
+  Download,
+} from 'lucide-react';
+import { formatLempiras } from '../utils/format';
+import { descargarReciboPDF } from '../components/ReciboPDF';
+
+interface CartItem {
+  productoId: string;
+  codigo: string;
+  nombre: string;
+  precioUnitario: number;
+  cantidad: number;
+}
+
+export const POSPage: React.FC = () => {
+  const { tenant, user } = useTenant();
+  const { solicitudes, solicitarDescuento } = useNotification();
+  const { t } = useI18n();
+
+  const [productos, setProductos] = useState<ProductItem[]>([]);
+  const [errorText, setErrorText] = useState<string | null>(null);
+
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [search, setSearch] = useState('');
+  const [clienteNombre, setClienteNombre] = useState('Consumidor Final');
+  const [clienteRtn, setClienteRtn] = useState('');
+  const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO'>('EFECTIVO');
+  const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(0);
+  const [modalTicket, setModalTicket] = useState(false);
+  const [numeroVentaGenerado, setNumeroVentaGenerado] = useState<number | null>(null);
+
+  const fetchProductos = useCallback(async () => {
+    setErrorText(null);
+    try {
+      const response = await api.get('/productos');
+      const data = response.data.map((p: any) => ({
+        id: p.id,
+        codigo: p.codigo,
+        nombre: p.nombre,
+        descripcion: p.descripcion,
+        categoria: p.categoria?.nombre || p.categoria || 'General',
+        precioVenta: Number(p.precioVenta),
+        precioCosto: Number(p.precioCosto),
+        stockActual: Number(p.stockActual),
+        stockMinimo: Number(p.stockMinimo),
+        unidadMedida: p.unidadMedida || 'UNIDAD',
+        usaMedida: Boolean(p.usaMedida),
+        activo: Boolean(p.activo),
+        stockBajo: p.stockBajo ?? (Number(p.stockActual) <= Number(p.stockMinimo)),
+      }));
+      setProductos(data);
+    } catch (err: any) {
+      console.error('Error al cargar productos en POS:', err);
+      setErrorText('Error de conexión con la API de productos.');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProductos();
+  }, [fetchProductos]);
+
+  // Solicitud de autorización de descuento
+  const [solicitudActiva, setSolicitudActiva] = useState<SolicitudDescuento | null>(null);
+  const [esperandoAutorizacion, setEsperandoAutorizacion] = useState(false);
+  const [mensajeEstado, setMensajeEstado] = useState<string | null>(null);
+
+  // Límite de descuento del usuario actual (10% por defecto si no definido)
+  const descuentoMaximoPermitido = user?.descuentoMaximo ?? 10;
+  const esDescuentoExcedido = descuentoPorcentaje > descuentoMaximoPermitido;
+
+  // Escuchar cambios en la solicitud activa
+  React.useEffect(() => {
+    if (!solicitudActiva) return;
+    const solActualizada = solicitudes.find((s) => s.id === solicitudActiva.id);
+    if (solActualizada && solActualizada.estado !== 'PENDIENTE') {
+      setEsperandoAutorizacion(false);
+      if (solActualizada.estado === 'APROBADA') {
+        setMensajeEstado(`¡Descuento del ${solActualizada.descuentoPorcentaje}% APROBADO por ${solActualizada.respondidoPor || 'Administrador'}!`);
+      } else if (solActualizada.estado === 'RECHAZADA') {
+        setMensajeEstado(`Solicitud RECHAZADA por ${solActualizada.respondidoPor || 'Administrador'}. Por favor ajuste el porcentaje.`);
+        setDescuentoPorcentaje(0);
+      }
+      setSolicitudActiva(null);
+    }
+  }, [solicitudes, solicitudActiva]);
+
+  // Cálculos fiscales hondureños con descuento
+  const subtotalBruto = cart.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
+  const montoDescuento = Math.round(subtotalBruto * (descuentoPorcentaje / 100) * 100) / 100;
+  const subtotal = subtotalBruto - montoDescuento;
+  const isv = Math.round(subtotal * 0.15 * 100) / 100;
+  const total = subtotal + isv;
+
+  const handleSolicitarAutorizacion = () => {
+    if (!user) return;
+    setMensajeEstado(null);
+    const nuevaSol = solicitarDescuento({
+      cajeroId: user.id,
+      cajeroNombre: user.nombre,
+      subtotal: subtotalBruto,
+      totalOriginal: Math.round((subtotalBruto * 1.15) * 100) / 100,
+      descuentoPorcentaje,
+      totalConDescuento: total,
+    });
+    setSolicitudActiva(nuevaSol);
+    setEsperandoAutorizacion(true);
+  };
+
+  const agregarAlCarrito = (prod: ProductItem) => {
+    const existe = cart.find((i) => i.productoId === prod.id);
+    if (existe) {
+      setCart(
+        cart.map((i) =>
+          i.productoId === prod.id ? { ...i, cantidad: i.cantidad + 1 } : i,
+        ),
+      );
+    } else {
+      setCart([
+        ...cart,
+        {
+          productoId: prod.id,
+          codigo: prod.codigo,
+          nombre: prod.nombre,
+          precioUnitario: prod.precioVenta,
+          cantidad: 1,
+        },
+      ]);
+    }
+  };
+
+  const modificarCantidad = (productoId: string, delta: number) => {
+    setCart(
+      cart
+        .map((i) => {
+          if (i.productoId === productoId) {
+            const nueva = i.cantidad + delta;
+            return nueva > 0 ? { ...i, cantidad: nueva } : null;
+          }
+          return i;
+        })
+        .filter(Boolean) as CartItem[],
+    );
+  };
+
+  const eliminarDelCarrito = (productoId: string) => {
+    setCart(cart.filter((i) => i.productoId !== productoId));
+  };
+
+  const handleCobrar = async () => {
+    if (cart.length === 0) return;
+
+    try {
+      const res = await api.post('/ventas', {
+        clienteNombre,
+        clienteRtn: clienteRtn || undefined,
+        metodoPago,
+        descuento: montoDescuento,
+        detalles: cart.map((i) => ({
+          productoId: i.productoId,
+          cantidad: i.cantidad,
+          precioUnitario: i.precioUnitario,
+        })),
+      });
+
+      const ventaRegistrada = res.data;
+      setNumeroVentaGenerado(ventaRegistrada.numeroVenta);
+      setModalTicket(true);
+      await fetchProductos(); // Refrescar inventario actualizado
+    } catch (err: any) {
+      console.error('Error al procesar cobro de venta:', err);
+      alert(err.response?.data?.message || 'Error al procesar la venta en el servidor');
+    }
+  };
+
+  return (
+    <div style={styles.container}>
+      <TopBar title={t('pos.title')} subtitle={t('pos.subtitle')} />
+
+      <main style={styles.content}>
+        {errorText && (
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px 16px',
+            backgroundColor: '#FEE2E2',
+            border: '1px solid #EF4444',
+            borderRadius: '4px',
+            color: '#991B1B',
+            fontSize: '13px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}>
+            <ShieldAlert size={18} />
+            <span>{errorText}</span>
+          </div>
+        )}
+
+        {/* Layout en dos columnas: Izquierda catálogo rápido, Derecha Carrito & Cobro */}
+        <div style={styles.posGrid}>
+          {/* Columna Izquierda: Catálogo y Búsqueda */}
+          <div style={styles.catalogColumn}>
+            <div style={styles.searchBox}>
+              <Search size={18} strokeWidth={2.4} style={styles.searchIcon} />
+              <input
+                type="text"
+                placeholder={t('pos.search_products')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="form-input"
+                style={{ paddingLeft: '38px', height: '46px', fontSize: '15px' }}
+                autoFocus
+              />
+            </div>
+
+            <div style={styles.catalogGrid}>
+              {productos
+                .filter(
+                  (p) =>
+                    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
+                    p.codigo.toLowerCase().includes(search.toLowerCase()),
+                )
+                .map((prod) => (
+                  <div
+                    key={prod.id}
+                    className="industrial-card"
+                    style={styles.productCard}
+                    onClick={() => agregarAlCarrito(prod)}
+                  >
+                    <div style={styles.skuBadge}>{prod.codigo}</div>
+                    <div style={styles.productName}>{prod.nombre}</div>
+                    <div style={styles.priceRow}>
+                      <span style={styles.priceText}>{formatLempiras(prod.precioVenta)}</span>
+                      <span style={styles.stockText}>{prod.stockActual} disp.</span>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Columna Derecha: Factura y Resumen */}
+          <div className="industrial-card" style={styles.cartColumn}>
+            {/* Cabecera del ticket */}
+            <div style={styles.cartHeader}>
+              <div style={styles.cartTitle}>{t('pos.cart').toUpperCase()}</div>
+              <span className="badge badge-dark">ITEMS: {cart.length}</span>
+            </div>
+
+            {/* Selector de Cliente */}
+            <div style={styles.clientSection}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <User size={16} strokeWidth={2.4} color="var(--color-primary)" />
+                <input
+                  type="text"
+                  value={clienteNombre}
+                  onChange={(e) => setClienteNombre(e.target.value)}
+                  className="form-input"
+                  style={{ padding: '6px 10px', fontSize: '12px', flex: 1 }}
+                  placeholder="Nombre Cliente..."
+                />
+              </div>
+              <input
+                type="text"
+                value={clienteRtn}
+                onChange={(e) => setClienteRtn(e.target.value)}
+                className="form-input"
+                style={{ padding: '6px 10px', fontSize: '11px', marginTop: '6px' }}
+                placeholder="RTN (Opcional para factura)..."
+              />
+            </div>
+
+            {/* Lista de ítems en carrito */}
+            <div style={styles.cartItemsList}>
+              {cart.length === 0 ? (
+                <div style={styles.emptyCart}>
+                  <Receipt size={40} strokeWidth={1.5} color="#A8A29E" />
+                  <p style={{ marginTop: '8px', fontWeight: 600 }}>El carrito está vacío</p>
+                  <span style={{ fontSize: '12px', color: '#78716C' }}>
+                    Seleccione productos del catálogo
+                  </span>
+                </div>
+              ) : (
+                cart.map((item) => (
+                  <div key={item.productoId} style={styles.cartItemRow}>
+                    <div style={{ flex: 1 }}>
+                      <div style={styles.cartItemName}>{item.nombre}</div>
+                      <div style={styles.cartItemPrice}>
+                        {item.cantidad} x {formatLempiras(item.precioUnitario)}
+                      </div>
+                    </div>
+
+                    <div style={styles.quantityControls}>
+                      <button
+                        type="button"
+                        onClick={() => modificarCantidad(item.productoId, -1)}
+                        style={styles.qtyBtn}
+                      >
+                        <Minus size={13} strokeWidth={3} />
+                      </button>
+                      <span style={styles.qtyText}>{item.cantidad}</span>
+                      <button
+                        type="button"
+                        onClick={() => modificarCantidad(item.productoId, 1)}
+                        style={styles.qtyBtn}
+                      >
+                        <Plus size={13} strokeWidth={3} />
+                      </button>
+                    </div>
+
+                    <div style={styles.itemSubtotal}>
+                      {formatLempiras(item.cantidad * item.precioUnitario)}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => eliminarDelCarrito(item.productoId)}
+                      style={styles.deleteBtn}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Sección de Descuento y Autorización */}
+            <div style={styles.descuentoSection}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700, fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Percent size={13} color="var(--color-primary)" /> APLICAR DESCUENTO (%)
+                </label>
+                <span style={{ fontSize: '10px', color: '#78716C' }}>Límite cajero: {descuentoMaximoPermitido}%</span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={descuentoPorcentaje}
+                  onChange={(e) => {
+                    setDescuentoPorcentaje(Math.min(100, Math.max(0, Number(e.target.value))));
+                    setMensajeEstado(null);
+                  }}
+                  className="form-input"
+                  style={{ padding: '6px 10px', fontSize: '13px', width: '90px', fontWeight: 800 }}
+                />
+                {montoDescuento > 0 && (
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#DC2626' }}>
+                    -{formatLempiras(montoDescuento)}
+                  </span>
+                )}
+              </div>
+
+              {esDescuentoExcedido && (
+                <div style={styles.alertaDescuentoBox}>
+                  <ShieldAlert size={16} color="#DC2626" />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: '11px', color: '#991B1B' }}>
+                      DESCUENTO EXCEDE TU LÍMITE PERMITIDO ({descuentoMaximoPermitido}%)
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#B91C1C', marginTop: '2px' }}>
+                      Requiere aprobación en tiempo real de un Administrador.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {mensajeEstado && (
+                <div style={{ ...styles.alertaDescuentoBox, backgroundColor: mensajeEstado.includes('APROBADO') ? '#DCFCE7' : '#FEE2E2', borderColor: mensajeEstado.includes('APROBADO') ? '#15803D' : '#EF4444' }}>
+                  <div style={{ fontWeight: 700, fontSize: '11px', color: mensajeEstado.includes('APROBADO') ? '#15803D' : '#991B1B' }}>
+                    {mensajeEstado}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Totales Fiscales */}
+            <div style={styles.totalsSection}>
+              <div style={styles.totalRow}>
+                <span style={styles.totalLabel}>SUBTOTAL BRUTO:</span>
+                <span style={styles.totalVal}>{formatLempiras(subtotalBruto)}</span>
+              </div>
+              {montoDescuento > 0 && (
+                <div style={styles.totalRow}>
+                  <span style={{ ...styles.totalLabel, color: '#DC2626' }}>DESCUENTO ({descuentoPorcentaje}%):</span>
+                  <span style={{ ...styles.totalVal, color: '#DC2626' }}>-{formatLempiras(montoDescuento)}</span>
+                </div>
+              )}
+              <div style={styles.totalRow}>
+                <span style={styles.totalLabel}>ISV (15%):</span>
+                <span style={styles.totalVal}>{formatLempiras(isv)}</span>
+              </div>
+              <div style={{ ...styles.totalRow, ...styles.grandTotalRow }}>
+                <span style={styles.grandTotalLabel}>TOTAL A PAGAR:</span>
+                <span style={styles.grandTotalVal}>{formatLempiras(total)}</span>
+              </div>
+            </div>
+
+            {/* Método de Pago */}
+            <div style={styles.paymentMethods}>
+              <button
+                type="button"
+                onClick={() => setMetodoPago('EFECTIVO')}
+                style={{
+                  ...styles.payBtn,
+                  ...(metodoPago === 'EFECTIVO' ? styles.payBtnActive : {}),
+                }}
+              >
+                <Banknote size={16} strokeWidth={2.5} /> EFECTIVO
+              </button>
+              <button
+                type="button"
+                onClick={() => setMetodoPago('TARJETA')}
+                style={{
+                  ...styles.payBtn,
+                  ...(metodoPago === 'TARJETA' ? styles.payBtnActive : {}),
+                }}
+              >
+                <CreditCard size={16} strokeWidth={2.5} /> TARJETA
+              </button>
+            </div>
+
+            {/* Botón de Cobro o Solicitar Autorización */}
+            {esDescuentoExcedido ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSolicitarAutorizacion}
+                disabled={esperandoAutorizacion}
+                style={{ ...styles.checkoutBtn, backgroundColor: '#DC2626', borderColor: '#B91C1C' }}
+              >
+                {esperandoAutorizacion ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    <span>ESPERANDO APROBACIÓN ADMIN...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldAlert size={18} />
+                    <span>SOLICITAR AUTORIZACIÓN A ADMIN</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleCobrar}
+                disabled={cart.length === 0}
+                style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1 }}
+              >
+                <CheckCircle size={20} strokeWidth={2.5} />
+                <span>COBRAR {formatLempiras(total)}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Modal de Comprobante / Ticket Generado */}
+      {modalTicket && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={styles.ticketModal}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalTicket(false);
+                  setCart([]);
+                }}
+                style={styles.closeBtn}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Ticket Impreso con Branding del Tenant */}
+            <div style={styles.printableTicket}>
+              <div style={styles.ticketBrandHeader}>
+                <div style={{ ...styles.ticketLogo, color: 'var(--color-primary)' }}>
+                  FERRESYSTEM POS
+                </div>
+                <div style={styles.ticketTenantName}>{tenant.nombreComercial}</div>
+                <div style={styles.ticketMeta}>RTN: 05019002345678 • Tel: +504 2550-1234</div>
+                <div style={styles.ticketMeta}>Honduras • Moneda: Lempiras (HNL)</div>
+              </div>
+
+              <div style={styles.ticketDashed} />
+
+              <div style={styles.ticketFacturaMeta}>
+                <div><strong>COMPROBANTE DE VENTA</strong></div>
+                <div>Factura N°: <strong>V-{numeroVentaGenerado}</strong></div>
+                <div>Fecha: 25/09/2026 01:25 PM</div>
+                <div>Cajero: {user?.nombre || 'Carlos Ramos'}</div>
+                <div>Cliente: {clienteNombre}</div>
+                {clienteRtn && <div>RTN Cliente: {clienteRtn}</div>}
+              </div>
+
+              <div style={styles.ticketDashed} />
+
+              <table style={styles.ticketTable}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>DESCRIPCIÓN</th>
+                    <th style={{ textAlign: 'center' }}>CANT</th>
+                    <th style={{ textAlign: 'right' }}>TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cart.map((i) => (
+                    <tr key={i.productoId}>
+                      <td style={{ textAlign: 'left' }}>{i.nombre}</td>
+                      <td style={{ textAlign: 'center' }}>{i.cantidad}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatLempiras(i.cantidad * i.precioUnitario)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div style={styles.ticketDashed} />
+
+              <div style={styles.ticketTotals}>
+                <div>Subtotal: {formatLempiras(subtotal)}</div>
+                <div>ISV (15%): {formatLempiras(isv)}</div>
+                <div style={{ fontSize: '15px', fontWeight: 900, marginTop: '4px' }}>
+                  TOTAL PAGADO: {formatLempiras(total)}
+                </div>
+                <div style={{ fontSize: '11px', marginTop: '2px' }}>
+                  Método de Pago: {metodoPago}
+                </div>
+              </div>
+
+              <div style={styles.ticketDashed} />
+
+              <div style={{ textAlign: 'center', fontSize: '10px', color: '#78716C', marginTop: '10px' }}>
+                ¡Gracias por su compra! • FerreSystem
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '20px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (!numeroVentaGenerado) return;
+                  await descargarReciboPDF(
+                    {
+                      tipo: 'VENTA',
+                      numeroDocumento: numeroVentaGenerado,
+                      fechaEmision: new Date().toLocaleDateString('es-HN'),
+                      clienteNombre: clienteNombre || 'Consumidor Final',
+                      clienteRtn: clienteRtn || undefined,
+                      vendedorNombre: user?.nombre || 'Cajero',
+                      metodoPago,
+                      items: cart.map((item) => ({
+                        codigo: item.codigo,
+                        descripcion: item.nombre,
+                        cantidad: item.cantidad,
+                        precioUnitario: item.precioUnitario,
+                        subtotal: item.cantidad * item.precioUnitario,
+                        totalLinea: item.cantidad * item.precioUnitario,
+                      })),
+                      subtotal,
+                      descuento: montoDescuento,
+                      isv,
+                      total,
+                      tenant,
+                    },
+                    `Venta-${numeroVentaGenerado}.pdf`
+                  );
+                }}
+                style={{ flex: '1 1 100%', backgroundColor: tenant.colorPrimario, borderColor: tenant.colorPrimario }}
+              >
+                <Download size={16} strokeWidth={2.4} /> DESCARGAR COMPROBANTE
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => window.print()}
+                style={{ flex: 1 }}
+              >
+                <Printer size={16} strokeWidth={2.4} /> IMPRIMIR TICKET
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setModalTicket(false);
+                  setCart([]);
+                }}
+                style={{ flex: 1 }}
+              >
+                NUEVA VENTA
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const styles: Record<string, React.CSSProperties> = {
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: 1,
+    minHeight: '100vh',
+    backgroundColor: 'var(--color-bg)',
+  },
+  content: {
+    padding: '24px 32px 48px',
+    maxWidth: '1400px',
+    width: '100%',
+  },
+  posGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1.4fr 1fr',
+    gap: '24px',
+    alignItems: 'start',
+  },
+  catalogColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+  },
+  searchBox: {
+    position: 'relative',
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: '12px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: '#78716C',
+  },
+  catalogGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+    gap: '14px',
+  },
+  productCard: {
+    padding: '16px 14px',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    minHeight: '130px',
+    userSelect: 'none',
+  },
+  skuBadge: {
+    fontFamily: 'var(--font-display)',
+    fontWeight: 800,
+    fontSize: '10px',
+    color: '#78716C',
+    textTransform: 'uppercase',
+  },
+  productName: {
+    fontFamily: 'var(--font-display)',
+    fontWeight: 700,
+    fontSize: '13px',
+    lineHeight: 1.25,
+    margin: '6px 0',
+    color: 'var(--color-text-main)',
+  },
+  priceRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 'auto',
+  },
+  priceText: {
+    fontFamily: 'var(--font-display)',
+    fontWeight: 900,
+    fontSize: '15px',
+    color: 'var(--color-primary)',
+  },
+  stockText: {
+    fontSize: '11px',
+    color: '#78716C',
+    fontWeight: 600,
+  },
+  cartColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '20px',
+  },
+  cartHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: '12px',
+    borderBottom: '2px solid var(--color-border)',
+  },
+  cartTitle: {
+    fontFamily: 'var(--font-display)',
+    fontWeight: 900,
+    fontSize: '14px',
+    letterSpacing: '0.04em',
+  },
+  clientSection: {
+    padding: '12px 0',
+    borderBottom: '1px solid var(--color-border-subtle)',
+  },
+  cartItemsList: {
+    minHeight: '220px',
+    maxHeight: '340px',
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    padding: '10px 0',
+  },
+  emptyCart: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '200px',
+    color: '#78716C',
+  },
+  cartItemRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '8px 10px',
+    backgroundColor: '#FAFAF9',
+    border: '1px solid var(--color-border-subtle)',
+    borderRadius: 'var(--radius-xs)',
+  },
+  cartItemName: {
+    fontFamily: 'var(--font-display)',
+    fontWeight: 700,
+    fontSize: '12px',
+    lineHeight: 1.2,
+  },
+  cartItemPrice: {
+    fontSize: '11px',
+    color: '#78716C',
+    marginTop: '2px',
+  },
+  quantityControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  },
+  qtyBtn: {
+    width: '24px',
+    height: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#FFFFFF',
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-xs)',
+    cursor: 'pointer',
+  },
+  qtyText: {
+    fontFamily: 'var(--font-display)',
+    fontWeight: 800,
+    fontSize: '13px',
+    minWidth: '18px',
+    textAlign: 'center',
+  },
+  itemSubtotal: {
+    fontFamily: 'var(--font-display)',
+    fontWeight: 800,
+    fontSize: '13px',
+    minWidth: '70px',
+    textAlign: 'right',
+  },
+  deleteBtn: {
+    background: 'none',
+    border: 'none',
+    color: '#DC2626',
+    cursor: 'pointer',
+    padding: '4px',
+  },
+  descuentoSection: {
+    padding: '10px 0',
+    borderTop: '1px solid var(--color-border-subtle)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  alertaDescuentoBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 10px',
+    backgroundColor: '#FEE2E2',
+    border: '1.5px solid #EF4444',
+    borderRadius: 'var(--radius-xs)',
+    marginTop: '4px',
+  },
+  totalsSection: {
+    borderTop: '2px solid var(--color-border)',
+    paddingTop: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  totalRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '12px',
+    fontWeight: 600,
+  },
+  totalLabel: {
+    color: '#78716C',
+  },
+  totalVal: {
+    fontFamily: 'var(--font-display)',
+    fontWeight: 700,
+  },
+  grandTotalRow: {
+    borderTop: '1px dashed var(--color-border)',
+    paddingTop: '8px',
+    marginTop: '4px',
+    alignItems: 'baseline',
+  },
+  grandTotalLabel: {
+    fontFamily: 'var(--font-display)',
+    fontWeight: 900,
+    fontSize: '14px',
+  },
+  grandTotalVal: {
+    fontFamily: 'var(--font-display)',
+    fontWeight: 900,
+    fontSize: '22px',
+    color: 'var(--color-primary)',
+  },
+  paymentMethods: {
+    display: 'flex',
+    gap: '8px',
+    margin: '14px 0 12px',
+  },
+  payBtn: {
+    flex: 1,
+    padding: '8px',
+    fontFamily: 'var(--font-display)',
+    fontWeight: 700,
+    fontSize: '11px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    border: '1.5px solid var(--color-border)',
+    borderRadius: 'var(--radius-xs)',
+    backgroundColor: '#FFFFFF',
+    cursor: 'pointer',
+  },
+  payBtnActive: {
+    backgroundColor: 'var(--color-sidebar-bg)',
+    color: '#FFFFFF',
+  },
+  checkoutBtn: {
+    width: '100%',
+    padding: '14px',
+    fontSize: '15px',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
+    padding: '20px',
+  },
+  ticketModal: {
+    width: '100%',
+    maxWidth: '420px',
+    backgroundColor: '#FFFFFF',
+  },
+  closeBtn: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+  },
+  printableTicket: {
+    fontFamily: 'monospace',
+    padding: '12px 8px',
+  },
+  ticketBrandHeader: {
+    textAlign: 'center',
+    marginBottom: '8px',
+  },
+  ticketLogo: {
+    fontWeight: 900,
+    fontSize: '16px',
+    letterSpacing: '0.05em',
+  },
+  ticketTenantName: {
+    fontWeight: 700,
+    fontSize: '13px',
+    marginTop: '2px',
+  },
+  ticketMeta: {
+    fontSize: '10px',
+    color: '#555',
+  },
+  ticketDashed: {
+    borderBottom: '1px dashed #78716C',
+    margin: '8px 0',
+  },
+  ticketFacturaMeta: {
+    fontSize: '11px',
+    lineHeight: 1.4,
+  },
+  ticketTable: {
+    width: '100%',
+    fontSize: '11px',
+    borderCollapse: 'collapse',
+    margin: '4px 0',
+  },
+  ticketTotals: {
+    textAlign: 'right',
+    fontSize: '12px',
+    lineHeight: 1.5,
+  },
+};
