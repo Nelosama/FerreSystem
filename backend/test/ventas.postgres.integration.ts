@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { createServer } from 'node:net';
@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { VentasService } from '../src/ventas/ventas.service';
 import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
 import { ProductosService } from '../src/productos/productos.service';
+import { ClientesService } from '../src/clientes/clientes.service';
 
 // Nunca lee DATABASE_URL: crea un clúster exclusivo, sin migraciones ni datos existentes.
 const bin = process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/18/bin' : '/usr/bin';
@@ -37,11 +38,25 @@ describe('Ventas / PostgreSQL aislado', () => {
     started = true;
     execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port}`, '-w', 'start'], { windowsHide: true, timeout: 30000, stdio: 'ignore' });
     started = true;
-    // Generación de DDL offline desde el schema actual, sin ejecutar migrate ni db push.
+    // Reproduce una base existente anterior a la numeración, exclusivamente local.
     console.log('PostgreSQL temporal: schema offline');
-    const ddl = execFileSync(process.execPath, [resolve('node_modules/prisma/build/index.js'), 'migrate', 'diff', '--from-empty', '--to-schema-datamodel', resolve('prisma/schema.prisma'), '--script'], { windowsHide: true, timeout: 30000 });
+    const oldSchema = readFileSync(resolve('prisma/schema.prisma'), 'utf8')
+      .replace(/^.*secuenciaCliente SecuenciaCliente\?.*\r?\n/m, '')
+      .replace(/^.*numeroCliente Int.*\r?\n/m, '')
+      .replace(/^.*@@unique\(\[tenantId, numeroCliente\]\).*\r?\n/m, '')
+      .replace(/\r?\nmodel SecuenciaCliente \{[\s\S]*?\r?\n\}/, '');
+    writeFileSync(join(directory, 'old-schema.prisma'), oldSchema);
+    const ddl = execFileSync(process.execPath, [resolve('node_modules/prisma/build/index.js'), 'migrate', 'diff', '--from-empty', '--to-schema-datamodel', join(directory, 'old-schema.prisma'), '--script'], { windowsHide: true, timeout: 30000 });
     writeFileSync(join(directory, 'schema.sql'), ddl);
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', join(directory, 'schema.sql')], { windowsHide: true, timeout: 30000 });
+    const legacyData = `INSERT INTO tenants (id, nombre_comercial, updated_at) VALUES ('legacy-A', 'Empresa A', NOW()), ('legacy-B', 'Empresa B', NOW());
+      INSERT INTO clientes (id, tenant_id, nombre, rtn, telefono, created_at, updated_at) VALUES
+      ('legacy-client-1', 'legacy-A', 'Cliente anterior 1', '08011999000001', '+504 9999-0000', '2026-01-01', '2026-01-01'),
+      ('legacy-client-2', 'legacy-A', 'Cliente anterior 2', NULL, NULL, '2026-01-02', '2026-01-02'),
+      ('legacy-client-3', 'legacy-B', 'Cliente otra empresa', NULL, NULL, '2026-01-01', '2026-01-01');`;
+    writeFileSync(join(directory, 'legacy-data.sql'), legacyData);
+    execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', join(directory, 'legacy-data.sql')], { windowsHide: true, timeout: 30000 });
+    execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261002000000_add_customer_numbers/migration.sql')], { windowsHide: true, timeout: 30000 });
     databaseUrl = `postgresql://postgres@127.0.0.1:${port}/postgres?connection_limit=8`;
     prisma = new PrismaService({ datasources: { db: { url: databaseUrl } } });
     console.log('PostgreSQL temporal: Prisma connect');
@@ -65,6 +80,32 @@ describe('Ventas / PostgreSQL aislado', () => {
   });
 
   const request = (cantidad = 2.75) => ({ detalles: [{ productoId, cantidad, precioUnitario: 10 }] });
+
+  it('la migración numera clientes existentes sin modificar sus datos y soporta inserts de la API anterior', async () => {
+    const clients = await prisma.cliente.findMany({ where: { tenantId: 'legacy-A' }, orderBy: { numeroCliente: 'asc' } });
+    expect(clients.map((client) => [client.id, client.numeroCliente])).toEqual([['legacy-client-1', 1], ['legacy-client-2', 2]]);
+    expect(clients[0]).toMatchObject({ nombre: 'Cliente anterior 1', rtn: '08011999000001', telefono: '+504 9999-0000' });
+    expect((await prisma.cliente.findUniqueOrThrow({ where: { id: 'legacy-client-3' } })).numeroCliente).toBe(1);
+    await prisma.$executeRaw`INSERT INTO clientes (id, tenant_id, nombre, updated_at) VALUES ('old-api-insert', 'legacy-A', 'API anterior', NOW())`;
+    expect((await prisma.cliente.findUniqueOrThrow({ where: { id: 'old-api-insert' } })).numeroCliente).toBe(3);
+  });
+
+  it('altas concurrentes asignan números únicos, no reutilizan eliminados y no permiten modificarlos', async () => {
+    const service = new ClientesService(prisma);
+    const clients = await Promise.all(Array.from({ length: 8 }, (_, index) => service.create(tenantId, { nombre: `Cliente ${index}` })));
+    expect(clients.map((client) => client.numeroCliente).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    const last = clients.find((client) => client.numeroCliente === 8)!;
+    await service.delete(tenantId, last.id);
+    const next = await service.create(tenantId, { nombre: 'Nuevo' });
+    expect(next.numeroCliente).toBe(9);
+    expect((await service.update(tenantId, next.id, { nombre: 'Renombrado' })).numeroCliente).toBe(9);
+    await expect(prisma.cliente.update({ where: { id: next.id }, data: { numeroCliente: 8 } })).rejects.toThrow('no se pueden cambiar');
+    await expect(prisma.cliente.create({ data: { tenantId, nombre: 'Número manual', numeroCliente: 99 } })).rejects.toThrow('automáticamente');
+    expect((await service.findAll(tenantId, 'CLI-000009', 12)).map((client) => client.id)).toEqual([next.id]);
+    expect((await service.findAll(tenantId, '000009', 12)).map((client) => client.id)).toEqual([next.id]);
+    const other = await service.create('legacy-B', { nombre: 'Otro tenant' });
+    expect(other.numeroCliente).toBe(2);
+  });
 
   it('la API compilada arranca en producción con PostgreSQL y aplica autenticación real', async () => {
     const output = join(directory, 'compiled-api');
@@ -117,6 +158,23 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(0);
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
     expect((await prisma.secuenciaTenant.findFirstOrThrow({ where: { tenantId, tipo: 'VENTA' } })).ultimoNumero).toBe(1);
+  });
+
+  it('busca clientes por ID, RTN y teléfono formateados, aislados por tenant, y vincula la cotización', async () => {
+    const clientes = new ClientesService(prisma);
+    const cliente = await prisma.cliente.create({ data: { tenantId, nombre: 'Ana', rtn: '0801-1999-000001', telefono: '+504 9999-0000', direccion: 'Centro' } });
+    const otro = await prisma.tenant.create({ data: { nombreComercial: 'Ajeno' } });
+    await prisma.cliente.create({ data: { tenantId: otro.id, nombre: 'Cliente ajeno', rtn: cliente.rtn, telefono: cliente.telefono } });
+    for (const search of [cliente.id, '08011999000001', '99990000', '(9999) 0000']) {
+      expect((await clientes.findAll(tenantId, search, 12)).map((item) => item.id)).toEqual([cliente.id]);
+    }
+    const cot = await cotizaciones.create(tenantId, usuarioId, { ...request(1), clienteId: cliente.id });
+    expect(cot.clienteId).toBe(cliente.id);
+    expect(cot.clienteNombre).toBe('Ana');
+    expect((await cotizaciones.update(tenantId, cot.id, request(1))).clienteId).toBe(cliente.id);
+    const manual = await cotizaciones.update(tenantId, cot.id, { ...request(1), clienteId: null, clienteNombre: 'Manual' });
+    expect(manual.clienteId).toBeNull();
+    expect(manual.clienteNombre).toBe('Manual');
   });
 
   it('POS y conversión de cotización compiten por el mismo stock sin negativo', async () => {

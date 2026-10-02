@@ -15,6 +15,7 @@ const evaluate = (file, mocks, globals = {}) => {
   const context = { exports: {}, console, ...globals, require: (name) => {
     if (name in mocks) return mocks[name];
     if (name.endsWith('/unidadMedida')) return evaluate('src/utils/unidadMedida.ts', {});
+    if (name.endsWith('/numeroCliente')) return evaluate('src/utils/numeroCliente.ts', {});
     return new Proxy({}, { get: (_, key) => String(key) });
   } };
   const source = fs.readFileSync(file, 'utf8');
@@ -25,11 +26,11 @@ const evaluate = (file, mocks, globals = {}) => {
 
 const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
   let cursor = 0, root;
-  const states = [], dependencies = [], effects = [];
+  const states = [], dependencies = [], effects = [], cleanups = [];
   const react = {
     useState(initial) { const i = cursor++; if (!(i in states)) states[i] = typeof initial === 'function' ? initial() : initial; return [states[i], (next) => { states[i] = typeof next === 'function' ? next(states[i]) : next; }]; },
     useRef(initial) { const i = cursor++; return states[i] ?? (states[i] = { current: initial }); },
-    useEffect(fn, deps) { const i = cursor++; if (!dependencies[i] || deps?.some((value, index) => value !== dependencies[i][index])) { dependencies[i] = deps; effects.push(fn); } },
+    useEffect(fn, deps) { const i = cursor++; if (!dependencies[i] || deps?.some((value, index) => value !== dependencies[i][index])) { dependencies[i] = deps; effects.push([i, fn]); } },
     useCallback(fn) { cursor++; return fn; },
     useMemo(fn) { cursor++; return fn(); },
     createElement(type, props, ...children) { return { type, props: props || {}, children: children.flat(Infinity) }; },
@@ -44,7 +45,8 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     '../utils/format': { formatLempiras: String },
     ...overrides,
   };
-  const component = evaluate(file, mocks, { localStorage: sharedStorage, crypto: webcrypto, alert() {} })[name];
+  const component = evaluate(file, mocks, { localStorage: sharedStorage, crypto: webcrypto, alert() {},
+    setTimeout: (fn, delay) => setTimeout(fn, delay).unref(), clearTimeout })[name];
   const nodes = () => {
     const found = [];
     const walk = (node) => { if (!node || typeof node !== 'object') return; found.push(node); (node.children || []).forEach(walk); };
@@ -53,7 +55,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
   return {
     render(props = {}) { cursor = 0; root = component(props); return nodes(); },
     find(predicate) { return nodes().find(predicate); },
-    async effects() { const queued = effects.splice(0); for (const fn of queued) await fn(); await new Promise((resolve) => setImmediate(resolve)); },
+    async effects() { const queued = effects.splice(0); for (const [i, fn] of queued) { cleanups[i]?.(); cleanups[i] = await fn(); } await new Promise((resolve) => setImmediate(resolve)); },
   };
 };
 
@@ -161,4 +163,62 @@ test('editar cotización recupera porcentajes desde los montos guardados', async
   const percentageInputs = nodes.filter((n) => n.type === 'input' && n.props.type === 'number').map((n) => n.props.value);
   assert.ok(percentageInputs.includes(25));
   assert.ok(percentageInputs.includes(10));
+});
+
+test('selector busca por teléfono y descarta respuestas de búsquedas anteriores', async () => {
+  const pending = [];
+  const selected = [];
+  const page = harness('src/components/ClientePicker.tsx', 'ClientePicker', {
+    '../utils/api': { api: { get: (url, config) => new Promise((resolve) => pending.push({ url, config, resolve })) } },
+  });
+  const props = { onSelect: (client) => selected.push(client) };
+  page.render(props); await page.effects();
+  await new Promise((resolve) => setTimeout(resolve, 280));
+  page.find((node) => node.props.id === 'quotation-client-search').props.onChange({ target: { value: '99990000' } });
+  page.render(props); await page.effects();
+  await new Promise((resolve) => setTimeout(resolve, 280));
+  assert.equal(pending[1].url, '/clientes');
+  assert.equal(pending[1].config.params.search, '99990000');
+  assert.equal(pending[1].config.params.limit, 12);
+  const client = { id: 'client-2', numeroCliente: 12, nombre: 'Cliente correcto', telefono: '+504 9999-0000' };
+  pending[1].resolve({ data: [client] }); await page.effects(); page.render(props);
+  pending[0].resolve({ data: [{ id: 'old', nombre: 'Respuesta antigua' }] }); await page.effects();
+  const nodes = page.render(props);
+  assert.ok(nodes.some((node) => node.children.includes('CLI-000012')));
+  assert.ok(!nodes.some((node) => node.children.includes('Respuesta antigua')));
+  page.find((node) => node.type === 'button' && node.props.onClick?.toString().includes('onSelect(cliente)')).props.onClick();
+  assert.equal(selected[0].id, client.id);
+});
+
+test('número de cliente se presenta sin exponer UUID y admite más de seis dígitos', () => {
+  const { formatNumeroCliente } = evaluate('src/utils/numeroCliente.ts', {});
+  assert.equal(formatNumeroCliente(1), 'CLI-000001');
+  assert.equal(formatNumeroCliente(1000000), 'CLI-1000000');
+  assert.equal(formatNumeroCliente(null), '—');
+});
+
+test('seleccionar cliente completa datos y guarda su ID; ingreso manual desvincula', async () => {
+  const saved = [];
+  const cot = { id: 'cot-client', numeroCotizacion: 2, clienteNombre: 'Anterior', clienteId: 'old-client', estado: 'BORRADOR', createdAt: '2026-10-02', fechaValidez: '2026-10-17', subtotal: 10, total: 11.5,
+    detalles: [{ productoId: 'p1', cantidad: 1, medida: 1, totalMedida: 1, precioUnitario: 10, descuento: 0, tipoDescuento: 'MONTO', subtotal: 10 }] };
+  const page = harness('src/pages/CotizacionesPage.tsx', 'CotizacionesPage', {
+    '../utils/api': { api: { get: async (url) => ({ data: url === '/cotizaciones' ? [cot] : [] }), put: async (url, body) => { saved.push(body); } } },
+  });
+  page.render(); await page.effects(); page.render();
+  const open = () => page.find((node) => node.props.onClick?.toString().includes('handleAbrirEditar')).props.onClick();
+  open(); page.render();
+  assert.ok(page.find((node) => node.props.value === 'Anterior' && node.props.readOnly));
+  page.find((node) => node.type === 'button' && node.children.some((value) => typeof value === 'string' && value.startsWith('clientPicker.change'))).props.onClick();
+  page.render();
+  const client = { id: 'client-2', nombre: 'Ana', rtn: '08011999000001', telefono: '+504 9999-0000', email: 'ana@example.test', direccion: 'Centro' };
+  page.find((node) => node.props.onSelect).props.onSelect(client);
+  let nodes = page.render();
+  for (const value of [client.nombre, client.rtn, client.telefono, client.email, client.direccion]) assert.ok(nodes.some((node) => node.props.value === value && node.props.readOnly));
+  await page.find((node) => node.type === 'button' && node.props.onClick?.toString().includes("handleGuardarFormulario('BORRADOR')")).props.onClick();
+  assert.equal(saved[0].clienteId, client.id);
+  page.render(); open(); page.render();
+  page.find((node) => node.type === 'button' && node.children.some((value) => typeof value === 'string' && value.startsWith('clientPicker.change'))).props.onClick();
+  page.render();
+  await page.find((node) => node.type === 'button' && node.props.onClick?.toString().includes("handleGuardarFormulario('BORRADOR')")).props.onClick();
+  assert.equal(saved[1].clienteId, null);
 });

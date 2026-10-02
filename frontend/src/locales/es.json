@@ -332,7 +332,7 @@
       "operations": "OPERACIONES",
       "customers": "CLIENTES"
     }
-  },
+  },
   "operational": {
     "items": "ITEMS",
     "limite_cajero": "Límite cajero:",
@@ -495,5 +495,19 @@
     "firma_supervisor_gerencia": "FIRMA SUPERVISOR / GERENCIA",
     "aprobado_y_conforme": "Aprobado y Conforme",
     "imprimir_cierre_pdf": "IMPRIMIR CIERRE (PDF)"
+  },
+  "clientPicker": {
+    "label": "Buscar cliente existente",
+    "placeholder": "Número de cliente, nombre, RTN o teléfono",
+    "loading": "Buscando clientes...",
+    "error": "No se pudieron consultar los clientes.",
+    "retry": "Reintentar",
+    "empty": "No se encontraron clientes. Puede ingresar los datos manualmente.",
+    "noPhone": "Sin teléfono",
+    "manualHint": "Seleccione un cliente para completar sus datos, o ingréselos manualmente abajo.",
+    "selected": "Cliente seleccionado: {nombre}",
+    "change": "Cambiar cliente o ingresar datos manualmente",
+    "numberLabel": "Número de cliente",
+    "numberAutomatic": "El número de cliente se asignará automáticamente al guardar."
   }
 }

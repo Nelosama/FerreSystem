@@ -125,6 +125,7 @@ export interface QuotationDetailItem {
 
 export interface QuotationItem {
   id: string;
+  clienteId?: string | null;
   numero: number;
   numeroCotizacion?: number;
   cliente: string;

@@ -11,8 +11,10 @@ export class ClientesController {
   constructor(private readonly clientesService: ClientesService) {}
 
   @Get()
-  async findAll(@TenantId() tenantId: string, @Query('search') search?: string) {
-    return this.clientesService.findAll(tenantId, search);
+  async findAll(@TenantId() tenantId: string, @Query('search') search?: string, @Query('limit') limit?: string) {
+    const parsedLimit = Number(limit);
+    const take = limit && Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : undefined;
+    return this.clientesService.findAll(tenantId, search, take);
   }
 
   @Get(':id')

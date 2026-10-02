@@ -6,20 +6,41 @@ import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
 export class ClientesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(tenantId: string, search?: string) {
+  async findAll(tenantId: string, search?: string, limit?: number) {
     const where: any = { tenantId };
+    const query = search?.trim();
 
-    if (search) {
+    if (query) {
       where.OR = [
-        { nombre: { contains: search, mode: 'insensitive' } },
-        { rtn: { contains: search, mode: 'insensitive' } },
-        { telefono: { contains: search, mode: 'insensitive' } },
+        { nombre: { contains: query, mode: 'insensitive' } },
+        { id: { contains: query, mode: 'insensitive' } },
+        { rtn: { contains: query, mode: 'insensitive' } },
+        { telefono: { contains: query, mode: 'insensitive' } },
       ];
+      const numberMatch = query.match(/^(?:CLI[-\s]*)?0*(\d+)$/i);
+      if (numberMatch) {
+        const number = Number(numberMatch[1]);
+        if (Number.isSafeInteger(number) && number > 0 && number <= 2147483647) {
+          where.OR.push({ numeroCliente: number });
+        }
+      }
+      // Aceptar teléfonos/RTN con o sin espacios, guiones y código de país.
+      const digits = query.replace(/\D/g, '');
+      if (digits && /^[\d\s()+.-]+$/.test(query)) {
+        const matches = await this.prisma.$queryRaw<{ id: string }[]>`
+          SELECT id FROM clientes WHERE tenant_id = ${tenantId} AND (
+            regexp_replace(COALESCE(telefono, ''), '[^0-9]', '', 'g') LIKE ${'%' + digits + '%'}
+            OR regexp_replace(COALESCE(rtn, ''), '[^0-9]', '', 'g') LIKE ${'%' + digits + '%'}
+          ) ORDER BY nombre ASC LIMIT ${limit || 2147483647}
+        `;
+        where.OR.push({ id: { in: matches.map((cliente) => cliente.id) } });
+      }
     }
 
     return this.prisma.cliente.findMany({
       where,
       orderBy: { nombre: 'asc' },
+      ...(limit ? { take: limit } : {}),
     });
   }
 

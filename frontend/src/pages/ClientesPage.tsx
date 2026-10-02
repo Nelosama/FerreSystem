@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { TopBar } from '../components/TopBar';
 import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
+import { formatNumeroCliente } from '../utils/numeroCliente';
 import {
   Users,
   Search,
@@ -20,6 +21,7 @@ import {
 
 export interface Cliente {
   id: string;
+  numeroCliente?: number;
   nombre: string;
   rtn?: string | null;
   telefono?: string | null;
@@ -181,7 +183,7 @@ export const ClientesPage: React.FC = () => {
             <Search size={18} strokeWidth={2.4} style={styles.searchIcon} />
             <input
               type="text"
-              placeholder="Buscar cliente por nombre, RTN o teléfono..."
+              placeholder={t('clientPicker.placeholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="form-input"
@@ -206,6 +208,7 @@ export const ClientesPage: React.FC = () => {
             <table className="industrial-table">
               <thead>
                 <tr>
+                  <th>{t('clientPicker.numberLabel')}</th>
                   <th>NOMBRE DEL CLIENTE</th>
                   <th>RTN / ID FISCAL</th>
                   <th>CONTACTO</th>
@@ -217,13 +220,14 @@ export const ClientesPage: React.FC = () => {
               <tbody>
                 {clientes.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-muted)' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-muted)' }}>
                       No se encontraron clientes registrados.
                     </td>
                   </tr>
                 ) : (
                   clientes.map((c) => (
                     <tr key={c.id}>
+                      <td style={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatNumeroCliente(c.numeroCliente)}</td>
                       <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <UserCheck size={16} color="var(--color-primary)" />
@@ -313,6 +317,7 @@ export const ClientesPage: React.FC = () => {
             )}
 
             <form onSubmit={handleGuardarCliente} style={{ marginTop: '16px' }}>
+              <p>{clienteEditando ? `${t('clientPicker.numberLabel')}: ${formatNumeroCliente(clienteEditando.numeroCliente)}` : t('clientPicker.numberAutomatic')}</p>
               <div className="form-group">
                 <label className="form-label">NOMBRE COMPLETO / RAZÓN SOCIAL *</label>
                 <input

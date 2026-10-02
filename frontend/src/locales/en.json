@@ -332,7 +332,7 @@
       "operations": "OPERATIONS",
       "customers": "CUSTOMERS"
     }
-  },
+  },
   "operational": {
     "items": "ITEMS",
     "limite_cajero": "Cashier limit:",
@@ -495,5 +495,19 @@
     "firma_supervisor_gerencia": "SUPERVISOR / MANAGEMENT SIGNATURE",
     "aprobado_y_conforme": "Approved and Accepted",
     "imprimir_cierre_pdf": "PRINT CLOSING (PDF)"
+  },
+  "clientPicker": {
+    "label": "Find an existing customer",
+    "placeholder": "Customer number, name, tax ID or phone",
+    "loading": "Searching customers...",
+    "error": "Customers could not be loaded.",
+    "retry": "Retry",
+    "empty": "No customers found. You can enter their details manually.",
+    "noPhone": "No phone",
+    "manualHint": "Select a customer to fill in their details, or enter them manually below.",
+    "selected": "Selected customer: {nombre}",
+    "change": "Change customer or enter details manually",
+    "numberLabel": "Customer number",
+    "numberAutomatic": "The customer number will be assigned automatically when saved."
   }
 }

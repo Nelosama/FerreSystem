@@ -26,6 +26,7 @@ import {
 import { formatLempiras } from '../utils/format';
 import { useI18n } from '../context/I18nContext';
 import { descargarReciboPDF } from '../components/ReciboPDF';
+import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
 
 export const CotizacionesPage: React.FC = () => {
   const { tenant, user, isReadOnly } = useTenant();
@@ -43,6 +44,7 @@ export const CotizacionesPage: React.FC = () => {
 
       const formattedCot: QuotationItem[] = resCot.data.map((c: any) => ({
         id: c.id,
+        clienteId: c.clienteId,
         numero: c.numeroCotizacion,
         numeroCotizacion: c.numeroCotizacion,
         cliente: c.clienteNombre || c.cliente?.nombre || 'Consumidor Final',
@@ -108,7 +110,7 @@ export const CotizacionesPage: React.FC = () => {
     } catch (err: any) {
       console.error('Error al cargar cotizaciones y productos desde backend:', err);
     }
-  }, []);
+  }, [tenant?.id]);
 
   useEffect(() => {
     fetchCotizacionesYProductos();
@@ -135,6 +137,7 @@ export const CotizacionesPage: React.FC = () => {
   const [searchProducto, setSearchProducto] = useState('');
 
   // Form State para la Cotización
+  const [formClienteId, setFormClienteId] = useState<string | null>(null);
   const [formClienteNombre, setFormClienteNombre] = useState('');
   const [formClienteRtn, setFormClienteRtn] = useState('');
   const [formClienteTelefono, setFormClienteTelefono] = useState('');
@@ -151,6 +154,10 @@ export const CotizacionesPage: React.FC = () => {
 
   // Tabla interactiva de detalles
   const [formItems, setFormItems] = useState<QuotationDetailItem[]>([]);
+  useEffect(() => {
+    setModalForm(false);
+    setFormClienteId(null);
+  }, [tenant?.id]);
 
   // Notificaciones flotantes
   const mostrarNotificacion = (texto: string, tipo: 'exito' | 'error' = 'exito') => {
@@ -161,6 +168,7 @@ export const CotizacionesPage: React.FC = () => {
   // Abrir formulario para Crear Nueva Cotización
   const handleAbrirNueva = () => {
     setEditingCotizacionId(null);
+    setFormClienteId(null);
     setFormClienteNombre('');
     setFormClienteRtn('');
     setFormClienteTelefono('');
@@ -184,6 +192,7 @@ export const CotizacionesPage: React.FC = () => {
     }
 
     setEditingCotizacionId(cot.id);
+    setFormClienteId(cot.clienteId || null);
     setFormClienteNombre(cot.cliente || '');
     setFormClienteRtn(cot.rtn || '');
     setFormClienteTelefono(cot.telefono || '');
@@ -414,6 +423,15 @@ export const CotizacionesPage: React.FC = () => {
     };
   }, [formItems, formDescuentoGeneral, formTipoDescuentoGeneral, formPorcentajeIsv]);
 
+  const handleSeleccionarCliente = (cliente: ClienteSeleccionable) => {
+    setFormClienteId(cliente.id);
+    setFormClienteNombre(cliente.nombre);
+    setFormClienteRtn(cliente.rtn || '');
+    setFormClienteTelefono(cliente.telefono || '');
+    setFormClienteEmail(cliente.email || '');
+    setFormClienteDireccion(cliente.direccion || '');
+  };
+
   // Guardar Formulario de Cotización
   const handleGuardarFormulario = async (estadoGuardar: 'BORRADOR' | 'ENVIADA') => {
     if (!formClienteNombre.trim()) {
@@ -427,6 +445,7 @@ export const CotizacionesPage: React.FC = () => {
     }
 
     const payloadData = {
+      clienteId: formClienteId,
       clienteNombre: formClienteNombre.trim(),
       clienteRtn: formClienteRtn.trim() || undefined,
       clienteTelefono: formClienteTelefono.trim() || undefined,
@@ -861,6 +880,10 @@ export const CotizacionesPage: React.FC = () => {
               {/* Sección 1: Datos del Cliente */}
               <div style={styles.formSection}>
                 <h3 style={styles.sectionTitle}>{t('operational.1_informacion_del_cliente')}</h3>
+                {formClienteId ? <div style={{ marginBottom: 16 }}>
+                  <p>{t('clientPicker.selected', { nombre: formClienteNombre })}</p>
+                  <button type="button" className="btn btn-secondary" onClick={() => setFormClienteId(null)}>{t('clientPicker.change')}</button>
+                </div> : <ClientePicker onSelect={handleSeleccionarCliente} />}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
                   <div className="form-group">
                     <label className="form-label">{t('operational.cliente_o_razon_social')}</label>
@@ -870,6 +893,7 @@ export const CotizacionesPage: React.FC = () => {
                       required
                       placeholder={t('operational.ej_constructora_del_norte_s_de_r_l')}
                       value={formClienteNombre}
+                      readOnly={Boolean(formClienteId)}
                       onChange={(e) => setFormClienteNombre(e.target.value)}
                     />
                   </div>
@@ -881,6 +905,7 @@ export const CotizacionesPage: React.FC = () => {
                       className="form-input"
                       placeholder="05019000123456"
                       value={formClienteRtn}
+                      readOnly={Boolean(formClienteId)}
                       onChange={(e) => setFormClienteRtn(e.target.value)}
                     />
                   </div>
@@ -892,6 +917,7 @@ export const CotizacionesPage: React.FC = () => {
                       className="form-input"
                       placeholder="+504 9999-0000"
                       value={formClienteTelefono}
+                      readOnly={Boolean(formClienteId)}
                       onChange={(e) => setFormClienteTelefono(e.target.value)}
                     />
                   </div>
@@ -903,6 +929,7 @@ export const CotizacionesPage: React.FC = () => {
                       className="form-input"
                       placeholder="cliente@empresa.hn"
                       value={formClienteEmail}
+                      readOnly={Boolean(formClienteId)}
                       onChange={(e) => setFormClienteEmail(e.target.value)}
                     />
                   </div>
@@ -915,6 +942,7 @@ export const CotizacionesPage: React.FC = () => {
                     className="form-input"
                     placeholder={t('operational.ej_barrio_el_centro_ave_roosevelt_san_pedro_sula')}
                     value={formClienteDireccion}
+                    readOnly={Boolean(formClienteId)}
                     onChange={(e) => setFormClienteDireccion(e.target.value)}
                   />
                 </div>

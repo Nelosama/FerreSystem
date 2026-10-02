@@ -127,6 +127,8 @@ Do not include `prisma db push --accept-data-loss` in production builds: it can 
 
 Production requires `JWT_SECRET`; the API refuses to start without it. Set `DATABASE_URL` for the runtime connection, `DIRECT_URL` for Prisma migration tooling, and `FRONTEND_URL` to the exact allowed frontend origin. Keep their actual values outside this repository.
 
+Customer numbering requires an additive database migration before deploying the new API. Follow [the customer-number deployment procedure](docs/customer-number-deployment.md); the assignment trigger cannot be installed with `db push`.
+
 The demo seed is an explicit development/initialization operation (`npx prisma db seed`) and is blocked when `NODE_ENV=production`.
 
 To replace the platform Super Admin, use the explicit `npm run admin:replace-super-admin` command only after setting `DATABASE_URL`, `SUPER_ADMIN_PASSWORD`, and `CONFIRM_SUPER_ADMIN_REPLACEMENT` out of band. The confirmation value must match the target email. The operation is transactional, aborts if multiple Super Admin records exist, and does not touch tenant users. Never put the password in command history or logs.
