@@ -79,3 +79,70 @@ Ningún levantamiento con conflictos críticos o registros pendientes de sincron
 ## Contexto
 
 Este trabajo está pensado especialmente para el caso de una ferretería que ya opera físicamente pero todavía no posee un inventario digital confiable. El objetivo es permitir que varias personas hagan el conteo físico desde celulares, incluso con conectividad intermitente, y posteriormente convertir ese levantamiento revisado en el inventario inicial real de FerreSystem.
+
+
+## 5. Captura práctica desde celular
+
+### Código de barras y QR
+- Permitir escanear códigos de barras usando la cámara del teléfono.
+- Evaluar lectura de QR cuando aplique al tipo de producto o etiquetado utilizado.
+- Si el código corresponde a un producto existente, recuperarlo inmediatamente para registrar el conteo.
+- Si el código no existe, permitir iniciar el alta del producto desde el levantamiento.
+- Mantener captura manual como alternativa cuando la cámara o el código no estén disponibles.
+
+### Fotografías
+- Permitir tomar una foto del producto durante el levantamiento.
+- Usarla como referencia cuando el producto todavía no pueda identificarse completamente.
+- Permitir dejar el registro pendiente de completar durante la etapa de revisión.
+
+### Productos sin código
+- No exigir código de barras o QR para poder contar un producto.
+- Soportar artículos vendidos o almacenados sin etiquetado individual.
+
+## 6. Unidades, presentaciones y cantidades fraccionarias
+
+El levantamiento debe adaptarse a productos típicos de ferretería.
+
+- Soportar unidad, caja, paquete, metro, pie, libra, galón y otras unidades configurables.
+- Permitir cantidades decimales cuando corresponda.
+- Contemplar que un mismo artículo pueda manejar presentaciones distintas.
+- Evitar conversiones automáticas ambiguas; cualquier equivalencia entre presentaciones debe estar configurada explícitamente.
+
+## 7. Zonas y progreso del levantamiento
+
+- Permitir dividir la tienda en zonas, pasillos, bodegas o secciones.
+- Asignar zonas a usuarios cuando sea útil.
+- Mostrar qué zonas están pendientes, en proceso y terminadas.
+- Mostrar avance general del levantamiento.
+- Mostrar avance por usuario o zona sin utilizarlo para sobrescribir conteos de otros participantes.
+
+## 8. Auditoría y trazabilidad
+
+Conservar evidencia completa del proceso.
+
+- Registrar quién creó cada conteo.
+- Registrar quién lo modificó y cuándo.
+- Registrar valor anterior y valor nuevo en correcciones relevantes.
+- Registrar quién resolvió un conflicto.
+- Registrar quién aprobó y aplicó el levantamiento al inventario.
+- Conservar el levantamiento original aun después de aplicarlo.
+
+## 9. Reconteo y validación
+
+- Permitir marcar artículos para un segundo conteo.
+- Permitir solicitar reconteo cuando exista una diferencia o cantidad sospechosa.
+- Conservar tanto el conteo original como el reconteo para auditoría.
+- Resolver la cantidad definitiva durante la conciliación; no reemplazar silenciosamente el primer conteo.
+
+## 10. Orden sugerido de implementación
+
+Para reducir riesgo, implementar y probar por etapas:
+
+1. Aplicación controlada del levantamiento al inventario.
+2. Multiusuario, zonas, concurrencia y conciliación.
+3. Modo offline, cola local e idempotencia de sincronización.
+4. Código de barras/QR y captura con cámara.
+5. Fotografías y registros pendientes de identificación.
+6. Progreso, reconteo y mejoras adicionales de auditoría.
+
+Antes de implementar cada etapa, revisar la arquitectura existente y reutilizar modelos, servicios y mecanismos de auditoría que ya existan en FerreSystem. Evitar duplicar funcionalidades o introducir cambios destructivos innecesarios.
