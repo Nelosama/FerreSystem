@@ -109,3 +109,42 @@ Revisión del código actual:
 
 ### Regla para estos hallazgos
 Estos puntos representan funcionalidad existente incompleta o áreas que requieren auditoría. No tratarlos automáticamente como módulos nuevos. Antes de implementar, confirmar el estado actual del backend, esquema Prisma, DTOs, endpoints y pruebas para evitar duplicar lógica.
+
+
+## Backlog priorizado para implementación con Codex
+
+Las prioridades pueden ajustarse conforme avance la auditoría. La regla es cerrar primero los flujos que afectan datos reales, dinero e inventario antes de añadir sofisticación.
+
+### P0 — Piloto / operación básica confiable
+- Levantamiento de inventario con aplicación controlada al inventario real.
+- Persistencia real de proveedores y órdenes de compra en backend/PostgreSQL.
+- Recepción de compras conectada con movimientos y existencias reales.
+- Cuentas por cobrar y ventas al crédito con saldos, abonos, vencimientos y trazabilidad.
+- Corregir persistencia y enforcement backend de permisos individuales.
+- Trazabilidad/Kardex de movimientos de inventario.
+- Verificar y cerrar flujos críticos antes de depender del sistema en operación real.
+
+### P1 — Control operativo
+- Devoluciones de clientes y a proveedores con impacto trazable.
+- Centro de alertas operativas.
+- Cierre/resumen diario.
+- Reconciliación y auditoría avanzada del levantamiento.
+- Fortalecer controles por sucursal y usuario.
+
+### P2 — Optimización
+- Relación producto–múltiples proveedores.
+- Código/SKU utilizado por cada proveedor para el producto.
+- Historial de costos por producto y proveedor.
+- Último costo de compra.
+- Proveedor preferido.
+- Plazo/tiempo habitual de entrega.
+- Comparación de proveedores y condiciones de compra.
+- Analítica y automatizaciones derivadas de datos históricos confiables.
+
+### Regla de mantenimiento del roadmap
+Cuando durante auditorías o conversaciones aparezca una mejora concreta:
+- registrarla en este documento;
+- clasificarla como P0, P1 o P2 según impacto y dependencia;
+- indicar si es funcionalidad nueva, parcial o corrección;
+- evitar duplicarla si ya existe en otro documento;
+- mover los detalles técnicos extensos a un documento específico cuando sea necesario.
