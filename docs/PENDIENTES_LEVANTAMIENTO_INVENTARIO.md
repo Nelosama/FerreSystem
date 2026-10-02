@@ -146,3 +146,28 @@ Para reducir riesgo, implementar y probar por etapas:
 6. Progreso, reconteo y mejoras adicionales de auditoría.
 
 Antes de implementar cada etapa, revisar la arquitectura existente y reutilizar modelos, servicios y mecanismos de auditoría que ya existan en FerreSystem. Evitar duplicar funcionalidades o introducir cambios destructivos innecesarios.
+
+
+## 11. Levantamiento independiente y migración a otros sistemas — P0
+
+El módulo de levantamiento debe poder utilizarse aunque la empresa decida no adoptar FerreSystem como su sistema operativo final.
+
+### Flujo de cierre
+- **Finalizar levantamiento** debe consolidar/cerrar el conteo; no debe aplicar automáticamente los datos al inventario de FerreSystem.
+- Después de finalizar, ofrecer acciones separadas:
+  - **Aplicar a FerreSystem**.
+  - **Exportar para otro sistema**.
+  - Permitir ambas cuando corresponda.
+
+### Exportación y portabilidad
+- Exportar como mínimo a CSV y Excel.
+- Permitir seleccionar y ordenar columnas.
+- Contemplar campos como código/SKU, código de barras, descripción, cantidad, unidad, categoría, costo, precio y ubicación/zona.
+- Permitir plantillas de exportación reutilizables para adaptar nombres y orden de columnas al sistema destino.
+- Mantener el levantamiento original y su trazabilidad aun después de exportar.
+
+### Enfoque comercial
+El levantamiento puede convertirse en una funcionalidad utilizable de forma independiente: realizar inventario físico, revisar/conciliar la información y entregar datos preparados para migración hacia otro ERP/POS, sin obligar al cliente a adoptar FerreSystem completo.
+
+### Principio de diseño
+La captura y consolidación del inventario debe estar desacoplada del destino final de los datos. FerreSystem puede ser uno de los destinos, no el único.
