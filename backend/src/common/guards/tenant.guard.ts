@@ -10,6 +10,9 @@ export class TenantGuard implements CanActivate {
       throw new ForbiddenException('Acceso restringido a usuarios de tenant autorizados');
     }
 
+    if (user.impersonatedBy && user.readOnly && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+      throw new ForbiddenException('La sesión de soporte está en modo de solo lectura');
+    }
     return true;
   }
 }

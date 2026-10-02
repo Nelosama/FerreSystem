@@ -20,4 +20,13 @@ describe('Authentication type guards', () => {
     expect(new TenantGuard().canActivate(context)).toBe(true);
     expect(() => new SuperAdminGuard().canActivate(context)).toThrow(ForbiddenException);
   });
+
+  it('enforces read-only support on the server and permits explicitly enabled edits', () => {
+    const context = (readOnly: boolean, method: string) => ({ switchToHttp: () => ({ getRequest: () => ({
+      method, user: { type: 'tenant', tenantId: 't1', impersonatedBy: 'sa1', readOnly },
+    }) }) }) as any;
+    expect(new TenantGuard().canActivate(context(true, 'GET'))).toBe(true);
+    expect(() => new TenantGuard().canActivate(context(true, 'POST'))).toThrow(ForbiddenException);
+    expect(new TenantGuard().canActivate(context(false, 'POST'))).toBe(true);
+  });
 });

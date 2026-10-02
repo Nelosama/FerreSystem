@@ -41,9 +41,9 @@ export class SuperAdminService {
     res.cookie('superAdminRefreshToken', refreshToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/admin',
+      path: '/api/admin/auth',
     });
     return {
       accessToken,
@@ -83,6 +83,7 @@ export class SuperAdminService {
   }
 
   logout(res: Response) {
+    res.clearCookie('superAdminRefreshToken', { path: '/admin' });
     res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
     return { success: true, message: 'Sesión de Super Admin cerrada correctamente' };
   }
@@ -92,6 +93,10 @@ export class SuperAdminService {
       orderBy: { createdAt: 'desc' },
       include: {
         modulos: true,
+        usuarios: {
+          select: { id: true, nombre: true, email: true, activo: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
         _count: {
           select: {
             usuarios: true,
@@ -115,10 +120,30 @@ export class SuperAdminService {
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
       cantidadUsuarios: t._count.usuarios,
+      usuarios: t.usuarios,
       cantidadProductos: t._count.productos,
       cantidadVentas: t._count.ventas,
       modulosHabilitados: t.modulos.filter((m) => m.enabled).map((m) => m.moduleKey),
     }));
+  }
+
+  async supportToken(adminId: string, tenantId: string, usuarioId: string, readOnly = true) {
+    const admin = await this.prisma.superAdmin.findUnique({ where: { id: adminId } });
+    if (!admin?.activo) throw new UnauthorizedException('Super Admin no autorizado');
+    const usuario = await this.prisma.usuario.findFirst({
+      where: { id: usuarioId, tenantId, activo: true },
+      include: { tenant: true },
+    });
+    if (!usuario || usuario.tenant.estado !== 'ACTIVO') {
+      throw new NotFoundException('Usuario o ferretería no disponible para soporte');
+    }
+    return {
+      accessToken: this.jwtService.sign({
+        sub: usuario.id, tenantId, email: usuario.email, rol: usuario.rol,
+        type: 'tenant', impersonatedBy: adminId, readOnly,
+      }, { expiresIn: '15m' }),
+      user: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, activo: usuario.activo },
+    };
   }
 
   async getTenantModules(tenantId: string) {

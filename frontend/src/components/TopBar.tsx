@@ -124,9 +124,13 @@ export const TopBar: React.FC<TopBarProps> = ({
                 type="button"
                 className="btn btn-primary btn-sm"
                 style={{ backgroundColor: '#DC2626', borderColor: '#991B1B', fontWeight: 800 }}
-                onClick={() => {
-                  enableEditMode();
-                  setModalConfirmEditMode(false);
+                onClick={async () => {
+                  try {
+                    await enableEditMode();
+                    setModalConfirmEditMode(false);
+                  } catch {
+                    alert('No se pudo activar la edición. Vuelve a iniciar la sesión de soporte.');
+                  }
                 }}
               >
                 CONFIRMAR Y ACTIVAR EDICIÓN

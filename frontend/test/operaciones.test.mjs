@@ -16,6 +16,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name in mocks) return mocks[name];
     if (name.endsWith('/unidadMedida')) return evaluate('src/utils/unidadMedida.ts', {});
     if (name.endsWith('/numeroCliente')) return evaluate('src/utils/numeroCliente.ts', {});
+    if (name.endsWith('/storage')) return evaluate('src/utils/storage.ts', {}, globals);
     return new Proxy({}, { get: (_, key) => String(key) });
   } };
   const source = fs.readFileSync(file, 'utf8');
@@ -28,6 +29,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
   let cursor = 0, root;
   const states = [], dependencies = [], effects = [], cleanups = [];
   const react = {
+    createContext() { return { Provider: 'ContextProvider' }; },
     useState(initial) { const i = cursor++; if (!(i in states)) states[i] = typeof initial === 'function' ? initial() : initial; return [states[i], (next) => { states[i] = typeof next === 'function' ? next(states[i]) : next; }]; },
     useRef(initial) { const i = cursor++; return states[i] ?? (states[i] = { current: initial }); },
     useEffect(fn, deps) { const i = cursor++; if (!dependencies[i] || deps?.some((value, index) => value !== dependencies[i][index])) { dependencies[i] = deps; effects.push([i, fn]); } },
@@ -46,6 +48,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     ...overrides,
   };
   const component = evaluate(file, mocks, { localStorage: sharedStorage, crypto: webcrypto, alert() {},
+    document: { documentElement: { style: { setProperty() {} } } },
     setTimeout: (fn, delay) => setTimeout(fn, delay).unref(), clearTimeout })[name];
   const nodes = () => {
     const found = [];
@@ -58,6 +61,42 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     async effects() { const queued = effects.splice(0); for (const [i, fn] of queued) { cleanups[i]?.(); cleanups[i] = await fn(); } await new Promise((resolve) => setImmediate(resolve)); },
   };
 };
+
+test('soporte instala el token real, restaura superadmin y limpia el estado al iniciar otra cuenta', async () => {
+  const saved = storage();
+  const admin = { id: 'sa1', nombre: 'Superadmin', rol: 'SUPERADMIN' };
+  const tenant = { id: 'platform', nombreComercial: 'Portal' };
+  saved.setItem('ferre_token', 'admin-token');
+  saved.setItem('ferre_user', JSON.stringify(admin));
+  saved.setItem('ferre_tenant', JSON.stringify(tenant));
+  const api = { post: async () => ({ data: { accessToken: 'tenant-support-token', user: { id: 'u1', nombre: 'Cajero real', rol: 'CAJERO' } } }) };
+  const page = harness('src/context/TenantContext.tsx', 'TenantProvider', { '../utils/api': { api } }, saved);
+  const value = () => { page.render(); return page.find((node) => node.type === 'ContextProvider').props.value; };
+  await value().impersonateTenantAdmin({ id: 't1', nombreComercial: 'Empresa' }, { id: 'u1', rol: 'ADMIN' }, 'support1');
+  assert.equal(saved.getItem('ferre_token'), 'tenant-support-token');
+  assert.equal(value().user.rol, 'CAJERO');
+  assert.equal(value().isReadOnly, true);
+  value().stopImpersonating();
+  assert.equal(saved.getItem('ferre_token'), 'admin-token');
+  assert.equal(value().user.id, 'sa1');
+  assert.equal(value().isImpersonating, false);
+  assert.equal(saved.getItem('ferre_support_target'), null);
+  await value().impersonateTenantAdmin({ id: 't1' }, { id: 'u1' });
+  value().login({ id: 'u2', rol: 'ADMIN' }, { id: 't2' });
+  assert.equal(value().isImpersonating, false);
+  assert.equal(saved.getItem('ferre_original_superadmin_token'), null);
+});
+
+test('un inicio fallido de soporte conserva la sesión de superadmin', async () => {
+  const saved = storage();
+  saved.setItem('ferre_token', 'admin-token');
+  saved.setItem('ferre_user', JSON.stringify({ id: 'sa1', rol: 'SUPERADMIN' }));
+  const page = harness('src/context/TenantContext.tsx', 'TenantProvider', { '../utils/api': { api: { post: async () => { throw new Error('API no disponible'); } } } }, saved);
+  page.render();
+  await assert.rejects(page.find((node) => node.type === 'ContextProvider').props.value.impersonateTenantAdmin({ id: 't1' }, { id: 'u1' }));
+  assert.equal(saved.getItem('ferre_token'), 'admin-token');
+  assert.equal(saved.getItem('ferre_original_superadmin_token'), null);
+});
 
 test('POS conserva identidad tras respuesta perdida/reload y bloquea doble envío', async () => {
   const saved = storage(), sent = [];

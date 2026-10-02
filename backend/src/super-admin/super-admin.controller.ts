@@ -3,6 +3,7 @@ import { SuperAdminService } from './super-admin.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 import type { Request, Response } from 'express';
+import { SupportTokenDto } from './support-token.dto';
 
 @Controller('admin')
 export class SuperAdminController {
@@ -34,6 +35,12 @@ export class SuperAdminController {
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   async listTenants() {
     return this.superAdminService.listTenants();
+  }
+
+  @Post('support/token')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async supportToken(@Req() req: Request & { user: { sub: string } }, @Body() dto: SupportTokenDto) {
+    return this.superAdminService.supportToken(req.user.sub, dto.tenantId, dto.usuarioId, dto.readOnly);
   }
 
   @Post('tenants')

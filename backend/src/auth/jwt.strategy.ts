@@ -10,6 +10,8 @@ export interface JwtValidatedPayload {
   rol: string;
   type: 'tenant' | 'super_admin';
   tenantId?: string;
+  impersonatedBy?: string;
+  readOnly?: boolean;
 }
 
 @Injectable()
@@ -34,6 +36,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         rol: payload.rol,
         type: 'tenant',
         tenantId: payload.tenantId,
+        ...(payload.impersonatedBy ? { impersonatedBy: payload.impersonatedBy, readOnly: payload.readOnly !== false } : {}),
       };
     }
 

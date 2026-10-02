@@ -9,6 +9,7 @@ import { VentasService } from '../src/ventas/ventas.service';
 import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
 import { ProductosService } from '../src/productos/productos.service';
 import { ClientesService } from '../src/clientes/clientes.service';
+import * as bcrypt from 'bcrypt';
 
 // Nunca lee DATABASE_URL: crea un clúster exclusivo, sin migraciones ni datos existentes.
 const bin = process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/18/bin' : '/usr/bin';
@@ -140,6 +141,33 @@ describe('Ventas / PostgreSQL aislado', () => {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
       });
       expect(invalidLogin.status).toBe(400);
+      const password = 'isolated-test-password';
+      const admin = await prisma.superAdmin.create({ data: { nombre: 'Superadmin prueba', email: `${randomUUID()}@test.local`, passwordHash: await bcrypt.hash(password, 4) } });
+      const base = `http://127.0.0.1:${port}/api`;
+      const login = await fetch(`${base}/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: admin.email, password }) });
+      expect(login.status).toBe(200);
+      expect(login.headers.get('set-cookie')).toContain('Path=/api/admin/auth');
+      expect(login.headers.get('set-cookie')).toContain('SameSite=None');
+      const { accessToken: adminToken } = await login.json() as { accessToken: string };
+      const adminHeaders = { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' };
+      const tenantList = await fetch(`${base}/admin/tenants`, { headers: adminHeaders });
+      expect(tenantList.status).toBe(200);
+      const records = await tenantList.json() as any[];
+      expect(records.find((item) => item.id === tenantId).usuarios).toEqual([expect.objectContaining({ id: usuarioId, activo: true })]);
+      expect(JSON.stringify(records)).not.toContain('passwordHash');
+      const support = await fetch(`${base}/admin/support/token`, { method: 'POST', headers: adminHeaders, body: JSON.stringify({ tenantId, usuarioId, readOnly: true }) });
+      expect(support.status).toBe(201);
+      const { accessToken: supportToken } = await support.json() as { accessToken: string };
+      const supportHeaders = { Authorization: `Bearer ${supportToken}`, 'Content-Type': 'application/json' };
+      const products = await fetch(`${base}/productos`, { headers: supportHeaders });
+      expect(products.status).toBe(200);
+      expect((await products.json() as any[]).map((item) => item.id)).toEqual([productoId]);
+      expect((await fetch(`${base}/usuarios`, { headers: supportHeaders })).status).toBe(200);
+      expect((await fetch(`${base}/clientes`, { headers: supportHeaders })).status).toBe(200);
+      expect((await fetch(`${base}/productos/${productoId}`, { method: 'DELETE', headers: supportHeaders })).status).toBe(403);
+      expect((await fetch(`${base}/admin/tenants`, { headers: supportHeaders })).status).toBe(403);
+      expect((await fetch(`${base}/admin/tenants`, { headers: adminHeaders })).status).toBe(200);
+      expect((await fetch(`${base}/admin/support/token`, { method: 'POST', headers: supportHeaders, body: JSON.stringify({ tenantId, usuarioId, readOnly: false }) })).status).toBe(403);
       expect(log).toContain('Conexión exitosa');
       expect(child.exitCode).toBeNull();
     } finally {

@@ -119,7 +119,7 @@ function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
   }));
 
   const adminUsers: AdminUserItem[] = records.flatMap((record) =>
-    record.usuarios.map((user) => ({
+    (record.usuarios || []).map((user) => ({
       id: user.id,
       nombre: user.nombre,
       email: user.email,
@@ -342,7 +342,7 @@ export const SuperAdminPage: React.FC = () => {
     setSoporteDescripcion('');
   };
 
-  const ejecutarSuplantacionConMotivo = (e: React.FormEvent) => {
+  const ejecutarSuplantacionConMotivo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalSuplantarUser || !usuarioASuplantar) return;
     if (!soporteDescripcion.trim()) return;
@@ -362,54 +362,44 @@ export const SuperAdminPage: React.FC = () => {
       modoEdicionActivado: false,
     };
 
-    const updatedSupportLogs = [nuevoRegistroSoporte, ...supportLogs];
-    setSupportLogs(updatedSupportLogs);
-    localStorage.setItem('ferre_mock_auditoria_soporte', JSON.stringify(updatedSupportLogs));
+    try {
+      await impersonateTenantAdmin(
+        {
+          id: modalSuplantarUser.id,
+          nombreComercial: modalSuplantarUser.nombreComercial,
+          sucursal: 'Sucursal Centro (Principal)',
+          colorPrimario: modalSuplantarUser.colorPrimario,
+          logoUrl: modalSuplantarUser.logoUrl,
+          modoNavegacion: modalSuplantarUser.modoNavegacion || 'SIDEBAR',
+          rubro: modalSuplantarUser.rubro || Rubro.FERRETERIA,
+          modulosHabilitados: modalSuplantarUser.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key),
+        },
+        {
+          id: usuarioASuplantar.id,
+          nombre: usuarioASuplantar.nombre,
+          email: usuarioASuplantar.email,
+          rol: usuarioASuplantar.rol,
+          activo: true,
+        },
+        sessionId
+      );
 
-    registrarAuditoria(
-      'IMPERSONACION_INICIADA',
-      modalSuplantarUser.nombreComercial,
-      `Suplantando a ${usuarioASuplantar.nombre} (${usuarioASuplantar.email}) - Motivo: [${soporteCategoria}] ${soporteDescripcion.trim()}`
-    );
+      const updatedSupportLogs = [nuevoRegistroSoporte, ...supportLogs];
+      setSupportLogs(updatedSupportLogs);
+      localStorage.setItem('ferre_mock_auditoria_soporte', JSON.stringify(updatedSupportLogs));
 
-    impersonateTenantAdmin(
-      {
-        id: modalSuplantarUser.id,
-        nombreComercial: modalSuplantarUser.nombreComercial,
-        sucursal: 'Sucursal Centro (Principal)',
-        colorPrimario: modalSuplantarUser.colorPrimario,
-        logoUrl: modalSuplantarUser.logoUrl,
-        modoNavegacion: modalSuplantarUser.modoNavegacion || 'SIDEBAR',
-        rubro: modalSuplantarUser.rubro || Rubro.FERRETERIA,
-        modulosHabilitados: modalSuplantarUser.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key),
-      },
-      {
-        id: usuarioASuplantar.id,
-        nombre: usuarioASuplantar.nombre,
-        email: usuarioASuplantar.email,
-        rol: usuarioASuplantar.rol,
-        permisos: [
-          'pos.vender',
-          'pos.anular_venta',
-          'pos.aplicar_descuento',
-          'inventario.ver',
-          'inventario.editar',
-          'cotizaciones.crear',
-          'cotizaciones.aprobar',
-          'cotizaciones.convertir_venta',
-          'reportes.ver',
-          'usuarios.gestionar',
-          'configuracion.editar',
-        ],
-        descuentoMaximo: 100,
-        activo: true,
-      },
-      sessionId
-    );
+      registrarAuditoria(
+        'IMPERSONACION_INICIADA',
+        modalSuplantarUser.nombreComercial,
+        `Suplantando a ${usuarioASuplantar.nombre} (${usuarioASuplantar.email}) - Motivo: [${soporteCategoria}] ${soporteDescripcion.trim()}`
+      );
 
-    setUsuarioASuplantar(null);
-    setModalSuplantarUser(null);
-    navigate('/');
+      setUsuarioASuplantar(null);
+      setModalSuplantarUser(null);
+      navigate('/');
+    } catch (error: any) {
+      setErrorText(error.response?.data?.message || 'No se pudo iniciar la sesión de soporte. Vuelve a iniciar sesión como superadmin.');
+    }
   };
 
   const toggleEstadoAdmin = (id: string) => {

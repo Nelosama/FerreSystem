@@ -14,9 +14,9 @@ interface TenantContextType {
   updateTenantConfig: (updates: Partial<TenantInfo>) => void;
   login: (user: UserInfo, tenant: TenantInfo) => void;
   logout: () => void;
-  impersonateTenantAdmin: (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string) => void;
+  impersonateTenantAdmin: (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string) => Promise<void>;
   stopImpersonating: () => void;
-  enableEditMode: () => void;
+  enableEditMode: () => Promise<void>;
   switchSucursal: (targetSucursalName: string, targetTenantId: string) => void;
 }
 
@@ -162,13 +162,30 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const login = (newUser: UserInfo, newTenant: TenantInfo) => {
+    setOriginalSuperAdminUser(null);
+    setOriginalTenant(null);
+    setIsReadOnlyState(false);
+    setActiveSupportSessionId(null);
+    ['ferre_original_superadmin_user', 'ferre_original_superadmin_tenant', 'ferre_original_superadmin_token', 'ferre_support_target', 'ferre_is_read_only', 'ferre_active_support_session_id'].forEach((key) => localStorage.removeItem(key));
     setUser(newUser);
     setTenant(newTenant);
     localStorage.setItem('ferre_user', JSON.stringify(newUser));
     localStorage.setItem('ferre_tenant', JSON.stringify(newTenant));
   };
 
-  const impersonateTenantAdmin = (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string) => {
+  const impersonateTenantAdmin = async (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string) => {
+    if (user?.rol !== 'SUPERADMIN') throw new Error('Se requiere una sesión de superadmin');
+    const token = localStorage.getItem('ferre_token');
+    const savedUser = localStorage.getItem('ferre_user');
+    const target = { tenantId: targetTenant.id, usuarioId: targetAdminUser.id, readOnly: true };
+    const { data } = await api.post('/admin/support/token', target);
+    if (localStorage.getItem('ferre_user') !== savedUser) throw new Error('La sesión cambió durante el inicio de soporte');
+    if (!data.accessToken || !data.user || !token) throw new Error('No se pudo iniciar la sesión de soporte');
+    // El interceptor puede haber renovado el token de superadmin durante esta petición.
+    localStorage.setItem('ferre_original_superadmin_token', localStorage.getItem('ferre_token') || token);
+    localStorage.setItem('ferre_token', data.accessToken);
+    localStorage.setItem('ferre_support_target', JSON.stringify(target));
+    targetAdminUser = data.user;
     if (user?.rol === 'SUPERADMIN') {
       setOriginalSuperAdminUser(user);
       setOriginalTenant(tenant);
@@ -188,7 +205,17 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const enableEditMode = () => {
+  const enableEditMode = async () => {
+    const savedTarget = localStorage.getItem('ferre_support_target');
+    const adminToken = localStorage.getItem('ferre_original_superadmin_token');
+    if (!savedTarget || !adminToken) throw new Error('Vuelve a iniciar la sesión de soporte');
+    const target = { ...JSON.parse(savedTarget), readOnly: false };
+    const supportToken = localStorage.getItem('ferre_token');
+    const { data } = await api.post('/admin/support/token', target, { headers: { Authorization: `Bearer ${adminToken}` } });
+    if (localStorage.getItem('ferre_token') !== supportToken || localStorage.getItem('ferre_support_target') !== savedTarget) throw new Error('La sesión de soporte cambió');
+    if (!data.accessToken) throw new Error('No se pudo activar el modo de edición');
+    localStorage.setItem('ferre_token', data.accessToken);
+    localStorage.setItem('ferre_support_target', JSON.stringify(target));
     setIsReadOnlyState(false);
     localStorage.setItem('ferre_is_read_only', JSON.stringify(false));
 
@@ -209,6 +236,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const stopImpersonating = () => {
+    const adminToken = localStorage.getItem('ferre_original_superadmin_token');
+    // Compatibilidad con sesiones antiguas: conservaban el token de superadmin.
+    if (adminToken) localStorage.setItem('ferre_token', adminToken);
+    localStorage.removeItem('ferre_original_superadmin_token');
+    localStorage.removeItem('ferre_support_target');
     if (activeSupportSessionId) {
       const logsRaw = localStorage.getItem('ferre_mock_auditoria_soporte');
       if (logsRaw) {
@@ -252,7 +284,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const logout = () => {
-    const logoutPath = user?.rol === 'SUPERADMIN' ? '/admin/auth/logout' : '/auth/logout';
+    const logoutPath = user?.rol === 'SUPERADMIN' || originalSuperAdminUser ? '/admin/auth/logout' : '/auth/logout';
     void api.post(logoutPath).catch(() => {});
     localStorage.removeItem('ferre_token');
     setUser(null);
@@ -261,6 +293,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.removeItem('ferre_user');
     localStorage.removeItem('ferre_original_superadmin_user');
     localStorage.removeItem('ferre_original_superadmin_tenant');
+    ['ferre_original_superadmin_token', 'ferre_support_target', 'ferre_is_read_only', 'ferre_active_support_session_id'].forEach((key) => localStorage.removeItem(key));
+    setIsReadOnlyState(false);
+    setActiveSupportSessionId(null);
   };
 
   return (

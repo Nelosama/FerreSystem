@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { installAuthInterceptors } from './authInterceptors';
 
 const getBaseUrl = (): string => {
   const envUrl = import.meta.env.VITE_API_URL;
@@ -28,47 +29,4 @@ export const api = axios.create({
   },
 });
 
-// Request Interceptor for attaching JWT Bearer token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('ferre_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error),
-);
-
-// Response Interceptor for handling token refresh on 401 Unauthorized
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-
-    const requestUrl = originalRequest?.url || '';
-    const isSuperAdminRequest = requestUrl.startsWith('/admin/');
-    const isAuthRequest = /\/auth\/(login|refresh|logout)(\?|$)/.test(requestUrl);
-
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
-      originalRequest._retry = true;
-      try {
-        const refreshPath = isSuperAdminRequest ? '/admin/auth/refresh' : '/auth/refresh';
-        const refreshResponse = await api.post(refreshPath);
-        if (refreshResponse.data?.accessToken) {
-          localStorage.setItem('ferre_token', refreshResponse.data.accessToken);
-        }
-        return api(originalRequest);
-      } catch (refreshError) {
-        localStorage.removeItem('ferre_token');
-        const loginPath = isSuperAdminRequest ? '/admin/login' : '/login';
-        if (window.location.pathname !== loginPath) {
-          window.location.href = loginPath;
-        }
-        return Promise.reject(refreshError);
-      }
-    }
-
-    return Promise.reject(error);
-  },
-);
+installAuthInterceptors(api);

@@ -119,7 +119,14 @@ export const POSPage: React.FC = () => {
       setProductos(data);
     } catch (err: any) {
       console.error('Error al cargar productos en POS:', err);
-      setErrorText('Error de conexión con la API de productos.');
+      const status = err.response?.status;
+      setErrorText(status === 403
+        ? 'Tu sesión no tiene acceso al inventario de esta empresa. Vuelve a iniciar sesión o revisa sus módulos habilitados.'
+        : status === 401
+          ? 'La sesión expiró. Vuelve a iniciar sesión para cargar los productos.'
+          : status >= 500
+            ? 'El servidor no pudo cargar los productos. Intenta nuevamente en unos momentos.'
+            : 'No se pudo conectar con la API de productos. Revisa la conexión e intenta nuevamente.');
     }
   }, []);
 

@@ -42,6 +42,40 @@ describe('SuperAdminService', () => {
     );
   });
 
+  it('sets a refresh cookie usable by the deployed admin API', async () => {
+    prisma.superAdmin.findUnique.mockResolvedValue({ ...admin, passwordHash: await bcrypt.hash('test-password', 4) });
+    await service.login({ email: admin.email, password: 'test-password' }, response);
+    expect(response.cookie).toHaveBeenCalledWith('superAdminRefreshToken', 'signed-token', expect.objectContaining({
+      path: '/api/admin/auth', sameSite: 'none', secure: true, httpOnly: true,
+    }));
+  });
+
+  it('returns the actual users required by the portal without password hashes', async () => {
+    const usuarios = [{ id: 'u1', nombre: 'Usuario', email: 'u@test.com', activo: true, createdAt: new Date() }];
+    prisma.tenant = { findMany: vi.fn().mockResolvedValue([{ id: 't1', usuarios, modulos: [], _count: { usuarios: 1, productos: 0, ventas: 0 } }]) };
+    expect((await service.listTenants())[0].usuarios).toEqual(usuarios);
+    const select = prisma.tenant.findMany.mock.calls[0][0].include.usuarios.select;
+    expect(select.passwordHash).toBeUndefined();
+    expect(Object.keys(select).sort()).toEqual(['activo', 'createdAt', 'email', 'id', 'nombre']);
+  });
+
+  it('issues support tokens with the actual tenant identity and role', async () => {
+    prisma.superAdmin.findUnique.mockResolvedValue(admin);
+    prisma.usuario = { findFirst: vi.fn().mockResolvedValue({ id: 'u1', tenantId: 't1', email: 'u@test.com', nombre: 'Cajero', rol: 'CAJERO', activo: true, tenant: { estado: 'ACTIVO' } }) };
+    const result = await service.supportToken(admin.id, 't1', 'u1');
+    expect(prisma.usuario.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'u1', tenantId: 't1', activo: true } }));
+    expect(jwt.sign).toHaveBeenCalledWith(expect.objectContaining({ sub: 'u1', tenantId: 't1', rol: 'CAJERO', type: 'tenant', impersonatedBy: admin.id, readOnly: true }), { expiresIn: '15m' });
+    expect(result.user.rol).toBe('CAJERO');
+  });
+
+  it('rejects support for suspended companies and disabled superadmins', async () => {
+    prisma.superAdmin.findUnique.mockResolvedValue({ ...admin, activo: false });
+    await expect(service.supportToken(admin.id, 't1', 'u1')).rejects.toThrow('Super Admin no autorizado');
+    prisma.superAdmin.findUnique.mockResolvedValue(admin);
+    prisma.usuario = { findFirst: vi.fn().mockResolvedValue({ tenant: { estado: 'SUSPENDIDO' } }) };
+    await expect(service.supportToken(admin.id, 't1', 'u1')).rejects.toThrow('no disponible para soporte');
+  });
+
   it('rejects tenant refresh tokens on the Super Admin refresh endpoint', async () => {
     jwt.verify.mockReturnValue({ sub: 'u-1', type: 'tenant', tenantId: 'tenant-A', rol: 'ADMIN' });
 
