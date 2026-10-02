@@ -78,3 +78,34 @@ Cuando surja una idea nueva para FerreSystem:
 2. Crear o ampliar un documento específico en `docs/` si requiere diseño detallado.
 3. Revisar el código existente antes de asumir que la funcionalidad no existe.
 4. Convertir la idea en una tarea concreta únicamente cuando se vaya a implementar.
+
+
+## Hallazgos técnicos pendientes de corrección
+
+### Órdenes de compra y proveedores — implementación parcial
+Revisión del código actual:
+- Existe interfaz para órdenes de compra y catálogo de proveedores.
+- Proveedores y órdenes todavía se persisten mediante `localStorage` en el frontend.
+- La acción **Confirmar recepción total** actualiza el estado de la orden y `cantidadRecibida` en el estado local.
+- La recepción no debe considerarse completa hasta verificar/implementar persistencia real en backend y movimiento real de existencias.
+- Pendiente conectar recepción parcial/total con inventario, trazabilidad de movimientos y costos.
+- Al implementar, evitar duplicar modelos o endpoints existentes: auditar backend/Prisma primero.
+
+### Permisos individuales — revisar persistencia y enforcement
+Revisión del código actual:
+- Existen roles base: `ADMIN`, `CAJERO`, `BODEGUERO` y `VENDEDOR`.
+- Existe `RolesGuard` en backend para autorización basada en rol.
+- La pantalla de usuarios permite seleccionar permisos individuales y límite máximo de descuento.
+- El payload observado al crear/editar usuario envía nombre, email, rol, estado y contraseña cuando corresponde, pero no incluye los permisos individuales ni el límite de descuento seleccionados en la interfaz.
+- Pendiente verificar modelo/DTO/backend y hacer persistentes los permisos finos.
+- Pendiente asegurar que los permisos se validen en backend y no únicamente oculten o habiliten controles en frontend.
+- Pendiente verificar persistencia/asignación real de sucursal mostrada en la interfaz.
+
+### Devoluciones — auditar antes de implementar
+- En la revisión inicial no se encontró una implementación clara de devolución de ventas o devolución a proveedor.
+- Antes de crear el módulo, realizar una búsqueda completa de modelos, endpoints, servicios y componentes existentes.
+- Si no existe, diseñar devoluciones vinculadas al documento original y con impacto trazable en inventario/caja/cuentas según corresponda.
+- Una devolución no debe modificar stock sin registrar motivo, usuario, fecha y destino del artículo (reintegrado, dañado, devolución a proveedor, etc.).
+
+### Regla para estos hallazgos
+Estos puntos representan funcionalidad existente incompleta o áreas que requieren auditoría. No tratarlos automáticamente como módulos nuevos. Antes de implementar, confirmar el estado actual del backend, esquema Prisma, DTOs, endpoints y pruebas para evitar duplicar lógica.
