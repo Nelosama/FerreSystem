@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ServiceUnavailableException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
 
 @Injectable()
 export class ClientesService {
+  private readonly logger = new Logger(ClientesService.name);
   constructor(private prisma: PrismaService) {}
 
   async findAll(tenantId: string, search?: string, limit?: number) {
@@ -57,17 +58,32 @@ export class ClientesService {
   }
 
   async create(tenantId: string, dto: CreateClienteDto) {
-    return this.prisma.cliente.create({
-      data: {
-        tenantId,
-        nombre: dto.nombre.trim(),
-        rtn: dto.rtn?.trim() || null,
-        telefono: dto.telefono?.trim() || null,
-        email: dto.email?.trim() || null,
-        direccion: dto.direccion?.trim() || null,
-        tipo: dto.tipo || 'CONSUMIDOR_FINAL',
-      },
-    });
+    try {
+      return await this.prisma.cliente.create({
+        data: {
+          tenantId,
+          nombre: dto.nombre.trim(),
+          rtn: dto.rtn?.trim() || null,
+          telefono: dto.telefono?.trim() || null,
+          email: dto.email?.trim() || null,
+          direccion: dto.direccion?.trim() || null,
+          tipo: dto.tipo || 'CONSUMIDOR_FINAL',
+        },
+      });
+    } catch (error: any) {
+      const target = JSON.stringify(error?.meta?.target || '');
+      const column = String(error?.meta?.column || '');
+      const databaseError = String(error?.meta?.database_error || '');
+      const numberingUnavailable =
+        (error?.code === 'P2002' && /numero_cliente|numeroCliente/.test(target)) ||
+        (error?.code === 'P2022' && /numero_cliente|numeroCliente/.test(column)) ||
+        (error?.code === 'P2004' && databaseError.includes('clientes_numero_cliente_positive'));
+      if (numberingUnavailable) {
+        this.logger.error(`Numeración de clientes no disponible (${error.code}). Verificar la migración 20261002000000_add_customer_numbers y el trigger clientes_assign_number.`);
+        throw new ServiceUnavailableException('No se pudo asignar el número de cliente. El administrador debe revisar la migración de numeración en la base de datos.');
+      }
+      throw error;
+    }
   }
 
   async update(tenantId: string, id: string, dto: UpdateClienteDto) {

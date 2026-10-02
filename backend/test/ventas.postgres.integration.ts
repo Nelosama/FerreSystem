@@ -179,6 +179,20 @@ describe('Ventas / PostgreSQL aislado', () => {
     }
   }, 60000);
 
+  it('reproduce db push sin trigger: el primer cliente recibe cero y el segundo falla por numeración', async () => {
+    // El DDL y los INSERT solo afectan este PostgreSQL temporal y se revierten juntos.
+    await expect(prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('DROP TRIGGER clientes_assign_number ON clientes');
+      await tx.$executeRawUnsafe('ALTER TABLE clientes DROP CONSTRAINT clientes_numero_cliente_positive');
+      const service = new ClientesService(tx as any);
+      const first = await service.create(tenantId, { nombre: 'Primero sin trigger' });
+      expect(first.numeroCliente).toBe(0);
+      await service.create(tenantId, { nombre: 'Segundo sin trigger' });
+    })).rejects.toMatchObject({ status: 503, message: expect.stringContaining('migración de numeración') });
+    expect(await prisma.cliente.count({ where: { tenantId } })).toBe(0);
+    expect((await new ClientesService(prisma).create(tenantId, { nombre: 'Con trigger restaurado' })).numeroCliente).toBe(1);
+  });
+
   it('dos POS concurrentes no sobregiran stock decimal ni dejan huecos de secuencia', async () => {
     const results = await Promise.allSettled([ventas.create(tenantId, usuarioId, request()), ventas.create(tenantId, usuarioId, request())]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
