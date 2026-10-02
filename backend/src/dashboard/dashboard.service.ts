@@ -58,7 +58,7 @@ export class DashboardService {
       orderBy: { stockActual: 'asc' },
     });
 
-    const productosBajoStock = productos.filter((p) => p.stockActual <= p.stockMinimo);
+    const productosBajoStock = productos.filter((p) => p.stockActual.lte(p.stockMinimo));
 
     // 3. Cotizaciones pendientes y por vencer hoy
     const cotizaciones = await this.prisma.cotizacion.findMany({

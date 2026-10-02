@@ -5,6 +5,7 @@ import { Upload, Download, AlertTriangle, Check, X, FileSpreadsheet, CheckCircle
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
+import { normalizarUnidadMedida } from '../utils/unidadMedida';
 
 interface ImportarProductosModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ interface ImportSummary {
   importadosCount: number;
   actualizadosCount: number;
   errorCount: number;
+  omitidosCount: number;
 }
 
 export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
@@ -259,10 +261,14 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
     }
   };
 
-  const ejecutarImportacion = async (_sobrescribir: boolean) => {
+  const ejecutarImportacion = async (sobrescribir: boolean) => {
+    if (loading) return;
     setLoading(true);
     let importados = 0;
     let actualizados = 0;
+    let errores = invalidRows.length;
+    let omitidos = 0;
+    const existentes = new Map(productos.map((p) => [p.codigo.trim().toUpperCase(), p.id]));
 
     try {
       for (const r of validRows) {
@@ -274,21 +280,30 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
           precioCosto: r.precioCosto,
           stockActual: r.stockActual,
           stockMinimo: r.stockMinimo,
-          unidadMedida: r.unidadMedida,
+          unidadMedida: normalizarUnidadMedida(r.unidadMedida),
         };
 
         try {
-          await api.post('/productos', payload);
-          importados++;
+          const existenteId = existentes.get(payload.codigo);
+          if (existenteId) {
+            if (!sobrescribir) { omitidos++; continue; }
+            await api.put(`/productos/${existenteId}`, payload);
+            actualizados++;
+          } else {
+            const res = await api.post('/productos', payload);
+            existentes.set(payload.codigo, res.data.id);
+            importados++;
+          }
         } catch {
-          actualizados++;
+          errores++;
         }
       }
 
       setSummary({
         importadosCount: importados,
         actualizadosCount: actualizados,
-        errorCount: invalidRows.length,
+        errorCount: errores,
+        omitidosCount: omitidos,
       });
     } catch (err: any) {
       setErrorMsg('Error durante la importación: ' + (err.response?.data?.message || err.message));
@@ -333,7 +348,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                 {t('inventory.summary_title')}
               </h3>
               <p style={{ fontSize: '14px', marginTop: '8px', textAlign: 'center', color: '#44403C' }}>
-                {summary.importadosCount} productos importados, {summary.actualizadosCount} actualizados, {summary.errorCount} con error (no importados)
+                {t('inventory.import_summary_counts', { imported: summary.importadosCount, updated: summary.actualizadosCount, errors: summary.errorCount, skipped: summary.omitidosCount })}
               </p>
               <button
                 type="button"
@@ -351,7 +366,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
               <h3 style={{ fontSize: '16px', fontWeight: 700, textAlign: 'center' }}>
                 {t('inventory.overwrite_confirmation')}
               </h3>
-              <p style={{ fontSize: '13px', color: '#78716C', textAlign: 'center', marginTop: '6px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', marginTop: '6px' }}>
                 Se detectaron {duplicateCount} productos con código ya existente en su inventario actual.
               </p>
 
@@ -407,7 +422,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
               </div>
 
               {fileName && (
-                <div style={{ fontSize: '12px', color: '#78716C', marginTop: '8px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>
                   Archivo seleccionado: <strong>{fileName}</strong>
                 </div>
               )}
@@ -420,7 +435,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
               )}
 
               {loading && (
-                <div style={{ textAlign: 'center', padding: '24px', color: '#78716C' }}>
+                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>
                   Procesando archivo...
                 </div>
               )}
@@ -465,7 +480,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                             key={r.index}
                             style={!r.esValido ? { backgroundColor: '#FEF2F2' } : undefined}
                           >
-                            <td style={{ color: '#78716C' }}>{r.index}</td>
+                            <td style={{ color: 'var(--color-text-muted)' }}>{r.index}</td>
                             <td style={{ fontFamily: 'var(--font-display)', fontWeight: 700 }}>
                               {r.codigo || <em style={{ color: '#DC2626' }}>[Vacío]</em>}
                             </td>
@@ -561,7 +576,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '12px',
     flexWrap: 'wrap',
     padding: '12px',
-    backgroundColor: '#F5F5F4',
+    backgroundColor: 'var(--color-surface-hover)',
     borderRadius: '4px',
     border: '1px dashed var(--color-border)',
   },

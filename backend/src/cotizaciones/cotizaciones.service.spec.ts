@@ -22,6 +22,7 @@ describe('CotizacionesService', () => {
     producto: {
       findFirst: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     venta: {
       create: vi.fn(),
@@ -109,5 +110,40 @@ describe('CotizacionesService', () => {
     expect(result.subtotal).toBe(4914.00);
     expect(result.isv).toBe(737.10);
     expect(result.total).toBe(5651.10);
+  });
+
+  it('revierte conversión si un decremento concurrente agotó stock', async () => {
+    mockPrisma.$queryRaw.mockResolvedValue([{ ultimo_numero: 11 }]);
+    mockPrisma.cotizacion.findFirst.mockResolvedValue({
+      id: 'cot-123', estado: 'APROBADA', detalles: [{
+        cantidad: 2.75, totalMedida: 2.75, producto: { id: 'p-1', nombre: 'Cable', stockActual: 3 },
+      }],
+    });
+    mockPrisma.producto.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.convertirAVenta('tenant-A', 'user-A', 'cot-123'))
+      .rejects.toThrow('Stock insuficiente');
+    expect(mockPrisma.producto.updateMany).toHaveBeenCalledWith({
+      where: { id: 'p-1', tenantId: 'tenant-A', activo: true, stockActual: { gte: 2.75 } },
+      data: { stockActual: { decrement: 2.75 } },
+    });
+    expect(mockPrisma.$queryRaw.mock.invocationCallOrder[0])
+      .toBeLessThan(mockPrisma.cotizacion.findFirst.mock.invocationCallOrder[0]);
+    expect(mockPrisma.venta.create).not.toHaveBeenCalled();
+    expect(mockPrisma.cotizacion.update).not.toHaveBeenCalled();
+  });
+
+  it('impide volver a convertir una cotización ya convertida', async () => {
+    mockPrisma.$queryRaw.mockResolvedValue([{ ultimo_numero: 11 }]);
+    mockPrisma.cotizacion.findFirst.mockResolvedValue({ estado: 'CONVERTIDA' });
+    await expect(service.convertirAVenta('tenant-A', 'user-A', 'cot-123'))
+      .rejects.toThrow('ya fue convertida');
+    expect(mockPrisma.producto.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('no permite reabrir cotizaciones convertidas ni marcar CONVERTIDA manualmente', async () => {
+    mockPrisma.cotizacion.findFirst.mockResolvedValue({ estado: 'CONVERTIDA', ventaId: 'venta-1' });
+    await expect(service.updateEstado('tenant-1', 'cot-1', 'BORRADOR')).rejects.toThrow('convertida');
+    await expect(service.updateEstado('tenant-1', 'cot-1', 'CONVERTIDA')).rejects.toThrow('use convertir');
+    expect(mockPrisma.cotizacion.update).not.toHaveBeenCalled();
   });
 });

@@ -37,7 +37,7 @@ export class ProductosService {
       ...p,
       precioVenta: Number(p.precioVenta),
       precioCosto: Number(p.precioCosto),
-      stockBajo: p.stockActual <= p.stockMinimo,
+      stockBajo: p.stockActual.lte(p.stockMinimo),
     }));
   }
 
@@ -57,7 +57,7 @@ export class ProductosService {
       ...p,
       precioVenta: Number(p.precioVenta),
       precioCosto: Number(p.precioCosto),
-      stockBajo: p.stockActual <= p.stockMinimo,
+      stockBajo: p.stockActual.lte(p.stockMinimo),
     };
   }
 
@@ -75,7 +75,7 @@ export class ProductosService {
     });
 
     const lowStock = productos
-      .filter((p) => p.stockActual <= p.stockMinimo)
+      .filter((p) => p.stockActual.lte(p.stockMinimo))
       .map((p) => ({
         ...p,
         precioVenta: Number(p.precioVenta),
@@ -94,6 +94,8 @@ export class ProductosService {
       nombre: string;
       descripcion?: string;
       categoriaId?: string;
+      categoria?: string;
+      usaMedida?: boolean;
       precioVenta: number;
       precioCosto: number;
       stockActual: number;
@@ -114,6 +116,7 @@ export class ProductosService {
       throw new ConflictException(`Ya existe un producto con el código ${dto.codigo}`);
     }
 
+    const categoriaId = await this.resolveCategoria(tenantId, dto);
     const p = await this.prisma.producto.create({
       data: {
         tenantId,
@@ -121,7 +124,8 @@ export class ProductosService {
         codigoBarras: dto.codigoBarras?.trim() || null,
         nombre: dto.nombre.trim(),
         descripcion: dto.descripcion,
-        categoriaId: dto.categoriaId || null,
+        categoriaId,
+        usaMedida: dto.usaMedida ?? false,
         precioVenta: dto.precioVenta,
         precioCosto: dto.precioCosto,
         stockActual: dto.stockActual,
@@ -137,7 +141,7 @@ export class ProductosService {
       ...p,
       precioVenta: Number(p.precioVenta),
       precioCosto: Number(p.precioCosto),
-      stockBajo: p.stockActual <= p.stockMinimo,
+      stockBajo: p.stockActual.lte(p.stockMinimo),
     };
   }
 
@@ -150,6 +154,8 @@ export class ProductosService {
       nombre?: string;
       descripcion?: string;
       categoriaId?: string;
+      categoria?: string;
+      usaMedida?: boolean;
       precioVenta?: number;
       precioCosto?: number;
       stockActual?: number;
@@ -159,6 +165,7 @@ export class ProductosService {
   ) {
     await this.findById(tenantId, id);
 
+    const categoriaId = await this.resolveCategoria(tenantId, dto);
     const p = await this.prisma.producto.update({
       where: { id },
       data: {
@@ -166,7 +173,8 @@ export class ProductosService {
         ...(dto.codigoBarras !== undefined && { codigoBarras: dto.codigoBarras?.trim() || null }),
         ...(dto.nombre && { nombre: dto.nombre.trim() }),
         ...(dto.descripcion !== undefined && { descripcion: dto.descripcion }),
-        ...(dto.categoriaId !== undefined && { categoriaId: dto.categoriaId || null }),
+        ...((dto.categoriaId !== undefined || dto.categoria !== undefined) && { categoriaId }),
+        ...(dto.usaMedida !== undefined && { usaMedida: dto.usaMedida }),
         ...(dto.precioVenta !== undefined && { precioVenta: dto.precioVenta }),
         ...(dto.precioCosto !== undefined && { precioCosto: dto.precioCosto }),
         ...(dto.stockActual !== undefined && { stockActual: dto.stockActual }),
@@ -182,7 +190,7 @@ export class ProductosService {
       ...p,
       precioVenta: Number(p.precioVenta),
       precioCosto: Number(p.precioCosto),
-      stockBajo: p.stockActual <= p.stockMinimo,
+      stockBajo: p.stockActual.lte(p.stockMinimo),
     };
   }
 
@@ -193,5 +201,19 @@ export class ProductosService {
       where: { id },
       data: { activo: false },
     });
+  }
+  private async resolveCategoria(tenantId: string, dto: { categoriaId?: string; categoria?: string }) {
+    if (dto.categoriaId) {
+      const categoria = await this.prisma.categoria.findFirst({ where: { id: dto.categoriaId, tenantId } });
+      if (!categoria) throw new NotFoundException('Categoría no encontrada');
+      return categoria.id;
+    }
+    const nombre = dto.categoria?.trim();
+    if (!nombre) return null;
+    const categoria = await this.prisma.categoria.upsert({
+      where: { tenantId_nombre: { tenantId, nombre } },
+      create: { tenantId, nombre }, update: {},
+    });
+    return categoria.id;
   }
 }

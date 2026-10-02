@@ -1,13 +1,7 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsEnum, IsBoolean } from 'class-validator';
 
-export enum UnidadMedidaEnum {
-  UNIDAD = 'UNIDAD',
-  CAJA = 'CAJA',
-  METRO = 'METRO',
-  KG = 'KG',
-  GALON = 'GALON',
-  LIBRA = 'LIBRA',
-}
+import { UnidadMedida as UnidadMedidaEnum } from '@prisma/client';
+export { UnidadMedidaEnum };
 
 export class CreateProductoDto {
   @IsString()
@@ -29,6 +23,14 @@ export class CreateProductoDto {
   @IsString()
   @IsOptional()
   categoriaId?: string;
+
+  @IsString()
+  @IsOptional()
+  categoria?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  usaMedida?: boolean;
 
   @IsNumber({}, { message: 'El precio de venta debe ser un número' })
   @Min(0, { message: 'El precio de venta no puede ser negativo' })
@@ -71,6 +73,14 @@ export class UpdateProductoDto {
   @IsString()
   @IsOptional()
   categoriaId?: string;
+
+  @IsString()
+  @IsOptional()
+  categoria?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  usaMedida?: boolean;
 
   @IsNumber()
   @Min(0)

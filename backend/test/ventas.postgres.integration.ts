@@ -1,0 +1,204 @@
+import { execFileSync, spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve, sep } from 'node:path';
+import { createServer } from 'node:net';
+import { randomUUID } from 'node:crypto';
+import { PrismaService } from '../src/prisma/prisma.service';
+import { VentasService } from '../src/ventas/ventas.service';
+import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
+import { ProductosService } from '../src/productos/productos.service';
+
+// Nunca lee DATABASE_URL: crea un clúster exclusivo, sin migraciones ni datos existentes.
+const bin = process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/18/bin' : '/usr/bin';
+const executable = (name: string) => join(bin, name + (process.platform === 'win32' ? '.exe' : ''));
+
+describe('Ventas / PostgreSQL aislado', () => {
+  let directory: string;
+  let started = false;
+  let prisma: PrismaService;
+  let ventas: VentasService;
+  let cotizaciones: CotizacionesService;
+  let tenantId: string;
+  let usuarioId: string;
+  let productoId: string;
+  let databaseUrl: string;
+
+  beforeAll(async () => {
+    if (!existsSync(executable('initdb'))) throw new Error(`PostgreSQL no instalado en ${bin}`);
+    directory = mkdtempSync(join(tmpdir(), 'ferresystem-postgres-'));
+    console.log('PostgreSQL temporal: initdb');
+    execFileSync(executable('initdb'), ['-D', join(directory, 'data'), '-U', 'postgres', '-A', 'trust', '--locale=C', '-E', 'UTF8'], { windowsHide: true, timeout: 30000 });
+    const server = createServer();
+    await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+    const port = (server.address() as { port: number }).port;
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    console.log('PostgreSQL temporal: start');
+    started = true;
+    execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port}`, '-w', 'start'], { windowsHide: true, timeout: 30000, stdio: 'ignore' });
+    started = true;
+    // Generación de DDL offline desde el schema actual, sin ejecutar migrate ni db push.
+    console.log('PostgreSQL temporal: schema offline');
+    const ddl = execFileSync(process.execPath, [resolve('node_modules/prisma/build/index.js'), 'migrate', 'diff', '--from-empty', '--to-schema-datamodel', resolve('prisma/schema.prisma'), '--script'], { windowsHide: true, timeout: 30000 });
+    writeFileSync(join(directory, 'schema.sql'), ddl);
+    execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', join(directory, 'schema.sql')], { windowsHide: true, timeout: 30000 });
+    databaseUrl = `postgresql://postgres@127.0.0.1:${port}/postgres?connection_limit=8`;
+    prisma = new PrismaService({ datasources: { db: { url: databaseUrl } } });
+    console.log('PostgreSQL temporal: Prisma connect');
+    await prisma.$connect();
+    ventas = new VentasService(prisma);
+    cotizaciones = new CotizacionesService(prisma);
+  });
+
+  beforeEach(async () => {
+    tenantId = randomUUID(); usuarioId = randomUUID(); productoId = randomUUID();
+    await prisma.tenant.create({ data: { id: tenantId, nombreComercial: 'Tenant prueba' } });
+    await prisma.usuario.create({ data: { id: usuarioId, tenantId, nombre: 'Cajero prueba', email: 'test@example.test', passwordHash: 'test-only' } });
+    await prisma.producto.create({ data: { id: productoId, tenantId, codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 2.75, stockMinimo: 0 } });
+  });
+
+  afterAll(async () => {
+    await prisma?.$disconnect();
+    if (started) execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-m', 'immediate', '-w', 'stop'], { windowsHide: true, timeout: 30000, stdio: 'ignore' });
+    // Solo se elimina la carpeta aleatoria que este test acaba de crear.
+    if (directory && resolve(directory).startsWith(resolve(tmpdir()) + sep) && directory.includes('ferresystem-postgres-')) rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  const request = (cantidad = 2.75) => ({ detalles: [{ productoId, cantidad, precioUnitario: 10 }] });
+
+  it('la API compilada arranca en producción con PostgreSQL y aplica autenticación real', async () => {
+    const output = join(directory, 'compiled-api');
+    execFileSync(process.execPath, [resolve('node_modules/typescript/bin/tsc'), '-p', 'tsconfig.build.json', '--incremental', 'false', '--declaration', 'false', '--sourceMap', 'false', '--outDir', output], { windowsHide: true, timeout: 30000 });
+    const listener = createServer();
+    await new Promise<void>((resolve, reject) => { listener.once('error', reject); listener.listen(0, '127.0.0.1', resolve); });
+    const port = (listener.address() as { port: number }).port;
+    await new Promise<void>((resolve) => listener.close(() => resolve()));
+    const child = spawn(process.execPath, [join(output, 'main.js')], {
+      windowsHide: true,
+      env: { ...process.env, NODE_ENV: 'production', NODE_PATH: resolve('node_modules'),
+        DATABASE_URL: databaseUrl, DIRECT_URL: databaseUrl, PORT: String(port),
+        JWT_SECRET: 'isolated-production-smoke-secret-not-for-real-use',
+        FRONTEND_URL: 'https://frontend.example.test' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let log = '';
+    child.stdout.on('data', (data) => { log += data.toString(); });
+    child.stderr.on('data', (data) => { log += data.toString(); });
+    try {
+      let ready = false;
+      const deadline = Date.now() + 20000;
+      while (Date.now() < deadline && child.exitCode === null) {
+        try {
+          const response = await fetch(`http://127.0.0.1:${port}/api/productos`, { signal: AbortSignal.timeout(1000) });
+          if (response.status === 401) { ready = true; break; }
+        } catch { /* El proceso aún está iniciando. */ }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (!ready) throw new Error(`La API no inició correctamente: ${log}`);
+      const invalidLogin = await fetch(`http://127.0.0.1:${port}/api/auth/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      });
+      expect(invalidLogin.status).toBe(400);
+      expect(log).toContain('Conexión exitosa');
+      expect(child.exitCode).toBeNull();
+    } finally {
+      if (child.exitCode === null) {
+        const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+        child.kill();
+        await exited;
+      }
+    }
+  }, 60000);
+
+  it('dos POS concurrentes no sobregiran stock decimal ni dejan huecos de secuencia', async () => {
+    const results = await Promise.allSettled([ventas.create(tenantId, usuarioId, request()), ventas.create(tenantId, usuarioId, request())]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(0);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
+    expect((await prisma.secuenciaTenant.findFirstOrThrow({ where: { tenantId, tipo: 'VENTA' } })).ultimoNumero).toBe(1);
+  });
+
+  it('POS y conversión de cotización compiten por el mismo stock sin negativo', async () => {
+    const cot = await cotizaciones.create(tenantId, usuarioId, request());
+    const results = await Promise.allSettled([ventas.create(tenantId, usuarioId, request()), cotizaciones.convertirAVenta(tenantId, usuarioId, cot.id)]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(0);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
+  });
+
+  it('dos conversiones de la misma cotización crean solo una venta', async () => {
+    const cot = await cotizaciones.create(tenantId, usuarioId, request());
+    const results = await Promise.allSettled([cotizaciones.convertirAVenta(tenantId, usuarioId, cot.id), cotizaciones.convertirAVenta(tenantId, usuarioId, cot.id)]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
+    expect((await prisma.cotizacion.findUniqueOrThrow({ where: { id: cot.id } })).estado).toBe('CONVERTIDA');
+  });
+
+  it('una falla en la segunda línea revierte stock y correlativo completos', async () => {
+    await expect(ventas.create(tenantId, usuarioId, { detalles: [...request(0.5).detalles, ...request(3).detalles] })).rejects.toThrow('Stock insuficiente');
+    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(2.75);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
+    expect(await prisma.secuenciaTenant.count({ where: { tenantId, tipo: 'VENTA' } })).toBe(0);
+  });
+
+  it('requests con la misma identidad y respuesta perdida devuelven una sola venta', async () => {
+    const dto = { ...request(0.5), solicitudId: randomUUID() };
+    const [first, concurrent] = await Promise.all([ventas.create(tenantId, usuarioId, dto), ventas.create(tenantId, usuarioId, dto)]);
+    const retry = await ventas.create(tenantId, usuarioId, dto);
+    expect([concurrent.id, retry.id]).toEqual([first.id, first.id]);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
+    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(2.25);
+    expect((await prisma.secuenciaTenant.findFirstOrThrow({ where: { tenantId, tipo: 'VENTA' } })).ultimoNumero).toBe(1);
+    await expect(ventas.create(tenantId, usuarioId, { ...dto, descuento: 1 })).rejects.toThrow('otra venta');
+    await expect(ventas.create(randomUUID(), usuarioId, dto)).rejects.toThrow('otra venta');
+  });
+
+  it('un tenant ajeno no puede descontar ni crear ventas sobre otro inventario', async () => {
+    const foreign = await prisma.tenant.create({ data: { nombreComercial: 'Otro tenant' } });
+    await expect(ventas.create(foreign.id, usuarioId, request())).rejects.toThrow('no encontrado');
+    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(2.75);
+    expect(await prisma.venta.count({ where: { tenantId: foreign.id } })).toBe(0);
+  });
+
+  it('conversión descuenta la medida total y no permite reabrir la cotización', async () => {
+    await prisma.producto.update({ where: { id: productoId }, data: { stockActual: 10, usaMedida: true, unidadMedida: 'PIE' } });
+    const cot = await cotizaciones.create(tenantId, usuarioId, { detalles: [{ productoId, cantidad: 2, medida: 3, precioUnitario: 10 }] });
+    const converted = await cotizaciones.convertirAVenta(tenantId, usuarioId, cot.id);
+    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(4);
+    expect(Number((await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: converted.ventaId } })).cantidad)).toBe(6);
+    await expect(cotizaciones.updateEstado(tenantId, cot.id, 'BORRADOR')).rejects.toThrow('convertida');
+    await expect(cotizaciones.updateEstado(tenantId, cot.id, 'CONVERTIDA')).rejects.toThrow('use convertir');
+  });
+
+  it('guardar una edición sin cambiar descuento porcentual conserva el monto', async () => {
+    const dto = { ...request(2), descuentoGeneral: 50, tipoDescuentoGeneral: 'PORCENTAJE' as const };
+    const cot = await cotizaciones.create(tenantId, usuarioId, dto);
+    const updated = await cotizaciones.update(tenantId, cot.id, request(2));
+    expect(updated.descuentoGeneral).toBe(cot.descuentoGeneral);
+    expect(updated.total).toBe(cot.total);
+    await expect(cotizaciones.update(tenantId, cot.id, {
+      ...dto, descuentoGeneral: 101,
+    })).rejects.toThrow('100%');
+    expect((await cotizaciones.findById(tenantId, cot.id)).total).toBe(cot.total);
+  });
+
+  it('rechaza clientes y categorías ajenos y conserva categorías por nombre/unidades Prisma', async () => {
+    const foreign = await prisma.tenant.create({ data: { nombreComercial: 'Otro' } });
+    const cliente = await prisma.cliente.create({ data: { tenantId: foreign.id, nombre: 'Ajeno' } });
+    const categoria = await prisma.categoria.create({ data: { tenantId: foreign.id, nombre: 'Ajena' } });
+    await expect(ventas.create(tenantId, usuarioId, { ...request(), clienteId: cliente.id })).rejects.toThrow('Cliente');
+    const cot = await cotizaciones.create(tenantId, usuarioId, request());
+    await expect(cotizaciones.update(tenantId, cot.id, { ...request(), clienteId: cliente.id })).rejects.toThrow('Cliente');
+    const productos = new ProductosService(prisma);
+    const dto = { codigo: 'PIE-2', nombre: 'Por pie', precioVenta: 10, precioCosto: 1, stockActual: 2.75, stockMinimo: 0, unidadMedida: 'PIE' };
+    await expect(productos.create(tenantId, { ...dto, categoriaId: categoria.id })).rejects.toThrow('Categoría');
+    const producto = await productos.create(tenantId, { ...dto, categoria: 'Cables', usaMedida: true });
+    expect(producto.categoria?.nombre).toBe('Cables');
+    expect(producto.unidadMedida).toBe('PIE');
+    expect(producto.usaMedida).toBe(true);
+    await prisma.producto.update({ where: { id: producto.id }, data: { stockActual: 10, stockMinimo: 2 } });
+    expect((await productos.findById(tenantId, producto.id)).stockBajo).toBe(false);
+    expect((await productos.getLowStock(tenantId)).some((p) => p.id === producto.id)).toBe(false);
+  });
+});

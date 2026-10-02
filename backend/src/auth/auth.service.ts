@@ -204,7 +204,7 @@ export class AuthService {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: isProduction ? 'none' : 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
       path: '/',
     });
@@ -228,6 +228,9 @@ export class AuthService {
         logoUrl: usuario.tenant.logoUrl,
         colorPrimario: usuario.tenant.colorPrimario,
         estado: usuario.tenant.estado,
+        direccion: usuario.tenant.direccion,
+        telefono: usuario.tenant.telefono,
+        email: usuario.tenant.email,
       },
     };
   }

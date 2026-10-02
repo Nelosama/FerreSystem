@@ -112,7 +112,7 @@ export const DashboardPage: React.FC = () => {
             </div>
             <div style={styles.alertsList}>
               {productosStockBajo.length === 0 ? (
-                <div style={{ fontSize: '13px', color: '#78716C', padding: '12px 0' }}>
+                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', padding: '12px 0' }}>
                   {t('dashboard.no_stock_alerts')}
                 </div>
               ) : (
@@ -213,7 +213,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '10px 12px',
-    backgroundColor: '#FAFAF9',
+    backgroundColor: 'var(--color-bg)',
     border: '1.5px solid var(--color-border)',
     borderRadius: 'var(--radius-xs)',
     gap: '12px',

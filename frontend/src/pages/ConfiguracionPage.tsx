@@ -174,9 +174,9 @@ export const ConfiguracionPage: React.FC = () => {
                     flex: 1,
                     padding: '8px',
                     fontWeight: 800,
-                    backgroundColor: locale === 'es' ? '#1C1917' : '#FAFAF9',
-                    color: locale === 'es' ? '#FAFAF9' : '#1C1917',
-                    border: '1.5px solid #1C1917',
+                    backgroundColor: locale === 'es' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
+                    color: locale === 'es' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    border: '1.5px solid var(--color-sidebar-bg)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                   }}
@@ -190,9 +190,9 @@ export const ConfiguracionPage: React.FC = () => {
                     flex: 1,
                     padding: '8px',
                     fontWeight: 800,
-                    backgroundColor: locale === 'en' ? '#1C1917' : '#FAFAF9',
-                    color: locale === 'en' ? '#FAFAF9' : '#1C1917',
-                    border: '1.5px solid #1C1917',
+                    backgroundColor: locale === 'en' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
+                    color: locale === 'en' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    border: '1.5px solid var(--color-sidebar-bg)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                   }}
@@ -304,9 +304,9 @@ export const ConfiguracionPage: React.FC = () => {
                   onClick={() => setModoNavegacion('SIDEBAR')}
                   style={{
                     padding: '10px',
-                    backgroundColor: modoNavegacion === 'SIDEBAR' ? '#1C1917' : '#FAFAF9',
-                    color: modoNavegacion === 'SIDEBAR' ? '#FAFAF9' : '#1C1917',
-                    border: modoNavegacion === 'SIDEBAR' ? '2px solid var(--color-primary)' : '1.5px solid #D6D3D1',
+                    backgroundColor: modoNavegacion === 'SIDEBAR' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
+                    color: modoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    border: modoNavegacion === 'SIDEBAR' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     textAlign: 'left',
@@ -321,9 +321,9 @@ export const ConfiguracionPage: React.FC = () => {
                   onClick={() => setModoNavegacion('TOPNAV')}
                   style={{
                     padding: '10px',
-                    backgroundColor: modoNavegacion === 'TOPNAV' ? '#1C1917' : '#FAFAF9',
-                    color: modoNavegacion === 'TOPNAV' ? '#FAFAF9' : '#1C1917',
-                    border: modoNavegacion === 'TOPNAV' ? '2px solid var(--color-primary)' : '1.5px solid #D6D3D1',
+                    backgroundColor: modoNavegacion === 'TOPNAV' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
+                    color: modoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    border: modoNavegacion === 'TOPNAV' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     textAlign: 'left',
@@ -379,7 +379,7 @@ export const ConfiguracionPage: React.FC = () => {
               <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>COLOR DE MARCA & VISTA PREVIA EN VIVO</h2>
             </div>
 
-            <p style={{ fontSize: '12px', color: '#78716C', marginTop: '12px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '12px' }}>
               El color seleccionado se inyecta en variables CSS globales (`--color-primary`) afectando el sidebar,
               botones primarios, bordes de alerta y documentos PDF.
             </p>
@@ -415,7 +415,7 @@ export const ConfiguracionPage: React.FC = () => {
                     onClick={() => setColor(p.hex)}
                     style={{
                       ...styles.presetBtn,
-                      borderColor: color.toUpperCase() === p.hex.toUpperCase() ? '#1C1917' : '#D6D3D1',
+                      borderColor: color.toUpperCase() === p.hex.toUpperCase() ? 'var(--color-sidebar-bg)' : 'var(--color-sidebar-text)',
                       borderWidth: color.toUpperCase() === p.hex.toUpperCase() ? '2.5px' : '1.5px',
                     }}
                   >
@@ -427,15 +427,15 @@ export const ConfiguracionPage: React.FC = () => {
             </div>
 
             {/* VISTA PREVIA EN VIVO DEL TEMA Y FUENTES */}
-            <div style={{ ...styles.previewBox, marginTop: '20px', border: '2px solid #1C1917' }}>
+            <div style={{ ...styles.previewBox, marginTop: '20px', border: '2px solid var(--color-sidebar-bg)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px' }}>
                 <Eye size={14} color={color} /> VISTA PREVIA EN VIVO ({locale.toUpperCase()})
               </div>
               <div
                 style={{
                   padding: '16px',
-                  backgroundColor: estiloUI === 'MINIMALISTA' ? '#F5F5F4' : estiloUI === 'MODERNO' ? color : '#1C1917',
-                  color: estiloUI === 'MINIMALISTA' ? '#1C1917' : '#FFFFFF',
+                  backgroundColor: estiloUI === 'MINIMALISTA' ? 'var(--color-surface-hover)' : estiloUI === 'MODERNO' ? color : 'var(--color-sidebar-bg)',
+                  color: estiloUI === 'MINIMALISTA' ? 'var(--color-sidebar-bg)' : '#FFFFFF',
                   borderRadius: estiloUI === 'MODERNO' ? '12px' : estiloUI === 'MINIMALISTA' ? '10px' : '2px',
                   border: '1px solid #44403C',
                 }}
@@ -549,11 +549,11 @@ const styles: Record<string, React.CSSProperties> = {
     width: '16px',
     height: '16px',
     borderRadius: '2px',
-    border: '1px solid #1C1917',
+    border: '1px solid var(--color-sidebar-bg)',
     flexShrink: 0,
   },
   previewBox: {
-    backgroundColor: '#FAFAF9',
+    backgroundColor: 'var(--color-bg)',
     border: '1.5px solid var(--color-border)',
     borderRadius: 'var(--radius-xs)',
     padding: '14px',

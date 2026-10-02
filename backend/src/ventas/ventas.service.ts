@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -80,6 +80,7 @@ export class VentasService {
     tenantId: string,
     usuarioId: string,
     dto: {
+      solicitudId?: string;
       clienteId?: string;
       metodoPago?: any;
       descuento?: number;
@@ -99,6 +100,40 @@ export class VentasService {
 
     // Transacción atómica completa: número correlativo, descuento de inventario y guardado
     return this.prisma.$transaction(async (tx) => {
+      // Un reintento conserva el ID de la venta; el bloqueo dura hasta commit/rollback.
+      if (dto.solicitudId) {
+        await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + dto.solicitudId}, 0))`;
+        const anterior = await tx.venta.findUnique({
+          where: { id: dto.solicitudId },
+          include: { cliente: true, detalles: { include: { producto: true } } },
+        });
+        if (anterior) {
+          const restantes = [...anterior.detalles];
+          const mismosDetalles = anterior.detalles.length === dto.detalles.length &&
+            dto.detalles.every((item) => {
+              const index = restantes.findIndex((d) =>
+                d.productoId === item.productoId && Number(d.cantidad) === item.cantidad &&
+                (item.precioUnitario === undefined || Number(d.precioUnitario) === item.precioUnitario));
+              if (index < 0) return false;
+              restantes.splice(index, 1);
+              return true;
+            });
+          if (anterior.tenantId !== tenantId || anterior.usuarioId !== usuarioId ||
+              anterior.clienteId !== (dto.clienteId || null) ||
+              anterior.metodoPago !== (dto.metodoPago || 'EFECTIVO') ||
+              Number(anterior.descuento) !== descuento || anterior.notas !== (dto.notas || null) ||
+              !mismosDetalles) {
+            throw new ConflictException('La solicitud ya fue utilizada para otra venta');
+          }
+          return this.formatVentaCreada(anterior);
+        }
+      }
+
+      if (dto.clienteId) {
+        const cliente = await tx.cliente.findFirst({ where: { id: dto.clienteId, tenantId } });
+        if (!cliente) throw new NotFoundException('Cliente seleccionado no existe');
+      }
+
       // 1. Obtener siguiente número secuencial por tenant con bloqueo atómico
       const result = await tx.$queryRaw<[{ ultimo_numero: number }]>`
         INSERT INTO "secuencias_tenant" ("id", "tenant_id", "tipo", "ultimo_numero")
@@ -140,10 +175,13 @@ export class VentasService {
         subtotalTotal += itemSubtotal;
 
         // Descontar inventario con precisión decimal exacta
-        await tx.producto.update({
-          where: { id: prod.id },
+        const descontado = await tx.producto.updateMany({
+          where: { id: prod.id, tenantId, activo: true, stockActual: { gte: item.cantidad } },
           data: { stockActual: { decrement: item.cantidad } },
         });
+        if (descontado.count !== 1) {
+          throw new BadRequestException(`Stock insuficiente para "${prod.nombre}" o producto inactivo`);
+        }
 
         detallesParaCrear.push({
           productoId: prod.id,
@@ -161,6 +199,7 @@ export class VentasService {
       // 4. Crear la venta en base de datos
       const venta = await tx.venta.create({
         data: {
+          ...(dto.solicitudId && { id: dto.solicitudId }),
           tenantId,
           numeroVenta,
           clienteId: dto.clienteId || null,
@@ -189,22 +228,25 @@ export class VentasService {
         },
       });
 
-      return {
-        ...venta,
-        subtotal: Number(venta.subtotal),
-        isv: Number(venta.isv),
-        descuento: Number(venta.descuento),
-        total: Number(venta.total),
-        detalles: venta.detalles.map((d) => ({
-          id: d.id,
-          productoId: d.productoId,
-          productoNombre: d.producto.nombre,
-          productoCodigo: d.producto.codigo,
-          cantidad: Number(d.cantidad),
-          precioUnitario: Number(d.precioUnitario),
-          subtotal: Number(d.subtotal),
-        })),
-      };
+      return this.formatVentaCreada(venta);
     });
+  }
+  private formatVentaCreada(venta: any) {
+    return {
+      ...venta,
+      subtotal: Number(venta.subtotal),
+      isv: Number(venta.isv),
+      descuento: Number(venta.descuento),
+      total: Number(venta.total),
+      detalles: venta.detalles.map((d) => ({
+        id: d.id,
+        productoId: d.productoId,
+        productoNombre: d.producto.nombre,
+        productoCodigo: d.producto.codigo,
+        cantidad: Number(d.cantidad),
+        precioUnitario: Number(d.precioUnitario),
+        subtotal: Number(d.subtotal),
+      })),
+    };
   }
 }

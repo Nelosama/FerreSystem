@@ -7,6 +7,7 @@ import type { ProductItem } from '../types';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { ImportarProductosModal } from '../components/ImportarProductosModal';
+import { normalizarUnidadMedida } from '../utils/unidadMedida';
 
 export const InventarioPage: React.FC = () => {
   const rubroConfig = useRubroConfig();
@@ -88,9 +89,9 @@ export const InventarioPage: React.FC = () => {
         categoria: formCategoria,
         precioVenta: parseFloat(formPrecioVenta) || 0,
         precioCosto: parseFloat(formPrecioCosto) || 0,
-        stockActual: parseInt(formStockActual, 10) || 0,
-        stockMinimo: parseInt(formStockMinimo, 10) || 5,
-        unidadMedida: formUnidadMedida.toUpperCase(),
+        stockActual: formStockActual === '' ? 0 : Number(formStockActual),
+        stockMinimo: formStockMinimo === '' ? 5 : Number(formStockMinimo),
+        unidadMedida: normalizarUnidadMedida(formUnidadMedida),
         usaMedida: false,
       });
 
@@ -116,7 +117,7 @@ export const InventarioPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title={rubroConfig.nombreCatalogo.toUpperCase()} subtitle="Control de Stock y Precios por Rubro" />
+      <TopBar title={rubroConfig.nombreCatalogo.toUpperCase()} subtitle={t('inventory.subtitle')} />
 
       <main style={styles.content}>
         {/* Barra de Filtros y Acción */}
@@ -125,7 +126,7 @@ export const InventarioPage: React.FC = () => {
             <Search size={18} strokeWidth={2.4} style={styles.searchIcon} />
             <input
               type="text"
-              placeholder="Buscar por código SKU o nombre de producto..."
+              placeholder={t('pos.search_products')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="form-input"
@@ -136,7 +137,7 @@ export const InventarioPage: React.FC = () => {
           <div style={styles.categoriesFilter}>
             {categorias.map((cat) => (
               <button
-                key={cat}
+                key={cat === 'TODAS' ? t('common.all') : cat}
                 type="button"
                 onClick={() => setFiltroCategoria(cat)}
                 style={{
@@ -173,8 +174,8 @@ export const InventarioPage: React.FC = () => {
         {errorText && (
           <div style={{ marginTop: '16px', padding: '12px 16px', backgroundColor: '#FEE2E2', color: '#991B1B', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>{errorText}</span>
-            <button type="button" onClick={fetchProductos} className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px' }}>
-              <RefreshCw size={14} /> Reintentar
+            <button type="button" onClick={fetchProductos} className="btn btn-secondary btn-sm" style={{ padding: '4px 10px', fontSize: '12px' }}>
+              <RefreshCw size={14} /> {t('common.retry')}
             </button>
           </div>
         )}
@@ -184,22 +185,22 @@ export const InventarioPage: React.FC = () => {
           <table className="industrial-table">
             <thead>
               <tr>
-                <th>CÓDIGO SKU</th>
-                <th>NOMBRE DEL ARTÍCULO</th>
-                <th>CATEGORÍA</th>
-                <th>UNIDAD</th>
-                <th style={{ textAlign: 'right' }}>PRECIO VENTA</th>
-                <th style={{ textAlign: 'right' }}>PRECIO COSTO</th>
-                <th style={{ textAlign: 'center' }}>STOCK ACTUAL</th>
-                <th style={{ textAlign: 'center' }}>MÍNIMO</th>
-                <th style={{ textAlign: 'center' }}>ESTADO</th>
+                <th>{t('inventory.code')}</th>
+                <th>{t('inventory.product')}</th>
+                <th>{t('inventory.category')}</th>
+                <th>{t('common.unit')}</th>
+                <th style={{ textAlign: 'right' }}>{t('inventory.price')}</th>
+                <th style={{ textAlign: 'right' }}>{t('inventory.cost')}</th>
+                <th style={{ textAlign: 'center' }}>{t('inventory.stock')}</th>
+                <th style={{ textAlign: 'center' }}>{t('inventory.minimum')}</th>
+                <th style={{ textAlign: 'center' }}>{t('common.status')}</th>
               </tr>
             </thead>
             <tbody>
               {productosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '36px', color: '#78716C' }}>
-                    No se encontraron productos coincidentes
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-muted)' }}>
+                    {t('operational.no_se_encontraron_productos_coincidentes')}
                   </td>
                 </tr>
               ) : (
@@ -211,15 +212,15 @@ export const InventarioPage: React.FC = () => {
                       <td style={{ fontWeight: 600 }}>
                         <div>{p.nombre}</div>
                         {(p.fechaVencimiento || p.numeroSerie) && (
-                          <div style={{ fontSize: '10px', color: '#78716C', display: 'flex', gap: '8px', marginTop: '2px' }}>
+                          <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', display: 'flex', gap: '8px', marginTop: '2px' }}>
                             {p.fechaVencimiento && (
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                <Calendar size={11} /> Vence: {p.fechaVencimiento} {p.lote ? `(Lote: ${p.lote})` : ''}
+                                <Calendar size={11} /> {t('operational.vence')} {p.fechaVencimiento} {p.lote ? `(Lote: ${p.lote})` : ''}
                               </span>
                             )}
                             {p.numeroSerie && (
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#0284C7' }}>
-                                <ShieldCheck size={11} /> S/N: {p.numeroSerie} ({p.mesesGarantia || 12}m garantía)
+                                <ShieldCheck size={11} /> S/N: {p.numeroSerie} ({p.mesesGarantia || 12}{t('operational.m_garantia')}
                               </span>
                             )}
                           </div>
@@ -228,13 +229,13 @@ export const InventarioPage: React.FC = () => {
                       <td>
                         <span className="badge badge-dark">{p.categoria}</span>
                       </td>
-                      <td style={{ fontSize: '12px', color: '#78716C', textTransform: 'lowercase' }}>
+                      <td style={{ fontSize: '12px', color: 'var(--color-text-muted)', textTransform: 'lowercase' }}>
                         {p.unidadMedida}
                       </td>
                       <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, whiteSpace: 'nowrap' }}>
                         {formatLempiras(p.precioVenta)}
                       </td>
-                      <td style={{ textAlign: 'right', color: '#78716C', whiteSpace: 'nowrap' }}>
+                      <td style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                         {formatLempiras(p.precioCosto)}
                       </td>
                       <td
@@ -248,14 +249,14 @@ export const InventarioPage: React.FC = () => {
                       >
                         {p.stockActual}
                       </td>
-                      <td style={{ textAlign: 'center', color: '#78716C' }}>{p.stockMinimo}</td>
+                      <td style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>{p.stockMinimo}</td>
                       <td style={{ textAlign: 'center' }}>
                         {stockBajo ? (
                           <span className="badge badge-danger">
-                            <AlertTriangle size={11} strokeWidth={2.6} /> STOCK BAJO
+                            <AlertTriangle size={11} strokeWidth={2.6} /> {t('operational.stock_bajo')}
                           </span>
                         ) : (
-                          <span className="badge badge-success">DISPONIBLE</span>
+                          <span className="badge badge-success">{t('inventory.available')}</span>
                         )}
                       </td>
                     </tr>
@@ -270,7 +271,7 @@ export const InventarioPage: React.FC = () => {
       {/* Modal de Importación Masiva */}
       <ImportarProductosModal
         isOpen={importModalAbierto}
-        onClose={() => setImportModalAbierto(false)}
+        onClose={() => { setImportModalAbierto(false); void fetchProductos(); }}
       />
 
       {/* Modal de Creación */}
@@ -278,7 +279,7 @@ export const InventarioPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '18px', textTransform: 'uppercase' }}>AGREGAR NUEVO ARTÍCULO</h2>
+              <h2 style={{ fontSize: '18px', textTransform: 'uppercase' }}>{t('inventory.add_article')}</h2>
               <button
                 type="button"
                 onClick={() => setModalAbierto(false)}
@@ -291,11 +292,11 @@ export const InventarioPage: React.FC = () => {
             <form onSubmit={handleCrearProducto} style={{ marginTop: '16px' }}>
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">CÓDIGO / SKU</label>
+                  <label className="form-label">{t('inventory.sku')}</label>
                   <input
                     type="text"
                     required
-                    placeholder="Ej. ART-005"
+                    placeholder={t('operational.ej_art_005')}
                     value={formCodigo}
                     onChange={(e) => setFormCodigo(e.target.value)}
                     className="form-input"
@@ -303,7 +304,7 @@ export const InventarioPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">CATEGORÍA</label>
+                  <label className="form-label">{t('inventory.category')}</label>
                   <select
                     value={formCategoria}
                     onChange={(e) => setFormCategoria(e.target.value)}
@@ -322,11 +323,11 @@ export const InventarioPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">DESCRIPCIÓN DEL ARTÍCULO</label>
+                <label className="form-label">{t('inventory.article_description')}</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ej. Nombre del producto"
+                  placeholder={t('operational.ej_nombre_del_producto')}
                   value={formNombre}
                   onChange={(e) => setFormNombre(e.target.value)}
                   className="form-input"
@@ -335,7 +336,7 @@ export const InventarioPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">UNIDAD DE MEDIDA</label>
+                  <label className="form-label">{t('inventory.unit_measure')}</label>
                   <select
                     value={formUnidadMedida}
                     onChange={(e) => setFormUnidadMedida(e.target.value)}
@@ -350,7 +351,7 @@ export const InventarioPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">PRECIO VENTA (L.)</label>
+                  <label className="form-label">{t('inventory.sale_price')}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -363,7 +364,7 @@ export const InventarioPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">PRECIO COSTO (L.)</label>
+                  <label className="form-label">{t('inventory.cost_price')}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -377,9 +378,11 @@ export const InventarioPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">STOCK INICIAL</label>
+                  <label className="form-label">{t('inventory.initial_stock')}</label>
                   <input
                     type="number"
+                    step="0.01"
+                    min="0"
                     placeholder="0"
                     value={formStockActual}
                     onChange={(e) => setFormStockActual(e.target.value)}
@@ -388,9 +391,11 @@ export const InventarioPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">STOCK MÍNIMO ALERTA</label>
+                  <label className="form-label">{t('inventory.minimum_alert')}</label>
                   <input
                     type="number"
+                    step="0.01"
+                    min="0"
                     placeholder="5"
                     value={formStockMinimo}
                     onChange={(e) => setFormStockMinimo(e.target.value)}
@@ -403,7 +408,7 @@ export const InventarioPage: React.FC = () => {
               {rubroConfig.activarVencimientos && (
                 <div style={{ ...styles.formRow, marginTop: '10px', padding: '10px', backgroundColor: '#FEF3C7', borderRadius: '4px' }}>
                   <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label" style={{ color: '#B45309' }}>FECHA VENCIMIENTO (OPCIONAL)</label>
+                    <label className="form-label" style={{ color: '#B45309' }}>{t('operational.fecha_vencimiento_opcional')}</label>
                     <input
                       type="date"
                       value={formFechaVencimiento}
@@ -412,10 +417,10 @@ export const InventarioPage: React.FC = () => {
                     />
                   </div>
                   <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label" style={{ color: '#B45309' }}>NÚMERO DE LOTE</label>
+                    <label className="form-label" style={{ color: '#B45309' }}>{t('operational.numero_de_lote')}</label>
                     <input
                       type="text"
-                      placeholder="Ej. LOT-2026-X"
+                      placeholder={t('operational.ej_lot_2026_x')}
                       value={formLote}
                       onChange={(e) => setFormLote(e.target.value)}
                       className="form-input"
@@ -427,20 +432,20 @@ export const InventarioPage: React.FC = () => {
               {rubroConfig.activarGarantiaSerie && (
                 <div style={{ ...styles.formRow, marginTop: '10px', padding: '10px', backgroundColor: '#E0F2FE', borderRadius: '4px' }}>
                   <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label" style={{ color: '#0369A1' }}>NÚMERO DE SERIE</label>
+                    <label className="form-label" style={{ color: '#0369A1' }}>{t('operational.numero_de_serie')}</label>
                     <input
                       type="text"
-                      placeholder="Ej. SN-987654321"
+                      placeholder={t('operational.ej_sn_987654321')}
                       value={formNumeroSerie}
                       onChange={(e) => setFormNumeroSerie(e.target.value)}
                       className="form-input"
                     />
                   </div>
                   <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label" style={{ color: '#0369A1' }}>GARANTÍA (MESES)</label>
+                    <label className="form-label" style={{ color: '#0369A1' }}>{t('operational.garantia_meses')}</label>
                     <input
                       type="number"
-                      placeholder="Ej. 12"
+                      placeholder={t('operational.ej_12')}
                       value={formMesesGarantia}
                       onChange={(e) => setFormMesesGarantia(e.target.value)}
                       className="form-input"
@@ -455,10 +460,10 @@ export const InventarioPage: React.FC = () => {
                   className="btn btn-secondary"
                   onClick={() => setModalAbierto(false)}
                 >
-                  CANCELAR
+                  {t('operational.cancelar')}
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  <Check size={16} strokeWidth={2.6} /> GUARDAR PRODUCTO
+                  <Check size={16} strokeWidth={2.6} /> {t('inventory.save_product')}
                 </button>
               </div>
             </form>
@@ -498,7 +503,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   categoriesFilter: {
     display: 'flex',
@@ -519,7 +524,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   catButtonActive: {
     backgroundColor: 'var(--color-sidebar-bg)',
-    color: '#FAFAF9',
+    color: 'var(--color-bg)',
     borderColor: 'var(--color-sidebar-bg)',
   },
   modalOverlay: {

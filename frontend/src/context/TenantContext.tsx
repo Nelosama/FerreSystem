@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { TenantInfo, UserInfo } from '../types';
 import { api } from '../utils/api';
+import { readStoredJson } from '../utils/storage';
 
 interface TenantContextType {
   tenant: TenantInfo;
@@ -32,28 +33,23 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tenant, setTenant] = useState<TenantInfo>(() => {
-    const saved = localStorage.getItem('ferre_tenant');
-    return saved ? JSON.parse(saved) : DEFAULT_TENANT;
+    return readStoredJson('ferre_tenant', DEFAULT_TENANT);
   });
 
   const [user, setUser] = useState<UserInfo | null>(() => {
-    const saved = localStorage.getItem('ferre_user');
-    return saved ? JSON.parse(saved) : null;
+    return readStoredJson('ferre_user', null);
   });
 
   const [originalSuperAdminUser, setOriginalSuperAdminUser] = useState<UserInfo | null>(() => {
-    const saved = localStorage.getItem('ferre_original_superadmin_user');
-    return saved ? JSON.parse(saved) : null;
+    return readStoredJson('ferre_original_superadmin_user', null);
   });
 
   const [originalTenant, setOriginalTenant] = useState<TenantInfo | null>(() => {
-    const saved = localStorage.getItem('ferre_original_superadmin_tenant');
-    return saved ? JSON.parse(saved) : null;
+    return readStoredJson('ferre_original_superadmin_tenant', null);
   });
 
   const [isReadOnlyState, setIsReadOnlyState] = useState<boolean>(() => {
-    const saved = localStorage.getItem('ferre_is_read_only');
-    return saved ? JSON.parse(saved) : true;
+    return readStoredJson('ferre_is_read_only', true);
   });
 
   const [activeSupportSessionId, setActiveSupportSessionId] = useState<string | null>(() => {

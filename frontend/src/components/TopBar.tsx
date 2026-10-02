@@ -3,6 +3,7 @@ import { Calendar, Clock, UserCheck, LogOut, Bell, Check, X, ShieldAlert, GitBra
 import { useTenant } from '../context/TenantContext';
 import { useNotification, type SolicitudDescuento } from '../context/NotificationContext';
 import { useI18n } from '../context/I18nContext';
+import { useSucursales } from '../hooks/useSucursales';
 import { useNavigate } from 'react-router-dom';
 import { formatLempiras } from '../utils/format';
 
@@ -22,34 +23,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   const navigate = useNavigate();
 
   const [panelNotificaciones, setPanelNotificaciones] = React.useState(false);
-
-  // Cargar dinámicamente las sucursales creadas por el Super Admin para esta empresa
-  const sucursalesDisponibles = React.useMemo(() => {
-    const defaultList = [
-      { id: 'suc-1', nombre: 'Sucursal Centro (Principal)' },
-      { id: 'suc-2', nombre: 'Sucursal San Pedro (Norte)' },
-      { id: 'suc-3', nombre: 'Sucursal Choluteca (Sur)' },
-    ];
-
-    const saasTenantsRaw = localStorage.getItem('ferre_saas_tenants');
-    if (saasTenantsRaw) {
-      try {
-        const saasTenants = JSON.parse(saasTenantsRaw);
-        const match = saasTenants.find(
-          (t: any) => t.id === tenant.id || t.nombreComercial === tenant.nombreComercial,
-        );
-        if (match && match.sucursalesList && match.sucursalesList.length > 0) {
-          return match.sucursalesList.map((s: any) => ({
-            id: s.id,
-            nombre: s.nombre,
-          }));
-        }
-      } catch (e) {
-        // Fallback
-      }
-    }
-    return defaultList;
-  }, [tenant.id, tenant.nombreComercial]);
+  const sucursalesDisponibles = useSucursales();
 
   // Verificar si el usuario tiene permiso para autorizar (ADMIN o permiso usuarios.gestionar)
   const puedeAutorizar =
@@ -251,7 +225,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                   {/* Sección Solicitudes Descuento */}
                   {solicitudes.length === 0 && transferenciasParaEstaSucursal.length === 0 ? (
-                    <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: '#78716C' }}>
+                    <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--color-text-muted)' }}>
                       No hay notificaciones registradas
                     </div>
                   ) : (
@@ -460,7 +434,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '8px',
     backgroundColor: 'var(--color-sidebar-bg)',
-    color: '#FAFAF9',
+    color: 'var(--color-bg)',
     fontFamily: 'var(--font-display)',
     fontWeight: 800,
     fontSize: '12px',
@@ -546,7 +520,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     padding: '10px 12px',
     borderBottom: '1.5px solid var(--color-border)',
-    backgroundColor: '#FAFAF9',
+    backgroundColor: 'var(--color-bg)',
   },
   notifList: {
     maxHeight: '280px',

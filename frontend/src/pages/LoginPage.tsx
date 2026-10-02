@@ -90,7 +90,7 @@ export const LoginPage: React.FC = () => {
             <Box size={38} strokeWidth={2.6} color="var(--color-primary)" />
           </div>
           <div style={styles.brandTitle}>
-            <span style={{ color: '#1C1917' }}>Ferre</span>
+            <span style={{ color: 'var(--color-sidebar-bg)' }}>Ferre</span>
             <span style={{ color: 'var(--color-primary)' }}>System</span>
           </div>
           <div style={styles.subtitle}>SISTEMA DE GESTIÓN PARA FERRETERÍAS</div>
@@ -190,8 +190,8 @@ const styles: Record<string, React.CSSProperties> = {
   logoIcon: {
     display: 'inline-flex',
     padding: '10px',
-    backgroundColor: '#FAFAF9',
-    border: '2px solid #1C1917',
+    backgroundColor: 'var(--color-bg)',
+    border: '2px solid var(--color-sidebar-bg)',
     borderRadius: '4px',
     marginBottom: '10px',
   },
@@ -206,7 +206,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     fontSize: '10px',
     letterSpacing: '0.06em',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
     marginTop: '4px',
   },
   inputWrapper: {
@@ -217,7 +217,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: '11px',
     top: '50%',
     transform: 'translateY(-50%)',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   footerNote: {
     textAlign: 'center',

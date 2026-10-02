@@ -611,7 +611,7 @@ export const ReportesPage: React.FC = () => {
 
           <div style={styles.dateInputsRow}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Calendar size={15} color="#78716C" />
+              <Calendar size={15} color="var(--color-text-muted)" />
               <label style={styles.dateLabel}>DESDE:</label>
               <input
                 type="date"
@@ -770,7 +770,7 @@ export const ReportesPage: React.FC = () => {
                   <tbody>
                     {ventasPorCategoria.length === 0 ? (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', color: '#78716C', padding: '20px' }}>
+                        <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '20px' }}>
                           No hay registros de ventas en el período seleccionado.
                         </td>
                       </tr>
@@ -831,7 +831,7 @@ export const ReportesPage: React.FC = () => {
                     <tbody>
                       {ventasPorVendedor.length === 0 ? (
                         <tr>
-                          <td colSpan={3} style={{ textAlign: 'center', color: '#78716C' }}>
+                          <td colSpan={3} style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
                             Sin datos en el rango seleccionado.
                           </td>
                         </tr>
@@ -922,7 +922,7 @@ export const ReportesPage: React.FC = () => {
                   <tbody>
                     {top10Clientes.length === 0 ? (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', color: '#78716C' }}>
+                        <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
                           No hay clientes registrados en el período.
                         </td>
                       </tr>
@@ -933,7 +933,7 @@ export const ReportesPage: React.FC = () => {
                             #{idx + 1}
                           </td>
                           <td style={{ fontWeight: 800 }}>{c.cliente}</td>
-                          <td style={{ color: '#78716C' }}>{c.rtn}</td>
+                          <td style={{ color: 'var(--color-text-muted)' }}>{c.rtn}</td>
                           <td style={{ textAlign: 'center' }}>{c.transacciones}</td>
                           <td style={{ textAlign: 'right', fontWeight: 900 }}>
                             L. {c.total.toLocaleString('es-HN', { minimumFractionDigits: 2 })}
@@ -1016,7 +1016,7 @@ export const ReportesPage: React.FC = () => {
                     <tbody>
                       {top10MasVendidos.length === 0 ? (
                         <tr>
-                          <td colSpan={4} style={{ textAlign: 'center', color: '#78716C' }}>
+                          <td colSpan={4} style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
                             Sin ventas en el período.
                           </td>
                         </tr>
@@ -1094,7 +1094,7 @@ export const ReportesPage: React.FC = () => {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <label style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#78716C' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>
                       DÍAS SIN VENTA:
                     </label>
                     <input
@@ -1399,7 +1399,7 @@ export const ReportesPage: React.FC = () => {
                             COT-{c.numero.toString().padStart(4, '0')}
                           </td>
                           <td style={{ fontWeight: 800 }}>{c.cliente}</td>
-                          <td style={{ color: '#78716C' }}>{c.fechaEmision}</td>
+                          <td style={{ color: 'var(--color-text-muted)' }}>{c.fechaEmision}</td>
                           <td style={{ fontWeight: 800, color: '#D97706' }}>{c.fechaValidez}</td>
                           <td style={{ textAlign: 'right', fontWeight: 900 }}>
                             L. {c.total.toLocaleString('es-HN', { minimumFractionDigits: 2 })}
@@ -1422,7 +1422,7 @@ export const ReportesPage: React.FC = () => {
         ========================================== */}
         {tabActiva === 'OPERACIONES' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div style={{ fontSize: '13px', color: '#78716C', fontWeight: 600 }}>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
               Nota: Solo se despliegan los reportes operacionales de los módulos que están habilitados para el tenant actual.
             </div>
 
@@ -1499,7 +1499,7 @@ export const ReportesPage: React.FC = () => {
                     <tbody>
                       {arqueosDatos.historial.length === 0 ? (
                         <tr>
-                          <td colSpan={5} style={{ textAlign: 'center', color: '#78716C' }}>
+                          <td colSpan={5} style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
                             No hay cierres de caja en el período.
                           </td>
                         </tr>
@@ -1608,7 +1608,7 @@ export const ReportesPage: React.FC = () => {
 
                   <div style={styles.statusCard}>
                     <div style={styles.statusLabel}>VENCIDAS / FINALIZADAS</div>
-                    <div style={{ ...styles.statusValue, color: '#78716C' }}>{garantiasDatos.vencidas}</div>
+                    <div style={{ ...styles.statusValue, color: 'var(--color-text-muted)' }}>{garantiasDatos.vencidas}</div>
                   </div>
                 </div>
               </div>
@@ -1764,7 +1764,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     fontSize: '12px',
     letterSpacing: '0.04em',
-    color: '#1C1917',
+    color: 'var(--color-sidebar-bg)',
   },
   presetsRow: {
     display: 'flex',
@@ -1777,9 +1777,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     fontSize: '11px',
     letterSpacing: '0.03em',
-    color: '#78716C',
-    backgroundColor: '#FAFAF9',
-    border: '1.5px solid #D6D3D1',
+    color: 'var(--color-text-muted)',
+    backgroundColor: 'var(--color-bg)',
+    border: '1.5px solid var(--color-sidebar-text)',
     borderRadius: 'var(--radius-xs)',
     cursor: 'pointer',
     transition: 'all 150ms ease',
@@ -1801,13 +1801,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     fontSize: '10px',
     letterSpacing: '0.04em',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   tabsContainer: {
     display: 'flex',
     gap: '10px',
     marginBottom: '24px',
-    borderBottom: '2px solid #292524',
+    borderBottom: '2px solid var(--color-text-main)',
     paddingBottom: '8px',
     overflowX: 'auto',
   },
@@ -1820,18 +1820,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     fontSize: '12px',
     letterSpacing: '0.04em',
-    color: '#78716C',
-    backgroundColor: '#FAFAF9',
-    border: '2px solid #D6D3D1',
+    color: 'var(--color-text-muted)',
+    backgroundColor: 'var(--color-bg)',
+    border: '2px solid var(--color-sidebar-text)',
     borderRadius: 'var(--radius-xs)',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     transition: 'all 150ms ease',
   },
   tabBtnActive: {
-    backgroundColor: '#1C1917',
-    color: '#FAFAF9',
-    borderColor: '#1C1917',
+    backgroundColor: 'var(--color-sidebar-bg)',
+    color: 'var(--color-bg)',
+    borderColor: 'var(--color-sidebar-bg)',
     boxShadow: '2px 2px 0px rgba(0,0,0,0.3)',
   },
   metricsGrid: {
@@ -1855,11 +1855,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     letterSpacing: '0.03em',
     textTransform: 'uppercase',
-    color: '#1C1917',
+    color: 'var(--color-sidebar-bg)',
   },
   sectionSubtitle: {
     fontSize: '11px',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
     fontWeight: 500,
   },
   progressBarTrack: {
@@ -1877,8 +1877,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   statusCard: {
     padding: '14px 18px',
-    backgroundColor: '#FAFAF9',
-    border: '1.5px solid #D6D3D1',
+    backgroundColor: 'var(--color-bg)',
+    border: '1.5px solid var(--color-sidebar-text)',
     borderRadius: 'var(--radius-xs)',
   },
   statusLabel: {
@@ -1886,14 +1886,14 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     fontSize: '10px',
     letterSpacing: '0.04em',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
     textTransform: 'uppercase',
   },
   statusValue: {
     fontFamily: 'var(--font-display)',
     fontWeight: 900,
     fontSize: '22px',
-    color: '#1C1917',
+    color: 'var(--color-sidebar-bg)',
     marginTop: '4px',
   },
 };

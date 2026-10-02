@@ -105,7 +105,7 @@ const styles: Record<string, React.CSSProperties> = {
   message: {
     fontFamily: 'var(--font-body, sans-serif)',
     fontSize: '14px',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
     maxWidth: '500px',
     margin: 0,
   },

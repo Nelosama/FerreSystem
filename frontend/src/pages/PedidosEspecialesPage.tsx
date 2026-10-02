@@ -170,7 +170,7 @@ export const PedidosEspecialesPage: React.FC = () => {
                   <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{p.codigo}</td>
                   <td>
                     <div style={{ fontWeight: 700 }}>{p.clienteNombre}</div>
-                    <div style={{ fontSize: '11px', color: '#78716C' }}>{p.clienteTelefono}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{p.clienteTelefono}</div>
                   </td>
                   <td style={{ fontWeight: 600 }}>{p.productoNombre}</td>
                   <td style={{ textAlign: 'center', fontWeight: 900 }}>{p.cantidad}</td>
@@ -314,7 +314,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   successBanner: {
     display: 'flex',

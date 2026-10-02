@@ -21,11 +21,11 @@ async function bootstrap() {
   // Enable CORS with credentials for frontend applications (Vercel, local dev, custom domain)
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        // Allow origin for production cross-domain deployment flexibility
-        callback(null, true);
+        // Deny origins outside the explicit local/configured allowlist.
+        callback(null, false);
       }
     },
     credentials: true,

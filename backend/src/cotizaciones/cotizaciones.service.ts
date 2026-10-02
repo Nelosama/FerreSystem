@@ -103,6 +103,7 @@ export class CotizacionesService {
       let descuentoGeneralMonto = 0;
 
       if (tipoDescGen === 'PORCENTAJE') {
+        if (descGenVal > 100) throw new BadRequestException('El descuento porcentual no puede superar 100%');
         descuentoGeneralMonto = Math.round(subtotalTotal * (descGenVal / 100) * 100) / 100;
       } else {
         descuentoGeneralMonto = Math.min(subtotalTotal, descGenVal);
@@ -175,42 +176,44 @@ export class CotizacionesService {
   }
 
   async update(tenantId: string, id: string, dto: CreateCotizacionDto) {
-    const existing = await this.prisma.cotizacion.findFirst({
-      where: { id, tenantId },
-    });
-
-    if (!existing) {
-      throw new NotFoundException('Cotización no encontrada');
-    }
-
-    if (existing.estado === 'APROBADA' || existing.estado === 'CONVERTIDA') {
-      throw new BadRequestException('No se puede modificar una cotización que ha sido aprobada o convertida a venta');
-    }
-
-    if (!dto.detalles || dto.detalles.length === 0) {
-      throw new BadRequestException('La cotización debe tener al menos un ítem');
-    }
-
-    let clienteNombre = dto.clienteNombre || existing.clienteNombre;
-    let clienteRtn = dto.clienteRtn !== undefined ? dto.clienteRtn : existing.clienteRtn;
-    let clienteTelefono = dto.clienteTelefono !== undefined ? dto.clienteTelefono : existing.clienteTelefono;
-    let clienteEmail = dto.clienteEmail !== undefined ? dto.clienteEmail : existing.clienteEmail;
-    let clienteDireccion = dto.clienteDireccion !== undefined ? dto.clienteDireccion : existing.clienteDireccion;
-
-    if (dto.clienteId) {
-      const cliente = await this.prisma.cliente.findFirst({
-        where: { id: dto.clienteId, tenantId },
-      });
-      if (cliente) {
-        clienteNombre = cliente.nombre;
-        clienteRtn = cliente.rtn || clienteRtn;
-        clienteTelefono = cliente.telefono || clienteTelefono;
-        clienteEmail = cliente.email || clienteEmail;
-        clienteDireccion = cliente.direccion || clienteDireccion;
-      }
-    }
-
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM cotizaciones WHERE id = ${id} AND tenant_id = ${tenantId} FOR UPDATE`;
+      const existing = await tx.cotizacion.findFirst({
+        where: { id, tenantId },
+      });
+
+      if (!existing) {
+        throw new NotFoundException('Cotización no encontrada');
+      }
+
+      if (existing.estado === 'APROBADA' || existing.estado === 'CONVERTIDA') {
+        throw new BadRequestException('No se puede modificar una cotización que ha sido aprobada o convertida a venta');
+      }
+
+      if (!dto.detalles || dto.detalles.length === 0) {
+        throw new BadRequestException('La cotización debe tener al menos un ítem');
+      }
+
+      let clienteNombre = dto.clienteNombre || existing.clienteNombre;
+      let clienteRtn = dto.clienteRtn !== undefined ? dto.clienteRtn : existing.clienteRtn;
+      let clienteTelefono = dto.clienteTelefono !== undefined ? dto.clienteTelefono : existing.clienteTelefono;
+      let clienteEmail = dto.clienteEmail !== undefined ? dto.clienteEmail : existing.clienteEmail;
+      let clienteDireccion = dto.clienteDireccion !== undefined ? dto.clienteDireccion : existing.clienteDireccion;
+
+      if (dto.clienteId) {
+        const cliente = await tx.cliente.findFirst({
+          where: { id: dto.clienteId, tenantId },
+        });
+        if (!cliente) throw new NotFoundException('Cliente seleccionado no existe');
+        if (cliente) {
+          clienteNombre = cliente.nombre;
+          clienteRtn = cliente.rtn || clienteRtn;
+          clienteTelefono = cliente.telefono || clienteTelefono;
+          clienteEmail = cliente.email || clienteEmail;
+          clienteDireccion = cliente.direccion || clienteDireccion;
+        }
+      }
+
       // Eliminar detalles previos
       await tx.detalleCotizacion.deleteMany({ where: { cotizacionId: id } });
 
@@ -220,11 +223,15 @@ export class CotizacionesService {
       const subtotalTotal = parsedDetails.reduce((sum, item) => sum + item.subtotal, 0);
       const descuentoLineas = parsedDetails.reduce((sum, item) => sum + item.descuentoMonto, 0);
 
-      const descGenVal = dto.descuentoGeneral !== undefined ? dto.descuentoGeneral : Number(existing.descuentoGeneral);
+      const descGenVal = dto.descuentoGeneral !== undefined ? dto.descuentoGeneral
+        : existing.tipoDescuentoGeneral === 'PORCENTAJE'
+          ? (Number(existing.subtotal) > 0 ? Number(existing.descuentoGeneral) / Number(existing.subtotal) * 100 : 0)
+          : Number(existing.descuentoGeneral);
       const tipoDescGen = dto.tipoDescuentoGeneral || existing.tipoDescuentoGeneral;
       let descuentoGeneralMonto = 0;
 
       if (tipoDescGen === 'PORCENTAJE') {
+        if (descGenVal > 100) throw new BadRequestException('El descuento porcentual no puede superar 100%');
         descuentoGeneralMonto = Math.round(subtotalTotal * (descGenVal / 100) * 100) / 100;
       } else {
         descuentoGeneralMonto = Math.min(subtotalTotal, descGenVal);
@@ -242,7 +249,7 @@ export class CotizacionesService {
       const updated = await tx.cotizacion.update({
         where: { id },
         data: {
-          clienteId: dto.clienteId || null,
+          clienteId: dto.clienteId !== undefined ? dto.clienteId || null : existing.clienteId,
           clienteNombre,
           clienteRtn,
           clienteTelefono,
@@ -373,27 +380,36 @@ export class CotizacionesService {
   }
 
   async updateEstado(tenantId: string, id: string, estado: any) {
-    const c = await this.prisma.cotizacion.findFirst({
-      where: { id, tenantId },
-    });
-
-    if (!c) {
-      throw new NotFoundException('Cotización no encontrada');
+    if (!['BORRADOR', 'ENVIADA', 'APROBADA', 'RECHAZADA', 'VENCIDA'].includes(estado)) {
+      throw new BadRequestException('Estado de cotización no permitido; use convertir para generar una venta');
     }
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM cotizaciones WHERE id = ${id} AND tenant_id = ${tenantId} FOR UPDATE`;
+      const c = await tx.cotizacion.findFirst({
+        where: { id, tenantId },
+      });
 
-    const updated = await this.prisma.cotizacion.update({
-      where: { id },
-      data: { estado },
-      include: {
-        cliente: true,
-        usuario: { select: { id: true, nombre: true } },
-        detalles: { include: { producto: true } },
-      },
+      if (!c) {
+        throw new NotFoundException('Cotización no encontrada');
+      }
+
+      if (c.estado === 'CONVERTIDA' || c.ventaId) {
+        throw new BadRequestException('No se puede cambiar el estado de una cotización convertida');
+      }
+      const updated = await tx.cotizacion.update({
+        where: { id },
+        data: { estado },
+        include: {
+          cliente: true,
+          usuario: { select: { id: true, nombre: true } },
+          detalles: { include: { producto: true } },
+        },
+      });
+
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      return this.formatCotizacion(updated, hoy);
     });
-
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    return this.formatCotizacion(updated, hoy);
   }
 
   async convertirAVenta(
@@ -403,6 +419,18 @@ export class CotizacionesService {
     metodoPago: any = 'EFECTIVO',
   ) {
     return this.prisma.$transaction(async (tx) => {
+      // Obtener secuencial de venta
+      const seqResult = await tx.$queryRaw<[{ ultimo_numero: number }]>`
+        INSERT INTO "secuencias_tenant" ("id", "tenant_id", "tipo", "ultimo_numero")
+        VALUES (gen_random_uuid(), ${tenantId}, 'VENTA'::"TipoSecuencia", 1)
+        ON CONFLICT ("tenant_id", "tipo")
+        DO UPDATE SET "ultimo_numero" = "secuencias_tenant"."ultimo_numero" + 1
+        RETURNING "ultimo_numero"
+      `;
+
+      const numeroVenta = seqResult[0].ultimo_numero;
+
+      await tx.$queryRaw`SELECT id FROM cotizaciones WHERE id = ${cotizacionId} AND tenant_id = ${tenantId} FOR UPDATE`;
       const cotizacion = await tx.cotizacion.findFirst({
         where: { id: cotizacionId, tenantId },
         include: { detalles: { include: { producto: true } } },
@@ -419,29 +447,21 @@ export class CotizacionesService {
       // Verificar y descontar stock por la cantidad solicitada con precisión decimal
       for (const d of cotizacion.detalles) {
         const stockDisponible = Number(d.producto.stockActual);
-        const cantidadRequerida = Number(d.cantidad);
+        const cantidadRequerida = Number(d.totalMedida);
         if (stockDisponible < cantidadRequerida) {
           throw new BadRequestException(
             `Stock insuficiente para "${d.producto.nombre}". Disponible: ${stockDisponible}, Requerido: ${cantidadRequerida}`,
           );
         }
 
-        await tx.producto.update({
-          where: { id: d.producto.id },
+        const descontado = await tx.producto.updateMany({
+          where: { id: d.producto.id, tenantId, activo: true, stockActual: { gte: cantidadRequerida } },
           data: { stockActual: { decrement: cantidadRequerida } },
         });
+        if (descontado.count !== 1) {
+          throw new BadRequestException(`Stock insuficiente para "${d.producto.nombre}" o producto inactivo`);
+        }
       }
-
-      // Obtener secuencial de venta
-      const seqResult = await tx.$queryRaw<[{ ultimo_numero: number }]>`
-        INSERT INTO "secuencias_tenant" ("id", "tenant_id", "tipo", "ultimo_numero")
-        VALUES (gen_random_uuid(), ${tenantId}, 'VENTA'::"TipoSecuencia", 1)
-        ON CONFLICT ("tenant_id", "tipo")
-        DO UPDATE SET "ultimo_numero" = "secuencias_tenant"."ultimo_numero" + 1
-        RETURNING "ultimo_numero"
-      `;
-
-      const numeroVenta = seqResult[0].ultimo_numero;
 
       // Crear la venta
       const venta = await tx.venta.create({
@@ -460,7 +480,7 @@ export class CotizacionesService {
           detalles: {
             create: cotizacion.detalles.map((d) => ({
               productoId: d.productoId,
-              cantidad: d.cantidad,
+              cantidad: d.totalMedida,
               precioUnitario: d.precioUnitario,
               subtotal: d.subtotal,
             })),
@@ -509,6 +529,7 @@ export class CotizacionesService {
       const cantidad = Number(item.cantidad);
       const medida = usaMedida ? Number(item.medida || 1) : 1;
       const totalMedida = Math.round(cantidad * medida * 100) / 100;
+      if (totalMedida <= 0) throw new BadRequestException('La medida total debe ser al menos 0.01');
 
       const precioLista = Number(prod.precioVenta);
       const precioUnitario = item.precioUnitario !== undefined ? Number(item.precioUnitario) : precioLista;
@@ -519,6 +540,7 @@ export class CotizacionesService {
       let descuentoMonto = 0;
 
       if (tipoDescuento === 'PORCENTAJE') {
+        if (Number(item.descuento || 0) > 100) throw new BadRequestException('El descuento porcentual no puede superar 100%');
         descuentoMonto = Math.round(baseLineTotal * (Number(item.descuento || 0) / 100) * 100) / 100;
       } else {
         descuentoMonto = Math.min(baseLineTotal, Number(item.descuento || 0));

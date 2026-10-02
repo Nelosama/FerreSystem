@@ -11,7 +11,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
     $queryRaw: vi.fn().mockResolvedValue([{ ultimo_numero: 101 }]),
     producto: {
       findFirst: vi.fn(),
-      update: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     venta: {
       create: vi.fn(),
@@ -29,6 +29,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
     service = module.get<VentasService>(VentasService);
 
     vi.clearAllMocks();
+    mockPrisma.producto.updateMany.mockResolvedValue({ count: 1 });
   });
 
   it('debe descontar stock manteniendo precisión decimal exacta (ej. 2.5 unidades)', async () => {
@@ -79,11 +80,56 @@ describe('VentasService - Descuento Stock Decimal', () => {
       ],
     });
 
-    expect(mockPrisma.producto.update).toHaveBeenCalledWith({
-      where: { id: 'prod-123' },
+    expect(mockPrisma.producto.updateMany).toHaveBeenCalledWith({
+      where: { id: 'prod-123', tenantId, activo: true, stockActual: { gte: 2.5 } },
       data: { stockActual: { decrement: 2.5 } },
     });
 
     expect(resultado.detalles[0].cantidad).toBe(2.5);
+  });
+
+  it('rechaza una venta si el stock cambió después de la lectura', async () => {
+    mockPrisma.producto.findFirst.mockResolvedValue({
+      id: 'prod-123', nombre: 'Cable', stockActual: 10, precioVenta: 25.5,
+    });
+    mockPrisma.producto.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.create('tenant-A', 'user-A', {
+      detalles: [{ productoId: 'prod-123', cantidad: 2.75 }],
+    })).rejects.toThrow('Stock insuficiente');
+    expect(mockPrisma.venta.create).not.toHaveBeenCalled();
+  });
+
+  it('rechaza productos que no pertenecen al tenant', async () => {
+    mockPrisma.producto.findFirst.mockResolvedValue(null);
+    await expect(service.create('tenant-A', 'user-A', {
+      detalles: [{ productoId: 'producto-tenant-B', cantidad: 0.5 }],
+    })).rejects.toThrow('no encontrado');
+    expect(mockPrisma.producto.updateMany).not.toHaveBeenCalled();
+    expect(mockPrisma.venta.create).not.toHaveBeenCalled();
+  });
+
+  it('solo permite un cobro cuando dos lecturas ven el mismo stock', async () => {
+    let stock = 2.75;
+    mockPrisma.producto.findFirst.mockResolvedValue({
+      id: 'prod-123', nombre: 'Cable', stockActual: 2.75, precioVenta: 10,
+    });
+    // Modela el UPDATE condicional: la segunda petición observa el saldo
+    // actualizado al intentar descontar, aunque su lectura fuera antigua.
+    mockPrisma.producto.updateMany.mockImplementation(async ({ where, data }) => {
+      if (stock < where.stockActual.gte) return { count: 0 };
+      stock -= data.stockActual.decrement;
+      return { count: 1 };
+    });
+    mockPrisma.venta.create.mockResolvedValue({
+      subtotal: 27.5, isv: 4.13, descuento: 0, total: 31.63, detalles: [],
+    });
+    const results = await Promise.allSettled([
+      service.create('tenant-A', 'user-A', { detalles: [{ productoId: 'prod-123', cantidad: 2.75 }] }),
+      service.create('tenant-A', 'user-A', { detalles: [{ productoId: 'prod-123', cantidad: 2.75 }] }),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+    expect(stock).toBe(0);
+    expect(mockPrisma.venta.create).toHaveBeenCalledTimes(1);
   });
 });

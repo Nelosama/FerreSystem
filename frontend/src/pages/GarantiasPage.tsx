@@ -176,7 +176,7 @@ export const GarantiasPage: React.FC = () => {
                   <td style={{ fontWeight: 700 }}>{g.productoNombre}</td>
                   <td>
                     <div style={{ fontWeight: 700 }}>{g.clienteNombre}</div>
-                    <div style={{ fontSize: '11px', color: '#78716C' }}>{g.clienteTelefono}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{g.clienteTelefono}</div>
                   </td>
                   <td style={{ fontWeight: 600 }}>{g.numeroFactura}</td>
                   <td style={{ textAlign: 'center', fontSize: '12px' }}>{g.fechaVenta}</td>
@@ -326,7 +326,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   modalOverlay: {
     position: 'fixed',

@@ -80,7 +80,7 @@ export const ListasPrecioPage: React.FC = () => {
 
       <main style={styles.content}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div style={{ fontSize: '13px', color: '#78716C', fontWeight: 600 }}>
+          <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
             Al seleccionar el tipo de cliente en el POS, el sistema aplica automáticamente el porcentaje o tarifa correspondiente.
           </div>
           <button type="button" className="btn btn-primary" onClick={() => setModalNuevo(true)}>
@@ -99,10 +99,10 @@ export const ListasPrecioPage: React.FC = () => {
                   </span>
                 </div>
                 <h3 style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase', margin: '0 0 6px 0' }}>{l.nombreSegmento}</h3>
-                <p style={{ fontSize: '12px', color: '#78716C', margin: 0 }}>{l.descripcion}</p>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>{l.descripcion}</p>
               </div>
 
-              <div style={{ marginTop: '20px', paddingTop: '12px', borderTop: '1px solid #D6D3D1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#44403C' }}>
+              <div style={{ marginTop: '20px', paddingTop: '12px', borderTop: '1px solid var(--color-sidebar-text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#44403C' }}>
                 <span>Clientes Asignados: <strong>{l.clientesCount}</strong></span>
                 <span className="badge badge-success">ACTIVA</span>
               </div>

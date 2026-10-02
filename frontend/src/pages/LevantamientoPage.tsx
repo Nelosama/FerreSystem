@@ -545,7 +545,7 @@ export const LevantamientoPage: React.FC = () => {
                   {activeSession.nombre}
                 </h2>
                 {activeSession.descripcion && (
-                  <p style={{ fontSize: '12px', color: '#78716C', margin: 0 }}>
+                  <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>
                     {activeSession.descripcion}
                   </p>
                 )}
@@ -553,7 +553,7 @@ export const LevantamientoPage: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '11px', color: '#78716C', textTransform: 'uppercase', fontWeight: 800 }}>
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 800 }}>
                     {t('stock_taking.total_records')}
                   </div>
                   <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--color-primary)' }}>
@@ -897,7 +897,7 @@ export const LevantamientoPage: React.FC = () => {
             </div>
 
             {loadingItems ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: '#78716C' }}>
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
                 <RefreshCw size={20} className="spin" />
                 <p style={{ fontSize: '13px', marginTop: '8px' }}>Cargando registros...</p>
               </div>
@@ -916,7 +916,7 @@ export const LevantamientoPage: React.FC = () => {
                 </button>
               </div>
             ) : filteredItems.length === 0 ? (
-              <p style={{ fontSize: '13px', color: '#78716C', textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', padding: '24px 0' }}>
                 {t('stock_taking.no_records')}
               </p>
             ) : (
@@ -936,7 +936,7 @@ export const LevantamientoPage: React.FC = () => {
                         <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--color-text-main)' }}>
                           {item.descripcion}
                         </div>
-                        <div style={{ fontSize: '12px', color: '#78716C', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 800, color: 'var(--color-primary)' }}>
                             {item.cantidad} {item.unidadMedida}
                           </span>
@@ -1044,7 +1044,7 @@ export const LevantamientoPage: React.FC = () => {
 
           {/* Sessions List */}
           {loadingSessions ? (
-            <div className="industrial-card" style={{ padding: '40px 20px', textAlign: 'center', color: '#78716C' }}>
+            <div className="industrial-card" style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
               <RefreshCw size={24} className="spin" style={{ marginBottom: '8px' }} />
               <p style={{ fontSize: '14px', margin: 0 }}>{t('stock_taking.saving')}</p>
             </div>
@@ -1070,7 +1070,7 @@ export const LevantamientoPage: React.FC = () => {
               <h3 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 6px 0' }}>
                 {t('stock_taking.no_active_sessions')}
               </h3>
-              <p style={{ fontSize: '13px', color: '#78716C', margin: '0 0 16px 0' }}>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '0 0 16px 0' }}>
                 {t('stock_taking.no_active_sessions_desc')}
               </p>
               <button
@@ -1095,7 +1095,7 @@ export const LevantamientoPage: React.FC = () => {
                     <span className={getStatusBadgeClass(sess.estado)}>
                       {getStatusText(sess.estado)}
                     </span>
-                    <span style={{ fontSize: '12px', color: '#78716C' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                       {new Date(sess.fechaCreacion).toLocaleDateString()}
                     </span>
                   </div>
@@ -1104,7 +1104,7 @@ export const LevantamientoPage: React.FC = () => {
                     {sess.nombre}
                   </h3>
                   {sess.descripcion && (
-                    <p style={{ fontSize: '12px', color: '#78716C', margin: '0 0 12px 0' }}>
+                    <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '0 0 12px 0' }}>
                       {sess.descripcion}
                     </p>
                   )}
@@ -1217,7 +1217,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0 8px',
     borderRadius: '6px',
     border: '2px solid var(--color-border)',
-    backgroundColor: '#F5F5F4',
+    backgroundColor: 'var(--color-surface-hover)',
     color: 'var(--color-text-main)',
     fontWeight: 800,
     fontSize: '13px',
@@ -1247,7 +1247,7 @@ const styles: Record<string, React.CSSProperties> = {
   accordionToggle: {
     width: '100%',
     padding: '10px',
-    backgroundColor: '#FAFAF9',
+    backgroundColor: 'var(--color-bg)',
     border: '1px dashed var(--color-border)',
     borderRadius: '6px',
     display: 'flex',
@@ -1317,7 +1317,7 @@ const styles: Record<string, React.CSSProperties> = {
   noPhotoPlaceholder: {
     width: '44px',
     height: '44px',
-    backgroundColor: '#F5F5F4',
+    backgroundColor: 'var(--color-surface-hover)',
     border: '1px solid var(--color-border)',
     borderRadius: '4px',
     display: 'flex',

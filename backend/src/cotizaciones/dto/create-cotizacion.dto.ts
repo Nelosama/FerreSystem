@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsDateString } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsDateString, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 import { IsBoolean } from 'class-validator';
@@ -8,12 +8,12 @@ export class DetalleCotizacionItemDto {
   @IsNotEmpty()
   productoId: string;
 
-  @IsNumber()
-  @Min(0.001, { message: 'La cantidad debe ser mayor a cero' })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01, { message: 'La cantidad debe ser mayor a cero' })
   cantidad: number;
 
-  @IsNumber()
-  @Min(0)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
   @IsOptional()
   medida?: number;
 
@@ -27,7 +27,7 @@ export class DetalleCotizacionItemDto {
   @IsOptional()
   descuento?: number;
 
-  @IsString()
+  @IsIn(['PORCENTAJE', 'MONTO'])
   @IsOptional()
   tipoDescuento?: 'PORCENTAJE' | 'MONTO';
 
@@ -79,7 +79,7 @@ export class CreateCotizacionDto {
   @IsOptional()
   descuentoGeneral?: number;
 
-  @IsString()
+  @IsIn(['PORCENTAJE', 'MONTO'])
   @IsOptional()
   tipoDescuentoGeneral?: 'PORCENTAJE' | 'MONTO';
 

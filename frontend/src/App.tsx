@@ -108,11 +108,29 @@ const HomeRoute: React.FC = () => {
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { tenant } = useTenant();
   const isTopNav = tenant.modoNavegacion === 'TOPNAV';
+  const [isMobile, setIsMobile] = React.useState(
+    typeof window !== 'undefined' ? window.innerWidth <= 768 : false
+  );
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <div className={isTopNav ? "app-container-topnav" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
       {isTopNav ? <TopNavigation /> : <Sidebar />}
-      <div className="main-content" style={isTopNav ? { flex: 1, width: '100%' } : undefined}>
+      <div
+        className="main-content"
+        style={{
+          ...(isTopNav ? { flex: 1, width: '100%' } : {}),
+          ...(isMobile ? { paddingBottom: '72px' } : {}),
+        }}
+      >
         {children}
       </div>
       <BottomNavigation />

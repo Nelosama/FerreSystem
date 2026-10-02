@@ -193,9 +193,16 @@ export const CotizacionesPage: React.FC = () => {
     setFormCondicionesPago(cot.condicionesPago || 'Contado / Transferencia');
     setFormPorcentajeIsv(cot.porcentajeIsv !== undefined ? cot.porcentajeIsv : 15);
     setFormNotas(cot.notas || '');
-    setFormDescuentoGeneral(cot.descuentoGeneral || 0);
+    setFormDescuentoGeneral(cot.tipoDescuentoGeneral === 'PORCENTAJE'
+      ? (cot.subtotal > 0 ? (cot.descuentoGeneral || 0) / cot.subtotal * 100 : 0)
+      : cot.descuentoGeneral || 0);
     setFormTipoDescuentoGeneral(cot.tipoDescuentoGeneral || 'MONTO');
-    setFormItems(cot.detalles ? [...cot.detalles] : []);
+    setFormItems((cot.detalles || []).map((item) => ({
+      ...item,
+      descuento: item.tipoDescuento === 'PORCENTAJE'
+        ? (item.totalMedida * item.precioUnitario > 0 ? item.descuento / (item.totalMedida * item.precioUnitario) * 100 : 0)
+        : item.descuento,
+    })));
     setModalForm(true);
   };
 
@@ -322,10 +329,10 @@ export const CotizacionesPage: React.FC = () => {
       const item = { ...copia[index] };
 
       if (campo === 'cantidad') {
-        const c = Math.max(0.001, parseFloat(valor) || 0);
+        const c = Math.max(0.01, parseFloat(valor) || 0);
         item.cantidad = c;
       } else if (campo === 'medida') {
-        const m = Math.max(0.001, parseFloat(valor) || 0);
+        const m = Math.max(0.01, parseFloat(valor) || 0);
         item.medida = item.usaMedida ? m : 1;
       } else if (campo === 'precioUnitario') {
         const p = Math.max(0, parseFloat(valor) || 0);
@@ -517,17 +524,17 @@ export const CotizacionesPage: React.FC = () => {
   const getStatusBadge = (estado: QuotationItem['estado']) => {
     switch (estado) {
       case 'APROBADA':
-        return <span className="badge badge-success"><CheckCircle2 size={11} /> APROBADA</span>;
+        return <span className="badge badge-success"><CheckCircle2 size={11} /> {t('operational.aprobada')}</span>;
       case 'ENVIADA':
-        return <span className="badge badge-warning"><Clock size={11} /> ENVIADA</span>;
+        return <span className="badge badge-warning"><Clock size={11} /> {t('operational.enviada')}</span>;
       case 'CONVERTIDA':
-        return <span className="badge badge-dark"><FileCheck size={11} /> CONVERTIDA A VENTA</span>;
+        return <span className="badge badge-dark"><FileCheck size={11} /> {t('operational.convertida_a_venta')}</span>;
       case 'RECHAZADA':
-        return <span className="badge badge-danger"><XCircle size={11} /> RECHAZADA</span>;
+        return <span className="badge badge-danger"><XCircle size={11} /> {t('operational.rechazada')}</span>;
       case 'VENCIDA':
-        return <span className="badge" style={{ backgroundColor: '#FECACA', color: '#991B1B' }}><AlertCircle size={11} /> VENCIDA</span>;
+        return <span className="badge" style={{ backgroundColor: '#FECACA', color: '#991B1B' }}><AlertCircle size={11} /> {t('operational.vencida')}</span>;
       default:
-        return <span className="badge" style={{ backgroundColor: '#F5F5F4', color: '#44403C' }}>BORRADOR</span>;
+        return <span className="badge" style={{ backgroundColor: 'var(--color-surface-hover)', color: '#44403C' }}>{t('operational.borrador')}</span>;
     }
   };
 
@@ -560,38 +567,38 @@ export const CotizacionesPage: React.FC = () => {
         <div style={styles.metricsGrid}>
           <div style={styles.metricCard}>
             <div style={styles.metricHeader}>
-              <span style={styles.metricLabel}>COTIZACIONES TOTALES</span>
+              <span style={styles.metricLabel}>{t('operational.cotizaciones_totales')}</span>
               <FileText size={18} color="var(--color-primary)" />
             </div>
             <div style={styles.metricValue}>{metricas.totalCount}</div>
-            <div style={styles.metricSub}>Registradas en el sistema</div>
+            <div style={styles.metricSub}>{t('operational.registradas_en_el_sistema')}</div>
           </div>
 
           <div style={styles.metricCard}>
             <div style={styles.metricHeader}>
-              <span style={styles.metricLabel}>PENDIENTES / ENVIADAS</span>
+              <span style={styles.metricLabel}>{t('operational.pendientes_enviadas')}</span>
               <Clock size={18} color="#D97706" />
             </div>
             <div style={styles.metricValue}>{metricas.pendientesCount}</div>
-            <div style={styles.metricSub}>En negociación con clientes</div>
+            <div style={styles.metricSub}>{t('operational.en_negociacion_con_clientes')}</div>
           </div>
 
           <div style={styles.metricCard}>
             <div style={styles.metricHeader}>
-              <span style={styles.metricLabel}>CONVERTIDAS A VENTA</span>
+              <span style={styles.metricLabel}>{t('operational.convertidas_a_venta')}</span>
               <PackageCheck size={18} color="#16A34A" />
             </div>
             <div style={styles.metricValue}>{metricas.convertidasCount}</div>
-            <div style={styles.metricSub}>Facturadas en POS</div>
+            <div style={styles.metricSub}>{t('operational.facturadas_en_pos')}</div>
           </div>
 
           <div style={styles.metricCard}>
             <div style={styles.metricHeader}>
-              <span style={styles.metricLabel}>MONTO COTIZADO TOTAL</span>
+              <span style={styles.metricLabel}>{t('operational.monto_cotizado_total')}</span>
               <DollarSign size={18} color="var(--color-primary)" />
             </div>
             <div style={styles.metricValue}>{formatLempiras(metricas.montoTotalMined)}</div>
-            <div style={styles.metricSub}>Valor bruto en cartera</div>
+            <div style={styles.metricSub}>{t('operational.valor_bruto_en_cartera')}</div>
           </div>
         </div>
 
@@ -600,10 +607,10 @@ export const CotizacionesPage: React.FC = () => {
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', flex: 1 }}>
             {/* Buscador */}
             <div style={styles.searchBox}>
-              <Search size={16} color="#78716C" />
+              <Search size={16} color="var(--color-text-muted)" />
               <input
                 type="text"
-                placeholder="Buscar por #, Cliente, RTN o Vendedor..."
+                placeholder={t('operational.buscar_por_cliente_rtn_o_vendedor')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={styles.searchInput}
@@ -622,12 +629,12 @@ export const CotizacionesPage: React.FC = () => {
               className="form-input"
               style={{ width: '180px', height: '38px', fontSize: '12px', fontWeight: 700 }}
             >
-              <option value="TODOS">TODOS LOS ESTADOS</option>
-              <option value="BORRADOR">BORRADOR</option>
-              <option value="ENVIADA">ENVIADA</option>
-              <option value="APROBADA">APROBADA</option>
-              <option value="RECHAZADA">RECHAZADA</option>
-              <option value="CONVERTIDA">CONVERTIDA A VENTA</option>
+              <option value="TODOS">{t('operational.todos_los_estados')}</option>
+              <option value="BORRADOR">{t('operational.borrador')}</option>
+              <option value="ENVIADA">{t('operational.enviada')}</option>
+              <option value="APROBADA">{t('operational.aprobada')}</option>
+              <option value="RECHAZADA">{t('operational.rechazada')}</option>
+              <option value="CONVERTIDA">{t('operational.convertida_a_venta')}</option>
             </select>
 
             {/* Ordenamiento */}
@@ -637,8 +644,8 @@ export const CotizacionesPage: React.FC = () => {
               className="form-input"
               style={{ width: '160px', height: '38px', fontSize: '12px', fontWeight: 700 }}
             >
-              <option value="RECIENTE">MÁS RECIENTES</option>
-              <option value="ANTIGUO">MÁS ANTIGUAS</option>
+              <option value="RECIENTE">{t('operational.mas_recientes')}</option>
+              <option value="ANTIGUO">{t('operational.mas_antiguas')}</option>
             </select>
           </div>
 
@@ -661,23 +668,23 @@ export const CotizacionesPage: React.FC = () => {
           <table className="industrial-table">
             <thead>
               <tr>
-                <th>COTIZACIÓN N°</th>
-                <th>CLIENTE / RTN</th>
-                <th>VENDEDOR</th>
-                <th style={{ textAlign: 'center' }}>VENCE</th>
-                <th style={{ textAlign: 'center' }}>ITEMS</th>
-                <th style={{ textAlign: 'right' }}>SUBTOTAL</th>
+                <th>{t('operational.cotizacion_n')}</th>
+                <th>{t('operational.cliente_rtn')}</th>
+                <th>{t('operational.vendedor')}</th>
+                <th style={{ textAlign: 'center' }}>{t('operational.vence')}</th>
+                <th style={{ textAlign: 'center' }}>{t('operational.items')}</th>
+                <th style={{ textAlign: 'right' }}>{t('common.subtotal')}</th>
                 <th style={{ textAlign: 'right' }}>ISV (15%)</th>
-                <th style={{ textAlign: 'right' }}>TOTAL</th>
-                <th style={{ textAlign: 'center' }}>ESTADO</th>
-                <th style={{ textAlign: 'center' }}>ACCIONES</th>
+                <th style={{ textAlign: 'right' }}>{t('common.total')}</th>
+                <th style={{ textAlign: 'center' }}>{t('common.status')}</th>
+                <th style={{ textAlign: 'center' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {cotizacionesFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ textAlign: 'center', padding: '36px', color: '#78716C' }}>
-                    No se encontraron cotizaciones registradas.
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-muted)' }}>
+                    {t('operational.no_se_encontraron_cotizaciones_registradas')}
                   </td>
                 </tr>
               ) : (
@@ -688,7 +695,7 @@ export const CotizacionesPage: React.FC = () => {
                     </td>
                     <td>
                       <div style={{ fontWeight: 700 }}>{c.cliente}</div>
-                      {c.rtn && <div style={{ fontSize: '11px', color: '#78716C' }}>RTN: {c.rtn}</div>}
+                      {c.rtn && <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>RTN: {c.rtn}</div>}
                     </td>
                     <td style={{ fontSize: '12px', color: '#57534E' }}>
                       {c.usuarioNombre || 'Sistema'}
@@ -697,10 +704,10 @@ export const CotizacionesPage: React.FC = () => {
                       <span style={{ fontWeight: 700, fontSize: '12px' }}>{c.fechaValidez}</span>
                     </td>
                     <td style={{ textAlign: 'center', fontWeight: 700 }}>{c.itemsCount || (c.detalles ? c.detalles.length : 1)}</td>
-                    <td style={{ textAlign: 'right', color: '#78716C', whiteSpace: 'nowrap' }}>
+                    <td style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                       {formatLempiras(c.subtotal)}
                     </td>
-                    <td style={{ textAlign: 'right', color: '#78716C', whiteSpace: 'nowrap' }}>
+                    <td style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                       {formatLempiras(c.isv)}
                     </td>
                     <td
@@ -765,9 +772,9 @@ export const CotizacionesPage: React.FC = () => {
                               `Cotizacion-${c.numero}.pdf`
                             );
                           }}
-                          title="Descargar Documento PDF Oficial"
+                          title={t('operational.descargar_documento_pdf_oficial')}
                         >
-                          <Download size={13} /> Descargar PDF
+                          <Download size={13} /> {t('operational.descargar_pdf')}
                         </button>
 
                         {/* Duplicar */}
@@ -803,7 +810,7 @@ export const CotizacionesPage: React.FC = () => {
                             onClick={() => setModalConvertir(c)}
                             title={isReadOnly ? 'Modo solo lectura — soporte activo' : 'Convertir a Factura/Venta POS'}
                           >
-                            <ArrowRightCircle size={13} /> A VENTA
+                            <ArrowRightCircle size={13} /> {t('operational.a_venta')}
                           </button>
                         )}
 
@@ -816,10 +823,10 @@ export const CotizacionesPage: React.FC = () => {
                             style={styles.stateSelect}
                             title={isReadOnly ? 'Modo solo lectura — soporte activo' : 'Cambiar estado manualmente'}
                           >
-                            <option value="BORRADOR">BORRADOR</option>
-                            <option value="ENVIADA">ENVIADA</option>
-                            <option value="APROBADA">APROBADA</option>
-                            <option value="RECHAZADA">RECHAZADA</option>
+                            <option value="BORRADOR">{t('operational.borrador')}</option>
+                            <option value="ENVIADA">{t('operational.enviada')}</option>
+                            <option value="APROBADA">{t('operational.aprobada')}</option>
+                            <option value="RECHAZADA">{t('operational.rechazada')}</option>
                           </select>
                         )}
                       </div>
@@ -841,8 +848,8 @@ export const CotizacionesPage: React.FC = () => {
                 <h2 style={{ fontSize: '18px', textTransform: 'uppercase', color: 'var(--color-primary)' }}>
                   {editingCotizacionId ? 'EDITAR COTIZACIÓN' : 'CREAR NUEVA COTIZACIÓN'}
                 </h2>
-                <span style={{ fontSize: '12px', color: '#78716C' }}>
-                  Complete los datos del cliente y agregue los productos desde el inventario.
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                  {t('operational.complete_los_datos_del_cliente_y_agregue_los_productos_desde_el_inventario')}
                 </span>
               </div>
               <button type="button" onClick={() => setModalForm(false)} style={styles.closeBtn}>
@@ -853,22 +860,22 @@ export const CotizacionesPage: React.FC = () => {
             <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Sección 1: Datos del Cliente */}
               <div style={styles.formSection}>
-                <h3 style={styles.sectionTitle}>1. INFORMACIÓN DEL CLIENTE</h3>
+                <h3 style={styles.sectionTitle}>{t('operational.1_informacion_del_cliente')}</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
                   <div className="form-group">
-                    <label className="form-label">CLIENTE O RAZÓN SOCIAL *</label>
+                    <label className="form-label">{t('operational.cliente_o_razon_social')}</label>
                     <input
                       type="text"
                       className="form-input"
                       required
-                      placeholder="Ej. Constructora del Norte S. de R.L."
+                      placeholder={t('operational.ej_constructora_del_norte_s_de_r_l')}
                       value={formClienteNombre}
                       onChange={(e) => setFormClienteNombre(e.target.value)}
                     />
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">RTN DEL CLIENTE (OPCIONAL)</label>
+                    <label className="form-label">{t('operational.rtn_del_cliente_opcional')}</label>
                     <input
                       type="text"
                       className="form-input"
@@ -879,7 +886,7 @@ export const CotizacionesPage: React.FC = () => {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">TELÉFONO DE CONTACTO</label>
+                    <label className="form-label">{t('operational.telefono_de_contacto')}</label>
                     <input
                       type="text"
                       className="form-input"
@@ -890,7 +897,7 @@ export const CotizacionesPage: React.FC = () => {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">CORREO ELECTRÓNICO</label>
+                    <label className="form-label">{t('operational.correo_electronico')}</label>
                     <input
                       type="email"
                       className="form-input"
@@ -902,11 +909,11 @@ export const CotizacionesPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ marginTop: '8px' }}>
-                  <label className="form-label">DIRECCIÓN DE ENTREGA O FISCAL</label>
+                  <label className="form-label">{t('operational.direccion_de_entrega_o_fiscal')}</label>
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="Ej. Barrio El Centro, Ave. Roosevelt, San Pedro Sula"
+                    placeholder={t('operational.ej_barrio_el_centro_ave_roosevelt_san_pedro_sula')}
                     value={formClienteDireccion}
                     onChange={(e) => setFormClienteDireccion(e.target.value)}
                   />
@@ -915,10 +922,10 @@ export const CotizacionesPage: React.FC = () => {
 
               {/* Sección 2: Condiciones y Validez */}
               <div style={styles.formSection}>
-                <h3 style={styles.sectionTitle}>2. CONDICIONES Y VIGENCIA</h3>
+                <h3 style={styles.sectionTitle}>{t('operational.2_condiciones_y_vigencia')}</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
                   <div className="form-group">
-                    <label className="form-label">DÍAS DE VALIDEZ</label>
+                    <label className="form-label">{t('operational.dias_de_validez')}</label>
                     <input
                       type="number"
                       min={1}
@@ -929,21 +936,21 @@ export const CotizacionesPage: React.FC = () => {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">CONDICIONES DE PAGO</label>
+                    <label className="form-label">{t('operational.condiciones_de_pago')}</label>
                     <select
                       className="form-input"
                       value={formCondicionesPago}
                       onChange={(e) => setFormCondicionesPago(e.target.value)}
                     >
-                      <option value="Contado / Transferencia">Contado / Transferencia</option>
-                      <option value="Crédito 15 días">Crédito 15 días</option>
-                      <option value="Crédito 30 días">Crédito 30 días</option>
-                      <option value="50% Anticipo, 50% Contra entrega">50% Anticipo, 50% Contra entrega</option>
+                      <option value="Contado / Transferencia">{t('operational.contado_transferencia')}</option>
+                      <option value="Crédito 15 días">{t('operational.credito_15_dias')}</option>
+                      <option value="Crédito 30 días">{t('operational.credito_30_dias')}</option>
+                      <option value="50% Anticipo, 50% Contra entrega">{t('operational.50_anticipo_50_contra_entrega')}</option>
                     </select>
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">IMPUESTO ISV (% Default 15%)</label>
+                    <label className="form-label">{t('operational.impuesto_isv_default_15')}</label>
                     <input
                       type="number"
                       step="0.01"
@@ -955,11 +962,11 @@ export const CotizacionesPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ marginTop: '8px' }}>
-                  <label className="form-label">OBSERVACIONES / NOTAS ADICIONALES</label>
+                  <label className="form-label">{t('operational.observaciones_notas_adicionales')}</label>
                   <textarea
                     className="form-input"
                     rows={2}
-                    placeholder="Términos especiales, flete, condiciones de garantía..."
+                    placeholder={t('operational.terminos_especiales_flete_condiciones_de_garantia')}
                     value={formNotas}
                     onChange={(e) => setFormNotas(e.target.value)}
                     style={{ resize: 'vertical' }}
@@ -970,22 +977,22 @@ export const CotizacionesPage: React.FC = () => {
               {/* Sección 3: Detalle de Productos */}
               <div style={styles.formSection}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <h3 style={{ ...styles.sectionTitle, margin: 0 }}>3. PRODUCTOS EN LA COTIZACIÓN</h3>
+                  <h3 style={{ ...styles.sectionTitle, margin: 0 }}>{t('operational.3_productos_en_la_cotizacion')}</h3>
                   <button
                     type="button"
                     className="btn btn-primary btn-sm"
                     onClick={() => setModalProductoPicker(true)}
                   >
                     <Plus size={16} strokeWidth={2.5} />
-                    <span>+ AGREGAR PRODUCTO DESDE INVENTARIO</span>
+                    <span>{t('operational.agregar_producto_desde_inventario')}</span>
                   </button>
                 </div>
 
                 {formItems.length === 0 ? (
                   <div style={styles.emptyItemsBox}>
                     <PackageCheck size={32} color="#A8A29E" />
-                    <p style={{ marginTop: '8px', color: '#78716C', fontWeight: 600 }}>
-                      No se han agregado productos. Presione "+ Agregar Producto" para buscar en el inventario.
+                    <p style={{ marginTop: '8px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                      {t('operational.no_se_han_agregado_productos_presione_agregar_producto_para_buscar_en_el_inventario')}
                     </p>
                   </div>
                 ) : (
@@ -993,16 +1000,16 @@ export const CotizacionesPage: React.FC = () => {
                     <table className="industrial-table" style={{ fontSize: '12px' }}>
                       <thead>
                         <tr>
-                          <th>CÓDIGO</th>
-                          <th>DESCRIPCIÓN</th>
-                          <th style={{ width: '90px', textAlign: 'center' }}>CANTIDAD</th>
-                          <th style={{ width: '90px', textAlign: 'center' }}>MEDIDA</th>
-                          <th style={{ width: '90px', textAlign: 'center' }}>TOTAL MED.</th>
-                          <th>UNIDAD</th>
-                          <th style={{ width: '120px', textAlign: 'right' }}>PRECIO UNIT (L.)</th>
-                          <th style={{ width: '100px', textAlign: 'right' }}>DESC.</th>
-                          <th style={{ width: '60px', textAlign: 'center' }}>EXENTO</th>
-                          <th style={{ width: '120px', textAlign: 'right' }}>TOTAL LÍNEA</th>
+                          <th>{t('operational.codigo')}</th>
+                          <th>{t('common.description')}</th>
+                          <th style={{ width: '90px', textAlign: 'center' }}>{t('common.quantity')}</th>
+                          <th style={{ width: '90px', textAlign: 'center' }}>{t('operational.medida')}</th>
+                          <th style={{ width: '90px', textAlign: 'center' }}>{t('operational.total_med')}</th>
+                          <th>{t('common.unit')}</th>
+                          <th style={{ width: '120px', textAlign: 'right' }}>{t('operational.precio_unit_l')}</th>
+                          <th style={{ width: '100px', textAlign: 'right' }}>{t('operational.desc')}</th>
+                          <th style={{ width: '60px', textAlign: 'center' }}>{t('operational.exento')}</th>
+                          <th style={{ width: '120px', textAlign: 'right' }}>{t('operational.total_linea')}</th>
                           <th style={{ width: '50px', textAlign: 'center' }}></th>
                         </tr>
                       </thead>
@@ -1018,8 +1025,8 @@ export const CotizacionesPage: React.FC = () => {
                             <td style={{ textAlign: 'center' }}>
                               <input
                                 type="number"
-                                min={0.001}
-                                step="any"
+                                min={0.01}
+                                step="0.01"
                                 className="form-input"
                                 style={styles.tableInput}
                                 value={item.cantidad}
@@ -1029,13 +1036,13 @@ export const CotizacionesPage: React.FC = () => {
                             <td style={{ textAlign: 'center' }}>
                               <input
                                 type="number"
-                                min={0.001}
+                                min={0.01}
                                 step="any"
                                 disabled={!item.usaMedida}
                                 className="form-input"
                                 style={{
                                   ...styles.tableInput,
-                                  backgroundColor: !item.usaMedida ? '#F5F5F4' : '#FFFFFF',
+                                  backgroundColor: !item.usaMedida ? 'var(--color-surface-hover)' : '#FFFFFF',
                                 }}
                                 value={item.usaMedida ? item.medida : 1}
                                 onChange={(e) => handleActualizarLinea(idx, 'medida', e.target.value)}
@@ -1063,7 +1070,7 @@ export const CotizacionesPage: React.FC = () => {
                               />
                               {item.precioModificado && (
                                 <div style={{ fontSize: '9px', color: '#D97706', fontWeight: 700 }}>
-                                  L. {item.precioLista.toFixed(2)} (Mod)
+                                  L. {item.precioLista.toFixed(2)} {t('operational.mod')}
                                 </div>
                               )}
                             </td>
@@ -1108,7 +1115,7 @@ export const CotizacionesPage: React.FC = () => {
                                 type="button"
                                 style={styles.deleteBtn}
                                 onClick={() => handleEliminarLinea(idx)}
-                                title="Eliminar producto"
+                                title={t('operational.eliminar_producto')}
                               >
                                 <Trash2 size={14} color="#DC2626" />
                               </button>
@@ -1125,7 +1132,7 @@ export const CotizacionesPage: React.FC = () => {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1, minWidth: '260px' }}>
                   <div className="form-group">
-                    <label className="form-label">DESCUENTO GENERAL SOBRE LA COTIZACIÓN</label>
+                    <label className="form-label">{t('operational.descuento_general_sobre_la_cotizacion')}</label>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <input
                         type="number"
@@ -1153,19 +1160,19 @@ export const CotizacionesPage: React.FC = () => {
 
                 <div style={styles.summaryTotalsCard}>
                   <div style={styles.summaryRow}>
-                    <span>Subtotal Líneas:</span>
+                    <span>{t('operational.subtotal_lineas')}</span>
                     <span>{formatLempiras(calculosGlobales.subtotalLineas)}</span>
                   </div>
 
                   {calculosGlobales.descGenMonto > 0 && (
                     <div style={{ ...styles.summaryRow, color: '#D97706' }}>
-                      <span>Descuento General:</span>
+                      <span>{t('operational.descuento_general')}</span>
                       <span>- {formatLempiras(calculosGlobales.descGenMonto)}</span>
                     </div>
                   )}
 
                   <div style={styles.summaryRow}>
-                    <span>Subtotal Neto:</span>
+                    <span>{t('operational.subtotal_neto')}</span>
                     <span>{formatLempiras(calculosGlobales.subtotalGravadoNeto)}</span>
                   </div>
 
@@ -1174,8 +1181,8 @@ export const CotizacionesPage: React.FC = () => {
                     <span>{formatLempiras(calculosGlobales.isvTotal)}</span>
                   </div>
 
-                  <div style={{ borderTop: '2px solid #292524', marginTop: '8px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 900, color: 'var(--color-primary)' }}>
-                    <span>TOTAL COTIZADO:</span>
+                  <div style={{ borderTop: '2px solid var(--color-text-main)', marginTop: '8px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 900, color: 'var(--color-primary)' }}>
+                    <span>{t('operational.total_cotizado')}</span>
                     <span>{formatLempiras(calculosGlobales.totalFinal)}</span>
                   </div>
                 </div>
@@ -1188,16 +1195,16 @@ export const CotizacionesPage: React.FC = () => {
                   className="btn btn-secondary"
                   onClick={() => setModalForm(false)}
                 >
-                  CANCELAR
+                  {t('operational.cancelar')}
                 </button>
 
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  style={{ backgroundColor: '#F5F5F4', color: '#1C1917', border: '1.5px solid #A8A29E' }}
+                  style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-sidebar-bg)', border: '1.5px solid #A8A29E' }}
                   onClick={() => handleGuardarFormulario('BORRADOR')}
                 >
-                  GUARDAR BORRADOR
+                  {t('operational.guardar_borrador')}
                 </button>
 
                 <button
@@ -1205,7 +1212,7 @@ export const CotizacionesPage: React.FC = () => {
                   className="btn btn-primary"
                   onClick={() => handleGuardarFormulario('ENVIADA')}
                 >
-                  <Check size={16} strokeWidth={2.6} /> EMITIR COTIZACIÓN
+                  <Check size={16} strokeWidth={2.6} /> {t('operational.emitir_cotizacion')}
                 </button>
               </div>
             </div>
@@ -1218,7 +1225,7 @@ export const CotizacionesPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalCardPicker}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>SELECCIONAR PRODUCTO DEL INVENTARIO</h2>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('operational.seleccionar_producto_del_inventario')}</h2>
               <button type="button" onClick={() => setModalProductoPicker(false)} style={styles.closeBtn}>
                 <X size={20} />
               </button>
@@ -1226,10 +1233,10 @@ export const CotizacionesPage: React.FC = () => {
 
             <div style={{ marginTop: '14px' }}>
               <div style={styles.searchBox}>
-                <Search size={16} color="#78716C" />
+                <Search size={16} color="var(--color-text-muted)" />
                 <input
                   type="text"
-                  placeholder="Buscar por Código/SKU, Nombre, Descripción o Categoría..."
+                  placeholder={t('operational.buscar_por_codigo_sku_nombre_descripcion_o_categoria')}
                   value={searchProducto}
                   onChange={(e) => setSearchProducto(e.target.value)}
                   style={styles.searchInput}
@@ -1241,20 +1248,20 @@ export const CotizacionesPage: React.FC = () => {
                 <table className="industrial-table" style={{ fontSize: '12px' }}>
                   <thead>
                     <tr>
-                      <th>CÓDIGO</th>
-                      <th>PRODUCTO</th>
-                      <th>CATEGORÍA</th>
-                      <th>UNIDAD</th>
-                      <th style={{ textAlign: 'right' }}>PRECIO (L.)</th>
+                      <th>{t('operational.codigo')}</th>
+                      <th>{t('operational.producto')}</th>
+                      <th>{t('inventory.category')}</th>
+                      <th>{t('common.unit')}</th>
+                      <th style={{ textAlign: 'right' }}>{t('operational.precio_l')}</th>
                       <th style={{ textAlign: 'center' }}>STOCK</th>
-                      <th style={{ textAlign: 'center' }}>ACCIÓN</th>
+                      <th style={{ textAlign: 'center' }}>{t('operational.accion')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {productosFiltradosModal.length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: '#78716C' }}>
-                          No se encontraron productos coincidentes en inventario.
+                        <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>
+                          {t('operational.no_se_encontraron_productos_coincidentes_en_inventario')}
                         </td>
                       </tr>
                     ) : (
@@ -1263,7 +1270,7 @@ export const CotizacionesPage: React.FC = () => {
                           <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{p.codigo}</td>
                           <td>
                             <div style={{ fontWeight: 700 }}>{p.nombre}</div>
-                            {p.descripcion && <div style={{ fontSize: '10px', color: '#78716C' }}>{p.descripcion}</div>}
+                            {p.descripcion && <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{p.descripcion}</div>}
                           </td>
                           <td style={{ fontSize: '11px' }}>{p.categoria}</td>
                           <td style={{ fontSize: '11px', fontWeight: 700 }}>{p.unidadMedida}</td>
@@ -1285,10 +1292,10 @@ export const CotizacionesPage: React.FC = () => {
                                 className="btn btn-primary btn-sm"
                                 onClick={() => handleSeleccionarProducto(p)}
                               >
-                                SELECCIONAR
+                                {t('operational.seleccionar')}
                               </button>
                             ) : (
-                              <span style={{ fontSize: '10px', color: '#DC2626', fontWeight: 700 }}>INACTIVO</span>
+                              <span style={{ fontSize: '10px', color: '#DC2626', fontWeight: 700 }}>{t('operational.inactivo')}</span>
                             )}
                           </td>
                         </tr>
@@ -1308,7 +1315,7 @@ export const CotizacionesPage: React.FC = () => {
           <div className="industrial-card" style={styles.modalCard}>
             <div style={styles.modalHeader}>
               <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                CONVERTIR COTIZACIÓN A VENTA POS
+                {t('operational.convertir_cotizacion_a_venta_pos')}
               </h2>
               <button type="button" onClick={() => setModalConvertir(null)} style={styles.closeBtn}>
                 <X size={20} />
@@ -1317,14 +1324,14 @@ export const CotizacionesPage: React.FC = () => {
 
             <div style={{ padding: '16px 0', fontSize: '13px', lineHeight: 1.5 }}>
               <p>
-                ¿Desea convertir la <strong>Cotización #COT-{modalConvertir.numero.toString().padStart(4, '0')}</strong> en una factura de venta oficial?
+                {t('operational.desea_convertir_la')} <strong>{t('operational.cotizacion_cot')}{modalConvertir.numero.toString().padStart(4, '0')}</strong> {t('operational.en_una_factura_de_venta_oficial')}
               </p>
               <div style={styles.convertDetailBox}>
-                <div><strong>Cliente:</strong> {modalConvertir.cliente}</div>
+                <div><strong>{t('operational.cliente')}</strong> {modalConvertir.cliente}</div>
                 {modalConvertir.rtn && <div><strong>RTN:</strong> {modalConvertir.rtn}</div>}
-                <div><strong>Total a cobrar:</strong> {formatLempiras(modalConvertir.total)} (ISV 15% Incluido)</div>
+                <div><strong>{t('operational.total_a_cobrar')}</strong> {formatLempiras(modalConvertir.total)} {t('operational.isv_15_incluido')}</div>
                 <div style={{ color: '#D97706', fontWeight: 700, marginTop: '4px' }}>
-                  ⚡ Impacto en Inventario: Descontará automáticamente el stock correspondiente a los ítems solicitados.
+                  {t('operational.impacto_en_inventario_descontara_automaticamente_el_stock_correspondiente_a_los_items_solicitados')}
                 </div>
               </div>
             </div>
@@ -1335,14 +1342,14 @@ export const CotizacionesPage: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => setModalConvertir(null)}
               >
-                CANCELAR
+                {t('operational.cancelar')}
               </button>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={() => handleConfirmarConvertir(modalConvertir)}
               >
-                CONFIRMAR Y CONVERTIR A VENTA
+                {t('operational.confirmar_y_convertir_a_venta')}
               </button>
             </div>
           </div>
@@ -1355,7 +1362,7 @@ export const CotizacionesPage: React.FC = () => {
           <div className="industrial-card" style={styles.pdfModalCard}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <span className="badge badge-dark" style={{ letterSpacing: '0.05em' }}>
-                DOCUMENTO OFICIAL PROFORMA DE COTIZACIÓN
+                {t('operational.documento_oficial_proforma_de_cotizacion')}
               </span>
               <button type="button" onClick={() => setModalPdf(null)} style={styles.closeBtn}>
                 <X size={20} />
@@ -1374,58 +1381,58 @@ export const CotizacionesPage: React.FC = () => {
                     {tenant.direccion || 'Barrio El Centro, 3ra Ave, 4ta Calle • San Pedro Sula, Honduras'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#444' }}>
-                    Teléfono: {tenant.telefono || '+504 2550-1234'} • Email: {tenant.email || 'ventas@ferretek.hn'}
+                    {t('operational.telefono')} {tenant.telefono || ''} • Email: {tenant.email || 'ventas@ferretek.hn'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#444', fontWeight: 700 }}>
-                    RTN EMPRESA: 05019002345678
+                    {tenant.email || ''}
                   </div>
                 </div>
 
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '18px', color: '#1C1917' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '18px', color: 'var(--color-sidebar-bg)' }}>
                     COTIZACIÓN #COT-{modalPdf.numero.toString().padStart(4, '0')}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#78716C', marginTop: '2px' }}>
-                    Fecha Emisión: {modalPdf.fechaEmision || '25/09/2026'}
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                    {t('operational.fecha_emision')} {modalPdf.fechaEmision || ''}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--color-primary)', fontWeight: 800, marginTop: '2px' }}>
-                    Válida hasta: {modalPdf.fechaValidez}
+                    {t('operational.valida_hasta')} {modalPdf.fechaValidez}
                   </div>
-                  <div style={{ fontSize: '10px', color: '#78716C', marginTop: '2px' }}>
-                    Condiciones: {modalPdf.condicionesPago || 'Contado'}
+                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                    {t('operational.condiciones')} {modalPdf.condicionesPago || 'Contado'}
                   </div>
                 </div>
               </div>
 
-              <div style={{ borderBottom: '2px solid #292524', margin: '14px 0' }} />
+              <div style={{ borderBottom: '2px solid var(--color-text-main)', margin: '14px 0' }} />
 
               {/* Datos Cliente */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                  <div><strong>COTIZADO A:</strong> {modalPdf.cliente}</div>
+                  <div><strong>{t('operational.cotizado_a')}</strong> {modalPdf.cliente}</div>
                   {modalPdf.rtn && <div><strong>RTN:</strong> {modalPdf.rtn}</div>}
-                  {modalPdf.telefono && <div><strong>TELÉFONO:</strong> {modalPdf.telefono}</div>}
-                  {modalPdf.direccion && <div><strong>DIRECCIÓN:</strong> {modalPdf.direccion}</div>}
+                  {modalPdf.telefono && <div><strong>{t('operational.telefono')}</strong> {modalPdf.telefono}</div>}
+                  {modalPdf.direccion && <div><strong>{t('operational.direccion')}</strong> {modalPdf.direccion}</div>}
                 </div>
 
                 <div style={{ textAlign: 'right' }}>
-                  <div><strong>VENDEDOR:</strong> {modalPdf.usuarioNombre || 'Atención en Tienda'}</div>
-                  <div><strong>ESTADO:</strong> {modalPdf.estado}</div>
+                  <div><strong>{t('operational.vendedor')}</strong> {modalPdf.usuarioNombre || 'Atención en Tienda'}</div>
+                  <div><strong>{t('operational.estado')}</strong> {modalPdf.estado}</div>
                 </div>
               </div>
 
               {/* Tabla de Productos Proforma */}
               <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', marginBottom: '16px' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1.5px solid #292524', backgroundColor: '#FAFAF9' }}>
-                    <th style={{ textAlign: 'left', padding: '6px' }}>CÓDIGO</th>
-                    <th style={{ textAlign: 'left', padding: '6px' }}>DESCRIPCIÓN</th>
-                    <th style={{ textAlign: 'center', padding: '6px' }}>CANT</th>
-                    <th style={{ textAlign: 'center', padding: '6px' }}>MEDIDA</th>
-                    <th style={{ textAlign: 'center', padding: '6px' }}>TOTAL MED.</th>
-                    <th style={{ textAlign: 'right', padding: '6px' }}>PRECIO UNIT</th>
-                    <th style={{ textAlign: 'right', padding: '6px' }}>DESC.</th>
-                    <th style={{ textAlign: 'right', padding: '6px' }}>TOTAL LÍNEA</th>
+                  <tr style={{ borderBottom: '1.5px solid var(--color-text-main)', backgroundColor: 'var(--color-bg)' }}>
+                    <th style={{ textAlign: 'left', padding: '6px' }}>{t('operational.codigo')}</th>
+                    <th style={{ textAlign: 'left', padding: '6px' }}>{t('common.description')}</th>
+                    <th style={{ textAlign: 'center', padding: '6px' }}>{t('operational.cant')}</th>
+                    <th style={{ textAlign: 'center', padding: '6px' }}>{t('operational.medida')}</th>
+                    <th style={{ textAlign: 'center', padding: '6px' }}>{t('operational.total_med')}</th>
+                    <th style={{ textAlign: 'right', padding: '6px' }}>{t('operational.precio_unit')}</th>
+                    <th style={{ textAlign: 'right', padding: '6px' }}>{t('operational.desc')}</th>
+                    <th style={{ textAlign: 'right', padding: '6px' }}>{t('operational.total_linea')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1458,36 +1465,36 @@ export const CotizacionesPage: React.FC = () => {
               </table>
 
               {/* Sección de Totales */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1.5px solid #292524', paddingTop: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1.5px solid var(--color-text-main)', paddingTop: '10px' }}>
                 <div style={{ fontSize: '10px', color: '#57534E', maxWidth: '320px' }}>
                   {modalPdf.notas && (
                     <div style={{ marginBottom: '6px' }}>
-                      <strong>Notas:</strong> {modalPdf.notas}
+                      <strong>{t('operational.notas')}</strong> {modalPdf.notas}
                     </div>
                   )}
-                  <div>* Precios expresados en Lempiras (HNL) sujetas a disponibilidad al momento de la orden.</div>
-                  <div>* Esta proforma no representa un documento fiscal de venta.</div>
+                  <div>{t('operational.precios_expresados_en_lempiras_hnl_sujetas_a_disponibilidad_al_momento_de_la_orden')}</div>
+                  <div>{t('operational.esta_proforma_no_representa_un_documento_fiscal_de_venta')}</div>
                 </div>
 
                 <div style={{ textAlign: 'right', fontSize: '12px', minWidth: '200px' }}>
-                  <div>Subtotal: {formatLempiras(modalPdf.subtotal)}</div>
-                  {(modalPdf.descuento || 0) > 0 && <div>Descuento: - {formatLempiras(modalPdf.descuento || 0)}</div>}
+                  <div>{t('operational.subtotal')} {formatLempiras(modalPdf.subtotal)}</div>
+                  {(modalPdf.descuento || 0) > 0 && <div>{t('operational.descuento')} {formatLempiras(modalPdf.descuento || 0)}</div>}
                   <div>ISV (15%): {formatLempiras(modalPdf.isv)}</div>
-                  <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--color-primary)', marginTop: '6px', borderTop: '1px solid #292524', paddingTop: '4px' }}>
-                    VALOR A PAGAR: {formatLempiras(modalPdf.total)}
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--color-primary)', marginTop: '6px', borderTop: '1px solid var(--color-text-main)', paddingTop: '4px' }}>
+                    {t('operational.valor_a_pagar')} {formatLempiras(modalPdf.total)}
                   </div>
                 </div>
               </div>
 
               {/* Firmas */}
-              <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '36px', textAlign: 'center', fontSize: '10px', color: '#78716C' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '36px', textAlign: 'center', fontSize: '10px', color: 'var(--color-text-muted)' }}>
                 <div>
                   <div style={{ borderBottom: '1px solid #A8A29E', width: '160px', marginBottom: '4px' }} />
-                  <div>Elaborado Por / Vendedor</div>
+                  <div>{t('operational.elaborado_por_vendedor')}</div>
                 </div>
                 <div>
                   <div style={{ borderBottom: '1px solid #A8A29E', width: '160px', marginBottom: '4px' }} />
-                  <div>Aceptado Por / Cliente</div>
+                  <div>{t('operational.aceptado_por_cliente')}</div>
                 </div>
               </div>
             </div>
@@ -1543,13 +1550,13 @@ export const CotizacionesPage: React.FC = () => {
                 }}
                 style={{ flex: 1 }}
               >
-                <Download size={16} /> DESCARGAR PDF
+                <Download size={16} /> {t('operational.descargar_pdf')}
               </button>
               <button type="button" className="btn btn-secondary" onClick={() => window.print()} style={{ flex: 1 }}>
-                <Printer size={16} /> IMPRIMIR
+                <Printer size={16} /> {t('operational.imprimir')}
               </button>
               <button type="button" className="btn btn-secondary" onClick={() => setModalPdf(null)} style={{ flex: 1 }}>
-                CERRAR
+                {t('operational.cerrar')}
               </button>
             </div>
           </div>
@@ -1602,7 +1609,7 @@ const styles: Record<string, React.CSSProperties> = {
   metricLabel: {
     fontSize: '11px',
     fontWeight: 800,
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
     letterSpacing: '0.04em',
   },
   metricValue: {
@@ -1610,7 +1617,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     fontFamily: 'var(--font-display)',
     marginTop: '6px',
-    color: '#1C1917',
+    color: 'var(--color-sidebar-bg)',
   },
   metricSub: {
     fontSize: '11px',
@@ -1632,7 +1639,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    backgroundColor: '#FAFAF9',
+    backgroundColor: 'var(--color-bg)',
     border: '1.5px solid var(--color-border)',
     borderRadius: 'var(--radius-xs)',
     padding: '0 12px',
@@ -1653,7 +1660,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     cursor: 'pointer',
     padding: 0,
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   stateSelect: {
     height: '28px',
@@ -1661,7 +1668,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     borderRadius: 'var(--radius-xs)',
     border: '1.5px solid var(--color-border)',
-    backgroundColor: '#FAFAF9',
+    backgroundColor: 'var(--color-bg)',
     cursor: 'pointer',
   },
   modalOverlay: {
@@ -1713,10 +1720,10 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    color: '#1C1917',
+    color: 'var(--color-sidebar-bg)',
   },
   formSection: {
-    backgroundColor: '#FAFAF9',
+    backgroundColor: 'var(--color-bg)',
     border: '1.5px solid var(--color-border)',
     borderRadius: 'var(--radius-xs)',
     padding: '14px 16px',
@@ -1724,7 +1731,7 @@ const styles: Record<string, React.CSSProperties> = {
   sectionTitle: {
     fontSize: '12px',
     fontWeight: 800,
-    color: '#292524',
+    color: 'var(--color-text-main)',
     letterSpacing: '0.04em',
     marginBottom: '10px',
   },
@@ -1732,7 +1739,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '30px',
     textAlign: 'center',
     backgroundColor: '#FFFFFF',
-    border: '2px dashed #D6D3D1',
+    border: '2px dashed var(--color-sidebar-text)',
     borderRadius: 'var(--radius-xs)',
     display: 'flex',
     flexDirection: 'column',
@@ -1779,7 +1786,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#44403C',
   },
   convertDetailBox: {
-    backgroundColor: '#FAFAF9',
+    backgroundColor: 'var(--color-bg)',
     border: '1.5px solid var(--color-border)',
     borderRadius: 'var(--radius-xs)',
     padding: '12px',
@@ -1791,9 +1798,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   pdfPaper: {
     backgroundColor: '#FFFFFF',
-    border: '2px solid #292524',
+    border: '2px solid var(--color-text-main)',
     padding: '28px',
-    boxShadow: '4px 4px 0px #292524',
+    boxShadow: '4px 4px 0px var(--color-text-main)',
   },
   pdfHeader: {
     display: 'flex',

@@ -36,7 +36,7 @@ export const WeeklyTrend: React.FC<WeeklyTrendProps> = ({ data = DEFAULT_DAYS })
             <div
               style={{
                 ...styles.barSegment,
-                backgroundColor: item.esHoy ? 'var(--color-primary)' : '#292524',
+                backgroundColor: item.esHoy ? 'var(--color-primary)' : 'var(--color-text-main)',
                 height: item.esHoy ? '4px' : '3px',
               }}
             />

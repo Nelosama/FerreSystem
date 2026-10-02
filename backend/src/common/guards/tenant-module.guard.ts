@@ -7,13 +7,14 @@ import {
 import { Reflector } from '@nestjs/core';
 import { REQUIRED_MODULE_KEY } from '../decorators/required-module.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Injectable()
-export class TenantModuleGuard implements CanActivate {
+export class TenantModuleGuard extends JwtAuthGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private prisma: PrismaService,
-  ) {}
+  ) { super(); }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const requiredModule = this.reflector.getAllAndOverride<string>(
@@ -26,6 +27,8 @@ export class TenantModuleGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
+    // Los guards globales se ejecutan antes de los JwtAuthGuard de los controllers.
+    if (!request.user) await super.canActivate(context);
     const user = request.user;
 
     // Super Admin bypass
@@ -33,7 +36,7 @@ export class TenantModuleGuard implements CanActivate {
       return true;
     }
 
-    const tenantId = user?.tenantId || request.headers['x-tenant-id'];
+    const tenantId = user?.tenantId;
 
     if (!tenantId) {
       throw new ForbiddenException('Tenant ID no encontrado en la petición');

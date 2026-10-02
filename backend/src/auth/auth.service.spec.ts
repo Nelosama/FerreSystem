@@ -36,6 +36,7 @@ describe('AuthService', () => {
 
   beforeEach(async () => {
     mockPrisma.superAdmin.findUnique.mockReset();
+    mockConfigService.get.mockImplementation((_key, defaultVal) => defaultVal);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -136,7 +137,7 @@ describe('AuthService', () => {
       expect(mockResponse.cookie).toHaveBeenCalledWith(
         'refreshToken',
         'mock-jwt-token',
-        expect.any(Object),
+        expect.objectContaining({ path: '/', httpOnly: true, sameSite: 'strict' }),
       );
     });
 
@@ -292,12 +293,20 @@ describe('AuthService', () => {
 
       await expect(service.refresh('super-admin-refresh', mockResponse)).rejects.toThrow(UnauthorizedException);
       expect(mockPrisma.usuario.findUnique).not.toHaveBeenCalled();
-      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', { path: '/api/auth' });
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', { path: '/' });
     });
 
     it('logout tenant elimina la cookie tenant', () => {
       expect(service.logout(mockResponse)).toMatchObject({ success: true });
-      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', { path: '/api/auth' });
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', { path: '/' });
     });
+  });
+
+  it('emite cookie segura cross-site en producción para frontend y API en dominios distintos', async () => {
+    mockConfigService.get.mockImplementation((key, defaultVal) => key === 'NODE_ENV' ? 'production' : defaultVal);
+    const passwordHash = await bcrypt.hash('test-password', 4);
+    mockPrisma.usuario.findMany.mockResolvedValue([{ id: 'u-1', tenantId: 'tenant-1', email: 'test@example.test', passwordHash, activo: true, tenant: { id: 'tenant-1', estado: 'ACTIVO' } }]);
+    await service.login({ email: 'test@example.test', password: 'test-password' }, mockResponse);
+    expect(mockResponse.cookie).toHaveBeenCalledWith('refreshToken', 'mock-jwt-token', expect.objectContaining({ httpOnly: true, secure: true, sameSite: 'none', path: '/' }));
   });
 });

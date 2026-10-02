@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import type { ProductItem } from '../types';
@@ -33,22 +33,69 @@ interface CartItem {
   cantidad: number;
 }
 
+interface PendingSale {
+  solicitudId: string;
+  cart: CartItem[];
+  clienteNombre: string;
+  clienteRtn: string;
+  metodoPago: 'EFECTIVO' | 'TARJETA' | 'CREDITO';
+  descuentoPorcentaje: number;
+}
+
+const readPendingSale = (key: string): PendingSale | null => {
+  try {
+    const saved = localStorage.getItem(key);
+    if (!saved) return null;
+    const sale = JSON.parse(saved) as PendingSale;
+    const valid = /^[0-9a-f-]{36}$/i.test(sale.solicitudId) && Array.isArray(sale.cart) && sale.cart.length > 0 &&
+      sale.cart.every((item) => item && typeof item.productoId === 'string' && typeof item.nombre === 'string' &&
+        typeof item.codigo === 'string' && Number.isFinite(item.cantidad) && item.cantidad > 0 &&
+        Number.isFinite(item.precioUnitario) && item.precioUnitario >= 0) &&
+      typeof sale.clienteNombre === 'string' && typeof sale.clienteRtn === 'string' &&
+      ['EFECTIVO', 'TARJETA', 'CREDITO'].includes(sale.metodoPago) &&
+      Number.isFinite(sale.descuentoPorcentaje) && sale.descuentoPorcentaje >= 0 && sale.descuentoPorcentaje <= 100;
+    return valid ? sale : null;
+  } catch {
+    return null;
+  }
+};
+
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
   const { solicitudes, solicitarDescuento } = useNotification();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const pendingKey = `ferre_pending_sale:${tenant.id}:${user?.id || ''}`;
+  const activeKey = useRef(pendingKey);
+  activeKey.current = pendingKey;
+  const [ventaPendiente, setVentaPendiente] = useState<PendingSale | null>(() => readPendingSale(pendingKey));
 
   const [productos, setProductos] = useState<ProductItem[]>([]);
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(ventaPendiente?.cart || []);
   const [search, setSearch] = useState('');
-  const [clienteNombre, setClienteNombre] = useState('Consumidor Final');
-  const [clienteRtn, setClienteRtn] = useState('');
-  const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO'>('EFECTIVO');
-  const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(0);
+  const [clienteNombre, setClienteNombre] = useState(ventaPendiente?.clienteNombre || 'Consumidor Final');
+  const [clienteRtn, setClienteRtn] = useState(ventaPendiente?.clienteRtn || '');
+  const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO'>(ventaPendiente?.metodoPago || 'EFECTIVO');
+  const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(ventaPendiente?.descuentoPorcentaje || 0);
+  const cobrandoRef = useRef(false);
+  const [procesandoVenta, setProcesandoVenta] = useState(false);
   const [modalTicket, setModalTicket] = useState(false);
   const [numeroVentaGenerado, setNumeroVentaGenerado] = useState<number | null>(null);
+  const [ventaRegistrada, setVentaRegistrada] = useState<any>(null);
+  const edicionBloqueada = procesandoVenta || !!ventaPendiente || modalTicket;
+
+  useEffect(() => {
+    const pending = readPendingSale(pendingKey);
+    setVentaPendiente(pending);
+    setCart(pending?.cart || []);
+    setClienteNombre(pending?.clienteNombre || 'Consumidor Final');
+    setClienteRtn(pending?.clienteRtn || '');
+    setMetodoPago(pending?.metodoPago || 'EFECTIVO');
+    setDescuentoPorcentaje(pending?.descuentoPorcentaje || 0);
+    setModalTicket(false);
+    setVentaRegistrada(null);
+  }, [pendingKey]);
 
   const fetchProductos = useCallback(async () => {
     setErrorText(null);
@@ -83,11 +130,12 @@ export const POSPage: React.FC = () => {
   // Solicitud de autorización de descuento
   const [solicitudActiva, setSolicitudActiva] = useState<SolicitudDescuento | null>(null);
   const [esperandoAutorizacion, setEsperandoAutorizacion] = useState(false);
-  const [mensajeEstado, setMensajeEstado] = useState<string | null>(null);
+  const [mensajeEstado, setMensajeEstado] = useState<{ tipo: 'APROBADA' | 'RECHAZADA'; porcentaje: number; admin: string } | null>(null);
+  const [descuentoAutorizado, setDescuentoAutorizado] = useState<{ porcentaje: number; subtotal: number } | null>(null);
 
   // Límite de descuento del usuario actual (10% por defecto si no definido)
   const descuentoMaximoPermitido = user?.descuentoMaximo ?? 10;
-  const esDescuentoExcedido = descuentoPorcentaje > descuentoMaximoPermitido;
+
 
   // Escuchar cambios en la solicitud activa
   React.useEffect(() => {
@@ -96,9 +144,11 @@ export const POSPage: React.FC = () => {
     if (solActualizada && solActualizada.estado !== 'PENDIENTE') {
       setEsperandoAutorizacion(false);
       if (solActualizada.estado === 'APROBADA') {
-        setMensajeEstado(`¡Descuento del ${solActualizada.descuentoPorcentaje}% APROBADO por ${solActualizada.respondidoPor || 'Administrador'}!`);
+        setMensajeEstado({ tipo: 'APROBADA', porcentaje: solActualizada.descuentoPorcentaje, admin: solActualizada.respondidoPor || t('pos.admin') });
+        setDescuentoAutorizado({ porcentaje: solActualizada.descuentoPorcentaje, subtotal: solActualizada.subtotal });
       } else if (solActualizada.estado === 'RECHAZADA') {
-        setMensajeEstado(`Solicitud RECHAZADA por ${solActualizada.respondidoPor || 'Administrador'}. Por favor ajuste el porcentaje.`);
+        setMensajeEstado({ tipo: 'RECHAZADA', porcentaje: solActualizada.descuentoPorcentaje, admin: solActualizada.respondidoPor || t('pos.admin') });
+        setDescuentoAutorizado(null);
         setDescuentoPorcentaje(0);
       }
       setSolicitudActiva(null);
@@ -107,6 +157,8 @@ export const POSPage: React.FC = () => {
 
   // Cálculos fiscales hondureños con descuento
   const subtotalBruto = cart.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
+  const esDescuentoExcedido = descuentoPorcentaje > descuentoMaximoPermitido &&
+    (descuentoAutorizado?.porcentaje !== descuentoPorcentaje || descuentoAutorizado?.subtotal !== subtotalBruto);
   const montoDescuento = Math.round(subtotalBruto * (descuentoPorcentaje / 100) * 100) / 100;
   const subtotal = subtotalBruto - montoDescuento;
   const isv = Math.round(subtotal * 0.15 * 100) / 100;
@@ -128,6 +180,7 @@ export const POSPage: React.FC = () => {
   };
 
   const agregarAlCarrito = (prod: ProductItem) => {
+    if (edicionBloqueada || cobrandoRef.current) return;
     const existe = cart.find((i) => i.productoId === prod.id);
     if (existe) {
       setCart(
@@ -150,6 +203,7 @@ export const POSPage: React.FC = () => {
   };
 
   const modificarCantidad = (productoId: string, delta: number) => {
+    if (edicionBloqueada || cobrandoRef.current) return;
     setCart(
       cart
         .map((i) => {
@@ -164,19 +218,30 @@ export const POSPage: React.FC = () => {
   };
 
   const eliminarDelCarrito = (productoId: string) => {
+    if (edicionBloqueada || cobrandoRef.current) return;
     setCart(cart.filter((i) => i.productoId !== productoId));
   };
 
   const handleCobrar = async () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || cobrandoRef.current || modalTicket || (esDescuentoExcedido && !ventaPendiente)) return;
+    cobrandoRef.current = true;
+    setProcesandoVenta(true);
 
     try {
+      const pending = readPendingSale(pendingKey) || {
+        solicitudId: crypto.randomUUID(), cart, clienteNombre, clienteRtn, metodoPago, descuentoPorcentaje,
+      };
+      // Persistir ANTES del envío: un reload o respuesta perdida reutiliza la operación.
+      localStorage.setItem(pendingKey, JSON.stringify(pending));
+      setVentaPendiente(pending);
+      const descuentoPendiente = Math.round(pending.cart.reduce((sum, i) => sum + i.precioUnitario * i.cantidad, 0) * pending.descuentoPorcentaje) / 100;
       const res = await api.post('/ventas', {
-        clienteNombre,
-        clienteRtn: clienteRtn || undefined,
-        metodoPago,
-        descuento: montoDescuento,
-        detalles: cart.map((i) => ({
+        solicitudId: pending.solicitudId,
+        clienteNombre: pending.clienteNombre,
+        clienteRtn: pending.clienteRtn || undefined,
+        metodoPago: pending.metodoPago,
+        descuento: descuentoPendiente,
+        detalles: pending.cart.map((i) => ({
           productoId: i.productoId,
           cantidad: i.cantidad,
           precioUnitario: i.precioUnitario,
@@ -184,12 +249,30 @@ export const POSPage: React.FC = () => {
       });
 
       const ventaRegistrada = res.data;
+      localStorage.removeItem(pendingKey);
+      if (activeKey.current !== pendingKey) return;
+      setVentaRegistrada(ventaRegistrada);
+      setCart(pending.cart);
+      setClienteNombre(pending.clienteNombre);
+      setClienteRtn(pending.clienteRtn);
+      setMetodoPago(pending.metodoPago);
+      setDescuentoPorcentaje(pending.descuentoPorcentaje);
       setNumeroVentaGenerado(ventaRegistrada.numeroVenta);
       setModalTicket(true);
+      setVentaPendiente(null);
       await fetchProductos(); // Refrescar inventario actualizado
     } catch (err: any) {
+      // Solo una validación fallida confirma que la operación no se registró.
+      if ([400, 404, 409, 422].includes(err.response?.status)) {
+        localStorage.removeItem(pendingKey);
+        if (activeKey.current === pendingKey) setVentaPendiente(null);
+      }
+      if (activeKey.current !== pendingKey) return;
       console.error('Error al procesar cobro de venta:', err);
-      alert(err.response?.data?.message || 'Error al procesar la venta en el servidor');
+      alert(err.response?.data?.message || t('pos.sale_error'));
+    } finally {
+      cobrandoRef.current = false;
+      setProcesandoVenta(false);
     }
   };
 
@@ -198,6 +281,12 @@ export const POSPage: React.FC = () => {
       <TopBar title={t('pos.title')} subtitle={t('pos.subtitle')} />
 
       <main style={styles.content}>
+        {ventaPendiente && !procesandoVenta && (
+          <div role="status" className="industrial-card" style={{ marginBottom: '16px' }}>
+            {t('pos.pending_sale')}
+            <button type="button" className="btn btn-primary" onClick={handleCobrar}>{t('pos.retry_sale')}</button>
+          </div>
+        )}
         {errorText && (
           <div style={{
             marginBottom: '16px',
@@ -210,10 +299,16 @@ export const POSPage: React.FC = () => {
             fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: '10px',
           }}>
-            <ShieldAlert size={18} />
-            <span>{errorText}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <ShieldAlert size={18} />
+              <span>{errorText}</span>
+            </div>
+            <button type="button" onClick={fetchProductos} className="btn btn-secondary btn-sm">
+              {t('common.retry')}
+            </button>
           </div>
         )}
 
@@ -252,7 +347,7 @@ export const POSPage: React.FC = () => {
                     <div style={styles.productName}>{prod.nombre}</div>
                     <div style={styles.priceRow}>
                       <span style={styles.priceText}>{formatLempiras(prod.precioVenta)}</span>
-                      <span style={styles.stockText}>{prod.stockActual} disp.</span>
+                      <span style={styles.stockText}>{prod.stockActual} {t('pos.available')}</span>
                     </div>
                   </div>
                 ))}
@@ -264,7 +359,7 @@ export const POSPage: React.FC = () => {
             {/* Cabecera del ticket */}
             <div style={styles.cartHeader}>
               <div style={styles.cartTitle}>{t('pos.cart').toUpperCase()}</div>
-              <span className="badge badge-dark">ITEMS: {cart.length}</span>
+              <span className="badge badge-dark">{t('operational.items')} {cart.length}</span>
             </div>
 
             {/* Selector de Cliente */}
@@ -274,19 +369,21 @@ export const POSPage: React.FC = () => {
                 <input
                   type="text"
                   value={clienteNombre}
+                  disabled={edicionBloqueada}
                   onChange={(e) => setClienteNombre(e.target.value)}
                   className="form-input"
                   style={{ padding: '6px 10px', fontSize: '12px', flex: 1 }}
-                  placeholder="Nombre Cliente..."
+                  placeholder={t('pos.client_placeholder')}
                 />
               </div>
               <input
                 type="text"
                 value={clienteRtn}
+                disabled={edicionBloqueada}
                 onChange={(e) => setClienteRtn(e.target.value)}
                 className="form-input"
                 style={{ padding: '6px 10px', fontSize: '11px', marginTop: '6px' }}
-                placeholder="RTN (Opcional para factura)..."
+                placeholder={t('pos.rtn_placeholder')}
               />
             </div>
 
@@ -295,9 +392,9 @@ export const POSPage: React.FC = () => {
               {cart.length === 0 ? (
                 <div style={styles.emptyCart}>
                   <Receipt size={40} strokeWidth={1.5} color="#A8A29E" />
-                  <p style={{ marginTop: '8px', fontWeight: 600 }}>El carrito está vacío</p>
-                  <span style={{ fontSize: '12px', color: '#78716C' }}>
-                    Seleccione productos del catálogo
+                  <p style={{ marginTop: '8px', fontWeight: 600 }}>{t('pos.empty_cart')}</p>
+                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                    {t('pos.select_products')}
                   </span>
                 </div>
               ) : (
@@ -314,6 +411,7 @@ export const POSPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => modificarCantidad(item.productoId, -1)}
+                        disabled={edicionBloqueada}
                         style={styles.qtyBtn}
                       >
                         <Minus size={13} strokeWidth={3} />
@@ -335,6 +433,7 @@ export const POSPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => eliminarDelCarrito(item.productoId)}
+                      disabled={edicionBloqueada}
                       style={styles.deleteBtn}
                     >
                       <Trash2 size={15} />
@@ -348,9 +447,9 @@ export const POSPage: React.FC = () => {
             <div style={styles.descuentoSection}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 700, fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Percent size={13} color="var(--color-primary)" /> APLICAR DESCUENTO (%)
+                  <Percent size={13} color="var(--color-primary)" /> {t('pos.apply_discount')}
                 </label>
-                <span style={{ fontSize: '10px', color: '#78716C' }}>Límite cajero: {descuentoMaximoPermitido}%</span>
+                <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{t('operational.limite_cajero')} {descuentoMaximoPermitido}%</span>
               </div>
 
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -359,8 +458,10 @@ export const POSPage: React.FC = () => {
                   min="0"
                   max="100"
                   value={descuentoPorcentaje}
+                  disabled={edicionBloqueada}
                   onChange={(e) => {
                     setDescuentoPorcentaje(Math.min(100, Math.max(0, Number(e.target.value))));
+                    setDescuentoAutorizado(null);
                     setMensajeEstado(null);
                   }}
                   className="form-input"
@@ -378,19 +479,19 @@ export const POSPage: React.FC = () => {
                   <ShieldAlert size={16} color="#DC2626" />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 800, fontSize: '11px', color: '#991B1B' }}>
-                      DESCUENTO EXCEDE TU LÍMITE PERMITIDO ({descuentoMaximoPermitido}%)
+                      {t('operational.descuento_excede_tu_limite_permitido')}{descuentoMaximoPermitido}%)
                     </div>
                     <div style={{ fontSize: '10px', color: '#B91C1C', marginTop: '2px' }}>
-                      Requiere aprobación en tiempo real de un Administrador.
+                      {t('operational.requiere_aprobacion_en_tiempo_real_de_un_administrador')}
                     </div>
                   </div>
                 </div>
               )}
 
               {mensajeEstado && (
-                <div style={{ ...styles.alertaDescuentoBox, backgroundColor: mensajeEstado.includes('APROBADO') ? '#DCFCE7' : '#FEE2E2', borderColor: mensajeEstado.includes('APROBADO') ? '#15803D' : '#EF4444' }}>
-                  <div style={{ fontWeight: 700, fontSize: '11px', color: mensajeEstado.includes('APROBADO') ? '#15803D' : '#991B1B' }}>
-                    {mensajeEstado}
+                <div style={{ ...styles.alertaDescuentoBox, backgroundColor: mensajeEstado.tipo === 'APROBADA' ? '#DCFCE7' : '#FEE2E2', borderColor: mensajeEstado.tipo === 'APROBADA' ? '#15803D' : '#EF4444' }}>
+                  <div style={{ fontWeight: 700, fontSize: '11px', color: mensajeEstado.tipo === 'APROBADA' ? '#15803D' : '#991B1B' }}>
+                    {t(mensajeEstado.tipo === 'APROBADA' ? 'pos.discount_approved' : 'pos.discount_rejected', { percentage: mensajeEstado.porcentaje, admin: mensajeEstado.admin })}
                   </div>
                 </div>
               )}
@@ -399,12 +500,12 @@ export const POSPage: React.FC = () => {
             {/* Totales Fiscales */}
             <div style={styles.totalsSection}>
               <div style={styles.totalRow}>
-                <span style={styles.totalLabel}>SUBTOTAL BRUTO:</span>
+                <span style={styles.totalLabel}>{t('operational.subtotal_bruto')}</span>
                 <span style={styles.totalVal}>{formatLempiras(subtotalBruto)}</span>
               </div>
               {montoDescuento > 0 && (
                 <div style={styles.totalRow}>
-                  <span style={{ ...styles.totalLabel, color: '#DC2626' }}>DESCUENTO ({descuentoPorcentaje}%):</span>
+                  <span style={{ ...styles.totalLabel, color: '#DC2626' }}>{t('operational.descuento')}{descuentoPorcentaje}%):</span>
                   <span style={{ ...styles.totalVal, color: '#DC2626' }}>-{formatLempiras(montoDescuento)}</span>
                 </div>
               )}
@@ -413,7 +514,7 @@ export const POSPage: React.FC = () => {
                 <span style={styles.totalVal}>{formatLempiras(isv)}</span>
               </div>
               <div style={{ ...styles.totalRow, ...styles.grandTotalRow }}>
-                <span style={styles.grandTotalLabel}>TOTAL A PAGAR:</span>
+                <span style={styles.grandTotalLabel}>{t('pos.total_due')}</span>
                 <span style={styles.grandTotalVal}>{formatLempiras(total)}</span>
               </div>
             </div>
@@ -422,23 +523,25 @@ export const POSPage: React.FC = () => {
             <div style={styles.paymentMethods}>
               <button
                 type="button"
+                disabled={edicionBloqueada}
                 onClick={() => setMetodoPago('EFECTIVO')}
                 style={{
                   ...styles.payBtn,
                   ...(metodoPago === 'EFECTIVO' ? styles.payBtnActive : {}),
                 }}
               >
-                <Banknote size={16} strokeWidth={2.5} /> EFECTIVO
+                <Banknote size={16} strokeWidth={2.5} /> {t('pos.cash')}
               </button>
               <button
                 type="button"
+                disabled={edicionBloqueada}
                 onClick={() => setMetodoPago('TARJETA')}
                 style={{
                   ...styles.payBtn,
                   ...(metodoPago === 'TARJETA' ? styles.payBtnActive : {}),
                 }}
               >
-                <CreditCard size={16} strokeWidth={2.5} /> TARJETA
+                <CreditCard size={16} strokeWidth={2.5} /> {t('pos.card')}
               </button>
             </div>
 
@@ -448,18 +551,18 @@ export const POSPage: React.FC = () => {
                 type="button"
                 className="btn btn-primary"
                 onClick={handleSolicitarAutorizacion}
-                disabled={esperandoAutorizacion}
+                disabled={esperandoAutorizacion || edicionBloqueada}
                 style={{ ...styles.checkoutBtn, backgroundColor: '#DC2626', borderColor: '#B91C1C' }}
               >
                 {esperandoAutorizacion ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    <span>ESPERANDO APROBACIÓN ADMIN...</span>
+                    <span>{t('pos.waiting_approval')}</span>
                   </>
                 ) : (
                   <>
                     <ShieldAlert size={18} />
-                    <span>SOLICITAR AUTORIZACIÓN A ADMIN</span>
+                    <span>{t('pos.request_approval')}</span>
                   </>
                 )}
               </button>
@@ -468,11 +571,13 @@ export const POSPage: React.FC = () => {
                 type="button"
                 className="btn btn-primary"
                 onClick={handleCobrar}
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 || procesandoVenta || modalTicket}
+                aria-busy={procesandoVenta}
                 style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1 }}
               >
                 <CheckCircle size={20} strokeWidth={2.5} />
-                <span>COBRAR {formatLempiras(total)}</span>
+                {procesandoVenta && <Loader2 size={18} className="animate-spin" />}
+                <span>{t(procesandoVenta ? 'pos.processing' : 'pos.checkout')} {formatLempiras(total)}</span>
               </button>
             )}
           </div>
@@ -503,19 +608,21 @@ export const POSPage: React.FC = () => {
                   FERRESYSTEM POS
                 </div>
                 <div style={styles.ticketTenantName}>{tenant.nombreComercial}</div>
-                <div style={styles.ticketMeta}>RTN: 05019002345678 • Tel: +504 2550-1234</div>
-                <div style={styles.ticketMeta}>Honduras • Moneda: Lempiras (HNL)</div>
+                {tenant.telefono && <div style={styles.ticketMeta}>{tenant.telefono}</div>}
+                {tenant.direccion && <div style={styles.ticketMeta}>{tenant.direccion}</div>}
+                {tenant.email && <div style={styles.ticketMeta}>{tenant.email}</div>}
+                <div style={styles.ticketMeta}>{t('pos.currency')}: {tenant.moneda?.codigo || 'HNL'}</div>
               </div>
 
               <div style={styles.ticketDashed} />
 
               <div style={styles.ticketFacturaMeta}>
-                <div><strong>COMPROBANTE DE VENTA</strong></div>
-                <div>Factura N°: <strong>V-{numeroVentaGenerado}</strong></div>
-                <div>Fecha: 25/09/2026 01:25 PM</div>
-                <div>Cajero: {user?.nombre || 'Carlos Ramos'}</div>
-                <div>Cliente: {clienteNombre}</div>
-                {clienteRtn && <div>RTN Cliente: {clienteRtn}</div>}
+                <div><strong>{t('pos.receipt')}</strong></div>
+                <div>{t('pos.invoice_number')}: <strong>V-{numeroVentaGenerado}</strong></div>
+                <div>{t('common.date')}: {ventaRegistrada?.createdAt ? new Date(ventaRegistrada.createdAt).toLocaleString(locale === 'en' ? 'en-US' : 'es-HN') : ''}</div>
+                <div>{t('pos.cashier')}: {user?.nombre || ''}</div>
+                <div>{t('common.client')}: {clienteNombre}</div>
+                {clienteRtn && <div>{t('pos.customer_rtn')}: {clienteRtn}</div>}
               </div>
 
               <div style={styles.ticketDashed} />
@@ -523,9 +630,9 @@ export const POSPage: React.FC = () => {
               <table style={styles.ticketTable}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: 'left' }}>DESCRIPCIÓN</th>
-                    <th style={{ textAlign: 'center' }}>CANT</th>
-                    <th style={{ textAlign: 'right' }}>TOTAL</th>
+                    <th style={{ textAlign: 'left' }}>{t('common.description')}</th>
+                    <th style={{ textAlign: 'center' }}>{t('common.quantity')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('common.total')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -544,20 +651,20 @@ export const POSPage: React.FC = () => {
               <div style={styles.ticketDashed} />
 
               <div style={styles.ticketTotals}>
-                <div>Subtotal: {formatLempiras(subtotal)}</div>
-                <div>ISV (15%): {formatLempiras(isv)}</div>
+                <div>{t('common.subtotal')}: {formatLempiras(Number(ventaRegistrada?.subtotal ?? subtotal))}</div>
+                <div>ISV (15%): {formatLempiras(Number(ventaRegistrada?.isv ?? isv))}</div>
                 <div style={{ fontSize: '15px', fontWeight: 900, marginTop: '4px' }}>
-                  TOTAL PAGADO: {formatLempiras(total)}
+                  {t('pos.total_paid')}: {formatLempiras(Number(ventaRegistrada?.total ?? total))}
                 </div>
                 <div style={{ fontSize: '11px', marginTop: '2px' }}>
-                  Método de Pago: {metodoPago}
+                  {t('pos.payment_method')}: {t(`pos.${metodoPago === 'EFECTIVO' ? 'cash' : metodoPago === 'TARJETA' ? 'card' : 'credit'}`)}
                 </div>
               </div>
 
               <div style={styles.ticketDashed} />
 
-              <div style={{ textAlign: 'center', fontSize: '10px', color: '#78716C', marginTop: '10px' }}>
-                ¡Gracias por su compra! • FerreSystem
+              <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '10px' }}>
+                {t('pos.thanks')} • FerreSystem
               </div>
             </div>
 
@@ -571,10 +678,10 @@ export const POSPage: React.FC = () => {
                     {
                       tipo: 'VENTA',
                       numeroDocumento: numeroVentaGenerado,
-                      fechaEmision: new Date().toLocaleDateString('es-HN'),
+                      fechaEmision: ventaRegistrada?.createdAt ? new Date(ventaRegistrada.createdAt).toLocaleString(locale === 'en' ? 'en-US' : 'es-HN') : '',
                       clienteNombre: clienteNombre || 'Consumidor Final',
                       clienteRtn: clienteRtn || undefined,
-                      vendedorNombre: user?.nombre || 'Cajero',
+                      vendedorNombre: user?.nombre || '',
                       metodoPago,
                       items: cart.map((item) => ({
                         codigo: item.codigo,
@@ -584,10 +691,10 @@ export const POSPage: React.FC = () => {
                         subtotal: item.cantidad * item.precioUnitario,
                         totalLinea: item.cantidad * item.precioUnitario,
                       })),
-                      subtotal,
-                      descuento: montoDescuento,
-                      isv,
-                      total,
+                      subtotal: Number(ventaRegistrada?.subtotal ?? subtotal),
+                      descuento: Number(ventaRegistrada?.descuento ?? montoDescuento),
+                      isv: Number(ventaRegistrada?.isv ?? isv),
+                      total: Number(ventaRegistrada?.total ?? total),
                       tenant,
                     },
                     `Venta-${numeroVentaGenerado}.pdf`
@@ -595,7 +702,7 @@ export const POSPage: React.FC = () => {
                 }}
                 style={{ flex: '1 1 100%', backgroundColor: tenant.colorPrimario, borderColor: tenant.colorPrimario }}
               >
-                <Download size={16} strokeWidth={2.4} /> DESCARGAR COMPROBANTE
+                <Download size={16} strokeWidth={2.4} /> {t('pos.download_receipt')}
               </button>
               <button
                 type="button"
@@ -603,7 +710,7 @@ export const POSPage: React.FC = () => {
                 onClick={() => window.print()}
                 style={{ flex: 1 }}
               >
-                <Printer size={16} strokeWidth={2.4} /> IMPRIMIR TICKET
+                <Printer size={16} strokeWidth={2.4} /> {t('pos.print_ticket')}
               </button>
               <button
                 type="button"
@@ -614,7 +721,7 @@ export const POSPage: React.FC = () => {
                 }}
                 style={{ flex: 1 }}
               >
-                NUEVA VENTA
+                {t('pos.new_sale')}
               </button>
             </div>
           </div>
@@ -656,7 +763,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   catalogGrid: {
     display: 'grid',
@@ -676,7 +783,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'var(--font-display)',
     fontWeight: 800,
     fontSize: '10px',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
     textTransform: 'uppercase',
   },
   productName: {
@@ -701,7 +808,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   stockText: {
     fontSize: '11px',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
     fontWeight: 600,
   },
   cartColumn: {
@@ -741,14 +848,14 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     height: '200px',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   cartItemRow: {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
     padding: '8px 10px',
-    backgroundColor: '#FAFAF9',
+    backgroundColor: 'var(--color-bg)',
     border: '1px solid var(--color-border-subtle)',
     borderRadius: 'var(--radius-xs)',
   },
@@ -760,7 +867,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cartItemPrice: {
     fontSize: '11px',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
     marginTop: '2px',
   },
   quantityControls: {
@@ -831,7 +938,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
   },
   totalLabel: {
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   totalVal: {
     fontFamily: 'var(--font-display)',
@@ -929,7 +1036,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#555',
   },
   ticketDashed: {
-    borderBottom: '1px dashed #78716C',
+    borderBottom: '1px dashed var(--color-text-muted)',
     margin: '8px 0',
   },
   ticketFacturaMeta: {

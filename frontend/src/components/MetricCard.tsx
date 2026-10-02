@@ -82,9 +82,9 @@ function getBadgeStyle(variant: string): React.CSSProperties {
       };
     default:
       return {
-        backgroundColor: '#F5F5F4',
-        color: '#292524',
-        borderColor: '#292524',
+        backgroundColor: 'var(--color-surface-hover)',
+        color: 'var(--color-text-main)',
+        borderColor: 'var(--color-text-main)',
       };
   }
 }
@@ -129,7 +129,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '12px',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
     marginBottom: '12px',
   },
   valueRow: {

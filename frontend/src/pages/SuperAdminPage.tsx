@@ -686,7 +686,7 @@ export const SuperAdminPage: React.FC = () => {
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
                   {t('superadmin.tenants_header') || "ADMINISTRACIÓN DE CLIENTES & EMPRESAS (TENANTS)"}
                 </h2>
-                <p style={{ fontSize: '12px', color: '#78716C' }}>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                   {t('superadmin.tenants_desc') || "Aprovisionamiento de nuevos clientes, contratación de servicios y modo de navegación."}
                 </p>
               </div>
@@ -724,13 +724,13 @@ export const SuperAdminPage: React.FC = () => {
                       <tr key={tItem.id}>
                         <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
                           <div>{tItem.nombreComercial}</div>
-                          <div style={{ fontSize: '10px', color: '#78716C', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                          <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                             <GitBranch size={11} /> <span>{tItem.sucursalesCount || 1} Sucursal(es) Conectada(s)</span>
                           </div>
                         </td>
                         <td style={{ fontWeight: 600 }}>
                           <div>{tItem.contacto}</div>
-                          <div style={{ fontSize: '11px', color: '#78716C' }}>{tItem.telefono}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{tItem.telefono}</div>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <span className="badge badge-dark" style={{ fontSize: '11px' }}>{tItem.plan || 'Plan Pro'}</span>
@@ -840,7 +840,7 @@ export const SuperAdminPage: React.FC = () => {
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
                   HISTORIAL DE ACCESOS Y SOPORTE REMOTO
                 </h2>
-                <p style={{ fontSize: '12px', color: '#78716C' }}>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                   Registro obligatorio de impersonaciones a clientes con motivos, duración y activación de modo edición.
                 </p>
               </div>
@@ -862,7 +862,7 @@ export const SuperAdminPage: React.FC = () => {
                 <tbody>
                   {supportLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: '#78716C' }}>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>
                         No hay registros de sesiones de soporte remoto.
                       </td>
                     </tr>
@@ -903,7 +903,7 @@ export const SuperAdminPage: React.FC = () => {
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
                   CATÁLOGO GLOBAL DE MÓDULOS & SERVICIOS
                 </h2>
-                <p style={{ fontSize: '12px', color: '#78716C' }}>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                   Especificación técnica y comercial de los módulos disponibles en la plataforma SaaS.
                 </p>
               </div>
@@ -921,11 +921,11 @@ export const SuperAdminPage: React.FC = () => {
                     )}
                   </div>
 
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '15px', color: '#1C1917' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '15px', color: 'var(--color-sidebar-bg)' }}>
                     {mod.nombre}
                   </div>
 
-                  <div style={{ fontSize: '12px', color: '#78716C', flex: 1 }}>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', flex: 1 }}>
                     {mod.descripcion}
                   </div>
 
@@ -946,7 +946,7 @@ export const SuperAdminPage: React.FC = () => {
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
                   MANTENIMIENTO DE USUARIOS ADMINISTRADORES (ADMIN)
                 </h2>
-                <p style={{ fontSize: '12px', color: '#78716C' }}>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                   Gestión centralizada sobre los administradores autorizados de cada cliente.
                 </p>
               </div>
@@ -984,11 +984,11 @@ export const SuperAdminPage: React.FC = () => {
                   {adminUsers.map((a) => (
                     <tr key={a.id}>
                       <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{a.nombre}</td>
-                      <td style={{ fontWeight: 600, color: '#1C1917' }}>{a.email}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--color-sidebar-bg)' }}>{a.email}</td>
                       <td>
                         <span className="badge badge-dark">{a.tenantNombre}</span>
                       </td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', color: '#78716C' }}>
+                      <td style={{ textAlign: 'center', fontSize: '12px', color: 'var(--color-text-muted)' }}>
                         {a.fechaCreacion}
                       </td>
                       <td style={{ textAlign: 'center' }}>
@@ -1041,7 +1041,7 @@ export const SuperAdminPage: React.FC = () => {
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
                   REGISTRO DE AUDITORÍA DE ACCIONES CRÍTICAS SAAS
                 </h2>
-                <p style={{ fontSize: '12px', color: '#78716C' }}>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                   Historial de cambios en suscripciones, habilitación de módulos e impersonaciones.
                 </p>
               </div>
@@ -1103,7 +1103,7 @@ export const SuperAdminPage: React.FC = () => {
 
             <div style={{ marginTop: '16px', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#78716C' }}>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                   Marque los módulos que el cliente tiene habilitados. Los cambios no se aplican hasta pulsar <strong>Guardar Cambios</strong>.
                 </span>
 
@@ -1139,8 +1139,8 @@ export const SuperAdminPage: React.FC = () => {
                         alignItems: 'flex-start',
                         gap: '12px',
                         padding: '12px',
-                        backgroundColor: isEnabled ? '#DCFCE7' : '#FAFAF9',
-                        border: isEnabled ? '1.5px solid #16A34A' : '1.5px solid #D6D3D1',
+                        backgroundColor: isEnabled ? '#DCFCE7' : 'var(--color-bg)',
+                        border: isEnabled ? '1.5px solid #16A34A' : '1.5px solid var(--color-sidebar-text)',
                         borderRadius: '4px',
                         cursor: 'pointer',
                         transition: 'all 150ms ease',
@@ -1159,7 +1159,7 @@ export const SuperAdminPage: React.FC = () => {
                           </span>
                           <span className="badge badge-dark" style={{ fontSize: '9px' }}>{m.categoria}</span>
                         </div>
-                        <div style={{ fontSize: '11px', color: '#78716C', marginTop: '2px' }}>{m.descripcion}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{m.descripcion}</div>
                       </div>
                     </label>
                   );
@@ -1201,7 +1201,7 @@ export const SuperAdminPage: React.FC = () => {
             </div>
 
             <div style={{ marginTop: '16px' }}>
-              <p style={{ fontSize: '12px', color: '#78716C' }}>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                 Seleccione el formato de menú visual con el que interactuarán los usuarios de este cliente:
               </p>
 
@@ -1214,9 +1214,9 @@ export const SuperAdminPage: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '14px 18px',
-                    backgroundColor: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? '#1C1917' : '#FAFAF9',
-                    color: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? '#FFFFFF' : '#1C1917',
-                    border: '2px solid #1C1917',
+                    backgroundColor: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
+                    color: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? '#FFFFFF' : 'var(--color-sidebar-bg)',
+                    border: '2px solid var(--color-sidebar-bg)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     fontFamily: 'var(--font-display)',
@@ -1238,9 +1238,9 @@ export const SuperAdminPage: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '14px 18px',
-                    backgroundColor: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? '#1C1917' : '#FAFAF9',
-                    color: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? '#FFFFFF' : '#1C1917',
-                    border: '2px solid #1C1917',
+                    backgroundColor: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
+                    color: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? '#FFFFFF' : 'var(--color-sidebar-bg)',
+                    border: '2px solid var(--color-sidebar-bg)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     fontFamily: 'var(--font-display)',
@@ -1294,7 +1294,7 @@ export const SuperAdminPage: React.FC = () => {
             </div>
 
             <div style={{ marginTop: '16px' }}>
-              <div style={{ padding: '14px', backgroundColor: '#FAFAF9', border: '1.5px solid #D6D3D1', borderRadius: '4px', marginBottom: '16px' }}>
+              <div style={{ padding: '14px', backgroundColor: 'var(--color-bg)', border: '1.5px solid var(--color-sidebar-text)', borderRadius: '4px', marginBottom: '16px' }}>
                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', marginBottom: '8px' }}>
                   AÑADIR NUEVA SUCURSAL A ESTE CLIENTE
                 </div>
@@ -1400,8 +1400,8 @@ export const SuperAdminPage: React.FC = () => {
                     ]).map((s) => (
                       <tr key={s.id}>
                         <td style={{ fontWeight: 800 }}>{s.nombre}</td>
-                        <td style={{ color: '#78716C' }}>{s.direccion}</td>
-                        <td style={{ color: '#78716C' }}>{s.telefono}</td>
+                        <td style={{ color: 'var(--color-text-muted)' }}>{s.direccion}</td>
+                        <td style={{ color: 'var(--color-text-muted)' }}>{s.telefono}</td>
                         <td style={{ textAlign: 'center' }}>
                           <span className="badge badge-success">HABILITADA</span>
                         </td>
@@ -1525,9 +1525,9 @@ export const SuperAdminPage: React.FC = () => {
                       padding: '8px',
                       fontWeight: 800,
                       fontSize: '11px',
-                      backgroundColor: editModoNavegacion === 'SIDEBAR' ? '#1C1917' : '#FAFAF9',
-                      color: editModoNavegacion === 'SIDEBAR' ? '#FAFAF9' : '#1C1917',
-                      border: editModoNavegacion === 'SIDEBAR' ? '2px solid #EA580C' : '1px solid #D6D3D1',
+                      backgroundColor: editModoNavegacion === 'SIDEBAR' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
+                      color: editModoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                      border: editModoNavegacion === 'SIDEBAR' ? '2px solid #EA580C' : '1px solid var(--color-sidebar-text)',
                       borderRadius: '4px',
                       cursor: 'pointer',
                     }}
@@ -1541,9 +1541,9 @@ export const SuperAdminPage: React.FC = () => {
                       padding: '8px',
                       fontWeight: 800,
                       fontSize: '11px',
-                      backgroundColor: editModoNavegacion === 'TOPNAV' ? '#1C1917' : '#FAFAF9',
-                      color: editModoNavegacion === 'TOPNAV' ? '#FAFAF9' : '#1C1917',
-                      border: editModoNavegacion === 'TOPNAV' ? '2px solid #EA580C' : '1px solid #D6D3D1',
+                      backgroundColor: editModoNavegacion === 'TOPNAV' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
+                      color: editModoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                      border: editModoNavegacion === 'TOPNAV' ? '2px solid #EA580C' : '1px solid var(--color-sidebar-text)',
                       borderRadius: '4px',
                       cursor: 'pointer',
                     }}
@@ -1582,7 +1582,7 @@ export const SuperAdminPage: React.FC = () => {
                     type="color"
                     value={editColorPrimario}
                     onChange={(e) => setEditColorPrimario(e.target.value)}
-                    style={{ width: '50px', height: '42px', cursor: 'pointer', border: '2px solid #292524' }}
+                    style={{ width: '50px', height: '42px', cursor: 'pointer', border: '2px solid var(--color-text-main)' }}
                   />
                   <input
                     type="text"
@@ -1652,12 +1652,12 @@ export const SuperAdminPage: React.FC = () => {
                     type="color"
                     value={colorPrimario}
                     onChange={(e) => setColorPrimario(e.target.value)}
-                    style={{ width: '100%', height: '42px', cursor: 'pointer', border: '2px solid #292524' }}
+                    style={{ width: '100%', height: '42px', cursor: 'pointer', border: '2px solid var(--color-text-main)' }}
                   />
                 </div>
               </div>
 
-              <div style={{ borderTop: '1px solid #D6D3D1', margin: '14px 0 12px', paddingTop: '10px' }}>
+              <div style={{ borderTop: '1px solid var(--color-sidebar-text)', margin: '14px 0 12px', paddingTop: '10px' }}>
                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px' }}>
                   ADMINISTRADOR INICIAL DE LA FERRETERÍA
                 </div>
@@ -1745,7 +1745,7 @@ export const SuperAdminPage: React.FC = () => {
               <div className="form-group">
                 <label className="form-label">BUSCAR USUARIO POR NOMBRE O CORREO</label>
                 <div style={{ position: 'relative' }}>
-                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#78716C' }} />
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
                   <input
                     type="text"
                     placeholder="Ej. Carlos Ramos, cajero, admin..."
@@ -1757,7 +1757,7 @@ export const SuperAdminPage: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1.5px solid #D6D3D1', borderRadius: '4px', marginTop: '12px' }}>
+              <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1.5px solid var(--color-sidebar-text)', borderRadius: '4px', marginTop: '12px' }}>
                 {[
                   {
                     id: 'usr-admin-1',
@@ -1803,14 +1803,14 @@ export const SuperAdminPage: React.FC = () => {
                         justifyContent: 'space-between',
                         padding: '12px 16px',
                         borderBottom: '1px solid #E7E5E4',
-                        backgroundColor: '#FAFAF9',
+                        backgroundColor: 'var(--color-bg)',
                       }}
                     >
                       <div>
                         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '13px' }}>
                           {u.nombre}
                         </div>
-                        <div style={{ fontSize: '11px', color: '#78716C' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
                           {u.email} • <span style={{ fontWeight: 600 }}>{u.cargo}</span>
                         </div>
                       </div>
@@ -2174,13 +2174,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     fontSize: '11px',
     letterSpacing: '0.04em',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   tabsContainer: {
     display: 'flex',
     gap: '10px',
     marginBottom: '24px',
-    borderBottom: '2px solid #292524',
+    borderBottom: '2px solid var(--color-text-main)',
     paddingBottom: '8px',
     overflowX: 'auto',
   },
@@ -2193,18 +2193,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     fontSize: '12px',
     letterSpacing: '0.04em',
-    color: '#78716C',
-    backgroundColor: '#FAFAF9',
-    border: '2px solid #D6D3D1',
+    color: 'var(--color-text-muted)',
+    backgroundColor: 'var(--color-bg)',
+    border: '2px solid var(--color-sidebar-text)',
     borderRadius: 'var(--radius-xs)',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     transition: 'all 150ms ease',
   },
   tabBtnActive: {
-    backgroundColor: '#1C1917',
-    color: '#FAFAF9',
-    borderColor: '#1C1917',
+    backgroundColor: 'var(--color-sidebar-bg)',
+    color: 'var(--color-bg)',
+    borderColor: 'var(--color-sidebar-bg)',
     boxShadow: '2px 2px 0px rgba(0,0,0,0.3)',
   },
   headerRow: {

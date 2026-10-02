@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { MoreHorizontal, X, GitBranch, Clock } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
+import { useSucursales } from '../hooks/useSucursales';
 import { useI18n } from '../context/I18nContext';
 import { NAVIGATION_ITEMS, type NavigationItem } from '../config/navigation';
 
@@ -90,32 +91,7 @@ export const BottomNavigation: React.FC = () => {
     return translated && translated !== item.labelKey ? translated : item.defaultLabel;
   };
 
-  const sucursalesDisponibles = React.useMemo(() => {
-    const defaultList = [
-      { id: 'suc-1', nombre: 'Sucursal Centro (Principal)' },
-      { id: 'suc-2', nombre: 'Sucursal San Pedro (Norte)' },
-      { id: 'suc-3', nombre: 'Sucursal Choluteca (Sur)' },
-    ];
-
-    const saasTenantsRaw = localStorage.getItem('ferre_saas_tenants');
-    if (saasTenantsRaw) {
-      try {
-        const saasTenants = JSON.parse(saasTenantsRaw);
-        const match = saasTenants.find(
-          (t: any) => t.id === tenant.id || t.nombreComercial === tenant.nombreComercial,
-        );
-        if (match && match.sucursalesList && match.sucursalesList.length > 0) {
-          return match.sucursalesList.map((s: any) => ({
-            id: s.id,
-            nombre: s.nombre,
-          }));
-        }
-      } catch (e) {
-        // Fallback
-      }
-    }
-    return defaultList;
-  }, [tenant.id, tenant.nombreComercial]);
+  const sucursalesDisponibles = useSucursales();
 
   const isMasActive = remainingItems.some((item) =>
     item.exact
@@ -140,7 +116,7 @@ export const BottomNavigation: React.FC = () => {
               end={item.exact}
               style={{
                 ...styles.navTab,
-                color: isActive ? 'var(--color-primary)' : '#78716C',
+                color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
               }}
             >
               <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
@@ -157,7 +133,7 @@ export const BottomNavigation: React.FC = () => {
           onClick={() => setShowMasModal(true)}
           style={{
             ...styles.navTab,
-            color: showMasModal || isMasActive ? 'var(--color-primary)' : '#78716C',
+            color: showMasModal || isMasActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
             background: 'none',
             border: 'none',
             cursor: 'pointer',
@@ -271,7 +247,7 @@ export const BottomNavigation: React.FC = () => {
                     <div
                       style={{
                         ...styles.iconWrapper,
-                        backgroundColor: isActive ? 'var(--color-primary)' : '#F5F5F4',
+                        backgroundColor: isActive ? 'var(--color-primary)' : 'var(--color-surface-hover)',
                         color: isActive ? '#FFFFFF' : 'var(--color-primary)',
                       }}
                     >
@@ -398,7 +374,7 @@ const styles: Record<string, React.CSSProperties> = {
   langToggle: {
     display: 'flex',
     alignItems: 'center',
-    backgroundColor: '#F5F5F4',
+    backgroundColor: 'var(--color-surface-hover)',
     border: '1.5px solid var(--color-border)',
     borderRadius: 'var(--radius-xs)',
     padding: '2px',

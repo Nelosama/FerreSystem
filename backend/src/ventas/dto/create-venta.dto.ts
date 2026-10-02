@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum MetodoPagoEnum {
@@ -23,6 +23,10 @@ export class DetalleVentaItemDto {
 }
 
 export class CreateVentaDto {
+  @IsUUID('4')
+  @IsOptional()
+  solicitudId?: string;
+
   @IsString()
   @IsOptional()
   clienteId?: string;

@@ -66,7 +66,7 @@ export const SuperAdminLoginPage: React.FC = () => {
             <ShieldCheck size={42} strokeWidth={2.5} color="#EA580C" />
           </div>
           <div style={styles.brandTitle}>
-            <span style={{ color: '#FAFAF9' }}>FerreSystem</span>
+            <span style={{ color: 'var(--color-bg)' }}>FerreSystem</span>
             <span style={{ color: '#EA580C', fontSize: '14px', display: 'block', fontWeight: 800 }}>
               PORTAL EXCLUSIVO PROVEEDOR SAAS
             </span>
@@ -143,10 +143,10 @@ const styles: Record<string, React.CSSProperties> = {
   loginCard: {
     width: '100%',
     maxWidth: '420px',
-    backgroundColor: '#1C1917',
-    border: '2px solid #292524',
+    backgroundColor: 'var(--color-sidebar-bg)',
+    border: '2px solid var(--color-text-main)',
     padding: '36px 32px',
-    color: '#FAFAF9',
+    color: 'var(--color-bg)',
   },
   logoSection: {
     textAlign: 'center',
@@ -154,7 +154,7 @@ const styles: Record<string, React.CSSProperties> = {
   logoIcon: {
     display: 'inline-flex',
     padding: '12px',
-    backgroundColor: '#292524',
+    backgroundColor: 'var(--color-text-main)',
     border: '2px solid #EA580C',
     borderRadius: '6px',
     marginBottom: '12px',
@@ -176,8 +176,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   darkInput: {
     paddingLeft: '36px',
-    backgroundColor: '#292524',
-    color: '#FAFAF9',
+    backgroundColor: 'var(--color-text-main)',
+    color: 'var(--color-bg)',
     borderColor: '#44403C',
   },
   errorBanner: {
@@ -195,6 +195,6 @@ const styles: Record<string, React.CSSProperties> = {
   demoBox: {
     marginTop: '20px',
     paddingTop: '16px',
-    borderTop: '1px solid #292524',
+    borderTop: '1px solid var(--color-text-main)',
   },
 };

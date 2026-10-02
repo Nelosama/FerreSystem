@@ -252,13 +252,13 @@ export const ApartadosPage: React.FC = () => {
                   <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{a.codigo}</td>
                   <td>
                     <div style={{ fontWeight: 700 }}>{a.clienteNombre}</div>
-                    <div style={{ fontSize: '11px', color: '#78716C' }}>{a.clienteTelefono}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{a.clienteTelefono}</div>
                   </td>
                   <td style={{ fontWeight: 600 }}>{a.productoNombre}</td>
                   <td style={{ textAlign: 'center', fontWeight: 800 }}>{a.cantidad}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatLempiras(a.precioTotal)}</td>
                   <td style={{ textAlign: 'right', color: '#16A34A', fontWeight: 700 }}>{formatLempiras(a.montoAbonado)}</td>
-                  <td style={{ textAlign: 'right', color: a.saldoPendiente > 0 ? '#DC2626' : '#78716C', fontWeight: 800 }}>
+                  <td style={{ textAlign: 'right', color: a.saldoPendiente > 0 ? '#DC2626' : 'var(--color-text-muted)', fontWeight: 800 }}>
                     {formatLempiras(a.saldoPendiente)}
                   </td>
                   <td style={{ textAlign: 'center', fontSize: '12px' }}>{a.fechaLimite}</td>
@@ -471,7 +471,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   modalOverlay: {
     position: 'fixed',

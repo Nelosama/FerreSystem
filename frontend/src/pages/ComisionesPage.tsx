@@ -106,7 +106,7 @@ export const ComisionesPage: React.FC = () => {
                 return (
                   <tr key={u.id}>
                     <td style={{ fontWeight: 800 }}>{u.nombre}</td>
-                    <td style={{ color: '#78716C' }}>{u.email}</td>
+                    <td style={{ color: 'var(--color-text-muted)' }}>{u.email}</td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                         <input

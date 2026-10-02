@@ -259,7 +259,7 @@ export const UsuariosPage: React.FC = () => {
         <div style={styles.headerRow}>
           <div>
             <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>EQUIPO DE TRABAJO</h2>
-            <p style={{ fontSize: '12px', color: '#78716C' }}>
+            <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
               Asignación de roles base, personalización fina de permisos individuales y límites de descuento.
             </p>
           </div>
@@ -273,7 +273,7 @@ export const UsuariosPage: React.FC = () => {
         {/* Tabla Industrial de Usuarios */}
         <div className="table-container" style={{ marginTop: '20px' }}>
           {loadingList ? (
-            <div style={{ padding: '36px', textAlign: 'center', color: '#78716C', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <div style={{ padding: '36px', textAlign: 'center', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <Loader2 size={20} className="animate-spin" />
               <span>Cargando usuarios desde la API real...</span>
             </div>
@@ -475,7 +475,7 @@ export const UsuariosPage: React.FC = () => {
               </div>
 
               {/* Matriz de Permisos Individuales */}
-              <div style={{ borderTop: '1px solid #D6D3D1', marginTop: '14px', paddingTop: '12px' }}>
+              <div style={{ borderTop: '1px solid var(--color-sidebar-text)', marginTop: '14px', paddingTop: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                   <ShieldCheck size={16} color="var(--color-primary)" />
                   <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase' }}>
@@ -639,7 +639,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 10px',
     border: '1px solid #E7E5E4',
     borderRadius: 'var(--radius-xs)',
-    backgroundColor: '#FAFAF9',
+    backgroundColor: 'var(--color-bg)',
     cursor: 'pointer',
     userSelect: 'none',
   },
@@ -651,10 +651,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'monospace',
     fontWeight: 700,
     fontSize: '11px',
-    color: '#1C1917',
+    color: 'var(--color-sidebar-bg)',
   },
   permisoLabel: {
     fontSize: '10px',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
 };

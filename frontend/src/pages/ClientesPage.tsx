@@ -198,7 +198,7 @@ export const ClientesPage: React.FC = () => {
         {/* Tabla Industrial de Clientes */}
         <div className="table-container" style={{ marginTop: '20px' }}>
           {loading ? (
-            <div style={{ padding: '36px', textAlign: 'center', color: '#78716C', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <div style={{ padding: '36px', textAlign: 'center', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <Loader2 size={20} className="animate-spin" />
               <span>Cargando directorio de clientes desde Supabase...</span>
             </div>
@@ -217,7 +217,7 @@ export const ClientesPage: React.FC = () => {
               <tbody>
                 {clientes.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: '#78716C' }}>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-muted)' }}>
                       No se encontraron clientes registrados.
                     </td>
                   </tr>
@@ -236,11 +236,11 @@ export const ClientesPage: React.FC = () => {
                       <td style={{ fontSize: '12px' }}>
                         {c.telefono && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Phone size={11} color="#78716C" /> {c.telefono}
+                            <Phone size={11} color="var(--color-text-muted)" /> {c.telefono}
                           </div>
                         )}
                         {c.email && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#78716C' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-text-muted)' }}>
                             <Mail size={11} /> {c.email}
                           </div>
                         )}
@@ -249,7 +249,7 @@ export const ClientesPage: React.FC = () => {
                       <td style={{ fontSize: '12px', color: '#555', maxWidth: '240px' }}>
                         {c.direccion ? (
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
-                            <MapPin size={12} color="#78716C" style={{ marginTop: '2px', flexShrink: 0 }} />
+                            <MapPin size={12} color="var(--color-text-muted)" style={{ marginTop: '2px', flexShrink: 0 }} />
                             <span>{c.direccion}</span>
                           </div>
                         ) : (
@@ -439,7 +439,7 @@ export const ClientesPage: React.FC = () => {
             <div style={{ marginTop: '16px', fontSize: '13px', lineHeight: '1.5', color: '#444' }}>
               ¿Está seguro de eliminar al cliente <strong>{clienteEliminar.nombre}</strong>?
               <br />
-              <span style={{ fontSize: '11px', color: '#78716C', marginTop: '6px', display: 'block' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '6px', display: 'block' }}>
                 Esta acción enviará una petición DELETE a la API real en Supabase. Si el cliente posee ventas o cotizaciones asociadas, la API rechazará la operación para mantener la integridad histórica.
               </span>
             </div>
@@ -532,7 +532,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
-    color: '#78716C',
+    color: 'var(--color-text-muted)',
   },
   modalOverlay: {
     position: 'fixed',

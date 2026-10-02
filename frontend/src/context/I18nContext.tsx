@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import esTranslations from '../locales/es.json';
 import enTranslations from '../locales/en.json';
 
@@ -7,7 +7,7 @@ type Locale = 'es' | 'en';
 interface I18nContextType {
   locale: Locale;
   setLocale: (lang: Locale) => void;
-  t: (key: string) => string;
+  t: (key: string, values?: Record<string, string | number>) => string;
 }
 
 const translations: Record<Locale, Record<string, any>> = {
@@ -31,7 +31,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLocaleState(lang);
   };
 
-  const t = (path: string): string => {
+  const t = useCallback((path: string, values?: Record<string, string | number>): string => {
     const keys = path.split('.');
     let current: any = translations[locale] || translations.es;
 
@@ -43,8 +43,10 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    return typeof current === 'string' ? current : path;
-  };
+    return typeof current === 'string'
+      ? current.replace(/\{(\w+)\}/g, (match, key) => values?.[key] !== undefined ? String(values[key]) : match)
+      : path;
+  }, [locale]);
 
   return (
     <I18nContext.Provider value={{ locale, setLocale, t }}>

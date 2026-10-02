@@ -153,7 +153,7 @@ export const TransferenciasPage: React.FC = () => {
         )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div style={{ fontSize: '13px', color: '#78716C', fontWeight: 600 }}>
+          <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
             Permite mover stock entre sucursales de forma segura descontando el origen y sumando al confirmar destino.
           </div>
           <button type="button" className="btn btn-primary" onClick={() => setModalNuevo(true)}>

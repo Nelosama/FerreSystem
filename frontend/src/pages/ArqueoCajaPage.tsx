@@ -162,42 +162,42 @@ export const ArqueoCajaPage: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
           {/* PANEL DE CONTEO Y ARQUEO EN VIVO */}
           <div className="industrial-card" style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '2px solid #292524', paddingBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '2px solid var(--color-text-main)', paddingBottom: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Calculator size={22} color="var(--color-primary)" />
-                <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>CIERRE Y CONTEO DE CAJA ACTUAL</h2>
+                <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>{t('cash_drawer.current_count')}</h2>
               </div>
-              <span className="badge badge-dark">SISTEMA VALIDADO</span>
+              <span className="badge badge-dark">{t('operational.sistema_validado')}</span>
             </div>
 
             {/* RESUMEN DE VENTAS POR MÉTODO DE PAGO */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#FAFAF9', padding: '16px', border: '1.5px solid #D6D3D1', borderRadius: '4px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: 'var(--color-bg)', padding: '16px', border: '1.5px solid var(--color-sidebar-text)', borderRadius: '4px', marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span>Fondo Fijo Inicial de Caja:</span>
+                <span>{t('operational.fondo_fijo_inicial_de_caja')}</span>
                 <span style={{ fontWeight: 700 }}>{formatLempiras(fondoInicial)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span>Ventas en Efectivo del Turno:</span>
+                <span>{t('operational.ventas_en_efectivo_del_turno')}</span>
                 <span style={{ fontWeight: 700, color: '#16A34A' }}>{formatLempiras(ventasEfectivoTurno)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span>Ventas con Tarjeta (P.O.S):</span>
+                <span>{t('operational.ventas_con_tarjeta_p_o_s')}</span>
                 <span style={{ fontWeight: 700, color: '#0284C7' }}>{formatLempiras(ventasTarjetaTurno)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span>Ventas a Crédito Cliente:</span>
+                <span>{t('operational.ventas_a_credito_cliente')}</span>
                 <span style={{ fontWeight: 700, color: '#D97706' }}>{formatLempiras(ventasCreditoTurno)}</span>
               </div>
 
-              <div style={{ height: '1px', backgroundColor: '#D6D3D1', margin: '4px 0' }} />
+              <div style={{ height: '1px', backgroundColor: 'var(--color-sidebar-text)', margin: '4px 0' }} />
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 800 }}>
-                <span>TOTAL RECAUDADO EN TURNO:</span>
+                <span>{t('operational.total_recaudado_en_turno')}</span>
                 <span>{formatLempiras(totalVentasTurno)}</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 900, color: 'var(--color-primary)', paddingTop: '4px', borderTop: '1px dashed #A8A29E' }}>
-                <span>EFECTIVO ESPERADO EN BÓVEDA/CAJA:</span>
+                <span>{t('operational.efectivo_esperado_en_boveda_caja')}</span>
                 <span>{formatLempiras(totalEsperado)}</span>
               </div>
             </div>
@@ -205,7 +205,7 @@ export const ArqueoCajaPage: React.FC = () => {
             {/* FORMULARIO DE INGRESO FÍSICO Y VALIDADOR */}
             <form onSubmit={handleCerrarTurno}>
               <div className="form-group">
-                <label className="form-label">EFECTIVO FÍSICO CONTADO EN CAJA (L.)</label>
+                <label className="form-label">{t('operational.efectivo_fisico_contado_en_caja_l')}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -243,9 +243,8 @@ export const ArqueoCajaPage: React.FC = () => {
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
                         <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
                         <span>
-                          <strong>VALIDADOR DE SEGURIDAD:</strong> El monto contado difiere en{' '}
-                          <strong>{formatLempiras(Math.abs(diferenciaCalculada))}</strong> respecto al total reportado por el sistema de ventas.
-                          Por favor ingrese la justificación obligatoria en las notas.
+                          <strong>{t('operational.validador_de_seguridad')}</strong> {t('operational.el_monto_contado_difiere_en')}{' '}
+                          <strong>{formatLempiras(Math.abs(diferenciaCalculada))}</strong> {t('operational.respecto_al_total_reportado_por_el_sistema_de_ventas_por_favor_ingrese_la_justificacion_obligatoria_en_las_notas')}
                         </span>
                       </div>
                     </div>
@@ -254,9 +253,9 @@ export const ArqueoCajaPage: React.FC = () => {
               )}
 
               <div className="form-group">
-                <label className="form-label">NOTAS DE AUDITORÍA / JUSTIFICACIÓN</label>
+                <label className="form-label">{t('operational.notas_de_auditoria_justificacion')}</label>
                 <textarea
-                  placeholder="Escriba aquí observaciones de billetes dañados o justificación de diferencia..."
+                  placeholder={t('operational.escriba_aqui_observaciones_de_billetes_danados_o_justificacion_de_diferencia')}
                   value={notasInput}
                   onChange={(e) => setNotasInput(e.target.value)}
                   className="form-input"
@@ -266,45 +265,45 @@ export const ArqueoCajaPage: React.FC = () => {
               </div>
 
               <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '12px' }}>
-                <CheckCircle size={18} /> REGISTRAR ARQUEO Y IMPRIMIR CIERRE (PDF)
+                <CheckCircle size={18} /> {t('operational.registrar_arqueo_y_imprimir_cierre_pdf')}
               </button>
             </form>
           </div>
 
           {/* HISTORIAL DE ARQUEOS REALIZADOS */}
           <div className="industrial-card" style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '2px solid #292524', paddingBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '2px solid var(--color-text-main)', paddingBottom: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Clock size={22} color="#0284C7" />
-                <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>HISTORIAL DE ARQUEOS Y CIERRES</h2>
+                <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>{t('cash_drawer.closing_history')}</h2>
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '520px', overflowY: 'auto' }}>
               {arqueos.map((a) => (
-                <div key={a.id} style={{ padding: '14px', backgroundColor: '#FAFAF9', border: '1.5px solid #D6D3D1', borderRadius: '4px' }}>
+                <div key={a.id} style={{ padding: '14px', backgroundColor: 'var(--color-bg)', border: '1.5px solid var(--color-sidebar-text)', borderRadius: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontWeight: 800, fontSize: '13px' }}>{a.usuarioNombre}</span>
-                    <span style={{ fontSize: '11px', color: '#78716C', fontFamily: 'monospace' }}>{a.fecha}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>{a.fecha}</span>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '12px' }}>
-                    <span>Efectivo Esperado: <strong>{formatLempiras(a.efectivoEsperado)}</strong></span>
-                    <span>Efectivo Declarado: <strong>{formatLempiras(a.efectivoContado)}</strong></span>
+                    <span>{t('operational.efectivo_esperado')} <strong>{formatLempiras(a.efectivoEsperado)}</strong></span>
+                    <span>{t('operational.efectivo_declarado')} <strong>{formatLempiras(a.efectivoContado)}</strong></span>
                   </div>
 
                   <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid #E7E5E4' }}>
-                    <span style={{ fontSize: '11px', color: '#78716C' }}>{a.observaciones}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{a.observaciones}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {a.tipoDiferencia === 'CUADRADO' && <span className="badge badge-success">CUADRADO</span>}
-                      {a.tipoDiferencia === 'SOBRANTE' && <span className="badge badge-warning">SOBRANTE ({formatLempiras(a.diferencia)})</span>}
-                      {a.tipoDiferencia === 'FALTANTE' && <span className="badge badge-danger">FALTANTE ({formatLempiras(a.diferencia)})</span>}
+                      {a.tipoDiferencia === 'CUADRADO' && <span className="badge badge-success">{t('operational.cuadrado')}</span>}
+                      {a.tipoDiferencia === 'SOBRANTE' && <span className="badge badge-warning">{t('operational.sobrante')}{formatLempiras(a.diferencia)})</span>}
+                      {a.tipoDiferencia === 'FALTANTE' && <span className="badge badge-danger">{t('operational.faltante')}{formatLempiras(a.diferencia)})</span>}
 
                       <button
                         type="button"
                         onClick={() => setModalImprimir(a)}
                         className="btn btn-sm btn-secondary"
-                        title="Ver e Imprimir Reporte en PDF"
+                        title={t('operational.ver_e_imprimir_reporte_en_pdf')}
                         style={{ padding: '4px 8px' }}
                       >
                         <Printer size={13} />
@@ -326,7 +325,7 @@ export const ArqueoCajaPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <FileText size={20} color="var(--color-primary)" />
-                  <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>REPORTE OFICIAL DE CIERRE DE CAJA</h2>
+                  <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>{t('operational.reporte_oficial_de_cierre_de_caja')}</h2>
                 </div>
                 <button
                   type="button"
@@ -339,57 +338,57 @@ export const ArqueoCajaPage: React.FC = () => {
             </div>
 
             {/* PLANTILLA DE IMPRESIÓN OFICIAL DEL REPORTE */}
-            <div id="print-cierre-area" style={{ padding: '20px', backgroundColor: '#FFFFFF', color: '#1C1917' }}>
-              <div style={{ textAlign: 'center', borderBottom: '2px solid #1C1917', paddingBottom: '12px', marginBottom: '16px' }}>
+            <div id="print-cierre-area" style={{ padding: '20px', backgroundColor: '#FFFFFF', color: 'var(--color-sidebar-bg)' }}>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid var(--color-sidebar-bg)', paddingBottom: '12px', marginBottom: '16px' }}>
                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '18px', textTransform: 'uppercase' }}>
                   {tenant.nombreComercial}
                 </div>
                 <div style={{ fontSize: '11px', color: '#44403C', marginTop: '2px' }}>
-                  {tenant.direccion || 'Barrio El Centro, San Pedro Sula'} • Tel: {tenant.telefono || '+504 2550-1234'}
+                  {tenant.direccion || ''} • Tel: {tenant.telefono || ''}
                 </div>
                 <div style={{ fontSize: '11px', fontWeight: 800, marginTop: '2px' }}>
-                  RTN: 05019001234567 • SEDE: {tenant.sucursal || 'Sucursal Principal'}
+                  {t('pos.branch')}: {tenant.sucursal || 'Sucursal Principal'}
                 </div>
                 <div style={{ marginTop: '8px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '13px', textTransform: 'uppercase', color: 'var(--color-primary)' }}>
-                  COMPROBANTE Y ACTA DE ARQUEO DE CAJA
+                  {t('operational.comprobante_y_acta_de_arqueo_de_caja')}
                 </div>
               </div>
 
               {/* DATOS DEL CIERRE */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '11px', marginBottom: '16px', backgroundColor: '#FAFAF9', padding: '10px', border: '1px solid #D6D3D1' }}>
-                <div><strong>CAJERO RESPONSABLE:</strong> {modalImprimir.usuarioNombre}</div>
-                <div><strong>FECHA / HORA CIERRE:</strong> {modalImprimir.fecha}</div>
-                <div><strong>ESTADO ARQUEO:</strong> {modalImprimir.tipoDiferencia}</div>
-                <div><strong>CORREO/ID:</strong> {user?.email || 'cajero@lamundial.hn'}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '11px', marginBottom: '16px', backgroundColor: 'var(--color-bg)', padding: '10px', border: '1px solid var(--color-sidebar-text)' }}>
+                <div><strong>{t('operational.cajero_responsable')}</strong> {modalImprimir.usuarioNombre}</div>
+                <div><strong>{t('operational.fecha_hora_cierre')}</strong> {modalImprimir.fecha}</div>
+                <div><strong>{t('operational.estado_arqueo')}</strong> {modalImprimir.tipoDiferencia}</div>
+                <div><strong>{t('operational.correo_id')}</strong> {user?.email || 'cajero@lamundial.hn'}</div>
               </div>
 
               {/* DESGLOSE DE VENTAS DEL TURNO */}
               <div style={{ marginBottom: '16px' }}>
                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  1. RESUMEN DE VENTAS POR MÉTODO DE PAGO
+                  {t('operational.1_resumen_de_ventas_por_metodo_de_pago')}
                 </div>
                 <table className="industrial-table" style={{ width: '100%', fontSize: '11px' }}>
                   <thead>
                     <tr>
-                      <th>CONCEPTO / PAGO</th>
-                      <th style={{ textAlign: 'right' }}>MONTO RECAUDADO</th>
+                      <th>{t('operational.concepto_pago')}</th>
+                      <th style={{ textAlign: 'right' }}>{t('operational.monto_recaudado')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td>Ventas en Efectivo</td>
+                      <td>{t('operational.ventas_en_efectivo')}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatLempiras(modalImprimir.ventasEfectivo || 0)}</td>
                     </tr>
                     <tr>
-                      <td>Ventas con Tarjeta (P.O.S)</td>
+                      <td>{t('operational.ventas_con_tarjeta_p_o_s')}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatLempiras(modalImprimir.ventasTarjeta || 0)}</td>
                     </tr>
                     <tr>
-                      <td>Ventas a Crédito Cliente</td>
+                      <td>{t('operational.ventas_a_credito_cliente')}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatLempiras(modalImprimir.ventasCredito || 0)}</td>
                     </tr>
-                    <tr style={{ fontWeight: 900, backgroundColor: '#FAFAF9' }}>
-                      <td>TOTAL VENTAS TURNO</td>
+                    <tr style={{ fontWeight: 900, backgroundColor: 'var(--color-bg)' }}>
+                      <td>{t('operational.total_ventas_turno')}</td>
                       <td style={{ textAlign: 'right', color: 'var(--color-primary)' }}>{formatLempiras(modalImprimir.totalVentasTurno || 0)}</td>
                     </tr>
                   </tbody>
@@ -399,28 +398,28 @@ export const ArqueoCajaPage: React.FC = () => {
               {/* DESGLOSE DE AUDITORÍA Y ARQUEO */}
               <div style={{ marginBottom: '16px' }}>
                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  2. AUDITORÍA DE EFECTIVO EN CAJA FÍSICA
+                  {t('operational.2_auditoria_de_efectivo_en_caja_fisica')}
                 </div>
                 <table className="industrial-table" style={{ width: '100%', fontSize: '11px' }}>
                   <tbody>
                     <tr>
-                      <td>Fondo Fijo Inicial de Caja</td>
+                      <td>{t('operational.fondo_fijo_inicial_de_caja')}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatLempiras(1000.00)}</td>
                     </tr>
                     <tr>
-                      <td>Ventas Efectivo del Turno</td>
+                      <td>{t('operational.ventas_efectivo_del_turno')}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatLempiras(modalImprimir.ventasEfectivo || 0)}</td>
                     </tr>
                     <tr style={{ fontWeight: 800 }}>
-                      <td>TOTAL EFECTIVO ESPERADO EN SISTEMA</td>
+                      <td>{t('operational.total_efectivo_esperado_en_sistema')}</td>
                       <td style={{ textAlign: 'right' }}>{formatLempiras(modalImprimir.efectivoEsperado)}</td>
                     </tr>
                     <tr style={{ fontWeight: 800 }}>
-                      <td>TOTAL EFECTIVO DECLARADO POR CAJERO</td>
+                      <td>{t('operational.total_efectivo_declarado_por_cajero')}</td>
                       <td style={{ textAlign: 'right' }}>{formatLempiras(modalImprimir.efectivoContado)}</td>
                     </tr>
                     <tr style={{ fontWeight: 900, backgroundColor: modalImprimir.diferencia === 0 ? '#DCFCE7' : '#FEE2E2' }}>
-                      <td>DIFERENCIA REGISTRADA (SOBRANTE / FALTANTE)</td>
+                      <td>{t('operational.diferencia_registrada_sobrante_faltante')}</td>
                       <td style={{ textAlign: 'right', color: modalImprimir.diferencia === 0 ? '#15803D' : '#991B1B' }}>
                         {formatLempiras(modalImprimir.diferencia)}
                       </td>
@@ -430,27 +429,27 @@ export const ArqueoCajaPage: React.FC = () => {
               </div>
 
               {/* JUSTIFICACIÓN / OBSERVACIONES */}
-              <div style={{ marginBottom: '24px', fontSize: '11px', padding: '10px', backgroundColor: '#FAFAF9', border: '1px solid #D6D3D1' }}>
-                <strong>NOTAS Y OBSERVACIONES DE AUDITORÍA:</strong>
+              <div style={{ marginBottom: '24px', fontSize: '11px', padding: '10px', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-sidebar-text)' }}>
+                <strong>{t('operational.notas_y_observaciones_de_auditoria')}</strong>
                 <div style={{ marginTop: '4px', color: '#44403C' }}>{modalImprimir.observaciones || 'Sin observaciones'}</div>
               </div>
 
               {/* FIRMAS DE RESPONSABILIDAD */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginTop: '40px', textAlign: 'center', fontSize: '11px' }}>
                 <div>
-                  <div style={{ borderTop: '1.5px solid #1C1917', paddingTop: '6px', fontWeight: 800 }}>
+                  <div style={{ borderTop: '1.5px solid var(--color-sidebar-bg)', paddingTop: '6px', fontWeight: 800 }}>
                     ________________________________
                   </div>
-                  <div>FIRMA Y NOMBRE DEL CAJERO</div>
-                  <div style={{ fontSize: '10px', color: '#78716C' }}>Declaración Bajo Juramento</div>
+                  <div>{t('operational.firma_y_nombre_del_cajero')}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{t('operational.declaracion_bajo_juramento')}</div>
                 </div>
 
                 <div>
-                  <div style={{ borderTop: '1.5px solid #1C1917', paddingTop: '6px', fontWeight: 800 }}>
+                  <div style={{ borderTop: '1.5px solid var(--color-sidebar-bg)', paddingTop: '6px', fontWeight: 800 }}>
                     ________________________________
                   </div>
-                  <div>FIRMA SUPERVISOR / GERENCIA</div>
-                  <div style={{ fontSize: '10px', color: '#78716C' }}>Aprobado y Conforme</div>
+                  <div>{t('operational.firma_supervisor_gerencia')}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{t('operational.aprobado_y_conforme')}</div>
                 </div>
               </div>
             </div>
@@ -461,14 +460,14 @@ export const ArqueoCajaPage: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => setModalImprimir(null)}
               >
-                CERRAR
+                {t('operational.cerrar')}
               </button>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={() => window.print()}
               >
-                <Printer size={16} /> IMPRIMIR CIERRE (PDF)
+                <Printer size={16} /> {t('operational.imprimir_cierre_pdf')}
               </button>
             </div>
           </div>

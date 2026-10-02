@@ -111,7 +111,21 @@ Check out a few resources that may come in handy when working with NestJS:
 
 ## FerreSystem Production Commands
 
-Run `npm run start:prod` from the backend directory. It applies pending Prisma migrations with `prisma migrate deploy` and then starts the API; it never runs the seed. Configure Render's Start Command to `npm run start:prod`.
+Run production commands from the backend directory. For a code-only release against an existing database already matching `prisma/schema.prisma`, use:
+
+```sh
+# Render Build Command
+npm ci --include=dev && node node_modules/prisma/build/index.js generate && npm run build
+
+# Render Start Command
+node dist/main.js
+```
+
+Do not include `prisma db push --accept-data-loss` in production builds: it can change the live schema destructively before the new application has even compiled. These build/start commands do not apply schema changes; a release that changes the schema needs a separately reviewed migration plan.
+
+`npm run start:prod` applies pending Prisma migrations with `prisma migrate deploy` and then starts the API; it never runs the seed. Use this command only after checking that the existing production database has a compatible migration history or has been properly baselined. A database previously synchronized with `db push` must not be switched blindly to `migrate deploy`.
+
+Production requires `JWT_SECRET`; the API refuses to start without it. Set `DATABASE_URL` for the runtime connection, `DIRECT_URL` for Prisma migration tooling, and `FRONTEND_URL` to the exact allowed frontend origin. Keep their actual values outside this repository.
 
 The demo seed is an explicit development/initialization operation (`npx prisma db seed`) and is blocked when `NODE_ENV=production`.
 
