@@ -88,8 +88,8 @@ describe('VentasService - Descuento Stock Decimal', () => {
     });
 
     expect(mockPrisma.producto.updateMany).toHaveBeenCalledWith({
-      where: { id: 'prod-123', tenantId, activo: true, stockActual: { gte: 2.5 } },
-      data: { stockActual: { decrement: 2.5 } },
+      where: { id: 'prod-123', tenantId, activo: true, stockActual: { gte: 2.5 }, stockReservado:0 },
+      data: { stockReservado: { increment: 2.5 } },
     });
 
     expect(resultado.detalles[0].cantidad).toBe(2.5);
@@ -124,7 +124,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
     // actualizado al intentar descontar, aunque su lectura fuera antigua.
     mockPrisma.producto.updateMany.mockImplementation(async ({ where, data }) => {
       if (stock < where.stockActual.gte) return { count: 0 };
-      stock -= data.stockActual.decrement;
+      stock -= data.stockReservado.increment;
       return { count: 1 };
     });
     mockPrisma.venta.create.mockResolvedValue({

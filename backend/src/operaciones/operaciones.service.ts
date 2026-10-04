@@ -142,6 +142,7 @@ export class OperacionesService {
    const [prev]=await query(tx,'SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion=\'STOCK_AJUSTAR\' AND entidad_id=$2',tenantId,dto.solicitudId);
    if(prev){if(prev.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otro ajuste');return prev.datos;}
    const [prod]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',productoId,tenantId);if(!prod)throw new NotFoundException('Producto no encontrado');
+   if(stock<Number(prod.stock_reservado))throw new ConflictException('El conteo no cubre las ventas pendientes de entrega');
    await query(tx,'UPDATE productos SET stock_actual=$1,updated_at=NOW() WHERE id=$2 RETURNING id',stock,prod.id);
    await movement(tx,tenantId,userId,prod.id,'AJUSTE',Number(prod.stock_actual),stock,dto.solicitudId,motivo);
    const result={hash,stock,anterior:Number(prod.stock_actual),motivo};await audit(tx,tenantId,userId,'STOCK_AJUSTAR',dto.solicitudId,result);return result;
@@ -152,7 +153,17 @@ export class OperacionesService {
    await lockTenant(tx,tenantId);
    const [v]=await query(tx,'SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado=\'COMPLETADA\' FOR UPDATE',ventaId,tenantId);if(!v)throw new NotFoundException('Venta registrada no encontrada');
    if(v.entregado_at)return v;
-   const [delivered]=await query(tx,'UPDATE ventas SET entregado_at=NOW(),entregado_por=$1 WHERE id=$2 RETURNING *',userId,v.id);await audit(tx,tenantId,userId,'VENTA_ENTREGAR',v.id,{fecha:delivered.entregado_at});return delivered;
+   if(v.reserva_pendiente){
+    const details=await query(tx,'SELECT * FROM detalles_venta WHERE venta_id=$1 AND sin_inventario=false',v.id);
+    for(const d of details){
+     const [p]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.producto_id,tenantId);
+     const quantity=Number(d.cantidad);
+     if(!p||Number(p.stock_actual)<quantity||Number(p.stock_reservado)<quantity)throw new ConflictException('Existencias reservadas inconsistentes; revise inventario');
+     await query(tx,'UPDATE productos SET stock_actual=stock_actual-$1,stock_reservado=stock_reservado-$1,updated_at=NOW() WHERE id=$2 RETURNING id',quantity,p.id);
+     await movement(tx,tenantId,userId,p.id,'ENTREGA',Number(p.stock_actual),money(Number(p.stock_actual)-quantity),v.id,'Entrega de venta registrada');
+    }
+   }
+   const [delivered]=await query(tx,'UPDATE ventas SET reserva_pendiente=false,entregado_at=NOW(),entregado_por=$1 WHERE id=$2 RETURNING *',userId,v.id);await audit(tx,tenantId,userId,'VENTA_ENTREGAR',v.id,{fecha:delivered.entregado_at});return delivered;
   });
  }
  async entregas(tenantId:string){

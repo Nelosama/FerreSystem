@@ -209,7 +209,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     route: '/reportes',
     icon: BarChart3,
     moduleKey: 'reportes',
-    allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+    allowedRoles: ['ADMIN'],
     requiredPermiso: 'reportes.ver',
     category: 'ANALISIS',
   },

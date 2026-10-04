@@ -209,6 +209,7 @@ model Categoria {
 // ============================================================
 
 model Producto {
+  stockReservado Decimal @default(0) @map("stock_reservado") @db.Decimal(12,2)
   id            String      @id @default(uuid())
   tenantId      String      @map("tenant_id")
   codigo        String
@@ -305,6 +306,7 @@ model SecuenciaTenant {
 // ============================================================
 
 model Venta {
+  reservaPendiente Boolean @default(false) @map("reserva_pendiente")
   id          String      @id @default(uuid())
   tenantId    String      @map("tenant_id")
   numeroVenta Int         @map("numero_venta")

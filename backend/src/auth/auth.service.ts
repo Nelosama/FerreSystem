@@ -222,6 +222,7 @@ export class AuthService {
         rol: usuario.rol,
         activo: usuario.activo,
         permisos: usuario.permisos,
+        permisosConfigurados:usuario.permisosConfigurados,
         descuentoMaximo: Number(usuario.descuentoMaximo),
       },
       tenant: {

@@ -203,3 +203,7 @@ DO $$ BEGIN ALTER TABLE pagos_cuenta ADD CONSTRAINT pagos_monto_check CHECK (mon
 DO $$ BEGIN ALTER TABLE movimientos_inventario ADD CONSTRAINT movimiento_balance_check CHECK (nuevo = anterior + cantidad); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE usuarios ADD CONSTRAINT descuento_maximo_check CHECK (descuento_maximo >= 0 AND descuento_maximo <= 100); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permisos_configurados BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_reservado DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS reserva_pendiente BOOLEAN NOT NULL DEFAULT false;
+DO $$ BEGIN ALTER TABLE productos ADD CONSTRAINT stock_reservado_check CHECK (stock_reservado >= 0 AND stock_actual >= stock_reservado) NOT VALID; EXCEPTION WHEN duplicate_object THEN NULL; END $$;

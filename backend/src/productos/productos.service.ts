@@ -6,14 +6,14 @@ import type { CreateProductoDto, UpdateProductoDto } from './dto/create-producto
 @Injectable()
 export class ProductosService {
  constructor(private readonly prisma: PrismaService) {}
- private format(p:any){return {...p,precioVenta:Number(p.precioVenta),precioCosto:Number(p.precioCosto),stockActual:Number(p.stockActual),stockMinimo:Number(p.stockMinimo),stockBajo:Number(p.stockActual)<=Number(p.stockMinimo)};}
+ private format(p:any){return {...p,precioVenta:Number(p.precioVenta),precioCosto:Number(p.precioCosto),stockActual:Number(p.stockActual),stockReservado:Number(p.stockReservado||0),stockDisponible:Number(p.stockActual)-Number(p.stockReservado||0),stockMinimo:Number(p.stockMinimo),stockBajo:Number(p.stockActual)-Number(p.stockReservado||0)<=Number(p.stockMinimo)};}
  async findAll(tenantId:string,search?:string,categoriaId?:string){
   const where:any={tenantId,activo:true,...(categoriaId?{categoriaId}:{})};
   if(search)where.OR=['nombre','descripcion','codigo','codigoBarras','codigoFabricante'].map(field=>({[field]:{contains:search,mode:'insensitive'}}));
   return (await this.prisma.producto.findMany({where,include:{categoria:{select:{id:true,nombre:true}}},orderBy:{nombre:'asc'}})).map(p=>this.format(p));
  }
  async comercial(tenantId:string){
-  const rows=await this.findAll(tenantId);return rows.map(({precioCosto,margen,ultimaCompraAt,...p})=>p);
+  const rows=await this.findAll(tenantId);return rows.map(({precioCosto,margen,ultimaCompraAt,...p})=>({...p,stockFisico:p.stockActual,stockActual:p.stockDisponible}));
  }
  async findById(tenantId:string,id:string){const p=await this.prisma.producto.findFirst({where:{id,tenantId},include:{categoria:true}});if(!p)throw new NotFoundException('Producto no encontrado');return this.format(p);}
  async getLowStock(tenantId:string){return (await this.findAll(tenantId)).filter(p=>p.stockBajo);}
@@ -41,6 +41,7 @@ export class ProductosService {
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
    const old=await tx.producto.findFirst({where:{id:productId,tenantId}});if(!old)throw new NotFoundException('Producto no encontrado');
+   if(dto.stockActual!==undefined && dto.stockActual<Number(old.stockReservado))throw new ConflictException('El conteo no cubre las ventas pendientes de entrega');
    if(dto.stockActual!==undefined && Number(old.stockActual)!==dto.stockActual && !dto.motivo?.trim())throw new BadRequestException('Indique un motivo para cambiar existencias');
    const codigo=dto.codigo!==undefined?text(dto.codigo,'Código').toUpperCase():undefined,barcode=dto.codigoBarras?.trim()||null;
    if(codigo&&await tx.producto.findFirst({where:{tenantId,id:{not:productId},codigo:{equals:codigo,mode:'insensitive'}}}))throw new ConflictException('Código ya registrado');

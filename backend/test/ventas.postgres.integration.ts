@@ -84,6 +84,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     if (directory && resolve(directory).startsWith(resolve(tmpdir()) + sep) && directory.includes('ferresystem-postgres-')) rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
+  const available = async()=>{const p=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});return Number(p.stockActual)-Number(p.stockReservado);};
   const request = (cantidad = 2.75) => ({ detalles: [{ productoId, cantidad, precioUnitario: 10 }] });
 
   it('la migración numera clientes existentes sin modificar sus datos y soporta inserts de la API anterior', async () => {
@@ -201,7 +202,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const results = await Promise.allSettled([ventas.create(tenantId, usuarioId, request()), ventas.create(tenantId, usuarioId, request())]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
-    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(0);
+    expect(await available()).toBe(0);
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
     expect((await prisma.secuenciaTenant.findFirstOrThrow({ where: { tenantId, tipo: 'VENTA' } })).ultimoNumero).toBe(1);
   });
@@ -227,7 +228,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const cot = await cotizaciones.create(tenantId, usuarioId, request());
     const results = await Promise.allSettled([ventas.create(tenantId, usuarioId, request()), cotizaciones.convertirAVenta(tenantId, usuarioId, cot.id)]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
-    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(0);
+    expect(await available()).toBe(0);
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
   });
 
@@ -241,7 +242,7 @@ describe('Ventas / PostgreSQL aislado', () => {
 
   it('una falla en la segunda línea revierte stock y correlativo completos', async () => {
     await expect(ventas.create(tenantId, usuarioId, { detalles: [...request(0.5).detalles, ...request(3).detalles] })).rejects.toThrow('Stock insuficiente');
-    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(2.75);
+    expect(await available()).toBe(2.75);
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
     expect(await prisma.secuenciaTenant.count({ where: { tenantId, tipo: 'VENTA' } })).toBe(0);
   });
@@ -252,7 +253,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const retry = await ventas.create(tenantId, usuarioId, dto);
     expect([concurrent.id, retry.id]).toEqual([first.id, first.id]);
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
-    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(2.25);
+    expect(await available()).toBe(2.25);
     expect((await prisma.secuenciaTenant.findFirstOrThrow({ where: { tenantId, tipo: 'VENTA' } })).ultimoNumero).toBe(1);
     await expect(ventas.create(tenantId, usuarioId, { ...dto, descuento: 1 })).rejects.toThrow('otra venta');
     await expect(ventas.create(randomUUID(), usuarioId, dto)).rejects.toThrow('otra venta');
@@ -261,7 +262,7 @@ describe('Ventas / PostgreSQL aislado', () => {
   it('un tenant ajeno no puede descontar ni crear ventas sobre otro inventario', async () => {
     const foreign = await prisma.tenant.create({ data: { nombreComercial: 'Otro tenant' } });
     await expect(ventas.create(foreign.id, usuarioId, request())).rejects.toThrow('no encontrado');
-    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(2.75);
+    expect(await available()).toBe(2.75);
     expect(await prisma.venta.count({ where: { tenantId: foreign.id } })).toBe(0);
   });
 
@@ -269,7 +270,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     await prisma.producto.update({ where: { id: productoId }, data: { stockActual: 10, usaMedida: true, unidadMedida: 'PIE' } });
     const cot = await cotizaciones.create(tenantId, usuarioId, { detalles: [{ productoId, cantidad: 2, medida: 3, precioUnitario: 10 }] });
     const converted = await cotizaciones.convertirAVenta(tenantId, usuarioId, cot.id);
-    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(4);
+    expect(await available()).toBe(4);
     expect(Number((await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: converted.ventaId } })).cantidad)).toBe(6);
     await expect(cotizaciones.updateEstado(tenantId, cot.id, 'BORRADOR')).rejects.toThrow('convertida');
     await expect(cotizaciones.updateEstado(tenantId, cot.id, 'CONVERTIDA')).rejects.toThrow('use convertir');
@@ -397,6 +398,19 @@ describe('Ventas / PostgreSQL aislado', () => {
     const order=await ops.compra(tenantId,usuarioId,{solicitudId:randomUUID(),proveedorId:provider.id,numeroFactura:'F1',isv:0,items:[{productoId,cantidad:1,costo:2}]});
     await expect(ops.recibir('legacy-B',usuarioId,order.id,{solicitudId:randomUUID(),items:[{detalleId:'x',cantidad:1}]})).rejects.toThrow('no encontrada');
     expect(await ops.historial('legacy-B',productoId)).toEqual({movimientos:[],costos:[]});
+  });
+
+  it('reservar evita sobreventa; solo la entrega reduce inventario físico y repetirla no descuenta otra vez',async()=>{
+    const ops=new OperacionesService(prisma);
+    const sale=await ventas.create(tenantId,usuarioId,request(2));
+    let p=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
+    expect(Number(p.stockActual)).toBe(2.75);expect(Number(p.stockReservado)).toBe(2);
+    expect(await available()).toBe(.75);
+    await expect(ventas.create(tenantId,usuarioId,request(1))).rejects.toThrow('Stock insuficiente');
+    await Promise.all([ops.entregar(tenantId,usuarioId,sale.id),ops.entregar(tenantId,usuarioId,sale.id)]);
+    p=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
+    expect(Number(p.stockActual)).toBe(.75);expect(Number(p.stockReservado)).toBe(0);
+    expect(await prisma.movimientoInventario.count({where:{tenantId,tipo:'ENTREGA'}})).toBe(1);
   });
 
 });

@@ -49,7 +49,7 @@ export class LevantamientosService {
  });}
  async removeItem(tenantId:string,lid:string,itemId:string,userId:string,version:number){return this.prisma.$transaction(async tx=>{await lockTenant(tx,tenantId);const l=await this.session(tx,tenantId,lid);this.editable(l);const item=l.items.find(i=>i.id===itemId);if(!item)throw new NotFoundException('Item no encontrado');if(item.version!==version)throw new ConflictException('El conteo cambió; recargue antes de eliminar');await audit(tx,tenantId,userId,'CONTEO_ELIMINAR',itemId,{anterior:this.item(item)});await tx.levantamientoItem.delete({where:{id:itemId}});return {success:true};});}
  private async preview(tx:any,tenantId:string,lid:string){
-  const l=await this.session(tx,tenantId,lid);const rows:any[]=[],seen=new Set<string>();
+  const l=await this.session(tx,tenantId,lid);const rows:any[]=[],seen=new Set<string>(),barcodes=new Set<string>();
   for(const item of l.items){
    const conditions:any[]=[];if(item.productoId)conditions.push({id:item.productoId});if(item.codigo)conditions.push({codigo:{equals:item.codigo,mode:'insensitive'}});if(item.codigoBarras)conditions.push({codigoBarras:item.codigoBarras});
    const products=conditions.length?await tx.producto.findMany({where:{tenantId,OR:conditions}}):[];
@@ -59,9 +59,11 @@ export class LevantamientosService {
    const errors:string[]=[];
    if(products.length>1)errors.push('Código/barcode identifica productos diferentes');
    if(p&&!p.activo)errors.push('Producto inactivo');
+   if(p&&Number(item.cantidad)<Number(p.stockReservado||0))errors.push('Conteo menor a mercancía pendiente de entrega');
+   if(item.codigoBarras){if(barcodes.has(item.codigoBarras))errors.push('Código de barras repetido en el conteo');barcodes.add(item.codigoBarras);}
    if(seen.has(key))errors.push('Conteo duplicado: concilie antes de aplicar');seen.add(key);
    if(!p&&(item.precioCosto==null||item.precioVenta==null))errors.push('Producto nuevo requiere costo y precio');
-   rows.push({item:this.item(item),productoId:p?.id||null,codigo:p?.codigo||internal,nombre:p?.nombre||item.descripcion,anterior:p?Number(p.stockActual):0,nuevo:Number(item.cantidad),precioCosto:item.precioCosto==null?(p?Number(p.precioCosto):null):Number(item.precioCosto),precioVenta:item.precioVenta==null?(p?Number(p.precioVenta):null):Number(item.precioVenta),unidad:p?.unidadMedida||String(item.unidad).toUpperCase(),errores:errors});
+   rows.push({item:this.item(item),productoId:p?.id||null,codigo:p?.codigo||internal,nombre:p?.nombre||item.descripcion,reservado:p?Number(p.stockReservado||0):0,anterior:p?Number(p.stockActual):0,nuevo:Number(item.cantidad),precioCosto:item.precioCosto==null?(p?Number(p.precioCosto):null):Number(item.precioCosto),precioVenta:item.precioVenta==null?(p?Number(p.precioVenta):null):Number(item.precioVenta),unidad:p?.unidadMedida||String(item.unidad).toUpperCase(),errores:errors});
   }
   return {estado:l.estado,aplicadoAt:l.aplicadoAt,rows,token:fingerprint(rows)};
  }
@@ -80,7 +82,7 @@ export class LevantamientosService {
    if(!pid){
     let categoriaId:string|null=null;if(r.item.categoria?.trim()){const nombre=r.item.categoria.trim();categoriaId=(await tx.categoria.upsert({where:{tenantId_nombre:{tenantId,nombre}},create:{tenantId,nombre},update:{}})).id;}
     const p=await tx.producto.create({data:{tenantId,codigo:r.codigo,codigoBarras:r.item.codigoBarras||null,nombre:r.nombre,descripcion:r.item.descripcion,categoriaId,stockActual:r.nuevo,stockMinimo:0,precioCosto:r.precioCosto,precioVenta:r.precioVenta,margen:r.item.margen,unidadMedida:r.unidad as any}});pid=p.id;
-   }else await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,precioCosto:r.precioCosto!,precioVenta:r.precioVenta!,...(r.item.margen!=null?{margen:r.item.margen}:{})}});
+   }else await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,...(r.item.codigoBarras?{codigoBarras:r.item.codigoBarras}:{}),precioCosto:r.precioCosto!,precioVenta:r.precioVenta!,...(r.item.margen!=null?{margen:r.item.margen}:{})}});
    await tx.levantamientoItem.update({where:{id:r.item.id},data:{productoId:pid}});
    await movement(tx,tenantId,userId,pid!,'LEVANTAMIENTO',r.anterior,r.nuevo,lid,'Conteo revisado y aplicado');
   }

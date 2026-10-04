@@ -1,4 +1,4 @@
-import { account, actor, audit, cashMovement, id, lockTenant, money, movement, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { account, actor, audit, cashMovement, id, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
@@ -458,7 +458,8 @@ export class CotizacionesService {
       // Verificar y descontar stock por la cantidad solicitada con precisión decimal
       for (const d of cotizacion.detalles) {
         await query(tx,'SELECT id FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.productoId,tenantId);
-        const stockDisponible = Number(d.producto.stockActual);
+        const reservado=Number(d.producto.stockReservado||0);
+        const stockDisponible = money(Number(d.producto.stockActual)-reservado);
         const cantidadRequerida = Number(d.totalMedida);
         if (stockDisponible < cantidadRequerida) {
           throw new BadRequestException(
@@ -467,24 +468,21 @@ export class CotizacionesService {
         }
 
         const descontado = await tx.producto.updateMany({
-          where: { id: d.producto.id, tenantId, activo: true, stockActual: { gte: cantidadRequerida } },
-          data: { stockActual: { decrement: cantidadRequerida } },
+          where: { id: d.producto.id, tenantId, activo: true, stockActual: { gte: money(cantidadRequerida+reservado) },stockReservado:reservado },
+          data: { stockReservado: { increment: cantidadRequerida } },
         });
         if (descontado.count !== 1) {
           throw new BadRequestException(`Stock insuficiente para "${d.producto.nombre}" o producto inactivo`);
         }
       }
 
-      for (const d of cotizacion.detalles) {
-        const p=await tx.producto.findFirstOrThrow({where:{id:d.productoId,tenantId}});
-        await movement(tx,tenantId,usuarioId,d.productoId,'VENTA',money(Number(p.stockActual)+Number(d.totalMedida)),Number(p.stockActual),ventaId,'Conversión de cotización');
-      }
       // Crear la venta
       const venta = await tx.venta.create({
         data: {
           id:ventaId,
           tenantId,
           numeroVenta,
+          reservaPendiente:true,
           cajaId:caja.id,
           clienteNombre:cotizacion.clienteNombre,
           clienteRtn:cotizacion.clienteRtn,

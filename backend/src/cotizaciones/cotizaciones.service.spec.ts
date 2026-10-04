@@ -129,8 +129,8 @@ describe('CotizacionesService', () => {
     await expect(service.convertirAVenta('tenant-A', 'user-A', 'cot-123'))
       .rejects.toThrow('Stock insuficiente');
     expect(mockPrisma.producto.updateMany).toHaveBeenCalledWith({
-      where: { id: 'p-1', tenantId: 'tenant-A', activo: true, stockActual: { gte: 2.75 } },
-      data: { stockActual: { decrement: 2.75 } },
+      where: { id: 'p-1', tenantId: 'tenant-A', activo: true, stockActual: { gte: 2.75 },stockReservado:0 },
+      data: { stockReservado: { increment: 2.75 } },
     });
     expect(mockPrisma.$queryRaw.mock.invocationCallOrder[0])
       .toBeLessThan(mockPrisma.cotizacion.findFirst.mock.invocationCallOrder[0]);

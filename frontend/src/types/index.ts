@@ -79,6 +79,8 @@ export interface ProductItem {
   precioVenta: number;
   precioCosto: number;
   stockActual: number;
+  stockReservado?:number;
+  stockDisponible?:number;
   stockMinimo: number;
   unidadMedida: string;
   usaMedida?: boolean;

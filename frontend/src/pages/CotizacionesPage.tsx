@@ -97,7 +97,7 @@ export const CotizacionesPage: React.FC = () => {
         categoria: p.categoria?.nombre || p.categoria || 'General',
         precioVenta: Number(p.precioVenta),
         precioCosto: Number(p.precioCosto),
-        stockActual: Number(p.stockActual),
+        stockActual: Number(p.stockDisponible??p.stockActual),
         stockMinimo: Number(p.stockMinimo),
         unidadMedida: p.unidadMedida || 'UNIDAD',
         usaMedida: Boolean(p.usaMedida),
@@ -1836,3 +1836,4 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'flex-start',
   },
 };
+

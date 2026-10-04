@@ -1,4 +1,4 @@
-import { account, actor, audit, cashMovement, decimal, fingerprint, lockTenant, money, movement, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { account, actor, audit, cashMovement, decimal, fingerprint, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -186,7 +186,8 @@ export class VentasService {
           throw new NotFoundException(`Producto con ID ${item.productoId} no encontrado o inactivo`);
         }
 
-        const stockDisponible = Number(prod.stockActual);
+        const reservado=Number(prod.stockReservado||0);
+        const stockDisponible = money(Number(prod.stockActual)-reservado);
         if (!item.sinInventario && stockDisponible < item.cantidad) {
           throw new BadRequestException(
             `Stock insuficiente para "${prod.nombre}". Disponible: ${stockDisponible}, Solicitado: ${item.cantidad}`,
@@ -207,8 +208,8 @@ export class VentasService {
         // Descontar inventario con precisión decimal exacta
         if (!item.sinInventario) {
         const descontado = await tx.producto.updateMany({
-          where: { id: prod.id, tenantId, activo: true, stockActual: { gte: item.cantidad } },
-          data: { stockActual: { decrement: item.cantidad } },
+          where: { id: prod.id, tenantId, activo: true, stockActual: { gte: money(item.cantidad+reservado) }, stockReservado:reservado },
+          data: { stockReservado: { increment: item.cantidad } },
         });
         if (descontado.count !== 1) {
           throw new BadRequestException(`Stock insuficiente para "${prod.nombre}" o producto inactivo`);
@@ -240,6 +241,7 @@ export class VentasService {
         data: {
           ...(dto.solicitudId && { id: dto.solicitudId }),
           tenantId,
+          reservaPendiente:detallesParaCrear.some(d=>!d.sinInventario),
           numeroVenta,
           clienteId: dto.clienteId || null,
           usuarioId,
@@ -275,11 +277,6 @@ export class VentasService {
         },
       });
 
-      for (const d of detallesParaCrear) if (!d.sinInventario) {
-        const prod = await tx.producto.findFirstOrThrow({where:{id:d.productoId,tenantId}});
-        const nuevo=Number(prod.stockActual);
-        await movement(tx,tenantId,usuarioId,d.productoId,'VENTA',money(nuevo+d.cantidad),nuevo,venta.id,'Venta registrada');
-      }
       if (metodo === 'CREDITO') await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,dto.vencimiento);
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',total,metodo,venta.id,`Venta ${numeroVenta}`);
       await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id});

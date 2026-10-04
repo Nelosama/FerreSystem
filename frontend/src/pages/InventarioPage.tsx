@@ -38,6 +38,7 @@ export const InventarioPage: React.FC = () => {
         precioVenta: Number(p.precioVenta),
         precioCosto: Number(p.precioCosto),
         stockActual: Number(p.stockActual),
+        stockReservado:Number(p.stockReservado||0),stockDisponible:Number(p.stockDisponible??p.stockActual),
         stockMinimo: Number(p.stockMinimo),
         unidadMedida: p.unidadMedida || 'UNIDAD',
         usaMedida: Boolean(p.usaMedida),
@@ -213,7 +214,7 @@ export const InventarioPage: React.FC = () => {
                 </tr>
               ) : (
                 productosFiltrados.map((p) => {
-                  const stockBajo = p.stockActual <= p.stockMinimo;
+                  const stockBajo = (p.stockDisponible??p.stockActual) <= p.stockMinimo;
                   return (
                     <tr key={p.id}>
                       <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{p.codigo}</td>
@@ -255,7 +256,8 @@ export const InventarioPage: React.FC = () => {
                           color: stockBajo ? 'var(--color-primary)' : 'inherit',
                         }}
                       >
-                        {p.stockActual}
+                        {p.stockActual} físicos
+                        <small style={{display:'block',fontSize:10}}>{p.stockReservado||0} reservados · {p.stockDisponible??p.stockActual} disponibles</small>
                       </td>
                       <td style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>{p.stockMinimo}</td>
                       <td style={{ textAlign: 'center' }}>
