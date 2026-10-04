@@ -25,10 +25,20 @@ export class LevantamientosService {
  async findItems(tenantId:string,id:string){return (await this.findOne(tenantId,id)).items;}
  private editable(l:any){if(l.estado==='FINALIZADO'||l.aplicadoAt)throw new ConflictException('El levantamiento está cerrado');}
  async createItem(tenantId:string,lid:string,dto:CreateLevantamientoItemDto,userId:string){return this.prisma.$transaction(async tx=>{
-  await lockTenant(tx,tenantId);const l=await this.session(tx,tenantId,lid);this.editable(l);
-  const item=await tx.levantamientoItem.create({data:{...dto,descripcion:text(dto.descripcion,'Descripción'),codigo:dto.codigo?.trim().toUpperCase()||null,levantamientoId:lid,createdBy:userId,updatedBy:userId}});
+  await lockTenant(tx,tenantId);const l=await this.session(tx,tenantId,lid);
+  const {solicitudId,...data}=dto;const hash=fingerprint({lid,userId,data});
+  if(solicitudId){
+   const previous=await tx.levantamientoItem.findFirst({where:{id:solicitudId}});
+   if(previous){
+    const [record]=await query(tx,"SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND entidad_id=$2 AND operacion='CONTEO_CREAR'",tenantId,solicitudId);
+    if(previous.levantamientoId!==lid||record?.datos?.hash!==hash)throw new ConflictException('Solicitud utilizada para otro conteo');
+    return this.item(previous);
+   }
+  }
+  this.editable(l);
+  const item=await tx.levantamientoItem.create({data:{...data,...(solicitudId?{id:solicitudId}:{}),descripcion:text(dto.descripcion,'Descripción'),codigo:dto.codigo?.trim().toUpperCase()||null,levantamientoId:lid,createdBy:userId,updatedBy:userId}});
   if(l.estado==='BORRADOR')await tx.levantamiento.update({where:{id:lid},data:{estado:'EN_PROGRESO'}});
-  await audit(tx,tenantId,userId,'CONTEO_CREAR',item.id,{nuevo:this.item(item)});return this.item(item);
+  await audit(tx,tenantId,userId,'CONTEO_CREAR',item.id,{hash,nuevo:this.item(item)});return this.item(item);
  });}
  async updateItem(tenantId:string,lid:string,itemId:string,dto:UpdateLevantamientoItemDto,userId:string){return this.prisma.$transaction(async tx=>{
   await lockTenant(tx,tenantId);const l=await this.session(tx,tenantId,lid);this.editable(l);const previous=l.items.find(i=>i.id===itemId);if(!previous)throw new NotFoundException('Item no encontrado');

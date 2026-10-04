@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsInt, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsInt, MaxLength, IsUUID } from 'class-validator';
 export class CreateLevantamientoItemDto {
+ @IsOptional() @IsUUID('4') solicitudId?:string;
  @IsString() @IsNotEmpty() @MaxLength(500) descripcion!:string;
  @IsNumber({maxDecimalPlaces:2}) @Min(0) cantidad!:number;
  @IsOptional() @IsString() unidad?:string;

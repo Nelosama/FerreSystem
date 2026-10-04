@@ -161,7 +161,7 @@ export class OperacionesService {
   return ventas;
  }
  async resumen(tenantId:string,desde:string,hasta:string){
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(desde)||!/^\d{4}-\d{2}-\d{2}$/.test(hasta)||desde>hasta)throw new BadRequestException('Rango de fechas inválido');
+  if(![desde,hasta].every(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&!Number.isNaN(Date.parse(d))&&new Date(d).toISOString().slice(0,10)===d)||desde>hasta)throw new BadRequestException('Rango de fechas inválido');
   return {
    metodos:await query(this.prisma,'SELECT metodo_pago,COUNT(*)::int AS cantidad,SUM(total) AS total FROM ventas WHERE tenant_id=$1 AND estado=\'COMPLETADA\' AND created_at>=$2::date AND created_at<$3::date+INTERVAL \'1 day\' GROUP BY metodo_pago',tenantId,desde,hasta),
    rotacion:await query(this.prisma,'SELECT p.id,p.codigo,p.nombre,SUM(d.cantidad) AS cantidad FROM detalles_venta d JOIN ventas v ON v.id=d.venta_id JOIN productos p ON p.id=d.producto_id WHERE v.tenant_id=$1 AND v.estado=\'COMPLETADA\' AND d.sin_inventario=false AND v.created_at>=$2::date AND v.created_at<$3::date+INTERVAL \'1 day\' GROUP BY p.id ORDER BY cantidad DESC LIMIT 30',tenantId,desde,hasta),

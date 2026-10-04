@@ -27,12 +27,12 @@ jobs:
         run: |
           npx prisma validate
           npx prisma generate
-      - name: Frontend: tipos, bundle y pruebas
+      - name: "Frontend: tipos, bundle y pruebas"
         working-directory: frontend
         run: |
           npm run build
           npm test
-      - name: Backend: compilación y pruebas
+      - name: "Backend: compilación y pruebas"
         working-directory: backend
         run: |
           npm run build

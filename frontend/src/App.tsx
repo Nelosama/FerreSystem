@@ -186,7 +186,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/reportes"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredPermiso="reportes.ver" requiredModule="reportes">
+                      <ProtectedRoute allowedRoles={['ADMIN']} requiredPermiso="reportes.ver" requiredModule="reportes">
                         <AppLayout>
                           <ReportesPage />
                         </AppLayout>

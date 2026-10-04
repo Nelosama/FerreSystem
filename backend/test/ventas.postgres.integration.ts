@@ -305,5 +305,99 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect((await productos.findById(tenantId, producto.id)).stockBajo).toBe(false);
     expect((await productos.getLowStock(tenantId)).some((p) => p.id === producto.id)).toBe(false);
   });
+  it('reposiciones conservan proveedor/costo y una compra más barata cambia el costo vigente',async()=>{
+    const ops=new OperacionesService(prisma);
+    const first=await ops.proveedor(tenantId,usuarioId,{solicitudId:randomUUID(),nombre:'Proveedor caro'});
+    const second=await ops.proveedor(tenantId,usuarioId,{solicitudId:randomUUID(),nombre:'Proveedor económico'});
+    for(const [provider,cost,invoice] of [[first,12,'F1'],[second,3,'F2']] as const){
+      const order=await ops.compra(tenantId,usuarioId,{solicitudId:randomUUID(),proveedorId:provider.id,numeroFactura:invoice,isv:0,items:[{productoId,cantidad:2,costo:cost}]});
+      const rows=await ops.compras(tenantId);const line=rows.find(o=>o.id===order.id).items[0];
+      const command={solicitudId:randomUUID(),items:[{detalleId:line.id,cantidad:2}]};
+      await Promise.all([ops.recibir(tenantId,usuarioId,order.id,command),ops.recibir(tenantId,usuarioId,order.id,command)]);
+      expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).precioCosto)).toBe(cost);
+    }
+    const product=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
+    expect(Number(product.stockActual)).toBe(6.75);
+    const history=await ops.historial(tenantId,productoId);
+    expect(history.costos).toHaveLength(2);
+    expect(history.costos.map(c=>Number(c.costo)).sort((a,b)=>a-b)).toEqual([3,12]);
+    expect((await ops.cuentas(tenantId,usuarioId,'CXP')).map(c=>Number(c.saldo)).sort((a,b)=>a-b)).toEqual([6,24]);
+  });
+
+  it('una recepción excesiva revierte costo, stock e historial',async()=>{
+    const ops=new OperacionesService(prisma),provider=await ops.proveedor(tenantId,usuarioId,{solicitudId:randomUUID(),nombre:'Proveedor'});
+    const order=await ops.compra(tenantId,usuarioId,{solicitudId:randomUUID(),proveedorId:provider.id,numeroFactura:'F1',isv:0,items:[{productoId,cantidad:1,costo:2}]});
+    const line=(await ops.compras(tenantId))[0].items[0];
+    await expect(ops.recibir(tenantId,usuarioId,order.id,{solicitudId:randomUUID(),items:[{detalleId:line.id,cantidad:2}]})).rejects.toThrow('pendiente');
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual)).toBe(2.75);
+    expect(await prisma.recepcionCompra.count({where:{tenantId}})).toBe(0);
+    expect(await prisma.costoCompra.count({where:{tenantId}})).toBe(0);
+  });
+
+  it('el crédito exige cliente real, persiste saldo y abonos idempotentes sin duplicar efectivo',async()=>{
+    const ops=new OperacionesService(prisma);
+    await expect(ventas.create(tenantId,usuarioId,{...request(1),metodoPago:'CREDITO'})).rejects.toThrow('cliente registrado');
+    const client=await new ClientesService(prisma).create(tenantId,{nombre:'Cliente crédito'});
+    const sale=await ventas.create(tenantId,usuarioId,{...request(1),metodoPago:'CREDITO',clienteId:client.id});
+    const debt=(await ops.cuentas(tenantId,usuarioId,'CXC'))[0];
+    expect(Number(debt.saldo)).toBe(sale.total);
+    const payment={solicitudId:randomUUID(),monto:5,metodo:'EFECTIVO'};
+    await Promise.all([ops.pagar(tenantId,usuarioId,debt.id,payment),ops.pagar(tenantId,usuarioId,debt.id,payment)]);
+    expect(Number((await ops.cuentas(tenantId,usuarioId,'CXC'))[0].saldo)).toBe(6.5);
+    expect((await ops.caja(tenantId,usuarioId))[0].efectivoEsperado).toBe(1005);
+    await expect(ops.pagar(tenantId,usuarioId,debt.id,{...payment,solicitudId:randomUUID(),monto:7})).rejects.toThrow('mayor al saldo');
+  });
+
+  it('transferencia no incrementa efectivo y el cierre impide nuevas ventas',async()=>{
+    const ops=new OperacionesService(prisma);
+    await ventas.create(tenantId,usuarioId,{...request(1),metodoPago:'TRANSFERENCIA'});
+    const cash=(await ops.caja(tenantId,usuarioId))[0];
+    expect(cash.efectivoEsperado).toBe(1000);expect(cash.totales.TRANSFERENCIA).toBe(11.5);
+    const closed=await ops.cerrar(tenantId,usuarioId,cash.id,{monto:995});
+    expect(Number(closed.diferencia)).toBe(-5);
+    await expect(ventas.create(tenantId,usuarioId,request(1))).rejects.toThrow('Abra su caja');
+  });
+
+  it('el cajero usa el precio vigente y el backend rechaza precios o descuentos manipulados',async()=>{
+    await prisma.usuario.update({where:{id:usuarioId},data:{rol:'CAJERO',descuentoMaximo:5}});
+    await expect(ventas.create(tenantId,usuarioId,{detalles:[{productoId,cantidad:1,precioUnitario:1}]})).rejects.toThrow('precio cambió');
+    await expect(ventas.create(tenantId,usuarioId,{...request(1),descuento:1})).rejects.toThrow('autorización');
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual)).toBe(2.75);
+    await expect(new OperacionesService(prisma).cuentas(tenantId,usuarioId,'CXP')).rejects.toThrow('administrador');
+  });
+
+  it('la venta sin inventario conserva proveedor sin descontar existencias físicas',async()=>{
+    const ops=new OperacionesService(prisma),provider=await ops.proveedor(tenantId,usuarioId,{solicitudId:randomUUID(),nombre:'Proveedor directo'});
+    const sale=await ventas.create(tenantId,usuarioId,{detalles:[{productoId,cantidad:5,precioUnitario:10,sinInventario:true,proveedorId:provider.id}]});
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual)).toBe(2.75);
+    const detail=await prisma.detalleVenta.findFirstOrThrow({where:{ventaId:sale.id}});
+    expect(detail.sinInventario).toBe(true);expect(detail.proveedorId).toBe(provider.id);
+    expect(await prisma.movimientoInventario.count({where:{tenantId,productoId}})).toBe(0);
+  });
+
+  it('el levantamiento conserva captura completa y aplica una sola vez tras revisión',async()=>{
+    const service=new LevantamientosService(prisma);
+    const session=await service.create(tenantId,usuarioId,{nombre:'Conteo inicial'});
+    const command={solicitudId:randomUUID(),descripcion:'Cable',codigo:'P1',codigoBarras:'123456',ubicacion:'Bodega',cantidad:8.5,precioCosto:4,precioVenta:10,unidad:'UNIDAD'};
+    const count=await service.createItem(tenantId,session.id,command,usuarioId);
+    const retried=await service.createItem(tenantId,session.id,command,usuarioId);
+    expect(count.id).toBe(retried.id);
+    await service.update(tenantId,session.id,{estado:'FINALIZADO'},usuarioId);
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual)).toBe(2.75);
+    const preview=await service.previsualizar(tenantId,session.id);
+    await Promise.all([service.aplicar(tenantId,usuarioId,session.id,preview.token),service.aplicar(tenantId,usuarioId,session.id,preview.token)]);
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual)).toBe(8.5);
+    expect(await prisma.movimientoInventario.count({where:{tenantId,tipo:'LEVANTAMIENTO'}})).toBe(1);
+    expect((await service.findOne(tenantId,session.id)).items[0]).toMatchObject({codigoBarras:'123456',ubicacion:'Bodega',cantidad:8.5});
+    await expect(service.updateItem(tenantId,session.id,count.id,{version:1,cantidad:9},usuarioId)).rejects.toThrow('cerrado');
+  });
+
+  it('otro tenant no puede recibir una compra ajena ni consultar sus movimientos',async()=>{
+    const ops=new OperacionesService(prisma),provider=await ops.proveedor(tenantId,usuarioId,{solicitudId:randomUUID(),nombre:'Proveedor'});
+    const order=await ops.compra(tenantId,usuarioId,{solicitudId:randomUUID(),proveedorId:provider.id,numeroFactura:'F1',isv:0,items:[{productoId,cantidad:1,costo:2}]});
+    await expect(ops.recibir('legacy-B',usuarioId,order.id,{solicitudId:randomUUID(),items:[{detalleId:'x',cantidad:1}]})).rejects.toThrow('no encontrada');
+    expect(await ops.historial('legacy-B',productoId)).toEqual({movimientos:[],costos:[]});
+  });
+
 });
 
