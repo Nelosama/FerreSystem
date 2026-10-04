@@ -13,6 +13,8 @@ import './App.css';
 
 import { useTenant } from './context/TenantContext';
 
+const OperacionesPage=React.lazy(()=>import('./pages/OperacionesPage').then(m=>({default:m.OperacionesPage})));
+
 // Dynamic page imports with React.lazy
 const DashboardPage = React.lazy(() =>
   import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage }))
@@ -246,7 +248,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/arqueo-caja"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO']} requiredModule="arqueo_caja">
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="arqueo_caja">
                         <AppLayout>
                           <ArqueoCajaPage />
                         </AppLayout>
@@ -335,6 +337,8 @@ export const App: React.FC = () => {
                     }
                   />
 
+                  <Route path="/cuentas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO']}><AppLayout><OperacionesPage modo="cuentas"/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/entregas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','BODEGUERO']}><AppLayout><OperacionesPage modo="entregas"/></AppLayout></ProtectedRoute>}/>
                   {/* Fallback */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
@@ -347,3 +351,4 @@ export const App: React.FC = () => {
 };
 
 export default App;
+

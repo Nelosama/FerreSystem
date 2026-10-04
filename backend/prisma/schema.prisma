@@ -52,6 +52,7 @@ enum MetodoPago {
   EFECTIVO
   TARJETA
   CREDITO
+  TRANSFERENCIA
 }
 
 enum EstadoVenta {
@@ -165,6 +166,9 @@ model Usuario {
   email        String
   passwordHash String   @map("password_hash")
   rol          Rol      @default(ADMIN)
+  permisos     String[] @default([])
+  permisosConfigurados Boolean @default(false) @map("permisos_configurados")
+  descuentoMaximo Decimal @default(0) @map("descuento_maximo") @db.Decimal(5,2)
   activo       Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -209,6 +213,9 @@ model Producto {
   tenantId      String      @map("tenant_id")
   codigo        String
   codigoBarras  String?     @map("codigo_barras")
+  codigoFabricante String? @map("codigo_fabricante")
+  margen Decimal? @db.Decimal(5,2)
+  ultimaCompraAt DateTime? @map("ultima_compra_at")
   nombre        String
   descripcion   String?
   categoriaId   String?     @map("categoria_id")
@@ -235,6 +242,8 @@ model Producto {
   @@index([tenantId, nombre])
   @@index([tenantId, codigoBarras])
   @@map("productos")
+ costosCompra CostoCompra[]
+ movimientosInventario MovimientoInventario[]
 }
 
 // ============================================================
@@ -263,6 +272,7 @@ model Cliente {
   @@index([tenantId, nombre])
   @@unique([tenantId, numeroCliente])
   @@map("clientes")
+ cuentas CuentaOperativa[]
 }
 
 model SecuenciaCliente {
@@ -305,6 +315,12 @@ model Venta {
   descuento   Decimal     @default(0) @db.Decimal(12, 2)
   total       Decimal     @db.Decimal(12, 2)
   metodoPago  MetodoPago  @default(EFECTIVO) @map("metodo_pago")
+  cajaId String? @map("caja_id")
+  entregadoAt DateTime? @map("entregado_at")
+  entregadoPor String? @map("entregado_por")
+  clienteNombre String? @map("cliente_nombre")
+  clienteRtn String? @map("cliente_rtn")
+  solicitudHash String? @map("solicitud_hash")
   estado      EstadoVenta @default(COMPLETADA)
   notas       String?
   createdAt   DateTime    @default(now()) @map("created_at")
@@ -334,6 +350,10 @@ model DetalleVenta {
   cantidad       Decimal @db.Decimal(12, 2)
   precioUnitario Decimal @map("precio_unitario") @db.Decimal(12, 2)
   subtotal       Decimal @db.Decimal(12, 2)
+  costoUnitario Decimal @default(0) @map("costo_unitario") @db.Decimal(12,2)
+  sinInventario Boolean @default(false) @map("sin_inventario")
+  proveedorId String? @map("proveedor_id")
+  ordenCompraId String? @map("orden_compra_id")
 
   // Relaciones
   venta          Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
@@ -431,6 +451,8 @@ model Levantamiento {
   descripcion String?
   estado      EstadoLevantamiento @default(BORRADOR)
   createdBy   String?             @map("created_by")
+  aplicadoAt DateTime? @map("aplicado_at")
+  aplicadoPor String? @map("aplicado_por")
   createdAt   DateTime            @default(now()) @map("created_at")
   updatedAt   DateTime            @updatedAt @map("updated_at")
 
@@ -455,6 +477,15 @@ model LevantamientoItem {
   cantidad        Decimal       @db.Decimal(12, 2)
   unidad          String        @default("unidad")
   codigo          String?
+  codigoBarras String? @map("codigo_barras")
+  ubicacion String?
+  precioCosto Decimal? @map("precio_costo") @db.Decimal(12,2)
+  precioVenta Decimal? @map("precio_venta") @db.Decimal(12,2)
+  margen Decimal? @db.Decimal(5,2)
+  productoId String? @map("producto_id")
+  version Int @default(1)
+  createdBy String? @map("created_by")
+  updatedBy String? @map("updated_by")
   marca           String?
   categoria       String?
   notas           String?
@@ -466,4 +497,201 @@ model LevantamientoItem {
 
   @@index([levantamientoId])
   @@map("levantamiento_items")
+}
+
+
+// Operación real. Los modelos reutilizan tablas históricas cuando ya existen.
+enum EstadoCaja {
+ ABIERTA
+ CERRADA
+}
+enum TipoMovimientoCaja {
+ INGRESO_MANUAL
+ EGRESO_MANUAL
+ VENTA_POS
+ ABONO_APARTADO
+ ABONO_CXC
+ PAGO_CXP
+}
+enum EstadoOrdenCompra {
+ BORRADOR
+ SOLICITADA
+ APROBADA
+ RECIBIDA
+ CANCELADA
+}
+model Proveedor {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ nombre String
+ rtn String?
+ contacto String?
+ telefono String?
+ email String?
+ direccion String?
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ @@index([tenantId])
+ @@index([tenantId,nombre])
+ @@map("proveedores")
+ costos CostoCompra[]
+ cuentas CuentaOperativa[]
+}
+model OrdenCompra {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ codigo String
+ proveedorId String @map("proveedor_id")
+ usuarioId String @map("usuario_id")
+ subtotal Decimal @db.Decimal(12,2)
+ isv Decimal @db.Decimal(12,2)
+ total Decimal @db.Decimal(12,2)
+ estado EstadoOrdenCompra @default(BORRADOR)
+ fechaEmision DateTime @default(now()) @map("fecha_emision")
+ fechaEntrega DateTime? @map("fecha_entrega")
+ numeroFactura String? @map("numero_factura")
+ vencimiento DateTime?
+ notas String?
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ @@unique([tenantId,codigo])
+ @@index([tenantId])
+ @@index([tenantId,estado])
+ @@map("ordenes_compra")
+ recepciones RecepcionCompra[]
+}
+model DetalleOrdenCompra {
+ id String @id @default(uuid())
+ ordenId String @map("orden_id")
+ productoId String @map("producto_id")
+ cantidad Decimal @db.Decimal(12,2)
+ cantidadRecibida Decimal @default(0) @map("cantidad_recibida") @db.Decimal(12,2)
+ precioCosto Decimal @map("precio_costo") @db.Decimal(12,2)
+ subtotal Decimal @db.Decimal(12,2)
+ @@index([ordenId])
+ @@map("detalles_orden_compra")
+}
+model RecepcionCompra {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ ordenId String @map("orden_id")
+ solicitudId String @map("solicitud_id")
+ solicitudHash String @map("solicitud_hash")
+ usuarioId String @map("usuario_id")
+ fecha DateTime @default(now())
+ @@unique([tenantId,solicitudId])
+ @@index([ordenId])
+ @@map("recepciones_compra")
+ orden OrdenCompra @relation(fields:[ordenId],references:[id],onDelete:Restrict)
+ costos CostoCompra[]
+}
+model CostoCompra {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ productoId String @map("producto_id")
+ proveedorId String @map("proveedor_id")
+ ordenId String @map("orden_id")
+ recepcionId String @map("recepcion_id")
+ cantidad Decimal @db.Decimal(12,2)
+ costo Decimal @db.Decimal(12,2)
+ fecha DateTime
+ @@index([tenantId,productoId,fecha])
+ @@map("costos_compra")
+ producto Producto @relation(fields:[productoId],references:[id],onDelete:Restrict)
+ recepcion RecepcionCompra @relation(fields:[recepcionId],references:[id],onDelete:Restrict)
+ proveedor Proveedor @relation(fields:[proveedorId],references:[id],onDelete:Restrict)
+}
+model MovimientoInventario {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ productoId String @map("producto_id")
+ usuarioId String @map("usuario_id")
+ tipo String
+ cantidad Decimal @db.Decimal(12,2)
+ anterior Decimal @db.Decimal(12,2)
+ nuevo Decimal @db.Decimal(12,2)
+ documentoId String @map("documento_id")
+ motivo String
+ createdAt DateTime @default(now()) @map("created_at")
+ @@index([tenantId,productoId,createdAt])
+ @@map("movimientos_inventario")
+ producto Producto @relation(fields:[productoId],references:[id],onDelete:Restrict)
+}
+model Caja {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ codigo String
+ usuarioId String @map("usuario_id")
+ montoApertura Decimal @map("monto_apertura") @db.Decimal(12,2)
+ montoCierreFisico Decimal? @map("monto_cierre_fisico") @db.Decimal(12,2)
+ montoEsperado Decimal? @map("monto_esperado") @db.Decimal(12,2)
+ diferencia Decimal? @db.Decimal(12,2)
+ estado EstadoCaja @default(ABIERTA)
+ fechaApertura DateTime @default(now()) @map("fecha_apertura")
+ fechaCierre DateTime? @map("fecha_cierre")
+ notas String?
+ @@unique([tenantId,codigo])
+ @@index([tenantId,estado])
+ @@index([tenantId,usuarioId])
+ @@map("cajas")
+}
+model MovimientoCaja {
+ id String @id @default(uuid())
+ cajaId String @map("caja_id")
+ tipo TipoMovimientoCaja
+ monto Decimal @db.Decimal(12,2)
+ metodo String @default("EFECTIVO")
+ usuarioId String? @map("usuario_id")
+ concepto String
+ referencia String?
+ createdAt DateTime @default(now()) @map("created_at")
+ @@index([cajaId])
+ @@map("movimientos_caja")
+}
+model CuentaOperativa {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ tipo String
+ clienteId String? @map("cliente_id")
+ proveedorId String? @map("proveedor_id")
+ documentoId String @map("documento_id")
+ monto Decimal @db.Decimal(12,2)
+ saldo Decimal @db.Decimal(12,2)
+ vencimiento DateTime?
+ usuarioId String @map("usuario_id")
+ createdAt DateTime @default(now()) @map("created_at")
+ @@unique([tenantId,tipo,documentoId])
+ @@index([tenantId,tipo,vencimiento])
+ @@map("cuentas_operativas")
+ cliente Cliente? @relation(fields:[clienteId],references:[id],onDelete:Restrict)
+ proveedor Proveedor? @relation(fields:[proveedorId],references:[id],onDelete:Restrict)
+ pagos PagoCuenta[]
+}
+model PagoCuenta {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ cuentaId String @map("cuenta_id")
+ solicitudId String @map("solicitud_id")
+ solicitudHash String @map("solicitud_hash")
+ monto Decimal @db.Decimal(12,2)
+ metodo String
+ usuarioId String @map("usuario_id")
+ cajaId String? @map("caja_id")
+ notas String?
+ createdAt DateTime @default(now()) @map("created_at")
+ @@unique([tenantId,solicitudId])
+ @@index([cuentaId])
+ @@map("pagos_cuenta")
+ cuenta CuentaOperativa @relation(fields:[cuentaId],references:[id],onDelete:Restrict)
+}
+model AuditoriaOperacion {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ usuarioId String @map("usuario_id")
+ operacion String
+ entidadId String @map("entidad_id")
+ datos Json
+ createdAt DateTime @default(now()) @map("created_at")
+ @@index([tenantId,createdAt])
+ @@map("auditoria_operaciones")
 }

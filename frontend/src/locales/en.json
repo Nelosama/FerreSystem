@@ -15,7 +15,9 @@
     "reports": "REPORTS",
     "stock_taking": "STOCK TAKING",
     "configuration": "GLOBAL SETTINGS",
-    "super_admin": "SUPER ADMIN PANEL"
+    "super_admin": "SUPER ADMIN PANEL",
+    "accounts": "ACCOUNTS & PAYMENTS",
+    "deliveries": "DELIVERIES"
   },
   "stock_taking": {
     "title": "INVENTORY STOCK TAKING",

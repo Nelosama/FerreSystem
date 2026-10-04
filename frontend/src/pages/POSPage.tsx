@@ -1,23 +1,23 @@
+import { Link } from 'react-router-dom';
+import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
+import './POSPage.css';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import type { ProductItem } from '../types';
 import { api } from '../utils/api';
-import { useNotification, type SolicitudDescuento } from '../context/NotificationContext';
 import { useI18n } from '../context/I18nContext';
 import {
   Search,
+  ShieldAlert,
   Plus,
   Minus,
   Trash2,
   CheckCircle,
   Receipt,
   User,
-  CreditCard,
-  Banknote,
   Printer,
   X,
-  ShieldAlert,
   Loader2,
   Percent,
   Download,
@@ -31,6 +31,8 @@ interface CartItem {
   nombre: string;
   precioUnitario: number;
   cantidad: number;
+  sinInventario?:boolean;
+  proveedorId?:string;
 }
 
 interface PendingSale {
@@ -38,7 +40,9 @@ interface PendingSale {
   cart: CartItem[];
   clienteNombre: string;
   clienteRtn: string;
-  metodoPago: 'EFECTIVO' | 'TARJETA' | 'CREDITO';
+  clienteId?:string;
+  vencimiento?:string;
+  metodoPago: 'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA';
   descuentoPorcentaje: number;
 }
 
@@ -52,7 +56,7 @@ const readPendingSale = (key: string): PendingSale | null => {
         typeof item.codigo === 'string' && Number.isFinite(item.cantidad) && item.cantidad > 0 &&
         Number.isFinite(item.precioUnitario) && item.precioUnitario >= 0) &&
       typeof sale.clienteNombre === 'string' && typeof sale.clienteRtn === 'string' &&
-      ['EFECTIVO', 'TARJETA', 'CREDITO'].includes(sale.metodoPago) &&
+      ['EFECTIVO', 'TARJETA', 'CREDITO', 'TRANSFERENCIA'].includes(sale.metodoPago) &&
       Number.isFinite(sale.descuentoPorcentaje) && sale.descuentoPorcentaje >= 0 && sale.descuentoPorcentaje <= 100;
     return valid ? sale : null;
   } catch {
@@ -62,7 +66,6 @@ const readPendingSale = (key: string): PendingSale | null => {
 
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
-  const { solicitudes, solicitarDescuento } = useNotification();
   const { t, locale } = useI18n();
   const pendingKey = `ferre_pending_sale:${tenant.id}:${user?.id || ''}`;
   const activeKey = useRef(pendingKey);
@@ -76,7 +79,14 @@ export const POSPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [clienteNombre, setClienteNombre] = useState(ventaPendiente?.clienteNombre || 'Consumidor Final');
   const [clienteRtn, setClienteRtn] = useState(ventaPendiente?.clienteRtn || '');
-  const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO'>(ventaPendiente?.metodoPago || 'EFECTIVO');
+  const [clienteId,setClienteId]=useState<string|undefined>(ventaPendiente?.clienteId);
+  const [vencimiento,setVencimiento]=useState(ventaPendiente?.vencimiento||'');
+  const [providers,setProviders]=useState<any[]>([]);
+  const [special,setSpecial]=useState(false);
+  const [specialProvider,setSpecialProvider]=useState('');
+  const [cajaAbierta,setCajaAbierta]=useState(false);
+  useEffect(()=>{api.get('/operaciones/proveedores').then(r=>setProviders(r.data)).catch(()=>{});api.get('/operaciones/caja').then(r=>setCajaAbierta(r.data.some((c:any)=>c.estado==='ABIERTA'))).catch(()=>setCajaAbierta(false));},[tenant.id]);
+  const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA'>(ventaPendiente?.metodoPago || 'EFECTIVO');
   const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(ventaPendiente?.descuentoPorcentaje || 0);
   const cobrandoRef = useRef(false);
   const [procesandoVenta, setProcesandoVenta] = useState(false);
@@ -91,6 +101,7 @@ export const POSPage: React.FC = () => {
     setCart(pending?.cart || []);
     setClienteNombre(pending?.clienteNombre || 'Consumidor Final');
     setClienteRtn(pending?.clienteRtn || '');
+    setClienteId(pending?.clienteId);setVencimiento(pending?.vencimiento||'');
     setMetodoPago(pending?.metodoPago || 'EFECTIVO');
     setDescuentoPorcentaje(pending?.descuentoPorcentaje || 0);
     setModalTicket(false);
@@ -100,10 +111,12 @@ export const POSPage: React.FC = () => {
   const fetchProductos = useCallback(async () => {
     setErrorText(null);
     try {
-      const response = await api.get('/productos');
+      const response = await api.get('/productos/comercial');
       const data = response.data.map((p: any) => ({
         id: p.id,
         codigo: p.codigo,
+        codigoBarras:p.codigoBarras,
+        codigoFabricante:p.codigoFabricante,
         nombre: p.nombre,
         descripcion: p.descripcion,
         categoria: p.categoria?.nombre || p.categoria || 'General',
@@ -134,60 +147,19 @@ export const POSPage: React.FC = () => {
     fetchProductos();
   }, [fetchProductos]);
 
-  // Solicitud de autorización de descuento
-  const [solicitudActiva, setSolicitudActiva] = useState<SolicitudDescuento | null>(null);
-  const [esperandoAutorizacion, setEsperandoAutorizacion] = useState(false);
-  const [mensajeEstado, setMensajeEstado] = useState<{ tipo: 'APROBADA' | 'RECHAZADA'; porcentaje: number; admin: string } | null>(null);
-  const [descuentoAutorizado, setDescuentoAutorizado] = useState<{ porcentaje: number; subtotal: number } | null>(null);
-
-  // Límite de descuento del usuario actual (10% por defecto si no definido)
-  const descuentoMaximoPermitido = user?.descuentoMaximo ?? 10;
-
-
-  // Escuchar cambios en la solicitud activa
-  React.useEffect(() => {
-    if (!solicitudActiva) return;
-    const solActualizada = solicitudes.find((s) => s.id === solicitudActiva.id);
-    if (solActualizada && solActualizada.estado !== 'PENDIENTE') {
-      setEsperandoAutorizacion(false);
-      if (solActualizada.estado === 'APROBADA') {
-        setMensajeEstado({ tipo: 'APROBADA', porcentaje: solActualizada.descuentoPorcentaje, admin: solActualizada.respondidoPor || t('pos.admin') });
-        setDescuentoAutorizado({ porcentaje: solActualizada.descuentoPorcentaje, subtotal: solActualizada.subtotal });
-      } else if (solActualizada.estado === 'RECHAZADA') {
-        setMensajeEstado({ tipo: 'RECHAZADA', porcentaje: solActualizada.descuentoPorcentaje, admin: solActualizada.respondidoPor || t('pos.admin') });
-        setDescuentoAutorizado(null);
-        setDescuentoPorcentaje(0);
-      }
-      setSolicitudActiva(null);
-    }
-  }, [solicitudes, solicitudActiva]);
+  const descuentoMaximoPermitido = user?.rol==='ADMIN'?100:Number(user?.descuentoMaximo??0);
 
   // Cálculos fiscales hondureños con descuento
   const subtotalBruto = cart.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
-  const esDescuentoExcedido = descuentoPorcentaje > descuentoMaximoPermitido &&
-    (descuentoAutorizado?.porcentaje !== descuentoPorcentaje || descuentoAutorizado?.subtotal !== subtotalBruto);
+  const esDescuentoExcedido = descuentoPorcentaje > descuentoMaximoPermitido;
   const montoDescuento = Math.round(subtotalBruto * (descuentoPorcentaje / 100) * 100) / 100;
   const subtotal = subtotalBruto - montoDescuento;
   const isv = Math.round(subtotal * 0.15 * 100) / 100;
   const total = subtotal + isv;
 
-  const handleSolicitarAutorizacion = () => {
-    if (!user) return;
-    setMensajeEstado(null);
-    const nuevaSol = solicitarDescuento({
-      cajeroId: user.id,
-      cajeroNombre: user.nombre,
-      subtotal: subtotalBruto,
-      totalOriginal: Math.round((subtotalBruto * 1.15) * 100) / 100,
-      descuentoPorcentaje,
-      totalConDescuento: total,
-    });
-    setSolicitudActiva(nuevaSol);
-    setEsperandoAutorizacion(true);
-  };
-
   const agregarAlCarrito = (prod: ProductItem) => {
     if (edicionBloqueada || cobrandoRef.current) return;
+    if(special&&!specialProvider){setErrorText('Seleccione proveedor para venta sin inventario');return;}
     const existe = cart.find((i) => i.productoId === prod.id);
     if (existe) {
       setCart(
@@ -204,6 +176,8 @@ export const POSPage: React.FC = () => {
           nombre: prod.nombre,
           precioUnitario: prod.precioVenta,
           cantidad: 1,
+          sinInventario:special,
+          proveedorId:special?specialProvider:undefined,
         },
       ]);
     }
@@ -231,12 +205,13 @@ export const POSPage: React.FC = () => {
 
   const handleCobrar = async () => {
     if (cart.length === 0 || cobrandoRef.current || modalTicket || (esDescuentoExcedido && !ventaPendiente)) return;
+    if(!ventaPendiente && metodoPago==='CREDITO'&&!clienteId){setErrorText('Seleccione un cliente registrado para vender a crédito');return;}
     cobrandoRef.current = true;
     setProcesandoVenta(true);
 
     try {
       const pending = readPendingSale(pendingKey) || {
-        solicitudId: crypto.randomUUID(), cart, clienteNombre, clienteRtn, metodoPago, descuentoPorcentaje,
+        solicitudId: crypto.randomUUID(), cart, clienteNombre, clienteRtn, clienteId, vencimiento:vencimiento||undefined, metodoPago, descuentoPorcentaje,
       };
       // Persistir ANTES del envío: un reload o respuesta perdida reutiliza la operación.
       localStorage.setItem(pendingKey, JSON.stringify(pending));
@@ -244,6 +219,8 @@ export const POSPage: React.FC = () => {
       const descuentoPendiente = Math.round(pending.cart.reduce((sum, i) => sum + i.precioUnitario * i.cantidad, 0) * pending.descuentoPorcentaje) / 100;
       const res = await api.post('/ventas', {
         solicitudId: pending.solicitudId,
+        clienteId:pending.clienteId,
+        vencimiento:pending.vencimiento,
         clienteNombre: pending.clienteNombre,
         clienteRtn: pending.clienteRtn || undefined,
         metodoPago: pending.metodoPago,
@@ -252,6 +229,8 @@ export const POSPage: React.FC = () => {
           productoId: i.productoId,
           cantidad: i.cantidad,
           precioUnitario: i.precioUnitario,
+          sinInventario:i.sinInventario,
+          proveedorId:i.proveedorId,
         })),
       });
 
@@ -284,10 +263,12 @@ export const POSPage: React.FC = () => {
   };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} className="ferre-pos">
       <TopBar title={t('pos.title')} subtitle={t('pos.subtitle')} />
 
-      <main style={styles.content}>
+      <main style={styles.content} className="ferre-pos-main">
+        <div className="ferre-pos-notice"><Link to="/arqueo-caja">Abrir o revisar mi caja</Link> · <Link to="/cuentas">Cuentas y abonos</Link> · <Link to="/entregas">Entregas</Link>{!cajaAbierta&&<p>Abra su caja antes de cobrar.</p>}</div>
+        <div className="ferre-pos-notice"><label><input type="checkbox" checked={special} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecial(e.target.checked)}/> Venta sin inventario: mercancía que no entra al local</label>{special&&<select aria-label="Proveedor de venta sin inventario" className="form-input" value={specialProvider} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecialProvider(e.target.value)}><option value="">Seleccione proveedor</option>{providers.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}</select>}</div>
         {ventaPendiente && !procesandoVenta && (
           <div role="status" className="industrial-card" style={{ marginBottom: '16px' }}>
             {t('pos.pending_sale')}
@@ -320,7 +301,7 @@ export const POSPage: React.FC = () => {
         )}
 
         {/* Layout en dos columnas: Izquierda catálogo rápido, Derecha Carrito & Cobro */}
-        <div style={styles.posGrid}>
+        <div style={styles.posGrid} className="ferre-pos-grid">
           {/* Columna Izquierda: Catálogo y Búsqueda */}
           <div style={styles.catalogColumn}>
             <div style={styles.searchBox}>
@@ -329,6 +310,7 @@ export const POSPage: React.FC = () => {
                 type="text"
                 placeholder={t('pos.search_products')}
                 value={search}
+                onKeyDown={e=>{if(e.key==='Enter'){const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===search.trim().toUpperCase()));if(matches.length===1){e.preventDefault();agregarAlCarrito(matches[0]);setSearch('');}else if(matches.length>1)setErrorText('Código ambiguo; seleccione el producto');}}}
                 onChange={(e) => setSearch(e.target.value)}
                 className="form-input"
                 style={{ paddingLeft: '38px', height: '46px', fontSize: '15px' }}
@@ -336,12 +318,13 @@ export const POSPage: React.FC = () => {
               />
             </div>
 
-            <div style={styles.catalogGrid}>
+            <div style={styles.catalogGrid} className="ferre-pos-catalog">
               {productos
                 .filter(
                   (p) =>
                     p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-                    p.codigo.toLowerCase().includes(search.toLowerCase()),
+                    p.codigo.toLowerCase().includes(search.toLowerCase()) ||
+                    p.codigoBarras?.includes(search) || p.codigoFabricante?.toLowerCase().includes(search.toLowerCase()) || p.descripcion?.toLowerCase().includes(search.toLowerCase()),
                 )
                 .map((prod) => (
                   <div
@@ -377,7 +360,7 @@ export const POSPage: React.FC = () => {
                   type="text"
                   value={clienteNombre}
                   disabled={edicionBloqueada}
-                  onChange={(e) => setClienteNombre(e.target.value)}
+                  onChange={(e) => {setClienteNombre(e.target.value);setClienteId(undefined);}}
                   className="form-input"
                   style={{ padding: '6px 10px', fontSize: '12px', flex: 1 }}
                   placeholder={t('pos.client_placeholder')}
@@ -387,13 +370,16 @@ export const POSPage: React.FC = () => {
                 type="text"
                 value={clienteRtn}
                 disabled={edicionBloqueada}
-                onChange={(e) => setClienteRtn(e.target.value)}
+                onChange={(e) => {setClienteRtn(e.target.value);setClienteId(undefined);}}
                 className="form-input"
                 style={{ padding: '6px 10px', fontSize: '11px', marginTop: '6px' }}
                 placeholder={t('pos.rtn_placeholder')}
               />
             </div>
 
+            {!edicionBloqueada&&<ClientePicker onSelect={(c:ClienteSeleccionable)=>{setClienteId(c.id);setClienteNombre(c.nombre);setClienteRtn(c.rtn||'');}}/>}
+            {clienteId&&<p>Cliente registrado seleccionado.</p>}
+            {metodoPago==='CREDITO'&&<label>Vencimiento del crédito<input className="form-input" type="date" value={vencimiento} disabled={edicionBloqueada} onChange={e=>setVencimiento(e.target.value)}/></label>}
             {/* Lista de ítems en carrito */}
             <div style={styles.cartItemsList}>
               {cart.length === 0 ? (
@@ -410,7 +396,7 @@ export const POSPage: React.FC = () => {
                     <div style={{ flex: 1 }}>
                       <div style={styles.cartItemName}>{item.nombre}</div>
                       <div style={styles.cartItemPrice}>
-                        {item.cantidad} x {formatLempiras(item.precioUnitario)}
+                        {item.sinInventario&&'Sin inventario · '}{item.cantidad} x {formatLempiras(item.precioUnitario)}
                       </div>
                     </div>
 
@@ -423,7 +409,7 @@ export const POSPage: React.FC = () => {
                       >
                         <Minus size={13} strokeWidth={3} />
                       </button>
-                      <span style={styles.qtyText}>{item.cantidad}</span>
+                      <input aria-label={`Cantidad ${item.nombre}`} type="number" min="0.01" step="0.01" value={item.cantidad} disabled={edicionBloqueada} style={{width:70,padding:4}} onChange={e=>{const q=Number(e.target.value);if(q>0)setCart(cart.map(i=>i.productoId===item.productoId?{...i,cantidad:q}:i));}}/>
                       <button
                         type="button"
                         onClick={() => modificarCantidad(item.productoId, 1)}
@@ -468,9 +454,7 @@ export const POSPage: React.FC = () => {
                   disabled={edicionBloqueada}
                   onChange={(e) => {
                     setDescuentoPorcentaje(Math.min(100, Math.max(0, Number(e.target.value))));
-                    setDescuentoAutorizado(null);
-                    setMensajeEstado(null);
-                  }}
+                                  }}
                   className="form-input"
                   style={{ padding: '6px 10px', fontSize: '13px', width: '90px', fontWeight: 800 }}
                 />
@@ -481,27 +465,6 @@ export const POSPage: React.FC = () => {
                 )}
               </div>
 
-              {esDescuentoExcedido && (
-                <div style={styles.alertaDescuentoBox}>
-                  <ShieldAlert size={16} color="#DC2626" />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800, fontSize: '11px', color: '#991B1B' }}>
-                      {t('operational.descuento_excede_tu_limite_permitido')}{descuentoMaximoPermitido}%)
-                    </div>
-                    <div style={{ fontSize: '10px', color: '#B91C1C', marginTop: '2px' }}>
-                      {t('operational.requiere_aprobacion_en_tiempo_real_de_un_administrador')}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {mensajeEstado && (
-                <div style={{ ...styles.alertaDescuentoBox, backgroundColor: mensajeEstado.tipo === 'APROBADA' ? '#DCFCE7' : '#FEE2E2', borderColor: mensajeEstado.tipo === 'APROBADA' ? '#15803D' : '#EF4444' }}>
-                  <div style={{ fontWeight: 700, fontSize: '11px', color: mensajeEstado.tipo === 'APROBADA' ? '#15803D' : '#991B1B' }}>
-                    {t(mensajeEstado.tipo === 'APROBADA' ? 'pos.discount_approved' : 'pos.discount_rejected', { percentage: mensajeEstado.porcentaje, admin: mensajeEstado.admin })}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Totales Fiscales */}
@@ -527,52 +490,12 @@ export const POSPage: React.FC = () => {
             </div>
 
             {/* Método de Pago */}
-            <div style={styles.paymentMethods}>
-              <button
-                type="button"
-                disabled={edicionBloqueada}
-                onClick={() => setMetodoPago('EFECTIVO')}
-                style={{
-                  ...styles.payBtn,
-                  ...(metodoPago === 'EFECTIVO' ? styles.payBtnActive : {}),
-                }}
-              >
-                <Banknote size={16} strokeWidth={2.5} /> {t('pos.cash')}
-              </button>
-              <button
-                type="button"
-                disabled={edicionBloqueada}
-                onClick={() => setMetodoPago('TARJETA')}
-                style={{
-                  ...styles.payBtn,
-                  ...(metodoPago === 'TARJETA' ? styles.payBtnActive : {}),
-                }}
-              >
-                <CreditCard size={16} strokeWidth={2.5} /> {t('pos.card')}
-              </button>
-            </div>
+            <div style={styles.paymentMethods}>{(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'] as const).map(m=><button key={m} type="button" disabled={edicionBloqueada} onClick={()=>setMetodoPago(m)} style={{...styles.payBtn,...(metodoPago===m?styles.payBtnActive:{})}}>{m}</button>)}</div>
 
             {/* Botón de Cobro o Solicitar Autorización */}
             {esDescuentoExcedido ? (
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleSolicitarAutorizacion}
-                disabled={esperandoAutorizacion || edicionBloqueada}
-                style={{ ...styles.checkoutBtn, backgroundColor: '#DC2626', borderColor: '#B91C1C' }}
-              >
-                {esperandoAutorizacion ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    <span>{t('pos.waiting_approval')}</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldAlert size={18} />
-                    <span>{t('pos.request_approval')}</span>
-                  </>
-                )}
-              </button>
+              <p role="alert">El descuento supera su límite. Un administrador debe registrar esta venta.</p>
+
             ) : (
               <button
                 type="button"
@@ -1062,3 +985,4 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
   },
 };
+

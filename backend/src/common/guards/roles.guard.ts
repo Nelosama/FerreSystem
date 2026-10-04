@@ -1,3 +1,4 @@
+import { REQUIRED_PERMISSION_KEY } from '../decorators/required-permission.decorator';
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
@@ -12,11 +13,13 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
 
+    const requiredPermission=this.reflector.getAllAndOverride<string>(REQUIRED_PERMISSION_KEY,[context.getHandler(),context.getClass()]);
+    const {user}=context.switchToHttp().getRequest();
+    if(requiredPermission && user?.rol !== 'ADMIN' && user?.permisosConfigurados && !user.permisos?.includes(requiredPermission))throw new ForbiddenException('No tiene el permiso requerido para esta operación');
     if (!requiredRoles || requiredRoles.length === 0) {
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest();
 
     if (!user || !user.rol) {
       throw new ForbiddenException('No cuenta con los permisos necesarios para realizar esta acción');
@@ -30,3 +33,4 @@ export class RolesGuard implements CanActivate {
     return true;
   }
 }
+

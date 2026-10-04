@@ -1,0 +1,171 @@
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { account, actor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
+import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, PagoDto, ProveedorDto, RecepcionDto } from './operaciones.dto';
+
+@Injectable()
+export class OperacionesService {
+ constructor(private readonly prisma: PrismaService) {}
+ async proveedores(tenantId: string) {
+  return query(this.prisma, 'SELECT id,nombre,telefono,rtn FROM proveedores WHERE tenant_id=$1 ORDER BY nombre', tenantId);
+ }
+ async proveedor(tenantId: string, userId: string, dto: ProveedorDto) {
+  return this.prisma.$transaction(async tx => {
+   await lockTenant(tx,tenantId);
+   const hash=fingerprint({userId,dto});
+   const [old]=await query(tx,"SELECT p.*,a.datos FROM proveedores p JOIN auditoria_operaciones a ON a.entidad_id=p.id AND a.operacion='PROVEEDOR_CREAR' WHERE p.id=$1 AND p.tenant_id=$2",dto.solicitudId,tenantId);
+   if(old){if(old.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otro proveedor');return old;}
+   const [p] = await query(tx, 'INSERT INTO proveedores (id,tenant_id,nombre,telefono,rtn,updated_at) VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *', dto.solicitudId, tenantId, text(dto.nombre,'Proveedor'), dto.telefono || null, dto.rtn || null);
+   await audit(tx,tenantId,userId,'PROVEEDOR_CREAR',p.id,{nombre:p.nombre,hash});return p;
+  });
+ }
+ async compras(tenantId: string) {
+  const orders = await query(this.prisma, 'SELECT o.*, p.nombre AS proveedor_nombre FROM ordenes_compra o JOIN proveedores p ON p.id=o.proveedor_id WHERE o.tenant_id=$1 ORDER BY o.created_at DESC', tenantId);
+  for(const o of orders) o.items = await query(this.prisma, 'SELECT d.*, p.nombre, p.codigo FROM detalles_orden_compra d JOIN productos p ON p.id=d.producto_id WHERE d.orden_id=$1 ORDER BY p.nombre',o.id);
+  return orders;
+ }
+ async compra(tenantId: string,userId: string,dto: CompraDto) {
+  return this.prisma.$transaction(async tx => {
+   await lockTenant(tx,tenantId); const hash=fingerprint({userId,dto});
+   const [previous] = await query(tx, 'SELECT o.*, a.datos FROM ordenes_compra o JOIN auditoria_operaciones a ON a.entidad_id=o.id AND a.operacion=\'COMPRA_CREAR\' WHERE o.id=$1 AND o.tenant_id=$2',dto.solicitudId,tenantId);
+   if(previous){if(previous.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otra compra');return previous;}
+   const [p]=await query(tx,'SELECT id FROM proveedores WHERE id=$1 AND tenant_id=$2',dto.proveedorId,tenantId);if(!p)throw new NotFoundException('Proveedor no encontrado');
+   if(!dto.items?.length)throw new BadRequestException('Agregue productos');
+   if(new Set(dto.items.map(x=>x.productoId)).size!==dto.items.length)throw new BadRequestException('Agrupe las líneas del mismo producto');
+   const numeroFactura=text(dto.numeroFactura,'Factura');
+   const [duplicate]=await query(tx,'SELECT id FROM ordenes_compra WHERE tenant_id=$1 AND proveedor_id=$2 AND numero_factura=$3',tenantId,p.id,numeroFactura);
+   if(duplicate)throw new ConflictException('Esta factura de proveedor ya está registrada');
+   let subtotal=0;
+   for(const item of dto.items){
+    const prod=await tx.producto.findFirst({where:{id:item.productoId,tenantId,activo:true}});if(!prod)throw new NotFoundException('Producto no encontrado');
+    subtotal=money(subtotal+money(decimal(item.cantidad,'Cantidad',true)*decimal(item.costo,'Costo')));
+   }
+   const tax=decimal(dto.isv,'Impuesto'), total=decimal(money(subtotal+tax),'Total');
+   const [order]=await query(tx,'INSERT INTO ordenes_compra (id,tenant_id,codigo,proveedor_id,usuario_id,subtotal,isv,total,estado,numero_factura,vencimiento,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,\'SOLICITADA\',$9,$10::timestamp,NOW()) RETURNING *',dto.solicitudId,tenantId,`COMP-${dto.solicitudId}`,p.id,userId,subtotal,tax,total,numeroFactura,dto.vencimiento || null);
+   for(const item of dto.items)await query(tx,'INSERT INTO detalles_orden_compra (id,orden_id,producto_id,cantidad,precio_costo,subtotal) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',id(),order.id,item.productoId,item.cantidad,item.costo,money(item.cantidad*item.costo));
+   await account(tx,tenantId,userId,'CXP',order.id,p.id,total,dto.vencimiento);
+   await audit(tx,tenantId,userId,'COMPRA_CREAR',order.id,{hash,total,numeroFactura});return order;
+  });
+ }
+ async recibir(tenantId:string,userId:string,orderId:string,dto:RecepcionDto){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);const hash=fingerprint({orderId,userId,dto});
+   const [old]=await query(tx,'SELECT * FROM recepciones_compra WHERE tenant_id=$1 AND solicitud_id=$2',tenantId,dto.solicitudId);
+   if(old){if(old.solicitud_hash!==hash)throw new ConflictException('Solicitud utilizada para otra recepción');return old;}
+   const [order]=await query(tx,'SELECT * FROM ordenes_compra WHERE id=$1 AND tenant_id=$2 FOR UPDATE',orderId,tenantId);
+   if(!order)throw new NotFoundException('Compra no encontrada');
+   if(!['SOLICITADA','APROBADA'].includes(order.estado))throw new ConflictException('Compra no admite recepción');
+   if(!dto.items?.length || new Set(dto.items.map(x=>x.detalleId)).size!==dto.items.length)throw new BadRequestException('Recepción vacía o líneas repetidas');
+   const receptionId=id();
+   const [reception]=await query(tx,'INSERT INTO recepciones_compra (id,tenant_id,orden_id,solicitud_id,solicitud_hash,usuario_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',receptionId,tenantId,order.id,dto.solicitudId,hash,userId);
+   for(const item of dto.items){
+    const quantity=decimal(item.cantidad,'Cantidad',true);
+    const [line]=await query(tx,'SELECT * FROM detalles_orden_compra WHERE id=$1 AND orden_id=$2 FOR UPDATE',item.detalleId,order.id);
+    if(!line)throw new NotFoundException('Línea no encontrada');
+    if(quantity>money(Number(line.cantidad)-Number(line.cantidad_recibida)))throw new BadRequestException('Cantidad supera el pendiente de recepción');
+    const [prod]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 AND activo=true FOR UPDATE',line.producto_id,tenantId);
+    if(!prod)throw new NotFoundException('Producto no disponible');
+    // La fecha de recepción es la fecha comercial de actualización. Un costo menor también reemplaza el anterior.
+    await query(tx,'UPDATE productos SET stock_actual=stock_actual+$1,precio_costo=$2,ultima_compra_at=$3,updated_at=NOW() WHERE id=$4 AND tenant_id=$5 RETURNING id',quantity,line.precio_costo,reception.fecha,prod.id,tenantId);
+    await query(tx,'UPDATE detalles_orden_compra SET cantidad_recibida=cantidad_recibida+$1 WHERE id=$2 RETURNING id',quantity,line.id);
+    await query(tx,'INSERT INTO costos_compra (id,tenant_id,producto_id,proveedor_id,orden_id,recepcion_id,cantidad,costo,fecha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',id(),tenantId,prod.id,order.proveedor_id,order.id,receptionId,quantity,line.precio_costo,reception.fecha);
+    await movement(tx,tenantId,userId,prod.id,'COMPRA',Number(prod.stock_actual),money(Number(prod.stock_actual)+quantity),receptionId,`Factura ${order.numero_factura}`);
+   }
+   const [pending]=await query(tx,'SELECT COUNT(*)::int AS cantidad FROM detalles_orden_compra WHERE orden_id=$1 AND cantidad_recibida<cantidad',order.id);
+   if(pending.cantidad===0)await query(tx,'UPDATE ordenes_compra SET estado=\'RECIBIDA\',fecha_entrega=NOW(),updated_at=NOW() WHERE id=$1 RETURNING id',order.id);
+   await audit(tx,tenantId,userId,'COMPRA_RECIBIR',receptionId,{orderId,items:dto.items});return reception;
+  });
+ }
+ async cuentas(tenantId:string,userId:string,tipo:string){
+  if(!['CXC','CXP'].includes(tipo))throw new BadRequestException('Tipo inválido');
+  const user=await actor(this.prisma,tenantId,userId);if(tipo==='CXP'&&user.rol!=='ADMIN')throw new ForbiddenException('Cuentas por pagar requieren administrador');
+  const accounts=await query(this.prisma,'SELECT c.*, COALESCE(cl.nombre,p.nombre) AS nombre, COALESCE(o.numero_factura, v.numero_venta::text) AS documento, c.saldo>0 AND c.vencimiento<NOW() AS vencida FROM cuentas_operativas c LEFT JOIN clientes cl ON cl.id=c.cliente_id LEFT JOIN proveedores p ON p.id=c.proveedor_id LEFT JOIN ordenes_compra o ON o.id=c.documento_id LEFT JOIN ventas v ON v.id=c.documento_id WHERE c.tenant_id=$1 AND c.tipo=$2 ORDER BY c.created_at DESC',tenantId,tipo);
+  for(const c of accounts)c.pagos=await query(this.prisma,'SELECT * FROM pagos_cuenta WHERE cuenta_id=$1 AND tenant_id=$2 ORDER BY created_at DESC',c.id,tenantId);
+  return accounts;
+ }
+ async pagar(tenantId:string,userId:string,cuentaId:string,dto:PagoDto){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);const hash=fingerprint({userId,cuentaId,dto});
+   const [previous]=await query(tx,'SELECT * FROM pagos_cuenta WHERE tenant_id=$1 AND solicitud_id=$2',tenantId,dto.solicitudId);
+   if(previous){if(previous.solicitud_hash!==hash)throw new ConflictException('Solicitud utilizada para otro pago');return previous;}
+   const [c]=await query(tx,'SELECT * FROM cuentas_operativas WHERE id=$1 AND tenant_id=$2 FOR UPDATE',cuentaId,tenantId);if(!c)throw new NotFoundException('Cuenta no encontrada');
+   const user=await actor(tx,tenantId,userId);if(c.tipo==='CXP'&&user.rol!=='ADMIN')throw new ForbiddenException('Pago a proveedor requiere administrador');
+   const monto=decimal(dto.monto,'Pago',true),metodo=paymentMethod(dto.metodo);if(monto>Number(c.saldo))throw new BadRequestException('Pago mayor al saldo');
+   const caja=await openCash(tx,tenantId,userId);
+   if(c.tipo==='CXP' && metodo==='EFECTIVO') {
+    const [cash]=await query(tx,"SELECT COALESCE(SUM(monto),0) AS total FROM movimientos_caja WHERE caja_id=$1 AND metodo='EFECTIVO'",caja.id);
+    if(monto>money(Number(caja.monto_apertura)+Number(cash.total)))throw new BadRequestException('Efectivo insuficiente en la caja para pagar al proveedor');
+   }
+   const [p]=await query(tx,'INSERT INTO pagos_cuenta (id,tenant_id,cuenta_id,solicitud_id,solicitud_hash,monto,metodo,usuario_id,caja_id,notas) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',id(),tenantId,c.id,dto.solicitudId,hash,monto,metodo,userId,caja.id,dto.notas || null);
+   await query(tx,'UPDATE cuentas_operativas SET saldo=saldo-$1 WHERE id=$2 RETURNING id',monto,c.id);
+   await cashMovement(tx,caja.id,userId,c.tipo==='CXC'?'ABONO_CXC':'PAGO_CXP',c.tipo==='CXC'?monto:-monto,metodo,p.id,c.tipo==='CXC'?'Abono de cliente':'Pago a proveedor');
+   await audit(tx,tenantId,userId,'CUENTA_PAGAR',p.id,{cuentaId,monto,metodo});return p;
+  });
+ }
+ async caja(tenantId:string,userId:string){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   const cajas=await query(tx,'SELECT * FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 ORDER BY fecha_apertura DESC LIMIT 30',tenantId,userId);
+   for(const c of cajas){
+    const movements=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1 ORDER BY created_at',c.id);c.movimientos=movements;
+    c.efectivoEsperado=money(Number(c.monto_apertura)+movements.filter(m=>m.metodo==='EFECTIVO').reduce((sum,m)=>sum+Number(m.monto),0));
+    c.totales=Object.fromEntries(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].map(method=>[method,money(movements.filter(m=>m.metodo===method).reduce((sum,m)=>sum+Number(m.monto),0))]));
+   }return cajas;
+  });
+ }
+ async abrir(tenantId:string,userId:string,dto:AbrirCajaDto){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);const monto=decimal(dto.monto,'Apertura');
+   const [prev]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3',dto.solicitudId,tenantId,userId);
+   if(prev){if(Number(prev.monto_apertura)!==monto)throw new ConflictException('Solicitud utilizada para otra apertura');return prev;}
+   const [open]=await query(tx,'SELECT id FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado=\'ABIERTA\'',tenantId,userId);if(open)throw new ConflictException('Ya tiene una caja abierta');
+   const [c]=await query(tx,'INSERT INTO cajas (id,tenant_id,codigo,usuario_id,monto_apertura) VALUES ($1,$2,$3,$4,$5) RETURNING *',dto.solicitudId,tenantId,`CAJA-${dto.solicitudId}`,userId,monto);await audit(tx,tenantId,userId,'CAJA_ABRIR',c.id,{monto});return c;
+  });
+ }
+ async cerrar(tenantId:string,userId:string,cajaId:string,dto:CerrarCajaDto){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);const monto=decimal(dto.monto,'Efectivo contado');
+   const [c]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3 FOR UPDATE',cajaId,tenantId,userId);if(!c)throw new NotFoundException('Caja no encontrada');
+   if(c.estado==='CERRADA'){if(Number(c.monto_cierre_fisico)!==monto || c.notas!==(dto.notas||null))throw new ConflictException('La caja ya está cerrada');return c;}
+   const [sum]=await query(tx,'SELECT COALESCE(SUM(monto),0) AS monto FROM movimientos_caja WHERE caja_id=$1 AND metodo=\'EFECTIVO\'',c.id);
+   const esperado=money(Number(c.monto_apertura)+Number(sum.monto));
+   const [closed]=await query(tx,'UPDATE cajas SET monto_cierre_fisico=$1,monto_esperado=$2,diferencia=$3,estado=\'CERRADA\',fecha_cierre=NOW(),notas=$4 WHERE id=$5 RETURNING *',monto,esperado,money(monto-esperado),dto.notas||null,c.id);
+   await audit(tx,tenantId,userId,'CAJA_CERRAR',c.id,{monto,esperado,diferencia:money(monto-esperado)});return closed;
+  });
+ }
+ async historial(tenantId:string,productoId:string){
+  return {movimientos:await query(this.prisma,'SELECT m.*,u.nombre AS usuario_nombre FROM movimientos_inventario m JOIN usuarios u ON u.id=m.usuario_id WHERE m.tenant_id=$1 AND m.producto_id=$2 ORDER BY m.created_at DESC',tenantId,productoId),costos:await query(this.prisma,'SELECT c.*,p.nombre AS proveedor_nombre,o.numero_factura FROM costos_compra c JOIN proveedores p ON p.id=c.proveedor_id JOIN ordenes_compra o ON o.id=c.orden_id WHERE c.tenant_id=$1 AND c.producto_id=$2 ORDER BY c.fecha DESC',tenantId,productoId)};
+ }
+ async ajustar(tenantId:string,userId:string,productoId:string,dto:AjusteDto){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);const stock=decimal(dto.stock,'Stock'),motivo=text(dto.motivo,'Motivo'),hash=fingerprint({userId,productoId,dto});
+   const [prev]=await query(tx,'SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion=\'STOCK_AJUSTAR\' AND entidad_id=$2',tenantId,dto.solicitudId);
+   if(prev){if(prev.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otro ajuste');return prev.datos;}
+   const [prod]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',productoId,tenantId);if(!prod)throw new NotFoundException('Producto no encontrado');
+   await query(tx,'UPDATE productos SET stock_actual=$1,updated_at=NOW() WHERE id=$2 RETURNING id',stock,prod.id);
+   await movement(tx,tenantId,userId,prod.id,'AJUSTE',Number(prod.stock_actual),stock,dto.solicitudId,motivo);
+   const result={hash,stock,anterior:Number(prod.stock_actual),motivo};await audit(tx,tenantId,userId,'STOCK_AJUSTAR',dto.solicitudId,result);return result;
+  });
+ }
+ async entregar(tenantId:string,userId:string,ventaId:string){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   const [v]=await query(tx,'SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado=\'COMPLETADA\' FOR UPDATE',ventaId,tenantId);if(!v)throw new NotFoundException('Venta registrada no encontrada');
+   if(v.entregado_at)return v;
+   const [delivered]=await query(tx,'UPDATE ventas SET entregado_at=NOW(),entregado_por=$1 WHERE id=$2 RETURNING *',userId,v.id);await audit(tx,tenantId,userId,'VENTA_ENTREGAR',v.id,{fecha:delivered.entregado_at});return delivered;
+  });
+ }
+ async entregas(tenantId:string){
+  const ventas=await query(this.prisma,"SELECT v.*,COALESCE(c.nombre,v.cliente_nombre) AS cliente_nombre FROM ventas v LEFT JOIN clientes c ON c.id=v.cliente_id WHERE v.tenant_id=$1 AND v.estado='COMPLETADA' AND v.entregado_at IS NULL ORDER BY v.created_at",tenantId);
+  for(const v of ventas)v.items=await query(this.prisma,'SELECT d.*,p.nombre FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1',v.id);
+  return ventas;
+ }
+ async resumen(tenantId:string,desde:string,hasta:string){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(desde)||!/^\d{4}-\d{2}-\d{2}$/.test(hasta)||desde>hasta)throw new BadRequestException('Rango de fechas inválido');
+  return {
+   metodos:await query(this.prisma,'SELECT metodo_pago,COUNT(*)::int AS cantidad,SUM(total) AS total FROM ventas WHERE tenant_id=$1 AND estado=\'COMPLETADA\' AND created_at>=$2::date AND created_at<$3::date+INTERVAL \'1 day\' GROUP BY metodo_pago',tenantId,desde,hasta),
+   rotacion:await query(this.prisma,'SELECT p.id,p.codigo,p.nombre,SUM(d.cantidad) AS cantidad FROM detalles_venta d JOIN ventas v ON v.id=d.venta_id JOIN productos p ON p.id=d.producto_id WHERE v.tenant_id=$1 AND v.estado=\'COMPLETADA\' AND d.sin_inventario=false AND v.created_at>=$2::date AND v.created_at<$3::date+INTERVAL \'1 day\' GROUP BY p.id ORDER BY cantidad DESC LIMIT 30',tenantId,desde,hasta),
+   alertas:await query(this.prisma,'SELECT tipo,COUNT(*)::int AS cantidad,SUM(saldo) AS saldo FROM cuentas_operativas WHERE tenant_id=$1 AND saldo>0 AND vencimiento<=NOW()+INTERVAL \'7 days\' GROUP BY tipo',tenantId),
+  };
+ }
+}

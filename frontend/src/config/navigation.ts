@@ -31,6 +31,8 @@ export interface NavigationItem {
 }
 
 export const NAVIGATION_ITEMS: NavigationItem[] = [
+  {key:'cuentas',labelKey:'menu.accounts',defaultLabel:'CUENTAS Y ABONOS',route:'/cuentas',icon:DollarSign,allowedRoles:['ADMIN','CAJERO'],category:'CLIENTES'},
+  {key:'entregas',labelKey:'menu.deliveries',defaultLabel:'ENTREGAS',route:'/entregas',icon:Truck,allowedRoles:['ADMIN','CAJERO','BODEGUERO'],category:'OPERACION'},
   // SYSTEM / SUPER ADMIN
   {
     key: 'superadmin',
@@ -195,7 +197,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     route: '/arqueo-caja',
     icon: DollarSign,
     moduleKey: 'arqueo_caja',
-    allowedRoles: ['ADMIN', 'CAJERO'],
+    allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
     category: 'GESTION',
   },
 
@@ -224,3 +226,4 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     category: 'CONFIGURACION',
   },
 ];
+

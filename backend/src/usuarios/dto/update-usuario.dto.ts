@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsEnum, IsBoolean, IsOptional, MinLength } from 'class-validator';
+import { IsString, IsEmail, IsEnum, IsBoolean, IsOptional, MinLength, IsArray, IsNumber, Min, Max, ArrayMaxSize } from 'class-validator';
 import { Rol } from '@prisma/client';
 
 export class UpdateUsuarioDto {
@@ -22,4 +22,7 @@ export class UpdateUsuarioDto {
   @IsOptional()
   @IsBoolean()
   activo?: boolean;
+  @IsOptional() @IsArray() @ArrayMaxSize(30) @IsString({each:true}) permisos?: string[];
+  @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) descuentoMaximo?: number;
 }
+

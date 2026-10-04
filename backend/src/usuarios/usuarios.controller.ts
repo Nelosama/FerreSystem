@@ -1,3 +1,4 @@
+import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { UsuariosService } from './usuarios.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -10,8 +11,10 @@ import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 
 @Controller('usuarios')
+@RequiredPermission('usuarios.gestionar')
 @RequiredModule('usuarios')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+@Roles('ADMIN')
 export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
 
@@ -50,3 +53,4 @@ export class UsuariosController {
     return this.usuariosService.remove(tenantId, id);
   }
 }
+

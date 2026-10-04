@@ -1,3 +1,4 @@
+import { account, actor, audit, cashMovement, id, lockTenant, money, movement, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
@@ -110,7 +111,7 @@ export class CotizacionesService {
       }
 
       const descuentoTotal = descuentoLineas + descuentoGeneralMonto;
-      const isvTotal = parsedDetails.reduce((sum, item) => sum + item.isv, 0);
+      const isvTotal = money(parsedDetails.reduce((sum, item) => sum + item.isv, 0) * (subtotalTotal > 0 ? 1 - descuentoGeneralMonto/subtotalTotal : 0));
       const total = Math.round((subtotalTotal - descuentoGeneralMonto + isvTotal) * 100) / 100;
 
       const diasVal = dto.diasValidez || 15;
@@ -238,7 +239,7 @@ export class CotizacionesService {
       }
 
       const descuentoTotal = descuentoLineas + descuentoGeneralMonto;
-      const isvTotal = parsedDetails.reduce((sum, item) => sum + item.isv, 0);
+      const isvTotal = money(parsedDetails.reduce((sum, item) => sum + item.isv, 0) * (subtotalTotal > 0 ? 1 - descuentoGeneralMonto/subtotalTotal : 0));
       const total = Math.round((subtotalTotal - descuentoGeneralMonto + isvTotal) * 100) / 100;
 
       const diasVal = dto.diasValidez || existing.diasValidez;
@@ -419,6 +420,11 @@ export class CotizacionesService {
     metodoPago: any = 'EFECTIVO',
   ) {
     return this.prisma.$transaction(async (tx) => {
+      await lockTenant(tx,tenantId);
+      const user=await actor(tx,tenantId,usuarioId);
+      if (!['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].includes(metodoPago)) throw new BadRequestException('Método de pago inválido');
+      const caja=await openCash(tx,tenantId,usuarioId);
+      const ventaId=id();
       // Obtener secuencial de venta
       const seqResult = await tx.$queryRaw<[{ ultimo_numero: number }]>`
         INSERT INTO "secuencias_tenant" ("id", "tenant_id", "tipo", "ultimo_numero")
@@ -444,8 +450,14 @@ export class CotizacionesService {
         throw new BadRequestException('Esta cotización ya fue convertida previamente a una venta');
       }
 
+      if (metodoPago === 'CREDITO' && !cotizacion.clienteId) throw new BadRequestException('Seleccione un cliente registrado para vender a crédito');
+      if(new Set(cotizacion.detalles.map(d=>d.productoId)).size!==cotizacion.detalles.length) throw new BadRequestException('Agrupe las líneas del mismo producto antes de convertir la cotización');
+      const bruto=money(cotizacion.detalles.reduce((sum,d)=>sum+Number(d.totalMedida)*Number(d.precioUnitario),0));
+      validateDiscount(user,bruto,Number(cotizacion.descuento));
+      if(user.rol !== 'ADMIN' && cotizacion.detalles.some(d=>Number(d.precioUnitario)!==Number(d.producto.precioVenta))) throw new BadRequestException('La cotización requiere validación del precio por administrador');
       // Verificar y descontar stock por la cantidad solicitada con precisión decimal
       for (const d of cotizacion.detalles) {
+        await query(tx,'SELECT id FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.productoId,tenantId);
         const stockDisponible = Number(d.producto.stockActual);
         const cantidadRequerida = Number(d.totalMedida);
         if (stockDisponible < cantidadRequerida) {
@@ -463,14 +475,22 @@ export class CotizacionesService {
         }
       }
 
+      for (const d of cotizacion.detalles) {
+        const p=await tx.producto.findFirstOrThrow({where:{id:d.productoId,tenantId}});
+        await movement(tx,tenantId,usuarioId,d.productoId,'VENTA',money(Number(p.stockActual)+Number(d.totalMedida)),Number(p.stockActual),ventaId,'Conversión de cotización');
+      }
       // Crear la venta
       const venta = await tx.venta.create({
         data: {
+          id:ventaId,
           tenantId,
           numeroVenta,
+          cajaId:caja.id,
+          clienteNombre:cotizacion.clienteNombre,
+          clienteRtn:cotizacion.clienteRtn,
           clienteId: cotizacion.clienteId,
           usuarioId,
-          subtotal: cotizacion.subtotal,
+          subtotal: bruto,
           isv: cotizacion.isv,
           descuento: cotizacion.descuento,
           total: cotizacion.total,
@@ -482,12 +502,16 @@ export class CotizacionesService {
               productoId: d.productoId,
               cantidad: d.totalMedida,
               precioUnitario: d.precioUnitario,
-              subtotal: d.subtotal,
+              subtotal: money(Number(d.totalMedida)*Number(d.precioUnitario)),
+              costoUnitario:d.producto.precioCosto,
             })),
           },
         },
       });
 
+      if(metodoPago==='CREDITO') await account(tx,tenantId,usuarioId,'CXC',venta.id,cotizacion.clienteId!,Number(venta.total));
+      await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',Number(venta.total),metodoPago,venta.id,'Venta desde cotización');
+      await audit(tx,tenantId,usuarioId,'COTIZACION_VENDER',venta.id,{cotizacionId,total:Number(venta.total)});
       // Actualizar estado de la cotización
       await tx.cotizacion.update({
         where: { id: cotizacion.id },
@@ -618,3 +642,4 @@ export class CotizacionesService {
     };
   }
 }
+

@@ -109,8 +109,8 @@ export const UsuariosPage: React.FC = () => {
             nombre: u.nombre,
             email: u.email,
             rolBase: u.rol as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR',
-            permisos: PERMISOS_DEFAULT_POR_ROL[u.rol as keyof typeof PERMISOS_DEFAULT_POR_ROL]?.permisos || [],
-            descuentoMaximo: PERMISOS_DEFAULT_POR_ROL[u.rol as keyof typeof PERMISOS_DEFAULT_POR_ROL]?.descuentoMaximo || 10,
+            permisos: u.permisosConfigurados ? u.permisos : PERMISOS_DEFAULT_POR_ROL[u.rol as keyof typeof PERMISOS_DEFAULT_POR_ROL]?.permisos || [],
+            descuentoMaximo: Number(u.descuentoMaximo || 0),
             activo: u.activo,
             sucursalActual: 'Sucursal Centro (Principal)',
           }));
@@ -186,6 +186,8 @@ export const UsuariosPage: React.FC = () => {
       nombre: formNombre.trim(),
       email: formEmail.trim(),
       rol: formRolBase,
+      permisos: formPermisos,
+      descuentoMaximo: formDescuentoMaximo,
       activo: formActivo,
       ...(formPassword ? { password: formPassword } : {}),
     };
@@ -658,3 +660,4 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-text-muted)',
   },
 };
+

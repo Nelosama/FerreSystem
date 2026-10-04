@@ -18,6 +18,9 @@ export class UsuariosService {
         email: true,
         rol: true,
         activo: true,
+        permisos: true,
+        permisosConfigurados:true,
+        descuentoMaximo: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -35,6 +38,9 @@ export class UsuariosService {
         email: true,
         rol: true,
         activo: true,
+        permisos: true,
+        permisosConfigurados:true,
+        descuentoMaximo: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -58,7 +64,8 @@ export class UsuariosService {
       throw new BadRequestException('Ya existe un usuario con este correo electrónico en esta ferretería');
     }
 
-    const passwordToHash = dto.password || 'Ferre2026!';
+    if (!dto.password) throw new BadRequestException('Defina una contraseña para el nuevo usuario');
+    const passwordToHash = dto.password;
     const passwordHash = await bcrypt.hash(passwordToHash, 10);
 
     const usuario = await this.prisma.usuario.create({
@@ -68,6 +75,9 @@ export class UsuariosService {
         email: emailNormalized,
         passwordHash,
         rol: dto.rol || 'CAJERO',
+        permisos: dto.permisos || [],
+        permisosConfigurados:dto.permisos!==undefined,
+        descuentoMaximo: dto.descuentoMaximo ?? 0,
         activo: dto.activo ?? true,
       },
       select: {
@@ -77,6 +87,9 @@ export class UsuariosService {
         email: true,
         rol: true,
         activo: true,
+        permisos: true,
+        permisosConfigurados:true,
+        descuentoMaximo: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -113,6 +126,8 @@ export class UsuariosService {
       dataToUpdate.rol = dto.rol;
     }
 
+    if (dto.permisos !== undefined) {dataToUpdate.permisos = dto.permisos;dataToUpdate.permisosConfigurados=true;}
+    if (dto.descuentoMaximo !== undefined) dataToUpdate.descuentoMaximo = dto.descuentoMaximo;
     if (dto.activo !== undefined) {
       dataToUpdate.activo = dto.activo;
     }
@@ -127,6 +142,9 @@ export class UsuariosService {
         email: true,
         rol: true,
         activo: true,
+        permisos: true,
+        permisosConfigurados:true,
+        descuentoMaximo: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -135,9 +153,11 @@ export class UsuariosService {
 
   async remove(tenantId: string, id: string) {
     await this.findById(tenantId, id);
-    return this.prisma.usuario.delete({
+    return this.prisma.usuario.update({
+      data: { activo:false },
       where: { id },
       select: { id: true, nombre: true, email: true },
     });
   }
 }
+

@@ -1,0 +1,49 @@
+name: Operación de ferretería
+on:
+  push:
+    branches: ['codex/operacion-ferreteria']
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://postgres@127.0.0.1:5432/isolated
+      DIRECT_URL: postgresql://postgres@127.0.0.1:5432/isolated
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Instalar dependencias
+        run: |
+          npm ci --prefix frontend
+          npm ci --prefix backend
+      - name: Validar esquema y generar cliente
+        working-directory: backend
+        run: |
+          npx prisma validate
+          npx prisma generate
+      - name: Frontend: tipos, bundle y pruebas
+        working-directory: frontend
+        run: |
+          npm run build
+          npm test
+      - name: Backend: compilación y pruebas
+        working-directory: backend
+        run: |
+          npm run build
+          npm test
+      - name: Preparar PostgreSQL temporal
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql
+          pg_bin=$(pg_config --bindir)
+          sudo ln -sf "$pg_bin/initdb" /usr/bin/initdb
+          sudo ln -sf "$pg_bin/pg_ctl" /usr/bin/pg_ctl
+      - name: Integración con persistencia PostgreSQL real
+        working-directory: backend
+        run: npm run test:integration

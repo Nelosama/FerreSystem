@@ -1,62 +1,33 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min } from 'class-validator';
-
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsInt, MaxLength } from 'class-validator';
 export class CreateLevantamientoItemDto {
-  @IsString()
-  @IsNotEmpty({ message: 'La descripción del item es requerida' })
-  descripcion: string;
-
-  @IsNumber({}, { message: 'La cantidad debe ser un número válido' })
-  @Min(0, { message: 'La cantidad no puede ser negativa' })
-  cantidad: number;
-
-  @IsString()
-  @IsOptional()
-  unidad?: string;
-
-  @IsString()
-  @IsOptional()
-  codigo?: string;
-
-  @IsString()
-  @IsOptional()
-  marca?: string;
-
-  @IsString()
-  @IsOptional()
-  categoria?: string;
-
-  @IsString()
-  @IsOptional()
-  notas?: string;
+ @IsString() @IsNotEmpty() @MaxLength(500) descripcion!:string;
+ @IsNumber({maxDecimalPlaces:2}) @Min(0) cantidad!:number;
+ @IsOptional() @IsString() unidad?:string;
+ @IsOptional() @IsString() codigo?:string;
+ @IsOptional() @IsString() codigoBarras?:string;
+ @IsOptional() @IsString() marca?:string;
+ @IsOptional() @IsString() categoria?:string;
+ @IsOptional() @IsString() ubicacion?:string;
+ @IsOptional() @IsString() notas?:string;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) precioCosto?:number;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) precioVenta?:number;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?:number;
 }
-
 export class UpdateLevantamientoItemDto {
-  @IsString()
-  @IsOptional()
-  descripcion?: string;
-
-  @IsNumber({}, { message: 'La cantidad debe ser un número válido' })
-  @Min(0, { message: 'La cantidad no puede ser negativa' })
-  @IsOptional()
-  cantidad?: number;
-
-  @IsString()
-  @IsOptional()
-  unidad?: string;
-
-  @IsString()
-  @IsOptional()
-  codigo?: string;
-
-  @IsString()
-  @IsOptional()
-  marca?: string;
-
-  @IsString()
-  @IsOptional()
-  categoria?: string;
-
-  @IsString()
-  @IsOptional()
-  notas?: string;
+ @IsInt() @Min(1) version!:number;
+ @IsOptional() @IsString() @IsNotEmpty() @MaxLength(500) descripcion?:string;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) cantidad?:number;
+ @IsOptional() @IsString() unidad?:string;
+ @IsOptional() @IsString() codigo?:string;
+ @IsOptional() @IsString() codigoBarras?:string;
+ @IsOptional() @IsString() marca?:string;
+ @IsOptional() @IsString() categoria?:string;
+ @IsOptional() @IsString() ubicacion?:string;
+ @IsOptional() @IsString() notas?:string;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) precioCosto?:number;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) precioVenta?:number;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?:number;
+}
+export class AplicarLevantamientoDto {
+ @IsString() @IsNotEmpty() token!:string;
 }

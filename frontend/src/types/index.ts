@@ -72,6 +72,7 @@ export interface ProductItem {
   id: string;
   codigo: string;
   codigoBarras?: string;
+  codigoFabricante?: string;
   nombre: string;
   descripcion?: string;
   categoria: string;
@@ -97,7 +98,7 @@ export interface SaleItem {
   total: number;
   isv: number;
   subtotal: number;
-  metodoPago: 'EFECTIVO' | 'TARJETA' | 'CREDITO';
+  metodoPago: 'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA';
   fecha: string;
   itemsCount: number;
 }
@@ -155,3 +156,4 @@ export interface QuotationItem {
   vencida?: boolean;
   createdAt?: string;
 }
+

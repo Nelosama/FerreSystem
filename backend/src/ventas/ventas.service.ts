@@ -1,3 +1,4 @@
+import { account, actor, audit, cashMovement, decimal, fingerprint, lockTenant, money, movement, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -5,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class VentasService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(tenantId: string, limit = 50) {
+  async findAll(tenantId: string, limit = 50, page = 0) {
     const ventas = await this.prisma.venta.findMany({
       where: { tenantId },
       include: {
@@ -18,7 +19,8 @@ export class VentasService {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: limit,
+      take: Math.min(Math.max(limit,1),500),
+      skip: Math.max(page,0)*Math.min(Math.max(limit,1),500),
     });
 
     return ventas.map((v) => ({
@@ -82,6 +84,9 @@ export class VentasService {
     dto: {
       solicitudId?: string;
       clienteId?: string;
+      clienteNombre?: string;
+      clienteRtn?: string;
+      vencimiento?: string;
       metodoPago?: any;
       descuento?: number;
       notas?: string;
@@ -89,6 +94,9 @@ export class VentasService {
         productoId: string;
         cantidad: number;
         precioUnitario?: number;
+        sinInventario?: boolean;
+        proveedorId?: string;
+        ordenCompraId?: string;
       }[];
     },
   ) {
@@ -96,10 +104,13 @@ export class VentasService {
       throw new BadRequestException('La venta debe incluir al menos un producto');
     }
 
-    const descuento = dto.descuento || 0;
+    if(new Set(dto.detalles.map(d=>d.productoId)).size!==dto.detalles.length) throw new BadRequestException('Agrupe las líneas del mismo producto');
+    const descuento = decimal(dto.descuento || 0, 'Descuento');
+    const requestHash = fingerprint({usuarioId,dto});
 
     // Transacción atómica completa: número correlativo, descuento de inventario y guardado
     return this.prisma.$transaction(async (tx) => {
+      await lockTenant(tx,tenantId);
       // Un reintento conserva el ID de la venta; el bloqueo dura hasta commit/rollback.
       if (dto.solicitudId) {
         await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + dto.solicitudId}, 0))`;
@@ -119,6 +130,7 @@ export class VentasService {
               return true;
             });
           if (anterior.tenantId !== tenantId || anterior.usuarioId !== usuarioId ||
+              (anterior.solicitudHash && anterior.solicitudHash !== requestHash) ||
               anterior.clienteId !== (dto.clienteId || null) ||
               anterior.metodoPago !== (dto.metodoPago || 'EFECTIVO') ||
               Number(anterior.descuento) !== descuento || anterior.notas !== (dto.notas || null) ||
@@ -129,6 +141,11 @@ export class VentasService {
         }
       }
 
+      const user = await actor(tx,tenantId,usuarioId);
+      const metodo = dto.metodoPago || 'EFECTIVO';
+      if (!['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].includes(metodo)) throw new BadRequestException('Método de pago inválido');
+      if (metodo === 'CREDITO' && !dto.clienteId) throw new BadRequestException('Seleccione un cliente registrado para vender a crédito');
+      const caja = await openCash(tx,tenantId,usuarioId);
       if (dto.clienteId) {
         const cliente = await tx.cliente.findFirst({ where: { id: dto.clienteId, tenantId } });
         if (!cliente) throw new NotFoundException('Cliente seleccionado no existe');
@@ -152,9 +169,15 @@ export class VentasService {
         cantidad: number;
         precioUnitario: number;
         subtotal: number;
+        costoUnitario: number;
+        sinInventario: boolean;
+        proveedorId: string | null;
+        ordenCompraId: string | null;
       }[] = [];
 
       for (const item of dto.detalles) {
+        decimal(item.cantidad, 'Cantidad', true);
+        await query(tx, 'SELECT id FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',item.productoId,tenantId);
         const prod = await tx.producto.findFirst({
           where: { id: item.productoId, tenantId, activo: true },
         });
@@ -164,17 +187,25 @@ export class VentasService {
         }
 
         const stockDisponible = Number(prod.stockActual);
-        if (stockDisponible < item.cantidad) {
+        if (!item.sinInventario && stockDisponible < item.cantidad) {
           throw new BadRequestException(
             `Stock insuficiente para "${prod.nombre}". Disponible: ${stockDisponible}, Solicitado: ${item.cantidad}`,
           );
         }
 
         const precioUnitario = item.precioUnitario !== undefined ? item.precioUnitario : Number(prod.precioVenta);
+        decimal(precioUnitario,'Precio unitario');
+        if (user.rol !== 'ADMIN' && precioUnitario !== Number(prod.precioVenta)) throw new ConflictException('El precio cambió; actualice el catálogo o solicite al administrador');
+        if (item.sinInventario) {
+          const [provider] = await query(tx,'SELECT id FROM proveedores WHERE id=$1 AND tenant_id=$2',item.proveedorId || '',tenantId);
+          if (!provider) throw new BadRequestException('Venta sin inventario requiere proveedor registrado');
+          if(item.ordenCompraId){const [order]=await query(tx,'SELECT id FROM ordenes_compra WHERE id=$1 AND tenant_id=$2 AND proveedor_id=$3',item.ordenCompraId,tenantId,provider.id);if(!order)throw new BadRequestException('Compra no corresponde al proveedor');}
+        } else if (item.proveedorId || item.ordenCompraId) throw new BadRequestException('Use venta sin inventario para vincular proveedor');
         const itemSubtotal = Math.round(precioUnitario * item.cantidad * 100) / 100;
         subtotalTotal += itemSubtotal;
 
         // Descontar inventario con precisión decimal exacta
+        if (!item.sinInventario) {
         const descontado = await tx.producto.updateMany({
           where: { id: prod.id, tenantId, activo: true, stockActual: { gte: item.cantidad } },
           data: { stockActual: { decrement: item.cantidad } },
@@ -183,16 +214,24 @@ export class VentasService {
           throw new BadRequestException(`Stock insuficiente para "${prod.nombre}" o producto inactivo`);
         }
 
+        }
+
         detallesParaCrear.push({
           productoId: prod.id,
           cantidad: item.cantidad,
           precioUnitario,
           subtotal: itemSubtotal,
+          costoUnitario: Number(prod.precioCosto),
+          sinInventario: !!item.sinInventario,
+          proveedorId: item.proveedorId || null,
+          ordenCompraId: item.ordenCompraId || null,
         });
       }
 
       // 3. Cálculos fiscales de Honduras: ISV 15%
-      const baseGravable = Math.max(0, subtotalTotal - descuento);
+      subtotalTotal = money(subtotalTotal);
+      validateDiscount(user,subtotalTotal,descuento);
+      const baseGravable = money(subtotalTotal - descuento);
       const isv = Math.round(baseGravable * 0.15 * 100) / 100;
       const total = Math.round((baseGravable + isv) * 100) / 100;
 
@@ -204,6 +243,10 @@ export class VentasService {
           numeroVenta,
           clienteId: dto.clienteId || null,
           usuarioId,
+          cajaId: caja.id,
+          clienteNombre: dto.clienteNombre?.trim() || null,
+          clienteRtn: dto.clienteRtn?.trim() || null,
+          solicitudHash: requestHash,
           subtotal: subtotalTotal,
           isv,
           descuento,
@@ -217,6 +260,10 @@ export class VentasService {
               cantidad: d.cantidad,
               precioUnitario: d.precioUnitario,
               subtotal: d.subtotal,
+              costoUnitario: d.costoUnitario,
+              sinInventario: d.sinInventario,
+              proveedorId: d.proveedorId,
+              ordenCompraId: d.ordenCompraId,
             })),
           },
         },
@@ -228,6 +275,14 @@ export class VentasService {
         },
       });
 
+      for (const d of detallesParaCrear) if (!d.sinInventario) {
+        const prod = await tx.producto.findFirstOrThrow({where:{id:d.productoId,tenantId}});
+        const nuevo=Number(prod.stockActual);
+        await movement(tx,tenantId,usuarioId,d.productoId,'VENTA',money(nuevo+d.cantidad),nuevo,venta.id,'Venta registrada');
+      }
+      if (metodo === 'CREDITO') await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,dto.vencimiento);
+      await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',total,metodo,venta.id,`Venta ${numeroVenta}`);
+      await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id});
       return this.formatVentaCreada(venta);
     });
   }
@@ -250,3 +305,4 @@ export class VentasService {
     };
   }
 }
+

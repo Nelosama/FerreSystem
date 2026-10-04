@@ -1,10 +1,11 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum, IsUUID, IsBoolean, IsDateString, ArrayMinSize, ArrayMaxSize, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum MetodoPagoEnum {
   EFECTIVO = 'EFECTIVO',
   TARJETA = 'TARJETA',
   CREDITO = 'CREDITO',
+  TRANSFERENCIA = 'TRANSFERENCIA',
 }
 
 export class DetalleVentaItemDto {
@@ -12,14 +13,17 @@ export class DetalleVentaItemDto {
   @IsNotEmpty()
   productoId: string;
 
-  @IsNumber()
+  @IsNumber({maxDecimalPlaces:2})
   @Min(0.01, { message: 'La cantidad debe ser mayor a cero' })
   cantidad: number;
 
-  @IsNumber()
+  @IsNumber({maxDecimalPlaces:2})
   @Min(0)
   @IsOptional()
   precioUnitario?: number;
+  @IsOptional() @IsBoolean() sinInventario?: boolean;
+  @IsOptional() @IsString() proveedorId?: string;
+  @IsOptional() @IsString() ordenCompraId?: string;
 }
 
 export class CreateVentaDto {
@@ -30,12 +34,15 @@ export class CreateVentaDto {
   @IsString()
   @IsOptional()
   clienteId?: string;
+  @IsOptional() @IsString() @MaxLength(200) clienteNombre?: string;
+  @IsOptional() @IsString() @MaxLength(100) clienteRtn?: string;
+  @IsOptional() @IsDateString() vencimiento?: string;
 
   @IsEnum(MetodoPagoEnum)
   @IsOptional()
   metodoPago?: MetodoPagoEnum;
 
-  @IsNumber()
+  @IsNumber({maxDecimalPlaces:2})
   @Min(0)
   @IsOptional()
   descuento?: number;
@@ -45,7 +52,10 @@ export class CreateVentaDto {
   notas?: string;
 
   @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => DetalleVentaItemDto)
   detalles: DetalleVentaItemDto[];
 }
+

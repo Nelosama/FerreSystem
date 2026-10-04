@@ -34,7 +34,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Verificar permiso específico
-  if (requiredPermiso && user.permisos && !user.permisos.includes(requiredPermiso)) {
+  if (requiredPermiso && user.rol !== 'ADMIN' && user.permisos && !user.permisos.includes(requiredPermiso)) {
     return (
       <div style={styles.deniedContainer}>
         <Lock size={48} color="#DC2626" />
@@ -110,3 +110,4 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
   },
 };
+

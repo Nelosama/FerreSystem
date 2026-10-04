@@ -137,12 +137,12 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
         errores.push(t('inventory.invalid_prices'));
       }
 
-      const numStock = parseInt(stockActualStr || '0', 10);
+      const numStock = Number(stockActualStr || '0');
       if (isNaN(numStock) || numStock < 0) {
         errores.push(t('inventory.invalid_prices'));
       }
 
-      const numStockMin = parseInt(stockMinimoStr || '5', 10);
+      const numStockMin = Number(stockMinimoStr || '5');
       if (isNaN(numStockMin) || numStockMin < 0) {
         errores.push(t('inventory.invalid_prices'));
       }
@@ -274,6 +274,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
       for (const r of validRows) {
         const payload = {
           codigo: r.codigo.toUpperCase().trim(),
+          motivo: 'Importación de inventario revisada',
           nombre: r.nombre.trim(),
           categoria: r.categoria,
           precioVenta: r.precioVenta,
@@ -616,3 +617,4 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #FCD34D',
   },
 };
+

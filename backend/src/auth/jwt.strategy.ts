@@ -1,3 +1,4 @@
+import { PrismaService } from '../prisma/prisma.service';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -12,11 +13,13 @@ export interface JwtValidatedPayload {
   tenantId?: string;
   impersonatedBy?: string;
   readOnly?: boolean;
+  permisos?:string[];
+  permisosConfigurados?:boolean;
 }
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(configService: ConfigService) {
+  constructor(configService: ConfigService, private readonly prisma: PrismaService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -30,10 +33,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     if (payload.type === 'tenant') {
+      const user=await this.prisma.usuario.findFirst({where:{id:payload.sub,tenantId:payload.tenantId,activo:true},include:{tenant:true}});
+      if(!user || user.tenant.estado !== 'ACTIVO') throw new UnauthorizedException('Usuario o empresa no disponible');
       return {
         sub: payload.sub,
         email: payload.email,
-        rol: payload.rol,
+        rol: user.rol,
+        permisos:user.permisos,
+        permisosConfigurados:user.permisosConfigurados,
         type: 'tenant',
         tenantId: payload.tenantId,
         ...(payload.impersonatedBy ? { impersonatedBy: payload.impersonatedBy, readOnly: payload.readOnly !== false } : {}),
@@ -52,3 +59,4 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     throw new UnauthorizedException('Tipo de token no reconocido');
   }
 }
+

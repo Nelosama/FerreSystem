@@ -15,7 +15,9 @@
     "reports": "REPORTES",
     "stock_taking": "LEVANTAMIENTO DE INVENTARIO",
     "configuration": "CONFIGURACIÓN GLOBAL",
-    "super_admin": "PANEL SUPER ADMIN"
+    "super_admin": "PANEL SUPER ADMIN",
+    "accounts": "CUENTAS Y ABONOS",
+    "deliveries": "ENTREGAS"
   },
   "stock_taking": {
     "title": "LEVANTAMIENTO DE INVENTARIO",

@@ -20,6 +20,7 @@ describe('CotizacionesService', () => {
       findFirst: vi.fn(),
     },
     producto: {
+      findFirstOrThrow: vi.fn().mockResolvedValue({stockActual:0}),
       findFirst: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
@@ -28,6 +29,11 @@ describe('CotizacionesService', () => {
       create: vi.fn(),
     },
     $transaction: vi.fn((cb) => cb(mockPrisma)),
+    $queryRawUnsafe: vi.fn(async (sql:string) => {
+      if(sql.includes('SELECT u.rol'))return [{rol:'ADMIN',descuento_maximo:100}];
+      if(sql.includes('SELECT * FROM cajas'))return [{id:'caja-test',monto_apertura:100}];
+      return [];
+    }),
     $queryRaw: vi.fn(),
   };
 
@@ -147,3 +153,4 @@ describe('CotizacionesService', () => {
     expect(mockPrisma.cotizacion.update).not.toHaveBeenCalled();
   });
 });
+

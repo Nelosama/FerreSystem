@@ -7,6 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { VentasService } from '../src/ventas/ventas.service';
 import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
+import { OperacionesService } from '../src/operaciones/operaciones.service';
+import { LevantamientosService } from '../src/levantamientos/levantamientos.service';
 import { ProductosService } from '../src/productos/productos.service';
 import { ClientesService } from '../src/clientes/clientes.service';
 import * as bcrypt from 'bcrypt';
@@ -58,6 +60,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     writeFileSync(join(directory, 'legacy-data.sql'), legacyData);
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', join(directory, 'legacy-data.sql')], { windowsHide: true, timeout: 30000 });
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261002000000_add_customer_numbers/migration.sql')], { windowsHide: true, timeout: 30000 });
+    execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261004000000_operacion_ferreteria/migration.sql')], {timeout:30000});
     databaseUrl = `postgresql://postgres@127.0.0.1:${port}/postgres?connection_limit=8`;
     prisma = new PrismaService({ datasources: { db: { url: databaseUrl } } });
     console.log('PostgreSQL temporal: Prisma connect');
@@ -70,6 +73,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     tenantId = randomUUID(); usuarioId = randomUUID(); productoId = randomUUID();
     await prisma.tenant.create({ data: { id: tenantId, nombreComercial: 'Tenant prueba' } });
     await prisma.usuario.create({ data: { id: usuarioId, tenantId, nombre: 'Cajero prueba', email: 'test@example.test', passwordHash: 'test-only' } });
+    await new OperacionesService(prisma).abrir(tenantId,usuarioId,{solicitudId:randomUUID(),monto:1000});
     await prisma.producto.create({ data: { id: productoId, tenantId, codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 2.75, stockMinimo: 0 } });
   });
 
@@ -292,8 +296,8 @@ describe('Ventas / PostgreSQL aislado', () => {
     await expect(cotizaciones.update(tenantId, cot.id, { ...request(), clienteId: cliente.id })).rejects.toThrow('Cliente');
     const productos = new ProductosService(prisma);
     const dto = { codigo: 'PIE-2', nombre: 'Por pie', precioVenta: 10, precioCosto: 1, stockActual: 2.75, stockMinimo: 0, unidadMedida: 'PIE' };
-    await expect(productos.create(tenantId, { ...dto, categoriaId: categoria.id })).rejects.toThrow('Categoría');
-    const producto = await productos.create(tenantId, { ...dto, categoria: 'Cables', usaMedida: true });
+    await expect(productos.create(tenantId, { ...dto, categoriaId: categoria.id },usuarioId)).rejects.toThrow('Categoría');
+    const producto = await productos.create(tenantId, { ...dto, categoria: 'Cables', usaMedida: true },usuarioId);
     expect(producto.categoria?.nombre).toBe('Cables');
     expect(producto.unidadMedida).toBe('PIE');
     expect(producto.usaMedida).toBe(true);
@@ -302,3 +306,4 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect((await productos.getLowStock(tenantId)).some((p) => p.id === producto.id)).toBe(false);
   });
 });
+

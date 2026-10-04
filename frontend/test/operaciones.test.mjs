@@ -171,25 +171,20 @@ test('JSON corrupto de una sesión no bloquea el arranque', () => {
   assert.equal(readStoredJson('missing', true), true);
 });
 
-test('descuento autorizado habilita cobro y cambiar el carrito exige nueva autorización', async () => {
-  let solicitudes = [], solicitud;
+test('el límite del cajero proviene del usuario y no de aprobaciones locales', async () => {
+  const sent=[];
   const page = harness('src/pages/POSPage.tsx', 'POSPage', {
-    '../utils/api': { api: { get: async () => ({ data: [{ id: 'p1', codigo: 'P1', nombre: 'Cable', precioVenta: 10, stockActual: 10, stockMinimo: 0 }] }) } },
-    '../context/NotificationContext': { useNotification: () => ({ solicitudes, solicitarDescuento: (data) => (solicitud = { ...data, id: 'discount-1', estado: 'PENDIENTE' }) }) },
+    '../context/TenantContext': {useTenant:()=>({tenant:{id:'tenant-A'},user:{id:'user-A',rol:'CAJERO',descuentoMaximo:10}})},
+    '../utils/api': {api:{get:async()=>({data:[{id:'p1',codigo:'P1',nombre:'Cable',precioVenta:10,stockActual:10,stockMinimo:0}]}),post:async(...args)=>{sent.push(args);return {data:{detalles:[]}};}}},
   });
-  page.render(); await page.effects(); page.render();
-  page.find((n) => n.props.onClick && n.props.className === 'industrial-card').props.onClick();
-  page.render();
-  page.find((n) => n.type === 'input' && n.props.max === '100').props.onChange({ target: { value: '20' } });
-  page.render();
-  page.find((n) => n.props.onClick?.name === 'handleSolicitarAutorizacion').props.onClick();
-  page.render(); await page.effects();
-  solicitudes = [{ ...solicitud, estado: 'APROBADA', respondidoPor: 'Admin' }];
-  page.render(); await page.effects(); page.render();
-  assert.ok(page.find((n) => n.props.onClick?.name === 'handleCobrar'));
-  page.find((n) => n.props.onClick?.toString().includes('modificarCantidad') && n.children.some((c) => c?.type === 'Plus')).props.onClick();
-  page.render();
-  assert.ok(page.find((n) => n.props.onClick?.name === 'handleSolicitarAutorizacion'));
+  page.render();await page.effects();page.render();
+  page.find(n=>n.props.className==='industrial-card').props.onClick();page.render();
+  page.find(n=>n.type==='input'&&n.props.max==='100').props.onChange({target:{value:'20'}});page.render();
+  assert.ok(page.find(n=>n.props.role==='alert'&&n.children.some(v=>typeof v==='string'&&v.includes('supera su límite'))));
+  assert.equal(page.find(n=>n.props.onClick?.name==='handleSolicitarAutorizacion'),undefined);
+  assert.equal(sent.length,0);
+  page.find(n=>n.type==='input'&&n.props.max==='100').props.onChange({target:{value:'5'}});page.render();
+  assert.ok(page.find(n=>n.props.onClick?.name==='handleCobrar'));
 });
 
 test('editar cotización recupera porcentajes desde los montos guardados', async () => {
@@ -261,3 +256,4 @@ test('seleccionar cliente completa datos y guarda su ID; ingreso manual desvincu
   await page.find((node) => node.type === 'button' && node.props.onClick?.toString().includes("handleGuardarFormulario('BORRADOR')")).props.onClick();
   assert.equal(saved[1].clienteId, null);
 });
+

@@ -1,3 +1,4 @@
+import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { VentasService } from './ventas.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -16,9 +17,10 @@ export class VentasController {
   constructor(private readonly ventasService: VentasService) {}
 
   @Get()
-  async findAll(@TenantId() tenantId: string, @Query('limit') limit?: string) {
-    const take = limit ? parseInt(limit, 10) : 50;
-    return this.ventasService.findAll(tenantId, take);
+  async findAll(@TenantId() tenantId: string, @Query('limit') limit?: string, @Query('page') page?: string) {
+    const take = Math.min(500,Math.max(1,Number(limit) || 50));
+    const pageNumber = Math.max(0,Math.floor(Number(page) || 0));
+    return this.ventasService.findAll(tenantId, take, pageNumber);
   }
 
   @Get(':id')
@@ -27,6 +29,7 @@ export class VentasController {
   }
 
   @Post()
+  @RequiredPermission('pos.vender')
   @Roles('ADMIN', 'CAJERO', 'VENDEDOR')
   async create(
     @TenantId() tenantId: string,
@@ -36,3 +39,4 @@ export class VentasController {
     return this.ventasService.create(tenantId, usuarioId, dto);
   }
 }
+

@@ -42,14 +42,23 @@ export const ReportesPage: React.FC = () => {
     const fetchReportData = async () => {
       setErrorText(null);
       try {
+        const allSales = async () => {
+          const rows: any[]=[];
+          for(let page=1;;page++) {
+            const response=await api.get('/ventas',{params:{page,limit:500}});
+            if(!Array.isArray(response.data)) throw new Error('Respuesta de ventas inválida');
+            rows.push(...response.data);
+            if(response.data.length<500) return rows;
+          }
+        };
         const [resP, resC, resV] = await Promise.all([
           api.get('/productos'),
           api.get('/cotizaciones'),
-          api.get('/ventas'),
+          allSales(),
         ]);
         if (Array.isArray(resP.data)) setProductos(resP.data);
         if (Array.isArray(resC.data)) setCotizaciones(resC.data);
-        if (Array.isArray(resV.data)) setVentas(resV.data);
+        setVentas(resV);
       } catch (err) {
         console.error('Error fetching report data:', err);
         setErrorText('No se pudieron obtener los datos para los reportes desde la API real.');
@@ -1897,3 +1906,4 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '4px',
   },
 };
+

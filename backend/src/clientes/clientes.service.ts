@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ServiceUnavailableException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ServiceUnavailableException, ConflictException, Logger } from '@nestjs/common';
+import { lockTenant } from '../operaciones/ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
 
@@ -103,18 +104,15 @@ export class ClientesService {
   }
 
   async delete(tenantId: string, id: string) {
-    // Direct tenant-isolated operation for absolute multi-tenant safety
-    const result = await this.prisma.cliente.deleteMany({
-      where: {
-        id,
-        tenantId,
-      },
+    return this.prisma.$transaction(async tx => {
+      await lockTenant(tx,tenantId);
+      const linked = await tx.venta.count({where:{tenantId,clienteId:id}});
+      const quotes = await tx.cotizacion.count({where:{tenantId,clienteId:id}});
+      if(linked || quotes) throw new ConflictException('El cliente tiene documentos; conserve su historial');
+      const result = await tx.cliente.deleteMany({where:{id,tenantId}});
+      if(!result.count) throw new NotFoundException('Cliente no encontrado o no pertenece a la organización');
+      return {success:true,count:result.count};
     });
-
-    if (result.count === 0) {
-      throw new NotFoundException('Cliente no encontrado o no pertenece a la organización');
-    }
-
-    return { success: true, count: result.count };
   }
 }
+

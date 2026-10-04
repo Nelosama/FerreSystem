@@ -221,6 +221,8 @@ export class AuthService {
         email: usuario.email,
         rol: usuario.rol,
         activo: usuario.activo,
+        permisos: usuario.permisos,
+        descuentoMaximo: Number(usuario.descuentoMaximo),
       },
       tenant: {
         id: usuario.tenant.id,
@@ -279,3 +281,4 @@ export class AuthService {
     return { success: true, message: 'Sesión cerrada correctamente' };
   }
 }
+
