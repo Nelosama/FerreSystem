@@ -402,13 +402,8 @@ export const CotizacionesPage: React.FC = () => {
     }
 
     const subtotalGravadoNeto = Math.max(0, subtotalLineas - descGenMonto);
-    const isvTotal = formItems.reduce((acc, item) => {
-      if (item.exento) return acc;
-      // Proporción de subtotal si hay descuento general
-      const proporcion = subtotalLineas > 0 ? item.subtotal / subtotalLineas : 0;
-      const baseItemNeto = Math.max(0, item.subtotal - descGenMonto * proporcion);
-      return acc + Math.round(baseItemNeto * (formPorcentajeIsv / 100) * 100) / 100;
-    }, 0);
+    const impuestoLineas=formItems.reduce((acc,item)=>acc+(item.exento?0:Math.round(item.subtotal*formPorcentajeIsv)/100),0);
+    const isvTotal=Math.round(impuestoLineas*(subtotalLineas>0?1-descGenMonto/subtotalLineas:0)*100)/100;
 
     const totalFinal = Math.round((subtotalGravadoNeto + isvTotal) * 100) / 100;
 

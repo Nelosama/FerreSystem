@@ -173,6 +173,22 @@ describe('Ventas / PostgreSQL aislado', () => {
       expect((await fetch(`${base}/admin/tenants`, { headers: supportHeaders })).status).toBe(403);
       expect((await fetch(`${base}/admin/tenants`, { headers: adminHeaders })).status).toBe(200);
       expect((await fetch(`${base}/admin/support/token`, { method: 'POST', headers: supportHeaders, body: JSON.stringify({ tenantId, usuarioId, readOnly: false }) })).status).toBe(403);
+      await prisma.usuario.update({where:{id:usuarioId},data:{rol:'CAJERO',passwordHash:await bcrypt.hash(password,4)}});
+      const cashierLogin=await fetch(`${base}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'test@example.test',password,tenantId})});
+      expect(cashierLogin.status).toBe(200);
+      const {accessToken:cashierToken}=await cashierLogin.json() as {accessToken:string};
+      const cashierHeaders={Authorization:`Bearer ${cashierToken}`,'Content-Type':'application/json'};
+      expect((await fetch(`${base}/productos/${productoId}`,{method:'PUT',headers:cashierHeaders,body:JSON.stringify({precioCosto:1})})).status).toBe(403);
+      expect((await fetch(`${base}/operaciones/productos/${productoId}/ajuste`,{method:'POST',headers:cashierHeaders,body:JSON.stringify({solicitudId:randomUUID(),stock:100,motivo:'Manipulado'})})).status).toBe(403);
+      expect((await fetch(`${base}/usuarios`,{headers:cashierHeaders})).status).toBe(403);
+      expect((await fetch(`${base}/operaciones/cuentas?tipo=CXP`,{headers:cashierHeaders})).status).toBe(403);
+      const commercial=await fetch(`${base}/productos/comercial`,{headers:cashierHeaders});expect(commercial.status).toBe(200);
+      const catalog=await commercial.json() as any[];expect(catalog[0].precioVenta).toBe(10);expect(catalog[0].precioCosto).toBeUndefined();
+      expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify({detalles:[{productoId,cantidad:1,precioUnitario:1}]})})).status).toBe(409);
+      await prisma.usuario.update({where:{id:usuarioId},data:{permisosConfigurados:true,permisos:[]}});
+      expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify(request(1))})).status).toBe(403);
+      await prisma.usuario.update({where:{id:usuarioId},data:{activo:false}});
+      expect((await fetch(`${base}/productos/comercial`,{headers:cashierHeaders})).status).toBe(401);
       expect(log).toContain('Conexión exitosa');
       expect(child.exitCode).toBeNull();
     } finally {
@@ -241,7 +257,8 @@ describe('Ventas / PostgreSQL aislado', () => {
   });
 
   it('una falla en la segunda línea revierte stock y correlativo completos', async () => {
-    await expect(ventas.create(tenantId, usuarioId, { detalles: [...request(0.5).detalles, ...request(3).detalles] })).rejects.toThrow('Stock insuficiente');
+    const second=await prisma.producto.create({data:{tenantId,codigo:'SIN-STOCK',nombre:'Agotado',precioVenta:10,precioCosto:1,stockActual:0,stockMinimo:0}});
+    await expect(ventas.create(tenantId, usuarioId, { detalles: [...request(0.5).detalles,{productoId:second.id,cantidad:1,precioUnitario:10}] })).rejects.toThrow('Stock insuficiente');
     expect(await available()).toBe(2.75);
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
     expect(await prisma.secuenciaTenant.count({ where: { tenantId, tipo: 'VENTA' } })).toBe(0);
@@ -261,7 +278,9 @@ describe('Ventas / PostgreSQL aislado', () => {
 
   it('un tenant ajeno no puede descontar ni crear ventas sobre otro inventario', async () => {
     const foreign = await prisma.tenant.create({ data: { nombreComercial: 'Otro tenant' } });
-    await expect(ventas.create(foreign.id, usuarioId, request())).rejects.toThrow('no encontrado');
+    const foreignUser=await prisma.usuario.create({data:{tenantId:foreign.id,nombre:'Otro cajero',email:'foreign@example.test',passwordHash:'test'}});
+    await new OperacionesService(prisma).abrir(foreign.id,foreignUser.id,{solicitudId:randomUUID(),monto:0});
+    await expect(ventas.create(foreign.id, foreignUser.id, request())).rejects.toThrow('no encontrado');
     expect(await available()).toBe(2.75);
     expect(await prisma.venta.count({ where: { tenantId: foreign.id } })).toBe(0);
   });

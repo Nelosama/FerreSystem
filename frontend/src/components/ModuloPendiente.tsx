@@ -1,0 +1,4 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { TopBar } from './TopBar';
+export const ModuloPendiente:React.FC<{nombre:string;especial?:boolean}>=({nombre,especial})=><div><TopBar title={nombre} subtitle="Módulo pendiente de implementación operativa"/><main style={{padding:24}}><section className="industrial-card" style={{padding:24}}><p>Este módulo todavía no registra operaciones del negocio. Sus datos de demostración anteriores se conservan para revisión.</p>{especial?<><p>Registre las ventas especiales desde el POS con la opción «Venta sin inventario» y seleccione el proveedor. Las compras físicas se reciben desde Compras.</p><Link className="btn btn-primary" to="/pos">Ir al POS</Link></>:<p>Utilice Inventario, POS, Caja, Cuentas y Devoluciones para las operaciones habilitadas.</p>}</section></main></div>;

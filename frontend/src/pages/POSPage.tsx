@@ -152,7 +152,7 @@ export const POSPage: React.FC = () => {
   const descuentoMaximoPermitido = user?.rol==='ADMIN'?100:Number(user?.descuentoMaximo??0);
 
   // Cálculos fiscales hondureños con descuento
-  const subtotalBruto = cart.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
+  const subtotalBruto = cart.reduce((acc, item) => acc + Math.round(item.precioUnitario * item.cantidad * 100)/100, 0);
   const esDescuentoExcedido = descuentoPorcentaje > descuentoMaximoPermitido;
   const montoDescuento = Math.round(subtotalBruto * (descuentoPorcentaje / 100) * 100) / 100;
   const subtotal = subtotalBruto - montoDescuento;
@@ -218,7 +218,7 @@ export const POSPage: React.FC = () => {
       // Persistir ANTES del envío: un reload o respuesta perdida reutiliza la operación.
       localStorage.setItem(pendingKey, JSON.stringify(pending));
       setVentaPendiente(pending);
-      const descuentoPendiente = Math.round(pending.cart.reduce((sum, i) => sum + i.precioUnitario * i.cantidad, 0) * pending.descuentoPorcentaje) / 100;
+      const descuentoPendiente = Math.round(pending.cart.reduce((sum, i) => sum + Math.round(i.precioUnitario * i.cantidad * 100)/100, 0) * pending.descuentoPorcentaje) / 100;
       const res = await api.post('/ventas', {
         solicitudId: pending.solicitudId,
         clienteId:pending.clienteId,

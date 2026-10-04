@@ -54,7 +54,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  const run=(path:string,body:any)=>pending?send(pending):send({path,body:{...body,solicitudId:crypto.randomUUID()}});
  const blocked=busy||!!pending||isReadOnly;
  const open=rows.find(c=>c.estado==='ABIERTA');
- const total=items.reduce((sum,i)=>sum+Number(i.cantidad)*Number(i.costo),0)+Number(tax||0);
+ const total=items.reduce((sum,i)=>sum+Math.round(Number(i.cantidad)*Number(i.costo)*100)/100,0)+Number(tax||0);
  const addItem=()=>{
   const p=products.find(p=>p.id===productId);if(!p||Number(qty)<=0||cost===''||Number(cost)<0)return;
   if(items.some(i=>i.productoId===p.id)){setError('El producto ya está en la factura. Quite su línea para corregirla.');return;}

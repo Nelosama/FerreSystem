@@ -10,9 +10,11 @@ import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 import './App.css';
+import { ModuloPendiente } from './components/ModuloPendiente';
 
 import { useTenant } from './context/TenantContext';
 
+const AuditoriaPage=React.lazy(()=>import('./pages/AuditoriaPage').then(m=>({default:m.AuditoriaPage})));
 const DevolucionesPage=React.lazy(()=>import('./pages/DevolucionesPage').then(m=>({default:m.DevolucionesPage})));
 const OperacionesPage=React.lazy(()=>import('./pages/OperacionesPage').then(m=>({default:m.OperacionesPage})));
 
@@ -46,27 +48,17 @@ const LoginPage = React.lazy(() =>
 );
 
 // Nuevos módulos con React.lazy
-const ApartadosPage = React.lazy(() =>
-  import('./pages/ApartadosPage').then(m => ({ default: m.ApartadosPage }))
-);
+const ApartadosPage=()=> <ModuloPendiente nombre="APARTADOS"/>;
 const ArqueoCajaPage = React.lazy(() =>
   import('./pages/ArqueoCajaPage').then(m => ({ default: m.ArqueoCajaPage }))
 );
 const OrdenesCompraPage = React.lazy(() =>
   import('./pages/OrdenesCompraPage').then(m => ({ default: m.OrdenesCompraPage }))
 );
-const TransferenciasPage = React.lazy(() =>
-  import('./pages/TransferenciasPage').then(m => ({ default: m.TransferenciasPage }))
-);
-const GarantiasPage = React.lazy(() =>
-  import('./pages/GarantiasPage').then(m => ({ default: m.GarantiasPage }))
-);
-const PedidosEspecialesPage = React.lazy(() =>
-  import('./pages/PedidosEspecialesPage').then(m => ({ default: m.PedidosEspecialesPage }))
-);
-const ListasPrecioPage = React.lazy(() =>
-  import('./pages/ListasPrecioPage').then(m => ({ default: m.ListasPrecioPage }))
-);
+const TransferenciasPage=()=> <ModuloPendiente nombre="TRANSFERENCIAS ENTRE SUCURSALES"/>;
+const GarantiasPage=()=> <ModuloPendiente nombre="GARANTÍAS"/>;
+const PedidosEspecialesPage=()=> <ModuloPendiente nombre="PEDIDOS ESPECIALES" especial/>;
+const ListasPrecioPage=()=> <ModuloPendiente nombre="LISTAS DE PRECIO"/>;
 const ComisionesPage = React.lazy(() =>
   import('./pages/ComisionesPage').then(m => ({ default: m.ComisionesPage }))
 );
@@ -149,6 +141,7 @@ export const App: React.FC = () => {
             <BrowserRouter>
               <Suspense fallback={<PageLoader />}>
                 <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><AuditoriaPage/></AppLayout></ProtectedRoute>}/>
                   <Routes>
                   {/* Rutas públicas de login */}
                   <Route path="/login" element={<LoginPage />} />
@@ -250,7 +243,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/arqueo-caja"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="arqueo_caja">
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']}>
                         <AppLayout>
                           <ArqueoCajaPage />
                         </AppLayout>

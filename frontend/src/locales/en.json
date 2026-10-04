@@ -18,7 +18,8 @@
     "super_admin": "SUPER ADMIN PANEL",
     "accounts": "ACCOUNTS & PAYMENTS",
     "deliveries": "DELIVERIES",
-    "returns": "RETURNS"
+    "returns": "RETURNS",
+    "audit": "AUDIT"
   },
   "stock_taking": {
     "title": "INVENTORY STOCK TAKING",
