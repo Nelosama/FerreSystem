@@ -471,7 +471,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const service=new ProductosService(prisma);
     const dto={nombre:'Canaleta galvanizada',precioVenta:20,precioCosto:10,stockActual:0,stockMinimo:1};
     const [a,b]=await Promise.all([service.create(tenantId,{...dto,codigoBarras:'123456789',codigoFabricante:'FAB-12',margen:35,imagenUrl:'https://images.example.test/canaleta.webp'},usuarioId),service.create(tenantId,dto,usuarioId)]);
-    expect(a.codigo).not.toBe(b.codigo);expect(a.codigo).toMatch(/^CANALETA-GALVANIZAD/);
+    expect(a.codigo).not.toBe(b.codigo);expect(a.codigo).toMatch(/^CANALETA-GALVANIZA-\d{3}$/);
     const saved=await prisma.producto.findUniqueOrThrow({where:{id:a.id}});
     expect(saved.codigoBarras).toBe('123456789');expect(saved.codigoFabricante).toBe('FAB-12');expect(Number(saved.margen)).toBe(35);expect(saved.imagenUrl).toBe('https://images.example.test/canaleta.webp');
     expect((await service.findAll(tenantId,'FAB-12')).map(p=>p.id)).toEqual([a.id]);
