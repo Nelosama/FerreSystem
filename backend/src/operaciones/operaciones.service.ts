@@ -45,7 +45,7 @@ export class OperacionesService {
    for(const item of dto.items)await query(tx,'INSERT INTO detalles_orden_compra (id,orden_id,producto_id,cantidad,precio_costo,subtotal) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',id(),order.id,item.productoId,item.cantidad,item.costo,money(item.cantidad*item.costo));
    await account(tx,tenantId,userId,'CXP',order.id,p.id,total,dto.vencimiento);
    await audit(tx,tenantId,userId,'COMPRA_CREAR',order.id,{hash,total,numeroFactura});return order;
-  });
+  },{timeout:60000});
  }
  async recibir(tenantId:string,userId:string,orderId:string,dto:RecepcionDto){
   return this.prisma.$transaction(async tx=>{
@@ -57,7 +57,7 @@ export class OperacionesService {
    if(!['SOLICITADA','APROBADA'].includes(order.estado))throw new ConflictException('Compra no admite recepción');
    if(!dto.items?.length || new Set(dto.items.map(x=>x.detalleId)).size!==dto.items.length)throw new BadRequestException('Recepción vacía o líneas repetidas');
    const receptionId=id();
-   const [reception]=await query(tx,'INSERT INTO recepciones_compra (id,tenant_id,orden_id,solicitud_id,solicitud_hash,usuario_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',receptionId,tenantId,order.id,dto.solicitudId,hash,userId);
+   const [reception]=await query(tx,'INSERT INTO recepciones_compra (id,tenant_id,orden_id,solicitud_id,solicitud_hash,usuario_id,fecha) VALUES ($1,$2,$3,$4,$5,$6,clock_timestamp()) RETURNING *',receptionId,tenantId,order.id,dto.solicitudId,hash,userId);
    for(const item of dto.items){
     const quantity=decimal(item.cantidad,'Cantidad',true);
     const [line]=await query(tx,'SELECT * FROM detalles_orden_compra WHERE id=$1 AND orden_id=$2 FOR UPDATE',item.detalleId,order.id);
@@ -74,7 +74,7 @@ export class OperacionesService {
    const [pending]=await query(tx,'SELECT COUNT(*)::int AS cantidad FROM detalles_orden_compra WHERE orden_id=$1 AND cantidad_recibida<cantidad',order.id);
    if(pending.cantidad===0)await query(tx,'UPDATE ordenes_compra SET estado=\'RECIBIDA\',fecha_entrega=NOW(),updated_at=NOW() WHERE id=$1 RETURNING id',order.id);
    await audit(tx,tenantId,userId,'COMPRA_RECIBIR',receptionId,{orderId,items:dto.items});return reception;
-  });
+  },{timeout:60000});
  }
  async cuentas(tenantId:string,userId:string,tipo:string){
   if(!['CXC','CXP'].includes(tipo))throw new BadRequestException('Tipo inválido');

@@ -281,7 +281,7 @@ export class VentasService {
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',total,metodo,venta.id,`Venta ${numeroVenta}`);
       await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id});
       return this.formatVentaCreada(venta);
-    });
+    },{timeout:30000});
   }
   private formatVentaCreada(venta: any) {
     return {

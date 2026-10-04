@@ -41,8 +41,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql
           pg_bin=$(pg_config --bindir)
-          sudo ln -sf "$pg_bin/initdb" /usr/bin/initdb
-          sudo ln -sf "$pg_bin/pg_ctl" /usr/bin/pg_ctl
+          echo "PG_BIN=$pg_bin" >> "$GITHUB_ENV"
       - name: Integración con persistencia PostgreSQL real
         working-directory: backend
         run: npm run test:integration

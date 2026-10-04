@@ -14,7 +14,7 @@ import { ClientesService } from '../src/clientes/clientes.service';
 import * as bcrypt from 'bcrypt';
 
 // Nunca lee DATABASE_URL: crea un clúster exclusivo, sin migraciones ni datos existentes.
-const bin = process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/18/bin' : '/usr/bin';
+const bin = process.env.PG_BIN || (process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/18/bin' : '/usr/bin');
 const executable = (name: string) => join(bin, name + (process.platform === 'win32' ? '.exe' : ''));
 
 describe('Ventas / PostgreSQL aislado', () => {
@@ -38,12 +38,11 @@ describe('Ventas / PostgreSQL aislado', () => {
     const port = (server.address() as { port: number }).port;
     await new Promise<void>((resolve) => server.close(() => resolve()));
     console.log('PostgreSQL temporal: start');
-    started = true;
     execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port}`, '-w', 'start'], { windowsHide: true, timeout: 30000, stdio: 'ignore' });
     started = true;
     // Reproduce una base existente anterior a la numeración, exclusivamente local.
     console.log('PostgreSQL temporal: schema offline');
-    const oldSchema = readFileSync(resolve('prisma/schema.prisma'), 'utf8')
+    const oldSchema = readFileSync(resolve('test/fixtures/schema-main.prisma'), 'utf8')
       .replace(/^.*secuenciaCliente SecuenciaCliente\?.*\r?\n/m, '')
       .replace(/^.*numeroCliente Int.*\r?\n/m, '')
       .replace(/^.*@@unique\(\[tenantId, numeroCliente\]\).*\r?\n/m, '')
@@ -52,6 +51,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const ddl = execFileSync(process.execPath, [resolve('node_modules/prisma/build/index.js'), 'migrate', 'diff', '--from-empty', '--to-schema-datamodel', join(directory, 'old-schema.prisma'), '--script'], { windowsHide: true, timeout: 30000 });
     writeFileSync(join(directory, 'schema.sql'), ddl);
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', join(directory, 'schema.sql')], { windowsHide: true, timeout: 30000 });
+    execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20260930000000_alter_stock_decimal_and_operational_models/migration.sql')], {timeout:30000});
     const legacyData = `INSERT INTO tenants (id, nombre_comercial, updated_at) VALUES ('legacy-A', 'Empresa A', NOW()), ('legacy-B', 'Empresa B', NOW());
       INSERT INTO clientes (id, tenant_id, nombre, rtn, telefono, created_at, updated_at) VALUES
       ('legacy-client-1', 'legacy-A', 'Cliente anterior 1', '08011999000001', '+504 9999-0000', '2026-01-01', '2026-01-01'),

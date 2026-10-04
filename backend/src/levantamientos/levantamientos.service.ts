@@ -50,9 +50,13 @@ export class LevantamientosService {
  async removeItem(tenantId:string,lid:string,itemId:string,userId:string,version:number){return this.prisma.$transaction(async tx=>{await lockTenant(tx,tenantId);const l=await this.session(tx,tenantId,lid);this.editable(l);const item=l.items.find(i=>i.id===itemId);if(!item)throw new NotFoundException('Item no encontrado');if(item.version!==version)throw new ConflictException('El conteo cambió; recargue antes de eliminar');await audit(tx,tenantId,userId,'CONTEO_ELIMINAR',itemId,{anterior:this.item(item)});await tx.levantamientoItem.delete({where:{id:itemId}});return {success:true};});}
  private async preview(tx:any,tenantId:string,lid:string){
   const l=await this.session(tx,tenantId,lid);const rows:any[]=[],seen=new Set<string>(),barcodes=new Set<string>();
+  const candidates=await tx.producto.findMany({where:{tenantId,OR:[
+   {id:{in:l.items.map(i=>i.productoId).filter(Boolean)}},
+   {codigo:{in:l.items.map(i=>i.codigo).filter(Boolean),mode:'insensitive'}},
+   {codigoBarras:{in:l.items.map(i=>i.codigoBarras).filter(Boolean)}}
+  ]}});
   for(const item of l.items){
-   const conditions:any[]=[];if(item.productoId)conditions.push({id:item.productoId});if(item.codigo)conditions.push({codigo:{equals:item.codigo,mode:'insensitive'}});if(item.codigoBarras)conditions.push({codigoBarras:item.codigoBarras});
-   const products=conditions.length?await tx.producto.findMany({where:{tenantId,OR:conditions}}):[];
+   const products=candidates.filter(p=>p.id===item.productoId||item.codigo&&p.codigo.toUpperCase()===item.codigo.toUpperCase()||item.codigoBarras&&p.codigoBarras===item.codigoBarras);
    const p=products.length===1?products[0]:null;
    const internal=item.codigo||`${item.descripcion.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'-').slice(0,18)}-${item.id.slice(0,8).toUpperCase()}`;
    const key=p?.id||internal;
@@ -67,7 +71,7 @@ export class LevantamientosService {
   }
   return {estado:l.estado,aplicadoAt:l.aplicadoAt,rows,token:fingerprint(rows)};
  }
- async previsualizar(tenantId:string,lid:string){return this.prisma.$transaction(async tx=>{await lockTenant(tx,tenantId);return this.preview(tx,tenantId,lid);});}
+ async previsualizar(tenantId:string,lid:string){return this.prisma.$transaction(async tx=>{await lockTenant(tx,tenantId);return this.preview(tx,tenantId,lid);},{timeout:30000});}
  async aplicar(tenantId:string,userId:string,lid:string,token:string){return this.prisma.$transaction(async tx=>{
   await lockTenant(tx,tenantId);const l=await this.session(tx,tenantId,lid);
   if(l.aplicadoAt)return {aplicadoAt:l.aplicadoAt,aplicadoPor:l.aplicadoPor};
@@ -87,5 +91,5 @@ export class LevantamientosService {
    await movement(tx,tenantId,userId,pid!,'LEVANTAMIENTO',r.anterior,r.nuevo,lid,'Conteo revisado y aplicado');
   }
   const result=await tx.levantamiento.update({where:{id:lid},data:{aplicadoAt:new Date(),aplicadoPor:userId}});await audit(tx,tenantId,userId,'LEVANTAMIENTO_APLICAR',lid,{rows:preview.rows});return result;
- },{timeout:30000});}
+ },{timeout:120000});}
 }

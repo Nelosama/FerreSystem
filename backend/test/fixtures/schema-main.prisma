@@ -1,0 +1,470 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Rol {
+  ADMIN
+  CAJERO
+  BODEGUERO
+  VENDEDOR
+}
+
+enum EstadoTenant {
+  ACTIVO
+  SUSPENDIDO
+}
+
+enum UnidadMedida {
+  UNIDAD
+  PIE
+  METRO
+  METRO_CUADRADO
+  METRO_CUBICO
+  LIBRA
+  KG
+  GALON
+  LITRO
+  CAJA
+  PAQUETE
+  OTRO
+}
+
+enum TipoCliente {
+  CONSUMIDOR_FINAL
+  MAYORISTA
+  CONTRATISTA
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TARJETA
+  CREDITO
+}
+
+enum EstadoVenta {
+  COMPLETADA
+  ANULADA
+}
+
+enum EstadoCotizacion {
+  BORRADOR
+  ENVIADA
+  APROBADA
+  RECHAZADA
+  VENCIDA
+  CONVERTIDA
+}
+
+enum TipoSecuencia {
+  VENTA
+  COTIZACION
+}
+
+enum ModoNavegacion {
+  SIDEBAR
+  TOPNAV
+}
+
+enum EstadoLevantamiento {
+  BORRADOR
+  EN_PROGRESO
+  REVISION
+  FINALIZADO
+}
+
+// ============================================================
+// SUPER ADMIN — Tabla separada, sin tenant_id
+// ============================================================
+
+model SuperAdmin {
+  id           String   @id @default(uuid())
+  nombre       String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("super_admins")
+}
+
+// ============================================================
+// TENANT — Cada ferretería cliente
+// ============================================================
+
+model Tenant {
+  id               String       @id @default(uuid())
+  nombreComercial  String       @map("nombre_comercial")
+  direccion        String?
+  telefono         String?
+  email            String?
+  logoUrl          String?      @map("logo_url")
+  colorPrimario    String       @default("#EA580C") @map("color_primario")
+  modoNavegacion   ModoNavegacion @default(SIDEBAR) @map("modo_navegacion")
+  plan             String       @default("Plan Pro")
+  estado           EstadoTenant @default(ACTIVO)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  // Relaciones
+  usuarios         Usuario[]
+  categorias       Categoria[]
+  productos        Producto[]
+  clientes         Cliente[]
+  secuenciaCliente SecuenciaCliente?
+  ventas           Venta[]
+  cotizaciones     Cotizacion[]
+  secuencias       SecuenciaTenant[]
+  modulos          TenantModule[]
+  levantamientos   Levantamiento[]
+
+  @@map("tenants")
+}
+
+// ============================================================
+// TENANT MODULE — Módulos habilitados por tenant (Servicios)
+// ============================================================
+
+model TenantModule {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  moduleKey String   @map("module_key")
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, moduleKey])
+  @@index([tenantId])
+  @@map("tenant_modules")
+}
+
+// ============================================================
+// USUARIO — Pertenece a un tenant
+// ============================================================
+
+model Usuario {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  nombre       String
+  email        String
+  passwordHash String   @map("password_hash")
+  rol          Rol      @default(ADMIN)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ventas       Venta[]
+  cotizaciones Cotizacion[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("usuarios")
+}
+
+// ============================================================
+// CATEGORÍA
+// ============================================================
+
+model Categoria {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  nombre      String
+  descripcion String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productos   Producto[]
+
+  @@unique([tenantId, nombre])
+  @@index([tenantId])
+  @@map("categorias")
+}
+
+// ============================================================
+// PRODUCTO
+// ============================================================
+
+model Producto {
+  id            String      @id @default(uuid())
+  tenantId      String      @map("tenant_id")
+  codigo        String
+  codigoBarras  String?     @map("codigo_barras")
+  nombre        String
+  descripcion   String?
+  categoriaId   String?     @map("categoria_id")
+  precioVenta   Decimal     @map("precio_venta") @db.Decimal(12, 2)
+  precioCosto   Decimal     @map("precio_costo") @db.Decimal(12, 2)
+  stockActual   Decimal     @default(0) @map("stock_actual") @db.Decimal(12, 2)
+  stockMinimo   Decimal     @default(0) @map("stock_minimo") @db.Decimal(12, 2)
+  unidadMedida  UnidadMedida @default(UNIDAD) @map("unidad_medida")
+  usaMedida     Boolean     @default(false) @map("usa_medida")
+  activo        Boolean     @default(true)
+  imagenUrl     String?     @map("imagen_url")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  // Relaciones
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoria     Categoria?  @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
+  detallesVenta DetalleVenta[]
+  detallesCotizacion DetalleCotizacion[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId])
+  @@index([tenantId, activo])
+  @@index([tenantId, nombre])
+  @@index([tenantId, codigoBarras])
+  @@map("productos")
+}
+
+// ============================================================
+// CLIENTE
+// ============================================================
+
+model Cliente {
+  id          String      @id @default(uuid())
+  tenantId    String      @map("tenant_id")
+  numeroCliente Int       @default(0) @map("numero_cliente")
+  nombre      String
+  rtn         String?
+  telefono    String?
+  email       String?
+  direccion   String?
+  tipo        TipoCliente @default(CONSUMIDOR_FINAL)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  // Relaciones
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ventas      Venta[]
+  cotizaciones Cotizacion[]
+
+  @@index([tenantId])
+  @@index([tenantId, nombre])
+  @@unique([tenantId, numeroCliente])
+  @@map("clientes")
+}
+
+model SecuenciaCliente {
+  tenantId     String @id @map("tenant_id")
+  ultimoNumero Int    @map("ultimo_numero")
+  tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("secuencias_cliente")
+}
+
+// ============================================================
+// SECUENCIA POR TENANT — Genera números secuenciales con bloqueo
+// ============================================================
+
+model SecuenciaTenant {
+  id           String        @id @default(uuid())
+  tenantId     String        @map("tenant_id")
+  tipo         TipoSecuencia
+  ultimoNumero Int           @default(0) @map("ultimo_numero")
+
+  // Relaciones
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, tipo])
+  @@map("secuencias_tenant")
+}
+
+// ============================================================
+// VENTA
+// ============================================================
+
+model Venta {
+  id          String      @id @default(uuid())
+  tenantId    String      @map("tenant_id")
+  numeroVenta Int         @map("numero_venta")
+  clienteId   String?     @map("cliente_id")
+  usuarioId   String      @map("usuario_id")
+  subtotal    Decimal     @db.Decimal(12, 2)
+  isv         Decimal     @db.Decimal(12, 2)
+  descuento   Decimal     @default(0) @db.Decimal(12, 2)
+  total       Decimal     @db.Decimal(12, 2)
+  metodoPago  MetodoPago  @default(EFECTIVO) @map("metodo_pago")
+  estado      EstadoVenta @default(COMPLETADA)
+  notas       String?
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  // Relaciones
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cliente     Cliente?       @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  usuario     Usuario        @relation(fields: [usuarioId], references: [id])
+  detalles    DetalleVenta[]
+  cotizacion  Cotizacion?    // Si fue generada desde una cotización
+
+  @@unique([tenantId, numeroVenta])
+  @@index([tenantId])
+  @@index([tenantId, estado])
+  @@index([tenantId, createdAt])
+  @@map("ventas")
+}
+
+// ============================================================
+// DETALLE DE VENTA
+// ============================================================
+
+model DetalleVenta {
+  id             String  @id @default(uuid())
+  ventaId        String  @map("venta_id")
+  productoId     String  @map("producto_id")
+  cantidad       Decimal @db.Decimal(12, 2)
+  precioUnitario Decimal @map("precio_unitario") @db.Decimal(12, 2)
+  subtotal       Decimal @db.Decimal(12, 2)
+
+  // Relaciones
+  venta          Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  producto       Producto @relation(fields: [productoId], references: [id])
+
+  @@index([ventaId])
+  @@map("detalles_venta")
+}
+
+// ============================================================
+// COTIZACIÓN
+// ============================================================
+
+model Cotizacion {
+  id                    String           @id @default(uuid())
+  tenantId              String           @map("tenant_id")
+  numeroCotizacion      Int              @map("numero_cotizacion")
+  clienteId             String?          @map("cliente_id")
+  clienteNombre         String           @default("") @map("cliente_nombre")
+  clienteRtn            String?          @map("cliente_rtn")
+  clienteTelefono       String?          @map("cliente_telefono")
+  clienteEmail          String?          @map("cliente_email")
+  clienteDireccion      String?          @map("cliente_direccion")
+  usuarioId             String           @map("usuario_id")
+  subtotal              Decimal          @db.Decimal(12, 2)
+  porcentajeIsv         Decimal          @default(15.00) @map("porcentaje_isv") @db.Decimal(5, 2)
+  isv                   Decimal          @db.Decimal(12, 2)
+  descuento             Decimal          @default(0) @db.Decimal(12, 2)
+  descuentoGeneral      Decimal          @default(0) @map("descuento_general") @db.Decimal(12, 2)
+  tipoDescuentoGeneral String           @default("MONTO") @map("tipo_descuento_general")
+  total                 Decimal          @db.Decimal(12, 2)
+  estado                EstadoCotizacion @default(BORRADOR)
+  fechaValidez          DateTime         @map("fecha_validez") @db.Date
+  diasValidez           Int              @default(15) @map("dias_validez")
+  condicionesPago       String           @default("CONTADO") @map("condiciones_pago")
+  notas                 String?
+  ventaId               String?          @unique @map("venta_id")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+
+  // Relaciones
+  tenant                Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cliente               Cliente?            @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  usuario               Usuario             @relation(fields: [usuarioId], references: [id])
+  venta                 Venta?              @relation(fields: [ventaId], references: [id], onDelete: SetNull)
+  detalles              DetalleCotizacion[]
+
+  @@unique([tenantId, numeroCotizacion])
+  @@index([tenantId])
+  @@index([tenantId, estado])
+  @@index([tenantId, fechaValidez])
+  @@map("cotizaciones")
+}
+
+// ============================================================
+// DETALLE DE COTIZACIÓN
+// ============================================================
+
+model DetalleCotizacion {
+  id                  String     @id @default(uuid())
+  cotizacionId        String     @map("cotizacion_id")
+  productoId          String     @map("producto_id")
+  codigoProducto      String     @default("") @map("codigo_producto")
+  descripcionProducto String     @default("") @map("descripcion_producto")
+  unidadMedida        String     @default("UNIDAD") @map("unidad_medida")
+  usaMedida           Boolean    @default(false) @map("usa_medida")
+  cantidad            Decimal    @db.Decimal(12, 2)
+  medida              Decimal    @default(1.00) @map("medida") @db.Decimal(12, 2)
+  totalMedida         Decimal    @default(1.00) @map("total_medida") @db.Decimal(12, 2)
+  precioLista         Decimal    @default(0) @map("precio_lista") @db.Decimal(12, 2)
+  precioUnitario      Decimal    @map("precio_unitario") @db.Decimal(12, 2)
+  descuento           Decimal    @default(0) @map("descuento") @db.Decimal(12, 2)
+  tipoDescuento       String     @default("MONTO") @map("tipo_descuento")
+  exento              Boolean    @default(false) @map("exento")
+  subtotal            Decimal    @db.Decimal(12, 2)
+  isv                 Decimal    @default(0) @map("isv") @db.Decimal(12, 2)
+  totalLinea          Decimal    @default(0) @map("total_linea") @db.Decimal(12, 2)
+
+  // Relaciones
+  cotizacion          Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  producto            Producto   @relation(fields: [productoId], references: [id])
+
+  @@index([cotizacionId])
+  @@map("detalles_cotizacion")
+}
+
+// ============================================================
+// LEVANTAMIENTO DE INVENTARIO
+// ============================================================
+
+model Levantamiento {
+  id          String              @id @default(uuid())
+  tenantId    String              @map("tenant_id")
+  nombre      String
+  descripcion String?
+  estado      EstadoLevantamiento @default(BORRADOR)
+  createdBy   String?             @map("created_by")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  // Relaciones
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items       LevantamientoItem[]
+
+  @@index([tenantId])
+  @@index([tenantId, estado])
+  @@index([tenantId, createdAt])
+  @@map("levantamientos")
+}
+
+// ============================================================
+// ITEM DE LEVANTAMIENTO DE INVENTARIO
+// ============================================================
+
+model LevantamientoItem {
+  id              String        @id @default(uuid())
+  levantamientoId String        @map("levantamiento_id")
+  descripcion     String
+  cantidad        Decimal       @db.Decimal(12, 2)
+  unidad          String        @default("unidad")
+  codigo          String?
+  marca           String?
+  categoria       String?
+  notas           String?
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relaciones
+  levantamiento   Levantamiento @relation(fields: [levantamientoId], references: [id], onDelete: Cascade)
+
+  @@index([levantamientoId])
+  @@map("levantamiento_items")
+}
+
