@@ -86,7 +86,7 @@ export const POSPage: React.FC = () => {
   const [special,setSpecial]=useState(false);
   const [specialProvider,setSpecialProvider]=useState('');
   const [cajaAbierta,setCajaAbierta]=useState(false);
-  useEffect(()=>{api.get('/operaciones/proveedores').then(r=>setProviders(r.data)).catch(()=>{});api.get('/operaciones/caja').then(r=>setCajaAbierta(r.data.some((c:any)=>c.estado==='ABIERTA'))).catch(()=>setCajaAbierta(false));},[tenant.id]);
+  useEffect(()=>{let alive=true;setProviders([]);setCajaAbierta(false);api.get('/operaciones/proveedores').then(r=>{if(alive)setProviders(r.data);}).catch(()=>{});api.get('/operaciones/caja').then(r=>{if(alive)setCajaAbierta(r.data.some((c:any)=>c.estado==='ABIERTA'));}).catch(()=>{if(alive)setCajaAbierta(false);});return()=>{alive=false;};},[tenant.id,user?.id]);
   const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA'>(ventaPendiente?.metodoPago || 'EFECTIVO');
   const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(ventaPendiente?.descuentoPorcentaje || 0);
   const cobrandoRef = useRef(false);
@@ -110,9 +110,11 @@ export const POSPage: React.FC = () => {
   }, [pendingKey]);
 
   const fetchProductos = useCallback(async () => {
+    const requestKey=activeKey.current;
     setErrorText(null);
     try {
       const response = await api.get('/productos/comercial');
+      if(requestKey!==activeKey.current)return;
       const data = response.data.map((p: any) => ({
         id: p.id,
         codigo: p.codigo,
@@ -122,7 +124,7 @@ export const POSPage: React.FC = () => {
         descripcion: p.descripcion,
         categoria: p.categoria?.nombre || p.categoria || 'General',
         precioVenta: Number(p.precioVenta),
-        precioCosto: Number(p.precioCosto),
+        precioCosto: Number(p.precioCosto||0),
         imagenUrl:p.imagenUrl,
         stockActual: Number(p.stockActual),
         stockMinimo: Number(p.stockMinimo),
@@ -132,7 +134,9 @@ export const POSPage: React.FC = () => {
         stockBajo: p.stockBajo ?? (Number(p.stockActual) <= Number(p.stockMinimo)),
       }));
       setProductos(data);
+      return data;
     } catch (err: any) {
+      if(requestKey!==activeKey.current)return;
       console.error('Error al cargar productos en POS:', err);
       const status = err.response?.status;
       setErrorText(status === 403
@@ -146,8 +150,8 @@ export const POSPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchProductos();
-  }, [fetchProductos]);
+    setProductos([]);fetchProductos();
+  }, [fetchProductos,pendingKey]);
 
   const descuentoMaximoPermitido = user?.rol==='ADMIN'?100:Number(user?.descuentoMaximo??0);
 
@@ -251,7 +255,7 @@ export const POSPage: React.FC = () => {
       await fetchProductos(); // Refrescar inventario actualizado
     } catch (err: any) {
       // Solo una validación fallida confirma que la operación no se registró.
-      if ([400, 404, 409, 422].includes(err.response?.status)) {
+      if ([400,403, 404, 409, 422].includes(err.response?.status)) {
         localStorage.removeItem(pendingKey);
         if (activeKey.current === pendingKey) setVentaPendiente(null);
       }
@@ -270,6 +274,7 @@ export const POSPage: React.FC = () => {
 
       <main style={styles.content} className="ferre-pos-main">
         <div className="ferre-pos-notice"><Link to="/arqueo-caja">Abrir o revisar mi caja</Link> · <Link to="/cuentas">Cuentas y abonos</Link> · <Link to="/entregas">Entregas</Link>{!cajaAbierta&&<p>Abra su caja antes de cobrar.</p>}</div>
+        <button className="btn btn-secondary" disabled={edicionBloqueada} onClick={async()=>{const data=await fetchProductos();if(data)setCart(current=>current.map(i=>{const p=data.find((p:ProductItem)=>p.id===i.productoId);return p?{...i,precioUnitario:p.precioVenta}:i;}));}}>Actualizar catálogo y precios del carrito</button>
         <div className="ferre-pos-notice"><label><input type="checkbox" checked={special} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecial(e.target.checked)}/> Venta sin inventario: mercancía que no entra al local</label>{special&&<select aria-label="Proveedor de venta sin inventario" className="form-input" value={specialProvider} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecialProvider(e.target.value)}><option value="">Seleccione proveedor</option>{providers.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}</select>}</div>
         {ventaPendiente && !procesandoVenta && (
           <div role="status" className="industrial-card" style={{ marginBottom: '16px' }}>

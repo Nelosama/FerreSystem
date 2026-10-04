@@ -9,6 +9,7 @@ import { VentasService } from '../src/ventas/ventas.service';
 import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
 import { LevantamientosService } from '../src/levantamientos/levantamientos.service';
+import { UsuariosService } from '../src/usuarios/usuarios.service';
 import { ProductosService } from '../src/productos/productos.service';
 import { ClientesService } from '../src/clientes/clientes.service';
 import * as bcrypt from 'bcrypt';
@@ -464,6 +465,28 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect(Number(result.credito_cancelado)).toBe(6.5);expect(Number(result.reembolso)).toBe(5);
     expect(Number((await ops.cuentas(tenantId,usuarioId,'CXC'))[0].saldo)).toBe(0);
     expect((await ops.caja(tenantId,usuarioId))[0].efectivoEsperado).toBe(1000);
+  });
+
+  it('los códigos internos concurrentes son distintos y fabricante/barcode/margen/foto se guardan realmente',async()=>{
+    const service=new ProductosService(prisma);
+    const dto={nombre:'Canaleta galvanizada',precioVenta:20,precioCosto:10,stockActual:0,stockMinimo:1};
+    const [a,b]=await Promise.all([service.create(tenantId,{...dto,codigoBarras:'123456789',codigoFabricante:'FAB-12',margen:35,imagenUrl:'https://images.example.test/canaleta.webp'},usuarioId),service.create(tenantId,dto,usuarioId)]);
+    expect(a.codigo).not.toBe(b.codigo);expect(a.codigo).toMatch(/^CANALETA-GALVANIZAD/);
+    const saved=await prisma.producto.findUniqueOrThrow({where:{id:a.id}});
+    expect(saved.codigoBarras).toBe('123456789');expect(saved.codigoFabricante).toBe('FAB-12');expect(Number(saved.margen)).toBe(35);expect(saved.imagenUrl).toBe('https://images.example.test/canaleta.webp');
+    expect((await service.findAll(tenantId,'FAB-12')).map(p=>p.id)).toEqual([a.id]);
+    await expect(service.create(tenantId,{...dto,codigoBarras:'123456789'},usuarioId)).rejects.toThrow('barras ya registrado');
+  });
+  it('los permisos se persisten y desactivar conserva historial y al último administrador',async()=>{
+    const service=new UsuariosService(prisma);
+    await expect(service.remove(tenantId,usuarioId,usuarioId)).rejects.toThrow('administrador activo');
+    const cashier=await service.create(tenantId,{nombre:'Cajero',email:'cashier@example.test',password:'test-only-password',permisos:['pos.vender'],descuentoMaximo:5},usuarioId);
+    expect(cashier.rol).toBe('CAJERO');
+    const saved=await prisma.usuario.findUniqueOrThrow({where:{id:cashier.id}});
+    expect(saved.permisos).toEqual(['pos.vender']);expect(saved.permisosConfigurados).toBe(true);expect(Number(saved.descuentoMaximo)).toBe(5);
+    await service.remove(tenantId,cashier.id,usuarioId);
+    expect((await prisma.usuario.findUniqueOrThrow({where:{id:cashier.id}})).activo).toBe(false);
+    expect(await prisma.auditoriaOperacion.count({where:{tenantId,entidadId:cashier.id}})).toBe(2);
   });
 
 });

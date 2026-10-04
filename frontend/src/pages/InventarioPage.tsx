@@ -37,6 +37,7 @@ export const InventarioPage: React.FC = () => {
         categoria: p.categoria?.nombre || p.categoria || 'General',
         precioVenta: Number(p.precioVenta),
         precioCosto: Number(p.precioCosto),
+        margen:p.margen==null?undefined:Number(p.margen),
         imagenUrl:p.imagenUrl,
         stockActual: Number(p.stockActual),
         stockReservado:Number(p.stockReservado||0),stockDisponible:Number(p.stockDisponible??p.stockActual),
@@ -306,7 +307,7 @@ export const InventarioPage: React.FC = () => {
                   <label className="form-label">{t('inventory.sku')}</label>
                   <input
                     type="text"
-                    
+
                     placeholder={t('operational.ej_art_005')}
                     value={formCodigo}
                     onChange={(e) => setFormCodigo(e.target.value)}

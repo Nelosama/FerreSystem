@@ -79,6 +79,7 @@ export interface ProductItem {
   categoria: string;
   precioVenta: number;
   precioCosto: number;
+  margen?:number;
   stockActual: number;
   stockReservado?:number;
   stockDisponible?:number;

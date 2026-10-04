@@ -63,6 +63,7 @@ export class LevantamientosService {
    const errors:string[]=[];
    if(products.length>1)errors.push('Código/barcode identifica productos diferentes');
    if(p&&!p.activo)errors.push('Producto inactivo');
+   if(p&&String(item.unidad||'UNIDAD').toUpperCase()!==p.unidadMedida)errors.push('La unidad contada no coincide con la del producto; concilie sin convertir cantidades automáticamente');
    if(p&&Number(item.cantidad)<Number(p.stockReservado||0))errors.push('Conteo menor a mercancía pendiente de entrega');
    if(item.codigoBarras){if(barcodes.has(item.codigoBarras))errors.push('Código de barras repetido en el conteo');barcodes.add(item.codigoBarras);}
    if(seen.has(key))errors.push('Conteo duplicado: concilie antes de aplicar');seen.add(key);
