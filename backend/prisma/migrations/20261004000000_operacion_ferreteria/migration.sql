@@ -207,3 +207,20 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permisos_configurados BOOLEAN NOT 
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_reservado DECIMAL(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS reserva_pendiente BOOLEAN NOT NULL DEFAULT false;
 DO $$ BEGIN ALTER TABLE productos ADD CONSTRAINT stock_reservado_check CHECK (stock_reservado >= 0 AND stock_actual >= stock_reservado) NOT VALID; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+ALTER TYPE "TipoMovimientoCaja" ADD VALUE IF NOT EXISTS 'DEVOLUCION';
+CREATE TABLE IF NOT EXISTS devoluciones (
+ id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, venta_id TEXT NOT NULL,
+ usuario_id TEXT NOT NULL, solicitud_hash TEXT NOT NULL, motivo TEXT NOT NULL,
+ monto DECIMAL(12,2) NOT NULL, credito_cancelado DECIMAL(12,2) NOT NULL,
+ reembolso DECIMAL(12,2) NOT NULL, metodo TEXT NOT NULL, caja_id TEXT,
+ created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT devoluciones_venta_id_fkey FOREIGN KEY(venta_id) REFERENCES ventas(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS devoluciones_tenant_id_venta_id_idx ON devoluciones(tenant_id,venta_id);
+CREATE TABLE IF NOT EXISTS detalles_devolucion (
+ id TEXT PRIMARY KEY,devolucion_id TEXT NOT NULL,detalle_venta_id TEXT NOT NULL,
+ cantidad DECIMAL(12,2) NOT NULL CHECK(cantidad>0), destino TEXT NOT NULL,
+ CONSTRAINT detalles_devolucion_devolucion_id_fkey FOREIGN KEY(devolucion_id) REFERENCES devoluciones(id) ON DELETE RESTRICT,
+ CONSTRAINT detalles_devolucion_detalle_venta_id_fkey FOREIGN KEY(detalle_venta_id) REFERENCES detalles_venta(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS detalles_devolucion_detalle_venta_id_idx ON detalles_devolucion(detalle_venta_id);

@@ -47,3 +47,14 @@ export class AjusteDto {
  @IsNumber({maxDecimalPlaces:2}) @Min(0) stock!: number;
  @IsString() @IsNotEmpty() @MaxLength(500) motivo!: string;
 }
+export class DevolucionItemDto {
+ @IsString() @IsNotEmpty() detalleId!:string;
+ @IsNumber({maxDecimalPlaces:2}) @Min(.01) cantidad!:number;
+ @IsIn(['INVENTARIO','DAÑADO','PROVEEDOR','NO_ENTREGADO']) destino!:string;
+}
+export class DevolucionDto {
+ @IsUUID('4') solicitudId!:string;
+ @IsString() @IsNotEmpty() @MaxLength(500) motivo!:string;
+ @IsIn(['EFECTIVO','TARJETA','TRANSFERENCIA']) metodo!:string;
+ @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({each:true}) @Type(()=>DevolucionItemDto) items!:DevolucionItemDto[];
+}

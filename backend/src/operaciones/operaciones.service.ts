@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { account, actor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
-import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, PagoDto, ProveedorDto, RecepcionDto } from './operaciones.dto';
+import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, PagoDto, ProveedorDto, RecepcionDto } from './operaciones.dto';
 
 @Injectable()
 export class OperacionesService {
@@ -154,10 +154,10 @@ export class OperacionesService {
    const [v]=await query(tx,'SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado=\'COMPLETADA\' FOR UPDATE',ventaId,tenantId);if(!v)throw new NotFoundException('Venta registrada no encontrada');
    if(v.entregado_at)return v;
    if(v.reserva_pendiente){
-    const details=await query(tx,'SELECT * FROM detalles_venta WHERE venta_id=$1 AND sin_inventario=false',v.id);
+    const details=await query(tx,'SELECT d.*,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d WHERE venta_id=$1 AND sin_inventario=false',v.id);
     for(const d of details){
      const [p]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.producto_id,tenantId);
-     const quantity=Number(d.cantidad);
+     const quantity=money(Number(d.cantidad)-Number(d.devuelto));if(quantity===0)continue;
      if(!p||Number(p.stock_actual)<quantity||Number(p.stock_reservado)<quantity)throw new ConflictException('Existencias reservadas inconsistentes; revise inventario');
      await query(tx,'UPDATE productos SET stock_actual=stock_actual-$1,stock_reservado=stock_reservado-$1,updated_at=NOW() WHERE id=$2 RETURNING id',quantity,p.id);
      await movement(tx,tenantId,userId,p.id,'ENTREGA',Number(p.stock_actual),money(Number(p.stock_actual)-quantity),v.id,'Entrega de venta registrada');
@@ -168,15 +168,70 @@ export class OperacionesService {
  }
  async entregas(tenantId:string){
   const ventas=await query(this.prisma,"SELECT v.*,COALESCE(c.nombre,v.cliente_nombre) AS cliente_nombre FROM ventas v LEFT JOIN clientes c ON c.id=v.cliente_id WHERE v.tenant_id=$1 AND v.estado='COMPLETADA' AND v.entregado_at IS NULL ORDER BY v.created_at",tenantId);
-  for(const v of ventas)v.items=await query(this.prisma,'SELECT d.*,p.nombre FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1',v.id);
-  return ventas;
+  for(const v of ventas)v.items=await query(this.prisma,'SELECT d.*,p.nombre,d.cantidad-COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS cantidad FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1 AND d.cantidad>COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0)',v.id);
+  return ventas.filter(v=>v.items.length>0);
  }
  async resumen(tenantId:string,desde:string,hasta:string){
   if(![desde,hasta].every(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&!Number.isNaN(Date.parse(d))&&new Date(d).toISOString().slice(0,10)===d)||desde>hasta)throw new BadRequestException('Rango de fechas inválido');
   return {
+   devoluciones:await query(this.prisma,"SELECT COUNT(*)::int AS cantidad,COALESCE(SUM(monto),0) AS monto FROM devoluciones WHERE tenant_id=$1 AND created_at>=$2::date AND created_at<$3::date+INTERVAL '1 day'",tenantId,desde,hasta),
    metodos:await query(this.prisma,'SELECT metodo_pago,COUNT(*)::int AS cantidad,SUM(total) AS total FROM ventas WHERE tenant_id=$1 AND estado=\'COMPLETADA\' AND created_at>=$2::date AND created_at<$3::date+INTERVAL \'1 day\' GROUP BY metodo_pago',tenantId,desde,hasta),
    rotacion:await query(this.prisma,'SELECT p.id,p.codigo,p.nombre,SUM(d.cantidad) AS cantidad FROM detalles_venta d JOIN ventas v ON v.id=d.venta_id JOIN productos p ON p.id=d.producto_id WHERE v.tenant_id=$1 AND v.estado=\'COMPLETADA\' AND d.sin_inventario=false AND v.created_at>=$2::date AND v.created_at<$3::date+INTERVAL \'1 day\' GROUP BY p.id ORDER BY cantidad DESC LIMIT 30',tenantId,desde,hasta),
    alertas:await query(this.prisma,'SELECT tipo,COUNT(*)::int AS cantidad,SUM(saldo) AS saldo FROM cuentas_operativas WHERE tenant_id=$1 AND saldo>0 AND vencimiento<=NOW()+INTERVAL \'7 days\' GROUP BY tipo',tenantId),
   };
+ } async buscarVenta(tenantId:string,numero:string){
+  const n=Number(numero);if(!Number.isSafeInteger(n)||n<1)throw new BadRequestException('Número de venta inválido');
+  const [v]=await query(this.prisma,'SELECT * FROM ventas WHERE tenant_id=$1 AND numero_venta=$2',tenantId,n);if(!v)throw new NotFoundException('Venta no encontrada');
+  v.items=await query(this.prisma,'SELECT d.*,p.nombre,p.codigo,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1',v.id);
+  v.devoluciones=await query(this.prisma,'SELECT * FROM devoluciones WHERE venta_id=$1 AND tenant_id=$2 ORDER BY created_at',v.id,tenantId);return v;
  }
+ async devolver(tenantId:string,userId:string,ventaId:string,dto:DevolucionDto){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);const hash=fingerprint({userId,ventaId,dto});
+   const [previous]=await query(tx,'SELECT * FROM devoluciones WHERE id=$1',dto.solicitudId);
+   if(previous){if(previous.tenant_id!==tenantId||previous.solicitud_hash!==hash)throw new ConflictException('Solicitud utilizada para otra devolución');return previous;}
+   const [v]=await query(tx,"SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado='COMPLETADA' FOR UPDATE",ventaId,tenantId);if(!v)throw new NotFoundException('Venta no encontrada');
+   if(!dto.items?.length||new Set(dto.items.map(i=>i.detalleId)).size!==dto.items.length)throw new BadRequestException('Seleccione líneas distintas');
+   const details=await query(tx,'SELECT d.*,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d WHERE d.venta_id=$1',v.id);
+   let gross=0,before=0,added=0;
+   for(const d of details){gross+=Number(d.cantidad)*Number(d.precio_unitario);before+=Number(d.devuelto)*Number(d.precio_unitario);}
+   for(const item of dto.items){
+    const d=details.find(d=>d.id===item.detalleId),quantity=decimal(item.cantidad,'Cantidad',true);if(!d)throw new NotFoundException('Línea de venta no encontrada');
+    if(quantity>money(Number(d.cantidad)-Number(d.devuelto)))throw new BadRequestException('Cantidad supera lo vendido pendiente de devolver');
+    if(v.reserva_pendiente&&!d.sin_inventario&&item.destino!=='NO_ENTREGADO')throw new BadRequestException('La mercancía reservada debe cancelarse como no entregada');
+    if(!v.reserva_pendiente&&!d.sin_inventario&&item.destino==='NO_ENTREGADO')throw new BadRequestException('La mercancía ya entregada requiere un destino físico');
+    if(d.sin_inventario&&item.destino==='INVENTARIO')throw new BadRequestException('Mercancía sin inventario requiere recepción física separada');
+    added+=quantity*Number(d.precio_unitario);
+   }
+   const [old]=await query(tx,'SELECT COALESCE(SUM(monto),0) AS monto FROM devoluciones WHERE venta_id=$1',v.id);
+   const monto=money(Math.max(0,(gross>0?money(Number(v.total)*(before+added)/gross):0)-Number(old.monto)));
+   let credito=0;
+   if(v.metodo_pago==='CREDITO'){
+    const [c]=await query(tx,"SELECT * FROM cuentas_operativas WHERE tenant_id=$1 AND tipo='CXC' AND documento_id=$2 FOR UPDATE",tenantId,v.id);
+    if(!c)throw new ConflictException('Concilie la cuenta histórica antes de devolver una venta a crédito');
+    credito=Math.min(monto,Number(c.saldo));await query(tx,'UPDATE cuentas_operativas SET saldo=saldo-$1 WHERE id=$2 RETURNING id',credito,c.id);
+   }
+   const refund=money(monto-credito),metodo=paymentMethod(dto.metodo);let caja:any=null;
+   if(refund>0){caja=await openCash(tx,tenantId,userId);if(metodo==='EFECTIVO'){
+    const [cash]=await query(tx,"SELECT COALESCE(SUM(monto),0) AS monto FROM movimientos_caja WHERE caja_id=$1 AND metodo='EFECTIVO'",caja.id);
+    if(refund>money(Number(caja.monto_apertura)+Number(cash.monto)))throw new ConflictException('Efectivo insuficiente para reembolsar');
+   }}
+   const [result]=await query(tx,'INSERT INTO devoluciones(id,tenant_id,venta_id,usuario_id,solicitud_hash,motivo,monto,credito_cancelado,reembolso,metodo,caja_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',dto.solicitudId,tenantId,v.id,userId,hash,text(dto.motivo,'Motivo'),monto,credito,refund,metodo,caja?.id||null);
+   for(const item of dto.items){
+    const d=details.find(d=>d.id===item.detalleId);
+    await query(tx,'INSERT INTO detalles_devolucion(id,devolucion_id,detalle_venta_id,cantidad,destino) VALUES($1,$2,$3,$4,$5) RETURNING id',id(),result.id,d.id,item.cantidad,item.destino);
+    if(!d.sin_inventario){
+     const [p]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.producto_id,tenantId);
+     if(v.reserva_pendiente)await query(tx,'UPDATE productos SET stock_reservado=stock_reservado-$1,updated_at=NOW() WHERE id=$2 RETURNING id',item.cantidad,p.id);
+     else if(item.destino==='INVENTARIO'){
+      await query(tx,'UPDATE productos SET stock_actual=stock_actual+$1,updated_at=NOW() WHERE id=$2 RETURNING id',item.cantidad,p.id);
+      await movement(tx,tenantId,userId,p.id,'DEVOLUCION',Number(p.stock_actual),money(Number(p.stock_actual)+item.cantidad),result.id,dto.motivo);
+     }
+    }
+   }
+   if(caja)await cashMovement(tx,caja.id,userId,'DEVOLUCION',-refund,metodo,result.id,`Devolución de venta ${v.numero_venta}`);
+   await audit(tx,tenantId,userId,'VENTA_DEVOLVER',result.id,{ventaId,monto,credito,refund,metodo,items:dto.items});return result;
+  },{timeout:60000});
+ }
+
 }

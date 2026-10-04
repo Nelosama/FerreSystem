@@ -306,6 +306,7 @@ model SecuenciaTenant {
 // ============================================================
 
 model Venta {
+ devoluciones Devolucion[]
   reservaPendiente Boolean @default(false) @map("reserva_pendiente")
   id          String      @id @default(uuid())
   tenantId    String      @map("tenant_id")
@@ -346,6 +347,7 @@ model Venta {
 // ============================================================
 
 model DetalleVenta {
+ devoluciones DetalleDevolucion[]
   id             String  @id @default(uuid())
   ventaId        String  @map("venta_id")
   productoId     String  @map("producto_id")
@@ -508,6 +510,7 @@ enum EstadoCaja {
  CERRADA
 }
 enum TipoMovimientoCaja {
+ DEVOLUCION
  INGRESO_MANUAL
  EGRESO_MANUAL
  VENTA_POS
@@ -696,4 +699,34 @@ model AuditoriaOperacion {
  createdAt DateTime @default(now()) @map("created_at")
  @@index([tenantId,createdAt])
  @@map("auditoria_operaciones")
+}
+
+model Devolucion {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ ventaId String @map("venta_id")
+ usuarioId String @map("usuario_id")
+ solicitudHash String @map("solicitud_hash")
+ motivo String
+ monto Decimal @db.Decimal(12,2)
+ creditoCancelado Decimal @map("credito_cancelado") @db.Decimal(12,2)
+ reembolso Decimal @db.Decimal(12,2)
+ metodo String
+ cajaId String? @map("caja_id")
+ createdAt DateTime @default(now()) @map("created_at")
+ venta Venta @relation(fields:[ventaId],references:[id],onDelete:Restrict)
+ items DetalleDevolucion[]
+ @@index([tenantId,ventaId])
+ @@map("devoluciones")
+}
+model DetalleDevolucion {
+ id String @id @default(uuid())
+ devolucionId String @map("devolucion_id")
+ detalleVentaId String @map("detalle_venta_id")
+ cantidad Decimal @db.Decimal(12,2)
+ destino String
+ devolucion Devolucion @relation(fields:[devolucionId],references:[id],onDelete:Restrict)
+ detalleVenta DetalleVenta @relation(fields:[detalleVentaId],references:[id],onDelete:Restrict)
+ @@index([detalleVentaId])
+ @@map("detalles_devolucion")
 }

@@ -13,6 +13,7 @@ import './App.css';
 
 import { useTenant } from './context/TenantContext';
 
+const DevolucionesPage=React.lazy(()=>import('./pages/DevolucionesPage').then(m=>({default:m.DevolucionesPage})));
 const OperacionesPage=React.lazy(()=>import('./pages/OperacionesPage').then(m=>({default:m.OperacionesPage})));
 
 // Dynamic page imports with React.lazy
@@ -147,7 +148,8 @@ export const App: React.FC = () => {
           <NotificationProvider>
             <BrowserRouter>
               <Suspense fallback={<PageLoader />}>
-                <Routes>
+                <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
+                  <Routes>
                   {/* Rutas públicas de login */}
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/admin/login" element={<Navigate to="/login" replace />} />

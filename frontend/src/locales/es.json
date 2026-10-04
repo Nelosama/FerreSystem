@@ -17,7 +17,8 @@
     "configuration": "CONFIGURACIÓN GLOBAL",
     "super_admin": "PANEL SUPER ADMIN",
     "accounts": "CUENTAS Y ABONOS",
-    "deliveries": "ENTREGAS"
+    "deliveries": "ENTREGAS",
+    "returns": "DEVOLUCIONES"
   },
   "stock_taking": {
     "title": "LEVANTAMIENTO DE INVENTARIO",

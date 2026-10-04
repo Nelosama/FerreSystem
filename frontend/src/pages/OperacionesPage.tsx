@@ -47,7 +47,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
    localStorage.removeItem(pendingKey);setPending(null);setSuccess('Operación registrada.');
    await load();return true;
   }catch(e:any){
-   if([400,404,409,422].includes(e.response?.status)){localStorage.removeItem(pendingKey);setPending(null);}
+   if([400,403,404,409,422].includes(e.response?.status)){localStorage.removeItem(pendingKey);setPending(null);}
    setError(errorMessage(e));return false;
   }finally{setBusy(false);running.current=false;}
  };

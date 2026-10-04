@@ -17,7 +17,8 @@
     "configuration": "GLOBAL SETTINGS",
     "super_admin": "SUPER ADMIN PANEL",
     "accounts": "ACCOUNTS & PAYMENTS",
-    "deliveries": "DELIVERIES"
+    "deliveries": "DELIVERIES",
+    "returns": "RETURNS"
   },
   "stock_taking": {
     "title": "INVENTORY STOCK TAKING",

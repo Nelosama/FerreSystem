@@ -38,7 +38,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const port = (server.address() as { port: number }).port;
     await new Promise<void>((resolve) => server.close(() => resolve()));
     console.log('PostgreSQL temporal: start');
-    execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port}`, '-w', 'start'], { windowsHide: true, timeout: 30000, stdio: 'ignore' });
+    try {execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port}${process.platform === 'win32' ? '' : ' -k '+directory}`, '-w', 'start'], { windowsHide: true, timeout: 30000, stdio: 'pipe' });} catch(error) {if(existsSync(join(directory,'postgres.log')))console.error(readFileSync(join(directory,'postgres.log'),'utf8'));throw error;}
     started = true;
     // Reproduce una base existente anterior a la numeración, exclusivamente local.
     console.log('PostgreSQL temporal: schema offline');
@@ -411,6 +411,40 @@ describe('Ventas / PostgreSQL aislado', () => {
     p=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
     expect(Number(p.stockActual)).toBe(.75);expect(Number(p.stockReservado)).toBe(0);
     expect(await prisma.movimientoInventario.count({where:{tenantId,tipo:'ENTREGA'}})).toBe(1);
+  });
+
+  it('una devolución entregada restaura inventario, reembolsa una sola vez y no permite devolver de más',async()=>{
+    const ops=new OperacionesService(prisma),sale=await ventas.create(tenantId,usuarioId,request(2));
+    await ops.entregar(tenantId,usuarioId,sale.id);
+    const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
+    const command={solicitudId:randomUUID(),motivo:'Producto equivocado',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'INVENTARIO'}]};
+    await Promise.all([ops.devolver(tenantId,usuarioId,sale.id,command),ops.devolver(tenantId,usuarioId,sale.id,command)]);
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual)).toBe(1.75);
+    expect((await ops.caja(tenantId,usuarioId))[0].efectivoEsperado).toBe(1011.5);
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(1);
+    await expect(ops.devolver(tenantId,usuarioId,sale.id,{...command,solicitudId:randomUUID(),items:[{...command.items[0],cantidad:2}]})).rejects.toThrow('supera');
+  });
+  it('cancelar mercancía no entregada libera reserva y cancela crédito sin ingreso físico ficticio',async()=>{
+    const ops=new OperacionesService(prisma),client=await new ClientesService(prisma).create(tenantId,{nombre:'Cliente'});
+    const sale=await ventas.create(tenantId,usuarioId,{...request(2),metodoPago:'CREDITO',clienteId:client.id});
+    const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
+    await ops.devolver(tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),motivo:'Cancelación parcial',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'NO_ENTREGADO'}]});
+    expect(Number((await ops.cuentas(tenantId,usuarioId,'CXC'))[0].saldo)).toBe(11.5);
+    expect((await ops.caja(tenantId,usuarioId))[0].efectivoEsperado).toBe(1000);
+    await ops.entregar(tenantId,usuarioId,sale.id);
+    const p=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
+    expect(Number(p.stockActual)).toBe(1.75);expect(Number(p.stockReservado)).toBe(0);
+  });
+  it('devolver crédito con abonos cancela saldo y reembolsa el excedente pagado',async()=>{
+    const ops=new OperacionesService(prisma),client=await new ClientesService(prisma).create(tenantId,{nombre:'Cliente'});
+    const sale=await ventas.create(tenantId,usuarioId,{...request(1),metodoPago:'CREDITO',clienteId:client.id});
+    const debt=(await ops.cuentas(tenantId,usuarioId,'CXC'))[0];
+    await ops.pagar(tenantId,usuarioId,debt.id,{solicitudId:randomUUID(),monto:5,metodo:'EFECTIVO'});
+    const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
+    const result=await ops.devolver(tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),motivo:'Cancelación',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'NO_ENTREGADO'}]});
+    expect(Number(result.credito_cancelado)).toBe(6.5);expect(Number(result.reembolso)).toBe(5);
+    expect(Number((await ops.cuentas(tenantId,usuarioId,'CXC'))[0].saldo)).toBe(0);
+    expect((await ops.caja(tenantId,usuarioId))[0].efectivoEsperado).toBe(1000);
   });
 
 });
