@@ -33,7 +33,7 @@ export class ProductosService {
    if(await tx.producto.findFirst({where:{tenantId,codigo:{equals:codigo,mode:'insensitive'}}}))throw new ConflictException('Código ya registrado');
    const barcode=dto.codigoBarras?.trim()||null;
    if(barcode&&await tx.producto.findFirst({where:{tenantId,codigoBarras:barcode,activo:true}}))throw new ConflictException('Código de barras ya registrado');
-   const p=await tx.producto.create({data:{tenantId,codigo,nombre,codigoBarras:barcode,codigoFabricante:dto.codigoFabricante?.trim()||null,descripcion:dto.descripcion,categoriaId:await this.category(tx,tenantId,dto),usaMedida:dto.usaMedida??false,precioVenta:decimal(dto.precioVenta,'Precio'),precioCosto:decimal(dto.precioCosto,'Costo'),margen:dto.margen,stockActual:decimal(dto.stockActual,'Stock'),stockMinimo:decimal(dto.stockMinimo,'Mínimo'),unidadMedida:dto.unidadMedida||'UNIDAD'},include:{categoria:{select:{id:true,nombre:true}}}});
+   const p=await tx.producto.create({data:{tenantId,codigo,nombre,codigoBarras:barcode,codigoFabricante:dto.codigoFabricante?.trim()||null,imagenUrl:dto.imagenUrl||null,descripcion:dto.descripcion,categoriaId:await this.category(tx,tenantId,dto),usaMedida:dto.usaMedida??false,precioVenta:decimal(dto.precioVenta,'Precio'),precioCosto:decimal(dto.precioCosto,'Costo'),margen:dto.margen,stockActual:decimal(dto.stockActual,'Stock'),stockMinimo:decimal(dto.stockMinimo,'Mínimo'),unidadMedida:dto.unidadMedida||'UNIDAD'},include:{categoria:{select:{id:true,nombre:true}}}});
    await movement(tx,tenantId,userId,p.id,'INICIAL',0,Number(p.stockActual),p.id,'Alta inicial de producto');await audit(tx,tenantId,userId,'PRODUCTO_CREAR',p.id,{codigo,stock:Number(p.stockActual)});return this.format(p);
   });
  }
@@ -47,7 +47,7 @@ export class ProductosService {
    if(codigo&&await tx.producto.findFirst({where:{tenantId,id:{not:productId},codigo:{equals:codigo,mode:'insensitive'}}}))throw new ConflictException('Código ya registrado');
    if(barcode&&await tx.producto.findFirst({where:{tenantId,id:{not:productId},codigoBarras:barcode,activo:true}}))throw new ConflictException('Código de barras ya registrado');
    const data:any={};
-   for(const f of ['descripcion','usaMedida','unidadMedida','margen','codigoFabricante'] as const)if(dto[f]!==undefined)data[f]=dto[f];
+   for(const f of ['descripcion','usaMedida','unidadMedida','margen','codigoFabricante','imagenUrl'] as const)if(dto[f]!==undefined)data[f]=dto[f];
    for(const f of ['precioVenta','precioCosto','stockActual','stockMinimo'] as const)if(dto[f]!==undefined)data[f]=decimal(dto[f],f);
    if(codigo)data.codigo=codigo;if(dto.nombre!==undefined)data.nombre=text(dto.nombre,'Nombre');if(dto.codigoBarras!==undefined)data.codigoBarras=barcode;
    if(dto.categoriaId!==undefined||dto.categoria!==undefined)data.categoriaId=await this.category(tx,tenantId,dto);

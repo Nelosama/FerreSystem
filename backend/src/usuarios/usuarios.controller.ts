@@ -1,3 +1,4 @@
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { UsuariosService } from './usuarios.service';
@@ -33,8 +34,9 @@ export class UsuariosController {
   async create(
     @TenantId() tenantId: string,
     @Body() dto: CreateUsuarioDto,
+    @CurrentUser('sub') actorId:string,
   ) {
-    return this.usuariosService.create(tenantId, dto);
+    return this.usuariosService.create(tenantId, dto,actorId);
   }
 
   @Put(':id')
@@ -43,14 +45,15 @@ export class UsuariosController {
     @TenantId() tenantId: string,
     @Param('id') id: string,
     @Body() dto: UpdateUsuarioDto,
+    @CurrentUser('sub') actorId:string,
   ) {
-    return this.usuariosService.update(tenantId, id, dto);
+    return this.usuariosService.update(tenantId, id, dto,actorId);
   }
 
   @Delete(':id')
   @Roles('ADMIN')
-  async remove(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.usuariosService.remove(tenantId, id);
+  async remove(@TenantId() tenantId: string, @Param('id') id: string,@CurrentUser('sub') actorId:string) {
+    return this.usuariosService.remove(tenantId, id,actorId);
   }
 }
 

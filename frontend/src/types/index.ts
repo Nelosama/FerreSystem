@@ -73,6 +73,7 @@ export interface ProductItem {
   codigo: string;
   codigoBarras?: string;
   codigoFabricante?: string;
+  imagenUrl?:string;
   nombre: string;
   descripcion?: string;
   categoria: string;

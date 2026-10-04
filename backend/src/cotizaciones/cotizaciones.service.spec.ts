@@ -121,8 +121,8 @@ describe('CotizacionesService', () => {
   it('revierte conversión si un decremento concurrente agotó stock', async () => {
     mockPrisma.$queryRaw.mockResolvedValue([{ ultimo_numero: 11 }]);
     mockPrisma.cotizacion.findFirst.mockResolvedValue({
-      id: 'cot-123', estado: 'APROBADA', detalles: [{
-        cantidad: 2.75, totalMedida: 2.75, producto: { id: 'p-1', nombre: 'Cable', stockActual: 3 },
+      id: 'cot-123', estado: 'APROBADA',descuento:0, detalles: [{
+        productoId:'p-1',precioUnitario:10,cantidad: 2.75, totalMedida: 2.75, producto: { id: 'p-1', nombre: 'Cable',precioVenta:10, stockActual: 3 },
       }],
     });
     mockPrisma.producto.updateMany.mockResolvedValue({ count: 0 });

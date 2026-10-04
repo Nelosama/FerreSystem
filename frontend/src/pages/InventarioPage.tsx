@@ -37,6 +37,7 @@ export const InventarioPage: React.FC = () => {
         categoria: p.categoria?.nombre || p.categoria || 'General',
         precioVenta: Number(p.precioVenta),
         precioCosto: Number(p.precioCosto),
+        imagenUrl:p.imagenUrl,
         stockActual: Number(p.stockActual),
         stockReservado:Number(p.stockReservado||0),stockDisponible:Number(p.stockDisponible??p.stockActual),
         stockMinimo: Number(p.stockMinimo),

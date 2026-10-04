@@ -1,7 +1,5 @@
 name: Operación de ferretería
 on:
-  push:
-    branches: ['codex/operacion-ferreteria']
   pull_request:
     branches: [main]
 permissions:

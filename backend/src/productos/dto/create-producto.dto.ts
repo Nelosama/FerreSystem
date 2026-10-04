@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsEnum, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsEnum, IsBoolean, IsUrl, MaxLength } from 'class-validator';
 
 import { UnidadMedida as UnidadMedidaEnum } from '@prisma/client';
 export { UnidadMedidaEnum };
@@ -12,6 +12,7 @@ export class CreateProductoDto {
   @IsOptional()
   codigoBarras?: string;
   @IsOptional() @IsString() codigoFabricante?: string;
+  @IsOptional() @IsUrl({protocols:['https'],require_protocol:true}) @MaxLength(2048) imagenUrl?:string;
   @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?: number;
 
   @IsString()
@@ -65,6 +66,7 @@ export class UpdateProductoDto {
   @IsOptional()
   codigoBarras?: string;
   @IsOptional() @IsString() codigoFabricante?: string;
+  @IsOptional() @IsUrl({protocols:['https'],require_protocol:true}) @MaxLength(2048) imagenUrl?:string;
   @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?: number;
 
   @IsString()

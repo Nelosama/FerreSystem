@@ -5,6 +5,7 @@ import { useTenant } from '../context/TenantContext';
 import { exportToCSV } from '../utils/csvExport';
 import { exportToExcel } from '../utils/excelExport';
 import './OperacionesPage.css';
+import { BarcodeScanner } from '../components/BarcodeScanner';
 import { readStoredJson } from '../utils/storage';
 const blank=()=>({descripcion:'',cantidad:'1',unidad:'UNIDAD',codigo:'',codigoBarras:'',marca:'',categoria:'',ubicacion:'',precioCosto:'',precioVenta:'',margen:'',notas:''});
 const message=(e:any)=>{const m=e.response?.data?.message;return Array.isArray(m)?m.join(', '):m||'No se pudo guardar. Revise la conexión y reintente.';};
@@ -41,7 +42,7 @@ export const LevantamientoPage:React.FC=()=>{
    for(const key of ['precioCosto','precioVenta','margen'] as const)dto[key]=form[key]===''?undefined:Number(form[key]);
    if(editing)await api.patch(`/levantamientos/${activeId}/items/${editing.id}`,{...dto,version:editing.version});else {if(pendingCount)throw new Error('Confirme el conteo pendiente');const command={lid:activeId,dto:{...dto,solicitudId:crypto.randomUUID()}};localStorage.setItem(pendingKey,JSON.stringify(command));setPendingCount(command);await sendCount(command);}
    setForm(f=>({...blank(),unidad:f.unidad,ubicacion:f.ubicacion}));setEditing(null);setPreview(null);
-  });}}><h2>{editing?'Corregir conteo':'Contar producto'}</h2><fieldset disabled={busy||isReadOnly||!!pendingCount} className="operation-form">
+  });}}><BarcodeScanner disabled={busy||isReadOnly||!!pendingCount} onCode={code=>set('codigoBarras',code)}/><h2>{editing?'Corregir conteo':'Contar producto'}</h2><fieldset disabled={busy||isReadOnly||!!pendingCount} className="operation-form">
    <label>Descripción y variante<input className="form-input" required value={form.descripcion} onChange={e=>set('descripcion',e.target.value)} placeholder="Tipo, medida, espesor, color…"/></label><label>Cantidad<input className="form-input" type="number" min="0" step="0.01" required value={form.cantidad} onChange={e=>set('cantidad',e.target.value)}/></label><label>Unidad<select className="form-input" value={form.unidad} onChange={e=>set('unidad',e.target.value)}>{['UNIDAD','PIE','METRO','METRO_CUADRADO','METRO_CUBICO','LIBRA','KG','GALON','LITRO','CAJA','PAQUETE','OTRO'].map(u=><option key={u}>{u}</option>)}</select></label>
    {(['codigo','codigoBarras','marca','categoria','ubicacion','precioCosto','precioVenta','margen','notas'] as const).map(key=><label key={key}>{{codigo:'Código interno o fabricante (opcional)',codigoBarras:'Código de barras (opcional)',marca:'Marca',categoria:'Categoría',ubicacion:'Zona o ubicación',precioCosto:'Costo',precioVenta:'Precio de venta',margen:'Margen %',notas:'Notas'}[key]}<input className="form-input" type={['precioCosto','precioVenta','margen'].includes(key)?'number':'text'} min="0" step="0.01" max={key==='margen'?100:undefined} value={form[key]} onChange={e=>set(key,e.target.value)}/></label>)}
   </fieldset><p>Si el producto es nuevo, complete costo y precio antes de aplicar. Los artículos sin código recibirán uno interno.</p><button className="btn btn-primary" disabled={busy||isReadOnly||!!pendingCount}>Guardar y siguiente</button>{editing&&<button className="btn btn-secondary" type="button" onClick={()=>{setEditing(null);setForm(blank());}}>Cancelar corrección</button>}</form>}

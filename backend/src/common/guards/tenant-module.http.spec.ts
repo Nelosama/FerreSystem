@@ -34,7 +34,7 @@ describe('Guard de módulos / HTTP real', () => {
       providers: [
         JwtStrategy,
         { provide: ConfigService, useValue: { get: (key: string) => key === 'JWT_SECRET' ? 'test-only-secret' : undefined } },
-        { provide: PrismaService, useValue: { tenantModule: { findUnique } } },
+        { provide: PrismaService, useValue: { usuario:{findFirst:vi.fn().mockResolvedValue({rol:'CAJERO',permisos:[],permisosConfigurados:false,tenant:{estado:'ACTIVO'}})},tenantModule: { findUnique } } },
         { provide: APP_GUARD, useClass: TenantModuleGuard },
       ],
     }).compile();
@@ -48,3 +48,4 @@ describe('Guard de módulos / HTTP real', () => {
     await request(app.getHttpServer()).get('/guard-test').set('Authorization', `Bearer ${token}`).expect(403);
   });
 });
+

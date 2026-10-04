@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
 import './POSPage.css';
+import { BarcodeScanner } from '../components/BarcodeScanner';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
@@ -122,6 +123,7 @@ export const POSPage: React.FC = () => {
         categoria: p.categoria?.nombre || p.categoria || 'General',
         precioVenta: Number(p.precioVenta),
         precioCosto: Number(p.precioCosto),
+        imagenUrl:p.imagenUrl,
         stockActual: Number(p.stockActual),
         stockMinimo: Number(p.stockMinimo),
         unidadMedida: p.unidadMedida || 'UNIDAD',
@@ -318,6 +320,7 @@ export const POSPage: React.FC = () => {
               />
             </div>
 
+            <BarcodeScanner disabled={edicionBloqueada} onCode={code=>{const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===code.toUpperCase()));if(matches.length===1){agregarAlCarrito(matches[0]);setSearch('');}else{setSearch(code);setErrorText(matches.length?'Código ambiguo; seleccione el producto':'Código no encontrado; busque por descripción');}}}/>
             <div style={styles.catalogGrid} className="ferre-pos-catalog">
               {productos
                 .filter(
@@ -337,7 +340,7 @@ export const POSPage: React.FC = () => {
                     <div style={styles.productName}>{prod.nombre}</div>
                     <div style={styles.priceRow}>
                       <span style={styles.priceText}>{formatLempiras(prod.precioVenta)}</span>
-                      <span style={styles.stockText}>{prod.stockActual} {t('pos.available')}</span>
+                      {prod.imagenUrl&&<img src={prod.imagenUrl} alt={prod.nombre} loading="lazy" referrerPolicy="no-referrer" style={{width:80,height:60,objectFit:'contain'}}/>}<span style={styles.stockText}>{prod.stockActual} {t('pos.available')}</span>
                     </div>
                   </div>
                 ))}
