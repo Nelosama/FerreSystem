@@ -1,32 +1,32 @@
-# React + TypeScript + Vite
+# FerreSystem: frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+El frontend usa React, TypeScript y Vite. Usa Node.js 24 y npm; `package-lock.json` fija las versiones instaladas tanto en CI como en Docker y Vercel.
 
-Currently, two official plugins are available:
+## Desarrollo
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm ci
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+El servidor de desarrollo redirige `/api` al backend en `http://localhost:3000`. Para compilar, configura `VITE_API_URL` según el entorno y ejecuta `npm run build`. Las pruebas se ejecutan con `npm test`.
+
+## Despliegue en Vercel
+
+Configura el proyecto con:
+
+| Ajuste | Valor |
+| --- | --- |
+| Root Directory | `frontend` |
+| Node.js | `24.x` |
+| Install Command | `npm ci` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+
+Los comandos y la carpeta de salida están definidos en `vercel.json`. El único archivo de bloqueo del frontend es `package-lock.json`; los cambios de dependencias deben actualizarlo y validarse con una instalación limpia mediante `npm ci`.
+
+En las variables de **Preview** y **Production**, configura `VITE_API_URL` con la URL HTTPS del backend real, incluyendo `/api`; por ejemplo, `https://api.ejemplo.com/api`. Esta variable se incorpora durante la compilación: después de modificarla, vuelve a desplegar. El backend debe permitir el origen del frontend en su configuración `FRONTEND_URL`, también para probar una vista previa.
+
+El valor `/api` se usa en la instalación local con Caddy, que redirige las llamadas al backend. En Vercel, esta configuración publica únicamente el frontend y sus rutas SPA; para este despliegue usa la URL HTTPS del backend externo.
+
+Si aparece `ERR_PNPM_OUTDATED_LOCKFILE`, verifica que Vercel tenga `frontend` como Root Directory y esté usando el Install Command definido aquí. Vercel debe instalar las dependencias con `npm ci`.
