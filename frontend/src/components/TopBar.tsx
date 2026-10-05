@@ -14,7 +14,7 @@ interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({
   title,
-  subtitle = 'Turno Actual: 08:00 AM - 05:00 PM',
+  subtitle = 'Elige una tarea o usa el buscador para encontrarla',
 }) => {
   const { user, tenant, isImpersonating, isReadOnly, enableEditMode, stopImpersonating, switchSucursal, logout } = useTenant();
   const [modalConfirmEditMode, setModalConfirmEditMode] = React.useState(false);

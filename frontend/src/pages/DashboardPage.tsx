@@ -1,7 +1,7 @@
 import React from 'react';
+import { TaskShortcuts } from '../components/TaskFinder';
 import { TopBar } from '../components/TopBar';
 import { MetricCard } from '../components/MetricCard';
-import { WeeklyTrend } from '../components/WeeklyTrend';
 import {
   TrendingUp,
   AlertTriangle,
@@ -9,33 +9,36 @@ import {
   Coins,
   FileText,
   AlertCircle,
-  PlusCircle,
-  ShoppingCart,
-  ArrowRight,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { formatLempiras } from '../utils/format';
 import { api } from '../utils/api';
 
 export const DashboardPage: React.FC = () => {
-  const rubroConfig = useRubroConfig();
   const { t } = useI18n();
 
+  const [dashboardError, setDashboardError] = React.useState(false);
+  const [dashboardLoading, setDashboardLoading] = React.useState(true);
+  const [retry, setRetry] = React.useState(0);
   const [dashboardData, setDashboardData] = React.useState<any>(null);
 
   React.useEffect(() => {
+    let active = true;
+    setDashboardLoading(true);
+    setDashboardError(false);
     const fetchDashboard = async () => {
       try {
         const res = await api.get('/dashboard');
-        setDashboardData(res.data);
+        if (active) setDashboardData(res.data);
       } catch (err) {
-        console.error('Error al cargar datos del dashboard:', err);
+        if (active) setDashboardError(true);
+      } finally {
+        if (active) setDashboardLoading(false);
       }
     };
     fetchDashboard();
-  }, []);
+    return () => { active = false; };
+  }, [retry]);
 
   const totalVentasDia = dashboardData?.ventasDelDia?.total || 0;
   const productosStockBajo = dashboardData?.alertasStock?.items || [];
@@ -46,13 +49,17 @@ export const DashboardPage: React.FC = () => {
       <TopBar title={t('dashboard.title')} subtitle={t('dashboard.subtitle')} />
 
       <main style={styles.content}>
+        <TaskShortcuts />
+        {dashboardLoading && <p role="status">Cargando el resumen del negocio…</p>}
+        {dashboardError && <div role="alert">No se pudo cargar el resumen. Puedes seguir usando los accesos de arriba. <button type="button" className="btn btn-secondary" onClick={() => setRetry(value => value + 1)}>Reintentar</button></div>}
+        {!dashboardLoading && !dashboardError && <>
         {/* Metric Cards Grid */}
         <div style={styles.metricsGrid}>
           {/* Tarjeta 1: Ventas del Día */}
           <MetricCard
             title={t('dashboard.sales_today')}
             value={formatLempiras(totalVentasDia)}
-            badgeText="+12% vs ayer"
+            badgeText="Total registrado hoy"
             badgeVariant="success"
             badgeIcon={<TrendingUp size={13} strokeWidth={2.6} />}
             watermarkIcon={<Coins size={110} strokeWidth={1.5} />}
@@ -82,58 +89,8 @@ export const DashboardPage: React.FC = () => {
           />
         </div>
 
-        {/* Tendencia Semanal */}
-        <WeeklyTrend />
+        </>}
 
-        {/* Sección Operativa Rápida */}
-        <div style={styles.quickOpsGrid}>
-          {/* Card de Accesos Rápidos para el Cajero */}
-          <div className="industrial-card" style={styles.actionCard}>
-            <h3 style={styles.sectionHeader}>{t('dashboard.quick_ops')}</h3>
-            <div style={styles.buttonsRow}>
-              <Link to="/pos" className="btn btn-primary" style={{ flex: 1 }}>
-                <ShoppingCart size={18} strokeWidth={2.4} />
-                <span>{t('dashboard.new_pos_sale')}</span>
-              </Link>
-              <Link to="/cotizaciones" className="btn btn-secondary" style={{ flex: 1 }}>
-                <PlusCircle size={18} strokeWidth={2.4} />
-                <span>{t('dashboard.create_quotation')}</span>
-              </Link>
-            </div>
-          </div>
-
-          {/* Card de Alertas Críticas de Inventario */}
-          <div className="industrial-card" style={styles.alertsCard}>
-            <div style={styles.alertsHeader}>
-              <h3 style={styles.sectionHeader}>{t('dashboard.urgent_stock_alerts')}</h3>
-              <Link to="/inventario" style={styles.viewAllLink}>
-                {t('dashboard.view_catalog')} <ArrowRight size={14} />
-              </Link>
-            </div>
-            <div style={styles.alertsList}>
-              {productosStockBajo.length === 0 ? (
-                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', padding: '12px 0' }}>
-                  {t('dashboard.no_stock_alerts')}
-                </div>
-              ) : (
-                productosStockBajo.slice(0, 3).map((p: any) => {
-                  const mensajeProcesado = rubroConfig.mensajeStockBajo.replace('{producto}', p.nombre);
-                  return (
-                    <div key={p.id} style={styles.alertRow}>
-                      <div>
-                        <div style={styles.itemTitle}>{mensajeProcesado}</div>
-                        <div style={styles.itemMeta}>
-                          Cód: {p.codigo} • Mínimo requerido: {p.stockMinimo} unidades
-                        </div>
-                      </div>
-                      <span className="badge badge-danger">{p.stockActual} en stock</span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
       </main>
     </div>
   );

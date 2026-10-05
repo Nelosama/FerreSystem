@@ -10,6 +10,7 @@ import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 import './App.css';
+import { TaskFinder } from './components/TaskFinder';
 import { ModuloPendiente } from './components/ModuloPendiente';
 
 import { useTenant } from './context/TenantContext';
@@ -126,6 +127,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           ...(isMobile ? { paddingBottom: '72px' } : {}),
         }}
       >
+        <TaskFinder />
         {children}
       </div>
       <BottomNavigation />
@@ -140,9 +142,9 @@ export const App: React.FC = () => {
           <NotificationProvider>
             <BrowserRouter>
               <Suspense fallback={<PageLoader />}>
+                <Routes>
                 <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
                   <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><AuditoriaPage/></AppLayout></ProtectedRoute>}/>
-                  <Routes>
                   {/* Rutas públicas de login */}
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/admin/login" element={<Navigate to="/login" replace />} />
