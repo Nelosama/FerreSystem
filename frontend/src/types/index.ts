@@ -64,6 +64,7 @@ export interface UserInfo {
   email: string;
   rol: Rol;
   permisos?: string[];
+  permisosConfigurados?: boolean;
   descuentoMaximo?: number;
   activo?: boolean;
 }

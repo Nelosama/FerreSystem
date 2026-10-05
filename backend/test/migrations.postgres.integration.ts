@@ -5,6 +5,9 @@ import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../src/prisma/prisma.service';
+import { VentasService } from '../src/ventas/ventas.service';
+import { OperacionesService } from '../src/operaciones/operaciones.service';
 
 const bin = process.env.PG_BIN || '/usr/bin';
 const executable = (name: string) => join(bin, name + (process.platform === 'win32' ? '.exe' : ''));
@@ -53,6 +56,7 @@ describe('Instalación y adopción / PostgreSQL aislado', () => {
       execFileSync(executable('psql'), ['-X', '-h', '127.0.0.1', '-p', port, '-U', 'postgres', '-d', name, '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations', migration, 'migration.sql')], { timeout: 30000, stdio: 'pipe' });
     }
   };
+  const restoredCopies = new Map<string, ReturnType<typeof database>>();
   const backedUp = (name: string) => {
     const folder = join(directory, 'backups_' + name);
     const pgEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PG')));
@@ -70,6 +74,7 @@ describe('Instalación y adopción / PostgreSQL aislado', () => {
       env: { ...process.env, PG_BIN: bin, FERRE_RESTORE_DATABASE_URL: restored.url }, timeout: 30000, encoding: 'utf8',
     });
     expect(repeated.status).toBe(1);
+    restoredCopies.set(manifestPath, restored);
     return manifestPath;
   };
 
@@ -171,4 +176,36 @@ describe('Instalación y adopción / PostgreSQL aislado', () => {
     expect(cli(db.url, 'adopt', ['--through', initial, '--backup-manifest', manifest], { FERRE_REFERENCE_DATABASE_URL: db.url }).status).toBe(1);
     expect(JSON.parse(cli(db.url, 'inspect').output).state).toBe('REQUIERE_BASELINE');
   }, 60000);
+  it('respalda y restaura venta, entrega, devolución autorizada, caja y auditoría sin repetir ajustes', async () => {
+    const source=database();expect(cli(source.url,'deploy').status).toBe(0);
+    const tenant=await source.prisma.tenant.create({data:{nombreComercial:'Ensayo aislado'}});
+    const cashier=await source.prisma.usuario.create({data:{tenantId:tenant.id,nombre:'Cajero ensayo',email:'cashier@example.test',passwordHash:'test-only',rol:'CAJERO'}});
+    const admin=await source.prisma.usuario.create({data:{tenantId:tenant.id,nombre:'Admin ensayo',email:'admin@example.test',passwordHash:'test-only',rol:'ADMIN'}});
+    const product=await source.prisma.producto.create({data:{tenantId:tenant.id,codigo:'ENSAYO',nombre:'Producto ensayo',stockActual:10,precioVenta:10,precioCosto:5}});
+    const ops=new OperacionesService(source.prisma as PrismaService);
+    await ops.abrir(tenant.id,cashier.id,{solicitudId:randomUUID(),monto:100});
+    const sale=await new VentasService(source.prisma as PrismaService).create(tenant.id,cashier.id,{solicitudId:randomUUID(),metodoPago:'EFECTIVO',detalles:[{productoId:product.id,cantidad:2,precioUnitario:10}]});
+    await ops.entregar(tenant.id,cashier.id,sale.id);
+    const original=await ops.buscarVenta(tenant.id,String(sale.numeroVenta));
+    const command={solicitudId:randomUUID(),motivo:'Ensayo de devolución parcial',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'INVENTARIO'}]};
+    await ops.solicitarDevolucion(tenant.id,cashier.id,sale.id,command);
+    await ops.decidirDevolucion(tenant.id,admin.id,command.solicitudId,{decision:'AUTORIZADA',motivo:'Mercadería revisada'});
+    const receipt=await ops.ejecutarAutorizada(tenant.id,cashier.id,command.solicitudId);
+    const beforeCash=await ops.caja(tenant.id,cashier.id),beforeAudit=await ops.auditoria(tenant.id,0);
+    const manifest=backedUp(source.name),copy=restoredCopies.get(manifest)!;
+    expect(cli(copy.url,'deploy').status).toBe(0);
+    const copiedOps=new OperacionesService(copy.prisma as PrismaService);
+    const restored=await copiedOps.consultarDevolucion(tenant.id,cashier.id,command.solicitudId);
+    expect(restored.estado).toBe('EJECUTADA');expect(restored.administrador_id).toBe(admin.id);
+    expect(restored.resultado.id).toBe(receipt.id);expect(Number(restored.resultado.reembolso)).toBe(Number(receipt.reembolso));
+    expect((await copy.prisma.venta.findUniqueOrThrow({where:{id:sale.id}})).estado).toBe('COMPLETADA');
+    expect(Number((await copy.prisma.producto.findUniqueOrThrow({where:{id:product.id}})).stockActual)).toBe(9);
+    expect((await copiedOps.caja(tenant.id,cashier.id))[0].efectivoEsperado).toBe(beforeCash[0].efectivoEsperado);
+    expect((await copiedOps.auditoria(tenant.id,0)).map(a=>a.id)).toEqual(beforeAudit.map(a=>a.id));
+    await copiedOps.ejecutarAutorizada(tenant.id,cashier.id,command.solicitudId);
+    expect(await copy.prisma.devolucion.count({where:{tenantId:tenant.id}})).toBe(1);
+    expect((await copiedOps.caja(tenant.id,cashier.id))[0].movimientos).toHaveLength(beforeCash[0].movimientos.length);
+    expect((await copiedOps.auditoria(tenant.id,0))).toHaveLength(beforeAudit.length);
+  },60000);
+
 });

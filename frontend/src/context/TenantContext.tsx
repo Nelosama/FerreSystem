@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { TenantInfo, UserInfo } from '../types';
 import { api } from '../utils/api';
+import { startSessionSync } from '../utils/sessionSync';
 import { readStoredJson } from '../utils/storage';
 
 interface TenantContextType {
@@ -55,6 +56,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [activeSupportSessionId, setActiveSupportSessionId] = useState<string | null>(() => {
     return localStorage.getItem('ferre_active_support_session_id');
   });
+
+  useEffect(() => {
+    if (!user || user.rol === 'SUPERADMIN') return;
+    return startSessionSync(() => api.get('/auth/me'), next => setUser(next));
+  }, [user?.id, tenant.id, !!originalSuperAdminUser]);
 
   // Sincronización continua de la configuración del Tenant desde ferre_saas_tenants y variables CSS
   useEffect(() => {

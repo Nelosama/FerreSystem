@@ -15,6 +15,7 @@ export interface JwtValidatedPayload {
   readOnly?: boolean;
   permisos?:string[];
   permisosConfigurados?:boolean;
+  descuentoMaximo?:number;
 }
 
 @Injectable()
@@ -41,6 +42,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         rol: user.rol,
         permisos:user.permisos,
         permisosConfigurados:user.permisosConfigurados,
+        descuentoMaximo:Number(user.descuentoMaximo),
         type: 'tenant',
         tenantId: payload.tenantId,
         ...(payload.impersonatedBy ? { impersonatedBy: payload.impersonatedBy, readOnly: payload.readOnly !== false } : {}),

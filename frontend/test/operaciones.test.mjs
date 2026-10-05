@@ -46,6 +46,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     '../context/NotificationContext': { useNotification: () => ({ solicitudes: [], solicitarDescuento() {} }) },
     '../hooks/useRubroConfig': { useRubroConfig: () => ({ categoriasDefault: ['General'], unidadesMedida: ['unidad', 'galón'], activarVencimientos: false, activarGarantiaSerie: false }) },
     '../utils/format': { formatLempiras: String },
+    '../utils/sessionSync': { startSessionSync: () => () => {} },
     ...overrides,
   };
   const component = evaluate(file, mocks, { localStorage: sharedStorage, crypto: webcrypto, alert() {},
