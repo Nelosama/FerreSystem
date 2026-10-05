@@ -7,6 +7,7 @@ import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import type { ProductItem } from '../types';
 import { api } from '../utils/api';
+import { readRecovery, saveDraft, type PendingSale, type CartItem } from '../utils/posRecovery';
 import { useI18n } from '../context/I18nContext';
 import {
   Search,
@@ -26,88 +27,110 @@ import {
 import { formatLempiras } from '../utils/format';
 import { descargarReciboPDF } from '../components/ReciboPDF';
 
-interface CartItem {
-  productoId: string;
-  codigo: string;
-  nombre: string;
-  precioUnitario: number;
-  cantidad: number;
-  sinInventario?:boolean;
-  proveedorId?:string;
-}
-
-interface PendingSale {
-  solicitudId: string;
-  cart: CartItem[];
-  clienteNombre: string;
-  clienteRtn: string;
-  clienteId?:string;
-  vencimiento?:string;
-  metodoPago: 'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA';
-  descuentoPorcentaje: number;
-}
-
-const readPendingSale = (key: string): PendingSale | null => {
-  try {
-    const saved = localStorage.getItem(key);
-    if (!saved) return null;
-    const sale = JSON.parse(saved) as PendingSale;
-    const valid = /^[0-9a-f-]{36}$/i.test(sale.solicitudId) && Array.isArray(sale.cart) && sale.cart.length > 0 &&
-      sale.cart.every((item) => item && typeof item.productoId === 'string' && typeof item.nombre === 'string' &&
-        typeof item.codigo === 'string' && Number.isFinite(item.cantidad) && item.cantidad > 0 &&
-        Number.isFinite(item.precioUnitario) && item.precioUnitario >= 0) &&
-      typeof sale.clienteNombre === 'string' && typeof sale.clienteRtn === 'string' &&
-      ['EFECTIVO', 'TARJETA', 'CREDITO', 'TRANSFERENCIA'].includes(sale.metodoPago) &&
-      Number.isFinite(sale.descuentoPorcentaje) && sale.descuentoPorcentaje >= 0 && sale.descuentoPorcentaje <= 100;
-    return valid ? sale : null;
-  } catch {
-    return null;
-  }
-};
-
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
   const { t, locale } = useI18n();
   const pendingKey = `ferre_pending_sale:${tenant.id}:${user?.id || ''}`;
   const activeKey = useRef(pendingKey);
   activeKey.current = pendingKey;
-  const [ventaPendiente, setVentaPendiente] = useState<PendingSale | null>(() => readPendingSale(pendingKey));
+  const draftKey = `ferre_sale_draft:${tenant.id}:${user?.id || ''}`;
+  const initialRecovery = useRef(readRecovery(pendingKey, draftKey));
+  const initialSale = initialRecovery.current.pending || initialRecovery.current.draft;
+  const [loadedKey, setLoadedKey] = useState(pendingKey);
+  const [storageError, setStorageError] = useState<string | null>(initialRecovery.current.error);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [borradorRecuperado, setBorradorRecuperado] = useState(!!initialRecovery.current.draft);
+  const [ventaPendiente, setVentaPendiente] = useState<PendingSale | null>(initialRecovery.current.pending);
+  const pendingIdentityRef = useRef(initialRecovery.current.pending?.solicitudId ?? null);
+  const receiptRecoveryRef = useRef<{ pendingKey: string; draftKey: string; solicitudId: string; draft: string | null } | null>(null);
+  const [recoveryStatus, setRecoveryStatus] = useState<'SIN_COMPROBAR' | 'NO_REGISTRADA'>('SIN_COMPROBAR');
+  const [comprobando, setComprobando] = useState(false);
+  const [corrigiendoPendiente, setCorrigiendoPendiente] = useState(false);
+  const comprobandoRef = useRef(false);
 
   const [productos, setProductos] = useState<ProductItem[]>([]);
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  const [cart, setCart] = useState<CartItem[]>(ventaPendiente?.cart || []);
+  const [cart, setCart] = useState<CartItem[]>(initialSale?.cart || []);
   const [search, setSearch] = useState('');
-  const [clienteNombre, setClienteNombre] = useState(ventaPendiente?.clienteNombre || 'Consumidor Final');
-  const [clienteRtn, setClienteRtn] = useState(ventaPendiente?.clienteRtn || '');
-  const [clienteId,setClienteId]=useState<string|undefined>(ventaPendiente?.clienteId);
-  const [vencimiento,setVencimiento]=useState(ventaPendiente?.vencimiento||'');
+  const [clienteNombre, setClienteNombre] = useState(initialSale?.clienteNombre || 'Consumidor Final');
+  const [clienteRtn, setClienteRtn] = useState(initialSale?.clienteRtn || '');
+  const [clienteId,setClienteId]=useState<string|undefined>(initialSale?.clienteId);
+  const [vencimiento,setVencimiento]=useState(initialSale?.vencimiento||'');
   const [providers,setProviders]=useState<any[]>([]);
-  const [special,setSpecial]=useState(false);
-  const [specialProvider,setSpecialProvider]=useState('');
+  const [special,setSpecial]=useState(!!initialSale?.cart[0]?.sinInventario);
+  const [specialProvider,setSpecialProvider]=useState(initialSale?.cart[0]?.proveedorId || '');
   const [cajaAbierta,setCajaAbierta]=useState(false);
   useEffect(()=>{let alive=true;setProviders([]);setCajaAbierta(false);api.get('/operaciones/proveedores').then(r=>{if(alive)setProviders(r.data);}).catch(()=>{});api.get('/operaciones/caja').then(r=>{if(alive)setCajaAbierta(r.data.some((c:any)=>c.estado==='ABIERTA'));}).catch(()=>{if(alive)setCajaAbierta(false);});return()=>{alive=false;};},[tenant.id,user?.id]);
-  const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA'>(ventaPendiente?.metodoPago || 'EFECTIVO');
-  const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(ventaPendiente?.descuentoPorcentaje || 0);
+  const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA'>(initialSale?.metodoPago || 'EFECTIVO');
+  const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(initialSale?.descuentoPorcentaje || 0);
   const cobrandoRef = useRef(false);
   const [procesandoVenta, setProcesandoVenta] = useState(false);
   const [modalTicket, setModalTicket] = useState(false);
   const [numeroVentaGenerado, setNumeroVentaGenerado] = useState<number | null>(null);
   const [ventaRegistrada, setVentaRegistrada] = useState<any>(null);
-  const edicionBloqueada = procesandoVenta || !!ventaPendiente || modalTicket;
+  const edicionBloqueada = procesandoVenta || comprobando || (!!ventaPendiente && !corrigiendoPendiente) || modalTicket || !!storageError || loadedKey !== pendingKey;
 
-  useEffect(() => {
-    const pending = readPendingSale(pendingKey);
-    setVentaPendiente(pending);
-    setCart(pending?.cart || []);
-    setClienteNombre(pending?.clienteNombre || 'Consumidor Final');
-    setClienteRtn(pending?.clienteRtn || '');
-    setClienteId(pending?.clienteId);setVencimiento(pending?.vencimiento||'');
-    setMetodoPago(pending?.metodoPago || 'EFECTIVO');
-    setDescuentoPorcentaje(pending?.descuentoPorcentaje || 0);
+  const restoreRecovery = () => {
+    const recovery = readRecovery(pendingKey, draftKey);
+    const sale = recovery.pending || recovery.draft;
+    pendingIdentityRef.current = recovery.pending?.solicitudId ?? null;
+    receiptRecoveryRef.current = null;
+    setVentaPendiente(recovery.pending);
+    setStorageError(recovery.error);
+    setDraftError(null);
+    setBorradorRecuperado(!!recovery.draft);
+    setRecoveryStatus('SIN_COMPROBAR');
+    setCorrigiendoPendiente(false);
+    setCart(sale?.cart || []);
+    setClienteNombre(sale?.clienteNombre || 'Consumidor Final');
+    setClienteRtn(sale?.clienteRtn || '');
+    setClienteId(sale?.clienteId);
+    setVencimiento(sale?.vencimiento || '');
+    setMetodoPago(sale?.metodoPago || 'EFECTIVO');
+    setDescuentoPorcentaje(sale?.descuentoPorcentaje || 0);
+    setSpecial(!!sale?.cart[0]?.sinInventario);
+    setSpecialProvider(sale?.cart[0]?.proveedorId || '');
     setModalTicket(false);
     setVentaRegistrada(null);
-  }, [pendingKey]);
+    setComprobando(false);
+    setProcesandoVenta(false);
+    setLoadedKey(pendingKey);
+  };
+
+  const isCurrentPending = (requestKey: string, solicitudId: string) => {
+    if (activeKey.current !== requestKey || pendingIdentityRef.current !== solicitudId) return false;
+    const recovery = readRecovery(requestKey, draftKey);
+    // Un pendiente cerrado por otra pestaña conserva su identidad al reintentar;
+    // una solicitud distinta no puede recibir el resultado de esta petición.
+    return !recovery.error && (!recovery.pending || recovery.pending.solicitudId === solicitudId);
+  };
+
+  useEffect(() => {
+    restoreRecovery();
+    const changed = (event: StorageEvent) => {
+      if (event.key === pendingKey || event.key === draftKey || event.key === null) restoreRecovery();
+    };
+    window.addEventListener('storage', changed);
+    return () => window.removeEventListener('storage', changed);
+  }, [pendingKey, draftKey]);
+
+  useEffect(() => {
+    if (loadedKey !== pendingKey || (ventaPendiente && !corrigiendoPendiente) || modalTicket || storageError) return;
+    try {
+      const sale = { cart, clienteNombre, clienteRtn, clienteId, vencimiento, metodoPago, descuentoPorcentaje };
+      if (ventaPendiente) {
+        if (!cart.length) {
+          setDraftError('La venta pendiente debe conservar al menos un producto. Agregue el producto correcto para continuar.');
+          return;
+        }
+        localStorage.setItem(pendingKey, JSON.stringify({ ...sale, solicitudId: ventaPendiente.solicitudId }));
+      } else saveDraft(draftKey, sale);
+      setDraftError(null);
+    } catch {
+      setDraftError('No se pudo guardar el borrador en este equipo. No cierre la pantalla; pida ayuda antes de continuar.');
+    }
+  }, [loadedKey, pendingKey, draftKey, cart, clienteNombre, clienteRtn, clienteId, vencimiento, metodoPago, descuentoPorcentaje, ventaPendiente, corrigiendoPendiente, modalTicket, storageError]);
 
   const fetchProductos = useCallback(async () => {
     const requestKey=activeKey.current;
@@ -209,63 +232,133 @@ export const POSPage: React.FC = () => {
     setCart(cart.filter((i) => i.productoId !== productoId));
   };
 
+  const mostrarVenta = (venta: any, solicitudId: string) => {
+    receiptRecoveryRef.current = { pendingKey, draftKey, solicitudId, draft: localStorage.getItem(draftKey) };
+    setCorrigiendoPendiente(false);
+    setVentaRegistrada(venta);
+    setCart(venta.detalles.map((d: any) => ({
+      productoId: d.productoId, nombre: d.productoNombre, codigo: d.productoCodigo,
+      cantidad: Number(d.cantidad), precioUnitario: Number(d.precioUnitario),
+    })));
+    setClienteNombre(venta.clienteNombre || venta.cliente?.nombre || 'Consumidor Final');
+    setClienteRtn(venta.clienteRtn || venta.cliente?.rtn || '');
+    setMetodoPago(venta.metodoPago);
+    setNumeroVentaGenerado(venta.numeroVenta);
+    setModalTicket(true);
+  };
+
+  const comprobarVenta = async () => {
+    if (!ventaPendiente || comprobandoRef.current || cobrandoRef.current) return;
+    const requestKey = pendingKey;
+    const solicitudId = ventaPendiente.solicitudId;
+    comprobandoRef.current = true;
+    setComprobando(true);
+    setErrorText(null);
+    try {
+      const { data } = await api.get(`/ventas/solicitudes/${solicitudId}`);
+      if (!isCurrentPending(requestKey, solicitudId)) return;
+      if (data.estado === 'REGISTRADA') mostrarVenta(data.venta, solicitudId);
+      else if (data.estado === 'NO_REGISTRADA') setRecoveryStatus('NO_REGISTRADA');
+      else throw new Error('Estado inesperado');
+    } catch {
+      if (isCurrentPending(requestKey, solicitudId)) {
+        setRecoveryStatus('SIN_COMPROBAR');
+        setErrorText('No pudimos comprobar la venta. Revise la conexión o vuelva a iniciar sesión. No cobre nuevamente hasta comprobarla.');
+      }
+    } finally {
+      comprobandoRef.current = false;
+      if (activeKey.current === requestKey) setComprobando(false);
+    }
+  };
+
   const handleCobrar = async () => {
-    if (cart.length === 0 || cobrandoRef.current || modalTicket || (esDescuentoExcedido && !ventaPendiente)) return;
-    if(!ventaPendiente && metodoPago==='CREDITO'&&!clienteId){setErrorText('Seleccione un cliente registrado para vender a crédito');return;}
+    if (!cart.length || cobrandoRef.current || comprobandoRef.current || modalTicket || storageError || draftError || loadedKey !== pendingKey ||
+      (esDescuentoExcedido && !ventaPendiente) || (ventaPendiente && recoveryStatus !== 'NO_REGISTRADA')) return;
+    if (!ventaPendiente && metodoPago === 'CREDITO' && !clienteId) {
+      setErrorText('Seleccione un cliente registrado para vender a crédito'); return;
+    }
+    const requestKey = pendingKey;
     cobrandoRef.current = true;
     setProcesandoVenta(true);
-
+    setErrorText(null);
+    let enviado = false;
+    let requestIdentity = ventaPendiente?.solicitudId;
     try {
-      const pending = readPendingSale(pendingKey) || {
-        solicitudId: crypto.randomUUID(), cart, clienteNombre, clienteRtn, clienteId, vencimiento:vencimiento||undefined, metodoPago, descuentoPorcentaje,
-      };
-      // Persistir ANTES del envío: un reload o respuesta perdida reutiliza la operación.
-      localStorage.setItem(pendingKey, JSON.stringify(pending));
-      setVentaPendiente(pending);
-      const descuentoPendiente = Math.round(pending.cart.reduce((sum, i) => sum + Math.round(i.precioUnitario * i.cantidad * 100)/100, 0) * pending.descuentoPorcentaje) / 100;
-      const res = await api.post('/ventas', {
-        solicitudId: pending.solicitudId,
-        clienteId:pending.clienteId,
-        vencimiento:pending.vencimiento,
-        clienteNombre: pending.clienteNombre,
-        clienteRtn: pending.clienteRtn || undefined,
-        metodoPago: pending.metodoPago,
-        descuento: descuentoPendiente,
-        detalles: pending.cart.map((i) => ({
-          productoId: i.productoId,
-          cantidad: i.cantidad,
-          precioUnitario: i.precioUnitario,
-          sinInventario:i.sinInventario,
-          proveedorId:i.proveedorId,
-        })),
-      });
-
-      const ventaRegistrada = res.data;
-      localStorage.removeItem(pendingKey);
-      if (activeKey.current !== pendingKey) return;
-      setVentaRegistrada(ventaRegistrada);
-      setCart(pending.cart);
-      setClienteNombre(pending.clienteNombre);
-      setClienteRtn(pending.clienteRtn);
-      setMetodoPago(pending.metodoPago);
-      setDescuentoPorcentaje(pending.descuentoPorcentaje);
-      setNumeroVentaGenerado(ventaRegistrada.numeroVenta);
-      setModalTicket(true);
-      setVentaPendiente(null);
-      await fetchProductos(); // Refrescar inventario actualizado
-    } catch (err: any) {
-      // Solo una validación fallida confirma que la operación no se registró.
-      if ([400,403, 404, 409, 422].includes(err.response?.status)) {
-        localStorage.removeItem(pendingKey);
-        if (activeKey.current === pendingKey) setVentaPendiente(null);
+      const stored = readRecovery(pendingKey, draftKey);
+      if (stored.error) throw new Error(stored.error);
+      if (stored.pending && stored.pending.solicitudId !== ventaPendiente?.solicitudId) {
+        throw new Error('Hay una venta pendiente en otra pestaña. Recargue y revise esa venta antes de cobrar.');
       }
-      if (activeKey.current !== pendingKey) return;
-      console.error('Error al procesar cobro de venta:', err);
-      alert(err.response?.data?.message || t('pos.sale_error'));
+      // Una consulta previa puede haberse quedado antigua o venir de otra pestaña.
+      // Consultar cada reintento evita reenviar una venta que ya está registrada.
+      const pendingIdentity = stored.pending?.solicitudId || ventaPendiente?.solicitudId;
+      requestIdentity = pendingIdentity;
+      if (pendingIdentity) {
+        const { data: status } = await api.get(`/ventas/solicitudes/${pendingIdentity}`);
+        if (!isCurrentPending(requestKey, pendingIdentity)) return;
+        if (status.estado === 'REGISTRADA') { mostrarVenta(status.venta, pendingIdentity); return; }
+        if (status.estado !== 'NO_REGISTRADA') throw new Error('No se pudo comprobar el estado de la venta.');
+      }
+      const pending = stored.pending || {
+        solicitudId: pendingIdentity || crypto.randomUUID(), cart, clienteNombre, clienteRtn, clienteId,
+        vencimiento: vencimiento || undefined, metodoPago, descuentoPorcentaje,
+      };
+      localStorage.setItem(pendingKey, JSON.stringify(pending));
+      requestIdentity = pending.solicitudId;
+      pendingIdentityRef.current = pending.solicitudId;
+      setVentaPendiente(pending);
+      setRecoveryStatus('SIN_COMPROBAR');
+      const descuentoPendiente = Math.round(pending.cart.reduce((sum, i) => sum + Math.round(i.precioUnitario * i.cantidad * 100) / 100, 0) * pending.descuentoPorcentaje) / 100;
+      enviado = true;
+      const { data } = await api.post('/ventas', {
+        solicitudId: pending.solicitudId, clienteId: pending.clienteId, vencimiento: pending.vencimiento,
+        clienteNombre: pending.clienteNombre, clienteRtn: pending.clienteRtn || undefined,
+        metodoPago: pending.metodoPago, descuento: descuentoPendiente,
+        detalles: pending.cart.map(i => ({ productoId: i.productoId, cantidad: i.cantidad,
+          precioUnitario: i.precioUnitario, sinInventario: i.sinInventario, proveedorId: i.proveedorId })),
+      });
+      // Conservar el pendiente hasta que el cajero cierre el comprobante.
+      if (!isCurrentPending(requestKey, pending.solicitudId)) return;
+      mostrarVenta(data, pending.solicitudId);
+      await fetchProductos();
+    } catch (err: any) {
+      if (activeKey.current !== requestKey || (requestIdentity && !isCurrentPending(requestKey, requestIdentity))) return;
+      if (!enviado) {
+        if (ventaPendiente) {
+          setRecoveryStatus('SIN_COMPROBAR');
+          setErrorText('No se pudo comprobar o guardar la venta pendiente. Revise la conexión y pida ayuda antes de cobrar.');
+        } else setStorageError(err.message || 'No se pudo guardar la recuperación. No se envió la venta.');
+      } else {
+        // Conservar identidad incluso ante rechazo: una petición anterior pudo confirmarse.
+        setErrorText(err.response?.data?.message || 'No recibimos confirmación. Revise la venta pendiente antes de cobrar otra vez.');
+      }
     } finally {
       cobrandoRef.current = false;
-      setProcesandoVenta(false);
+      if (activeKey.current === requestKey) setProcesandoVenta(false);
     }
+  };
+
+  const cerrarComprobante = () => {
+    try {
+      const receipt = receiptRecoveryRef.current;
+      if (!receipt || activeKey.current !== receipt.pendingKey) return;
+      const recovery = readRecovery(receipt.pendingKey, receipt.draftKey);
+      if (recovery.error) throw new Error(recovery.error);
+      if (!recovery.pending || recovery.pending.solicitudId !== receipt.solicitudId) {
+        restoreRecovery();
+        setErrorText(null);
+        return;
+      }
+      // Quitar borrador primero: un corte entre ambas escrituras conserva el pendiente.
+      // Otro borrador puede haberse preparado desde que se mostró el comprobante.
+      if (localStorage.getItem(receipt.draftKey) === receipt.draft) localStorage.removeItem(receipt.draftKey);
+      localStorage.removeItem(receipt.pendingKey);
+    } catch {
+      setErrorText('La venta está registrada, pero no se pudo cerrar su recuperación. Pida ayuda antes de iniciar otra venta.');
+      return;
+    }
+    restoreRecovery();
+    setErrorText(null);
   };
 
   return (
@@ -276,10 +369,16 @@ export const POSPage: React.FC = () => {
         <div className="ferre-pos-notice"><Link to="/arqueo-caja">Abrir o revisar mi caja</Link> · <Link to="/cuentas">Cuentas y abonos</Link> · <Link to="/entregas">Entregas</Link>{!cajaAbierta&&<p>Abra su caja antes de cobrar.</p>}</div>
         <button className="btn btn-secondary" disabled={edicionBloqueada} onClick={async()=>{const data=await fetchProductos();if(data)setCart(current=>current.map(i=>{const p=data.find((p:ProductItem)=>p.id===i.productoId);return p?{...i,precioUnitario:p.precioVenta}:i;}));}}>Actualizar catálogo y precios del carrito</button>
         <div className="ferre-pos-notice"><label><input type="checkbox" checked={special} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecial(e.target.checked)}/> Venta sin inventario: mercancía que no entra al local</label>{special&&<select aria-label="Proveedor de venta sin inventario" className="form-input" value={specialProvider} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecialProvider(e.target.value)}><option value="">Seleccione proveedor</option>{providers.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}</select>}</div>
-        {ventaPendiente && !procesandoVenta && (
-          <div role="status" className="industrial-card" style={{ marginBottom: '16px' }}>
-            {t('pos.pending_sale')}
-            <button type="button" className="btn btn-primary" onClick={handleCobrar}>{t('pos.retry_sale')}</button>
+        {(storageError || draftError) && <div role="alert" className="ferre-pos-recovery">{storageError || draftError}</div>}
+        {borradorRecuperado && !ventaPendiente && cart.length > 0 && <div role="status" className="ferre-pos-recovery">Recuperamos los productos de su venta en preparación. Revise cantidades y precios antes de cobrar. Todavía no se ha registrado.</div>}
+        {cart.length > 0 && !ventaPendiente && !modalTicket && !storageError && !draftError && <p role="status">Borrador guardado en este equipo. Todavía no se ha registrado una venta.</p>}
+        {ventaPendiente && !modalTicket && (
+          <div role="status" className="ferre-pos-recovery">
+            <strong>Había una venta en proceso.</strong>
+            <p>{recoveryStatus === 'NO_REGISTRADA' ? 'La venta todavía no aparece registrada. Antes de continuar, compruebe si ya recibió el efectivo o si la terminal cobró. Continuar guarda esta misma venta; no vuelva a cobrar al cliente si ya pagó.' : 'Primero revise si quedó registrada. No vuelva a cobrar al cliente mientras no se confirme el resultado.'}</p>
+            <button type="button" className="btn btn-primary" onClick={comprobarVenta} disabled={comprobando || procesandoVenta}>{comprobando ? 'Revisando…' : 'Revisar venta y continuar'}</button>
+            {recoveryStatus === 'NO_REGISTRADA' && !corrigiendoPendiente && <button type="button" className="btn btn-secondary" disabled={procesandoVenta || comprobando} onClick={() => setCorrigiendoPendiente(true)}>Corregir datos de esta venta</button>}
+            {recoveryStatus === 'NO_REGISTRADA' && <button type="button" className="btn btn-secondary" onClick={handleCobrar} disabled={procesandoVenta || comprobando || !!storageError || !!draftError}>Ya revisé el pago: continuar registro</button>}
           </div>
         )}
         {errorText && (
@@ -509,7 +608,7 @@ export const POSPage: React.FC = () => {
                 type="button"
                 className="btn btn-primary"
                 onClick={handleCobrar}
-                disabled={cart.length === 0 || procesandoVenta || modalTicket}
+                disabled={cart.length === 0 || edicionBloqueada || !!draftError || !!ventaPendiente}
                 aria-busy={procesandoVenta}
                 style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1 }}
               >
@@ -526,13 +625,12 @@ export const POSPage: React.FC = () => {
       {modalTicket && (
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.ticketModal}>
+            <p role="status">Venta registrada. Puede imprimir o descargar el comprobante. No vuelva a cobrarla.</p>
+            {errorText && <p role="alert">{errorText}</p>}
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="button"
-                onClick={() => {
-                  setModalTicket(false);
-                  setCart([]);
-                }}
+                onClick={cerrarComprobante}
                 style={styles.closeBtn}
               >
                 <X size={20} />
@@ -653,10 +751,7 @@ export const POSPage: React.FC = () => {
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => {
-                  setModalTicket(false);
-                  setCart([]);
-                }}
+                onClick={cerrarComprobante}
                 style={{ flex: 1 }}
               >
                 {t('pos.new_sale')}
@@ -993,4 +1088,3 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
   },
 };
-

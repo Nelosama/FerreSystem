@@ -1,5 +1,5 @@
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { VentasService } from './ventas.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
@@ -23,6 +23,15 @@ export class VentasController {
     return this.ventasService.findAll(tenantId, take, pageNumber);
   }
 
+  @Get('solicitudes/:id')
+  async findSolicitud(
+    @TenantId() tenantId: string,
+    @CurrentUser('sub') usuarioId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.ventasService.findSolicitud(tenantId, usuarioId, id);
+  }
+
   @Get(':id')
   async findById(@TenantId() tenantId: string, @Param('id') id: string) {
     return this.ventasService.findById(tenantId, id);
@@ -39,4 +48,3 @@ export class VentasController {
     return this.ventasService.create(tenantId, usuarioId, dto);
   }
 }
-

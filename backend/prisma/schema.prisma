@@ -730,3 +730,21 @@ model DetalleDevolucion {
  @@index([detalleVentaId])
  @@map("detalles_devolucion")
 }
+
+model SolicitudDevolucion {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ ventaId String @map("venta_id")
+ solicitanteId String @map("solicitante_id")
+ solicitudHash String @map("solicitud_hash")
+ comando Json
+ montoEstimado Decimal @map("monto_estimado") @db.Decimal(12,2)
+ estado String @default("PENDIENTE")
+ administradorId String? @map("administrador_id")
+ motivoDecision String? @map("motivo_decision")
+ decididaAt DateTime? @map("decidida_at")
+ createdAt DateTime @default(now()) @map("created_at")
+ @@index([tenantId,estado,createdAt])
+ @@index([tenantId,solicitanteId])
+ @@map("solicitudes_devolucion")
+}

@@ -1,3 +1,5 @@
+import { BackupStatusController } from './common/backup-status.controller';
+import { HealthController } from './common/health.controller';
 import { OperacionesModule } from './operaciones/operaciones.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -34,6 +36,7 @@ import { LevantamientosModule } from './levantamientos/levantamientos.module';
     LevantamientosModule,
     OperacionesModule,
   ],
+  controllers: [HealthController, BackupStatusController],
   providers: [
     {
       provide: APP_GUARD,

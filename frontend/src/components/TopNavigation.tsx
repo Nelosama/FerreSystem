@@ -1,3 +1,4 @@
+import { canNavigate } from '../utils/taskNavigation';
 import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
@@ -33,31 +34,12 @@ export const TopNavigation: React.FC = () => {
   const { tenant, user } = useTenant();
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
-  const userRole = user?.rol;
   const location = useLocation();
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
 
-  const defaultModules = [
-    'inventario',
-    'levantamiento',
-    'pos',
-    'cotizaciones',
-    'usuarios',
-    'configuracion',
-    'apartados',
-    'arqueo_caja',
-    'ordenes_compra',
-    'transferencias_sucursal',
-    'garantias',
-    'pedidos_especiales',
-    'listas_precio',
-    'comisiones_venta',
-    'reportes',
-  ];
 
-  const modulosHabilitados = tenant.modulosHabilitados || defaultModules;
 
   // Close dropdown when clicking outside or navigating
   useEffect(() => {
@@ -74,25 +56,7 @@ export const TopNavigation: React.FC = () => {
     setOpenCategory(null);
   }, [location.pathname]);
 
-  const isModuleEnabled = (moduleKey?: string) => {
-    if (!moduleKey) return true;
-    return modulosHabilitados.includes(moduleKey);
-  };
-
-  const isRoleAllowed = (allowedRoles?: string[], requiredPermiso?: string) => {
-    if (!userRole) return false;
-    if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
-      return false;
-    }
-    if (requiredPermiso) {
-      return user?.permisos?.includes(requiredPermiso) ?? false;
-    }
-    return true;
-  };
-
-  const visibleItems = NAVIGATION_ITEMS.filter(
-    (item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso) && isModuleEnabled(item.moduleKey),
-  );
+  const visibleItems = NAVIGATION_ITEMS.filter(item => canNavigate(item, user, tenant));
 
   const getLabel = (item: NavigationItem) => {
     if (item.key === 'inventario') {

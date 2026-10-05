@@ -1,0 +1,83 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
+import * as router from 'react-router-dom';
+import * as icons from 'lucide-react';
+
+const tenant = { id: 'test', nombreComercial: 'Test' };
+let user = { id: 'admin', rol: 'ADMIN' };
+const load = (file) => {
+  const exports = {};
+  const require = name => {
+    if (name === 'react') return React;
+    if (name === 'lucide-react') return icons;
+    if (name === 'react-router-dom') return router;
+    if (name.endsWith('TenantContext')) return { useTenant: () => ({ user, tenant }) };
+    if (name.endsWith('navigation')) return load('src/config/navigation.ts');
+    if (name.endsWith('taskNavigation')) return load('src/utils/taskNavigation.ts');
+    throw new Error(`Unexpected import ${name}`);
+  };
+  const source = fs.readFileSync(file, 'utf8');
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText;
+  vm.runInNewContext(code, { exports, require });
+  return exports;
+};
+const { availableTasks, searchTasks } = load('src/utils/taskNavigation.ts');
+
+test('admin encuentra compras, personal y reportes sin una lista de permisos explícita', () => {
+  const tasks = availableTasks({ rol: 'ADMIN' }, tenant);
+  assert.equal(searchTasks(tasks, 'comprar')[0].key, 'ordenes_compra');
+  assert.equal(searchTasks(tasks, 'personal')[0].key, 'usuarios');
+  assert.equal(searchTasks(tasks, 'reportes')[0].key, 'reportes');
+});
+test('cajero no recibe accesos de administrador ni módulos deshabilitados', () => {
+  const tasks = availableTasks({ rol: 'CAJERO' }, { ...tenant, modulosHabilitados: [] });
+  assert.equal(searchTasks(tasks, 'comprar').length, 0);
+  assert.equal(searchTasks(tasks, 'personal').length, 0);
+  assert.equal(searchTasks(tasks, 'vender').length, 0);
+  assert.equal(searchTasks(tasks, 'caja')[0].key, 'arqueo_caja');
+});
+test('buscador tolera acentos, mayúsculas, espacios y combina palabras', () => {
+  const tasks = availableTasks({ rol: 'ADMIN' }, tenant);
+  assert.equal(searchTasks(tasks, '  COTIZACIÓN  ')[0].key, 'cotizaciones');
+  assert.equal(searchTasks(tasks, 'recibir mercaderia')[0].key, 'ordenes_compra');
+  assert.equal(searchTasks(tasks, 'xyz inexistente').length, 0);
+});
+test('tareas pendientes y sesiones sin usuario no ofrecen operaciones', () => {
+  assert.equal(availableTasks(null, tenant).length, 0);
+  assert.equal(availableTasks({ rol: 'ADMIN' }, tenant).some(item => item.key === 'apartados'), false);
+});
+test('inicio renderiza accesos por rol con React y enlaces reales del router', () => {
+  const { TaskShortcuts, TaskFinder } = load('src/components/TaskFinder.tsx');
+  user = { id: 'admin', rol: 'ADMIN' };
+  const render = component => renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(component)));
+  const admin = render(TaskShortcuts);
+  assert.match(admin, /Administrar el personal/);
+  assert.match(admin, /href="\/ordenes-compra"/);
+  assert.match(render(TaskFinder), /Buscar una pantalla o tarea/);
+  user = { id: 'cashier', rol: 'CAJERO' };
+  const cashier = render(TaskShortcuts);
+  assert.match(cashier, /Primero abre la caja/);
+  assert.doesNotMatch(cashier, /Administrar el personal/);
+  assert.doesNotMatch(cashier, /href="\/inventario"/);
+});
+test('todas las rutas de App están dentro de Routes para evitar el fallo de arranque', () => {
+  const source = ts.createSourceFile('App.tsx', fs.readFileSync('src/App.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let routes = 0;
+  const walk = node => {
+    const tag = ts.isJsxSelfClosingElement(node) ? node.tagName.getText(source) : null;
+    if (tag === 'Route') {
+      routes++;
+      assert.ok(ts.isJsxElement(node.parent));
+      assert.equal(node.parent.openingElement.tagName.getText(source), 'Routes');
+    }
+    ts.forEachChild(node, walk);
+  };
+  walk(source);
+  assert.ok(routes > 15);
+});

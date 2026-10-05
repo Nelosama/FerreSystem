@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
 import { Upload, Download, AlertTriangle, Check, X, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
@@ -186,39 +185,17 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
     setSummary(null);
     setShowDuplicateConfirm(false);
 
-    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-
-    if (isExcel) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const firstSheetName = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[firstSheetName];
-          const json: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet);
-
-          if (json.length === 0) {
-            setErrorMsg('El archivo no contiene registros o filas de productos.');
-            setRows([]);
-          } else {
-            const parsed = validateAndParseRawData(json);
-            setRows(parsed);
-          }
-        } catch (err) {
-          setErrorMsg('Error al leer el archivo Excel. Revisa el formato e intenta de nuevo.');
-          setRows([]);
-        } finally {
-          setLoading(false);
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    } else {
+    if (!file.name.toLowerCase().endsWith('.csv') || file.size > 5 * 1024 * 1024) {
+      setErrorMsg('Selecciona un archivo CSV de hasta 5 MB. Si usas Excel, guárdalo como CSV UTF-8.');
+      setRows([]); setLoading(false); return;
+    }
+    {
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
           try {
+            if (results.errors?.length || results.data.length > 5000) throw new Error('CSV inválido o más de 5000 filas');
             const json = results.data as Record<string, any>[];
             if (!json || json.length === 0) {
               setErrorMsg('El archivo CSV está vacío o no tiene encabezados válidos.');
@@ -228,7 +205,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
               setRows(parsed);
             }
           } catch (err) {
-            setErrorMsg('Error al procesar el archivo CSV.');
+            setErrorMsg('Revisa el formato CSV y utiliza como máximo 5000 filas por archivo.');
             setRows([]);
           } finally {
             setLoading(false);
@@ -398,6 +375,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
           ) : (
             /* Main Upload & Preview Form */
             <>
+              <p>Importa un CSV de hasta 5 MB y 5000 productos. Desde Excel: Guardar como → CSV UTF-8.</p>
               {/* Action Toolbar: Template & File Upload */}
               <div style={styles.uploadBar}>
                 <button
@@ -415,7 +393,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                   <span>{fileName ? 'Cambiar archivo' : t('inventory.select_file')}</span>
                   <input
                     type="file"
-                    accept=".csv,.xlsx,.xls"
+                    accept=".csv"
                     onChange={handleFileUpload}
                     style={{ display: 'none' }}
                   />

@@ -40,6 +40,15 @@ export async function actor(tx: Tx, tenantId: string, usuarioId: string) {
   if (!user) throw new ForbiddenException('Usuario o empresa no disponible');
   return user;
 }
+// Call after lockTenant so revocation and the mutation share the same ordering.
+export async function authorizedActor(tx: Tx, tenantId: string, usuarioId: string, roles: readonly string[], permission?: string) {
+  const user = await actor(tx, tenantId, usuarioId);
+  if (!roles.includes(user.rol)) throw new ForbiddenException('Su rol de usuario no tiene autorización para acceder a esta función');
+  if (permission && user.rol !== 'ADMIN' && user.permisos_configurados && !user.permisos?.includes(permission)) {
+    throw new ForbiddenException('No tiene el permiso requerido para esta operación');
+  }
+  return user;
+}
 export function validateDiscount(user: any, subtotal: number, descuento: number) {
   decimal(descuento, 'Descuento');
   if (descuento > subtotal) throw new BadRequestException('Descuento mayor al subtotal');

@@ -12,6 +12,7 @@ import { LevantamientosService } from '../src/levantamientos/levantamientos.serv
 import { UsuariosService } from '../src/usuarios/usuarios.service';
 import { ProductosService } from '../src/productos/productos.service';
 import { ClientesService } from '../src/clientes/clientes.service';
+import { lockTenant } from '../src/operaciones/ledger';
 import * as bcrypt from 'bcrypt';
 
 // Nunca lee DATABASE_URL: crea un clúster exclusivo, sin migraciones ni datos existentes.
@@ -62,6 +63,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', join(directory, 'legacy-data.sql')], { windowsHide: true, timeout: 30000 });
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261002000000_add_customer_numbers/migration.sql')], { windowsHide: true, timeout: 30000 });
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261004000000_operacion_ferreteria/migration.sql')], {timeout:30000});
+    execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261005000000_autorizaciones_devolucion/migration.sql')], {timeout:30000});
     databaseUrl = `postgresql://postgres@127.0.0.1:${port}/postgres?connection_limit=8`;
     prisma = new PrismaService({ datasources: { db: { url: databaseUrl } } });
     console.log('PostgreSQL temporal: Prisma connect');
@@ -87,6 +89,166 @@ describe('Ventas / PostgreSQL aislado', () => {
 
   const available = async()=>{const p=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});return Number(p.stockActual)-Number(p.stockReservado);};
   const request = (cantidad = 2.75) => ({ detalles: [{ productoId, cantidad, precioUnitario: 10 }] });
+
+  // Hold the same lock used by user edits until the mutation is actually queued
+  // in PostgreSQL, then revoke and commit before the mutation acquires it.
+  const revokeWhileQueued = async <T>(change: any, mutate: () => Promise<T>): Promise<T> => {
+    let locked!: () => void, release!: () => void;
+    const acquired = new Promise<void>(resolve => { locked = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const revocation = prisma.$transaction(async tx => {
+      await lockTenant(tx,tenantId);
+      locked();
+      await gate;
+      await tx.usuario.update({where:{id:usuarioId},data:change});
+    },{timeout:10000});
+    await acquired;
+    const pending = mutate().then(value => ({value}), error => ({error}));
+    try {
+      const deadline = Date.now()+5000;
+      while (true) {
+        const [state] = await prisma.$queryRawUnsafe<{waiting:boolean}[]>("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND query LIKE '%pg_advisory_xact_lock%') AS waiting");
+        if(state.waiting)break;
+        if(Date.now()>deadline)throw new Error('La operación no llegó al bloqueo de tenant');
+        await new Promise(resolve => setTimeout(resolve,5));
+      }
+    } finally {
+      release();
+      await revocation;
+    }
+    const outcome = await pending;
+    if('error' in outcome)throw outcome.error;
+    return outcome.value;
+  };
+
+  it.each([
+    {label:'cambio a bodeguero',change:{rol:'BODEGUERO'},message:'rol de usuario'},
+    {label:'retiro de pos.vender',change:{permisos:[]},message:'permiso requerido'},
+    {label:'desactivación',change:{activo:false},message:'no disponible'},
+  ])('revocación concurrente: $label impide una venta que esperaba el bloqueo',async({change,message})=>{
+    await prisma.usuario.update({where:{id:usuarioId},data:{rol:'CAJERO',permisosConfigurados:true,permisos:['pos.vender']}});
+    await expect(revokeWhileQueued(change,()=>ventas.create(tenantId,usuarioId,{...request(1),solicitudId:randomUUID()}))).rejects.toThrow(message);
+    expect(await prisma.venta.count({where:{tenantId}})).toBe(0);
+    expect(await prisma.secuenciaTenant.count({where:{tenantId,tipo:'VENTA'}})).toBe(0);
+    expect(await available()).toBe(2.75);
+    const [cashMovements] = await prisma.$queryRawUnsafe<{count:number}[]>('SELECT COUNT(*)::int AS count FROM movimientos_caja WHERE caja_id IN (SELECT id FROM cajas WHERE tenant_id=$1)',tenantId);
+    expect(cashMovements.count).toBe(0);
+  });
+
+  it('un administrador demovido durante la espera no puede restaurarse el rol',async()=>{
+    await prisma.usuario.create({data:{tenantId,nombre:'Segundo administrador',email:'second@example.test',passwordHash:'test-only',rol:'ADMIN'}});
+    const users=new UsuariosService(prisma);
+    await expect(revokeWhileQueued({rol:'CAJERO'},()=>users.update(tenantId,usuarioId,{rol:'ADMIN'},usuarioId))).rejects.toThrow('rol de usuario');
+    expect((await prisma.usuario.findUniqueOrThrow({where:{id:usuarioId}})).rol).toBe('CAJERO');
+    expect(await prisma.auditoriaOperacion.count({where:{tenantId,operacion:'USUARIO_EDITAR'}})).toBe(0);
+  });
+
+
+  it('consultar solicitud recupera la venta propia sin nuevas escrituras y no expone otra cuenta', async () => {
+    const solicitudId = randomUUID();
+    expect(await ventas.findSolicitud(tenantId, usuarioId, solicitudId)).toEqual({ estado: 'NO_REGISTRADA' });
+    const venta = await ventas.create(tenantId, usuarioId, { ...request(1), solicitudId });
+    const snapshots = async () => ({
+      ventas: await prisma.venta.count({ where: { tenantId } }),
+      stock: await available(),
+      dinero: await prisma.$queryRawUnsafe('SELECT COUNT(*)::int AS count FROM movimientos_caja WHERE caja_id IN (SELECT id FROM cajas WHERE tenant_id=$1)', tenantId),
+    });
+    const before = await snapshots();
+    for (let i = 0; i < 2; i++) {
+      const recovered = await ventas.findSolicitud(tenantId, usuarioId, solicitudId);
+      expect(recovered.estado).toBe('REGISTRADA');
+      if (recovered.estado === 'REGISTRADA') expect(recovered.venta).toMatchObject({ id: venta.id, total: venta.total });
+    }
+    expect(await ventas.findSolicitud('legacy-B', usuarioId, solicitudId)).toEqual({ estado: 'NO_REGISTRADA' });
+    expect(await ventas.findSolicitud(tenantId, randomUUID(), solicitudId)).toEqual({ estado: 'NO_REGISTRADA' });
+    expect(await snapshots()).toEqual(before);
+  });
+
+  it('consulta espera una escritura de venta en curso antes de informar su estado', async () => {
+    const solicitudId = randomUUID();
+    let notifyLocked!: () => void;
+    const locked = new Promise<void>(resolve => { notifyLocked = resolve; });
+    let release!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const writer = prisma.$transaction(async tx => {
+      await tx.$queryRawUnsafe('SELECT 1 FROM pg_advisory_xact_lock(hashtextextended($1, 0))', 'OPERACION:' + tenantId);
+      // Mismo bloqueo de solicitud que usa el endpoint, además del bloqueo por empresa.
+      await tx.$queryRawUnsafe('SELECT 1 FROM pg_advisory_xact_lock(hashtextextended($1, 0))', 'VENTA:' + solicitudId);
+      notifyLocked();
+      await waiting;
+      await tx.venta.create({ data: { id: solicitudId, tenantId, usuarioId, numeroVenta: 99, subtotal: 0, isv: 0, descuento: 0, total: 0, metodoPago: 'EFECTIVO' } });
+    });
+    await locked;
+    let completed = false;
+    const reader = ventas.findSolicitud(tenantId, usuarioId, solicitudId).then(value => { completed = true; return value; });
+    try {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(completed).toBe(false);
+    } finally { release(); }
+    await writer;
+    expect((await reader).estado).toBe('REGISTRADA');
+  });
+
+  it('reinicio abrupto conserva la venta confirmada, revierte la incompleta y no duplica caja ni reservas', async () => {
+    const solicitudId = randomUUID();
+    const dto = { ...request(1), solicitudId };
+    const original = await ventas.create(tenantId, usuarioId, dto);
+
+    const incompleteId = randomUUID();
+    let notifyWritten!: () => void;
+    const written = new Promise<void>(resolve => { notifyWritten = resolve; });
+    let release!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const interrupted = prisma.$transaction(async tx => {
+      await tx.producto.update({ where: { id: productoId }, data: { stockReservado: { increment: 0.5 } } });
+      await tx.venta.create({ data: { id: incompleteId, tenantId, usuarioId, numeroVenta: 99, subtotal: 0, isv: 0, descuento: 0, total: 0, metodoPago: 'EFECTIVO' } });
+      notifyWritten();
+      await waiting;
+    }).catch(error => error);
+    await written;
+    execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-m', 'immediate', '-w', 'stop'], { timeout: 30000, stdio: 'ignore' });
+    release();
+    expect(await interrupted).toBeInstanceOf(Error);
+    await prisma.$disconnect();
+    execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${new URL(databaseUrl).port}${process.platform === 'win32' ? '' : ' -k ' + directory}`, '-w', 'start'], { timeout: 30000, stdio: 'pipe' });
+    await prisma.$connect();
+    const recovered = await ventas.findSolicitud(tenantId, usuarioId, solicitudId);
+    expect(recovered.estado).toBe('REGISTRADA');
+    expect(await ventas.findSolicitud(tenantId, usuarioId, incompleteId)).toEqual({ estado: 'NO_REGISTRADA' });
+    expect((await ventas.create(tenantId, usuarioId, dto)).id).toBe(original.id);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
+    expect(await available()).toBe(1.75);
+    const rows = await prisma.$queryRawUnsafe<any[]>('SELECT COUNT(*)::int AS count FROM movimientos_caja WHERE referencia=$1', original.id);
+    expect(rows[0].count).toBe(1);
+  });
+
+  it('herramienta de respaldo genera diagnóstico y dump restaurable sin modificar el origen', async () => {
+    const sale = await ventas.create(tenantId, usuarioId, { ...request(1), solicitudId: randomUUID() });
+    const source = new URL(databaseUrl);
+    const backups = join(directory, 'backups');
+    // Ejecutar el diagnóstico directamente sobre datos de prueba para localizar errores de SQL.
+    execFileSync(executable('psql'), ['-X', '-h', source.hostname, '-p', source.port, '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('scripts/preflight.sql')], { timeout: 30000, stdio: 'pipe' });
+    execFileSync(process.execPath, [resolve('scripts/backup-preflight.mjs'), backups], {
+      env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PG'))), PG_BIN: bin, PGHOST: source.hostname, PGPORT: source.port, PGUSER: 'postgres', PGDATABASE: 'postgres', PGPASSFILE: join(directory, 'no-password-file'), PGSSLMODE: 'disable' },
+      timeout: 30000, stdio: 'pipe',
+    });
+    const { readdirSync } = await import('node:fs');
+    const saved = join(backups, readdirSync(backups)[0]);
+    const manifest = JSON.parse(readFileSync(join(saved, 'manifest.json'), 'utf8'));
+    expect(manifest.archiveReadable).toBe(true);
+    expect(manifest.restoreTested).toBe(false);
+    expect(readFileSync(join(saved, 'preflight.txt'), 'utf8')).toContain('stock_negativo');
+    execFileSync(executable('createdb'), ['-h', source.hostname, '-p', source.port, '-U', 'postgres', 'restore_check'], { timeout: 30000, stdio: 'pipe' });
+    execFileSync(executable('pg_restore'), ['-h', source.hostname, '-p', source.port, '-U', 'postgres', '--exit-on-error', '--no-owner', '--no-acl', '-d', 'restore_check', join(saved, 'database.dump')], { timeout: 30000, stdio: 'pipe' });
+    const restored = new PrismaService({ datasources: { db: { url: databaseUrl.replace('/postgres?', '/restore_check?') } } });
+    try {
+      await restored.$connect();
+      expect(await restored.venta.findUniqueOrThrow({ where: { id: sale.id } })).toMatchObject({ id: sale.id, tenantId, usuarioId });
+      expect(await restored.venta.count()).toBe(await prisma.venta.count());
+      expect(await restored.producto.count()).toBe(await prisma.producto.count());
+      expect(await restored.$queryRawUnsafe('SELECT COUNT(*)::int AS count FROM movimientos_caja')).toEqual(await prisma.$queryRawUnsafe('SELECT COUNT(*)::int AS count FROM movimientos_caja'));
+    } finally { await restored.$disconnect(); }
+  });
 
   it('la migración numera clientes existentes sin modificar sus datos y soporta inserts de la API anterior', async () => {
     const clients = await prisma.cliente.findMany({ where: { tenantId: 'legacy-A' }, orderBy: { numeroCliente: 'asc' } });
@@ -186,6 +348,14 @@ describe('Ventas / PostgreSQL aislado', () => {
       const commercial=await fetch(`${base}/productos/comercial`,{headers:cashierHeaders});expect(commercial.status).toBe(200);
       const catalog=await commercial.json() as any[];expect(catalog[0].precioVenta).toBe(10);expect(catalog[0].precioCosto).toBeUndefined();
       expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify({detalles:[{productoId,cantidad:1,precioUnitario:1}]})})).status).toBe(409);
+
+      const recoveryId = randomUUID();
+      expect((await fetch(`${base}/ventas/solicitudes/${recoveryId}`, { headers: cashierHeaders })).status).toBe(200);
+      expect((await fetch(`${base}/ventas/solicitudes/not-a-uuid`, { headers: cashierHeaders })).status).toBe(400);
+      expect((await fetch(`${base}/ventas/solicitudes/${recoveryId}`)).status).toBe(401);
+      const savedSale = await ventas.create(tenantId, usuarioId, { ...request(1), solicitudId: recoveryId });
+      const recoveredHTTP = await fetch(`${base}/ventas/solicitudes/${recoveryId}`, { headers: cashierHeaders });
+      expect(await recoveredHTTP.json()).toMatchObject({ estado: 'REGISTRADA', venta: { id: savedSale.id } });
       await prisma.usuario.update({where:{id:usuarioId},data:{permisosConfigurados:true,permisos:[]}});
       expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify(request(1))})).status).toBe(403);
       await prisma.usuario.update({where:{id:usuarioId},data:{activo:false}});
@@ -274,7 +444,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect(await available()).toBe(2.25);
     expect((await prisma.secuenciaTenant.findFirstOrThrow({ where: { tenantId, tipo: 'VENTA' } })).ultimoNumero).toBe(1);
     await expect(ventas.create(tenantId, usuarioId, { ...dto, descuento: 1 })).rejects.toThrow('otra venta');
-    await expect(ventas.create(randomUUID(), usuarioId, dto)).rejects.toThrow('otra venta');
+    await expect(ventas.create(randomUUID(), usuarioId, dto)).rejects.toThrow('no disponible');
   });
 
   it('un tenant ajeno no puede descontar ni crear ventas sobre otro inventario', async () => {
@@ -416,7 +586,8 @@ describe('Ventas / PostgreSQL aislado', () => {
   it('otro tenant no puede recibir una compra ajena ni consultar sus movimientos',async()=>{
     const ops=new OperacionesService(prisma),provider=await ops.proveedor(tenantId,usuarioId,{solicitudId:randomUUID(),nombre:'Proveedor'});
     const order=await ops.compra(tenantId,usuarioId,{solicitudId:randomUUID(),proveedorId:provider.id,numeroFactura:'F1',isv:0,items:[{productoId,cantidad:1,costo:2}]});
-    await expect(ops.recibir('legacy-B',usuarioId,order.id,{solicitudId:randomUUID(),items:[{detalleId:'x',cantidad:1}]})).rejects.toThrow('no encontrada');
+    const foreignUser=await prisma.usuario.create({data:{tenantId:'legacy-B',nombre:'Administrador ajeno',email:`${randomUUID()}@example.test`,passwordHash:'test-only',rol:'ADMIN'}});
+    await expect(ops.recibir('legacy-B',foreignUser.id,order.id,{solicitudId:randomUUID(),items:[{detalleId:'x',cantidad:1}]})).rejects.toThrow('no encontrada');
     expect(await ops.historial('legacy-B',productoId)).toEqual({movimientos:[],costos:[]});
   });
 
@@ -434,6 +605,7 @@ describe('Ventas / PostgreSQL aislado', () => {
   });
 
   it('una devolución entregada restaura inventario, reembolsa una sola vez y no permite devolver de más',async()=>{
+    await prisma.usuario.update({where:{id:usuarioId},data:{rol:'ADMIN'}});
     const ops=new OperacionesService(prisma),sale=await ventas.create(tenantId,usuarioId,request(2));
     await ops.entregar(tenantId,usuarioId,sale.id);
     const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
@@ -445,6 +617,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     await expect(ops.devolver(tenantId,usuarioId,sale.id,{...command,solicitudId:randomUUID(),items:[{...command.items[0],cantidad:2}]})).rejects.toThrow('supera');
   });
   it('cancelar mercancía no entregada libera reserva y cancela crédito sin ingreso físico ficticio',async()=>{
+    await prisma.usuario.update({where:{id:usuarioId},data:{rol:'ADMIN'}});
     const ops=new OperacionesService(prisma),client=await new ClientesService(prisma).create(tenantId,{nombre:'Cliente'});
     const sale=await ventas.create(tenantId,usuarioId,{...request(2),metodoPago:'CREDITO',clienteId:client.id});
     const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
@@ -456,6 +629,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect(Number(p.stockActual)).toBe(1.75);expect(Number(p.stockReservado)).toBe(0);
   });
   it('devolver crédito con abonos cancela saldo y reembolsa el excedente pagado',async()=>{
+    await prisma.usuario.update({where:{id:usuarioId},data:{rol:'ADMIN'}});
     const ops=new OperacionesService(prisma),client=await new ClientesService(prisma).create(tenantId,{nombre:'Cliente'});
     const sale=await ventas.create(tenantId,usuarioId,{...request(1),metodoPago:'CREDITO',clienteId:client.id});
     const debt=(await ops.cuentas(tenantId,usuarioId,'CXC'))[0];
@@ -489,5 +663,169 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect(await prisma.auditoriaOperacion.count({where:{tenantId,entidadId:cashier.id}})).toBe(2);
   });
 
-});
+  const authorizedReturn = async (credit=false) => {
+    const ops=new OperacionesService(prisma);
+    await prisma.usuario.update({where:{id:usuarioId},data:{rol:'CAJERO'}});
+    const adminId=randomUUID();
+    await prisma.usuario.create({data:{id:adminId,tenantId,nombre:'Administrador',email:'admin@example.test',passwordHash:'test-only',rol:'ADMIN'}});
+    const dto:any={...request(1),solicitudId:randomUUID(),metodoPago:credit?'CREDITO':'EFECTIVO'};
+    if(credit){const c=await prisma.cliente.create({data:{tenantId,nombre:'Cliente crédito'}});dto.clienteId=c.id;}
+    const sale=await ventas.create(tenantId,usuarioId,dto);
+    const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
+    const command={solicitudId:randomUUID(),motivo:'Devolución solicitada por cliente',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'NO_ENTREGADO'}]};
+    return {ops,adminId,sale,command};
+  };
 
+  it('solicitar y autorizar no mueve dinero ni inventario; ejecutar usa la caja del solicitante una sola vez',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    const stockBefore=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
+    const movementBefore=await prisma.movimientoCaja.count({where:{usuarioId}});
+    const created=await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    expect(created.estado).toBe('PENDIENTE');
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('autorizada');
+    await expect(ops.decidirDevolucion(tenantId,usuarioId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'})).rejects.toThrow('administrador');
+    await expect(ops.devolver(tenantId,usuarioId,sale.id,command)).rejects.toThrow('administrador');
+    const decision={decision:'AUTORIZADA',motivo:'Productos revisados'};
+    await Promise.all([ops.decidirDevolucion(tenantId,adminId,command.solicitudId,decision),ops.decidirDevolucion(tenantId,adminId,command.solicitudId,decision)]);
+    expect(await prisma.movimientoCaja.count({where:{usuarioId}})).toBe(movementBefore);
+    const stockAuthorized=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
+    expect(stockAuthorized.stockActual.toString()).toBe(stockBefore.stockActual.toString());
+    expect(stockAuthorized.stockReservado.toString()).toBe(stockBefore.stockReservado.toString());
+    await expect(ops.ejecutarAutorizada(tenantId,adminId,command.solicitudId)).rejects.toThrow('no encontrada');
+    const results=await Promise.all([ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId),ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)]);
+    expect(results[0].id).toBe(results[1].id);
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(1);
+    expect(await prisma.movimientoCaja.count({where:{usuarioId}})).toBe(movementBefore+1);
+    expect((await ops.consultarDevolucion(tenantId,usuarioId,command.solicitudId)).estado).toBe('EJECUTADA');
+    const audit=await ops.auditoria(tenantId,0);
+    expect(audit.some(a=>a.operacion==='DEVOLUCION_DECIDIR'&&a.usuario_id===adminId)).toBe(true);
+    expect(audit.some(a=>a.operacion==='DEVOLUCION_EJECUTAR_AUTORIZADA'&&a.usuario_id===usuarioId&&a.datos.administradorId===adminId)).toBe(true);
+  });
+
+  it('solicitudes son inmutables, recuperables y aisladas por usuario y empresa',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    const results=await Promise.all([ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command),ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command)]);
+    expect(results[0].id).toBe(results[1].id);
+    await expect(ops.solicitarDevolucion(tenantId,usuarioId,sale.id,{...command,motivo:'Cambio'})).rejects.toThrow('otra devolución');
+    const otherId=randomUUID();await prisma.usuario.create({data:{id:otherId,tenantId,nombre:'Otro cajero',email:'other@example.test',passwordHash:'test-only',rol:'CAJERO'}});
+    expect(await ops.solicitudesDevolucion(tenantId,otherId)).toHaveLength(0);
+    await expect(ops.consultarDevolucion(tenantId,otherId,command.solicitudId)).rejects.toThrow('no encontrada');
+    expect(await ops.solicitudesDevolucion(tenantId,adminId)).toHaveLength(1);
+    const anotherTenant=randomUUID(),anotherAdmin=randomUUID();
+    await prisma.tenant.create({data:{id:anotherTenant,nombreComercial:'Otra empresa'}});
+    await prisma.usuario.create({data:{id:anotherAdmin,tenantId:anotherTenant,nombre:'Otro admin',email:'another@example.test',passwordHash:'test-only',rol:'ADMIN'}});
+    await expect(ops.consultarDevolucion(anotherTenant,anotherAdmin,command.solicitudId)).rejects.toThrow('no encontrada');
+    await expect(ops.decidirDevolucion(anotherTenant,anotherAdmin,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'})).rejects.toThrow('no encontrada');
+  });
+
+  it('rechazo no ejecuta ajustes ni puede sustituirse por autorización',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'RECHAZADA',motivo:'No corresponde'});
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('autorizada');
+    await expect(ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'Cambio'})).rejects.toThrow('decisión');
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(0);
+  });
+
+  it('caja cerrada causa rollback completo y permite ejecutar tras abrir sin otra autorización',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'});
+    const [cash]=await ops.caja(tenantId,usuarioId);await ops.cerrar(tenantId,usuarioId,cash.id,{monto:cash.efectivoEsperado});
+    const stock=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('Abra su caja');
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(0);
+    expect((await ops.consultarDevolucion(tenantId,usuarioId,command.solicitudId)).estado).toBe('AUTORIZADA');
+    expect((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockReservado.toString()).toBe(stock.stockReservado.toString());
+    await ops.abrir(tenantId,usuarioId,{solicitudId:randomUUID(),monto:100});
+    await ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId);
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(1);
+  });
+
+  it('cantidades o destino cambiados después de aprobar se vuelven a validar al ejecutar',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'});
+    await ops.entregar(tenantId,usuarioId,sale.id);
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('destino físico');
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(0);
+  });
+
+  it('autorización de administrador desactivado no ejecuta y crédito se cancela sin reembolso',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn(true);
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'});
+    await prisma.usuario.update({where:{id:adminId},data:{activo:false}});
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('no disponible');
+    await prisma.usuario.update({where:{id:adminId},data:{activo:true}});
+    const result=await ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId);
+    expect(Number(result.credito_cancelado)).toBeGreaterThan(0);expect(Number(result.reembolso)).toBe(0);
+    await prisma.usuario.update({where:{id:adminId},data:{activo:false}});
+    expect((await ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).id).toBe(result.id);
+  });
+
+  it('devolución autorizada parcial de mercancía entregada restaura solo lo devuelto y conserva la venta',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    await ops.entregar(tenantId,usuarioId,sale.id);
+    command.items[0].cantidad=.5;command.items[0].destino='INVENTARIO';
+    const before=Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual);
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'Medio producto recibido'});
+    const result=await ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId);
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual)).toBe(before+.5);
+    expect(Number(result.monto)).toBe(5.75);
+    expect((await prisma.venta.findUniqueOrThrow({where:{id:sale.id}})).estado).toBe('COMPLETADA');
+    const updated=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
+    expect(Number(updated.items[0].devuelto)).toBe(.5);
+  });
+
+  it('otra devolución posterior a la autorización impide devolver cantidades ya consumidas',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'});
+    await expect(ops.devolver(tenantId,adminId,sale.id,command)).rejects.toThrow('solicitud');
+    await ops.abrir(tenantId,adminId,{solicitudId:randomUUID(),monto:100});
+    await ops.devolver(tenantId,adminId,sale.id,{...command,solicitudId:randomUUID()});
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('supera');
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(1);
+    expect((await ops.consultarDevolucion(tenantId,usuarioId,command.solicitudId)).estado).toBe('AUTORIZADA');
+  });
+
+  it('dos administradores consultan las mismas solicitudes y cualquiera puede autorizar',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    const secondAdmin=randomUUID();
+    await prisma.usuario.create({data:{id:secondAdmin,tenantId,nombre:'Segundo administrador',email:'admin2@example.test',passwordHash:'test-only',rol:'ADMIN'}});
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    expect((await ops.solicitudesDevolucion(tenantId,adminId))[0].id).toBe(command.solicitudId);
+    expect((await ops.solicitudesDevolucion(tenantId,secondAdmin))[0].id).toBe(command.solicitudId);
+    await ops.decidirDevolucion(tenantId,secondAdmin,command.solicitudId,{decision:'AUTORIZADA',motivo:'Revisado por segundo administrador'});
+    const request=await ops.consultarDevolucion(tenantId,adminId,command.solicitudId);
+    expect(request.administrador_id).toBe(secondAdmin);
+    await ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId);
+    const audit=await ops.auditoria(tenantId,0);
+    expect(audit.some(a=>a.operacion==='DEVOLUCION_EJECUTAR_AUTORIZADA'&&a.datos.administradorId===secondAdmin)).toBe(true);
+  });
+
+  it('dos administradores decidiendo simultáneamente conservan una sola decisión y su autor',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    const secondAdmin=randomUUID();
+    await prisma.usuario.create({data:{id:secondAdmin,tenantId,nombre:'Segundo administrador',email:'admin2@example.test',passwordHash:'test-only',rol:'ADMIN'}});
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    const outcomes=await Promise.allSettled([
+      ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'Autorizar'}),
+      ops.decidirDevolucion(tenantId,secondAdmin,command.solicitudId,{decision:'RECHAZADA',motivo:'Rechazar'}),
+    ]);
+    expect(outcomes.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+    expect(outcomes.filter(r=>r.status==='rejected')).toHaveLength(1);
+    const winner=outcomes.find(r=>r.status==='fulfilled') as PromiseFulfilledResult<any>;
+    const request=await ops.consultarDevolucion(tenantId,adminId,command.solicitudId);
+    expect(request.estado).toBe(winner.value.estado);
+    expect(request.administrador_id).toBe(winner.value.administrador_id);
+    const audit=await ops.auditoria(tenantId,0);
+    const decisions=audit.filter(a=>a.operacion==='DEVOLUCION_DECIDIR'&&a.entidad_id===command.solicitudId);
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0].usuario_id).toBe(request.administrador_id);
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(0);
+  });
+
+});

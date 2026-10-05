@@ -100,3 +100,6 @@ No exponer PostgreSQL directamente a Internet. Evaluar acceso remoto privado, HT
 7. Diseñar e implementar sincronización multisucursal cuando se confirme el alcance.
 
 Este documento registra la conversación para retomarla después. No se modificó la arquitectura, no se instalaron servidores y no se aplicaron cambios a producción como parte de esta documentación.
+# Actualización del requisito móvil — 5 de octubre de 2026
+
+El cliente confirmó app instalada con notificaciones push aunque esté cerrada, independiente de la sesión del navegador. Las alternativas web/PWA de esta lluvia de ideas se conservan como antecedentes; no completan ese requisito. Propuesta y límites actuales en `APP_MOVIL_Y_NOTIFICACIONES.md`. La base operativa puede seguir local.

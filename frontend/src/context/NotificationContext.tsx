@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useTenant } from './TenantContext';
+import { parseStoredArray, readStoredArray } from '../utils/storage';
 
 export interface SolicitudDescuento {
   id: string;
@@ -44,18 +45,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [loadedTenantId, setLoadedTenantId] = useState<string>(currentTenantId);
 
   const loadSolicitudes = (tId: string): SolicitudDescuento[] => {
-    const saved = localStorage.getItem(`ferre_solicitudes_descuento_${tId}`);
-    if (saved) return JSON.parse(saved);
-    if (tId === 'tenant-demo-1' || tId === 't-1') {
-      const legacy = localStorage.getItem('ferre_solicitudes_descuento');
-      return legacy ? JSON.parse(legacy) : [];
+    // Usar datos antiguos únicamente cuando todavía no exista la lista del tenant.
+    try {
+      const saved = localStorage.getItem(`ferre_solicitudes_descuento_${tId}`);
+      if (saved !== null) return parseStoredArray<SolicitudDescuento>(saved);
+      if (tId === 'tenant-demo-1' || tId === 't-1') {
+        return readStoredArray<SolicitudDescuento>('ferre_solicitudes_descuento');
+      }
+    } catch {
+      // Una caché inválida no debe impedir abrir la pantalla de ingreso.
     }
     return [];
   };
 
   const loadNotificacionesTransferencia = (tId: string): NotificacionTransferencia[] => {
-    const saved = localStorage.getItem(`ferre_notificaciones_transferencia_${tId}`);
-    return saved ? JSON.parse(saved) : [];
+    return readStoredArray<NotificacionTransferencia>(`ferre_notificaciones_transferencia_${tId}`);
   };
 
   const [solicitudes, setSolicitudes] = useState<SolicitudDescuento[]>(() =>
@@ -90,17 +94,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === storageKey) {
-        if (e.newValue) {
-          setSolicitudes(JSON.parse(e.newValue));
-        } else {
-          setSolicitudes([]);
-        }
+        setSolicitudes(parseStoredArray<SolicitudDescuento>(e.newValue));
       } else if (e.key === transferStorageKey) {
-        if (e.newValue) {
-          setNotificacionesTransferencia(JSON.parse(e.newValue));
-        } else {
-          setNotificacionesTransferencia([]);
-        }
+        setNotificacionesTransferencia(parseStoredArray<NotificacionTransferencia>(e.newValue));
       }
     };
 

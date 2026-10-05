@@ -14,7 +14,7 @@ interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({
   title,
-  subtitle = 'Turno Actual: 08:00 AM - 05:00 PM',
+  subtitle = 'Elige una tarea o usa el buscador para encontrarla',
 }) => {
   const { user, tenant, isImpersonating, isReadOnly, enableEditMode, stopImpersonating, switchSucursal, logout } = useTenant();
   const [modalConfirmEditMode, setModalConfirmEditMode] = React.useState(false);
@@ -156,7 +156,8 @@ export const TopBar: React.FC<TopBarProps> = ({
             <div className="topbar-desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <GitBranch size={13} color="var(--color-primary)" />
               <select
-                value={tenant.sucursal || 'Sucursal Centro (Principal)'}
+                value={tenant.sucursal || 'Sucursal Principal'}
+                disabled={sucursalesDisponibles.length < 2}
                 onChange={(e) => switchSucursal(e.target.value, tenant.id)}
                 style={styles.sucursalSelect}
                 aria-label="Seleccionar sucursal"

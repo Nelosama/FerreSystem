@@ -63,3 +63,19 @@
     justify-content: center !important;
   }
 }
+
+/* Accesos por tareas, disponibles en ambos modos de navegación y en móvil. */
+.task-finder { padding: 16px 24px; border-bottom: 1px solid var(--color-border); background: var(--color-surface, #fff); }
+.task-finder label { display: flex; align-items: center; gap: 8px; font-weight: 700; margin-bottom: 8px; }
+.task-search-row { display: flex; gap: 8px; }
+.task-search-row input { flex: 1; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 6px; font-size: 16px; }
+.task-finder small, .task-link span { color: var(--color-text-muted); }
+.task-search-results { margin-top: 12px; display: grid; gap: 8px; }
+.daily-tasks { margin-bottom: 28px; }
+.daily-tasks h2 { font-size: 22px; margin-bottom: 8px; }
+.daily-tasks p { margin-bottom: 16px; }
+.task-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+.task-link { display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface, #fff); color: var(--color-text-main); text-decoration: none; }
+.task-link:hover { border-color: var(--color-primary); }
+.task-link:focus-visible, .task-search-row input:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+@media (max-width: 768px) { .task-finder { padding: 12px; } .daily-tasks { padding: 0; } }

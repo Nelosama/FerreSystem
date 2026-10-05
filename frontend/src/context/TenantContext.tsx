@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { TenantInfo, UserInfo } from '../types';
 import { api } from '../utils/api';
+import { startSessionSync } from '../utils/sessionSync';
 import { readStoredJson } from '../utils/storage';
 
 interface TenantContextType {
@@ -56,9 +57,30 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return localStorage.getItem('ferre_active_support_session_id');
   });
 
+  useEffect(() => {
+    if (!user) return;
+    return startSessionSync(() => api.get('/auth/me'), next => setUser(next), {
+      userId: user.id,
+      tenantId: tenant.id,
+      onChanged: () => {
+        // Otra pestaña puede haber iniciado otra cuenta. Invalidar solo esta
+        // pantalla evita mezclar su empresa con el token compartido nuevo.
+        setUser(null);
+        setTenant(DEFAULT_TENANT);
+        setOriginalSuperAdminUser(null);
+        setOriginalTenant(null);
+        setIsReadOnlyState(false);
+        setActiveSupportSessionId(null);
+      },
+    });
+  }, [user?.id, tenant.id, !!originalSuperAdminUser]);
+
   // Sincronización continua de la configuración del Tenant desde ferre_saas_tenants y variables CSS
   useEffect(() => {
     const syncTenantFromStorage = () => {
+      const savedUser = readStoredJson<UserInfo | null>('ferre_user', null);
+      const savedTenant = readStoredJson<TenantInfo>('ferre_tenant', DEFAULT_TENANT);
+      if (!user || !tenant.id || savedUser?.id !== user.id || savedTenant.id !== tenant.id) return;
       const saasTenantsRaw = localStorage.getItem('ferre_saas_tenants');
       if (saasTenantsRaw) {
         try {
@@ -147,7 +169,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Tipografías
     root.style.setProperty('--font-display', `'${fuenteTitulos}', sans-serif`);
     root.style.setProperty('--font-body', `'${fuenteCuerpo}', sans-serif`);
-  }, [tenant.id, tenant.nombreComercial, tenant.colorPrimario, tenant.estiloUI, tenant.fuenteTitulos, tenant.fuenteCuerpo]);
+  }, [user?.id, tenant.id, tenant.nombreComercial, tenant.colorPrimario, tenant.estiloUI, tenant.fuenteTitulos, tenant.fuenteCuerpo]);
 
   const updateBranding = (colorPrimario: string, nombreComercial: string) => {
     const updated = { ...tenant, colorPrimario, nombreComercial };

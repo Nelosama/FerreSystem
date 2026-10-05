@@ -2,7 +2,7 @@ import { Injectable,NotFoundException,BadRequestException,ConflictException } fr
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
-import { audit,lockTenant } from '../operaciones/ledger';
+import { authorizedActor,audit,lockTenant } from '../operaciones/ledger';
 import * as bcrypt from 'bcrypt';
 const select={id:true,tenantId:true,nombre:true,email:true,rol:true,activo:true,permisos:true,permisosConfigurados:true,descuentoMaximo:true,createdAt:true,updatedAt:true} as const;
 @Injectable()
@@ -15,6 +15,7 @@ export class UsuariosService {
   const passwordHash=await bcrypt.hash(dto.password,10),email=dto.email.toLowerCase().trim();
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,actorId,['ADMIN'],'usuarios.gestionar');
    if(await tx.usuario.findFirst({where:{tenantId,email}}))throw new ConflictException('Ya existe un usuario con este correo electrónico');
    const user=await tx.usuario.create({data:{tenantId,nombre:dto.nombre.trim(),email,passwordHash,rol:dto.rol||'CAJERO',permisos:dto.permisos||[],permisosConfigurados:dto.permisos!==undefined,descuentoMaximo:dto.descuentoMaximo??0,activo:dto.activo??true},select});
    await audit(tx,tenantId,actorId,'USUARIO_CREAR',user.id,{usuario:user});return user;
@@ -23,7 +24,9 @@ export class UsuariosService {
  async update(tenantId:string,id:string,dto:UpdateUsuarioDto,actorId:string){
   const passwordHash=dto.password?await bcrypt.hash(dto.password,10):undefined;
   return this.prisma.$transaction(async tx=>{
-   await lockTenant(tx,tenantId);const old=await tx.usuario.findFirst({where:{tenantId,id},select});if(!old)throw new NotFoundException('Usuario no encontrado');
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,actorId,['ADMIN'],'usuarios.gestionar');
+   const old=await tx.usuario.findFirst({where:{tenantId,id},select});if(!old)throw new NotFoundException('Usuario no encontrado');
    if(old.rol==='ADMIN'&&old.activo&&(dto.activo===false||dto.rol!==undefined&&dto.rol!=='ADMIN')){
     if(await tx.usuario.count({where:{tenantId,rol:'ADMIN',activo:true}})<=1)throw new ConflictException('Conserve al menos un administrador activo');
    }

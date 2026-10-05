@@ -1,3 +1,4 @@
+import { canNavigate } from '../utils/taskNavigation';
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { MoreHorizontal, X, GitBranch, Clock } from 'lucide-react';
@@ -11,50 +12,13 @@ export const BottomNavigation: React.FC = () => {
   const { tenant, user, switchSucursal } = useTenant();
   const rubroConfig = useRubroConfig();
   const { locale, setLocale, t } = useI18n();
-  const userRole = user?.rol;
   const location = useLocation();
 
   const [showMasModal, setShowMasModal] = useState(false);
 
-  const defaultModules = [
-    'inventario',
-    'levantamiento',
-    'pos',
-    'cotizaciones',
-    'usuarios',
-    'configuracion',
-    'apartados',
-    'arqueo_caja',
-    'ordenes_compra',
-    'transferencias_sucursal',
-    'garantias',
-    'pedidos_especiales',
-    'listas_precio',
-    'comisiones_venta',
-    'reportes',
-  ];
 
-  const modulosHabilitados = tenant.modulosHabilitados || defaultModules;
 
-  const isModuleEnabled = (moduleKey?: string) => {
-    if (!moduleKey) return true;
-    return modulosHabilitados.includes(moduleKey);
-  };
-
-  const isRoleAllowed = (allowedRoles?: string[], requiredPermiso?: string) => {
-    if (!userRole) return false;
-    if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
-      return false;
-    }
-    if (requiredPermiso) {
-      return user?.permisos?.includes(requiredPermiso) ?? false;
-    }
-    return true;
-  };
-
-  const visibleItems = NAVIGATION_ITEMS.filter(
-    (item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso) && isModuleEnabled(item.moduleKey),
-  );
+  const visibleItems = NAVIGATION_ITEMS.filter(item => canNavigate(item, user, tenant));
 
   // Orden de los 4 ítems principales preferidos
   const PREFERRED_KEYS = ['dashboard', 'pos', 'cotizaciones', 'inventario'];
@@ -168,7 +132,7 @@ export const BottomNavigation: React.FC = () => {
               <div style={styles.configRow}>
                 <Clock size={15} color="var(--color-text-muted)" />
                 <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                  Turno Actual: 08:00 AM - 05:00 PM
+                  Consulta tu apertura y cierre en Caja
                 </span>
               </div>
 
@@ -178,7 +142,8 @@ export const BottomNavigation: React.FC = () => {
                   <GitBranch size={15} color="var(--color-primary)" />
                   <span style={{ fontSize: '12px', fontWeight: 700 }}>Sucursal:</span>
                   <select
-                    value={tenant.sucursal || 'Sucursal Centro (Principal)'}
+                    value={tenant.sucursal || 'Sucursal Principal'}
+                disabled={sucursalesDisponibles.length < 2}
                     onChange={(e) => switchSucursal(e.target.value, tenant.id)}
                     style={styles.sucursalSelect}
                     aria-label="Seleccionar sucursal"

@@ -10,6 +10,7 @@ const getBaseUrl = (): string => {
     return '/api';
   }
 
+  if (envUrl === '/api') return '/api';
   const cleanUrl = envUrl.replace(/\/+$/, '');
   if (import.meta.env.PROD) {
     const backendUrl = new URL(cleanUrl);

@@ -1,10 +1,25 @@
-import { account, actor, audit, cashMovement, decimal, fingerprint, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class VentasService {
   constructor(private prisma: PrismaService) {}
+
+  async findSolicitud(tenantId: string, usuarioId: string, solicitudId: string) {
+    // Esperar a una escritura en curso; consultar nunca registra ni cobra una venta.
+    return this.prisma.$transaction(async (tx) => {
+      await lockTenant(tx, tenantId);
+      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + solicitudId}, 0))`;
+      const venta = await tx.venta.findFirst({
+        where: { id: solicitudId, tenantId, usuarioId },
+        include: { cliente: true, detalles: { include: { producto: true } } },
+      });
+      return venta
+        ? { estado: 'REGISTRADA' as const, venta: this.formatVentaCreada(venta) }
+        : { estado: 'NO_REGISTRADA' as const };
+    }, { timeout: 30000 });
+  }
 
   async findAll(tenantId: string, limit = 50, page = 0) {
     const ventas = await this.prisma.venta.findMany({
@@ -111,6 +126,7 @@ export class VentasService {
     // Transacción atómica completa: número correlativo, descuento de inventario y guardado
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx,tenantId);
+      const user = await authorizedActor(tx,tenantId,usuarioId,['ADMIN','CAJERO','VENDEDOR'],'pos.vender');
       // Un reintento conserva el ID de la venta; el bloqueo dura hasta commit/rollback.
       if (dto.solicitudId) {
         await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + dto.solicitudId}, 0))`;
@@ -141,7 +157,6 @@ export class VentasService {
         }
       }
 
-      const user = await actor(tx,tenantId,usuarioId);
       const metodo = dto.metodoPago || 'EFECTIVO';
       if (!['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].includes(metodo)) throw new BadRequestException('Método de pago inválido');
       if (metodo === 'CREDITO' && !dto.clienteId) throw new BadRequestException('Seleccione un cliente registrado para vender a crédito');
@@ -302,4 +317,3 @@ export class VentasService {
     };
   }
 }
-

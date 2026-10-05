@@ -1,3 +1,4 @@
+import { canNavigate } from '../utils/taskNavigation';
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Box } from 'lucide-react';
@@ -10,47 +11,10 @@ export const Sidebar: React.FC = () => {
   const { tenant, user } = useTenant();
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
-  const userRole = user?.rol;
 
-  const defaultModules = [
-    'inventario',
-    'levantamiento',
-    'pos',
-    'cotizaciones',
-    'usuarios',
-    'configuracion',
-    'apartados',
-    'arqueo_caja',
-    'ordenes_compra',
-    'transferencias_sucursal',
-    'garantias',
-    'pedidos_especiales',
-    'listas_precio',
-    'comisiones_venta',
-    'reportes',
-  ];
 
-  const modulosHabilitados = tenant.modulosHabilitados || defaultModules;
 
-  const isModuleEnabled = (moduleKey?: string) => {
-    if (!moduleKey) return true;
-    return modulosHabilitados.includes(moduleKey);
-  };
-
-  const isRoleAllowed = (allowedRoles?: string[], requiredPermiso?: string) => {
-    if (!userRole) return false;
-    if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
-      return false;
-    }
-    if (requiredPermiso) {
-      return user?.permisos?.includes(requiredPermiso) ?? false;
-    }
-    return true;
-  };
-
-  const visibleItems = NAVIGATION_ITEMS.filter(
-    (item) => isRoleAllowed(item.allowedRoles, item.requiredPermiso) && isModuleEnabled(item.moduleKey),
-  );
+  const visibleItems = NAVIGATION_ITEMS.filter(item => canNavigate(item, user, tenant));
 
   const getLabel = (item: NavigationItem) => {
     if (item.key === 'inventario') {

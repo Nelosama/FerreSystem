@@ -3,10 +3,10 @@ import { defineConfig, loadEnv } from 'vite'
 
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  if (command === 'build') {
+  if (command === 'build' && env.VITE_API_URL !== '/api') {
     const apiUrl = env.VITE_API_URL;
     if (!apiUrl) {
-      throw new Error('VITE_API_URL is required for production builds and must point to the Render API.');
+      throw new Error('VITE_API_URL is required for production builds and must point to an HTTPS API or /api on the same origin.');
     }
     const parsedApiUrl = new URL(apiUrl);
     if (parsedApiUrl.protocol !== 'https:' || ['localhost', '127.0.0.1', '::1'].includes(parsedApiUrl.hostname)) {

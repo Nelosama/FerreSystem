@@ -111,7 +111,7 @@ Check out a few resources that may come in handy when working with NestJS:
 
 ## FerreSystem Production Commands
 
-Run production commands from the backend directory. For a code-only release against an existing database already matching `prisma/schema.prisma`, use:
+Set Render's Root Directory to `backend` and run production commands there. For a code-only release against an existing database already matching `prisma/schema.prisma`, use:
 
 ```sh
 # Render Build Command
@@ -125,7 +125,20 @@ Do not include `prisma db push --accept-data-loss` in production builds: it can 
 
 `npm run start:prod` applies pending Prisma migrations with `prisma migrate deploy` and then starts the API; it never runs the seed. Use this command only after checking that the existing production database has a compatible migration history or has been properly baselined. A database previously synchronized with `db push` must not be switched blindly to `migrate deploy`.
 
-Production requires `JWT_SECRET`; the API refuses to start without it. Set `DATABASE_URL` for the runtime connection, `DIRECT_URL` for Prisma migration tooling, and `FRONTEND_URL` to the exact allowed frontend origin. Keep their actual values outside this repository.
+Set Render's Health Check Path to `/api/health`. This endpoint checks the database connection and returns `503` when it is unavailable.
+
+Set `NODE_ENV=production` and a real `JWT_SECRET` in Render; the production API refuses to start without the JWT secret. Set `DATABASE_URL` for the runtime connection and `DIRECT_URL` for Prisma tooling. Use the database's direct connection for `DIRECT_URL` when the runtime URL uses a pooler; if the runtime URL is already direct, both variables can use that connection. Keep their actual values outside this repository.
+
+Configure `FRONTEND_URLS` as a comma-separated list of exact frontend origins. The following values are **examples** for the production site and branch preview; replace them with the origins of the deployments you actually authorize:
+
+```text
+FRONTEND_URLS=https://ferre-system.vercel.app,https://ferre-system-git-codex-recuperacion-ventas-nelspace.vercel.app
+FRONTEND_URL=https://ferre-system.vercel.app
+```
+
+`FRONTEND_URL` remains supported for the legacy single-origin setting and is allowed alongside `FRONTEND_URLS`. Only exact HTTP(S) origins are accepted; a trailing slash is normalized. Do not include paths, wildcards, credentials, query strings or fragments. Configure these variables in Render and redeploy the API so the new CORS allowlist takes effect; editing `.env.example` does not update the hosted service. Each preview origin must be explicitly included.
+
+Authentication cookies are controlled by `NODE_ENV`: production uses `Secure` and `SameSite=None` for HTTPS frontends. The API does not read `COOKIE_SECURE` or `COOKIE_DOMAIN`; those variables do not change cookie behavior.
 
 Customer numbering requires an additive database migration before deploying the new API. Follow [the customer-number deployment procedure](docs/customer-number-deployment.md); the assignment trigger cannot be installed with `db push`.
 

@@ -4,7 +4,7 @@ describe('Conteo protegido y aplicación explícita',()=>{
  let prisma:any,service:LevantamientosService;
  beforeEach(()=>{
   prisma={
-   $transaction:vi.fn((fn:any)=>fn(prisma)), $queryRawUnsafe:vi.fn().mockResolvedValue([]),
+   $transaction:vi.fn((fn:any)=>fn(prisma)), $queryRawUnsafe:vi.fn(async(sql:string)=>sql.includes('SELECT u.rol')?[{rol:'ADMIN'}]:[]),
    levantamiento:{findFirst:vi.fn(),findMany:vi.fn(),update:vi.fn(),create:vi.fn()},
    levantamientoItem:{update:vi.fn(),create:vi.fn(),delete:vi.fn()},
    producto:{findMany:vi.fn().mockResolvedValue([]),update:vi.fn(),create:vi.fn()},

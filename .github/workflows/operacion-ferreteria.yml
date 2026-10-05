@@ -31,11 +31,25 @@ jobs:
         run: |
           npm run build
           npm test
+      - name: "Frontend: arranque y navegación en Chromium"
+        id: browser
+        working-directory: frontend
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:browser
+      - name: Conservar evidencia de fallos en el navegador
+        if: ${{ failure() && steps.browser.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-browser-failure
+          path: frontend/test-results/
+          retention-days: 7
       - name: "Backend: compilación y pruebas"
         working-directory: backend
         run: |
           npm run build
           npm test
+          npm run test:scripts
       - name: Preparar PostgreSQL temporal
         run: |
           sudo apt-get update

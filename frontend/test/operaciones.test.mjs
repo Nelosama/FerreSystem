@@ -17,6 +17,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name.endsWith('/unidadMedida')) return evaluate('src/utils/unidadMedida.ts', {});
     if (name.endsWith('/numeroCliente')) return evaluate('src/utils/numeroCliente.ts', {});
     if (name.endsWith('/storage')) return evaluate('src/utils/storage.ts', {}, globals);
+    if (name.endsWith('/posRecovery')) return evaluate('src/utils/posRecovery.ts', {}, globals);
     return new Proxy({}, { get: (_, key) => String(key) });
   } };
   const source = fs.readFileSync(file, 'utf8');
@@ -27,6 +28,7 @@ const evaluate = (file, mocks, globals = {}) => {
 
 const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
   let cursor = 0, root;
+  const windowListeners = new Map();
   const states = [], dependencies = [], effects = [], cleanups = [];
   const react = {
     createContext() { return { Provider: 'ContextProvider' }; },
@@ -45,9 +47,11 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     '../context/NotificationContext': { useNotification: () => ({ solicitudes: [], solicitarDescuento() {} }) },
     '../hooks/useRubroConfig': { useRubroConfig: () => ({ categoriasDefault: ['General'], unidadesMedida: ['unidad', 'galón'], activarVencimientos: false, activarGarantiaSerie: false }) },
     '../utils/format': { formatLempiras: String },
+    '../utils/sessionSync': { startSessionSync: () => () => {} },
     ...overrides,
   };
   const component = evaluate(file, mocks, { localStorage: sharedStorage, crypto: webcrypto, alert() {},
+    window: { addEventListener: (name, fn) => windowListeners.set(name, fn), removeEventListener: (name) => windowListeners.delete(name) },
     document: { documentElement: { style: { setProperty() {} } } },
     setTimeout: (fn, delay) => setTimeout(fn, delay).unref(), clearTimeout })[name];
   const nodes = () => {
@@ -58,6 +62,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
   return {
     render(props = {}) { cursor = 0; root = component(props); return nodes(); },
     find(predicate) { return nodes().find(predicate); },
+    fireStorage(key) { windowListeners.get('storage')?.({ key }); },
     async effects() { const queued = effects.splice(0); for (const [i, fn] of queued) { cleanups[i]?.(); cleanups[i] = await fn(); } await new Promise((resolve) => setImmediate(resolve)); },
   };
 };
@@ -98,15 +103,39 @@ test('un inicio fallido de soporte conserva la sesión de superadmin', async () 
   assert.equal(saved.getItem('ferre_original_superadmin_token'), null);
 });
 
+test('cambiar sesión en otra pestaña invalida usuario y empresa locales sin borrar la cuenta nueva', async () => {
+  const saved = storage();
+  saved.setItem('ferre_user', JSON.stringify({ id: 'user-A', rol: 'ADMIN' }));
+  saved.setItem('ferre_tenant', JSON.stringify({ id: 'tenant-A', nombreComercial: 'Empresa A' }));
+  saved.setItem('ferre_token', 'token-A');
+  saved.setItem('ferre_saas_tenants', JSON.stringify([{ id: 'tenant-C', nombreComercial: 'FerreSystem', colorPrimario: '#123456' }]));
+  let boundIdentity;
+  const page = harness('src/context/TenantContext.tsx', 'TenantProvider', {
+    '../utils/sessionSync': { startSessionSync: (_, __, identity) => { boundIdentity = identity; return () => {}; } },
+  }, saved);
+  page.render(); await page.effects(); page.render();
+  assert.equal(boundIdentity.userId, 'user-A'); assert.equal(boundIdentity.tenantId, 'tenant-A');
+  saved.setItem('ferre_user', JSON.stringify({ id: 'user-B', rol: 'CAJERO' }));
+  saved.setItem('ferre_tenant', JSON.stringify({ id: 'tenant-B', nombreComercial: 'Empresa B' }));
+  saved.setItem('ferre_token', 'token-B');
+  boundIdentity.onChanged(); page.render(); await page.effects(); page.render();
+  const local = page.find(node => node.type === 'ContextProvider').props.value;
+  assert.equal(local.isAuthenticated, false); assert.equal(local.user, null); assert.equal(local.tenant.id, '');
+  assert.equal(local.isImpersonating, false);
+  assert.equal(JSON.parse(saved.getItem('ferre_user')).id, 'user-B');
+  assert.equal(JSON.parse(saved.getItem('ferre_tenant')).id, 'tenant-B');
+  assert.equal(saved.getItem('ferre_token'), 'token-B');
+});
+
 test('POS conserva identidad tras respuesta perdida/reload y bloquea doble envío', async () => {
   const saved = storage(), sent = [];
   let fail = true;
   const api = {
-    get: async () => ({ data: [{ id: 'p1', codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 10, stockMinimo: 0 }] }),
+    get: async (url) => ({ data: url.startsWith('/ventas/solicitudes/') ? { estado: 'NO_REGISTRADA' } : [{ id: 'p1', codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 10, stockMinimo: 0 }] }),
     post: async (_, body) => {
       sent.push(body);
       if (fail) throw new Error('Respuesta perdida');
-      return { data: { id: body.solicitudId, numeroVenta: 1, createdAt: '2026-10-02T10:00:00Z', subtotal: 10, descuento: 0, isv: 1.5, total: 11.5 } };
+      return { data: { id: body.solicitudId, numeroVenta: 1, createdAt: '2026-10-02T10:00:00Z', subtotal: 10, descuento: 0, isv: 1.5, total: 11.5, metodoPago: 'EFECTIVO', detalles: [{ productoId: 'p1', productoNombre: 'Cable', productoCodigo: 'P1', cantidad: 1, precioUnitario: 10 }] } };
     },
   };
   const make = () => harness('src/pages/POSPage.tsx', 'POSPage', { '../utils/api': { api } }, saved);
@@ -119,14 +148,17 @@ test('POS conserva identidad tras respuesta perdida/reload y bloquea doble enví
   const pending = saved.getItem('ferre_pending_sale:tenant-A:user-A');
   assert.ok(pending);
   fail = false; page = make(); page.render(); await page.effects(); page.render();
+  await page.find((n) => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
   await page.find((n) => n.props.onClick?.name === 'handleCobrar').props.onClick();
   page.render();
   assert.equal(sent[1].solicitudId, sent[0].solicitudId);
-  assert.equal(saved.getItem('ferre_pending_sale:tenant-A:user-A'), null);
+  assert.ok(saved.getItem('ferre_pending_sale:tenant-A:user-A'));
   const checkout = page.find((n) => n.props.onClick?.name === 'handleCobrar');
   assert.equal(checkout.props.disabled, true);
   await checkout.props.onClick();
   assert.equal(sent.length, 2);
+  page.find((n) => n.props.onClick?.name === 'cerrarComprobante').props.onClick();
+  assert.equal(saved.getItem('ferre_pending_sale:tenant-A:user-A'), null);
 });
 
 test('importación sobrescribe con PUT, salta duplicados si se solicita y cuenta errores reales', async () => {
@@ -257,3 +289,365 @@ test('seleccionar cliente completa datos y guarda su ID; ingreso manual desvincu
   assert.equal(saved[1].clienteId, null);
 });
 
+
+const recoveryKeys = {
+  pending: 'ferre_pending_sale:tenant-A:user-A',
+  draft: 'ferre_sale_draft:tenant-A:user-A',
+};
+const sampleSale = () => ({
+  solicitudId: webcrypto.randomUUID(),
+  cart: [{ productoId: 'p1', codigo: 'P1', nombre: 'Cable', cantidad: 2.5, precioUnitario: 10 }],
+  clienteNombre: 'Ana', clienteRtn: '', metodoPago: 'TRANSFERENCIA', descuentoPorcentaje: 5,
+});
+const sampleReceipt = (pending) => ({
+  id: pending.solicitudId, numeroVenta: 7, clienteNombre: pending.clienteNombre,
+  subtotal: 23.75, isv: 3.56, total: 27.31, descuento: 1.25,
+  metodoPago: pending.metodoPago, createdAt: '2026-10-05T12:00:00Z',
+  detalles: pending.cart.map(i => ({ ...i, productoNombre: i.nombre, productoCodigo: i.codigo })),
+});
+const catalog = [{ id: 'p1', codigo: 'P1', nombre: 'Cable', precioVenta: 10, stockActual: 10, stockMinimo: 0 }];
+const makePOS = (saved, getStatus, post = async () => { throw new Error('No debe enviar'); }, extra = {}) =>
+  harness('src/pages/POSPage.tsx', 'POSPage', {
+    '../utils/api': { api: {
+      get: async url => ({ data: url.startsWith('/ventas/solicitudes/') ? await getStatus(url) : catalog }), post,
+    } }, ...extra,
+  }, saved);
+const settlePOS = async page => {
+  page.render(); await page.effects(); page.render(); await page.effects(); page.render();
+};
+
+test('POS autoguarda carrito antes de cobrar y restaura cantidades, cliente y pago al regresar', async () => {
+  const saved = storage();
+  let page = makePOS(saved, async () => ({ estado: 'NO_REGISTRADA' }));
+  await settlePOS(page);
+  page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick();
+  page.render();
+  page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.onChange({ target: { value: '2.5' } });
+  page.render();
+  page.find(n => n.props.onClick && n.children.includes('TRANSFERENCIA')).props.onClick();
+  page.render(); await page.effects();
+  const envelope = JSON.parse(saved.getItem(recoveryKeys.draft));
+  assert.equal(envelope.sale.cart[0].cantidad, 2.5);
+  assert.equal(envelope.sale.metodoPago, 'TRANSFERENCIA');
+  assert.equal(saved.getItem(recoveryKeys.pending), null);
+  page = makePOS(saved, async () => ({ estado: 'NO_REGISTRADA' }));
+  await settlePOS(page);
+  assert.equal(page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.value, 2.5);
+  assert.ok(page.find(n => n.children.some(c => typeof c === 'string' && c.includes('Recuperamos los productos'))));
+});
+
+test('POS recupera venta confirmada por consulta sin POST y conserva comprobante hasta cerrarlo', async () => {
+  const saved = storage(), pending = sampleSale();
+  saved.setItem(recoveryKeys.pending, JSON.stringify(pending));
+  let posts = 0;
+  const make = () => makePOS(saved, async () => ({ estado: 'REGISTRADA', venta: sampleReceipt(pending) }), async () => { posts++; });
+  let page = make(); await settlePOS(page);
+  await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+  assert.equal(posts, 0);
+  assert.ok(page.find(n => n.children.some(c => typeof c === 'string' && c.includes('Venta registrada.'))));
+  assert.ok(saved.getItem(recoveryKeys.pending));
+  page = make(); await settlePOS(page);
+  await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+  assert.equal(posts, 0);
+  page.find(n => n.props.onClick?.name === 'cerrarComprobante').props.onClick();
+  assert.equal(saved.getItem(recoveryKeys.pending), null);
+});
+
+test('sin conexión o con sesión vencida, consultar no envía otra venta ni borra pendiente', async () => {
+  for (const status of [undefined, 401, 403]) {
+    const saved = storage(), pending = sampleSale();
+    saved.setItem(recoveryKeys.pending, JSON.stringify(pending));
+    let posts = 0;
+    const page = makePOS(saved, async () => { throw { response: { status } }; }, async () => { posts++; });
+    await settlePOS(page);
+    await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+    assert.equal(posts, 0);
+    assert.equal(JSON.parse(saved.getItem(recoveryKeys.pending)).solicitudId, pending.solicitudId);
+    assert.equal(page.find(n => n.children.includes('Ya revisé el pago: continuar registro')), undefined);
+  }
+});
+
+test('POS no mezcla recuperación al cambiar de usuario o empresa con una consulta en vuelo', async () => {
+  const saved = storage(), pending = sampleSale();
+  saved.setItem(recoveryKeys.pending, JSON.stringify(pending));
+  let identity = { tenant: { id: 'tenant-A' }, user: { id: 'user-A', rol: 'ADMIN' } };
+  let finish;
+  const page = makePOS(saved, () => new Promise(resolve => { finish = resolve; }), undefined, {
+    '../context/TenantContext': { useTenant: () => identity },
+  });
+  await settlePOS(page);
+  const checking = page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick();
+  identity = { tenant: { id: 'tenant-B' }, user: { id: 'user-B', rol: 'ADMIN' } };
+  await settlePOS(page);
+  finish({ estado: 'REGISTRADA', venta: sampleReceipt(pending) }); await checking;
+  page.render();
+  assert.equal(page.find(n => n.props['aria-label'] === 'Cantidad Cable'), undefined);
+  assert.equal(page.find(n => n.props.onClick?.name === 'cerrarComprobante'), undefined);
+  assert.equal(saved.getItem('ferre_sale_draft:tenant-B:user-B'), null);
+  assert.ok(saved.getItem(recoveryKeys.pending));
+});
+
+test('pendiente corrupto bloquea cobro y no se elimina ni se reemplaza con un borrador', async () => {
+  const saved = storage();
+  saved.setItem(recoveryKeys.pending, '{broken');
+  saved.setItem(recoveryKeys.draft, JSON.stringify({ version: 1, sale: sampleSale() }));
+  const page = makePOS(saved, async () => ({ estado: 'NO_REGISTRADA' }));
+  await settlePOS(page);
+  assert.equal(saved.getItem(recoveryKeys.pending), '{broken');
+  assert.ok(page.find(n => n.props.role === 'alert'));
+  assert.equal(page.find(n => n.props.onClick?.name === 'handleCobrar').props.disabled, true);
+});
+
+test('si almacenamiento falla no se envía la venta; si falla el borrado tras confirmar sigue recuperable', async () => {
+  const base = storage();
+  let failWrite = false, failRemove = false, posts = 0;
+  const saved = {
+    ...base,
+    setItem(key, value) { if (failWrite) throw new Error('Storage lleno'); base.setItem(key, value); },
+    removeItem(key) { if (failRemove) throw new Error('Storage bloqueado'); base.removeItem(key); },
+  };
+  const page = makePOS(saved, async () => ({ estado: 'NO_REGISTRADA' }), async (_, body) => {
+    posts++; return { data: sampleReceipt({ ...sampleSale(), solicitudId: body.solicitudId }) };
+  });
+  await settlePOS(page);
+  page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick(); page.render();
+  failWrite = true;
+  await page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick(); page.render();
+  assert.equal(posts, 0);
+  failWrite = false;
+  const pending = sampleSale(); base.setItem(recoveryKeys.pending, JSON.stringify(pending));
+  const recovered = makePOS(saved, async () => ({ estado: 'REGISTRADA', venta: sampleReceipt(pending) }));
+  await settlePOS(recovered);
+  await recovered.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); recovered.render();
+  failRemove = true;
+  recovered.find(n => n.props.onClick?.name === 'cerrarComprobante').props.onClick(); recovered.render();
+  assert.ok(base.getItem(recoveryKeys.pending));
+  assert.ok(recovered.find(n => n.props.onClick?.name === 'cerrarComprobante'));
+});
+
+
+test('corregir precio pendiente conserva identidad y una confirmación tardía se recupera sin POST', async () => {
+  const saved = storage(), pending = sampleSale();
+  saved.setItem(recoveryKeys.pending, JSON.stringify(pending));
+  let confirmed = false, posts = 0;
+  const page = makePOS(saved, async () => confirmed ? { estado: 'REGISTRADA', venta: sampleReceipt(pending) } : { estado: 'NO_REGISTRADA' }, async () => { posts++; });
+  await settlePOS(page);
+  await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+  page.find(n => n.children.includes('Corregir datos de esta venta')).props.onClick(); page.render();
+  page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.onChange({ target: { value: '1.5' } });
+  page.render(); await page.effects(); page.render();
+  const corrected = JSON.parse(saved.getItem(recoveryKeys.pending));
+  assert.equal(corrected.solicitudId, pending.solicitudId);
+  assert.equal(corrected.cart[0].cantidad, 1.5);
+  confirmed = true;
+  await page.find(n => n.children.includes('Ya revisé el pago: continuar registro')).props.onClick(); page.render();
+  assert.equal(posts, 0);
+  assert.equal(page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.value, 2.5);
+  assert.ok(page.find(n => n.props.onClick?.name === 'cerrarComprobante'));
+});
+
+
+test('un pendiente borrado por otra pestaña no genera un identificador nuevo al reintentar', async () => {
+  const saved = storage(), pending = sampleSale();
+  saved.setItem(recoveryKeys.pending, JSON.stringify(pending));
+  let confirmed = false, posts = 0;
+  const page = makePOS(saved, async () => confirmed ? { estado: 'REGISTRADA', venta: sampleReceipt(pending) } : { estado: 'NO_REGISTRADA' }, async () => { posts++; });
+  await settlePOS(page);
+  await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+  saved.removeItem(recoveryKeys.pending);
+  confirmed = true;
+  await page.find(n => n.children.includes('Ya revisé el pago: continuar registro')).props.onClick(); page.render();
+  assert.equal(posts, 0);
+  assert.ok(page.find(n => n.props.onClick?.name === 'cerrarComprobante'));
+});
+
+test('respuesta tardía del POST no reemplaza una venta pendiente posterior de la misma sesión', async () => {
+  for (const notifyStorage of [false, true]) {
+    const saved = storage(), original = sampleSale(), newer = sampleSale();
+    newer.clienteNombre = 'Beatriz'; newer.cart[0].cantidad = 4;
+    let finish;
+    const page = makePOS(saved, async () => ({ estado: 'NO_REGISTRADA' }), (_, body) => new Promise(resolve => {
+      original.solicitudId = body.solicitudId; finish = resolve;
+    }));
+    await settlePOS(page);
+    page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick(); page.render();
+    const charging = page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick();
+    saved.setItem(recoveryKeys.pending, JSON.stringify(newer));
+    if (notifyStorage) page.fireStorage(recoveryKeys.pending);
+    page.render();
+    finish({ data: sampleReceipt(original) }); await charging; page.render();
+    assert.equal(page.find(n => n.props.onClick?.name === 'cerrarComprobante'), undefined);
+    if (notifyStorage) assert.equal(page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.value, 4);
+    assert.equal(JSON.parse(saved.getItem(recoveryKeys.pending)).solicitudId, newer.solicitudId);
+  }
+});
+
+test('consulta tardía no confirma ni reenvía una venta anterior cuando cambió su identidad', async () => {
+  for (const retry of [false, true]) {
+    const saved = storage(), original = sampleSale(), newer = sampleSale();
+    saved.setItem(recoveryKeys.pending, JSON.stringify(original));
+    let delayed = false, finish, posts = 0;
+    const page = makePOS(saved, () => delayed ? new Promise(resolve => { finish = resolve; }) : Promise.resolve({ estado: 'NO_REGISTRADA' }), async () => { posts++; });
+    await settlePOS(page);
+    if (retry) { await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render(); }
+    delayed = true;
+    const checking = page.find(n => retry ? n.children.includes('Ya revisé el pago: continuar registro') : n.props.onClick?.name === 'comprobarVenta').props.onClick();
+    saved.setItem(recoveryKeys.pending, JSON.stringify(newer));
+    page.fireStorage(recoveryKeys.pending); page.render();
+    finish(retry ? { estado: 'NO_REGISTRADA' } : { estado: 'REGISTRADA', venta: sampleReceipt(original) });
+    await checking; page.render();
+    assert.equal(posts, 0);
+    assert.equal(page.find(n => n.props.onClick?.name === 'cerrarComprobante'), undefined);
+    assert.equal(page.find(n => n.children.includes('Ya revisé el pago: continuar registro')), undefined);
+    assert.equal(JSON.parse(saved.getItem(recoveryKeys.pending)).solicitudId, newer.solicitudId);
+  }
+});
+
+test('cerrar comprobante antiguo conserva y recupera un pendiente o borrador posterior', async () => {
+  for (const kind of ['pending', 'draft', 'draft-with-pending']) {
+    const saved = storage(), original = sampleSale(), newer = sampleSale();
+    newer.clienteNombre = 'Beatriz'; newer.cart[0].cantidad = 4;
+    saved.setItem(recoveryKeys.pending, JSON.stringify(original));
+    const page = makePOS(saved, async () => ({ estado: 'REGISTRADA', venta: sampleReceipt(original) }));
+    await settlePOS(page);
+    await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+    const closeOldReceipt = page.find(n => n.props.onClick?.name === 'cerrarComprobante').props.onClick;
+    if (kind === 'pending') saved.setItem(recoveryKeys.pending, JSON.stringify(newer));
+    else {
+      if (kind === 'draft') saved.removeItem(recoveryKeys.pending);
+      saved.setItem(recoveryKeys.draft, JSON.stringify({ version: 1, sale: newer }));
+    }
+    const key = kind === 'pending' ? recoveryKeys.pending : recoveryKeys.draft;
+    const expected = saved.getItem(key);
+    closeOldReceipt(); page.render(); await page.effects(); page.render();
+    const recovered = JSON.parse(saved.getItem(key));
+    assert.equal(recovered.solicitudId ?? recovered.sale.clienteNombre, kind === 'pending' ? newer.solicitudId : newer.clienteNombre);
+    if (kind === 'pending') assert.equal(saved.getItem(recoveryKeys.pending), expected);
+    assert.equal(page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.value, 4);
+    assert.equal(page.find(n => n.props.onClick?.name === 'cerrarComprobante'), undefined);
+  }
+});
+
+const returnKey = 'ferre_pending_return:tenant-A:user-A';
+const returnCommand = { kind: 'EJECUTAR', requestId: 'request-A' };
+const returnReceipt = { id: 'request-A', monto: 10, credito_cancelado: 0, reembolso: 10, metodo: 'EFECTIVO' };
+const makeReturns = (saved, apiMock, overrides = {}) => harness('src/pages/DevolucionesPage.tsx', 'DevolucionesPage', { '../utils/api': { api: apiMock }, ...overrides }, saved);
+const settleReturns = async page => { page.render(); await page.effects(); page.render(); await page.effects(); page.render(); };
+const confirmReturn = async page => { page.find(n => n.children.includes('Consultar y confirmar pendiente')).props.onClick(); await new Promise(resolve => setImmediate(resolve)); };
+
+test('devolución recupera respuesta confirmada sin POST y mantiene comprobante hasta cerrarlo', async () => {
+  const saved = storage(); saved.setItem(returnKey, JSON.stringify(returnCommand)); let posts = 0;
+  const page = makeReturns(saved, { get: async url => ({ data: url.endsWith('/request-A') ? { estado: 'EJECUTADA', resultado: returnReceipt } : [] }), post: async () => { posts++; } });
+  await settleReturns(page); await confirmReturn(page); page.render();
+  assert.equal(posts, 0); assert.ok(saved.getItem(returnKey));
+  assert.ok(page.find(n => n.children.includes('Devolución registrada')));
+  page.find(n => n.children.includes('Cerrar comprobante')).props.onClick(); page.render();
+  assert.equal(saved.getItem(returnKey), null);
+});
+
+test('devolución sin conexión o sin autorización no envía ajustes y conserva identidad', async () => {
+  for (const authorized of [false, null]) {
+    const saved = storage(); saved.setItem(returnKey, JSON.stringify(returnCommand)); let posts = 0;
+    const page = makeReturns(saved, { get: async url => {
+      if (!url.endsWith('/request-A')) return { data: [] };
+      if (authorized === null) throw new Error('Network Error');
+      return { data: { estado: 'PENDIENTE', resultado: null } };
+    }, post: async () => { posts++; } });
+    await settleReturns(page); await confirmReturn(page); page.render();
+    assert.equal(posts, 0); assert.equal(JSON.parse(saved.getItem(returnKey)).requestId, 'request-A');
+    assert.ok(page.find(n => n.props.role === 'alert'));
+  }
+});
+
+test('devolución no se envía si falla el almacenamiento y bloquea doble clic mientras consulta', async () => {
+  const base = storage(); base.setItem(returnKey, JSON.stringify(returnCommand)); let posts = 0, resolveLookup;
+  const saved = { ...base, setItem() { throw new Error('Storage lleno'); } };
+  const api = { get: async () => ({ data: [] }), post: async () => { posts++; } };
+  const blocked = makeReturns(saved, api); await settleReturns(blocked); await confirmReturn(blocked); blocked.render();
+  assert.equal(posts, 0);
+  const page = makeReturns(base, { get: url => url.endsWith('/request-A') ? new Promise(resolve => { resolveLookup = resolve; }) : Promise.resolve({ data: [] }), post: async () => { posts++; return { data: returnReceipt }; } });
+  await settleReturns(page); const first = confirmReturn(page); await confirmReturn(page);
+  resolveLookup({ data: { estado: 'AUTORIZADA', resultado: null } }); await first; await new Promise(resolve => setImmediate(resolve)); page.render();
+  assert.equal(posts, 1); assert.ok(base.getItem(returnKey));
+});
+
+test('devolución descarta respuesta antigua al cambiar de usuario y no elimina su pendiente', async () => {
+  const saved = storage(); saved.setItem(returnKey, JSON.stringify(returnCommand)); let resolveLookup, posts = 0;
+  let user = { id: 'user-A', rol: 'CAJERO' };
+  const page = makeReturns(saved, { get: url => url.endsWith('/request-A') ? new Promise(resolve => { resolveLookup = resolve; }) : Promise.resolve({ data: [] }), post: async () => { posts++; } }, { '../context/TenantContext': { useTenant: () => ({ tenant: { id: 'tenant-A' }, user }) } });
+  await settleReturns(page); const first = confirmReturn(page);
+  user = { id: 'user-B', rol: 'CAJERO' }; await settleReturns(page);
+  resolveLookup({ data: { estado: 'AUTORIZADA', resultado: null } }); await first; await new Promise(resolve => setImmediate(resolve)); page.render();
+  assert.equal(posts, 0); assert.ok(saved.getItem(returnKey));
+  assert.equal(saved.getItem('ferre_pending_return:tenant-A:user-B'), null);
+  assert.equal(page.find(n => n.children.includes('Cerrar comprobante')), undefined);
+});
+
+test('devolución antigua y pendiente corrupto se conservan sin crear una solicitud nueva', async () => {
+  const saved = storage(); saved.setItem(returnKey, JSON.stringify({ saleId: 'sale-A', dto: { solicitudId: 'request-A', motivo: 'Anterior' } })); let posts = 0;
+  const page = makeReturns(saved, { get: async url => ({ data: url.includes('/devoluciones/request-A') ? returnReceipt : [] }), post: async () => { posts++; } });
+  await settleReturns(page); await confirmReturn(page); page.render();
+  assert.equal(posts, 0); assert.ok(page.find(n => n.children.includes('Cerrar comprobante')));
+  const corrupt = storage(); corrupt.setItem(returnKey, '{broken');
+  const blocked = makeReturns(corrupt, { get: async () => ({ data: [] }), post: async () => { posts++; } });
+  await settleReturns(blocked);
+  assert.equal(corrupt.getItem(returnKey), '{broken');
+  assert.equal(blocked.find(n => n.children.includes('Buscar venta')).props.disabled, true);
+});
+
+test('corregir solicitud no confirmada conserva UUID y una respuesta tardía se recupera sin otro POST', async () => {
+  const saved = storage();
+  const dto = { solicitudId: 'request-A', motivo: 'Original', metodo: 'EFECTIVO', items: [{ detalleId: 'line-A', cantidad: 1, destino: 'INVENTARIO' }] };
+  saved.setItem(returnKey, JSON.stringify({ kind: 'SOLICITAR', requestId: 'request-A', saleId: 'sale-A', dto }));
+  let registered = false, posts = 0;
+  const page = makeReturns(saved, { get: async url => {
+    if (!url.endsWith('/request-A')) return { data: [] };
+    if (!registered) throw { response: { status: 404 } };
+    return { data: { estado: 'PENDIENTE', venta_id: 'sale-A', comando: dto } };
+  }, post: async () => { posts++; } });
+  await settleReturns(page);
+  page.find(n => n.children.includes('Corregir solo si no está registrada')).props.onClick();
+  await new Promise(resolve => setImmediate(resolve)); page.render();
+  assert.equal(JSON.parse(saved.getItem(returnKey)).requestId, 'request-A');
+  assert.equal(page.find(n => n.children.includes('Buscar venta')).props.disabled, false);
+  registered = true; await confirmReturn(page); page.render();
+  assert.equal(posts, 0); assert.equal(saved.getItem(returnKey), null);
+});
+
+test('respuesta tardía con datos originales distintos recupera la solicitud sin sobrescribirla', async () => {
+  const saved = storage();
+  const original = { solicitudId: 'request-A', motivo: 'Original', metodo: 'EFECTIVO', items: [{ detalleId: 'line-A', cantidad: 1, destino: 'INVENTARIO' }] };
+  saved.setItem(returnKey, JSON.stringify({ kind: 'SOLICITAR', requestId: 'request-A', saleId: 'sale-A', dto: { ...original, motivo: 'Corregido' } }));
+  let posts = 0;
+  const page = makeReturns(saved, { get: async url => ({ data: url.endsWith('/request-A') ? { venta_id: 'sale-A', comando: original, estado: 'PENDIENTE' } : [] }), post: async () => { posts++; } });
+  await settleReturns(page); await confirmReturn(page); page.render();
+  assert.equal(posts, 0); assert.equal(saved.getItem(returnKey), null);
+  assert.ok(page.find(n => n.children.some(value => typeof value === 'string' && value.includes('Tus correcciones no la modificaron'))));
+});
+
+test('importación rechaza Excel y archivos mayores de 5 MB antes de analizar datos', async () => {
+  let parses=0;
+  const page=harness('src/components/ImportarProductosModal.tsx','ImportarProductosModal',{
+    papaparse:{parse(){parses++;}},'../utils/api':{api:{get:async()=>({data:[]})}},
+  });
+  page.render({isOpen:true,onClose(){}});await page.effects();page.render({isOpen:true,onClose(){}});
+  for(const file of [{name:'productos.xlsx',size:100},{name:'productos.csv',size:6*1024*1024}]){
+    page.find(n=>n.props.type==='file').props.onChange({target:{files:[file]}});
+    page.render({isOpen:true,onClose(){}});
+  }
+  assert.equal(parses,0);
+  assert.ok(page.find(n=>n.children.includes('Selecciona un archivo CSV de hasta 5 MB. Si usas Excel, guárdalo como CSV UTF-8.')));
+});
+
+test('importación bloquea CSV con errores de formato o más de 5000 filas',async()=>{
+  let result={data:Array(5001).fill({nombre:'Producto'}),errors:[]};
+  const page=harness('src/components/ImportarProductosModal.tsx','ImportarProductosModal',{
+    papaparse:{parse(file,options){options.complete(result);}},'../utils/api':{api:{get:async()=>({data:[]})}},
+  });
+  page.render({isOpen:true,onClose(){}});await page.effects();page.render({isOpen:true,onClose(){}});
+  for(const parsed of [result,{data:[{nombre:'Producto'}],errors:[{message:'Comillas inválidas'}]}]){
+    result=parsed;page.find(n=>n.props.type==='file').props.onChange({target:{files:[{name:'productos.CSV',size:100}]}});
+    page.render({isOpen:true,onClose(){}});
+    assert.ok(page.find(n=>n.children.includes('Revisa el formato CSV y utiliza como máximo 5000 filas por archivo.')));
+  }
+});
