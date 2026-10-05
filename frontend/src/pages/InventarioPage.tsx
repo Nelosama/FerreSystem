@@ -1,3 +1,4 @@
+import { ProductoGestion } from '../components/ProductoGestion';
 import React, { useState, useEffect, useCallback } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Search, Plus, Upload, AlertTriangle, Check, X, Calendar, ShieldCheck, RefreshCw } from 'lucide-react';
@@ -29,12 +30,17 @@ export const InventarioPage: React.FC = () => {
       const data = response.data.map((p: any) => ({
         id: p.id,
         codigo: p.codigo,
+        codigoBarras:p.codigoBarras,
+        codigoFabricante:p.codigoFabricante,
         nombre: p.nombre,
         descripcion: p.descripcion,
         categoria: p.categoria?.nombre || p.categoria || 'General',
         precioVenta: Number(p.precioVenta),
         precioCosto: Number(p.precioCosto),
+        margen:p.margen==null?undefined:Number(p.margen),
+        imagenUrl:p.imagenUrl,
         stockActual: Number(p.stockActual),
+        stockReservado:Number(p.stockReservado||0),stockDisponible:Number(p.stockDisponible??p.stockActual),
         stockMinimo: Number(p.stockMinimo),
         unidadMedida: p.unidadMedida || 'UNIDAD',
         usaMedida: Boolean(p.usaMedida),
@@ -54,6 +60,8 @@ export const InventarioPage: React.FC = () => {
 
   // Form State
   const [formCodigo, setFormCodigo] = useState('');
+  const [formBarcode,setFormBarcode]=useState('');
+  const [formFabricante,setFormFabricante]=useState('');
   const [formNombre, setFormNombre] = useState('');
   const [formCategoria, setFormCategoria] = useState(rubroConfig.categoriasDefault[0] || 'General');
   const [formUnidadMedida, setFormUnidadMedida] = useState(rubroConfig.unidadesMedida[0] || 'unidad');
@@ -73,18 +81,20 @@ export const InventarioPage: React.FC = () => {
   const productosFiltrados = productos.filter((p) => {
     const matchSearch =
       p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      p.codigo.toLowerCase().includes(search.toLowerCase());
+      p.codigo.toLowerCase().includes(search.toLowerCase()) || p.codigoBarras?.includes(search) || p.codigoFabricante?.toLowerCase().includes(search.toLowerCase()) || p.descripcion?.toLowerCase().includes(search.toLowerCase());
     const matchCat = filtroCategoria === 'TODAS' || p.categoria === filtroCategoria;
     return matchSearch && matchCat;
   });
 
   const handleCrearProducto = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formCodigo || !formNombre || !formPrecioVenta) return;
+    if (!formNombre || !formPrecioVenta) return;
 
     try {
       await api.post('/productos', {
-        codigo: formCodigo.toUpperCase().trim(),
+        codigo: formCodigo.toUpperCase().trim() || undefined,
+        codigoBarras: formBarcode.trim() || undefined,
+        codigoFabricante: formFabricante.trim() || undefined,
         nombre: formNombre.trim(),
         categoria: formCategoria,
         precioVenta: parseFloat(formPrecioVenta) || 0,
@@ -99,7 +109,7 @@ export const InventarioPage: React.FC = () => {
       setModalAbierto(false);
 
       // Limpiar formulario
-      setFormCodigo('');
+      setFormCodigo('');setFormBarcode('');setFormFabricante('');
       setFormNombre('');
       setFormPrecioVenta('');
       setFormPrecioCosto('');
@@ -120,6 +130,7 @@ export const InventarioPage: React.FC = () => {
       <TopBar title={rubroConfig.nombreCatalogo.toUpperCase()} subtitle={t('inventory.subtitle')} />
 
       <main style={styles.content}>
+        <ProductoGestion productos={productos} onSaved={fetchProductos}/>
         {/* Barra de Filtros y Acción */}
         <div style={styles.actionsBar}>
           <div style={styles.searchWrapper}>
@@ -205,7 +216,7 @@ export const InventarioPage: React.FC = () => {
                 </tr>
               ) : (
                 productosFiltrados.map((p) => {
-                  const stockBajo = p.stockActual <= p.stockMinimo;
+                  const stockBajo = (p.stockDisponible??p.stockActual) <= p.stockMinimo;
                   return (
                     <tr key={p.id}>
                       <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{p.codigo}</td>
@@ -247,7 +258,8 @@ export const InventarioPage: React.FC = () => {
                           color: stockBajo ? 'var(--color-primary)' : 'inherit',
                         }}
                       >
-                        {p.stockActual}
+                        {p.stockActual} físicos
+                        <small style={{display:'block',fontSize:10}}>{p.stockReservado||0} reservados · {p.stockDisponible??p.stockActual} disponibles</small>
                       </td>
                       <td style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>{p.stockMinimo}</td>
                       <td style={{ textAlign: 'center' }}>
@@ -295,7 +307,7 @@ export const InventarioPage: React.FC = () => {
                   <label className="form-label">{t('inventory.sku')}</label>
                   <input
                     type="text"
-                    required
+
                     placeholder={t('operational.ej_art_005')}
                     value={formCodigo}
                     onChange={(e) => setFormCodigo(e.target.value)}
@@ -322,7 +334,7 @@ export const InventarioPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-group">
+              <div className="form-group"><label className="form-label">Código de barras (opcional)</label><input className="form-input" value={formBarcode} onChange={e=>setFormBarcode(e.target.value)}/></div><div className="form-group"><label className="form-label">Código del fabricante (opcional)</label><input className="form-input" value={formFabricante} onChange={e=>setFormFabricante(e.target.value)}/></div><div className="form-group">
                 <label className="form-label">{t('inventory.article_description')}</label>
                 <input
                   type="text"
@@ -562,3 +574,4 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '14px',
   },
 };
+

@@ -1,3 +1,4 @@
+import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { Controller, Get, Post, Put, Patch, Body, Param, UseGuards } from '@nestjs/common';
 import { CotizacionesService } from './cotizaciones.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -26,6 +27,7 @@ export class CotizacionesController {
   }
 
   @Post()
+  @RequiredPermission('cotizaciones.crear')
   @Roles('ADMIN', 'VENDEDOR', 'CAJERO')
   async create(
     @TenantId() tenantId: string,
@@ -36,6 +38,7 @@ export class CotizacionesController {
   }
 
   @Put(':id')
+  @RequiredPermission('cotizaciones.crear')
   @Roles('ADMIN', 'VENDEDOR', 'CAJERO')
   async update(
     @TenantId() tenantId: string,
@@ -56,6 +59,7 @@ export class CotizacionesController {
   }
 
   @Patch(':id/estado')
+  @RequiredPermission('cotizaciones.aprobar')
   @Roles('ADMIN', 'VENDEDOR', 'CAJERO')
   async updateEstado(
     @TenantId() tenantId: string,
@@ -66,6 +70,7 @@ export class CotizacionesController {
   }
 
   @Post(':id/convertir')
+  @RequiredPermission('cotizaciones.convertir_venta')
   @Roles('ADMIN', 'CAJERO')
   async convertirAVenta(
     @TenantId() tenantId: string,
@@ -76,3 +81,4 @@ export class CotizacionesController {
     return this.cotizacionesService.convertirAVenta(tenantId, usuarioId, cotizacionId, metodoPago);
   }
 }
+

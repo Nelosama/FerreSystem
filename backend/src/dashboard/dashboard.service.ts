@@ -31,7 +31,8 @@ export class DashboardService {
       },
     });
 
-    const totalVentasHoy = ventasHoy.reduce((acc, v) => acc + Number(v.total), 0);
+    const returnsToday=await this.prisma.devolucion.aggregate({where:{tenantId,createdAt:{gte:inicioHoy,lte:finHoy}},_sum:{monto:true}});
+    const totalVentasHoy = ventasHoy.reduce((acc, v) => acc + Number(v.total), 0)-Number(returnsToday._sum.monto||0);
 
     // Ventas de ayer para variación porcentual
     const ventasAyer = await this.prisma.venta.findMany({
@@ -42,7 +43,8 @@ export class DashboardService {
       },
     });
 
-    const totalVentasAyer = ventasAyer.reduce((acc, v) => acc + Number(v.total), 0);
+    const returnsYesterday=await this.prisma.devolucion.aggregate({where:{tenantId,createdAt:{gte:inicioAyer,lte:finAyer}},_sum:{monto:true}});
+    const totalVentasAyer = ventasAyer.reduce((acc, v) => acc + Number(v.total), 0)-Number(returnsYesterday._sum.monto||0);
 
     let variacionPorcentaje: number | null = null;
     if (totalVentasAyer > 0) {
@@ -58,7 +60,7 @@ export class DashboardService {
       orderBy: { stockActual: 'asc' },
     });
 
-    const productosBajoStock = productos.filter((p) => p.stockActual.lte(p.stockMinimo));
+    const productosBajoStock = productos.filter((p) => p.stockActual.minus(p.stockReservado).lte(p.stockMinimo));
 
     // 3. Cotizaciones pendientes y por vencer hoy
     const cotizaciones = await this.prisma.cotizacion.findMany({
@@ -151,3 +153,4 @@ export class DashboardService {
     };
   }
 }
+

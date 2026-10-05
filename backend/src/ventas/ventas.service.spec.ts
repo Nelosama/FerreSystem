@@ -8,8 +8,14 @@ describe('VentasService - Descuento Stock Decimal', () => {
 
   const mockPrisma = {
     $transaction: vi.fn((callback) => callback(mockPrisma)),
+    $queryRawUnsafe: vi.fn(async (sql:string) => {
+      if(sql.includes('SELECT u.rol'))return [{rol:'ADMIN',descuento_maximo:100}];
+      if(sql.includes('SELECT * FROM cajas'))return [{id:'caja-test',monto_apertura:100}];
+      return [];
+    }),
     $queryRaw: vi.fn().mockResolvedValue([{ ultimo_numero: 101 }]),
     producto: {
+      findFirstOrThrow: vi.fn().mockResolvedValue({stockActual:0}),
       findFirst: vi.fn(),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
@@ -65,7 +71,8 @@ describe('VentasService - Descuento Stock Decimal', () => {
           cantidad: 2.5,
           precioUnitario: 25.5,
           subtotal: 63.75,
-          producto: { id: 'prod-123', nombre: 'Cable Eléctrico 12 AWG', codigo: 'CABL-12' },
+          producto: {
+      findFirstOrThrow: vi.fn().mockResolvedValue({stockActual:0}), id: 'prod-123', nombre: 'Cable Eléctrico 12 AWG', codigo: 'CABL-12' },
         },
       ],
     });
@@ -81,8 +88,8 @@ describe('VentasService - Descuento Stock Decimal', () => {
     });
 
     expect(mockPrisma.producto.updateMany).toHaveBeenCalledWith({
-      where: { id: 'prod-123', tenantId, activo: true, stockActual: { gte: 2.5 } },
-      data: { stockActual: { decrement: 2.5 } },
+      where: { id: 'prod-123', tenantId, activo: true, stockActual: { gte: 2.5 }, stockReservado:0 },
+      data: { stockReservado: { increment: 2.5 } },
     });
 
     expect(resultado.detalles[0].cantidad).toBe(2.5);
@@ -117,7 +124,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
     // actualizado al intentar descontar, aunque su lectura fuera antigua.
     mockPrisma.producto.updateMany.mockImplementation(async ({ where, data }) => {
       if (stock < where.stockActual.gte) return { count: 0 };
-      stock -= data.stockActual.decrement;
+      stock -= data.stockReservado.increment;
       return { count: 1 };
     });
     mockPrisma.venta.create.mockResolvedValue({
@@ -133,3 +140,4 @@ describe('VentasService - Descuento Stock Decimal', () => {
     expect(mockPrisma.venta.create).toHaveBeenCalledTimes(1);
   });
 });
+

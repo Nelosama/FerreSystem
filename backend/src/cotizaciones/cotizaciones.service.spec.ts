@@ -20,6 +20,7 @@ describe('CotizacionesService', () => {
       findFirst: vi.fn(),
     },
     producto: {
+      findFirstOrThrow: vi.fn().mockResolvedValue({stockActual:0}),
       findFirst: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
@@ -28,6 +29,11 @@ describe('CotizacionesService', () => {
       create: vi.fn(),
     },
     $transaction: vi.fn((cb) => cb(mockPrisma)),
+    $queryRawUnsafe: vi.fn(async (sql:string) => {
+      if(sql.includes('SELECT u.rol'))return [{rol:'ADMIN',descuento_maximo:100}];
+      if(sql.includes('SELECT * FROM cajas'))return [{id:'caja-test',monto_apertura:100}];
+      return [];
+    }),
     $queryRaw: vi.fn(),
   };
 
@@ -115,16 +121,16 @@ describe('CotizacionesService', () => {
   it('revierte conversión si un decremento concurrente agotó stock', async () => {
     mockPrisma.$queryRaw.mockResolvedValue([{ ultimo_numero: 11 }]);
     mockPrisma.cotizacion.findFirst.mockResolvedValue({
-      id: 'cot-123', estado: 'APROBADA', detalles: [{
-        cantidad: 2.75, totalMedida: 2.75, producto: { id: 'p-1', nombre: 'Cable', stockActual: 3 },
+      id: 'cot-123', estado: 'APROBADA',descuento:0, detalles: [{
+        productoId:'p-1',precioUnitario:10,cantidad: 2.75, totalMedida: 2.75, producto: { id: 'p-1', nombre: 'Cable',precioVenta:10, stockActual: 3 },
       }],
     });
     mockPrisma.producto.updateMany.mockResolvedValue({ count: 0 });
     await expect(service.convertirAVenta('tenant-A', 'user-A', 'cot-123'))
       .rejects.toThrow('Stock insuficiente');
     expect(mockPrisma.producto.updateMany).toHaveBeenCalledWith({
-      where: { id: 'p-1', tenantId: 'tenant-A', activo: true, stockActual: { gte: 2.75 } },
-      data: { stockActual: { decrement: 2.75 } },
+      where: { id: 'p-1', tenantId: 'tenant-A', activo: true, stockActual: { gte: 2.75 },stockReservado:0 },
+      data: { stockReservado: { increment: 2.75 } },
     });
     expect(mockPrisma.$queryRaw.mock.invocationCallOrder[0])
       .toBeLessThan(mockPrisma.cotizacion.findFirst.mock.invocationCallOrder[0]);
@@ -147,3 +153,4 @@ describe('CotizacionesService', () => {
     expect(mockPrisma.cotizacion.update).not.toHaveBeenCalled();
   });
 });
+

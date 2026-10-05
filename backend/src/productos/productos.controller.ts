@@ -1,3 +1,5 @@
+import { RequiredPermission } from '../common/decorators/required-permission.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ProductosService } from './productos.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -28,33 +30,45 @@ export class ProductosController {
     return this.productosService.getLowStock(tenantId);
   }
 
+  @Get('comercial')
+  @RequiredPermission('pos.vender')
+  @RequiredModule('pos')
+  @Roles('ADMIN','CAJERO','VENDEDOR')
+  comercial(@TenantId() tenantId:string) { return this.productosService.comercial(tenantId); }
+
   @Get(':id')
   async findById(@TenantId() tenantId: string, @Param('id') id: string) {
     return this.productosService.findById(tenantId, id);
   }
 
   @Post()
+  @RequiredPermission('inventario.editar')
   @Roles('ADMIN', 'BODEGUERO')
   async create(
     @TenantId() tenantId: string,
     @Body() dto: CreateProductoDto,
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.productosService.create(tenantId, dto);
+    return this.productosService.create(tenantId, dto, userId);
   }
 
   @Put(':id')
+  @RequiredPermission('inventario.editar')
   @Roles('ADMIN', 'BODEGUERO')
   async update(
     @TenantId() tenantId: string,
     @Param('id') id: string,
     @Body() dto: UpdateProductoDto,
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.productosService.update(tenantId, id, dto);
+    return this.productosService.update(tenantId, id, dto, userId);
   }
 
   @Delete(':id')
+  @RequiredPermission('inventario.editar')
   @Roles('ADMIN')
-  async delete(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.productosService.delete(tenantId, id);
+  async delete(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser('sub') userId:string) {
+    return this.productosService.delete(tenantId, id, userId);
   }
 }
+

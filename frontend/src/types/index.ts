@@ -72,12 +72,17 @@ export interface ProductItem {
   id: string;
   codigo: string;
   codigoBarras?: string;
+  codigoFabricante?: string;
+  imagenUrl?:string;
   nombre: string;
   descripcion?: string;
   categoria: string;
   precioVenta: number;
   precioCosto: number;
+  margen?:number;
   stockActual: number;
+  stockReservado?:number;
+  stockDisponible?:number;
   stockMinimo: number;
   unidadMedida: string;
   usaMedida?: boolean;
@@ -97,7 +102,7 @@ export interface SaleItem {
   total: number;
   isv: number;
   subtotal: number;
-  metodoPago: 'EFECTIVO' | 'TARJETA' | 'CREDITO';
+  metodoPago: 'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA';
   fecha: string;
   itemsCount: number;
 }
@@ -155,3 +160,4 @@ export interface QuotationItem {
   vencida?: boolean;
   createdAt?: string;
 }
+

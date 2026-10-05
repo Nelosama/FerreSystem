@@ -1,3 +1,5 @@
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ClientesService } from './clientes.service';
 import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
@@ -6,7 +8,7 @@ import { TenantGuard } from '../common/guards/tenant.guard';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 
 @Controller('clientes')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 export class ClientesController {
   constructor(private readonly clientesService: ClientesService) {}
 
@@ -40,7 +42,9 @@ export class ClientesController {
   }
 
   @Delete(':id')
+  @Roles('ADMIN')
   async delete(@TenantId() tenantId: string, @Param('id') id: string) {
     return this.clientesService.delete(tenantId, id);
   }
 }
+

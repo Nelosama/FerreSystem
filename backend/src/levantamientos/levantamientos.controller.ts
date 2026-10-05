@@ -1,3 +1,7 @@
+import { RequiredPermission } from '../common/decorators/required-permission.decorator';
+import { Query } from '@nestjs/common';
+import { Roles } from '../common/decorators/roles.decorator';
+import { AplicarLevantamientoDto } from './dto/create-levantamiento-item.dto';
 import {
   Controller,
   Get,
@@ -19,7 +23,9 @@ import { CreateLevantamientoDto, UpdateLevantamientoDto } from './dto/create-lev
 import { CreateLevantamientoItemDto, UpdateLevantamientoItemDto } from './dto/create-levantamiento-item.dto';
 
 @Controller('levantamientos')
+@RequiredPermission('inventario.editar')
 @RequiredModule('levantamiento')
+@Roles('ADMIN','BODEGUERO')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 export class LevantamientosController {
   constructor(private readonly levantamientosService: LevantamientosService) {}
@@ -48,14 +54,21 @@ export class LevantamientosController {
     @TenantId() tenantId: string,
     @Param('id') id: string,
     @Body() dto: UpdateLevantamientoDto,
+    @CurrentUser('sub') userId:string,
   ) {
-    return this.levantamientosService.update(tenantId, id, dto);
+    return this.levantamientosService.update(tenantId, id, dto, userId);
   }
 
   @Delete(':id')
-  async remove(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.levantamientosService.remove(tenantId, id);
+  async remove(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser('sub') userId:string) {
+    return this.levantamientosService.remove(tenantId, id, userId);
   }
+
+  @Get(':id/preview')
+  preview(@TenantId() tenantId:string,@Param('id') id:string){return this.levantamientosService.previsualizar(tenantId,id);}
+  @Post(':id/aplicar')
+  @Roles('ADMIN')
+  aplicar(@TenantId() tenantId:string,@CurrentUser('sub') userId:string,@Param('id') id:string,@Body() dto:AplicarLevantamientoDto){return this.levantamientosService.aplicar(tenantId,userId,id,dto.token);}
 
   // --- ITEMS ---
 
@@ -72,8 +85,9 @@ export class LevantamientosController {
     @TenantId() tenantId: string,
     @Param('id') levantamientoId: string,
     @Body() dto: CreateLevantamientoItemDto,
+    @CurrentUser('sub') userId:string,
   ) {
-    return this.levantamientosService.createItem(tenantId, levantamientoId, dto);
+    return this.levantamientosService.createItem(tenantId, levantamientoId, dto, userId);
   }
 
   @Patch(':id/items/:itemId')
@@ -82,8 +96,9 @@ export class LevantamientosController {
     @Param('id') levantamientoId: string,
     @Param('itemId') itemId: string,
     @Body() dto: UpdateLevantamientoItemDto,
+    @CurrentUser('sub') userId:string,
   ) {
-    return this.levantamientosService.updateItem(tenantId, levantamientoId, itemId, dto);
+    return this.levantamientosService.updateItem(tenantId, levantamientoId, itemId, dto, userId);
   }
 
   @Delete(':id/items/:itemId')
@@ -91,7 +106,10 @@ export class LevantamientosController {
     @TenantId() tenantId: string,
     @Param('id') levantamientoId: string,
     @Param('itemId') itemId: string,
+    @CurrentUser('sub') userId:string,
+    @Query('version') version:string,
   ) {
-    return this.levantamientosService.removeItem(tenantId, levantamientoId, itemId);
+    return this.levantamientosService.removeItem(tenantId, levantamientoId, itemId, userId, Number(version));
   }
 }
+

@@ -1,3 +1,4 @@
+import { OperacionesModule } from './operaciones/operaciones.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -31,6 +32,7 @@ import { LevantamientosModule } from './levantamientos/levantamientos.module';
     DashboardModule,
     UsuariosModule,
     LevantamientosModule,
+    OperacionesModule,
   ],
   providers: [
     {
@@ -40,3 +42,4 @@ import { LevantamientosModule } from './levantamientos/levantamientos.module';
   ],
 })
 export class AppModule {}
+

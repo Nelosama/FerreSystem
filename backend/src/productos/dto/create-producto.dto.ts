@@ -1,16 +1,19 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsEnum, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsEnum, IsBoolean, IsUrl, MaxLength } from 'class-validator';
 
 import { UnidadMedida as UnidadMedidaEnum } from '@prisma/client';
 export { UnidadMedidaEnum };
 
 export class CreateProductoDto {
   @IsString()
-  @IsNotEmpty({ message: 'El código del producto es requerido' })
-  codigo: string;
+  @IsOptional()
+  codigo?: string;
 
   @IsString()
   @IsOptional()
   codigoBarras?: string;
+  @IsOptional() @IsString() codigoFabricante?: string;
+  @IsOptional() @IsUrl({protocols:['https'],require_protocol:true}) @MaxLength(2048) imagenUrl?:string;
+  @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?: number;
 
   @IsString()
   @IsNotEmpty({ message: 'El nombre del producto es requerido' })
@@ -32,19 +35,19 @@ export class CreateProductoDto {
   @IsOptional()
   usaMedida?: boolean;
 
-  @IsNumber({}, { message: 'El precio de venta debe ser un número' })
+  @IsNumber({maxDecimalPlaces:2}, { message: 'El precio de venta debe ser un número' })
   @Min(0, { message: 'El precio de venta no puede ser negativo' })
   precioVenta: number;
 
-  @IsNumber({}, { message: 'El precio de costo debe ser un número' })
+  @IsNumber({maxDecimalPlaces:2}, { message: 'El precio de costo debe ser un número' })
   @Min(0, { message: 'El precio de costo no puede ser negativo' })
   precioCosto: number;
 
-  @IsNumber()
+  @IsNumber({maxDecimalPlaces:2})
   @Min(0)
   stockActual: number;
 
-  @IsNumber()
+  @IsNumber({maxDecimalPlaces:2})
   @Min(0)
   stockMinimo: number;
 
@@ -54,6 +57,7 @@ export class CreateProductoDto {
 }
 
 export class UpdateProductoDto {
+  @IsOptional() @IsString() motivo?: string;
   @IsString()
   @IsOptional()
   codigo?: string;
@@ -61,6 +65,9 @@ export class UpdateProductoDto {
   @IsString()
   @IsOptional()
   codigoBarras?: string;
+  @IsOptional() @IsString() codigoFabricante?: string;
+  @IsOptional() @IsUrl({protocols:['https'],require_protocol:true}) @MaxLength(2048) imagenUrl?:string;
+  @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?: number;
 
   @IsString()
   @IsOptional()
@@ -82,22 +89,22 @@ export class UpdateProductoDto {
   @IsOptional()
   usaMedida?: boolean;
 
-  @IsNumber()
+  @IsNumber({maxDecimalPlaces:2})
   @Min(0)
   @IsOptional()
   precioVenta?: number;
 
-  @IsNumber()
+  @IsNumber({maxDecimalPlaces:2})
   @Min(0)
   @IsOptional()
   precioCosto?: number;
 
-  @IsNumber()
+  @IsNumber({maxDecimalPlaces:2})
   @Min(0)
   @IsOptional()
   stockActual?: number;
 
-  @IsNumber()
+  @IsNumber({maxDecimalPlaces:2})
   @Min(0)
   @IsOptional()
   stockMinimo?: number;
@@ -106,3 +113,4 @@ export class UpdateProductoDto {
   @IsOptional()
   unidadMedida?: UnidadMedidaEnum;
 }
+
