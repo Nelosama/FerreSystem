@@ -9,7 +9,7 @@ npm ci
 npm run dev
 ```
 
-El servidor de desarrollo redirige `/api` al backend en `http://localhost:3000`. Para compilar, configura `VITE_API_URL` según el entorno y ejecuta `npm run build`. Las pruebas se ejecutan con `npm test`.
+El servidor de desarrollo redirige `/api` al backend en `http://localhost:3000`. Para compilar, configura `VITE_API_URL` según el entorno y ejecuta `npm run build`. Las pruebas se ejecutan con `npm test`. Después de compilar, instala Chromium con `npx playwright install chromium` y ejecuta `npm run test:browser` para verificar el arranque y la navegación del bundle en un navegador real.
 
 ## Despliegue en Vercel
 
@@ -30,3 +30,5 @@ En las variables de **Preview** y **Production**, configura `VITE_API_URL` con l
 El valor `/api` se usa en la instalación local con Caddy, que redirige las llamadas al backend. En Vercel, esta configuración publica únicamente el frontend y sus rutas SPA; para este despliegue usa la URL HTTPS del backend externo.
 
 Si aparece `ERR_PNPM_OUTDATED_LOCKFILE`, verifica que Vercel tenga `frontend` como Root Directory y esté usando el Install Command definido aquí. Vercel debe instalar las dependencias con `npm ci`.
+
+Antes de coordinar el despliegue con Render, revisar la [verificación web previa al merge](../docs/VERIFICACION_WEB_ANTES_DEL_MERGE_20261005.md). Una vista previa Ready confirma la publicación del frontend; el login y las funciones nuevas necesitan una API y base de datos compatibles.

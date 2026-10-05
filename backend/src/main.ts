@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as cookieParserImport from 'cookie-parser';
 import { ValidationPipe } from '@nestjs/common';
+import { createFrontendCorsOptions } from './common/frontend-cors';
 
 const cookieParser = (cookieParserImport as any).default || cookieParserImport;
 
@@ -11,27 +12,8 @@ async function bootstrap() {
   // Parse cookies for httpOnly refresh tokens
   app.use(cookieParser());
 
-  const allowedOrigins = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:3000',
-    process.env.FRONTEND_URL,
-  ].filter(Boolean) as string[];
-
   // Enable CORS with credentials for frontend applications (Vercel, local dev, custom domain)
-  app.enableCors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        // Deny origins outside the explicit local/configured allowlist.
-        callback(null, false);
-      }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  });
+  app.enableCors(createFrontendCorsOptions());
 
   // Global validation pipe with whitelist stripping
   app.useGlobalPipes(

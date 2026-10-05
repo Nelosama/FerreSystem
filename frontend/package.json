@@ -11,6 +11,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "node --test test/*.test.mjs",
+    "test:browser": "playwright test",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.13.3",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.18",
