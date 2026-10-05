@@ -132,3 +132,7 @@ Auditar el repositorio contra estos requisitos y clasificar cada punto como:
 - REQUIERE DEFINICIÓN DE NEGOCIO.
 
 No implementar funciones nuevas antes de comprobar qué existe actualmente en frontend, backend, esquema Prisma, persistencia y pruebas.
+
+## Ampliación confirmada — 5 de octubre de 2026
+
+El dueño requiere una app instalada para recibir notificaciones push y revisar autorizaciones importantes, incluso con la app cerrada y sin depender de la sesión del navegador. La sesión de la app será independiente; cerrar sesión explícitamente o revocar el dispositivo debe cancelar sus envíos futuros y acceso. Web adaptable/manifiesto no completa esta entrega. La base operativa puede seguir local; sin Internet del local, los avisos quedan pendientes hasta reconectar. Alcance y propuesta en `APP_MOVIL_Y_NOTIFICACIONES.md`; plataforma y distribución por confirmar.

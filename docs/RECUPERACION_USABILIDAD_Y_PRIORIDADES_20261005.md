@@ -73,7 +73,7 @@ La garantía, impresión fiscal u otra regla puede convertirse en P0 si es neces
 
 ### P1 — Después de estabilizar el núcleo o antes, si el negocio lo exige
 
-7. **Celular del dueño.** Definir consultas, notificaciones y autorizaciones; VPN/PWA o servicio pequeño de nube. Registrar decisiones y límites de contingencia sin Internet.
+7. **App instalada del dueño (requisito confirmado).** Recibir notificaciones push con app cerrada, independientes de sesión del navegador; revisar y decidir solicitudes con sesión móvil propia. Web/PWA no completa este requisito. Propuesta React Native/Expo, registro/revocación de dispositivos y cola persistente de eventos; VPN o puente limitado para acceso remoto, manteniendo base local. Ver `APP_MOVIL_Y_NOTIFICACIONES.md`.
 8. **Garantías y política de devoluciones.** Confirmar vigencia, responsable, mercancía dañada y comprobantes; no inventar reglas.
 9. **Continuidad adicional según arquitectura.** Con servidor local se puede operar sin Internet mientras funciona la red; una cola offline completa en cada terminal es una necesidad distinta y debe justificarse. Si se elige nube, la operación offline exige catálogo, cola, conflictos y sincronización.
 10. **Dispositivos y fotos.** Validar cámara en móviles reales y, si se requieren fotografías, configurar captura, compresión y almacenamiento duradero. La URL de imagen actual no equivale a un servicio de subida.

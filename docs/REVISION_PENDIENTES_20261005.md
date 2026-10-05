@@ -13,7 +13,7 @@ Rama `codex/recuperacion-ventas`, PR #59. Esta lista reemplaza la interpretació
 | P0 | Importación y dependencias | CSV limitado a 5 MB/5000 filas; retirada lectura Excel vulnerable |
 | P0 | Archivos de entorno versionados | Retirados del seguimiento sin leer valores; el historial aún los contiene, revisar/rotar credenciales reales si las hubo |
 | P0 | Uso sencillo y piloto | Inicio por tareas/buscador y mensajes de estado implementados; falta observación de cajero/admin y lector/impresora |
-| P1 | Celular | Web adaptable y manifiesto; no app nativa/push ni prueba en teléfonos reales |
+| P1 | App instalada y push (requisito del cliente) | Pendiente; web/manifiesto no lo completan. Propuesta en APP_MOVIL_Y_NOTIFICACIONES.md; confirmar plataforma/distribución, sesión móvil y canal push |
 | P1 | Autorización fuera del local | Flujo backend real listo; requiere VPN/puente remoto y configuración de red |
 | P1 | Garantías y política comercial | Falta vigencia/reglas/responsables y requisitos fiscales del cliente |
 | P1 | Fotografías | URL de imagen existente; no captura/subida/almacenamiento durable implementados |
@@ -29,6 +29,7 @@ Rama `codex/recuperacion-ventas`, PR #59. Esta lista reemplaza la interpretació
 - `AVANCE_DEVOLUCIONES_AUTORIZADAS.md`: solicitud, decisión, ejecución y auditoría.
 - `SUCURSALES_Y_ACCESO_REMOTO_PROPUESTA.md`: propuesta para expansión sin sustituir el aislamiento de empresa.
 - `AUDITORIA_RAMA_20261005.md`: fallos confirmados, correcciones y límites de la revisión.
+- `APP_MOVIL_Y_NOTIFICACIONES.md`: app instalada con avisos independientes del navegador, sesión propia, cola de eventos y base operativa local.
 - Commit separado de limpieza: elimina artefactos/entornos del seguimiento, conserva las copias locales y no elimina su historial. La cantidad grande de archivos eliminados corresponde a dependencias/bundles, no a módulos de negocio.
 
 ## Para cerrar los pendientes externos

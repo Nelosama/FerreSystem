@@ -18,9 +18,9 @@ Pedidos remotos y autorizaciones requieren estado PENDIENTE/AUTORIZADA/RECHAZADA
 
 ## Celular y costos
 
-Primera opción: web móvil en la red local, sin pago de base en nube. Segunda: VPN administrada para ver el mismo servidor fuera del local. Notificaciones push requieren registro de dispositivos y un canal de entrega; pueden usar un servicio pequeño para eventos sin convertir toda la base operativa en una base de pago externa. Confirmar restricciones de Android/iOS, proveedor, presupuesto y privacidad.
+El cliente confirmó que necesita una app instalada que reciba avisos con la app cerrada, independiente de la sesión del navegador. Propuesta: React Native/Expo y un canal push, conservando la base operativa local. Un servicio pequeño puede manejar eventos sin convertir toda la base operativa en una base de pago externa. Confirmar Android/iOS, distribución, proveedor y presupuesto. Alcance en `APP_MOVIL_Y_NOTIFICACIONES.md`.
 
-Nunca publicar PostgreSQL al Internet. Una app nativa deberá reutilizar autenticación, aislamiento y autorizaciones del backend. La web móvil puede ser suficiente para el piloto; evaluar instalación y notificaciones en teléfonos reales antes de elegir React Native/Expo.
+Nunca publicar PostgreSQL al Internet. La app deberá reutilizar aislamiento y autorizaciones del backend con una sesión segura propia del dispositivo. VPN o puente autenticado limitado habilitará consultas/decisiones fuera del local. La web móvil sigue sirviendo para acceso en LAN, pero no completa el requisito de app instalada/push. Probar app cerrada, logout/revocación y pérdida de Internet en teléfonos reales.
 
 ## Decisiones que faltan
 
