@@ -418,3 +418,18 @@ test('corregir precio pendiente conserva identidad y una confirmación tardía s
   assert.equal(page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.value, 2.5);
   assert.ok(page.find(n => n.props.onClick?.name === 'cerrarComprobante'));
 });
+
+
+test('un pendiente borrado por otra pestaña no genera un identificador nuevo al reintentar', async () => {
+  const saved = storage(), pending = sampleSale();
+  saved.setItem(recoveryKeys.pending, JSON.stringify(pending));
+  let confirmed = false, posts = 0;
+  const page = makePOS(saved, async () => confirmed ? { estado: 'REGISTRADA', venta: sampleReceipt(pending) } : { estado: 'NO_REGISTRADA' }, async () => { posts++; });
+  await settlePOS(page);
+  await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+  saved.removeItem(recoveryKeys.pending);
+  confirmed = true;
+  await page.find(n => n.children.includes('Ya revisé el pago: continuar registro')).props.onClick(); page.render();
+  assert.equal(posts, 0);
+  assert.ok(page.find(n => n.props.onClick?.name === 'cerrarComprobante'));
+});

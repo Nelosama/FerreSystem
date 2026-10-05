@@ -275,14 +275,15 @@ export const POSPage: React.FC = () => {
       }
       // Una consulta previa puede haberse quedado antigua o venir de otra pestaña.
       // Consultar cada reintento evita reenviar una venta que ya está registrada.
-      if (stored.pending) {
-        const { data: status } = await api.get(`/ventas/solicitudes/${stored.pending.solicitudId}`);
+      const pendingIdentity = stored.pending?.solicitudId || ventaPendiente?.solicitudId;
+      if (pendingIdentity) {
+        const { data: status } = await api.get(`/ventas/solicitudes/${pendingIdentity}`);
         if (activeKey.current !== requestKey) return;
         if (status.estado === 'REGISTRADA') { mostrarVenta(status.venta); return; }
         if (status.estado !== 'NO_REGISTRADA') throw new Error('No se pudo comprobar el estado de la venta.');
       }
       const pending = stored.pending || {
-        solicitudId: crypto.randomUUID(), cart, clienteNombre, clienteRtn, clienteId,
+        solicitudId: pendingIdentity || crypto.randomUUID(), cart, clienteNombre, clienteRtn, clienteId,
         vencimiento: vencimiento || undefined, metodoPago, descuentoPorcentaje,
       };
       localStorage.setItem(pendingKey, JSON.stringify(pending));
