@@ -736,5 +736,42 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect((await ops.consultarDevolucion(tenantId,usuarioId,command.solicitudId)).estado).toBe('AUTORIZADA');
   });
 
+  it('dos administradores consultan las mismas solicitudes y cualquiera puede autorizar',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    const secondAdmin=randomUUID();
+    await prisma.usuario.create({data:{id:secondAdmin,tenantId,nombre:'Segundo administrador',email:'admin2@example.test',passwordHash:'test-only',rol:'ADMIN'}});
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    expect((await ops.solicitudesDevolucion(tenantId,adminId))[0].id).toBe(command.solicitudId);
+    expect((await ops.solicitudesDevolucion(tenantId,secondAdmin))[0].id).toBe(command.solicitudId);
+    await ops.decidirDevolucion(tenantId,secondAdmin,command.solicitudId,{decision:'AUTORIZADA',motivo:'Revisado por segundo administrador'});
+    const request=await ops.consultarDevolucion(tenantId,adminId,command.solicitudId);
+    expect(request.administrador_id).toBe(secondAdmin);
+    await ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId);
+    const audit=await ops.auditoria(tenantId,0);
+    expect(audit.some(a=>a.operacion==='DEVOLUCION_EJECUTAR_AUTORIZADA'&&a.datos.administradorId===secondAdmin)).toBe(true);
+  });
+
+  it('dos administradores decidiendo simultáneamente conservan una sola decisión y su autor',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    const secondAdmin=randomUUID();
+    await prisma.usuario.create({data:{id:secondAdmin,tenantId,nombre:'Segundo administrador',email:'admin2@example.test',passwordHash:'test-only',rol:'ADMIN'}});
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    const outcomes=await Promise.allSettled([
+      ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'Autorizar'}),
+      ops.decidirDevolucion(tenantId,secondAdmin,command.solicitudId,{decision:'RECHAZADA',motivo:'Rechazar'}),
+    ]);
+    expect(outcomes.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+    expect(outcomes.filter(r=>r.status==='rejected')).toHaveLength(1);
+    const winner=outcomes.find(r=>r.status==='fulfilled') as PromiseFulfilledResult<any>;
+    const request=await ops.consultarDevolucion(tenantId,adminId,command.solicitudId);
+    expect(request.estado).toBe(winner.value.estado);
+    expect(request.administrador_id).toBe(winner.value.administrador_id);
+    const audit=await ops.auditoria(tenantId,0);
+    const decisions=audit.filter(a=>a.operacion==='DEVOLUCION_DECIDIR'&&a.entidad_id===command.solicitudId);
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0].usuario_id).toBe(request.administrador_id);
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(0);
+  });
+
 });
 

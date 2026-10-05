@@ -10,6 +10,8 @@ Rama: `codex/recuperacion-ventas`. PR: #59.
 4. El solicitante confirma una solicitud **AUTORIZADA** desde su sesión. Si hay dinero a reembolsar, necesita su propia caja abierta; el efectivo debe alcanzar.
 5. Una sola transacción registra devolución, detalles, movimientos de inventario/caja, reducción de crédito, auditoría y estado **EJECUTADA**. La venta original se conserva.
 
+La ferretería puede tener dos o más administradores con cuentas individuales. Todos ven las solicitudes de su empresa y cualquiera puede decidir; basta la autorización de uno. Si deciden simultáneamente, se conserva la primera decisión confirmada y su autor; la otra recibe un conflicto y debe actualizar el estado. No se exige una doble aprobación.
+
 El administrador autoriza usando su cuenta: no se comparte su contraseña con el cajero ni se confía en aprobaciones almacenadas en el navegador. El solicitante no puede cambiar cantidades, motivo o método de una solicitud ya registrada. Un reintento de una decisión idéntica recupera esa decisión; otra decisión sobre la misma solicitud se rechaza.
 
 ## Controles
@@ -44,6 +46,6 @@ El flujo cubre devoluciones/cancelaciones totales o parciales de ventas. No revi
 - Build frontend/backend y validación Prisma.
 - 36 pruebas frontend: recuperación de respuesta perdida sin POST, bloqueo de doble clic/almacenamiento, sesión que cambia durante consulta, pendiente antiguo/corrupto y corrección con identidad conservada.
 - 52 pruebas unitarias backend.
-- 48 pruebas PostgreSQL aislado, incluyendo migraciones y ocho casos nuevos del flujo autorizado: permisos, aislamiento, inmutabilidad, aprobación/rechazo, rollback, reintentos concurrentes, crédito, administrador desactivado, entrega posterior, devolución parcial y cantidades consumidas.
+- 50 pruebas PostgreSQL aislado, incluyendo migraciones y diez casos nuevos del flujo autorizado: permisos, aislamiento, inmutabilidad, aprobación/rechazo, rollback, reintentos concurrentes, crédito, administrador desactivado, entrega posterior, devolución parcial, cantidades consumidas y dos administradores consultando/decidiendo simultáneamente.
 
 Pendiente: aceptación con cajero/administrador reales, corte físico de energía y actualización sobre copia real de producción. No se modificaron datos productivos.
