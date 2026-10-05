@@ -2,6 +2,8 @@
 
 Fecha: 5 de octubre de 2026. Cambios preparados en codex/recuperacion-ventas.
 
+Actualización: la instalación desde cero y la adopción controlada de bases históricas están preparadas en [Instalación y actualización segura](INSTALACION_Y_ACTUALIZACION_SEGURA.md). El bloqueo de baseline descrito abajo corresponde al diagnóstico inicial; su resolución productiva sigue pendiente de inspección real.
+
 ## Recuperación implementada en esta etapa
 
 - Borrador automático de carrito, cantidades, cliente, descuento y método de pago, separado por empresa y usuario.
