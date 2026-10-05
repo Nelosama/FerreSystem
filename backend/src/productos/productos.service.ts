@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { audit, decimal, id, lockTenant, movement, query, text } from '../operaciones/ledger';
+import { authorizedActor, audit, decimal, id, lockTenant, movement, query, text } from '../operaciones/ledger';
 import type { CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
 
 @Injectable()
@@ -24,7 +24,9 @@ export class ProductosService {
  }
  async create(tenantId:string,dto:CreateProductoDto,userId:string){
   return this.prisma.$transaction(async tx=>{
-   await lockTenant(tx,tenantId);const nombre=text(dto.nombre,'Nombre');
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
+   const nombre=text(dto.nombre,'Nombre');
    let codigo=dto.codigo?.trim().toUpperCase();
    if(!codigo){
     const prefix=nombre.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'-').slice(0,18).replace(/-$/,'')||'PROD';
@@ -40,6 +42,7 @@ export class ProductosService {
  async update(tenantId:string,productId:string,dto:UpdateProductoDto,userId:string){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
    const old=await tx.producto.findFirst({where:{id:productId,tenantId}});if(!old)throw new NotFoundException('Producto no encontrado');
    if(dto.stockActual!==undefined && dto.stockActual<Number(old.stockReservado))throw new ConflictException('El conteo no cubre las ventas pendientes de entrega');
    if(dto.stockActual!==undefined && Number(old.stockActual)!==dto.stockActual && !dto.motivo?.trim())throw new BadRequestException('Indique un motivo para cambiar existencias');
@@ -56,5 +59,5 @@ export class ProductosService {
    await audit(tx,tenantId,userId,'PRODUCTO_EDITAR',p.id,{anterior:{costo:Number(old.precioCosto),precio:Number(old.precioVenta),stock:Number(old.stockActual)},nuevo:data,motivo:dto.motivo});return this.format(p);
   });
  }
- async delete(tenantId:string,productId:string,userId:string){return this.prisma.$transaction(async tx=>{await lockTenant(tx,tenantId);const p=await tx.producto.findFirst({where:{id:productId,tenantId}});if(!p)throw new NotFoundException('Producto no encontrado');const result=await tx.producto.update({where:{id:productId},data:{activo:false}});await audit(tx,tenantId,userId,'PRODUCTO_DESACTIVAR',productId,{});return this.format(result);});}
+ async delete(tenantId:string,productId:string,userId:string){return this.prisma.$transaction(async tx=>{await lockTenant(tx,tenantId);await authorizedActor(tx,tenantId,userId,['ADMIN'],'inventario.editar');const p=await tx.producto.findFirst({where:{id:productId,tenantId}});if(!p)throw new NotFoundException('Producto no encontrado');const result=await tx.producto.update({where:{id:productId},data:{activo:false}});await audit(tx,tenantId,userId,'PRODUCTO_DESACTIVAR',productId,{});return this.format(result);});}
 }

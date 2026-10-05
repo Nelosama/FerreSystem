@@ -1,0 +1,86 @@
+name: ferresystem-local
+services:
+  database:
+    build:
+      context: ../..
+      dockerfile: deploy/local/database.Dockerfile
+    image: ferresystem-postgres:local
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ferresystem
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_admin_password
+    secrets: [database_password, database_admin_password]
+    volumes:
+      - database:/var/lib/postgresql/data
+    tmpfs: [/run/ferre-secrets]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U postgres -d ferresystem']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  backend:
+    build:
+      context: ../..
+      dockerfile: deploy/local/backend.Dockerfile
+    image: ferresystem-backend:local
+    restart: unless-stopped
+    depends_on:
+      database: {condition: service_healthy}
+    environment:
+      NODE_ENV: production
+      FERRE_BACKUP_STATUS_FILE: /backups/latest-status.json
+      DATABASE_HOST: database
+      FRONTEND_URL: https://${FERRE_HOST:?Configure FERRE_HOST}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:?Configure INITIAL_ADMIN_EMAIL}
+      INITIAL_TENANT_NAME: ${INITIAL_TENANT_NAME:?Configure INITIAL_TENANT_NAME}
+    secrets: [database_password, jwt_secret, initial_admin_password]
+    volumes:
+      - type: bind
+        source: ${BACKUP_DIRECTORY}
+        target: /backups
+        read_only: true
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:3000/api/health").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/local/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend: {condition: service_healthy}
+    environment:
+      FERRE_HOST: ${FERRE_HOST}
+      # Mantener el proxy para conexiones externas; la API vive en esta red.
+      NO_PROXY: "${NO_PROXY:-},backend,database,web,localhost,127.0.0.1"
+    ports: ['80:80', '443:443']
+    volumes: [certificates:/data, caddy_config:/config]
+  backups:
+    user: "${LOCAL_UID:-0}:${LOCAL_GID:-0}"
+    image: ferresystem-backend:local
+    restart: unless-stopped
+    depends_on:
+      database: {condition: service_healthy}
+      backend: {condition: service_healthy}
+    command: [node, scripts/backup-scheduler.mjs, /backups]
+    environment:
+      DATABASE_HOST: database
+      BACKUP_INTERVAL_SECONDS: '21600'
+    secrets: [database_password]
+    volumes:
+      - type: bind
+        source: ${BACKUP_DIRECTORY:?Configure BACKUP_DIRECTORY fuera del repositorio}
+        target: /backups
+secrets:
+  database_admin_password: {file: '${SECRETS_DIRECTORY}/database_admin_password'}
+  database_password: {file: '${SECRETS_DIRECTORY:?Configure SECRETS_DIRECTORY}/database_password'}
+  jwt_secret: {file: '${SECRETS_DIRECTORY}/jwt_secret'}
+  initial_admin_password: {file: '${SECRETS_DIRECTORY}/initial_admin_password'}
+volumes:
+  database:
+  certificates:
+  caddy_config:

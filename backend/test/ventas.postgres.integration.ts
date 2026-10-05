@@ -12,6 +12,7 @@ import { LevantamientosService } from '../src/levantamientos/levantamientos.serv
 import { UsuariosService } from '../src/usuarios/usuarios.service';
 import { ProductosService } from '../src/productos/productos.service';
 import { ClientesService } from '../src/clientes/clientes.service';
+import { lockTenant } from '../src/operaciones/ledger';
 import * as bcrypt from 'bcrypt';
 
 // Nunca lee DATABASE_URL: crea un clúster exclusivo, sin migraciones ni datos existentes.
@@ -88,6 +89,59 @@ describe('Ventas / PostgreSQL aislado', () => {
 
   const available = async()=>{const p=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});return Number(p.stockActual)-Number(p.stockReservado);};
   const request = (cantidad = 2.75) => ({ detalles: [{ productoId, cantidad, precioUnitario: 10 }] });
+
+  // Hold the same lock used by user edits until the mutation is actually queued
+  // in PostgreSQL, then revoke and commit before the mutation acquires it.
+  const revokeWhileQueued = async <T>(change: any, mutate: () => Promise<T>): Promise<T> => {
+    let locked!: () => void, release!: () => void;
+    const acquired = new Promise<void>(resolve => { locked = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const revocation = prisma.$transaction(async tx => {
+      await lockTenant(tx,tenantId);
+      locked();
+      await gate;
+      await tx.usuario.update({where:{id:usuarioId},data:change});
+    },{timeout:10000});
+    await acquired;
+    const pending = mutate().then(value => ({value}), error => ({error}));
+    try {
+      const deadline = Date.now()+5000;
+      while (true) {
+        const [state] = await prisma.$queryRawUnsafe<{waiting:boolean}[]>("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND query LIKE '%pg_advisory_xact_lock%') AS waiting");
+        if(state.waiting)break;
+        if(Date.now()>deadline)throw new Error('La operación no llegó al bloqueo de tenant');
+        await new Promise(resolve => setTimeout(resolve,5));
+      }
+    } finally {
+      release();
+      await revocation;
+    }
+    const outcome = await pending;
+    if('error' in outcome)throw outcome.error;
+    return outcome.value;
+  };
+
+  it.each([
+    {label:'cambio a bodeguero',change:{rol:'BODEGUERO'},message:'rol de usuario'},
+    {label:'retiro de pos.vender',change:{permisos:[]},message:'permiso requerido'},
+    {label:'desactivación',change:{activo:false},message:'no disponible'},
+  ])('revocación concurrente: $label impide una venta que esperaba el bloqueo',async({change,message})=>{
+    await prisma.usuario.update({where:{id:usuarioId},data:{rol:'CAJERO',permisosConfigurados:true,permisos:['pos.vender']}});
+    await expect(revokeWhileQueued(change,()=>ventas.create(tenantId,usuarioId,{...request(1),solicitudId:randomUUID()}))).rejects.toThrow(message);
+    expect(await prisma.venta.count({where:{tenantId}})).toBe(0);
+    expect(await prisma.secuenciaTenant.count({where:{tenantId,tipo:'VENTA'}})).toBe(0);
+    expect(await available()).toBe(2.75);
+    const [cashMovements] = await prisma.$queryRawUnsafe<{count:number}[]>('SELECT COUNT(*)::int AS count FROM movimientos_caja WHERE caja_id IN (SELECT id FROM cajas WHERE tenant_id=$1)',tenantId);
+    expect(cashMovements.count).toBe(0);
+  });
+
+  it('un administrador demovido durante la espera no puede restaurarse el rol',async()=>{
+    await prisma.usuario.create({data:{tenantId,nombre:'Segundo administrador',email:'second@example.test',passwordHash:'test-only',rol:'ADMIN'}});
+    const users=new UsuariosService(prisma);
+    await expect(revokeWhileQueued({rol:'CAJERO'},()=>users.update(tenantId,usuarioId,{rol:'ADMIN'},usuarioId))).rejects.toThrow('rol de usuario');
+    expect((await prisma.usuario.findUniqueOrThrow({where:{id:usuarioId}})).rol).toBe('CAJERO');
+    expect(await prisma.auditoriaOperacion.count({where:{tenantId,operacion:'USUARIO_EDITAR'}})).toBe(0);
+  });
 
 
   it('consultar solicitud recupera la venta propia sin nuevas escrituras y no expone otra cuenta', async () => {
@@ -390,7 +444,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect(await available()).toBe(2.25);
     expect((await prisma.secuenciaTenant.findFirstOrThrow({ where: { tenantId, tipo: 'VENTA' } })).ultimoNumero).toBe(1);
     await expect(ventas.create(tenantId, usuarioId, { ...dto, descuento: 1 })).rejects.toThrow('otra venta');
-    await expect(ventas.create(randomUUID(), usuarioId, dto)).rejects.toThrow('otra venta');
+    await expect(ventas.create(randomUUID(), usuarioId, dto)).rejects.toThrow('no disponible');
   });
 
   it('un tenant ajeno no puede descontar ni crear ventas sobre otro inventario', async () => {
@@ -532,7 +586,8 @@ describe('Ventas / PostgreSQL aislado', () => {
   it('otro tenant no puede recibir una compra ajena ni consultar sus movimientos',async()=>{
     const ops=new OperacionesService(prisma),provider=await ops.proveedor(tenantId,usuarioId,{solicitudId:randomUUID(),nombre:'Proveedor'});
     const order=await ops.compra(tenantId,usuarioId,{solicitudId:randomUUID(),proveedorId:provider.id,numeroFactura:'F1',isv:0,items:[{productoId,cantidad:1,costo:2}]});
-    await expect(ops.recibir('legacy-B',usuarioId,order.id,{solicitudId:randomUUID(),items:[{detalleId:'x',cantidad:1}]})).rejects.toThrow('no encontrada');
+    const foreignUser=await prisma.usuario.create({data:{tenantId:'legacy-B',nombre:'Administrador ajeno',email:`${randomUUID()}@example.test`,passwordHash:'test-only',rol:'ADMIN'}});
+    await expect(ops.recibir('legacy-B',foreignUser.id,order.id,{solicitudId:randomUUID(),items:[{detalleId:'x',cantidad:1}]})).rejects.toThrow('no encontrada');
     expect(await ops.historial('legacy-B',productoId)).toEqual({movimientos:[],costos:[]});
   });
 
@@ -774,4 +829,3 @@ describe('Ventas / PostgreSQL aislado', () => {
   });
 
 });
-

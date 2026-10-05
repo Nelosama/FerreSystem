@@ -1,8 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, statSync, chmodSync, createReadStream } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
-import { dirname, join, resolve, sep } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolvePrivateDirectory } from './private-directory.mjs';
 
 // Usa PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSFILE o PGSERVICE.
 // No lee .env, no imprime conexión/credenciales y no modifica la base de origen.
@@ -10,9 +11,8 @@ if (!process.env.PGDATABASE && !process.env.PGSERVICE) {
   throw new Error('Configure PGDATABASE o PGSERVICE para la base que quiere respaldar. No se usa DATABASE_URL automáticamente.');
 }
 if (process.argv.length !== 3) throw new Error('Uso: node scripts/backup-preflight.mjs DIRECTORIO_DE_RESPALDOS');
-const root = resolve(process.argv[2]);
 const project = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-if (root === project || root.startsWith(project + sep)) throw new Error('Guarde el respaldo fuera del repositorio.');
+const root = resolvePrivateDirectory(process.argv[2], project);
 mkdirSync(root, { recursive: true, mode: 0o700 });
 const directory = join(root, `ferresystem-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}`);
 mkdirSync(directory, { mode: 0o700 });
@@ -43,4 +43,5 @@ writeFileSync(join(directory, 'manifest.json'), JSON.stringify({
   archiveReadable: true, restoreTested: false,
   note: 'Archivo legible no equivale a restauración probada. preflight y dump son snapshots distintos si hay operaciones en curso.',
 }, null, 2), { mode: 0o600 });
+process.send?.({ type: 'backup-completed', backupDirectory: basename(directory), sha256: digest });
 console.log(`Respaldo y diagnóstico guardados en ${directory}. Falta probar restauración en una base aislada.`);

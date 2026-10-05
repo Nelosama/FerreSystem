@@ -132,7 +132,7 @@ export const BottomNavigation: React.FC = () => {
               <div style={styles.configRow}>
                 <Clock size={15} color="var(--color-text-muted)" />
                 <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                  Turno Actual: 08:00 AM - 05:00 PM
+                  Consulta tu apertura y cierre en Caja
                 </span>
               </div>
 
@@ -142,7 +142,8 @@ export const BottomNavigation: React.FC = () => {
                   <GitBranch size={15} color="var(--color-primary)" />
                   <span style={{ fontSize: '12px', fontWeight: 700 }}>Sucursal:</span>
                   <select
-                    value={tenant.sucursal || 'Sucursal Centro (Principal)'}
+                    value={tenant.sucursal || 'Sucursal Principal'}
+                disabled={sucursalesDisponibles.length < 2}
                     onChange={(e) => switchSucursal(e.target.value, tenant.id)}
                     style={styles.sucursalSelect}
                     aria-label="Seleccionar sucursal"

@@ -36,6 +36,7 @@ jobs:
         run: |
           npm run build
           npm test
+          npm run test:scripts
       - name: Preparar PostgreSQL temporal
         run: |
           sudo apt-get update

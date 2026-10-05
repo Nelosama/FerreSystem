@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { actor, audit, fingerprint, lockTenant, movement, query, text } from '../operaciones/ledger';
+import { actor, authorizedActor, audit, fingerprint, lockTenant, movement, query, text } from '../operaciones/ledger';
 import { CreateLevantamientoDto, UpdateLevantamientoDto } from './dto/create-levantamiento.dto';
 import { CreateLevantamientoItemDto, UpdateLevantamientoItemDto } from './dto/create-levantamiento-item.dto';
 
@@ -74,7 +74,9 @@ export class LevantamientosService {
  }
  async previsualizar(tenantId:string,lid:string){return this.prisma.$transaction(async tx=>{await lockTenant(tx,tenantId);return this.preview(tx,tenantId,lid);},{timeout:30000});}
  async aplicar(tenantId:string,userId:string,lid:string,token:string){return this.prisma.$transaction(async tx=>{
-  await lockTenant(tx,tenantId);const l=await this.session(tx,tenantId,lid);
+  await lockTenant(tx,tenantId);
+  await authorizedActor(tx,tenantId,userId,['ADMIN'],'inventario.editar');
+  const l=await this.session(tx,tenantId,lid);
   if(l.aplicadoAt)return {aplicadoAt:l.aplicadoAt,aplicadoPor:l.aplicadoPor};
   if(l.estado!=='FINALIZADO')throw new ConflictException('Finalice el conteo antes de aplicar');
   const preview=await this.preview(tx,tenantId,lid);

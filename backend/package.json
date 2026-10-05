@@ -17,6 +17,7 @@
     "admin:replace-super-admin": "tsx prisma/replace-super-admin.ts",
     "lint": "oxlint --type-aware src/ test/",
     "test": "vitest run",
+    "test:scripts": "node --test scripts/*.test.mjs",
     "test:watch": "vitest",
     "test:integration": "vitest run --config ./vitest.config.integration.ts",
     "test:cov": "vitest run --coverage",

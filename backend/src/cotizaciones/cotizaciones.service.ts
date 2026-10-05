@@ -1,4 +1,4 @@
-import { account, actor, audit, cashMovement, id, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { account, authorizedActor, audit, cashMovement, id, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
@@ -421,7 +421,7 @@ export class CotizacionesService {
   ) {
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx,tenantId);
-      const user=await actor(tx,tenantId,usuarioId);
+      const user=await authorizedActor(tx,tenantId,usuarioId,['ADMIN','CAJERO'],'cotizaciones.convertir_venta');
       if (!['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].includes(metodoPago)) throw new BadRequestException('Método de pago inválido');
       const caja=await openCash(tx,tenantId,usuarioId);
       const ventaId=id();
@@ -640,4 +640,3 @@ export class CotizacionesService {
     };
   }
 }
-

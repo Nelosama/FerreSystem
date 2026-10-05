@@ -81,6 +81,14 @@ export const DevolucionesPage: React.FC = () => {
     if (scope.current !== key || sending.current || isReadOnly || corrupt) return;
     const startedKey = key; sending.current = true; setBusy(true); setError(''); setNotice('');
     const current = () => scope.current === startedKey;
+    const releaseCommand = () => {
+      const stored = readCommand(startedKey);
+      if (stored && JSON.stringify(stored) === JSON.stringify(command)) localStorage.removeItem(startedKey);
+      // Otra pestaña puede haber conservado un comando distinto mientras esperábamos.
+      setPending(stored && JSON.stringify(stored) !== JSON.stringify(command) ? stored : null);
+      setCorrectionId(null);
+    };
+    let posted = false;
     try {
       // No se envía nada si no se puede conservar la identidad antes de la petición.
       const stored = readCommand(startedKey);
@@ -114,10 +122,12 @@ export const DevolucionesPage: React.FC = () => {
         if (found.resultado) response = found.resultado;
         else {
           if (found.estado !== 'AUTORIZADA') throw new Error('La solicitud aún no está autorizada o fue rechazada.');
+          posted = true;
           response = (await api.post(`/operaciones/solicitudes-devolucion/${command.requestId}/ejecutar`, {})).data;
         }
       } else {
         if (!current()) return;
+        posted = true;
         response = (await api.post(`/operaciones/solicitudes-devolucion/${command.requestId}/decision`, command.dto)).data;
       }
       if (!current()) return;
@@ -125,12 +135,36 @@ export const DevolucionesPage: React.FC = () => {
         // Conservar hasta cerrar el comprobante: al volver se consulta el resultado confirmado.
         setResult(response);
       } else {
-        localStorage.removeItem(startedKey); setPending(null); setCorrectionId(null);
+        releaseCommand();
         setNotice(recoveredOriginal ? 'Se recuperó la solicitud original que ya estaba registrada. Tus correcciones no la modificaron; revisa sus datos en la lista antes de continuar.' : command.kind === 'SOLICITAR' ? 'Solicitud guardada. El administrador debe revisarla; todavía no se movió dinero ni inventario.' : `Decisión guardada: ${statuses[response.estado]}.`);
       }
       setSale(null); setMotivo(''); setQuantities({}); setRefresh(value => value + 1);
     } catch (e: any) {
-      if (current()) setError(e.message && !e.response && e.message !== 'Network Error' ? e.message : errorMessage(e));
+      if (!current()) return;
+      setError(e.message && !e.response && e.message !== 'Network Error' ? e.message : errorMessage(e));
+      if (posted && ['DECIDIR', 'EJECUTAR'].includes(command.kind) && [400, 403, 404, 409, 422].includes(e.response?.status)) {
+        try {
+          // Un rechazo del reintento no descarta una confirmación anterior. Consultar
+          // la misma identidad antes de liberar el comando conserva esa recuperación.
+          const found = (await api.get(`/operaciones/solicitudes-devolucion/${command.requestId}`)).data;
+          if (!current()) return;
+          if (found.id !== command.requestId || !statuses[found.estado]) throw new Error('Estado de solicitud inválido');
+          if (command.kind === 'EJECUTAR' && (found.estado === 'EJECUTADA' && !found.resultado || found.resultado && found.resultado.id !== command.requestId)) throw new Error('Comprobante de solicitud inválido');
+          if (command.kind === 'EJECUTAR' && found.resultado) {
+            setResult(found.resultado);
+            setError('');
+            setNotice('Se recuperó la devolución ya registrada con la misma solicitud.');
+          } else {
+            releaseCommand();
+            setNotice(command.kind === 'DECIDIR'
+              ? found.estado === 'PENDIENTE' ? 'Este intento de decisión fue rechazado. Revisa la solicitud y el motivo antes de decidir de nuevo.' : `Se recuperó el estado confirmado: ${statuses[found.estado]}.`
+              : 'Este intento de ejecución fue rechazado. La solicitud sigue guardada en la lista con la misma identidad; revisa el motivo antes de volver a confirmarla.');
+          }
+          setRefresh(value => value + 1);
+        } catch {
+          if (current()) setNotice('No pudimos comprobar el estado después del rechazo. Conservamos la operación y su identidad; consulta de nuevo cuando puedas acceder a la solicitud.');
+        }
+      }
     } finally { sending.current = false; setBusy(false); }
   };
 
@@ -159,7 +193,14 @@ export const DevolucionesPage: React.FC = () => {
       {result && <section className="operation-card" role="status"><h2>Devolución registrada</h2>
         <p>Importe: {formatLempiras(Number(result.monto))} · Crédito cancelado: {formatLempiras(Number(result.credito_cancelado))} · Reembolso: {formatLempiras(Number(result.reembolso))} ({result.metodo})</p>
         <p>Documento {result.id}</p><button className="btn btn-secondary" disabled={busy} onClick={() => {
-          try { localStorage.removeItem(key); setPending(null); setResult(null); } catch { setError('No se pudo cerrar el comprobante. Conservamos la operación para consultarla al volver.'); }
+          try {
+            const stored = readCommand(key);
+            const ownsReceipt = stored && ['EJECUTAR', 'DIRECTA'].includes(stored.kind) && stored.requestId === result.id;
+            if (ownsReceipt) localStorage.removeItem(key);
+            setPending(ownsReceipt ? null : stored);
+            setCorrectionId(value => !ownsReceipt && stored?.requestId === value ? value : null);
+            setResult(null);
+          } catch { setError('No se pudo cerrar el comprobante. Conservamos la operación para consultarla al volver.'); }
         }}>Cerrar comprobante</button>
       </section>}
       {pending && !result && <section className="operation-error"><p>Hay una operación pendiente de confirmar. Consultaremos su estado y usaremos la misma identidad para evitar duplicados.</p>

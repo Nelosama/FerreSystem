@@ -28,6 +28,7 @@ const evaluate = (file, mocks, globals = {}) => {
 
 const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
   let cursor = 0, root;
+  const windowListeners = new Map();
   const states = [], dependencies = [], effects = [], cleanups = [];
   const react = {
     createContext() { return { Provider: 'ContextProvider' }; },
@@ -50,7 +51,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     ...overrides,
   };
   const component = evaluate(file, mocks, { localStorage: sharedStorage, crypto: webcrypto, alert() {},
-    window: { addEventListener() {}, removeEventListener() {} },
+    window: { addEventListener: (name, fn) => windowListeners.set(name, fn), removeEventListener: (name) => windowListeners.delete(name) },
     document: { documentElement: { style: { setProperty() {} } } },
     setTimeout: (fn, delay) => setTimeout(fn, delay).unref(), clearTimeout })[name];
   const nodes = () => {
@@ -61,6 +62,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
   return {
     render(props = {}) { cursor = 0; root = component(props); return nodes(); },
     find(predicate) { return nodes().find(predicate); },
+    fireStorage(key) { windowListeners.get('storage')?.({ key }); },
     async effects() { const queued = effects.splice(0); for (const [i, fn] of queued) { cleanups[i]?.(); cleanups[i] = await fn(); } await new Promise((resolve) => setImmediate(resolve)); },
   };
 };
@@ -99,6 +101,30 @@ test('un inicio fallido de soporte conserva la sesión de superadmin', async () 
   await assert.rejects(page.find((node) => node.type === 'ContextProvider').props.value.impersonateTenantAdmin({ id: 't1' }, { id: 'u1' }));
   assert.equal(saved.getItem('ferre_token'), 'admin-token');
   assert.equal(saved.getItem('ferre_original_superadmin_token'), null);
+});
+
+test('cambiar sesión en otra pestaña invalida usuario y empresa locales sin borrar la cuenta nueva', async () => {
+  const saved = storage();
+  saved.setItem('ferre_user', JSON.stringify({ id: 'user-A', rol: 'ADMIN' }));
+  saved.setItem('ferre_tenant', JSON.stringify({ id: 'tenant-A', nombreComercial: 'Empresa A' }));
+  saved.setItem('ferre_token', 'token-A');
+  saved.setItem('ferre_saas_tenants', JSON.stringify([{ id: 'tenant-C', nombreComercial: 'FerreSystem', colorPrimario: '#123456' }]));
+  let boundIdentity;
+  const page = harness('src/context/TenantContext.tsx', 'TenantProvider', {
+    '../utils/sessionSync': { startSessionSync: (_, __, identity) => { boundIdentity = identity; return () => {}; } },
+  }, saved);
+  page.render(); await page.effects(); page.render();
+  assert.equal(boundIdentity.userId, 'user-A'); assert.equal(boundIdentity.tenantId, 'tenant-A');
+  saved.setItem('ferre_user', JSON.stringify({ id: 'user-B', rol: 'CAJERO' }));
+  saved.setItem('ferre_tenant', JSON.stringify({ id: 'tenant-B', nombreComercial: 'Empresa B' }));
+  saved.setItem('ferre_token', 'token-B');
+  boundIdentity.onChanged(); page.render(); await page.effects(); page.render();
+  const local = page.find(node => node.type === 'ContextProvider').props.value;
+  assert.equal(local.isAuthenticated, false); assert.equal(local.user, null); assert.equal(local.tenant.id, '');
+  assert.equal(local.isImpersonating, false);
+  assert.equal(JSON.parse(saved.getItem('ferre_user')).id, 'user-B');
+  assert.equal(JSON.parse(saved.getItem('ferre_tenant')).id, 'tenant-B');
+  assert.equal(saved.getItem('ferre_token'), 'token-B');
 });
 
 test('POS conserva identidad tras respuesta perdida/reload y bloquea doble envío', async () => {
@@ -435,6 +461,73 @@ test('un pendiente borrado por otra pestaña no genera un identificador nuevo al
   assert.ok(page.find(n => n.props.onClick?.name === 'cerrarComprobante'));
 });
 
+test('respuesta tardía del POST no reemplaza una venta pendiente posterior de la misma sesión', async () => {
+  for (const notifyStorage of [false, true]) {
+    const saved = storage(), original = sampleSale(), newer = sampleSale();
+    newer.clienteNombre = 'Beatriz'; newer.cart[0].cantidad = 4;
+    let finish;
+    const page = makePOS(saved, async () => ({ estado: 'NO_REGISTRADA' }), (_, body) => new Promise(resolve => {
+      original.solicitudId = body.solicitudId; finish = resolve;
+    }));
+    await settlePOS(page);
+    page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick(); page.render();
+    const charging = page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick();
+    saved.setItem(recoveryKeys.pending, JSON.stringify(newer));
+    if (notifyStorage) page.fireStorage(recoveryKeys.pending);
+    page.render();
+    finish({ data: sampleReceipt(original) }); await charging; page.render();
+    assert.equal(page.find(n => n.props.onClick?.name === 'cerrarComprobante'), undefined);
+    if (notifyStorage) assert.equal(page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.value, 4);
+    assert.equal(JSON.parse(saved.getItem(recoveryKeys.pending)).solicitudId, newer.solicitudId);
+  }
+});
+
+test('consulta tardía no confirma ni reenvía una venta anterior cuando cambió su identidad', async () => {
+  for (const retry of [false, true]) {
+    const saved = storage(), original = sampleSale(), newer = sampleSale();
+    saved.setItem(recoveryKeys.pending, JSON.stringify(original));
+    let delayed = false, finish, posts = 0;
+    const page = makePOS(saved, () => delayed ? new Promise(resolve => { finish = resolve; }) : Promise.resolve({ estado: 'NO_REGISTRADA' }), async () => { posts++; });
+    await settlePOS(page);
+    if (retry) { await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render(); }
+    delayed = true;
+    const checking = page.find(n => retry ? n.children.includes('Ya revisé el pago: continuar registro') : n.props.onClick?.name === 'comprobarVenta').props.onClick();
+    saved.setItem(recoveryKeys.pending, JSON.stringify(newer));
+    page.fireStorage(recoveryKeys.pending); page.render();
+    finish(retry ? { estado: 'NO_REGISTRADA' } : { estado: 'REGISTRADA', venta: sampleReceipt(original) });
+    await checking; page.render();
+    assert.equal(posts, 0);
+    assert.equal(page.find(n => n.props.onClick?.name === 'cerrarComprobante'), undefined);
+    assert.equal(page.find(n => n.children.includes('Ya revisé el pago: continuar registro')), undefined);
+    assert.equal(JSON.parse(saved.getItem(recoveryKeys.pending)).solicitudId, newer.solicitudId);
+  }
+});
+
+test('cerrar comprobante antiguo conserva y recupera un pendiente o borrador posterior', async () => {
+  for (const kind of ['pending', 'draft', 'draft-with-pending']) {
+    const saved = storage(), original = sampleSale(), newer = sampleSale();
+    newer.clienteNombre = 'Beatriz'; newer.cart[0].cantidad = 4;
+    saved.setItem(recoveryKeys.pending, JSON.stringify(original));
+    const page = makePOS(saved, async () => ({ estado: 'REGISTRADA', venta: sampleReceipt(original) }));
+    await settlePOS(page);
+    await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+    const closeOldReceipt = page.find(n => n.props.onClick?.name === 'cerrarComprobante').props.onClick;
+    if (kind === 'pending') saved.setItem(recoveryKeys.pending, JSON.stringify(newer));
+    else {
+      if (kind === 'draft') saved.removeItem(recoveryKeys.pending);
+      saved.setItem(recoveryKeys.draft, JSON.stringify({ version: 1, sale: newer }));
+    }
+    const key = kind === 'pending' ? recoveryKeys.pending : recoveryKeys.draft;
+    const expected = saved.getItem(key);
+    closeOldReceipt(); page.render(); await page.effects(); page.render();
+    const recovered = JSON.parse(saved.getItem(key));
+    assert.equal(recovered.solicitudId ?? recovered.sale.clienteNombre, kind === 'pending' ? newer.solicitudId : newer.clienteNombre);
+    if (kind === 'pending') assert.equal(saved.getItem(recoveryKeys.pending), expected);
+    assert.equal(page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.value, 4);
+    assert.equal(page.find(n => n.props.onClick?.name === 'cerrarComprobante'), undefined);
+  }
+});
+
 const returnKey = 'ferre_pending_return:tenant-A:user-A';
 const returnCommand = { kind: 'EJECUTAR', requestId: 'request-A' };
 const returnReceipt = { id: 'request-A', monto: 10, credito_cancelado: 0, reembolso: 10, metodo: 'EFECTIVO' };
@@ -530,4 +623,31 @@ test('respuesta tardía con datos originales distintos recupera la solicitud sin
   await settleReturns(page); await confirmReturn(page); page.render();
   assert.equal(posts, 0); assert.equal(saved.getItem(returnKey), null);
   assert.ok(page.find(n => n.children.some(value => typeof value === 'string' && value.includes('Tus correcciones no la modificaron'))));
+});
+
+test('importación rechaza Excel y archivos mayores de 5 MB antes de analizar datos', async () => {
+  let parses=0;
+  const page=harness('src/components/ImportarProductosModal.tsx','ImportarProductosModal',{
+    papaparse:{parse(){parses++;}},'../utils/api':{api:{get:async()=>({data:[]})}},
+  });
+  page.render({isOpen:true,onClose(){}});await page.effects();page.render({isOpen:true,onClose(){}});
+  for(const file of [{name:'productos.xlsx',size:100},{name:'productos.csv',size:6*1024*1024}]){
+    page.find(n=>n.props.type==='file').props.onChange({target:{files:[file]}});
+    page.render({isOpen:true,onClose(){}});
+  }
+  assert.equal(parses,0);
+  assert.ok(page.find(n=>n.children.includes('Selecciona un archivo CSV de hasta 5 MB. Si usas Excel, guárdalo como CSV UTF-8.')));
+});
+
+test('importación bloquea CSV con errores de formato o más de 5000 filas',async()=>{
+  let result={data:Array(5001).fill({nombre:'Producto'}),errors:[]};
+  const page=harness('src/components/ImportarProductosModal.tsx','ImportarProductosModal',{
+    papaparse:{parse(file,options){options.complete(result);}},'../utils/api':{api:{get:async()=>({data:[]})}},
+  });
+  page.render({isOpen:true,onClose(){}});await page.effects();page.render({isOpen:true,onClose(){}});
+  for(const parsed of [result,{data:[{nombre:'Producto'}],errors:[{message:'Comillas inválidas'}]}]){
+    result=parsed;page.find(n=>n.props.type==='file').props.onChange({target:{files:[{name:'productos.CSV',size:100}]}});
+    page.render({isOpen:true,onClose(){}});
+    assert.ok(page.find(n=>n.children.includes('Revisa el formato CSV y utiliza como máximo 5000 filas por archivo.')));
+  }
 });

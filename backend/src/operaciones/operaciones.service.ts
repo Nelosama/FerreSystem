@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
-import { account, actor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
+import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
 import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, PagoDto, ProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 
 @Injectable()
@@ -13,6 +13,7 @@ export class OperacionesService {
  async proveedor(tenantId: string, userId: string, dto: ProveedorDto) {
   return this.prisma.$transaction(async tx => {
    await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN']);
    const hash=fingerprint({userId,dto});
    const [old]=await query(tx,"SELECT p.*,a.datos FROM proveedores p JOIN auditoria_operaciones a ON a.entidad_id=p.id AND a.operacion='PROVEEDOR_CREAR' WHERE p.id=$1 AND p.tenant_id=$2",dto.solicitudId,tenantId);
    if(old){if(old.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otro proveedor');return old;}
@@ -27,7 +28,9 @@ export class OperacionesService {
  }
  async compra(tenantId: string,userId: string,dto: CompraDto) {
   return this.prisma.$transaction(async tx => {
-   await lockTenant(tx,tenantId); const hash=fingerprint({userId,dto});
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
+   const hash=fingerprint({userId,dto});
    const [previous] = await query(tx, 'SELECT o.*, a.datos FROM ordenes_compra o JOIN auditoria_operaciones a ON a.entidad_id=o.id AND a.operacion=\'COMPRA_CREAR\' WHERE o.id=$1 AND o.tenant_id=$2',dto.solicitudId,tenantId);
    if(previous){if(previous.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otra compra');return previous;}
    const [p]=await query(tx,'SELECT id FROM proveedores WHERE id=$1 AND tenant_id=$2',dto.proveedorId,tenantId);if(!p)throw new NotFoundException('Proveedor no encontrado');
@@ -50,7 +53,9 @@ export class OperacionesService {
  }
  async recibir(tenantId:string,userId:string,orderId:string,dto:RecepcionDto){
   return this.prisma.$transaction(async tx=>{
-   await lockTenant(tx,tenantId);const hash=fingerprint({orderId,userId,dto});
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
+   const hash=fingerprint({orderId,userId,dto});
    const [old]=await query(tx,'SELECT * FROM recepciones_compra WHERE tenant_id=$1 AND solicitud_id=$2',tenantId,dto.solicitudId);
    if(old){if(old.solicitud_hash!==hash)throw new ConflictException('Solicitud utilizada para otra recepción');return old;}
    const [order]=await query(tx,'SELECT * FROM ordenes_compra WHERE id=$1 AND tenant_id=$2 FOR UPDATE',orderId,tenantId);
@@ -86,11 +91,13 @@ export class OperacionesService {
  }
  async pagar(tenantId:string,userId:string,cuentaId:string,dto:PagoDto){
   return this.prisma.$transaction(async tx=>{
-   await lockTenant(tx,tenantId);const hash=fingerprint({userId,cuentaId,dto});
+   await lockTenant(tx,tenantId);
+   const user=await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO']);
+   const hash=fingerprint({userId,cuentaId,dto});
    const [previous]=await query(tx,'SELECT * FROM pagos_cuenta WHERE tenant_id=$1 AND solicitud_id=$2',tenantId,dto.solicitudId);
    if(previous){if(previous.solicitud_hash!==hash)throw new ConflictException('Solicitud utilizada para otro pago');return previous;}
    const [c]=await query(tx,'SELECT * FROM cuentas_operativas WHERE id=$1 AND tenant_id=$2 FOR UPDATE',cuentaId,tenantId);if(!c)throw new NotFoundException('Cuenta no encontrada');
-   const user=await actor(tx,tenantId,userId);if(c.tipo==='CXP'&&user.rol!=='ADMIN')throw new ForbiddenException('Pago a proveedor requiere administrador');
+   if(c.tipo==='CXP'&&user.rol!=='ADMIN')throw new ForbiddenException('Pago a proveedor requiere administrador');
    const monto=decimal(dto.monto,'Pago',true),metodo=paymentMethod(dto.metodo);if(monto>Number(c.saldo))throw new BadRequestException('Pago mayor al saldo');
    const caja=await openCash(tx,tenantId,userId);
    if(c.tipo==='CXP' && metodo==='EFECTIVO') {
@@ -116,7 +123,9 @@ export class OperacionesService {
  }
  async abrir(tenantId:string,userId:string,dto:AbrirCajaDto){
   return this.prisma.$transaction(async tx=>{
-   await lockTenant(tx,tenantId);const monto=decimal(dto.monto,'Apertura');
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
+   const monto=decimal(dto.monto,'Apertura');
    const [prev]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3',dto.solicitudId,tenantId,userId);
    if(prev){if(Number(prev.monto_apertura)!==monto)throw new ConflictException('Solicitud utilizada para otra apertura');return prev;}
    const [open]=await query(tx,'SELECT id FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado=\'ABIERTA\'',tenantId,userId);if(open)throw new ConflictException('Ya tiene una caja abierta');
@@ -125,7 +134,9 @@ export class OperacionesService {
  }
  async cerrar(tenantId:string,userId:string,cajaId:string,dto:CerrarCajaDto){
   return this.prisma.$transaction(async tx=>{
-   await lockTenant(tx,tenantId);const monto=decimal(dto.monto,'Efectivo contado');
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
+   const monto=decimal(dto.monto,'Efectivo contado');
    const [c]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3 FOR UPDATE',cajaId,tenantId,userId);if(!c)throw new NotFoundException('Caja no encontrada');
    if(c.estado==='CERRADA'){if(Number(c.monto_cierre_fisico)!==monto || c.notas!==(dto.notas||null))throw new ConflictException('La caja ya está cerrada');return c;}
    const [sum]=await query(tx,'SELECT COALESCE(SUM(monto),0) AS monto FROM movimientos_caja WHERE caja_id=$1 AND metodo=\'EFECTIVO\'',c.id);
@@ -139,7 +150,9 @@ export class OperacionesService {
  }
  async ajustar(tenantId:string,userId:string,productoId:string,dto:AjusteDto){
   return this.prisma.$transaction(async tx=>{
-   await lockTenant(tx,tenantId);const stock=decimal(dto.stock,'Stock'),motivo=text(dto.motivo,'Motivo'),hash=fingerprint({userId,productoId,dto});
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
+   const stock=decimal(dto.stock,'Stock'),motivo=text(dto.motivo,'Motivo'),hash=fingerprint({userId,productoId,dto});
    const [prev]=await query(tx,'SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion=\'STOCK_AJUSTAR\' AND entidad_id=$2',tenantId,dto.solicitudId);
    if(prev){if(prev.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otro ajuste');return prev.datos;}
    const [prod]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',productoId,tenantId);if(!prod)throw new NotFoundException('Producto no encontrado');
@@ -152,6 +165,7 @@ export class OperacionesService {
  async entregar(tenantId:string,userId:string,ventaId:string){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','BODEGUERO']);
    const [v]=await query(tx,'SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado=\'COMPLETADA\' FOR UPDATE',ventaId,tenantId);if(!v)throw new NotFoundException('Venta registrada no encontrada');
    if(v.entregado_at)return v;
    if(v.reserva_pendiente){
