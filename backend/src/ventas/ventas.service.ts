@@ -6,6 +6,21 @@ import { PrismaService } from '../prisma/prisma.service';
 export class VentasService {
   constructor(private prisma: PrismaService) {}
 
+  async findSolicitud(tenantId: string, usuarioId: string, solicitudId: string) {
+    // Esperar a una escritura en curso; consultar nunca registra ni cobra una venta.
+    return this.prisma.$transaction(async (tx) => {
+      await lockTenant(tx, tenantId);
+      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + solicitudId}, 0))`;
+      const venta = await tx.venta.findFirst({
+        where: { id: solicitudId, tenantId, usuarioId },
+        include: { cliente: true, detalles: { include: { producto: true } } },
+      });
+      return venta
+        ? { estado: 'REGISTRADA' as const, venta: this.formatVentaCreada(venta) }
+        : { estado: 'NO_REGISTRADA' as const };
+    }, { timeout: 30000 });
+  }
+
   async findAll(tenantId: string, limit = 50, page = 0) {
     const ventas = await this.prisma.venta.findMany({
       where: { tenantId },
@@ -302,4 +317,3 @@ export class VentasService {
     };
   }
 }
-

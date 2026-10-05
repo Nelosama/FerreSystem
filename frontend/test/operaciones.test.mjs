@@ -17,6 +17,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name.endsWith('/unidadMedida')) return evaluate('src/utils/unidadMedida.ts', {});
     if (name.endsWith('/numeroCliente')) return evaluate('src/utils/numeroCliente.ts', {});
     if (name.endsWith('/storage')) return evaluate('src/utils/storage.ts', {}, globals);
+    if (name.endsWith('/posRecovery')) return evaluate('src/utils/posRecovery.ts', {}, globals);
     return new Proxy({}, { get: (_, key) => String(key) });
   } };
   const source = fs.readFileSync(file, 'utf8');
@@ -48,6 +49,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     ...overrides,
   };
   const component = evaluate(file, mocks, { localStorage: sharedStorage, crypto: webcrypto, alert() {},
+    window: { addEventListener() {}, removeEventListener() {} },
     document: { documentElement: { style: { setProperty() {} } } },
     setTimeout: (fn, delay) => setTimeout(fn, delay).unref(), clearTimeout })[name];
   const nodes = () => {
@@ -102,11 +104,11 @@ test('POS conserva identidad tras respuesta perdida/reload y bloquea doble enví
   const saved = storage(), sent = [];
   let fail = true;
   const api = {
-    get: async () => ({ data: [{ id: 'p1', codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 10, stockMinimo: 0 }] }),
+    get: async (url) => ({ data: url.startsWith('/ventas/solicitudes/') ? { estado: 'NO_REGISTRADA' } : [{ id: 'p1', codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 10, stockMinimo: 0 }] }),
     post: async (_, body) => {
       sent.push(body);
       if (fail) throw new Error('Respuesta perdida');
-      return { data: { id: body.solicitudId, numeroVenta: 1, createdAt: '2026-10-02T10:00:00Z', subtotal: 10, descuento: 0, isv: 1.5, total: 11.5 } };
+      return { data: { id: body.solicitudId, numeroVenta: 1, createdAt: '2026-10-02T10:00:00Z', subtotal: 10, descuento: 0, isv: 1.5, total: 11.5, metodoPago: 'EFECTIVO', detalles: [{ productoId: 'p1', productoNombre: 'Cable', productoCodigo: 'P1', cantidad: 1, precioUnitario: 10 }] } };
     },
   };
   const make = () => harness('src/pages/POSPage.tsx', 'POSPage', { '../utils/api': { api } }, saved);
@@ -119,14 +121,17 @@ test('POS conserva identidad tras respuesta perdida/reload y bloquea doble enví
   const pending = saved.getItem('ferre_pending_sale:tenant-A:user-A');
   assert.ok(pending);
   fail = false; page = make(); page.render(); await page.effects(); page.render();
+  await page.find((n) => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
   await page.find((n) => n.props.onClick?.name === 'handleCobrar').props.onClick();
   page.render();
   assert.equal(sent[1].solicitudId, sent[0].solicitudId);
-  assert.equal(saved.getItem('ferre_pending_sale:tenant-A:user-A'), null);
+  assert.ok(saved.getItem('ferre_pending_sale:tenant-A:user-A'));
   const checkout = page.find((n) => n.props.onClick?.name === 'handleCobrar');
   assert.equal(checkout.props.disabled, true);
   await checkout.props.onClick();
   assert.equal(sent.length, 2);
+  page.find((n) => n.props.onClick?.name === 'cerrarComprobante').props.onClick();
+  assert.equal(saved.getItem('ferre_pending_sale:tenant-A:user-A'), null);
 });
 
 test('importación sobrescribe con PUT, salta duplicados si se solicita y cuenta errores reales', async () => {
@@ -257,3 +262,159 @@ test('seleccionar cliente completa datos y guarda su ID; ingreso manual desvincu
   assert.equal(saved[1].clienteId, null);
 });
 
+
+const recoveryKeys = {
+  pending: 'ferre_pending_sale:tenant-A:user-A',
+  draft: 'ferre_sale_draft:tenant-A:user-A',
+};
+const sampleSale = () => ({
+  solicitudId: webcrypto.randomUUID(),
+  cart: [{ productoId: 'p1', codigo: 'P1', nombre: 'Cable', cantidad: 2.5, precioUnitario: 10 }],
+  clienteNombre: 'Ana', clienteRtn: '', metodoPago: 'TRANSFERENCIA', descuentoPorcentaje: 5,
+});
+const sampleReceipt = (pending) => ({
+  id: pending.solicitudId, numeroVenta: 7, clienteNombre: pending.clienteNombre,
+  subtotal: 23.75, isv: 3.56, total: 27.31, descuento: 1.25,
+  metodoPago: pending.metodoPago, createdAt: '2026-10-05T12:00:00Z',
+  detalles: pending.cart.map(i => ({ ...i, productoNombre: i.nombre, productoCodigo: i.codigo })),
+});
+const catalog = [{ id: 'p1', codigo: 'P1', nombre: 'Cable', precioVenta: 10, stockActual: 10, stockMinimo: 0 }];
+const makePOS = (saved, getStatus, post = async () => { throw new Error('No debe enviar'); }, extra = {}) =>
+  harness('src/pages/POSPage.tsx', 'POSPage', {
+    '../utils/api': { api: {
+      get: async url => ({ data: url.startsWith('/ventas/solicitudes/') ? await getStatus(url) : catalog }), post,
+    } }, ...extra,
+  }, saved);
+const settlePOS = async page => {
+  page.render(); await page.effects(); page.render(); await page.effects(); page.render();
+};
+
+test('POS autoguarda carrito antes de cobrar y restaura cantidades, cliente y pago al regresar', async () => {
+  const saved = storage();
+  let page = makePOS(saved, async () => ({ estado: 'NO_REGISTRADA' }));
+  await settlePOS(page);
+  page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick();
+  page.render();
+  page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.onChange({ target: { value: '2.5' } });
+  page.render();
+  page.find(n => n.props.onClick && n.children.includes('TRANSFERENCIA')).props.onClick();
+  page.render(); await page.effects();
+  const envelope = JSON.parse(saved.getItem(recoveryKeys.draft));
+  assert.equal(envelope.sale.cart[0].cantidad, 2.5);
+  assert.equal(envelope.sale.metodoPago, 'TRANSFERENCIA');
+  assert.equal(saved.getItem(recoveryKeys.pending), null);
+  page = makePOS(saved, async () => ({ estado: 'NO_REGISTRADA' }));
+  await settlePOS(page);
+  assert.equal(page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.value, 2.5);
+  assert.ok(page.find(n => n.children.some(c => typeof c === 'string' && c.includes('Recuperamos los productos'))));
+});
+
+test('POS recupera venta confirmada por consulta sin POST y conserva comprobante hasta cerrarlo', async () => {
+  const saved = storage(), pending = sampleSale();
+  saved.setItem(recoveryKeys.pending, JSON.stringify(pending));
+  let posts = 0;
+  const make = () => makePOS(saved, async () => ({ estado: 'REGISTRADA', venta: sampleReceipt(pending) }), async () => { posts++; });
+  let page = make(); await settlePOS(page);
+  await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+  assert.equal(posts, 0);
+  assert.ok(page.find(n => n.children.some(c => typeof c === 'string' && c.includes('Venta registrada.'))));
+  assert.ok(saved.getItem(recoveryKeys.pending));
+  page = make(); await settlePOS(page);
+  await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+  assert.equal(posts, 0);
+  page.find(n => n.props.onClick?.name === 'cerrarComprobante').props.onClick();
+  assert.equal(saved.getItem(recoveryKeys.pending), null);
+});
+
+test('sin conexión o con sesión vencida, consultar no envía otra venta ni borra pendiente', async () => {
+  for (const status of [undefined, 401, 403]) {
+    const saved = storage(), pending = sampleSale();
+    saved.setItem(recoveryKeys.pending, JSON.stringify(pending));
+    let posts = 0;
+    const page = makePOS(saved, async () => { throw { response: { status } }; }, async () => { posts++; });
+    await settlePOS(page);
+    await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+    assert.equal(posts, 0);
+    assert.equal(JSON.parse(saved.getItem(recoveryKeys.pending)).solicitudId, pending.solicitudId);
+    assert.equal(page.find(n => n.children.includes('Ya revisé el pago: continuar registro')), undefined);
+  }
+});
+
+test('POS no mezcla recuperación al cambiar de usuario o empresa con una consulta en vuelo', async () => {
+  const saved = storage(), pending = sampleSale();
+  saved.setItem(recoveryKeys.pending, JSON.stringify(pending));
+  let identity = { tenant: { id: 'tenant-A' }, user: { id: 'user-A', rol: 'ADMIN' } };
+  let finish;
+  const page = makePOS(saved, () => new Promise(resolve => { finish = resolve; }), undefined, {
+    '../context/TenantContext': { useTenant: () => identity },
+  });
+  await settlePOS(page);
+  const checking = page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick();
+  identity = { tenant: { id: 'tenant-B' }, user: { id: 'user-B', rol: 'ADMIN' } };
+  await settlePOS(page);
+  finish({ estado: 'REGISTRADA', venta: sampleReceipt(pending) }); await checking;
+  page.render();
+  assert.equal(page.find(n => n.props['aria-label'] === 'Cantidad Cable'), undefined);
+  assert.equal(page.find(n => n.props.onClick?.name === 'cerrarComprobante'), undefined);
+  assert.equal(saved.getItem('ferre_sale_draft:tenant-B:user-B'), null);
+  assert.ok(saved.getItem(recoveryKeys.pending));
+});
+
+test('pendiente corrupto bloquea cobro y no se elimina ni se reemplaza con un borrador', async () => {
+  const saved = storage();
+  saved.setItem(recoveryKeys.pending, '{broken');
+  saved.setItem(recoveryKeys.draft, JSON.stringify({ version: 1, sale: sampleSale() }));
+  const page = makePOS(saved, async () => ({ estado: 'NO_REGISTRADA' }));
+  await settlePOS(page);
+  assert.equal(saved.getItem(recoveryKeys.pending), '{broken');
+  assert.ok(page.find(n => n.props.role === 'alert'));
+  assert.equal(page.find(n => n.props.onClick?.name === 'handleCobrar').props.disabled, true);
+});
+
+test('si almacenamiento falla no se envía la venta; si falla el borrado tras confirmar sigue recuperable', async () => {
+  const base = storage();
+  let failWrite = false, failRemove = false, posts = 0;
+  const saved = {
+    ...base,
+    setItem(key, value) { if (failWrite) throw new Error('Storage lleno'); base.setItem(key, value); },
+    removeItem(key) { if (failRemove) throw new Error('Storage bloqueado'); base.removeItem(key); },
+  };
+  const page = makePOS(saved, async () => ({ estado: 'NO_REGISTRADA' }), async (_, body) => {
+    posts++; return { data: sampleReceipt({ ...sampleSale(), solicitudId: body.solicitudId }) };
+  });
+  await settlePOS(page);
+  page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick(); page.render();
+  failWrite = true;
+  await page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick(); page.render();
+  assert.equal(posts, 0);
+  failWrite = false;
+  const pending = sampleSale(); base.setItem(recoveryKeys.pending, JSON.stringify(pending));
+  const recovered = makePOS(saved, async () => ({ estado: 'REGISTRADA', venta: sampleReceipt(pending) }));
+  await settlePOS(recovered);
+  await recovered.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); recovered.render();
+  failRemove = true;
+  recovered.find(n => n.props.onClick?.name === 'cerrarComprobante').props.onClick(); recovered.render();
+  assert.ok(base.getItem(recoveryKeys.pending));
+  assert.ok(recovered.find(n => n.props.onClick?.name === 'cerrarComprobante'));
+});
+
+
+test('corregir precio pendiente conserva identidad y una confirmación tardía se recupera sin POST', async () => {
+  const saved = storage(), pending = sampleSale();
+  saved.setItem(recoveryKeys.pending, JSON.stringify(pending));
+  let confirmed = false, posts = 0;
+  const page = makePOS(saved, async () => confirmed ? { estado: 'REGISTRADA', venta: sampleReceipt(pending) } : { estado: 'NO_REGISTRADA' }, async () => { posts++; });
+  await settlePOS(page);
+  await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
+  page.find(n => n.children.includes('Corregir datos de esta venta')).props.onClick(); page.render();
+  page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.onChange({ target: { value: '1.5' } });
+  page.render(); await page.effects(); page.render();
+  const corrected = JSON.parse(saved.getItem(recoveryKeys.pending));
+  assert.equal(corrected.solicitudId, pending.solicitudId);
+  assert.equal(corrected.cart[0].cantidad, 1.5);
+  confirmed = true;
+  await page.find(n => n.children.includes('Ya revisé el pago: continuar registro')).props.onClick(); page.render();
+  assert.equal(posts, 0);
+  assert.equal(page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.value, 2.5);
+  assert.ok(page.find(n => n.props.onClick?.name === 'cerrarComprobante'));
+});
