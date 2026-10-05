@@ -14,7 +14,7 @@ export const TASK_DETAILS: Record<string, { title: string; description: string; 
   entregas: { title: 'Entregar productos vendidos', description: 'Revisar las entregas pendientes y confirmar la entrega.', keywords: 'despachar entrega pedido' },
   usuarios: { title: 'Administrar el personal', description: 'Gestionar usuarios, roles y permisos.', keywords: 'empleado cajero acceso clave usuario permisos' },
   reportes: { title: 'Revisar los reportes', description: 'Consultar los resultados del negocio.', keywords: 'ventas resultados estadisticas ganancias reporte' },
-  devoluciones: { title: 'Registrar una devolución', description: 'Consultar ventas y registrar devoluciones autorizadas.', keywords: 'reversar devolver reembolso anular devolucion' },
+  devoluciones: { title: 'Registrar una devolución', description: 'Solicitar una devolución, revisar autorizaciones y confirmar el reembolso.', keywords: 'reversar devolver reembolso anular devolucion' },
   auditoria: { title: 'Revisar la actividad del sistema', description: 'Consultar el historial de operaciones.', keywords: 'historial auditoria cambios actividad' },
   cotizaciones: { title: 'Preparar una cotización', description: 'Crear y consultar presupuestos para clientes.', keywords: 'presupuesto cotizar cotizacion' },
   configuracion: { title: 'Configurar el negocio', description: 'Revisar las opciones de la empresa y la interfaz.', keywords: 'ajustes empresa configuracion' },

@@ -32,7 +32,7 @@ export const TaskShortcuts: React.FC = () => {
   const priorities = user?.rol === 'ADMIN'
     ? ['ordenes_compra', 'inventario', 'usuarios', 'reportes', 'cuentas', 'arqueo_caja', 'devoluciones', 'auditoria', 'pos', 'cotizaciones', 'clientes', 'entregas']
     : user?.rol === 'BODEGUERO' ? ['entregas', 'inventario', 'ordenes_compra', 'levantamiento']
-    : ['arqueo_caja', 'pos', 'cotizaciones', 'clientes', 'cuentas', 'entregas'];
+    : ['arqueo_caja', 'pos', 'cotizaciones', 'clientes', 'cuentas', 'entregas', 'devoluciones'];
   const tasks = availableTasks(user, tenant);
   return <section aria-labelledby="daily-tasks-title" className="daily-tasks">
     <h2 id="daily-tasks-title">{user?.rol === 'ADMIN' ? 'Administrar el negocio' : 'Tareas del día'}</h2>

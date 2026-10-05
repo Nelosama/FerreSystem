@@ -58,3 +58,7 @@ export class DevolucionDto {
  @IsIn(['EFECTIVO','TARJETA','TRANSFERENCIA']) metodo!:string;
  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({each:true}) @Type(()=>DevolucionItemDto) items!:DevolucionItemDto[];
 }
+export class DecisionDevolucionDto {
+ @IsIn(['AUTORIZADA','RECHAZADA']) decision!:string;
+ @IsString() @IsNotEmpty() @MaxLength(500) motivo!:string;
+}

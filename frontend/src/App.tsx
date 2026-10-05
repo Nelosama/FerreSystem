@@ -143,7 +143,7 @@ export const App: React.FC = () => {
             <BrowserRouter>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
-                <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
+                <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','VENDEDOR']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
                   <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><AuditoriaPage/></AppLayout></ProtectedRoute>}/>
                   {/* Rutas públicas de login */}
                   <Route path="/login" element={<LoginPage />} />

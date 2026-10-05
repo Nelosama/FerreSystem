@@ -62,6 +62,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', join(directory, 'legacy-data.sql')], { windowsHide: true, timeout: 30000 });
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261002000000_add_customer_numbers/migration.sql')], { windowsHide: true, timeout: 30000 });
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261004000000_operacion_ferreteria/migration.sql')], {timeout:30000});
+    execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261005000000_autorizaciones_devolucion/migration.sql')], {timeout:30000});
     databaseUrl = `postgresql://postgres@127.0.0.1:${port}/postgres?connection_limit=8`;
     prisma = new PrismaService({ datasources: { db: { url: databaseUrl } } });
     console.log('PostgreSQL temporal: Prisma connect');
@@ -549,6 +550,7 @@ describe('Ventas / PostgreSQL aislado', () => {
   });
 
   it('una devolución entregada restaura inventario, reembolsa una sola vez y no permite devolver de más',async()=>{
+    await prisma.usuario.update({where:{id:usuarioId},data:{rol:'ADMIN'}});
     const ops=new OperacionesService(prisma),sale=await ventas.create(tenantId,usuarioId,request(2));
     await ops.entregar(tenantId,usuarioId,sale.id);
     const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
@@ -560,6 +562,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     await expect(ops.devolver(tenantId,usuarioId,sale.id,{...command,solicitudId:randomUUID(),items:[{...command.items[0],cantidad:2}]})).rejects.toThrow('supera');
   });
   it('cancelar mercancía no entregada libera reserva y cancela crédito sin ingreso físico ficticio',async()=>{
+    await prisma.usuario.update({where:{id:usuarioId},data:{rol:'ADMIN'}});
     const ops=new OperacionesService(prisma),client=await new ClientesService(prisma).create(tenantId,{nombre:'Cliente'});
     const sale=await ventas.create(tenantId,usuarioId,{...request(2),metodoPago:'CREDITO',clienteId:client.id});
     const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
@@ -571,6 +574,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect(Number(p.stockActual)).toBe(1.75);expect(Number(p.stockReservado)).toBe(0);
   });
   it('devolver crédito con abonos cancela saldo y reembolsa el excedente pagado',async()=>{
+    await prisma.usuario.update({where:{id:usuarioId},data:{rol:'ADMIN'}});
     const ops=new OperacionesService(prisma),client=await new ClientesService(prisma).create(tenantId,{nombre:'Cliente'});
     const sale=await ventas.create(tenantId,usuarioId,{...request(1),metodoPago:'CREDITO',clienteId:client.id});
     const debt=(await ops.cuentas(tenantId,usuarioId,'CXC'))[0];
@@ -602,6 +606,134 @@ describe('Ventas / PostgreSQL aislado', () => {
     await service.remove(tenantId,cashier.id,usuarioId);
     expect((await prisma.usuario.findUniqueOrThrow({where:{id:cashier.id}})).activo).toBe(false);
     expect(await prisma.auditoriaOperacion.count({where:{tenantId,entidadId:cashier.id}})).toBe(2);
+  });
+
+  const authorizedReturn = async (credit=false) => {
+    const ops=new OperacionesService(prisma);
+    await prisma.usuario.update({where:{id:usuarioId},data:{rol:'CAJERO'}});
+    const adminId=randomUUID();
+    await prisma.usuario.create({data:{id:adminId,tenantId,nombre:'Administrador',email:'admin@example.test',passwordHash:'test-only',rol:'ADMIN'}});
+    const dto:any={...request(1),solicitudId:randomUUID(),metodoPago:credit?'CREDITO':'EFECTIVO'};
+    if(credit){const c=await prisma.cliente.create({data:{tenantId,nombre:'Cliente crédito'}});dto.clienteId=c.id;}
+    const sale=await ventas.create(tenantId,usuarioId,dto);
+    const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
+    const command={solicitudId:randomUUID(),motivo:'Devolución solicitada por cliente',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'NO_ENTREGADO'}]};
+    return {ops,adminId,sale,command};
+  };
+
+  it('solicitar y autorizar no mueve dinero ni inventario; ejecutar usa la caja del solicitante una sola vez',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    const stockBefore=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
+    const movementBefore=await prisma.movimientoCaja.count({where:{usuarioId}});
+    const created=await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    expect(created.estado).toBe('PENDIENTE');
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('autorizada');
+    await expect(ops.decidirDevolucion(tenantId,usuarioId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'})).rejects.toThrow('administrador');
+    await expect(ops.devolver(tenantId,usuarioId,sale.id,command)).rejects.toThrow('administrador');
+    const decision={decision:'AUTORIZADA',motivo:'Productos revisados'};
+    await Promise.all([ops.decidirDevolucion(tenantId,adminId,command.solicitudId,decision),ops.decidirDevolucion(tenantId,adminId,command.solicitudId,decision)]);
+    expect(await prisma.movimientoCaja.count({where:{usuarioId}})).toBe(movementBefore);
+    const stockAuthorized=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
+    expect(stockAuthorized.stockActual.toString()).toBe(stockBefore.stockActual.toString());
+    expect(stockAuthorized.stockReservado.toString()).toBe(stockBefore.stockReservado.toString());
+    await expect(ops.ejecutarAutorizada(tenantId,adminId,command.solicitudId)).rejects.toThrow('no encontrada');
+    const results=await Promise.all([ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId),ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)]);
+    expect(results[0].id).toBe(results[1].id);
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(1);
+    expect(await prisma.movimientoCaja.count({where:{usuarioId}})).toBe(movementBefore+1);
+    expect((await ops.consultarDevolucion(tenantId,usuarioId,command.solicitudId)).estado).toBe('EJECUTADA');
+    const audit=await ops.auditoria(tenantId,0);
+    expect(audit.some(a=>a.operacion==='DEVOLUCION_DECIDIR'&&a.usuario_id===adminId)).toBe(true);
+    expect(audit.some(a=>a.operacion==='DEVOLUCION_EJECUTAR_AUTORIZADA'&&a.usuario_id===usuarioId&&a.datos.administradorId===adminId)).toBe(true);
+  });
+
+  it('solicitudes son inmutables, recuperables y aisladas por usuario y empresa',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    const results=await Promise.all([ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command),ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command)]);
+    expect(results[0].id).toBe(results[1].id);
+    await expect(ops.solicitarDevolucion(tenantId,usuarioId,sale.id,{...command,motivo:'Cambio'})).rejects.toThrow('otra devolución');
+    const otherId=randomUUID();await prisma.usuario.create({data:{id:otherId,tenantId,nombre:'Otro cajero',email:'other@example.test',passwordHash:'test-only',rol:'CAJERO'}});
+    expect(await ops.solicitudesDevolucion(tenantId,otherId)).toHaveLength(0);
+    await expect(ops.consultarDevolucion(tenantId,otherId,command.solicitudId)).rejects.toThrow('no encontrada');
+    expect(await ops.solicitudesDevolucion(tenantId,adminId)).toHaveLength(1);
+    const anotherTenant=randomUUID(),anotherAdmin=randomUUID();
+    await prisma.tenant.create({data:{id:anotherTenant,nombreComercial:'Otra empresa'}});
+    await prisma.usuario.create({data:{id:anotherAdmin,tenantId:anotherTenant,nombre:'Otro admin',email:'another@example.test',passwordHash:'test-only',rol:'ADMIN'}});
+    await expect(ops.consultarDevolucion(anotherTenant,anotherAdmin,command.solicitudId)).rejects.toThrow('no encontrada');
+    await expect(ops.decidirDevolucion(anotherTenant,anotherAdmin,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'})).rejects.toThrow('no encontrada');
+  });
+
+  it('rechazo no ejecuta ajustes ni puede sustituirse por autorización',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'RECHAZADA',motivo:'No corresponde'});
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('autorizada');
+    await expect(ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'Cambio'})).rejects.toThrow('decisión');
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(0);
+  });
+
+  it('caja cerrada causa rollback completo y permite ejecutar tras abrir sin otra autorización',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'});
+    const [cash]=await ops.caja(tenantId,usuarioId);await ops.cerrar(tenantId,usuarioId,cash.id,{monto:cash.efectivoEsperado});
+    const stock=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('Abra su caja');
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(0);
+    expect((await ops.consultarDevolucion(tenantId,usuarioId,command.solicitudId)).estado).toBe('AUTORIZADA');
+    expect((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockReservado.toString()).toBe(stock.stockReservado.toString());
+    await ops.abrir(tenantId,usuarioId,{solicitudId:randomUUID(),monto:100});
+    await ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId);
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(1);
+  });
+
+  it('cantidades o destino cambiados después de aprobar se vuelven a validar al ejecutar',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'});
+    await ops.entregar(tenantId,usuarioId,sale.id);
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('destino físico');
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(0);
+  });
+
+  it('autorización de administrador desactivado no ejecuta y crédito se cancela sin reembolso',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn(true);
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'});
+    await prisma.usuario.update({where:{id:adminId},data:{activo:false}});
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('no disponible');
+    await prisma.usuario.update({where:{id:adminId},data:{activo:true}});
+    const result=await ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId);
+    expect(Number(result.credito_cancelado)).toBeGreaterThan(0);expect(Number(result.reembolso)).toBe(0);
+    await prisma.usuario.update({where:{id:adminId},data:{activo:false}});
+    expect((await ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).id).toBe(result.id);
+  });
+
+  it('devolución autorizada parcial de mercancía entregada restaura solo lo devuelto y conserva la venta',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    await ops.entregar(tenantId,usuarioId,sale.id);
+    command.items[0].cantidad=.5;command.items[0].destino='INVENTARIO';
+    const before=Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual);
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'Medio producto recibido'});
+    const result=await ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId);
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual)).toBe(before+.5);
+    expect(Number(result.monto)).toBe(5.75);
+    expect((await prisma.venta.findUniqueOrThrow({where:{id:sale.id}})).estado).toBe('COMPLETADA');
+    const updated=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
+    expect(Number(updated.items[0].devuelto)).toBe(.5);
+  });
+
+  it('otra devolución posterior a la autorización impide devolver cantidades ya consumidas',async()=>{
+    const {ops,adminId,sale,command}=await authorizedReturn();
+    await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
+    await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'});
+    await expect(ops.devolver(tenantId,adminId,sale.id,command)).rejects.toThrow('solicitud');
+    await ops.abrir(tenantId,adminId,{solicitudId:randomUUID(),monto:100});
+    await ops.devolver(tenantId,adminId,sale.id,{...command,solicitudId:randomUUID()});
+    await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('supera');
+    expect(await prisma.devolucion.count({where:{tenantId}})).toBe(1);
+    expect((await ops.consultarDevolucion(tenantId,usuarioId,command.solicitudId)).estado).toBe('AUTORIZADA');
   });
 
 });

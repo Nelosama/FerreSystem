@@ -7,7 +7,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, PagoDto, ProveedorDto, RecepcionDto } from './operaciones.dto';
+import { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, PagoDto, ProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 @Controller('operaciones')
 @UseGuards(JwtAuthGuard,TenantGuard,RolesGuard)
 @Roles('ADMIN','CAJERO','BODEGUERO','VENDEDOR')
@@ -28,8 +28,14 @@ export class OperacionesController {
  @Post('ventas/:id/entregar') @Roles('ADMIN','CAJERO','BODEGUERO') entregar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.entregar(t,u,id);}
  @Get('entregas') @Roles('ADMIN','CAJERO','BODEGUERO') entregas(@TenantId() t:string){return this.service.entregas(t);}
  @Get('resumen') @RequiredPermission('reportes.ver') @Roles('ADMIN') resumen(@TenantId() t:string,@Query('desde') desde:string,@Query('hasta') hasta:string){return this.service.resumen(t,desde,hasta);}
- @Get('ventas/buscar') @Roles('ADMIN') buscarVenta(@TenantId() t:string,@Query('numero') n:string){return this.service.buscarVenta(t,n);}
+ @Get('ventas/buscar') @Roles('ADMIN','CAJERO','VENDEDOR') buscarVenta(@TenantId() t:string,@Query('numero') n:string){return this.service.buscarVenta(t,n);}
  @Post('ventas/:id/devoluciones') @Roles('ADMIN') devolver(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:DevolucionDto){return this.service.devolver(t,u,id,dto);}
+ @Post('ventas/:id/solicitudes-devolucion') @Roles('ADMIN','CAJERO','VENDEDOR') solicitarDevolucion(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:DevolucionDto){return this.service.solicitarDevolucion(t,u,id,dto);}
+ @Get('solicitudes-devolucion') @Roles('ADMIN','CAJERO','VENDEDOR') solicitudesDevolucion(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('page') page:string){return this.service.solicitudesDevolucion(t,u,Number(page));}
+ @Get('solicitudes-devolucion/:id') @Roles('ADMIN','CAJERO','VENDEDOR') consultarDevolucion(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.consultarDevolucion(t,u,id);}
+ @Post('solicitudes-devolucion/:id/decision') @Roles('ADMIN') decidirDevolucion(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:DecisionDevolucionDto){return this.service.decidirDevolucion(t,u,id,dto);}
+ @Post('solicitudes-devolucion/:id/ejecutar') @Roles('ADMIN','CAJERO','VENDEDOR') ejecutarAutorizada(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.ejecutarAutorizada(t,u,id);}
+ @Get('devoluciones/:id') @Roles('ADMIN','CAJERO','VENDEDOR') consultarDevolucionDirecta(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.consultarDevolucionDirecta(t,u,id);}
  @Get('auditoria') @Roles('ADMIN') auditoria(@TenantId() t:string,@Query('page') p:string){return this.service.auditoria(t,Number(p));}
 
 }

@@ -32,7 +32,7 @@ export interface NavigationItem {
 
 export const NAVIGATION_ITEMS: NavigationItem[] = [
   {key:'auditoria',labelKey:'menu.audit',defaultLabel:'AUDITORÍA',route:'/auditoria',icon:ClipboardList,allowedRoles:['ADMIN'],category:'ANALISIS'},
-  {key:'devoluciones',labelKey:'menu.returns',defaultLabel:'DEVOLUCIONES',route:'/devoluciones',icon:PackageSearch,allowedRoles:['ADMIN'],category:'OPERACION'},
+  {key:'devoluciones',labelKey:'menu.returns',defaultLabel:'DEVOLUCIONES',route:'/devoluciones',icon:PackageSearch,allowedRoles:['ADMIN','CAJERO','VENDEDOR'],category:'OPERACION'},
   {key:'cuentas',labelKey:'menu.accounts',defaultLabel:'CUENTAS Y ABONOS',route:'/cuentas',icon:DollarSign,allowedRoles:['ADMIN','CAJERO'],category:'CLIENTES'},
   {key:'entregas',labelKey:'menu.deliveries',defaultLabel:'ENTREGAS',route:'/entregas',icon:Truck,allowedRoles:['ADMIN','CAJERO','BODEGUERO'],category:'OPERACION'},
   // SYSTEM / SUPER ADMIN

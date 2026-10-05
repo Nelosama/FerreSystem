@@ -433,3 +433,100 @@ test('un pendiente borrado por otra pestaña no genera un identificador nuevo al
   assert.equal(posts, 0);
   assert.ok(page.find(n => n.props.onClick?.name === 'cerrarComprobante'));
 });
+
+const returnKey = 'ferre_pending_return:tenant-A:user-A';
+const returnCommand = { kind: 'EJECUTAR', requestId: 'request-A' };
+const returnReceipt = { id: 'request-A', monto: 10, credito_cancelado: 0, reembolso: 10, metodo: 'EFECTIVO' };
+const makeReturns = (saved, apiMock, overrides = {}) => harness('src/pages/DevolucionesPage.tsx', 'DevolucionesPage', { '../utils/api': { api: apiMock }, ...overrides }, saved);
+const settleReturns = async page => { page.render(); await page.effects(); page.render(); await page.effects(); page.render(); };
+const confirmReturn = async page => { page.find(n => n.children.includes('Consultar y confirmar pendiente')).props.onClick(); await new Promise(resolve => setImmediate(resolve)); };
+
+test('devolución recupera respuesta confirmada sin POST y mantiene comprobante hasta cerrarlo', async () => {
+  const saved = storage(); saved.setItem(returnKey, JSON.stringify(returnCommand)); let posts = 0;
+  const page = makeReturns(saved, { get: async url => ({ data: url.endsWith('/request-A') ? { estado: 'EJECUTADA', resultado: returnReceipt } : [] }), post: async () => { posts++; } });
+  await settleReturns(page); await confirmReturn(page); page.render();
+  assert.equal(posts, 0); assert.ok(saved.getItem(returnKey));
+  assert.ok(page.find(n => n.children.includes('Devolución registrada')));
+  page.find(n => n.children.includes('Cerrar comprobante')).props.onClick(); page.render();
+  assert.equal(saved.getItem(returnKey), null);
+});
+
+test('devolución sin conexión o sin autorización no envía ajustes y conserva identidad', async () => {
+  for (const authorized of [false, null]) {
+    const saved = storage(); saved.setItem(returnKey, JSON.stringify(returnCommand)); let posts = 0;
+    const page = makeReturns(saved, { get: async url => {
+      if (!url.endsWith('/request-A')) return { data: [] };
+      if (authorized === null) throw new Error('Network Error');
+      return { data: { estado: 'PENDIENTE', resultado: null } };
+    }, post: async () => { posts++; } });
+    await settleReturns(page); await confirmReturn(page); page.render();
+    assert.equal(posts, 0); assert.equal(JSON.parse(saved.getItem(returnKey)).requestId, 'request-A');
+    assert.ok(page.find(n => n.props.role === 'alert'));
+  }
+});
+
+test('devolución no se envía si falla el almacenamiento y bloquea doble clic mientras consulta', async () => {
+  const base = storage(); base.setItem(returnKey, JSON.stringify(returnCommand)); let posts = 0, resolveLookup;
+  const saved = { ...base, setItem() { throw new Error('Storage lleno'); } };
+  const api = { get: async () => ({ data: [] }), post: async () => { posts++; } };
+  const blocked = makeReturns(saved, api); await settleReturns(blocked); await confirmReturn(blocked); blocked.render();
+  assert.equal(posts, 0);
+  const page = makeReturns(base, { get: url => url.endsWith('/request-A') ? new Promise(resolve => { resolveLookup = resolve; }) : Promise.resolve({ data: [] }), post: async () => { posts++; return { data: returnReceipt }; } });
+  await settleReturns(page); const first = confirmReturn(page); await confirmReturn(page);
+  resolveLookup({ data: { estado: 'AUTORIZADA', resultado: null } }); await first; await new Promise(resolve => setImmediate(resolve)); page.render();
+  assert.equal(posts, 1); assert.ok(base.getItem(returnKey));
+});
+
+test('devolución descarta respuesta antigua al cambiar de usuario y no elimina su pendiente', async () => {
+  const saved = storage(); saved.setItem(returnKey, JSON.stringify(returnCommand)); let resolveLookup, posts = 0;
+  let user = { id: 'user-A', rol: 'CAJERO' };
+  const page = makeReturns(saved, { get: url => url.endsWith('/request-A') ? new Promise(resolve => { resolveLookup = resolve; }) : Promise.resolve({ data: [] }), post: async () => { posts++; } }, { '../context/TenantContext': { useTenant: () => ({ tenant: { id: 'tenant-A' }, user }) } });
+  await settleReturns(page); const first = confirmReturn(page);
+  user = { id: 'user-B', rol: 'CAJERO' }; await settleReturns(page);
+  resolveLookup({ data: { estado: 'AUTORIZADA', resultado: null } }); await first; await new Promise(resolve => setImmediate(resolve)); page.render();
+  assert.equal(posts, 0); assert.ok(saved.getItem(returnKey));
+  assert.equal(saved.getItem('ferre_pending_return:tenant-A:user-B'), null);
+  assert.equal(page.find(n => n.children.includes('Cerrar comprobante')), undefined);
+});
+
+test('devolución antigua y pendiente corrupto se conservan sin crear una solicitud nueva', async () => {
+  const saved = storage(); saved.setItem(returnKey, JSON.stringify({ saleId: 'sale-A', dto: { solicitudId: 'request-A', motivo: 'Anterior' } })); let posts = 0;
+  const page = makeReturns(saved, { get: async url => ({ data: url.includes('/devoluciones/request-A') ? returnReceipt : [] }), post: async () => { posts++; } });
+  await settleReturns(page); await confirmReturn(page); page.render();
+  assert.equal(posts, 0); assert.ok(page.find(n => n.children.includes('Cerrar comprobante')));
+  const corrupt = storage(); corrupt.setItem(returnKey, '{broken');
+  const blocked = makeReturns(corrupt, { get: async () => ({ data: [] }), post: async () => { posts++; } });
+  await settleReturns(blocked);
+  assert.equal(corrupt.getItem(returnKey), '{broken');
+  assert.equal(blocked.find(n => n.children.includes('Buscar venta')).props.disabled, true);
+});
+
+test('corregir solicitud no confirmada conserva UUID y una respuesta tardía se recupera sin otro POST', async () => {
+  const saved = storage();
+  const dto = { solicitudId: 'request-A', motivo: 'Original', metodo: 'EFECTIVO', items: [{ detalleId: 'line-A', cantidad: 1, destino: 'INVENTARIO' }] };
+  saved.setItem(returnKey, JSON.stringify({ kind: 'SOLICITAR', requestId: 'request-A', saleId: 'sale-A', dto }));
+  let registered = false, posts = 0;
+  const page = makeReturns(saved, { get: async url => {
+    if (!url.endsWith('/request-A')) return { data: [] };
+    if (!registered) throw { response: { status: 404 } };
+    return { data: { estado: 'PENDIENTE', venta_id: 'sale-A', comando: dto } };
+  }, post: async () => { posts++; } });
+  await settleReturns(page);
+  page.find(n => n.children.includes('Corregir solo si no está registrada')).props.onClick();
+  await new Promise(resolve => setImmediate(resolve)); page.render();
+  assert.equal(JSON.parse(saved.getItem(returnKey)).requestId, 'request-A');
+  assert.equal(page.find(n => n.children.includes('Buscar venta')).props.disabled, false);
+  registered = true; await confirmReturn(page); page.render();
+  assert.equal(posts, 0); assert.equal(saved.getItem(returnKey), null);
+});
+
+test('respuesta tardía con datos originales distintos recupera la solicitud sin sobrescribirla', async () => {
+  const saved = storage();
+  const original = { solicitudId: 'request-A', motivo: 'Original', metodo: 'EFECTIVO', items: [{ detalleId: 'line-A', cantidad: 1, destino: 'INVENTARIO' }] };
+  saved.setItem(returnKey, JSON.stringify({ kind: 'SOLICITAR', requestId: 'request-A', saleId: 'sale-A', dto: { ...original, motivo: 'Corregido' } }));
+  let posts = 0;
+  const page = makeReturns(saved, { get: async url => ({ data: url.endsWith('/request-A') ? { venta_id: 'sale-A', comando: original, estado: 'PENDIENTE' } : [] }), post: async () => { posts++; } });
+  await settleReturns(page); await confirmReturn(page); page.render();
+  assert.equal(posts, 0); assert.equal(saved.getItem(returnKey), null);
+  assert.ok(page.find(n => n.children.some(value => typeof value === 'string' && value.includes('Tus correcciones no la modificaron'))));
+});
