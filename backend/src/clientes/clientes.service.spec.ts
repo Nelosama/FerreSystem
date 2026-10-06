@@ -1,4 +1,5 @@
 import { ClientesService } from './clientes.service';
+import { BadRequestException } from '@nestjs/common';
 
 describe('ClientesService numbering failures', () => {
   it.each([
@@ -18,5 +19,15 @@ describe('ClientesService numbering failures', () => {
     const error = { code: 'P2002', meta: { target: ['email'] } };
     const service = new ClientesService({ cliente: { create: vi.fn().mockRejectedValue(error) } } as any);
     await expect(service.create('t1', { nombre: 'Cliente' })).rejects.toBe(error);
+  });
+
+  it('rejects an abono greater than the client balance', async () => {
+    const tx = {
+      $queryRawUnsafe: vi.fn().mockResolvedValue([]),
+      cliente: { findFirst: vi.fn().mockResolvedValue({ id: 'c1', saldoPendiente: 20 }) },
+    };
+    const prisma = { $transaction: vi.fn((callback) => callback(tx)) };
+    const service = new ClientesService(prisma as any);
+    await expect(service.addPayment('t1', 'c1', { monto: 20.01 })).rejects.toBeInstanceOf(BadRequestException);
   });
 });

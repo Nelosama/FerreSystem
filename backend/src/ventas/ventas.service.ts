@@ -103,6 +103,7 @@ export class VentasService {
       clienteRtn?: string;
       vencimiento?: string;
       metodoPago?: any;
+      tipoPago?: 'CONTADO' | 'CREDITO';
       descuento?: number;
       notas?: string;
       detalles: {
@@ -120,6 +121,11 @@ export class VentasService {
     }
 
     if(new Set(dto.detalles.map(d=>d.productoId)).size!==dto.detalles.length) throw new BadRequestException('Agrupe las líneas del mismo producto');
+    const tipoPago = dto.tipoPago || (dto.metodoPago === 'CREDITO' ? 'CREDITO' : 'CONTADO');
+    if (dto.tipoPago && dto.metodoPago && ((dto.tipoPago === 'CREDITO') !== (dto.metodoPago === 'CREDITO'))) {
+      throw new BadRequestException('El tipo de pago y el método de pago no coinciden');
+    }
+    const metodo = dto.metodoPago || (tipoPago === 'CREDITO' ? 'CREDITO' : 'EFECTIVO');
     const descuento = decimal(dto.descuento || 0, 'Descuento');
     const requestHash = fingerprint({usuarioId,dto});
 
@@ -148,7 +154,7 @@ export class VentasService {
           if (anterior.tenantId !== tenantId || anterior.usuarioId !== usuarioId ||
               (anterior.solicitudHash && anterior.solicitudHash !== requestHash) ||
               anterior.clienteId !== (dto.clienteId || null) ||
-              anterior.metodoPago !== (dto.metodoPago || 'EFECTIVO') ||
+              anterior.metodoPago !== metodo || anterior.tipoPago !== tipoPago ||
               Number(anterior.descuento) !== descuento || anterior.notas !== (dto.notas || null) ||
               !mismosDetalles) {
             throw new ConflictException('La solicitud ya fue utilizada para otra venta');
@@ -157,13 +163,16 @@ export class VentasService {
         }
       }
 
-      const metodo = dto.metodoPago || 'EFECTIVO';
       if (!['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].includes(metodo)) throw new BadRequestException('Método de pago inválido');
-      if (metodo === 'CREDITO' && !dto.clienteId) throw new BadRequestException('Seleccione un cliente registrado para vender a crédito');
+      if (tipoPago === 'CREDITO' && !dto.clienteId) throw new BadRequestException('Seleccione un cliente registrado para vender a crédito');
       const caja = await openCash(tx,tenantId,usuarioId);
+      let clienteCredito: any = null;
       if (dto.clienteId) {
-        const cliente = await tx.cliente.findFirst({ where: { id: dto.clienteId, tenantId } });
-        if (!cliente) throw new NotFoundException('Cliente seleccionado no existe');
+        clienteCredito = await tx.cliente.findFirst({ where: { id: dto.clienteId, tenantId } });
+        if (!clienteCredito || !clienteCredito.activo) throw new NotFoundException('Cliente seleccionado no existe o está inactivo');
+        if (tipoPago === 'CREDITO' && !clienteCredito.creditoHabilitado) {
+          throw new BadRequestException('El cliente no tiene habilitado el crédito');
+        }
       }
 
       // 1. Obtener siguiente número secuencial por tenant con bloqueo atómico
@@ -251,6 +260,13 @@ export class VentasService {
       const isv = Math.round(baseGravable * 0.15 * 100) / 100;
       const total = Math.round((baseGravable + isv) * 100) / 100;
 
+      if (tipoPago === 'CREDITO' && clienteCredito.limiteCredito !== null) {
+        const nuevoSaldo = money(Number(clienteCredito.saldoPendiente) + total);
+        if (nuevoSaldo > Number(clienteCredito.limiteCredito)) {
+          throw new BadRequestException('La venta supera el límite de crédito disponible del cliente');
+        }
+      }
+
       // 4. Crear la venta en base de datos
       const venta = await tx.venta.create({
         data: {
@@ -268,7 +284,9 @@ export class VentasService {
           isv,
           descuento,
           total,
-          metodoPago: dto.metodoPago || 'EFECTIVO',
+          metodoPago: metodo,
+          tipoPago,
+          saldoCredito: tipoPago === 'CREDITO' ? total : null,
           estado: 'COMPLETADA',
           notas: dto.notas || null,
           detalles: {
@@ -292,7 +310,14 @@ export class VentasService {
         },
       });
 
-      if (metodo === 'CREDITO') await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,dto.vencimiento);
+      if (tipoPago === 'CREDITO') {
+        const updated = await tx.cliente.updateMany({
+          where: { id: dto.clienteId, tenantId, activo: true, creditoHabilitado: true },
+          data: { saldoPendiente: { increment: total } },
+        });
+        if (updated.count !== 1) throw new BadRequestException('El cliente no tiene habilitado el crédito');
+        await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,dto.vencimiento);
+      }
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',total,metodo,venta.id,`Venta ${numeroVenta}`);
       await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id});
       return this.formatVentaCreada(venta);
@@ -305,6 +330,7 @@ export class VentasService {
       isv: Number(venta.isv),
       descuento: Number(venta.descuento),
       total: Number(venta.total),
+      saldoCredito: venta.saldoCredito === null ? null : Number(venta.saldoCredito),
       detalles: venta.detalles.map((d) => ({
         id: d.id,
         productoId: d.productoId,
