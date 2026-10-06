@@ -17,6 +17,8 @@ import { CotizacionesModule } from './cotizaciones/cotizaciones.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { LevantamientosModule } from './levantamientos/levantamientos.module';
+import { ProveedoresModule } from './proveedores/proveedores.module';
+import { ComprasModule } from './compras/compras.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { LevantamientosModule } from './levantamientos/levantamientos.module';
     UsuariosModule,
     LevantamientosModule,
     OperacionesModule,
+    ProveedoresModule,
+    ComprasModule,
   ],
   controllers: [HealthController, BackupStatusController],
   providers: [
