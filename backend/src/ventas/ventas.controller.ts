@@ -17,10 +17,10 @@ export class VentasController {
   constructor(private readonly ventasService: VentasService) {}
 
   @Get()
-  async findAll(@TenantId() tenantId: string, @Query('limit') limit?: string, @Query('page') page?: string) {
+  async findAll(@TenantId() tenantId: string, @Query('limit') limit?: string, @Query('page') page?: string, @CurrentUser() user?: any) {
     const take = Math.min(500,Math.max(1,Math.floor(Number(limit)) || 50));
     const pageNumber = Math.max(0,Math.floor(Number(page) || 0));
-    return this.ventasService.findAll(tenantId, take, pageNumber);
+    return this.ventasService.findAll(tenantId, take, pageNumber, user?.rol === 'CAJERO' ? user.sub : undefined);
   }
 
   @Get('solicitudes/:id')
@@ -33,8 +33,8 @@ export class VentasController {
   }
 
   @Get(':id')
-  async findById(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.ventasService.findById(tenantId, id);
+  async findById(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser() user?: any) {
+    return this.ventasService.findById(tenantId, id, user?.rol === 'CAJERO' ? user.sub : undefined);
   }
 
   @Post()

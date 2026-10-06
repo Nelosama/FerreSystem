@@ -3,7 +3,8 @@ import { HealthController } from './common/health.controller';
 import { OperacionesModule } from './operaciones/operaciones.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { CashierResponseInterceptor } from './common/interceptors/cashier-response.interceptor';
 import { PrismaModule } from './prisma/prisma.module';
 import { TenantModuleGuard } from './common/guards/tenant-module.guard';
 import { AuthModule } from './auth/auth.module';
@@ -38,6 +39,7 @@ import { LevantamientosModule } from './levantamientos/levantamientos.module';
   ],
   controllers: [HealthController, BackupStatusController],
   providers: [
+    { provide: APP_INTERCEPTOR, useClass: CashierResponseInterceptor },
     {
       provide: APP_GUARD,
       useClass: TenantModuleGuard,

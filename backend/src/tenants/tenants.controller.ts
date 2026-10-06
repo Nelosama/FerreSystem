@@ -12,6 +12,7 @@ export class TenantsController {
   constructor(private readonly tenantsService: TenantsService) {}
 
   @Get('settings')
+  @Roles('ADMIN')
   async getSettings(@TenantId() tenantId: string) {
     return this.tenantsService.getTenantSettings(tenantId);
   }

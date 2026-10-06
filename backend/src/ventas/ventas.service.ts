@@ -21,9 +21,9 @@ export class VentasService {
     }, { timeout: 30000 });
   }
 
-  async findAll(tenantId: string, limit = 50, page = 0) {
+  async findAll(tenantId: string, limit = 50, page = 0, usuarioId?: string) {
     const ventas = await this.prisma.venta.findMany({
-      where: { tenantId },
+      where: { tenantId, ...(usuarioId ? { usuarioId } : {}) },
       include: {
         cliente: { select: { id: true, nombre: true, rtn: true } },
         usuario: { select: { id: true, nombre: true } },
@@ -56,9 +56,9 @@ export class VentasService {
     }));
   }
 
-  async findById(tenantId: string, id: string) {
+  async findById(tenantId: string, id: string, usuarioId?: string) {
     const v = await this.prisma.venta.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, ...(usuarioId ? { usuarioId } : {}) },
       include: {
         cliente: true,
         usuario: { select: { id: true, nombre: true, email: true } },
