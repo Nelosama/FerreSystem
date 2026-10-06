@@ -86,16 +86,15 @@ enum EstadoLevantamiento {
   FINALIZADO
 }
 
-<<<<<<< Updated upstream
 enum EstadoCompra {
   PENDIENTE
   PAGADA
   PARCIAL
-=======
+}
+
 enum TipoPago {
   CONTADO
   CREDITO
->>>>>>> Stashed changes
 }
 
 // ============================================================

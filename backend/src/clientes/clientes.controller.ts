@@ -1,6 +1,7 @@
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Rol } from '@prisma/client';
 import { ClientesService } from './clientes.service';
 import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -11,7 +12,7 @@ import { CreateAbonoClienteDto } from './dto/abono.dto';
 
 @Controller('clientes')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
-@Roles('ADMIN')
+@Roles(Rol.ADMIN)
 export class ClientesController {
   constructor(private readonly clientesService: ClientesService) {}
 
@@ -23,7 +24,7 @@ export class ClientesController {
   }
 
   @Get('buscar')
-  @Roles('ADMIN', 'CAJERO')
+  @Roles(Rol.ADMIN, Rol.CAJERO)
   search(@TenantId() tenantId: string, @Query('q') query: string) {
     return this.clientesService.search(tenantId, query);
   }
@@ -42,7 +43,6 @@ export class ClientesController {
   }
 
   @Patch(':id')
-  @Put(':id')
   async update(
     @TenantId() tenantId: string,
     @Param('id') id: string,
@@ -62,7 +62,7 @@ export class ClientesController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN')
+  @Roles(Rol.ADMIN)
   async delete(@TenantId() tenantId: string, @Param('id') id: string) {
     return this.clientesService.delete(tenantId, id);
   }
