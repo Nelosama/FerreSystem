@@ -532,6 +532,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const ops=new OperacionesService(prisma);
     await expect(ventas.create(tenantId,usuarioId,{...request(1),metodoPago:'CREDITO'})).rejects.toThrow('cliente registrado');
     const client=await new ClientesService(prisma).create(tenantId,{nombre:'Cliente crédito'});
+    await prisma.cliente.update({ where: { id: client.id }, data: { creditoHabilitado: true } });
     const sale=await ventas.create(tenantId,usuarioId,{...request(1),metodoPago:'CREDITO',clienteId:client.id});
     const debt=(await ops.cuentas(tenantId,usuarioId,'CXC'))[0];
     expect(Number(debt.saldo)).toBe(sale.total);
@@ -622,6 +623,7 @@ describe('Ventas / PostgreSQL aislado', () => {
   it('cancelar mercancía no entregada libera reserva y cancela crédito sin ingreso físico ficticio',async()=>{
     await prisma.usuario.update({where:{id:usuarioId},data:{rol:'ADMIN'}});
     const ops=new OperacionesService(prisma),client=await new ClientesService(prisma).create(tenantId,{nombre:'Cliente'});
+    await prisma.cliente.update({ where: { id: client.id }, data: { creditoHabilitado: true } });
     const sale=await ventas.create(tenantId,usuarioId,{...request(2),metodoPago:'CREDITO',clienteId:client.id});
     const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
     await ops.devolver(tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),motivo:'Cancelación parcial',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'NO_ENTREGADO'}]});
@@ -634,6 +636,7 @@ describe('Ventas / PostgreSQL aislado', () => {
   it('devolver crédito con abonos cancela saldo y reembolsa el excedente pagado',async()=>{
     await prisma.usuario.update({where:{id:usuarioId},data:{rol:'ADMIN'}});
     const ops=new OperacionesService(prisma),client=await new ClientesService(prisma).create(tenantId,{nombre:'Cliente'});
+    await prisma.cliente.update({ where: { id: client.id }, data: { creditoHabilitado: true } });
     const sale=await ventas.create(tenantId,usuarioId,{...request(1),metodoPago:'CREDITO',clienteId:client.id});
     const debt=(await ops.cuentas(tenantId,usuarioId,'CXC'))[0];
     await ops.pagar(tenantId,usuarioId,debt.id,{solicitudId:randomUUID(),monto:5,metodo:'EFECTIVO'});
@@ -672,7 +675,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const adminId=randomUUID();
     await prisma.usuario.create({data:{id:adminId,tenantId,nombre:'Administrador',email:'admin@example.test',passwordHash:'test-only',rol:'ADMIN'}});
     const dto:any={...request(1),solicitudId:randomUUID(),metodoPago:credit?'CREDITO':'EFECTIVO'};
-    if(credit){const c=await prisma.cliente.create({data:{tenantId,nombre:'Cliente crédito'}});dto.clienteId=c.id;}
+    if(credit){const c=await prisma.cliente.create({data:{tenantId,nombre:'Cliente crédito'}});await prisma.cliente.update({where:{id:c.id},data:{creditoHabilitado:true}});dto.clienteId=c.id;}
     const sale=await ventas.create(tenantId,usuarioId,dto);
     const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
     const command={solicitudId:randomUUID(),motivo:'Devolución solicitada por cliente',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'NO_ENTREGADO'}]};
