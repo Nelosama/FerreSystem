@@ -1,3 +1,4 @@
+import { RequiredModule } from '../common/decorators/required-module.decorator';
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { Rol } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -9,11 +10,13 @@ import { CreateCompraDto, CreatePagoProveedorDto } from './dto/compra.dto';
 import { ComprasService } from './compras.service';
 
 @Controller()
+@RequiredModule('ordenes_compra')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Roles(Rol.ADMIN)
 export class ComprasController {
   constructor(private readonly service: ComprasService) {}
 
+  @RequiredModule('ordenes_compra', 'inventario')
   @Post('compras') create(@TenantId() tenantId: string, @Body() dto: CreateCompraDto) { return this.service.create(tenantId, dto); }
   @Get('compras') findAll(@TenantId() tenantId: string) { return this.service.findAll(tenantId); }
   @Get('compras/:id') findById(@TenantId() tenantId: string, @Param('id') id: string) { return this.service.findById(tenantId, id); }

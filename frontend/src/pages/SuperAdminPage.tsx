@@ -15,7 +15,6 @@ import {
   Search,
   X,
   Server,
-  Trash2,
   Layers,
   Layout,
   AlertCircle,
@@ -188,14 +187,13 @@ export const SuperAdminPage: React.FC = () => {
       })
       .catch((err) => {
         console.error('Error al obtener tenants desde la API real:', err);
-        setErrorText('No se pudo conectar con la API de administración del servidor backend.');
+        setErrorText(t('uxAudit.admin_message_0'));
       });
   }, []);
 
   // Modales
   const [modalNuevoTenant, setModalNuevoTenant] = useState(false);
   const [modalEditarTenant, setModalEditarTenant] = useState<TenantItem | null>(null);
-  const [modalSucursalesTenant, setModalSucursalesTenant] = useState<TenantItem | null>(null);
   const [modalModulosTenant, setModalModulosTenant] = useState<TenantItem | null>(null);
   const [tempModulosTenant, setTempModulosTenant] = useState<string[]>([]);
   const [modalNavegacionTenant, setModalNavegacionTenant] = useState<TenantItem | null>(null);
@@ -209,12 +207,6 @@ export const SuperAdminPage: React.FC = () => {
   const [usuarioASuplantar, setUsuarioASuplantar] = useState<{ id: string; nombre: string; email: string; rol: any } | null>(null);
   const [soporteCategoria, setSoporteCategoria] = useState<'Reporte de error' | 'Solicitud del cliente' | 'Verificación de pago' | 'Otro'>('Reporte de error');
   const [soporteDescripcion, setSoporteDescripcion] = useState('');
-
-  // Formulario Nueva Sub-Sucursal
-  const [nuevaSucursalNombre, setNuevaSucursalNombre] = useState('');
-  const [nuevaSucursalDireccion, setNuevaSucursalDireccion] = useState('');
-  const [nuevaSucursalTelefono, setNuevaSucursalTelefono] = useState('');
-  const [, setNuevaSucursalEncargado] = useState('');
 
   // Formulario Editar Tenant / Marca
   const [editNombreComercial, setEditNombreComercial] = useState('');
@@ -264,10 +256,10 @@ export const SuperAdminPage: React.FC = () => {
       await api.patch(`/admin/tenants/${id}/status`, { estado: nuevoEstado });
       setTenants((current) => current.map((t) => (t.id === id ? { ...t, estado: nuevoEstado } : t)));
       registrarAuditoria('CAMBIO_ESTADO_TENANT', target.nombreComercial, `Estado cambiado a ${nuevoEstado}`);
-      setMensajeExito(`¡Estado de ${target.nombreComercial} actualizado a ${nuevoEstado}!`);
+      setMensajeExito(t('uxAudit.admin_success_0', { name: target.nombreComercial, status: t(nuevoEstado === 'ACTIVO' ? 'uxAudit.active' : 'uxAudit.suspended') }));
       setTimeout(() => setMensajeExito(null), 4000);
     } catch (err: any) {
-      setErrorText(err.response?.data?.message || 'No se pudo actualizar el estado del tenant.');
+      setErrorText(err.response?.data?.message || t('uxAudit.admin_message_1'));
     }
   };
 
@@ -310,11 +302,11 @@ export const SuperAdminPage: React.FC = () => {
         modalModulosTenant.nombreComercial,
         `Módulos activos actualizados: ${tempModulosTenant.length} de ${CATALOGO_MODULOS.length}`,
       );
-      setMensajeExito(`¡Servicios y módulos para "${modalModulosTenant.nombreComercial}" guardados correctamente!`);
+      setMensajeExito(t('uxAudit.admin_success_1', { name: modalModulosTenant.nombreComercial }));
       setModalModulosTenant(null);
       setTimeout(() => setMensajeExito(null), 4000);
     } catch (err: any) {
-      setErrorText(err.response?.data?.message || 'No se pudieron actualizar los módulos del tenant.');
+      setErrorText(err.response?.data?.message || t('uxAudit.admin_message_2'));
     }
   };
 
@@ -327,10 +319,10 @@ export const SuperAdminPage: React.FC = () => {
       setTenants((current) => current.map((tItem) => (tItem.id === tenantId ? { ...tItem, modoNavegacion: modo } : tItem)));
       registrarAuditoria('CAMBIO_NAVEGACION', target.nombreComercial, `Modo de navegación cambiado a ${modo}`);
       setModalNavegacionTenant(null);
-      setMensajeExito(`¡Tipo de navegación para "${target.nombreComercial}" cambiado a ${modo}!`);
+      setMensajeExito(t('uxAudit.admin_success_2', { name: target.nombreComercial, mode: modo }));
       setTimeout(() => setMensajeExito(null), 4000);
     } catch (err: any) {
-      setErrorText(err.response?.data?.message || 'No se pudo actualizar la navegación del tenant.');
+      setErrorText(err.response?.data?.message || t('uxAudit.admin_message_3'));
     }
   };
 
@@ -401,7 +393,7 @@ export const SuperAdminPage: React.FC = () => {
       setModalSuplantarUser(null);
       navigate('/');
     } catch (error: any) {
-      setErrorText(error.response?.data?.message || 'No se pudo iniciar la sesión de soporte. Vuelve a iniciar sesión como superadmin.');
+      setErrorText(error.response?.data?.message || t('uxAudit.admin_message_4'));
     }
   };
 
@@ -410,8 +402,8 @@ export const SuperAdminPage: React.FC = () => {
     try {
       const { data } = await api.patch(`/admin/tenants/${admin.tenantId}/admins/${id}`, { activo: !admin.activo });
       setAdminUsers(current => current.map(item => item.id === id ? { ...item, ...data } : item));
-      setMensajeExito('Estado guardado en el servidor.');
-    } catch (error: any) { setErrorText(error.response?.data?.message || 'No se pudo guardar el estado.'); }
+      setMensajeExito(t('uxAudit.admin_message_5'));
+    } catch (error: any) { setErrorText(error.response?.data?.message || t('uxAudit.admin_message_6')); }
   };
 
   const handleCrearTenant = async (e: React.FormEvent) => {
@@ -455,7 +447,7 @@ export const SuperAdminPage: React.FC = () => {
       setAdminUsers((current) => [createdAdmin, ...current]);
       setModalNuevoTenant(false);
       registrarAuditoria('CREAR_TENANT', createdTenant.nombreComercial, `Cliente y Administrador (${createdAdmin.email}) aprovisionados`);
-      setMensajeExito(`¡Ferretería "${createdTenant.nombreComercial}" y su usuario Admin creados exitosamente!`);
+      setMensajeExito(t('uxAudit.admin_success_3', { name: createdTenant.nombreComercial }));
       setTimeout(() => setMensajeExito(null), 5000);
       setNombreComercial('');
       setAdminNombre('');
@@ -463,7 +455,7 @@ export const SuperAdminPage: React.FC = () => {
       setAdminPassword('');
       setTelefono('');
     } catch (err: any) {
-      setErrorText(err.response?.data?.message || 'No se pudo crear el tenant y su administrador.');
+      setErrorText(err.response?.data?.message || t('uxAudit.admin_message_7'));
     } finally {
       setCreatingTenant(false);
     }
@@ -478,19 +470,19 @@ export const SuperAdminPage: React.FC = () => {
       const company = tenants.find(item => item.id === formAdminTenantId);
       setAdminUsers(current => [{ ...data, tenantNombre: company?.nombreComercial || '', fechaCreacion: data.createdAt?.split('T')[0] }, ...current]);
       setModalNuevoAdmin(false); setFormAdminPassword('');
-      setMensajeExito('Administrador creado en el servidor.');
-    } catch (error: any) { setErrorText(error.response?.data?.message || 'No se pudo crear el administrador.'); } finally { setAdminSaving(false); }
+      setMensajeExito(t('uxAudit.admin_message_8'));
+    } catch (error: any) { setErrorText(error.response?.data?.message || t('uxAudit.admin_message_9')); } finally { setAdminSaving(false); }
   };
   const handleGuardarEdicionAdmin = async (e: React.FormEvent) => {
     e.preventDefault(); if (!modalEditarAdmin) return;
-    if (formAdminTenantId !== modalEditarAdmin.tenantId) { setErrorText('El administrador debe conservar su empresa. Crea un usuario nuevo para otra empresa.'); return; }
+    if (formAdminTenantId !== modalEditarAdmin.tenantId) { setErrorText(t('uxAudit.admin_message_10')); return; }
     if (adminSaving) return;
     setAdminSaving(true); setErrorText(null);
     try {
       const { data } = await api.patch(`/admin/tenants/${modalEditarAdmin.tenantId}/admins/${modalEditarAdmin.id}`, { nombre: formAdminNombre.trim(), email: formAdminEmail.trim(), activo: formAdminActivo });
       setAdminUsers(current => current.map(item => item.id === modalEditarAdmin.id ? { ...item, ...data } : item));
-      setModalEditarAdmin(null); setMensajeExito('Administrador guardado en el servidor.');
-    } catch (error: any) { setErrorText(error.response?.data?.message || 'No se pudo guardar el administrador.'); } finally { setAdminSaving(false); }
+      setModalEditarAdmin(null); setMensajeExito(t('uxAudit.admin_message_11'));
+    } catch (error: any) { setErrorText(error.response?.data?.message || t('uxAudit.admin_message_12')); } finally { setAdminSaving(false); }
   };
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault(); if (!modalResetPassAdmin) return;
@@ -498,8 +490,8 @@ export const SuperAdminPage: React.FC = () => {
     setAdminSaving(true); setErrorText(null);
     try {
       await api.patch(`/admin/tenants/${modalResetPassAdmin.tenantId}/admins/${modalResetPassAdmin.id}`, { password: nuevaPasswordInput });
-      setModalResetPassAdmin(null); setNuevaPasswordInput(''); setMensajeExito('Contraseña guardada en el servidor.');
-    } catch (error: any) { setErrorText(error.response?.data?.message || 'No se pudo cambiar la contraseña.'); } finally { setAdminSaving(false); }
+      setModalResetPassAdmin(null); setNuevaPasswordInput(''); setMensajeExito(t('uxAudit.admin_message_13'));
+    } catch (error: any) { setErrorText(error.response?.data?.message || t('uxAudit.admin_message_14')); } finally { setAdminSaving(false); }
   };
 
   const abrirEditarAdmin = (adm: AdminUserItem) => {
@@ -512,7 +504,7 @@ export const SuperAdminPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title={t('superadmin.title') || "PANEL SUPER-ADMIN (SAAS)"} subtitle="Portal del Dueño de FerreSystem • Control Global & Módulos" />
+      <TopBar title={t('superadmin.title') || "PANEL SUPER-ADMIN (SAAS)"} subtitle={t('uxAudit.ferresystem_owner_portal_global_control_modules')} />
 
       <main style={styles.content}>
         {errorText && (
@@ -629,7 +621,7 @@ export const SuperAdminPage: React.FC = () => {
             }}
           >
             <KeyRound size={16} />
-            <span>HISTORIAL DE SOPORTE</span>
+            <span>{t('uxAudit.support_history')} </span>
           </button>
         </div>
 
@@ -652,7 +644,7 @@ export const SuperAdminPage: React.FC = () => {
                 onClick={() => setModalNuevoTenant(true)}
               >
                 <Plus size={18} strokeWidth={2.5} />
-                <span>NUEVO CLIENTE / TENANT</span>
+                <span>{t('uxAudit.new_customer_tenant')} </span>
               </button>
             </div>
 
@@ -660,13 +652,13 @@ export const SuperAdminPage: React.FC = () => {
               <table className="industrial-table">
                 <thead>
                   <tr>
-                    <th>EMPRESA / CLIENTE</th>
-                    <th>CONTACTO PRINCIPAL</th>
+                    <th>{t('uxAudit.company_customer')} </th>
+                    <th>{t('uxAudit.main_contact')} </th>
                     <th style={{ textAlign: 'center' }}>PLAN</th>
-                    <th style={{ textAlign: 'center' }}>NAVEGACIÓN</th>
-                    <th style={{ textAlign: 'center' }}>SERVICIOS HABILITADOS</th>
-                    <th style={{ textAlign: 'center' }}>ESTADO</th>
-                    <th style={{ textAlign: 'center' }}>ACCIONES SAAS</th>
+                    <th style={{ textAlign: 'center' }}>{t('uxAudit.navigation')} </th>
+                    <th style={{ textAlign: 'center' }}>{t('uxAudit.enabled_services')} </th>
+                    <th style={{ textAlign: 'center' }}>{t('uxAudit.status')} </th>
+                    <th style={{ textAlign: 'center' }}>{t('uxAudit.saas_actions')} </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -680,7 +672,7 @@ export const SuperAdminPage: React.FC = () => {
                         <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
                           <div>{tItem.nombreComercial}</div>
                           <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                            <GitBranch size={11} /> <span>{tItem.sucursalesCount || 1} Sucursal(es) Conectada(s)</span>
+                            <GitBranch size={11} /> <span>{tItem.sucursalesCount || 1}{t('uxAudit.connected_branch_es')} </span>
                           </div>
                         </td>
                         <td style={{ fontWeight: 600 }}>
@@ -696,7 +688,7 @@ export const SuperAdminPage: React.FC = () => {
                             className="btn btn-sm btn-secondary"
                             onClick={() => setModalNavegacionTenant(tItem)}
                             style={{ fontWeight: 800, fontSize: '10px' }}
-                            title="Cambiar entre Menú Lateral o Menú Superior"
+                            title={t('uxAudit.switch_between_side_menu_and_top_menu')}
                           >
                             <Layout size={12} color="var(--color-primary)" /> {modoNav}
                           </button>
@@ -706,17 +698,16 @@ export const SuperAdminPage: React.FC = () => {
                             type="button"
                             className="btn btn-sm btn-secondary"
                             onClick={() => abrirModalModulos(tItem)}
-                            title="Administrar Servicios y Módulos Contratados"
+                            title={t('uxAudit.manage_subscribed_services_and_modules')}
                             style={{ fontWeight: 800 }}
                           >
-                            <Layers size={13} color="var(--color-primary)" /> {modCount} / {CATALOGO_MODULOS.length} SERVICIOS
-                          </button>
+                            <Layers size={13} color="var(--color-primary)" /> {modCount} / {CATALOGO_MODULOS.length}{t('uxAudit.services')} </button>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           {tItem.estado === 'ACTIVO' ? (
-                            <span className="badge badge-success">ACTIVO</span>
+                            <span className="badge badge-success">{t('uxAudit.active')} </span>
                           ) : (
-                            <span className="badge badge-danger">SUSPENDIDO</span>
+                            <span className="badge badge-danger">{t('uxAudit.suspended')} </span>
                           )}
                         </td>
                         <td style={{ textAlign: 'center' }}>
@@ -725,7 +716,7 @@ export const SuperAdminPage: React.FC = () => {
                               type="button"
                               className="btn btn-sm btn-primary"
                               onClick={() => abrirModalSuplantar(tItem)}
-                              title="Entrar como administrador o usuario para soporte remoto"
+                              title={t('uxAudit.enter_as_an_administrator_or_user_for_remote_support')}
                               style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
                             >
                               <ExternalLink size={13} /> {t('navigation.support')}
@@ -734,24 +725,9 @@ export const SuperAdminPage: React.FC = () => {
                               type="button"
                               className="btn btn-sm btn-secondary"
                               onClick={() => abrirModalModulos(tItem)}
-                              title="Administrar Servicios Contratados"
-                            >
-                              SERVICIOS
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-secondary"
-                              onClick={() => {
-                                setModalSucursalesTenant(tItem);
-                                setNuevaSucursalNombre('');
-                                setNuevaSucursalDireccion('');
-                                setNuevaSucursalTelefono('');
-                                setNuevaSucursalEncargado('');
-                              }}
-                              disabled title="Administración de sucursales pendiente de integración"
-                            >
-                              <GitBranch size={13} /> SUCURSALES · Pendiente
-                            </button>
+                              title={t('uxAudit.manage_subscribed_services')}
+                            >{t('uxAudit.services')} </button>
+                            <p>{t('pending.branches')}</p>
                             <button
                               type="button"
                               className="btn btn-sm btn-secondary"
@@ -764,10 +740,9 @@ export const SuperAdminPage: React.FC = () => {
                                 setEditLogoUrl(tItem.logoUrl || '');
                                 setEditModoNavegacion(tItem.modoNavegacion || 'SIDEBAR');
                               }}
-                              title="Editar Marca y Datos General"
+                              title={t('uxAudit.edit_branding_and_company_details')}
                             >
-                              <Edit2 size={13} /> MARCA
-                            </button>
+                              <Edit2 size={13} />{t('uxAudit.branding')} </button>
 
                             <button
                               type="button"
@@ -775,7 +750,7 @@ export const SuperAdminPage: React.FC = () => {
                               onClick={() => toggleEstadoTenant(tItem.id)}
                             >
                               <Power size={13} strokeWidth={2.5} />
-                              {tItem.estado === 'ACTIVO' ? 'SUSPENDER' : 'ACTIVAR'}
+                              {tItem.estado === 'ACTIVO' ? t('uxAudit.admin_message_17') : t('uxAudit.admin_message_18')}
                             </button>
 </div></details>
                           </div>
@@ -794,12 +769,8 @@ export const SuperAdminPage: React.FC = () => {
           <div>
             <div style={styles.headerRow}>
               <div>
-                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                  HISTORIAL DE ACCESOS Y SOPORTE REMOTO
-                </h2>
-                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  Registro obligatorio de impersonaciones a clientes con motivos, duración y activación de modo edición.
-                </p>
+                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.access_and_remote_support_history')} </h2>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{t('uxAudit.required_record_of_customer_impersonations_including_reasons_duration_and_edit_mode_activation')} </p>
               </div>
             </div>
 
@@ -808,20 +779,18 @@ export const SuperAdminPage: React.FC = () => {
                 <thead>
                   <tr>
                     <th>SUPERADMIN</th>
-                    <th>TENANT / CLIENTE</th>
-                    <th>CATEGORÍA MOTIVO</th>
-                    <th>DESCRIPCIÓN</th>
-                    <th style={{ textAlign: 'center' }}>INICIO</th>
-                    <th style={{ textAlign: 'center' }}>FIN / DURACIÓN</th>
-                    <th style={{ textAlign: 'center' }}>MODO EDICIÓN</th>
+                    <th>{t('uxAudit.tenant_customer')} </th>
+                    <th>{t('uxAudit.reason_category')} </th>
+                    <th>{t('uxAudit.description')} </th>
+                    <th style={{ textAlign: 'center' }}>{t('uxAudit.start')} </th>
+                    <th style={{ textAlign: 'center' }}>{t('uxAudit.end_duration')} </th>
+                    <th style={{ textAlign: 'center' }}>{t('uxAudit.edit_mode')} </th>
                   </tr>
                 </thead>
                 <tbody>
                   {supportLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>
-                        No hay registros de sesiones de soporte remoto.
-                      </td>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>{t('uxAudit.no_remote_support_sessions_recorded')} </td>
                     </tr>
                   ) : (
                     supportLogs.map((s) => (
@@ -834,13 +803,13 @@ export const SuperAdminPage: React.FC = () => {
                         <td style={{ fontSize: '12px', color: '#444' }}>{s.descripcion}</td>
                         <td style={{ textAlign: 'center', fontSize: '11px', fontFamily: 'monospace' }}>{s.fechaInicio}</td>
                         <td style={{ textAlign: 'center', fontSize: '11px', fontFamily: 'monospace' }}>
-                          {s.fechaFin ? s.fechaFin : <span className="badge badge-warning" style={{ fontSize: '9px' }}>EN CURSO</span>}
+                          {s.fechaFin ? s.fechaFin : <span className="badge badge-warning" style={{ fontSize: '9px' }}>{t('uxAudit.in_progress')} </span>}
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           {s.modoEdicionActivado ? (
-                            <span className="badge badge-danger" style={{ fontSize: '10px' }}>ACTIVADO</span>
+                            <span className="badge badge-danger" style={{ fontSize: '10px' }}>{t('uxAudit.enabled')} </span>
                           ) : (
-                            <span className="badge badge-secondary" style={{ fontSize: '10px' }}>SOLO LECTURA</span>
+                            <span className="badge badge-secondary" style={{ fontSize: '10px' }}>{t('uxAudit.read_only')} </span>
                           )}
                         </td>
                       </tr>
@@ -857,12 +826,8 @@ export const SuperAdminPage: React.FC = () => {
           <div>
             <div style={styles.headerRow}>
               <div>
-                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                  CATÁLOGO GLOBAL DE MÓDULOS & SERVICIOS
-                </h2>
-                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  Especificación técnica y comercial de los módulos disponibles en la plataforma SaaS.
-                </p>
+                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.global_module_and_service_catalog')} </h2>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{t('uxAudit.technical_and_commercial_description_of_modules_available_on_the_saas_platform')} </p>
               </div>
             </div>
 
@@ -870,20 +835,20 @@ export const SuperAdminPage: React.FC = () => {
               {CATALOGO_MODULOS.map((mod) => (
                 <div key={mod.key} className="industrial-card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span className="badge badge-dark" style={{ fontSize: '10px' }}>{mod.categoria}</span>
+                    <span className="badge badge-dark" style={{ fontSize: '10px' }}>{t('moduleCategories.' + mod.categoria)}</span>
                     {mod.isCore ? (
-                      <span className="badge badge-warning" style={{ fontSize: '10px' }}>CORE / ESENCIAL</span>
+                      <span className="badge badge-warning" style={{ fontSize: '10px' }}>{t('uxAudit.core_essential')} </span>
                     ) : (
-                      <span className="badge badge-success" style={{ fontSize: '10px' }}>CONTRATABLE</span>
+                      <span className="badge badge-success" style={{ fontSize: '10px' }}>{t('uxAudit.optional')} </span>
                     )}
                   </div>
 
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '15px', color: 'var(--color-sidebar-bg)' }}>
-                    {mod.nombre}
+                    {t(mod.labelKey)}
                   </div>
 
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', flex: 1 }}>
-                    {mod.descripcion}
+                    {t('moduleDescriptions.' + mod.key)}
                   </div>
 
                   <div style={{ fontSize: '11px', fontFamily: 'monospace', color: '#EA580C', fontWeight: 700, paddingTop: '8px', borderTop: '1px solid #E7E5E4' }}>
@@ -900,12 +865,8 @@ export const SuperAdminPage: React.FC = () => {
           <div>
             <div style={styles.headerRow}>
               <div>
-                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                  MANTENIMIENTO DE USUARIOS ADMINISTRADORES (ADMIN)
-                </h2>
-                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  Gestión centralizada sobre los administradores autorizados de cada cliente.
-                </p>
+                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.administrator_user_management_admin')} </h2>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{t('uxAudit.central_management_of_each_customer_s_authorized_administrators_tenant_administrators_can_also_manage_administrators_within_their_own_tenant')} </p>
               </div>
 
               <button
@@ -921,7 +882,7 @@ export const SuperAdminPage: React.FC = () => {
                 }}
               >
                 <Plus size={18} strokeWidth={2.5} />
-                <span>NUEVO USUARIO ADMIN</span>
+                <span>{t('uxAudit.new_admin_user')} </span>
               </button>
             </div>
 
@@ -929,12 +890,12 @@ export const SuperAdminPage: React.FC = () => {
               <table className="industrial-table">
                 <thead>
                   <tr>
-                    <th>NOMBRE DEL ADMINISTRADOR</th>
-                    <th>CORREO ELECTRÓNICO (LOGIN)</th>
-                    <th>EMPRESA / TENANT</th>
-                    <th style={{ textAlign: 'center' }}>FECHA ALTA</th>
-                    <th style={{ textAlign: 'center' }}>ESTADO</th>
-                    <th style={{ textAlign: 'center' }}>ACCIONES DE SUPER ADMIN</th>
+                    <th>{t('uxAudit.administrator_name')} </th>
+                    <th>{t('uxAudit.email_login')} </th>
+                    <th>{t('uxAudit.company_tenant')} </th>
+                    <th style={{ textAlign: 'center' }}>{t('uxAudit.created_on')} </th>
+                    <th style={{ textAlign: 'center' }}>{t('uxAudit.status')} </th>
+                    <th style={{ textAlign: 'center' }}>{t('uxAudit.super_admin_actions')} </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -950,9 +911,9 @@ export const SuperAdminPage: React.FC = () => {
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         {a.activo ? (
-                          <span className="badge badge-success">ACTIVO</span>
+                          <span className="badge badge-success">{t('uxAudit.active')} </span>
                         ) : (
-                          <span className="badge badge-danger">SUSPENDIDO</span>
+                          <span className="badge badge-danger">{t('uxAudit.suspended')} </span>
                         )}
                       </td>
                       <td style={{ textAlign: 'center' }}>
@@ -962,23 +923,21 @@ export const SuperAdminPage: React.FC = () => {
                             className="btn btn-secondary btn-sm"
                             onClick={() => abrirEditarAdmin(a)}
                           >
-                            <Edit2 size={13} /> EDITAR
-                          </button>
+                            <Edit2 size={13} />{t('uxAudit.edit')} </button>
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
                             onClick={() => setModalResetPassAdmin(a)}
-                            title="Restablecer Contraseña"
+                            title={t('uxAudit.reset_password')}
                           >
-                            <KeyRound size={13} /> CONTRASEÑA
-                          </button>
+                            <KeyRound size={13} />{t('uxAudit.password')} </button>
                           <button
                             type="button"
                             className={`btn btn-sm ${a.activo ? 'btn-danger' : 'btn-primary'}`}
                             onClick={() => toggleEstadoAdmin(a.id)}
                           >
                             <Power size={13} />
-                            {a.activo ? 'BLOQUEAR' : 'DESBLOQUEAR'}
+                            {a.activo ? t('uxAudit.admin_message_19') : t('uxAudit.admin_message_20')}
                           </button>
                         </div>
                       </td>
@@ -995,12 +954,8 @@ export const SuperAdminPage: React.FC = () => {
           <div>
             <div style={styles.headerRow}>
               <div>
-                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                  REGISTRO DE AUDITORÍA DE ACCIONES CRÍTICAS SAAS
-                </h2>
-                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  Historial de cambios en suscripciones, habilitación de módulos e impersonaciones.
-                </p>
+                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.critical_saas_action_audit_log')} </h2>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{t('uxAudit.history_of_subscription_changes_module_activation_and_impersonations')} </p>
               </div>
             </div>
 
@@ -1008,11 +963,11 @@ export const SuperAdminPage: React.FC = () => {
               <table className="industrial-table">
                 <thead>
                   <tr>
-                    <th>FECHA / HORA</th>
-                    <th>ACCIÓN</th>
-                    <th>CLIENTE / TENANT</th>
-                    <th>DETALLES DE LA OPERACIÓN</th>
-                    <th style={{ textAlign: 'center' }}>EJECUTADO POR</th>
+                    <th>{t('uxAudit.date_time')} </th>
+                    <th>{t('uxAudit.action')} </th>
+                    <th>{t('uxAudit.customer_tenant')} </th>
+                    <th>{t('uxAudit.operation_details')} </th>
+                    <th style={{ textAlign: 'center' }}>{t('uxAudit.performed_by')} </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1041,11 +996,8 @@ export const SuperAdminPage: React.FC = () => {
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                 <div>
-                  <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                    ADMINISTRAR SERVICIOS Y MÓDULOS CONTRATADOS
-                  </h2>
-                  <div style={{ fontSize: '13px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>
-                    CLIENTE: {modalModulosTenant.nombreComercial} ({modalModulosTenant.plan})
+                  <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.manage_subscribed_services_and_modules')} </h2>
+                  <div style={{ fontSize: '13px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>{t('uxAudit.customer')} {modalModulosTenant.nombreComercial} ({modalModulosTenant.plan})
                   </div>
                 </div>
                 <button
@@ -1060,8 +1012,7 @@ export const SuperAdminPage: React.FC = () => {
 
             <div style={{ marginTop: '16px', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  Marque los módulos que el cliente tiene habilitados. Los cambios no se aplican hasta pulsar <strong>Guardar Cambios</strong>.
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{t('uxAudit.select_the_customer_s_enabled_modules_changes_apply_only_after_clicking')} <strong>{t('uxAudit.save_changes')} </strong>.
                 </span>
 
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -1070,17 +1021,13 @@ export const SuperAdminPage: React.FC = () => {
                     className="btn btn-sm btn-secondary"
                     onClick={activarTodosModulos}
                     style={{ fontSize: '10px', fontWeight: 800 }}
-                  >
-                    ACTIVAR TODOS
-                  </button>
+                  >{t('uxAudit.enable_all')} </button>
                   <button
                     type="button"
                     className="btn btn-sm btn-secondary"
                     onClick={desactivarOpcionalesModulos}
                     style={{ fontSize: '10px', fontWeight: 800 }}
-                  >
-                    DESACTIVAR OPCIONALES
-                  </button>
+                  >{t('uxAudit.disable_optional_modules')} </button>
                 </div>
               </div>
 
@@ -1113,11 +1060,11 @@ export const SuperAdminPage: React.FC = () => {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ fontWeight: 800, fontSize: '13px', color: isEnabled ? '#15803D' : '#44403C' }}>
-                            {m.nombre} {PENDING_MODULES.has(m.key) ? '· Pendiente' : m.isCore ? '· Incluido' : ''}
+                            {t(m.labelKey)} {PENDING_MODULES.has(m.key) ? '· ' + t('pending.label') : m.isCore ? '· ' + t('uxAudit.core_essential') : ''}
                           </span>
-                          <span className="badge badge-dark" style={{ fontSize: '9px' }}>{m.categoria}</span>
+                          <span className="badge badge-dark" style={{ fontSize: '9px' }}>{t('moduleCategories.' + m.categoria)}</span>
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{m.descripcion}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{t('moduleDescriptions.' + m.key)}</div>
                       </div>
                     </label>
                   );
@@ -1130,16 +1077,13 @@ export const SuperAdminPage: React.FC = () => {
                 type="button"
                 className="btn btn-secondary"
                 onClick={() => setModalModulosTenant(null)}
-              >
-                CANCELAR
-              </button>
+              >{t('uxAudit.cancel')} </button>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={guardarModulosTenant}
               >
-                <Check size={16} strokeWidth={2.6} /> GUARDAR CAMBIOS DE SERVICIO
-              </button>
+                <Check size={16} strokeWidth={2.6} />{t('uxAudit.save_service_changes')} </button>
             </div>
           </div>
         </div>
@@ -1150,18 +1094,13 @@ export const SuperAdminPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '480px' }}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                CONFIGURACIÓN DE NAVEGACIÓN
-              </h2>
-              <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>
-                EMPRESA: {modalNavegacionTenant.nombreComercial}
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.navigation_settings')} </h2>
+              <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>{t('uxAudit.company')} {modalNavegacionTenant.nombreComercial}
               </div>
             </div>
 
             <div style={{ marginTop: '16px' }}>
-              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                Seleccione el formato de menú visual con el que interactuarán los usuarios de este cliente:
-              </p>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{t('uxAudit.select_the_menu_format_for_this_company_s_users')} </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '14px' }}>
                 <button
@@ -1182,8 +1121,8 @@ export const SuperAdminPage: React.FC = () => {
                   }}
                 >
                   <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '13px' }}>○ MENÚ LATERAL (SIDEBAR)</div>
-                    <div style={{ fontSize: '11px', opacity: 0.8, fontWeight: 400 }}>Panel lateral izquierdo tradicional</div>
+                    <div style={{ fontSize: '13px' }}>{t('uxAudit.circle_side_menu_sidebar')} </div>
+                    <div style={{ fontSize: '11px', opacity: 0.8, fontWeight: 400 }}>{t('uxAudit.traditional_left_side_panel')} </div>
                   </div>
                   {(modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' && <CheckCircle size={18} color="#EA580C" />}
                 </button>
@@ -1206,8 +1145,8 @@ export const SuperAdminPage: React.FC = () => {
                   }}
                 >
                   <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '13px' }}>○ MENÚ SUPERIOR (TOPNAV)</div>
-                    <div style={{ fontSize: '11px', opacity: 0.8, fontWeight: 400 }}>Barra de navegación horizontal superior</div>
+                    <div style={{ fontSize: '13px' }}>{t('uxAudit.circle_top_menu_topnav')} </div>
+                    <div style={{ fontSize: '11px', opacity: 0.8, fontWeight: 400 }}>{t('uxAudit.horizontal_top_navigation_bar')} </div>
                   </div>
                   {modalNavegacionTenant.modoNavegacion === 'TOPNAV' && <CheckCircle size={18} color="#EA580C" />}
                 </button>
@@ -1218,141 +1157,7 @@ export const SuperAdminPage: React.FC = () => {
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setModalNavegacionTenant(null)}
-                >
-                  CERRAR
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: SUB-SUCURSALES */}
-      {modalSucursalesTenant && (
-        <div style={styles.modalOverlay}>
-          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '650px' }}>
-            <div style={styles.modalHeader}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                <div>
-                  <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                    GESTIÓN DE SUB-SUCURSALES
-                  </h2>
-                  <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700, marginTop: '2px' }}>
-                    EMPRESA: {modalSucursalesTenant.nombreComercial}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModalSucursalesTenant(null)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
-
-            <div style={{ marginTop: '16px' }}>
-              <div style={{ padding: '14px', backgroundColor: 'var(--color-bg)', border: '1.5px solid var(--color-sidebar-text)', borderRadius: '4px', marginBottom: '16px' }}>
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', marginBottom: '8px' }}>
-                  AÑADIR NUEVA SUCURSAL A ESTE CLIENTE
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">NOMBRE DE LA SUCURSAL / SEDE</label>
-                  <input
-                    type="text"
-                    placeholder="Ej. Sucursal Choloma / Norte"
-                    value={nuevaSucursalNombre}
-                    onChange={(e) => setNuevaSucursalNombre(e.target.value)}
-                    className="form-input"
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label">DIRECCIÓN</label>
-                    <input
-                      type="text"
-                      placeholder="Barrio / Plaza Comercial"
-                      value={nuevaSucursalDireccion}
-                      onChange={(e) => setNuevaSucursalDireccion(e.target.value)}
-                      className="form-input"
-                    />
-                  </div>
-
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label">TELÉFONO</label>
-                    <input
-                      type="text"
-                      placeholder="+504 2550-0000"
-                      value={nuevaSucursalTelefono}
-                      onChange={(e) => setNuevaSucursalTelefono(e.target.value)}
-                      className="form-input"
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={() => {
-                      setErrorText('La administración de sucursales está pendiente de integración. No se han guardado cambios.');
-                    }}
-                  >
-                    <Plus size={14} /> CREAR SUCURSAL
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
-                <table className="industrial-table">
-                  <thead>
-                    <tr>
-                      <th>SUCURSAL</th>
-                      <th>DIRECCIÓN</th>
-                      <th>TELÉFONO</th>
-                      <th style={{ textAlign: 'center' }}>ESTADO</th>
-                      <th style={{ textAlign: 'center' }}>ACCIONES</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(modalSucursalesTenant.sucursalesList || [
-                      { id: modalSucursalesTenant.id, nombre: 'Sucursal Principal', direccion: '—', telefono: modalSucursalesTenant.telefono, encargado: 'Admin', activa: true },
-                    ]).map((s) => (
-                      <tr key={s.id}>
-                        <td style={{ fontWeight: 800 }}>{s.nombre}</td>
-                        <td style={{ color: 'var(--color-text-muted)' }}>{s.direccion}</td>
-                        <td style={{ color: 'var(--color-text-muted)' }}>{s.telefono}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className="badge badge-success">HABILITADA</span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger"
-                            title="Eliminar Sub-Sucursal"
-                            onClick={() => {
-                              setErrorText('La administración de sucursales está pendiente de integración. No se han eliminado datos.');
-                            }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setModalSucursalesTenant(null)}
-                >
-                  CERRAR
-                </button>
+                >{t('uxAudit.close')} </button>
               </div>
             </div>
           </div>
@@ -1364,9 +1169,7 @@ export const SuperAdminPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                CONFIGURAR MARCA Y DATOS DE EMPRESA
-              </h2>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.configure_branding_and_company_details')} </h2>
             </div>
 
             <form
@@ -1382,16 +1185,16 @@ export const SuperAdminPage: React.FC = () => {
                   });
                   setTenants(current => current.map(item => item.id === modalEditarTenant.id ? { ...item, ...data } : item));
                   setModalEditarTenant(null);
-                  setMensajeExito('Configuración guardada en el servidor.');
+                  setMensajeExito(t('uxAudit.admin_message_15'));
                 } catch (error: any) {
-                  setErrorText(error.response?.data?.message || 'No se pudo guardar la configuración. Vuelve a intentar.');
+                  setErrorText(error.response?.data?.message || t('uxAudit.admin_message_16'));
                 } finally { setBrandSaving(false); }
               }}
               style={{ marginTop: '16px' }}
             >
               {errorText && <p role="alert">{errorText}</p>}
               <div className="form-group">
-                <label className="form-label">NOMBRE COMERCIAL DE LA FERRETERÍA</label>
+                <label className="form-label">{t('uxAudit.business_name')} </label>
                 <input
                   type="text"
                   required
@@ -1402,7 +1205,7 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">URL LOGO PERSONALIZADO (IMAGEN CORPORATIVA)</label>
+                <label className="form-label">{t('uxAudit.custom_logo_url_company_image')} </label>
                 <input
                   type="url"
                   placeholder="https://ejemplo.com/logo.png"
@@ -1413,7 +1216,7 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">MODO DE NAVEGACIÓN</label>
+                <label className="form-label">{t('uxAudit.navigation_mode')} </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <button
                     type="button"
@@ -1428,9 +1231,7 @@ export const SuperAdminPage: React.FC = () => {
                       borderRadius: '4px',
                       cursor: 'pointer',
                     }}
-                  >
-                    MENÚ LATERAL (SIDEBAR)
-                  </button>
+                  >{t('uxAudit.side_menu_sidebar')} </button>
                   <button
                     type="button"
                     onClick={() => setEditModoNavegacion('TOPNAV')}
@@ -1444,15 +1245,13 @@ export const SuperAdminPage: React.FC = () => {
                       borderRadius: '4px',
                       cursor: 'pointer',
                     }}
-                  >
-                    MENÚ SUPERIOR (TOPNAV)
-                  </button>
+                  >{t('uxAudit.top_menu_topnav')} </button>
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">TELÉFONO DE CONTACTO</label>
+                  <label className="form-label">{t('uxAudit.contact_phone')} </label>
                   <input
                     type="text"
                     value={editTelefono}
@@ -1462,7 +1261,7 @@ export const SuperAdminPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">PLAN DE SUSCRIPCIÓN</label>
+                  <label className="form-label">{t('uxAudit.subscription_plan')} </label>
                   <input
                     type="text"
                     value={editPlan}
@@ -1473,7 +1272,7 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">COLOR ASIGNADO A LA FERRETERÍA (HEX)</label>
+                <label className="form-label">{t('uxAudit.business_color_hex')} </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <input
                     type="color"
@@ -1496,12 +1295,9 @@ export const SuperAdminPage: React.FC = () => {
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setModalEditarTenant(null)}
-                >
-                  CANCELAR
-                </button>
+                >{t('uxAudit.cancel')} </button>
                 <button type="submit" disabled={adminSaving || brandSaving} className="btn btn-primary">
-                  <Check size={16} strokeWidth={2.6} /> GUARDAR CONFIGURACIÓN
-                </button>
+                  <Check size={16} strokeWidth={2.6} />{t('uxAudit.save_settings')} </button>
               </div>
             </form>
           </div>
@@ -1513,18 +1309,16 @@ export const SuperAdminPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                CREAR NUEVO TENANT / CLIENTE
-              </h2>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.create_new_tenant_customer')} </h2>
             </div>
 
             <form onSubmit={handleCrearTenant} style={{ marginTop: '16px' }}>
               <div className="form-group">
-                <label className="form-label">NOMBRE COMERCIAL DE LA EMPRESA</label>
+                <label className="form-label">{t('uxAudit.company_name')} </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ej. FERRETERÍA SAN PEDRO S. DE R.L."
+                  placeholder={t('uxAudit.e_g_san_pedro_hardware_ltd')}
                   value={nombreComercial}
                   onChange={(e) => setNombreComercial(e.target.value)}
                   className="form-input"
@@ -1533,7 +1327,7 @@ export const SuperAdminPage: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">TELÉFONO</label>
+                  <label className="form-label">{t('uxAudit.phone')} </label>
                   <input
                     type="text"
                     placeholder="+504 2550-0000"
@@ -1544,7 +1338,7 @@ export const SuperAdminPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">COLOR DE MARCA</label>
+                  <label className="form-label">{t('uxAudit.brand_color')} </label>
                   <input
                     type="color"
                     value={colorPrimario}
@@ -1555,16 +1349,14 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               <div style={{ borderTop: '1px solid var(--color-sidebar-text)', margin: '14px 0 12px', paddingTop: '10px' }}>
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px' }}>
-                  ADMINISTRADOR INICIAL DE LA FERRETERÍA
-                </div>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px' }}>{t('uxAudit.initial_business_administrator')} </div>
 
                 <div className="form-group">
-                  <label className="form-label">NOMBRE DEL DUEÑO / GERENTE</label>
+                  <label className="form-label">{t('uxAudit.owner_manager_name')} </label>
                   <input
                     type="text"
                     required
-                    placeholder="Ej. Mario Rivera"
+                    placeholder={t('uxAudit.e_g_mario_rivera')}
                     value={adminNombre}
                     onChange={(e) => setAdminNombre(e.target.value)}
                     className="form-input"
@@ -1573,7 +1365,7 @@ export const SuperAdminPage: React.FC = () => {
 
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label">EMAIL DE ACCESO</label>
+                    <label className="form-label">{t('uxAudit.login_email')} </label>
                     <input
                       type="email"
                       required
@@ -1585,7 +1377,7 @@ export const SuperAdminPage: React.FC = () => {
                   </div>
 
                   <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label">CONTRASEÑA TEMPORAL</label>
+                    <label className="form-label">{t('uxAudit.temporary_password')} </label>
                     <input
                       type="password"
                       required
@@ -1604,11 +1396,9 @@ export const SuperAdminPage: React.FC = () => {
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setModalNuevoTenant(false)}
-                >
-                  CANCELAR
-                </button>
+                >{t('uxAudit.cancel')} </button>
                 <button type="submit" disabled={creatingTenant} className="btn btn-primary">
-                  <CheckCircle size={16} strokeWidth={2.6} /> {creatingTenant ? 'CREANDO...' : 'CREAR Y ACTIVAR TENANT'}
+                  <CheckCircle size={16} strokeWidth={2.6} /> {creatingTenant ? t('uxAudit.admin_message_21') : t('uxAudit.admin_message_22')}
                 </button>
               </div>
             </form>
@@ -1622,11 +1412,8 @@ export const SuperAdminPage: React.FC = () => {
           <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '600px' }}>
             <div style={styles.modalHeader}>
               <div>
-                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                  SOPORTE REMOTO • SELECCIONAR USUARIO A IMPERSONAR
-                </h2>
-                <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700 }}>
-                  CLIENTE: {modalSuplantarUser.nombreComercial}
+                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.remote_support_select_user_to_impersonate')} </h2>
+                <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700 }}>{t('uxAudit.customer')} {modalSuplantarUser.nombreComercial}
                 </div>
               </div>
               <button
@@ -1640,12 +1427,12 @@ export const SuperAdminPage: React.FC = () => {
 
             <div style={{ marginTop: '16px' }}>
               <div className="form-group">
-                <label className="form-label">BUSCAR USUARIO POR NOMBRE O CORREO</label>
+                <label className="form-label">{t('uxAudit.find_user_by_name_or_email')} </label>
                 <div style={{ position: 'relative' }}>
                   <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
                   <input
                     type="text"
-                    placeholder="Ej. Carlos Ramos, cajero, admin..."
+                    placeholder={t('uxAudit.e_g_carlos_ramos_cashier_admin')}
                     value={busquedaSuplantar}
                     onChange={(e) => setBusquedaSuplantar(e.target.value)}
                     className="form-input"
@@ -1718,8 +1505,7 @@ export const SuperAdminPage: React.FC = () => {
                         className="btn btn-sm btn-primary"
                         style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800, padding: '6px 12px' }}
                       >
-                        <ExternalLink size={13} /> IMPERSONAR USUARIO
-                      </button>
+                        <ExternalLink size={13} />{t('uxAudit.impersonate_user')} </button>
                     </div>
                   ))}
               </div>
@@ -1729,9 +1515,7 @@ export const SuperAdminPage: React.FC = () => {
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setModalSuplantarUser(null)}
-                >
-                  CANCELAR
-                </button>
+                >{t('uxAudit.cancel')} </button>
               </div>
             </div>
           </div>
@@ -1743,36 +1527,33 @@ export const SuperAdminPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '500px' }}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                MOTIVO OBLIGATORIO DE ACCESO DE SOPORTE
-              </h2>
-              <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>
-                Ingresando como: {usuarioASuplantar.nombre} ({modalSuplantarUser.nombreComercial})
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.required_reason_for_support_access')} </h2>
+              <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>{t('uxAudit.entering_as')} {usuarioASuplantar.nombre} ({modalSuplantarUser.nombreComercial})
               </div>
             </div>
 
             <form onSubmit={ejecutarSuplantacionConMotivo} style={{ marginTop: '16px' }}>
               <div className="form-group">
-                <label className="form-label">CATEGORÍA DEL MOTIVO *</label>
+                <label className="form-label">{t('uxAudit.reason_category')} </label>
                 <select
                   value={soporteCategoria}
                   onChange={(e) => setSoporteCategoria(e.target.value as any)}
                   className="form-select"
                   required
                 >
-                  <option value="Reporte de error">Reporte de error</option>
-                  <option value="Solicitud del cliente">Solicitud del cliente</option>
-                  <option value="Verificación de pago">Verificación de pago</option>
-                  <option value="Otro">Otro</option>
+                  <option value="Reporte de error">{t('uxAudit.bug_report')} </option>
+                  <option value="Solicitud del cliente">{t('uxAudit.customer_request')} </option>
+                  <option value="Verificación de pago">{t('uxAudit.payment_verification')} </option>
+                  <option value="Otro">{t('uxAudit.other')} </option>
                 </select>
               </div>
 
               <div className="form-group">
-                <label className="form-label">DESCRIPCIÓN BREVE (OBLIGATORIO) *</label>
+                <label className="form-label">{t('uxAudit.brief_description_required')} </label>
                 <textarea
                   required
                   rows={3}
-                  placeholder="Escriba el detalle de la solicitud o motivo del soporte..."
+                  placeholder={t('uxAudit.describe_the_request_or_reason_for_support')}
                   value={soporteDescripcion}
                   onChange={(e) => setSoporteDescripcion(e.target.value)}
                   className="form-input"
@@ -1780,26 +1561,20 @@ export const SuperAdminPage: React.FC = () => {
                 />
               </div>
 
-              <div style={{ padding: '10px 12px', backgroundColor: '#FEF3C7', borderRadius: '4px', fontSize: '11px', color: '#B45309', fontWeight: 600 }}>
-                🔒 La sesión iniciará automáticamente en <strong>MODO SOLO LECTURA</strong> por seguridad.
-              </div>
+              <div style={{ padding: '10px 12px', backgroundColor: '#FEF3C7', borderRadius: '4px', fontSize: '11px', color: '#B45309', fontWeight: 600 }}>{t('uxAudit.the_session_starts_automatically_in')} <strong>{t('uxAudit.read_only_mode')} </strong>{t('uxAudit.for_security')} </div>
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setUsuarioASuplantar(null)}
-                >
-                  CANCELAR
-                </button>
+                >{t('uxAudit.cancel')} </button>
                 <button
                   type="submit"
                   disabled={!soporteDescripcion.trim()}
                   className="btn btn-primary"
                   style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
-                >
-                  INICIAR SOPORTE REMOTO
-                </button>
+                >{t('uxAudit.start_remote_support')} </button>
               </div>
             </form>
           </div>
@@ -1811,15 +1586,13 @@ export const SuperAdminPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                NUEVO USUARIO ADMINISTRADOR
-              </h2>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.new_administrator_user')} </h2>
             </div>
 
             <form onSubmit={handleCrearAdmin} aria-busy={adminSaving} style={{ marginTop: '16px' }}>
               {errorText && <p role="alert">{errorText}</p>}
               <div className="form-group">
-                <label className="form-label">EMPRESA / TENANT</label>
+                <label className="form-label">{t('uxAudit.company_tenant')} </label>
                 <select
                   disabled={!!modalEditarAdmin} value={formAdminTenantId}
                   onChange={(e) => setFormAdminTenantId(e.target.value)}
@@ -1835,11 +1608,11 @@ export const SuperAdminPage: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">NOMBRE DEL ADMIN</label>
+                  <label className="form-label">{t('uxAudit.admin_name')} </label>
                   <input
                     type="text"
                     required
-                    placeholder="Ej. Roberto Flores"
+                    placeholder={t('uxAudit.e_g_roberto_flores')}
                     value={formAdminNombre}
                     onChange={(e) => setFormAdminNombre(e.target.value)}
                     className="form-input"
@@ -1847,7 +1620,7 @@ export const SuperAdminPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">CORREO DE LOGIN</label>
+                  <label className="form-label">{t('uxAudit.login_email')} </label>
                   <input
                     type="email"
                     required
@@ -1860,7 +1633,7 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">CONTRASEÑA TEMPORAL</label>
+                <label className="form-label">{t('uxAudit.temporary_password')} </label>
                 <input
                   type="password"
                   required
@@ -1876,12 +1649,9 @@ export const SuperAdminPage: React.FC = () => {
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setModalNuevoAdmin(false)}
-                >
-                  CANCELAR
-                </button>
+                >{t('uxAudit.cancel')} </button>
                 <button type="submit" className="btn btn-primary">
-                  <Check size={16} strokeWidth={2.6} /> REGISTRAR ADMIN
-                </button>
+                  <Check size={16} strokeWidth={2.6} />{t('uxAudit.register_admin')} </button>
               </div>
             </form>
           </div>
@@ -1893,15 +1663,13 @@ export const SuperAdminPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                EDITAR USUARIO ADMINISTRADOR
-              </h2>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.edit_administrator_user')} </h2>
             </div>
 
             <form onSubmit={handleGuardarEdicionAdmin} aria-busy={adminSaving} style={{ marginTop: '16px' }}>
               {errorText && <p role="alert">{errorText}</p>}
               <div className="form-group">
-                <label className="form-label">EMPRESA / TENANT</label>
+                <label className="form-label">{t('uxAudit.company_tenant')} </label>
                 <select
                   value={formAdminTenantId}
                   onChange={(e) => setFormAdminTenantId(e.target.value)}
@@ -1917,7 +1685,7 @@ export const SuperAdminPage: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">NOMBRE COMPLETO</label>
+                  <label className="form-label">{t('uxAudit.full_name')} </label>
                   <input
                     type="text"
                     required
@@ -1928,7 +1696,7 @@ export const SuperAdminPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">CORREO ELECTRÓNICO</label>
+                  <label className="form-label">{t('uxAudit.email')} </label>
                   <input
                     type="email"
                     required
@@ -1940,7 +1708,7 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">ESTADO DEL USUARIO</label>
+                <label className="form-label">{t('uxAudit.user_status')} </label>
                 <div style={{ display: 'flex', gap: '16px', marginTop: '6px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}>
                     <input
@@ -1948,18 +1716,14 @@ export const SuperAdminPage: React.FC = () => {
                       name="adminActivo"
                       checked={formAdminActivo === true}
                       onChange={() => setFormAdminActivo(true)}
-                    />
-                    Activo
-                  </label>
+                    />{t('uxAudit.active')} </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#DC2626' }}>
                     <input
                       type="radio"
                       name="adminActivo"
                       checked={formAdminActivo === false}
                       onChange={() => setFormAdminActivo(false)}
-                    />
-                    Inactivo / Suspendido
-                  </label>
+                    />{t('uxAudit.inactive_suspended')} </label>
                 </div>
               </div>
 
@@ -1968,12 +1732,9 @@ export const SuperAdminPage: React.FC = () => {
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setModalEditarAdmin(null)}
-                >
-                  CANCELAR
-                </button>
+                >{t('uxAudit.cancel')} </button>
                 <button type="submit" className="btn btn-primary">
-                  <Check size={16} strokeWidth={2.6} /> GUARDAR CAMBIOS
-                </button>
+                  <Check size={16} strokeWidth={2.6} />{t('uxAudit.save_changes')} </button>
               </div>
             </form>
           </div>
@@ -1985,23 +1746,20 @@ export const SuperAdminPage: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                RESTABLECER CONTRASEÑA DE ADMIN
-              </h2>
+              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.reset_admin_password')} </h2>
             </div>
 
             <form onSubmit={handleResetPassword} aria-busy={adminSaving} style={{ marginTop: '16px' }}>
               {errorText && <p role="alert">{errorText}</p>}
-              <p style={{ fontSize: '13px', color: '#444' }}>
-                Cambiar contraseña para <strong>{modalResetPassAdmin.nombre}</strong> (<code>{modalResetPassAdmin.email}</code>).
+              <p style={{ fontSize: '13px', color: '#444' }}>{t('uxAudit.change_password_for')} <strong>{modalResetPassAdmin.nombre}</strong> (<code>{modalResetPassAdmin.email}</code>).
               </p>
 
               <div className="form-group" style={{ marginTop: '12px' }}>
-                <label className="form-label">NUEVA CONTRASEÑA TEMPORAL</label>
+                <label className="form-label">{t('uxAudit.new_temporary_password')} </label>
                 <input
                   type="password"
                   required
-                  placeholder="Mínimo 8 caracteres"
+                  placeholder={t('uxAudit.at_least_8_characters')}
                   value={nuevaPasswordInput}
                   onChange={(e) => setNuevaPasswordInput(e.target.value)}
                   className="form-input"
@@ -2013,12 +1771,9 @@ export const SuperAdminPage: React.FC = () => {
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setModalResetPassAdmin(null)}
-                >
-                  CANCELAR
-                </button>
+                >{t('uxAudit.cancel')} </button>
                 <button type="submit" className="btn btn-primary">
-                  <KeyRound size={16} strokeWidth={2.6} /> RESTABLECER CONTRASEÑA
-                </button>
+                  <KeyRound size={16} strokeWidth={2.6} />{t('uxAudit.reset_password')} </button>
               </div>
             </form>
           </div>

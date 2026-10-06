@@ -56,7 +56,7 @@ describe('SuperAdminService', () => {
     expect((await service.listTenants())[0].usuarios).toEqual(usuarios);
     const select = prisma.tenant.findMany.mock.calls[0][0].include.usuarios.select;
     expect(select.passwordHash).toBeUndefined();
-    expect(Object.keys(select).sort()).toEqual(['activo', 'createdAt', 'email', 'id', 'nombre']);
+    expect(Object.keys(select).sort()).toEqual(['activo', 'createdAt', 'email', 'id', 'nombre', 'rol']);
   });
 
   it('issues support tokens with the actual tenant identity and role', async () => {

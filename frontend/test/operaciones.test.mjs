@@ -16,6 +16,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name in mocks) return mocks[name];
     if (name.endsWith('/unidadMedida')) return evaluate('src/utils/unidadMedida.ts', {});
     if (name.endsWith('/numeroCliente')) return evaluate('src/utils/numeroCliente.ts', {});
+    if (name.endsWith('/tenantSettings')) return evaluate('src/utils/tenantSettings.ts', {}, globals);
     if (name.endsWith('/storage')) return evaluate('src/utils/storage.ts', {}, globals);
     if (name.endsWith('/posRecovery')) return evaluate('src/utils/posRecovery.ts', {}, globals);
     return new Proxy({}, { get: (_, key) => String(key) });
@@ -63,6 +64,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
   return {
     render(props = {}) { cursor = 0; root = component(props); return nodes(); },
     find(predicate) { return nodes().find(predicate); },
+    fireFocus() { windowListeners.get('focus')?.(); },
     fireStorage(key) { windowListeners.get('storage')?.({ key }); },
     async effects() { const queued = effects.splice(0); for (const [i, fn] of queued) { cleanups[i]?.(); cleanups[i] = await fn(); } await new Promise((resolve) => setImmediate(resolve)); },
   };
@@ -143,7 +145,7 @@ test('lectura anterior del servidor no revierte una configuración recién guard
     '../utils/api': { api: { get: () => new Promise(done => { resolve = done; }) } },
   }, saved);
   page.render(); await page.effects();
-  page.find(node => node.type === 'ContextProvider').props.value.updateTenantConfig({ colorPrimario: '#0284C7', modoNavegacion: 'TOPNAV' });
+  page.find(node => node.type === 'ContextProvider').props.value.updateTenantConfig({ id: 'tenant-A', colorPrimario: '#0284C7', modoNavegacion: 'TOPNAV' });
   resolve({ data: { id: 'tenant-A', colorPrimario: '#000000', modoNavegacion: 'SIDEBAR' } });
   await new Promise(done => setImmediate(done));
   assert.equal(JSON.parse(saved.getItem('ferre_tenant')).colorPrimario, '#0284C7');
@@ -697,4 +699,44 @@ test('importación bloquea CSV con errores de formato o más de 5000 filas',asyn
     page.render({isOpen:true,onClose(){}});
     assert.ok(page.find(n=>n.children.includes('Revisa el formato CSV y utiliza como máximo 5000 filas por archivo.')));
   }
+});
+
+test('respuesta vacía del servidor elimina apariencia antigua sin perder sucursal local', async () => {
+  const saved = storage();
+  saved.setItem('ferre_user', JSON.stringify({ id:'user-A', rol:'ADMIN' }));
+  saved.setItem('ferre_tenant', JSON.stringify({ id:'tenant-A', templateVersion:'v2', v2Mode:'dark', fuenteTitulos:'Poppins', modoNavegacion:'TOPNAV', sucursal:'Norte', direccion:'Antigua', impuesto:{ tasa:0 } }));
+  const page=harness('src/context/TenantContext.tsx','TenantProvider', { '../utils/api':{ api:{ get:async()=>({ data:{ id:'tenant-A', configuracion:{}, modulosHabilitados:[] } }) } } },saved);
+  page.render(); await page.effects(); page.render();
+  const tenant=page.find(node=>node.type==='ContextProvider').props.value.tenant;
+  assert.equal(tenant.templateVersion,'v1'); assert.equal(tenant.v2Mode,'light');
+  assert.equal(tenant.fuenteTitulos,'Archivo'); assert.equal(tenant.modoNavegacion,'SIDEBAR');
+  assert.equal(tenant.impuesto.tasa,15); assert.equal(tenant.direccion,''); assert.equal(tenant.sucursal,'Norte');
+});
+
+test('lecturas fuera de orden y versiones antiguas no reemplazan el último servidor aceptado', async () => {
+  const saved=storage(), pending=[];
+  saved.setItem('ferre_user',JSON.stringify({ id:'user-A', rol:'ADMIN' }));
+  saved.setItem('ferre_tenant',JSON.stringify({ id:'tenant-A' }));
+  const page=harness('src/context/TenantContext.tsx','TenantProvider',{ '../utils/api':{ api:{ get:()=>new Promise(resolve=>pending.push(resolve)) } } },saved);
+  page.render(); await page.effects(); page.fireFocus();
+  pending[1]({ data:{ id:'tenant-A', nombreComercial:'Nueva', modoNavegacion:'TOPNAV', updatedAt:'2026-10-06T12:00:00Z', configuracion:{ templateVersion:'v2' } } });
+  await new Promise(resolve=>setImmediate(resolve));
+  pending[0]({ data:{ id:'tenant-A', nombreComercial:'Vieja', updatedAt:'2026-10-06T11:00:00Z', configuracion:{} } });
+  await new Promise(resolve=>setImmediate(resolve)); page.render(); page.fireFocus();
+  pending[2]({ data:{ id:'tenant-A', nombreComercial:'Replica atrasada', updatedAt:'2026-10-06T11:30:00Z', configuracion:{} } });
+  await new Promise(resolve=>setImmediate(resolve)); page.render();
+  const tenant=page.find(node=>node.type==='ContextProvider').props.value.tenant;
+  assert.equal(tenant.nombreComercial,'Nueva'); assert.equal(tenant.templateVersion,'v2');
+  assert.equal(tenant.modoNavegacion,'TOPNAV');
+});
+
+test('respuesta de la misma cuenta con otro token de sesión no se aplica', async () => {
+  const saved=storage(); let finish;
+  saved.setItem('ferre_user',JSON.stringify({ id:'user-A', rol:'ADMIN' }));
+  saved.setItem('ferre_tenant',JSON.stringify({ id:'tenant-A', nombreComercial:'Actual' })); saved.setItem('ferre_token','login-1');
+  const page=harness('src/context/TenantContext.tsx','TenantProvider',{ '../utils/api':{ api:{ get:()=>new Promise(resolve=>{finish=resolve;}) } } },saved);
+  page.render(); await page.effects(); saved.setItem('ferre_token','login-2');
+  finish({ data:{ id:'tenant-A', nombreComercial:'Respuesta anterior' } });
+  await new Promise(resolve=>setImmediate(resolve)); page.render();
+  assert.equal(page.find(node=>node.type==='ContextProvider').props.value.tenant.nombreComercial,'Actual');
 });

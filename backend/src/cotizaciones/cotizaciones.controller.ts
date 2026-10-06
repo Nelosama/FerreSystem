@@ -69,6 +69,7 @@ export class CotizacionesController {
     return this.cotizacionesService.updateEstado(tenantId, id, estado);
   }
 
+  @RequiredModule('cotizaciones', 'pos')
   @Post(':id/convertir')
   @RequiredPermission('cotizaciones.convertir_venta')
   @Roles('ADMIN', 'CAJERO')

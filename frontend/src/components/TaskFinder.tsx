@@ -12,13 +12,14 @@ export const TaskFinder: React.FC = () => {
   const [query, setQuery] = React.useState('');
   const [expanded, setExpanded] = React.useState(false);
   const input = React.useRef<HTMLInputElement>(null);
+  const toggle = React.useRef<HTMLButtonElement>(null);
   const compact = pathname !== '/';
   React.useEffect(() => { setQuery(''); setExpanded(false); }, [pathname, user?.id, tenant.id]);
   React.useEffect(() => { if (expanded) input.current?.focus(); }, [expanded]);
   const results = searchTasks(availableTasks(user, tenant), query, t);
   return <section className="task-finder" aria-label={t('tasks.finder')}>
-    {compact && <button type="button" className="task-finder-toggle" aria-expanded={expanded} aria-controls="task-search-panel" onClick={() => setExpanded(!expanded)}><Search size={18} aria-hidden="true" />{t('tasks.finder')}</button>}
-    {(!compact || expanded) && <div id="task-search-panel" onKeyDown={event => { if (event.key === 'Escape') { setExpanded(false); setQuery(''); } }}>
+    {compact && <button type="button" ref={toggle} className="task-finder-toggle" aria-expanded={expanded} aria-controls="task-search-panel" onClick={() => setExpanded(!expanded)}><Search size={18} aria-hidden="true" />{t('tasks.finder')}</button>}
+    {(!compact || expanded) && <div id="task-search-panel" onKeyDown={event => { if (event.key === 'Escape') { setExpanded(false); setQuery(''); if (compact) toggle.current?.focus(); else input.current?.focus(); } }}>
       <label htmlFor="task-search"><Search size={18} aria-hidden="true" />{t('tasks.question')}</label>
       <div className="task-search-row">
         <input ref={input} id="task-search" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={t('tasks.placeholder')} aria-describedby="task-search-help" />
@@ -48,5 +49,6 @@ export const TaskShortcuts: React.FC = () => {
       <span>{t('tasks.' + item.key + '.description')}</span>
     </Link>)}</div>
     {!tasks.length && <p role="status">{t('tasks.unavailable')}</p>}
+    <details><summary>{t('pending.title')}</summary><p>{t('pending.help')}</p></details>
   </section>;
 };

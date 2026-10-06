@@ -79,28 +79,30 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
   });
 }
 
-test('settings: servidor autoritativo, guardado, reload, tasa cero, errores y capturas', async ({ page }) => {
+test('settings: valores fiscales soportados, guardado, reload, errores y capturas', async ({ page }) => {
   const api = await setup(page, 'ADMIN', 'TOPNAV');
   await page.goto('/configuracion');
   await expect(page.locator('.v2-top-navigation')).toBeVisible();
   await expect(page.locator('#task-search')).toHaveCount(0);
-  await page.locator('input[type="number"]').fill('0');
+  await expect(page.locator('#tax-rate')).toHaveValue('15');
+  for (const id of ['currency-code', 'currency-symbol', 'tax-name', 'tax-rate']) await expect(page.locator('#' + id)).toHaveAttribute('readonly', '');
+  await page.locator('#business-name').fill('Empresa guardada');
   await page.getByRole('button', { name: 'APLICAR CAMBIOS', exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'guardadas correctamente' })).toBeVisible();
-  expect(api.writes[0]).toMatchObject({ modoNavegacion: 'TOPNAV', configuracion: { impuesto: { tasa: 0 }, moneda: { codigo: 'HNL' }, templateVersion: 'v2' } });
+  await expect(page.getByRole('status').filter({ hasText: 'guardada correctamente' })).toBeVisible();
+  expect(api.writes[0]).toMatchObject({ modoNavegacion: 'TOPNAV', configuracion: { impuesto: { tasa: 15 }, moneda: { codigo: 'HNL' }, templateVersion: 'v2' } });
   await page.reload();
-  await expect(page.locator('input[type="number"]')).toHaveValue('0');
+  await expect(page.locator('input[type="number"]')).toHaveValue('15');
   await expect(page.locator('.v2-top-navigation')).toBeVisible();
   await page.screenshot({ path: 'artifacts/ux-settings-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'artifacts/ux-settings-mobile.png', fullPage: true });
   api.fail(true);
-  await page.locator('input[type="number"]').fill('10');
+  await page.locator('#business-name').fill('Borrador sin guardar');
   await page.getByRole('button', { name: 'APLICAR CAMBIOS', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Error de prueba al guardar');
-  expect(api.settings().impuesto.tasa).toBe(0);
-  await expect(page.locator('input[type="number"]')).toHaveValue('10');
-  await expect(page.getByRole('status').filter({ hasText: 'guardadas correctamente' })).toHaveCount(0);
+  expect(api.settings().impuesto.tasa).toBe(15);
+  await expect(page.locator('#business-name')).toHaveValue('Borrador sin guardar');
+  await expect(page.getByRole('status').filter({ hasText: 'guardada correctamente' })).toHaveCount(0);
   await page.evaluate(() => { localStorage.removeItem('ferre_user'); localStorage.removeItem('ferre_tenant'); localStorage.removeItem('ferre_token'); });
   await page.goto('/login');
   await page.locator('input[type="email"]').fill('test@example.invalid');
@@ -108,7 +110,7 @@ test('settings: servidor autoritativo, guardado, reload, tasa cero, errores y ca
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await expect(page).toHaveURL(/\/$/);
   await page.goto('/configuracion');
-  await expect(page.locator('input[type="number"]')).toHaveValue('0');
+  await expect(page.locator('input[type="number"]')).toHaveValue('15');
 });
 
 test('marca de Super Admin guarda por API, permanece al recargar y no anuncia éxito ante error', async ({ page }) => {
@@ -143,4 +145,33 @@ test('marca de Super Admin guarda por API, permanece al recargar y no anuncia é
   await expect(modal.getByRole('alert')).toHaveText('Error al guardar marca');
   expect(record.nombreComercial).toBe('Empresa actualizada');
   await expect(page.getByText('Configuración guardada en el servidor.', { exact: true })).toHaveCount(0);
+});
+
+for (const language of ['es', 'en']) test(`buscador Escape restaura foco; configuración y pendientes traducidos ${language}`, async ({ page }) => {
+  await setup(page, 'ADMIN', 'TOPNAV', language);
+  await page.goto('/configuracion');
+  // The accessible label comes from the shared translation, not its icon.
+  const toggle=page.locator('.task-finder-toggle');
+  await toggle.click(); await expect(page.locator('#task-search')).toBeFocused();
+  await page.locator('#task-search').fill(language==='es'?'ventas':'sales');
+  await page.keyboard.press('Escape'); await expect(toggle).toBeFocused();
+  await expect(page.locator('#task-search')).toHaveCount(0);
+  await expect(page.getByRole('heading',{ name:language==='es'?'CONFIGURACIÓN Y MARCA':'SETTINGS AND BRANDING',exact:true })).toBeVisible();
+  await expect(page.locator('#fiscal-limit')).toContainText(language==='es'?'solo lectura':'read only');
+  await page.goto('/');
+  await page.getByText(language==='es'?'Funciones pendientes':'Pending features',{exact:true}).click();
+  await expect(page.locator('.daily-tasks details p')).toContainText(language==='es'?'todavía no registran':'do not record');
+  await expect(page.locator('.daily-tasks details a')).toHaveCount(0);
+  await expect(page.locator('a[href="/apartados"]')).toHaveCount(0);
+});
+
+test('configuración vacía del servidor sustituye apariencia vieja de la caché', async ({ page }) => {
+  await setup(page,'ADMIN','TOPNAV');
+  await page.route('**/api/tenant/settings',route=>route.fulfill({ json:{ id:'ux-company',nombreComercial:'Servidor',colorPrimario:'#0284C7',modoNavegacion:'SIDEBAR',configuracion:{},modulosHabilitados:[] } }));
+  await page.goto('/configuracion');
+  await expect(page.locator('#template-version')).toHaveValue('v1');
+  await expect(page.locator('#classic-style')).toHaveValue('INDUSTRIAL');
+  await expect(page.locator('aside.desktop-sidebar-nav')).toBeVisible();
+  await expect(page.locator('#currency-code')).toHaveValue('HNL');
+  await expect(page.locator('#tax-rate')).toHaveValue('15');
 });

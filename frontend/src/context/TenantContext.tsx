@@ -3,6 +3,7 @@ import type { TenantInfo, UserInfo } from '../types';
 import { api } from '../utils/api';
 import { startSessionSync } from '../utils/sessionSync';
 import { readStoredJson } from '../utils/storage';
+import { normalizeTenantSettings, TenantSettingsReads } from '../utils/tenantSettings';
 
 interface TenantContextType {
   tenant: TenantInfo;
@@ -35,6 +36,7 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const configRevision = React.useRef(0);
+  const settingsReads = React.useRef(new TenantSettingsReads());
   const [tenant, setTenant] = useState<TenantInfo>(() => {
     return readStoredJson('ferre_tenant', DEFAULT_TENANT);
   });
@@ -65,6 +67,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       userId: user.id,
       tenantId: tenant.id,
       onChanged: () => {
+        configRevision.current++;
+        settingsReads.current.invalidate();
         // Otra pestaña puede haber iniciado otra cuenta. Invalidar solo esta
         // pantalla evita mezclar su empresa con el token compartido nuevo.
         setUser(null);
@@ -82,14 +86,18 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let active = true;
     const refresh = () => {
       const revision = configRevision.current;
+      const ticket = settingsReads.current.begin();
+      const session = localStorage.getItem('ferre_token');
       return api.get('/tenant/settings').then(({ data }) => {
-      if (!active || revision !== configRevision.current || data.id !== tenant.id || readStoredJson<UserInfo | null>('ferre_user', null)?.id !== user.id) return;
-      setTenant(previous => {
-        const updated = { ...previous, ...data };
-        if (JSON.stringify(previous) === JSON.stringify(updated)) return previous;
-        localStorage.setItem('ferre_tenant', JSON.stringify(updated));
-        return updated;
-      });
+        if (!active || session !== localStorage.getItem('ferre_token') || revision !== configRevision.current || data.id !== tenant.id || readStoredJson<UserInfo | null>('ferre_user', null)?.id !== user.id) return;
+        setTenant(previous => {
+          if (!active || revision !== configRevision.current || session !== localStorage.getItem('ferre_token')) return previous;
+          const updated = normalizeTenantSettings(data, previous);
+          if (!settingsReads.current.accepts(ticket, updated, previous)) return previous;
+          if (JSON.stringify(previous) === JSON.stringify(updated)) return previous;
+          localStorage.setItem('ferre_tenant', JSON.stringify(updated));
+          return updated;
+        });
       }).catch(() => {});
     };
     void refresh();
@@ -157,6 +165,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const updateBranding = (colorPrimario: string, nombreComercial: string) => {
     configRevision.current++;
+    settingsReads.current.invalidate();
     const updated = { ...tenant, colorPrimario, nombreComercial };
     setTenant(updated);
     localStorage.setItem('ferre_tenant', JSON.stringify(updated));
@@ -164,22 +173,26 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const updateTenantConfig = (updates: Partial<TenantInfo>) => {
     configRevision.current++;
-    const updated = { ...tenant, ...updates };
+    settingsReads.current.invalidate();
+    if (updates.id !== tenant.id) return;
+    const updated = normalizeTenantSettings(updates, tenant);
+    if (tenant.updatedAt && (!updated.updatedAt || Date.parse(updated.updatedAt) < Date.parse(tenant.updatedAt))) return;
     setTenant(updated);
     localStorage.setItem('ferre_tenant', JSON.stringify(updated));
   };
 
   const login = (newUser: UserInfo, newTenant: TenantInfo) => {
     configRevision.current++;
+    settingsReads.current.invalidate();
     setOriginalSuperAdminUser(null);
     setOriginalTenant(null);
     setIsReadOnlyState(false);
     setActiveSupportSessionId(null);
     ['ferre_original_superadmin_user', 'ferre_original_superadmin_tenant', 'ferre_original_superadmin_token', 'ferre_support_target', 'ferre_is_read_only', 'ferre_active_support_session_id'].forEach((key) => localStorage.removeItem(key));
     setUser(newUser);
-    setTenant(newTenant);
+    setTenant(normalizeTenantSettings(newTenant));
     localStorage.setItem('ferre_user', JSON.stringify(newUser));
-    localStorage.setItem('ferre_tenant', JSON.stringify(newTenant));
+    localStorage.setItem('ferre_tenant', JSON.stringify(normalizeTenantSettings(newTenant)));
   };
 
   const impersonateTenantAdmin = async (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string) => {
@@ -201,6 +214,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       localStorage.setItem('ferre_original_superadmin_user', JSON.stringify(user));
       localStorage.setItem('ferre_original_superadmin_tenant', JSON.stringify(tenant));
     }
+    configRevision.current++;
+    settingsReads.current.invalidate();
     setUser(targetAdminUser);
     setTenant(targetTenant);
     setIsReadOnlyState(true);
@@ -245,6 +260,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const stopImpersonating = () => {
+    configRevision.current++;
+    settingsReads.current.invalidate();
     const adminToken = localStorage.getItem('ferre_original_superadmin_token');
     // Compatibilidad con sesiones antiguas: conservaban el token de superadmin.
     if (adminToken) localStorage.setItem('ferre_token', adminToken);
@@ -283,6 +300,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const switchSucursal = (targetSucursalName: string, targetTenantId: string) => {
+    configRevision.current++;
+    settingsReads.current.invalidate();
     const updatedTenant = {
       ...tenant,
       id: targetTenantId,
@@ -294,6 +313,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const logout = () => {
     configRevision.current++;
+    settingsReads.current.invalidate();
     const logoutPath = user?.rol === 'SUPERADMIN' || originalSuperAdminUser ? '/admin/auth/logout' : '/auth/logout';
     void api.post(logoutPath).catch(() => {});
     localStorage.removeItem('ferre_token');

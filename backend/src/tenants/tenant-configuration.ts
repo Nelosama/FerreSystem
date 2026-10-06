@@ -16,9 +16,19 @@ export function validateTenantConfiguration(value: unknown): asserts value is Re
     if (Object.prototype.hasOwnProperty.call(options, key)) {
       if (!options[key].includes(field)) throw new BadRequestException(`Configuración inválida: ${key}`);
     } else if (key === 'moneda') {
-      if (!field || typeof field !== 'object' || Object.keys(field).some(k => !['simbolo', 'codigo'].includes(k)) || typeof field.simbolo !== 'string' || !field.simbolo.trim() || typeof field.codigo !== 'string' || !/^[A-Z]{3}$/.test(field.codigo)) throw new BadRequestException('Moneda inválida');
+      if (!field || typeof field !== 'object' || Object.keys(field).some(k => !['simbolo', 'codigo'].includes(k)) || field.simbolo !== 'L.' || field.codigo !== 'HNL') throw new BadRequestException('Solo se admite HNL (L.); no hay conversión monetaria');
     } else if (key === 'impuesto') {
-      if (!field || typeof field !== 'object' || Object.keys(field).some(k => !['nombre', 'tasa'].includes(k)) || typeof field.nombre !== 'string' || !field.nombre.trim() || typeof field.tasa !== 'number' || !Number.isFinite(field.tasa) || field.tasa < 0 || field.tasa > 100) throw new BadRequestException('Impuesto inválido');
+      if (!field || typeof field !== 'object' || Object.keys(field).some(k => !['nombre', 'tasa'].includes(k)) || field.nombre !== 'ISV' || field.tasa !== 15) throw new BadRequestException('La configuración general admite únicamente ISV del 15%; las tasas transaccionales de cotización se conservan');
     } else throw new BadRequestException('Configuración desconocida');
   }
+}
+
+/** Defaults for legacy/empty configurations. Fiscal settings cannot relabel stored money. */
+export function normalizeTenantConfiguration(value: unknown) {
+  const configuration = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const defaults = { rubro: 'FERRETERIA', estiloUI: 'INDUSTRIAL', templateVersion: 'v1', v2Mode: 'light', fuenteTitulos: 'Archivo', fuenteCuerpo: 'Inter' };
+  return {
+    ...Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, options[key].includes(configuration[key] as string) ? configuration[key] : fallback])),
+    moneda: { simbolo: 'L.', codigo: 'HNL' }, impuesto: { nombre: 'ISV', tasa: 15 },
+  };
 }

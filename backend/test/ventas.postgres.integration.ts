@@ -64,6 +64,9 @@ describe('Ventas / PostgreSQL aislado', () => {
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261002000000_add_customer_numbers/migration.sql')], { windowsHide: true, timeout: 30000 });
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261004000000_operacion_ferreteria/migration.sql')], {timeout:30000});
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261005000000_autorizaciones_devolucion/migration.sql')], {timeout:30000});
+    for (const migration of ['20261005000000_compras_proveedor_y_costo_vigente', '20261006000000_clientes_credito', '20261006000100_tenant_configuration']) {
+      execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve(`prisma/migrations/${migration}/migration.sql`)], { timeout: 30000 });
+    }
     databaseUrl = `postgresql://postgres@127.0.0.1:${port}/postgres?connection_limit=8`;
     prisma = new PrismaService({ datasources: { db: { url: databaseUrl } } });
     console.log('PostgreSQL temporal: Prisma connect');

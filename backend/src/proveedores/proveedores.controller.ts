@@ -1,3 +1,4 @@
+import { RequiredModule } from '../common/decorators/required-module.decorator';
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { Rol } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -9,6 +10,7 @@ import { CreateProveedorDto, UpdateProveedorDto } from './dto/proveedor.dto';
 import { ProveedoresService } from './proveedores.service';
 
 @Controller('proveedores')
+@RequiredModule('ordenes_compra')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Roles(Rol.ADMIN)
 export class ProveedoresController {

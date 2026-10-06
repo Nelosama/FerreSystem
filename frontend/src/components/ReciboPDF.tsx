@@ -38,6 +38,8 @@ export interface ReciboPDFProps {
   subtotal: number;
   descuento?: number;
   isv: number;
+  /** Historical general rate supplied by the quotation contract, never tenant branding. */
+  porcentajeIsv?: number;
   total: number;
   tenant: TenantInfo;
 }
@@ -66,13 +68,15 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
   subtotal,
   descuento = 0,
   isv,
+  porcentajeIsv,
   total,
   tenant,
 }) => {
   const primaryColor = tenant.colorPrimario || '#1E3A8A';
-  const currencySymbol = tenant.moneda?.simbolo || 'L.';
-  const taxName = tenant.impuesto?.nombre || 'ISV';
-  const taxRate = tenant.impuesto?.tasa !== undefined ? tenant.impuesto.tasa : 15;
+  // Ventas guardan importes e ISV, sin moneda ni tasa global histórica.
+  // Cotizaciones proporcionan una tasa general transaccional y líneas exentas.
+  const currencySymbol = 'L.';
+  const taxName = 'ISV';
 
   const styles = StyleSheet.create({
     page: {
@@ -398,7 +402,7 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
 
             <View style={styles.totalLine}>
               <Text style={{ color: '#78716C' }}>
-                {taxName} ({taxRate}%):
+                {taxName}{porcentajeIsv !== undefined && Number.isFinite(porcentajeIsv) ? ` (${porcentajeIsv}%, salvo exentos)` : ''}:
               </Text>
               <Text style={{ fontFamily: 'Helvetica-Bold' }}>
                 {formatMoney(isv, currencySymbol)}

@@ -18,7 +18,7 @@ export class TenantModuleGuard extends JwtAuthGuard implements CanActivate {
   ) { super(); }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredModule = this.reflector.getAllAndOverride<string>(
+    const requiredModule = this.reflector.getAllAndOverride<string | string[] | { anyOf: string[] }>(
       REQUIRED_MODULE_KEY,
       [context.getHandler(), context.getClass()],
     );
@@ -43,25 +43,24 @@ export class TenantModuleGuard extends JwtAuthGuard implements CanActivate {
       throw new ForbiddenException('Tenant ID no encontrado en la petición');
     }
 
-    if (CORE_TENANT_MODULES.includes(requiredModule)) return true;
-
-    const tenantModule = await this.prisma.tenantModule.findUnique({
-      where: {
-        tenantId_moduleKey: {
-          tenantId,
-          moduleKey: requiredModule,
-        },
-      },
-    });
-
-    // If module record exists, check enabled state.
-    // If no record exists yet, by default allow unless explicitly disabled, or default enabled depending on system defaults.
-    if (tenantModule && !tenantModule.enabled) {
-      throw new ForbiddenException(
-        `El módulo "${requiredModule}" no está habilitado para su suscripción.`,
-      );
+    const anyOf = typeof requiredModule === 'object' && !Array.isArray(requiredModule) ? requiredModule.anyOf : null;
+    const requiredModules = anyOf ?? (Array.isArray(requiredModule) ? requiredModule : [requiredModule as string]);
+    for (const moduleKey of requiredModules) {
+      if (CORE_TENANT_MODULES.includes(moduleKey)) {
+        if (anyOf) return true;
+        continue;
+      }
+      const tenantModule = await this.prisma.tenantModule.findUnique({
+        where: { tenantId_moduleKey: { tenantId, moduleKey } },
+      });
+      // Missing records retain legacy availability; explicit disabled records are authoritative.
+      const enabled = !tenantModule || tenantModule.enabled;
+      if (anyOf && enabled) return true;
+      if (!anyOf && !enabled) {
+        throw new ForbiddenException(`El módulo "${moduleKey}" no está habilitado para su suscripción.`);
+      }
     }
-
+    if (anyOf) throw new ForbiddenException(`Ninguno de los módulos "${anyOf.join(', ')}" está habilitado para su suscripción.`);
     return true;
   }
 }

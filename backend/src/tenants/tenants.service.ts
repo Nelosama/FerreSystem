@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { enabledTenantModules } from '../common/tenant-modules';
-import { validateTenantConfiguration } from './tenant-configuration';
+import { normalizeTenantConfiguration, validateTenantConfiguration } from './tenant-configuration';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -21,7 +21,7 @@ export class TenantsService {
 
     return {
       ...tenant,
-      ...(tenant.configuracion as Record<string, unknown>),
+      ...normalizeTenantConfiguration(tenant.configuracion),
       modulosHabilitados: enabledTenantModules(tenant.modulos),
     };
   }
@@ -42,7 +42,7 @@ export class TenantsService {
     if (data.modoNavegacion && !['SIDEBAR', 'TOPNAV'].includes(data.modoNavegacion)) throw new BadRequestException('Navegación inválida');
     const configuracion = data.configuracion;
     if (configuracion !== undefined) validateTenantConfiguration(configuracion);
-    return this.prisma.tenant.update({
+    await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
         ...(configuracion !== undefined && { configuracion }),
@@ -55,5 +55,6 @@ export class TenantsService {
         ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
       },
     });
+    return this.getTenantSettings(tenantId);
   }
 }
