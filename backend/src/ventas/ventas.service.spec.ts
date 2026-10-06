@@ -19,6 +19,10 @@ describe('VentasService - Descuento Stock Decimal', () => {
       findFirst: vi.fn(),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
+    cliente: {
+      findFirst: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
     venta: {
       create: vi.fn(),
     },
@@ -112,6 +116,18 @@ describe('VentasService - Descuento Stock Decimal', () => {
       detalles: [{ productoId: 'producto-tenant-B', cantidad: 0.5 }],
     })).rejects.toThrow('no encontrado');
     expect(mockPrisma.producto.updateMany).not.toHaveBeenCalled();
+    expect(mockPrisma.venta.create).not.toHaveBeenCalled();
+  });
+
+  it('rechaza una venta a crédito cuando el cliente no tiene crédito habilitado', async () => {
+    mockPrisma.cliente.findFirst.mockResolvedValue({
+      id: 'cliente-1', tenantId: 'tenant-A', activo: true,
+      creditoHabilitado: false, saldoPendiente: 0, limiteCredito: 100,
+    });
+    await expect(service.create('tenant-A', 'user-A', {
+      clienteId: 'cliente-1', metodoPago: 'CREDITO',
+      detalles: [{ productoId: 'prod-123', cantidad: 1 }],
+    })).rejects.toMatchObject({ status: 400 });
     expect(mockPrisma.venta.create).not.toHaveBeenCalled();
   });
 

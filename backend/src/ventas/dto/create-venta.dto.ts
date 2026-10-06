@@ -1,5 +1,6 @@
 import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum, IsUUID, IsBoolean, IsDateString, ArrayMinSize, ArrayMaxSize, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
+import { TipoPago } from '@prisma/client';
 
 export enum MetodoPagoEnum {
   EFECTIVO = 'EFECTIVO',
@@ -41,6 +42,10 @@ export class CreateVentaDto {
   @IsEnum(MetodoPagoEnum)
   @IsOptional()
   metodoPago?: MetodoPagoEnum;
+
+  @IsEnum(TipoPago)
+  @IsOptional()
+  tipoPago?: TipoPago;
 
   @IsNumber({maxDecimalPlaces:2})
   @Min(0)
