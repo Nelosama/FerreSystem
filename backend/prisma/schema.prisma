@@ -86,6 +86,12 @@ enum EstadoLevantamiento {
   FINALIZADO
 }
 
+enum EstadoCompra {
+  PENDIENTE
+  PAGADA
+  PARCIAL
+}
+
 // ============================================================
 // SUPER ADMIN — Tabla separada, sin tenant_id
 // ============================================================
@@ -222,6 +228,7 @@ model Producto {
   categoriaId   String?     @map("categoria_id")
   precioVenta   Decimal     @map("precio_venta") @db.Decimal(12, 2)
   precioCosto   Decimal     @map("precio_costo") @db.Decimal(12, 2)
+  costoVigente  Decimal?    @map("costo_vigente") @db.Decimal(12, 2)
   stockActual   Decimal     @default(0) @map("stock_actual") @db.Decimal(12, 2)
   stockMinimo   Decimal     @default(0) @map("stock_minimo") @db.Decimal(12, 2)
   unidadMedida  UnidadMedida @default(UNIDAD) @map("unidad_medida")
@@ -236,6 +243,9 @@ model Producto {
   categoria     Categoria?  @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
   detallesVenta DetalleVenta[]
   detallesCotizacion DetalleCotizacion[]
+  detallesCompra DetalleCompra[]
+  costosCompra CostoCompra[]
+  movimientosInventario MovimientoInventario[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId])
@@ -243,8 +253,6 @@ model Producto {
   @@index([tenantId, nombre])
   @@index([tenantId, codigoBarras])
   @@map("productos")
- costosCompra CostoCompra[]
- movimientosInventario MovimientoInventario[]
 }
 
 // ============================================================
@@ -534,13 +542,57 @@ model Proveedor {
  telefono String?
  email String?
  direccion String?
+ activo Boolean @default(true)
  createdAt DateTime @default(now()) @map("created_at")
  updatedAt DateTime @updatedAt @map("updated_at")
  @@index([tenantId])
  @@index([tenantId,nombre])
- @@map("proveedores")
+ comprasRegistradas CompraProveedor[]
  costos CostoCompra[]
  cuentas CuentaOperativa[]
+ @@map("proveedores")
+}
+model CompraProveedor {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ proveedorId String @map("proveedor_id")
+ numeroFactura String? @map("numero_factura")
+ monto Decimal @db.Decimal(12,2)
+ fecha DateTime
+ vencimiento DateTime?
+ estado EstadoCompra @default(PENDIENTE)
+ notas String?
+ createdAt DateTime @default(now()) @map("created_at")
+ proveedor Proveedor @relation(fields:[proveedorId],references:[id],onDelete:Restrict)
+ detalles DetalleCompra[]
+ pagos PagoProveedor[]
+ @@index([tenantId])
+ @@index([tenantId,estado])
+ @@map("compras_proveedor")
+}
+model DetalleCompra {
+ id String @id @default(uuid())
+ compraId String @map("compra_id")
+ productoId String @map("producto_id")
+ cantidad Decimal @db.Decimal(12,2)
+ costoUnitario Decimal @map("costo_unitario") @db.Decimal(12,2)
+ subtotal Decimal @db.Decimal(12,2)
+ compra CompraProveedor @relation(fields:[compraId],references:[id],onDelete:Cascade)
+ producto Producto @relation(fields:[productoId],references:[id],onDelete:Restrict)
+ @@index([compraId])
+ @@index([productoId])
+ @@map("detalles_compra_proveedor")
+}
+model PagoProveedor {
+ id String @id @default(uuid())
+ compraId String @map("compra_id")
+ monto Decimal @db.Decimal(12,2)
+ fecha DateTime
+ metodo String?
+ notas String?
+ compra CompraProveedor @relation(fields:[compraId],references:[id],onDelete:Cascade)
+ @@index([compraId])
+ @@map("pagos_proveedor")
 }
 model OrdenCompra {
  id String @id @default(uuid())
@@ -562,8 +614,8 @@ model OrdenCompra {
  @@unique([tenantId,codigo])
  @@index([tenantId])
  @@index([tenantId,estado])
- @@map("ordenes_compra")
  recepciones RecepcionCompra[]
+ @@map("ordenes_compra")
 }
 model DetalleOrdenCompra {
  id String @id @default(uuid())
