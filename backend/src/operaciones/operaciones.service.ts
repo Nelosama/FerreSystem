@@ -106,6 +106,10 @@ export class OperacionesService {
    }
    const [p]=await query(tx,'INSERT INTO pagos_cuenta (id,tenant_id,cuenta_id,solicitud_id,solicitud_hash,monto,metodo,usuario_id,caja_id,notas) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',id(),tenantId,c.id,dto.solicitudId,hash,monto,metodo,userId,caja.id,dto.notas || null);
    await query(tx,'UPDATE cuentas_operativas SET saldo=saldo-$1 WHERE id=$2 RETURNING id',monto,c.id);
+   if(c.tipo==='CXC'&&c.cliente_id){
+    await query(tx,'UPDATE clientes SET saldo_pendiente=GREATEST(0,saldo_pendiente-$1) WHERE id=$2 AND tenant_id=$3 RETURNING id',monto,c.cliente_id,tenantId);
+    await query(tx,"UPDATE ventas SET saldo_credito=GREATEST(0,COALESCE(saldo_credito,0)-$1) WHERE id=$2 AND tenant_id=$3 AND tipo_pago='CREDITO' RETURNING id",monto,c.documento_id,tenantId);
+   }
    await cashMovement(tx,caja.id,userId,c.tipo==='CXC'?'ABONO_CXC':'PAGO_CXP',c.tipo==='CXC'?monto:-monto,metodo,p.id,c.tipo==='CXC'?'Abono de cliente':'Pago a proveedor');
    await audit(tx,tenantId,userId,'CUENTA_PAGAR',p.id,{cuentaId,monto,metodo});return p;
   });

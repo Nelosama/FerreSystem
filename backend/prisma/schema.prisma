@@ -86,10 +86,16 @@ enum EstadoLevantamiento {
   FINALIZADO
 }
 
+<<<<<<< Updated upstream
 enum EstadoCompra {
   PENDIENTE
   PAGADA
   PARCIAL
+=======
+enum TipoPago {
+  CONTADO
+  CREDITO
+>>>>>>> Stashed changes
 }
 
 // ============================================================
@@ -134,6 +140,7 @@ model Tenant {
   secuenciaCliente SecuenciaCliente?
   ventas           Venta[]
   cotizaciones     Cotizacion[]
+  abonosCliente    AbonoCliente[]
   secuencias       SecuenciaTenant[]
   modulos          TenantModule[]
   levantamientos   Levantamiento[]
@@ -262,12 +269,17 @@ model Producto {
 model Cliente {
   id          String      @id @default(uuid())
   tenantId    String      @map("tenant_id")
+  codigo      String      @default("")
   numeroCliente Int       @default(0) @map("numero_cliente")
   nombre      String
   rtn         String?
   telefono    String?
   email       String?
   direccion   String?
+  creditoHabilitado Boolean @default(false) @map("credito_habilitado")
+  limiteCredito Decimal? @map("limite_credito") @db.Decimal(12,2)
+  saldoPendiente Decimal @default(0) @map("saldo_pendiente") @db.Decimal(12,2)
+  activo      Boolean @default(true)
   tipo        TipoCliente @default(CONSUMIDOR_FINAL)
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
@@ -276,12 +288,15 @@ model Cliente {
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ventas      Venta[]
   cotizaciones Cotizacion[]
+  abonos      AbonoCliente[]
+  cuentas CuentaOperativa[]
 
   @@index([tenantId])
+  @@unique([tenantId, codigo])
+  @@index([tenantId, activo])
   @@index([tenantId, nombre])
   @@unique([tenantId, numeroCliente])
   @@map("clientes")
- cuentas CuentaOperativa[]
 }
 
 model SecuenciaCliente {
@@ -320,6 +335,8 @@ model Venta {
   tenantId    String      @map("tenant_id")
   numeroVenta Int         @map("numero_venta")
   clienteId   String?     @map("cliente_id")
+  tipoPago    TipoPago    @default(CONTADO) @map("tipo_pago")
+  saldoCredito Decimal?   @map("saldo_credito") @db.Decimal(12,2)
   usuarioId   String      @map("usuario_id")
   subtotal    Decimal     @db.Decimal(12, 2)
   isv         Decimal     @db.Decimal(12, 2)
@@ -339,6 +356,7 @@ model Venta {
   // Relaciones
   tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   cliente     Cliente?       @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  abonos      AbonoCliente[]
   usuario     Usuario        @relation(fields: [usuarioId], references: [id])
   detalles    DetalleVenta[]
   cotizacion  Cotizacion?    // Si fue generada desde una cotización
@@ -348,6 +366,24 @@ model Venta {
   @@index([tenantId, estado])
   @@index([tenantId, createdAt])
   @@map("ventas")
+}
+
+model AbonoCliente {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  clienteId String   @map("cliente_id")
+  ventaId   String?  @map("venta_id")
+  monto     Decimal  @db.Decimal(12,2)
+  fecha     DateTime
+  metodo    String?
+  notas     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  venta     Venta?   @relation(fields: [ventaId], references: [id], onDelete: Restrict)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([clienteId])
+  @@map("abonos_cliente")
 }
 
 // ============================================================

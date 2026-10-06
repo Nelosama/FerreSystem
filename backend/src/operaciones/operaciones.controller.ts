@@ -19,7 +19,7 @@ export class OperacionesController {
  @Post('compras') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') compra(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:CompraDto){return this.service.compra(t,u,dto);}
  @Post('compras/:id/recepciones') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') recibir(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:RecepcionDto){return this.service.recibir(t,u,id,dto);}
  @Get('cuentas') @Roles('ADMIN','CAJERO') cuentas(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('tipo') tipo:string){return this.service.cuentas(t,u,tipo);}
- @Post('cuentas/:id/pagos') @Roles('ADMIN','CAJERO') pagar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:PagoDto){return this.service.pagar(t,u,id,dto);}
+ @Post('cuentas/:id/pagos') @Roles('ADMIN') pagar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:PagoDto){return this.service.pagar(t,u,id,dto);}
  @Get('caja') @Roles('ADMIN','CAJERO','VENDEDOR') caja(@TenantId() t:string,@CurrentUser('sub') u:string){return this.service.caja(t,u);}
  @Post('caja/abrir') @Roles('ADMIN','CAJERO','VENDEDOR') abrir(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:AbrirCajaDto){return this.service.abrir(t,u,dto);}
  @Post('caja/:id/cerrar') @Roles('ADMIN','CAJERO','VENDEDOR') cerrar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:CerrarCajaDto){return this.service.cerrar(t,u,id,dto);}

@@ -8,6 +8,11 @@ export enum MetodoPagoEnum {
   TRANSFERENCIA = 'TRANSFERENCIA',
 }
 
+export enum TipoPagoEnum {
+  CONTADO = 'CONTADO',
+  CREDITO = 'CREDITO',
+}
+
 export class DetalleVentaItemDto {
   @IsString()
   @IsNotEmpty()
@@ -34,6 +39,7 @@ export class CreateVentaDto {
   @IsString()
   @IsOptional()
   clienteId?: string;
+  @IsOptional() @IsEnum(TipoPagoEnum) tipoPago?: TipoPagoEnum;
   @IsOptional() @IsString() @MaxLength(200) clienteNombre?: string;
   @IsOptional() @IsString() @MaxLength(100) clienteRtn?: string;
   @IsOptional() @IsDateString() vencimiento?: string;

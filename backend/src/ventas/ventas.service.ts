@@ -1,5 +1,6 @@
 import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -102,6 +103,7 @@ export class VentasService {
       clienteNombre?: string;
       clienteRtn?: string;
       vencimiento?: string;
+      tipoPago?: 'CONTADO' | 'CREDITO';
       metodoPago?: any;
       descuento?: number;
       notas?: string;
@@ -127,6 +129,9 @@ export class VentasService {
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx,tenantId);
       const user = await authorizedActor(tx,tenantId,usuarioId,['ADMIN','CAJERO','VENDEDOR'],'pos.vender');
+      const esCredito = dto.tipoPago === 'CREDITO' || dto.metodoPago === 'CREDITO';
+      if (dto.tipoPago === 'CONTADO' && dto.metodoPago === 'CREDITO') throw new BadRequestException('El tipo de pago contado no puede usar método de crédito');
+      if (dto.tipoPago === 'CREDITO' && dto.metodoPago && dto.metodoPago !== 'CREDITO') throw new BadRequestException('Una venta a crédito debe usar método de pago crédito');
       // Un reintento conserva el ID de la venta; el bloqueo dura hasta commit/rollback.
       if (dto.solicitudId) {
         await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + dto.solicitudId}, 0))`;
@@ -148,7 +153,8 @@ export class VentasService {
           if (anterior.tenantId !== tenantId || anterior.usuarioId !== usuarioId ||
               (anterior.solicitudHash && anterior.solicitudHash !== requestHash) ||
               anterior.clienteId !== (dto.clienteId || null) ||
-              anterior.metodoPago !== (dto.metodoPago || 'EFECTIVO') ||
+              anterior.metodoPago !== (esCredito ? 'CREDITO' : (dto.metodoPago || 'EFECTIVO')) ||
+              anterior.tipoPago !== (esCredito ? 'CREDITO' : 'CONTADO') ||
               Number(anterior.descuento) !== descuento || anterior.notas !== (dto.notas || null) ||
               !mismosDetalles) {
             throw new ConflictException('La solicitud ya fue utilizada para otra venta');
@@ -157,13 +163,15 @@ export class VentasService {
         }
       }
 
-      const metodo = dto.metodoPago || 'EFECTIVO';
+      const metodo = esCredito ? 'CREDITO' : (dto.metodoPago || 'EFECTIVO');
       if (!['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].includes(metodo)) throw new BadRequestException('Método de pago inválido');
-      if (metodo === 'CREDITO' && !dto.clienteId) throw new BadRequestException('Seleccione un cliente registrado para vender a crédito');
+      if (esCredito && !dto.clienteId) throw new BadRequestException('Seleccione un cliente registrado para vender a crédito');
       const caja = await openCash(tx,tenantId,usuarioId);
+      let clienteCredito: any = null;
       if (dto.clienteId) {
-        const cliente = await tx.cliente.findFirst({ where: { id: dto.clienteId, tenantId } });
-        if (!cliente) throw new NotFoundException('Cliente seleccionado no existe');
+        clienteCredito = await tx.cliente.findFirst({ where: { id: dto.clienteId, tenantId, activo: true } });
+        if (!clienteCredito) throw new NotFoundException('Cliente seleccionado no existe o está inactivo');
+        if (esCredito && !clienteCredito.creditoHabilitado) throw new BadRequestException('El cliente no tiene crédito habilitado');
       }
 
       // 1. Obtener siguiente número secuencial por tenant con bloqueo atómico
@@ -250,6 +258,10 @@ export class VentasService {
       const baseGravable = money(subtotalTotal - descuento);
       const isv = Math.round(baseGravable * 0.15 * 100) / 100;
       const total = Math.round((baseGravable + isv) * 100) / 100;
+      if (esCredito && clienteCredito.limiteCredito !== null &&
+          new Prisma.Decimal(clienteCredito.saldoPendiente).add(total).greaterThan(clienteCredito.limiteCredito)) {
+        throw new BadRequestException('La venta supera el límite de crédito disponible del cliente');
+      }
 
       // 4. Crear la venta en base de datos
       const venta = await tx.venta.create({
@@ -259,6 +271,8 @@ export class VentasService {
           reservaPendiente:detallesParaCrear.some(d=>!d.sinInventario),
           numeroVenta,
           clienteId: dto.clienteId || null,
+          tipoPago: esCredito ? 'CREDITO' : 'CONTADO',
+          saldoCredito: esCredito ? total : null,
           usuarioId,
           cajaId: caja.id,
           clienteNombre: dto.clienteNombre?.trim() || null,
@@ -292,7 +306,10 @@ export class VentasService {
         },
       });
 
-      if (metodo === 'CREDITO') await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,dto.vencimiento);
+      if (esCredito) {
+        await tx.cliente.update({ where: { id: clienteCredito.id, tenantId }, data: { saldoPendiente: { increment: new Prisma.Decimal(total) } } });
+        await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,dto.vencimiento);
+      }
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',total,metodo,venta.id,`Venta ${numeroVenta}`);
       await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id});
       return this.formatVentaCreada(venta);
