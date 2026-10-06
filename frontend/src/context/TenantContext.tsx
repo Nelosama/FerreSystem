@@ -27,6 +27,7 @@ const DEFAULT_TENANT: TenantInfo = {
   sucursal: 'Sucursal Principal',
   colorPrimario: '#EA580C',
   logoUrl: null,
+  templateVersion: 'v1',
 };
 
 
@@ -125,6 +126,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     syncTenantFromStorage();
 
     const root = document.documentElement;
+    const templateVersion = tenant.templateVersion === 'v2' ? 'v2' : 'v1';
+    const v2Mode = tenant.v2Mode === 'dark' || tenant.v2Mode === 'hybrid' ? tenant.v2Mode : 'light';
+    root.dataset.template = templateVersion;
+    root.classList.remove('v2-mode-light', 'v2-mode-dark', 'v2-mode-hybrid');
+    if (templateVersion === 'v2') root.classList.add(`v2-mode-${v2Mode}`);
     let color = tenant.colorPrimario || '#EA580C';
     let estiloUI = tenant.estiloUI || 'INDUSTRIAL';
     let fuenteTitulos = tenant.fuenteTitulos || 'Archivo';
@@ -169,7 +175,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Tipografías
     root.style.setProperty('--font-display', `'${fuenteTitulos}', sans-serif`);
     root.style.setProperty('--font-body', `'${fuenteCuerpo}', sans-serif`);
-  }, [user?.id, tenant.id, tenant.nombreComercial, tenant.colorPrimario, tenant.estiloUI, tenant.fuenteTitulos, tenant.fuenteCuerpo]);
+    return () => {
+      delete root.dataset.template;
+      root.classList.remove('v2-mode-light', 'v2-mode-dark', 'v2-mode-hybrid');
+    };
+  }, [user?.id, tenant.id, tenant.nombreComercial, tenant.colorPrimario, tenant.estiloUI, tenant.fuenteTitulos, tenant.fuenteCuerpo, tenant.templateVersion, tenant.v2Mode]);
 
   const updateBranding = (colorPrimario: string, nombreComercial: string) => {
     const updated = { ...tenant, colorPrimario, nombreComercial };

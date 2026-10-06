@@ -50,6 +50,9 @@ export interface TenantInfo {
   rubro?: Rubro | keyof typeof Rubro;
   modulosHabilitados?: string[];
   estiloUI?: 'INDUSTRIAL' | 'MINIMALISTA' | 'MODERNO';
+  /** Missing on legacy tenants; interpreted as v1. */
+  templateVersion?: 'v1' | 'v2';
+  v2Mode?: 'dark' | 'light' | 'hybrid';
   modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
   fuenteTitulos?: 'Archivo' | 'Space Grotesk' | 'Poppins' | 'Montserrat';
   fuenteCuerpo?: 'Inter' | 'IBM Plex Sans' | 'Nunito Sans';

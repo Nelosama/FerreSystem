@@ -687,9 +687,9 @@ export const CotizacionesPage: React.FC = () => {
                 <th>{t('operational.vendedor')}</th>
                 <th style={{ textAlign: 'center' }}>{t('operational.vence')}</th>
                 <th style={{ textAlign: 'center' }}>{t('operational.items')}</th>
-                <th style={{ textAlign: 'right' }}>{t('common.subtotal')}</th>
-                <th style={{ textAlign: 'right' }}>ISV (15%)</th>
-                <th style={{ textAlign: 'right' }}>{t('common.total')}</th>
+                <th className="numeric-cell" style={{ textAlign: 'right' }}>{t('common.subtotal')}</th>
+                <th className="numeric-cell" style={{ textAlign: 'right' }}>ISV (15%)</th>
+                <th className="numeric-cell" style={{ textAlign: 'right' }}>{t('common.total')}</th>
                 <th style={{ textAlign: 'center' }}>{t('common.status')}</th>
                 <th style={{ textAlign: 'center' }}>{t('common.actions')}</th>
               </tr>
@@ -718,10 +718,10 @@ export const CotizacionesPage: React.FC = () => {
                       <span style={{ fontWeight: 700, fontSize: '12px' }}>{c.fechaValidez}</span>
                     </td>
                     <td style={{ textAlign: 'center', fontWeight: 700 }}>{c.itemsCount || (c.detalles ? c.detalles.length : 1)}</td>
-                    <td style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                    <td className="numeric-cell" style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                       {formatLempiras(c.subtotal)}
                     </td>
-                    <td style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                    <td className="numeric-cell" style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                       {formatLempiras(c.isv)}
                     </td>
                     <td
@@ -1077,7 +1077,7 @@ export const CotizacionesPage: React.FC = () => {
                             <td style={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
                               {item.unidadMedida}
                             </td>
-                            <td style={{ textAlign: 'right' }}>
+                            <td className="numeric-cell" style={{ textAlign: 'right' }}>
                               <input
                                 type="number"
                                 min={0}
@@ -1097,7 +1097,7 @@ export const CotizacionesPage: React.FC = () => {
                                 </div>
                               )}
                             </td>
-                            <td style={{ textAlign: 'right' }}>
+                            <td className="numeric-cell" style={{ textAlign: 'right' }}>
                               <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
                                 <input
                                   type="number"
@@ -1130,7 +1130,7 @@ export const CotizacionesPage: React.FC = () => {
                                 onChange={(e) => handleActualizarLinea(idx, 'exento', e.target.checked)}
                               />
                             </td>
-                            <td style={{ textAlign: 'right', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                            <td className="numeric-cell" style={{ textAlign: 'right', fontWeight: 800, whiteSpace: 'nowrap' }}>
                               {formatLempiras(item.subtotal + item.isv)}
                             </td>
                             <td style={{ textAlign: 'center' }}>
@@ -1275,7 +1275,7 @@ export const CotizacionesPage: React.FC = () => {
                       <th>{t('operational.producto')}</th>
                       <th>{t('inventory.category')}</th>
                       <th>{t('common.unit')}</th>
-                      <th style={{ textAlign: 'right' }}>{t('operational.precio_l')}</th>
+                      <th className="numeric-cell" style={{ textAlign: 'right' }}>{t('operational.precio_l')}</th>
                       <th style={{ textAlign: 'center' }}>STOCK</th>
                       <th style={{ textAlign: 'center' }}>{t('operational.accion')}</th>
                     </tr>
@@ -1297,7 +1297,7 @@ export const CotizacionesPage: React.FC = () => {
                           </td>
                           <td style={{ fontSize: '11px' }}>{p.categoria}</td>
                           <td style={{ fontSize: '11px', fontWeight: 700 }}>{p.unidadMedida}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 800 }}>{formatLempiras(p.precioVenta)}</td>
+                          <td className="numeric-cell" style={{ textAlign: 'right', fontWeight: 800 }}>{formatLempiras(p.precioVenta)}</td>
                           <td style={{ textAlign: 'center' }}>
                             <span
                               style={{
@@ -1453,9 +1453,9 @@ export const CotizacionesPage: React.FC = () => {
                     <th style={{ textAlign: 'center', padding: '6px' }}>{t('operational.cant')}</th>
                     <th style={{ textAlign: 'center', padding: '6px' }}>{t('operational.medida')}</th>
                     <th style={{ textAlign: 'center', padding: '6px' }}>{t('operational.total_med')}</th>
-                    <th style={{ textAlign: 'right', padding: '6px' }}>{t('operational.precio_unit')}</th>
-                    <th style={{ textAlign: 'right', padding: '6px' }}>{t('operational.desc')}</th>
-                    <th style={{ textAlign: 'right', padding: '6px' }}>{t('operational.total_linea')}</th>
+                    <th className="numeric-cell" style={{ textAlign: 'right', padding: '6px' }}>{t('operational.precio_unit')}</th>
+                    <th className="numeric-cell" style={{ textAlign: 'right', padding: '6px' }}>{t('operational.desc')}</th>
+                    <th className="numeric-cell" style={{ textAlign: 'right', padding: '6px' }}>{t('operational.total_linea')}</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -1,3 +1,4 @@
+import { TenantBrand } from './TenantBrand';
 import React from 'react';
 import { Calendar, Clock, UserCheck, LogOut, Bell, Check, X, ShieldAlert, GitBranch } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
@@ -61,7 +62,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <header style={styles.header}>
+    <header className="v2-topbar" style={styles.header}>
       {/* Banner de Modo Soporte Técnico (Impersonación de Super Admin) */}
       {isImpersonating && (
         <div style={styles.supportBanner}>
@@ -140,7 +141,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
       )}
 
-      <div style={styles.titleContainer}>
+      <div className="v2-topbar-title" style={styles.titleContainer}>{tenant.templateVersion === 'v2' && <TenantBrand />}
         <div style={styles.headingWrapper}>
           <h1 style={styles.mainTitle}>{title}</h1>
           <div style={styles.accentUnderline} />
@@ -159,7 +160,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 value={tenant.sucursal || 'Sucursal Principal'}
                 disabled={sucursalesDisponibles.length < 2}
                 onChange={(e) => switchSucursal(e.target.value, tenant.id)}
-                style={styles.sucursalSelect}
+                className="v2-branch-select" style={styles.sucursalSelect}
                 aria-label="Seleccionar sucursal"
               >
                 {sucursalesDisponibles.map((s: any) => (
@@ -325,7 +326,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
 
         {/* Badge de Fecha Oficial */}
-        <div style={styles.dateBadge}>
+        <div className="v2-date-badge" style={styles.dateBadge}>
           <Calendar size={15} strokeWidth={2.5} />
           <span>{getDynamicDate()}</span>
         </div>
@@ -333,7 +334,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Info Cajero/Admin y Botón de Cerrar Sesión */}
         {user && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={styles.userBadge}>
+            <div className="v2-user-badge" style={styles.userBadge}>
               <UserCheck size={14} strokeWidth={2.4} color="var(--color-primary)" />
               <span>{user.nombre}</span>
             </div>

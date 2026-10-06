@@ -200,8 +200,8 @@ export const InventarioPage: React.FC = () => {
                 <th>{t('inventory.product')}</th>
                 <th>{t('inventory.category')}</th>
                 <th>{t('common.unit')}</th>
-                <th style={{ textAlign: 'right' }}>{t('inventory.price')}</th>
-                <th style={{ textAlign: 'right' }}>{t('inventory.cost')}</th>
+                <th className="numeric-cell" style={{ textAlign: 'right' }}>{t('inventory.price')}</th>
+                <th className="numeric-cell" style={{ textAlign: 'right' }}>{t('inventory.cost')}</th>
                 <th style={{ textAlign: 'center' }}>{t('inventory.stock')}</th>
                 <th style={{ textAlign: 'center' }}>{t('inventory.minimum')}</th>
                 <th style={{ textAlign: 'center' }}>{t('common.status')}</th>
@@ -243,16 +243,13 @@ export const InventarioPage: React.FC = () => {
                       <td style={{ fontSize: '12px', color: 'var(--color-text-muted)', textTransform: 'lowercase' }}>
                         {p.unidadMedida}
                       </td>
-                      <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      <td className="numeric-cell" style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, whiteSpace: 'nowrap' }}>
                         {formatLempiras(p.precioVenta)}
                       </td>
-                      <td style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                      <td className="numeric-cell" style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                         {formatLempiras(p.precioCosto)}
                       </td>
-                      <td
-                        style={{
-                          textAlign: 'center',
-                          fontFamily: 'var(--font-display)',
+                      <td className="numeric-cell" style={{ textAlign: 'center', fontFamily: 'var(--font-display)',
                           fontWeight: 800,
                           fontSize: '15px',
                           color: stockBajo ? 'var(--color-primary)' : 'inherit',
@@ -261,7 +258,7 @@ export const InventarioPage: React.FC = () => {
                         {p.stockActual} físicos
                         <small style={{display:'block',fontSize:10}}>{p.stockReservado||0} reservados · {p.stockDisponible??p.stockActual} disponibles</small>
                       </td>
-                      <td style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>{p.stockMinimo}</td>
+                      <td className="numeric-cell" style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>{p.stockMinimo}</td>
                       <td style={{ textAlign: 'center' }}>
                         {stockBajo ? (
                           <span className="badge badge-danger">

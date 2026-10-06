@@ -10,6 +10,7 @@ import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 import './App.css';
+import './v2-theme.css';
 import { TaskFinder } from './components/TaskFinder';
 import { ModuloPendiente } from './components/ModuloPendiente';
 

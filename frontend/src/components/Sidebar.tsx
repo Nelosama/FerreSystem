@@ -1,3 +1,4 @@
+import { TenantBrand } from './TenantBrand';
 import { canNavigate } from '../utils/taskNavigation';
 import React from 'react';
 import { NavLink } from 'react-router-dom';
@@ -25,11 +26,11 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className="desktop-sidebar-nav" style={styles.sidebar}>
+    <aside className="desktop-sidebar-nav v2-sidebar" style={styles.sidebar}>
       {/* Brand Header */}
       <div style={styles.brandHeader}>
         <div style={styles.logoRow}>
-          {tenant.logoUrl ? (
+          {tenant.templateVersion === 'v2' ? <TenantBrand /> : tenant.logoUrl ? (
             <img
               src={tenant.logoUrl}
               alt="Tenant Logo"
@@ -40,7 +41,7 @@ export const Sidebar: React.FC = () => {
               <Box size={28} strokeWidth={2.5} color="var(--color-primary)" />
             </div>
           )}
-          {!tenant.logoUrl && (
+          {tenant.templateVersion !== 'v2' && !tenant.logoUrl && (
             <div style={styles.brandName}>
               <span style={styles.brandFerre}>Ferre</span>
               <span style={styles.brandSystem}>System</span>

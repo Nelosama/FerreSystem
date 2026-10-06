@@ -79,8 +79,8 @@ export const ComisionesPage: React.FC = () => {
                 <th>VENDEDOR / CAJERO</th>
                 <th>CORREO</th>
                 <th style={{ textAlign: 'center' }}>% COMISIÓN CONFIGURADO</th>
-                <th style={{ textAlign: 'right' }}>TOTAL VENTAS EN PERÍODO</th>
-                <th style={{ textAlign: 'right' }}>COMISIÓN A PAGAR (HNL)</th>
+                <th className="numeric-cell" style={{ textAlign: 'right' }}>TOTAL VENTAS EN PERÍODO</th>
+                <th className="numeric-cell" style={{ textAlign: 'right' }}>COMISIÓN A PAGAR (HNL)</th>
               </tr>
             </thead>
             <tbody>
@@ -120,8 +120,8 @@ export const ComisionesPage: React.FC = () => {
                         <span style={{ fontWeight: 800 }}>%</span>
                       </div>
                     </td>
-                    <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatLempiras(totalVendidoPeriodo)}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 900, color: '#16A34A', fontSize: '15px' }}>
+                    <td className="numeric-cell" style={{ textAlign: 'right', fontWeight: 700 }}>{formatLempiras(totalVendidoPeriodo)}</td>
+                    <td className="numeric-cell" style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 900, color: '#16A34A', fontSize: '15px' }}>
                       {formatLempiras(comisionPagar)}
                     </td>
                   </tr>

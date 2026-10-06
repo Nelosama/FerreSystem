@@ -1,3 +1,4 @@
+import { TenantBrand } from './TenantBrand';
 import { canNavigate } from '../utils/taskNavigation';
 import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -79,9 +80,9 @@ export const TopNavigation: React.FC = () => {
   );
 
   return (
-    <header className="desktop-sidebar-nav" style={styles.topNavContainer}>
+    <header className="desktop-sidebar-nav v2-top-navigation" style={styles.topNavContainer}>
       <div style={styles.brandContainer}>
-        {tenant.logoUrl ? (
+        {tenant.templateVersion === 'v2' ? <TenantBrand /> : tenant.logoUrl ? (
           <img
             src={tenant.logoUrl}
             alt="Logo"
@@ -95,7 +96,7 @@ export const TopNavigation: React.FC = () => {
             </span>
           </div>
         )}
-        <span style={styles.tenantTag}>{tenant.nombreComercial}</span>
+        {tenant.templateVersion !== 'v2' && <span style={styles.tenantTag}>{tenant.nombreComercial}</span>}
       </div>
 
       <nav ref={navRef} style={styles.navWrapper}>
@@ -136,6 +137,7 @@ export const TopNavigation: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setOpenCategory(isOpen ? null : catKey)}
+                  aria-expanded={isOpen}
                   style={{
                     ...styles.categoryBtn,
                     ...(hasActiveRoute ? styles.categoryBtnActive : {}),

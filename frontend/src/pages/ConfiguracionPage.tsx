@@ -3,7 +3,8 @@ import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
-import { Rubro } from '../types';
+import { Rubro, type TenantInfo } from '../types';
+import { Button } from '../components/Button';
 import { RUBROS_CONFIG } from '../config/rubros';
 import { Palette, Building2, Check, RefreshCw, Store, Layout, Type, Eye, Languages, Coins, Receipt } from 'lucide-react';
 
@@ -20,6 +21,8 @@ export const ConfiguracionPage: React.FC = () => {
   const { tenant, updateTenantConfig } = useTenant();
   const { locale, setLocale } = useI18n();
 
+  const [templateVersion, setTemplateVersion] = useState<'v1' | 'v2'>(tenant.templateVersion || 'v1');
+  const [v2Mode, setV2Mode] = useState<NonNullable<TenantInfo['v2Mode']>>(tenant.v2Mode || 'light');
   const [nombre, setNombre] = useState(tenant.nombreComercial || '');
   const [sucursal, setSucursal] = useState(tenant.sucursal || '');
   const [logoUrl, setLogoUrl] = useState(tenant.logoUrl || '');
@@ -52,6 +55,8 @@ export const ConfiguracionPage: React.FC = () => {
   // Sincronizar estados cuando el tenant del contexto cambie o cargue
   React.useEffect(() => {
     if (tenant) {
+      setTemplateVersion(tenant.templateVersion || 'v1');
+      setV2Mode(tenant.v2Mode || 'light');
       setNombre(tenant.nombreComercial || '');
       setSucursal(tenant.sucursal || '');
       setLogoUrl(tenant.logoUrl || '');
@@ -94,6 +99,8 @@ export const ConfiguracionPage: React.FC = () => {
         colorPrimario: color,
         rubro,
         estiloUI,
+        templateVersion,
+        v2Mode,
         modoNavegacion,
         fuenteTitulos,
         fuenteCuerpo,
@@ -152,7 +159,7 @@ export const ConfiguracionPage: React.FC = () => {
           </div>
         )}
 
-        <form onSubmit={handleGuardar} style={styles.grid}>
+        <form className="tenant-settings-grid" onSubmit={handleGuardar} style={styles.grid}>
           {/* Columna Izquierda: Identidad y Datos del Negocio */}
           <div className="industrial-card" style={styles.card}>
             <div style={styles.cardHeader}>
@@ -292,6 +299,24 @@ export const ConfiguracionPage: React.FC = () => {
               </div>
             </div>
 
+            <div className="form-group">
+              <label htmlFor="template-version" className="form-label">Plantilla de diseño</label>
+              <select id="template-version" className="form-select" value={templateVersion} onChange={e => setTemplateVersion(e.target.value as 'v1' | 'v2')}>
+                <option value="v1">Clásica (V1)</option><option value="v2">Template V2</option>
+              </select>
+              {templateVersion === 'v2' ? <>
+                <label htmlFor="v2-mode" className="form-label">Modo de Template V2</label>
+                <select id="v2-mode" className="form-select" value={v2Mode} onChange={e => setV2Mode(e.target.value as NonNullable<TenantInfo['v2Mode']>)}>
+                  <option value="light">Claro Corporativo</option><option value="dark">Oscuro Industrial</option><option value="hybrid">Enérgico</option>
+                </select>
+              </> : <>
+                <label htmlFor="classic-style" className="form-label">Variante clásica</label>
+                <select id="classic-style" className="form-select" value={estiloUI} onChange={e => setEstiloUI(e.target.value as NonNullable<TenantInfo['estiloUI']>)}>
+                  <option value="INDUSTRIAL">Industrial</option><option value="MINIMALISTA">Minimalista</option><option value="MODERNO">Moderno</option>
+                </select>
+              </>}
+              <small>Conserva tu logo, color y tipografías. La apariencia se guarda en este navegador.</small>
+            </div>
             {/* Selector de Estilo de Interfaz y Modo de Navegación */}
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -463,9 +488,9 @@ export const ConfiguracionPage: React.FC = () => {
               >
                 <RefreshCw size={14} /> RESTABLECER
               </button>
-              <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+              <Button type="submit" style={{ flex: 1 }}>
                 <Check size={16} strokeWidth={2.6} /> APLICAR CAMBIOS
-              </button>
+              </Button>
             </div>
           </div>
         </form>
