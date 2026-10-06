@@ -1,4 +1,7 @@
-import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { CORE_TENANT_MODULES, DEFAULT_TENANT_MODULES, enabledTenantModules } from '../common/tenant-modules';
+import { lockTenant } from '../operaciones/ledger';
+import { CreateTenantAdminDto, UpdateTenantAdminDto } from './tenant-admin.dto';
+import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -94,7 +97,7 @@ export class SuperAdminService {
       include: {
         modulos: true,
         usuarios: {
-          select: { id: true, nombre: true, email: true, activo: true, createdAt: true },
+          select: { id: true, nombre: true, email: true, rol: true, activo: true, createdAt: true },
           orderBy: { createdAt: 'asc' },
         },
         _count: {
@@ -123,7 +126,7 @@ export class SuperAdminService {
       usuarios: t.usuarios,
       cantidadProductos: t._count.productos,
       cantidadVentas: t._count.ventas,
-      modulosHabilitados: t.modulos.filter((m) => m.enabled).map((m) => m.moduleKey),
+      modulosHabilitados: enabledTenantModules(t.modulos),
     }));
   }
 
@@ -166,6 +169,7 @@ export class SuperAdminService {
     }
     return this.prisma.$transaction(async (tx) => {
       for (const item of modules) {
+        const enabled = CORE_TENANT_MODULES.includes(item.moduleKey) || item.enabled;
         await tx.tenantModule.upsert({
           where: {
             tenantId_moduleKey: {
@@ -173,11 +177,11 @@ export class SuperAdminService {
               moduleKey: item.moduleKey,
             },
           },
-          update: { enabled: item.enabled },
+          update: { enabled },
           create: {
             tenantId,
             moduleKey: item.moduleKey,
-            enabled: item.enabled,
+            enabled,
           },
         });
       }
@@ -220,6 +224,30 @@ export class SuperAdminService {
     });
   }
 
+  async createTenantAdmin(tenantId: string, dto: CreateTenantAdminDto) {
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    return this.prisma.$transaction(async tx => {
+      await lockTenant(tx, tenantId);
+      if (!await tx.tenant.findUnique({ where: { id: tenantId } })) throw new NotFoundException('Empresa no encontrada');
+      const email = dto.email.trim().toLowerCase();
+      if (await tx.usuario.findFirst({ where: { tenantId, email } })) throw new BadRequestException('Correo ya registrado en esta empresa');
+      return tx.usuario.create({ data: { tenantId, nombre: dto.nombre.trim(), email, passwordHash, rol: 'ADMIN', activo: dto.activo ?? true }, select: { id: true, tenantId: true, nombre: true, email: true, activo: true, rol: true, createdAt: true } });
+    });
+  }
+
+  async updateTenantAdmin(tenantId: string, userId: string, dto: UpdateTenantAdminDto) {
+    const passwordHash = dto.password ? await bcrypt.hash(dto.password, 10) : undefined;
+    return this.prisma.$transaction(async tx => {
+      await lockTenant(tx, tenantId);
+      const current = await tx.usuario.findFirst({ where: { id: userId, tenantId, rol: 'ADMIN' } });
+      if (!current) throw new NotFoundException('Administrador no encontrado en esta empresa');
+      if (current.activo && dto.activo === false && await tx.usuario.count({ where: { tenantId, rol: 'ADMIN', activo: true } }) <= 1) throw new BadRequestException('Conserve al menos un administrador activo');
+      const email = dto.email?.trim().toLowerCase();
+      if (email && await tx.usuario.findFirst({ where: { tenantId, email, id: { not: userId } } })) throw new BadRequestException('Correo ya registrado en esta empresa');
+      return tx.usuario.update({ where: { id: userId }, data: { ...(dto.nombre !== undefined && { nombre: dto.nombre.trim() }), ...(email !== undefined && { email }), ...(dto.activo !== undefined && { activo: dto.activo }), ...(passwordHash && { passwordHash }) }, select: { id: true, tenantId: true, nombre: true, email: true, activo: true, rol: true, createdAt: true } });
+    });
+  }
+
   async createTenant(dto: {
     nombreComercial: string;
     direccion?: string;
@@ -247,22 +275,7 @@ export class SuperAdminService {
           { tenantId: tenant.id, tipo: 'COTIZACION', ultimoNumero: 0 },
         ],
       });
-      const defaultModules = [
-        'pos',
-        'cotizaciones',
-        'pedidos_especiales',
-        'apartados',
-        'inventario',
-        'ordenes_compra',
-        'transferencias_sucursal',
-        'garantias',
-        'listas_precio',
-        'usuarios',
-        'comisiones_venta',
-        'arqueo_caja',
-        'reportes',
-        'configuracion',
-      ];
+      const defaultModules = DEFAULT_TENANT_MODULES;
       await tx.tenantModule.createMany({
         data: defaultModules.map((moduleKey) => ({
           tenantId: tenant.id,

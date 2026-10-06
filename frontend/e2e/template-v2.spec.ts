@@ -2,11 +2,13 @@ import { test, expect } from '@playwright/test';
 
 test('V2 preserves branding across modes, reload, and return to classic variants', async ({ page, baseURL }) => {
   const errors: string[] = [];
+  let serverTenant: any = { id: 'theme-test', nombreComercial: 'Mi ferretería', colorPrimario: '#0284C7', fuenteTitulos: 'Poppins', fuenteCuerpo: 'Inter', estiloUI: 'MINIMALISTA' };
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.pathname.startsWith('/api/')) {
-      await route.fulfill({ json: {}, headers: { 'access-control-allow-origin': new URL(baseURL!).origin, 'access-control-allow-credentials': 'true', 'access-control-allow-methods': 'GET, PUT, OPTIONS', 'access-control-allow-headers': '*' } });
+      if (url.pathname === '/api/tenant/settings' && route.request().method() === 'PUT') { const body = route.request().postDataJSON(); serverTenant = { ...serverTenant, ...body, ...body.configuracion }; }
+      await route.fulfill({ json: url.pathname === '/api/tenant/settings' ? serverTenant : {}, headers: { 'access-control-allow-origin': new URL(baseURL!).origin, 'access-control-allow-credentials': 'true', 'access-control-allow-methods': 'GET, PUT, OPTIONS', 'access-control-allow-headers': '*' } });
     } else if (url.origin === new URL(baseURL!).origin) await route.continue();
     else await route.abort();
   });
@@ -23,6 +25,7 @@ test('V2 preserves branding across modes, reload, and return to classic variants
   for (const [mode, background] of [['dark', 'rgb(17, 24, 39)'], ['hybrid', 'rgb(250, 250, 249)'], ['light', 'rgb(250, 250, 249)']]) {
     await page.getByLabel('Modo de Template V2').selectOption(mode);
     await page.getByRole('button', { name: 'APLICAR CAMBIOS', exact: true }).click();
+    await page.mouse.move(0, 0);
     await expect(root).toHaveClass(`v2-mode-${mode}`);
     await expect(page.locator('body')).toHaveCSS('background-color', background);
     await expect(page.locator('.v2-sidebar .v2-tenant-brand')).toHaveText('Mi ferretería');
@@ -32,12 +35,8 @@ test('V2 preserves branding across modes, reload, and return to classic variants
   }
   await page.reload();
   await expect(root).toHaveClass('v2-mode-light');
-  await page.evaluate(() => {
-    const tenant = JSON.parse(localStorage.getItem('ferre_tenant')!);
-    tenant.modoNavegacion = 'TOPNAV';
-    tenant.logoUrl = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="red"/></svg>';
-    localStorage.setItem('ferre_tenant', JSON.stringify(tenant));
-  });
+  serverTenant.modoNavegacion = 'TOPNAV';
+  serverTenant.logoUrl = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="red"/></svg>';
   await page.reload();
   await expect(page.locator('.v2-top-navigation .v2-tenant-brand img')).toHaveAttribute('alt', 'Mi ferretería');
   await page.setViewportSize({ width: 390, height: 844 });

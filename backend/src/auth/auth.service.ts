@@ -226,6 +226,8 @@ export class AuthService {
         descuentoMaximo: Number(usuario.descuentoMaximo),
       },
       tenant: {
+        ...(usuario.tenant.configuracion as Record<string, unknown>),
+        modoNavegacion: usuario.tenant.modoNavegacion,
         id: usuario.tenant.id,
         nombreComercial: usuario.tenant.nombreComercial,
         logoUrl: usuario.tenant.logoUrl,

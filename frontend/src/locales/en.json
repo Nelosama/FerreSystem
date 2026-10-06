@@ -1,6 +1,6 @@
 {
   "menu": {
-    "dashboard": "DASHBOARD",
+    "dashboard": "Home",
     "inventory": "INVENTORY & CATALOG",
     "pos": "POINT OF SALE (POS)",
     "quotations": "QUOTATIONS",
@@ -14,8 +14,8 @@
     "commissions": "SALES COMMISSIONS",
     "reports": "REPORTS",
     "stock_taking": "STOCK TAKING",
-    "configuration": "GLOBAL SETTINGS",
-    "super_admin": "SUPER ADMIN PANEL",
+    "configuration": "Business settings",
+    "super_admin": "Manage platform",
     "accounts": "ACCOUNTS & PAYMENTS",
     "deliveries": "DELIVERIES",
     "returns": "RETURNS",
@@ -513,5 +513,137 @@
     "change": "Change customer or enter details manually",
     "numberLabel": "Customer number",
     "numberAutomatic": "The customer number will be assigned automatically when saved."
+  },
+  "navigation": {
+    "SYSTEM": "Platform",
+    "OPERACION": "Sales and cash",
+    "INVENTARIO": "Stock and purchasing",
+    "CLIENTES": "Customers and payments",
+    "GESTION": "Staff",
+    "ANALISIS": "Results",
+    "CONFIGURACION": "Settings",
+    "more": "More options",
+    "close": "Close menu",
+    "denied": "Access denied",
+    "denied_help": "You do not have access to this screen. Contact your administrator.",
+    "company": "Manage company",
+    "support": "Start support",
+    "cash_help": "Review opening and closing in Cash drawer",
+    "branch": "Branch",
+    "language": "Language",
+    "modules": "Available screens"
+  },
+  "tasks": {
+    "finder": "Find a screen or task",
+    "question": "What do you need to do?",
+    "placeholder": "Find a screen or task: cash, purchase, customers…",
+    "clear": "Clear",
+    "help": "Find where to work. Search for products and customers within their screens.",
+    "count": "{count} available tasks",
+    "empty": "No matching tasks. Try cash, purchase or customers.",
+    "open": "Open this screen.",
+    "manage": "Manage the business",
+    "daily": "Daily tasks",
+    "unavailable": "No tasks are enabled for your role. Contact your administrator.",
+    "guidance": {
+      "ADMIN": "Choose a frequent task. Find others in the menu or screen finder.",
+      "CAJERO": "Open your cash drawer before selling. Count cash and close your drawer at the end of the shift.",
+      "VENDEDOR": "Prepare sales and quotations and find your customers.",
+      "BODEGUERO": "Review deliveries and stock before recording movements."
+    },
+    "dashboard": {
+      "title": "Home",
+      "description": "Choose a task and review the business summary.",
+      "keywords": "Home Choose a task and review the business summary."
+    },
+    "pos": {
+      "title": "Make a sale",
+      "description": "Find products, take payment and issue a receipt.",
+      "keywords": "Make a sale Find products, take payment and issue a receipt."
+    },
+    "arqueo_caja": {
+      "title": "Open or close cash drawer",
+      "description": "Record the opening balance, review movements and count cash.",
+      "keywords": "Open or close cash drawer Record the opening balance, review movements and count cash."
+    },
+    "ordenes_compra": {
+      "title": "Buy and receive goods",
+      "description": "Record suppliers and invoices and receive products.",
+      "keywords": "Buy and receive goods Record suppliers and invoices and receive products."
+    },
+    "inventario": {
+      "title": "Find products and stock",
+      "description": "Find products, check prices and stock.",
+      "keywords": "Find products and stock Find products, check prices and stock."
+    },
+    "levantamiento": {
+      "title": "Count stock",
+      "description": "Record physical product counts.",
+      "keywords": "Count stock Record physical product counts."
+    },
+    "clientes": {
+      "title": "Find or register a customer",
+      "description": "Find and update customer details.",
+      "keywords": "Find or register a customer Find and update customer details."
+    },
+    "cuentas": {
+      "title": "Review accounts and record payments",
+      "description": "Review outstanding balances and record payments.",
+      "keywords": "Review accounts and record payments Review outstanding balances and record payments."
+    },
+    "entregas": {
+      "title": "Deliver sold products",
+      "description": "Review pending deliveries and confirm delivery.",
+      "keywords": "Deliver sold products Review pending deliveries and confirm delivery."
+    },
+    "usuarios": {
+      "title": "Manage staff",
+      "description": "Manage users, roles and permissions.",
+      "keywords": "Manage staff Manage users, roles and permissions."
+    },
+    "reportes": {
+      "title": "Review reports",
+      "description": "Review business results.",
+      "keywords": "Review reports Review business results."
+    },
+    "devoluciones": {
+      "title": "Record a return",
+      "description": "Request a return, review approvals and confirm the refund.",
+      "keywords": "Record a return Request a return, review approvals and confirm the refund."
+    },
+    "auditoria": {
+      "title": "Review system activity",
+      "description": "Review operation history.",
+      "keywords": "Review system activity Review operation history."
+    },
+    "cotizaciones": {
+      "title": "Prepare a quotation",
+      "description": "Create and review customer quotations.",
+      "keywords": "Prepare a quotation Create and review customer quotations."
+    },
+    "configuracion": {
+      "title": "Configure business",
+      "description": "Review company and interface settings.",
+      "keywords": "Configure business Review company and interface settings."
+    }
+  },
+  "settings": {
+    "name": "Business name",
+    "logo": "Company logo",
+    "sector": "Business sector",
+    "symbol": "Currency symbol",
+    "tax_name": "Tax name",
+    "tax_rate": "Tax rate",
+    "heading_font": "Heading font",
+    "body_font": "Body font",
+    "contact": "Contact details",
+    "address": "Address",
+    "phone": "Phone",
+    "email": "Email",
+    "currency_code": "Currency code",
+    "currency_tax": "Currency and tax",
+    "fiscal_help": "Sales retain 15% ISV and amounts in lempiras. Changing these details does not convert prices or change sales calculations.",
+    "typography": "Typography",
+    "scope": "Business details and appearance are shared by the company. Language is your personal preference. Changes apply when saved."
   }
 }

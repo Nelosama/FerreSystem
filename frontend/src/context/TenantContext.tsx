@@ -34,6 +34,7 @@ const DEFAULT_TENANT: TenantInfo = {
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const configRevision = React.useRef(0);
   const [tenant, setTenant] = useState<TenantInfo>(() => {
     return readStoredJson('ferre_tenant', DEFAULT_TENANT);
   });
@@ -76,55 +77,28 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   }, [user?.id, tenant.id, !!originalSuperAdminUser]);
 
-  // Sincronización continua de la configuración del Tenant desde ferre_saas_tenants y variables CSS
   useEffect(() => {
-    const syncTenantFromStorage = () => {
-      const savedUser = readStoredJson<UserInfo | null>('ferre_user', null);
-      const savedTenant = readStoredJson<TenantInfo>('ferre_tenant', DEFAULT_TENANT);
-      if (!user || !tenant.id || savedUser?.id !== user.id || savedTenant.id !== tenant.id) return;
-      const saasTenantsRaw = localStorage.getItem('ferre_saas_tenants');
-      if (saasTenantsRaw) {
-        try {
-          const saasTenants = JSON.parse(saasTenantsRaw);
-          const match = saasTenants.find(
-            (t: any) => t.id === tenant.id || t.nombreComercial === tenant.nombreComercial,
-          );
-          if (match) {
-            let needsUpdate = false;
-            const updates: Partial<TenantInfo> = {};
-
-            if (match.colorPrimario && match.colorPrimario !== tenant.colorPrimario) {
-              updates.colorPrimario = match.colorPrimario;
-              needsUpdate = true;
-            }
-            if (match.modoNavegacion && match.modoNavegacion !== tenant.modoNavegacion) {
-              updates.modoNavegacion = match.modoNavegacion;
-              needsUpdate = true;
-            }
-            if (
-              match.modulosHabilitados &&
-              JSON.stringify(match.modulosHabilitados) !== JSON.stringify(tenant.modulosHabilitados)
-            ) {
-              updates.modulosHabilitados = match.modulosHabilitados;
-              needsUpdate = true;
-            }
-
-            if (needsUpdate) {
-              setTenant((prev) => {
-                const updated = { ...prev, ...updates };
-                localStorage.setItem('ferre_tenant', JSON.stringify(updated));
-                return updated;
-              });
-            }
-          }
-        } catch (e) {
-          // Fallback
-        }
-      }
+    if (!user || user.rol === 'SUPERADMIN' || !tenant.id) return;
+    let active = true;
+    const refresh = () => {
+      const revision = configRevision.current;
+      return api.get('/tenant/settings').then(({ data }) => {
+      if (!active || revision !== configRevision.current || data.id !== tenant.id || readStoredJson<UserInfo | null>('ferre_user', null)?.id !== user.id) return;
+      setTenant(previous => {
+        const updated = { ...previous, ...data };
+        if (JSON.stringify(previous) === JSON.stringify(updated)) return previous;
+        localStorage.setItem('ferre_tenant', JSON.stringify(updated));
+        return updated;
+      });
+      }).catch(() => {});
     };
+    void refresh();
+    window.addEventListener('focus', refresh);
+    return () => { active = false; window.removeEventListener('focus', refresh); };
+  }, [user?.id, tenant.id]);
 
-    syncTenantFromStorage();
-
+  // Aplicar exclusivamente la configuración activa a las variables CSS
+  useEffect(() => {
     const root = document.documentElement;
     const templateVersion = tenant.templateVersion === 'v2' ? 'v2' : 'v1';
     const v2Mode = tenant.v2Mode === 'dark' || tenant.v2Mode === 'hybrid' ? tenant.v2Mode : 'light';
@@ -182,18 +156,21 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [user?.id, tenant.id, tenant.nombreComercial, tenant.colorPrimario, tenant.estiloUI, tenant.fuenteTitulos, tenant.fuenteCuerpo, tenant.templateVersion, tenant.v2Mode]);
 
   const updateBranding = (colorPrimario: string, nombreComercial: string) => {
+    configRevision.current++;
     const updated = { ...tenant, colorPrimario, nombreComercial };
     setTenant(updated);
     localStorage.setItem('ferre_tenant', JSON.stringify(updated));
   };
 
   const updateTenantConfig = (updates: Partial<TenantInfo>) => {
+    configRevision.current++;
     const updated = { ...tenant, ...updates };
     setTenant(updated);
     localStorage.setItem('ferre_tenant', JSON.stringify(updated));
   };
 
   const login = (newUser: UserInfo, newTenant: TenantInfo) => {
+    configRevision.current++;
     setOriginalSuperAdminUser(null);
     setOriginalTenant(null);
     setIsReadOnlyState(false);
@@ -316,6 +293,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const logout = () => {
+    configRevision.current++;
     const logoutPath = user?.rol === 'SUPERADMIN' || originalSuperAdminUser ? '/admin/auth/logout' : '/auth/logout';
     void api.post(logoutPath).catch(() => {});
     localStorage.removeItem('ferre_token');

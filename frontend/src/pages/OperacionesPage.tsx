@@ -3,6 +3,8 @@ import { api } from '../utils/api';
 import { useTenant } from '../context/TenantContext';
 import { TopBar } from '../components/TopBar';
 import { formatLempiras } from '../utils/format';
+import { availableTasks } from '../utils/taskNavigation';
+import { useI18n } from '../context/I18nContext';
 import { Link } from 'react-router-dom';
 import './OperacionesPage.css';
 
@@ -13,6 +15,7 @@ const fecha = (v:any) => v ? new Date(v).toLocaleString('es-HN') : '—';
 
 export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  const {tenant,user,isReadOnly}=useTenant();
+ const {t}=useI18n();
  const [rows,setRows]=useState<any[]>([]),[products,setProducts]=useState<any[]>([]),[providers,setProviders]=useState<any[]>([]);
  const [tipo,setTipo]=useState<'CXC'|'CXP'>('CXC');
  const [loading,setLoading]=useState(true),[error,setError]=useState(''),[success,setSuccess]=useState('');
@@ -62,7 +65,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  };
  return <div><TopBar title={{compras:'COMPRAS Y REPOSICIONES',caja:'CAJA Y CIERRE',cuentas:'CUENTAS Y ABONOS',entregas:'ENTREGA DE VENTAS'}[modo]} subtitle="Control operativo de la ferretería"/>
   <main className="operation-page">
-   <nav className="operation-actions"><Link to="/pos">Punto de venta</Link><Link to="/arqueo-caja">Mi caja</Link><Link to="/cuentas">Cuentas por cobrar</Link><Link to="/entregas">Entregas</Link>{user?.rol==='ADMIN'&&<Link to="/ordenes-compra">Compras y proveedores</Link>}</nav>
+   <nav className="operation-actions" aria-label={t('navigation.OPERACION')}>{availableTasks(user, tenant).filter(item => ['pos', 'arqueo_caja', 'cuentas', 'entregas', 'ordenes_compra'].includes(item.key)).map(item => <Link key={item.key} to={item.route}>{t(item.labelKey)}</Link>)}</nav>
    {error&&<div role="alert" className="operation-error">{error}</div>}{success&&<div role="status" className="operation-success">{success}</div>}
    {pending&&<div role="status" className="operation-card"><p>Hay una operación pendiente de confirmar. Reintente antes de registrar otra.</p><button className="btn btn-primary" disabled={busy||isReadOnly} onClick={()=>void send(pending)}>Confirmar operación pendiente</button></div>}
    <button className="btn btn-secondary" type="button" disabled={busy} onClick={()=>void load()}>Actualizar</button>

@@ -19,7 +19,7 @@ const PRESET_COLORS = [
 
 export const ConfiguracionPage: React.FC = () => {
   const { tenant, updateTenantConfig } = useTenant();
-  const { locale, setLocale } = useI18n();
+  const { locale, setLocale, t } = useI18n();
 
   const [templateVersion, setTemplateVersion] = useState<'v1' | 'v2'>(tenant.templateVersion || 'v1');
   const [v2Mode, setV2Mode] = useState<NonNullable<TenantInfo['v2Mode']>>(tenant.v2Mode || 'light');
@@ -50,11 +50,14 @@ export const ConfiguracionPage: React.FC = () => {
   const [direccion, setDireccion] = useState(tenant.direccion || '');
   const [telefono, setTelefono] = useState(tenant.telefono || '');
   const [email, setEmail] = useState(tenant.email || '');
+  const dirty = React.useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
 
   // Sincronizar estados cuando el tenant del contexto cambie o cargue
   React.useEffect(() => {
-    if (tenant) {
+    if (tenant && !dirty.current) {
       setTemplateVersion(tenant.templateVersion || 'v1');
       setV2Mode(tenant.v2Mode || 'light');
       setNombre(tenant.nombreComercial || '');
@@ -80,42 +83,32 @@ export const ConfiguracionPage: React.FC = () => {
     e.preventDefault();
 
     const updatedMoneda = { simbolo: monedaSimbolo, codigo: monedaCodigo };
-    const updatedImpuesto = { nombre: impuestoNombre, tasa: parseFloat(impuestoTasa) || 15 };
+    const updatedImpuesto = { nombre: impuestoNombre, tasa: Number(impuestoTasa) };
 
+    if (saving) return;
+    setSaving(true); setSaveError(''); setGuardadoExitoso(false);
     try {
-      await api.put('/tenant/settings', {
+      const { data } = await api.put('/tenant/settings', {
         nombreComercial: nombre,
         direccion,
         telefono,
         email,
         colorPrimario: color,
         logoUrl: logoUrl.trim() || null,
+        modoNavegacion,
+        configuracion: { rubro, estiloUI, templateVersion, v2Mode, fuenteTitulos, fuenteCuerpo, moneda: updatedMoneda, impuesto: updatedImpuesto },
       });
 
-      updateTenantConfig({
-        nombreComercial: nombre,
-        sucursal,
-        logoUrl: logoUrl.trim() || null,
-        colorPrimario: color,
-        rubro,
-        estiloUI,
-        templateVersion,
-        v2Mode,
-        modoNavegacion,
-        fuenteTitulos,
-        fuenteCuerpo,
-        moneda: updatedMoneda,
-        impuesto: updatedImpuesto,
-        direccion,
-        telefono,
-        email,
-      });
+      dirty.current = false;
+      updateTenantConfig({ ...data.configuracion, ...data, sucursal });
 
       setGuardadoExitoso(true);
       setTimeout(() => setGuardadoExitoso(false), 4000);
     } catch (err: any) {
       console.error('Error al guardar configuración del tenant:', err);
-      alert(err.response?.data?.message || 'Error al guardar la configuración en el servidor.');
+      setSaveError(err.response?.data?.message || (locale === 'es' ? 'No se pudo guardar. Tus cambios siguen en el formulario; vuelve a intentar.' : 'Could not save. Your changes remain in the form; please retry.'));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -128,38 +121,27 @@ export const ConfiguracionPage: React.FC = () => {
     setMonedaCodigo('HNL');
     setImpuestoNombre('ISV');
     setImpuestoTasa('15');
-    updateTenantConfig({
-      nombreComercial: nombre,
-      sucursal,
-      colorPrimario: '#EA580C',
-      rubro,
-      estiloUI: 'INDUSTRIAL',
-      fuenteTitulos: 'Archivo',
-      fuenteCuerpo: 'Inter',
-      moneda: { simbolo: 'L.', codigo: 'HNL' },
-      impuesto: { nombre: 'ISV', tasa: 15 },
-      direccion,
-      telefono,
-      email,
-    });
+
   };
 
   return (
     <div style={styles.container}>
-      <TopBar title="CONFIGURACIÓN Y MARCA" subtitle="Personalización White-Label por Tenant" />
+      <TopBar title="CONFIGURACIÓN Y MARCA" subtitle="Datos del negocio y apariencia" />
 
       <main style={styles.content}>
+        <p>{t('settings.scope')}</p>
+        {saveError && <p role="alert">{saveError}</p>}
 
         {guardadoExitoso && (
-          <div style={styles.successBanner}>
+          <div role="status" style={styles.successBanner}>
             <Check size={20} strokeWidth={2.6} color="#15803D" />
             <span style={{ fontWeight: 700 }}>
-              ¡Configuración de marca, idioma y fiscal guardadas correctamente para "{nombre}"!
+              ¡Configuración de marca y fiscal guardadas correctamente para "{nombre}"!
             </span>
           </div>
         )}
 
-        <form className="tenant-settings-grid" onSubmit={handleGuardar} style={styles.grid}>
+        <form className="tenant-settings-grid" onSubmit={handleGuardar} onChange={() => { dirty.current = true; }} onClick={event => { if ((event.target as HTMLElement).closest('button[type="button"]')) dirty.current = true; }} aria-busy={saving} style={styles.grid}>
           {/* Columna Izquierda: Identidad y Datos del Negocio */}
           <div className="industrial-card" style={styles.card}>
             <div style={styles.cardHeader}>
@@ -181,8 +163,8 @@ export const ConfiguracionPage: React.FC = () => {
                     flex: 1,
                     padding: '8px',
                     fontWeight: 800,
-                    backgroundColor: locale === 'es' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                    color: locale === 'es' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    backgroundColor: locale === 'es' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: locale === 'es' ? 'var(--color-bg)' : 'var(--color-text-main)',
                     border: '1.5px solid var(--color-sidebar-bg)',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -197,8 +179,8 @@ export const ConfiguracionPage: React.FC = () => {
                     flex: 1,
                     padding: '8px',
                     fontWeight: 800,
-                    backgroundColor: locale === 'en' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                    color: locale === 'en' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    backgroundColor: locale === 'en' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: locale === 'en' ? 'var(--color-bg)' : 'var(--color-text-main)',
                     border: '1.5px solid var(--color-sidebar-bg)',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -214,7 +196,7 @@ export const ConfiguracionPage: React.FC = () => {
               <input
                 type="text"
                 required
-                value={nombre}
+                id="business-name" aria-label={t('settings.name')} value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
                 className="form-input"
               />
@@ -226,7 +208,7 @@ export const ConfiguracionPage: React.FC = () => {
               <input
                 type="url"
                 placeholder="https://ejemplo.com/logo-ferreteria.png"
-                value={logoUrl}
+                id="business-logo" aria-label={t('settings.logo')} value={logoUrl}
                 onChange={(e) => setLogoUrl(e.target.value)}
                 className="form-input"
               />
@@ -239,7 +221,7 @@ export const ConfiguracionPage: React.FC = () => {
                 <span>RUBRO / GIRO COMERCIAL (MOTOR MULTI-RUBRO)</span>
               </label>
               <select
-                value={rubro}
+                id="business-sector" aria-label={t('settings.sector')} value={rubro}
                 onChange={(e) => setRubro(e.target.value as Rubro)}
                 className="form-select"
                 style={{ fontWeight: 700 }}
@@ -255,8 +237,16 @@ export const ConfiguracionPage: React.FC = () => {
               </select>
             </div>
 
+            <details><summary>{t('settings.contact')}</summary>
+              <label className="form-label" htmlFor="company-address">{t('settings.address')}</label><input id="company-address" className="form-input" value={direccion} onChange={event => setDireccion(event.target.value)} />
+              <label className="form-label" htmlFor="company-phone">{t('settings.phone')}</label><input id="company-phone" type="tel" className="form-input" value={telefono} onChange={event => setTelefono(event.target.value)} />
+              <label className="form-label" htmlFor="company-email">{t('settings.email')}</label><input id="company-email" type="email" className="form-input" value={email} onChange={event => setEmail(event.target.value)} />
+            </details>
+            <h3>{t('settings.currency_tax')}</h3><p>{t('settings.fiscal_help')}</p>
+            <label htmlFor="currency-code" className="form-label">{t('settings.currency_code')}</label>
+            <input id="currency-code" className="form-input" required pattern="[A-Z]{3}" maxLength={3} value={monedaCodigo} onChange={event => setMonedaCodigo(event.target.value.toUpperCase())} />
             {/* Configuración de Moneda e Impuesto */}
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="settings-fiscal-row" style={{ display: 'flex', gap: '12px' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Coins size={14} color="var(--color-primary)" />
@@ -265,7 +255,7 @@ export const ConfiguracionPage: React.FC = () => {
                 <input
                   type="text"
                   required
-                  value={monedaSimbolo}
+                  id="currency-symbol" aria-label={t('settings.symbol')} value={monedaSimbolo}
                   onChange={(e) => setMonedaSimbolo(e.target.value)}
                   className="form-input"
                   style={{ fontWeight: 800 }}
@@ -281,7 +271,7 @@ export const ConfiguracionPage: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={impuestoNombre}
+                    id="tax-name" aria-label={t('settings.tax_name')} value={impuestoNombre}
                     onChange={(e) => setImpuestoNombre(e.target.value)}
                     className="form-input"
                     style={{ width: '70px', fontWeight: 800 }}
@@ -289,7 +279,7 @@ export const ConfiguracionPage: React.FC = () => {
                   <input
                     type="number"
                     required
-                    value={impuestoTasa}
+                    id="tax-rate" aria-label={t('settings.tax_rate')} min="0" max="100" step="0.01" value={impuestoTasa}
                     onChange={(e) => setImpuestoTasa(e.target.value)}
                     className="form-input"
                     style={{ fontWeight: 800 }}
@@ -315,7 +305,7 @@ export const ConfiguracionPage: React.FC = () => {
                   <option value="INDUSTRIAL">Industrial</option><option value="MINIMALISTA">Minimalista</option><option value="MODERNO">Moderno</option>
                 </select>
               </>}
-              <small>Conserva tu logo, color y tipografías. La apariencia se guarda en este navegador.</small>
+              <small>Conserva tu logo, color y tipografías. La apariencia se guarda para toda la empresa al aplicar los cambios.</small>
             </div>
             {/* Selector de Estilo de Interfaz y Modo de Navegación */}
             <div className="form-group">
@@ -326,11 +316,11 @@ export const ConfiguracionPage: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
                 <button
                   type="button"
-                  onClick={() => setModoNavegacion('SIDEBAR')}
+                  aria-pressed={modoNavegacion === 'SIDEBAR'} onClick={() => setModoNavegacion('SIDEBAR')}
                   style={{
                     padding: '10px',
-                    backgroundColor: modoNavegacion === 'SIDEBAR' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                    color: modoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    backgroundColor: modoNavegacion === 'SIDEBAR' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: modoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-text-main)',
                     border: modoNavegacion === 'SIDEBAR' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -343,11 +333,11 @@ export const ConfiguracionPage: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => setModoNavegacion('TOPNAV')}
+                  aria-pressed={modoNavegacion === 'TOPNAV'} onClick={() => setModoNavegacion('TOPNAV')}
                   style={{
                     padding: '10px',
-                    backgroundColor: modoNavegacion === 'TOPNAV' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                    color: modoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    backgroundColor: modoNavegacion === 'TOPNAV' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: modoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-text-main)',
                     border: modoNavegacion === 'TOPNAV' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -360,6 +350,7 @@ export const ConfiguracionPage: React.FC = () => {
               </div>
             </div>
 
+            <details><summary>{t('settings.typography')}</summary>
             {/* Tipografía de Títulos y Cuerpo */}
             <div style={{ display: 'flex', gap: '12px' }}>
               <div className="form-group" style={{ flex: 1 }}>
@@ -368,7 +359,7 @@ export const ConfiguracionPage: React.FC = () => {
                   <span>FUENTE TÍTULOS</span>
                 </label>
                 <select
-                  value={fuenteTitulos}
+                  id="heading-font" aria-label={t('settings.heading_font')} value={fuenteTitulos}
                   onChange={(e) => setFuenteTitulos(e.target.value as any)}
                   className="form-select"
                 >
@@ -385,7 +376,7 @@ export const ConfiguracionPage: React.FC = () => {
                   <span>FUENTE CUERPO</span>
                 </label>
                 <select
-                  value={fuenteCuerpo}
+                  id="body-font" aria-label={t('settings.body_font')} value={fuenteCuerpo}
                   onChange={(e) => setFuenteCuerpo(e.target.value as any)}
                   className="form-select"
                 >
@@ -395,6 +386,7 @@ export const ConfiguracionPage: React.FC = () => {
                 </select>
               </div>
             </div>
+            </details>
           </div>
 
           {/* Columna Derecha: White-Labeling y Selector de Color Primario & Preview */}
@@ -405,8 +397,7 @@ export const ConfiguracionPage: React.FC = () => {
             </div>
 
             <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '12px' }}>
-              El color seleccionado se inyecta en variables CSS globales (`--color-primary`) afectando el sidebar,
-              botones primarios, bordes de alerta y documentos PDF.
+              Elige el color que identificará tu empresa en la navegación, los botones y los documentos.
             </p>
 
             {/* Selector de color HEX interactivo */}
@@ -459,8 +450,8 @@ export const ConfiguracionPage: React.FC = () => {
               <div
                 style={{
                   padding: '16px',
-                  backgroundColor: estiloUI === 'MINIMALISTA' ? 'var(--color-surface-hover)' : estiloUI === 'MODERNO' ? color : 'var(--color-sidebar-bg)',
-                  color: estiloUI === 'MINIMALISTA' ? 'var(--color-sidebar-bg)' : '#FFFFFF',
+                  backgroundColor: estiloUI === 'MINIMALISTA' ? 'var(--color-surface-hover)' : estiloUI === 'MODERNO' ? color : '#1C1917',
+                  color: estiloUI === 'MINIMALISTA' ? 'var(--color-text-main)' : '#FFFFFF',
                   borderRadius: estiloUI === 'MODERNO' ? '12px' : estiloUI === 'MINIMALISTA' ? '10px' : '2px',
                   border: '1px solid #44403C',
                 }}
@@ -480,7 +471,7 @@ export const ConfiguracionPage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+            <div className="settings-save-actions" style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -488,7 +479,7 @@ export const ConfiguracionPage: React.FC = () => {
               >
                 <RefreshCw size={14} /> RESTABLECER
               </button>
-              <Button type="submit" style={{ flex: 1 }}>
+              <Button type="submit" disabled={saving} style={{ flex: 1 }}>
                 <Check size={16} strokeWidth={2.6} /> APLICAR CAMBIOS
               </Button>
             </div>

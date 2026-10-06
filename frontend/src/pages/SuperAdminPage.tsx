@@ -23,7 +23,7 @@ import {
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate } from 'react-router-dom';
-import { CATALOGO_MODULOS } from '../config/modulesCatalog';
+import { CATALOGO_MODULOS, PENDING_MODULES } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { Rubro } from '../types';
@@ -55,10 +55,10 @@ interface TenantItem {
 }
 
 interface AdminUserItem {
+  rol?: string;
   id: string;
   nombre: string;
   email: string;
-  password?: string;
   tenantId: string;
   tenantNombre: string;
   activo: boolean;
@@ -99,7 +99,7 @@ interface AdminTenantApiRecord {
   estado: 'ACTIVO' | 'SUSPENDIDO';
   cantidadUsuarios: number;
   modulosHabilitados: string[];
-  usuarios: { id: string; nombre: string; email: string; activo: boolean; createdAt: string }[];
+  usuarios: { id: string; nombre: string; email: string; rol?: string; activo: boolean; createdAt: string }[];
 }
 
 function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
@@ -121,6 +121,7 @@ function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
   const adminUsers: AdminUserItem[] = records.flatMap((record) =>
     (record.usuarios || []).map((user) => ({
       id: user.id,
+      rol: user.rol || 'ADMIN',
       nombre: user.nombre,
       email: user.email,
       tenantId: record.id,
@@ -213,7 +214,7 @@ export const SuperAdminPage: React.FC = () => {
   const [nuevaSucursalNombre, setNuevaSucursalNombre] = useState('');
   const [nuevaSucursalDireccion, setNuevaSucursalDireccion] = useState('');
   const [nuevaSucursalTelefono, setNuevaSucursalTelefono] = useState('');
-  const [nuevaSucursalEncargado, setNuevaSucursalEncargado] = useState('');
+  const [, setNuevaSucursalEncargado] = useState('');
 
   // Formulario Editar Tenant / Marca
   const [editNombreComercial, setEditNombreComercial] = useState('');
@@ -239,6 +240,8 @@ export const SuperAdminPage: React.FC = () => {
   const [formAdminActivo, setFormAdminActivo] = useState(true);
   const [nuevaPasswordInput, setNuevaPasswordInput] = useState('');
 
+  const [adminSaving, setAdminSaving] = useState(false);
+  const [brandSaving, setBrandSaving] = useState(false);
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
   const registrarAuditoria = (accion: string, tenantNombre: string, detalles: string) => {
@@ -294,7 +297,7 @@ export const SuperAdminPage: React.FC = () => {
     if (!modalModulosTenant) return;
     const modulesPayload = CATALOGO_MODULOS.map((m) => ({
       moduleKey: m.key,
-      enabled: tempModulosTenant.includes(m.key),
+      enabled: !!m.isCore || tempModulosTenant.includes(m.key),
     }));
 
     try {
@@ -402,12 +405,13 @@ export const SuperAdminPage: React.FC = () => {
     }
   };
 
-  const toggleEstadoAdmin = (id: string) => {
-    setAdminUsers(
-      adminUsers.map((a) => (a.id === id ? { ...a, activo: !a.activo } : a)),
-    );
-    setMensajeExito('¡Estado del usuario Administrador actualizado correctamente!');
-    setTimeout(() => setMensajeExito(null), 4000);
+  const toggleEstadoAdmin = async (id: string) => {
+    const admin = adminUsers.find(item => item.id === id); if (!admin) return;
+    try {
+      const { data } = await api.patch(`/admin/tenants/${admin.tenantId}/admins/${id}`, { activo: !admin.activo });
+      setAdminUsers(current => current.map(item => item.id === id ? { ...item, ...data } : item));
+      setMensajeExito('Estado guardado en el servidor.');
+    } catch (error: any) { setErrorText(error.response?.data?.message || 'No se pudo guardar el estado.'); }
   };
 
   const handleCrearTenant = async (e: React.FormEvent) => {
@@ -465,76 +469,37 @@ export const SuperAdminPage: React.FC = () => {
     }
   };
 
-  const handleCrearAdmin = (e: React.FormEvent) => {
+  const handleCrearAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formAdminNombre || !formAdminEmail || !formAdminPassword) return;
-
-    const tObj = tenants.find((item) => item.id === formAdminTenantId);
-    const nuevoAdmin: AdminUserItem = {
-      id: `adm-${Date.now()}`,
-      nombre: formAdminNombre.trim(),
-      email: formAdminEmail.trim(),
-      password: formAdminPassword.trim(),
-      tenantId: formAdminTenantId,
-      tenantNombre: tObj ? tObj.nombreComercial : 'Ferretería General',
-      activo: formAdminActivo,
-      fechaCreacion: new Date().toISOString().split('T')[0],
-    };
-
-    setAdminUsers([nuevoAdmin, ...adminUsers]);
-    setModalNuevoAdmin(false);
-
-    registrarAuditoria('CREAR_ADMIN', nuevoAdmin.tenantNombre, `Nuevo Administrador asignado: ${nuevoAdmin.nombre}`);
-
-    setMensajeExito(`¡Administrador "${nuevoAdmin.nombre}" asignado a "${nuevoAdmin.tenantNombre}"!`);
-    setTimeout(() => setMensajeExito(null), 4000);
-
-    setFormAdminNombre('');
-    setFormAdminEmail('');
-    setFormAdminPassword('');
+    if (adminSaving) return;
+    setAdminSaving(true); setErrorText(null); setMensajeExito(null);
+    try {
+      const { data } = await api.post(`/admin/tenants/${formAdminTenantId}/admins`, { nombre: formAdminNombre.trim(), email: formAdminEmail.trim(), password: formAdminPassword, activo: formAdminActivo });
+      const company = tenants.find(item => item.id === formAdminTenantId);
+      setAdminUsers(current => [{ ...data, tenantNombre: company?.nombreComercial || '', fechaCreacion: data.createdAt?.split('T')[0] }, ...current]);
+      setModalNuevoAdmin(false); setFormAdminPassword('');
+      setMensajeExito('Administrador creado en el servidor.');
+    } catch (error: any) { setErrorText(error.response?.data?.message || 'No se pudo crear el administrador.'); } finally { setAdminSaving(false); }
   };
-
-  const handleGuardarEdicionAdmin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!modalEditarAdmin) return;
-
-    const tObj = tenants.find((item) => item.id === formAdminTenantId);
-    setAdminUsers(
-      adminUsers.map((a) =>
-        a.id === modalEditarAdmin.id
-          ? {
-              ...a,
-              nombre: formAdminNombre.trim(),
-              email: formAdminEmail.trim(),
-              tenantId: formAdminTenantId,
-              tenantNombre: tObj ? tObj.nombreComercial : a.tenantNombre,
-              activo: formAdminActivo,
-            }
-          : a,
-      ),
-    );
-
-    setModalEditarAdmin(null);
-    setMensajeExito(`¡Datos de Administrador "${formAdminNombre}" actualizados!`);
-    setTimeout(() => setMensajeExito(null), 4000);
+  const handleGuardarEdicionAdmin = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!modalEditarAdmin) return;
+    if (formAdminTenantId !== modalEditarAdmin.tenantId) { setErrorText('El administrador debe conservar su empresa. Crea un usuario nuevo para otra empresa.'); return; }
+    if (adminSaving) return;
+    setAdminSaving(true); setErrorText(null);
+    try {
+      const { data } = await api.patch(`/admin/tenants/${modalEditarAdmin.tenantId}/admins/${modalEditarAdmin.id}`, { nombre: formAdminNombre.trim(), email: formAdminEmail.trim(), activo: formAdminActivo });
+      setAdminUsers(current => current.map(item => item.id === modalEditarAdmin.id ? { ...item, ...data } : item));
+      setModalEditarAdmin(null); setMensajeExito('Administrador guardado en el servidor.');
+    } catch (error: any) { setErrorText(error.response?.data?.message || 'No se pudo guardar el administrador.'); } finally { setAdminSaving(false); }
   };
-
-  const handleResetPassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!modalResetPassAdmin || !nuevaPasswordInput) return;
-
-    setAdminUsers(
-      adminUsers.map((a) =>
-        a.id === modalResetPassAdmin.id
-          ? { ...a, password: nuevaPasswordInput.trim() }
-          : a,
-      ),
-    );
-
-    setModalResetPassAdmin(null);
-    setNuevaPasswordInput('');
-    setMensajeExito(`¡Contraseña restablecida exitosamente para ${modalResetPassAdmin.email}!`);
-    setTimeout(() => setMensajeExito(null), 4000);
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!modalResetPassAdmin) return;
+    if (adminSaving) return;
+    setAdminSaving(true); setErrorText(null);
+    try {
+      await api.patch(`/admin/tenants/${modalResetPassAdmin.tenantId}/admins/${modalResetPassAdmin.id}`, { password: nuevaPasswordInput });
+      setModalResetPassAdmin(null); setNuevaPasswordInput(''); setMensajeExito('Contraseña guardada en el servidor.');
+    } catch (error: any) { setErrorText(error.response?.data?.message || 'No se pudo cambiar la contraseña.'); } finally { setAdminSaving(false); }
   };
 
   const abrirEditarAdmin = (adm: AdminUserItem) => {
@@ -755,8 +720,17 @@ export const SuperAdminPage: React.FC = () => {
                           )}
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <div style={{ display: "inline-flex", gap: "6px" }}>
                             <button
+                              type="button"
+                              className="btn btn-sm btn-primary"
+                              onClick={() => abrirModalSuplantar(tItem)}
+                              title="Entrar como administrador o usuario para soporte remoto"
+                              style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
+                            >
+                              <ExternalLink size={13} /> {t('navigation.support')}
+                            </button>
+<details className="tenant-context-actions"><summary>{t('navigation.company')}</summary><div>                            <button
                               type="button"
                               className="btn btn-sm btn-secondary"
                               onClick={() => abrirModalModulos(tItem)}
@@ -774,9 +748,9 @@ export const SuperAdminPage: React.FC = () => {
                                 setNuevaSucursalTelefono('');
                                 setNuevaSucursalEncargado('');
                               }}
-                              title="Gestionar sub-sucursales"
+                              disabled title="Administración de sucursales pendiente de integración"
                             >
-                              <GitBranch size={13} /> SUCURSALES
+                              <GitBranch size={13} /> SUCURSALES · Pendiente
                             </button>
                             <button
                               type="button"
@@ -794,15 +768,7 @@ export const SuperAdminPage: React.FC = () => {
                             >
                               <Edit2 size={13} /> MARCA
                             </button>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-primary"
-                              onClick={() => abrirModalSuplantar(tItem)}
-                              title="Entrar como administrador o usuario para soporte remoto"
-                              style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
-                            >
-                              <ExternalLink size={13} /> IMPERSONAR
-                            </button>
+
                             <button
                               type="button"
                               className={`btn btn-sm ${tItem.estado === 'ACTIVO' ? 'btn-secondary' : 'btn-primary'}`}
@@ -811,6 +777,7 @@ export const SuperAdminPage: React.FC = () => {
                               <Power size={13} strokeWidth={2.5} />
                               {tItem.estado === 'ACTIVO' ? 'SUSPENDER' : 'ACTIVAR'}
                             </button>
+</div></details>
                           </div>
                         </td>
                       </tr>
@@ -971,7 +938,7 @@ export const SuperAdminPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {adminUsers.map((a) => (
+                  {adminUsers.filter(a => !a.rol || a.rol === 'ADMIN').map((a) => (
                     <tr key={a.id}>
                       <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{a.nombre}</td>
                       <td style={{ fontWeight: 600, color: 'var(--color-sidebar-bg)' }}>{a.email}</td>
@@ -1119,7 +1086,7 @@ export const SuperAdminPage: React.FC = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '12px' }}>
                 {CATALOGO_MODULOS.map((m) => {
-                  const isEnabled = tempModulosTenant.includes(m.key);
+                  const isEnabled = !!m.isCore || tempModulosTenant.includes(m.key);
 
                   return (
                     <label
@@ -1139,13 +1106,14 @@ export const SuperAdminPage: React.FC = () => {
                       <input
                         type="checkbox"
                         checked={isEnabled}
+                        disabled={m.isCore || PENDING_MODULES.has(m.key)}
                         onChange={() => toggleTempModulo(m.key)}
                         style={{ marginTop: '3px', cursor: 'pointer', width: '16px', height: '16px' }}
                       />
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ fontWeight: 800, fontSize: '13px', color: isEnabled ? '#15803D' : '#44403C' }}>
-                            {m.nombre}
+                            {m.nombre} {PENDING_MODULES.has(m.key) ? '· Pendiente' : m.isCore ? '· Incluido' : ''}
                           </span>
                           <span className="badge badge-dark" style={{ fontSize: '9px' }}>{m.categoria}</span>
                         </div>
@@ -1329,43 +1297,7 @@ export const SuperAdminPage: React.FC = () => {
                     type="button"
                     className="btn btn-primary btn-sm"
                     onClick={() => {
-                      if (!nuevaSucursalNombre.trim()) return;
-
-                      const nuevaSubSucursal: SubSucursalItem = {
-                        id: `suc-${Date.now()}`,
-                        nombre: nuevaSucursalNombre.trim(),
-                        direccion: nuevaSucursalDireccion.trim() || 'Dirección Principal',
-                        telefono: nuevaSucursalTelefono.trim() || modalSucursalesTenant.telefono,
-                        encargado: nuevaSucursalEncargado.trim() || 'Administrador Asignado',
-                        activa: true,
-                      };
-
-                      const currentList = modalSucursalesTenant.sucursalesList || [];
-                      const updatedList = [...currentList, nuevaSubSucursal];
-
-                      setTenants(
-                        tenants.map((tItem) =>
-                          tItem.id === modalSucursalesTenant.id
-                            ? {
-                                ...tItem,
-                                sucursalesCount: updatedList.length,
-                                sucursalesList: updatedList,
-                              }
-                            : tItem,
-                        ),
-                      );
-
-                      setModalSucursalesTenant({
-                        ...modalSucursalesTenant,
-                        sucursalesCount: updatedList.length,
-                        sucursalesList: updatedList,
-                      });
-
-                      setNuevaSucursalNombre('');
-                      setNuevaSucursalDireccion('');
-                      setNuevaSucursalTelefono('');
-                      setMensajeExito(`¡Sub-sucursal "${nuevaSubSucursal.nombre}" habilitada!`);
-                      setTimeout(() => setMensajeExito(null), 4000);
+                      setErrorText('La administración de sucursales está pendiente de integración. No se han guardado cambios.');
                     }}
                   >
                     <Plus size={14} /> CREAR SUCURSAL
@@ -1386,7 +1318,7 @@ export const SuperAdminPage: React.FC = () => {
                   </thead>
                   <tbody>
                     {(modalSucursalesTenant.sucursalesList || [
-                      { id: 's1', nombre: 'Sucursal Principal', direccion: 'Barrio El Centro', telefono: modalSucursalesTenant.telefono, encargado: 'Admin', activa: true },
+                      { id: modalSucursalesTenant.id, nombre: 'Sucursal Principal', direccion: '—', telefono: modalSucursalesTenant.telefono, encargado: 'Admin', activa: true },
                     ]).map((s) => (
                       <tr key={s.id}>
                         <td style={{ fontWeight: 800 }}>{s.nombre}</td>
@@ -1401,29 +1333,7 @@ export const SuperAdminPage: React.FC = () => {
                             className="btn btn-sm btn-danger"
                             title="Eliminar Sub-Sucursal"
                             onClick={() => {
-                              const currentList = modalSucursalesTenant.sucursalesList || [];
-                              const updatedList = currentList.filter((item) => item.id !== s.id);
-
-                              setTenants(
-                                tenants.map((tItem) =>
-                                  tItem.id === modalSucursalesTenant.id
-                                    ? {
-                                        ...tItem,
-                                        sucursalesCount: updatedList.length,
-                                        sucursalesList: updatedList,
-                                      }
-                                    : tItem,
-                                ),
-                              );
-
-                              setModalSucursalesTenant({
-                                ...modalSucursalesTenant,
-                                sucursalesCount: updatedList.length,
-                                sucursalesList: updatedList,
-                              });
-
-                              setMensajeExito(`¡Sub-sucursal "${s.nombre}" eliminada exitosamente!`);
-                              setTimeout(() => setMensajeExito(null), 4000);
+                              setErrorText('La administración de sucursales está pendiente de integración. No se han eliminado datos.');
                             }}
                           >
                             <Trash2 size={13} />
@@ -1460,29 +1370,26 @@ export const SuperAdminPage: React.FC = () => {
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                setTenants(
-                  tenants.map((tItem) =>
-                    tItem.id === modalEditarTenant.id
-                      ? {
-                          ...tItem,
-                          nombreComercial: editNombreComercial.toUpperCase().trim(),
-                          telefono: editTelefono,
-                          plan: editPlan,
-                          colorPrimario: editColorPrimario,
-                          logoUrl: editLogoUrl.trim() || null,
-                          modoNavegacion: editModoNavegacion,
-                        }
-                      : tItem,
-                  ),
-                );
-                setModalEditarTenant(null);
-                setMensajeExito(`¡Configuración de marca para "${editNombreComercial}" actualizada!`);
-                setTimeout(() => setMensajeExito(null), 4000);
+                if (brandSaving) return;
+                setBrandSaving(true); setErrorText(null); setMensajeExito(null);
+                try {
+                  const { data } = await api.patch(`/admin/tenants/${modalEditarTenant.id}`, {
+                    nombreComercial: editNombreComercial.trim(), telefono: editTelefono,
+                    plan: editPlan, colorPrimario: editColorPrimario,
+                    logoUrl: editLogoUrl.trim() || null, modoNavegacion: editModoNavegacion,
+                  });
+                  setTenants(current => current.map(item => item.id === modalEditarTenant.id ? { ...item, ...data } : item));
+                  setModalEditarTenant(null);
+                  setMensajeExito('Configuración guardada en el servidor.');
+                } catch (error: any) {
+                  setErrorText(error.response?.data?.message || 'No se pudo guardar la configuración. Vuelve a intentar.');
+                } finally { setBrandSaving(false); }
               }}
               style={{ marginTop: '16px' }}
             >
+              {errorText && <p role="alert">{errorText}</p>}
               <div className="form-group">
                 <label className="form-label">NOMBRE COMERCIAL DE LA FERRETERÍA</label>
                 <input
@@ -1592,7 +1499,7 @@ export const SuperAdminPage: React.FC = () => {
                 >
                   CANCELAR
                 </button>
-                <button type="submit" className="btn btn-primary">
+                <button type="submit" disabled={adminSaving || brandSaving} className="btn btn-primary">
                   <Check size={16} strokeWidth={2.6} /> GUARDAR CONFIGURACIÓN
                 </button>
               </div>
@@ -1700,7 +1607,7 @@ export const SuperAdminPage: React.FC = () => {
                 >
                   CANCELAR
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={creatingTenant}>
+                <button type="submit" disabled={creatingTenant} className="btn btn-primary">
                   <CheckCircle size={16} strokeWidth={2.6} /> {creatingTenant ? 'CREANDO...' : 'CREAR Y ACTIVAR TENANT'}
                 </button>
               </div>
@@ -1909,11 +1816,12 @@ export const SuperAdminPage: React.FC = () => {
               </h2>
             </div>
 
-            <form onSubmit={handleCrearAdmin} style={{ marginTop: '16px' }}>
+            <form onSubmit={handleCrearAdmin} aria-busy={adminSaving} style={{ marginTop: '16px' }}>
+              {errorText && <p role="alert">{errorText}</p>}
               <div className="form-group">
                 <label className="form-label">EMPRESA / TENANT</label>
                 <select
-                  value={formAdminTenantId}
+                  disabled={!!modalEditarAdmin} value={formAdminTenantId}
                   onChange={(e) => setFormAdminTenantId(e.target.value)}
                   className="form-select"
                 >
@@ -1990,7 +1898,8 @@ export const SuperAdminPage: React.FC = () => {
               </h2>
             </div>
 
-            <form onSubmit={handleGuardarEdicionAdmin} style={{ marginTop: '16px' }}>
+            <form onSubmit={handleGuardarEdicionAdmin} aria-busy={adminSaving} style={{ marginTop: '16px' }}>
+              {errorText && <p role="alert">{errorText}</p>}
               <div className="form-group">
                 <label className="form-label">EMPRESA / TENANT</label>
                 <select
@@ -2081,7 +1990,8 @@ export const SuperAdminPage: React.FC = () => {
               </h2>
             </div>
 
-            <form onSubmit={handleResetPassword} style={{ marginTop: '16px' }}>
+            <form onSubmit={handleResetPassword} aria-busy={adminSaving} style={{ marginTop: '16px' }}>
+              {errorText && <p role="alert">{errorText}</p>}
               <p style={{ fontSize: '13px', color: '#444' }}>
                 Cambiar contraseña para <strong>{modalResetPassAdmin.nombre}</strong> (<code>{modalResetPassAdmin.email}</code>).
               </p>

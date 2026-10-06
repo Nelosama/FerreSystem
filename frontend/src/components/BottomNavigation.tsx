@@ -1,4 +1,4 @@
-import { canNavigate } from '../utils/taskNavigation';
+import { availableTasks, groupNavigation, priorityTasks } from '../utils/taskNavigation';
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { MoreHorizontal, X, GitBranch, Clock } from 'lucide-react';
@@ -6,7 +6,7 @@ import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useSucursales } from '../hooks/useSucursales';
 import { useI18n } from '../context/I18nContext';
-import { NAVIGATION_ITEMS, type NavigationItem } from '../config/navigation';
+import { type NavigationItem } from '../config/navigation';
 
 export const BottomNavigation: React.FC = () => {
   const { tenant, user, switchSucursal } = useTenant();
@@ -15,37 +15,24 @@ export const BottomNavigation: React.FC = () => {
   const location = useLocation();
 
   const [showMasModal, setShowMasModal] = useState(false);
+  const moreButton = React.useRef<HTMLButtonElement>(null);
+  const dialog = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!showMasModal) return;
+    dialog.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    return () => { moreButton.current?.focus(); };
+  }, [showMasModal]);
+  React.useEffect(() => { setShowMasModal(false); }, [location.pathname, user?.id, tenant.id]);
 
 
 
-  const visibleItems = NAVIGATION_ITEMS.filter(item => canNavigate(item, user, tenant));
+  const visibleItems = availableTasks(user, tenant);
 
-  // Orden de los 4 ítems principales preferidos
-  const PREFERRED_KEYS = ['dashboard', 'pos', 'cotizaciones', 'inventario'];
-
-  // Seleccionar los 4 ítems para la barra inferior respetando permisos
-  const bottomFour: NavigationItem[] = [];
-  const selectedKeys = new Set<string>();
-
-  // 1. Agregar los preferidos que el usuario tenga permitidos
-  PREFERRED_KEYS.forEach((key) => {
-    const item = visibleItems.find((i) => i.key === key);
-    if (item && bottomFour.length < 4) {
-      bottomFour.push(item);
-      selectedKeys.add(item.key);
-    }
-  });
-
-  // 2. Si hay menos de 4, rellenar con los siguientes disponibles en la lista de permisos
-  visibleItems.forEach((item) => {
-    if (bottomFour.length < 4 && !selectedKeys.has(item.key)) {
-      bottomFour.push(item);
-      selectedKeys.add(item.key);
-    }
-  });
-
-  // 3. El resto de los ítems permitidos van a la pantalla "Más"
-  const remainingItems = visibleItems.filter((item) => !selectedKeys.has(item.key));
+  const preferred = priorityTasks(user, tenant);
+  const home = visibleItems.find(item => item.key === 'dashboard' || item.key === 'superadmin');
+  const bottomFour: NavigationItem[] = [...(home ? [home] : []), ...preferred.filter(item => item !== home)].slice(0,4);
+  const selectedKeys = new Set(bottomFour.map(item => item.key));
+  const remainingItems = visibleItems.filter(item => !selectedKeys.has(item.key));
 
   const getLabel = (item: NavigationItem) => {
     if (item.key === 'inventario') {
@@ -94,6 +81,9 @@ export const BottomNavigation: React.FC = () => {
         {/* Botón MÁS */}
         <button
           type="button"
+          ref={moreButton}
+          aria-expanded={showMasModal}
+          aria-controls="mobile-more-menu"
           onClick={() => setShowMasModal(true)}
           style={{
             ...styles.navTab,
@@ -105,21 +95,29 @@ export const BottomNavigation: React.FC = () => {
         >
           <MoreHorizontal size={20} strokeWidth={showMasModal || isMasActive ? 2.5 : 2} />
           <span style={{ ...styles.tabLabel, fontWeight: showMasModal || isMasActive ? 800 : 600 }}>
-            Más
+            {t('navigation.more')}
           </span>
         </button>
       </nav>
 
       {/* Pantalla/Modal MÁS */}
       {showMasModal && (
-        <div style={styles.masOverlay}>
+        <div ref={dialog} id="mobile-more-menu" role="dialog" aria-modal="true" aria-label={t('navigation.more')} style={styles.masOverlay} onKeyDown={event => {
+          if (event.key === 'Escape') { event.preventDefault(); setShowMasModal(false); }
+          if (event.key === 'Tab') {
+            const controls = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], select:not(:disabled)') || []);
+            const first = controls[0], last = controls[controls.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+          }
+        }}>
           <div style={styles.masHeader}>
-            <span style={styles.masTitle}>Más Opciones</span>
+            <span style={styles.masTitle}>{t('navigation.more')}</span>
             <button
               type="button"
               onClick={() => setShowMasModal(false)}
               style={styles.closeBtn}
-              aria-label="Cerrar menú"
+              aria-label={t('navigation.close')}
             >
               <X size={22} color="var(--color-text-main)" />
             </button>
@@ -132,7 +130,7 @@ export const BottomNavigation: React.FC = () => {
               <div style={styles.configRow}>
                 <Clock size={15} color="var(--color-text-muted)" />
                 <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                  Consulta tu apertura y cierre en Caja
+                  {t('navigation.cash_help')}
                 </span>
               </div>
 
@@ -140,13 +138,13 @@ export const BottomNavigation: React.FC = () => {
               {user?.rol === 'ADMIN' && (
                 <div style={styles.configRow}>
                   <GitBranch size={15} color="var(--color-primary)" />
-                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Sucursal:</span>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>{t('navigation.branch')}</span>
                   <select
                     value={tenant.sucursal || 'Sucursal Principal'}
                 disabled={sucursalesDisponibles.length < 2}
                     onChange={(e) => switchSucursal(e.target.value, tenant.id)}
                     style={styles.sucursalSelect}
-                    aria-label="Seleccionar sucursal"
+                    aria-label={t('navigation.branch')}
                   >
                     {sucursalesDisponibles.map((s: any) => (
                       <option key={s.id} value={s.nombre}>
@@ -159,7 +157,7 @@ export const BottomNavigation: React.FC = () => {
 
               {/* Selector de Idioma ES / EN */}
               <div style={styles.configRow}>
-                <span style={{ fontSize: '12px', fontWeight: 700 }}>Idioma:</span>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>{t('navigation.language')}</span>
                 <div style={styles.langToggle}>
                   <button
                     type="button"
@@ -188,9 +186,11 @@ export const BottomNavigation: React.FC = () => {
             </div>
 
             {/* Cuadrícula de opciones restadas */}
-            <div style={styles.gridTitle}>MÓDULOS DEL SISTEMA</div>
+            <div style={styles.gridTitle}>{t('navigation.modules')}</div>
             <div style={styles.gridContainer}>
-              {remainingItems.map((item) => {
+              {groupNavigation(remainingItems).map(group => <React.Fragment key={group.category}>
+                <h3 className="mobile-navigation-group">{t('navigation.' + group.category)}</h3>
+                {group.items.map((item) => {
                 const Icon = item.icon;
                 const isActive = item.exact
                   ? location.pathname === item.route
@@ -221,7 +221,7 @@ export const BottomNavigation: React.FC = () => {
                     <span style={styles.gridLabel}>{getLabel(item)}</span>
                   </NavLink>
                 );
-              })}
+              })}</React.Fragment>)}
             </div>
           </div>
         </div>

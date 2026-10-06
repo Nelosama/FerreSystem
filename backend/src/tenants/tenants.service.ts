@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { enabledTenantModules } from '../common/tenant-modules';
+import { validateTenantConfiguration } from './tenant-configuration';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -19,7 +21,8 @@ export class TenantsService {
 
     return {
       ...tenant,
-      modulosHabilitados: tenant.modulos.filter((m) => m.enabled).map((m) => m.moduleKey),
+      ...(tenant.configuracion as Record<string, unknown>),
+      modulosHabilitados: enabledTenantModules(tenant.modulos),
     };
   }
 
@@ -31,12 +34,19 @@ export class TenantsService {
       telefono?: string;
       email?: string;
       colorPrimario?: string;
-      logoUrl?: string;
+      logoUrl?: string | null;
+      modoNavegacion?: "SIDEBAR" | "TOPNAV";
+      configuracion?: Record<string, any>;
     },
   ) {
+    if (data.modoNavegacion && !['SIDEBAR', 'TOPNAV'].includes(data.modoNavegacion)) throw new BadRequestException('Navegación inválida');
+    const configuracion = data.configuracion;
+    if (configuracion !== undefined) validateTenantConfiguration(configuracion);
     return this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
+        ...(configuracion !== undefined && { configuracion }),
+        ...(data.modoNavegacion && { modoNavegacion: data.modoNavegacion }),
         ...(data.nombreComercial && { nombreComercial: data.nombreComercial }),
         ...(data.direccion !== undefined && { direccion: data.direccion }),
         ...(data.telefono !== undefined && { telefono: data.telefono }),

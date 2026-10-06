@@ -1,6 +1,6 @@
 {
   "menu": {
-    "dashboard": "PANEL DE CONTROL",
+    "dashboard": "Inicio",
     "inventory": "INVENTARIO Y CATÁLOGO",
     "pos": "PUNTO DE VENTA POS",
     "quotations": "COTIZACIONES",
@@ -14,8 +14,8 @@
     "commissions": "COMISIONES VENTA",
     "reports": "REPORTES",
     "stock_taking": "LEVANTAMIENTO DE INVENTARIO",
-    "configuration": "CONFIGURACIÓN GLOBAL",
-    "super_admin": "PANEL SUPER ADMIN",
+    "configuration": "Configuración del negocio",
+    "super_admin": "Administrar plataforma",
     "accounts": "CUENTAS Y ABONOS",
     "deliveries": "ENTREGAS",
     "returns": "DEVOLUCIONES",
@@ -513,5 +513,137 @@
     "change": "Cambiar cliente o ingresar datos manualmente",
     "numberLabel": "Número de cliente",
     "numberAutomatic": "El número de cliente se asignará automáticamente al guardar."
+  },
+  "navigation": {
+    "SYSTEM": "Plataforma",
+    "OPERACION": "Ventas y caja",
+    "INVENTARIO": "Inventario y compras",
+    "CLIENTES": "Clientes y cobros",
+    "GESTION": "Personal",
+    "ANALISIS": "Resultados",
+    "CONFIGURACION": "Configuración",
+    "more": "Más opciones",
+    "close": "Cerrar menú",
+    "denied": "Acceso Denegado",
+    "denied_help": "No tienes acceso a esta pantalla. Consulta al administrador.",
+    "company": "Gestionar empresa",
+    "support": "Iniciar soporte",
+    "cash_help": "Consulta tu apertura y cierre en Caja",
+    "branch": "Sucursal",
+    "language": "Idioma",
+    "modules": "Pantallas disponibles"
+  },
+  "tasks": {
+    "finder": "Buscar una pantalla o tarea",
+    "question": "¿Qué necesitas hacer?",
+    "placeholder": "Buscar una pantalla o tarea: caja, comprar, clientes…",
+    "clear": "Limpiar",
+    "help": "Encuentra dónde trabajar. Busca productos y clientes dentro de su pantalla.",
+    "count": "{count} tareas disponibles",
+    "empty": "No encontramos esa tarea. Prueba con caja, comprar o clientes.",
+    "open": "Abrir esta pantalla.",
+    "manage": "Administrar el negocio",
+    "daily": "Tareas del día",
+    "unavailable": "No hay tareas habilitadas para tu rol. Consulta al administrador.",
+    "guidance": {
+      "ADMIN": "Elige una tarea frecuente. Encuentra las demás en el menú o el buscador de pantallas.",
+      "CAJERO": "Primero abre la caja, luego registra las ventas. Al terminar, cuenta el efectivo y cierra la caja.",
+      "VENDEDOR": "Prepara ventas y cotizaciones y consulta tus clientes.",
+      "BODEGUERO": "Revisa entregas y existencias antes de registrar movimientos."
+    },
+    "dashboard": {
+      "title": "Inicio",
+      "description": "Elegir una tarea y revisar el resumen del negocio.",
+      "keywords": "ayuda resumen inicio"
+    },
+    "pos": {
+      "title": "Hacer una venta",
+      "description": "Buscar productos, cobrar y emitir el comprobante.",
+      "keywords": "vender cobrar factura punto de venta"
+    },
+    "arqueo_caja": {
+      "title": "Abrir o cerrar caja",
+      "description": "Registrar el fondo inicial, revisar movimientos y contar el efectivo.",
+      "keywords": "dinero turno cierre apertura efectivo arqueo"
+    },
+    "ordenes_compra": {
+      "title": "Comprar y recibir mercadería",
+      "description": "Registrar proveedores, facturas y recibir productos.",
+      "keywords": "compras proveedor abastecer entrada mercaderia"
+    },
+    "inventario": {
+      "title": "Consultar productos y existencias",
+      "description": "Buscar productos y revisar precios y stock.",
+      "keywords": "existencias stock catalogo precio producto"
+    },
+    "levantamiento": {
+      "title": "Contar el inventario",
+      "description": "Registrar el conteo físico de los productos.",
+      "keywords": "conteo fisico contar inventario"
+    },
+    "clientes": {
+      "title": "Buscar o registrar un cliente",
+      "description": "Consultar y actualizar los datos de clientes.",
+      "keywords": "cliente nombre telefono registro"
+    },
+    "cuentas": {
+      "title": "Consultar cuentas y registrar abonos",
+      "description": "Revisar saldos pendientes y registrar pagos.",
+      "keywords": "deuda credito abono pagar cobrar saldo"
+    },
+    "entregas": {
+      "title": "Entregar productos vendidos",
+      "description": "Revisar las entregas pendientes y confirmar la entrega.",
+      "keywords": "despachar entrega pedido"
+    },
+    "usuarios": {
+      "title": "Administrar el personal",
+      "description": "Gestionar usuarios, roles y permisos.",
+      "keywords": "empleado cajero acceso clave usuario permisos"
+    },
+    "reportes": {
+      "title": "Revisar los reportes",
+      "description": "Consultar los resultados del negocio.",
+      "keywords": "ventas resultados estadisticas ganancias reporte"
+    },
+    "devoluciones": {
+      "title": "Registrar una devolución",
+      "description": "Solicitar una devolución, revisar autorizaciones y confirmar el reembolso.",
+      "keywords": "reversar devolver reembolso anular devolucion"
+    },
+    "auditoria": {
+      "title": "Revisar la actividad del sistema",
+      "description": "Consultar el historial de operaciones.",
+      "keywords": "historial auditoria cambios actividad"
+    },
+    "cotizaciones": {
+      "title": "Preparar una cotización",
+      "description": "Crear y consultar presupuestos para clientes.",
+      "keywords": "presupuesto cotizar cotizacion"
+    },
+    "configuracion": {
+      "title": "Configurar el negocio",
+      "description": "Revisar las opciones de la empresa y la interfaz.",
+      "keywords": "ajustes empresa configuracion"
+    }
+  },
+  "settings": {
+    "name": "Nombre comercial",
+    "logo": "Logo de empresa",
+    "sector": "Rubro comercial",
+    "symbol": "Símbolo de moneda",
+    "tax_name": "Nombre del impuesto",
+    "tax_rate": "Tasa del impuesto",
+    "heading_font": "Fuente de títulos",
+    "body_font": "Fuente de cuerpo",
+    "contact": "Datos de contacto",
+    "address": "Dirección",
+    "phone": "Teléfono",
+    "email": "Correo",
+    "currency_code": "Código de moneda",
+    "currency_tax": "Moneda e impuesto",
+    "fiscal_help": "Las ventas conservan ISV del 15% y montos en lempiras. Cambiar estos datos no convierte precios ni modifica el cálculo de ventas.",
+    "typography": "Tipografía",
+    "scope": "Datos del negocio y apariencia compartidos por la empresa. El idioma es tu preferencia personal. Los cambios se aplican al guardar."
   }
 }

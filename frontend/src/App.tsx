@@ -317,7 +317,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/configuracion"
                     element={
-                      <ProtectedRoute allowedRoles={['SUPERADMIN', 'ADMIN']} requiredModule="configuracion">
+                      <ProtectedRoute allowedRoles={['ADMIN']} requiredModule="configuracion">
                         <AppLayout>
                           <ConfiguracionPage />
                         </AppLayout>

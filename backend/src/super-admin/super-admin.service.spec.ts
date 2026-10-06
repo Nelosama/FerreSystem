@@ -129,4 +129,30 @@ describe('SuperAdminService', () => {
     expect(result.adminUsuario).toMatchObject({ id: 'user-1', email: 'admin@ferreteria.test', rol: 'ADMIN' });
     expect(await bcrypt.compare('tenant password', tx.usuario.create.mock.calls[0][0].data.passwordHash)).toBe(true);
   });
+
+  it('scopes administrator edits to the selected company and ADMIN role', async () => {
+    const tx = { $queryRawUnsafe: vi.fn().mockResolvedValue([]), usuario: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() } };
+    prisma.$transaction.mockImplementation(callback => callback(tx));
+    await expect(service.updateTenantAdmin('company-A', 'admin-of-B', { activo: false })).rejects.toThrow('Administrador no encontrado');
+    expect(tx.usuario.findFirst).toHaveBeenCalledWith({ where: { id: 'admin-of-B', tenantId: 'company-A', rol: 'ADMIN' } });
+    expect(tx.usuario.update).not.toHaveBeenCalled();
+  });
+
+  it('retains the last active administrator', async () => {
+    const tx = { $queryRawUnsafe: vi.fn().mockResolvedValue([]), usuario: { findFirst: vi.fn().mockResolvedValue({ activo: true }), count: vi.fn().mockResolvedValue(1), update: vi.fn() } };
+    prisma.$transaction.mockImplementation(callback => callback(tx));
+    await expect(service.updateTenantAdmin('company-A', 'admin-A', { activo: false })).rejects.toThrow('al menos un administrador');
+    expect(tx.usuario.update).not.toHaveBeenCalled();
+  });
+
+  it('hashes reset passwords and returns safe fields', async () => {
+    const tx = { $queryRawUnsafe: vi.fn().mockResolvedValue([]), usuario: { findFirst: vi.fn().mockResolvedValue({ activo: true }), update: vi.fn().mockResolvedValue({ id: 'admin-A' }) } };
+    prisma.$transaction.mockImplementation(callback => callback(tx));
+    const result = await service.updateTenantAdmin('company-A', 'admin-A', { password: 'new-password-123' });
+    const { data, select } = tx.usuario.update.mock.calls[0][0];
+    expect(data.passwordHash).not.toBe('new-password-123');
+    expect(await bcrypt.compare('new-password-123', data.passwordHash)).toBe(true);
+    expect(select.passwordHash).toBeUndefined();
+    expect(result).toEqual({ id: 'admin-A' });
+  });
 });

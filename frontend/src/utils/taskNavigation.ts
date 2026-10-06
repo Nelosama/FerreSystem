@@ -1,7 +1,7 @@
-import { NAVIGATION_ITEMS, type NavigationItem } from '../config/navigation';
+import { NAVIGATION_CATEGORIES, NAVIGATION_ITEMS, ROLE_PRIORITIES, type NavigationItem } from '../config/navigation';
 import type { TenantInfo, UserInfo } from '../types';
 
-const pending = new Set(['apartados', 'transferencias', 'garantias', 'pedidos_especiales', 'listas_precio']);
+import { PENDING_MODULES, CATALOGO_MODULOS } from '../config/modulesCatalog';
 export const TASK_DETAILS: Record<string, { title: string; description: string; keywords: string }> = {
   dashboard: { title: 'Inicio', description: 'Elegir una tarea y revisar el resumen del negocio.', keywords: 'ayuda resumen inicio' },
   pos: { title: 'Hacer una venta', description: 'Buscar productos, cobrar y emitir el comprobante.', keywords: 'vender cobrar factura punto de venta' },
@@ -22,16 +22,26 @@ export const TASK_DETAILS: Record<string, { title: string; description: string; 
 export function canNavigate(item: NavigationItem, user: UserInfo | null, tenant: TenantInfo): boolean {
   if (!user || (item.allowedRoles?.length && !item.allowedRoles.includes(user.rol))) return false;
   if (item.requiredPermiso && user.rol !== 'ADMIN' && !user.permisos?.includes(item.requiredPermiso)) return false;
+  if (item.moduleKey && CATALOGO_MODULOS.find(module => module.key === item.moduleKey)?.isCore) return true;
   return !item.moduleKey || tenant.modulosHabilitados === undefined || tenant.modulosHabilitados.includes(item.moduleKey);
 }
 export const availableTasks = (user: UserInfo | null, tenant: TenantInfo) =>
-  NAVIGATION_ITEMS.filter(item => !pending.has(item.key) && canNavigate(item, user, tenant));
+  NAVIGATION_ITEMS.filter(item => (!item.moduleKey || !PENDING_MODULES.has(item.moduleKey)) && canNavigate(item, user, tenant)).sort((a,b) => NAVIGATION_CATEGORIES.indexOf(a.category) - NAVIGATION_CATEGORIES.indexOf(b.category));
 const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-export function searchTasks(items: NavigationItem[], query: string): NavigationItem[] {
+export function searchTasks(items: NavigationItem[], query: string, translate?: (key: string) => string): NavigationItem[] {
   const words = normalize(query).trim().split(/\s+/).filter(Boolean);
   return items.filter(item => {
     const detail = TASK_DETAILS[item.key];
-    const text = normalize(`${item.defaultLabel} ${detail?.title || ''} ${detail?.description || ''} ${detail?.keywords || ''}`);
+    const text = normalize(`${translate?.(item.labelKey) || ""} ${translate?.("tasks." + item.key + ".title") || ""} ${translate?.("tasks." + item.key + ".description") || ""} ${item.defaultLabel} ${detail?.title || ''} ${detail?.description || ''} ${detail?.keywords || ''}`);
     return words.every(word => text.includes(word));
   });
 }
+
+export const priorityTasks = (user: UserInfo | null, tenant: TenantInfo) => {
+  const tasks = availableTasks(user, tenant);
+  return (ROLE_PRIORITIES[user?.rol || ''] || []).flatMap(key => tasks.filter(item => item.key === key)).slice(0, 4);
+};
+export const groupNavigation = (items: NavigationItem[]) => NAVIGATION_CATEGORIES.flatMap(category => {
+  const group = items.filter(item => item.category === category);
+  return group.length ? [{ category, items: group }] : [];
+});

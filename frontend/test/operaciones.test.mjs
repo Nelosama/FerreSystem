@@ -47,12 +47,13 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     '../context/NotificationContext': { useNotification: () => ({ solicitudes: [], solicitarDescuento() {} }) },
     '../hooks/useRubroConfig': { useRubroConfig: () => ({ categoriasDefault: ['General'], unidadesMedida: ['unidad', 'galón'], activarVencimientos: false, activarGarantiaSerie: false }) },
     '../utils/format': { formatLempiras: String },
+    '../utils/api': { api: { get: async () => ({ data: {} }) } },
     '../utils/sessionSync': { startSessionSync: () => () => {} },
     ...overrides,
   };
   const component = evaluate(file, mocks, { localStorage: sharedStorage, crypto: webcrypto, alert() {},
     window: { addEventListener: (name, fn) => windowListeners.set(name, fn), removeEventListener: (name) => windowListeners.delete(name) },
-    document: { documentElement: { style: { setProperty() {} } } },
+    document: { documentElement: { dataset: {}, classList: { add() {}, remove() {} }, style: { setProperty() {} } } },
     setTimeout: (fn, delay) => setTimeout(fn, delay).unref(), clearTimeout })[name];
   const nodes = () => {
     const found = [];
@@ -101,6 +102,52 @@ test('un inicio fallido de soporte conserva la sesión de superadmin', async () 
   await assert.rejects(page.find((node) => node.type === 'ContextProvider').props.value.impersonateTenantAdmin({ id: 't1' }, { id: 'u1' }));
   assert.equal(saved.getItem('ferre_token'), 'admin-token');
   assert.equal(saved.getItem('ferre_original_superadmin_token'), null);
+});
+
+test('configuración antigua del catálogo local no sobrescribe el servidor ni coincide por nombre', async () => {
+  const saved = storage();
+  saved.setItem('ferre_user', JSON.stringify({ id: 'user-A', rol: 'ADMIN' }));
+  saved.setItem('ferre_tenant', JSON.stringify({ id: 'tenant-A', nombreComercial: 'Mismo nombre', colorPrimario: '#000000' }));
+  saved.setItem('ferre_saas_tenants', JSON.stringify([{ id: 'tenant-B', nombreComercial: 'Mismo nombre', colorPrimario: '#FF0000', modoNavegacion: 'SIDEBAR', modulosHabilitados: [] }]));
+  const page = harness('src/context/TenantContext.tsx', 'TenantProvider', {
+    '../utils/api': { api: { get: async () => ({ data: { id: 'tenant-A', colorPrimario: '#0284C7', modoNavegacion: 'TOPNAV', modulosHabilitados: ['pos'] } }) } },
+  }, saved);
+  page.render(); await page.effects(); page.render();
+  const value = page.find(node => node.type === 'ContextProvider').props.value;
+  assert.equal(value.tenant.colorPrimario, '#0284C7');
+  assert.equal(value.tenant.modoNavegacion, 'TOPNAV');
+  assert.equal(value.tenant.modulosHabilitados[0], 'pos');
+});
+
+test('respuesta de configuración antigua no contamina el login de otra empresa', async () => {
+  const saved = storage(); let resolve;
+  saved.setItem('ferre_user', JSON.stringify({ id: 'user-A', rol: 'ADMIN' }));
+  saved.setItem('ferre_tenant', JSON.stringify({ id: 'tenant-A', colorPrimario: '#000000' }));
+  const page = harness('src/context/TenantContext.tsx', 'TenantProvider', {
+    '../utils/api': { api: { get: () => new Promise(done => { resolve = done; }) } },
+  }, saved);
+  page.render(); await page.effects();
+  saved.setItem('ferre_user', JSON.stringify({ id: 'user-B', rol: 'ADMIN' }));
+  saved.setItem('ferre_tenant', JSON.stringify({ id: 'tenant-B', colorPrimario: '#FFFFFF' }));
+  resolve({ data: { id: 'tenant-A', colorPrimario: '#FF0000' } });
+  await new Promise(done => setImmediate(done));
+  assert.equal(JSON.parse(saved.getItem('ferre_tenant')).id, 'tenant-B');
+  assert.equal(JSON.parse(saved.getItem('ferre_tenant')).colorPrimario, '#FFFFFF');
+});
+
+test('lectura anterior del servidor no revierte una configuración recién guardada', async () => {
+  const saved = storage(); let resolve;
+  saved.setItem('ferre_user', JSON.stringify({ id: 'user-A', rol: 'ADMIN' }));
+  saved.setItem('ferre_tenant', JSON.stringify({ id: 'tenant-A', colorPrimario: '#000000' }));
+  const page = harness('src/context/TenantContext.tsx', 'TenantProvider', {
+    '../utils/api': { api: { get: () => new Promise(done => { resolve = done; }) } },
+  }, saved);
+  page.render(); await page.effects();
+  page.find(node => node.type === 'ContextProvider').props.value.updateTenantConfig({ colorPrimario: '#0284C7', modoNavegacion: 'TOPNAV' });
+  resolve({ data: { id: 'tenant-A', colorPrimario: '#000000', modoNavegacion: 'SIDEBAR' } });
+  await new Promise(done => setImmediate(done));
+  assert.equal(JSON.parse(saved.getItem('ferre_tenant')).colorPrimario, '#0284C7');
+  assert.equal(JSON.parse(saved.getItem('ferre_tenant')).modoNavegacion, 'TOPNAV');
 });
 
 test('cambiar sesión en otra pestaña invalida usuario y empresa locales sin borrar la cuenta nueva', async () => {

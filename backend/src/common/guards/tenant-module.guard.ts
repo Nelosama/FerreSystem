@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { REQUIRED_MODULE_KEY } from '../decorators/required-module.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { CORE_TENANT_MODULES } from '../tenant-modules';
 
 @Injectable()
 export class TenantModuleGuard extends JwtAuthGuard implements CanActivate {
@@ -41,6 +42,8 @@ export class TenantModuleGuard extends JwtAuthGuard implements CanActivate {
     if (!tenantId) {
       throw new ForbiddenException('Tenant ID no encontrado en la petición');
     }
+
+    if (CORE_TENANT_MODULES.includes(requiredModule)) return true;
 
     const tenantModule = await this.prisma.tenantModule.findUnique({
       where: {

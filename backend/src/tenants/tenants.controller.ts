@@ -12,7 +12,6 @@ export class TenantsController {
   constructor(private readonly tenantsService: TenantsService) {}
 
   @Get('settings')
-  @Roles('ADMIN')
   async getSettings(@TenantId() tenantId: string) {
     return this.tenantsService.getTenantSettings(tenantId);
   }
@@ -28,7 +27,9 @@ export class TenantsController {
       telefono?: string;
       email?: string;
       colorPrimario?: string;
-      logoUrl?: string;
+      logoUrl?: string | null;
+      modoNavegacion?: "SIDEBAR" | "TOPNAV";
+      configuracion?: Record<string, any>;
     },
   ) {
     return this.tenantsService.updateTenantBranding(tenantId, body);

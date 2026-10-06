@@ -1,6 +1,10 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
+import { NAVIGATION_ITEMS } from '../config/navigation';
+import { canNavigate } from '../utils/taskNavigation';
+import { CATALOGO_MODULOS } from '../config/modulesCatalog';
+import { useI18n } from '../context/I18nContext';
 import { Lock } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -17,10 +21,17 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiredModule,
 }) => {
   const { user, tenant, isAuthenticated } = useTenant();
+  const { pathname } = useLocation();
+  const { t } = useI18n();
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
+
+  if (pathname === '/' && user.rol === 'SUPERADMIN') return <Navigate to="/admin" replace />;
+
+  const entry = NAVIGATION_ITEMS.find(item => item.route === pathname);
+  if (entry && !canNavigate(entry, user, tenant)) return <div role="alert" style={styles.deniedContainer}><Lock size={48} /><h2>{t('navigation.denied')}</h2><p>{t('navigation.denied_help')}</p></div>;
 
   // Verificar rol
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user.rol)) {
@@ -34,7 +45,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Verificar permiso específico
-  if (requiredPermiso && user.rol !== 'ADMIN' && user.permisos && !user.permisos.includes(requiredPermiso)) {
+  if (requiredPermiso && user.rol !== 'ADMIN' && !user.permisos?.includes(requiredPermiso)) {
     return (
       <div style={styles.deniedContainer}>
         <Lock size={48} color="#DC2626" />
@@ -46,27 +57,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Verificar si el módulo está habilitado para el Tenant
   if (requiredModule) {
-    const defaultModules = [
-      'inventario',
-    'levantamiento',
-      'pos',
-      'cotizaciones',
-      'usuarios',
-      'configuracion',
-      'apartados',
-      'arqueo_caja',
-      'ordenes_compra',
-      'transferencias_sucursal',
-      'garantias',
-      'pedidos_especiales',
-      'listas_precio',
-      'comisiones_venta',
-      'reportes',
-    ];
+    const activeModules = tenant.modulosHabilitados || CATALOGO_MODULOS.map(module => module.key);
+    const isCore = CATALOGO_MODULOS.find(module => module.key === requiredModule)?.isCore;
 
-    const activeModules = tenant.modulosHabilitados || defaultModules;
-
-    if (!activeModules.includes(requiredModule)) {
+    if (!isCore && !activeModules.includes(requiredModule)) {
       return (
         <div style={styles.deniedContainer}>
           <Lock size={48} color="#EA580C" />
