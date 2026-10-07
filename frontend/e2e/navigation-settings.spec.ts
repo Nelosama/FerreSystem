@@ -79,6 +79,47 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
   });
 }
 
+for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const enabled of [false, true]) {
+  test(`POS ${enabled} ${role} ${mode}: menús, buscador, accesos, móvil y URL`, async ({ page }) => {
+    await setup(page, role, mode, 'es', enabled ? ['pos'] : []);
+    await page.goto('/');
+    const nav = page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
+    await expect(nav).toBeVisible();
+    const salesMenu = nav.getByRole('button', { name: 'Ventas y caja' });
+    if (mode === 'TOPNAV' && await salesMenu.count()) await salesMenu.click();
+    for (const route of ['entregas', 'devoluciones']) {
+      const allowed = enabled && (route === 'entregas' ? role !== 'VENDEDOR' : role !== 'BODEGUERO');
+      await expect(nav.locator(`a[href="/${route}"]`)).toHaveCount(allowed ? 1 : 0);
+      await page.locator('#task-search').fill(route === 'entregas' ? 'entregar' : 'devolución');
+      await expect(page.locator(`.task-search-results a[href="/${route}"]`)).toHaveCount(allowed ? 1 : 0);
+      if (!allowed) await expect(page.locator(`.daily-tasks a[href="/${route}"]`)).toHaveCount(0);
+    }
+    if (role === 'BODEGUERO') await expect(page.locator('.daily-tasks a[href="/entregas"]')).toHaveCount(enabled ? 1 : 0);
+    if (['ADMIN', 'CAJERO'].includes(role)) {
+      await expect(nav.locator('a[href="/arqueo-caja"]')).toHaveCount(1);
+      if (mode === 'TOPNAV') await nav.getByRole('button', { name: 'Clientes y cobros' }).click();
+      await expect(nav.locator('a[href="/cuentas"]')).toHaveCount(1);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('.mobile-bottom-nav button').click();
+    const mobile = page.locator('.mobile-bottom-nav, [role="dialog"]');
+    for (const route of ['entregas', 'devoluciones']) {
+      const allowed = enabled && (route === 'entregas' ? role !== 'VENDEDOR' : role !== 'BODEGUERO');
+      expect(await mobile.locator(`a[href="/${route}"]`).count()).toBe(allowed ? 1 : 0);
+    }
+    await page.keyboard.press('Escape');
+    for (const route of ['entregas', 'devoluciones']) for (const url of [`/${route}`, `/${route.toUpperCase()}/`]) {
+      await page.goto(url);
+      const allowed = enabled && (route === 'entregas' ? role !== 'VENDEDOR' : role !== 'BODEGUERO');
+      const denied = page.getByRole('heading', { name: 'Acceso Denegado', exact: true });
+      if (allowed) {
+        await expect(page.locator('.task-finder-toggle')).toBeVisible();
+        await expect(denied).toHaveCount(0);
+      } else await expect(denied).toBeVisible();
+    }
+  });
+}
+
 test('settings: valores fiscales soportados, guardado, reload, errores y capturas', async ({ page }) => {
   const api = await setup(page, 'ADMIN', 'TOPNAV');
   await page.goto('/configuracion');

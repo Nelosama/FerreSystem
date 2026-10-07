@@ -58,4 +58,6 @@ jobs:
           echo "PG_BIN=$pg_bin" >> "$GITHUB_ENV"
       - name: Integración con persistencia PostgreSQL real
         working-directory: backend
+        env:
+          REAL_SETTINGS_BROWSER: '1'
         run: npm run test:integration
