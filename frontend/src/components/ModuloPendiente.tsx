@@ -1,4 +1,19 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { TopBar } from './TopBar';
-export const ModuloPendiente:React.FC<{nombre:string;especial?:boolean}>=({nombre,especial})=><div><TopBar title={nombre} subtitle="Módulo pendiente de implementación operativa"/><main style={{padding:24}}><section className="industrial-card" style={{padding:24}}><p>Este módulo todavía no registra operaciones del negocio. Sus datos de demostración anteriores se conservan para revisión.</p>{especial?<><p>Registre las ventas especiales desde el POS con la opción «Venta sin inventario» y seleccione el proveedor. Las compras físicas se reciben desde Compras.</p><Link className="btn btn-primary" to="/pos">Ir al POS</Link></>:<p>Utilice Inventario, POS, Caja, Cuentas y Devoluciones para las operaciones habilitadas.</p>}</section></main></div>;
+import { useI18n } from '../context/I18nContext';
+import { useTenant } from '../context/TenantContext';
+import { availableTasks } from '../utils/taskNavigation';
+export const ModuloPendiente: React.FC<{ nombre: string; especial?: boolean }> = ({ nombre, especial }) => {
+  const { t } = useI18n();
+  const { user, tenant } = useTenant();
+  const titleKey = ({ APARTADOS: 'menu.layaway', 'TRANSFERENCIAS ENTRE SUCURSALES': 'menu.transfers', 'GARANTÍAS': 'menu.warranties', 'PEDIDOS ESPECIALES': 'menu.special_orders', 'LISTAS DE PRECIO': 'menu.price_lists' } as Record<string, string>)[nombre];
+  const canSell = availableTasks(user, tenant).some(item => item.key === 'pos');
+  return <div><TopBar title={titleKey ? t(titleKey) : nombre} subtitle={t('pending.subtitle')} /><main style={{ padding: 24 }}>
+    <section className="industrial-card" style={{ padding: 24 }} aria-label={t('pending.title')}>
+      <p>{t('pending.details')}</p><p>{t('pending.help')}</p>
+      <p>{t(especial ? 'pending.special' : 'pending.operational')}</p>
+      {especial && canSell && <Link className="btn btn-primary" to="/pos">{t('pending.pos')}</Link>}
+    </section>
+  </main></div>;
+};

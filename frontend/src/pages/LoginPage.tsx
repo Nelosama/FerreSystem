@@ -54,6 +54,7 @@ export const LoginPage: React.FC = () => {
             rol: user.rol,
           },
           {
+            ...tenant,
             id: tenant.id,
             nombreComercial: tenant.nombreComercial,
             sucursal: 'Sucursal Principal',

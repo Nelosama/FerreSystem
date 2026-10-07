@@ -3,6 +3,7 @@ import { SuperAdminService } from './super-admin.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 import type { Request, Response } from 'express';
+import { CreateTenantAdminDto, UpdateTenantAdminDto } from './tenant-admin.dto';
 import { SupportTokenDto } from './support-token.dto';
 
 @Controller('admin')
@@ -83,6 +84,18 @@ export class SuperAdminController {
     @Body() body: { modules: { moduleKey: string; enabled: boolean }[] },
   ) {
     return this.superAdminService.updateTenantModules(id, body.modules);
+  }
+
+  @Post('tenants/:tenantId/admins')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  createTenantAdmin(@Param('tenantId') tenantId: string, @Body() dto: CreateTenantAdminDto) {
+    return this.superAdminService.createTenantAdmin(tenantId, dto);
+  }
+
+  @Patch('tenants/:tenantId/admins/:userId')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  updateTenantAdmin(@Param('tenantId') tenantId: string, @Param('userId') userId: string, @Body() dto: UpdateTenantAdminDto) {
+    return this.superAdminService.updateTenantAdmin(tenantId, userId, dto);
   }
 
   @Patch('tenants/:id')

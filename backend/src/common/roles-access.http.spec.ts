@@ -41,8 +41,11 @@ describe('Roles and cashier HTTP access', () => {
   });
   afterAll(async () => { await app?.close(); });
 
-  it.each([['delete', '/productos/p'], ['post', '/productos'], ['put', '/productos/p'], ['get', '/tenant/settings'], ['put', '/tenant/settings'], ['get', '/usuarios']])('denies cashier %s %s', async (method, path) => {
+  it.each([['delete', '/productos/p'], ['post', '/productos'], ['put', '/productos/p'], ['put', '/tenant/settings'], ['get', '/usuarios']])('denies cashier %s %s', async (method, path) => {
     await (request(app.getHttpServer()) as any)[method](path).set('x-test-role', 'CAJERO').send({}).expect(403);
+  });
+  it('allows cashier to read shared branding without changing settings', async () => {
+    await request(app.getHttpServer()).get('/tenant/settings').set('x-test-role', 'CAJERO').expect(200);
   });
   it('allows admin deletion and retains costs', async () => {
     const response = await request(app.getHttpServer()).delete('/productos/p').set('x-test-role', 'ADMIN').expect(200);

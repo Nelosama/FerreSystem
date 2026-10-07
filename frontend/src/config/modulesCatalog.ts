@@ -73,6 +73,7 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
   },
   {
     key: 'clientes',
+    isCore: true,
     labelKey: 'menu.clients',
     nombre: 'Directorio de Clientes & RTN',
     descripcion: 'Gestión de clientes, datos fiscales, RTN y clasificación comercial',
@@ -101,6 +102,7 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
   },
   {
     key: 'arqueo_caja',
+    isCore: true,
     labelKey: 'menu.cash_drawer',
     nombre: 'Arqueo & Cierre de Caja',
     descripcion: 'Conteo físico de efectivo, cierres por turno y discrepancias',
@@ -122,3 +124,5 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
     isCore: true,
   },
 ];
+
+export const PENDING_MODULES = new Set(['apartados', 'transferencias_sucursal', 'garantias', 'pedidos_especiales', 'listas_precio']);

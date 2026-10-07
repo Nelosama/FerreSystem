@@ -1,3 +1,4 @@
+import { normalizeTenantConfiguration } from '../tenants/tenant-configuration';
 import { Injectable, UnauthorizedException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -226,6 +227,9 @@ export class AuthService {
         descuentoMaximo: Number(usuario.descuentoMaximo),
       },
       tenant: {
+        ...normalizeTenantConfiguration(usuario.tenant.configuracion),
+        modoNavegacion: usuario.tenant.modoNavegacion,
+        updatedAt: usuario.tenant.updatedAt,
         id: usuario.tenant.id,
         nombreComercial: usuario.tenant.nombreComercial,
         logoUrl: usuario.tenant.logoUrl,

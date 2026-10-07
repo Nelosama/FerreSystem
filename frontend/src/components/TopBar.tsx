@@ -15,12 +15,12 @@ interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({
   title,
-  subtitle = 'Elige una tarea o usa el buscador para encontrarla',
+  subtitle,
 }) => {
   const { user, tenant, isImpersonating, isReadOnly, enableEditMode, stopImpersonating, switchSucursal, logout } = useTenant();
   const [modalConfirmEditMode, setModalConfirmEditMode] = React.useState(false);
   const { solicitudes, notificacionesTransferencia, responderSolicitud } = useNotification();
-  const { locale, setLocale } = useI18n();
+  const { locale, setLocale, t } = useI18n();
   const navigate = useNavigate();
 
   const [panelNotificaciones, setPanelNotificaciones] = React.useState(false);
@@ -50,10 +50,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   const getDynamicDate = () => {
     const date = new Date();
     const day = date.getDate();
-    const monthNames = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    const monthNames = locale === 'es' ? ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'] : ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
     const month = monthNames[date.getMonth()];
     const year = date.getFullYear();
-    return `HOY, ${day} ${month} ${year}`;
+    return `${t('topbar.today')}, ${day} ${month} ${year}`;
   };
 
   const handleLogout = () => {
@@ -69,8 +69,8 @@ export const TopBar: React.FC<TopBarProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <ShieldAlert size={18} color="#9A3412" />
             <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#9A3412' }}>
-              MODO SOPORTE TÉCNICO ACTIVO: Estás suplantando remotamente al Administrador de {tenant.nombreComercial}
-              {isReadOnly ? ' (MODO SOLO LECTURA)' : ' (MODO EDICIÓN ACTIVADO)'}
+              {t('topbar.support', { name: tenant.nombreComercial })}
+              {t(isReadOnly ? 'topbar.read_only' : 'topbar.edit_enabled')}
             </span>
           </div>
 
@@ -82,7 +82,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 className="btn btn-sm"
                 style={{ backgroundColor: '#DC2626', color: '#FFFFFF', fontWeight: 800, fontSize: '11px', border: '1px solid #991B1B' }}
               >
-                ACTIVAR MODO EDICIÓN
+                {t('topbar.activate_edit')}
               </button>
             )}
 
@@ -95,7 +95,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               className="btn btn-sm"
               style={styles.exitSupportBtn}
             >
-              <LogOut size={13} /> SALIR DE MODO SOPORTE Y VOLVER AL PORTAL SAAS
+              <LogOut size={13} /> {t('topbar.exit_support')}
             </button>
           </div>
         </div>
@@ -106,11 +106,11 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div style={styles.modalOverlay}>
           <div className="industrial-card" style={{ width: '100%', maxWidth: '450px', backgroundColor: '#FFFFFF', padding: '20px' }}>
             <div style={{ paddingBottom: '10px', borderBottom: '2px solid var(--color-border)', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '15px' }}>
-              CONFIRMAR ACTIVACIÓN DE MODO EDICIÓN
+              {t('topbar.confirm_edit')}
             </div>
 
             <div style={{ padding: '16px 0', fontSize: '13px', color: '#444' }}>
-              ¿Confirmas que necesitas modificar datos de este cliente?
+              {t('topbar.confirm_help')}
             </div>
 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
@@ -119,7 +119,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 className="btn btn-secondary btn-sm"
                 onClick={() => setModalConfirmEditMode(false)}
               >
-                CANCELAR
+                {t('topbar.cancel')}
               </button>
               <button
                 type="button"
@@ -130,11 +130,11 @@ export const TopBar: React.FC<TopBarProps> = ({
                     await enableEditMode();
                     setModalConfirmEditMode(false);
                   } catch {
-                    alert('No se pudo activar la edición. Vuelve a iniciar la sesión de soporte.');
+                    alert(t('topbar.edit_failed'));
                   }
                 }}
               >
-                CONFIRMAR Y ACTIVAR EDICIÓN
+                {t('topbar.confirm_activate')}
               </button>
             </div>
           </div>
@@ -149,7 +149,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div className="topbar-desktop-only" style={styles.shiftInfo}>
             <Clock size={14} strokeWidth={2.4} style={{ color: 'var(--color-text-muted)' }} />
-            <span>{subtitle}</span>
+            <span>{subtitle ?? t('topbar.guidance')}</span>
           </div>
 
           {/* Selector de Sucursales (Para clientes multi-sucursal) */}
@@ -161,7 +161,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 disabled={sucursalesDisponibles.length < 2}
                 onChange={(e) => switchSucursal(e.target.value, tenant.id)}
                 className="v2-branch-select" style={styles.sucursalSelect}
-                aria-label="Seleccionar sucursal"
+                aria-label={t('topbar.select_branch')}
               >
                 {sucursalesDisponibles.map((s: any) => (
                   <option key={s.id} value={s.nombre}>
@@ -182,8 +182,8 @@ export const TopBar: React.FC<TopBarProps> = ({
               type="button"
               onClick={() => setPanelNotificaciones(!panelNotificaciones)}
               style={styles.bellBtn}
-              title="Notificaciones del Sistema"
-              aria-label="Notificaciones del sistema"
+              title={t('topbar.notifications_title')}
+              aria-label={t('topbar.notifications_label')}
               aria-expanded={panelNotificaciones}
             >
               <Bell size={16} strokeWidth={2.5} />
@@ -194,16 +194,16 @@ export const TopBar: React.FC<TopBarProps> = ({
 
             {/* Panel Flotante de Notificaciones */}
             {panelNotificaciones && (
-              <div style={styles.notifPanel} role="region" aria-label="Panel de notificaciones">
+              <div style={styles.notifPanel} role="region" aria-label={t('topbar.notification_panel')}>
                 <div style={styles.notifHeader}>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px' }}>
-                    NOTIFICACIONES ({totalNotificacionesPendientes})
+                    {t('topbar.notifications')}{totalNotificacionesPendientes})
                   </div>
                   <button
                     type="button"
                     onClick={() => setPanelNotificaciones(false)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                    aria-label="Cerrar panel de notificaciones"
+                    aria-label={t('topbar.close_notifications')}
                   >
                     <X size={16} />
                   </button>
@@ -214,7 +214,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                   {transferenciasParaEstaSucursal.length > 0 && (
                     <div style={{ backgroundColor: '#EFF6FF', padding: '8px 12px', borderBottom: '1.5px solid #BFDBFE' }}>
                       <div style={{ fontSize: '11px', fontWeight: 800, color: '#1D4ED8', textTransform: 'uppercase' }}>
-                        📦 TRASLADOS RECIBIDOS ({transferenciasParaEstaSucursal.length})
+                        {t('topbar.transfers')}{transferenciasParaEstaSucursal.length})
                       </div>
                       {transferenciasParaEstaSucursal.map((trf) => (
                         <div key={trf.id} style={{ marginTop: '6px', padding: '6px', backgroundColor: '#FFFFFF', borderRadius: '4px', border: '1px solid #93C5FD' }}>
@@ -222,7 +222,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                             {trf.productoNombre} (Cant: {trf.cantidad})
                           </div>
                           <div style={{ fontSize: '11px', color: '#475569' }}>
-                            Enviado desde: <strong>{trf.sucursalOrigen}</strong>
+                            {t('topbar.from')} <strong>{trf.sucursalOrigen}</strong>
                           </div>
                         </div>
                       ))}
@@ -232,7 +232,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                   {/* Sección Solicitudes Descuento */}
                   {solicitudes.length === 0 && transferenciasParaEstaSucursal.length === 0 ? (
                     <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                      No hay notificaciones registradas
+                      {t('topbar.empty')}
                     </div>
                   ) : (
                     solicitudes.slice(0, 5).map((sol) => (
@@ -252,10 +252,10 @@ export const TopBar: React.FC<TopBarProps> = ({
                           </span>
                         </div>
                         <div style={{ fontSize: '11px', color: '#444' }}>
-                          Monto Venta: <strong>{formatLempiras(sol.totalOriginal)}</strong>
+                          {t('topbar.sale_amount')} <strong>{formatLempiras(sol.totalOriginal)}</strong>
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--color-primary)', fontWeight: 700 }}>
-                          Descuento solicitado: {sol.descuentoPorcentaje}% (Monto con desc: {formatLempiras(sol.totalConDescuento)})
+                          {t('topbar.discount')} {sol.descuentoPorcentaje}% (Monto con desc: {formatLempiras(sol.totalConDescuento)})
                         </div>
 
                         {sol.estado === 'PENDIENTE' && (
@@ -266,7 +266,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                               className="btn btn-primary btn-sm"
                               style={{ flex: 1, padding: '4px 8px', fontSize: '10px' }}
                             >
-                              <Check size={12} /> APROBAR
+                              <Check size={12} /> {t('topbar.approve')}
                             </button>
                             <button
                               type="button"
@@ -274,7 +274,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                               className="btn btn-secondary btn-sm"
                               style={{ flex: 1, padding: '4px 8px', fontSize: '10px', color: '#DC2626' }}
                             >
-                              <X size={12} /> RECHAZAR
+                              <X size={12} /> {t('topbar.reject')}
                             </button>
                           </div>
                         )}
@@ -343,10 +343,10 @@ export const TopBar: React.FC<TopBarProps> = ({
               type="button"
               onClick={handleLogout}
               style={styles.logoutBtn}
-              title="Cerrar Sesión"
+              title={t('topbar.logout_title')}
             >
               <LogOut size={14} strokeWidth={2.4} />
-              <span>SALIR</span>
+              <span>{t('topbar.logout')}</span>
             </button>
           </div>
         )}

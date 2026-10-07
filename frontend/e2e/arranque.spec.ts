@@ -21,6 +21,7 @@ const test = base.extend<{ runtime: Runtime }>({
         if (request.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers }); return; }
         const role = runtime.role;
         const reads: Record<string, unknown> = {
+          '/tenant/settings': tenant,
           '/auth/me': { user: role ? { sub: user(role).id, tenantId: tenant.id, rol: role, permisos: ['pos.vender'], descuentoMaximo: 0 } : null },
           '/dashboard': { ventasDelDia: { total: 0 }, alertasStock: { items: [] }, cotizacionesPendientes: { cantidad: 0 } },
           '/maintenance/backup': { configured: false },
@@ -93,6 +94,7 @@ for (const role of ['ADMIN', 'CAJERO'] as const) {
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await expect(page.getByRole('heading', { name: role === 'ADMIN' ? 'Administrar el negocio' : 'Tareas del día', exact: true })).toBeVisible();
 
+    await page.locator('#task-search').fill('devolución');
     await page.getByRole('link', { name: /^Registrar una devolución/ }).click();
     await expect(page).toHaveURL(/\/devoluciones$/);
     await expect(page.getByRole('heading', { name: role === 'ADMIN' ? 'Revisar devoluciones' : 'Solicitar una devolución', exact: true })).toBeVisible();

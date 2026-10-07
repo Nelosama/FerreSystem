@@ -1,5 +1,5 @@
 import { TenantBrand } from './TenantBrand';
-import { canNavigate } from '../utils/taskNavigation';
+import { availableTasks } from '../utils/taskNavigation';
 import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
@@ -16,19 +16,19 @@ import {
 import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
-import { NAVIGATION_ITEMS, type NavigationItem } from '../config/navigation';
+import { NAVIGATION_CATEGORIES, type NavigationItem } from '../config/navigation';
 
 const CATEGORY_CONFIG: Record<
   string,
-  { label: string; icon: any }
+  { icon: any }
 > = {
-  SYSTEM: { label: 'SUPER ADMIN', icon: ShieldCheck },
-  OPERACION: { label: 'OPERACIONES', icon: ShoppingCart },
-  INVENTARIO: { label: 'INVENTARIO', icon: Package },
-  CLIENTES: { label: 'CLIENTES', icon: Users },
-  GESTION: { label: 'GESTIÓN', icon: Briefcase },
-  ANALISIS: { label: 'ANÁLISIS', icon: BarChart2 },
-  CONFIGURACION: { label: 'CONFIGURACIÓN', icon: Settings },
+  SYSTEM: { icon: ShieldCheck },
+  OPERACION: { icon: ShoppingCart },
+  INVENTARIO: { icon: Package },
+  CLIENTES: { icon: Users },
+  GESTION: { icon: Briefcase },
+  ANALISIS: { icon: BarChart2 },
+  CONFIGURACION: { icon: Settings },
 };
 
 export const TopNavigation: React.FC = () => {
@@ -57,7 +57,7 @@ export const TopNavigation: React.FC = () => {
     setOpenCategory(null);
   }, [location.pathname]);
 
-  const visibleItems = NAVIGATION_ITEMS.filter(item => canNavigate(item, user, tenant));
+  const visibleItems = availableTasks(user, tenant);
 
   const getLabel = (item: NavigationItem) => {
     if (item.key === 'inventario') {
@@ -75,7 +75,7 @@ export const TopNavigation: React.FC = () => {
     return acc;
   }, {} as Record<string, NavigationItem[]>);
 
-  const categories = Object.keys(CATEGORY_CONFIG).filter(
+  const categories = NAVIGATION_CATEGORIES.filter(
     (catKey) => groupedItems[catKey] && groupedItems[catKey].length > 0,
   );
 
@@ -99,11 +99,16 @@ export const TopNavigation: React.FC = () => {
         {tenant.templateVersion !== 'v2' && <span style={styles.tenantTag}>{tenant.nombreComercial}</span>}
       </div>
 
-      <nav ref={navRef} style={styles.navWrapper}>
+      <nav ref={navRef} style={styles.navWrapper} onKeyDown={event => {
+        if (event.key === 'Escape' && openCategory) {
+          navRef.current?.querySelector<HTMLButtonElement>('[aria-expanded="true"]')?.focus();
+          setOpenCategory(null);
+        }
+      }}>
         <div style={styles.categoriesRow}>
           {categories.map((catKey) => {
             const items = groupedItems[catKey];
-            const config = CATEGORY_CONFIG[catKey] || { label: catKey, icon: Box };
+            const config = CATEGORY_CONFIG[catKey] || { icon: Box };
             const CategoryIcon = config.icon;
             const isOpen = openCategory === catKey;
 
@@ -138,6 +143,7 @@ export const TopNavigation: React.FC = () => {
                   type="button"
                   onClick={() => setOpenCategory(isOpen ? null : catKey)}
                   aria-expanded={isOpen}
+                  onKeyDown={event => { if (event.key === 'Escape') setOpenCategory(null); }}
                   style={{
                     ...styles.categoryBtn,
                     ...(hasActiveRoute ? styles.categoryBtnActive : {}),
@@ -145,7 +151,7 @@ export const TopNavigation: React.FC = () => {
                   }}
                 >
                   <CategoryIcon size={15} strokeWidth={2.2} />
-                  <span>{config.label}</span>
+                  <span>{t('navigation.' + catKey)}</span>
                   <ChevronDown
                     size={14}
                     style={{

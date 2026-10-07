@@ -31,10 +31,6 @@ export interface NavigationItem {
 }
 
 export const NAVIGATION_ITEMS: NavigationItem[] = [
-  {key:'auditoria',labelKey:'menu.audit',defaultLabel:'AUDITORÍA',route:'/auditoria',icon:ClipboardList,allowedRoles:['ADMIN'],category:'ANALISIS'},
-  {key:'devoluciones',labelKey:'menu.returns',defaultLabel:'DEVOLUCIONES',route:'/devoluciones',icon:PackageSearch,allowedRoles:['ADMIN','CAJERO','VENDEDOR'],category:'OPERACION'},
-  {key:'cuentas',labelKey:'menu.accounts',defaultLabel:'CUENTAS Y ABONOS',route:'/cuentas',icon:DollarSign,allowedRoles:['ADMIN','CAJERO'],category:'CLIENTES'},
-  {key:'entregas',labelKey:'menu.deliveries',defaultLabel:'ENTREGAS',route:'/entregas',icon:Truck,allowedRoles:['ADMIN','CAJERO','BODEGUERO'],category:'OPERACION'},
   // SYSTEM / SUPER ADMIN
   {
     key: 'superadmin',
@@ -97,6 +93,11 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
     category: 'OPERACION',
   },
+
+  {key:'auditoria',labelKey:'menu.audit',defaultLabel:'AUDITORÍA',route:'/auditoria',icon:ClipboardList,allowedRoles:['ADMIN'],category:'ANALISIS'},
+  {key:'devoluciones',labelKey:'menu.returns',defaultLabel:'DEVOLUCIONES',route:'/devoluciones',icon:PackageSearch,allowedRoles:['ADMIN','CAJERO','VENDEDOR'],category:'OPERACION'},
+  {key:'cuentas',labelKey:'menu.accounts',defaultLabel:'CUENTAS Y ABONOS',route:'/cuentas',icon:DollarSign,allowedRoles:['ADMIN','CAJERO'],category:'CLIENTES'},
+  {key:'entregas',labelKey:'menu.deliveries',defaultLabel:'ENTREGAS',route:'/entregas',icon:Truck,allowedRoles:['ADMIN','CAJERO','BODEGUERO'],category:'OPERACION'},
 
   // INVENTARIO
   {
@@ -199,7 +200,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     route: '/arqueo-caja',
     icon: DollarSign,
     allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
-    category: 'GESTION',
+    category: 'OPERACION',
   },
 
   // ANALISIS
@@ -222,9 +223,17 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     defaultLabel: 'CONFIGURACIÓN',
     route: '/configuracion',
     icon: Sliders,
-    allowedRoles: ['SUPERADMIN', 'ADMIN'],
+    allowedRoles: ['ADMIN'],
     moduleKey: 'configuracion',
     category: 'CONFIGURACION',
   },
 ];
 
+
+export const NAVIGATION_CATEGORIES = ['SYSTEM', 'OPERACION', 'INVENTARIO', 'CLIENTES', 'GESTION', 'ANALISIS', 'CONFIGURACION'] as const;
+export const ROLE_PRIORITIES: Record<string, string[]> = {
+  SUPERADMIN: ['superadmin'], ADMIN: ['ordenes_compra', 'inventario', 'usuarios', 'reportes'],
+  CAJERO: ['arqueo_caja', 'pos', 'cuentas', 'clientes'],
+  VENDEDOR: ['pos', 'cotizaciones', 'clientes', 'arqueo_caja'],
+  BODEGUERO: ['entregas', 'inventario', 'ordenes_compra', 'levantamiento'],
+};

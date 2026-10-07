@@ -39,6 +39,7 @@ export interface ImpuestoConfig {
 }
 
 export interface TenantInfo {
+  updatedAt?: string;
   id: string;
   nombreComercial: string;
   sucursal?: string;

@@ -5,21 +5,20 @@ import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { Rubro, type TenantInfo } from '../types';
 import { Button } from '../components/Button';
-import { RUBROS_CONFIG } from '../config/rubros';
 import { Palette, Building2, Check, RefreshCw, Store, Layout, Type, Eye, Languages, Coins, Receipt } from 'lucide-react';
 
 const PRESET_COLORS = [
-  { name: 'Naranja Óxido (FerreSystem)', hex: '#EA580C' },
-  { name: 'Rojo Industrial Ferretero', hex: '#DC2626' },
-  { name: 'Azul Acero Profesional', hex: '#0284C7' },
-  { name: 'Amarillo Seguridad CAT', hex: '#D97706' },
-  { name: 'Verde Taller / Ferretería', hex: '#16A34A' },
-  { name: 'Gris Grafito Minimalista', hex: '#4B5563' },
+  { name: 'uxAudit.color_0', hex: '#EA580C' },
+  { name: 'uxAudit.color_1', hex: '#DC2626' },
+  { name: 'uxAudit.color_2', hex: '#0284C7' },
+  { name: 'uxAudit.color_3', hex: '#D97706' },
+  { name: 'uxAudit.color_4', hex: '#16A34A' },
+  { name: 'uxAudit.color_5', hex: '#4B5563' },
 ];
 
 export const ConfiguracionPage: React.FC = () => {
   const { tenant, updateTenantConfig } = useTenant();
-  const { locale, setLocale } = useI18n();
+  const { locale, setLocale, t } = useI18n();
 
   const [templateVersion, setTemplateVersion] = useState<'v1' | 'v2'>(tenant.templateVersion || 'v1');
   const [v2Mode, setV2Mode] = useState<NonNullable<TenantInfo['v2Mode']>>(tenant.v2Mode || 'light');
@@ -42,19 +41,22 @@ export const ConfiguracionPage: React.FC = () => {
   );
 
   // Moneda e Impuesto
-  const [monedaSimbolo, setMonedaSimbolo] = useState(tenant.moneda?.simbolo || 'L.');
-  const [monedaCodigo, setMonedaCodigo] = useState(tenant.moneda?.codigo || 'HNL');
-  const [impuestoNombre, setImpuestoNombre] = useState(tenant.impuesto?.nombre || 'ISV');
-  const [impuestoTasa, setImpuestoTasa] = useState(tenant.impuesto?.tasa?.toString() || '15');
+  const monedaSimbolo = 'L.';
+  const monedaCodigo = 'HNL';
+  const impuestoNombre = 'ISV';
+  const impuestoTasa = '15';
 
   const [direccion, setDireccion] = useState(tenant.direccion || '');
   const [telefono, setTelefono] = useState(tenant.telefono || '');
   const [email, setEmail] = useState(tenant.email || '');
+  const dirty = React.useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
 
   // Sincronizar estados cuando el tenant del contexto cambie o cargue
   React.useEffect(() => {
-    if (tenant) {
+    if (tenant && !dirty.current) {
       setTemplateVersion(tenant.templateVersion || 'v1');
       setV2Mode(tenant.v2Mode || 'light');
       setNombre(tenant.nombreComercial || '');
@@ -66,10 +68,7 @@ export const ConfiguracionPage: React.FC = () => {
       setModoNavegacion((tenant.modoNavegacion || 'SIDEBAR') as any);
       setFuenteTitulos((tenant.fuenteTitulos || 'Archivo') as any);
       setFuenteCuerpo((tenant.fuenteCuerpo || 'Inter') as any);
-      setMonedaSimbolo(tenant.moneda?.simbolo || 'L.');
-      setMonedaCodigo(tenant.moneda?.codigo || 'HNL');
-      setImpuestoNombre(tenant.impuesto?.nombre || 'ISV');
-      setImpuestoTasa(tenant.impuesto?.tasa?.toString() || '15');
+
       setDireccion(tenant.direccion || '');
       setTelefono(tenant.telefono || '');
       setEmail(tenant.email || '');
@@ -80,42 +79,32 @@ export const ConfiguracionPage: React.FC = () => {
     e.preventDefault();
 
     const updatedMoneda = { simbolo: monedaSimbolo, codigo: monedaCodigo };
-    const updatedImpuesto = { nombre: impuestoNombre, tasa: parseFloat(impuestoTasa) || 15 };
+    const updatedImpuesto = { nombre: impuestoNombre, tasa: Number(impuestoTasa) };
 
+    if (saving) return;
+    setSaving(true); setSaveError(''); setGuardadoExitoso(false);
     try {
-      await api.put('/tenant/settings', {
+      const { data } = await api.put('/tenant/settings', {
         nombreComercial: nombre,
         direccion,
         telefono,
         email,
         colorPrimario: color,
         logoUrl: logoUrl.trim() || null,
+        modoNavegacion,
+        configuracion: { rubro, estiloUI, templateVersion, v2Mode, fuenteTitulos, fuenteCuerpo, moneda: updatedMoneda, impuesto: updatedImpuesto },
       });
 
-      updateTenantConfig({
-        nombreComercial: nombre,
-        sucursal,
-        logoUrl: logoUrl.trim() || null,
-        colorPrimario: color,
-        rubro,
-        estiloUI,
-        templateVersion,
-        v2Mode,
-        modoNavegacion,
-        fuenteTitulos,
-        fuenteCuerpo,
-        moneda: updatedMoneda,
-        impuesto: updatedImpuesto,
-        direccion,
-        telefono,
-        email,
-      });
+      dirty.current = false;
+      updateTenantConfig({ ...data.configuracion, ...data, sucursal });
 
       setGuardadoExitoso(true);
       setTimeout(() => setGuardadoExitoso(false), 4000);
     } catch (err: any) {
       console.error('Error al guardar configuración del tenant:', err);
-      alert(err.response?.data?.message || 'Error al guardar la configuración en el servidor.');
+      setSaveError(err.response?.data?.message || (locale === 'es' ? 'No se pudo guardar. Tus cambios siguen en el formulario; vuelve a intentar.' : 'Could not save. Your changes remain in the form; please retry.'));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -124,54 +113,39 @@ export const ConfiguracionPage: React.FC = () => {
     setEstiloUI('INDUSTRIAL');
     setFuenteTitulos('Archivo');
     setFuenteCuerpo('Inter');
-    setMonedaSimbolo('L.');
-    setMonedaCodigo('HNL');
-    setImpuestoNombre('ISV');
-    setImpuestoTasa('15');
-    updateTenantConfig({
-      nombreComercial: nombre,
-      sucursal,
-      colorPrimario: '#EA580C',
-      rubro,
-      estiloUI: 'INDUSTRIAL',
-      fuenteTitulos: 'Archivo',
-      fuenteCuerpo: 'Inter',
-      moneda: { simbolo: 'L.', codigo: 'HNL' },
-      impuesto: { nombre: 'ISV', tasa: 15 },
-      direccion,
-      telefono,
-      email,
-    });
+
   };
 
   return (
     <div style={styles.container}>
-      <TopBar title="CONFIGURACIÓN Y MARCA" subtitle="Personalización White-Label por Tenant" />
+      <TopBar title={t('uxAudit.settings_and_branding')} subtitle={t('uxAudit.business_details_and_appearance')} />
 
       <main style={styles.content}>
+        <p>{t('settings.scope')}</p>
+        {saveError && <p role="alert">{saveError}</p>}
 
         {guardadoExitoso && (
-          <div style={styles.successBanner}>
+          <div role="status" style={styles.successBanner}>
             <Check size={20} strokeWidth={2.6} color="#15803D" />
             <span style={{ fontWeight: 700 }}>
-              ¡Configuración de marca, idioma y fiscal guardadas correctamente para "{nombre}"!
+              {t('settings.saved', { name: nombre })}
             </span>
           </div>
         )}
 
-        <form className="tenant-settings-grid" onSubmit={handleGuardar} style={styles.grid}>
+        <form className="tenant-settings-grid" onSubmit={handleGuardar} onChange={() => { dirty.current = true; }} onClick={event => { if ((event.target as HTMLElement).closest('button[type="button"]')) dirty.current = true; }} aria-busy={saving} style={styles.grid}>
           {/* Columna Izquierda: Identidad y Datos del Negocio */}
           <div className="industrial-card" style={styles.card}>
             <div style={styles.cardHeader}>
               <Building2 size={20} strokeWidth={2.4} color="var(--color-primary)" />
-              <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>DATOS COMERCIALES Y LOCALE</h2>
+              <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>{t('uxAudit.business_details_and_language')} </h2>
             </div>
 
             {/* Selector de Idioma (I18n ES / EN) */}
             <div className="form-group" style={{ marginTop: '16px' }}>
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Languages size={14} color="var(--color-primary)" />
-                <span>IDIOMA DEL SISTEMA / SYSTEM LANGUAGE</span>
+                <span>{t('uxAudit.system_language')} </span>
               </label>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
@@ -181,8 +155,8 @@ export const ConfiguracionPage: React.FC = () => {
                     flex: 1,
                     padding: '8px',
                     fontWeight: 800,
-                    backgroundColor: locale === 'es' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                    color: locale === 'es' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    backgroundColor: locale === 'es' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: locale === 'es' ? 'var(--color-bg)' : 'var(--color-text-main)',
                     border: '1.5px solid var(--color-sidebar-bg)',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -197,8 +171,8 @@ export const ConfiguracionPage: React.FC = () => {
                     flex: 1,
                     padding: '8px',
                     fontWeight: 800,
-                    backgroundColor: locale === 'en' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                    color: locale === 'en' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    backgroundColor: locale === 'en' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: locale === 'en' ? 'var(--color-bg)' : 'var(--color-text-main)',
                     border: '1.5px solid var(--color-sidebar-bg)',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -210,11 +184,11 @@ export const ConfiguracionPage: React.FC = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label">NOMBRE COMERCIAL (APARECE EN SIDEBAR Y FACTURAS)</label>
+              <label className="form-label">{t('uxAudit.business_name_shown_in_navigation_and_receipts')} </label>
               <input
                 type="text"
                 required
-                value={nombre}
+                id="business-name" aria-label={t('settings.name')} value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
                 className="form-input"
               />
@@ -222,11 +196,11 @@ export const ConfiguracionPage: React.FC = () => {
 
             {/* URL del Logo Personalizado de la Empresa */}
             <div className="form-group">
-              <label className="form-label">URL LOGO PERSONALIZADO (IMAGEN CORPORATIVA)</label>
+              <label className="form-label">{t('uxAudit.custom_logo_url_company_image')} </label>
               <input
                 type="url"
                 placeholder="https://ejemplo.com/logo-ferreteria.png"
-                value={logoUrl}
+                id="business-logo" aria-label={t('settings.logo')} value={logoUrl}
                 onChange={(e) => setLogoUrl(e.target.value)}
                 className="form-input"
               />
@@ -236,37 +210,44 @@ export const ConfiguracionPage: React.FC = () => {
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Store size={14} color="var(--color-primary)" />
-                <span>RUBRO / GIRO COMERCIAL (MOTOR MULTI-RUBRO)</span>
+                <span>{t('uxAudit.business_sector')} </span>
               </label>
               <select
-                value={rubro}
+                id="business-sector" aria-label={t('settings.sector')} value={rubro}
                 onChange={(e) => setRubro(e.target.value as Rubro)}
                 className="form-select"
                 style={{ fontWeight: 700 }}
               >
                 {Object.keys(Rubro).map((rKey) => {
-                  const cfg = RUBROS_CONFIG[rKey as Rubro];
                   return (
                     <option key={rKey} value={rKey}>
-                      {rKey} — {cfg?.nombreCatalogo || rKey}
+                      {t('sectors.' + rKey)}
                     </option>
                   );
                 })}
               </select>
             </div>
 
+            <details><summary>{t('settings.contact')}</summary>
+              <label className="form-label" htmlFor="company-address">{t('settings.address')}</label><input id="company-address" className="form-input" value={direccion} onChange={event => setDireccion(event.target.value)} />
+              <label className="form-label" htmlFor="company-phone">{t('settings.phone')}</label><input id="company-phone" type="tel" className="form-input" value={telefono} onChange={event => setTelefono(event.target.value)} />
+              <label className="form-label" htmlFor="company-email">{t('settings.email')}</label><input id="company-email" type="email" className="form-input" value={email} onChange={event => setEmail(event.target.value)} />
+            </details>
+            <h3>{t('settings.currency_tax')}</h3><p id="fiscal-limit">{t('settings.fiscal_help')}</p>
+            <label htmlFor="currency-code" className="form-label">{t('settings.currency_code')}</label>
+            <input id="currency-code" className="form-input" required pattern="[A-Z]{3}" maxLength={3} value={monedaCodigo} readOnly aria-describedby="fiscal-limit" />
             {/* Configuración de Moneda e Impuesto */}
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="settings-fiscal-row" style={{ display: 'flex', gap: '12px' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Coins size={14} color="var(--color-primary)" />
-                  <span>SÍMBOLO MONEDA</span>
+                  <span>{t('uxAudit.currency_symbol')} </span>
                 </label>
                 <input
                   type="text"
                   required
-                  value={monedaSimbolo}
-                  onChange={(e) => setMonedaSimbolo(e.target.value)}
+                  id="currency-symbol" aria-label={t('settings.symbol')} value={monedaSimbolo}
+                  readOnly aria-describedby="fiscal-limit"
                   className="form-input"
                   style={{ fontWeight: 800 }}
                 />
@@ -275,22 +256,22 @@ export const ConfiguracionPage: React.FC = () => {
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Receipt size={14} color="var(--color-primary)" />
-                  <span>IMPUESTO (%)</span>
+                  <span>{t('uxAudit.tax_percent')} </span>
                 </label>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   <input
                     type="text"
                     required
-                    value={impuestoNombre}
-                    onChange={(e) => setImpuestoNombre(e.target.value)}
+                    id="tax-name" aria-label={t('settings.tax_name')} value={impuestoNombre}
+                    readOnly aria-describedby="fiscal-limit"
                     className="form-input"
                     style={{ width: '70px', fontWeight: 800 }}
                   />
                   <input
                     type="number"
                     required
-                    value={impuestoTasa}
-                    onChange={(e) => setImpuestoTasa(e.target.value)}
+                    id="tax-rate" aria-label={t('settings.tax_rate')} min="0" max="100" step="0.01" value={impuestoTasa}
+                    readOnly aria-describedby="fiscal-limit"
                     className="form-input"
                     style={{ fontWeight: 800 }}
                   />
@@ -300,114 +281,113 @@ export const ConfiguracionPage: React.FC = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="template-version" className="form-label">Plantilla de diseño</label>
+              <label htmlFor="template-version" className="form-label">{t('uxAudit.design_template')} </label>
               <select id="template-version" className="form-select" value={templateVersion} onChange={e => setTemplateVersion(e.target.value as 'v1' | 'v2')}>
-                <option value="v1">Clásica (V1)</option><option value="v2">Template V2</option>
+                <option value="v1">{t('uxAudit.classic_v1')} </option><option value="v2">Template V2</option>
               </select>
               {templateVersion === 'v2' ? <>
-                <label htmlFor="v2-mode" className="form-label">Modo de Template V2</label>
+                <label htmlFor="v2-mode" className="form-label">{t('uxAudit.template_v2_mode')} </label>
                 <select id="v2-mode" className="form-select" value={v2Mode} onChange={e => setV2Mode(e.target.value as NonNullable<TenantInfo['v2Mode']>)}>
-                  <option value="light">Claro Corporativo</option><option value="dark">Oscuro Industrial</option><option value="hybrid">Enérgico</option>
+                  <option value="light">{t('uxAudit.corporate_light')} </option><option value="dark">{t('uxAudit.industrial_dark')} </option><option value="hybrid">{t('uxAudit.energetic')} </option>
                 </select>
               </> : <>
-                <label htmlFor="classic-style" className="form-label">Variante clásica</label>
+                <label htmlFor="classic-style" className="form-label">{t('uxAudit.classic_variant')} </label>
                 <select id="classic-style" className="form-select" value={estiloUI} onChange={e => setEstiloUI(e.target.value as NonNullable<TenantInfo['estiloUI']>)}>
-                  <option value="INDUSTRIAL">Industrial</option><option value="MINIMALISTA">Minimalista</option><option value="MODERNO">Moderno</option>
+                  <option value="INDUSTRIAL">Industrial</option><option value="MINIMALISTA">{t('uxAudit.minimalist')} </option><option value="MODERNO">{t('uxAudit.modern')} </option>
                 </select>
               </>}
-              <small>Conserva tu logo, color y tipografías. La apariencia se guarda en este navegador.</small>
+              <small>{t('uxAudit.keeps_your_logo_color_and_fonts_appearance_is_saved_for_the_whole_company_when_you_apply_changes')} </small>
             </div>
             {/* Selector de Estilo de Interfaz y Modo de Navegación */}
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Layout size={14} color="var(--color-primary)" />
-                <span>MODO DE NAVEGACIÓN Y ESTRUCTURA DE PÁGINA</span>
+                <span>{t('uxAudit.navigation_mode_and_page_structure')} </span>
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
                 <button
                   type="button"
-                  onClick={() => setModoNavegacion('SIDEBAR')}
+                  aria-pressed={modoNavegacion === 'SIDEBAR'} onClick={() => setModoNavegacion('SIDEBAR')}
                   style={{
                     padding: '10px',
-                    backgroundColor: modoNavegacion === 'SIDEBAR' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                    color: modoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    backgroundColor: modoNavegacion === 'SIDEBAR' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: modoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-text-main)',
                     border: modoNavegacion === 'SIDEBAR' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     textAlign: 'left',
                   }}
                 >
-                  <div style={{ fontWeight: 900, fontSize: '11px' }}>MENÚ LATERAL (SIDEBAR)</div>
-                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>Panel vertical a la izquierda</div>
+                  <div style={{ fontWeight: 900, fontSize: '11px' }}>{t('uxAudit.side_menu_sidebar')} </div>
+                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>{t('uxAudit.vertical_panel_on_the_left')} </div>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setModoNavegacion('TOPNAV')}
+                  aria-pressed={modoNavegacion === 'TOPNAV'} onClick={() => setModoNavegacion('TOPNAV')}
                   style={{
                     padding: '10px',
-                    backgroundColor: modoNavegacion === 'TOPNAV' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                    color: modoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                    backgroundColor: modoNavegacion === 'TOPNAV' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: modoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-text-main)',
                     border: modoNavegacion === 'TOPNAV' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     textAlign: 'left',
                   }}
                 >
-                  <div style={{ fontWeight: 900, fontSize: '11px' }}>MENÚ SUPERIOR (TOPNAV)</div>
-                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>Navegación horizontal completa</div>
+                  <div style={{ fontWeight: 900, fontSize: '11px' }}>{t('uxAudit.top_menu_topnav')} </div>
+                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>{t('uxAudit.full_horizontal_navigation')} </div>
                 </button>
               </div>
             </div>
 
+            <details><summary>{t('settings.typography')}</summary>
             {/* Tipografía de Títulos y Cuerpo */}
             <div style={{ display: 'flex', gap: '12px' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Type size={14} color="var(--color-primary)" />
-                  <span>FUENTE TÍTULOS</span>
+                  <span>{t('uxAudit.heading_font')} </span>
                 </label>
                 <select
-                  value={fuenteTitulos}
+                  id="heading-font" aria-label={t('settings.heading_font')} value={fuenteTitulos}
                   onChange={(e) => setFuenteTitulos(e.target.value as any)}
                   className="form-select"
                 >
                   <option value="Archivo">Archivo (Industrial)</option>
                   <option value="Space Grotesk">Space Grotesk (Tech)</option>
                   <option value="Poppins">Poppins (Clean)</option>
-                  <option value="Montserrat">Montserrat (Elegante)</option>
+                  <option value="Montserrat">{t('uxAudit.montserrat_elegant')} </option>
                 </select>
               </div>
 
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Type size={14} color="var(--color-primary)" />
-                  <span>FUENTE CUERPO</span>
+                  <span>{t('uxAudit.body_font')} </span>
                 </label>
                 <select
-                  value={fuenteCuerpo}
+                  id="body-font" aria-label={t('settings.body_font')} value={fuenteCuerpo}
                   onChange={(e) => setFuenteCuerpo(e.target.value as any)}
                   className="form-select"
                 >
-                  <option value="Inter">Inter (Estándar UI)</option>
-                  <option value="IBM Plex Sans">IBM Plex Sans (Técnico)</option>
-                  <option value="Nunito Sans">Nunito Sans (Redondeado)</option>
+                  <option value="Inter">{t('uxAudit.inter_standard_ui')} </option>
+                  <option value="IBM Plex Sans">{t('uxAudit.ibm_plex_sans_technical')} </option>
+                  <option value="Nunito Sans">{t('uxAudit.nunito_sans_rounded')} </option>
                 </select>
               </div>
             </div>
+            </details>
           </div>
 
           {/* Columna Derecha: White-Labeling y Selector de Color Primario & Preview */}
           <div className="industrial-card" style={styles.card}>
             <div style={styles.cardHeader}>
               <Palette size={20} strokeWidth={2.4} color="var(--color-primary)" />
-              <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>COLOR DE MARCA & VISTA PREVIA EN VIVO</h2>
+              <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>{t('uxAudit.brand_color_live_preview')} </h2>
             </div>
 
-            <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '12px' }}>
-              El color seleccionado se inyecta en variables CSS globales (`--color-primary`) afectando el sidebar,
-              botones primarios, bordes de alerta y documentos PDF.
-            </p>
+            <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '12px' }}>{t('uxAudit.choose_the_color_used_for_your_company_in_navigation_buttons_and_documents')} </p>
 
             {/* Selector de color HEX interactivo */}
             <div style={styles.colorPickerRow}>
@@ -418,7 +398,7 @@ export const ConfiguracionPage: React.FC = () => {
                 style={styles.nativeColorInput}
               />
               <div style={{ flex: 1 }}>
-                <label className="form-label">CÓDIGO HEXADECIMAL</label>
+                <label className="form-label">{t('uxAudit.hex_code')} </label>
                 <input
                   type="text"
                   value={color}
@@ -431,7 +411,7 @@ export const ConfiguracionPage: React.FC = () => {
 
             {/* Paletas recomendadas */}
             <div style={{ marginTop: '16px' }}>
-              <label className="form-label">PALETAS INDUSTRIALES VALIDADAS</label>
+              <label className="form-label">{t('uxAudit.industrial_color_palettes')} </label>
               <div style={styles.presetsGrid}>
                 {PRESET_COLORS.map((p) => (
                   <button
@@ -445,7 +425,7 @@ export const ConfiguracionPage: React.FC = () => {
                     }}
                   >
                     <span style={{ ...styles.colorCircle, backgroundColor: p.hex }} />
-                    <span style={{ fontSize: '11px', fontWeight: 700 }}>{p.name}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 700 }}>{t(p.name)}</span>
                   </button>
                 ))}
               </div>
@@ -454,43 +434,38 @@ export const ConfiguracionPage: React.FC = () => {
             {/* VISTA PREVIA EN VIVO DEL TEMA Y FUENTES */}
             <div style={{ ...styles.previewBox, marginTop: '20px', border: '2px solid var(--color-sidebar-bg)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px' }}>
-                <Eye size={14} color={color} /> VISTA PREVIA EN VIVO ({locale.toUpperCase()})
+                <Eye size={14} color={color} />{t('uxAudit.live_preview')} {locale.toUpperCase()})
               </div>
               <div
                 style={{
                   padding: '16px',
-                  backgroundColor: estiloUI === 'MINIMALISTA' ? 'var(--color-surface-hover)' : estiloUI === 'MODERNO' ? color : 'var(--color-sidebar-bg)',
-                  color: estiloUI === 'MINIMALISTA' ? 'var(--color-sidebar-bg)' : '#FFFFFF',
+                  backgroundColor: estiloUI === 'MINIMALISTA' ? 'var(--color-surface-hover)' : estiloUI === 'MODERNO' ? color : '#1C1917',
+                  color: estiloUI === 'MINIMALISTA' ? 'var(--color-text-main)' : '#FFFFFF',
                   borderRadius: estiloUI === 'MODERNO' ? '12px' : estiloUI === 'MINIMALISTA' ? '10px' : '2px',
                   border: '1px solid #44403C',
                 }}
               >
                 <div style={{ fontFamily: `"${fuenteTitulos}", sans-serif`, fontWeight: 800, fontSize: '15px' }}>
-                  {nombre || 'NOMBRE DE TIENDA'}
+                  {nombre || t('settings.name')}
                 </div>
-                <div style={{ fontFamily: `"${fuenteCuerpo}", sans-serif`, fontSize: '12px', marginTop: '4px', opacity: 0.85 }}>
-                  Moneda: {monedaSimbolo} ({monedaCodigo}) • Impuesto: {impuestoNombre} {impuestoTasa}%
+                <div style={{ fontFamily: `"${fuenteCuerpo}", sans-serif`, fontSize: '12px', marginTop: '4px', opacity: 0.85 }}>{t('uxAudit.currency')} {monedaSimbolo} ({monedaCodigo}{t('uxAudit.tax')} {impuestoNombre} {impuestoTasa}%
                 </div>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                  <button type="button" style={{ padding: '6px 12px', backgroundColor: color, color: '#FFFFFF', border: 'none', borderRadius: '4px', fontWeight: 800, fontSize: '11px' }}>
-                    BOTÓN ACTIVO
-                  </button>
-                  <span className="badge badge-success">SISTEMA OK</span>
+                  <button type="button" style={{ padding: '6px 12px', backgroundColor: color, color: '#FFFFFF', border: 'none', borderRadius: '4px', fontWeight: 800, fontSize: '11px' }}>{t('uxAudit.active_button')} </button>
+                  <span className="badge badge-success">{t('uxAudit.system_ok')} </span>
                 </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+            <div className="settings-save-actions" style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
               <button
                 type="button"
                 className="btn btn-secondary"
                 onClick={handleRestablecerDefault}
               >
-                <RefreshCw size={14} /> RESTABLECER
-              </button>
-              <Button type="submit" style={{ flex: 1 }}>
-                <Check size={16} strokeWidth={2.6} /> APLICAR CAMBIOS
-              </Button>
+                <RefreshCw size={14} />{t('uxAudit.reset')} </button>
+              <Button type="submit" disabled={saving} style={{ flex: 1 }}>
+                <Check size={16} strokeWidth={2.6} />{t('uxAudit.apply_changes')} </Button>
             </div>
           </div>
         </form>

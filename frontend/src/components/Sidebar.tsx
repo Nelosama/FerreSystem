@@ -1,12 +1,12 @@
 import { TenantBrand } from './TenantBrand';
-import { canNavigate } from '../utils/taskNavigation';
+import { availableTasks, groupNavigation } from '../utils/taskNavigation';
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Box } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
-import { NAVIGATION_ITEMS, type NavigationItem } from '../config/navigation';
+import { type NavigationItem } from '../config/navigation';
 
 export const Sidebar: React.FC = () => {
   const { tenant, user } = useTenant();
@@ -15,7 +15,7 @@ export const Sidebar: React.FC = () => {
 
 
 
-  const visibleItems = NAVIGATION_ITEMS.filter(item => canNavigate(item, user, tenant));
+  const visibleItems = availableTasks(user, tenant);
 
   const getLabel = (item: NavigationItem) => {
     if (item.key === 'inventario') {
@@ -56,7 +56,9 @@ export const Sidebar: React.FC = () => {
       {/* Navigation List */}
       <nav style={styles.navContainer}>
         <ul style={styles.navList}>
-          {visibleItems.map((item) => {
+          {groupNavigation(visibleItems).map(group => <React.Fragment key={group.category}>
+            <li className="navigation-group">{t('navigation.' + group.category)}</li>
+            {group.items.map((item) => {
             const Icon = item.icon;
             return (
               <li key={item.key}>
@@ -73,7 +75,7 @@ export const Sidebar: React.FC = () => {
                 </NavLink>
               </li>
             );
-          })}
+          })}</React.Fragment>)}
         </ul>
       </nav>
     </aside>

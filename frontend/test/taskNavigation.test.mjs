@@ -17,6 +17,8 @@ const load = (file) => {
     if (name === 'react') return React;
     if (name === 'lucide-react') return icons;
     if (name === 'react-router-dom') return router;
+    if (name.endsWith('I18nContext')) return { useI18n: () => ({ t: path => { let value = JSON.parse(fs.readFileSync('src/locales/es.json', 'utf8')); for (const key of path.split('.')) value = value?.[key]; return value || path; } }) };
+    if (name.endsWith('modulesCatalog')) return load('src/config/modulesCatalog.ts');
     if (name.endsWith('TenantContext')) return { useTenant: () => ({ user, tenant }) };
     if (name.endsWith('navigation')) return load('src/config/navigation.ts');
     if (name.endsWith('taskNavigation')) return load('src/utils/taskNavigation.ts');
@@ -27,7 +29,34 @@ const load = (file) => {
   vm.runInNewContext(code, { exports, require });
   return exports;
 };
-const { availableTasks, searchTasks } = load('src/utils/taskNavigation.ts');
+const { availableTasks, searchTasks, priorityTasks, canNavigate, groupNavigation } = load('src/utils/taskNavigation.ts');
+
+test('roles comparten categorías, excluyen pendientes y reciben hasta cuatro tareas', () => {
+  for (const rol of ['SUPERADMIN', 'ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) {
+    const tasks = availableTasks({ rol }, tenant);
+    assert.ok(priorityTasks({ rol }, tenant).length <= 4);
+    assert.deepEqual(groupNavigation(tasks).flatMap(group => group.items.map(item => item.key)), tasks.map(item => item.key));
+    assert.ok(tasks.every(item => !['apartados', 'transferencias', 'garantias', 'pedidos_especiales', 'listas_precio'].includes(item.key)));
+    if (rol === 'SUPERADMIN') assert.deepEqual(Array.from(tasks, item => item.key), ['superadmin']);
+  }
+  assert.deepEqual(Array.from(priorityTasks({ rol: 'CAJERO' }, tenant), item => item.key), ['arqueo_caja', 'pos', 'cuentas', 'clientes']);
+  assert.ok(availableTasks({ rol: 'BODEGUERO' }, tenant).every(item => !['pos', 'clientes', 'usuarios'].includes(item.key)));
+});
+
+test('permiso ausente se rechaza y Clientes y Caja son funciones base', () => {
+  const item = { allowedRoles: ['VENDEDOR'], requiredPermiso: 'special.read' };
+  assert.equal(canNavigate(item, { rol: 'VENDEDOR' }, tenant), false);
+  assert.equal(canNavigate(item, { rol: 'VENDEDOR', permisos: ['special.read'] }, tenant), true);
+  const keys = availableTasks({ rol: 'CAJERO' }, { ...tenant, modulosHabilitados: [] }).map(item => item.key);
+  assert.ok(keys.includes('clientes') && keys.includes('arqueo_caja'));
+  assert.ok(!keys.includes('pos'));
+});
+
+test('búsqueda encuentra títulos ingleses traducidos', () => {
+  const en = JSON.parse(fs.readFileSync('src/locales/en.json', 'utf8'));
+  const translate = path => path.split('.').reduce((value, key) => value?.[key], en) || path;
+  assert.equal(searchTasks(availableTasks({ rol: 'ADMIN' }, tenant), 'receive goods', translate)[0].key, 'ordenes_compra');
+});
 
 test('admin encuentra compras, personal y reportes sin una lista de permisos explícita', () => {
   const tasks = availableTasks({ rol: 'ADMIN' }, tenant);
