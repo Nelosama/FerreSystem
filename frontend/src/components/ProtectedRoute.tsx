@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, matchPath, useLocation } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { NAVIGATION_ITEMS } from '../config/navigation';
 import { canNavigate } from '../utils/taskNavigation';
@@ -30,7 +30,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (pathname === '/' && user.rol === 'SUPERADMIN') return <Navigate to="/admin" replace />;
 
-  const entry = NAVIGATION_ITEMS.find(item => item.route === pathname);
+  const entry = NAVIGATION_ITEMS.find(item => matchPath({ path: item.route, end: true }, pathname));
   if (entry && !canNavigate(entry, user, tenant)) return <div role="alert" style={styles.deniedContainer}><Lock size={48} /><h2>{t('navigation.denied')}</h2><p>{t('navigation.denied_help')}</p></div>;
 
   // Verificar rol

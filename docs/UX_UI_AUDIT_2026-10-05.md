@@ -1,5 +1,41 @@
 # FerreSystem: auditoría y mejoras de experiencia
 
+## Cierre posterior al PR #63 — 2026-10-06
+
+Esta sección sustituye los pendientes históricos de validación que aparecen más abajo; no elimina su registro. Base comprobada: `0331cb5937d7aeea5c2d50ca53d7762c096693cd` (merge de #63 y main remoto al iniciar). Rama de continuación: `feat/close-pending-delivery`. Se conserva el parche local anterior; no se aplicaron stashes ni se reinició el trabajo. El espacio ajeno en `backend/nest-cli.json` queda fuera del cierre.
+
+El HEAD de #63, `0b7d8af7ea4c29afaabe38ec883e2ee1e1a27cab`, aprobó **55/55 pruebas PostgreSQL** en [CI 37494401707](https://github.com/Nelosama/FerreSystem/actions/runs/37494401707). Los cuatro fixtures de crédito ya estaban corregidos allí. La falta histórica de PostgreSQL en otro entorno no es un fallo actual de esos fixtures.
+
+| Hallazgo / pendiente | Estado del cierre | Evidencia |
+| --- | --- | --- |
+| Entregas/Devoluciones visibles sin POS | Corregido | Ambas entradas declaran `moduleKey: 'pos'`; menús, prioridades y buscador comparten el filtro. |
+| URL con mayúsculas o barra final omite comparación literal | Corregido | `ProtectedRoute` usa `matchPath` con las mismas reglas de React Router. |
+| TOPNAV/SIDEBAR, móvil, roles y funciones base | Comprobación automatizada | 16 casos nuevos de navegador cubren POS activo/inactivo y cuatro roles; unitarias incluyen SUPERADMIN. Caja/cuentas conservan disponibilidad. |
+| Persistencia de configuración y autorización sin mocks | Cobertura implementada | `settings-http-checks.ts`: login real, PUT ADMIN, PATCH Super Admin, lectura SQL/HTTP, nueva autenticación, dos tenants, Cajero rechazado, payload con tenant ajeno y limpieza de opcionales/configuración vacía. |
+| Navegador con backend real | Cobertura implementada | `real-settings-browser.mjs`: Chrome/Chromium, Vite de desarrollo con proxy hacia API compilada, guardar/recargar/nuevo contexto y login. Sin interceptar peticiones ni precargar autenticación. CI activa `REAL_SETTINGS_BROWSER=1`. |
+| PostgreSQL de pruebas se bloquea con pipes en Windows | Corregido en fixtures | `pg_ctl` escribe su log a archivo y no conserva pipes de captura; binarios Windows con ventana oculta. No cambia esquema ni migraciones. |
+| ADMIN administra otros ADMIN del tenant | Decisión de negocio pendiente | Se conserva la política heredada; no se amplían ni reducen permisos en este cierre. |
+| Funciones aún no integradas | Fuera del cierre | Multisucursal, apartados, transferencias, garantías, pedidos especiales y listas de precios requieren su propio alcance y aceptación. No se presentan como funcionalidad entregada. |
+
+Validación local de esta continuación (Windows, 2026-10-06), código publicado `efd8c169dfb68ac5002dd041068c4b10213aeaa6` en [PR #64](https://github.com/Nelosama/FerreSystem/pull/64):
+
+| Comando / ejecución | Resultado | Evidencia y límites |
+| --- | --- | --- |
+| `npm test --prefix frontend` | 78/78 | Unitarias/componentes; no prueba persistencia real. |
+| `npm test --prefix backend` | 182 aprobadas, 3 omitidas | Omisiones por Windows en programador de respaldos. |
+| `npm run test:scripts --prefix backend` | 7 omitidas | Requieren POSIX; no se consideran aprobadas localmente. |
+| `npm run build --prefix frontend` con `VITE_API_URL=/api`; build backend | Ambos salida 0 | Advertencia de tamaño del bundle. |
+| Lint frontend y backend | Ambos salida 0, sin errores | Advertencias existentes de hooks/TypeScript. |
+| `npm run test:browser -- --workers=2` desde frontend | 54/54, 58.5 s | Chrome, API simulada. Incluye 16 regresiones POS. |
+| `npm run test:integration` desde backend | 55/55, 2 suites, 191.31 s | PostgreSQL 18 temporal; inicio 19:37:54 America/Tegucigalpa. `PG_BIN=C:/Program Files/PostgreSQL/18/bin`, `REAL_SETTINGS_BROWSER=1`, `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=C:/Program Files/Google/Chrome/Application/chrome.exe`. Incluye login/API reales y navegador real sin mocks de endpoints. |
+| `git diff --check` | Salida 0 | Formato. |
+
+El total PostgreSQL permanece en 55 porque se amplió el escenario HTTP existente, sin contar cada aserción como un test nuevo. El navegador real usa Vite de desarrollo y API compilada; no equivale a aceptación del despliegue de producción. Los logs locales de esta ejecución se guardaron en `%TEMP%/ferre-close-*.log`, fuera del repositorio. CI Linux se inició en [ejecución 37558322184](https://github.com/Nelosama/FerreSystem/actions/runs/37558322184) sobre el SHA de código; su resultado y el del HEAD documental final se registran en el PR una vez concluidos. No se declaran aprobados por haberse iniciado.
+
+No se añade una migración. La funcionalidad requiere la existente `20261006000100_tenant_configuration`, que añade JSONB con default `{}`. Orden de despliegue: respaldo y restauración ensayada; revisión de baseline; migraciones requeridas antes de arrancar el backend nuevo; cliente Prisma/backend compatibles; frontend después de la API; aceptación funcional por rol. Conservar la columna aditiva al revertir aplicación. El lock y la duración con volúmenes representativos requieren ensayo operativo; no se aplicaron migraciones a bases existentes.
+
+Pendientes de entrega: confirmar versiones efectivamente desplegadas (un merge no prueba despliegue), aceptación del cliente de ventas/comprobantes/crédito/abonos/devoluciones/entregas/caja y definición de módulos comprometidos. No se hizo merge ni despliegue manual durante este cierre.
+
 El trabajo comenzó sobre `main`, con el estado inicial de Git limpio. Los cambios se conservaron íntegros al crear `feat/ux-ui-restructure` para su revisión y publicación. No se encontraron archivos AGENTS.md en el repositorio ni en sus directorios ascendentes. No se hizo merge, despliegue ni migración contra una base de datos de una empresa.
 
 La revisión del diff no identificó cambios ajenos a esta tarea. `ux-update.cjs` y `ux-navigation.cjs` fueron herramientas temporales de edición y ya no existen; no forman parte del commit. Los logs locales de lint también quedan fuera del commit; se incluyen las capturas de validación.

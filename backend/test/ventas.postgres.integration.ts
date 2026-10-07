@@ -14,6 +14,7 @@ import { ProductosService } from '../src/productos/productos.service';
 import { ClientesService } from '../src/clientes/clientes.service';
 import { lockTenant } from '../src/operaciones/ledger';
 import * as bcrypt from 'bcrypt';
+import { checkSettingsHttp } from './settings-http-checks';
 
 // Nunca lee DATABASE_URL: crea un clúster exclusivo, sin migraciones ni datos existentes.
 const bin = process.env.PG_BIN || (process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/18/bin' : '/usr/bin');
@@ -40,7 +41,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const port = (server.address() as { port: number }).port;
     await new Promise<void>((resolve) => server.close(() => resolve()));
     console.log('PostgreSQL temporal: start');
-    try {execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port}${process.platform === 'win32' ? '' : ' -k '+directory}`, '-w', 'start'], { windowsHide: true, timeout: 30000, stdio: 'pipe' });} catch(error) {if(existsSync(join(directory,'postgres.log')))console.error(readFileSync(join(directory,'postgres.log'),'utf8'));throw error;}
+    try {execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port}${process.platform === 'win32' ? '' : ' -k '+directory}`, '-w', 'start'], { windowsHide: true, timeout: 30000, stdio: 'ignore' });} catch(error) {if(existsSync(join(directory,'postgres.log')))console.error(readFileSync(join(directory,'postgres.log'),'utf8'));throw error;}
     started = true;
     // Reproduce una base existente anterior a la numeración, exclusivamente local.
     console.log('PostgreSQL temporal: schema offline');
@@ -213,7 +214,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     release();
     expect(await interrupted).toBeInstanceOf(Error);
     await prisma.$disconnect();
-    execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${new URL(databaseUrl).port}${process.platform === 'win32' ? '' : ' -k ' + directory}`, '-w', 'start'], { timeout: 30000, stdio: 'pipe' });
+    execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${new URL(databaseUrl).port}${process.platform === 'win32' ? '' : ' -k ' + directory}`, '-w', 'start'], { windowsHide: true, timeout: 30000, stdio: 'ignore' });
     await prisma.$connect();
     const recovered = await ventas.findSolicitud(tenantId, usuarioId, solicitudId);
     expect(recovered.estado).toBe('REGISTRADA');
@@ -315,6 +316,7 @@ describe('Ventas / PostgreSQL aislado', () => {
       const password = 'isolated-test-password';
       const admin = await prisma.superAdmin.create({ data: { nombre: 'Superadmin prueba', email: `${randomUUID()}@test.local`, passwordHash: await bcrypt.hash(password, 4) } });
       const base = `http://127.0.0.1:${port}/api`;
+      await checkSettingsHttp(prisma, base);
       const login = await fetch(`${base}/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: admin.email, password }) });
       expect(login.status).toBe(200);
       expect(login.headers.get('set-cookie')).toContain('Path=/api/admin/auth');
@@ -372,7 +374,7 @@ describe('Ventas / PostgreSQL aislado', () => {
         await exited;
       }
     }
-  }, 60000);
+  }, 120000);
 
   it('reproduce db push sin trigger: el primer cliente recibe cero y el segundo falla por numeración', async () => {
     // El DDL y los INSERT solo afectan este PostgreSQL temporal y se revierten juntos.

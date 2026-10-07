@@ -31,6 +31,29 @@ const load = (file) => {
 };
 const { availableTasks, searchTasks, priorityTasks, canNavigate, groupNavigation } = load('src/utils/taskNavigation.ts');
 
+for (const rol of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO', 'SUPERADMIN']) {
+  test(`${rol}: Entregas/Devoluciones requieren POS y conservan sus roles`, () => {
+    const items = load('src/config/navigation.ts').NAVIGATION_ITEMS;
+    for (const enabled of [false, true]) {
+      const company = { ...tenant, modulosHabilitados: enabled ? ['pos'] : [] };
+      const tasks = availableTasks({ rol }, company);
+      for (const key of ['entregas', 'devoluciones']) {
+        const entry = items.find(item => item.key === key);
+        const allowed = enabled && entry.allowedRoles.includes(rol);
+        assert.equal(canNavigate(entry, { rol }, company), allowed);
+        assert.equal(tasks.some(item => item.key === key), allowed);
+        assert.equal(searchTasks(tasks, key === 'entregas' ? 'entregar' : 'devolución').some(item => item.key === key), allowed);
+        if (!allowed) assert.ok(priorityTasks({ rol }, company).every(item => item.key !== key));
+      }
+      if (['ADMIN', 'CAJERO'].includes(rol)) {
+        assert.ok(tasks.some(item => item.key === 'arqueo_caja'));
+        assert.ok(tasks.some(item => item.key === 'cuentas'));
+      }
+      if (rol === 'BODEGUERO') assert.equal(priorityTasks({ rol }, company).some(item => item.key === 'entregas'), enabled);
+    }
+  });
+}
+
 test('roles comparten categorías, excluyen pendientes y reciben hasta cuatro tareas', () => {
   for (const rol of ['SUPERADMIN', 'ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) {
     const tasks = availableTasks({ rol }, tenant);

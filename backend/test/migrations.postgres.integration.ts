@@ -28,12 +28,12 @@ describe('Instalación y adopción / PostgreSQL aislado', () => {
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     port = String((server.address() as { port: number }).port);
     await new Promise<void>(resolve => server.close(() => resolve()));
-    execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'log'), '-o', `-h 127.0.0.1 -p ${port}${process.platform === 'win32' ? '' : ' -k ' + directory}`, '-w', 'start'], { timeout: 30000, stdio: 'pipe' });
+    execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'log'), '-o', `-h 127.0.0.1 -p ${port}${process.platform === 'win32' ? '' : ' -k ' + directory}`, '-w', 'start'], { windowsHide: true, timeout: 30000, stdio: 'ignore' });
     started = true;
   });
   afterAll(async () => {
     await Promise.all(clients.map(client => client.$disconnect()));
-    if (started) execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-m', 'immediate', '-w', 'stop'], { timeout: 30000, stdio: 'pipe' });
+    if (started) execFileSync(executable('pg_ctl'), ['-D', join(directory, 'data'), '-m', 'immediate', '-w', 'stop'], { windowsHide: true, timeout: 30000, stdio: 'ignore' });
     if (directory) rmSync(directory, { recursive: true, force: true });
   });
 
