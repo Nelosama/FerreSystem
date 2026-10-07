@@ -17,7 +17,20 @@ El HEAD de #63, `0b7d8af7ea4c29afaabe38ec883e2ee1e1a27cab`, aprobó **55/55 prue
 | ADMIN administra otros ADMIN del tenant | Decisión de negocio pendiente | Se conserva la política heredada; no se amplían ni reducen permisos en este cierre. |
 | Funciones aún no integradas | Fuera del cierre | Multisucursal, apartados, transferencias, garantías, pedidos especiales y listas de precios requieren su propio alcance y aceptación. No se presentan como funcionalidad entregada. |
 
-Validación local de esta continuación (Windows, 2026-10-06): `npm test --prefix frontend`: **78/78**; `npm test --prefix backend`: **182 aprobadas, 3 omitidas** por condición Windows del programador de respaldos; `npm run test:scripts --prefix backend`: **7 omitidas**, no constituye aprobación. Ambos builds y lints completados sin errores (advertencias existentes de hooks/TypeScript y tamaño de bundle). Frontend se compila con `VITE_API_URL=/api`. La referencia definitiva de navegador, integración y CI se registra al cerrar la ejecución, sin inferir aprobación de logs anteriores.
+Validación local de esta continuación (Windows, 2026-10-06), código publicado `efd8c169dfb68ac5002dd041068c4b10213aeaa6` en [PR #64](https://github.com/Nelosama/FerreSystem/pull/64):
+
+| Comando / ejecución | Resultado | Evidencia y límites |
+| --- | --- | --- |
+| `npm test --prefix frontend` | 78/78 | Unitarias/componentes; no prueba persistencia real. |
+| `npm test --prefix backend` | 182 aprobadas, 3 omitidas | Omisiones por Windows en programador de respaldos. |
+| `npm run test:scripts --prefix backend` | 7 omitidas | Requieren POSIX; no se consideran aprobadas localmente. |
+| `npm run build --prefix frontend` con `VITE_API_URL=/api`; build backend | Ambos salida 0 | Advertencia de tamaño del bundle. |
+| Lint frontend y backend | Ambos salida 0, sin errores | Advertencias existentes de hooks/TypeScript. |
+| `npm run test:browser -- --workers=2` desde frontend | 54/54, 58.5 s | Chrome, API simulada. Incluye 16 regresiones POS. |
+| `npm run test:integration` desde backend | 55/55, 2 suites, 191.31 s | PostgreSQL 18 temporal; inicio 19:37:54 America/Tegucigalpa. `PG_BIN=C:/Program Files/PostgreSQL/18/bin`, `REAL_SETTINGS_BROWSER=1`, `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=C:/Program Files/Google/Chrome/Application/chrome.exe`. Incluye login/API reales y navegador real sin mocks de endpoints. |
+| `git diff --check` | Salida 0 | Formato. |
+
+El total PostgreSQL permanece en 55 porque se amplió el escenario HTTP existente, sin contar cada aserción como un test nuevo. El navegador real usa Vite de desarrollo y API compilada; no equivale a aceptación del despliegue de producción. Los logs locales de esta ejecución se guardaron en `%TEMP%/ferre-close-*.log`, fuera del repositorio. CI Linux se inició en [ejecución 37558322184](https://github.com/Nelosama/FerreSystem/actions/runs/37558322184) sobre el SHA de código; su resultado y el del HEAD documental final se registran en el PR una vez concluidos. No se declaran aprobados por haberse iniciado.
 
 No se añade una migración. La funcionalidad requiere la existente `20261006000100_tenant_configuration`, que añade JSONB con default `{}`. Orden de despliegue: respaldo y restauración ensayada; revisión de baseline; migraciones requeridas antes de arrancar el backend nuevo; cliente Prisma/backend compatibles; frontend después de la API; aceptación funcional por rol. Conservar la columna aditiva al revertir aplicación. El lock y la duración con volúmenes representativos requieren ensayo operativo; no se aplicaron migraciones a bases existentes.
 
