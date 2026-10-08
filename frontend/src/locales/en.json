@@ -83,6 +83,7 @@
   },
   "common": {
     "close_modal": "Close modal",
+    "clear_search": "Clear search",
     "save": "Save",
     "cancel": "Cancel",
     "accept": "Accept",

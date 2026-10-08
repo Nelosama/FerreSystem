@@ -466,26 +466,40 @@ export const POSPage: React.FC = () => {
                 <input
                   type="text"
                   value={clienteNombre}
-                  disabled={edicionBloqueada}
-                  onChange={(e) => {setClienteNombre(e.target.value);setClienteId(undefined);}}
+                  disabled={edicionBloqueada || !!clienteId}
+                  onChange={(e) => setClienteNombre(e.target.value)}
                   className="form-input"
                   style={{ padding: '6px 10px', fontSize: '12px', flex: 1 }}
                   placeholder={t('pos.client_placeholder')}
                 />
+                {clienteId && !edicionBloqueada && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setClienteId(undefined);
+                      setClienteNombre('Consumidor Final');
+                      setClienteRtn('');
+                    }}
+                    title="Cambiar o desvincular cliente registrado"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
               <input
                 type="text"
                 value={clienteRtn}
-                disabled={edicionBloqueada}
-                onChange={(e) => {setClienteRtn(e.target.value);setClienteId(undefined);}}
+                disabled={edicionBloqueada || !!clienteId}
+                onChange={(e) => setClienteRtn(e.target.value)}
                 className="form-input"
                 style={{ padding: '6px 10px', fontSize: '11px', marginTop: '6px' }}
                 placeholder={t('pos.rtn_placeholder')}
               />
             </div>
 
-            {!edicionBloqueada&&<ClientePicker onSelect={(c:ClienteSeleccionable)=>{setClienteId(c.id);setClienteNombre(c.nombre);setClienteRtn(c.rtn||'');}}/>}
-            {clienteId&&<p>Cliente registrado seleccionado.</p>}
+            {!edicionBloqueada&&!clienteId&&<ClientePicker onSelect={(c:ClienteSeleccionable)=>{setClienteId(c.id);setClienteNombre(c.nombre);setClienteRtn(c.rtn||'');}}/>}
+            {clienteId&&<p style={{ fontSize: '11px', color: '#15803D', fontWeight: 700, marginTop: '4px' }}>✓ Cliente registrado seleccionado.</p>}
             {metodoPago==='CREDITO'&&<label>Vencimiento del crédito<input className="form-input" type="date" value={vencimiento} disabled={edicionBloqueada} onChange={e=>setVencimiento(e.target.value)}/></label>}
             {/* Lista de ítems en carrito */}
             <div style={styles.cartItemsList}>

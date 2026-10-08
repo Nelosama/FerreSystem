@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-test('i18n locales contain close_modal key under common', () => {
+test('i18n locales contain close_modal and clear_search keys under common', () => {
   const es = JSON.parse(fs.readFileSync('src/locales/es.json', 'utf8'));
   const en = JSON.parse(fs.readFileSync('src/locales/en.json', 'utf8'));
 
   assert.equal(es.common?.close_modal, 'Cerrar modal');
   assert.equal(en.common?.close_modal, 'Close modal');
+  assert.equal(es.common?.clear_search, 'Limpiar búsqueda');
+  assert.equal(en.common?.clear_search, 'Clear search');
 });
 
 test('modal close buttons in pages and components have aria-label and type="button"', () => {
