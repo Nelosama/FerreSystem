@@ -180,7 +180,7 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 | REQ-001 | Decisión negocio | **Pendiente de verificar** | Aprobación remota de descuentos; no aprobada automáticamente | — |
 | SEC-001 | P1 | **Pendiente de verificar** | Sin aislamiento relacional por sucursal | — |
 | SEC-002 | P0 | **Pendiente de verificar** | Límite de descuentos no verificado por backend | — |
-| SEC-003 | P0 | **Pendiente de verificar** | Permisos y ejecución de devoluciones; revisar si hay bypass real | — |
+| SEC-003 | P0 | **Resuelto / Verificado** | Permisos y ejecución de devoluciones; sin bypass en backend | Rama `test/sec-003-permisos-devoluciones`. Prueba automatizada `backend/src/operaciones/sec-003-devoluciones.spec.ts` (13 escenarios). Se verificó que CAJERO/VENDEDOR no pueden ejecutar devoluciones directas (403 Forbidden), la autorización por ADMIN es requerida y registrada en DB, aislamiento multi-tenant estricto (404 Not Found), límite de cantidad devuelta vs vendida, ajuste exacto de saldo CXC a crédito y caja, idempotencia y trazabilidad completa en `auditoria_operaciones`. |
 | SEC-004 | P0 | **Pendiente de verificar** | Rate limiting ausente en login | — |
 | SEC-005 | P0 | **Pendiente de verificar** | Costo/margen expuesto por GET productos a cajeros | — |
 | SEC-006 | P1 | **Pendiente de verificar** | Operaciones sin RequiredPermission granular | — |
