@@ -1,17 +1,54 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { JwtModule, JwtService } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { JwtStrategy } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
 import { OperacionesController } from './operaciones.controller';
 import { OperacionesService } from './operaciones.service';
 
-describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
+/**
+ * ============================================================================
+ * SEC-003 AUDIT & SCENARIOS SUITE
+ * ============================================================================
+ *
+ * SCOPE & LIMITATIONS DOCUMENTATION:
+ * ---------------------------------
+ * Tested in this suite:
+ * - Real HTTP requests passing through NestJS Passport JWT Strategy, JwtAuthGuard,
+ *   TenantGuard, and RolesGuard without overriding auth guards.
+ * - Role-based authorization matrix for direct returns (POST /operaciones/ventas/:id/devoluciones):
+ *   - CAJERO -> 403 Forbidden
+ *   - VENDEDOR -> 403 Forbidden
+ *   - ADMIN -> 201 Created
+ * - Prevention of HTTP payload tampering (attempting to send body { rol: 'ADMIN' } as CAJERO).
+ * - Multi-tenant isolation: Tenant A user requesting a return for a sale owned by Tenant B returns 404 Not Found.
+ * - Two-step approval workflow: Solicitar (PENDIENTE) -> Decidir (AUTORIZADA) -> Ejecutar (EJECUTADA).
+ * - Idempotency & Re-execution protection: Subsequent executions return identical payload without double-restoring inventory or cash.
+ * - Quantity cap enforcement: Attempting to return more than originally sold items fails with 400 Bad Request.
+ * - Non-interference of RECHAZADA status: Rejected return requests do not modify inventory, cash, or balances.
+ * - Financial audit: Adjustments to Credit accounts (CXC) and cash movements, plus audit trail in auditoria_operaciones.
+ *
+ * UNVERIFIED IN PRODUCTION / LIVE POSTGRESQL (REMAINS PENDING FOR LIVE STAGING/PROD):
+ * -------------------------------------------------------------------------------
+ * - High-concurrency database lock contention (`pg_advisory_xact_lock(hashtextextended(...))`)
+ *   under high parallel load on PostgreSQL server instances.
+ * - Physical PostgreSQL trigger execution (e.g. database-level triggers if any).
+ * - Live Prisma database migrations and Render deployment execution (`prisma migrate deploy`).
+ */
+
+describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite)', () => {
   let app: INestApplication;
   let service: OperacionesService;
+  let jwtService: JwtService;
+
+  const TEST_JWT_SECRET = 'sec-003-audit-jwt-secret-key-12345';
 
   // In-memory simulated database state for multi-tenant tests
   let dbUsers: Record<string, any> = {};
@@ -29,7 +66,6 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
   const mockPrisma = {
     $transaction: vi.fn(async (cb: any, _options?: any) => cb(mockPrisma)),
     $queryRawUnsafe: vi.fn(async (sql: string, ...params: any[]) => {
-      // Mock raw SQL queries used in OperacionesService via ledger query helper
       if (sql.includes('pg_advisory_xact_lock')) {
         return [{ locked: 1 }];
       }
@@ -221,16 +257,28 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
     tenantModule: {
       findUnique: vi.fn().mockResolvedValue({ enabled: true }),
     },
+    usuario: {
+      findFirst: vi.fn().mockImplementation(async ({ where }) => {
+        const u = dbUsers[where.id];
+        if (u && (!where.tenantId || u.tenant_id === where.tenantId) && (!where.activo || u.activo)) {
+          return {
+            ...u,
+            tenant: { id: u.tenant_id, estado: 'ACTIVO' },
+          };
+        }
+        return null;
+      }),
+    },
   };
 
   beforeEach(async () => {
     // Reset simulated DB state
     dbUsers = {
-      'cajero-1': { id: 'cajero-1', tenant_id: 'tenant-A', nombre: 'Carlos Cajero', rol: 'CAJERO', activo: true, permisos_configurados: false, permisos: [] },
-      'vendedor-1': { id: 'vendedor-1', tenant_id: 'tenant-A', nombre: 'Victor Vendedor', rol: 'VENDEDOR', activo: true, permisos_configurados: false, permisos: [] },
-      'admin-1': { id: 'admin-1', tenant_id: 'tenant-A', nombre: 'Ana Admin', rol: 'ADMIN', activo: true, permisos_configurados: false, permisos: [] },
-      'admin-B': { id: 'admin-B', tenant_id: 'tenant-B', nombre: 'Bob Admin B', rol: 'ADMIN', activo: true, permisos_configurados: false, permisos: [] },
-      'cajero-B': { id: 'cajero-B', tenant_id: 'tenant-B', nombre: 'Cesar Cajero B', rol: 'CAJERO', activo: true, permisos_configurados: false, permisos: [] },
+      'cajero-1': { id: 'cajero-1', tenant_id: 'tenant-A', nombre: 'Carlos Cajero', rol: 'CAJERO', activo: true, permisosConfigurados: false, permisos: [], descuentoMaximo: 0 },
+      'vendedor-1': { id: 'vendedor-1', tenant_id: 'tenant-A', nombre: 'Victor Vendedor', rol: 'VENDEDOR', activo: true, permisosConfigurados: false, permisos: [], descuentoMaximo: 0 },
+      'admin-1': { id: 'admin-1', tenant_id: 'tenant-A', nombre: 'Ana Admin', rol: 'ADMIN', activo: true, permisosConfigurados: false, permisos: [], descuentoMaximo: 100 },
+      'admin-B': { id: 'admin-B', tenant_id: 'tenant-B', nombre: 'Bob Admin B', rol: 'ADMIN', activo: true, permisosConfigurados: false, permisos: [], descuentoMaximo: 100 },
+      'cajero-B': { id: 'cajero-B', tenant_id: 'tenant-B', nombre: 'Cesar Cajero B', rol: 'CAJERO', activo: true, permisosConfigurados: false, permisos: [], descuentoMaximo: 0 },
     };
 
     dbProducts = {
@@ -275,50 +323,65 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
     dbStockMovements = {};
     dbAuditLogs = {};
 
+    process.env.JWT_SECRET = TEST_JWT_SECRET;
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [
+        PassportModule.register({ defaultStrategy: 'jwt' }),
+        JwtModule.register({ secret: TEST_JWT_SECRET }),
+      ],
       controllers: [OperacionesController],
       providers: [
         OperacionesService,
+        JwtStrategy,
+        JwtAuthGuard,
+        TenantGuard,
+        RolesGuard,
+        { provide: ConfigService, useValue: { get: (key: string) => (key === 'JWT_SECRET' ? TEST_JWT_SECRET : null) } },
         { provide: PrismaService, useValue: mockPrisma },
       ],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({
-        canActivate: (context: any) => {
-          const req = context.switchToHttp().getRequest();
-          const role = req.headers['x-test-role'] || 'ADMIN';
-          const sub = req.headers['x-test-user'] || 'admin-1';
-          const tenantId = req.headers['x-tenant-id'] || req.headers['x-test-tenant'] || 'tenant-A';
-          req.user = {
-            sub,
-            tenantId,
-            rol: role,
-            type: 'tenant',
-            permisosConfigurados: true,
-            permisos: [],
-          };
-          return true;
-        },
-      })
-      .compile();
+    }).compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
     service = moduleFixture.get<OperacionesService>(OperacionesService);
+    jwtService = moduleFixture.get<JwtService>(JwtService);
   });
 
   afterEach(async () => {
     await app?.close();
   });
 
-  // 1. Direct Return Security Checks (Bypass Prevention)
-  describe('1. Control de acceso a devolución directa (POST /operaciones/ventas/:id/devoluciones)', () => {
-    it('RECHAZA (403 Forbidden) cuando CAJERO intenta ejecutar una devolución directa sin autorización', async () => {
+  function createToken(sub: string, tenantId: string, rol: string) {
+    return jwtService.sign({
+      sub,
+      tenantId,
+      rol,
+      type: 'tenant',
+      email: `${sub}@test.com`,
+    });
+  }
+
+  // 1. Direct Return Security Checks via Real HTTP + Guards
+  describe('1. Control de acceso a devolución directa (POST /operaciones/ventas/:id/devoluciones) con Guards reales', () => {
+    it('RECHAZA (401 Unauthorized) si no se proporciona un token JWT en el encabezado Authorization', async () => {
       await request(app.getHttpServer())
         .post('/operaciones/ventas/venta-1/devoluciones')
-        .set('x-test-role', 'CAJERO')
-        .set('x-test-user', 'cajero-1')
-        .set('x-tenant-id', 'tenant-A')
+        .send({
+          solicitudId: 'sol-no-token',
+          motivo: 'Intento sin token',
+          metodo: 'EFECTIVO',
+          items: [{ detalleId: 'det-1', cantidad: 1, destino: 'INVENTARIO' }],
+        })
+        .expect(401);
+    });
+
+    it('RECHAZA (403 Forbidden) cuando CAJERO intenta ejecutar una devolución directa sin autorización', async () => {
+      const token = createToken('cajero-1', 'tenant-A', 'CAJERO');
+
+      await request(app.getHttpServer())
+        .post('/operaciones/ventas/venta-1/devoluciones')
+        .set('Authorization', `Bearer ${token}`)
         .send({
           solicitudId: 'sol-cajero-1',
           motivo: 'Intento directo cajero',
@@ -331,11 +394,11 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
     });
 
     it('RECHAZA (403 Forbidden) cuando VENDEDOR intenta ejecutar una devolución directa sin autorización', async () => {
+      const token = createToken('vendedor-1', 'tenant-A', 'VENDEDOR');
+
       await request(app.getHttpServer())
         .post('/operaciones/ventas/venta-1/devoluciones')
-        .set('x-test-role', 'VENDEDOR')
-        .set('x-test-user', 'vendedor-1')
-        .set('x-tenant-id', 'tenant-A')
+        .set('Authorization', `Bearer ${token}`)
         .send({
           solicitudId: 'sol-vendedor-1',
           motivo: 'Intento directo vendedor',
@@ -348,11 +411,11 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
     });
 
     it('PERMITE (201 Created) a ADMIN realizar una devolución directa autorizada', async () => {
+      const token = createToken('admin-1', 'tenant-A', 'ADMIN');
+
       await request(app.getHttpServer())
         .post('/operaciones/ventas/venta-1/devoluciones')
-        .set('x-test-role', 'ADMIN')
-        .set('x-test-user', 'admin-1')
-        .set('x-tenant-id', 'tenant-A')
+        .set('Authorization', `Bearer ${token}`)
         .send({
           solicitudId: 'sol-admin-directa-1',
           motivo: 'Devolución directa autorizada por administrador',
@@ -369,12 +432,12 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
 
   // 2. HTTP Payload & Role Tampering Attempts
   describe('2. Integridad de autenticación y prevención de manipulación de rol desde HTTP', () => {
-    it('Ignora los campos de rol o permisos inyectados en el cuerpo HTTP y utiliza el rol del JWT autenticado', async () => {
+    it('Ignora los campos de rol o permisos inyectados en el cuerpo HTTP y utiliza el rol autenticado del JWT real', async () => {
+      const token = createToken('cajero-1', 'tenant-A', 'CAJERO');
+
       await request(app.getHttpServer())
         .post('/operaciones/ventas/venta-1/devoluciones')
-        .set('x-test-role', 'CAJERO')
-        .set('x-test-user', 'cajero-1')
-        .set('x-tenant-id', 'tenant-A')
+        .set('Authorization', `Bearer ${token}`)
         .send({
           solicitudId: 'sol-tamper-1',
           rol: 'ADMIN', // HTTP payload tampering attempt
@@ -392,11 +455,11 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
   // 3. Multi-Tenant Isolation
   describe('3. Aislamiento multi-tenant en devoluciones', () => {
     it('RECHAZA (404 Not Found) a un usuario de Tenant A que intenta devolver una venta de Tenant B', async () => {
+      const tokenAdminA = createToken('admin-1', 'tenant-A', 'ADMIN');
+
       await request(app.getHttpServer())
         .post('/operaciones/ventas/venta-tenant-B/devoluciones')
-        .set('x-test-role', 'ADMIN')
-        .set('x-test-user', 'admin-1')
-        .set('x-tenant-id', 'tenant-A') // Logged into Tenant A
+        .set('Authorization', `Bearer ${tokenAdminA}`)
         .send({
           solicitudId: 'sol-cross-tenant-1',
           motivo: 'Ataque cross-tenant',
@@ -412,11 +475,11 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
   // 4. Authorization & Execution Workflow (Solicitar -> Decidir -> Ejecutar)
   describe('4. Flujo de solicitud, autorización y ejecución diferida', () => {
     it('CAJERO puede solicitar devolución (queda PENDIENTE sin afectar inventario ni caja)', async () => {
+      const tokenCajero = createToken('cajero-1', 'tenant-A', 'CAJERO');
+
       const res = await request(app.getHttpServer())
         .post('/operaciones/ventas/venta-1/solicitudes-devolucion')
-        .set('x-test-role', 'CAJERO')
-        .set('x-test-user', 'cajero-1')
-        .set('x-tenant-id', 'tenant-A')
+        .set('Authorization', `Bearer ${tokenCajero}`)
         .send({
           solicitudId: 'sol-req-1',
           motivo: 'Cliente devolvió producto defectuoso',
@@ -444,11 +507,11 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
       });
 
       // Step 2: Admin approves via HTTP
+      const tokenAdmin = createToken('admin-1', 'tenant-A', 'ADMIN');
+
       const decisionRes = await request(app.getHttpServer())
         .post('/operaciones/solicitudes-devolucion/sol-req-2/decision')
-        .set('x-test-role', 'ADMIN')
-        .set('x-test-user', 'admin-1')
-        .set('x-tenant-id', 'tenant-A')
+        .set('Authorization', `Bearer ${tokenAdmin}`)
         .send({
           decision: 'AUTORIZADA',
           motivo: 'Aprobado tras revisar foto del producto',
@@ -477,11 +540,11 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
       });
 
       // Step 3: Cashier executes authorized return
+      const tokenCajero = createToken('cajero-1', 'tenant-A', 'CAJERO');
+
       const execRes = await request(app.getHttpServer())
         .post('/operaciones/solicitudes-devolucion/sol-req-3/ejecutar')
-        .set('x-test-role', 'CAJERO')
-        .set('x-test-user', 'cajero-1')
-        .set('x-tenant-id', 'tenant-A')
+        .set('Authorization', `Bearer ${tokenCajero}`)
         .send({})
         .expect(201);
 
@@ -547,12 +610,12 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit Suite)', () => {
         items: [{ detalleId: 'det-1', cantidad: 1, destino: 'INVENTARIO' }],
       });
 
+      const tokenAdmin = createToken('admin-1', 'tenant-A', 'ADMIN');
+
       // Admin rejects
       await request(app.getHttpServer())
         .post('/operaciones/solicitudes-devolucion/sol-reject-1/decision')
-        .set('x-test-role', 'ADMIN')
-        .set('x-test-user', 'admin-1')
-        .set('x-tenant-id', 'tenant-A')
+        .set('Authorization', `Bearer ${tokenAdmin}`)
         .send({
           decision: 'RECHAZADA',
           motivo: 'Daño provocado por mal uso del cliente',
