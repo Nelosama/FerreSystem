@@ -12,6 +12,7 @@ const storage = () => {
 };
 
 const evaluate = (file, mocks, globals = {}) => {
+  const filePath = fs.existsSync(file) ? file : `frontend/${file}`;
   const context = { exports: {}, console, ...globals, require: (name) => {
     if (name in mocks) return mocks[name];
     if (name.endsWith('/unidadMedida')) return evaluate('src/utils/unidadMedida.ts', {});
@@ -19,9 +20,10 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name.endsWith('/tenantSettings')) return evaluate('src/utils/tenantSettings.ts', {}, globals);
     if (name.endsWith('/storage')) return evaluate('src/utils/storage.ts', {}, globals);
     if (name.endsWith('/posRecovery')) return evaluate('src/utils/posRecovery.ts', {}, globals);
+    if (name.endsWith('/cotizacionesFilters')) return evaluate('src/utils/cotizacionesFilters.ts', {});
     return new Proxy({}, { get: (_, key) => String(key) });
   } };
-  const source = fs.readFileSync(file, 'utf8');
+  const source = fs.readFileSync(filePath, 'utf8');
   const code = ts.transpileModule(source, { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText;
   vm.runInNewContext(code, context);
   return context.exports;

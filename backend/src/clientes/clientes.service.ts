@@ -18,6 +18,7 @@ export class ClientesService {
       where.OR = [
         { nombre: { contains: query, mode: 'insensitive' } },
         { id: { contains: query, mode: 'insensitive' } },
+        { codigo: { contains: query, mode: 'insensitive' } },
         { rtn: { contains: query, mode: 'insensitive' } },
         { telefono: { contains: query, mode: 'insensitive' } },
       ];
@@ -28,8 +29,11 @@ export class ClientesService {
           where.OR.push({ numeroCliente: number });
         }
       }
-      // Aceptar teléfonos/RTN con o sin espacios, guiones y código de país.
-      const digits = query.replace(/\D/g, '');
+      // Aceptar teléfonos/RTN con o sin espacios, guiones y código de país (ej. 504 o +504).
+      let digits = query.replace(/\D/g, '');
+      if (digits.length > 8 && digits.startsWith('504')) {
+        digits = digits.substring(3);
+      }
       if (digits && /^[\d\s()+.-]+$/.test(query)) {
         const matches = await this.prisma.$queryRaw<{ id: string }[]>`
           SELECT id FROM clientes WHERE tenant_id = ${tenantId} AND (
