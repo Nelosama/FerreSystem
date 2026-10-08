@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { PrismaService } from '../prisma/prisma.service';
 import { authorizedActor, audit, decimal, id, lockTenant, movement, query, text } from '../operaciones/ledger';
 import type { CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
+import { publicProduct } from './producto-response';
 
 @Injectable()
 export class ProductosService {
@@ -13,7 +14,7 @@ export class ProductosService {
   return (await this.prisma.producto.findMany({where,include:{categoria:{select:{id:true,nombre:true}}},orderBy:{nombre:'asc'}})).map(p=>this.format(p));
  }
  async comercial(tenantId:string){
-  const rows=await this.findAll(tenantId);return rows.map(({precioCosto,margen,ultimaCompraAt,...p})=>({...p,stockFisico:p.stockActual,stockActual:p.stockDisponible}));
+  const rows=await this.findAll(tenantId);return rows.map(p=>publicProduct({...p,stockFisico:p.stockActual,stockActual:p.stockDisponible}));
  }
  async findById(tenantId:string,id:string){const p=await this.prisma.producto.findFirst({where:{id,tenantId},include:{categoria:true}});if(!p)throw new NotFoundException('Producto no encontrado');return this.format(p);}
  async getLowStock(tenantId:string){return (await this.findAll(tenantId)).filter(p=>p.stockBajo);}

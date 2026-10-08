@@ -1,6 +1,7 @@
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, UseInterceptors } from '@nestjs/common';
+import { ProductoResponseInterceptor } from './producto-response.interceptor';
 import { ProductosService } from './productos.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
@@ -13,6 +14,7 @@ import { CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto'
 @Controller('productos')
 @RequiredModule('inventario')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+@UseInterceptors(ProductoResponseInterceptor)
 export class ProductosController {
   constructor(private readonly productosService: ProductosService) {}
 
