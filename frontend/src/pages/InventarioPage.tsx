@@ -293,6 +293,7 @@ export const InventarioPage: React.FC = () => {
                 type="button"
                 onClick={() => setModalAbierto(false)}
                 style={styles.closeBtn}
+                aria-label={t('common.close_modal')}
               >
                 <X size={20} />
               </button>

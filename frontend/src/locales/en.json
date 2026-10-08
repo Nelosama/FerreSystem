@@ -82,6 +82,7 @@
     "export_csv": "EXPORT CSV"
   },
   "common": {
+    "close_modal": "Close modal",
     "save": "Save",
     "cancel": "Cancel",
     "accept": "Accept",

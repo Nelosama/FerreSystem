@@ -1004,6 +1004,7 @@ export const SuperAdminPage: React.FC = () => {
                   type="button"
                   onClick={() => setModalModulosTenant(null)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                  aria-label={t('common.close_modal')}
                 >
                   <X size={20} />
                 </button>
@@ -1420,6 +1421,7 @@ export const SuperAdminPage: React.FC = () => {
                 type="button"
                 onClick={() => setModalSuplantarUser(null)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                aria-label={t('common.close_modal')}
               >
                 <X size={20} />
               </button>

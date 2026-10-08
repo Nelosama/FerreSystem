@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TopBar } from '../components/TopBar';
+import { useI18n } from '../context/I18nContext';
 export interface Usuario {
   id: string;
   nombre: string;
@@ -71,6 +72,7 @@ const TODOS_LOS_PERMISOS = [
 ];
 
 export const UsuariosPage: React.FC = () => {
+  const { t } = useI18n();
   const [listaUsuarios, setListaUsuarios] = useState<Usuario[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -351,7 +353,7 @@ export const UsuariosPage: React.FC = () => {
                   {usuarioEditando ? 'EDITAR USUARIO' : 'NUEVO USUARIO'}
                 </h2>
               </div>
-              <button type="button" onClick={() => setModalAbierto(false)} style={styles.closeBtn}>
+              <button type="button" onClick={() => setModalAbierto(false)} style={styles.closeBtn} aria-label={t('common.close_modal')}>
                 <X size={20} />
               </button>
             </div>

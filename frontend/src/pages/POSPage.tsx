@@ -632,6 +632,7 @@ export const POSPage: React.FC = () => {
                 type="button"
                 onClick={cerrarComprobante}
                 style={styles.closeBtn}
+                aria-label={t('common.close_modal')}
               >
                 <X size={20} />
               </button>

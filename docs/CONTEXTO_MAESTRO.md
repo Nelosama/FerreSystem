@@ -157,6 +157,7 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 
 | 2026-10-07 / Codex, acceso web autorizado | Login mediante navegador en sitio publicado; panel administrativo visible. Avisos: resumen no pudo cargar y respaldos automáticos no configurados para consulta en ese servidor | Sin altas, ventas ni cambios de configuración. Versión desplegada no comprobada; HEAD local de referencia `4719e526`. E03/E05 siguen pendientes. |
 | 2026-10-08 / consolidación documental | Tres auditorías Jules integradas en registro único 8A; sin cierre automático de hallazgos | Solo documentación en main; no pruebas nuevas, migraciones ni cambios de aplicación. |
+| 2026-10-08 / Jules | Corrección de accesibilidad en botones de cerrar modal (PROD-QA-20261007-04) | Rama fix/qa-accesibilidad-modal; aria-label y type="button" añadidos en modales; i18n close_modal (ES/EN); 80 pruebas frontend y 185 backend aprobadas; build OK. |
 
 ## 8A. Registro único de bitácora y hallazgos QA — 2026-10-08
 
@@ -202,7 +203,7 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 | PROD-QA-20261007-01 | Pendiente de verificar | Informe de navegador 7/oct: HTTP 500 por posible desajuste entre esquema Supabase y backend publicado (stock_reservado, reserva_pendiente, clientes.codigo, tablas operativas). **No ejecutar migrate deploy a ciegas**; comparar esquema, migraciones y versión desplegada en copia/entorno seguro. Vinculado E02/E05. |
 | PROD-QA-20261007-02 | Pendiente de verificar | Cotizaciones/comisiones confunden errores de carga con resultados vacíos. |
 | PROD-QA-20261007-03 | Pendiente de verificar | Traducción cruda `clients.new_client` en alta de clientes. |
-| PROD-QA-20261007-04 | Pendiente de verificar | Botón cerrar modal sin nombre accesible. |
+| PROD-QA-20261007-04 | Resuelto | Botón cerrar modal sin nombre accesible. Añadido aria-label i18n (es/en) y type="button" en todos los modales. |
 | PROD-QA-20261007-05 | Pendiente de verificar | Repetir pruebas de flujos bloqueados y revisar avisos de respaldo; vinculado E03/E05. |
 
 ### Requisitos comerciales observados durante pruebas manuales

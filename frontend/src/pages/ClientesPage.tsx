@@ -304,7 +304,7 @@ export const ClientesPage: React.FC = () => {
                   {clienteEditando ? 'EDITAR CLIENTE' : 'NUEVO CLIENTE'}
                 </h2>
               </div>
-              <button type="button" onClick={() => setModalFormAbierto(false)} style={styles.closeBtn}>
+              <button type="button" onClick={() => setModalFormAbierto(false)} style={styles.closeBtn} aria-label={t('common.close_modal')}>
                 <X size={20} />
               </button>
             </div>
@@ -436,6 +436,7 @@ export const ClientesPage: React.FC = () => {
                 onClick={() => !deletingId && setClienteEliminar(null)}
                 disabled={Boolean(deletingId)}
                 style={styles.closeBtn}
+                aria-label={t('common.close_modal')}
               >
                 <X size={20} />
               </button>

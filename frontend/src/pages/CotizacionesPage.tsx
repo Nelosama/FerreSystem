@@ -630,7 +630,7 @@ export const CotizacionesPage: React.FC = () => {
                 style={styles.searchInput}
               />
               {searchTerm && (
-                <button type="button" onClick={() => setSearchTerm('')} style={styles.clearBtn}>
+                <button type="button" onClick={() => setSearchTerm('')} style={styles.clearBtn} aria-label="Limpiar búsqueda">
                   <X size={14} />
                 </button>
               )}
@@ -867,7 +867,7 @@ export const CotizacionesPage: React.FC = () => {
                   {t('operational.complete_los_datos_del_cliente_y_agregue_los_productos_desde_el_inventario')}
                 </span>
               </div>
-              <button type="button" onClick={() => setModalForm(false)} style={styles.closeBtn}>
+              <button type="button" onClick={() => setModalForm(false)} style={styles.closeBtn} aria-label={t('common.close_modal')}>
                 <X size={22} />
               </button>
             </div>
@@ -1250,7 +1250,7 @@ export const CotizacionesPage: React.FC = () => {
           <div className="industrial-card" style={styles.modalCardPicker}>
             <div style={styles.modalHeader}>
               <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('operational.seleccionar_producto_del_inventario')}</h2>
-              <button type="button" onClick={() => setModalProductoPicker(false)} style={styles.closeBtn}>
+              <button type="button" onClick={() => setModalProductoPicker(false)} style={styles.closeBtn} aria-label={t('common.close_modal')}>
                 <X size={20} />
               </button>
             </div>
@@ -1341,7 +1341,7 @@ export const CotizacionesPage: React.FC = () => {
               <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
                 {t('operational.convertir_cotizacion_a_venta_pos')}
               </h2>
-              <button type="button" onClick={() => setModalConvertir(null)} style={styles.closeBtn}>
+              <button type="button" onClick={() => setModalConvertir(null)} style={styles.closeBtn} aria-label={t('common.close_modal')}>
                 <X size={20} />
               </button>
             </div>
@@ -1388,7 +1388,7 @@ export const CotizacionesPage: React.FC = () => {
               <span className="badge badge-dark" style={{ letterSpacing: '0.05em' }}>
                 {t('operational.documento_oficial_proforma_de_cotizacion')}
               </span>
-              <button type="button" onClick={() => setModalPdf(null)} style={styles.closeBtn}>
+              <button type="button" onClick={() => setModalPdf(null)} style={styles.closeBtn} aria-label={t('common.close_modal')}>
                 <X size={20} />
               </button>
             </div>
