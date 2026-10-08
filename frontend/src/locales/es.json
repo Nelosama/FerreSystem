@@ -524,6 +524,9 @@
     "aprobado_y_conforme": "Aprobado y Conforme",
     "imprimir_cierre_pdf": "IMPRIMIR CIERRE (PDF)"
   },
+  "clients": {
+    "new_client": "Nuevo cliente"
+  },
   "clientPicker": {
     "label": "Buscar cliente existente",
     "placeholder": "Número de cliente, nombre, RTN o teléfono",

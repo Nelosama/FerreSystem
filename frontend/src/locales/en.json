@@ -524,6 +524,9 @@
     "aprobado_y_conforme": "Approved and Accepted",
     "imprimir_cierre_pdf": "PRINT CLOSING (PDF)"
   },
+  "clients": {
+    "new_client": "New customer"
+  },
   "clientPicker": {
     "label": "Find an existing customer",
     "placeholder": "Customer number, name, tax ID or phone",
