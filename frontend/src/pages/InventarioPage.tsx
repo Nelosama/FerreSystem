@@ -291,6 +291,7 @@ export const InventarioPage: React.FC = () => {
               <h2 style={{ fontSize: '18px', textTransform: 'uppercase' }}>{t('inventory.add_article')}</h2>
               <button
                 type="button"
+                aria-label={t('common.close')}
                 onClick={() => setModalAbierto(false)}
                 style={styles.closeBtn}
               >

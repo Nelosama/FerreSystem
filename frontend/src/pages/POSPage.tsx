@@ -630,6 +630,7 @@ export const POSPage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="button"
+                aria-label={t('common.close')}
                 onClick={cerrarComprobante}
                 style={styles.closeBtn}
               >

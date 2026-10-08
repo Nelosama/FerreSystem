@@ -82,6 +82,10 @@
     "export_csv": "EXPORT CSV"
   },
   "common": {
+    "close": "Close",
+    "load_error": "Could not load the data. Please try again.",
+    "loading": "Loading…",
+    "invalid_date_range": "The start date must be on or before the end date.",
     "save": "Save",
     "cancel": "Cancel",
     "accept": "Accept",
@@ -104,6 +108,9 @@
     "quantity": "QUANTITY",
     "description": "DESCRIPTION",
     "all": "ALL"
+  },
+  "clients": {
+    "new_client": "New client"
   },
   "dashboard": {
     "title": "OPERATIONAL SUMMARY",

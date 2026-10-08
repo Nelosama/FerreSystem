@@ -34,8 +34,12 @@ export const CotizacionesPage: React.FC = () => {
 
   const [cotizaciones, setCotizaciones] = useState<QuotationItem[]>([]);
   const [productos, setProductos] = useState<ProductItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const fetchCotizacionesYProductos = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
     try {
       const [resCot, resProd] = await Promise.all([
         api.get('/cotizaciones'),
@@ -109,6 +113,11 @@ export const CotizacionesPage: React.FC = () => {
       setProductos(formattedProd);
     } catch (err: any) {
       console.error('Error al cargar cotizaciones y productos desde backend:', err);
+      setCotizaciones([]);
+      setProductos([]);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
   }, [tenant?.id]);
 
@@ -242,7 +251,7 @@ export const CotizacionesPage: React.FC = () => {
   // Convertir A Venta
   const handleConfirmarConvertir = async (cot: QuotationItem) => {
     try {
-      await api.post(`/cotizaciones/${cot.id}/convertir-venta`);
+      await api.post(`/cotizaciones/${cot.id}/convertir`);
       setModalConvertir(null);
       await fetchCotizacionesYProductos();
       mostrarNotificacion(
@@ -557,6 +566,16 @@ export const CotizacionesPage: React.FC = () => {
       <TopBar title={t('quotations.title')} subtitle={t('quotations.subtitle')} />
 
       <main style={styles.content}>
+        {loadError && (
+          <div role="alert" className="operation-error">
+            <span>{t('common.load_error')}</span>
+            <button type="button" className="btn btn-secondary" onClick={() => void fetchCotizacionesYProductos()}>
+              {t('common.retry')}
+            </button>
+          </div>
+        )}
+        {loading && <p role="status">{t('common.loading')}</p>}
+
         {/* Banner de Notificación */}
         {mensajeNotificacion && (
           <div
@@ -578,7 +597,7 @@ export const CotizacionesPage: React.FC = () => {
         )}
 
         {/* Métricas Rápidas */}
-        <div style={styles.metricsGrid}>
+        {!loadError && !loading && <div style={styles.metricsGrid}>
           <div style={styles.metricCard}>
             <div style={styles.metricHeader}>
               <span style={styles.metricLabel}>{t('operational.cotizaciones_totales')}</span>
@@ -614,10 +633,10 @@ export const CotizacionesPage: React.FC = () => {
             <div style={styles.metricValue}>{formatLempiras(metricas.montoTotalMined)}</div>
             <div style={styles.metricSub}>{t('operational.valor_bruto_en_cartera')}</div>
           </div>
-        </div>
+        </div>}
 
         {/* Fila Principal de Acciones y Filtros */}
-        <div style={styles.actionsBar}>
+        {!loadError && !loading && <div style={styles.actionsBar}>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', flex: 1 }}>
             {/* Buscador */}
             <div style={styles.searchBox}>
@@ -675,10 +694,10 @@ export const CotizacionesPage: React.FC = () => {
               <span>{t('quotations.new_quotation')}</span>
             </button>
           )}
-        </div>
+        </div>}
 
         {/* Tabla Industrial de Cotizaciones */}
-        <div className="table-container" style={{ marginTop: '20px' }}>
+        {!loadError && !loading && <div className="table-container" style={{ marginTop: '20px' }}>
           <table className="industrial-table">
             <thead>
               <tr>
@@ -851,7 +870,7 @@ export const CotizacionesPage: React.FC = () => {
               )}
             </tbody>
           </table>
-        </div>
+        </div>}
       </main>
 
       {/* Modal Crear/Editar Cotización */}
@@ -867,7 +886,7 @@ export const CotizacionesPage: React.FC = () => {
                   {t('operational.complete_los_datos_del_cliente_y_agregue_los_productos_desde_el_inventario')}
                 </span>
               </div>
-              <button type="button" onClick={() => setModalForm(false)} style={styles.closeBtn}>
+              <button type="button" aria-label={t('common.close')} onClick={() => setModalForm(false)} style={styles.closeBtn}>
                 <X size={22} />
               </button>
             </div>

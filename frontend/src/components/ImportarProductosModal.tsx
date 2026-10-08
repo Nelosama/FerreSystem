@@ -311,7 +311,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
               {t('inventory.import_modal_title')}
             </h2>
           </div>
-          <button type="button" onClick={resetModal} style={styles.closeBtn}>
+          <button type="button" aria-label={t('common.close')} onClick={resetModal} style={styles.closeBtn}>
             <X size={20} />
           </button>
         </div>

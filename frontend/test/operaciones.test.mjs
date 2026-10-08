@@ -280,6 +280,41 @@ test('editar cotización recupera porcentajes desde los montos guardados', async
   assert.ok(percentageInputs.includes(10));
 });
 
+test('convertir cotización a venta usa el endpoint POST /cotizaciones/:id/convertir', async () => {
+  const calls = [];
+  const cot = { id: 'cot-1', numeroCotizacion: 1, clienteNombre: 'Cliente Prueba', clienteId: 'client-1', estado: 'ENVIADA', createdAt: '2026-10-02', fechaValidez: '2026-10-17', subtotal: 10, isv: 1.5, descuento: 0, descuentoGeneral: 0, tipoDescuentoGeneral: 'MONTO', total: 11.5,
+    detalles: [{ id: 'line-1', productoId: 'p1', productoNombre: 'Cable', cantidad: 1, medida: 1, totalMedida: 1, precioUnitario: 10, descuento: 0, tipoDescuento: 'MONTO', subtotal: 10, isv: 1.5, totalLinea: 11.5 }] };
+  const page = harness('src/pages/CotizacionesPage.tsx', 'CotizacionesPage', {
+    '../utils/api': { api: {
+      get: async (url) => ({ data: url === '/cotizaciones' ? [cot] : [] }),
+      post: async (url, body) => { calls.push({ url, body }); return { data: { ventaId: 'venta-1', numeroVenta: 1, total: 11.5 } }; },
+    } },
+  });
+  page.render(); await page.effects(); page.render();
+  page.find((node) => node.props.onClick?.toString().includes('setModalConvertir')).props.onClick();
+  page.render();
+  await page.find((node) => node.props.onClick?.toString().includes('handleConfirmarConvertir')).props.onClick();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, '/cotizaciones/cot-1/convertir');
+});
+
+test('error del backend al convertir muestra el mensaje del servidor', async () => {
+  const cot = { id: 'cot-2', numeroCotizacion: 2, clienteNombre: 'Cliente Prueba', estado: 'ENVIADA', createdAt: '2026-10-02', fechaValidez: '2026-10-17', subtotal: 10, isv: 1.5, descuento: 0, descuentoGeneral: 0, tipoDescuentoGeneral: 'MONTO', total: 11.5,
+    detalles: [{ id: 'line-1', productoId: 'p1', productoNombre: 'Cable', cantidad: 1, medida: 1, totalMedida: 1, precioUnitario: 10, descuento: 0, tipoDescuento: 'MONTO', subtotal: 10, isv: 1.5, totalLinea: 11.5 }] };
+  const page = harness('src/pages/CotizacionesPage.tsx', 'CotizacionesPage', {
+    '../utils/api': { api: {
+      get: async (url) => ({ data: url === '/cotizaciones' ? [cot] : [] }),
+      post: async () => { const err = new Error('Request failed'); err.response = { data: { message: 'Esta cotización ya fue convertida previamente a una venta' } }; throw err; },
+    } },
+  });
+  page.render(); await page.effects(); page.render();
+  page.find((node) => node.props.onClick?.toString().includes('setModalConvertir')).props.onClick();
+  page.render();
+  await page.find((node) => node.props.onClick?.toString().includes('handleConfirmarConvertir')).props.onClick();
+  page.render();
+  assert.ok(page.find((node) => node.children?.some((value) => typeof value === 'string' && value.includes('ya fue convertida previamente'))));
+});
+
 test('selector busca por teléfono y descarta respuestas de búsquedas anteriores', async () => {
   const pending = [];
   const selected = [];

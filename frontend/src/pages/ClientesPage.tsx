@@ -304,7 +304,7 @@ export const ClientesPage: React.FC = () => {
                   {clienteEditando ? 'EDITAR CLIENTE' : 'NUEVO CLIENTE'}
                 </h2>
               </div>
-              <button type="button" onClick={() => setModalFormAbierto(false)} style={styles.closeBtn}>
+              <button type="button" aria-label={t('common.close')} onClick={() => setModalFormAbierto(false)} style={styles.closeBtn}>
                 <X size={20} />
               </button>
             </div>

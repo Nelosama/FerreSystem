@@ -1,0 +1,1178 @@
+-- FerreSystem | contrato revisado en PostgreSQL 18.3 | main 346a98db
+-- Fuentes: schema.prisma y las nueve migraciones; objetos históricos incluidos explícitamente.
+-- SHA256 schema.prisma: 30127ddb9a311a51e5ce1274f11aeb0d3505e25645bfc9a35f91d211a9d7ed3a
+-- Definiciones de catálogo comparadas, no solo nombres. Consultar docs/REPARACION_SUPABASE.md.
+-- No conecta a otros servidores, no altera _prisma_migrations, no borra datos.
+-- Mantener API/jobs detenidos y copia/restauración verificada.
+-- Fase 1: COMMIT separado obligatorio antes de usar valores ENUM nuevos.
+-- Si la fase 2 falla, estos cambios aditivos permanecen; reejecutar el archivo completo.
+BEGIN;
+SET LOCAL search_path=pg_catalog,public;
+SET LOCAL lock_timeout='5s';
+SET LOCAL statement_timeout='5min';
+SET LOCAL idle_in_transaction_session_timeout='1min';
+SET LOCAL row_security=off;
+SELECT pg_advisory_xact_lock(827419,12026);
+DO $enums$
+DECLARE e jsonb; label text; labels_sql text; k "char";
+BEGIN
+ IF current_setting('server_version_num')::integer<150000 THEN RAISE EXCEPTION 'FS_REPAIR: requiere PostgreSQL >=15'; END IF;
+ FOR e IN SELECT value FROM jsonb_array_elements($enum_contract$[{"name":"EstadoApartado","labels":["ACTIVO","COMPLETADO","CANCELADO"],"source":"migration"},{"name":"EstadoCaja","labels":["ABIERTA","CERRADA"],"source":"prisma"},{"name":"EstadoCompra","labels":["PENDIENTE","PAGADA","PARCIAL"],"source":"prisma"},{"name":"EstadoCotizacion","labels":["BORRADOR","ENVIADA","APROBADA","RECHAZADA","VENCIDA","CONVERTIDA"],"source":"prisma"},{"name":"EstadoGarantia","labels":["RECIBIDO","EN_REVISION","APROBADO_REPARACION","REEMPLAZADO","RECHAZADO"],"source":"migration"},{"name":"EstadoLevantamiento","labels":["BORRADOR","EN_PROGRESO","REVISION","FINALIZADO"],"source":"prisma"},{"name":"EstadoOrdenCompra","labels":["BORRADOR","SOLICITADA","APROBADA","RECIBIDA","CANCELADA"],"source":"prisma"},{"name":"EstadoPedidoEspecial","labels":["PENDIENTE","EN_ORDEN_COMPRA","RECIBIDO_EN_TIENDA","ENTREGADO","CANCELADO"],"source":"migration"},{"name":"EstadoTenant","labels":["ACTIVO","SUSPENDIDO"],"source":"prisma"},{"name":"EstadoTransferencia","labels":["SOLICITADA","EN_TRANSITO","ACEPTADA","RECHAZADA"],"source":"migration"},{"name":"EstadoVenta","labels":["COMPLETADA","ANULADA"],"source":"prisma"},{"name":"MetodoPago","labels":["EFECTIVO","TARJETA","CREDITO","TRANSFERENCIA"],"source":"prisma"},{"name":"ModoNavegacion","labels":["SIDEBAR","TOPNAV"],"source":"prisma"},{"name":"Rol","labels":["ADMIN","CAJERO","BODEGUERO","VENDEDOR"],"source":"prisma"},{"name":"TipoCliente","labels":["CONSUMIDOR_FINAL","MAYORISTA","CONTRATISTA"],"source":"prisma"},{"name":"TipoMovimientoCaja","labels":["INGRESO_MANUAL","EGRESO_MANUAL","VENTA_POS","ABONO_APARTADO","ABONO_CXC","PAGO_CXP","DEVOLUCION"],"source":"prisma"},{"name":"TipoPago","labels":["CONTADO","CREDITO"],"source":"prisma"},{"name":"TipoSecuencia","labels":["VENTA","COTIZACION"],"source":"prisma"},{"name":"UnidadMedida","labels":["UNIDAD","PIE","METRO","METRO_CUADRADO","METRO_CUBICO","LIBRA","KG","GALON","LITRO","CAJA","PAQUETE","OTRO"],"source":"prisma"}]$enum_contract$::jsonb) LOOP
+  SELECT t.typtype INTO k FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typname=e->>'name';
+  IF NOT FOUND THEN
+   SELECT string_agg(quote_literal(v),', ' ORDER BY n) INTO labels_sql FROM jsonb_array_elements_text(e->'labels') WITH ORDINALITY a(v,n);
+   EXECUTE format('CREATE TYPE public.%I AS ENUM (%s)',e->>'name',labels_sql);
+  ELSIF k<>'e' THEN RAISE EXCEPTION 'FS_REPAIR: public.% existe pero no es ENUM',e->>'name';
+  ELSE FOR label IN SELECT jsonb_array_elements_text(e->'labels') LOOP
+   EXECUTE format('ALTER TYPE public.%I ADD VALUE IF NOT EXISTS %L',e->>'name',label);
+  END LOOP; END IF;
+ END LOOP;
+END $enums$;
+COMMIT;
+
+-- Fase 2: estructura, contadores y validación; un fallo revierte toda esta fase.
+BEGIN;
+SET LOCAL search_path=pg_catalog,public;
+SET LOCAL lock_timeout='5s';
+SET LOCAL statement_timeout='5min';
+SET LOCAL idle_in_transaction_session_timeout='1min';
+SET LOCAL row_security=off;
+SELECT pg_advisory_xact_lock(827419,12026);
+CREATE TEMP TABLE fs_contract (kind text NOT NULL, spec jsonb NOT NULL) ON COMMIT DROP;
+INSERT INTO pg_temp.fs_contract(kind,spec) VALUES
+('tables', $contract${"name":"abonos_apartado","source":"migration"}$contract$::jsonb),
+('tables', $contract${"name":"abonos_cliente","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"apartados","source":"migration"}$contract$::jsonb),
+('tables', $contract${"name":"auditoria_operaciones","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"auditoria_soporte","source":"migration"}$contract$::jsonb),
+('tables', $contract${"name":"cajas","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"categorias","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"cierres_comisiones","source":"migration"}$contract$::jsonb),
+('tables', $contract${"name":"clientes","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"compras_proveedor","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"costos_compra","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"cotizaciones","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"cuentas_operativas","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"detalles_compra_proveedor","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"detalles_cotizacion","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"detalles_devolucion","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"detalles_orden_compra","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"detalles_transferencia","source":"migration"}$contract$::jsonb),
+('tables', $contract${"name":"detalles_venta","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"devoluciones","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"garantias","source":"migration"}$contract$::jsonb),
+('tables', $contract${"name":"historial_garantias","source":"migration"}$contract$::jsonb),
+('tables', $contract${"name":"levantamiento_items","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"levantamientos","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"listas_precio","source":"migration"}$contract$::jsonb),
+('tables', $contract${"name":"movimientos_caja","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"movimientos_inventario","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"ordenes_compra","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"pagos_cuenta","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"pagos_proveedor","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"pedidos_especiales","source":"migration"}$contract$::jsonb),
+('tables', $contract${"name":"productos","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"proveedores","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"recepciones_compra","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"secuencias_cliente","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"secuencias_tenant","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"solicitudes_devolucion","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"super_admins","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"tenant_modules","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"tenants","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"transferencias","source":"migration"}$contract$::jsonb),
+('tables', $contract${"name":"usuarios","source":"prisma"}$contract$::jsonb),
+('tables', $contract${"name":"ventas","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_apartado","name":"apartado_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_apartado","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_apartado","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_apartado","name":"monto","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_apartado","name":"nota","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_cliente","name":"cliente_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_cliente","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_cliente","name":"fecha","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_cliente","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_cliente","name":"metodo","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_cliente","name":"monto","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_cliente","name":"notas","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_cliente","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"abonos_cliente","name":"venta_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"cantidad","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"cliente_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"cliente_nombre","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"cliente_telefono","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"codigo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"estado","type":"\"EstadoApartado\"","required":true,"def":"'ACTIVO'::\"EstadoApartado\"","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"fecha_limite","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"monto_abonado","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"precio_total","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"producto_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"saldo_pendiente","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"apartados","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_operaciones","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_operaciones","name":"datos","type":"jsonb","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_operaciones","name":"entidad_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_operaciones","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma","legacy_def":"(gen_random_uuid())::text"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_operaciones","name":"operacion","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_operaciones","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_operaciones","name":"usuario_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_soporte","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_soporte","name":"duracion_minutos","type":"integer","required":true,"def":"30","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_soporte","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_soporte","name":"modo_edicion_activado","type":"boolean","required":true,"def":"false","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_soporte","name":"motivo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_soporte","name":"super_admin_email","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"auditoria_soporte","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"codigo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"diferencia","type":"numeric(12,2)","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"estado","type":"\"EstadoCaja\"","required":true,"def":"'ABIERTA'::\"EstadoCaja\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"fecha_apertura","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"fecha_cierre","type":"timestamp(3) without time zone","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"monto_apertura","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"monto_cierre_fisico","type":"numeric(12,2)","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"monto_esperado","type":"numeric(12,2)","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"notas","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cajas","name":"usuario_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"categorias","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"categorias","name":"descripcion","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"categorias","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"categorias","name":"nombre","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"categorias","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"categorias","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cierres_comisiones","name":"comision_ganada","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"cierres_comisiones","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"cierres_comisiones","name":"fecha_fin","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"cierres_comisiones","name":"fecha_inicio","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"cierres_comisiones","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"cierres_comisiones","name":"pagado","type":"boolean","required":true,"def":"false","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"cierres_comisiones","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"cierres_comisiones","name":"total_vendido","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"cierres_comisiones","name":"vendedor_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"activo","type":"boolean","required":true,"def":"true","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"codigo","type":"text","required":true,"def":"''::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"credito_habilitado","type":"boolean","required":true,"def":"false","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"direccion","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"email","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"limite_credito","type":"numeric(12,2)","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"lista_precio_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"nombre","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"numero_cliente","type":"integer","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"rtn","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"saldo_pendiente","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"telefono","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"tipo","type":"\"TipoCliente\"","required":true,"def":"'CONSUMIDOR_FINAL'::\"TipoCliente\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"clientes","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"compras_proveedor","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"compras_proveedor","name":"estado","type":"\"EstadoCompra\"","required":true,"def":"'PENDIENTE'::\"EstadoCompra\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"compras_proveedor","name":"fecha","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"compras_proveedor","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma","legacy_def":"(gen_random_uuid())::text"}$contract$::jsonb),
+('columns', $contract${"tab":"compras_proveedor","name":"monto","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"compras_proveedor","name":"notas","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"compras_proveedor","name":"numero_factura","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"compras_proveedor","name":"proveedor_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"compras_proveedor","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"compras_proveedor","name":"vencimiento","type":"timestamp(3) without time zone","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"costos_compra","name":"cantidad","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"costos_compra","name":"costo","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"costos_compra","name":"fecha","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"costos_compra","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma","legacy_def":"(gen_random_uuid())::text"}$contract$::jsonb),
+('columns', $contract${"tab":"costos_compra","name":"orden_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"costos_compra","name":"producto_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"costos_compra","name":"proveedor_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"costos_compra","name":"recepcion_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"costos_compra","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"cliente_direccion","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"cliente_email","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"cliente_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"cliente_nombre","type":"text","required":true,"def":"''::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"cliente_rtn","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"cliente_telefono","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"condiciones_pago","type":"text","required":true,"def":"'CONTADO'::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"descuento","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"descuento_general","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"dias_validez","type":"integer","required":true,"def":"15","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"estado","type":"\"EstadoCotizacion\"","required":true,"def":"'BORRADOR'::\"EstadoCotizacion\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"fecha_validez","type":"date","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"isv","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"notas","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"numero_cotizacion","type":"integer","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"porcentaje_isv","type":"numeric(5,2)","required":true,"def":"15.00","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"subtotal","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"tipo_descuento_general","type":"text","required":true,"def":"'MONTO'::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"total","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"usuario_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cotizaciones","name":"venta_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cuentas_operativas","name":"cliente_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cuentas_operativas","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cuentas_operativas","name":"documento_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cuentas_operativas","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma","legacy_def":"(gen_random_uuid())::text"}$contract$::jsonb),
+('columns', $contract${"tab":"cuentas_operativas","name":"monto","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cuentas_operativas","name":"proveedor_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cuentas_operativas","name":"saldo","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cuentas_operativas","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cuentas_operativas","name":"tipo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cuentas_operativas","name":"usuario_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"cuentas_operativas","name":"vencimiento","type":"timestamp(3) without time zone","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_compra_proveedor","name":"cantidad","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_compra_proveedor","name":"compra_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_compra_proveedor","name":"costo_unitario","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_compra_proveedor","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma","legacy_def":"(gen_random_uuid())::text"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_compra_proveedor","name":"producto_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_compra_proveedor","name":"subtotal","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"cantidad","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"codigo_producto","type":"text","required":true,"def":"''::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"cotizacion_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"descripcion_producto","type":"text","required":true,"def":"''::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"descuento","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"exento","type":"boolean","required":true,"def":"false","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"isv","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"medida","type":"numeric(12,2)","required":true,"def":"1.00","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"precio_lista","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"precio_unitario","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"producto_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"subtotal","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"tipo_descuento","type":"text","required":true,"def":"'MONTO'::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"total_linea","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"total_medida","type":"numeric(12,2)","required":true,"def":"1.00","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"unidad_medida","type":"text","required":true,"def":"'UNIDAD'::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_cotizacion","name":"usa_medida","type":"boolean","required":true,"def":"false","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_devolucion","name":"cantidad","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_devolucion","name":"destino","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_devolucion","name":"detalle_venta_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_devolucion","name":"devolucion_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_devolucion","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_orden_compra","name":"cantidad","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_orden_compra","name":"cantidad_recibida","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_orden_compra","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_orden_compra","name":"orden_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_orden_compra","name":"precio_costo","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_orden_compra","name":"producto_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_orden_compra","name":"subtotal","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_transferencia","name":"cantidad","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_transferencia","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_transferencia","name":"producto_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_transferencia","name":"transferencia_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_venta","name":"cantidad","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_venta","name":"costo_unitario","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_venta","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_venta","name":"orden_compra_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_venta","name":"precio_unitario","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_venta","name":"producto_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_venta","name":"proveedor_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_venta","name":"sin_inventario","type":"boolean","required":true,"def":"false","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_venta","name":"subtotal","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"detalles_venta","name":"venta_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"caja_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"credito_cancelado","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"metodo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"monto","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"motivo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"reembolso","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"solicitud_hash","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"usuario_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"devoluciones","name":"venta_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"garantias","name":"cliente_nombre","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"garantias","name":"codigo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"garantias","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"garantias","name":"estado","type":"\"EstadoGarantia\"","required":true,"def":"'RECIBIDO'::\"EstadoGarantia\"","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"garantias","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"garantias","name":"motivo_falla","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"garantias","name":"producto_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"garantias","name":"serie","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"garantias","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"garantias","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"garantias","name":"venta_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"historial_garantias","name":"comentario","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"historial_garantias","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"historial_garantias","name":"estado","type":"\"EstadoGarantia\"","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"historial_garantias","name":"garantia_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"historial_garantias","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"cantidad","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"categoria","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"codigo","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"codigo_barras","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"created_by","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"descripcion","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"levantamiento_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"marca","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"margen","type":"numeric(5,2)","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"notas","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"precio_costo","type":"numeric(12,2)","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"precio_venta","type":"numeric(12,2)","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"producto_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"ubicacion","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"unidad","type":"text","required":true,"def":"'unidad'::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"updated_by","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamiento_items","name":"version","type":"integer","required":true,"def":"1","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamientos","name":"aplicado_at","type":"timestamp(3) without time zone","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamientos","name":"aplicado_por","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamientos","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamientos","name":"created_by","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamientos","name":"descripcion","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamientos","name":"estado","type":"\"EstadoLevantamiento\"","required":true,"def":"'BORRADOR'::\"EstadoLevantamiento\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamientos","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamientos","name":"nombre","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamientos","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"levantamientos","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"listas_precio","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"listas_precio","name":"descripcion","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"listas_precio","name":"descuento_porcentaje","type":"numeric(5,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"listas_precio","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"listas_precio","name":"nombre_segmento","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"listas_precio","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"listas_precio","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_caja","name":"caja_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_caja","name":"concepto","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_caja","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_caja","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_caja","name":"metodo","type":"text","required":true,"def":"'EFECTIVO'::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_caja","name":"monto","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_caja","name":"referencia","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_caja","name":"tipo","type":"\"TipoMovimientoCaja\"","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_caja","name":"usuario_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_inventario","name":"anterior","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_inventario","name":"cantidad","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_inventario","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_inventario","name":"documento_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_inventario","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma","legacy_def":"(gen_random_uuid())::text"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_inventario","name":"motivo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_inventario","name":"nuevo","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_inventario","name":"producto_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_inventario","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_inventario","name":"tipo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"movimientos_inventario","name":"usuario_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"codigo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"estado","type":"\"EstadoOrdenCompra\"","required":true,"def":"'BORRADOR'::\"EstadoOrdenCompra\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"fecha_emision","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"fecha_entrega","type":"timestamp(3) without time zone","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"isv","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"notas","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"numero_factura","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"proveedor_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"subtotal","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"total","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"usuario_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ordenes_compra","name":"vencimiento","type":"timestamp(3) without time zone","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_cuenta","name":"caja_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_cuenta","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_cuenta","name":"cuenta_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_cuenta","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma","legacy_def":"(gen_random_uuid())::text"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_cuenta","name":"metodo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_cuenta","name":"monto","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_cuenta","name":"notas","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_cuenta","name":"solicitud_hash","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_cuenta","name":"solicitud_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_cuenta","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_cuenta","name":"usuario_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_proveedor","name":"compra_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_proveedor","name":"fecha","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_proveedor","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma","legacy_def":"(gen_random_uuid())::text"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_proveedor","name":"metodo","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_proveedor","name":"monto","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pagos_proveedor","name":"notas","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"anticipo","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"cantidad","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"cliente_nombre","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"cliente_telefono","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"codigo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"descripcion","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"estado","type":"\"EstadoPedidoEspecial\"","required":true,"def":"'PENDIENTE'::\"EstadoPedidoEspecial\"","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"precio_estimado","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"pedidos_especiales","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"activo","type":"boolean","required":true,"def":"true","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"categoria_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"codigo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"codigo_barras","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"codigo_fabricante","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"costo_vigente","type":"numeric(12,2)","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"descripcion","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"imagen_url","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"margen","type":"numeric(5,2)","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"nombre","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"precio_costo","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"precio_venta","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"stock_actual","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"stock_minimo","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"stock_reservado","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"ultima_compra_at","type":"timestamp(3) without time zone","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"unidad_medida","type":"\"UnidadMedida\"","required":true,"def":"'UNIDAD'::\"UnidadMedida\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"productos","name":"usa_medida","type":"boolean","required":true,"def":"false","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"proveedores","name":"activo","type":"boolean","required":true,"def":"true","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"proveedores","name":"contacto","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"proveedores","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"proveedores","name":"direccion","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"proveedores","name":"email","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"proveedores","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"proveedores","name":"nombre","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"proveedores","name":"rtn","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"proveedores","name":"telefono","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"proveedores","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"proveedores","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"recepciones_compra","name":"fecha","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"recepciones_compra","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma","legacy_def":"(gen_random_uuid())::text"}$contract$::jsonb),
+('columns', $contract${"tab":"recepciones_compra","name":"orden_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"recepciones_compra","name":"solicitud_hash","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"recepciones_compra","name":"solicitud_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"recepciones_compra","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"recepciones_compra","name":"usuario_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"secuencias_cliente","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"secuencias_cliente","name":"ultimo_numero","type":"integer","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"secuencias_tenant","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"secuencias_tenant","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"secuencias_tenant","name":"tipo","type":"\"TipoSecuencia\"","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"secuencias_tenant","name":"ultimo_numero","type":"integer","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"administrador_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"comando","type":"jsonb","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"decidida_at","type":"timestamp(3) without time zone","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"estado","type":"text","required":true,"def":"'PENDIENTE'::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"monto_estimado","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"motivo_decision","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"solicitante_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"solicitud_hash","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"solicitudes_devolucion","name":"venta_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"super_admins","name":"activo","type":"boolean","required":true,"def":"true","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"super_admins","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"super_admins","name":"email","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"super_admins","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"super_admins","name":"nombre","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"super_admins","name":"password_hash","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"super_admins","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenant_modules","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenant_modules","name":"enabled","type":"boolean","required":true,"def":"true","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenant_modules","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenant_modules","name":"module_key","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenant_modules","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenant_modules","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"color_primario","type":"text","required":true,"def":"'#EA580C'::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"configuracion","type":"jsonb","required":true,"def":"'{}'::jsonb","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"direccion","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"email","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"estado","type":"\"EstadoTenant\"","required":true,"def":"'ACTIVO'::\"EstadoTenant\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"logo_url","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"modo_navegacion","type":"\"ModoNavegacion\"","required":true,"def":"'SIDEBAR'::\"ModoNavegacion\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"nombre_comercial","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"plan","type":"text","required":true,"def":"'Plan Pro'::text","identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"telefono","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"tenants","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"transferencias","name":"codigo","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"transferencias","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"transferencias","name":"estado","type":"\"EstadoTransferencia\"","required":true,"def":"'SOLICITADA'::\"EstadoTransferencia\"","identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"transferencias","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"transferencias","name":"notas","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"transferencias","name":"sucursal_destino","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"transferencias","name":"sucursal_origen","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"transferencias","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"transferencias","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"transferencias","name":"usuario_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"migration"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"activo","type":"boolean","required":true,"def":"true","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"descuento_maximo","type":"numeric(5,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"email","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"nombre","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"password_hash","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"permisos","type":"text[]","required":true,"def":"ARRAY[]::text[]","identity":"","generated":"","collation":"default","source":"prisma+migration","legacy_def":"'{}'::text[]"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"permisos_configurados","type":"boolean","required":true,"def":"false","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"rol","type":"\"Rol\"","required":true,"def":"'ADMIN'::\"Rol\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"usuarios","name":"updated_at","type":"timestamp(3) without time zone","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"caja_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"cliente_id","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"cliente_nombre","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"cliente_rtn","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"created_at","type":"timestamp(3) without time zone","required":true,"def":"CURRENT_TIMESTAMP","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"descuento","type":"numeric(12,2)","required":true,"def":"0","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"entregado_at","type":"timestamp(3) without time zone","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"entregado_por","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"estado","type":"\"EstadoVenta\"","required":true,"def":"'COMPLETADA'::\"EstadoVenta\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"isv","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"metodo_pago","type":"\"MetodoPago\"","required":true,"def":"'EFECTIVO'::\"MetodoPago\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"notas","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"numero_venta","type":"integer","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"reserva_pendiente","type":"boolean","required":true,"def":"false","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"saldo_credito","type":"numeric(12,2)","required":false,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"solicitud_hash","type":"text","required":false,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"subtotal","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"tenant_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"tipo_pago","type":"\"TipoPago\"","required":true,"def":"'CONTADO'::\"TipoPago\"","identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"total","type":"numeric(12,2)","required":true,"def":null,"identity":"","generated":"","collation":null,"source":"prisma"}$contract$::jsonb),
+('columns', $contract${"tab":"ventas","name":"usuario_id","type":"text","required":true,"def":null,"identity":"","generated":"","collation":"default","source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"abonos_apartado","name":"abonos_apartado_apartado_id_idx","def":"CREATE INDEX abonos_apartado_apartado_id_idx ON public.abonos_apartado USING btree (apartado_id)","unique":false,"primary":false,"keys":["apartado_id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"abonos_apartado","name":"abonos_apartado_pkey","def":"CREATE UNIQUE INDEX abonos_apartado_pkey ON public.abonos_apartado USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"abonos_cliente","name":"abonos_cliente_cliente_id_idx","def":"CREATE INDEX abonos_cliente_cliente_id_idx ON public.abonos_cliente USING btree (cliente_id)","unique":false,"primary":false,"keys":["cliente_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"abonos_cliente","name":"abonos_cliente_pkey","def":"CREATE UNIQUE INDEX abonos_cliente_pkey ON public.abonos_cliente USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"abonos_cliente","name":"abonos_cliente_tenant_id_idx","def":"CREATE INDEX abonos_cliente_tenant_id_idx ON public.abonos_cliente USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"apartados","name":"apartados_pkey","def":"CREATE UNIQUE INDEX apartados_pkey ON public.apartados USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"apartados","name":"apartados_tenant_id_codigo_key","def":"CREATE UNIQUE INDEX apartados_tenant_id_codigo_key ON public.apartados USING btree (tenant_id, codigo)","unique":true,"primary":false,"keys":["tenant_id","codigo"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"apartados","name":"apartados_tenant_id_estado_idx","def":"CREATE INDEX apartados_tenant_id_estado_idx ON public.apartados USING btree (tenant_id, estado)","unique":false,"primary":false,"keys":["tenant_id","estado"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"apartados","name":"apartados_tenant_id_idx","def":"CREATE INDEX apartados_tenant_id_idx ON public.apartados USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"auditoria_operaciones","name":"auditoria_operaciones_pkey","def":"CREATE UNIQUE INDEX auditoria_operaciones_pkey ON public.auditoria_operaciones USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"auditoria_operaciones","name":"auditoria_operaciones_tenant_id_created_at_idx","def":"CREATE INDEX auditoria_operaciones_tenant_id_created_at_idx ON public.auditoria_operaciones USING btree (tenant_id, created_at)","unique":false,"primary":false,"keys":["tenant_id","created_at"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"auditoria_soporte","name":"auditoria_soporte_pkey","def":"CREATE UNIQUE INDEX auditoria_soporte_pkey ON public.auditoria_soporte USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"auditoria_soporte","name":"auditoria_soporte_tenant_id_idx","def":"CREATE INDEX auditoria_soporte_tenant_id_idx ON public.auditoria_soporte USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"cajas","name":"cajas_pkey","def":"CREATE UNIQUE INDEX cajas_pkey ON public.cajas USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cajas","name":"cajas_tenant_id_codigo_key","def":"CREATE UNIQUE INDEX cajas_tenant_id_codigo_key ON public.cajas USING btree (tenant_id, codigo)","unique":true,"primary":false,"keys":["tenant_id","codigo"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cajas","name":"cajas_tenant_id_estado_idx","def":"CREATE INDEX cajas_tenant_id_estado_idx ON public.cajas USING btree (tenant_id, estado)","unique":false,"primary":false,"keys":["tenant_id","estado"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cajas","name":"cajas_tenant_id_usuario_id_idx","def":"CREATE INDEX cajas_tenant_id_usuario_id_idx ON public.cajas USING btree (tenant_id, usuario_id)","unique":false,"primary":false,"keys":["tenant_id","usuario_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cajas","name":"cajas_usuario_abierta_key","def":"CREATE UNIQUE INDEX cajas_usuario_abierta_key ON public.cajas USING btree (tenant_id, usuario_id) WHERE (estado = 'ABIERTA'::\"EstadoCaja\")","unique":true,"primary":false,"keys":["tenant_id","usuario_id"],"predicate":"(estado = 'ABIERTA'::\"EstadoCaja\")","source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"categorias","name":"categorias_pkey","def":"CREATE UNIQUE INDEX categorias_pkey ON public.categorias USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"categorias","name":"categorias_tenant_id_idx","def":"CREATE INDEX categorias_tenant_id_idx ON public.categorias USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"categorias","name":"categorias_tenant_id_nombre_key","def":"CREATE UNIQUE INDEX categorias_tenant_id_nombre_key ON public.categorias USING btree (tenant_id, nombre)","unique":true,"primary":false,"keys":["tenant_id","nombre"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cierres_comisiones","name":"cierres_comisiones_pkey","def":"CREATE UNIQUE INDEX cierres_comisiones_pkey ON public.cierres_comisiones USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"cierres_comisiones","name":"cierres_comisiones_tenant_id_vendedor_id_idx","def":"CREATE INDEX cierres_comisiones_tenant_id_vendedor_id_idx ON public.cierres_comisiones USING btree (tenant_id, vendedor_id)","unique":false,"primary":false,"keys":["tenant_id","vendedor_id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"clientes","name":"clientes_pkey","def":"CREATE UNIQUE INDEX clientes_pkey ON public.clientes USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"clientes","name":"clientes_tenant_id_activo_idx","def":"CREATE INDEX clientes_tenant_id_activo_idx ON public.clientes USING btree (tenant_id, activo)","unique":false,"primary":false,"keys":["tenant_id","activo"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"clientes","name":"clientes_tenant_id_codigo_key","def":"CREATE UNIQUE INDEX clientes_tenant_id_codigo_key ON public.clientes USING btree (tenant_id, codigo)","unique":true,"primary":false,"keys":["tenant_id","codigo"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"clientes","name":"clientes_tenant_id_idx","def":"CREATE INDEX clientes_tenant_id_idx ON public.clientes USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"clientes","name":"clientes_tenant_id_nombre_idx","def":"CREATE INDEX clientes_tenant_id_nombre_idx ON public.clientes USING btree (tenant_id, nombre)","unique":false,"primary":false,"keys":["tenant_id","nombre"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"clientes","name":"clientes_tenant_id_numero_cliente_key","def":"CREATE UNIQUE INDEX clientes_tenant_id_numero_cliente_key ON public.clientes USING btree (tenant_id, numero_cliente)","unique":true,"primary":false,"keys":["tenant_id","numero_cliente"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"compras_proveedor","name":"compras_proveedor_pkey","def":"CREATE UNIQUE INDEX compras_proveedor_pkey ON public.compras_proveedor USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"compras_proveedor","name":"compras_proveedor_tenant_id_estado_idx","def":"CREATE INDEX compras_proveedor_tenant_id_estado_idx ON public.compras_proveedor USING btree (tenant_id, estado)","unique":false,"primary":false,"keys":["tenant_id","estado"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"compras_proveedor","name":"compras_proveedor_tenant_id_idx","def":"CREATE INDEX compras_proveedor_tenant_id_idx ON public.compras_proveedor USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"costos_compra","name":"costos_compra_pkey","def":"CREATE UNIQUE INDEX costos_compra_pkey ON public.costos_compra USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"costos_compra","name":"costos_compra_tenant_id_producto_id_fecha_idx","def":"CREATE INDEX costos_compra_tenant_id_producto_id_fecha_idx ON public.costos_compra USING btree (tenant_id, producto_id, fecha)","unique":false,"primary":false,"keys":["tenant_id","producto_id","fecha"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cotizaciones","name":"cotizaciones_pkey","def":"CREATE UNIQUE INDEX cotizaciones_pkey ON public.cotizaciones USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cotizaciones","name":"cotizaciones_tenant_id_estado_idx","def":"CREATE INDEX cotizaciones_tenant_id_estado_idx ON public.cotizaciones USING btree (tenant_id, estado)","unique":false,"primary":false,"keys":["tenant_id","estado"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cotizaciones","name":"cotizaciones_tenant_id_fecha_validez_idx","def":"CREATE INDEX cotizaciones_tenant_id_fecha_validez_idx ON public.cotizaciones USING btree (tenant_id, fecha_validez)","unique":false,"primary":false,"keys":["tenant_id","fecha_validez"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cotizaciones","name":"cotizaciones_tenant_id_idx","def":"CREATE INDEX cotizaciones_tenant_id_idx ON public.cotizaciones USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cotizaciones","name":"cotizaciones_tenant_id_numero_cotizacion_key","def":"CREATE UNIQUE INDEX cotizaciones_tenant_id_numero_cotizacion_key ON public.cotizaciones USING btree (tenant_id, numero_cotizacion)","unique":true,"primary":false,"keys":["tenant_id","numero_cotizacion"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cotizaciones","name":"cotizaciones_venta_id_key","def":"CREATE UNIQUE INDEX cotizaciones_venta_id_key ON public.cotizaciones USING btree (venta_id)","unique":true,"primary":false,"keys":["venta_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cuentas_operativas","name":"cuentas_operativas_pkey","def":"CREATE UNIQUE INDEX cuentas_operativas_pkey ON public.cuentas_operativas USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cuentas_operativas","name":"cuentas_operativas_tenant_id_tipo_documento_id_key","def":"CREATE UNIQUE INDEX cuentas_operativas_tenant_id_tipo_documento_id_key ON public.cuentas_operativas USING btree (tenant_id, tipo, documento_id)","unique":true,"primary":false,"keys":["tenant_id","tipo","documento_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"cuentas_operativas","name":"cuentas_operativas_tenant_id_tipo_vencimiento_idx","def":"CREATE INDEX cuentas_operativas_tenant_id_tipo_vencimiento_idx ON public.cuentas_operativas USING btree (tenant_id, tipo, vencimiento)","unique":false,"primary":false,"keys":["tenant_id","tipo","vencimiento"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_compra_proveedor","name":"detalles_compra_proveedor_compra_id_idx","def":"CREATE INDEX detalles_compra_proveedor_compra_id_idx ON public.detalles_compra_proveedor USING btree (compra_id)","unique":false,"primary":false,"keys":["compra_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_compra_proveedor","name":"detalles_compra_proveedor_pkey","def":"CREATE UNIQUE INDEX detalles_compra_proveedor_pkey ON public.detalles_compra_proveedor USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_compra_proveedor","name":"detalles_compra_proveedor_producto_id_idx","def":"CREATE INDEX detalles_compra_proveedor_producto_id_idx ON public.detalles_compra_proveedor USING btree (producto_id)","unique":false,"primary":false,"keys":["producto_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_cotizacion","name":"detalles_cotizacion_cotizacion_id_idx","def":"CREATE INDEX detalles_cotizacion_cotizacion_id_idx ON public.detalles_cotizacion USING btree (cotizacion_id)","unique":false,"primary":false,"keys":["cotizacion_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_cotizacion","name":"detalles_cotizacion_pkey","def":"CREATE UNIQUE INDEX detalles_cotizacion_pkey ON public.detalles_cotizacion USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_devolucion","name":"detalles_devolucion_detalle_venta_id_idx","def":"CREATE INDEX detalles_devolucion_detalle_venta_id_idx ON public.detalles_devolucion USING btree (detalle_venta_id)","unique":false,"primary":false,"keys":["detalle_venta_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_devolucion","name":"detalles_devolucion_pkey","def":"CREATE UNIQUE INDEX detalles_devolucion_pkey ON public.detalles_devolucion USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_orden_compra","name":"detalles_orden_compra_orden_id_idx","def":"CREATE INDEX detalles_orden_compra_orden_id_idx ON public.detalles_orden_compra USING btree (orden_id)","unique":false,"primary":false,"keys":["orden_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_orden_compra","name":"detalles_orden_compra_pkey","def":"CREATE UNIQUE INDEX detalles_orden_compra_pkey ON public.detalles_orden_compra USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_transferencia","name":"detalles_transferencia_pkey","def":"CREATE UNIQUE INDEX detalles_transferencia_pkey ON public.detalles_transferencia USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_transferencia","name":"detalles_transferencia_transferencia_id_idx","def":"CREATE INDEX detalles_transferencia_transferencia_id_idx ON public.detalles_transferencia USING btree (transferencia_id)","unique":false,"primary":false,"keys":["transferencia_id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_venta","name":"detalles_venta_pkey","def":"CREATE UNIQUE INDEX detalles_venta_pkey ON public.detalles_venta USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"detalles_venta","name":"detalles_venta_venta_id_idx","def":"CREATE INDEX detalles_venta_venta_id_idx ON public.detalles_venta USING btree (venta_id)","unique":false,"primary":false,"keys":["venta_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"devoluciones","name":"devoluciones_pkey","def":"CREATE UNIQUE INDEX devoluciones_pkey ON public.devoluciones USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"devoluciones","name":"devoluciones_tenant_id_venta_id_idx","def":"CREATE INDEX devoluciones_tenant_id_venta_id_idx ON public.devoluciones USING btree (tenant_id, venta_id)","unique":false,"primary":false,"keys":["tenant_id","venta_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"garantias","name":"garantias_pkey","def":"CREATE UNIQUE INDEX garantias_pkey ON public.garantias USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"garantias","name":"garantias_tenant_id_codigo_key","def":"CREATE UNIQUE INDEX garantias_tenant_id_codigo_key ON public.garantias USING btree (tenant_id, codigo)","unique":true,"primary":false,"keys":["tenant_id","codigo"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"garantias","name":"garantias_tenant_id_estado_idx","def":"CREATE INDEX garantias_tenant_id_estado_idx ON public.garantias USING btree (tenant_id, estado)","unique":false,"primary":false,"keys":["tenant_id","estado"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"garantias","name":"garantias_tenant_id_idx","def":"CREATE INDEX garantias_tenant_id_idx ON public.garantias USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"historial_garantias","name":"historial_garantias_garantia_id_idx","def":"CREATE INDEX historial_garantias_garantia_id_idx ON public.historial_garantias USING btree (garantia_id)","unique":false,"primary":false,"keys":["garantia_id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"historial_garantias","name":"historial_garantias_pkey","def":"CREATE UNIQUE INDEX historial_garantias_pkey ON public.historial_garantias USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"levantamiento_items","name":"levantamiento_items_levantamiento_id_idx","def":"CREATE INDEX levantamiento_items_levantamiento_id_idx ON public.levantamiento_items USING btree (levantamiento_id)","unique":false,"primary":false,"keys":["levantamiento_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"levantamiento_items","name":"levantamiento_items_pkey","def":"CREATE UNIQUE INDEX levantamiento_items_pkey ON public.levantamiento_items USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"levantamientos","name":"levantamientos_pkey","def":"CREATE UNIQUE INDEX levantamientos_pkey ON public.levantamientos USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"levantamientos","name":"levantamientos_tenant_id_created_at_idx","def":"CREATE INDEX levantamientos_tenant_id_created_at_idx ON public.levantamientos USING btree (tenant_id, created_at)","unique":false,"primary":false,"keys":["tenant_id","created_at"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"levantamientos","name":"levantamientos_tenant_id_estado_idx","def":"CREATE INDEX levantamientos_tenant_id_estado_idx ON public.levantamientos USING btree (tenant_id, estado)","unique":false,"primary":false,"keys":["tenant_id","estado"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"levantamientos","name":"levantamientos_tenant_id_idx","def":"CREATE INDEX levantamientos_tenant_id_idx ON public.levantamientos USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"listas_precio","name":"listas_precio_pkey","def":"CREATE UNIQUE INDEX listas_precio_pkey ON public.listas_precio USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"listas_precio","name":"listas_precio_tenant_id_idx","def":"CREATE INDEX listas_precio_tenant_id_idx ON public.listas_precio USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"listas_precio","name":"listas_precio_tenant_id_nombre_segmento_key","def":"CREATE UNIQUE INDEX listas_precio_tenant_id_nombre_segmento_key ON public.listas_precio USING btree (tenant_id, nombre_segmento)","unique":true,"primary":false,"keys":["tenant_id","nombre_segmento"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"movimientos_caja","name":"movimientos_caja_caja_id_idx","def":"CREATE INDEX movimientos_caja_caja_id_idx ON public.movimientos_caja USING btree (caja_id)","unique":false,"primary":false,"keys":["caja_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"movimientos_caja","name":"movimientos_caja_pkey","def":"CREATE UNIQUE INDEX movimientos_caja_pkey ON public.movimientos_caja USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"movimientos_inventario","name":"movimientos_inventario_pkey","def":"CREATE UNIQUE INDEX movimientos_inventario_pkey ON public.movimientos_inventario USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"movimientos_inventario","name":"movimientos_inventario_tenant_id_producto_id_created_at_idx","def":"CREATE INDEX movimientos_inventario_tenant_id_producto_id_created_at_idx ON public.movimientos_inventario USING btree (tenant_id, producto_id, created_at)","unique":false,"primary":false,"keys":["tenant_id","producto_id","created_at"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"ordenes_compra","name":"facturas_proveedor_key","def":"CREATE UNIQUE INDEX facturas_proveedor_key ON public.ordenes_compra USING btree (tenant_id, proveedor_id, numero_factura) WHERE (numero_factura IS NOT NULL)","unique":true,"primary":false,"keys":["tenant_id","proveedor_id","numero_factura"],"predicate":"(numero_factura IS NOT NULL)","source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"ordenes_compra","name":"ordenes_compra_pkey","def":"CREATE UNIQUE INDEX ordenes_compra_pkey ON public.ordenes_compra USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"ordenes_compra","name":"ordenes_compra_tenant_id_codigo_key","def":"CREATE UNIQUE INDEX ordenes_compra_tenant_id_codigo_key ON public.ordenes_compra USING btree (tenant_id, codigo)","unique":true,"primary":false,"keys":["tenant_id","codigo"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"ordenes_compra","name":"ordenes_compra_tenant_id_estado_idx","def":"CREATE INDEX ordenes_compra_tenant_id_estado_idx ON public.ordenes_compra USING btree (tenant_id, estado)","unique":false,"primary":false,"keys":["tenant_id","estado"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"ordenes_compra","name":"ordenes_compra_tenant_id_idx","def":"CREATE INDEX ordenes_compra_tenant_id_idx ON public.ordenes_compra USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"pagos_cuenta","name":"pagos_cuenta_cuenta_id_idx","def":"CREATE INDEX pagos_cuenta_cuenta_id_idx ON public.pagos_cuenta USING btree (cuenta_id)","unique":false,"primary":false,"keys":["cuenta_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"pagos_cuenta","name":"pagos_cuenta_pkey","def":"CREATE UNIQUE INDEX pagos_cuenta_pkey ON public.pagos_cuenta USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"pagos_cuenta","name":"pagos_cuenta_tenant_id_solicitud_id_key","def":"CREATE UNIQUE INDEX pagos_cuenta_tenant_id_solicitud_id_key ON public.pagos_cuenta USING btree (tenant_id, solicitud_id)","unique":true,"primary":false,"keys":["tenant_id","solicitud_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"pagos_proveedor","name":"pagos_proveedor_compra_id_idx","def":"CREATE INDEX pagos_proveedor_compra_id_idx ON public.pagos_proveedor USING btree (compra_id)","unique":false,"primary":false,"keys":["compra_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"pagos_proveedor","name":"pagos_proveedor_pkey","def":"CREATE UNIQUE INDEX pagos_proveedor_pkey ON public.pagos_proveedor USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"pedidos_especiales","name":"pedidos_especiales_pkey","def":"CREATE UNIQUE INDEX pedidos_especiales_pkey ON public.pedidos_especiales USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"pedidos_especiales","name":"pedidos_especiales_tenant_id_codigo_key","def":"CREATE UNIQUE INDEX pedidos_especiales_tenant_id_codigo_key ON public.pedidos_especiales USING btree (tenant_id, codigo)","unique":true,"primary":false,"keys":["tenant_id","codigo"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"pedidos_especiales","name":"pedidos_especiales_tenant_id_estado_idx","def":"CREATE INDEX pedidos_especiales_tenant_id_estado_idx ON public.pedidos_especiales USING btree (tenant_id, estado)","unique":false,"primary":false,"keys":["tenant_id","estado"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"pedidos_especiales","name":"pedidos_especiales_tenant_id_idx","def":"CREATE INDEX pedidos_especiales_tenant_id_idx ON public.pedidos_especiales USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"productos","name":"productos_pkey","def":"CREATE UNIQUE INDEX productos_pkey ON public.productos USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"productos","name":"productos_tenant_id_activo_idx","def":"CREATE INDEX productos_tenant_id_activo_idx ON public.productos USING btree (tenant_id, activo)","unique":false,"primary":false,"keys":["tenant_id","activo"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"productos","name":"productos_tenant_id_codigo_barras_idx","def":"CREATE INDEX productos_tenant_id_codigo_barras_idx ON public.productos USING btree (tenant_id, codigo_barras)","unique":false,"primary":false,"keys":["tenant_id","codigo_barras"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"productos","name":"productos_tenant_id_codigo_key","def":"CREATE UNIQUE INDEX productos_tenant_id_codigo_key ON public.productos USING btree (tenant_id, codigo)","unique":true,"primary":false,"keys":["tenant_id","codigo"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"productos","name":"productos_tenant_id_idx","def":"CREATE INDEX productos_tenant_id_idx ON public.productos USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"productos","name":"productos_tenant_id_nombre_idx","def":"CREATE INDEX productos_tenant_id_nombre_idx ON public.productos USING btree (tenant_id, nombre)","unique":false,"primary":false,"keys":["tenant_id","nombre"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"proveedores","name":"proveedores_pkey","def":"CREATE UNIQUE INDEX proveedores_pkey ON public.proveedores USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"proveedores","name":"proveedores_tenant_id_idx","def":"CREATE INDEX proveedores_tenant_id_idx ON public.proveedores USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"proveedores","name":"proveedores_tenant_id_nombre_idx","def":"CREATE INDEX proveedores_tenant_id_nombre_idx ON public.proveedores USING btree (tenant_id, nombre)","unique":false,"primary":false,"keys":["tenant_id","nombre"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"recepciones_compra","name":"recepciones_compra_orden_id_idx","def":"CREATE INDEX recepciones_compra_orden_id_idx ON public.recepciones_compra USING btree (orden_id)","unique":false,"primary":false,"keys":["orden_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"recepciones_compra","name":"recepciones_compra_pkey","def":"CREATE UNIQUE INDEX recepciones_compra_pkey ON public.recepciones_compra USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"recepciones_compra","name":"recepciones_compra_tenant_id_solicitud_id_key","def":"CREATE UNIQUE INDEX recepciones_compra_tenant_id_solicitud_id_key ON public.recepciones_compra USING btree (tenant_id, solicitud_id)","unique":true,"primary":false,"keys":["tenant_id","solicitud_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"secuencias_cliente","name":"secuencias_cliente_pkey","def":"CREATE UNIQUE INDEX secuencias_cliente_pkey ON public.secuencias_cliente USING btree (tenant_id)","unique":true,"primary":true,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"secuencias_tenant","name":"secuencias_tenant_pkey","def":"CREATE UNIQUE INDEX secuencias_tenant_pkey ON public.secuencias_tenant USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"secuencias_tenant","name":"secuencias_tenant_tenant_id_tipo_key","def":"CREATE UNIQUE INDEX secuencias_tenant_tenant_id_tipo_key ON public.secuencias_tenant USING btree (tenant_id, tipo)","unique":true,"primary":false,"keys":["tenant_id","tipo"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"solicitudes_devolucion","name":"solicitudes_devolucion_pkey","def":"CREATE UNIQUE INDEX solicitudes_devolucion_pkey ON public.solicitudes_devolucion USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"solicitudes_devolucion","name":"solicitudes_devolucion_tenant_id_estado_created_at_idx","def":"CREATE INDEX solicitudes_devolucion_tenant_id_estado_created_at_idx ON public.solicitudes_devolucion USING btree (tenant_id, estado, created_at)","unique":false,"primary":false,"keys":["tenant_id","estado","created_at"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"solicitudes_devolucion","name":"solicitudes_devolucion_tenant_id_solicitante_id_idx","def":"CREATE INDEX solicitudes_devolucion_tenant_id_solicitante_id_idx ON public.solicitudes_devolucion USING btree (tenant_id, solicitante_id)","unique":false,"primary":false,"keys":["tenant_id","solicitante_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"super_admins","name":"super_admins_email_key","def":"CREATE UNIQUE INDEX super_admins_email_key ON public.super_admins USING btree (email)","unique":true,"primary":false,"keys":["email"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"super_admins","name":"super_admins_pkey","def":"CREATE UNIQUE INDEX super_admins_pkey ON public.super_admins USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"tenant_modules","name":"tenant_modules_pkey","def":"CREATE UNIQUE INDEX tenant_modules_pkey ON public.tenant_modules USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"tenant_modules","name":"tenant_modules_tenant_id_idx","def":"CREATE INDEX tenant_modules_tenant_id_idx ON public.tenant_modules USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"tenant_modules","name":"tenant_modules_tenant_id_module_key_key","def":"CREATE UNIQUE INDEX tenant_modules_tenant_id_module_key_key ON public.tenant_modules USING btree (tenant_id, module_key)","unique":true,"primary":false,"keys":["tenant_id","module_key"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"tenants","name":"tenants_pkey","def":"CREATE UNIQUE INDEX tenants_pkey ON public.tenants USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"transferencias","name":"transferencias_pkey","def":"CREATE UNIQUE INDEX transferencias_pkey ON public.transferencias USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"transferencias","name":"transferencias_tenant_id_codigo_key","def":"CREATE UNIQUE INDEX transferencias_tenant_id_codigo_key ON public.transferencias USING btree (tenant_id, codigo)","unique":true,"primary":false,"keys":["tenant_id","codigo"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"transferencias","name":"transferencias_tenant_id_estado_idx","def":"CREATE INDEX transferencias_tenant_id_estado_idx ON public.transferencias USING btree (tenant_id, estado)","unique":false,"primary":false,"keys":["tenant_id","estado"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"transferencias","name":"transferencias_tenant_id_idx","def":"CREATE INDEX transferencias_tenant_id_idx ON public.transferencias USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"migration"}$contract$::jsonb),
+('indexes', $contract${"tab":"usuarios","name":"usuarios_pkey","def":"CREATE UNIQUE INDEX usuarios_pkey ON public.usuarios USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"usuarios","name":"usuarios_tenant_id_email_key","def":"CREATE UNIQUE INDEX usuarios_tenant_id_email_key ON public.usuarios USING btree (tenant_id, email)","unique":true,"primary":false,"keys":["tenant_id","email"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"usuarios","name":"usuarios_tenant_id_idx","def":"CREATE INDEX usuarios_tenant_id_idx ON public.usuarios USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"ventas","name":"ventas_pkey","def":"CREATE UNIQUE INDEX ventas_pkey ON public.ventas USING btree (id)","unique":true,"primary":true,"keys":["id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"ventas","name":"ventas_tenant_id_created_at_idx","def":"CREATE INDEX ventas_tenant_id_created_at_idx ON public.ventas USING btree (tenant_id, created_at)","unique":false,"primary":false,"keys":["tenant_id","created_at"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"ventas","name":"ventas_tenant_id_estado_idx","def":"CREATE INDEX ventas_tenant_id_estado_idx ON public.ventas USING btree (tenant_id, estado)","unique":false,"primary":false,"keys":["tenant_id","estado"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"ventas","name":"ventas_tenant_id_idx","def":"CREATE INDEX ventas_tenant_id_idx ON public.ventas USING btree (tenant_id)","unique":false,"primary":false,"keys":["tenant_id"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('indexes', $contract${"tab":"ventas","name":"ventas_tenant_id_numero_venta_key","def":"CREATE UNIQUE INDEX ventas_tenant_id_numero_venta_key ON public.ventas USING btree (tenant_id, numero_venta)","unique":true,"primary":false,"keys":["tenant_id","numero_venta"],"predicate":null,"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"abonos_apartado","name":"abonos_apartado_apartado_id_fkey","kind":"f","def":"FOREIGN KEY (apartado_id) REFERENCES apartados(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["apartado_id"],"reftab":"apartados","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"abonos_apartado","name":"abonos_apartado_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"abonos_cliente","name":"abonos_cliente_cliente_id_fkey","kind":"f","def":"FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["cliente_id"],"reftab":"clientes","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"abonos_cliente","name":"abonos_cliente_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"abonos_cliente","name":"abonos_cliente_venta_id_fkey","kind":"f","def":"FOREIGN KEY (venta_id) REFERENCES ventas(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["venta_id"],"reftab":"ventas","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"apartados","name":"apartados_cliente_id_fkey","kind":"f","def":"FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON UPDATE CASCADE ON DELETE SET NULL","expr":null,"validated":true,"keys":["cliente_id"],"reftab":"clientes","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"apartados","name":"apartados_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"apartados","name":"apartados_producto_id_fkey","kind":"f","def":"FOREIGN KEY (producto_id) REFERENCES productos(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["producto_id"],"reftab":"productos","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"apartados","name":"apartados_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"auditoria_operaciones","name":"auditoria_operaciones_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"auditoria_soporte","name":"auditoria_soporte_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"auditoria_soporte","name":"auditoria_soporte_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"cajas","name":"cajas_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"cajas","name":"cajas_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"cajas","name":"cajas_usuario_id_fkey","kind":"f","def":"FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["usuario_id"],"reftab":"usuarios","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"categorias","name":"categorias_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"categorias","name":"categorias_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"cierres_comisiones","name":"cierres_comisiones_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"cierres_comisiones","name":"cierres_comisiones_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"cierres_comisiones","name":"cierres_comisiones_vendedor_id_fkey","kind":"f","def":"FOREIGN KEY (vendedor_id) REFERENCES usuarios(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["vendedor_id"],"reftab":"usuarios","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"clientes","name":"clientes_lista_precio_id_fkey","kind":"f","def":"FOREIGN KEY (lista_precio_id) REFERENCES listas_precio(id) ON UPDATE CASCADE ON DELETE SET NULL","expr":null,"validated":true,"keys":["lista_precio_id"],"reftab":"listas_precio","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"clientes","name":"clientes_numero_cliente_positive","kind":"c","def":"CHECK ((numero_cliente > 0))","expr":"(numero_cliente > 0)","validated":true,"keys":["numero_cliente"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"clientes","name":"clientes_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"clientes","name":"clientes_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"compras_proveedor","name":"compras_proveedor_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"compras_proveedor","name":"compras_proveedor_proveedor_id_fkey","kind":"f","def":"FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["proveedor_id"],"reftab":"proveedores","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"costos_compra","name":"costos_compra_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"costos_compra","name":"costos_compra_producto_id_fkey","kind":"f","def":"FOREIGN KEY (producto_id) REFERENCES productos(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["producto_id"],"reftab":"productos","refkeys":["id"],"source":"prisma","legacy_def":"FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE RESTRICT"}$contract$::jsonb),
+('constraints', $contract${"tab":"costos_compra","name":"costos_compra_proveedor_id_fkey","kind":"f","def":"FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["proveedor_id"],"reftab":"proveedores","refkeys":["id"],"source":"prisma","legacy_def":"FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON DELETE RESTRICT"}$contract$::jsonb),
+('constraints', $contract${"tab":"costos_compra","name":"costos_compra_recepcion_id_fkey","kind":"f","def":"FOREIGN KEY (recepcion_id) REFERENCES recepciones_compra(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["recepcion_id"],"reftab":"recepciones_compra","refkeys":["id"],"source":"prisma","legacy_def":"FOREIGN KEY (recepcion_id) REFERENCES recepciones_compra(id) ON DELETE RESTRICT"}$contract$::jsonb),
+('constraints', $contract${"tab":"cotizaciones","name":"cotizaciones_cliente_id_fkey","kind":"f","def":"FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON UPDATE CASCADE ON DELETE SET NULL","expr":null,"validated":true,"keys":["cliente_id"],"reftab":"clientes","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"cotizaciones","name":"cotizaciones_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"cotizaciones","name":"cotizaciones_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"cotizaciones","name":"cotizaciones_usuario_id_fkey","kind":"f","def":"FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["usuario_id"],"reftab":"usuarios","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"cotizaciones","name":"cotizaciones_venta_id_fkey","kind":"f","def":"FOREIGN KEY (venta_id) REFERENCES ventas(id) ON UPDATE CASCADE ON DELETE SET NULL","expr":null,"validated":true,"keys":["venta_id"],"reftab":"ventas","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"cuentas_operativas","name":"cuentas_operativas_cliente_id_fkey","kind":"f","def":"FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["cliente_id"],"reftab":"clientes","refkeys":["id"],"source":"prisma","legacy_def":"FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE RESTRICT"}$contract$::jsonb),
+('constraints', $contract${"tab":"cuentas_operativas","name":"cuentas_operativas_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"cuentas_operativas","name":"cuentas_operativas_proveedor_id_fkey","kind":"f","def":"FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["proveedor_id"],"reftab":"proveedores","refkeys":["id"],"source":"prisma","legacy_def":"FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON DELETE RESTRICT"}$contract$::jsonb),
+('constraints', $contract${"tab":"cuentas_operativas","name":"cuentas_saldo_check","kind":"c","def":"CHECK (((monto >= (0)::numeric) AND (saldo >= (0)::numeric) AND (saldo <= monto)))","expr":"((monto >= (0)::numeric) AND (saldo >= (0)::numeric) AND (saldo <= monto))","validated":true,"keys":["monto","saldo"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"cuentas_operativas","name":"cuentas_tipo_check","kind":"c","def":"CHECK ((((tipo = 'CXC'::text) AND (cliente_id IS NOT NULL) AND (proveedor_id IS NULL)) OR ((tipo = 'CXP'::text) AND (proveedor_id IS NOT NULL) AND (cliente_id IS NULL))))","expr":"(((tipo = 'CXC'::text) AND (cliente_id IS NOT NULL) AND (proveedor_id IS NULL)) OR ((tipo = 'CXP'::text) AND (proveedor_id IS NOT NULL) AND (cliente_id IS NULL)))","validated":true,"keys":["tipo","cliente_id","proveedor_id"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_compra_proveedor","name":"detalles_compra_proveedor_compra_id_fkey","kind":"f","def":"FOREIGN KEY (compra_id) REFERENCES compras_proveedor(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["compra_id"],"reftab":"compras_proveedor","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_compra_proveedor","name":"detalles_compra_proveedor_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_compra_proveedor","name":"detalles_compra_proveedor_producto_id_fkey","kind":"f","def":"FOREIGN KEY (producto_id) REFERENCES productos(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["producto_id"],"reftab":"productos","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_cotizacion","name":"detalles_cotizacion_cotizacion_id_fkey","kind":"f","def":"FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["cotizacion_id"],"reftab":"cotizaciones","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_cotizacion","name":"detalles_cotizacion_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_cotizacion","name":"detalles_cotizacion_producto_id_fkey","kind":"f","def":"FOREIGN KEY (producto_id) REFERENCES productos(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["producto_id"],"reftab":"productos","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_devolucion","name":"detalles_devolucion_cantidad_check","kind":"c","def":"CHECK ((cantidad > (0)::numeric))","expr":"(cantidad > (0)::numeric)","validated":true,"keys":["cantidad"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_devolucion","name":"detalles_devolucion_detalle_venta_id_fkey","kind":"f","def":"FOREIGN KEY (detalle_venta_id) REFERENCES detalles_venta(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["detalle_venta_id"],"reftab":"detalles_venta","refkeys":["id"],"source":"prisma","legacy_def":"FOREIGN KEY (detalle_venta_id) REFERENCES detalles_venta(id) ON DELETE RESTRICT"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_devolucion","name":"detalles_devolucion_devolucion_id_fkey","kind":"f","def":"FOREIGN KEY (devolucion_id) REFERENCES devoluciones(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["devolucion_id"],"reftab":"devoluciones","refkeys":["id"],"source":"prisma","legacy_def":"FOREIGN KEY (devolucion_id) REFERENCES devoluciones(id) ON DELETE RESTRICT"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_devolucion","name":"detalles_devolucion_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_orden_compra","name":"detalles_orden_compra_orden_id_fkey","kind":"f","def":"FOREIGN KEY (orden_id) REFERENCES ordenes_compra(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["orden_id"],"reftab":"ordenes_compra","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_orden_compra","name":"detalles_orden_compra_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_orden_compra","name":"detalles_orden_compra_producto_id_fkey","kind":"f","def":"FOREIGN KEY (producto_id) REFERENCES productos(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["producto_id"],"reftab":"productos","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_transferencia","name":"detalles_transferencia_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_transferencia","name":"detalles_transferencia_producto_id_fkey","kind":"f","def":"FOREIGN KEY (producto_id) REFERENCES productos(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["producto_id"],"reftab":"productos","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_transferencia","name":"detalles_transferencia_transferencia_id_fkey","kind":"f","def":"FOREIGN KEY (transferencia_id) REFERENCES transferencias(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["transferencia_id"],"reftab":"transferencias","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_venta","name":"detalles_venta_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_venta","name":"detalles_venta_producto_id_fkey","kind":"f","def":"FOREIGN KEY (producto_id) REFERENCES productos(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["producto_id"],"reftab":"productos","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"detalles_venta","name":"detalles_venta_venta_id_fkey","kind":"f","def":"FOREIGN KEY (venta_id) REFERENCES ventas(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["venta_id"],"reftab":"ventas","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"devoluciones","name":"devoluciones_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"devoluciones","name":"devoluciones_venta_id_fkey","kind":"f","def":"FOREIGN KEY (venta_id) REFERENCES ventas(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["venta_id"],"reftab":"ventas","refkeys":["id"],"source":"prisma","legacy_def":"FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE RESTRICT"}$contract$::jsonb),
+('constraints', $contract${"tab":"garantias","name":"garantias_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"garantias","name":"garantias_producto_id_fkey","kind":"f","def":"FOREIGN KEY (producto_id) REFERENCES productos(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["producto_id"],"reftab":"productos","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"garantias","name":"garantias_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"garantias","name":"garantias_venta_id_fkey","kind":"f","def":"FOREIGN KEY (venta_id) REFERENCES ventas(id) ON UPDATE CASCADE ON DELETE SET NULL","expr":null,"validated":true,"keys":["venta_id"],"reftab":"ventas","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"historial_garantias","name":"historial_garantias_garantia_id_fkey","kind":"f","def":"FOREIGN KEY (garantia_id) REFERENCES garantias(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["garantia_id"],"reftab":"garantias","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"historial_garantias","name":"historial_garantias_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"levantamiento_items","name":"levantamiento_items_levantamiento_id_fkey","kind":"f","def":"FOREIGN KEY (levantamiento_id) REFERENCES levantamientos(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["levantamiento_id"],"reftab":"levantamientos","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"levantamiento_items","name":"levantamiento_items_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"levantamientos","name":"levantamientos_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"levantamientos","name":"levantamientos_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"listas_precio","name":"listas_precio_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"listas_precio","name":"listas_precio_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"movimientos_caja","name":"movimientos_caja_caja_id_fkey","kind":"f","def":"FOREIGN KEY (caja_id) REFERENCES cajas(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["caja_id"],"reftab":"cajas","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"movimientos_caja","name":"movimientos_caja_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"movimientos_inventario","name":"movimiento_balance_check","kind":"c","def":"CHECK ((nuevo = (anterior + cantidad)))","expr":"(nuevo = (anterior + cantidad))","validated":true,"keys":["nuevo","anterior","cantidad"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"movimientos_inventario","name":"movimientos_inventario_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"movimientos_inventario","name":"movimientos_inventario_producto_id_fkey","kind":"f","def":"FOREIGN KEY (producto_id) REFERENCES productos(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["producto_id"],"reftab":"productos","refkeys":["id"],"source":"prisma","legacy_def":"FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE RESTRICT"}$contract$::jsonb),
+('constraints', $contract${"tab":"ordenes_compra","name":"ordenes_compra_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"ordenes_compra","name":"ordenes_compra_proveedor_id_fkey","kind":"f","def":"FOREIGN KEY (proveedor_id) REFERENCES proveedores(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["proveedor_id"],"reftab":"proveedores","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"ordenes_compra","name":"ordenes_compra_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"ordenes_compra","name":"ordenes_compra_usuario_id_fkey","kind":"f","def":"FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["usuario_id"],"reftab":"usuarios","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"pagos_cuenta","name":"pagos_cuenta_cuenta_id_fkey","kind":"f","def":"FOREIGN KEY (cuenta_id) REFERENCES cuentas_operativas(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["cuenta_id"],"reftab":"cuentas_operativas","refkeys":["id"],"source":"prisma","legacy_def":"FOREIGN KEY (cuenta_id) REFERENCES cuentas_operativas(id) ON DELETE RESTRICT"}$contract$::jsonb),
+('constraints', $contract${"tab":"pagos_cuenta","name":"pagos_cuenta_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"pagos_cuenta","name":"pagos_monto_check","kind":"c","def":"CHECK ((monto > (0)::numeric))","expr":"(monto > (0)::numeric)","validated":true,"keys":["monto"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"pagos_proveedor","name":"pagos_proveedor_compra_id_fkey","kind":"f","def":"FOREIGN KEY (compra_id) REFERENCES compras_proveedor(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["compra_id"],"reftab":"compras_proveedor","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"pagos_proveedor","name":"pagos_proveedor_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"pedidos_especiales","name":"pedidos_especiales_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"pedidos_especiales","name":"pedidos_especiales_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"productos","name":"productos_categoria_id_fkey","kind":"f","def":"FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON UPDATE CASCADE ON DELETE SET NULL","expr":null,"validated":true,"keys":["categoria_id"],"reftab":"categorias","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"productos","name":"productos_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"productos","name":"productos_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"productos","name":"stock_reservado_check","kind":"c","def":"CHECK (((stock_reservado >= (0)::numeric) AND (stock_actual >= stock_reservado)))","expr":"((stock_reservado >= (0)::numeric) AND (stock_actual >= stock_reservado))","validated":false,"keys":["stock_reservado","stock_actual"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"proveedores","name":"proveedores_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"proveedores","name":"proveedores_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"recepciones_compra","name":"recepciones_compra_orden_id_fkey","kind":"f","def":"FOREIGN KEY (orden_id) REFERENCES ordenes_compra(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["orden_id"],"reftab":"ordenes_compra","refkeys":["id"],"source":"prisma","legacy_def":"FOREIGN KEY (orden_id) REFERENCES ordenes_compra(id) ON DELETE RESTRICT"}$contract$::jsonb),
+('constraints', $contract${"tab":"recepciones_compra","name":"recepciones_compra_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"secuencias_cliente","name":"secuencias_cliente_pkey","kind":"p","def":"PRIMARY KEY (tenant_id)","expr":null,"validated":true,"keys":["tenant_id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"secuencias_cliente","name":"secuencias_cliente_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"secuencias_tenant","name":"secuencias_tenant_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"secuencias_tenant","name":"secuencias_tenant_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"solicitudes_devolucion","name":"solicitudes_devolucion_decision_check","kind":"c","def":"CHECK ((((estado = 'PENDIENTE'::text) AND (administrador_id IS NULL) AND (decidida_at IS NULL)) OR ((estado <> 'PENDIENTE'::text) AND (administrador_id IS NOT NULL) AND (decidida_at IS NOT NULL))))","expr":"(((estado = 'PENDIENTE'::text) AND (administrador_id IS NULL) AND (decidida_at IS NULL)) OR ((estado <> 'PENDIENTE'::text) AND (administrador_id IS NOT NULL) AND (decidida_at IS NOT NULL)))","validated":true,"keys":["estado","administrador_id","decidida_at"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"solicitudes_devolucion","name":"solicitudes_devolucion_estado_check","kind":"c","def":"CHECK ((estado = ANY (ARRAY['PENDIENTE'::text, 'AUTORIZADA'::text, 'RECHAZADA'::text, 'EJECUTADA'::text])))","expr":"(estado = ANY (ARRAY['PENDIENTE'::text, 'AUTORIZADA'::text, 'RECHAZADA'::text, 'EJECUTADA'::text]))","validated":true,"keys":["estado"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"solicitudes_devolucion","name":"solicitudes_devolucion_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"super_admins","name":"super_admins_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"tenant_modules","name":"tenant_modules_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"tenant_modules","name":"tenant_modules_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"tenants","name":"tenants_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"transferencias","name":"transferencias_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"transferencias","name":"transferencias_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"transferencias","name":"transferencias_usuario_id_fkey","kind":"f","def":"FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["usuario_id"],"reftab":"usuarios","refkeys":["id"],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"usuarios","name":"descuento_maximo_check","kind":"c","def":"CHECK (((descuento_maximo >= (0)::numeric) AND (descuento_maximo <= (100)::numeric)))","expr":"((descuento_maximo >= (0)::numeric) AND (descuento_maximo <= (100)::numeric))","validated":true,"keys":["descuento_maximo"],"reftab":null,"refkeys":[],"source":"migration"}$contract$::jsonb),
+('constraints', $contract${"tab":"usuarios","name":"usuarios_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"usuarios","name":"usuarios_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"ventas","name":"ventas_cliente_id_fkey","kind":"f","def":"FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON UPDATE CASCADE ON DELETE SET NULL","expr":null,"validated":true,"keys":["cliente_id"],"reftab":"clientes","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"ventas","name":"ventas_pkey","kind":"p","def":"PRIMARY KEY (id)","expr":null,"validated":true,"keys":["id"],"reftab":null,"refkeys":[],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"ventas","name":"ventas_tenant_id_fkey","kind":"f","def":"FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE","expr":null,"validated":true,"keys":["tenant_id"],"reftab":"tenants","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('constraints', $contract${"tab":"ventas","name":"ventas_usuario_id_fkey","kind":"f","def":"FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON UPDATE CASCADE ON DELETE RESTRICT","expr":null,"validated":true,"keys":["usuario_id"],"reftab":"usuarios","refkeys":["id"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"EstadoApartado","labels":["ACTIVO","COMPLETADO","CANCELADO"],"source":"migration"}$contract$::jsonb),
+('enums', $contract${"name":"EstadoCaja","labels":["ABIERTA","CERRADA"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"EstadoCompra","labels":["PENDIENTE","PAGADA","PARCIAL"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"EstadoCotizacion","labels":["BORRADOR","ENVIADA","APROBADA","RECHAZADA","VENCIDA","CONVERTIDA"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"EstadoGarantia","labels":["RECIBIDO","EN_REVISION","APROBADO_REPARACION","REEMPLAZADO","RECHAZADO"],"source":"migration"}$contract$::jsonb),
+('enums', $contract${"name":"EstadoLevantamiento","labels":["BORRADOR","EN_PROGRESO","REVISION","FINALIZADO"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"EstadoOrdenCompra","labels":["BORRADOR","SOLICITADA","APROBADA","RECIBIDA","CANCELADA"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"EstadoPedidoEspecial","labels":["PENDIENTE","EN_ORDEN_COMPRA","RECIBIDO_EN_TIENDA","ENTREGADO","CANCELADO"],"source":"migration"}$contract$::jsonb),
+('enums', $contract${"name":"EstadoTenant","labels":["ACTIVO","SUSPENDIDO"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"EstadoTransferencia","labels":["SOLICITADA","EN_TRANSITO","ACEPTADA","RECHAZADA"],"source":"migration"}$contract$::jsonb),
+('enums', $contract${"name":"EstadoVenta","labels":["COMPLETADA","ANULADA"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"MetodoPago","labels":["EFECTIVO","TARJETA","CREDITO","TRANSFERENCIA"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"ModoNavegacion","labels":["SIDEBAR","TOPNAV"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"Rol","labels":["ADMIN","CAJERO","BODEGUERO","VENDEDOR"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"TipoCliente","labels":["CONSUMIDOR_FINAL","MAYORISTA","CONTRATISTA"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"TipoMovimientoCaja","labels":["INGRESO_MANUAL","EGRESO_MANUAL","VENTA_POS","ABONO_APARTADO","ABONO_CXC","PAGO_CXP","DEVOLUCION"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"TipoPago","labels":["CONTADO","CREDITO"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"TipoSecuencia","labels":["VENTA","COTIZACION"],"source":"prisma"}$contract$::jsonb),
+('enums', $contract${"name":"UnidadMedida","labels":["UNIDAD","PIE","METRO","METRO_CUADRADO","METRO_CUBICO","LIBRA","KG","GALON","LITRO","CAJA","PAQUETE","OTRO"],"source":"prisma"}$contract$::jsonb),
+('function', $contract${"body":"\nBEGIN\n  IF TG_OP = 'UPDATE' THEN\n    IF NEW.\"numero_cliente\" IS DISTINCT FROM OLD.\"numero_cliente\"\n       OR NEW.\"tenant_id\" IS DISTINCT FROM OLD.\"tenant_id\" THEN\n      RAISE EXCEPTION 'El número de cliente y su empresa no se pueden cambiar';\n    END IF;\n    RETURN NEW;\n  END IF;\n  IF COALESCE(NEW.\"numero_cliente\", 0) <> 0 THEN\n    RAISE EXCEPTION 'El número de cliente se asigna automáticamente';\n  END IF;\n  INSERT INTO public.\"secuencias_cliente\" (\"tenant_id\", \"ultimo_numero\") VALUES (NEW.\"tenant_id\", 1)\n  ON CONFLICT (\"tenant_id\") DO UPDATE\n    SET \"ultimo_numero\" = public.\"secuencias_cliente\".\"ultimo_numero\" + 1\n  RETURNING \"ultimo_numero\" INTO NEW.\"numero_cliente\";\n  IF COALESCE(NEW.\"codigo\", '') = '' THEN\n    NEW.\"codigo\" := 'CLI-' || LPAD(NEW.\"numero_cliente\"::TEXT, 6, '0');\n  END IF;\n  RETURN NEW;\nEND;\n","ddl":"CREATE OR REPLACE FUNCTION public.assign_customer_number() RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $number$\nBEGIN\n  IF TG_OP = 'UPDATE' THEN\n    IF NEW.\"numero_cliente\" IS DISTINCT FROM OLD.\"numero_cliente\"\n       OR NEW.\"tenant_id\" IS DISTINCT FROM OLD.\"tenant_id\" THEN\n      RAISE EXCEPTION 'El número de cliente y su empresa no se pueden cambiar';\n    END IF;\n    RETURN NEW;\n  END IF;\n  IF COALESCE(NEW.\"numero_cliente\", 0) <> 0 THEN\n    RAISE EXCEPTION 'El número de cliente se asigna automáticamente';\n  END IF;\n  INSERT INTO public.\"secuencias_cliente\" (\"tenant_id\", \"ultimo_numero\") VALUES (NEW.\"tenant_id\", 1)\n  ON CONFLICT (\"tenant_id\") DO UPDATE\n    SET \"ultimo_numero\" = public.\"secuencias_cliente\".\"ultimo_numero\" + 1\n  RETURNING \"ultimo_numero\" INTO NEW.\"numero_cliente\";\n  IF COALESCE(NEW.\"codigo\", '') = '' THEN\n    NEW.\"codigo\" := 'CLI-' || LPAD(NEW.\"numero_cliente\"::TEXT, 6, '0');\n  END IF;\n  RETURN NEW;\nEND;\n$number$;","knownBodies":["\nBEGIN\n  IF TG_OP = 'UPDATE' THEN\n    IF NEW.\"numero_cliente\" IS DISTINCT FROM OLD.\"numero_cliente\"\n       OR NEW.\"tenant_id\" IS DISTINCT FROM OLD.\"tenant_id\" THEN\n      RAISE EXCEPTION 'El número de cliente y su empresa no se pueden cambiar';\n    END IF;\n    RETURN NEW;\n  END IF;\n  IF COALESCE(NEW.\"numero_cliente\", 0) <> 0 THEN\n    RAISE EXCEPTION 'El número de cliente se asigna automáticamente';\n  END IF;\n  INSERT INTO \"secuencias_cliente\" (\"tenant_id\", \"ultimo_numero\") VALUES (NEW.\"tenant_id\", 1)\n  ON CONFLICT (\"tenant_id\") DO UPDATE\n    SET \"ultimo_numero\" = \"secuencias_cliente\".\"ultimo_numero\" + 1\n  RETURNING \"ultimo_numero\" INTO NEW.\"numero_cliente\";\n  IF COALESCE(NEW.\"codigo\", '') = '' THEN\n    NEW.\"codigo\" := 'CLI-' || LPAD(NEW.\"numero_cliente\"::TEXT, 6, '0');\n  END IF;\n  RETURN NEW;\nEND;\n","\nBEGIN\n  IF TG_OP = 'UPDATE' THEN\n    IF NEW.\"numero_cliente\" IS DISTINCT FROM OLD.\"numero_cliente\"\n       OR NEW.\"tenant_id\" IS DISTINCT FROM OLD.\"tenant_id\" THEN\n      RAISE EXCEPTION 'El número de cliente y su empresa no se pueden cambiar';\n    END IF;\n    RETURN NEW;\n  END IF;\n  IF COALESCE(NEW.\"numero_cliente\", 0) <> 0 THEN\n    RAISE EXCEPTION 'El número de cliente se asigna automáticamente';\n  END IF;\n  INSERT INTO \"secuencias_cliente\" (\"tenant_id\", \"ultimo_numero\") VALUES (NEW.\"tenant_id\", 1)\n  ON CONFLICT (\"tenant_id\") DO UPDATE\n    SET \"ultimo_numero\" = \"secuencias_cliente\".\"ultimo_numero\" + 1\n  RETURNING \"ultimo_numero\" INTO NEW.\"numero_cliente\";\n  RETURN NEW;\nEND;\n","\nBEGIN\n  IF TG_OP = 'UPDATE' THEN\n    IF NEW.numero_cliente IS DISTINCT FROM OLD.numero_cliente OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id THEN\n      RAISE EXCEPTION 'El número de cliente y su empresa no se pueden cambiar';\n    END IF;\n    RETURN NEW;\n  END IF;\n  IF COALESCE(NEW.numero_cliente, 0) <> 0 THEN\n    RAISE EXCEPTION 'El número de cliente se asigna automáticamente';\n  END IF;\n  INSERT INTO public.secuencias_cliente (tenant_id, ultimo_numero) VALUES (NEW.tenant_id, 1)\n  ON CONFLICT (tenant_id) DO UPDATE SET ultimo_numero = public.secuencias_cliente.ultimo_numero + 1\n  RETURNING ultimo_numero INTO NEW.numero_cliente;\n  IF COALESCE(NEW.codigo, '') = '' THEN\n    NEW.codigo := 'CLI-' || LPAD(NEW.numero_cliente::TEXT, 6, '0');\n  END IF;\n  RETURN NEW;\nEND;\n","\nBEGIN\n  IF TG_OP = 'UPDATE' THEN\n    IF NEW.\"numero_cliente\" IS DISTINCT FROM OLD.\"numero_cliente\"\n       OR NEW.\"tenant_id\" IS DISTINCT FROM OLD.\"tenant_id\" THEN\n      RAISE EXCEPTION 'El número de cliente y su empresa no se pueden cambiar';\n    END IF;\n    RETURN NEW;\n  END IF;\n  IF COALESCE(NEW.\"numero_cliente\", 0) <> 0 THEN\n    RAISE EXCEPTION 'El número de cliente se asigna automáticamente';\n  END IF;\n  INSERT INTO public.\"secuencias_cliente\" (\"tenant_id\", \"ultimo_numero\") VALUES (NEW.\"tenant_id\", 1)\n  ON CONFLICT (\"tenant_id\") DO UPDATE\n    SET \"ultimo_numero\" = public.\"secuencias_cliente\".\"ultimo_numero\" + 1\n  RETURNING \"ultimo_numero\" INTO NEW.\"numero_cliente\";\n  IF COALESCE(NEW.\"codigo\", '') = '' THEN\n    NEW.\"codigo\" := 'CLI-' || LPAD(NEW.\"numero_cliente\"::TEXT, 6, '0');\n  END IF;\n  RETURN NEW;\nEND;\n"]}$contract$::jsonb),
+('data_checks', $contract${"name":"apartados.estado.enum_values","tables":["apartados"],"sql":"SELECT count(*) FROM public.apartados WHERE \"estado\"::text NOT IN ('ACTIVO','COMPLETADO','CANCELADO')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"cajas.estado.enum_values","tables":["cajas"],"sql":"SELECT count(*) FROM public.cajas WHERE \"estado\"::text NOT IN ('ABIERTA','CERRADA')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"clientes.tipo.enum_values","tables":["clientes"],"sql":"SELECT count(*) FROM public.clientes WHERE \"tipo\"::text NOT IN ('CONSUMIDOR_FINAL','MAYORISTA','CONTRATISTA')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"compras_proveedor.estado.enum_values","tables":["compras_proveedor"],"sql":"SELECT count(*) FROM public.compras_proveedor WHERE \"estado\"::text NOT IN ('PENDIENTE','PAGADA','PARCIAL')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"cotizaciones.estado.enum_values","tables":["cotizaciones"],"sql":"SELECT count(*) FROM public.cotizaciones WHERE \"estado\"::text NOT IN ('BORRADOR','ENVIADA','APROBADA','RECHAZADA','VENCIDA','CONVERTIDA')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"garantias.estado.enum_values","tables":["garantias"],"sql":"SELECT count(*) FROM public.garantias WHERE \"estado\"::text NOT IN ('RECIBIDO','EN_REVISION','APROBADO_REPARACION','REEMPLAZADO','RECHAZADO')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"historial_garantias.estado.enum_values","tables":["historial_garantias"],"sql":"SELECT count(*) FROM public.historial_garantias WHERE \"estado\"::text NOT IN ('RECIBIDO','EN_REVISION','APROBADO_REPARACION','REEMPLAZADO','RECHAZADO')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"levantamientos.estado.enum_values","tables":["levantamientos"],"sql":"SELECT count(*) FROM public.levantamientos WHERE \"estado\"::text NOT IN ('BORRADOR','EN_PROGRESO','REVISION','FINALIZADO')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"movimientos_caja.tipo.enum_values","tables":["movimientos_caja"],"sql":"SELECT count(*) FROM public.movimientos_caja WHERE \"tipo\"::text NOT IN ('INGRESO_MANUAL','EGRESO_MANUAL','VENTA_POS','ABONO_APARTADO','ABONO_CXC','PAGO_CXP','DEVOLUCION')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"ordenes_compra.estado.enum_values","tables":["ordenes_compra"],"sql":"SELECT count(*) FROM public.ordenes_compra WHERE \"estado\"::text NOT IN ('BORRADOR','SOLICITADA','APROBADA','RECIBIDA','CANCELADA')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"pedidos_especiales.estado.enum_values","tables":["pedidos_especiales"],"sql":"SELECT count(*) FROM public.pedidos_especiales WHERE \"estado\"::text NOT IN ('PENDIENTE','EN_ORDEN_COMPRA','RECIBIDO_EN_TIENDA','ENTREGADO','CANCELADO')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"productos.unidad_medida.enum_values","tables":["productos"],"sql":"SELECT count(*) FROM public.productos WHERE \"unidad_medida\"::text NOT IN ('UNIDAD','PIE','METRO','METRO_CUADRADO','METRO_CUBICO','LIBRA','KG','GALON','LITRO','CAJA','PAQUETE','OTRO')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"secuencias_tenant.tipo.enum_values","tables":["secuencias_tenant"],"sql":"SELECT count(*) FROM public.secuencias_tenant WHERE \"tipo\"::text NOT IN ('VENTA','COTIZACION')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"tenants.estado.enum_values","tables":["tenants"],"sql":"SELECT count(*) FROM public.tenants WHERE \"estado\"::text NOT IN ('ACTIVO','SUSPENDIDO')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"tenants.modo_navegacion.enum_values","tables":["tenants"],"sql":"SELECT count(*) FROM public.tenants WHERE \"modo_navegacion\"::text NOT IN ('SIDEBAR','TOPNAV')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"transferencias.estado.enum_values","tables":["transferencias"],"sql":"SELECT count(*) FROM public.transferencias WHERE \"estado\"::text NOT IN ('SOLICITADA','EN_TRANSITO','ACEPTADA','RECHAZADA')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"usuarios.rol.enum_values","tables":["usuarios"],"sql":"SELECT count(*) FROM public.usuarios WHERE \"rol\"::text NOT IN ('ADMIN','CAJERO','BODEGUERO','VENDEDOR')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"ventas.estado.enum_values","tables":["ventas"],"sql":"SELECT count(*) FROM public.ventas WHERE \"estado\"::text NOT IN ('COMPLETADA','ANULADA')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"ventas.metodo_pago.enum_values","tables":["ventas"],"sql":"SELECT count(*) FROM public.ventas WHERE \"metodo_pago\"::text NOT IN ('EFECTIVO','TARJETA','CREDITO','TRANSFERENCIA')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"ventas.tipo_pago.enum_values","tables":["ventas"],"sql":"SELECT count(*) FROM public.ventas WHERE \"tipo_pago\"::text NOT IN ('CONTADO','CREDITO')","severity":"FAIL","description":"Filas usan etiquetas ajenas al contrato Prisma/migraciones; no se reemplazan"}$contract$::jsonb),
+('data_checks', $contract${"name":"customer_codes","tables":["clientes"],"sql":"SELECT count(*) FROM public.clientes WHERE numero_cliente<=0 OR btrim(codigo)='' OR saldo_pendiente<0 OR limite_credito<0","severity":"FAIL","description":"Código/número/saldo/límite inválido; no se corrige automáticamente"}$contract$::jsonb),
+('data_checks', $contract${"name":"customer_counter","tables":["clientes","secuencias_cliente"],"sql":"SELECT count(*) FROM public.clientes c LEFT JOIN public.secuencias_cliente s USING(tenant_id) WHERE s.ultimo_numero IS NULL OR s.ultimo_numero<c.numero_cliente OR (c.codigo ~ '^CLI-[0-9]+$' AND s.ultimo_numero<substring(c.codigo FROM 5)::numeric)","severity":"FAIL","description":"Contador cliente ausente o inferior a un número/código usado"}$contract$::jsonb),
+('data_checks', $contract${"name":"customer_counter_limit","tables":["secuencias_cliente"],"sql":"SELECT count(*) FROM public.secuencias_cliente WHERE ultimo_numero>=999999 OR ultimo_numero<0","severity":"FAIL","description":"Contador fuera del rango seguro de CLI/LPAD(6)"}$contract$::jsonb),
+('data_checks', $contract${"name":"ventas_counter","tables":["ventas","secuencias_tenant"],"sql":"SELECT count(*) FROM public.ventas d LEFT JOIN public.secuencias_tenant s ON s.tenant_id=d.tenant_id AND s.tipo='VENTA' WHERE s.ultimo_numero IS NULL OR s.ultimo_numero<d.numero_venta OR d.numero_venta<=0 OR s.ultimo_numero=2147483647","severity":"FAIL","description":"Contador documental ausente/atrasado o número inválido/límite agotado"}$contract$::jsonb),
+('data_checks', $contract${"name":"cotizaciones_counter","tables":["cotizaciones","secuencias_tenant"],"sql":"SELECT count(*) FROM public.cotizaciones d LEFT JOIN public.secuencias_tenant s ON s.tenant_id=d.tenant_id AND s.tipo='COTIZACION' WHERE s.ultimo_numero IS NULL OR s.ultimo_numero<d.numero_cotizacion OR d.numero_cotizacion<=0 OR s.ultimo_numero=2147483647","severity":"FAIL","description":"Contador documental ausente/atrasado o número inválido/límite agotado"}$contract$::jsonb),
+('data_checks', $contract${"name":"credit_sales","tables":["ventas"],"sql":"SELECT count(*) FROM public.ventas WHERE (metodo_pago::text='CREDITO' AND tipo_pago::text<>'CREDITO') OR (tipo_pago::text='CREDITO' AND (cliente_id IS NULL OR saldo_credito IS NULL OR saldo_credito<0 OR saldo_credito>total))","severity":"FAIL","description":"Venta a crédito sin clasificación/cliente/saldo coherente"}$contract$::jsonb),
+('data_checks', $contract${"name":"historical_cost_unknown","tables":["detalles_venta"],"sql":"SELECT count(*) FROM public.detalles_venta WHERE costo_unitario=0","severity":"WARNING","description":"Costo histórico cero; default estructural no acredita costo real"}$contract$::jsonb),
+('data_checks', $contract${"name":"current_cost_unknown","tables":["productos"],"sql":"SELECT count(*) FROM public.productos WHERE costo_vigente IS NULL","severity":"WARNING","description":"Costo vigente desconocido conservado como NULL"}$contract$::jsonb),
+('data_checks', $contract${"name":"customer_balance_reconciliation","tables":["clientes","cuentas_operativas"],"sql":"SELECT count(*) FROM public.clientes c WHERE c.saldo_pendiente IS DISTINCT FROM coalesce((SELECT sum(saldo) FROM public.cuentas_operativas x WHERE x.tenant_id=c.tenant_id AND x.cliente_id=c.id AND x.tipo='CXC'),0)","severity":"WARNING","description":"Saldo cliente y cuentas CXC requieren conciliación humana; no se modifican"}$contract$::jsonb),
+('data_checks', $contract${"name":"abonos_cliente.tenant_id.logical_reference","tables":["abonos_cliente","tenants"],"sql":"SELECT count(*) FROM public.abonos_cliente s WHERE s.tenant_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.tenants t WHERE t.id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"auditoria_operaciones.tenant_id.logical_reference","tables":["auditoria_operaciones","tenants"],"sql":"SELECT count(*) FROM public.auditoria_operaciones s WHERE s.tenant_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.tenants t WHERE t.id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"auditoria_operaciones.usuario_id.logical_reference","tables":["auditoria_operaciones","usuarios"],"sql":"SELECT count(*) FROM public.auditoria_operaciones s WHERE s.usuario_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.usuarios t WHERE t.id=s.usuario_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"compras_proveedor.tenant_id.logical_reference","tables":["compras_proveedor","tenants"],"sql":"SELECT count(*) FROM public.compras_proveedor s WHERE s.tenant_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.tenants t WHERE t.id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"costos_compra.orden_id.logical_reference","tables":["costos_compra","ordenes_compra"],"sql":"SELECT count(*) FROM public.costos_compra s WHERE s.orden_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.ordenes_compra t WHERE t.id=s.orden_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"costos_compra.tenant_id.logical_reference","tables":["costos_compra","tenants"],"sql":"SELECT count(*) FROM public.costos_compra s WHERE s.tenant_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.tenants t WHERE t.id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"cuentas_operativas.tenant_id.logical_reference","tables":["cuentas_operativas","tenants"],"sql":"SELECT count(*) FROM public.cuentas_operativas s WHERE s.tenant_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.tenants t WHERE t.id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"cuentas_operativas.usuario_id.logical_reference","tables":["cuentas_operativas","usuarios"],"sql":"SELECT count(*) FROM public.cuentas_operativas s WHERE s.usuario_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.usuarios t WHERE t.id=s.usuario_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"detalles_venta.orden_compra_id.logical_reference","tables":["detalles_venta","ordenes_compra"],"sql":"SELECT count(*) FROM public.detalles_venta s WHERE s.orden_compra_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.ordenes_compra t WHERE t.id=s.orden_compra_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"detalles_venta.proveedor_id.logical_reference","tables":["detalles_venta","proveedores"],"sql":"SELECT count(*) FROM public.detalles_venta s WHERE s.proveedor_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.proveedores t WHERE t.id=s.proveedor_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"devoluciones.caja_id.logical_reference","tables":["devoluciones","cajas"],"sql":"SELECT count(*) FROM public.devoluciones s WHERE s.caja_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.cajas t WHERE t.id=s.caja_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"devoluciones.tenant_id.logical_reference","tables":["devoluciones","tenants"],"sql":"SELECT count(*) FROM public.devoluciones s WHERE s.tenant_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.tenants t WHERE t.id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"devoluciones.usuario_id.logical_reference","tables":["devoluciones","usuarios"],"sql":"SELECT count(*) FROM public.devoluciones s WHERE s.usuario_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.usuarios t WHERE t.id=s.usuario_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"levantamiento_items.producto_id.logical_reference","tables":["levantamiento_items","productos"],"sql":"SELECT count(*) FROM public.levantamiento_items s WHERE s.producto_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.productos t WHERE t.id=s.producto_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"movimientos_caja.usuario_id.logical_reference","tables":["movimientos_caja","usuarios"],"sql":"SELECT count(*) FROM public.movimientos_caja s WHERE s.usuario_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.usuarios t WHERE t.id=s.usuario_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"movimientos_inventario.tenant_id.logical_reference","tables":["movimientos_inventario","tenants"],"sql":"SELECT count(*) FROM public.movimientos_inventario s WHERE s.tenant_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.tenants t WHERE t.id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"movimientos_inventario.usuario_id.logical_reference","tables":["movimientos_inventario","usuarios"],"sql":"SELECT count(*) FROM public.movimientos_inventario s WHERE s.usuario_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.usuarios t WHERE t.id=s.usuario_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"pagos_cuenta.caja_id.logical_reference","tables":["pagos_cuenta","cajas"],"sql":"SELECT count(*) FROM public.pagos_cuenta s WHERE s.caja_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.cajas t WHERE t.id=s.caja_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"pagos_cuenta.tenant_id.logical_reference","tables":["pagos_cuenta","tenants"],"sql":"SELECT count(*) FROM public.pagos_cuenta s WHERE s.tenant_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.tenants t WHERE t.id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"pagos_cuenta.usuario_id.logical_reference","tables":["pagos_cuenta","usuarios"],"sql":"SELECT count(*) FROM public.pagos_cuenta s WHERE s.usuario_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.usuarios t WHERE t.id=s.usuario_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"recepciones_compra.tenant_id.logical_reference","tables":["recepciones_compra","tenants"],"sql":"SELECT count(*) FROM public.recepciones_compra s WHERE s.tenant_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.tenants t WHERE t.id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"recepciones_compra.usuario_id.logical_reference","tables":["recepciones_compra","usuarios"],"sql":"SELECT count(*) FROM public.recepciones_compra s WHERE s.usuario_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.usuarios t WHERE t.id=s.usuario_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"solicitudes_devolucion.administrador_id.logical_reference","tables":["solicitudes_devolucion","usuarios"],"sql":"SELECT count(*) FROM public.solicitudes_devolucion s WHERE s.administrador_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.usuarios t WHERE t.id=s.administrador_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"solicitudes_devolucion.solicitante_id.logical_reference","tables":["solicitudes_devolucion","usuarios"],"sql":"SELECT count(*) FROM public.solicitudes_devolucion s WHERE s.solicitante_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.usuarios t WHERE t.id=s.solicitante_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"solicitudes_devolucion.tenant_id.logical_reference","tables":["solicitudes_devolucion","tenants"],"sql":"SELECT count(*) FROM public.solicitudes_devolucion s WHERE s.tenant_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.tenants t WHERE t.id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"solicitudes_devolucion.venta_id.logical_reference","tables":["solicitudes_devolucion","ventas"],"sql":"SELECT count(*) FROM public.solicitudes_devolucion s WHERE s.venta_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.ventas t WHERE t.id=s.venta_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"ventas.caja_id.logical_reference","tables":["ventas","cajas"],"sql":"SELECT count(*) FROM public.ventas s WHERE s.caja_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.cajas t WHERE t.id=s.caja_id AND t.tenant_id=s.tenant_id)","severity":"FAIL","description":"Referencia usada por backend ausente o cruzada entre empresas; no se inventa una FK adicional"}$contract$::jsonb),
+('data_checks', $contract${"name":"detalles_venta.tenant","tables":["detalles_venta","ventas","productos"],"sql":"SELECT count(*) FROM public.detalles_venta d JOIN public.ventas p ON p.id=d.venta_id JOIN public.productos x ON x.id=d.producto_id WHERE p.tenant_id IS DISTINCT FROM x.tenant_id","severity":"FAIL","description":"Producto del detalle pertenece a otra empresa que el documento"}$contract$::jsonb),
+('data_checks', $contract${"name":"detalles_cotizacion.tenant","tables":["detalles_cotizacion","cotizaciones","productos"],"sql":"SELECT count(*) FROM public.detalles_cotizacion d JOIN public.cotizaciones p ON p.id=d.cotizacion_id JOIN public.productos x ON x.id=d.producto_id WHERE p.tenant_id IS DISTINCT FROM x.tenant_id","severity":"FAIL","description":"Producto del detalle pertenece a otra empresa que el documento"}$contract$::jsonb),
+('data_checks', $contract${"name":"detalles_orden_compra.tenant","tables":["detalles_orden_compra","ordenes_compra","productos"],"sql":"SELECT count(*) FROM public.detalles_orden_compra d JOIN public.ordenes_compra p ON p.id=d.orden_id JOIN public.productos x ON x.id=d.producto_id WHERE p.tenant_id IS DISTINCT FROM x.tenant_id","severity":"FAIL","description":"Producto del detalle pertenece a otra empresa que el documento"}$contract$::jsonb),
+('data_checks', $contract${"name":"detalles_compra_proveedor.tenant","tables":["detalles_compra_proveedor","compras_proveedor","productos"],"sql":"SELECT count(*) FROM public.detalles_compra_proveedor d JOIN public.compras_proveedor p ON p.id=d.compra_id JOIN public.productos x ON x.id=d.producto_id WHERE p.tenant_id IS DISTINCT FROM x.tenant_id","severity":"FAIL","description":"Producto del detalle pertenece a otra empresa que el documento"}$contract$::jsonb);
+CREATE INDEX ON fs_contract(kind,(spec->>'tab'),(spec->>'name'));
+
+CREATE OR REPLACE FUNCTION pg_temp.fs_column(t text, n text) RETURNS jsonb
+LANGUAGE sql STABLE SET search_path=pg_catalog,public AS $fs$
+ SELECT jsonb_build_object('type',format_type(a.atttypid,a.atttypmod),'required',a.attnotnull,
+ 'def',pg_get_expr(d.adbin,d.adrelid,false),'identity',a.attidentity,'generated',a.attgenerated,
+ 'collation',co.collname,'collation_schema',cn.nspname)
+ FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
+ LEFT JOIN pg_collation co ON co.oid=a.attcollation LEFT JOIN pg_namespace cn ON cn.oid=co.collnamespace
+ WHERE a.attrelid=to_regclass(format('public.%I',t)) AND a.attname=n AND a.attnum>0 AND NOT a.attisdropped
+$fs$;
+
+CREATE OR REPLACE FUNCTION pg_temp.fs_compatible(t text) RETURNS boolean
+LANGUAGE sql STABLE AS $fs$
+ SELECT to_regclass(format('public.%I',t)) IS NOT NULL AND NOT EXISTS (
+ SELECT 1 FROM pg_temp.fs_contract WHERE kind='columns' AND spec->>'tab'=t
+ AND (pg_temp.fs_column(t,spec->>'name') IS NULL OR
+ pg_temp.fs_column(t,spec->>'name')->>'type' IS DISTINCT FROM spec->>'type'))
+$fs$;
+
+CREATE OR REPLACE FUNCTION pg_temp.fs_report(deep boolean DEFAULT true)
+RETURNS TABLE(status text, category text, object_name text, detail text)
+LANGUAGE plpgsql SET search_path=pg_catalog,public AS $fs$
+DECLARE e jsonb; a jsonb; r record; oid_ oid; actual text; keys_sql text; where_sql text;
+ join_sql text; count_ bigint; labels jsonb; compatible boolean; fn jsonb;
+BEGIN
+ category:='ENVIRONMENT';object_name:=current_database();status:=CASE WHEN current_setting('server_version_num')::integer>=150000 THEN 'PASS' ELSE 'FAIL' END;
+ detail:=format('PostgreSQL %s; rol=%s; ensayo de referencia en 18.3; no certifica permisos ni infraestructura Supabase',current_setting('server_version'),current_user);RETURN NEXT;
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='tables' LOOP
+  object_name:='public.'||(e->>'name'); category:='TABLE';
+  SELECT c.oid,c.relkind,c.relpersistence,c.relispartition INTO r FROM pg_class c WHERE c.oid=to_regclass(format('public.%I',e->>'name'));
+  status:=CASE WHEN r.oid IS NULL OR r.relkind<>'r' OR r.relpersistence<>'p' OR r.relispartition THEN 'FAIL' ELSE 'PASS' END;
+  detail:=CASE WHEN status='PASS' THEN 'Tabla permanente ordinaria' ELSE 'Ausente o clase/particionado incompatible' END; RETURN NEXT;
+  IF r.oid IS NOT NULL THEN
+   FOR actual IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon','authenticated') AND has_table_privilege(oid,r.oid,'SELECT,INSERT,UPDATE,DELETE') LOOP
+    category:='API_EXPOSURE';
+    SELECT c.relrowsecurity INTO compatible FROM pg_class c WHERE c.oid=r.oid;
+    status:=CASE WHEN compatible THEN 'WARNING' ELSE 'FAIL' END;
+    detail:=format('Rol %s tiene permisos de datos; RLS=%s. Revisar políticas y exposición PostgREST antes de abrir servicio.',actual,compatible);RETURN NEXT;
+   END LOOP;
+  END IF;
+ END LOOP;
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='columns' LOOP
+  object_name:=format('public.%s.%s',e->>'tab',e->>'name'); category:='COLUMN';
+  a:=pg_temp.fs_column(e->>'tab',e->>'name'); status:='PASS'; detail:='Tipo, precisión, nulabilidad, default y generación compatibles';
+  IF a IS NULL THEN status:='FAIL';detail:='Columna ausente';
+  ELSIF a->>'type' IS DISTINCT FROM e->>'type' OR a->>'required' IS DISTINCT FROM e->>'required'
+   OR a->>'identity'<>'' OR a->>'generated'<>'' OR a->>'collation' IS DISTINCT FROM e->>'collation'
+   OR (a->>'collation' IS NOT NULL AND a->>'collation_schema'<>'pg_catalog') THEN
+   status:='FAIL';detail:=format('Esperado type=%s not_null=%s collation=%s; actual=%s',e->>'type',e->>'required',e->>'collation',a);
+  ELSIF a->>'def' IS DISTINCT FROM e->>'def' THEN
+   IF e ? 'legacy_def' AND a->>'def' IS NOT DISTINCT FROM e->>'legacy_def' THEN
+    status:=CASE WHEN e->>'name'='permisos' THEN 'PASS' ELSE 'WARNING' END;
+    detail:='Default documentado en migraciones, distinto del DDL Prisma: '||coalesce(a->>'def','NULL');
+   ELSE status:='FAIL'; detail:=format('Default incompatible: esperado=%s actual=%s',coalesce(e->>'def','NULL'),coalesce(a->>'def','NULL')); END IF;
+  END IF;
+  RETURN NEXT;
+ END LOOP;
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='enums' LOOP
+  object_name:='public.'||(e->>'name');category:='ENUM';
+  SELECT t.oid,t.typtype INTO r FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typname=e->>'name';
+  SELECT coalesce(jsonb_agg(enumlabel ORDER BY enumsortorder),'[]') INTO labels FROM pg_enum WHERE enumtypid=r.oid;
+  status:=CASE WHEN r.oid IS NULL OR r.typtype<>'e' OR NOT labels @> (e->'labels') THEN 'FAIL' WHEN labels IS DISTINCT FROM e->'labels' THEN 'WARNING' ELSE 'PASS' END;
+  detail:=format('Esperado=%s actual=%s; etiquetas adicionales y diferencias de orden se conservan',e->'labels',labels); RETURN NEXT;
+ END LOOP;
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='indexes' LOOP
+  object_name:='public.'||(e->>'name');category:='INDEX';
+  SELECT pg_get_indexdef(i.indexrelid) AS def,i.indisvalid,i.indisready,i.indislive,i.indimmediate,i.indisprimary
+   INTO r FROM pg_index i WHERE i.indexrelid=to_regclass(format('public.%I',e->>'name'));
+  status:=CASE WHEN r.def IS NULL OR r.def IS DISTINCT FROM e->>'def' OR NOT (r.indisvalid AND r.indisready AND r.indislive AND r.indimmediate)
+   OR r.indisprimary IS DISTINCT FROM (e->>'primary')::boolean THEN 'FAIL' ELSE 'PASS' END;
+  detail:=CASE WHEN status='PASS' THEN 'Definición, tabla, orden, unicidad, predicado y estado correctos' ELSE format('Esperado=%s actual=%s valid=%s ready=%s',e->>'def',r.def,r.indisvalid,r.indisready) END;
+  RETURN NEXT;
+  IF deep AND (e->>'unique')::boolean AND pg_temp.fs_compatible(e->>'tab') THEN
+   SELECT string_agg(format('%I',v),', '),string_agg(format('%I IS NOT NULL',v),' AND ') INTO keys_sql,where_sql FROM jsonb_array_elements_text(e->'keys') v;
+   category:='DUPLICATES';
+   BEGIN
+    EXECUTE format('SELECT count(*) FROM (SELECT 1 FROM public.%I WHERE (%s) AND (%s) GROUP BY %s HAVING count(*)>1) d',e->>'tab',coalesce(e->>'predicate','true'),where_sql,keys_sql) INTO count_;
+    status:=CASE WHEN count_=0 THEN 'PASS' ELSE 'FAIL' END; detail:=format('%s grupos duplicados; no se muestran valores',count_);
+   EXCEPTION WHEN OTHERS THEN status:='FAIL';detail:='No se pudo comprobar unicidad; SQLSTATE='||SQLSTATE; END;
+   RETURN NEXT;
+  END IF;
+ END LOOP;
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='constraints' LOOP
+  object_name:=format('public.%s.%s',e->>'tab',e->>'name');category:='CONSTRAINT';
+  SELECT c.oid,regexp_replace(pg_get_constraintdef(c.oid,false),' NOT VALID$','') AS def,c.contype,c.convalidated,
+    coalesce((to_jsonb(c)->>'conenforced')::boolean,true) AS enforced INTO r
+    FROM pg_constraint c WHERE c.conrelid=to_regclass(format('public.%I',e->>'tab')) AND c.conname=e->>'name';
+  status:='PASS';detail:='Definición y validación correctas';
+  IF r.oid IS NULL OR r.contype IS DISTINCT FROM e->>'kind' OR NOT r.enforced THEN status:='FAIL';detail:='Ausente, clase incorrecta o no aplicada';
+  ELSIF r.def IS DISTINCT FROM e->>'def' THEN
+   IF e ? 'legacy_def' AND r.def=e->>'legacy_def' THEN status:='WARNING';detail:='FK histórica con ON UPDATE NO ACTION; Prisma espera CASCADE. Se conserva y se informa.';
+   ELSE status:='FAIL';detail:=format('Esperado=%s actual=%s',e->>'def',r.def); END IF;
+  END IF;
+  RETURN NEXT;
+  IF r.oid IS NOT NULL AND NOT r.convalidated THEN
+   category:='NOT_VALID';status:='WARNING';detail:=format('Validación pendiente: ALTER TABLE public.%I VALIDATE CONSTRAINT %I;',e->>'tab',e->>'name');RETURN NEXT;
+  END IF;
+  IF r.oid IS NOT NULL AND e->>'kind'='f' AND EXISTS(SELECT 1 FROM pg_trigger WHERE tgconstraint=r.oid AND tgenabled NOT IN ('O','A')) THEN
+   category:='FK_TRIGGER';status:='FAIL';detail:='Trigger interno FK deshabilitado o solo réplica';RETURN NEXT;
+  END IF;
+  IF deep AND e->>'kind' IN ('c','f') THEN
+   category:='INTEGRITY'; compatible:=pg_temp.fs_compatible(e->>'tab');
+   IF e->>'kind'='f' THEN compatible:=compatible AND pg_temp.fs_compatible(e->>'reftab'); END IF;
+   IF NOT compatible THEN status:='WARNING';detail:='Comprobación de datos omitida por estructura ausente/incompatible';RETURN NEXT;CONTINUE; END IF;
+   BEGIN
+    IF e->>'kind'='c' THEN
+     EXECUTE format('SELECT count(*) FROM public.%I WHERE (%s) IS FALSE',e->>'tab',e->>'expr') INTO count_;
+    ELSE
+     SELECT string_agg(format('s.%I IS NOT NULL',v),' AND ') INTO where_sql FROM jsonb_array_elements_text(e->'keys') v;
+     SELECT string_agg(format('s.%I=t.%I',s.v,t.v),' AND ') INTO join_sql
+      FROM jsonb_array_elements_text(e->'keys') WITH ORDINALITY s(v,n) JOIN jsonb_array_elements_text(e->'refkeys') WITH ORDINALITY t(v,n) USING(n);
+     EXECUTE format('SELECT count(*) FROM public.%I s WHERE %s AND NOT EXISTS (SELECT 1 FROM public.%I t WHERE %s)',e->>'tab',where_sql,e->>'reftab',join_sql) INTO count_;
+    END IF;
+    status:=CASE WHEN count_=0 THEN 'PASS' ELSE 'FAIL' END;detail:=format('%s filas violan la relación/CHECK esperado',count_);RETURN NEXT;
+    IF e->>'kind'='f' AND pg_temp.fs_column(e->>'tab','tenant_id') IS NOT NULL AND pg_temp.fs_column(e->>'reftab','tenant_id') IS NOT NULL THEN
+     category:='TENANT_INTEGRITY';
+     EXECUTE format('SELECT count(*) FROM public.%I s JOIN public.%I t ON %s WHERE s.tenant_id IS DISTINCT FROM t.tenant_id',e->>'tab',e->>'reftab',join_sql) INTO count_;
+     status:=CASE WHEN count_=0 THEN 'PASS' ELSE 'FAIL' END;detail:=format('%s relaciones cruzan empresas',count_); RETURN NEXT;
+    END IF;
+   EXCEPTION WHEN OTHERS THEN status:='FAIL';detail:='No se pudo auditar integridad; SQLSTATE='||SQLSTATE;RETURN NEXT; END;
+  END IF;
+ END LOOP;
+ FOR r IN SELECT c.relname,a.attname,a.attnotnull, d.oid AS default_oid,a.attidentity,a.attgenerated
+  FROM pg_class c JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped
+  LEFT JOIN pg_attrdef d ON d.adrelid=c.oid AND d.adnum=a.attnum
+  WHERE c.relnamespace='public'::regnamespace AND EXISTS(SELECT 1 FROM pg_temp.fs_contract WHERE kind='tables' AND spec->>'name'=c.relname)
+  AND NOT EXISTS(SELECT 1 FROM pg_temp.fs_contract WHERE kind='columns' AND spec->>'tab'=c.relname AND spec->>'name'=a.attname) LOOP
+  object_name:=format('public.%s.%s',r.relname,r.attname);category:='EXTRA_COLUMN';
+  status:=CASE WHEN r.attnotnull AND r.default_oid IS NULL AND r.attidentity='' AND r.attgenerated='' THEN 'FAIL' ELSE 'WARNING' END;
+  detail:='Columna ajena al contrato; si es requerida sin default bloquearía INSERT de Prisma';RETURN NEXT;
+ END LOOP;
+ FOR r IN SELECT t.relname,c.conname,c.convalidated FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid
+  WHERE t.relnamespace='public'::regnamespace AND c.contype IN ('f','c','u','p')
+  AND EXISTS(SELECT 1 FROM pg_temp.fs_contract WHERE kind='tables' AND spec->>'name'=t.relname)
+  AND NOT EXISTS(SELECT 1 FROM pg_temp.fs_contract WHERE kind='constraints' AND spec->>'tab'=t.relname AND spec->>'name'=c.conname) LOOP
+  object_name:=format('public.%s.%s',r.relname,r.conname);category:='EXTRA_CONSTRAINT';status:='WARNING';detail:='Restricción adicional conservada; validada='||r.convalidated;RETURN NEXT;
+ END LOOP;
+ FOR r IN SELECT a.indexname AS first_name,b.indexname AS second_name FROM pg_indexes a JOIN pg_indexes b ON a.schemaname=b.schemaname AND a.tablename=b.tablename AND a.indexname<b.indexname
+  WHERE a.schemaname='public' AND regexp_replace(a.indexdef,'INDEX .*? ON ','INDEX ON ')=regexp_replace(b.indexdef,'INDEX .*? ON ','INDEX ON ')
+  AND EXISTS(SELECT 1 FROM pg_temp.fs_contract WHERE kind='tables' AND spec->>'name'=a.tablename) LOOP
+  category:='DUPLICATE_INDEX';status:='WARNING';object_name:=r.first_name||' / '||r.second_name;detail:='Índices equivalentes, conservados';RETURN NEXT;
+ END LOOP;
+ SELECT spec INTO fn FROM pg_temp.fs_contract WHERE kind='function';
+ SELECT p.prosrc,p.prosecdef,p.provolatile,p.prorettype,p.pronargs,p.proconfig,l.lanname INTO r FROM pg_proc p JOIN pg_language l ON l.oid=p.prolang
+  WHERE p.oid=to_regprocedure('public.assign_customer_number()');
+ category:='FUNCTION';object_name:='public.assign_customer_number()';status:='PASS';detail:='Función de numeración conocida';
+ IF r.prosrc IS NULL OR r.prosecdef OR r.provolatile<>'v' OR r.lanname<>'plpgsql' OR r.prorettype<>'trigger'::regtype
+  OR r.proconfig IS DISTINCT FROM ARRAY['search_path=pg_catalog, public']
+  OR replace(r.prosrc,E'\r','') IS DISTINCT FROM replace(fn->>'body',E'\r','') THEN status:='FAIL';detail:='Función ausente o diferente del contrato vigente';END IF;RETURN NEXT;
+ SELECT t.tgtype,t.tgenabled,t.tgfoid,t.tgnargs,t.tgqual,t.tgconstraint,
+ ARRAY(SELECT attname::text FROM pg_attribute WHERE attrelid=t.tgrelid AND attnum=ANY(t.tgattr) ORDER BY attname) AS cols
+ INTO r FROM pg_trigger t WHERE t.tgrelid=to_regclass('public.clientes') AND t.tgname='clientes_assign_number' AND NOT t.tgisinternal;
+ category:='TRIGGER';object_name:='public.clientes.clientes_assign_number';status:='PASS';detail:='BEFORE INSERT/UPDATE, función y columnas correctas';
+ IF r.tgtype IS DISTINCT FROM 23 OR r.tgenabled NOT IN ('O','A') OR r.tgfoid IS DISTINCT FROM to_regprocedure('public.assign_customer_number()')
+  OR r.cols IS DISTINCT FROM ARRAY['numero_cliente','tenant_id'] OR r.tgnargs<>0 OR r.tgqual IS NOT NULL OR r.tgconstraint<>0 THEN status:='FAIL';detail:='Trigger ausente, deshabilitado o definición incompatible';END IF;RETURN NEXT;
+ IF deep THEN
+  FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='data_checks' LOOP
+   category:='DATA'; object_name:=e->>'name';
+   IF EXISTS(SELECT 1 FROM jsonb_array_elements_text(e->'tables') t WHERE NOT pg_temp.fs_compatible(t)) THEN status:='WARNING';detail:='Consulta omitida por estructura incompleta';RETURN NEXT;CONTINUE;END IF;
+   BEGIN EXECUTE e->>'sql' INTO count_;status:=CASE WHEN count_=0 THEN 'PASS' ELSE e->>'severity' END;detail:=format('%s filas/grupos: %s',count_,e->>'description');
+   EXCEPTION WHEN OTHERS THEN status:='FAIL';detail:='Consulta no ejecutable; SQLSTATE='||SQLSTATE;END;RETURN NEXT;
+  END LOOP;
+ END IF;
+END
+$fs$;
+
+DO $repair$
+DECLARE e jsonb; a jsonb; r record; fn jsonb; table_sql text; keys_sql text; filter_sql text;
+ actual text; has_rows boolean; bad boolean; count_ bigint; known boolean;
+BEGIN
+ IF to_regclass('public.clientes') IS NULL THEN RAISE EXCEPTION 'FS_REPAIR: clientes debe existir con su reparación previa; no se crean clientes'; END IF;
+ -- Serializar el ensayo de catálogo y datos con las escrituras: además pausar API/jobs.
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='tables' ORDER BY spec->>'name' LOOP
+  SELECT c.relkind,c.relpersistence,c.relispartition INTO r FROM pg_class c WHERE c.oid=to_regclass(format('public.%I',e->>'name'));
+  IF FOUND THEN
+   IF r.relkind<>'r' OR r.relpersistence<>'p' OR r.relispartition OR EXISTS(SELECT 1 FROM pg_inherits WHERE inhrelid=to_regclass(format('public.%I',e->>'name')) OR inhparent=to_regclass(format('public.%I',e->>'name'))) THEN
+    RAISE EXCEPTION 'FS_REPAIR: public.% no es una tabla ordinaria compatible',e->>'name';
+   END IF;
+   EXECUTE format('LOCK TABLE public.%I IN SHARE ROW EXCLUSIVE MODE',e->>'name');
+  END IF;
+ END LOOP;
+ IF pg_temp.fs_column('ventas','metodo_pago') IS NOT NULL AND
+   (pg_temp.fs_column('ventas','tipo_pago') IS NULL OR pg_temp.fs_column('ventas','saldo_credito') IS NULL) THEN
+  EXECUTE 'SELECT EXISTS(SELECT 1 FROM public.ventas WHERE metodo_pago::text=''CREDITO'')' INTO bad;
+  IF bad THEN RAISE EXCEPTION 'FS_REPAIR: existen ventas CREDITO sin campos de crédito; requiere conciliación, no se inventarán saldos'; END IF;
+ END IF;
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='tables' ORDER BY spec->>'name' LOOP
+  IF to_regclass(format('public.%I',e->>'name')) IS NULL THEN
+   SELECT string_agg(format('%I %s%s%s',spec->>'name',spec->>'type',
+      CASE WHEN (spec->>'required')::boolean THEN ' NOT NULL' ELSE '' END,
+      CASE WHEN spec->>'def' IS NOT NULL THEN ' DEFAULT '||(spec->>'def') ELSE '' END),', ' ORDER BY spec->>'name')
+    INTO table_sql FROM pg_temp.fs_contract WHERE kind='columns' AND spec->>'tab'=e->>'name';
+   EXECUTE format('CREATE TABLE public.%I (%s)',e->>'name',table_sql);
+  END IF;
+ END LOOP;
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='columns' ORDER BY spec->>'tab',spec->>'name' LOOP
+  a:=pg_temp.fs_column(e->>'tab',e->>'name');
+  IF a IS NULL THEN
+   IF e->>'tab'='clientes' AND e->>'name'<>'lista_precio_id' THEN
+    RAISE EXCEPTION 'FS_REPAIR: falta clientes.%; no se recrean las columnas reparadas ni se asignan datos de cliente',e->>'name';
+   END IF;
+   IF (e->>'required')::boolean AND e->>'def' IS NULL THEN
+    EXECUTE format('SELECT EXISTS(SELECT 1 FROM public.%I)',e->>'tab') INTO has_rows;
+    IF has_rows THEN RAISE EXCEPTION 'FS_REPAIR: %.% requerido sin default sobre tabla con datos; necesita decisión de datos',e->>'tab',e->>'name';END IF;
+   END IF;
+   EXECUTE format('ALTER TABLE public.%I ADD COLUMN %I %s%s%s',e->>'tab',e->>'name',e->>'type',
+    CASE WHEN (e->>'required')::boolean THEN ' NOT NULL' ELSE '' END,
+    CASE WHEN e->>'def' IS NOT NULL THEN ' DEFAULT '||(e->>'def') ELSE '' END);
+   a:=pg_temp.fs_column(e->>'tab',e->>'name');
+  END IF;
+  IF a->>'type' IS DISTINCT FROM e->>'type' THEN
+   IF e->>'tab'='productos' AND e->>'name' IN ('stock_actual','stock_minimo') AND a->>'type' IN ('smallint','integer','bigint') AND e->>'type'='numeric(12,2)' THEN
+    EXECUTE format('SELECT EXISTS(SELECT 1 FROM public.productos WHERE %I::numeric NOT BETWEEN -9999999999.99 AND 9999999999.99)',e->>'name') INTO bad;
+    IF bad THEN RAISE EXCEPTION 'FS_REPAIR: productos.% fuera del rango numeric(12,2); conversión cancelada',e->>'name';END IF;
+    EXECUTE format('ALTER TABLE public.productos ALTER COLUMN %I TYPE numeric(12,2) USING %I::numeric(12,2)',e->>'name',e->>'name');
+    a:=pg_temp.fs_column(e->>'tab',e->>'name');
+   ELSE RAISE EXCEPTION 'FS_REPAIR: tipo incompatible %.%: actual %, esperado %. No se convierte automáticamente',e->>'tab',e->>'name',a->>'type',e->>'type';END IF;
+  END IF;
+  IF a->>'identity'<>'' OR a->>'generated'<>'' OR a->>'collation' IS DISTINCT FROM e->>'collation'
+    OR (a->>'collation' IS NOT NULL AND a->>'collation_schema'<>'pg_catalog') THEN
+   RAISE EXCEPTION 'FS_REPAIR: identidad/generación/collation incompatible en %.%',e->>'tab',e->>'name';END IF;
+  IF a->>'required' IS DISTINCT FROM e->>'required' THEN
+   IF (e->>'required')::boolean THEN
+    EXECUTE format('SELECT EXISTS(SELECT 1 FROM public.%I WHERE %I IS NULL)',e->>'tab',e->>'name') INTO bad;
+    IF bad THEN RAISE EXCEPTION 'FS_REPAIR: %.% contiene NULL, Prisma/migraciones requieren NOT NULL',e->>'tab',e->>'name';END IF;
+    EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I SET NOT NULL',e->>'tab',e->>'name');
+   ELSE RAISE EXCEPTION 'FS_REPAIR: %.% tiene NOT NULL inesperado; no se retira sin revisar el contrato existente',e->>'tab',e->>'name';END IF;
+  END IF;
+  IF a->>'def' IS DISTINCT FROM e->>'def' THEN
+   IF e ? 'legacy_def' AND a->>'def' IS NOT DISTINCT FROM e->>'legacy_def' THEN
+    RAISE NOTICE 'FS_REPAIR: default histórico conservado %.%',e->>'tab',e->>'name';
+   ELSIF a->>'def' IS NULL AND e->>'def' IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I SET DEFAULT %s',e->>'tab',e->>'name',e->>'def');
+   ELSE RAISE EXCEPTION 'FS_REPAIR: default incompatible %.%: actual %, esperado %',e->>'tab',e->>'name',a->>'def',e->>'def';END IF;
+  END IF;
+ END LOOP;
+ -- Comprobar duplicados de TODAS las claves antes de crear PKs o índices únicos.
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='indexes' AND (spec->>'unique')::boolean LOOP
+  SELECT string_agg(format('%I',v),', '),string_agg(format('%I IS NOT NULL',v),' AND ')
+   INTO keys_sql,filter_sql FROM jsonb_array_elements_text(e->'keys') v;
+  EXECUTE format('SELECT EXISTS(SELECT 1 FROM public.%I WHERE (%s) AND (%s) GROUP BY %s HAVING count(*)>1)',e->>'tab',coalesce(e->>'predicate','true'),filter_sql,keys_sql) INTO bad;
+  IF bad THEN RAISE EXCEPTION 'FS_REPAIR: duplicados para índice % sobre %. No se eliminan ni fusionan filas',e->>'name',e->>'tab';END IF;
+ END LOOP;
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='constraints' AND spec->>'kind'='p' LOOP
+  SELECT c.conname,pg_get_constraintdef(c.oid,false) AS def INTO r FROM pg_constraint c
+   WHERE c.conrelid=to_regclass(format('public.%I',e->>'tab')) AND c.contype='p';
+  IF NOT FOUND THEN EXECUTE format('ALTER TABLE public.%I ADD CONSTRAINT %I %s',e->>'tab',e->>'name',e->>'def');
+  ELSIF r.conname<>e->>'name' OR r.def<>e->>'def' THEN RAISE EXCEPTION 'FS_REPAIR: PK incompatible en %: %',e->>'tab',r.conname;END IF;
+ END LOOP;
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='indexes' LOOP
+  SELECT pg_get_indexdef(i.indexrelid) AS def,i.indisvalid,i.indisready,i.indislive,i.indimmediate,i.indisprimary INTO r
+   FROM pg_index i WHERE i.indexrelid=to_regclass(format('public.%I',e->>'name'));
+  IF FOUND THEN
+   IF r.def IS DISTINCT FROM e->>'def' OR NOT (r.indisvalid AND r.indisready AND r.indislive AND r.indimmediate)
+      OR r.indisprimary IS DISTINCT FROM (e->>'primary')::boolean THEN
+    RAISE EXCEPTION 'FS_REPAIR: índice % existe con definición/estado incompatible. Esperado %, actual %',e->>'name',e->>'def',r.def;END IF;
+  ELSE
+   IF to_regclass(format('public.%I',e->>'name')) IS NOT NULL THEN RAISE EXCEPTION 'FS_REPAIR: nombre % ocupado por otro objeto',e->>'name';END IF;
+   SELECT indexname INTO actual FROM pg_indexes WHERE schemaname='public' AND tablename=e->>'tab'
+    AND regexp_replace(indexdef,'INDEX .*? ON ','INDEX ON ')=regexp_replace(e->>'def','INDEX .*? ON ','INDEX ON ') LIMIT 1;
+   IF FOUND THEN RAISE EXCEPTION 'FS_REPAIR: índice equivalente % tiene otro nombre; revisar/renombrar antes de crear %',actual,e->>'name';END IF;
+   EXECUTE e->>'def';
+  END IF;
+ END LOOP;
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='constraints' AND spec->>'kind'<>'p' LOOP
+  SELECT regexp_replace(pg_get_constraintdef(c.oid,false),' NOT VALID$','') AS def,coalesce((to_jsonb(c)->>'conenforced')::boolean,true) AS enforced INTO r
+    FROM pg_constraint c WHERE c.conrelid=to_regclass(format('public.%I',e->>'tab')) AND c.conname=e->>'name';
+  IF FOUND THEN
+   IF NOT r.enforced OR (r.def IS DISTINCT FROM e->>'def' AND NOT (e ? 'legacy_def' AND r.def=e->>'legacy_def')) THEN
+    RAISE EXCEPTION 'FS_REPAIR: restricción %.% incompatible: %',e->>'tab',e->>'name',r.def;
+   ELSIF r.def IS DISTINCT FROM e->>'def' THEN RAISE NOTICE 'FS_REPAIR: FK histórica %.% conservada (ON UPDATE NO ACTION)',e->>'tab',e->>'name';END IF;
+  ELSE EXECUTE format('ALTER TABLE public.%I ADD CONSTRAINT %I %s%s',e->>'tab',e->>'name',e->>'def',CASE WHEN e->>'kind' IN ('f','c') THEN ' NOT VALID' ELSE '' END);END IF;
+ END LOOP;
+ -- Solo se sustituye una función cuya fuente coincide con una versión conocida del repositorio.
+ SELECT spec INTO fn FROM pg_temp.fs_contract WHERE kind='function';
+ SELECT p.prosrc,p.prosecdef,l.lanname,p.provolatile,p.prorettype INTO r FROM pg_proc p JOIN pg_language l ON l.oid=p.prolang WHERE p.oid=to_regprocedure('public.assign_customer_number()');
+ IF FOUND THEN
+  SELECT EXISTS(SELECT 1 FROM jsonb_array_elements_text(fn->'knownBodies') b WHERE replace(b,E'\r','')=replace(r.prosrc,E'\r','')) INTO known;
+  IF NOT known OR r.prosecdef OR r.lanname<>'plpgsql' OR r.provolatile<>'v' OR r.prorettype<>'trigger'::regtype THEN RAISE EXCEPTION 'FS_REPAIR: assign_customer_number() desconocida; no se sobrescribe';END IF;
+ END IF;
+ EXECUTE fn->>'ddl';
+ IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='public.clientes'::regclass AND tgname='clientes_assign_number' AND NOT tgisinternal) THEN
+  CREATE TRIGGER clientes_assign_number BEFORE INSERT OR UPDATE OF numero_cliente,tenant_id ON public.clientes FOR EACH ROW EXECUTE FUNCTION public.assign_customer_number();
+ END IF;
+ -- Contadores: avanzar al máximo observado, nunca reducir, renumerar ni modificar documentos.
+ -- No es posible reconstruir números de documentos eliminados si también desapareció su contador.
+ IF EXISTS(SELECT 1 FROM public.clientes WHERE numero_cliente<=0 OR codigo IS NULL OR btrim(codigo)='') THEN RAISE EXCEPTION 'FS_REPAIR: clientes con número/código inválido; no se renumeran';END IF;
+ IF EXISTS(SELECT 1 FROM public.clientes WHERE numero_cliente>=999999 OR (codigo ~ '^CLI-[0-9]+$' AND substring(codigo FROM 5)::numeric>=999999))
+ OR EXISTS(SELECT 1 FROM public.secuencias_cliente WHERE ultimo_numero>=999999) THEN RAISE EXCEPTION 'FS_REPAIR: contador CLI alcanza límite de LPAD(6); requiere cambio de contrato antes de avanzar';END IF;
+ INSERT INTO public.secuencias_cliente(tenant_id,ultimo_numero)
+ SELECT tenant_id,GREATEST(MAX(numero_cliente),COALESCE(MAX(CASE WHEN codigo ~ '^CLI-[0-9]+$' THEN substring(codigo FROM 5)::integer END),0)) FROM public.clientes GROUP BY tenant_id
+ ON CONFLICT(tenant_id) DO UPDATE SET ultimo_numero=EXCLUDED.ultimo_numero WHERE public.secuencias_cliente.ultimo_numero<EXCLUDED.ultimo_numero;
+ GET DIAGNOSTICS count_=ROW_COUNT;
+ IF count_>0 THEN RAISE WARNING 'FS_REPAIR: % contadores cliente creados/avanzados al máximo visible. Si se borraron números mayores, contrastar con respaldo; no pueden inferirse',count_;END IF;
+ INSERT INTO public.secuencias_tenant(id,tenant_id,tipo,ultimo_numero)
+ SELECT gen_random_uuid()::text,tenant_id,tipo,ultimo FROM (
+ SELECT tenant_id,'VENTA'::public."TipoSecuencia" AS tipo,MAX(numero_venta) AS ultimo FROM public.ventas GROUP BY tenant_id
+ UNION ALL SELECT tenant_id,'COTIZACION'::public."TipoSecuencia",MAX(numero_cotizacion) FROM public.cotizaciones GROUP BY tenant_id) s
+ ON CONFLICT(tenant_id,tipo) DO UPDATE SET ultimo_numero=EXCLUDED.ultimo_numero WHERE public.secuencias_tenant.ultimo_numero<EXCLUDED.ultimo_numero;
+ GET DIAGNOSTICS count_=ROW_COUNT;
+ IF count_>0 THEN RAISE WARNING 'FS_REPAIR: % contadores documentales creados/avanzados al máximo visible. Conservar cualquier contador mayor documentado fuera de esta base',count_;END IF;
+ -- No UPDATE de costo vigente, saldos, ventas, clientes o movimientos: solo estructura y contadores.
+ CREATE TEMP TABLE fs_precheck ON COMMIT DROP AS SELECT * FROM pg_temp.fs_report(true);
+ SELECT string_agg(object_name||': '||detail,E'\n') INTO actual FROM (SELECT * FROM pg_temp.fs_precheck WHERE status='FAIL' LIMIT 15) failures;
+ IF actual IS NOT NULL THEN RAISE EXCEPTION 'FS_REPAIR: auditoría bloqueante; se revierte toda la fase estructural:%',E'\n'||actual;END IF;
+ -- Datos limpios: completar la validación en esta misma transacción. Nunca ignorar huérfanos/CHECKs.
+ FOR e IN SELECT spec FROM pg_temp.fs_contract WHERE kind='constraints' AND spec->>'kind' IN ('f','c') LOOP
+  EXECUTE format('ALTER TABLE public.%I VALIDATE CONSTRAINT %I',e->>'tab',e->>'name');
+ END LOOP;
+END
+$repair$;
+
+CREATE TEMP TABLE fs_results ON COMMIT DROP AS SELECT * FROM pg_temp.fs_report(false) UNION ALL SELECT * FROM pg_temp.fs_precheck WHERE category IN ('DATA','INTEGRITY','TENANT_INTEGRITY','DUPLICATES');
+SELECT CASE WHEN count(*) FILTER(WHERE status='FAIL')>0 THEN 'FAIL' WHEN count(*) FILTER(WHERE status='WARNING')>0 THEN 'WARNING' ELSE 'PASS' END AS status,
+ 'SUMMARY' AS category,'FerreSystem' AS object_name,format('PASS=%s WARNING=%s FAIL=%s',count(*) FILTER(WHERE status='PASS'),count(*) FILTER(WHERE status='WARNING'),count(*) FILTER(WHERE status='FAIL')) AS detail FROM pg_temp.fs_results
+UNION ALL SELECT status,category,object_name,detail FROM pg_temp.fs_results ORDER BY category,object_name;
+COMMIT;

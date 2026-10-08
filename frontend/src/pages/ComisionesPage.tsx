@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Calendar } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
@@ -20,29 +20,47 @@ export const ComisionesPage: React.FC = () => {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [ventas, setVentas] = useState<any[]>([]);
   const [porcentajes, setPorcentajes] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const today = new Date();
+  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const [fechaInicio, setFechaInicio] = useState(`${currentMonth}-01`);
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const [fechaFin, setFechaFin] = useState(`${currentMonth}-${String(monthEnd).padStart(2, '0')}`);
 
-  const [fechaInicio, setFechaInicio] = useState('2026-03-01');
-  const [fechaFin, setFechaFin] = useState('2026-03-31');
-
-  React.useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [resUsers, resVentas] = await Promise.all([
-          api.get('/usuarios'),
-          api.get('/ventas'),
-        ]);
-        if (Array.isArray(resUsers.data)) {
-          setUsuarios(resUsers.data);
-        }
-        if (Array.isArray(resVentas.data)) {
-          setVentas(resVentas.data);
-        }
-      } catch (err) {
-        console.error('Error al cargar datos para comisiones:', err);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const [resUsers, firstSalesPage] = await Promise.all([
+        api.get('/usuarios'),
+        api.get('/ventas', { params: { limit: 500, page: 0 } }),
+      ]);
+      if (!Array.isArray(resUsers.data) || !Array.isArray(firstSalesPage.data)) {
+        throw new Error('Respuesta inválida al cargar datos de comisiones');
       }
-    };
-    fetchData();
+      const allSales = [...firstSalesPage.data];
+      let page = 1;
+      while (firstSalesPage.data.length === 500) {
+        const nextPage = await api.get('/ventas', { params: { limit: 500, page } });
+        if (!Array.isArray(nextPage.data)) throw new Error('Respuesta inválida al cargar ventas');
+        allSales.push(...nextPage.data);
+        if (nextPage.data.length < 500) break;
+        page += 1;
+      }
+      setUsuarios(resUsers.data);
+      setVentas(allSales);
+    } catch (err) {
+      console.error('Error al cargar datos para comisiones:', err);
+      setUsuarios([]);
+      setVentas([]);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  React.useEffect(() => { void fetchData(); }, [fetchData]);
 
   const vendedores = usuarios.filter((u) => {
     const rol = u.rolBase || u.rol;
@@ -53,12 +71,15 @@ export const ComisionesPage: React.FC = () => {
     const num = parseFloat(val) || 0;
     setPorcentajes({ ...porcentajes, [userId]: num });
   };
+  const invalidDateRange = fechaInicio > fechaFin;
 
   return (
     <div style={styles.container}>
       <TopBar title={t('commissions.title')} subtitle={t('commissions.subtitle')} />
 
       <main style={styles.content}>
+        {loadError && <div role="alert" className="operation-error">{t('common.load_error')} <button type="button" className="btn btn-secondary" onClick={() => void fetchData()}>{t('common.retry')}</button></div>}
+        {loading && <p role="status">{t('common.loading')}</p>}
         {/* Filtro por Fecha */}
         <div className="industrial-card" style={{ padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -72,7 +93,8 @@ export const ComisionesPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="table-container">
+        {invalidDateRange && <p role="alert" className="operation-error">{t('common.invalid_date_range')}</p>}
+        {!loading && !loadError && !invalidDateRange && <div className="table-container">
           <table className="industrial-table">
             <thead>
               <tr>
@@ -89,18 +111,18 @@ export const ComisionesPage: React.FC = () => {
 
                 // Filtrar ventas reales por usuario y rango de fechas
                 const ventasFiltradasUser = ventas.filter((v) => {
-                  if (!v.fecha) return false;
-                  const fechaVentaStr = v.fecha.split('T')[0];
+                  const timestamp = v.createdAt || v.created_at;
+                  if (!timestamp || !v.usuarioId) return false;
+                  const fechaVenta = new Date(timestamp);
+                  if (Number.isNaN(fechaVenta.getTime())) return false;
+                  const fechaVentaStr = `${fechaVenta.getFullYear()}-${String(fechaVenta.getMonth() + 1).padStart(2, '0')}-${String(fechaVenta.getDate()).padStart(2, '0')}`;
                   const esFechaValida = fechaVentaStr >= fechaInicio && fechaVentaStr <= fechaFin;
-
-                  const esMismoUsuario =
-                    v.vendedorNombre &&
-                    v.vendedorNombre.toLowerCase().includes(u.nombre.toLowerCase().split(' ')[0]);
+                  const esMismoUsuario = v.usuarioId === u.id;
 
                   return esFechaValida && esMismoUsuario;
                 });
 
-                const totalVendidoPeriodo = ventasFiltradasUser.reduce((acc, v) => acc + v.total, 0);
+                const totalVendidoPeriodo = ventasFiltradasUser.reduce((acc, v) => acc + Number(v.total || 0), 0);
                 const comisionPagar = (totalVendidoPeriodo * pct) / 100;
 
                 return (
@@ -129,7 +151,7 @@ export const ComisionesPage: React.FC = () => {
               })}
             </tbody>
           </table>
-        </div>
+        </div>}
       </main>
     </div>
   );

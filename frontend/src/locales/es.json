@@ -82,6 +82,10 @@
     "export_csv": "EXPORTAR CSV"
   },
   "common": {
+    "close": "Cerrar",
+    "load_error": "No se pudieron cargar los datos. Inténtalo de nuevo.",
+    "loading": "Cargando…",
+    "invalid_date_range": "La fecha inicial debe ser anterior o igual a la fecha final.",
     "save": "Guardar",
     "cancel": "Cancelar",
     "accept": "Aceptar",
@@ -104,6 +108,9 @@
     "quantity": "CANTIDAD",
     "description": "DESCRIPCIÓN",
     "all": "TODAS"
+  },
+  "clients": {
+    "new_client": "Nuevo cliente"
   },
   "dashboard": {
     "title": "RESUMEN OPERATIVO",
