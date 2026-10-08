@@ -144,8 +144,6 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 
 ## 8. Bitácora resumida
 
-| 2026-10-08 / consolidación documental | Tres auditorías Jules incorporadas a registro único 8A; hallazgos sin cerrar automáticamente; retiro de dos QA raíz duplicados | Commit documental en main; sin pruebas nuevas, migraciones ni cambios de aplicación. |
-
 
 | Fecha / etapa | Cambio | Referencia / límite |
 | --- | --- | --- |
@@ -158,6 +156,7 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 | 2026-10-07 / Codex | Análisis previo a pruebas; E01 cerrado por merge comprobado y E15 añadido por seed contra sitio publicado y workflow de ejemplos | Base/HEAD `4719e526`, main remoto igual, checkout inicialmente limpio; GitHub confirma #64 fusionado y ningún PR abierto. Lectura de configuraciones, workflows y pruebas; sin ejecución de suites ni acceso a producción. `gh` no disponible; consultas mediante conector GitHub. Pendientes E02–E15 según tabla; solo actualización documental, sin commit/push. |
 
 | 2026-10-07 / Codex, acceso web autorizado | Login mediante navegador en sitio publicado; panel administrativo visible. Avisos: resumen no pudo cargar y respaldos automáticos no configurados para consulta en ese servidor | Sin altas, ventas ni cambios de configuración. Versión desplegada no comprobada; HEAD local de referencia `4719e526`. E03/E05 siguen pendientes. |
+| 2026-10-08 / consolidación documental | Tres auditorías Jules integradas en registro único 8A; sin cierre automático de hallazgos | Solo documentación en main; no pruebas nuevas, migraciones ni cambios de aplicación. |
 
 ## 8A. Registro único de bitácora y hallazgos QA — 2026-10-08
 
