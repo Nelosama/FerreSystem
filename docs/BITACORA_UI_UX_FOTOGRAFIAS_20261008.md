@@ -69,7 +69,14 @@ Estado: requisitos y propuestas aprobadas conceptualmente; **NO implementados ni
 5. Integrar fotos opcionales en levantamiento, ficha de producto y POS en escritorio y móvil.
 6. Implementar rediseño híbrido aprobado, por fases y con QA por rol/dispositivo.
 
-## 9. Estado y límites
+## 9. Decisión posterior: POS moderno seleccionado
+- El usuario **prefiere la propuesta moderna del POS de Lovable** (naranja y blanco con menú lateral oscuro) como referencia visual principal para el POS de escritorio.
+- Mantener carrito siempre visible, botón Cobrar destacado, búsqueda/escaneo accesible, categorías rápidas y fotografías opcionales.
+- No copiar literalmente el mockup: optimizar escáner y teclado, densidad del catálogo, permisos y coherencia de cálculos; conservar la opción TOPNAV/SIDEBAR cuando corresponda.
+- Esta preferencia visual no significa que se haya aprobado un rediseño final ni que exista implementación.
+- La versión móvil sigue siendo principalmente administrativa; POS móvil secundario para emergencias.
+
+## 10. Estado y límites
 - **Decisiones de producto:** definidas en conversación; pendientes de desarrollo.
 - **Mockups Lovable:** referencias visuales, no pruebas de funcionamiento.
 - **Repositorio:** esta bitácora documenta decisiones; no cambia frontend, backend, Prisma ni infraestructura.
