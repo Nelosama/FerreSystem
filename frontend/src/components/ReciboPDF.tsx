@@ -9,6 +9,7 @@ import {
   pdf,
 } from '@react-pdf/renderer';
 import type { TenantInfo } from '../types';
+import { formatDateHN, formatDateOnlyHN } from '../utils/format';
 
 export interface ReciboPDFItem {
   codigo?: string;
@@ -261,7 +262,7 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
     },
   });
 
-  const formattedDate = fechaEmision || new Date().toLocaleDateString('es-HN');
+  const formattedDate = fechaEmision ? formatDateHN(fechaEmision) : formatDateHN(new Date());
 
   return (
     <Document title={`${tipo === 'VENTA' ? 'Venta' : 'Cotizacion'}-${numeroDocumento}`}>
@@ -299,7 +300,7 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
             <Text style={styles.docMeta}>Fecha: {formattedDate}</Text>
             {tipo === 'COTIZACION' && fechaValidez ? (
               <Text style={{ ...styles.docMeta, color: primaryColor, fontFamily: 'Helvetica-Bold' }}>
-                Válida hasta: {fechaValidez}
+                Válida hasta: {formatDateOnlyHN(fechaValidez)}
               </Text>
             ) : null}
           </View>

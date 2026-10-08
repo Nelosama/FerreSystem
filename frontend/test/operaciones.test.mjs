@@ -47,7 +47,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     '../context/I18nContext': { useI18n: () => ({ t, locale: 'en' }) },
     '../context/NotificationContext': { useNotification: () => ({ solicitudes: [], solicitarDescuento() {} }) },
     '../hooks/useRubroConfig': { useRubroConfig: () => ({ categoriasDefault: ['General'], unidadesMedida: ['unidad', 'galón'], activarVencimientos: false, activarGarantiaSerie: false }) },
-    '../utils/format': { formatLempiras: String },
+    '../utils/format': { formatLempiras: String, formatDateHN: String, formatDateOnlyHN: String },
     '../utils/api': { api: { get: async () => ({ data: {} }) } },
     '../utils/sessionSync': { startSessionSync: () => () => {} },
     ...overrides,

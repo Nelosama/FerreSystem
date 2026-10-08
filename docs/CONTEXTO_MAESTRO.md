@@ -172,7 +172,7 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 | FUNC-003 | P1 | **Pendiente de verificar** | Apartados/garantías/listas/pedidos/transferencias con persistencia local | — |
 | FUNC-004 | P2 | **Pendiente de verificar** | Búsqueda cliente con guiones/minúsculas | — |
 | FUNC-005 | P2 | **Pendiente de verificar** | Reset de filtros cotizaciones | — |
-| FUNC-006 | P2 | **Pendiente de verificar** | Fechas inconsistentes en PDF cotización | — |
+| FUNC-006 | P2 | **Resuelto** | Fechas inconsistentes en PDF cotización | Agregadas funciones `formatDateHN` (zona horaria `America/Tegucigalpa` para timestamp) y `formatDateOnlyHN` (`UTC` para `fechaValidez` de solo fecha) en `frontend/src/utils/format.ts`, actualizados `CotizacionesPage.tsx` y `ReciboPDF.tsx`, y creado test unitario `frontend/test/quotation-dates.test.mjs`. |
 | SOS-001 | P1 | **Pendiente de verificar** | Concurrencia último stock y manejo de recuperación POS; rechazo de stock insuficiente puede ser correcto | — |
 | SOS-002 | P1 | **Pendiente de verificar** | Devolución parcial a crédito y saldos | — |
 | REQ-001 | Decisión negocio | **Pendiente de verificar** | Aprobación remota de descuentos; no aprobada automáticamente | — |

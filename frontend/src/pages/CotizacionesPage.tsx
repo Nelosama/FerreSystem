@@ -23,7 +23,7 @@ import {
   PackageCheck,
   Download,
 } from 'lucide-react';
-import { formatLempiras } from '../utils/format';
+import { formatLempiras, formatDateHN, formatDateOnlyHN } from '../utils/format';
 import { useI18n } from '../context/I18nContext';
 import { descargarReciboPDF } from '../components/ReciboPDF';
 import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
@@ -53,8 +53,8 @@ export const CotizacionesPage: React.FC = () => {
         email: c.clienteEmail || c.cliente?.email || '',
         direccion: c.clienteDireccion || c.cliente?.direccion || '',
         usuarioNombre: c.usuarioNombre || c.usuario?.nombre || 'Atención en Tienda',
-        fechaEmision: new Date(c.createdAt).toLocaleDateString('es-HN'),
-        fechaValidez: new Date(c.fechaValidez).toLocaleDateString('es-HN'),
+        fechaEmision: formatDateHN(c.createdAt),
+        fechaValidez: formatDateOnlyHN(c.fechaValidez),
         diasValidez: c.diasValidez,
         condicionesPago: c.condicionesPago,
         subtotal: Number(c.subtotal),
