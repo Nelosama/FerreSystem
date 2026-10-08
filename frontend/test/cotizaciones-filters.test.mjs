@@ -1,40 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
 
-// Helper function mirroring the exact filtering logic from CotizacionesPage.tsx
-function filterCotizaciones(cotizaciones, filterEstado, searchTerm, sortBy = 'RECIENTE') {
-  return cotizaciones
-    .filter((c) => {
-      if (filterEstado !== 'TODOS') {
-        if (filterEstado === 'ENVIADA' || filterEstado === 'EMITIDA') {
-          if (c.estado !== 'ENVIADA' && c.estado !== 'EMITIDA') {
-            return false;
-          }
-        } else if (c.estado !== filterEstado) {
-          return false;
-        }
-      }
+const loadHelper = () => {
+  const exports = {};
+  const source = fs.readFileSync('frontend/src/utils/cotizacionesFilters.ts', 'utf8');
+  const code = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true },
+  }).outputText;
+  vm.runInNewContext(code, { exports });
+  return exports;
+};
 
-      const q = searchTerm.trim().toLowerCase();
-      if (q) {
-        const numStr = `cot-${c.numero.toString().padStart(4, '0')}`.toLowerCase();
-        const matchNum = numStr.includes(q) || c.numero.toString().includes(q);
-        const matchCliente = c.cliente?.toLowerCase().includes(q) ?? false;
-        const matchRtn = c.rtn?.toLowerCase().includes(q) ?? false;
-        const matchVendedor = c.usuarioNombre?.toLowerCase().includes(q) ?? false;
-
-        return matchNum || matchCliente || matchRtn || matchVendedor;
-      }
-
-      return true;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'RECIENTE') {
-        return b.numero - a.numero;
-      }
-      return a.numero - b.numero;
-    });
-}
+const { filterCotizaciones } = loadHelper();
 
 const mockCotizaciones = [
   { id: '1', numero: 1, cliente: 'Constructora del Norte', rtn: '08011990123456', usuarioNombre: 'Carlos Vendedor', estado: 'BORRADOR', total: 1500 },
@@ -45,7 +25,7 @@ const mockCotizaciones = [
 ];
 
 test('Búsqueda por texto (cliente, RTN, número, vendedor)', () => {
-  // Buscar por nombre de cliente con espacios/mayúsculas
+  // Buscar por nombre de cliente con espacios y mayúsculas
   const resCliente = filterCotizaciones(mockCotizaciones, 'TODOS', '  constructora ');
   assert.equal(resCliente.length, 1);
   assert.equal(resCliente[0].id, '1');
@@ -55,7 +35,7 @@ test('Búsqueda por texto (cliente, RTN, número, vendedor)', () => {
   assert.equal(resRtn.length, 1);
   assert.equal(resRtn[0].id, '2');
 
-  // Buscar por número ("COT-0003")
+  // Buscar por número ("cot-0003")
   const resNum = filterCotizaciones(mockCotizaciones, 'TODOS', 'cot-0003');
   assert.equal(resNum.length, 1);
   assert.equal(resNum[0].id, '3');

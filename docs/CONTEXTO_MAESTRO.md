@@ -171,7 +171,7 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 | FUNC-002 | P0 | **Pendiente de verificar** | POS crédito: ClientePicker no conserva clienteId | — |
 | FUNC-003 | P1 | **Pendiente de verificar** | Apartados/garantías/listas/pedidos/transferencias con persistencia local | — |
 | FUNC-004 | P2 | **Pendiente de verificar** | Búsqueda cliente con guiones/minúsculas | — |
-| FUNC-005 | P2 | **Resuelto** | Reset de filtros cotizaciones | Rama `fix/func-005-filtros-cotizaciones`. Normalización `searchTerm.trim().toLowerCase()`, soporte alias `EMITIDA`/`ENVIADA`, acceso seguro a propiedades y test de regresión `frontend/test/cotizaciones-filters.test.mjs` (81 subtests pasados). |
+| FUNC-005 | P2 | **Resuelto** | Reset de filtros cotizaciones | Rama `fix/func-005-filtros-cotizaciones`. Extracción de función pura `filterCotizaciones` en `frontend/src/utils/cotizacionesFilters.ts`, reutilizada en `CotizacionesPage.tsx` y testeada en `frontend/test/cotizaciones-filters.test.mjs` (81 unit subtests y 54 browser e2e tests pasados). |
 | FUNC-006 | P2 | **Pendiente de verificar** | Fechas inconsistentes en PDF cotización | — |
 | SOS-001 | P1 | **Pendiente de verificar** | Concurrencia último stock y manejo de recuperación POS; rechazo de stock insuficiente puede ser correcto | — |
 | SOS-002 | P1 | **Pendiente de verificar** | Devolución parcial a crédito y saldos | — |
