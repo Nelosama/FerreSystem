@@ -36,7 +36,7 @@ export class LevantamientosService {
    }
   }
   this.editable(l);
-  const item=await tx.levantamientoItem.create({data:{...data,...(solicitudId?{id:solicitudId}:{}),descripcion:text(dto.descripcion,'Descripción'),codigo:dto.codigo?.trim().toUpperCase()||null,levantamientoId:lid,createdBy:userId,updatedBy:userId}});
+  const item=await tx.levantamientoItem.create({data:{...data,...(solicitudId?{id:solicitudId}:{}),descripcion:text(dto.descripcion,'Descripción'),codigo:dto.codigo?.trim().toUpperCase()||null,codigoBarras:dto.codigoBarras?.trim()||null,levantamientoId:lid,createdBy:userId,updatedBy:userId}});
   if(l.estado==='BORRADOR')await tx.levantamiento.update({where:{id:lid},data:{estado:'EN_PROGRESO'}});
   await audit(tx,tenantId,userId,'CONTEO_CREAR',item.id,{hash,nuevo:this.item(item)});return this.item(item);
  });}
@@ -44,18 +44,20 @@ export class LevantamientosService {
   await lockTenant(tx,tenantId);const l=await this.session(tx,tenantId,lid);this.editable(l);const previous=l.items.find(i=>i.id===itemId);if(!previous)throw new NotFoundException('Item no encontrado');
   if(dto.version!==previous.version)throw new ConflictException('Otro usuario modificó el conteo; recargue y concilie');
   const {version,...data}=dto;
-  const item=await tx.levantamientoItem.update({where:{id:itemId},data:{...data,...(dto.codigo!==undefined?{codigo:dto.codigo?.trim().toUpperCase()||null}:{}),...(dto.descripcion!==undefined?{descripcion:text(dto.descripcion,'Descripción')}:{}),version:{increment:1},updatedBy:userId}});
+  const item=await tx.levantamientoItem.update({where:{id:itemId},data:{...data,...(dto.codigo!==undefined?{codigo:dto.codigo?.trim().toUpperCase()||null}:{}),...(dto.codigoBarras!==undefined?{codigoBarras:dto.codigoBarras?.trim()||null}:{}),...(dto.descripcion!==undefined?{descripcion:text(dto.descripcion,'Descripción')}:{}),version:{increment:1},updatedBy:userId}});
   await audit(tx,tenantId,userId,'CONTEO_EDITAR',item.id,{anterior:this.item(previous),nuevo:this.item(item)});return this.item(item);
  });}
  async removeItem(tenantId:string,lid:string,itemId:string,userId:string,version:number){return this.prisma.$transaction(async tx=>{await lockTenant(tx,tenantId);const l=await this.session(tx,tenantId,lid);this.editable(l);const item=l.items.find(i=>i.id===itemId);if(!item)throw new NotFoundException('Item no encontrado');if(item.version!==version)throw new ConflictException('El conteo cambió; recargue antes de eliminar');await audit(tx,tenantId,userId,'CONTEO_ELIMINAR',itemId,{anterior:this.item(item)});await tx.levantamientoItem.delete({where:{id:itemId}});return {success:true};});}
  private async preview(tx:any,tenantId:string,lid:string){
   const l=await this.session(tx,tenantId,lid);const rows:any[]=[],seen=new Set<string>(),barcodes=new Set<string>();
+  // Reconcile older captures with the same identity rules used by the catalog.
+  const items=l.items.map(i=>({...i,codigo:i.codigo?.trim().toUpperCase()||null,codigoBarras:i.codigoBarras?.trim()||null}));
   const candidates=await tx.producto.findMany({where:{tenantId,OR:[
-   {id:{in:l.items.map(i=>i.productoId).filter(Boolean)}},
-   {codigo:{in:l.items.map(i=>i.codigo).filter(Boolean),mode:'insensitive'}},
-   {codigoBarras:{in:l.items.map(i=>i.codigoBarras).filter(Boolean)}}
+   {id:{in:items.map(i=>i.productoId).filter(Boolean)}},
+   {codigo:{in:items.map(i=>i.codigo).filter(Boolean),mode:'insensitive'}},
+   {codigoBarras:{in:items.map(i=>i.codigoBarras).filter(Boolean)}}
   ]}});
-  for(const item of l.items){
+  for(const item of items){
    const products=candidates.filter(p=>p.id===item.productoId||item.codigo&&p.codigo.toUpperCase()===item.codigo.toUpperCase()||item.codigoBarras&&p.codigoBarras===item.codigoBarras);
    const p=products.length===1?products[0]:null;
    const internal=item.codigo||`${item.descripcion.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'-').slice(0,18)}-${item.id.slice(0,8).toUpperCase()}`;
