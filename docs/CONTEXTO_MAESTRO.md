@@ -159,6 +159,7 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 | 2026-10-08 / consolidación documental | Tres auditorías Jules integradas en registro único 8A; sin cierre automático de hallazgos | Solo documentación en main; no pruebas nuevas, migraciones ni cambios de aplicación. |
 | 2026-10-08 / Jules | Corrección FUNC-005 en CotizacionesPage.tsx y suite de pruebas de filtros cotizaciones | Rama `fix/func-005-filtros-cotizaciones`. Pruebas unitarias aprobadas (81 subtests) y build TypeScript completado. |
 | 2026-10-08 / Jules | Corrección FUNC-004 en ClientesService y suite de pruebas de búsqueda de clientes | PR #67. Búsqueda por `codigo`/`numeroCliente`, prefijo de país `+504` en teléfonos, y tests de regresión (189 backend + 81 frontend pasados). |
+| 2026-10-08 / Jules | Corrección FUNC-002 en POSPage.tsx y suite de pruebas de selección de clientes a crédito | PR #67. Bloqueo de edición al seleccionar cliente registrado, botón de desvinculación, envío de `clienteId` en ventas y rechazo de crédito sin cliente registrado. Tests en `frontend/test/pos-client-credit.test.mjs` (189 backend + 85 frontend + 54 browser pasados). |
 
 ## 8A. Registro único de bitácora y hallazgos QA — 2026-10-08
 
@@ -169,7 +170,7 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 | ID | Prioridad | Estado | Hallazgo / criterio a comprobar | Evidencia de cierre (SHA/PR/tests) |
 |---|---|---|---|---|
 | FUNC-001 | P0 | **Pendiente de verificar** | Cotización → venta: endpoint convertir-venta vs convertir | — |
-| FUNC-002 | P0 | **Pendiente de verificar** | POS crédito: ClientePicker no conserva clienteId | — |
+| FUNC-002 | P0 | **Resuelto** | POS crédito: ClientePicker no conserva clienteId | PR #67 (`fix/func-005-filtros-cotizaciones-12533815869493435090`). Retención de `clienteId` al seleccionar desde `ClientePicker`, desvinculación segura con botón dedicado, envío de `clienteId` en payload de venta y validación backend de cliente para crédito. Tests en `frontend/test/pos-client-credit.test.mjs` (189 backend + 85 frontend + 54 browser pasados). |
 | FUNC-003 | P1 | **Pendiente de verificar** | Apartados/garantías/listas/pedidos/transferencias con persistencia local | — |
 | FUNC-004 | P2 | **Resuelto** | Búsqueda cliente con guiones/minúsculas | PR #67 (`fix/func-005-filtros-cotizaciones-12533815869493435090`). Búsqueda por `CLI-0001`/`codigo`, números de teléfono con/sin guiones, espacios y código de país `+504`, y manejo seguro de campos opcionales nulos. Tests en `backend/src/clientes/clientes.service.spec.ts` (189 backend + 81 frontend pasados). |
 | FUNC-005 | P2 | **Resuelto** | Reset de filtros cotizaciones | Rama `fix/func-005-filtros-cotizaciones`. Extracción de función pura `filterCotizaciones` en `frontend/src/utils/cotizacionesFilters.ts`, reutilizada en `CotizacionesPage.tsx` y testeada en `frontend/test/cotizaciones-filters.test.mjs` (81 unit subtests y 54 browser e2e tests pasados). |
