@@ -487,15 +487,21 @@ export const CotizacionesPage: React.FC = () => {
   const cotizacionesFiltradas = useMemo(() => {
     return cotizaciones
       .filter((c) => {
-        if (filterEstado !== 'TODOS' && c.estado !== filterEstado) {
-          return false;
+        if (filterEstado !== 'TODOS') {
+          if (filterEstado === 'ENVIADA' || filterEstado === 'EMITIDA') {
+            if (c.estado !== 'ENVIADA' && c.estado !== 'EMITIDA') {
+              return false;
+            }
+          } else if (c.estado !== filterEstado) {
+            return false;
+          }
         }
 
-        if (searchTerm.trim()) {
-          const q = searchTerm.toLowerCase();
+        const q = searchTerm.trim().toLowerCase();
+        if (q) {
           const numStr = `cot-${c.numero.toString().padStart(4, '0')}`.toLowerCase();
           const matchNum = numStr.includes(q) || c.numero.toString().includes(q);
-          const matchCliente = c.cliente.toLowerCase().includes(q);
+          const matchCliente = c.cliente?.toLowerCase().includes(q) ?? false;
           const matchRtn = c.rtn?.toLowerCase().includes(q) ?? false;
           const matchVendedor = c.usuarioNombre?.toLowerCase().includes(q) ?? false;
 
@@ -804,7 +810,7 @@ export const CotizacionesPage: React.FC = () => {
                         </button>
 
                         {/* Editar draft/emitted */}
-                        {(c.estado === 'BORRADOR' || c.estado === 'ENVIADA') && isAdminOrSeller && (
+                        {(c.estado === 'BORRADOR' || c.estado === 'ENVIADA' || c.estado === 'EMITIDA') && isAdminOrSeller && (
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
@@ -817,7 +823,7 @@ export const CotizacionesPage: React.FC = () => {
                         )}
 
                         {/* Convertir a Venta */}
-                        {(c.estado === 'APROBADA' || c.estado === 'ENVIADA') && (
+                        {(c.estado === 'APROBADA' || c.estado === 'ENVIADA' || c.estado === 'EMITIDA') && (
                           <button
                             type="button"
                             className="btn btn-primary btn-sm"
@@ -832,7 +838,7 @@ export const CotizacionesPage: React.FC = () => {
                         {/* Cambiar Estado Dropdown */}
                         {isAdminOrSeller && c.estado !== 'CONVERTIDA' && (
                           <select
-                            value={c.estado}
+                            value={c.estado === 'EMITIDA' ? 'ENVIADA' : c.estado}
                             disabled={isReadOnly}
                             onChange={(e) => handleCambiarEstado(c.id, e.target.value as any)}
                             style={styles.stateSelect}

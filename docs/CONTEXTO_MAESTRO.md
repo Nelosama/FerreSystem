@@ -157,6 +157,7 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 
 | 2026-10-07 / Codex, acceso web autorizado | Login mediante navegador en sitio publicado; panel administrativo visible. Avisos: resumen no pudo cargar y respaldos automáticos no configurados para consulta en ese servidor | Sin altas, ventas ni cambios de configuración. Versión desplegada no comprobada; HEAD local de referencia `4719e526`. E03/E05 siguen pendientes. |
 | 2026-10-08 / consolidación documental | Tres auditorías Jules integradas en registro único 8A; sin cierre automático de hallazgos | Solo documentación en main; no pruebas nuevas, migraciones ni cambios de aplicación. |
+| 2026-10-08 / Jules | Corrección FUNC-005 en CotizacionesPage.tsx y suite de pruebas de filtros cotizaciones | Rama `fix/func-005-filtros-cotizaciones`. Pruebas unitarias aprobadas (81 subtests) y build TypeScript completado. |
 
 ## 8A. Registro único de bitácora y hallazgos QA — 2026-10-08
 
@@ -170,7 +171,7 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 | FUNC-002 | P0 | **Pendiente de verificar** | POS crédito: ClientePicker no conserva clienteId | — |
 | FUNC-003 | P1 | **Pendiente de verificar** | Apartados/garantías/listas/pedidos/transferencias con persistencia local | — |
 | FUNC-004 | P2 | **Pendiente de verificar** | Búsqueda cliente con guiones/minúsculas | — |
-| FUNC-005 | P2 | **Pendiente de verificar** | Reset de filtros cotizaciones | — |
+| FUNC-005 | P2 | **Resuelto** | Reset de filtros cotizaciones | Rama `fix/func-005-filtros-cotizaciones`. Normalización `searchTerm.trim().toLowerCase()`, soporte alias `EMITIDA`/`ENVIADA`, acceso seguro a propiedades y test de regresión `frontend/test/cotizaciones-filters.test.mjs` (81 subtests pasados). |
 | FUNC-006 | P2 | **Pendiente de verificar** | Fechas inconsistentes en PDF cotización | — |
 | SOS-001 | P1 | **Pendiente de verificar** | Concurrencia último stock y manejo de recuperación POS; rechazo de stock insuficiente puede ser correcto | — |
 | SOS-002 | P1 | **Pendiente de verificar** | Devolución parcial a crédito y saldos | — |
