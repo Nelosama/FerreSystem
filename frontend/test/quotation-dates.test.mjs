@@ -50,3 +50,8 @@ test('formatDateHN delegates date-only string 2026-10-08 to formatDateOnlyHN', (
   const formatted = formatDateHN(dateOnly);
   assert.ok(formatted === '08/10/2026' || formatted === '8/10/2026', `Expected 08/10/2026, got ${formatted}`);
 });
+
+test('prevents double-formatting of already formatted DD/MM/YYYY dates', () => {
+  assert.equal(formatDateHN('08/10/2026'), '08/10/2026');
+  assert.equal(formatDateOnlyHN('08/10/2026'), '08/10/2026');
+});

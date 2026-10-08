@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { api } from '../utils/api';
@@ -131,6 +131,8 @@ export const CotizacionesPage: React.FC = () => {
   const [editingCotizacionId, setEditingCotizacionId] = useState<string | null>(null);
   const [modalPdf, setModalPdf] = useState<QuotationItem | null>(null);
   const [modalConvertir, setModalConvertir] = useState<QuotationItem | null>(null);
+  const conversionEnCurso = useRef(false);
+  const [convirtiendo, setConvirtiendo] = useState(false);
   const [modalProductoPicker, setModalProductoPicker] = useState<boolean>(false);
   const [mensajeNotificacion, setMensajeNotificacion] = useState<{ texto: string; tipo: 'exito' | 'error' } | null>(null);
 
@@ -242,8 +244,12 @@ export const CotizacionesPage: React.FC = () => {
 
   // Convertir A Venta
   const handleConfirmarConvertir = async (cot: QuotationItem) => {
+    if (conversionEnCurso.current || cot.estado === 'CONVERTIDA') return;
+    conversionEnCurso.current = true;
+    setConvirtiendo(true);
     try {
-      await api.post(`/cotizaciones/${cot.id}/convertir-venta`);
+      await api.post(`/cotizaciones/${cot.id}/convertir`);
+      setCotizaciones(actuales => actuales.map(actual => actual.id === cot.id ? { ...actual, estado: 'CONVERTIDA' } : actual));
       setModalConvertir(null);
       await fetchCotizacionesYProductos();
       mostrarNotificacion(
@@ -252,6 +258,9 @@ export const CotizacionesPage: React.FC = () => {
     } catch (err: any) {
       console.error('Error al convertir cotización a venta:', err);
       mostrarNotificacion(err.response?.data?.message || 'Error al convertir cotización en el servidor', 'error');
+    } finally {
+      conversionEnCurso.current = false;
+      setConvirtiendo(false);
     }
   };
 
@@ -1349,6 +1358,7 @@ export const CotizacionesPage: React.FC = () => {
                 type="button"
                 className="btn btn-primary"
                 onClick={() => handleConfirmarConvertir(modalConvertir)}
+                disabled={convirtiendo}
               >
                 {t('operational.confirmar_y_convertir_a_venta')}
               </button>
