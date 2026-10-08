@@ -81,3 +81,16 @@ Estado: requisitos y propuestas aprobadas conceptualmente; **NO implementados ni
 - **Mockups Lovable:** referencias visuales, no pruebas de funcionamiento.
 - **Repositorio:** esta bitácora documenta decisiones; no cambia frontend, backend, Prisma ni infraestructura.
 - **Pendientes:** confirmar arquitectura operativa final (nube/local), certificados/DNS LAN, experiencia de cámara iPhone, autorización, backups y aprobación de mockups finales.
+
+## 11. Distribución física confirmada: dos plantas y Wi-Fi
+- **PC principal de administración:** segundo piso de la misma ferretería; aloja el servicio Windows y los archivos de fotografías.
+- **PC del cajero:** primer piso; ejecuta el POS y debe visualizar fotografías desde el servidor del segundo piso, sin mantener copias independientes.
+- **Conectividad actual:** ambas computadoras usan Wi-Fi en el mismo edificio. No se ha comprobado todavía si usan el mismo SSID, segmento IP, router o repetidor, ni si existe aislamiento entre clientes.
+- La primera implementación debe **aprovechar Wi-Fi**, sin exigir cableado nuevo. Ethernet es mejora opcional si las mediciones de estabilidad/rendimiento lo justifican.
+- Probar comunicación LAN entre ambas PCs (IP, máscara, ruta, resolución DNS y acceso al puerto del servicio), sin asumir conectividad por compartir Internet o SSID.
+- Reservar la IP del servidor mediante DHCP y usar nombre DNS interno con certificado HTTPS confiable; limitar firewall a subredes autorizadas y verificar permisos de Windows.
+- El POS del cajero solicita miniaturas optimizadas bajo demanda; fotos originales solo cuando se necesiten. Aplicar caché de navegador limitada y segura, sin depender de copias permanentes.
+- Si la PC del segundo piso se apaga, el POS muestra placeholders; la continuidad de ventas depende de la disponibilidad de la API/base de datos, no está garantizada por este diseño de imágenes.
+- iPhone y demás móviles conectados al Wi-Fi autorizado deben poder ver/capturar fotos, sujeto a las pruebas de Safari y acceso a LAN desde frontend Vercel.
+- **Pendientes antes de codificar:** confirmar topología de red y aislamiento Wi-Fi; medir latencia y cobertura entre pisos; validar HTTPS LAN y restricciones del navegador; definir estrategia de respaldo en medio físico separado.
+- **Estado:** decisión y requisitos documentados; no se ha instalado ni probado servidor local.
