@@ -26,6 +26,7 @@ const test = base.extend<{ runtime: Runtime }>({
           '/dashboard': { ventasDelDia: { total: 0 }, alertasStock: { items: [] }, cotizacionesPendientes: { cantidad: 0 } },
           '/maintenance/backup': { configured: false },
           '/productos/comercial': [],
+          '/clientes': [],
           '/operaciones/proveedores': [],
           '/operaciones/caja': [],
           '/operaciones/solicitudes-devolucion': [],
@@ -103,7 +104,13 @@ for (const role of ['ADMIN', 'CAJERO'] as const) {
     await expect(page.getByRole('heading', { name: role === 'ADMIN' ? 'AUDITORÍA' : 'Acceso Denegado', exact: true })).toBeVisible();
     if (role === 'CAJERO') expect(runtime.requests).not.toContain('GET /operaciones/auditoria');
 
-    await page.goto('/pos');
+    // POS is lazy-loaded; wait for its mocked catalog before checking its controls.
+    await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname === '/api/productos/comercial' && response.status() === 200),
+      page.waitForResponse(response => new URL(response.url()).pathname === '/api/clientes' && response.status() === 200),
+      page.goto('/pos'),
+    ]);
     await expect(page.getByRole('link', { name: 'Abrir o revisar mi caja', exact: true })).toBeVisible();
+    await expect(page.getByRole('searchbox', { name: 'Buscar cliente existente', exact: true })).toBeVisible();
   });
 }

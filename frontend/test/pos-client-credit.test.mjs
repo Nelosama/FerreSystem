@@ -67,6 +67,30 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
 
 const catalog = [{ id: 'p1', codigo: 'P1', nombre: 'Martillo', precioVenta: 100, stockActual: 10, stockMinimo: 0 }];
 
+for (const rol of ['CAJERO', 'VENDEDOR']) {
+  test(`SEC-005: ${rol} cobra con catálogo sin campos financieros`, async () => {
+    const sent = [];
+    const api = {
+      get: async (url) => ({ data: url.includes('/solicitudes/') ? { estado: 'NO_REGISTRADA' } : catalog }),
+      post: async (url, body) => { sent.push(body); return { data: { id: 'v1', numeroVenta: 1, total: 115, detalles: [] } }; },
+    };
+    const page = harness('src/pages/POSPage.tsx', 'POSPage', {
+      '../utils/api': { api },
+      '../context/TenantContext': { useTenant: () => ({ tenant: { id: 'tenant-A' }, user: { id: 'user-A', rol, descuentoMaximo: 0 } }) },
+    });
+    page.render(); await page.effects(); page.render();
+    page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick();
+    page.render();
+    await page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick();
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].detalles[0].productoId, 'p1');
+    assert.equal(sent[0].detalles[0].precioUnitario, 100);
+    assert.equal(sent[0].detalles[0].cantidad, 1);
+    assert.equal(sent[0].metodoPago, 'EFECTIVO');
+    assert.equal(JSON.stringify(sent[0]).includes('precioCosto'), false);
+  });
+}
+
 test('Selección de cliente registrado en POS conserva clienteId y lo envía en la venta', async () => {
   const saved = storage();
   const sent = [];
