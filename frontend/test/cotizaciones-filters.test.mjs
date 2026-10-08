@@ -6,7 +6,9 @@ import ts from 'typescript';
 
 const loadHelper = () => {
   const exports = {};
-  const source = fs.readFileSync('frontend/src/utils/cotizacionesFilters.ts', 'utf8');
+  const file = 'src/utils/cotizacionesFilters.ts';
+  const filePath = fs.existsSync(file) ? file : `frontend/${file}`;
+  const source = fs.readFileSync(filePath, 'utf8');
   const code = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true },
   }).outputText;
