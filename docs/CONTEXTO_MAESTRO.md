@@ -1,19 +1,19 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última consolidación: **2026-10-06, America/Tegucigalpa**. Este es el documento único de continuidad: estado vigente, decisiones, evidencia, pendientes y registro de cambios. Sirve para Codex, Copilot, Antigravity o una persona sin acceso al chat.
+Última revisión: **2026-10-07, America/Tegucigalpa**. Este es el documento único de continuidad: estado vigente, decisiones, evidencia, pendientes y registro de cambios. Sirve para Codex, Copilot, Antigravity o una persona sin acceso al chat.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
 ## 1. Estado comprobado y siguiente paso
 
 - Repositorio: `Nelosama/FerreSystem`; checkout conocido: `C:\Users\Nelo\Documents\GitHub\FerreSystem`.
-- Main conocido: `0331cb5937d7aeea5c2d50ca53d7762c096693cd`, merge de [PR #63](https://github.com/Nelosama/FerreSystem/pull/63).
-- Rama de cierre: `feat/close-pending-delivery`.
-- [PR #64](https://github.com/Nelosama/FerreSystem/pull/64): **abierto, no fusionado**, comprobado al consolidar. Código: `efd8c169dfb68ac5002dd041068c4b10213aeaa6`; revisión documental probada: `48b4a5d971ce24a2b20db2bd86932313997b9b6d`.
+- Main local y remoto comprobados: `4719e526b73a9db419d9a87ea15f7eb3993a7c64` (Playwright), posterior al merge `12fccd714430caa536909993b92798087959ede4` de [PR #64](https://github.com/Nelosama/FerreSystem/pull/64).
+- Checkout actual: `main`; rama histórica de cierre: `feat/close-pending-delivery`.
+- PR #64: **fusionado**, confirmado por GitHub. Consulta de PR abiertos sin resultados. Código previo probado: `efd8c169dfb68ac5002dd041068c4b10213aeaa6`; revisión documental probada: `48b4a5d971ce24a2b20db2bd86932313997b9b6d`. La consulta de workflow runs para `4719e526` devolvió lista vacía; no hay evidencia recuperada de CI para ese HEAD.
 - [CI de esa revisión](https://github.com/Nelosama/FerreSystem/actions/runs/37558376539): aprobado. Ver tabla de pruebas. Este documento posterior no cambia código; no atribuirle automáticamente ese SHA ni un CI nuevo.
 - Vercel completó el check/preview automático del PR. **No se verificó producción ni se hizo despliegue manual**. Merge, preview y entrega al cliente son estados distintos.
-- En el checkout existe un cambio ajeno de un espacio al inicio de `backend/nest-cli.json`, excluido de los commits del cierre. Conservarlo salvo instrucción expresa. Hay stashes históricos: no aplicarlos automáticamente.
-- Próximo paso técnico: revisión del PR #64 y decisión de merge. Próximo paso de entrega: confirmar alcance, infraestructura, copia/restauración y aceptación del negocio. **No confundir “apto para merge del cierre” con “entrega completa”.**
+- Checkout limpio al iniciar esta revisión; el cambio local histórico en `backend/nest-cli.json` ya no aparece. No se descartó ni restauró ningún cambio. No aplicar stashes históricos automáticamente.
+- Próximo paso técnico: resolver E15 antes de ejecutar la suite completa de navegador y validar el HEAD actual en aislamiento. Próximo paso de entrega: confirmar alcance, infraestructura, copia/restauración y aceptación del negocio. **Merge no equivale a entrega completa.**
 
 La rama/main/PR pueden cambiar después de esta fecha. Cada agente debe comprobar Git y GitHub antes de editar, sin resetear ni descartar trabajo. La instrucción vigente del usuario prevalece sobre este resumen.
 
@@ -43,7 +43,7 @@ Permitir que el dueño delegue sin perder control: registrar quién hizo qué, c
 | Preferencias | TOPNAV/SIDEBAR es configuración de empresa; idioma es local. Selección de sucursal existente no crea una sucursal ni concede acceso. | Contrato existente conservado. |
 | Fiscal y comprobantes | General restringido a HNL/L. e ISV 15%. No hay conversión monetaria. PDF usa importes/ISV transaccionales y tasa de cotización si existe; no inventa tasa histórica de venta. | PR #63; regresiones de comprobantes anteriores y tasa cero. |
 | Navegación | Categorías coherentes en lateral/superior/móvil, hasta cuatro prioridades y buscador para acceder a las demás tareas. Escape restaura foco. Funciones pendientes explicadas sin accesos inoperantes. | PR #63 y #64. |
-| Entregas/Devoluciones | `moduleKey: 'pos'` tanto para filtros de navegación como acceso canónico. `matchPath` cubre variantes de URL admitidas por React Router. Roles conservados. | PR #64, todavía no fusionado al corte. |
+| Entregas/Devoluciones | `moduleKey: 'pos'` tanto para filtros de navegación como acceso canónico. `matchPath` cubre variantes de URL admitidas por React Router. Roles conservados. | PR #64, fusionado en `12fccd71`. |
 | Módulos backend | Recepción/compra con stock: Compras e Inventario; convertir cotización: Cotizaciones y POS; lookup de proveedores: Compras o POS; entregas/devoluciones: POS. Caja/cuentas existentes son base. Registro opcional explícitamente deshabilitado manda; ausencia heredada conserva disponibilidad. | Guards y matriz histórica de auditoría UX. |
 | Administradores de plataforma | Alta/edición reales, ámbito tenant, hashing, no exponer contraseñas y conservar último ADMIN activo. Restricciones de soporte/impersonación permanecen. | PR #63. |
 | Sucursales | Retirado formulario inalcanzable sin modelo/API real. No equivale a multisucursal implementado. | PR #63; propuesta en anexo. |
@@ -70,7 +70,9 @@ CI final: https://github.com/Nelosama/FerreSystem/actions/runs/37558376539 . CI 
 
 Unitarias/componentes pueden usar mocks. Navegador simulado no prueba autorización/persistencia reales. Integración HTTP usa API compilada, autenticación real y PostgreSQL temporal. El navegador real usa **Vite de desarrollo con proxy a esa API**, sin interceptar endpoints ni precargar login; no verifica el despliegue productivo. PostgreSQL temporal puede usar trust exclusivamente local: no es una configuración de instalación recomendada.
 
-Comandos desde raíz (PowerShell; ajustar binarios instalados, no apuntar pruebas a bases compartidas):
+**Advertencia vigente del análisis de `4719e526`:** `frontend/e2e/seed-alex.spec.ts` queda incluido por `frontend/playwright.config.ts` y apunta mediante URL absoluta al sitio publicado, con credenciales embebidas y altas/ventas reales. No ejecutar `test:browser` completo ni el workflow operativo sin resolver E15. Los resultados de la tabla corresponden al código anterior. Node 24.16.0, npm 11.13.0 y los archivos de binarios PostgreSQL 18/Chrome están presentes localmente; no se verificó su funcionamiento ni se repitieron suites en esta revisión.
+
+Comandos desde raíz (PowerShell; ajustar binarios instalados, no apuntar pruebas a bases compartidas; resolver E15 antes del comando de navegador):
 
 ```powershell
 npm test --prefix frontend
@@ -98,11 +100,11 @@ Pruebas relevantes: `frontend/test/taskNavigation.test.mjs`, `frontend/e2e/navig
 
 | ID | Prioridad / estado | Trabajo y criterio de cierre |
 | --- | --- | --- |
-| E01 | Técnico, listo para revisión | Revisar PR #64 y decidir merge con autorización. Registrar SHA real fusionado; no asumirlo por CI verde. |
+| E01 | Cerrado, merge comprobado | PR #64 fusionado en `12fccd714430caa536909993b92798087959ede4`. No certifica despliegue ni aceptación. |
 | E02 | P0 operativo, pendiente | Confirmar instalación/versiones API/frontend/esquema; revisar baseline sobre copia aislada y migraciones. Evidencia de actualización y rollback/recuperación antes de cliente. |
 | E03 | P0 externo, pendiente | Respaldo reciente del cliente, restauración aislada, conciliación y ensayo de actualización. Sintéticos ya pasan; copia real no validada. Definir copia fuera del equipo, cifrado/retención, alertas y restauraciones periódicas. |
 | E04 | P0 externo, pendiente | Confirmar PC/OS/recursos/UPS/router/DNS/HTTPS/arranque, lector e impresora. Probar corte físico, recuperación y red sin Internet. Reiniciar un proceso no prueba un corte eléctrico. |
-| E05 | P0 aceptación, pendiente | Dueño, cajero y dos ADMIN prueban compras/recepción, inventario, contado/crédito, entrega, abonos, devolución autorizada, caja/cierre y comprobantes. Registrar resultados y dificultades; no declarar aceptación por build. |
+| E05 | P0 aceptación, pendiente | Dueño, cajero y dos ADMIN prueban compras/recepción, inventario, contado/crédito, entrega, abonos, devolución autorizada, caja/cierre y comprobantes. Acceso web autorizado el 2026-10-07: sesión iniciada y panel administrativo visible; muestra error al cargar resumen y ausencia de respaldos automáticos configurados para consulta. Diagnóstico pendiente; no constituye aceptación del flujo operativo. |
 | E06 | P0 revisión de instalación, pendiente | Revisar/rotar secretos reales si estuvieron en archivos de entorno históricos. Haber retirado archivos de Git no limpia historial ni prueba exposición; no copiar secretos al informe. |
 | E07 | P1 requisito confirmado, pendiente | **App instalada del dueño con push aun cerrada, independiente del navegador**. Confirmado 2026-10-05; web/manifiesto/PWA no lo completa. Confirmar Android/iOS, distribución, proveedor push y acceso remoto; acordar si entra en esta entrega. |
 | E08 | P1 dependiente de E07 | Sesiones por dispositivo, refresh de propósito distinguido/rotatorio/revocable, almacenamiento seguro, registro/revocación push y outbox durable. Bandeja/decisión usan API, identidad y permisos existentes. App cerrada, logout, revocación, dos ADMIN, expiración y reconexión deben probarse en dispositivo instalado. |
@@ -112,6 +114,9 @@ Pruebas relevantes: `frontend/test/taskNavigation.test.mjs`, `frontend/e2e/navig
 | E12 | Mejora, revisar alcance | Fotos: URL existente no es captura/subida/almacenamiento durable. Levantamiento: multiusuario/offline/conciliación avanzada, zonas/reconteos, exportación y uso independiente requieren comparar propuestas con código antes de declarar faltantes. |
 | E13 | Mejora, pendiente | Historial durable de soporte/auditoría de plataforma; traducción de pantallas heredadas fuera del cierre; avisos/reportes adicionales, zona horaria, entregas parciales, rendimiento/bundle y warnings de hooks. Priorizar por riesgo y negocio. |
 | E14 | Posterior al piloto | Bancos/POS externos, vidriería y sincronización entre sucursales. Propuestas, no implementaciones ni decisiones arquitectónicas aprobadas. |
+| E15 | P0 para suite de navegador, pendiente | Aislar `frontend/e2e/seed-alex.spec.ts`: destino exclusivo de pruebas, credenciales fuera de Git (rotarlas si son válidas), fixtures independientes o preparación ordenada, limpieza y aserciones de persistencia/importes. Actualmente crea categorías/productos/clientes/proveedores/ventas en el sitio publicado; `fullyParallel: true` permite carreras entre casos dependientes y hay pasos condicionales sin aserciones de éxito. El nuevo workflow `.github/workflows/playwright.yml` solo ejecuta `tests/example.spec.ts` contra playwright.dev; conectarlo a cobertura real aislada. El workflow operativo sí recoge el seed a través de la suite frontend. Validar HEAD actual después de corregirlo. |
+
+Orden recomendado para empezar: E15 → entorno aislado con API/frontend/esquema compatibles y datos sintéticos (parte de E02) → suites pertinentes del HEAD actual → recorrido manual E05 con dueño/cajero/dos ADMIN, conciliando stock/caja/crédito y comprobantes. Para piloto con datos del cliente, completar además E02–E06 en equipos previstos. E07–E09 siguen comprometidos o dependientes de definición; decidir si forman parte de esta primera aceptación. Las ampliaciones E11–E14 no bloquean por sí solas las pruebas del núcleo existente.
 
 E07 es un requisito confirmado, omitido por error en resúmenes breves anteriores; su prioridad de planificación P1 no elimina el compromiso. No se conoce aquí una fecha pactada de entrega de la app. Arquitectura React Native/Expo, push FCM/APNs y puente/outbox son propuestas; requieren definición y verificación antes de implementarse.
 
@@ -147,6 +152,9 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 | 2026-10-06 / #63 | UX, persistencia, configuración fiscal, guardas y responsabilidades | `b533dbd8`; cuatro fixtures crédito `0b7d8af7`; merge `0331cb59`. |
 | 2026-10-06 / #64 | Navegación POS y pruebas de configuración/API/PostgreSQL/navegador reales | Código `efd8c169`, documentación `48b4a5d9`, CI 37558376539 aprobado. |
 | 2026-10-06 / Codex | Consolidación en este documento, recuperación de pendientes omitidos y archivo de 20 fuentes | Solo documentación; conserva originales como historial, sin nueva auditoría integral ni modificación de producción. |
+| 2026-10-07 / Codex | Análisis previo a pruebas; E01 cerrado por merge comprobado y E15 añadido por seed contra sitio publicado y workflow de ejemplos | Base/HEAD `4719e526`, main remoto igual, checkout inicialmente limpio; GitHub confirma #64 fusionado y ningún PR abierto. Lectura de configuraciones, workflows y pruebas; sin ejecución de suites ni acceso a producción. `gh` no disponible; consultas mediante conector GitHub. Pendientes E02–E15 según tabla; solo actualización documental, sin commit/push. |
+
+| 2026-10-07 / Codex, acceso web autorizado | Login mediante navegador en sitio publicado; panel administrativo visible. Avisos: resumen no pudo cargar y respaldos automáticos no configurados para consulta en ese servidor | Sin altas, ventas ni cambios de configuración. Versión desplegada no comprobada; HEAD local de referencia `4719e526`. E03/E05 siguen pendientes. |
 
 **FIN DEL CONTEXTO VIGENTE**
 
