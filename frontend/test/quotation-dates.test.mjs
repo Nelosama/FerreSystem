@@ -15,32 +15,38 @@ const loadUtilsFormat = () => {
 
 const { formatDateHN, formatDateOnlyHN } = loadUtilsFormat();
 
-test('formatDateOnlyHN handles date-only ISO strings without day shift', () => {
-  // ISO date 2026-10-08T00:00:00.000Z should stay 08/10/2026 or 8/10/2026
-  const formattedObj = formatDateOnlyHN('2026-10-08T00:00:00.000Z');
-  assert.ok(formattedObj === '08/10/2026' || formattedObj === '8/10/2026', `Expected 08/10/2026 or 8/10/2026, got ${formattedObj}`);
+test('formatDateOnlyHN handles date-only strings YYYY-MM-DD without day shift', () => {
+  const formattedObj = formatDateOnlyHN('2026-10-08');
+  assert.ok(formattedObj === '08/10/2026' || formattedObj === '8/10/2026', `Expected 08/10/2026, got ${formattedObj}`);
 
-  // Month boundary / end of month
-  const monthEnd = formatDateOnlyHN('2026-02-28T00:00:00.000Z');
+  const monthEnd = formatDateOnlyHN('2026-02-28');
   assert.ok(monthEnd === '28/02/2026' || monthEnd === '28/2/2026', `Expected 28/02/2026, got ${monthEnd}`);
 
-  // Leap year
-  const leapYear = formatDateOnlyHN('2028-02-29T00:00:00.000Z');
+  const leapYear = formatDateOnlyHN('2028-02-29');
   assert.ok(leapYear === '29/02/2028' || leapYear === '29/2/2028', `Expected 29/02/2028, got ${leapYear}`);
 
-  // Already formatted string
   assert.equal(formatDateOnlyHN('15/10/2026'), '15/10/2026');
 });
 
-test('formatDateHN formats full timestamp ISO strings in Tegucigalpa timezone', () => {
-  // Oct 8 03:00 UTC is Oct 7 21:00 in Tegucigalpa (UTC-6)
-  const timestamp = '2026-10-08T03:00:00.000Z';
-  const formatted = formatDateHN(timestamp);
-  assert.ok(formatted === '07/10/2026' || formatted === '7/10/2026', `Expected 07/10/2026, got ${formatted}`);
+test('formatDateHN formats 2026-10-08T00:00:00Z and 2026-10-08T03:00:00Z in America/Tegucigalpa timezone (UTC-6)', () => {
+  // Midnight UTC on Oct 8 is 6:00 PM Oct 7 in Tegucigalpa
+  const midnightUtc = '2026-10-08T00:00:00Z';
+  const formattedMidnight = formatDateHN(midnightUtc);
+  assert.ok(formattedMidnight === '07/10/2026' || formattedMidnight === '7/10/2026', `Expected 07/10/2026, got ${formattedMidnight}`);
+
+  // 3:00 AM UTC on Oct 8 is 9:00 PM Oct 7 in Tegucigalpa
+  const timestamp3am = '2026-10-08T03:00:00Z';
+  const formatted3am = formatDateHN(timestamp3am);
+  assert.ok(formatted3am === '07/10/2026' || formatted3am === '7/10/2026', `Expected 07/10/2026, got ${formatted3am}`);
+
+  // 12:00 PM UTC on Oct 8 is 6:00 AM Oct 8 in Tegucigalpa
+  const timestampNoon = '2026-10-08T12:00:00Z';
+  const formattedNoon = formatDateHN(timestampNoon);
+  assert.ok(formattedNoon === '08/10/2026' || formattedNoon === '8/10/2026', `Expected 08/10/2026, got ${formattedNoon}`);
 });
 
-test('formatDateHN routes date-only strings to formatDateOnlyHN to avoid day shift', () => {
-  const dateOnly = '2026-10-08T00:00:00.000Z';
+test('formatDateHN delegates date-only string 2026-10-08 to formatDateOnlyHN', () => {
+  const dateOnly = '2026-10-08';
   const formatted = formatDateHN(dateOnly);
   assert.ok(formatted === '08/10/2026' || formatted === '8/10/2026', `Expected 08/10/2026, got ${formatted}`);
 });

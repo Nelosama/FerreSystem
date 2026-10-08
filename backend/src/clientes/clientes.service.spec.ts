@@ -31,3 +31,73 @@ describe('ClientesService numbering failures', () => {
     await expect(service.addPayment('t1', 'c1', { monto: 20.01 })).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+describe('ClientesService.findAll search queries', () => {
+  it('searches by CLI-0001 customer number and code', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const prisma = { cliente: { findMany }, $queryRaw: queryRaw };
+    const service = new ClientesService(prisma as any);
+
+    await service.findAll('t1', 'CLI-0001');
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 't1',
+          activo: true,
+          OR: expect.arrayContaining([
+            { numeroCliente: 1 },
+            { codigo: { contains: 'CLI-0001', mode: 'insensitive' } },
+            { nombre: { contains: 'CLI-0001', mode: 'insensitive' } },
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('searches phone numbers with and without dashes, spaces and country code +504', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const queryRaw = vi.fn().mockResolvedValue([{ id: 'c-match' }]);
+    const prisma = { cliente: { findMany }, $queryRaw: queryRaw };
+    const service = new ClientesService(prisma as any);
+
+    await service.findAll('t1', '+504 9999-8888');
+
+    expect(queryRaw).toHaveBeenCalled();
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 't1',
+          activo: true,
+          OR: expect.arrayContaining([
+            { id: { in: ['c-match'] } },
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('handles clients with empty or null optional fields', async () => {
+    const mockClients = [
+      { id: 'c1', numeroCliente: 1, nombre: 'Juan Perez', rtn: null, telefono: null, email: null, direccion: null, activo: true },
+    ];
+    const findMany = vi.fn().mockResolvedValue(mockClients);
+    const prisma = { cliente: { findMany } };
+    const service = new ClientesService(prisma as any);
+
+    const result = await service.findAll('t1', 'Juan');
+    expect(result).toHaveLength(1);
+    expect(result[0].nombre).toBe('Juan Perez');
+  });
+
+  it('returns empty array when search finds no results', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const prisma = { cliente: { findMany }, $queryRaw: queryRaw };
+    const service = new ClientesService(prisma as any);
+
+    const result = await service.findAll('t1', 'Inexistente_12345');
+    expect(result).toHaveLength(0);
+  });
+});

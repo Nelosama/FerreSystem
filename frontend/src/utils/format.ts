@@ -24,16 +24,23 @@ export function formatNumber(amount: number): string {
 /**
  * Formatea una fecha u hora de emisión en zona horaria de Honduras (America/Tegucigalpa, UTC-6).
  * Formato dd/mm/yyyy.
+ * Respeta la zona horaria America/Tegucigalpa para todos los timestamps reales.
+ * Si el string es solo fecha de calendario (ej: "2026-10-08" de 10 caracteres), delega a formatDateOnlyHN.
  */
 export function formatDateHN(dateInput?: string | Date | null): string {
   if (!dateInput) return '';
-  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-  if (isNaN(d.getTime())) return typeof dateInput === 'string' ? dateInput : '';
+  // Si el valor ya está formateado como DD/MM/YYYY, devolver tal cual
+  if (typeof dateInput === 'string' && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateInput.trim())) {
+    return dateInput.trim();
+  }
 
-  // Si es solo fecha ISO ("YYYY-MM-DD" o "YYYY-MM-DDT00:00:00.000Z"), formatear en UTC para evitar desplazamiento por zona horaria
-  if (typeof dateInput === 'string' && (dateInput.length === 10 || dateInput.endsWith('T00:00:00.000Z') || dateInput.endsWith('T00:00:00Z'))) {
+  // Si es una cadena de solo fecha sin hora (YYYY-MM-DD), delegar a formatDateOnlyHN para evitar desfase UTC
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.trim())) {
     return formatDateOnlyHN(dateInput);
   }
+
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return typeof dateInput === 'string' ? dateInput : '';
 
   return d.toLocaleDateString('es-HN', {
     day: '2-digit',
