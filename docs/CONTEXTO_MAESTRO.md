@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-07, America/Tegucigalpa**. Este es el documento único de continuidad: estado vigente, decisiones, evidencia, pendientes y registro de cambios. Sirve para Codex, Copilot, Antigravity o una persona sin acceso al chat.
+Última revisión: **2026-10-08, America/Tegucigalpa**. Este es el documento único de continuidad: estado vigente, decisiones, evidencia, pendientes y registro de cambios. Sirve para Codex, Copilot, Antigravity o una persona sin acceso al chat.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -144,6 +144,9 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 
 ## 8. Bitácora resumida
 
+| 2026-10-08 / consolidación documental | Tres auditorías Jules incorporadas a registro único 8A; hallazgos sin cerrar automáticamente; retiro de dos QA raíz duplicados | Commit documental en main; sin pruebas nuevas, migraciones ni cambios de aplicación. |
+
+
 | Fecha / etapa | Cambio | Referencia / límite |
 | --- | --- | --- |
 | 2026-10-02 | Requisitos de negocio del dueño: control operativo, inventario, crédito, costos, compras y delegación | Requisitos originales en anexo. |
@@ -155,6 +158,65 @@ Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DE
 | 2026-10-07 / Codex | Análisis previo a pruebas; E01 cerrado por merge comprobado y E15 añadido por seed contra sitio publicado y workflow de ejemplos | Base/HEAD `4719e526`, main remoto igual, checkout inicialmente limpio; GitHub confirma #64 fusionado y ningún PR abierto. Lectura de configuraciones, workflows y pruebas; sin ejecución de suites ni acceso a producción. `gh` no disponible; consultas mediante conector GitHub. Pendientes E02–E15 según tabla; solo actualización documental, sin commit/push. |
 
 | 2026-10-07 / Codex, acceso web autorizado | Login mediante navegador en sitio publicado; panel administrativo visible. Avisos: resumen no pudo cargar y respaldos automáticos no configurados para consulta en ese servidor | Sin altas, ventas ni cambios de configuración. Versión desplegada no comprobada; HEAD local de referencia `4719e526`. E03/E05 siguen pendientes. |
+
+## 8A. Registro único de bitácora y hallazgos QA — 2026-10-08
+
+**Fuente:** auditorías independientes Jules (funcional, seguridad y arquitectura) y QA histórico. **No son pruebas nuevas realizadas al actualizar este documento.** Los agentes reportaron 10 + 13 + 5 = 28 hallazgos, pero el informe funcional enumera solo 9 IDs detallados (FUNC-001..006, SOS-001..002, REQ-001). Esta tabla contiene **27 IDs trazables**, no 28 defectos verificados. Algunos se solapan (SEC-001/SEC-009). El agente técnico reportó 185/185 pruebas y builds aprobados; el funcional no pudo ejecutar sus pruebas. Verificar cada conclusión contra HEAD actual antes de corregir.
+
+**Estados permitidos:** Pendiente de verificar → Confirmado → En corrección → Resuelto (PR/commit y pruebas de regresión) → Validado en producción/aceptado cuando aplique; o Descartado (justificación). **Ningún hallazgo se marca resuelto sin evidencia.** Los requisitos pendientes de decisión no son bugs. Actualizar filas existentes, no crear otros documentos de seguimiento.
+
+| ID | Prioridad | Estado | Hallazgo / criterio a comprobar | Evidencia de cierre (SHA/PR/tests) |
+|---|---|---|---|---|
+| FUNC-001 | P0 | **Pendiente de verificar** | Cotización → venta: endpoint convertir-venta vs convertir | — |
+| FUNC-002 | P0 | **Pendiente de verificar** | POS crédito: ClientePicker no conserva clienteId | — |
+| FUNC-003 | P1 | **Pendiente de verificar** | Apartados/garantías/listas/pedidos/transferencias con persistencia local | — |
+| FUNC-004 | P2 | **Pendiente de verificar** | Búsqueda cliente con guiones/minúsculas | — |
+| FUNC-005 | P2 | **Pendiente de verificar** | Reset de filtros cotizaciones | — |
+| FUNC-006 | P2 | **Pendiente de verificar** | Fechas inconsistentes en PDF cotización | — |
+| SOS-001 | P1 | **Pendiente de verificar** | Concurrencia último stock y manejo de recuperación POS; rechazo de stock insuficiente puede ser correcto | — |
+| SOS-002 | P1 | **Pendiente de verificar** | Devolución parcial a crédito y saldos | — |
+| REQ-001 | Decisión negocio | **Pendiente de verificar** | Aprobación remota de descuentos; no aprobada automáticamente | — |
+| SEC-001 | P1 | **Pendiente de verificar** | Sin aislamiento relacional por sucursal | — |
+| SEC-002 | P0 | **Pendiente de verificar** | Límite de descuentos no verificado por backend | — |
+| SEC-003 | P0 | **Pendiente de verificar** | Permisos y ejecución de devoluciones; revisar si hay bypass real | — |
+| SEC-004 | P0 | **Pendiente de verificar** | Rate limiting ausente en login | — |
+| SEC-005 | P0 | **Pendiente de verificar** | Costo/margen expuesto por GET productos a cajeros | — |
+| SEC-006 | P1 | **Pendiente de verificar** | Operaciones sin RequiredPermission granular | — |
+| SEC-007 | P2 | **Pendiente de verificar** | Access token válido tras logout hasta expiración; política revocación | — |
+| SEC-008 | P0 | **Pendiente de verificar** | Módulo sin registro habilitado por defecto; verificar política heredada | — |
+| SEC-009 | P1 | **Pendiente de verificar** | Gestión de sucursales solo frontend; vinculado a SEC-001 | — |
+| SEC-010 | P2 | **Pendiente de verificar** | Logs de autenticación demasiado detallados | — |
+| SEC-011 | Decisión negocio | **Pendiente de verificar** | Recuperación de contraseña autoservicio ausente | — |
+| SEC-012 | P2 | **Pendiente de verificar** | Impersonación local sin auditoría durable | — |
+| SEC-013 | P0 | **Pendiente de verificar** | Cierre de caja por ID sin comprobar usuario propietario | — |
+| TECH-001 | P1 | **Pendiente de verificar** | Reserva vs salida física de stock; preservar facturar antes de entregar | — |
+| TECH-002 | P2 | **Pendiente de verificar** | Consultas sin paginación | — |
+| TECH-003 | P2 | **Pendiente de verificar** | Posibles índices FK faltantes; revisar índices y EXPLAIN | — |
+| TECH-004 | P2 | **Pendiente de verificar** | VITE_API_URL en build y configuración CI | — |
+| TECH-005 | P2 | **Pendiente de verificar** | Cotización create sin lockTenant; demostrar necesidad antes de añadir lock | — |
+
+### Antecedentes QA de otros documentos, pendientes de conciliación
+
+| ID | Estado | Antecedente y acción |
+|---|---|---|
+| HIST-QA-202603 | Histórico, no vigente | Informe `QA_REPORT.md` de marzo sobre localStorage, impersonación, metraje, comisiones, traducciones y responsive; comparar con fixes actuales. Ya existía advertencia en diagnóstico de main de que varias conclusiones quedaron obsoletas. No reabrir automáticamente. |
+| PROD-QA-20261007-01 | Pendiente de verificar | Informe de navegador 7/oct: HTTP 500 por posible desajuste entre esquema Supabase y backend publicado (stock_reservado, reserva_pendiente, clientes.codigo, tablas operativas). **No ejecutar migrate deploy a ciegas**; comparar esquema, migraciones y versión desplegada en copia/entorno seguro. Vinculado E02/E05. |
+| PROD-QA-20261007-02 | Pendiente de verificar | Cotizaciones/comisiones confunden errores de carga con resultados vacíos. |
+| PROD-QA-20261007-03 | Pendiente de verificar | Traducción cruda `clients.new_client` en alta de clientes. |
+| PROD-QA-20261007-04 | Pendiente de verificar | Botón cerrar modal sin nombre accesible. |
+| PROD-QA-20261007-05 | Pendiente de verificar | Repetir pruebas de flujos bloqueados y revisar avisos de respaldo; vinculado E03/E05. |
+
+### Requisitos comerciales observados durante pruebas manuales
+
+**Estado general: pendientes de verificar/definir, no todos son defectos comprobados.** Scanner/cámara y entrada manual; SKU corto, códigos de proveedor, unidades enteras/fraccionarias; categorías compartidas; edición de productos; ajuste individual de stock auditado; costo de última compra, markup y comisión por producto separados; cotización con cliente buscado/registrado primero, descuento porcentual, vigencia 15/30/45/60 días, logo/RTN, error visible y conversión; CSV/XLSX de levantamiento y campo Estado; simplificación de navegación; sucursales solo creadas/autorizadas por Super Admin, stock/caja por sucursal; caja por empleado y auditoría. **Conservar políticas del negocio existentes** y verificar antes de implementar. Para operaciones POS, facturar antes de entregar; `stockActual` vs `stockReservado` requieren una transición de entrega coherente y sin doble descuento.
+
+### Limpieza documental
+
+- `docs/CONTEXTO_MAESTRO.md` es la **única fuente vigente** de bitácora, hallazgos, estados y próximos pasos (incluidos E01–E15). Se conserva su anexo histórico de 20 documentos como referencia inmutable.
+- `QA_REPORT.md` (marzo) y `QA-REPORT.md` (7/oct) se consolidaron aquí como antecedentes; se retiran del árbol activo para evitar dos informes QA paralelos. Sus versiones completas quedan recuperables en el historial Git anterior a esta limpieza.
+- `docs/DIAGNOSTICO_MAIN_20261004.md`, `docs/AUDITORIA_RAMA_20261005.md`, `docs/UX_UI_AUDIT_2026-10-05.md`, `docs/ROADMAP_FERRESYSTEM.md` y demás anexos son **fuentes históricas/propuestas**, no tableros activos. No eliminarlos sin comprobar referencias o contenido único; no actualizar sus listas de hallazgos.
+- Cada agente debe actualizar **esta tabla** con ID, estado, commit/PR, prueba y fecha; añadir una fila en la bitácora resumida del apartado 8. No fusionar ni desplegar automáticamente.
+
 
 **FIN DEL CONTEXTO VIGENTE**
 
