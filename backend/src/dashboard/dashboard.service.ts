@@ -1,26 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
 
 @Injectable()
 export class DashboardService {
   constructor(private prisma: PrismaService) {}
 
-  async getDashboardData(tenantId: string) {
+  async getDashboardData(tenantId: string, zona = ZONA_HORARIA_NEGOCIO) {
     const ahora = new Date();
+    // "Hoy" y "ayer" son días calendario de la zona del negocio, no del servidor (UTC en producción).
+    const diaHoy = diaCalendario(ahora, zona);
+    const diaAyer = sumarDias(diaHoy, -1);
 
-    // Rango de hoy (00:00:00 a 23:59:59)
-    const inicioHoy = new Date(ahora);
-    inicioHoy.setHours(0, 0, 0, 0);
-
-    const finHoy = new Date(ahora);
-    finHoy.setHours(23, 59, 59, 999);
+    // Rango de hoy (00:00:00 a 23:59:59.999 hora local)
+    const { inicio: inicioHoy, fin: finExclusivoHoy } = rangoDiasEnZona(diaHoy, diaHoy, zona);
+    const finHoy = new Date(finExclusivoHoy.getTime() - 1);
 
     // Rango de ayer
-    const inicioAyer = new Date(inicioHoy);
-    inicioAyer.setDate(inicioAyer.getDate() - 1);
-
-    const finAyer = new Date(finHoy);
-    finAyer.setDate(finAyer.getDate() - 1);
+    const { inicio: inicioAyer, fin: finExclusivoAyer } = rangoDiasEnZona(diaAyer, diaAyer, zona);
+    const finAyer = new Date(finExclusivoAyer.getTime() - 1);
 
     // 1. Ventas del día (HNL)
     const ventasHoy = await this.prisma.venta.findMany({
@@ -70,11 +68,10 @@ export class DashboardService {
       },
     });
 
+    // fechaValidez es DATE (sin hora): su día calendario se lee tal cual, en UTC.
     let porVencerHoy = 0;
     for (const c of cotizaciones) {
-      const fechaVal = new Date(c.fechaValidez);
-      fechaVal.setHours(0, 0, 0, 0);
-      if (fechaVal.getTime() === inicioHoy.getTime()) {
+      if (c.fechaValidez.toISOString().slice(0, 10) === diaHoy) {
         porVencerHoy++;
       }
     }
@@ -84,25 +81,24 @@ export class DashboardService {
     const tendenciaSemanal: { dia: string; fecha: string; total: number; esHoy: boolean }[] = [];
 
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(inicioHoy);
-      d.setDate(d.getDate() - i);
-      const finD = new Date(d);
-      finD.setHours(23, 59, 59, 999);
+      const dia = sumarDias(diaHoy, -i);
+      const { inicio, fin } = rangoDiasEnZona(dia, dia, zona);
 
       const ventasDia = await this.prisma.venta.findMany({
         where: {
           tenantId,
           estado: 'COMPLETADA',
-          createdAt: { gte: d, lte: finD },
+          createdAt: { gte: inicio, lt: fin },
         },
       });
 
       const totalDia = ventasDia.reduce((acc, v) => acc + Number(v.total), 0);
-      const diaTexto = i === 0 ? 'HOY' : diasSemana[d.getDay()];
+      const diaSemana = new Date(`${dia}T00:00:00.000Z`).getUTCDay();
+      const diaTexto = i === 0 ? 'HOY' : diasSemana[diaSemana];
 
       tendenciaSemanal.push({
         dia: diaTexto,
-        fecha: d.toISOString().split('T')[0],
+        fecha: dia,
         total: totalDia,
         esHoy: i === 0,
       });
@@ -148,7 +144,7 @@ export class DashboardService {
         cajero: v.usuario.nombre,
         total: Number(v.total),
         metodoPago: v.metodoPago,
-        hora: new Date(v.createdAt).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' }),
+        hora: new Date(v.createdAt).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit', timeZone: zona }),
       })),
     };
   }
