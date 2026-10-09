@@ -1,6 +1,8 @@
 import { SuperAdminService } from './super-admin.service';
 import * as bcrypt from 'bcrypt';
 
+const M = { motivo: 'Revisar incidencia de caja #123' };
+
 describe('SuperAdminService', () => {
   const admin = {
     id: 'sa-1',
@@ -62,18 +64,62 @@ describe('SuperAdminService', () => {
   it('issues support tokens with the actual tenant identity and role', async () => {
     prisma.superAdmin.findUnique.mockResolvedValue(admin);
     prisma.usuario = { findFirst: vi.fn().mockResolvedValue({ id: 'u1', tenantId: 't1', email: 'u@test.com', nombre: 'Cajero', rol: 'CAJERO', activo: true, tenant: { estado: 'ACTIVO' } }) };
-    const result = await service.supportToken(admin.id, 't1', 'u1');
+    prisma.auditoriaOperacion = { create: vi.fn().mockResolvedValue({}) };
+    const result = await service.supportToken(admin.id, 't1', 'u1', true, M);
+    expect(prisma.auditoriaOperacion.create).toHaveBeenCalledWith({ data: expect.objectContaining({ tenantId: 't1', usuarioId: 'u1', operacion: 'SOPORTE_IMPERSONAR', datos: expect.objectContaining({ superAdminId: admin.id, readOnly: true }) }) });
     expect(prisma.usuario.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'u1', tenantId: 't1', activo: true } }));
     expect(jwt.sign).toHaveBeenCalledWith(expect.objectContaining({ sub: 'u1', tenantId: 't1', rol: 'CAJERO', type: 'tenant', impersonatedBy: admin.id, readOnly: true }), { expiresIn: '15m' });
     expect(result.user.rol).toBe('CAJERO');
   });
 
+  it('FS SEC-012: no emite token de soporte si la auditoría falla', async () => {
+    prisma.superAdmin.findUnique.mockResolvedValue(admin);
+    prisma.usuario = { findFirst: vi.fn().mockResolvedValue({ id: 'u1', tenantId: 't1', email: 'u@test.com', rol: 'CAJERO', activo: true, tenant: { estado: 'ACTIVO' } }) };
+    prisma.auditoriaOperacion = { create: vi.fn().mockRejectedValue(new Error('db')) };
+    await expect(service.supportToken(admin.id, 't1', 'u1', true, M)).rejects.toThrow('db');
+    expect(jwt.sign).not.toHaveBeenCalled();
+  });
+
+  describe('SEC-012 · emisión de tokens de soporte', () => {
+    beforeEach(() => {
+      prisma.superAdmin.findUnique.mockResolvedValue(admin);
+      prisma.usuario = { findFirst: vi.fn().mockResolvedValue({ id: 'u1', tenantId: 't1', email: 'u@test.com', nombre: 'Cajero', rol: 'CAJERO', activo: true, tenant: { estado: 'ACTIVO' } }) };
+      prisma.auditoriaOperacion = { create: vi.fn().mockResolvedValue({}) };
+    });
+    it('es solo lectura por defecto, con sesión de soporte y 15 minutos', async () => {
+      await service.supportToken(admin.id, 't1', 'u1', undefined, M);
+      const [payload, options] = jwt.sign.mock.calls[0];
+      expect(payload).toMatchObject({ impersonatedBy: admin.id, readOnly: true });
+      expect(payload.soporteSesionId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(options).toEqual({ expiresIn: '15m' });
+      const { data } = prisma.auditoriaOperacion.create.mock.calls[0][0];
+      expect(data.datos).toMatchObject({ soporteSesionId: payload.soporteSesionId, motivo: M.motivo, readOnly: true, superAdminId: admin.id });
+      expect(JSON.stringify(data)).not.toContain('signed-token');
+    });
+    it('exige un motivo', async () => {
+      await expect(service.supportToken(admin.id, 't1', 'u1', true, { motivo: ' corto ' })).rejects.toThrow('motivo');
+      expect(jwt.sign).not.toHaveBeenCalled();
+    });
+    it('la escritura exige autorización explícita; con ella dura 10 min y registra quién y por qué', async () => {
+      await expect(service.supportToken(admin.id, 't1', 'u1', false, M)).rejects.toThrow('autorización explícita');
+      expect(jwt.sign).not.toHaveBeenCalled();
+      await service.supportToken(admin.id, 't1', 'u1', false, { ...M, confirmarEscritura: true });
+      expect(jwt.sign).toHaveBeenCalledWith(expect.objectContaining({ readOnly: false, impersonatedBy: admin.id }), { expiresIn: '10m' });
+      expect(prisma.auditoriaOperacion.create.mock.calls[0][0].data.datos).toMatchObject({ readOnly: false, motivo: M.motivo, superAdminId: admin.id, expiraEnMinutos: 10 });
+    });
+    it('rechaza usuario deshabilitado', async () => {
+      prisma.usuario.findFirst.mockResolvedValue(null);
+      await expect(service.supportToken(admin.id, 't1', 'u1', true, M)).rejects.toThrow('no disponible para soporte');
+      expect(prisma.auditoriaOperacion.create).not.toHaveBeenCalled();
+    });
+  });
+
   it('rejects support for suspended companies and disabled superadmins', async () => {
     prisma.superAdmin.findUnique.mockResolvedValue({ ...admin, activo: false });
-    await expect(service.supportToken(admin.id, 't1', 'u1')).rejects.toThrow('Super Admin no autorizado');
+    await expect(service.supportToken(admin.id, 't1', 'u1', true, M)).rejects.toThrow('Super Admin no autorizado');
     prisma.superAdmin.findUnique.mockResolvedValue(admin);
     prisma.usuario = { findFirst: vi.fn().mockResolvedValue({ tenant: { estado: 'SUSPENDIDO' } }) };
-    await expect(service.supportToken(admin.id, 't1', 'u1')).rejects.toThrow('no disponible para soporte');
+    await expect(service.supportToken(admin.id, 't1', 'u1', true, M)).rejects.toThrow('no disponible para soporte');
   });
 
   it('rejects tenant refresh tokens on the Super Admin refresh endpoint', async () => {

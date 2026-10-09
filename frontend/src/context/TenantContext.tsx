@@ -16,9 +16,9 @@ interface TenantContextType {
   updateTenantConfig: (updates: Partial<TenantInfo>) => void;
   login: (user: UserInfo, tenant: TenantInfo) => void;
   logout: () => void;
-  impersonateTenantAdmin: (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string) => Promise<void>;
+  impersonateTenantAdmin: (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string, motivo?: string) => Promise<void>;
   stopImpersonating: () => void;
-  enableEditMode: () => Promise<void>;
+  enableEditMode: (motivo?: string) => Promise<void>;
   switchSucursal: (targetSucursalName: string, targetTenantId: string) => void;
 }
 
@@ -195,11 +195,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('ferre_tenant', JSON.stringify(normalizeTenantSettings(newTenant)));
   };
 
-  const impersonateTenantAdmin = async (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string) => {
+  const impersonateTenantAdmin = async (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string, motivo?: string) => {
     if (user?.rol !== 'SUPERADMIN') throw new Error('Se requiere una sesión de superadmin');
     const token = localStorage.getItem('ferre_token');
     const savedUser = localStorage.getItem('ferre_user');
-    const target = { tenantId: targetTenant.id, usuarioId: targetAdminUser.id, readOnly: true };
+    const target = { tenantId: targetTenant.id, usuarioId: targetAdminUser.id, readOnly: true, motivo: (motivo || '').trim() };
     const { data } = await api.post('/admin/support/token', target);
     if (localStorage.getItem('ferre_user') !== savedUser) throw new Error('La sesión cambió durante el inicio de soporte');
     if (!data.accessToken || !data.user || !token) throw new Error('No se pudo iniciar la sesión de soporte');
@@ -229,11 +229,13 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const enableEditMode = async () => {
+  const enableEditMode = async (motivo?: string) => {
     const savedTarget = localStorage.getItem('ferre_support_target');
     const adminToken = localStorage.getItem('ferre_original_superadmin_token');
     if (!savedTarget || !adminToken) throw new Error('Vuelve a iniciar la sesión de soporte');
-    const target = { ...JSON.parse(savedTarget), readOnly: false };
+    const justificacion = (motivo || '').trim();
+    if (justificacion.length < 10) throw new Error('Escriba el motivo de la edición (mínimo 10 caracteres)');
+    const target = { ...JSON.parse(savedTarget), readOnly: false, confirmarEscritura: true, motivo: justificacion };
     const supportToken = localStorage.getItem('ferre_token');
     const { data } = await api.post('/admin/support/token', target, { headers: { Authorization: `Bearer ${adminToken}` } });
     if (localStorage.getItem('ferre_token') !== supportToken || localStorage.getItem('ferre_support_target') !== savedTarget) throw new Error('La sesión de soporte cambió');
