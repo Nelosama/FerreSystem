@@ -209,6 +209,15 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 | **PR #79 — Auditoría P1/P2 completada** | Dos defectos confirmados y corregidos. Commit `bac89b1b` en rama `docs/contexto-levantamiento-post-rebase`. **Pendiente: push y merge manual.** |
 **FS-03 (2026-10-09)** — rama `fix/fs-03-password-predeterminada`, PR abierto, sin merge/despliegue. Se eliminan `Ferre2026!`/`FerreAdmin2026!` precargadas en `UsuariosPage.tsx` y `SuperAdminPage.tsx`; botón «Generar contraseña segura» (`frontend/src/utils/generatePassword.ts`, CSPRNG). Backend: `backend/src/common/password-policy.ts` (≥8, letras+números, lista bloqueada) en crear/editar usuario y admin de tenant; test `common/password-policy.spec.ts`. Backend 119/119, frontend 122/122, tsc OK. **Pendiente:** `backend/prisma/seed.ts` aún usa `Ferre2026!` (solo desarrollo; no ejecutar en producción); usuarios existentes con esa clave deben cambiarla.
 
+**SEC-012 (2026-10-09)** — rama `fix/sec-012-auditoria-impersonacion`, PR #94, sin merge/despliegue. Trazabilidad extremo a extremo de sesiones de soporte:
+- Emisión (`SuperAdminService.supportToken`): solo lectura por defecto; exige `motivo` (≥10); escritura exige `confirmarEscritura` y dura 10 min (lectura 15); genera `soporteSesionId`; registra `SOPORTE_IMPERSONAR` (superadmin, motivo, sesión, expiración; nunca el token) antes de firmar, y si falla no se emite.
+- Validación (`jwt.strategy.ts`): un token con `impersonatedBy` requiere `soporteSesionId` y que el Super Admin siga activo (revocación inmediata).
+- Bloqueo: `TenantGuard` (403 en no-GET con `readOnly`, registra `SOPORTE_ESCRITURA_DENEGADA`) + defensa en profundidad en `SupportAuditInterceptor`.
+- Auditoría: `common/support-context.ts` (AsyncLocalStorage alimentado solo por el JWT validado); `ledger.audit()` añade `datos._soporte {superAdminId, soporteSesionId, readOnly, resultado}` a las 27 auditorías existentes (misma transacción que la operación); `SupportAuditInterceptor` registra `SOPORTE_ESCRITURA_INICIO` ANTES de cualquier escritura (si falla, no se ejecuta) y `SOPORTE_ESCRITURA_RESULTADO` (OK/ERROR). No se guarda cuerpo, query, cabeceras ni tokens.
+- Frontend: `SuperAdminPage`/`TenantContext`/`TopBar` envían el motivo y piden justificación para activar edición.
+- Pruebas: backend unit/HTTP 285/285 (`common/support-impersonation.http.spec.ts` 14 casos, `super-admin.service.spec.ts`); frontend 122/122, tsc OK; **PostgreSQL 16 aislado** `test/soporte-auditoria.postgres.integration.ts` 6/6 (pago atribuido, solo lectura, rollback si falla la auditoría, fail-closed, aislamiento de tenant, Super Admin desactivado). Ejecutado con `PG_BIN=/usr/lib/postgresql/16/bin` como usuario no root.
+- **Limitaciones pendientes (no declarar resuelto del todo):** (1) columnas de negocio como `usuario_id`/`entregado_por` siguen mostrando al usuario representado; la identidad real vive en `auditoria_operaciones.datos._soporte`. (2) Escrituras sin llamada a `audit()` (p. ej. clientes, configuración del tenant) quedan cubiertas solo por los registros INICIO/RESULTADO del interceptor (sin before/after de datos y no en la misma transacción). (3) El resultado de `SOPORTE_ESCRITURA_RESULTADO` es best-effort. (4) No se probó en navegador ni contra la base real.
+
 ### Auditoría PR #79 (2026-10-09)
 
 **Hallazgo P1 — `??0` silencia precios null del catálogo:**
@@ -231,6 +240,12 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 
 **Acción requerida por Daniel:** `git push origin docs/contexto-levantamiento-post-rebase`
 
+
+### Bitácora FS (sesión autónoma 2026-10-09)
+
+| FS | Estado | Rama | Evidencia |
+|---|---|---|---|
+| FS-01 | Corregido, PR abierto (sin merge/despliegue) | `fix/fs-01-pos-vencimiento-iso` | Causa: `@IsOptional()` no omite `''`; el pendiente corregido del POS guardaba `vencimiento: ''` y el backend respondía "must be a valid ISO 8601 date string", dejando la venta pendiente bloqueada. Fix: `backend/src/common/empty-to-undefined.ts` aplicado a `vencimiento` en ventas/operaciones/compras + POS envía `pending.vencimiento \|\| undefined`. Test: `backend/src/ventas/create-venta-vencimiento.spec.ts` (11/11 en `src/ventas`). No validado en navegador ni producción. |
 
 ### Bitácoras anteriores (resumen)
 

@@ -19,6 +19,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 }) => {
   const { user, tenant, isImpersonating, isReadOnly, enableEditMode, stopImpersonating, switchSucursal, logout } = useTenant();
   const [modalConfirmEditMode, setModalConfirmEditMode] = React.useState(false);
+  const [motivoEdicion, setMotivoEdicion] = React.useState('');
   const { solicitudes, notificacionesTransferencia, responderSolicitud } = useNotification();
   const { locale, setLocale, t } = useI18n();
   const navigate = useNavigate();
@@ -112,6 +113,10 @@ export const TopBar: React.FC<TopBarProps> = ({
             <div style={{ padding: '16px 0', fontSize: '13px', color: '#444' }}>
               {t('topbar.confirm_help')}
             </div>
+            <label style={{ display: 'block', fontSize: '12px', marginBottom: '12px' }}>
+              Motivo de la edición (queda en la auditoría, mínimo 10 caracteres)
+              <textarea className="form-input" rows={3} maxLength={500} value={motivoEdicion} onChange={(e) => setMotivoEdicion(e.target.value)} />
+            </label>
 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button
@@ -123,12 +128,13 @@ export const TopBar: React.FC<TopBarProps> = ({
               </button>
               <button
                 type="button"
-                className="btn btn-primary btn-sm"
+                className="btn btn-primary btn-sm" disabled={motivoEdicion.trim().length < 10}
                 style={{ backgroundColor: '#DC2626', borderColor: '#991B1B', fontWeight: 800 }}
                 onClick={async () => {
                   try {
-                    await enableEditMode();
+                    await enableEditMode(motivoEdicion);
                     setModalConfirmEditMode(false);
+                    setMotivoEdicion('');
                   } catch {
                     alert(t('topbar.edit_failed'));
                   }

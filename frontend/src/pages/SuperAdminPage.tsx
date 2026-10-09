@@ -341,7 +341,7 @@ export const SuperAdminPage: React.FC = () => {
   const ejecutarSuplantacionConMotivo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalSuplantarUser || !usuarioASuplantar) return;
-    if (!soporteDescripcion.trim()) return;
+    if (soporteDescripcion.trim().length < 10) return;
 
     const sessionId = `sup-${Date.now()}`;
     const nowFormatted = new Date().toISOString().replace('T', ' ').slice(0, 16);
@@ -377,7 +377,8 @@ export const SuperAdminPage: React.FC = () => {
           rol: usuarioASuplantar.rol,
           activo: true,
         },
-        sessionId
+        sessionId,
+        `[${soporteCategoria}] ${soporteDescripcion.trim()}`.slice(0, 500)
       );
 
       const updatedSupportLogs = [nuevoRegistroSoporte, ...supportLogs];
@@ -1572,7 +1573,7 @@ export const SuperAdminPage: React.FC = () => {
                 >{t('uxAudit.cancel')} </button>
                 <button
                   type="submit"
-                  disabled={!soporteDescripcion.trim()}
+                  disabled={soporteDescripcion.trim().length < 10}
                   className="btn btn-primary"
                   style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
                 >{t('uxAudit.start_remote_support')} </button>

@@ -328,7 +328,13 @@ describe('Ventas / PostgreSQL aislado', () => {
       const records = await tenantList.json() as any[];
       expect(records.find((item) => item.id === tenantId).usuarios).toEqual([expect.objectContaining({ id: usuarioId, activo: true })]);
       expect(JSON.stringify(records)).not.toContain('passwordHash');
-      const support = await fetch(`${base}/admin/support/token`, { method: 'POST', headers: adminHeaders, body: JSON.stringify({ tenantId, usuarioId, readOnly: true }) });
+      const motivo = 'Revisión de soporte en prueba de integración';
+      // Contrato SEC-012: sin motivo (o demasiado corto) no hay token de soporte.
+      expect((await fetch(`${base}/admin/support/token`, { method: 'POST', headers: adminHeaders, body: JSON.stringify({ tenantId, usuarioId, readOnly: true }) })).status).toBe(400);
+      expect((await fetch(`${base}/admin/support/token`, { method: 'POST', headers: adminHeaders, body: JSON.stringify({ tenantId, usuarioId, readOnly: true, motivo: 'corto' }) })).status).toBe(400);
+      // La escritura exige autorización explícita aunque haya motivo.
+      expect((await fetch(`${base}/admin/support/token`, { method: 'POST', headers: adminHeaders, body: JSON.stringify({ tenantId, usuarioId, readOnly: false, motivo }) })).status).toBe(403);
+      const support = await fetch(`${base}/admin/support/token`, { method: 'POST', headers: adminHeaders, body: JSON.stringify({ tenantId, usuarioId, readOnly: true, motivo }) });
       expect(support.status).toBe(201);
       const { accessToken: supportToken } = await support.json() as { accessToken: string };
       const supportHeaders = { Authorization: `Bearer ${supportToken}`, 'Content-Type': 'application/json' };
@@ -340,7 +346,7 @@ describe('Ventas / PostgreSQL aislado', () => {
       expect((await fetch(`${base}/productos/${productoId}`, { method: 'DELETE', headers: supportHeaders })).status).toBe(403);
       expect((await fetch(`${base}/admin/tenants`, { headers: supportHeaders })).status).toBe(403);
       expect((await fetch(`${base}/admin/tenants`, { headers: adminHeaders })).status).toBe(200);
-      expect((await fetch(`${base}/admin/support/token`, { method: 'POST', headers: supportHeaders, body: JSON.stringify({ tenantId, usuarioId, readOnly: false }) })).status).toBe(403);
+      expect((await fetch(`${base}/admin/support/token`, { method: 'POST', headers: supportHeaders, body: JSON.stringify({ tenantId, usuarioId, readOnly: false, motivo, confirmarEscritura: true }) })).status).toBe(403);
       await prisma.usuario.update({where:{id:usuarioId},data:{rol:'CAJERO',passwordHash:await bcrypt.hash(password,4)}});
       const cashierLogin=await fetch(`${base}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'test@example.test',password,tenantId})});
       expect(cashierLogin.status).toBe(200);

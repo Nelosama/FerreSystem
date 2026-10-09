@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum, IsUUID, IsBoolean, IsDateString, ArrayMinSize, ArrayMaxSize, MaxLength } from 'class-validator';
+import { EmptyToUndefined } from '../../common/empty-to-undefined';
 import { Type } from 'class-transformer';
 import { TipoPago } from '@prisma/client';
 
@@ -37,7 +38,7 @@ export class CreateVentaDto {
   clienteId?: string;
   @IsOptional() @IsString() @MaxLength(200) clienteNombre?: string;
   @IsOptional() @IsString() @MaxLength(100) clienteRtn?: string;
-  @IsOptional() @IsDateString() vencimiento?: string;
+  @IsOptional() @EmptyToUndefined() @IsDateString() vencimiento?: string;
 
   @IsEnum(MetodoPagoEnum)
   @IsOptional()

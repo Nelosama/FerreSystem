@@ -1,7 +1,8 @@
 import { CORE_TENANT_MODULES, DEFAULT_TENANT_MODULES, enabledTenantModules } from '../common/tenant-modules';
 import { lockTenant } from '../operaciones/ledger';
 import { CreateTenantAdminDto, UpdateTenantAdminDto } from './tenant-admin.dto';
-import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -130,7 +131,10 @@ export class SuperAdminService {
     }));
   }
 
-  async supportToken(adminId: string, tenantId: string, usuarioId: string, readOnly = true) {
+  async supportToken(adminId: string, tenantId: string, usuarioId: string, readOnly = true, autorizacion: { motivo: string; confirmarEscritura?: boolean } = { motivo: '' }) {
+    const motivo = autorizacion.motivo?.trim() ?? '';
+    if (motivo.length < 10) throw new BadRequestException('Indique el motivo del acceso de soporte (mínimo 10 caracteres)');
+    if (!readOnly && autorizacion.confirmarEscritura !== true) throw new ForbiddenException('El modo de escritura requiere autorización explícita');
     const admin = await this.prisma.superAdmin.findUnique({ where: { id: adminId } });
     if (!admin?.activo) throw new UnauthorizedException('Super Admin no autorizado');
     const usuario = await this.prisma.usuario.findFirst({
@@ -140,11 +144,20 @@ export class SuperAdminService {
     if (!usuario || usuario.tenant.estado !== 'ACTIVO') {
       throw new NotFoundException('Usuario o ferretería no disponible para soporte');
     }
+    const soporteSesionId = randomUUID();
+    const expiraEn = readOnly ? 15 : 10; // mínimo privilegio: la escritura dura menos
+    // Auditoría durable antes de emitir el token: si no se puede registrar, no hay acceso de soporte.
+    await this.prisma.auditoriaOperacion.create({
+      data: {
+        tenantId, usuarioId: usuario.id, operacion: 'SOPORTE_IMPERSONAR', entidadId: usuario.id,
+        datos: { superAdminId: adminId, superAdminEmail: admin.email, usuarioEmail: usuario.email, rol: usuario.rol, readOnly, motivo, soporteSesionId, habilitadoEn: new Date().toISOString(), expiraEnMinutos: expiraEn },
+      },
+    });
     return {
       accessToken: this.jwtService.sign({
         sub: usuario.id, tenantId, email: usuario.email, rol: usuario.rol,
-        type: 'tenant', impersonatedBy: adminId, readOnly,
-      }, { expiresIn: '15m' }),
+        type: 'tenant', impersonatedBy: adminId, soporteSesionId, readOnly,
+      }, { expiresIn: `${expiraEn}m` }),
       user: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, activo: usuario.activo },
     };
   }

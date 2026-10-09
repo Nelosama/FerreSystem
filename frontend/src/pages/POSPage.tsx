@@ -311,7 +311,7 @@ export const POSPage: React.FC = () => {
       const descuentoPendiente = Math.round(pending.cart.reduce((sum, i) => sum + Math.round(i.precioUnitario * i.cantidad * 100) / 100, 0) * pending.descuentoPorcentaje) / 100;
       enviado = true;
       const { data } = await api.post('/ventas', {
-        solicitudId: pending.solicitudId, clienteId: pending.clienteId, vencimiento: pending.vencimiento,
+        solicitudId: pending.solicitudId, clienteId: pending.clienteId, vencimiento: pending.vencimiento || undefined,
         clienteNombre: pending.clienteNombre, clienteRtn: pending.clienteRtn || undefined,
         metodoPago: pending.metodoPago, descuento: descuentoPendiente,
         detalles: pending.cart.map(i => ({ productoId: i.productoId, cantidad: i.cantidad,
