@@ -38,7 +38,7 @@ export class OperacionesService {
    if(!dto.items?.length)throw new BadRequestException('Agregue productos');
    if(new Set(dto.items.map(x=>x.productoId)).size!==dto.items.length)throw new BadRequestException('Agrupe las líneas del mismo producto');
    const numeroFactura=text(dto.numeroFactura,'Factura');
-   const [duplicate]=await query(tx,'SELECT id FROM ordenes_compra WHERE tenant_id=$1 AND proveedor_id=$2 AND numero_factura=$3',tenantId,p.id,numeroFactura);
+   const [duplicate]=await query(tx,'SELECT id FROM ordenes_compra WHERE tenant_id=$1 AND proveedor_id=$2 AND UPPER(TRIM(numero_factura))=UPPER(TRIM($3))',tenantId,p.id,numeroFactura);
    if(duplicate)throw new ConflictException('Esta factura de proveedor ya está registrada');
    let subtotal=0;
    for(const item of dto.items){
@@ -73,7 +73,7 @@ export class OperacionesService {
     const [prod]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 AND activo=true FOR UPDATE',line.producto_id,tenantId);
     if(!prod)throw new NotFoundException('Producto no disponible');
     // La fecha de recepción es la fecha comercial de actualización. Un costo menor también reemplaza el anterior.
-    await query(tx,'UPDATE productos SET stock_actual=stock_actual+$1,precio_costo=$2,ultima_compra_at=$3,updated_at=NOW() WHERE id=$4 AND tenant_id=$5 RETURNING id',quantity,line.precio_costo,reception.fecha,prod.id,tenantId);
+    await query(tx,'UPDATE productos SET stock_actual=stock_actual+$1,precio_costo=$2,costo_vigente=$2,ultima_compra_at=$3,updated_at=NOW() WHERE id=$4 AND tenant_id=$5 RETURNING id',quantity,line.precio_costo,reception.fecha,prod.id,tenantId);
     await query(tx,'UPDATE detalles_orden_compra SET cantidad_recibida=cantidad_recibida+$1 WHERE id=$2 RETURNING id',quantity,line.id);
     await query(tx,'INSERT INTO costos_compra (id,tenant_id,producto_id,proveedor_id,orden_id,recepcion_id,cantidad,costo,fecha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',id(),tenantId,prod.id,order.proveedor_id,order.id,receptionId,quantity,line.precio_costo,reception.fecha);
     await movement(tx,tenantId,userId,prod.id,'COMPRA',Number(prod.stock_actual),money(Number(prod.stock_actual)+quantity),receptionId,`Factura ${order.numero_factura}`);
@@ -86,7 +86,7 @@ export class OperacionesService {
  async cuentas(tenantId:string,userId:string,tipo:string){
   if(!['CXC','CXP'].includes(tipo))throw new BadRequestException('Tipo inválido');
   const user=await actor(this.prisma,tenantId,userId);if(tipo==='CXP'&&user.rol!=='ADMIN')throw new ForbiddenException('Cuentas por pagar requieren administrador');
-  const accounts=await query(this.prisma,'SELECT c.*, COALESCE(cl.nombre,p.nombre) AS nombre, COALESCE(o.numero_factura, v.numero_venta::text) AS documento, c.saldo>0 AND c.vencimiento<NOW() AS vencida FROM cuentas_operativas c LEFT JOIN clientes cl ON cl.id=c.cliente_id LEFT JOIN proveedores p ON p.id=c.proveedor_id LEFT JOIN ordenes_compra o ON o.id=c.documento_id LEFT JOIN ventas v ON v.id=c.documento_id WHERE c.tenant_id=$1 AND c.tipo=$2 ORDER BY c.created_at DESC',tenantId,tipo);
+  const accounts=await query(this.prisma,'SELECT c.*, COALESCE(cl.nombre,p.nombre) AS nombre, COALESCE(o.numero_factura, v.numero_venta::text) AS documento, c.saldo>0 AND c.vencimiento::date < (NOW() AT TIME ZONE $3)::date AS vencida FROM cuentas_operativas c LEFT JOIN clientes cl ON cl.id=c.cliente_id LEFT JOIN proveedores p ON p.id=c.proveedor_id LEFT JOIN ordenes_compra o ON o.id=c.documento_id LEFT JOIN ventas v ON v.id=c.documento_id WHERE c.tenant_id=$1 AND c.tipo=$2 ORDER BY c.created_at DESC',tenantId,tipo,ZONA_HORARIA_NEGOCIO);
   for(const c of accounts)c.pagos=await query(this.prisma,'SELECT * FROM pagos_cuenta WHERE cuenta_id=$1 AND tenant_id=$2 ORDER BY created_at DESC',c.id,tenantId);
   return accounts;
  }

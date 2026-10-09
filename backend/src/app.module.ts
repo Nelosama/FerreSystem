@@ -19,7 +19,6 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { LevantamientosModule } from './levantamientos/levantamientos.module';
 import { ProveedoresModule } from './proveedores/proveedores.module';
-import { ComprasModule } from './compras/compras.module';
 
 @Module({
   imports: [
@@ -40,7 +39,6 @@ import { ComprasModule } from './compras/compras.module';
     LevantamientosModule,
     OperacionesModule,
     ProveedoresModule,
-    ComprasModule,
   ],
   controllers: [HealthController, BackupStatusController],
   providers: [

@@ -7,8 +7,6 @@ import { TenantModuleGuard } from './guards/tenant-module.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { OperacionesController } from '../operaciones/operaciones.controller';
 import { OperacionesService } from '../operaciones/operaciones.service';
-import { ComprasController } from '../compras/compras.controller';
-import { ComprasService } from '../compras/compras.service';
 import { ProveedoresController } from '../proveedores/proveedores.controller';
 import { ProveedoresService } from '../proveedores/proveedores.service';
 import { CotizacionesController } from '../cotizaciones/cotizaciones.controller';
@@ -25,9 +23,6 @@ const cases: [string, string, string[]][] = [
   ['get','/operaciones/solicitudes-devolucion',['pos']], ['get','/operaciones/solicitudes-devolucion/id',['pos']],
   ['post','/operaciones/solicitudes-devolucion/id/decision',['pos']], ['post','/operaciones/solicitudes-devolucion/id/ejecutar',['pos']],
   ['get','/operaciones/devoluciones/id',['pos']],
-  ['get','/compras',['ordenes_compra']], ['get','/compras/id',['ordenes_compra']],
-  ['post','/compras',['ordenes_compra','inventario']], ['post','/compras/id/pagos',['ordenes_compra']],
-  ['get','/productos/id/historial-compras',['ordenes_compra']],
   ['get','/proveedores',['ordenes_compra']], ['get','/proveedores/id',['ordenes_compra']],
   ['post','/proveedores',['ordenes_compra']], ['patch','/proveedores/id',['ordenes_compra']], ['delete','/proveedores/id',['ordenes_compra']],
   ['post','/cotizaciones/id/convertir',['cotizaciones','pos']],
@@ -45,8 +40,8 @@ describe('Module restrictions through HTTP (mock services/database)', () => {
       return true;
     });
     const module = await Test.createTestingModule({
-      controllers:[OperacionesController, ComprasController, ProveedoresController, CotizacionesController],
-      providers:[...([OperacionesService, ComprasService, ProveedoresService, CotizacionesService].map(provide => ({ provide, useValue:services }))),
+      controllers:[OperacionesController, ProveedoresController, CotizacionesController],
+      providers:[...([OperacionesService, ProveedoresService, CotizacionesService].map(provide => ({ provide, useValue:services }))),
         { provide:PrismaService, useValue:{ tenantModule:{ findUnique } } }, { provide:APP_GUARD, useClass:TenantModuleGuard }],
     }).compile();
     app=module.createNestApplication(); await app.init();

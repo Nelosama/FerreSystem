@@ -340,6 +340,83 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 - **Fase 4 fotografías:** no implementada (fase separada).
 - Lotes, series, vencimientos y garantías: sin modelo en el esquema.
 
+### Ciclo de compras — auditoría e integridad (2026-10-09)
+
+- **Base:** `main` `d24b420e` (PR #102, FS-07, **ya fusionado** por `Nelosama` el 2026-10-09 22:02 UTC). No hay PRs abiertos. Rama `fix/fs-compras-ciclo`. PR abierto hacia `main`. Sin merge ni despliegue.
+- **Implementaciones previas verificadas, no reimplementadas:** FS-09 (pagos a proveedor independientes de la caja: ningún método exige caja ni genera `movimientos_caja`; `caja_id` NULL) y FS-04 (fechas de calendario en CxP), FS-08 (validación de costos en captura). Se añadieron pruebas PostgreSQL reales que las comprueban.
+- **Documentos no encontrados:** `FS-08` y `FS-09` no tenían sección propia en este documento; su contexto está en el historial de commits (`a4857722`, `4da064f8`, `bf0b73ba`, PRs #92 y #93) y en `docs/BITACORA_PENDIENTES_2026-10-09.md`.
+
+**Flujo real verificado** (`operaciones.service.ts`; módulo legado retirado): Proveedor (`ProveedorDto`) → Orden/factura `compra()` (estado `SOLICITADA`, CxP en el saldo del proveedor) → `recibir()` (recepción parcial o completa, exactamente una vez por `solicitudId`) → `productos.stock_actual`, `precio_costo`, `costo_vigente`, `costos_compra`, `movimientos_inventario` (tipo `COMPRA`) → `pagar()` (CxP sin caja; saldo con `FOR UPDATE`) → `cuentas()` (solo ADMIN para CxP) → auditoría `COMPRA_CREAR`, `COMPRA_RECIBIR`, `CUENTA_PAGAR`.
+
+**Matriz de hallazgos**
+
+| # | Hallazgo | Gravedad | Causa raíz | Corrección |
+|---|---|---|---|---|
+| H1 | Módulo legado `/compras` (ADMIN) registraba compras que **cambiaban `costo_vigente` y `precio_costo` sin recepción y sin aumentar existencias**; además creaba pagos a proveedor en tablas separadas (`compras_proveedor`/`pagos_proveedor`) fuera de la CxP real. | **P0** | Segunda implementación paralela del ciclo de compras, sin uso desde la interfaz, que violaba la regla de costo vigente. | Módulo `ComprasModule` retirado de `AppModule`; código eliminado de `src/compras/`. Las tablas y datos históricos **se conservan** (sin migración). Ver conciliación propuesta. |
+| H2 | `costo_vigente` nunca se actualizaba en la recepción activa (solo `precio_costo`); quedaba `NULL`. | **P1** | El flujo activo no escribía la segunda columna de costo. | `recibir()` escribe `costo_vigente = precio_costo = costo de línea`. Prueba: baja 50→45 y sube 45→60; historial `[45, 60]`. |
+| H3 | Factura repetida del mismo proveedor se aceptaba si cambiaban mayúsculas o espacios (`FAC-200` vs ` fac-200 `). | **P1** | Comparación exacta de `numero_factura`. | Comparación `UPPER(TRIM(...))` en `compra()`. Prueba PostgreSQL y mock unitario actualizado al mismo criterio. |
+| H4 | Una cuenta CxP que vence **hoy** (Tegucigalpa) aparecía como `VENCIDA` desde las 18:00 locales del día anterior. | **P1** | `vencimiento < NOW()` compara un día calendario naive con un instante UTC. | `vencimiento::date < (NOW() AT TIME ZONE 'America/Tegucigalpa')::date`. Prueba con fecha de hoy (no vencida) y de ayer (vencida). |
+| H5 | Compra sin pruebas de **costo que baja**, de **recepción parcial con pendiente**, de **concurrencia de recepciones** y de **rollback** con datos reales. | P2 (cobertura) | Pruebas existentes con mocks. | Nueva suite PostgreSQL `compras.postgres.integration.ts` (24 casos). |
+| H6 | Pantalla: recepción y pago se enviaban **sin confirmación**; una cuenta pagada no se distinguía; la nota de caja no aparecía. | P2 (UX) | Flujos sin paso de confirmación. | Confirmación antes de recibir y pagar; nota «Los pagos a proveedores no afectan la caja POS»; etiqueta «PAGADA». Textos ES/EN en `purchases.*`. |
+
+**Lo que ya funcionaba y se verificó con PostgreSQL real**
+
+- Recepción completa e idempotente: una recepción confirmada suma existencias **una vez**; reintento con la misma solicitud devuelve la recepción original sin volver a sumar.
+- Recepción parcial: suma solo lo recibido; la orden queda `SOLICITADA`; exceder el pendiente se rechaza.
+- Dos recepciones simultáneas que juntas exceden el pendiente: solo una aplica (`FOR UPDATE` sobre orden, línea y producto).
+- Atomicidad: un producto inactivo en la recepción revierte todo (sin recepción, sin existencias, sin costos).
+- Pagos: parcial, sobrepago rechazado, dos pagos concurrentes que juntos superan el saldo (solo uno aplica; saldo nunca negativo), reintento no descuenta dos veces.
+- Caja: un pago a proveedor en efectivo, tarjeta o transferencia no exige caja abierta, `caja_id` queda NULL y no crea `movimientos_caja`.
+- Permisos: CAJERO no compra ni recibe; BODEGUERO no paga; CxP solo ADMIN. Aislamiento: otra empresa no recibe, paga ni compra con entidades ajenas.
+- Costo histórico: `costos_compra` conserva costo, proveedor y recepción de cada recepción.
+
+**Reglas de negocio aplicadas**
+
+- Costo vigente = costo unitario de la **última recepción que actualizó inventario**, suba o baje. No hay promedio ponderado. El precio de venta no cambia.
+- Cada compra conserva proveedor, factura, fecha, monto (subtotal calculado en servidor) y vencimiento.
+- Un pago no puede superar el saldo; un pago a proveedor no afecta la caja POS, con ningún método.
+- Factura repetida: mismo proveedor, sin distinguir mayúsculas ni espacios, en la misma empresa.
+
+**Pruebas ejecutadas**
+
+- Unitarias backend: **326/326** (331 previas; 5 casos menos por la retirada de las rutas legadas). `tsc -p tsconfig.build.json`, `nest build` y oxlint sin errores.
+- Integración PostgreSQL 16 (usuario `nobody`): **9 archivos, 159/159**. Nuevo `test/compras.postgres.integration.ts`: **24/24**, con 5 casos que fallaban antes de corregir (costo vigente en dos escenarios, factura duplicada sin distinguir mayúsculas, vencimiento por calendario, y la consulta de movimientos de caja de la prueba, que fallaba por un error propio de la prueba y se corrigió).
+- Frontend `npm test`: **157/157**. `tsc -b`, `vite build` y oxlint de archivos tocados sin errores.
+- Playwright: **84/84**, incluidas **5 E2E nuevas** en `e2e/compras-simulado.spec.ts`. **Son E2E con backend simulado** (identificadas en el nombre del archivo y en el propio spec): validan confirmaciones, doble envío, reintento con la misma solicitud, nota de caja y estado pagada. No sustituyen la validación de persistencia.
+
+**Decisiones pendientes (no implementadas; requieren autorización)**
+
+- **D1 · Compra al contado.** No existe: toda compra genera CxP y se paga después con `pagar()`. Alternativa: registrar compra ya pagada (sin caja, misma regla).
+- **D2 · Momento de reconocer la CxP.** Hoy se reconoce al registrar la factura, antes de recibir la mercancía. Alternativa: reconocer al recibir. Es un criterio contable: no cambiado.
+- **D3 · Anulación y corrección.** No hay endpoint para anular compras, recepciones ni pagos. Revertir una recepción plantea una pregunta de costo vigente (¿qué recepción queda vigente?). Requiere diseño y autorización.
+- **D4 · ISV de la factura.** Se captura manualmente y no se valida contra las líneas. Alternativa: calcular el impuesto desde las líneas gravadas. Regla fiscal: no cambiado.
+- **D5 · Costo editado manualmente.** Un ADMIN o BODEGUERO puede cambiar `precioCosto` en el catálogo (FS-07, decisión D1), lo que rompe la regla «costo vigente = última recepción». Decidir si se bloquea o se audita como excepción.
+- **D6 · Alertas de vencimiento a 7 días.** El resumen del dashboard (`resumen`, `vencimiento <= NOW() + 7 días`) sigue usando instante, no calendario de Tegucigalpa. Diferencia de menos de un día. Pendiente.
+
+**Conciliación propuesta para datos históricos (no ejecutada; solo lectura)**
+
+Antes de decidir qué hacer con H1, conviene medir si existen registros en el módulo legado y si algún pago CxP histórico quedó en caja. Consultas de solo lectura para ejecutar en una réplica o copia:
+
+```sql
+-- Compras registradas por el módulo legado (no afectan CxP real).
+SELECT COUNT(*) AS compras_legado, COALESCE(SUM(monto),0) AS monto FROM compras_proveedor WHERE tenant_id = '<tenant>';
+-- Pagos a proveedor del módulo legado.
+SELECT COUNT(*) AS pagos_legado FROM pagos_proveedor p JOIN compras_proveedor c ON c.id = p.compra_id WHERE c.tenant_id = '<tenant>';
+-- Pagos CxP históricos que sí quedaron ligados a una caja (incorrecto según FS-09).
+SELECT p.id, p.monto, p.metodo, p.caja_id, p.created_at FROM pagos_cuenta p JOIN cuentas_operativas c ON c.id = p.cuenta_id WHERE c.tipo = 'CXP' AND p.caja_id IS NOT NULL;
+-- Movimientos de caja generados por pagos CxP históricos.
+SELECT * FROM movimientos_caja WHERE tipo = 'PAGO_CXP';
+```
+
+Si aparecen filas en la última consulta, la propuesta es **no modificar** `movimientos_caja` ni `cierres`: documentar cada caso con su cierre histórico y proponer un asiento de conciliación auditable, aprobado por el dueño.
+
+**Riesgos residuales**
+
+- **Despliegue:** retirar `/compras` puede romper integraciones externas que lo usen; la interfaz no lo usa.
+- **Datos legados:** `compras_proveedor` y `pagos_proveedor` pueden contener deuda que no aparece en CxP (ejecutar la consulta de conciliación).
+- Playwright con backend simulado: no prueba persistencia.
+- Alertas de vencimiento (D6) y ISV manual (D4).
+
 ### FS-07 — edición integral y segura de productos (2026-10-09)
 
 - **Base:** `main` `52703309` (PR #101, FS-06 fase 2, **ya fusionado** por `Nelosama` el 2026-10-09 20:43 UTC; CI de `59e39313` en success). Rama `fix/fs-07-edicion-productos`. PR abierto hacia `main`. Sin merge ni despliegue.

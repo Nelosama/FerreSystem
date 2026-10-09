@@ -108,10 +108,10 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
         }
         return [];
       }
-      if (sql.includes('SELECT id FROM ordenes_compra WHERE tenant_id=$1 AND proveedor_id=$2 AND numero_factura=$3')) {
+      if (sql.includes('SELECT id FROM ordenes_compra WHERE tenant_id=$1 AND proveedor_id=$2 AND UPPER(TRIM(numero_factura))=UPPER(TRIM($3))')) {
         const [tenantId, provId, numFactura] = params;
         const duplicate = Object.values(dbOrders).find(
-          (o: any) => o.tenant_id === tenantId && o.proveedor_id === provId && o.numero_factura === numFactura,
+          (o: any) => o.tenant_id === tenantId && o.proveedor_id === provId && String(o.numero_factura).trim().toUpperCase() === String(numFactura).trim().toUpperCase(),
         );
         return duplicate ? [duplicate] : [];
       }
