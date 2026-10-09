@@ -10,6 +10,7 @@ export class CreateProductoDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(100)
   codigoBarras?: string;
   @IsOptional() @IsString() codigoFabricante?: string;
   @IsOptional() @IsUrl({protocols:['https'],require_protocol:true}) @MaxLength(2048) imagenUrl?:string;
@@ -64,6 +65,7 @@ export class UpdateProductoDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(100)
   codigoBarras?: string;
   @IsOptional() @IsString() codigoFabricante?: string;
   @IsOptional() @IsUrl({protocols:['https'],require_protocol:true}) @MaxLength(2048) imagenUrl?:string;

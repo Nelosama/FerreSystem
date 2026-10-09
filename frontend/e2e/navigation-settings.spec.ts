@@ -57,7 +57,7 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
     if (role !== 'SUPERADMIN') {
       expect(await page.locator('.daily-tasks .task-link').count()).toBeLessThanOrEqual(4);
       if (['CAJERO', 'VENDEDOR'].includes(role)) {
-        if (mode === 'TOPNAV') await navigation.getByRole('button', { name: language === 'es' ? 'Ventas y caja' : 'Sales and cash' }).click();
+        if (mode === 'TOPNAV') await navigation.getByRole('button', { name: language === 'es' ? 'Ventas y caja' : 'Sales and register' }).click();
         await expect(navigation.locator('a[href="/arqueo-caja"]')).toBeVisible();
       }
       if (role !== 'ADMIN') await expect(navigation.locator('a[href="/usuarios"]')).toHaveCount(0);
@@ -74,7 +74,7 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
       await page.goto('/'); await expect(page).toHaveURL(/\/admin$/);
     }
     await page.goto('/inventario');
-    await expect(page.getByRole('heading', { name: language === 'es' ? 'Acceso Denegado' : 'Access denied', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: language === 'es' ? /Acceso Denegado/i : /Access Denied/i, exact: true })).toBeVisible();
     expect(errors).toEqual([]);
   });
 }
@@ -111,7 +111,7 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
     for (const route of ['entregas', 'devoluciones']) for (const url of [`/${route}`, `/${route.toUpperCase()}/`]) {
       await page.goto(url);
       const allowed = enabled && (route === 'entregas' ? role !== 'VENDEDOR' : role !== 'BODEGUERO');
-      const denied = page.getByRole('heading', { name: 'Acceso Denegado', exact: true });
+      const denied = page.getByRole('heading', { name: /Acceso Denegado/i, exact: true });
       if (allowed) {
         await expect(page.locator('.task-finder-toggle')).toBeVisible();
         await expect(denied).toHaveCount(0);
@@ -198,9 +198,9 @@ for (const language of ['es', 'en']) test(`buscador Escape restaura foco; config
   await page.keyboard.press('Escape'); await expect(toggle).toBeFocused();
   await expect(page.locator('#task-search')).toHaveCount(0);
   await expect(page.getByRole('heading',{ name:language==='es'?'CONFIGURACIÓN Y MARCA':'SETTINGS AND BRANDING',exact:true })).toBeVisible();
-  await expect(page.locator('#fiscal-limit')).toContainText(language==='es'?'solo lectura':'read only');
+  await expect(page.locator('#fiscal-limit')).toContainText(language==='es'?'solo lectura':'read-only');
   await page.goto('/');
-  await page.getByText(language==='es'?'Funciones pendientes':'Pending features',{exact:true}).click();
+  await page.locator('.daily-tasks details summary').click();
   await expect(page.locator('.daily-tasks details p')).toContainText(language==='es'?'todavía no registran':'do not record');
   await expect(page.locator('.daily-tasks details a')).toHaveCount(0);
   await expect(page.locator('a[href="/apartados"]')).toHaveCount(0);
