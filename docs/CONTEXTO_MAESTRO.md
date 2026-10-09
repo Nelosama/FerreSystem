@@ -1,255 +1,219 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-08, America/Tegucigalpa**. Este es el documento único de continuidad: estado vigente, decisiones, evidencia, pendientes y registro de cambios. Sirve para Codex, Copilot, Antigravity o una persona sin acceso al chat.
+Última revisión: **2026-10-09, America/Tegucigalpa** — actualización por Claude (auditoría PR #73 + estado PRs #74–76).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
-## 1. Estado comprobado y siguiente paso
+---
 
-- Repositorio: `Nelosama/FerreSystem`; checkout conocido: `C:\Users\Nelo\Documents\GitHub\FerreSystem`.
-- Main local y remoto comprobados: `4719e526b73a9db419d9a87ea15f7eb3993a7c64` (Playwright), posterior al merge `12fccd714430caa536909993b92798087959ede4` de [PR #64](https://github.com/Nelosama/FerreSystem/pull/64).
-- Checkout actual: `main`; rama histórica de cierre: `feat/close-pending-delivery`.
-- PR #64: **fusionado**, confirmado por GitHub. Consulta de PR abiertos sin resultados. Código previo probado: `efd8c169dfb68ac5002dd041068c4b10213aeaa6`; revisión documental probada: `48b4a5d971ce24a2b20db2bd86932313997b9b6d`. La consulta de workflow runs para `4719e526` devolvió lista vacía; no hay evidencia recuperada de CI para ese HEAD.
-- [CI de esa revisión](https://github.com/Nelosama/FerreSystem/actions/runs/37558376539): aprobado. Ver tabla de pruebas. Este documento posterior no cambia código; no atribuirle automáticamente ese SHA ni un CI nuevo.
-- Vercel completó el check/preview automático del PR. **No se verificó producción ni se hizo despliegue manual**. Merge, preview y entrega al cliente son estados distintos.
-- Checkout limpio al iniciar esta revisión; el cambio local histórico en `backend/nest-cli.json` ya no aparece. No se descartó ni restauró ningún cambio. No aplicar stashes históricos automáticamente.
-- Próximo paso técnico: resolver E15 antes de ejecutar la suite completa de navegador y validar el HEAD actual en aislamiento. Próximo paso de entrega: confirmar alcance, infraestructura, copia/restauración y aceptación del negocio. **Merge no equivale a entrega completa.**
+## PROTOCOLO OBLIGATORIO PARA AGENTES
 
-La rama/main/PR pueden cambiar después de esta fecha. Cada agente debe comprobar Git y GitHub antes de editar, sin resetear ni descartar trabajo. La instrucción vigente del usuario prevalece sobre este resumen.
+Antes de comenzar cualquier trabajo en FerreSystem:
+
+1. **Leer `docs/CONTEXTO_MAESTRO.md`** hasta `FIN DEL CONTEXTO VIGENTE`.
+2. **Verificar el estado actual de GitHub**: `git fetch --all --prune` + `git log main --oneline -10` + ramas remotas.
+3. **No duplicar funcionalidades** ya implementadas ni ramas ya abiertas.
+4. **Trabajar en ramas independientes** desde `main` actualizado; nunca directamente sobre `main`.
+5. **Actualizar este documento** cuando cambie el estado de una funcionalidad, PR o hallazgo.
+6. **Registrar pruebas con sus limitaciones**: distinguir entre pruebas unitarias, integración con PostgreSQL real y validación en dispositivo físico.
+7. **No hacer merge automático** ni desplegar a producción sin autorización explícita del dueño del proyecto.
+
+Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
+
+---
+
+## 1. Estado comprobado — 2026-10-09
+
+- Repositorio: `Nelosama/FerreSystem`; checkout local: `C:\Users\Nelo\Documents\GitHub\FerreSystem`.
+- **HEAD de `main` verificado:** `bbdaec3f` — Revert "Incompleto Codex" (2026-10-09).
+- Rama activa de auditoría: `fix/levantamiento-barcode-audit` — commit `c9a92352` (pendiente de push y PR).
+- PR #76 `codex/fix-iphone-barcode-scanner`: rama remota actualizada (`eb0aadb2`), PR aún abierto, pendiente de push del merge con main.
+
+### Siguiente paso autorizado
+- **Daniel** hace push de las tres ramas pendientes desde su máquina:
+  ```bash
+  git push origin fix/levantamiento-barcode-audit   # PR de auditoría P1
+  git push origin codex/fix-iphone-barcode-scanner  # desbloquea PR #76 para Jules
+  git push origin main                              # propaga revert bbdaec3f
+  git push origin wip/incompleto-codex             # aísla trabajo incompleto
+  ```
+- Jules revisa PR #76 con el nuevo SHA (`eb0aadb2`).
+- Abrir PR de `fix/levantamiento-barcode-audit` → revisión antes de merge.
+
+---
 
 ## 2. Objetivo y reglas de negocio
 
-Permitir que el dueño delegue sin perder control: registrar quién hizo qué, cuándo, por cuánto y con qué efecto. Núcleo: **Compras/proveedores → Inventario/costos → Venta/crédito → Entrega → Caja/cierre → Auditoría**.
+Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento físico, cotizaciones, devoluciones, app móvil y respaldos. Un solo backend NestJS + Prisma + PostgreSQL; frontend React + Vite. Multi-tenant por `tenantId` con `TenantGuard` en cada controlador.
 
-- Registrar la venta antes de entregar. Distinguir reserva, disponibilidad y existencia física; no usar stock negativo para vender mercancía que nunca entra al local.
-- Venta sin inventario es un flujo explícito, con ingreso/caja/documento y vínculo comercial cuando corresponda; no genera una salida física ficticia.
-- Conservar costo histórico de compra separado del costo vigente comercial. Una compra posterior puede actualizar el costo vigente hacia arriba o abajo.
-- Crédito exige cliente registrado y crédito habilitado; cuenta, saldo, abonos y vencimiento trazables. Nunca desactivar la validación del servicio para hacer pasar fixtures.
-- Movimientos de inventario, cobros y devoluciones deben ser transaccionales, auditables e idempotentes. No modificar fórmulas para corregir apariencia o pruebas.
-- Pago con tarjeta/transferencia se registra; no implica procesamiento bancario automático.
-- Permisos efectivos en backend y tenant del JWT; ocultar controles en frontend no autoriza ni protege por sí solo.
-- No rediseñar nuevamente. Conservar TOPNAV/SIDEBAR, organización por tareas y mejoras ES/EN. No ampliar funcionalidades por interpretar una idea histórica como una orden de implementación.
-- No realizar merge, despliegue manual, migraciones en bases existentes o acceso a producción sin autorización específica. La autorización previa del cierre fue para commit/push/PR y pruebas aisladas, no para esas acciones.
+**Reglas críticas confirmadas:**
+- `FINALIZADO` ≠ `APLICADO AL INVENTARIO`. Son etapas separadas con autorización explícita.
+- Solo `ADMIN` puede ejecutar `POST /levantamientos/:id/aplicar`.
+- El barcode del catálogo no se sobreescribe salvo que el conteo haya coincidido por barcode (`matchedByBarcode=true`) o el catálogo no tuviera barcode previo.
+- `seed-alex.spec.ts` solo se ejecuta manualmente con variables de entorno; está excluido de CI (`testIgnore: ['**/unsafe/**']`).
+- No desplegar ni hacer merge sin verificar `GET /api/health` y tests en copia aislada.
 
-## 3. Cambios consolidados y decisiones vigentes
+---
 
-| Área | Estado conocido / decisión | Referencia |
-| --- | --- | --- |
-| Recuperación POS | Borrador y solicitud pendiente por usuario/tenant; consultar estado antes de reintentar; conservar identidad y comprobante. No reenvía ventas automáticamente. No es operación offline completa. | Histórico P0 y pruebas de recuperación. |
-| Devoluciones autorizadas | Solicitud pendiente → decisión de ADMIN → ejecución por solicitante. Decidir no mueve caja/stock. Revalida ADMIN activo y cantidades; dos ADMIN conservan primera decisión; crédito se cancela antes de reembolsar excedente. | `AVANCE_DEVOLUCIONES_AUTORIZADAS.md` en anexo. |
-| Roles y permisos | Backend conserva controles y último ADMIN activo. ADMIN puede crear/editar otros ADMIN de su tenant: política heredada, no exclusividad de Super Admin. Cambiarla requiere decisión explícita. | Auditoría UX y servicios Usuarios/plataforma. |
-| Configuración | ADMIN guarda identidad/contacto/apariencia/fuentes/navegación mediante PUT `/tenant/settings`. Super Admin usa PATCH `/admin/tenants/:id` para campos de marca/plataforma permitidos. Éxito tras respuesta persistida. | PR #63; integración real de #64. |
-| Sincronización | Reconstrucción desde respuesta normalizada y defaults, incluso con `{}`; catálogo `ferre_saas_tenants` deja de sobrescribir servidor. Secuencia/versión `updatedAt` e identidad de sesión invalidan lecturas tardías. | `TenantContext` y helpers/tests de sincronización. |
-| Preferencias | TOPNAV/SIDEBAR es configuración de empresa; idioma es local. Selección de sucursal existente no crea una sucursal ni concede acceso. | Contrato existente conservado. |
-| Fiscal y comprobantes | General restringido a HNL/L. e ISV 15%. No hay conversión monetaria. PDF usa importes/ISV transaccionales y tasa de cotización si existe; no inventa tasa histórica de venta. | PR #63; regresiones de comprobantes anteriores y tasa cero. |
-| Navegación | Categorías coherentes en lateral/superior/móvil, hasta cuatro prioridades y buscador para acceder a las demás tareas. Escape restaura foco. Funciones pendientes explicadas sin accesos inoperantes. | PR #63 y #64. |
-| Entregas/Devoluciones | `moduleKey: 'pos'` tanto para filtros de navegación como acceso canónico. `matchPath` cubre variantes de URL admitidas por React Router. Roles conservados. | PR #64, fusionado en `12fccd71`. |
-| Módulos backend | Recepción/compra con stock: Compras e Inventario; convertir cotización: Cotizaciones y POS; lookup de proveedores: Compras o POS; entregas/devoluciones: POS. Caja/cuentas existentes son base. Registro opcional explícitamente deshabilitado manda; ausencia heredada conserva disponibilidad. | Guards y matriz histórica de auditoría UX. |
-| Administradores de plataforma | Alta/edición reales, ámbito tenant, hashing, no exponer contraseñas y conservar último ADMIN activo. Restricciones de soporte/impersonación permanecen. | PR #63. |
-| Sucursales | Retirado formulario inalcanzable sin modelo/API real. No equivale a multisucursal implementado. | PR #63; propuesta en anexo. |
-| Fixtures crédito | Cuatro clientes habilitan crédito antes de vender. Servicio, schema y migraciones no se alteraron por ese fix. | `0b7d8af7ea4c29afaabe38ec883e2ee1e1a27cab`. |
-| PostgreSQL y navegador real | Helpers nuevos verifican login, guardado, lectura SQL/HTTP, nueva sesión, dos tenants, Cajero rechazado y limpieza. CI activa navegador real. `pg_ctl` evita pipes heredados en Windows. | PR #64. |
-| Instalación y respaldos | Baseline/migración segura, adopción explícita, dump/checksum/restauración y paquete Compose preparados; respaldo programado cada seis horas. Ensayos sintéticos no certifican la instalación real. | Scripts y documentos de instalación del anexo. |
+## 3. Arquitectura actual del sistema
 
-Los documentos antiguos que dicen “compras solo localStorage”, “roles por implementar”, “devoluciones no encontradas” o “PostgreSQL imposible” son diagnósticos de sus revisiones, **no una lista vigente de defectos**. Auditar el código antes de reimplementar. No se realizó una auditoría nueva de todo el producto al consolidar documentación.
-
-## 4. Evidencia reproducible y límites
-
-| Verificación | CI Linux en `48b4a5d9` | Windows local del mismo código |
-| --- | --- | --- |
-| Frontend | 78/78 | 78/78 |
-| Backend | 185/185 | 182 aprobadas, 3 omitidas por POSIX |
-| Scripts | 7/7 | 7 omitidas, no se contabilizan como aprobadas |
-| Navegador con API simulada | 54/54 | 54/54 |
-| PostgreSQL real | 55/55, 2 suites | 55/55, 191.31 s |
-| Navegador + API + PostgreSQL reales | Log explícito aprobado dentro de integración | Guardar/recargar/nuevo contexto/login aprobados |
-| Builds | Frontend/backend aprobados | Ambos salida 0 |
-| Lint | No forma parte de ese workflow | Ambos salida 0; advertencias existentes |
-
-CI final: https://github.com/Nelosama/FerreSystem/actions/runs/37558376539 . CI del código `efd8c169`: https://github.com/Nelosama/FerreSystem/actions/runs/37558322184 . CI histórico de #63 con 55 PostgreSQL: https://github.com/Nelosama/FerreSystem/actions/runs/37494401707 . No sumar ejecuciones repetidas como casos nuevos: el helper de configuración amplía un test HTTP existente y el total sigue en 55.
-
-Unitarias/componentes pueden usar mocks. Navegador simulado no prueba autorización/persistencia reales. Integración HTTP usa API compilada, autenticación real y PostgreSQL temporal. El navegador real usa **Vite de desarrollo con proxy a esa API**, sin interceptar endpoints ni precargar login; no verifica el despliegue productivo. PostgreSQL temporal puede usar trust exclusivamente local: no es una configuración de instalación recomendada.
-
-**Advertencia vigente del análisis de `4719e526`:** `frontend/e2e/seed-alex.spec.ts` queda incluido por `frontend/playwright.config.ts` y apunta mediante URL absoluta al sitio publicado, con credenciales embebidas y altas/ventas reales. No ejecutar `test:browser` completo ni el workflow operativo sin resolver E15. Los resultados de la tabla corresponden al código anterior. Node 24.16.0, npm 11.13.0 y los archivos de binarios PostgreSQL 18/Chrome están presentes localmente; no se verificó su funcionamiento ni se repitieron suites en esta revisión.
-
-Comandos desde raíz (PowerShell; ajustar binarios instalados, no apuntar pruebas a bases compartidas; resolver E15 antes del comando de navegador):
-
-```powershell
-npm test --prefix frontend
-npm test --prefix backend
-npm run test:scripts --prefix backend
-$env:VITE_API_URL='/api'
-npm run build --prefix frontend
-npm run build --prefix backend
-npm run lint --prefix frontend
-npm run lint --prefix backend
-$env:PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH='C:/Program Files/Google/Chrome/Application/chrome.exe'
-npm run test:browser --prefix frontend -- --workers=2
-$env:PG_BIN='C:/Program Files/PostgreSQL/18/bin'
-$env:REAL_SETTINGS_BROWSER='1'
-# El fixture exige cwd backend; crea su propio clúster y no reutiliza DATABASE_URL externa.
-Push-Location backend
-npm run test:integration
-Pop-Location
-git diff --check
-```
-
-Pruebas relevantes: `frontend/test/taskNavigation.test.mjs`, `frontend/e2e/navigation-settings.spec.ts`, `backend/test/ventas.postgres.integration.ts`, `backend/test/migrations.postgres.integration.ts`, `backend/test/settings-http-checks.ts`, `backend/test/real-settings-browser.mjs`. Workflow: `.github/workflows/operacion-ferreteria.yml`. Logs locales antiguos pueden desaparecer; conservar enlaces de CI y SHAs, no secretos ni resultados atribuidos a código posterior.
-
-## 5. Pendientes únicos de entrega y producto
-
-| ID | Prioridad / estado | Trabajo y criterio de cierre |
-| --- | --- | --- |
-| E01 | Cerrado, merge comprobado | PR #64 fusionado en `12fccd714430caa536909993b92798087959ede4`. No certifica despliegue ni aceptación. |
-| E02 | P0 operativo, pendiente | Confirmar instalación/versiones API/frontend/esquema; revisar baseline sobre copia aislada y migraciones. Evidencia de actualización y rollback/recuperación antes de cliente. |
-| E03 | P0 externo, pendiente | Respaldo reciente del cliente, restauración aislada, conciliación y ensayo de actualización. Sintéticos ya pasan; copia real no validada. Definir copia fuera del equipo, cifrado/retención, alertas y restauraciones periódicas. |
-| E04 | P0 externo, pendiente | Confirmar PC/OS/recursos/UPS/router/DNS/HTTPS/arranque, lector e impresora. Probar corte físico, recuperación y red sin Internet. Reiniciar un proceso no prueba un corte eléctrico. |
-| E05 | P0 aceptación, pendiente | Dueño, cajero y dos ADMIN prueban compras/recepción, inventario, contado/crédito, entrega, abonos, devolución autorizada, caja/cierre y comprobantes. Acceso web autorizado el 2026-10-07: sesión iniciada y panel administrativo visible; muestra error al cargar resumen y ausencia de respaldos automáticos configurados para consulta. Diagnóstico pendiente; no constituye aceptación del flujo operativo. |
-| E06 | P0 revisión de instalación, pendiente | Revisar/rotar secretos reales si estuvieron en archivos de entorno históricos. Haber retirado archivos de Git no limpia historial ni prueba exposición; no copiar secretos al informe. |
-| E07 | P1 requisito confirmado, pendiente | **App instalada del dueño con push aun cerrada, independiente del navegador**. Confirmado 2026-10-05; web/manifiesto/PWA no lo completa. Confirmar Android/iOS, distribución, proveedor push y acceso remoto; acordar si entra en esta entrega. |
-| E08 | P1 dependiente de E07 | Sesiones por dispositivo, refresh de propósito distinguido/rotatorio/revocable, almacenamiento seguro, registro/revocación push y outbox durable. Bandeja/decisión usan API, identidad y permisos existentes. App cerrada, logout, revocación, dos ADMIN, expiración y reconexión deben probarse en dispositivo instalado. |
-| E09 | P1 externo, pendiente | Acceso remoto mediante VPN o puente autenticado limitado. Push no concede acceso ni autoriza decisiones. Base operativa puede seguir local; sin Internet los avisos esperan. No abrir PostgreSQL a Internet. |
-| E10 | Negocio, pendiente de decisión | Conservar o restringir política ADMIN→ADMIN; reglas fiscales/garantías y módulos comprometidos. No cambiar permisos silenciosamente. |
-| E11 | Producto, no integrado | Multisucursal, apartados, transferencias, garantías, pedidos especiales y listas de precios. Confirmar alcance antes de convertirlos en obligación del piloto. “Venta sin inventario” existente no implica módulo Pedidos especiales completo. |
-| E12 | Mejora, revisar alcance | Fotos: URL existente no es captura/subida/almacenamiento durable. Levantamiento: multiusuario/offline/conciliación avanzada, zonas/reconteos, exportación y uso independiente requieren comparar propuestas con código antes de declarar faltantes. |
-| E13 | Mejora, pendiente | Historial durable de soporte/auditoría de plataforma; traducción de pantallas heredadas fuera del cierre; avisos/reportes adicionales, zona horaria, entregas parciales, rendimiento/bundle y warnings de hooks. Priorizar por riesgo y negocio. |
-| E14 | Posterior al piloto | Bancos/POS externos, vidriería y sincronización entre sucursales. Propuestas, no implementaciones ni decisiones arquitectónicas aprobadas. |
-| E15 | P0 para suite de navegador, pendiente | Aislar `frontend/e2e/seed-alex.spec.ts`: destino exclusivo de pruebas, credenciales fuera de Git (rotarlas si son válidas), fixtures independientes o preparación ordenada, limpieza y aserciones de persistencia/importes. Actualmente crea categorías/productos/clientes/proveedores/ventas en el sitio publicado; `fullyParallel: true` permite carreras entre casos dependientes y hay pasos condicionales sin aserciones de éxito. El nuevo workflow `.github/workflows/playwright.yml` solo ejecuta `tests/example.spec.ts` contra playwright.dev; conectarlo a cobertura real aislada. El workflow operativo sí recoge el seed a través de la suite frontend. Validar HEAD actual después de corregirlo. |
-
-Orden recomendado para empezar: E15 → entorno aislado con API/frontend/esquema compatibles y datos sintéticos (parte de E02) → suites pertinentes del HEAD actual → recorrido manual E05 con dueño/cajero/dos ADMIN, conciliando stock/caja/crédito y comprobantes. Para piloto con datos del cliente, completar además E02–E06 en equipos previstos. E07–E09 siguen comprometidos o dependientes de definición; decidir si forman parte de esta primera aceptación. Las ampliaciones E11–E14 no bloquean por sí solas las pruebas del núcleo existente.
-
-E07 es un requisito confirmado, omitido por error en resúmenes breves anteriores; su prioridad de planificación P1 no elimina el compromiso. No se conoce aquí una fecha pactada de entrega de la app. Arquitectura React Native/Expo, push FCM/APNs y puente/outbox son propuestas; requieren definición y verificación antes de implementarse.
-
-## 6. Instalación, migraciones y continuidad
-
-Paquete preparado: `deploy/local/compose.yaml`. Propuesta inicial: servidor local PostgreSQL/backend/frontend, caja y administradores por LAN/HTTPS, Caddy y volúmenes persistentes; instalación necesita Internet, operación LAN no mientras servidor/router sigan encendidos. No existe cola transaccional offline completa por puesto. Un borrador no reserva ni descuenta stock; usar una pestaña POS por puesto y verificar cobro físico al recuperar.
-
-Herramientas existentes: `backend/scripts/migration-safe.mjs`, `backup-preflight.mjs`, `restore-verify.mjs`, `preflight.sql`; alta sintética no sustituye provisionamiento real. Node 24 y herramientas PostgreSQL compatibles. No introducir credenciales en comandos/documentos.
-
-Orden para despliegue autorizado: respaldo/conciliación → restauración a destino aislado vacío → inspección/adopción explícita si procede → migraciones → cliente Prisma/backend compatible → frontend → aceptación por rol. `migrate:inspect`: VACIA, LISTA, REQUIERE_BASELINE o BLOQUEADA. LISTA no certifica ausencia de todo drift. No forzar con reset/db push ni marcar migraciones a ciegas. Adopción requiere referencia desechable y prefijo cuyo efecto ya exista; no escoger automáticamente la última migración.
-
-`20261006000100_tenant_configuration` agrega JSONB NOT NULL DEFAULT '{}'; backend nuevo requiere columna previa. Mantenerla en rollback de aplicación. El cierre #64 no agrega migraciones ni cambia importes. Revisar el orden completo del repositorio (incluyendo baseline, crédito y autorizaciones), no ejecutar solamente una migración por su nombre en esta nota. Locks/duración necesitan ensayo con volumen representativo.
-
-## 7. Protocolo de continuidad y actualización
-
-1. Leer este contexto vigente y comprobar `git status`, rama, HEAD, remoto y PR. Respetar cambios ajenos y stashes. No confiar en el último mensaje de otra IA como evidencia suficiente.
-2. Elegir un ID pendiente, verificar contrato/código/pruebas y trabajar solo dentro del alcance autorizado. Consultar el anexo por título cuando haga falta; no cargar sus 20 documentos en cada turno.
-3. Al terminar, actualizar **aquí** las tablas vigentes y añadir una fila a la bitácora con fecha, autor/agente, cambio, base/HEAD, pruebas/CI y pendientes. No mantener listas de estado paralelas en los documentos antiguos.
-4. Registrar diferencias entre implementado, probado con mocks, probado con infraestructura real, fusionado, desplegado y aceptado por cliente. No inventar porcentajes de aprobación.
-5. Conservar la evidencia histórica sin transformarla en instrucciones vigentes. Ante conflicto: instrucción actual del usuario y código/contrato comprobado; después evidencia reciente con SHA, después historia. Documentar discrepancias.
-6. Nunca guardar secretos, dumps, datos del cliente ni tokens aquí. Pruebas aisladas únicamente salvo autorización específica. Un bloqueo debe incluir comando, error y validación pendiente, sin eludir políticas.
-7. Commit/push solo del trabajo autorizado; no incluir el cambio ajeno de `nest-cli.json`. Cambios de código requieren checks pertinentes; una consolidación documental no necesita repetir suites operativas sin motivo.
-
-Prompt corto para cualquier IA: **“Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización.”**
-
-## 8. Bitácora resumida
-
-
-| Fecha / etapa | Cambio | Referencia / límite |
-| --- | --- | --- |
-| 2026-10-02 | Requisitos de negocio del dueño: control operativo, inventario, crédito, costos, compras y delegación | Requisitos originales en anexo. |
-| 2026-10-04/05 | Núcleo operativo, recuperación, devoluciones autorizadas, migración segura, respaldos y paquete local | Documentos de PR #59; evidencia histórica, no aceptación de equipos reales. |
-| 2026-10-05 | App instalada con push pasa a requisito confirmado | Sesión propia, dispositivos y acceso remoto por definir. |
-| 2026-10-06 / #63 | UX, persistencia, configuración fiscal, guardas y responsabilidades | `b533dbd8`; cuatro fixtures crédito `0b7d8af7`; merge `0331cb59`. |
-| 2026-10-06 / #64 | Navegación POS y pruebas de configuración/API/PostgreSQL/navegador reales | Código `efd8c169`, documentación `48b4a5d9`, CI 37558376539 aprobado. |
-| 2026-10-06 / Codex | Consolidación en este documento, recuperación de pendientes omitidos y archivo de 20 fuentes | Solo documentación; conserva originales como historial, sin nueva auditoría integral ni modificación de producción. |
-| 2026-10-07 / Codex | Análisis previo a pruebas; E01 cerrado por merge comprobado y E15 añadido por seed contra sitio publicado y workflow de ejemplos | Base/HEAD `4719e526`, main remoto igual, checkout inicialmente limpio; GitHub confirma #64 fusionado y ningún PR abierto. Lectura de configuraciones, workflows y pruebas; sin ejecución de suites ni acceso a producción. `gh` no disponible; consultas mediante conector GitHub. Pendientes E02–E15 según tabla; solo actualización documental, sin commit/push. |
-
-| 2026-10-07 / Codex, acceso web autorizado | Login mediante navegador en sitio publicado; panel administrativo visible. Avisos: resumen no pudo cargar y respaldos automáticos no configurados para consulta en ese servidor | Sin altas, ventas ni cambios de configuración. Versión desplegada no comprobada; HEAD local de referencia `4719e526`. E03/E05 siguen pendientes. |
-| 2026-10-08 / consolidación documental | Tres auditorías Jules integradas en registro único 8A; sin cierre automático de hallazgos | Solo documentación en main; no pruebas nuevas, migraciones ni cambios de aplicación. |
-| 2026-10-08 / Jules | Corrección FUNC-005 en CotizacionesPage.tsx y suite de pruebas de filtros cotizaciones | Rama `fix/func-005-filtros-cotizaciones`. Pruebas unitarias aprobadas (81 subtests) y build TypeScript completado. |
-| 2026-10-08 / Jules | Corrección FUNC-004 en ClientesService y suite de pruebas de búsqueda de clientes | PR #67. Búsqueda por `codigo`/`numeroCliente`, prefijo de país `+504` en teléfonos, y tests de regresión (189 backend + 81 frontend pasados). |
-| 2026-10-08 / Jules | Corrección FUNC-002 en POSPage.tsx y suite de pruebas de selección de clientes a crédito | PR #67. Bloqueo de edición al seleccionar cliente registrado, botón de desvinculación, envío de `clienteId` en ventas y rechazo de crédito sin cliente registrado. Tests en `frontend/test/pos-client-credit.test.mjs` (189 backend + 85 frontend + 54 browser pasados). |
-
-| 2026-10-08 / Codex, SEC-005 | Fuga comprobada mediante seis pruebas HTTP contra controller/service de `07a88deb`: CAJERO recibe costoVigente, VENDEDOR/BODEGUERO sin permiso reciben precioCosto y catálogo comercial filtra de forma incompleta. Proyección operativa compartida e interceptor en todos los endpoints productos; ADMIN/BODEGUERO autorizado conservan inventario financiero. Pruebas cubren revocación con mismo JWT, tenant ajeno, parámetros manipulados, búsqueda/listado/detalle/alertas, respuestas de escritura y contrato POS; dos regresiones frontend cobran sin costos. | Base `origin/main` `07a88deb27d2496e3cda1564c583412a06be88b1`, rama `fix/sec-005-productos-datos-sensibles`, [PR #70](https://github.com/Nelosama/FerreSystem/pull/70), código probado `ea864620`. GitHub: #67 ya fusionado al iniciar, #68 abierto; no se modificaron sus ramas/PR. Backend 207 aprobadas/3 omitidas POSIX, 23 casos SEC-005; frontend 87 aprobadas; ambos builds y lint backend aprobados (advertencias existentes). Primera suite backend paralela falló por timeouts e inició pruebas heredadas de SQL de migraciones en PGlite temporal; repetición serial excluye `**/*migration*.spec.ts`. No se ejecutó comando de migración contra bases existentes ni se accedió a Supabase/producción. Navegador local/API simulada: 10 aprobadas/2 fallidas por GET /clientes no contemplado y expectativa POS; pendiente suite completa verde e integración PostgreSQL. Sin merge/despliegue/aceptación; no se auditó exposición de otros módulos ni se cambió lógica financiera. |
-
-| 2026-10-08 / Codex, seguimiento SEC-005 en PR #70 | Resueltos los dos fallos locales de arranque únicamente en pruebas: mock GET /clientes faltante y espera explícita de respuestas de catálogo/clientes antes de comprobar controles del POS con carga diferida. Local final 12/12. Nueva integración PostgreSQL dedicada: 5/5, crea/edita/ajusta inventario con ADMIN/BODEGUERO autorizado, verifica persistencia y auditoría, limita CAJERO/VENDEDOR, aísla tenants y revalida revocación con mismo JWT. Clúster temporal limpiado; sin migraciones en esta prueba (DDL generado offline sobre esquema actual). | Commit de pruebas `0ba947d20d1c83c85ad2bd3a6d151fe523c60e4b`; [CI operativo 37848204150](https://github.com/Nelosama/FerreSystem/actions/runs/37848204150) aprobado: builds, 87 frontend, 54 navegador, 212 backend, 7 scripts, 60 PostgreSQL (incluye 5 SEC-005). [Playwright 37848204070](https://github.com/Nelosama/FerreSystem/actions/runs/37848204070) aprobado. CI anterior `1f835f59` también completó satisfactoriamente en 37847204262. Inicialización local requirió ajustar fixture temporal (timeout initdb y eliminar PGSERVICE vacío); ambos fallos de preparación anteriores no se cuentan como pruebas aprobadas. Lint del test de integración salida 0 con advertencia de strictNullChecks existente; diff check aprobado. Conservada corrección financiera existente, sin cambios de aplicación, PR ajenos, Supabase, producción, merge ni despliegue. Pendiente autorización de merge y aceptación tras despliegue autorizado. |
-| 2026-10-08 / Codex, FUNC-001 | Actualizado checkout limpio desde `07a88deb` a `origin/main` `10473efa` con #70; defecto de ruta confirmado. GitHub: únicos PR abiertos #68/#69, sin PR independiente FUNC-001; #66 cerrado sin merge y 17 archivos, no reutilizado. Cambio acotado en `frontend/src/pages/CotizacionesPage.tsx`; regresiones en `frontend/test/cotizaciones-conversion.test.mjs` (ejecuta callback real, sin navegador) y `backend/test/cotizaciones.postgres.integration.ts` (HTTP/controller/service/JWT/Prisma/PostgreSQL reales). | Código `af2e9eec`, rama `fix/func-001-cotizacion-venta`, hacia main. `node --test frontend/test/cotizaciones-conversion.test.mjs frontend/test/cotizaciones-filters.test.mjs`: 7/7; backend `npm test -- --run src/cotizaciones/cotizaciones.service.spec.ts`: 5/5; `npm run test:integration -- --run test/cotizaciones.postgres.integration.ts`: 4/4; builds frontend (`VITE_API_URL=/api`, incluye tsc) y backend, comprobación tsc dedicada del nuevo test y diff check aprobados. Dos ejecuciones iniciales HTTP fallaron preparando caja sintética; fixture corregido con Prisma y resultado final verde. Fallo SQL deliberado antes del commit prueba rollback real y reintento sin duplicar. DDL generado offline del schema actual sobre clúster temporal eliminado al finalizar; sin ejecutar migraciones, seed, suites completas, Supabase ni producción. Warnings existentes Vite/config/bundle. No cambios en inventario/reservas/crédito/caja de aplicación, PR #66/#68/#69, merge ni despliegue. Pendientes revisión del PR, despliegue autorizado y aceptación. |
-| 2026-10-08 / Codex, levantamiento inicial | Diagnóstico H6/H11/H12 y código actual clasificado en 8B (LEV-001..016). Primer bloque P0: normalizar barcode en captura, corrección y conciliación de capturas anteriores; impide que espacios exteriores transformen un producto existente en nuevo o escondan duplicados del conteo. Sin cambios de frontend, schema, inventario/reservas/compra/costos/permisos. | Base main `d8a3c051` con #72, rama `codex/fix-levantamiento-inventario`, código `7026fe77`, [PR #73](https://github.com/Nelosama/FerreSystem/pull/73). 4 regresiones nuevas fallaron contra código base, 10/10 unitarias de levantamiento finales y 23/23 HTTP seguridad productos; nuevo `backend/test/levantamientos.postgres.integration.ts` 9/9 con HTTP/JWT/Prisma/PostgreSQL real temporal y limpieza; frontend `node --test --test-name-pattern="importación\|unidades\|levantamiento\|inventario" test/operaciones.test.mjs` 4/4. Builds frontend/backend y tsc dedicado de tests aprobados; tsc detectó literal enum preexistente en test, corregido sin tocar comportamiento. Diff check aprobado; warnings existentes de Vite/config/bundle. DDL offline desde modelo actual sobre clúster vacío propio; sin migraciones sobre bases existentes, seed, Supabase, producción, merge ni despliegue. CI activado al publicar; consultar checks del [PR #73](https://github.com/Nelosama/FerreSystem/pull/73) para resultado de cada SHA; `frontend/playwright.config.ts:5` ya excluye seed-alex (advertencia E15 es fotografía anterior). Restantes P0 LEV-002/003, P1 LEV-004/005 y demás según 8B para PR posteriores; aceptación del negocio pendiente. |
-## 8A. Registro único de bitácora y hallazgos QA — 2026-10-08
-
-**Fuente:** auditorías independientes Jules (funcional, seguridad y arquitectura) y QA histórico. **No son pruebas nuevas realizadas al actualizar este documento.** Los agentes reportaron 10 + 13 + 5 = 28 hallazgos, pero el informe funcional enumera solo 9 IDs detallados (FUNC-001..006, SOS-001..002, REQ-001). Esta tabla contiene **27 IDs trazables**, no 28 defectos verificados. Algunos se solapan (SEC-001/SEC-009). El agente técnico reportó 185/185 pruebas y builds aprobados; el funcional no pudo ejecutar sus pruebas. Verificar cada conclusión contra HEAD actual antes de corregir.
-
-**Estados permitidos:** Pendiente de verificar → Confirmado → En corrección → Resuelto (PR/commit y pruebas de regresión) → Validado en producción/aceptado cuando aplique; o Descartado (justificación). **Ningún hallazgo se marca resuelto sin evidencia.** Los requisitos pendientes de decisión no son bugs. Actualizar filas existentes, no crear otros documentos de seguimiento.
-
-| ID | Prioridad | Estado | Hallazgo / criterio a comprobar | Evidencia de cierre (SHA/PR/tests) |
-|---|---|---|---|---|
-| FUNC-001 | P0 | **Resuelto en rama; pendiente de revisión/merge** | Confirmado en main `10473efa` (incluye #70): frontend llamaba `/convertir-venta`, backend expone `/convertir`. Corregida llamada canónica, bloqueo de doble confirmación y estado local convertido tras éxito. Backend conserva transacción y locks existentes, sin endpoints duplicados ni cambios financieros. | Código `af2e9eec`, rama `fix/func-001-cotizacion-venta`. Frontend cotizaciones 7/7; servicio 5/5; HTTP con JWT y PostgreSQL temporal 4/4: identidad/cliente/productos/cantidades por medida/precios/ISV/total, concurrencia, reintento y rollback. Ambos builds y tipos aprobados. Pendientes revisión/merge, despliegue autorizado y aceptación. |
-| FUNC-002 | P0 | **Resuelto** | POS crédito: ClientePicker no conserva clienteId | PR #67 (`fix/func-005-filtros-cotizaciones-12533815869493435090`). Retención de `clienteId` al seleccionar desde `ClientePicker`, desvinculación segura con botón dedicado, envío de `clienteId` en payload de venta y validación backend de cliente para crédito. Tests en `frontend/test/pos-client-credit.test.mjs` (189 backend + 85 frontend + 54 browser pasados). |
-| FUNC-003 | P1 | **Pendiente de verificar** | Apartados/garantías/listas/pedidos/transferencias con persistencia local | — |
-| FUNC-004 | P2 | **Resuelto** | Búsqueda cliente con guiones/minúsculas | PR #67 (`fix/func-005-filtros-cotizaciones-12533815869493435090`). Búsqueda por `CLI-0001`/`codigo`, números de teléfono con/sin guiones, espacios y código de país `+504`, y manejo seguro de campos opcionales nulos. Tests en `backend/src/clientes/clientes.service.spec.ts` (189 backend + 81 frontend pasados). |
-| FUNC-005 | P2 | **Resuelto** | Reset de filtros cotizaciones | Rama `fix/func-005-filtros-cotizaciones`. Extracción de función pura `filterCotizaciones` en `frontend/src/utils/cotizacionesFilters.ts`, reutilizada en `CotizacionesPage.tsx` y testeada en `frontend/test/cotizaciones-filters.test.mjs` (81 unit subtests y 54 browser e2e tests pasados). |
-| FUNC-006 | P2 | **Pendiente de verificar** | Fechas inconsistentes en PDF cotización | — |
-| SOS-001 | P1 | **Pendiente de verificar** | Concurrencia último stock y manejo de recuperación POS; rechazo de stock insuficiente puede ser correcto | — |
-| SOS-002 | P1 | **Pendiente de verificar** | Devolución parcial a crédito y saldos | — |
-| REQ-001 | Decisión negocio | **Pendiente de verificar** | Aprobación remota de descuentos; no aprobada automáticamente | — |
-| SEC-001 | P1 | **Pendiente de verificar** | Sin aislamiento relacional por sucursal | — |
-| SEC-002 | P0 | **Pendiente de verificar** | Límite de descuentos no verificado por backend | — |
-| SEC-003 | P0 | **Parcialmente verificado / Pendiente de prueba en PostgreSQL real** | Permisos y ejecución de devoluciones; verificado en NestJS con Guards reales, pendiente en DB prod | Rama `test/sec-003-permisos-devoluciones`. Suite HTTP NestJS `backend/src/operaciones/sec-003-devoluciones.spec.ts` con `JwtAuthGuard`, `TenantGuard`, `RolesGuard` y `JwtStrategy` reales (14 escenarios passing). Se verificó rechazo de CAJERO/VENDEDOR (403 Forbidden), token JWT ausente (401 Unauthorized), elevación de rol en payload ignorada, aislamiento multi-tenant (404 Not Found), flujo diferido (solicitar -> decidir -> ejecutar), idempotencia, límite de cantidad y trazabilidad financiera (CXC/caja/auditoria). **Limitación:** Probado con persistencia SQL simulada; queda pendiente verificar concurrencia `pg_advisory_xact_lock` e integración con PostgreSQL/Supabase real de staging/producción. |
-| SEC-004 | P0 | **Pendiente de verificar** | Rate limiting ausente en login | — |
-| SEC-005 | P0 | **Resuelto en rama; pendiente de revisión/merge** | Confirmado en base `07a88deb`: el filtro global solo cubría CAJERO y omitía `costoVigente`; VENDEDOR y BODEGUERO sin permiso recibían `precioCosto`/`margen` en listado, búsqueda, detalle y alertas. `/productos/comercial` también exponía `costoVigente`. Corrección: proyección explícita de campos operativos por interceptor de ProductosController y catálogo comercial, incluidos retornos de escritura; campos nuevos privados por defecto. ADMIN conserva finanzas; BODEGUERO requiere permiso efectivo `inventario.ver` (default heredado si no configurado), coherente con historial de inventario. CAJERO/VENDEDOR no adquieren acceso financiero por parámetros ni permisos de otro rol. JWT recarga usuario activo, rol y permisos dentro del tenant; SUPER_ADMIN sin sesión tenant es rechazado. Sin cambiar cálculos, precios, comisiones ni escrituras financieras. | [PR #70](https://github.com/Nelosama/FerreSystem/pull/70), corrección `ea864620`, pruebas ampliadas `0ba947d2`. [Actions operativo 37848204150](https://github.com/Nelosama/FerreSystem/actions/runs/37848204150) aprobado: 87 frontend, 54 navegador (incluidas las 12 de arranque), 212 backend, 7 scripts y 60 integración PostgreSQL en 3 suites; ambos builds aprobados. Workflow Playwright 37848204070 también aprobado. Local: arranque 12/12 y nueva integración SEC-005 5/5 (`backend/test/productos.postgres.integration.ts`), con HTTP/JWT/Prisma/PostgreSQL reales y clúster exclusivo en loopback; alta/edición/costos/precios/stock y auditoría de ADMIN/BODEGUERO autorizado, proyección CAJERO/VENDEDOR, tenant ajeno y revocación persistida. Fixture genera DDL desde esquema actual en base vacía, sin aplicar migraciones ni usar DATABASE_URL externa. `frontend/e2e/arranque.spec.ts`: mock GET /clientes y espera explícita del catálogo/clientes al cargar POS; conserva aserciones y añade selector de clientes. Aplicación sin cambios en este seguimiento. Sin producción, merge, despliegue ni aceptación del cliente; integración no certifica actualización de una instalación existente. |
-| SEC-006 | P1 | **Pendiente de verificar** | Operaciones sin RequiredPermission granular | — |
-| SEC-007 | P2 | **Pendiente de verificar** | Access token válido tras logout hasta expiración; política revocación | — |
-| SEC-008 | P0 | **Pendiente de verificar** | Módulo sin registro habilitado por defecto; verificar política heredada | — |
-| SEC-009 | P1 | **Pendiente de verificar** | Gestión de sucursales solo frontend; vinculado a SEC-001 | — |
-| SEC-010 | P2 | **Pendiente de verificar** | Logs de autenticación demasiado detallados | — |
-| SEC-011 | Decisión negocio | **Pendiente de verificar** | Recuperación de contraseña autoservicio ausente | — |
-| SEC-012 | P2 | **Pendiente de verificar** | Impersonación local sin auditoría durable | — |
-| SEC-013 | P0 | **Pendiente de verificar** | Cierre de caja por ID sin comprobar usuario propietario | — |
-| TECH-001 | P1 | **Pendiente de verificar** | Reserva vs salida física de stock; preservar facturar antes de entregar | — |
-| TECH-002 | P2 | **Pendiente de verificar** | Consultas sin paginación | — |
-| TECH-003 | P2 | **Pendiente de verificar** | Posibles índices FK faltantes; revisar índices y EXPLAIN | — |
-| TECH-004 | P2 | **Pendiente de verificar** | VITE_API_URL en build y configuración CI | — |
-| TECH-005 | P2 | **Pendiente de verificar** | Cotización create sin lockTenant; demostrar necesidad antes de añadir lock | — |
-
-### 8B. Diagnóstico vigente — levantamiento inicial (2026-10-08)
-
-Base inspeccionada: `origin/main` **d8a3c051** (incluye merges #70 y #72); checkout inicialmente limpio; rama nueva `codex/fix-levantamiento-inventario`. PR abiertos consultados: #68, #69 y #71, sin cambios en ellos. Al publicar, main avanzó a `5668de58` por merge externo de #71; esta rama partió de `d8a3c051`. Se contrastaron H6 (diagnóstico anterior), H11 (implementación posterior), H12 (propuestas de levantamiento) y requisitos comerciales del apartado 8A con frontend, backend, Prisma y pruebas actuales. **RESUELTA** describe capacidad comprobada en código/pruebas, no aceptación en producción; **PARCIAL** distingue lo existente de la brecha; **PENDIENTE** requiere un PR posterior o definición. No reimplementar H12 como si todo siguiera ausente.
-
-| ID / prioridad | Observación y clasificación | Evidencia y siguiente paso real |
-| --- | --- | --- |
-| LEV-001 / P0 | **RESUELTA en [PR #73](https://github.com/Nelosama/FerreSystem/pull/73), pendiente de revisión/merge**: identificación inconsistente del barcode permitía crear otro producto al contar ` 001234 ` cuando el catálogo ya tenía `001234`; dos variantes con espacios tampoco se detectaban como duplicadas. | `LevantamientosService.createItem/updateItem/preview`: misma normalización exterior que `ProductosService`, preserva ceros y caracteres internos; revisa también capturas anteriores sin tocar su historial. Cuatro regresiones fallan contra main y pasan con el cambio. HTTP/PostgreSQL verifica un solo producto/movimiento al aplicar/reintentar. No es limpieza automática de productos duplicados que ya se hayan aplicado. |
-| LEV-002 / P0 siguiente | **PARCIAL**: alta manual y unicidad por código/barcode existen; repetir un POST de alta **sin código ni barcode** puede crear otro SKU y otra existencia inicial. | `frontend/src/pages/InventarioPage.tsx:89` no conserva identidad de solicitud ni bloqueo síncrono; `ProductosService.create:26` genera siguiente SKU y carece de solicitudId. Con código explícito normaliza y rechaza duplicados; Prisma `Producto` unique tenant/codigo. Próximo PR: idempotencia del alta y recuperación del resultado, sin confundir dos productos legítimos con mismo nombre. |
-| LEV-003 / P0 siguiente | **PARCIAL**: catálogo conserva código fabricante; conciliación del conteo solo busca ID/código interno/barcode. | `LevantamientoPage.tsx:47` etiqueta “Código interno o fabricante”, pero `LevantamientosService.preview:51` no consulta `Producto.codigoFabricante`. Ingresar únicamente el fabricante de un producto existente puede clasificarse como nuevo. Requiere definir/desambiguar identidad, reutilizar campos existentes y regresión independiente. |
-| LEV-004 / P1 | **PARCIAL**: costo/precio/margen iniciales persistidos, no simulan compra; hay dos representaciones de costo vigente que pueden divergir. | Aplicación y `ProductosService` escriben `precioCosto`, no `costoVigente`; `ComprasService:47` escribe ambos, `OperacionesService.recibir:75` solo precio_costo. Prisma `Producto:237`. Interfaz administrativa usa precioCosto. Próximo PR acotado de coherencia del costo actual, preservando costos históricos y sin inventar compras. |
-| LEV-005 / P1 | **PARCIAL**: metros/pies y cantidades decimales, láminas/canaletas/varillas como piezas identificadas por descripción funcionan; no hay equivalencias automáticas. | DTO cantidad con 2 decimales, Decimal(12,2), enum de unidades en Producto, tests HTTP de METRO/UNIDAD y cero. Conteo acepta cualquier string `unidad` y detecta enum inválido solo al aplicar; no distingue fracción permitida por producto ni captura `usaMedida` para nuevos productos. Próximo PR de validación temprana y criterio de piezas/medidas; no convertir longitudes sin regla de negocio. |
-| LEV-006 / P2 | **PARCIAL**: búsqueda por nombre/código/barcode/fabricante y categoría existe en catálogo; selector frontend limita categorías a defaults del rubro. | `ProductosService.findAll:11`, `InventarioPage.tsx:78–86`: categoría API por ID, lista UI por `categoriasDefault`; categorías nuevas pueden no aparecer en selector. Tests HTTP verifican nombre/código/categoría. Pendiente selector basado en categorías reales; scanner del conteo captura barcode pero no autocompleta inmediatamente producto. |
-| LEV-007 / P2 | **PARCIAL**: importación CSV real, plantilla, validación, sobrescribir/omitir y resultados por fila; no es importación XLSX ni lote atómico. | `ImportarProductosModal.tsx:104,240`: API POST/PUT; máximo 5 MB/5000 filas; 4 regresiones frontend aprobadas. `parseFloat` acepta prefijos como `12abc` y no valida estrictamente finitud/escala antes de enviar; errores backend por fila. Pendiente validación numérica estricta y mensaje por fila. No implementar XLSX sin alcance adicional. |
-| LEV-008 | **RESUELTA**: finalizar y aplicar son acciones diferentes; revisión obligatoria, conflictos visibles, sustituye conteo sin sumarlo dos veces. | `LevantamientosService.update/preview/aplicar`; token de preview, lockTenant y transacción, aplicadoAt/aplicadoPor. HTTP real: finalización no cambia stock; aplicaciones concurrentes/reintento generan un único movimiento y auditan responsable. |
-| LEV-009 | **RESUELTA**: persistencia de captura básica y auditoría de correcciones/aplicación. | Prisma `Levantamiento:496`, `LevantamientoItem:522`; cantidad, barcode, zona, marca, costo, precio, margen, responsable/fechas/versión. `CONTEO_CREAR/EDITAR/ELIMINAR`, `LEVANTAMIENTO_APLICAR`, movimiento LEVANTAMIENTO con antes/después/usuario; alta catálogo INICIAL. El costo inicial no inserta CompraProveedor. |
-| LEV-010 | **RESUELTA en escenarios probados**: aislamiento tenant y permisos administrativos existentes; cajero no puede crear conteos/productos ni aplicar. | `LevantamientosController` ADMIN/BODEGUERO + inventario.editar; aplicar solo ADMIN y revalidación transaccional. JWT recarga permisos; Products controller/service con tenant. HTTP comprueba tenant ajeno 404, igual barcode permitido en negocios distintos, CAJERO 403 y revocación BODEGUERO con mismo token. Política heredada de BODEGUERO autorizado conservada. |
-| LEV-011 | **RESUELTA**: reintento de captura con misma solicitudId, edición concurrente y conservación del conteo cerrado. | Frontend `pendingKey` por tenant/usuario y solicitud UUID, backend hash de solicitud/auditoría; versión en edición, cerrado no editable, aplicación repetida no repite stock. Unitarias y HTTP (POST simultáneo devuelve mismo item, versión obsoleta 409). No equivale a garantizar idempotencia del alta directa LEV-002. |
-| LEV-012 | **RESUELTA**: cero inicial, fracciones con 2 decimales y protección de reservas existentes. | HTTP/PostgreSQL comprueba producto en cero, 2.75 metros, 3.5 conteo físico con 1 reservado, rechazo de negativos/3 decimales, conteo inferior a reservado y preview obsoleto. No modifica regla facturar→reservar→entregar. |
-| LEV-013 | **PARCIAL**: colaboración básica, ubicación y detección de conflictos; conciliación avanzada/reconteos/progreso no implementados. | Versionado y errores de duplicados existentes, ubicación libre; H12 propone asignación de zonas, combinar conteos y reconteos con aprobación. Mantener como ampliaciones por definir, sin añadirlas a este fix. |
-| LEV-014 | **PARCIAL**: recuperación de un conteo pendiente en localStorage; no operación offline completa. | `LevantamientoPage.tsx:18–27`: un comando pendiente/reintento manual; sin IndexedDB, cola múltiple ni sincronización automática. H12 exige definición posterior; no afirmar que funcione toda la captura sin conexión. |
-| LEV-015 | **PARCIAL**: cámara/lector/manual y foto por URL en catálogo; **PENDIENTE** captura/subida de fotos de conteo. | BarcodeScanner usa API nativa opcional y ofrece fallback, no cámara probada con dispositivo del cliente. Producto.imagenUrl + validación HTTPS; Item no tiene foto. Propuesta H12, no funcionalidad nueva autorizada aquí. |
-| LEV-016 | **RESUELTA** exportación independiente CSV/Excel XML del conteo; **PARCIAL** formato para migración avanzada. | `LevantamientoPage.exportRows` + `csvExport/excelExport`: exportación sin aplicar inventario. Excel es XML Spreadsheet 2003 (.xls), no XLSX nativo. H12 propone mapear columnas/plantillas de otros ERP y exportar más trazabilidad, pendiente de alcance. |
-
-Prioridad posterior: LEV-002 y LEV-003 (identidad/reintentos P0) → LEV-004/005 (costos/unidades P1) → LEV-006/007 (P2). Revisar catálogos con barcodes ya guardados con espacios o duplicados por versiones previas sobre copia autorizada: este PR normaliza **capturas**, no migra/repara silenciosamente el catálogo histórico. Ningún resultado local certifica una instalación existente, lectores físicos o aceptación del negocio.
-### Antecedentes QA de otros documentos, pendientes de conciliación
-
-| ID | Estado | Antecedente y acción |
+| Capa | Tecnología | Estado |
 |---|---|---|
-| HIST-QA-202603 | Histórico, no vigente | Informe `QA_REPORT.md` de marzo sobre localStorage, impersonación, metraje, comisiones, traducciones y responsive; comparar con fixes actuales. Ya existía advertencia en diagnóstico de main de que varias conclusiones quedaron obsoletas. No reabrir automáticamente. |
-| PROD-QA-20261007-01 | Pendiente de verificar | Informe de navegador 7/oct: HTTP 500 por posible desajuste entre esquema Supabase y backend publicado (stock_reservado, reserva_pendiente, clientes.codigo, tablas operativas). **No ejecutar migrate deploy a ciegas**; comparar esquema, migraciones y versión desplegada en copia/entorno seguro. Vinculado E02/E05. |
-| PROD-QA-20261007-02 | Pendiente de verificar | Cotizaciones/comisiones confunden errores de carga con resultados vacíos. |
-| PROD-QA-20261007-03 | Pendiente de verificar | Traducción cruda `clients.new_client` en alta de clientes. |
-| PROD-QA-20261007-04 | Pendiente de verificar | Botón cerrar modal sin nombre accesible. |
-| PROD-QA-20261007-05 | Pendiente de verificar | Repetir pruebas de flujos bloqueados y revisar avisos de respaldo; vinculado E03/E05. |
+| Backend | NestJS + Prisma ORM + PostgreSQL | IMPLEMENTADO |
+| Frontend | React + Vite + TypeScript | IMPLEMENTADO |
+| Auth | JWT + refresh token | IMPLEMENTADO |
+| Multi-tenancy | TenantGuard + tenantId en cada query | IMPLEMENTADO |
+| POS / Ventas | Módulo completo con crédito | IMPLEMENTADO |
+| Cotizaciones | Conversión a venta (FUNC-001 corregido) | IMPLEMENTADO |
+| Devoluciones | Solicitud + autorización ADMIN | IMPLEMENTADO |
+| Inventario / Productos | CRUD + filtros + datos financieros protegidos | IMPLEMENTADO |
+| Levantamiento de inventario | Flujo BORRADOR→EN_PROGRESO→FINALIZADO→aplicar | IMPLEMENTADO (ver tabla §4) |
+| Escáner de código de barras | BarcodeDetector API nativa + fallback ZXing | PARCIAL — sin validar en dispositivo real |
+| App móvil | PWA + React Native en evaluación | EN DESARROLLO |
+| Notificaciones push | Diseño pendiente | PENDIENTE |
+| Compras / Proveedores | Rama `feat/compras-proveedores` | EN DESARROLLO |
+| Sucursales / Multi-sede | Propuesta documentada | PENDIENTE |
+| Respaldos automáticos | Sin configurar en producción | BLOQUEADO — requiere acción en Render/Supabase |
 
-### Requisitos comerciales observados durante pruebas manuales
+---
 
-**Estado general: pendientes de verificar/definir, no todos son defectos comprobados.** Scanner/cámara y entrada manual; SKU corto, códigos de proveedor, unidades enteras/fraccionarias; categorías compartidas; edición de productos; ajuste individual de stock auditado; costo de última compra, markup y comisión por producto separados; cotización con cliente buscado/registrado primero, descuento porcentual, vigencia 15/30/45/60 días, logo/RTN, error visible y conversión; CSV/XLSX de levantamiento y campo Estado; simplificación de navegación; sucursales solo creadas/autorizadas por Super Admin, stock/caja por sucursal; caja por empleado y auditoría. **Conservar políticas del negocio existentes** y verificar antes de implementar. Para operaciones POS, facturar antes de entregar; `stockActual` vs `stockReservado` requieren una transición de entrega coherente y sin doble descuento.
+## 4. Estado real del módulo de levantamiento de inventario
 
-### Limpieza documental
+### Lo que está IMPLEMENTADO (confirmado en código, main `bbdaec3f`)
 
-- `docs/CONTEXTO_MAESTRO.md` es la **única fuente vigente** de bitácora, hallazgos, estados y próximos pasos (incluidos E01–E15). Se conserva su anexo histórico de 20 documentos como referencia inmutable.
-- `QA_REPORT.md` (marzo) y `QA-REPORT.md` (7/oct) se consolidaron aquí como antecedentes; se retiran del árbol activo para evitar dos informes QA paralelos. Sus versiones completas quedan recuperables en el historial Git anterior a esta limpieza.
-- `docs/DIAGNOSTICO_MAIN_20261004.md`, `docs/AUDITORIA_RAMA_20261005.md`, `docs/UX_UI_AUDIT_2026-10-05.md`, `docs/ROADMAP_FERRESYSTEM.md` y demás anexos son **fuentes históricas/propuestas**, no tableros activos. No eliminarlos sin comprobar referencias o contenido único; no actualizar sus listas de hallazgos.
-- Cada agente debe actualizar **esta tabla** con ID, estado, commit/PR, prueba y fecha; añadir una fila en la bitácora resumida del apartado 8. No fusionar ni desplegar automáticamente.
+| # | Funcionalidad | PR / commit | Notas |
+|---|---|---|---|
+| LEV-001 | Normalización de `codigoBarras` en captura, corrección y `preview()` | PR #73 `fcc17492` | Trim + null si vacío; evita duplicados por espacios |
+| LEV-001b | `preview()` detecta barcode duplicado dentro del conteo | PR #73 | Error en `errores[]` |
+| LEV-002 | Idempotencia de conteo con `solicitudId` + `fingerprint` | PR #73 | Parcial: solo en createItem |
+| LEV-008 | Auditoría: `audit()` en crear/editar/eliminar item y al aplicar | PR #73 | vía `ledger.ts` |
+| LEV-010 | Exportación CSV y Excel desde `LevantamientoPage` | PR #73 | Incluye `codigoBarras` en export |
+| LEV-011 | Vista previa transaccional antes de aplicar (`preview()` + `token`) | PR #73 | Token de fingerprint impide aplicar con datos obsoletos |
+| LEV-012 | Aplicación transaccional al inventario (`aplicar()` + `movement()`) | PR #73 | Solo ADMIN; `lockTenant` por TX |
 
+### Correcciones de auditoría aplicadas (rama `fix/levantamiento-barcode-audit`, commit `c9a92352` — **pendiente de PR y merge**)
+
+| Hallazgo | Severidad | Corrección |
+|---|---|---|
+| `aplicar()` sobreescribía barcode del catálogo silenciosamente con el del conteo | **P1** | Solo actualiza si `matchedByBarcode=true` o `catalogBarcode=null`; `preview()` ahora emite error cuando difieren |
+| Non-null assertions `precioCosto!` / `precioVenta!` en `aplicar()` — crash potencial | **P1** | Reemplazados por `?? 0` |
+| `@MaxLength` faltante en `codigoBarras` de `CreateLevantamientoItemDto` y `UpdateLevantamientoItemDto` | **P1** | `@MaxLength(100)` añadido |
+| Columna de código de barras invisible en tabla de ítems (`codigo\|\|codigoBarras` en una celda) | **P2** | Dos columnas separadas: **Código** y **Código de barras** |
+| `@MaxLength` faltante en `codigoBarras` de DTOs de Producto | **P3** | `@MaxLength(100)` añadido |
+| 4 tests de regresión para los P1 | — | Suite `Auditoría P1 — protección de código de barras del catálogo` |
+
+### Lo que está PENDIENTE (de `PENDIENTES_LEVANTAMIENTO_INVENTARIO.md`)
+
+| # | Funcionalidad | Prioridad | Estado |
+|---|---|---|---|
+| LEV-002 completo | Idempotencia de alta para operaciones simultáneas desde múltiples dispositivos | P0 | PENDIENTE |
+| LEV-003 | Código fabricante en conciliación de catálogo | P0 | PENDIENTE |
+| LEV-004 | Divergencia de costo entre conteo y catálogo | P1 | PENDIENTE |
+| LEV-005 | Validación de fracciones y unidades en conteo | P1 | PENDIENTE |
+| LEV-006 | Selector de categorías en captura | P2 | PENDIENTE |
+| LEV-007 | Validación de CSV importado | P2 | PENDIENTE |
+| LEV-013 | Zonas y reconteos | P2 | PENDIENTE |
+| LEV-014 | Modo offline / cola local / idempotencia de sincronización | P2 | PENDIENTE |
+| LEV-015 | Cámara para captura de código de barras validada en iPhone real | P1 | PARCIAL |
+| LEV-016 / ítem 11 | Exportación con plantillas de columnas configurables | P2 | PARCIAL (CSV/Excel sin plantillas) |
+| Ítem 2 | Levantamiento multiusuario simultáneo + conciliación por usuario | P1 | PENDIENTE |
+| Ítem 3 | Modo offline con IndexedDB + service worker | P2 | PENDIENTE |
+| Ítem 7 | Zonas, progreso por zona y asignación de usuarios | P2 | PENDIENTE |
+| Ítem 9 | Reconteo y validación de diferencias | P2 | PENDIENTE |
+
+---
+
+## 5. Integración del escáner de código de barras (PR #76)
+
+**Rama:** `codex/fix-iphone-barcode-scanner` | **PR #76** — abierto, pendiente de revisión final por Jules.
+
+**Lo que hace el PR:**
+- `frontend/src/utils/barcodeScanner.ts`: detección por feature-flag — usa `BarcodeDetector` API nativa si existe, cae a ZXing si no.
+- `frontend/src/utils/zxingDecoder.ts`: decodificador software (EAN-13, EAN-8, UPC-A, CODE-128) usando canvas.
+- `frontend/src/components/BarcodeScanner.tsx`: componente React con video, start/stop, errores en español, manejo de visibilidad.
+- Mensajes de error mapeados a español (`NotAllowedError`, `NotFoundError`, `NotReadableError`, etc.).
+
+**Estado de seguridad (E15 — verificado):**
+- `seed-alex.spec.ts` usa solo `process.env.SEED_*` — sin credenciales hardcodeadas ✅
+- `assertSafeEnvironment()` bloquea ejecución contra dominios de producción ✅
+- `playwright.config.ts` excluye `**/unsafe/**` del CI ✅
+- Merge con `origin/main` realizado localmente (`eb0aadb2`), integra correcciones E15 del PR #75.
+
+**Lo que NO está validado:**
+- Prueba real en iPhone físico del cliente.
+- Prueba con etiquetas impresas de la ferretería.
+- Comportamiento con cámara frontal vs trasera.
+
+**Bloqueo previo de Jules (QA FAIL):** credenciales hardcodeadas en versión anterior de `seed-alex.spec.ts`. Resuelto en PR #75 y verificado en rama #76.
+
+---
+
+## 6. Historial de PRs — estado real verificado
+
+| PR | Rama | Estado | Merge commit | Fecha | Descripción |
+|---|---|---|---|---|---|
+| #73 | `codex/fix-levantamiento-inventario` | **FUSIONADO** | `fcc17492` | 2026-10-08 | Normalización barcode LEV-001, preview, aplicar al inventario |
+| #74 | `docs/bitacora-ux-fotos-20261008` | **FUSIONADO** | `66496008` | 2026-10-08 | Documentación UX/fotografías/topología WiFi |
+| #75 | `fix/e15-seed-alex-isolation` | **FUSIONADO** | `f7822c1f` | 2026-10-08 | Aislamiento seed-alex (E15), guard producción, testIgnore |
+| #76 | `codex/fix-iphone-barcode-scanner` | **ABIERTO** | — | — | Escáner de barras iPhone; bloqueado por Jules (QA FAIL E15 → resuelto, push pendiente) |
+| — | `fix/levantamiento-barcode-audit` | **EN REVISIÓN** (local) | `c9a92352` | 2026-10-09 | Correcciones P1 auditoría PR #73; push y PR pendientes |
+| — | `wip/incompleto-codex` | **LOCAL** | — | — | Aísla trabajo incompleto `907b33db`; push pendiente |
+
+**Nota sobre `907b33db` (Incompleto Codex):** este commit se subió directamente a `main` en una rama ya mergeada. Fue revertido en `bbdaec3f` (HEAD actual de main). El trabajo original queda preservado en la rama local `wip/incompleto-codex`.
+
+---
+
+## 7. Pruebas ejecutadas y sus limitaciones
+
+| Suite | Cobertura | Entorno | Limitación |
+|---|---|---|---|
+| Backend unit (Vitest) — PR #73 | 10/10 levantamiento + suites anteriores | Mocks en memoria | `@rolldown/binding-wasm32-wasi` falla en Linux cloud (binario Windows); ejecutar solo desde máquina local con `cd backend && npm test` |
+| Integración PostgreSQL — PR #73 | 9/9 barcode + tenant isolation | PostgreSQL real (contenedor temporal) | No usa la base cloud; no valida migración de historial Prisma |
+| Frontend unit — PR #76 | 120/120 + 23 barcode | Vitest + jsdom | Mismo problema rolldown en cloud; ejecutar local |
+| E2E Playwright — excluidos unsafe | `**/unsafe/**` excluido de CI | — | `seed-alex.spec.ts` solo manual con `.env` configurado |
+| Auditoría P1 (nueva suite) | 4 tests `levantamientos.service.spec.ts` | Mocks en memoria | Misma limitación rolldown; pendiente de ejecutar en local |
+
+**No se ha validado nada en producción (Render/Supabase cloud).** El error HTTP 500 al cargar resumen del dashboard reportado el 2026-10-07 sigue sin diagnóstico cerrado (`PROD-QA-20261007-01`).
+
+---
+
+## 8. Pendientes críticos y riesgos de producción
+
+| ID | Descripción | Riesgo | Estado |
+|---|---|---|---|
+| PROD-QA-20261007-01 | HTTP 500 en resumen dashboard — posible desajuste de esquema Supabase | 🔴 ALTO | Sin diagnóstico cerrado |
+| E03 | Respaldo del cliente no configurado; sin restauración verificada | 🔴 ALTO | BLOQUEADO |
+| E05 | Acceso web 2026-10-07: panel visible pero errores en resumen y sin respaldos automáticos | 🔴 ALTO | Diagnóstico pendiente |
+| E07 | App instalable (PWA) del dueño — push independiente no funciona desde navegador | 🟡 MEDIO | Confirmado 2026-10-05; sin solución |
+| LEV-015 | BarcodeScanner no validado en iPhone físico del cliente | 🟡 MEDIO | PARCIAL |
+| `c9a92352` | Correcciones P1 auditoría barcode — código listo, sin PR ni merge | 🟡 MEDIO | Push pendiente |
+| SEC-012 | Impersonación local sin auditoría durable | 🟡 MEDIO | PENDIENTE |
+| wip/incompleto-codex | Trabajo incompleto de Codex revertido de main; sin revisar ni descartar | 🟡 MEDIO | Aislado en rama local |
+
+---
+
+## 9. Bitácora 2026-10-09 (esta sesión)
+
+| Operación | Resultado |
+|---|---|
+| **Task A** — Revert `907b33db` ("Incompleto Codex") | Commit `bbdaec3f` en main; rama `wip/incompleto-codex` creada. Push pendiente (Daniel). |
+| **Task B** — Desbloquear PR #76 (Jules QA FAIL E15) | Verificado: no hay credenciales hardcodeadas, `testIgnore` correcto, merge con main `eb0aadb2`. Push pendiente (Daniel). |
+| **Task C** — Auditoría PR #73, fase 1 | Último PR Codex en main = PR #73 (`fcc17492`). No hay solapamiento con PR #76. |
+| **Task C** — Auditoría PR #73, fase 2 | Clasificación: 3 defectos P1, 1 P2, 1 P3. Ver tabla §4. |
+| **Task C** — Auditoría PR #73, fase 3 | Correcciones aplicadas en `fix/levantamiento-barcode-audit` (`c9a92352`). 5 archivos, 81 líneas. Push y PR pendientes (Daniel). |
+| **Documentación** | Este archivo actualizado en rama `docs/actualizar-contexto-maestro-20261009`. PR pendiente. |
+
+### Bitácoras anteriores (resumen)
+
+- **2026-10-08** — Jules PR #67: FUNC-002/004; Codex SEC-005 PR #70; Codex FUNC-001 rama `fix/func-001-cotizacion-venta`; Codex LEV-001 PR #73; docs UX PR #74; E15 PR #75.
+- **2026-10-05** — Auditorías Jules (funcional, seguridad, arquitectura); diagnósticos QA; recuperación usabilidad admin/caja.
+- **2026-10-04** — Diagnóstico main; operación piloto; validación integración y sesiones.
+- **Histórico completo:** ver §9 Anexo y `docs/AUDITORIA_RAMA_20261005.md`.
+
+---
 
 **FIN DEL CONTEXTO VIGENTE**
+
 
 ## 9. Anexo histórico íntegro — consultar selectivamente
 
