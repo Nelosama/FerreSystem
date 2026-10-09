@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TopBar } from '../components/TopBar';
+import { useI18n } from '../context/I18nContext';
+
 export interface Usuario {
   id: string;
   nombre: string;
@@ -41,6 +43,7 @@ export const PERMISOS_DEFAULT_POR_ROL = {
     descuentoMaximo: 10,
   },
 };
+
 import { api } from '../utils/api';
 import {
   Users,
@@ -56,21 +59,23 @@ import {
   Loader2,
 } from 'lucide-react';
 
-const TODOS_LOS_PERMISOS = [
-  { clave: 'pos.vender', label: 'Realizar ventas en POS' },
-  { clave: 'pos.anular_venta', label: 'Anular ventas en POS' },
-  { clave: 'pos.aplicar_descuento', label: 'Aplicar descuentos' },
-  { clave: 'inventario.ver', label: 'Ver catálogo e inventario' },
-  { clave: 'inventario.editar', label: 'Crear / Editar productos' },
-  { clave: 'cotizaciones.crear', label: 'Crear cotizaciones' },
-  { clave: 'cotizaciones.aprobar', label: 'Aprobar cotizaciones' },
-  { clave: 'cotizaciones.convertir_venta', label: 'Convertir cotización a venta' },
-  { clave: 'reportes.ver', label: 'Ver reportes de ventas' },
-  { clave: 'usuarios.gestionar', label: 'Gestionar usuarios y permisos' },
-  { clave: 'configuracion.editar', label: 'Editar configuración de ferretería' },
-];
-
 export const UsuariosPage: React.FC = () => {
+  const { t } = useI18n();
+
+  const TODOS_LOS_PERMISOS = [
+    { clave: 'pos.vender', labelKey: 'users.perm_pos_vender' },
+    { clave: 'pos.anular_venta', labelKey: 'users.perm_pos_anular' },
+    { clave: 'pos.aplicar_descuento', labelKey: 'users.perm_pos_descuento' },
+    { clave: 'inventario.ver', labelKey: 'users.perm_inv_ver' },
+    { clave: 'inventario.editar', labelKey: 'users.perm_inv_editar' },
+    { clave: 'cotizaciones.crear', labelKey: 'users.perm_cot_crear' },
+    { clave: 'cotizaciones.aprobar', labelKey: 'users.perm_cot_aprobar' },
+    { clave: 'cotizaciones.convertir_venta', labelKey: 'users.perm_cot_convertir' },
+    { clave: 'reportes.ver', labelKey: 'users.perm_rep_ver' },
+    { clave: 'usuarios.gestionar', labelKey: 'users.perm_usr_gestionar' },
+    { clave: 'configuracion.editar', labelKey: 'users.perm_cfg_editar' },
+  ];
+
   const [listaUsuarios, setListaUsuarios] = useState<Usuario[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -122,7 +127,7 @@ export const UsuariosPage: React.FC = () => {
           ? Array.isArray(err.response.data.message)
             ? err.response.data.message.join(', ')
             : err.response.data.message
-          : 'No se pudo conectar con la API de usuarios en el servidor backend.';
+          : t('users.error_loading');
         setErrorBanner(errorMsg);
       } finally {
         setLoadingList(false);
@@ -130,7 +135,7 @@ export const UsuariosPage: React.FC = () => {
     };
 
     fetchUsuariosBackend();
-  }, []);
+  }, [t]);
 
   const abrirNuevoUsuario = () => {
     setUsuarioEditando(null);
@@ -248,7 +253,7 @@ export const UsuariosPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="GESTIÓN DE USUARIOS Y PERMISOS" subtitle="Administración de Personal de la Ferretería" />
+      <TopBar title={t('users.title')} subtitle={t('users.subtitle')} />
 
       <main style={styles.content}>
         {errorBanner && (
@@ -260,15 +265,15 @@ export const UsuariosPage: React.FC = () => {
 
         <div style={styles.headerRow}>
           <div>
-            <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>EQUIPO DE TRABAJO</h2>
+            <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('users.team')}</h2>
             <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-              Asignación de roles base, personalización fina de permisos individuales y límites de descuento.
+              {t('users.team_desc')}
             </p>
           </div>
 
           <button type="button" className="btn btn-primary" onClick={abrirNuevoUsuario}>
             <Plus size={18} strokeWidth={2.5} />
-            <span>NUEVO USUARIO</span>
+            <span>{t('users.new_user')}</span>
           </button>
         </div>
 
@@ -277,20 +282,20 @@ export const UsuariosPage: React.FC = () => {
           {loadingList ? (
             <div style={{ padding: '36px', textAlign: 'center', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <Loader2 size={20} className="animate-spin" />
-              <span>Cargando usuarios desde la API real...</span>
+              <span>{t('users.loading_users')}</span>
             </div>
           ) : (
             <table className="industrial-table">
               <thead>
                 <tr>
-                  <th>NOMBRE DEL USUARIO</th>
-                  <th>CORREO ELECTRÓNICO</th>
-                  <th>SUCURSAL ASIGNADA</th>
-                  <th style={{ textAlign: 'center' }}>ROL BASE</th>
-                  <th style={{ textAlign: 'center' }}>DESC. MÁXIMO</th>
-                  <th style={{ textAlign: 'center' }}>PERMISOS ACTIVOS</th>
-                  <th style={{ textAlign: 'center' }}>ESTADO</th>
-                  <th style={{ textAlign: 'center' }}>ACCIONES</th>
+                  <th>{t('users.user_name')}</th>
+                  <th>{t('users.email')}</th>
+                  <th>{t('users.assigned_branch')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('users.base_role')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('users.max_discount')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('users.active_permissions')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('users.status')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('users.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -310,16 +315,16 @@ export const UsuariosPage: React.FC = () => {
                       {u.descuentoMaximo}%
                     </td>
                     <td style={{ textAlign: 'center', fontSize: '11px', color: '#666' }}>
-                      <span className="badge badge-neutral">{(u.permisos || []).length} permisos</span>
+                      <span className="badge badge-neutral">{t('users.permissions_count', { count: (u.permisos || []).length })}</span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       {u.activo ? (
                         <span className="badge badge-success">
-                          <CheckCircle2 size={11} /> ACTIVO
+                          <CheckCircle2 size={11} /> {t('users.active')}
                         </span>
                       ) : (
                         <span className="badge badge-danger">
-                          <XCircle size={11} /> INACTIVO
+                          <XCircle size={11} /> {t('users.inactive')}
                         </span>
                       )}
                     </td>
@@ -329,7 +334,7 @@ export const UsuariosPage: React.FC = () => {
                         className="btn btn-secondary btn-sm"
                         onClick={() => abrirEditarUsuario(u)}
                       >
-                        <Edit2 size={13} /> EDITAR
+                        <Edit2 size={13} /> {t('users.edit')}
                       </button>
                     </td>
                   </tr>
@@ -348,10 +353,15 @@ export const UsuariosPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Users size={20} color="var(--color-primary)" />
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                  {usuarioEditando ? 'EDITAR USUARIO' : 'NUEVO USUARIO'}
+                  {usuarioEditando ? t('users.edit_user') : t('users.new_user')}
                 </h2>
               </div>
-              <button type="button" onClick={() => setModalAbierto(false)} style={styles.closeBtn}>
+              <button
+                type="button"
+                onClick={() => setModalAbierto(false)}
+                style={styles.closeBtn}
+                aria-label={t('common.close_modal')}
+              >
                 <X size={20} />
               </button>
             </div>
@@ -366,11 +376,11 @@ export const UsuariosPage: React.FC = () => {
             <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">NOMBRE COMPLETO</label>
+                  <label className="form-label">{t('users.full_name')}</label>
                   <input
                     type="text"
                     required
-                    placeholder="Ej. Mario López"
+                    placeholder={t('users.placeholder_name')}
                     value={formNombre}
                     onChange={(e) => setFormNombre(e.target.value)}
                     className="form-input"
@@ -378,11 +388,11 @@ export const UsuariosPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">CORREO ELECTRÓNICO</label>
+                  <label className="form-label">{t('users.email')}</label>
                   <input
                     type="email"
                     required
-                    placeholder="mario@lamundial.hn"
+                    placeholder={t('users.placeholder_email')}
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
                     className="form-input"
@@ -392,7 +402,7 @@ export const UsuariosPage: React.FC = () => {
 
               {!usuarioEditando && (
                 <div className="form-group">
-                  <label className="form-label">CONTRASEÑA TEMPORAL</label>
+                  <label className="form-label">{t('users.temp_password')}</label>
                   <input
                     type="password"
                     required
@@ -406,7 +416,7 @@ export const UsuariosPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">SUCURSAL DE TRABAJO (TRASLADO / ASIGNACIÓN)</label>
+                  <label className="form-label">{t('users.work_branch')}</label>
                   <select
                     value={formSucursalActual}
                     onChange={(e) => setFormSucursalActual(e.target.value)}
@@ -421,7 +431,7 @@ export const UsuariosPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">ROL BASE</label>
+                  <label className="form-label">{t('users.base_role')}</label>
                   <select
                     value={formRolBase}
                     onChange={(e) =>
@@ -439,7 +449,7 @@ export const UsuariosPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">DESCUENTO MÁXIMO PERMITIDO (%)</label>
+                  <label className="form-label">{t('users.max_allowed_discount')}</label>
                   <input
                     type="number"
                     min="0"
@@ -453,7 +463,7 @@ export const UsuariosPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">ESTADO DE CUENTA</label>
+                <label className="form-label">{t('users.account_status')}</label>
                 <div style={{ display: 'flex', gap: '16px', marginTop: '6px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}>
                     <input
@@ -462,7 +472,7 @@ export const UsuariosPage: React.FC = () => {
                       checked={formActivo === true}
                       onChange={() => setFormActivo(true)}
                     />
-                    Activo (Puede iniciar sesión)
+                    {t('users.active_can_login')}
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#DC2626' }}>
                     <input
@@ -471,7 +481,7 @@ export const UsuariosPage: React.FC = () => {
                       checked={formActivo === false}
                       onChange={() => setFormActivo(false)}
                     />
-                    Inactivo (Bloqueado)
+                    {t('users.inactive_blocked')}
                   </label>
                 </div>
               </div>
@@ -481,7 +491,7 @@ export const UsuariosPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                   <ShieldCheck size={16} color="var(--color-primary)" />
                   <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase' }}>
-                    PERSONALIZACIÓN FINA DE PERMISOS
+                    {t('users.fine_tuning_permissions')}
                   </span>
                 </div>
 
@@ -505,7 +515,7 @@ export const UsuariosPage: React.FC = () => {
                         />
                         <div>
                           <div style={styles.permisoKey}>{p.clave}</div>
-                          <div style={styles.permisoLabel}>{p.label}</div>
+                          <div style={styles.permisoLabel}>{t(p.labelKey)}</div>
                         </div>
                       </div>
                     );
@@ -520,18 +530,18 @@ export const UsuariosPage: React.FC = () => {
                   disabled={submitting}
                   onClick={() => setModalAbierto(false)}
                 >
-                  CANCELAR
+                  {t('users.cancel')}
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
                   {submitting ? (
                     <>
                       <Loader2 size={16} className="animate-spin" />
-                      <span>GUARDANDO...</span>
+                      <span>{t('users.saving')}</span>
                     </>
                   ) : (
                     <>
                       <Check size={16} strokeWidth={2.6} />
-                      <span>GUARDAR USUARIO</span>
+                      <span>{t('users.save_user')}</span>
                     </>
                   )}
                 </button>
@@ -660,4 +670,3 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-text-muted)',
   },
 };
-

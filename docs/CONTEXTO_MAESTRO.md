@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-09, America/Tegucigalpa** — actualización por Claude (auditoría PR #73 + estado PRs #74–76).
+Última revisión: **2026-10-09, America/Tegucigalpa** — auditoría PR #79 completada: P1 guard precios null + P2 tests aplicar(); 19/19 tests pasan; commit `bac89b1b` listo para push.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -25,20 +25,19 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 ## 1. Estado comprobado — 2026-10-09
 
 - Repositorio: `Nelosama/FerreSystem`; checkout local: `C:\Users\Nelo\Documents\GitHub\FerreSystem`.
-- **HEAD de `main` verificado:** `bbdaec3f` — Revert "Incompleto Codex" (2026-10-09).
-- Rama activa de auditoría: `fix/levantamiento-barcode-audit` — commit `c9a92352` (pendiente de push y PR).
-- PR #76 `codex/fix-iphone-barcode-scanner`: rama remota actualizada (`eb0aadb2`), PR aún abierto, pendiente de push del merge con main.
+- **HEAD de `main` verificado:** `600486a9` — Merge PR #76 codex/fix-iphone-barcode-scanner (2026-10-09). PR #77 (docs) también fusionado (`26fad5ac`).
+- Rama activa de auditoría: `fix/levantamiento-barcode-audit` — rebased sobre `origin/main` (`f06b2bfb`). PR #76 está en main; nuestros fixes P1 re-aplicados correctamente sobre sus cambios.
+- PR #76 `codex/fix-iphone-barcode-scanner`: **FUSIONADO** a main (`600486a9`). Introduce `LevantamientoProductLookup` en lugar de `BarcodeScanner`.
 
 ### Siguiente paso autorizado
-- **Daniel** hace push de las tres ramas pendientes desde su máquina:
+- **Daniel** hace push de la rama de auditoría desde su máquina:
   ```bash
-  git push origin fix/levantamiento-barcode-audit   # PR de auditoría P1
-  git push origin codex/fix-iphone-barcode-scanner  # desbloquea PR #76 para Jules
-  git push origin main                              # propaga revert bbdaec3f
-  git push origin wip/incompleto-codex             # aísla trabajo incompleto
+  git push origin fix/levantamiento-barcode-audit   # PR de auditoría P1 (rebased)
+  git push origin wip/incompleto-codex              # aísla trabajo incompleto
   ```
-- Jules revisa PR #76 con el nuevo SHA (`eb0aadb2`).
 - Abrir PR de `fix/levantamiento-barcode-audit` → revisión antes de merge.
+- PR #76 ya está en main; no requiere acción adicional.
+- Para continuar levantamiento: ver §4 y tabla de pendientes; priorizar los estrictamente necesarios para un conteo real (ítems 2 y 5 de PENDIENTES).
 
 ---
 
@@ -125,7 +124,7 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 
 ## 5. Integración del escáner de código de barras (PR #76)
 
-**Rama:** `codex/fix-iphone-barcode-scanner` | **PR #76** — abierto, pendiente de revisión final por Jules.
+**Rama:** `codex/fix-iphone-barcode-scanner` | **PR #76** — **FUSIONADO** a main (`600486a9`, 2026-10-09). Revisado por Jules.
 
 **Lo que hace el PR:**
 - `frontend/src/utils/barcodeScanner.ts`: detección por feature-flag — usa `BarcodeDetector` API nativa si existe, cae a ZXing si no.
@@ -155,8 +154,8 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 | #73 | `codex/fix-levantamiento-inventario` | **FUSIONADO** | `fcc17492` | 2026-10-08 | Normalización barcode LEV-001, preview, aplicar al inventario |
 | #74 | `docs/bitacora-ux-fotos-20261008` | **FUSIONADO** | `66496008` | 2026-10-08 | Documentación UX/fotografías/topología WiFi |
 | #75 | `fix/e15-seed-alex-isolation` | **FUSIONADO** | `f7822c1f` | 2026-10-08 | Aislamiento seed-alex (E15), guard producción, testIgnore |
-| #76 | `codex/fix-iphone-barcode-scanner` | **ABIERTO** | — | — | Escáner de barras iPhone; bloqueado por Jules (QA FAIL E15 → resuelto, push pendiente) |
-| — | `fix/levantamiento-barcode-audit` | **EN REVISIÓN** (local) | `c9a92352` | 2026-10-09 | Correcciones P1 auditoría PR #73; push y PR pendientes |
+| #76 | `codex/fix-iphone-barcode-scanner` | **FUSIONADO** | `600486a9` | 2026-10-09 | Escáner de barras iPhone; `LevantamientoProductLookup` reemplaza `BarcodeScanner` |
+| — | `fix/levantamiento-barcode-audit` | **EN REVISIÓN** (local, rebased) | `f06b2bfb` | 2026-10-09 | Correcciones P1 auditoría + rebase sobre main post-PR#76; push y PR pendientes |
 | — | `wip/incompleto-codex` | **LOCAL** | — | — | Aísla trabajo incompleto `907b33db`; push pendiente |
 
 **Nota sobre `907b33db` (Incompleto Codex):** este commit se subió directamente a `main` en una rama ya mergeada. Fue revertido en `bbdaec3f` (HEAD actual de main). El trabajo original queda preservado en la rama local `wip/incompleto-codex`.
@@ -197,11 +196,39 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 | Operación | Resultado |
 |---|---|
 | **Task A** — Revert `907b33db` ("Incompleto Codex") | Commit `bbdaec3f` en main; rama `wip/incompleto-codex` creada. Push pendiente (Daniel). |
-| **Task B** — Desbloquear PR #76 (Jules QA FAIL E15) | Verificado: no hay credenciales hardcodeadas, `testIgnore` correcto, merge con main `eb0aadb2`. Push pendiente (Daniel). |
+| **Task B** — Desbloquear PR #76 (Jules QA FAIL E15) | Verificado: no hay credenciales hardcodeadas, `testIgnore` correcto, merge con main `eb0aadb2`. PR #76 fusionado por Daniel. |
 | **Task C** — Auditoría PR #73, fase 1 | Último PR Codex en main = PR #73 (`fcc17492`). No hay solapamiento con PR #76. |
 | **Task C** — Auditoría PR #73, fase 2 | Clasificación: 3 defectos P1, 1 P2, 1 P3. Ver tabla §4. |
-| **Task C** — Auditoría PR #73, fase 3 | Correcciones aplicadas en `fix/levantamiento-barcode-audit` (`c9a92352`). 5 archivos, 81 líneas. Push y PR pendientes (Daniel). |
-| **Documentación** | Este archivo actualizado en rama `docs/actualizar-contexto-maestro-20261009`. PR pendiente. |
+| **Task C** — Auditoría PR #73, fase 3 | Correcciones aplicadas en `fix/levantamiento-barcode-audit` (`c9a92352`). 5 archivos, 81 líneas. |
+| **PR #77** — Docs actualización | Fusionado a main (`26fad5ac`). CONTEXTO_MAESTRO vigente en main. |
+| **PR #76 fusionado** — Diagnóstico de conflicto | PR #76 revirtió todos los P1 fixes de `c9a92352`. Diagnóstico completo registrado. |
+| **Rebase** — `fix/levantamiento-barcode-audit` | Rebased sobre `origin/main` (nuevo hash `f06b2bfb`). P1 fixes re-aplicados correctamente sobre código de `LevantamientoProductLookup`. Sin conflictos. |
+| **Análisis `??0`** — `precioCosto??0`/`precioVenta??0` | Verificado seguro: `preview()` bloquea nuevos productos sin precio; existentes obtienen precio del catálogo. `??0` evita crash de non-null assertion sin introducir precios incorrectos. |
+| **Diagnóstico pendientes** — ítems 2,3,5-11 PENDIENTES | Item 5 (barcode cámara): PARCIAL vía PR #76. Exportación CSV/Excel: PARCIAL (sin plantillas). Ítem 2 (multiusuario), 3 (offline), 7 (zonas), 9 (reconteo): NO implementados. |
+| **Documentación** | Este archivo actualizado. Rama `docs/contexto-levantamiento-post-rebase`. |
+| **PR #79 — Auditoría P1/P2 completada** | Dos defectos confirmados y corregidos. Commit `bac89b1b` en rama `docs/contexto-levantamiento-post-rebase`. **Pendiente: push y merge manual.** |
+### Auditoría PR #79 (2026-10-09)
+
+**Hallazgo P1 — `??0` silencia precios null del catálogo:**
+- En `preview()`, `rows.push` calculaba `precioCosto: p ? Number(p.precioCosto) : null`. Cuando `p.precioCosto` es null en el catálogo, `Number(null) = 0`. El row llegaba a `aplicar()` con `precioCosto: 0`, no `null`, así que el guard `??0` nunca disparaba. Se escribía 0 en el catálogo silenciosamente.
+- **Corrección**: `rows.push` ahora preserva null: `p ? (p.precioCosto == null ? null : Number(p.precioCosto)) : null`.
+- **Guard en `aplicar()`**: reemplazado `??0` por throw `BadRequestException` explícito si precio es null.
+
+**Hallazgo P2 — tests solo cubrían `previsualizar()`, no `aplicar()`:**
+- La suite existente ("Auditoría P1 — protección de código de barras del catálogo") tenía 4 tests, todos terminaban en `previsualizar()`. Ninguno inspeccionaba `producto.update.mock.calls`.
+- **Corrección**: nueva suite "Auditoría P1/P2 — aplicar() protege barcode y precios" con 5 tests:
+  1. barcode mismatch bloquea `aplicar()` — `producto.update` nunca se llama
+  2. barcode persiste cuando `matchedByBarcode=true`
+  3. barcode se asigna cuando `catalogBarcode` era null
+  4. `precioCosto`/`precioVenta` del catálogo se preservan (nunca 0)
+  5. precio null en catálogo lanza error explícito (no escribe 0)
+
+**Resultado de tests:** 19/19 ✅ (`npx vitest run src/levantamientos/levantamientos.service.spec.ts`)
+
+**Estado del commit:** `bac89b1b` en rama `docs/contexto-levantamiento-post-rebase` — **pendiente push manual** (credenciales GitHub no disponibles en sesión cloud).
+
+**Acción requerida por Daniel:** `git push origin docs/contexto-levantamiento-post-rebase`
+
 
 ### Bitácoras anteriores (resumen)
 

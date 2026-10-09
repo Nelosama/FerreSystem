@@ -146,6 +146,56 @@ describe('SEC-005 product HTTP responses (real JWT, guards, service; mocked pers
       }
     }
   });
+
+  describe('CAJERO product permissions and administration restrictions', () => {
+    it('allows CAJERO with pos.vender to search products and consult sale prices via POS commercial endpoint', async () => {
+      const auth = token('CAJERO', ['pos.vender']);
+      const response = await get('/productos/comercial?search=CABLE', auth.value).expect(200);
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0]).toMatchObject({
+        id: 'product-a',
+        codigo: 'CABLE',
+        precioVenta: 10,
+        stockActual: 6, // stockDisponible = 8 - 2
+      });
+      // Ensure financial costs are masked
+      expect(response.body[0]).not.toHaveProperty('precioCosto');
+      expect(response.body[0]).not.toHaveProperty('costoVigente');
+      expect(response.body[0]).not.toHaveProperty('margen');
+    });
+
+    it('rejects CAJERO attempts to create a product via POST /productos with 403 Forbidden', async () => {
+      const auth = token('CAJERO', ['inventario.editar', 'pos.vender']);
+      await request(app.getHttpServer())
+        .post('/productos')
+        .auth(auth.value, { type: 'bearer' })
+        .send({ nombre: 'Nuevo Producto', precioVenta: 20 })
+        .expect(403);
+    });
+
+    it('rejects CAJERO attempts to update a product via PUT /productos/:id with 403 Forbidden', async () => {
+      const auth = token('CAJERO', ['inventario.editar', 'pos.vender']);
+      await request(app.getHttpServer())
+        .put('/productos/product-a')
+        .auth(auth.value, { type: 'bearer' })
+        .send({ precioVenta: 15, stockActual: 100 })
+        .expect(403);
+    });
+
+    it('rejects CAJERO attempts to delete a product via DELETE /productos/:id with 403 Forbidden', async () => {
+      const auth = token('CAJERO', ['inventario.editar', 'pos.vender']);
+      await request(app.getHttpServer())
+        .delete('/productos/product-a')
+        .auth(auth.value, { type: 'bearer' })
+        .expect(403);
+    });
+
+    it('masks financial cost data when CAJERO views products via GET /productos', async () => {
+      const auth = token('CAJERO', ['pos.vender', 'inventario.ver']);
+      const response = await get('/productos/product-a', auth.value).expect(200);
+      expectPublic(response.body);
+    });
+  });
   it('filters mutation responses when BODEGUERO can edit but cannot read financials', async () => {
     const service = app.get(ProductosService);
     const create = vi.spyOn(service, 'create').mockResolvedValue(product);
