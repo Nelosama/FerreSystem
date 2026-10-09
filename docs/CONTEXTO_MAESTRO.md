@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-09, America/Tegucigalpa** — actualización por Claude (rebase fix/levantamiento-barcode-audit + diagnóstico pendientes levantamiento).
+Última revisión: **2026-10-09, America/Tegucigalpa** — auditoría PR #79 completada: P1 guard precios null + P2 tests aplicar(); 19/19 tests pasan; commit `bac89b1b` listo para push.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -206,6 +206,29 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 | **Análisis `??0`** — `precioCosto??0`/`precioVenta??0` | Verificado seguro: `preview()` bloquea nuevos productos sin precio; existentes obtienen precio del catálogo. `??0` evita crash de non-null assertion sin introducir precios incorrectos. |
 | **Diagnóstico pendientes** — ítems 2,3,5-11 PENDIENTES | Item 5 (barcode cámara): PARCIAL vía PR #76. Exportación CSV/Excel: PARCIAL (sin plantillas). Ítem 2 (multiusuario), 3 (offline), 7 (zonas), 9 (reconteo): NO implementados. |
 | **Documentación** | Este archivo actualizado. Rama `docs/contexto-levantamiento-post-rebase`. |
+| **PR #79 — Auditoría P1/P2 completada** | Dos defectos confirmados y corregidos. Commit `bac89b1b` en rama `docs/contexto-levantamiento-post-rebase`. **Pendiente: push y merge manual.** |
+### Auditoría PR #79 (2026-10-09)
+
+**Hallazgo P1 — `??0` silencia precios null del catálogo:**
+- En `preview()`, `rows.push` calculaba `precioCosto: p ? Number(p.precioCosto) : null`. Cuando `p.precioCosto` es null en el catálogo, `Number(null) = 0`. El row llegaba a `aplicar()` con `precioCosto: 0`, no `null`, así que el guard `??0` nunca disparaba. Se escribía 0 en el catálogo silenciosamente.
+- **Corrección**: `rows.push` ahora preserva null: `p ? (p.precioCosto == null ? null : Number(p.precioCosto)) : null`.
+- **Guard en `aplicar()`**: reemplazado `??0` por throw `BadRequestException` explícito si precio es null.
+
+**Hallazgo P2 — tests solo cubrían `previsualizar()`, no `aplicar()`:**
+- La suite existente ("Auditoría P1 — protección de código de barras del catálogo") tenía 4 tests, todos terminaban en `previsualizar()`. Ninguno inspeccionaba `producto.update.mock.calls`.
+- **Corrección**: nueva suite "Auditoría P1/P2 — aplicar() protege barcode y precios" con 5 tests:
+  1. barcode mismatch bloquea `aplicar()` — `producto.update` nunca se llama
+  2. barcode persiste cuando `matchedByBarcode=true`
+  3. barcode se asigna cuando `catalogBarcode` era null
+  4. `precioCosto`/`precioVenta` del catálogo se preservan (nunca 0)
+  5. precio null en catálogo lanza error explícito (no escribe 0)
+
+**Resultado de tests:** 19/19 ✅ (`npx vitest run src/levantamientos/levantamientos.service.spec.ts`)
+
+**Estado del commit:** `bac89b1b` en rama `docs/contexto-levantamiento-post-rebase` — **pendiente push manual** (credenciales GitHub no disponibles en sesión cloud).
+
+**Acción requerida por Daniel:** `git push origin docs/contexto-levantamiento-post-rebase`
+
 
 ### Bitácoras anteriores (resumen)
 
