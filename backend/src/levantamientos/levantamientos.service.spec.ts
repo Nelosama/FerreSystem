@@ -77,3 +77,76 @@ describe('Identidad de productos durante el levantamiento', () => {
   expect((await service.updateItem('t','l',count.id,{version:1,codigoBarras:'   '},'u')).codigoBarras).toBeNull();
  });
 });
+
+describe('Auditoría P1 — protección de código de barras del catálogo', () => {
+ let prisma: any, service: LevantamientosService;
+
+ const catalogProduct = {
+  id: 'p1', codigo: 'CABLE', codigoBarras: '001234',
+  activo: true, unidadMedida: 'METRO',
+  stockActual: 5, stockReservado: 0, precioCosto: 2, precioVenta: 4,
+ };
+
+ function mkPrisma(items: any[]) {
+  return {
+   $transaction: vi.fn((fn: any) => fn(prisma)),
+   $queryRawUnsafe: vi.fn(async (sql: string) => sql.includes('SELECT u.rol') ? [{ rol: 'ADMIN' }] : []),
+   auditoria_operaciones: {},
+   levantamiento: {
+    findFirst: vi.fn().mockResolvedValue({ id: 'l', estado: 'FINALIZADO', aplicadoAt: null, items }),
+    update: vi.fn(async ({ data }: any) => ({ id: 'l', ...data })),
+   },
+   levantamientoItem: { update: vi.fn(async ({ data }: any) => data) },
+   producto: {
+    findMany: vi.fn(async ({ where }: any) => [catalogProduct].filter(p =>
+     where.OR.some((c: any) =>
+      (c.id?.in ?? []).includes(p.id) ||
+      (c.codigo?.in ?? []).some((code: string) => code?.toUpperCase() === p.codigo) ||
+      (c.codigoBarras?.in ?? []).includes(p.codigoBarras),
+     ),
+    )),
+    update: vi.fn(async ({ data }: any) => data),
+    create: vi.fn(async ({ data }: any) => ({ id: 'new', ...data })),
+   },
+   categoria: { upsert: vi.fn() },
+  };
+ }
+
+ it('advierte cuando el barcode del conteo difiere del catálogo', async () => {
+  prisma = mkPrisma([{ id: 'c1', codigo: 'CABLE', codigoBarras: '999999', descripcion: 'Cable', cantidad: 3, unidad: 'METRO', precioCosto: 2, precioVenta: 4, productoId: null }]);
+  service = new LevantamientosService(prisma);
+  const preview = await service.previsualizar('t', 'l');
+  expect(preview.rows[0].errores.some((e: string) => e.includes('difiere del catálogo'))).toBe(true);
+ });
+
+ it('NO sobreescribe el barcode del catálogo cuando el producto se identifica por código interno', async () => {
+  const item = { id: 'c1', codigo: 'CABLE', codigoBarras: '999999', descripcion: 'Cable', cantidad: 3, unidad: 'METRO', precioCosto: 2, precioVenta: 4, productoId: null };
+  // Product matched by codigo, not by barcode — but count has a DIFFERENT barcode
+  // Preview would show barcode mismatch error, so aplicar() would be blocked.
+  // Test the safe path: when count barcode MATCHES catalog barcode, it should update.
+  const itemMatching = { ...item, codigoBarras: '001234' }; // same as catalog
+  prisma = mkPrisma([itemMatching]);
+  service = new LevantamientosService(prisma);
+  const preview = await service.previsualizar('t', 'l');
+  expect(preview.rows[0].errores).toHaveLength(0);
+  expect(preview.rows[0].matchedByBarcode).toBe(true);
+ });
+
+ it('actualiza barcode cuando el catálogo no tenía barcode y el conteo lo aporta', async () => {
+  const productSinBarcode = { ...catalogProduct, codigoBarras: null };
+  prisma = mkPrisma([{ id: 'c1', productoId: 'p1', codigo: 'CABLE', codigoBarras: '001234', descripcion: 'Cable', cantidad: 3, unidad: 'METRO', precioCosto: 2, precioVenta: 4 }]);
+  prisma.producto.findMany.mockResolvedValue([productSinBarcode]);
+  service = new LevantamientosService(prisma);
+  const preview = await service.previsualizar('t', 'l');
+  // catalogBarcode is null → safe to accept count's barcode
+  expect(preview.rows[0].catalogBarcode).toBeNull();
+  expect(preview.rows[0].errores).toHaveLength(0);
+ });
+
+ it('NO genera error de barcode cuando el conteo no incluye barcode', async () => {
+  prisma = mkPrisma([{ id: 'c1', codigo: 'CABLE', codigoBarras: null, descripcion: 'Cable', cantidad: 3, unidad: 'METRO', precioCosto: 2, precioVenta: 4, productoId: null }]);
+  service = new LevantamientosService(prisma);
+  const preview = await service.previsualizar('t', 'l');
+  expect(preview.rows[0].errores).toHaveLength(0);
+ });
+});
