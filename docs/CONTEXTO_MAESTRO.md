@@ -207,6 +207,8 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 | **Diagnóstico pendientes** — ítems 2,3,5-11 PENDIENTES | Item 5 (barcode cámara): PARCIAL vía PR #76. Exportación CSV/Excel: PARCIAL (sin plantillas). Ítem 2 (multiusuario), 3 (offline), 7 (zonas), 9 (reconteo): NO implementados. |
 | **Documentación** | Este archivo actualizado. Rama `docs/contexto-levantamiento-post-rebase`. |
 | **PR #79 — Auditoría P1/P2 completada** | Dos defectos confirmados y corregidos. Commit `bac89b1b` en rama `docs/contexto-levantamiento-post-rebase`. **Pendiente: push y merge manual.** |
+**FS-03 (2026-10-09)** — rama `fix/fs-03-password-predeterminada`, PR abierto, sin merge/despliegue. Se eliminan `Ferre2026!`/`FerreAdmin2026!` precargadas en `UsuariosPage.tsx` y `SuperAdminPage.tsx`; botón «Generar contraseña segura» (`frontend/src/utils/generatePassword.ts`, CSPRNG). Backend: `backend/src/common/password-policy.ts` (≥8, letras+números, lista bloqueada) en crear/editar usuario y admin de tenant; test `common/password-policy.spec.ts`. Backend 119/119, frontend 122/122, tsc OK. **Pendiente:** `backend/prisma/seed.ts` aún usa `Ferre2026!` (solo desarrollo; no ejecutar en producción); usuarios existentes con esa clave deben cambiarla.
+
 ### Auditoría PR #79 (2026-10-09)
 
 **Hallazgo P1 — `??0` silencia precios null del catálogo:**
