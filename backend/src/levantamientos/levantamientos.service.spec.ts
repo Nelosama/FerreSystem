@@ -150,3 +150,105 @@ describe('Auditoría P1 — protección de código de barras del catálogo', () 
   expect(preview.rows[0].errores).toHaveLength(0);
  });
 });
+
+describe('Auditoría P1/P2 — aplicar() protege barcode y precios', () => {
+ let prisma: any, service: LevantamientosService;
+
+ const catalogProduct = {
+  id: 'p1', codigo: 'CABLE', codigoBarras: '001234',
+  activo: true, unidadMedida: 'METRO',
+  stockActual: 5, stockReservado: 0, precioCosto: 2, precioVenta: 4,
+ };
+
+ function mkPrisma(items: any[], productOverride?: Partial<typeof catalogProduct> | null) {
+  const prod = productOverride === null ? null : { ...catalogProduct, ...productOverride };
+  return {
+   $transaction: vi.fn((fn: any) => fn(prisma)),
+   $queryRawUnsafe: vi.fn(async (sql: string) => sql.includes('SELECT u.rol') ? [{ rol: 'ADMIN' }] : []),
+   levantamiento: {
+    findFirst: vi.fn().mockResolvedValue({ id: 'l', estado: 'FINALIZADO', aplicadoAt: null, items }),
+    update: vi.fn(async ({ data }: any) => ({ id: 'l', ...data })),
+   },
+   levantamientoItem: { update: vi.fn(async ({ data }: any) => data) },
+   producto: {
+    findMany: vi.fn(async ({ where }: any) =>
+     prod ? [prod].filter(p =>
+      where.OR.some((c: any) =>
+       (c.id?.in ?? []).includes(p.id) ||
+       (c.codigo?.in ?? []).some((code: string) => code?.toUpperCase() === p.codigo) ||
+       (c.codigoBarras?.in ?? []).includes(p.codigoBarras ?? ''),
+      ),
+     ) : [],
+    ),
+    update: vi.fn(async ({ data }: any) => ({ id: 'p1', ...data })),
+    create: vi.fn(async ({ data }: any) => ({ id: 'new', ...data })),
+   },
+   categoria: { upsert: vi.fn() },
+  };
+ }
+
+ /** Genera token válido llamando previsualizar() y luego invoca aplicar() */
+ async function aplicarConToken(svc: LevantamientosService, items: any[]) {
+  prisma.levantamiento.findFirst.mockResolvedValue({ id: 'l', estado: 'FINALIZADO', aplicadoAt: null, items });
+  const preview = await svc.previsualizar('t', 'l');
+  return svc.aplicar('t', 'u', 'l', preview.token);
+ }
+
+ it('NO sobreescribe barcode cuando el conteo difiere del catálogo — aplicar() rechaza la operación', async () => {
+  // Count matched by internal code CABLE but has DIFFERENT barcode → preview emits "difiere" error
+  // → aplicar() must refuse, and producto.update must never be called.
+  const item = { id: 'c1', codigo: 'CABLE', codigoBarras: '999999', descripcion: 'Cable', cantidad: 3, unidad: 'METRO', precioCosto: 2, precioVenta: 4, productoId: null };
+  prisma = mkPrisma([item]);
+  service = new LevantamientosService(prisma);
+  prisma.levantamiento.findFirst.mockResolvedValue({ id: 'l', estado: 'FINALIZADO', aplicadoAt: null, items: [item] });
+  const preview = await service.previsualizar('t', 'l');
+  expect(preview.rows[0].errores.some((e: string) => e.includes('difiere del catálogo'))).toBe(true);
+  await expect(service.aplicar('t', 'u', 'l', preview.token)).rejects.toThrow('conflictos');
+  expect(prisma.producto.update).not.toHaveBeenCalled();
+ });
+
+ it('persiste barcode cuando matchedByBarcode=true — el conteo identificó al producto por barcode coincidente', async () => {
+  // Count matched by the SAME barcode as catalog — safe to persist barcode update
+  const item = { id: 'c1', codigo: 'CABLE', codigoBarras: '001234', descripcion: 'Cable', cantidad: 7, unidad: 'METRO', precioCosto: 2, precioVenta: 4, productoId: null };
+  prisma = mkPrisma([item]);
+  service = new LevantamientosService(prisma);
+  await aplicarConToken(service, [item]);
+  const updateCall = prisma.producto.update.mock.calls[0][0];
+  expect(updateCall.data.codigoBarras).toBe('001234');
+  expect(updateCall.data.stockActual).toBe(7);
+ });
+
+ it('actualiza barcode en catálogo cuando catalogBarcode era null — el conteo aporta uno nuevo', async () => {
+  const item = { id: 'c1', productoId: 'p1', codigo: 'CABLE', codigoBarras: '777777', descripcion: 'Cable', cantidad: 4, unidad: 'METRO', precioCosto: 2, precioVenta: 4 };
+  prisma = mkPrisma([item], { codigoBarras: null });
+  service = new LevantamientosService(prisma);
+  await aplicarConToken(service, [item]);
+  const updateCall = prisma.producto.update.mock.calls[0][0];
+  expect(updateCall.data.codigoBarras).toBe('777777');
+ });
+
+ it('preserva precioCosto y precioVenta del catálogo — nunca escribe 0 cuando el conteo no los provee', async () => {
+  // Count omits prices (null) → aplicar() must use catalog prices exactly (2 and 4), never 0
+  const item = { id: 'c1', codigo: 'CABLE', codigoBarras: '001234', descripcion: 'Cable', cantidad: 3, unidad: 'METRO', precioCosto: null, precioVenta: null, productoId: null };
+  prisma = mkPrisma([item]);
+  service = new LevantamientosService(prisma);
+  await aplicarConToken(service, [item]);
+  const updateCall = prisma.producto.update.mock.calls[0][0];
+  expect(updateCall.data.precioCosto).toBe(2);
+  expect(updateCall.data.precioVenta).toBe(4);
+  expect(updateCall.data.precioCosto).not.toBe(0);
+  expect(updateCall.data.precioVenta).not.toBe(0);
+ });
+
+ it('lanza error explícito si el producto del catálogo tiene precio null — nunca escribe 0 silenciosamente', async () => {
+  // Edge case: catalog product was created with missing prices (upstream data integrity issue)
+  // aplicar() must throw instead of silently setting 0.
+  const item = { id: 'c1', productoId: 'p1', codigo: 'CABLE', codigoBarras: '001234', descripcion: 'Cable', cantidad: 3, unidad: 'METRO', precioCosto: null, precioVenta: null };
+  prisma = mkPrisma([item], { precioCosto: null, precioVenta: null });
+  service = new LevantamientosService(prisma);
+  prisma.levantamiento.findFirst.mockResolvedValue({ id: 'l', estado: 'FINALIZADO', aplicadoAt: null, items: [item] });
+  const preview = await service.previsualizar('t', 'l');
+  await expect(service.aplicar('t', 'u', 'l', preview.token)).rejects.toThrow('costo o precio definido');
+  expect(prisma.producto.update).not.toHaveBeenCalled();
+ });
+});
