@@ -207,6 +207,8 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 | **Diagnóstico pendientes** — ítems 2,3,5-11 PENDIENTES | Item 5 (barcode cámara): PARCIAL vía PR #76. Exportación CSV/Excel: PARCIAL (sin plantillas). Ítem 2 (multiusuario), 3 (offline), 7 (zonas), 9 (reconteo): NO implementados. |
 | **Documentación** | Este archivo actualizado. Rama `docs/contexto-levantamiento-post-rebase`. |
 | **PR #79 — Auditoría P1/P2 completada** | Dos defectos confirmados y corregidos. Commit `bac89b1b` en rama `docs/contexto-levantamiento-post-rebase`. **Pendiente: push y merge manual.** |
+**FS-08 (2026-10-09)** — rama `fix/fs-08-compras-costos`, PR abierto, sin merge/despliegue. En `OperacionesPage` (Compras) `addItem` descartaba en silencio líneas con costo vacío/inválido y el costo sugerido del catálogo podía traer >2 decimales (el backend los rechaza). Nuevo `frontend/src/utils/compraCosto.ts` (`validarLineaCompra`, `costoSugerido`) con mensajes visibles; costo 0 solo si se escribe explícitamente. Tests `frontend/test/compra-costo.test.mjs`; frontend 126/126, `tsc` OK. Pendiente: confirmar con el dueño si el síntoma reportado era este; el módulo legacy `backend/src/compras` no tiene UI y no se tocó.
+
 ### Auditoría PR #79 (2026-10-09)
 
 **Hallazgo P1 — `??0` silencia precios null del catálogo:**
