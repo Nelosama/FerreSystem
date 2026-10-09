@@ -509,7 +509,11 @@ model Levantamiento {
   // Relaciones
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   items       LevantamientoItem[]
-  sesiones    LevantamientoSesion[]
+  // Nota: las sesiones de heartbeat (LevantamientoSesion) se consultan por el
+  // escalar levantamientoId. No se declara relación Prisma aquí porque la
+  // migración 20261009000000_levantamiento_multiusuario no crea la clave
+  // foránea levantamiento_sesiones.levantamiento_id -> levantamientos.id.
+  // Declararla sin esa FK desincronizaría el esquema con la base de datos.
 
   @@index([tenantId])
   @@index([tenantId, estado])
@@ -566,6 +570,8 @@ model LevantamientoSesion {
   ultimoHeartbeat DateTime @default(now()) @map("ultimo_heartbeat")
   createdAt       DateTime @default(now()) @map("created_at")
 
+  // Solo se declara la relación con Tenant: es la única clave foránea que crea
+  // la migración 20261009000000_levantamiento_multiusuario.
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([levantamientoId, usuarioId])
