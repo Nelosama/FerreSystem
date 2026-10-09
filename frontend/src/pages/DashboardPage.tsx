@@ -1,5 +1,4 @@
 import React from 'react';
-import { BackupStatus } from '../components/BackupStatus';
 import { TaskShortcuts } from '../components/TaskFinder';
 import { TopBar } from '../components/TopBar';
 import { MetricCard } from '../components/MetricCard';
@@ -51,7 +50,6 @@ export const DashboardPage: React.FC = () => {
 
       <main style={styles.content}>
         <TaskShortcuts />
-        <BackupStatus />
         {dashboardLoading && <p role="status">Cargando el resumen del negocio…</p>}
         {dashboardError && <div role="alert">No se pudo cargar el resumen. Puedes seguir usando los accesos de arriba. <button type="button" className="btn btn-secondary" onClick={() => setRetry(value => value + 1)}>Reintentar</button></div>}
         {!dashboardLoading && !dashboardError && <>

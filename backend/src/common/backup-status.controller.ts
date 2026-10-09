@@ -2,12 +2,10 @@ import { Controller, Get, UseGuards } from '@nestjs/common';
 import { readFile, realpath } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { TenantGuard } from './guards/tenant.guard';
-import { RolesGuard } from './guards/roles.guard';
-import { Roles } from './decorators/roles.decorator';
-@Controller('maintenance')
-@UseGuards(JwtAuthGuard,TenantGuard,RolesGuard)
-@Roles('ADMIN')
+import { SuperAdminGuard } from './guards/super-admin.guard';
+import { workerStatus } from './backup-worker-status';
+@Controller(['maintenance', 'admin/maintenance'])
+@UseGuards(JwtAuthGuard, SuperAdminGuard)
 export class BackupStatusController {
   @Get('backup')
   async status() {
@@ -15,6 +13,7 @@ export class BackupStatusController {
     if (!file) return { configured: false };
     try {
       const saved = JSON.parse(await readFile(file, 'utf8'));
+      if (saved.version === 2) return workerStatus(saved);
       if (typeof saved.success !== 'boolean' || typeof saved.lastAttempt !== 'string' || Number.isNaN(Date.parse(saved.lastAttempt))) {
         return { configured: true, available: false };
       }

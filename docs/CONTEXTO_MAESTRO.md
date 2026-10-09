@@ -254,6 +254,14 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 
 ---
 
+
+### FS-41 — actualización de continuidad (2026-10-09)
+
+- Auditoría, garantías, configuración de infraestructura, evidencia y pendientes de esta rama: `docs/FS-41-RESPALDOS.md`.
+- Código en revisión: `feat/fs-41-automatizacion-tecnica`, base `origin/main` `64291e76`; ver PR enlazado en Bitácora de continuidad de FS-41.
+- Worker Restic cifrado con verificación de checksum/restauración aislada previo a retención. Prueba PostgreSQL 18 + restic local temporal pasa, pero NO configura ni acredita destino remoto de producción. Backup operativo permanece BLOQUEADO hasta despliegue a staging y prueba externa satisfactoria.
+- Consola movida del dashboard ADMIN a Super Admin; rutas con `SuperAdminGuard`. Tests backend/frontend y limitaciones en documento FS-41.
+- Sin cambios a base/producción, sin merge ni despliegue. Pendiente infraestructura de cliente, credenciales externas fuera del repo, webhook/monitor, restauración staging y revisión PR.
 **FIN DEL CONTEXTO VIGENTE**
 
 
@@ -2295,3 +2303,4 @@ git push origin feat/levantamiento-multiusuario
 gh pr create --base main --title "feat(levantamientos): conteo multiusuario seguro" \
   --body "Ver docs/CONTEXTO_MAESTRO.md sección 2026-10-08"
 ```
+
