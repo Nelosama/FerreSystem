@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { validarLineaCompra, costoSugerido } from '../utils/compraCosto';
 import { api } from '../utils/api';
 import { useTenant } from '../context/TenantContext';
 import { TopBar } from '../components/TopBar';
@@ -59,9 +60,13 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  const open=rows.find(c=>c.estado==='ABIERTA');
  const total=items.reduce((sum,i)=>sum+Math.round(Number(i.cantidad)*Number(i.costo)*100)/100,0)+Number(tax||0);
  const addItem=()=>{
-  const p=products.find(p=>p.id===productId);if(!p||Number(qty)<=0||cost===''||Number(cost)<0)return;
+  const p=products.find(p=>p.id===productId);
+  if(!p){setError('Seleccione el producto de la compra.');return;}
+  const checked=validarLineaCompra(qty,cost);
+  if('error' in checked){setError(checked.error);return;}
+  setError('');
   if(items.some(i=>i.productoId===p.id)){setError('El producto ya está en la factura. Quite su línea para corregirla.');return;}
-  setItems([...items,{productoId:p.id,nombre:p.nombre,cantidad:Number(qty),costo:Number(cost)}]);setProductId('');setQty('1');setCost('');
+  setItems([...items,{productoId:p.id,nombre:p.nombre,cantidad:checked.linea.cantidad,costo:checked.linea.costo}]);setProductId('');setQty('1');setCost('');
  };
  return <div><TopBar title={{compras:'COMPRAS Y REPOSICIONES',caja:'CAJA Y CIERRE',cuentas:'CUENTAS Y ABONOS',entregas:'ENTREGA DE VENTAS'}[modo]} subtitle="Control operativo de la ferretería"/>
   <main className="operation-page">
@@ -76,7 +81,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
     <form className="operation-card" onSubmit={async e=>{e.preventDefault();if(await run('/operaciones/compras',{proveedorId,numeroFactura:factura,vencimiento:vencimiento||undefined,isv:Number(tax),items:items.map(({nombre,...i})=>i)})){setItems([]);setFactura('');setTax('0');}}}>
      <h2>Registrar factura de compra</h2><p>Registrar la factura crea el saldo del proveedor. Recibir la mercancía aumenta existencias y actualiza el costo vigente.</p>
      <fieldset disabled={blocked} className="operation-form"><label>Proveedor<select required className="form-input" value={proveedorId} onChange={e=>setProveedorId(e.target.value)}><option value="">Seleccione</option>{providers.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}</select></label><label>Número de factura<input className="form-input" required value={factura} onChange={e=>setFactura(e.target.value)}/></label><label>Vencimiento<input className="form-input" type="date" value={vencimiento} onChange={e=>setVencimiento(e.target.value)}/></label><label>Impuesto de la factura<input className="form-input" type="number" min="0" step="0.01" required value={tax} onChange={e=>setTax(e.target.value)}/></label></fieldset>
-     <fieldset disabled={blocked} className="operation-form"><label>Producto<select className="form-input" value={productId} onChange={e=>{setProductId(e.target.value);setCost(String(products.find(p=>p.id===e.target.value)?.precioCosto??''));}}><option value="">Seleccione</option>{products.map(p=><option key={p.id} value={p.id}>{p.codigo} · {p.nombre}</option>)}</select></label><label>Cantidad<input className="form-input" type="number" min="0.01" step="0.01" value={qty} onChange={e=>setQty(e.target.value)}/></label><label>Costo de esta compra<input className="form-input" type="number" min="0" step="0.01" value={cost} onChange={e=>setCost(e.target.value)}/></label><button type="button" className="btn btn-secondary" onClick={addItem}>Agregar producto</button></fieldset>
+     <fieldset disabled={blocked} className="operation-form"><label>Producto<select className="form-input" value={productId} onChange={e=>{setProductId(e.target.value);setCost(costoSugerido(products.find(p=>p.id===e.target.value)?.precioCosto));}}><option value="">Seleccione</option>{products.map(p=><option key={p.id} value={p.id}>{p.codigo} · {p.nombre}</option>)}</select></label><label>Cantidad<input className="form-input" type="number" min="0.01" step="0.01" value={qty} onChange={e=>setQty(e.target.value)}/></label><label>Costo de esta compra<input className="form-input" type="number" min="0" step="0.01" value={cost} onChange={e=>setCost(e.target.value)}/></label><button type="button" className="btn btn-secondary" onClick={addItem}>Agregar producto</button></fieldset>
      {items.map(i=><p key={i.productoId}>{i.nombre} · {i.cantidad} × {amount(i.costo)} <button disabled={blocked} type="button" onClick={()=>setItems(items.filter(x=>x.productoId!==i.productoId))}>Quitar</button></p>)}<p><strong>Total: {amount(total)}</strong></p><button className="btn btn-primary" disabled={blocked||!items.length}>Registrar factura</button>
     </form>
     {!loading&&rows.map(o=><section className="operation-card" key={o.id}><h3>{o.numero_factura||o.codigo} · {o.proveedor_nombre}</h3><p>{o.estado} · {amount(o.total)} · {fecha(o.created_at)}</p><div className="operation-table"><table><thead><tr><th>Producto</th><th>Pedido</th><th>Recibido</th><th>Costo</th><th>Recibir ahora</th></tr></thead><tbody>{o.items.map((i:any)=>{const rest=Number(i.cantidad)-Number(i.cantidad_recibida);return <tr key={i.id}><td>{i.codigo} · {i.nombre}</td><td>{Number(i.cantidad)}</td><td>{Number(i.cantidad_recibida)}</td><td>{amount(i.precio_costo)}</td><td><input aria-label={`Recibir ${i.nombre}`} type="number" min="0" max={rest} step="0.01" value={receipts[i.id]??String(rest)} disabled={blocked||rest===0} onChange={e=>setReceipts({...receipts,[i.id]:e.target.value})}/></td></tr>;})}</tbody></table></div>{['SOLICITADA','APROBADA'].includes(o.estado)&&<button className="btn btn-primary" disabled={blocked} onClick={()=>void run(`/operaciones/compras/${o.id}/recepciones`,{items:o.items.map((i:any)=>({detalleId:i.id,cantidad:Number(receipts[i.id]??Number(i.cantidad)-Number(i.cantidad_recibida))})).filter((i:any)=>i.cantidad>0)})}>Confirmar recepción</button>}</section>)}
