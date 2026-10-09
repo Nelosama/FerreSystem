@@ -232,11 +232,11 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 **Acción requerida por Daniel:** `git push origin docs/contexto-levantamiento-post-rebase`
 
 
-### Agente autónomo de correcciones — 2026-10-09 (bitácora de `docs/BITACORA_PENDIENTES_2026-10-09.md`, rama `docs/bitacora-auditoria-admin-20261009`)
+### Bitácora FS (sesión autónoma 2026-10-09)
 
-Estado de PRs abiertos (ninguno fusionado; verificar en GitHub): #89 FS-01, #90 FS-03, #91 FS-02, #92 FS-08, #93 FS-09, #94 SEC-012, #95 FS-04 (nuevo: `formatFechaCalendario`, vitest 2/2, tsc limpio). Rama `feat/fs-41-automatizacion-tecnica` existe sin commits propios ni PR.
-
-Siguiente prioridad: FS-05 (reportes en zona horaria del tenant), FS-15 (vencimiento derivado del plazo del cliente; depende de #91), FS-06/07/19 (inventario), FS-10, FS-14, FS-18. No se ha desplegado ni validado nada en producción.
+| FS | Estado | Rama | Evidencia |
+|---|---|---|---|
+| FS-01 | Corregido, PR abierto (sin merge/despliegue) | `fix/fs-01-pos-vencimiento-iso` | Causa: `@IsOptional()` no omite `''`; el pendiente corregido del POS guardaba `vencimiento: ''` y el backend respondía "must be a valid ISO 8601 date string", dejando la venta pendiente bloqueada. Fix: `backend/src/common/empty-to-undefined.ts` aplicado a `vencimiento` en ventas/operaciones/compras + POS envía `pending.vencimiento \|\| undefined`. Test: `backend/src/ventas/create-venta-vencimiento.spec.ts` (11/11 en `src/ventas`). No validado en navegador ni producción. |
 
 ### Bitácoras anteriores (resumen)
 
