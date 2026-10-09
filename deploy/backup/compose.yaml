@@ -1,0 +1,36 @@
+name: ferresystem-backup
+services:
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/backup/Dockerfile
+    restart: "on-failure:3"
+    init: true
+    read_only: true
+    # Longer operations must finish gracefully; a hard kill leaves a lock for review.
+    stop_grace_period: 35m
+    cpus: 1.0
+    mem_limit: 2g
+    pids_limit: 100
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    env_file: ${FS41_ENV_FILE:?Archivo privado fuera del repositorio}
+    environment:
+      FERRE_BACKUP_STATE_DIR: /state
+      FERRE_BACKUP_TEMP_DIR: /scratch
+      RESTIC_PASSWORD_FILE: /run/secrets/restic_password
+      PG_PASSWORD_FILE: /run/secrets/source_password
+      RESTIC_CACHE_DIR: /scratch/restic-cache
+    secrets: [restic_password, source_password]
+    volumes:
+      - type: bind
+        source: ${FS41_STATE_DIRECTORY:?Directorio privado de metadatos}
+        target: /state
+    tmpfs:
+      - /scratch:uid=999,gid=999,mode=0700,size=1073741824
+      - /tmp:mode=1777,size=67108864
+secrets:
+  restic_password:
+    file: ${FS41_SECRETS_DIRECTORY:?Directorio privado de secretos}/restic_password
+  source_password:
+    file: ${FS41_SECRETS_DIRECTORY}/source_password

@@ -26,6 +26,7 @@ import { CATALOGO_MODULOS, PENDING_MODULES } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { Rubro } from '../types';
+import { BackupStatus } from '../components/BackupStatus';
 
 interface SubSucursalItem {
   id: string;
@@ -157,7 +158,7 @@ export const SuperAdminPage: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useI18n();
 
-  const [tabActiva, setTabActiva] = useState<'dashboard' | 'tenants' | 'modulos' | 'admins' | 'auditoria' | 'soporte_historial'>('tenants');
+  const [tabActiva, setTabActiva] = useState<'dashboard' | 'tenants' | 'modulos' | 'admins' | 'auditoria' | 'soporte_historial' | 'mantenimiento'>('tenants');
 
   const [tenants, setTenants] = useState<TenantItem[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUserItem[]>([]);
@@ -564,6 +565,9 @@ export const SuperAdminPage: React.FC = () => {
 
         {/* Navegación por Tabs del Super Admin */}
         <div style={styles.tabsContainer}>
+          <button type="button" onClick={() => setTabActiva('mantenimiento')} style={{ ...styles.tabBtn, ...(tabActiva === 'mantenimiento' ? styles.tabBtnActive : {}) }}>
+            <Server size={16} /><span>MANTENIMIENTO</span>
+          </button>
           <button
             type="button"
             onClick={() => setTabActiva('tenants')}
@@ -626,6 +630,7 @@ export const SuperAdminPage: React.FC = () => {
         </div>
 
         {/* TAB 1: GESTIÓN DE TENANTS / CLIENTES */}
+        {tabActiva === 'mantenimiento' && <BackupStatus />}
         {tabActiva === 'tenants' && (
           <div>
             <div style={styles.headerRow}>
