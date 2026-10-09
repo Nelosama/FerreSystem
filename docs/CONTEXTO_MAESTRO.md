@@ -22,6 +22,73 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Inventario — corrección prioritaria para entrega al cliente (2026-10-09)
+
+**Estado de esta revisión:** rama `fix/inventario-entrega-cliente` desde `origin/main` `00f72c02` (PR #103 ya fusionado). Un único PR hacia main; sin merge, despliegue ni consultas a producción. Este bloque describe la revisión más reciente de inventario; las bitácoras fechadas de abajo se conservan como evidencia histórica.
+
+**Continuidad y aislamiento:** revisados los PR #37/#39/#43/#44/#51/#73/#76/#79/#100/#101/#102/#103. Se reutilizan CRUD, generación de códigos internos, conteo persistente, idempotencia del conteo, conciliación multiusuario, preview/aplicar, versión de producto, auditoría y recepción con costo de última compra. Claude trabaja en PR #104 (`fix/p0-credit-integrity`): esta rama no modifica sus archivos de clientes, cotizaciones, operaciones, crédito ni sus pruebas. El único archivo compartido es este contexto, donde la sección de inventario se agrega al principio y su sección de crédito se conserva en su rama. No se modifica el esquema Prisma ni se añaden migraciones.
+
+### Defectos confirmados y correcciones
+
+| Hallazgo | Causa raíz | Corrección / evidencia |
+|---|---|---|
+| Alta directa repetida genera otro producto y otro stock inicial si no lleva código. | `POST /productos` sin identidad de solicitud; la UI no bloqueaba envíos. | `solicitudId` UUID v4 + hash estable del contenido en `PRODUCTO_CREAR`, misma transacción y bloqueo de empresa. Reintento devuelve el producto existente; clave usada con otros datos o por otro empleado responde 409. Frontend persiste clave y contenido por empresa/usuario, muestra Guardando/Guardado, y bloquea doble envío. |
+| Buscar una categoría no encuentra sus productos; filtros solo incluyen categorías predeterminadas. | API busca solo campos de producto; frontend ignora categorías de catálogo. | Búsqueda por nombre de categoría y trim del término; filtros incluyen las categorías reales. Lookup del conteo anuncia búsqueda por código, descripción o categoría; captura de categoría conserva texto libre y agrega sugerencias. |
+| `null` en edición puede convertir cantidades o precios a 0; códigos null pueden provocar error interno. | `@IsOptional()` omite validación de null; `Number(null)` produce cero. | Campos opcionales validan si no son undefined: null inválido responde 400 antes de escribir. `imagenUrl: null` conserva su contrato de borrado explícito. |
+| Baja lógica no invalida formularios antiguos; se puede reactivar con una versión obsoleta. | DELETE no incrementa `productos.version`. | Baja incrementa versión; edición con versión anterior responde 409. |
+| Un ajuste abierto antes de una recepción borra las existencias recibidas. | Recepciones/entregas cambian cantidades mediante SQL sin incrementar `productos.version`; la versión sola no detecta el cambio. | Un ajuste que cambia stock exige `stockAnterior` y lo compara dentro de la transacción. Si cambió responde `409 PRODUCTO_STOCK`; la UI recarga. Importador también envía la cantidad leída. Reproducción SQL del contrato vigente y prueba con recepción efectiva/ajuste concurrentes. |
+| Alta no permite guardar descripción ni indicar venta por medida; captura datos sin persistencia y el modal resulta difícil en móvil. | `usaMedida: false` fijo; descripción omitida; controles de lote/serie/vencimiento sin campo en BD; modal sin límite vertical. | Nombre y variante primero; códigos internos automáticos; descripción y datos opcionales plegados; usaMedida editable; cantidades a dos decimales; modal desplazable y columnas adaptables. Se retiran los controles que simulaban persistencia de lote/serie/vencimiento/garantía. |
+| Mensajes de cámara no reconocen errores de otro contexto; pruebas existentes no ejecutaban esa lógica. | Dependencia de `instanceof Error`; cinco pruebas comprobaban una copia de la condición. | Mapeo por nombre del error, válido para DOMException/otro realm; esas pruebas ahora llaman a `cameraError` real. Permisos, cámara ocupada/no disponible y alternativa manual en ES/EN. Seis pruebas fallaban antes del cambio. |
+| Captura manual puede fallar cuando no existe `crypto.randomUUID` (LAN sin HTTPS). | randomUUID exige contexto seguro; la captura manual lo llamaba incondicionalmente. | UUID v4 con `crypto.getRandomValues` como alternativa, sin Math.random. E2E con randomUUID ausente y cámara denegada guarda manualmente una sola solicitud. Cámara sigue exigiendo HTTPS. |
+
+**Reproducción:** en PostgreSQL 17 aislado, cuatro pruebas nuevas fallaron sobre main (alta duplicada, categoría, null, baja/version). Una quinta reprodujo pérdida de recepción al ajustar. Tras los cambios pasan. El fallo sintético de auditoría mediante trigger PostgreSQL prueba rollback después de escribir producto/categoría/movimiento, y luego se retira para reintentar la misma solicitud. No es un mock de transacción.
+
+### Operación y cobertura
+
+- BODEGUERO con `inventario.editar` crea directamente canaletas, láminas, varillas, tornillos y aerosoles, con cantidades enteras o decimales persistidas en PostgreSQL, sin aprobación de ADMIN para cada alta. Las variantes de medida/color/espesor son productos separados con nombre descriptivo y códigos independientes; no hay modelo de variantes relacionadas.
+- El flujo de levantamiento conserva la regla previa: finalizar no aplica; solo ADMIN aplica un conteo revisado. No cambia reserva al facturar, descuento físico al entregar ni permisos de ajuste/costo manual.
+- Recepciones conservan costo de la última recepción efectiva (incluso menor), histórico por compra y precio de venta sin cambio. La prueba de recepción/ajuste concurrentes usa el servicio vigente sin modificar sus archivos. La regresión de compras cubre 45 → 60 → 40, recepción parcial, reintentos y concurrencia.
+- UI de alta, lookup, cámara y levantamiento traducida ES/EN. Datos de usuario y mensajes del backend conservan su idioma original. Inventario se monta con clave de tenant/usuario: no conserva formulario de otra sesión.
+
+**Matriz de pruebas obligatorias con PostgreSQL real:**
+
+| Criterio | Evidencia |
+|---|---|
+| 1. Crear producto | Altas HTTP ADMIN/BODEGUERO; cinco ejemplos de ferretería con lectura posterior de BD. |
+| 2. Evitar códigos duplicados | Códigos internos/barras, activos/inactivos, carrera entre empleados: una alta y un movimiento. |
+| 3. Existencias iniciales | Movimiento INICIAL, cantidad exacta, usuario, motivo y fecha. |
+| 4. Actualizar cantidades | AJUSTE con motivo y stock anterior; ajuste obsoleto rechazado. |
+| 5. Decimales | 12.75 → 14.25 → 13.50; movimientos +1.50 y -0.75; tercer decimal rechazado. |
+| 6. Movimientos auditables | Lectura real de movimientos/auditoría con usuario, fecha, motivo y antes/después. |
+| 7. Reintentos | Alta concurrente/idempotente y conteo/aplicación existentes; ajuste repetido rechazado sin segundo movimiento. |
+| 8. Concurrencia | Altas/ediciones entre empleados y recepción efectiva simultánea con ajuste: ninguna recepción se pierde. |
+| 9. Aislamiento tenants | Lecturas, códigos, solicitudes y escrituras ajenas; mismos códigos válidos en otra empresa. |
+| 10. Atomicidad | Trigger que falla al auditar el alta revierte categoría/producto/movimiento; recepción fallida en suite de compras. |
+
+**Resultados locales finales y límites:**
+
+- Backend unitarias: 326/326. Scripts: 13/13. TypeScript de compilación, Nest build y lint ejecutados sin errores; avisos existentes.
+- PostgreSQL real: **185/185 en 9 archivos**; `productos-edicion.postgres.integration.ts` 31/31. Clústeres temporales PostgreSQL 17.11 como usuario no root; nunca se usa DATABASE_URL de producción. DDL del esquema actual para las suites HTTP y migraciones reales en la suite de migraciones.
+- Frontend: 163/163, incluidos cinco casos con ZXing real e imágenes sintéticas EAN-13/EAN-8/UPC-A/CODE-128/checksum inválido. TypeScript (`tsc -b`), Vite build y lint sin errores. Avisos previos de React y tamaño del bundle.
+- Playwright Chromium: **93/93**. APIs simuladas: verifica interfaz y payloads; no acredita persistencia.
+- Playwright WebKit 26.6 con emulación iPhone 13: 23/23; archivo `frontend/playwright.inventory-webkit.config.ts`. APIs y permiso de cámara simulados. **No es Safari instalado en un iPhone físico y no acredita cámara real.** El decodificador con imágenes sintéticas tampoco valida iluminación/enfoque/etiquetas del cliente.
+- Comandos: `npm test`, `npm run test:scripts`, `npm run test:integration` con PG_BIN local temporal; `npm run build`/`npm run lint` en ambos paquetes; `npm run test:browser -- --workers=2`; `npx playwright test --config playwright.inventory-webkit.config.ts`.
+- GitHub Actions: consultar el último head y enlaces de ejecución en la descripción del único PR. APTO PARA MERGE solo con checks aprobados y sin conflictos; no equivale a aceptación en dispositivo/infraestructura del cliente.
+
+### Pendientes y riesgos para la primera entrega
+
+1. **Sucursales: NO IMPLEMENTADO.** El stock es por empresa/producto, no por sucursal. No existe modelo real de sucursal. No se agregó un selector ficticio ni se reinterpretó un tenant como sucursal. Multi-sede exige definir pertenencia, existencias y permisos e integrar recepción/venta/entrega en archivos donde trabaja Claude. Se separa ese trabajo; esta revisión no acredita operación multi-sucursal. Una entrega a varias sucursales queda bloqueada.
+2. **Fotografías locales: PENDIENTE de infraestructura.** Solo hay referencia textual `imagenUrl`; no hay servicio de captura/almacenamiento local compartido por Wi-Fi. No se suben imágenes a Supabase ni a otro servicio cloud. Falta definir PC principal, ubicación/retención de archivos, URL de servicio LAN, autenticación, HTTPS/certificados confiables en iPhone y acceso de las cajas por la misma Wi-Fi. Después: captura escritorio/móvil, referencia en BD, consulta en otra PC y pruebas con foto ausente/servidor desconectado. El inventario actual funciona sin foto (probado); no se afirma funcionamiento de un servidor de fotos inexistente.
+3. **iPhone físico / LEV-015:** validar Safari, permiso aceptado/denegado, cámara trasera, códigos impresos reales, iluminación, cierre y regreso a la app, HTTPS de LAN y captura manual. Emulación e imágenes sintéticas dejan este punto abierto.
+4. **Costo manual:** ADMIN/BODEGUERO pueden modificar costo manualmente, auditado pero fuera de la regla de última recepción. Se conserva el permiso por instrucción; pendiente decisión sobre restricción y motivo obligatorio. Precio de venta no se actualiza automáticamente.
+5. **Compatibilidad de clientes antiguos:** ajustes que cambian cantidades sin `stockAnterior` ahora reciben 400; null inválido recibe 400. Frontend, importador y backend deben actualizarse juntos cuando se autorice. Reintentos de alta solo son idempotentes si se envía solicitudId; la UI lo hace. La auditoría usada para idempotencia debe conservarse; consulta sin índice de expresión específico, a medir para empresas con historial muy grande.
+6. **Funciones no implementadas:** variantes relacionadas, lotes, series, vencimientos, conversión de unidades. Ubicación queda en historial del conteo. No se ofrecen controles que prometan guardar esos datos en el catálogo.
+7. **Importador:** conserva la decisión vigente de sobrescribir cantidades/precios con confirmación; ahora protege la cantidad anterior. Un archivo no reemplaza la revisión del empleado. No se cambia esa regla de negocio.
+
+**Veredicto de alcance:** las correcciones permiten alta y administración persistentes para una tienda con empleado autorizado. Merge y aceptación del cliente son decisiones separadas: multi-sucursal y cámara/fotos en red física no están acreditadas. Sin merge ni despliegue.
+
+---
+
 ## 1. Estado comprobado — 2026-10-09
 
 - Repositorio: `Nelosama/FerreSystem`; checkout local: `C:\Users\Nelo\Documents\GitHub\FerreSystem`.

@@ -104,7 +104,7 @@ export const ProductoGestion: React.FC<{ productos: any[]; onSaved: () => Promis
       await onSaved();
       if (mostrarInactivos) await cargarInactivos(true);
     } catch (err: any) {
-      if (err.response?.data?.code === 'PRODUCTO_VERSION') {
+      if (['PRODUCTO_VERSION', 'PRODUCTO_STOCK'].includes(err.response?.data?.code)) {
         // Otro usuario cambió el producto: no se sobrescribe; se recarga la lista para que el usuario revise.
         setError(t('product_edit.conflict'));
         setSelected(null);

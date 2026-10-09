@@ -246,7 +246,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
     let errores = invalidRows.length;
     let omitidos = 0;
     // FS-07: el importador envía la versión que leyó; si el producto cambió después, el servidor rechaza la edición.
-    const existentes = new Map(productos.map((p) => [p.codigo.trim().toUpperCase(), { id: p.id, version: p.version }]));
+    const existentes = new Map(productos.map((p) => [p.codigo.trim().toUpperCase(), { id: p.id, version: p.version, stockActual: Number(p.stockActual) }]));
 
     try {
       for (const r of validRows) {
@@ -266,11 +266,11 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
           const existente = existentes.get(payload.codigo);
           if (existente) {
             if (!sobrescribir) { omitidos++; continue; }
-            await api.put(`/productos/${existente.id}`, { ...payload, version: existente.version });
+            await api.put(`/productos/${existente.id}`, { ...payload, version: existente.version, stockAnterior: existente.stockActual });
             actualizados++;
           } else {
             const res = await api.post('/productos', payload);
-            existentes.set(payload.codigo, { id: res.data.id, version: res.data.version ?? 1 });
+            existentes.set(payload.codigo, { id: res.data.id, version: res.data.version ?? 1, stockActual: Number(res.data.stockActual) });
             importados++;
           }
         } catch {

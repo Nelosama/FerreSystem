@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { BarcodeScanner } from './BarcodeScanner';
 
@@ -10,6 +11,7 @@ export interface CountProduct {
 export const LevantamientoProductLookup: React.FC<{
   disabled?: boolean; onSearch(code: string): void; onSelect(product: CountProduct): void;
 }> = ({ disabled, onSearch, onSelect }) => {
+  const { t } = useI18n();
   const [search, setSearch] = useState('');
   const [products, setProducts] = useState<CountProduct[]>([]);
   const [selected, setSelected] = useState<CountProduct | null>(null);
@@ -37,29 +39,29 @@ export const LevantamientoProductLookup: React.FC<{
       if (exact.length === 1) choose(exact[0]);
       else {
         setProducts(rows.slice(0, 20));
-        setMessage(exact.length > 1 ? 'Código ambiguo. Seleccione y compruebe el producto.' : rows.length
-          ? 'Seleccione el producto correcto; no se encontró una coincidencia exacta.'
+        setMessage(exact.length > 1 ? t('count_lookup.ambiguous') : rows.length
+          ? t('count_lookup.select')
           : scanned
-            ? 'Código de barras no registrado. Busque por nombre o código interno. Escanear no crea productos nuevos.'
-            : 'Producto no encontrado. Revise el código o nombre e intente de nuevo.');
+            ? t('count_lookup.unknown_code')
+            : t('count_lookup.not_found'));
       }
     } catch (error: unknown) {
       if (controller.signal.aborted || current !== generation.current) return;
       const status = (error as { response?: { status?: number } }).response?.status;
-      setMessage(status === 403 ? 'No tiene permiso para consultar el catálogo. Solicite acceso al administrador.'
-        : 'No se pudo consultar el producto. Revise la conexión y vuelva a buscar; no se guardó ninguna captura.');
+      setMessage(status === 403 ? t('count_lookup.denied')
+        : t('count_lookup.error'));
     } finally { if (current === generation.current) setLoading(false); }
   };
-  return <section aria-label="Identificar producto para contar">
+  return <section aria-label={t('count_lookup.label')}>
     <BarcodeScanner disabled={disabled || loading} onCode={code => void lookup(code, true)} />
-    <label>Buscar por código o nombre<input className="form-input" type="search" value={search} disabled={disabled} onChange={e => setSearch(e.target.value)} onKeyDown={e => {
+    <label>{t('count_lookup.search')}<input className="form-input" type="search" value={search} disabled={disabled} onChange={e => setSearch(e.target.value)} onKeyDown={e => {
       if (e.key === 'Enter') { e.preventDefault(); void lookup(search); }
     }} /></label>
-    <button type="button" className="btn btn-secondary" disabled={disabled || loading || !search.trim()} onClick={() => void lookup(search)}>Buscar producto</button>
-    {loading && <p role="status">Buscando producto…</p>}
+    <button type="button" className="btn btn-secondary" disabled={disabled || loading || !search.trim()} onClick={() => void lookup(search)}>{t('count_lookup.button')}</button>
+    {loading && <p role="status">{t('count_lookup.loading')}</p>}
     {message && <p role="status">{message}</p>}
     {!!products.length && <ul>{products.map(p => <li key={p.id}><button type="button" disabled={disabled} onClick={() => choose(p)}>{p.codigo} · {p.nombre} · {p.unidadMedida}</button></li>)}</ul>}
-    {selected && <div role="status"><strong>{selected.nombre}</strong><p>Código: {selected.codigo} · Barras: {selected.codigoBarras || 'Sin código de barras'}</p>
-      <p>Unidad: {selected.unidadMedida} · Existencia física actual: {selected.stockActual}</p><p>Ingrese la cantidad física contada y pulse Guardar y siguiente.</p></div>}
+    {selected && <div role="status"><strong>{selected.nombre}</strong><p>{t('count_lookup.code', { code: selected.codigo, barcode: selected.codigoBarras || t('count_lookup.no_barcode') })}</p>
+      <p>{t('count_lookup.stock', { unit: selected.unidadMedida, stock: selected.stockActual })}</p><p>{t('count_lookup.next')}</p></div>}
   </section>;
 };

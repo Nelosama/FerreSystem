@@ -6,6 +6,9 @@ import { exportToCSV } from '../utils/csvExport';
 import { exportToExcel } from '../utils/excelExport';
 import './OperacionesPage.css';
 import { LevantamientoProductLookup } from '../components/LevantamientoProductLookup';
+import { useI18n } from '../context/I18nContext';
+import { useRubroConfig } from '../hooks/useRubroConfig';
+import { newRequestId } from '../utils/requestId';
 import { readStoredJson } from '../utils/storage';
 
 const blank = () => ({
@@ -22,13 +25,14 @@ const identidadCoincide = (item: any, f: { productoId?: string; codigo?: string;
     || (!!barras && !!item.codigoBarras && item.codigoBarras.trim() === barras);
 };
 const CLAVE_LEVANTAMIENTO = (tenantId: string, userId?: string) => `ferre_pending_levantamiento:${tenantId}:${userId}`;
-const message = (e: any) => {
+const message = (e: any, fallback = 'No se pudo guardar. Revise la conexión y reintente.') => {
   const m = e.response?.data?.message;
-  return Array.isArray(m) ? m.join(', ') : m || 'No se pudo guardar. Revise la conexión y reintente.';
+  return Array.isArray(m) ? m.join(', ') : m || fallback;
 };
 
 /** Banner con usuarios activos en este levantamiento */
 function ParticipantesBanner({ lid }: { lid: string }) {
+  const { t } = useI18n();
   const [participantes, setParticipantes] = useState<any[]>([]);
   useEffect(() => {
     if (!lid) return;
@@ -43,9 +47,9 @@ function ParticipantesBanner({ lid }: { lid: string }) {
   if (participantes.length <= 1) return null;
   return (
     <div className="operation-card" style={{ background: 'var(--color-info-bg,#e0f2fe)', borderLeft: '4px solid #0284c7', padding: '8px 12px' }}>
-      <strong>👥 Usuarios activos ahora:</strong>{' '}
+      <strong>{t('stocktaking.active_users')}</strong>{' '}
       {participantes.map(p => p.nombreUsuario).join(', ')}
-      <span style={{ color: '#64748b', fontSize: '0.85em' }}> — Los conteos de cada usuario se muestran por separado</span>
+      <span style={{ color: '#64748b', fontSize: '0.85em' }}>{t('stocktaking.separate_counts')}</span>
     </div>
   );
 }
@@ -54,14 +58,15 @@ function ParticipantesBanner({ lid }: { lid: string }) {
 function ConflictosPanel({
   lid, onResolved, busy, isReadOnly,
 }: { lid: string; onResolved: () => void; busy: boolean; isReadOnly: boolean }) {
+  const { t } = useI18n();
   const [grupos, setGrupos] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [resolviendo, setResolviendo] = useState(false);
 
   const cargar = useCallback(async () => {
     try { setGrupos((await api.get(`/levantamientos/${lid}/conflictos`)).data); }
-    catch (e) { setError(message(e)); }
-  }, [lid]);
+    catch (e) { setError(message(e, t('stocktaking.error'))); }
+  }, [lid, t]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -74,23 +79,23 @@ function ConflictosPanel({
       await api.post(`/levantamientos/${lid}/conciliar`, { mantenerItemId, ...(cantidadManual != null ? { cantidadManual } : {}) });
       await cargar();
       onResolved();
-    } catch (e) { setError(message(e)); }
+    } catch (e) { setError(message(e, t('stocktaking.error'))); }
     finally { setResolviendo(false); }
   };
 
   return (
     <section className="operation-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-      <h2>⚠️ Conflictos pendientes de conciliar</h2>
-      <p>Los siguientes productos fueron contados por más de un usuario. El administrador debe elegir qué conteo conservar.
-        <strong> No se suma ni se elige automáticamente.</strong>
+      <h2>{t('stocktaking.pending_conflicts')}</h2>
+      <p>{t('stocktaking.choose_help')}
+        <strong>{t('stocktaking.no_auto')}</strong>
       </p>
       {error && <div role="alert" className="operation-error">{error}</div>}
       {grupos.map(grupo => (
         <div key={grupo.key} className="operation-card" style={{ marginBottom: 12 }}>
-          <strong>Producto / clave: {grupo.key}</strong>
+          <strong>{t('stocktaking.product_key')} {grupo.key}</strong>
           <div className="operation-table" style={{ marginTop: 6 }}>
             <table>
-              <thead><tr><th>Usuario</th><th>Descripción</th><th>Cantidad</th><th>Zona</th><th>Acción</th></tr></thead>
+              <thead><tr><th>{t('stocktaking.user')}</th><th>{t('stocktaking.plain_description')}</th><th>{t('stocktaking.quantity')}</th><th>{t('stocktaking.zone')}</th><th>{t('stocktaking.action')}</th></tr></thead>
               <tbody>
                 {grupo.items.map((item: any) => (
                   <ConflictoFila key={item.id} item={item} disabled={resolviendo || busy} onConciliar={conciliar} />
@@ -106,6 +111,7 @@ function ConflictosPanel({
 
 /** Fila de conflicto: el valor manual es estado propio de cada fila (no se puede usar un hook dentro de un map). */
 function ConflictoFila({ item, disabled, onConciliar }: { item: any; disabled: boolean; onConciliar: (id: string, cantidad?: number) => void }) {
+  const { t } = useI18n();
   const [manual, setManual] = useState<string>('');
   return (
     <tr style={{ background: '#fefce8' }}>
@@ -120,13 +126,13 @@ function ConflictoFila({ item, disabled, onConciliar }: { item: any; disabled: b
           onClick={() => onConciliar(item.id)}
           style={{ marginRight: 4, marginBottom: 4 }}
         >
-          Conservar este ({Number(item.cantidad)})
+          {t('stocktaking.keep', { quantity: Number(item.cantidad) })}
         </button>
-        <span style={{ display: 'block', fontSize: '0.85em', color: '#64748b', marginBottom: 4 }}>o cantidad manual:</span>
+        <span style={{ display: 'block', fontSize: '0.85em', color: '#64748b', marginBottom: 4 }}>{t('stocktaking.manual_quantity')}</span>
         <input
           type="number" min="0" step="0.01"
           style={{ width: 80, marginRight: 4 }}
-          placeholder="Cant."
+          placeholder={t('stocktaking.qty_placeholder')}
           value={manual}
           onChange={e => setManual(e.target.value)}
         />
@@ -135,7 +141,7 @@ function ConflictoFila({ item, disabled, onConciliar }: { item: any; disabled: b
           disabled={disabled || manual === ''}
           onClick={() => onConciliar(item.id, Number(manual))}
         >
-          Usar {manual || '…'}
+          {t('stocktaking.use', { quantity: manual || '…' })}
         </button>
       </td>
     </tr>
@@ -143,6 +149,8 @@ function ConflictoFila({ item, disabled, onConciliar }: { item: any; disabled: b
 }
 
 export const LevantamientoPage: React.FC = () => {
+  const { t, locale } = useI18n();
+  const rubroConfig = useRubroConfig();
   const { tenant, user, isReadOnly } = useTenant();
   const [sessions, setSessions] = useState<any[]>([]);
   const [activeId, setActiveId] = useState('');
@@ -175,9 +183,9 @@ export const LevantamientoPage: React.FC = () => {
       setSessions((await api.get('/levantamientos')).data);
       if (activeId) setActive((await api.get(`/levantamientos/${activeId}`)).data);
       else setActive(null);
-    } catch (e) { setError(message(e)); }
+    } catch (e) { setError(message(e, t('stocktaking.error'))); }
     finally { setLoading(false); }
-  }, [activeId, tenant.id]);
+  }, [activeId, tenant.id, t]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { setActiveId(''); setActive(null); setPreview(null); setEditing(null); setForm(blank()); }, [tenant.id]);
@@ -202,7 +210,7 @@ export const LevantamientoPage: React.FC = () => {
     if (inFlight.current || isReadOnly) return;
     inFlight.current = true; setBusy(true); setError('');
     try { await fn(); await load(); }
-    catch (e) { setError(message(e)); }
+    catch (e) { setError(message(e, t('stocktaking.error'))); }
     finally { inFlight.current = false; setBusy(false); }
   };
 
@@ -216,7 +224,7 @@ export const LevantamientoPage: React.FC = () => {
     }
     localStorage.removeItem(pendingKey); setPendingCount(null);
     // Confirmación visible también al confirmar un conteo pendiente tras un fallo de red.
-    setUltimoGuardado(`Guardado: ${command.dto.descripcion} · ${command.dto.cantidad} ${command.dto.unidad}`);
+    setUltimoGuardado(`${t('stocktaking.saved')}: ${command.dto.descripcion} · ${command.dto.cantidad} ${command.dto.unidad}`);
     setLookupRevision(v => v + 1);
     setForm(f => ({ ...blank(), unidad: f.unidad, ubicacion: f.ubicacion }));
     setPreview(null);
@@ -238,13 +246,13 @@ export const LevantamientoPage: React.FC = () => {
 
   return (
     <div>
-      <TopBar title="LEVANTAMIENTO DE INVENTARIO" subtitle="Conteo multiusuario, revisión y aplicación al inventario" />
+      <TopBar title={t('stocktaking.title')} subtitle={t('stocktaking.subtitle')} />
       <main className="operation-page">
         {error && <div role="alert" className="operation-error">{error}</div>}
-        {loading && <p role="status">Cargando…</p>}
+        {loading && <p role="status">{t('stocktaking.loading')}</p>}
         {pendingCount && (
           <div className="operation-error" role="alert">
-            Hay un conteo pendiente de confirmar. Reintente para consultar o guardar la misma operación.
+            {t('stocktaking.pending')}
             <button className="btn btn-secondary" disabled={busy || isReadOnly}
               onClick={() => void action(async () => { await sendCount(pendingCount); })}>
               Confirmar conteo pendiente
@@ -252,11 +260,11 @@ export const LevantamientoPage: React.FC = () => {
           </div>
         )}
         <div className="operation-actions">
-          <button className="btn btn-secondary" disabled={busy} onClick={() => void load()}>Actualizar</button>
+          <button className="btn btn-secondary" disabled={busy} onClick={() => void load()}>{t('stocktaking.refresh')}</button>
           {activeId && (
             <button className="btn btn-secondary" onClick={() => {
               setActiveId(''); setPreview(null); setEditing(null); setForm(blank());
-            }}>Volver a levantamientos</button>
+            }}>{t('stocktaking.back')}</button>
           )}
         </div>
 
@@ -269,7 +277,7 @@ export const LevantamientoPage: React.FC = () => {
                 const claveLev = CLAVE_LEVANTAMIENTO(tenant.id, user?.id);
                 const nombreLimpio = nombre.trim();
                 const previo = readStoredJson<any>(claveLev, null);
-                const solicitud = previo && previo.nombre === nombreLimpio ? previo : { nombre: nombreLimpio, solicitudId: crypto.randomUUID() };
+                const solicitud = previo && previo.nombre === nombreLimpio ? previo : { nombre: nombreLimpio, solicitudId: newRequestId() };
                 localStorage.setItem(claveLev, JSON.stringify(solicitud));
                 try {
                   const r = await api.post('/levantamientos', solicitud);
@@ -282,17 +290,17 @@ export const LevantamientoPage: React.FC = () => {
                 }
               });
             }}>
-              <label>Nombre del levantamiento
+              <label>{t('stocktaking.name')}
                 <input className="form-input" required value={nombre} disabled={busy || isReadOnly}
                   onChange={e => setNombre(e.target.value)} />
               </label>
-              <button className="btn btn-primary" disabled={busy || isReadOnly}>Crear levantamiento</button>
+              <button className="btn btn-primary" disabled={busy || isReadOnly}>{t('stocktaking.create')}</button>
             </form>
             {sessions.map(s => (
               <button className="operation-card" style={{ textAlign: 'left' }} key={s.id}
                 onClick={() => { setActiveId(s.id); setPreview(null); }}>
-                <strong>{s.nombre}</strong> · {s.estado} · {s.totalItems} artículos
-                {s.aplicadoAt && ' · Aplicado'}
+                <strong>{s.nombre}</strong> · {s.estado} · {s.totalItems} {t('stocktaking.items')}
+                {s.aplicadoAt && t('stocktaking.applied')}
               </button>
             ))}
           </>
@@ -308,38 +316,38 @@ export const LevantamientoPage: React.FC = () => {
             <section className="operation-card">
               <h2>{active.nombre} · {active.estado}</h2>
               {active.aplicadoAt
-                ? <p>Aplicado al inventario el {new Date(active.aplicadoAt).toLocaleString('es-HN')}. El conteo original se conserva.</p>
-                : <p>Finalizar cierra el conteo. Aplicar al inventario es una acción separada del administrador.</p>
+                ? <p>{t('stocktaking.applied_date', { date: new Date(active.aplicadoAt).toLocaleString(locale === 'en' ? 'en-US' : 'es-HN') })}</p>
+                : <p>{t('stocktaking.steps')}</p>
               }
               <div className="operation-actions">
                 {!closed && (
                   <button className="btn btn-secondary" disabled={busy || isReadOnly || !active.items.length}
                     onClick={() => {
-                      if (window.confirm('¿Finalizar este conteo sin modificar inventario todavía?'))
+                      if (window.confirm(t('stocktaking.finish_confirm')))
                         void action(async () => { await api.patch(`/levantamientos/${activeId}`, { estado: 'FINALIZADO' }); });
-                    }}>Finalizar conteo</button>
+                    }}>{t('stocktaking.finish')}</button>
                 )}
                 {active.estado === 'FINALIZADO' && !active.aplicadoAt && user?.rol === 'ADMIN' && (
                   <button className="btn btn-secondary" disabled={busy || isReadOnly}
                     onClick={() => void action(async () => { await api.patch(`/levantamientos/${activeId}`, { estado: 'REVISION' }); setPreview(null); })}>
-                    Reabrir para conciliar
+                    {t('stocktaking.reopen')}
                   </button>
                 )}
                 {!active.aplicadoAt && (
                   <button className="btn btn-primary" disabled={busy || isReadOnly || hayConflictos}
-                    title={hayConflictos ? 'Concilie los conflictos primero' : undefined}
+                    title={hayConflictos ? t('stocktaking.conflict_first') : undefined}
                     onClick={() => void action(async () => { setPreview((await api.get(`/levantamientos/${activeId}/preview`)).data); })}>
-                    Revisar impacto en inventario
+                    {t('stocktaking.review_impact')}
                     {hayConflictos && ' ⚠️'}
                   </button>
                 )}
                 <button className="btn btn-secondary" disabled={!active.items.length}
                   onClick={() => { const rows = exportRows(); exportToCSV(`levantamiento_${active.id}.csv`, rows, Object.keys(rows[0]).map(key => ({ key, label: key }))); }}>
-                  Exportar CSV
+                  {t('stocktaking.export_csv')}
                 </button>
                 <button className="btn btn-secondary" disabled={!active.items.length}
                   onClick={() => exportToExcel(`levantamiento_${active.id}`, exportRows())}>
-                  Exportar Excel
+                  {t('stocktaking.export_excel')}
                 </button>
               </div>
             </section>
@@ -350,7 +358,7 @@ export const LevantamientoPage: React.FC = () => {
             )}
             {user?.rol !== 'ADMIN' && hayConflictos && (
               <div className="operation-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-                <strong>⚠️ Hay conteos en conflicto</strong> — El administrador debe conciliarlos antes de aplicar al inventario.
+                <strong>{t('stocktaking.conflict_title')}</strong>{t('stocktaking.conflict_help')}
               </div>
             )}
 
@@ -359,7 +367,7 @@ export const LevantamientoPage: React.FC = () => {
               <form className="operation-card" onSubmit={e => {
                 e.preventDefault();
                 void action(async () => {
-                  if (propia) throw new Error('Este artículo ya está en el conteo. Edite el conteo anterior; no se suma.');
+                  if (propia) throw new Error(t('stocktaking.own_error'));
                   const dto: any = {
                     ...form, cantidad: Number(form.cantidad),
                     codigo: form.codigo || undefined,
@@ -371,13 +379,13 @@ export const LevantamientoPage: React.FC = () => {
                   if (editing) {
                     await api.patch(`/levantamientos/${activeId}/items/${editing.id}`, { ...dto, version: editing.version });
                   } else {
-                    if (pendingCount) throw new Error('Confirme el conteo pendiente');
-                    const command = { lid: activeId, dto: { ...dto, solicitudId: crypto.randomUUID() } };
+                    if (pendingCount) throw new Error(t('stocktaking.pending_error'));
+                    const command = { lid: activeId, dto: { ...dto, solicitudId: newRequestId() } };
                     localStorage.setItem(pendingKey, JSON.stringify(command));
                     setPendingCount(command);
                     await sendCount(command);
                   }
-                  setUltimoGuardado(`${editing ? 'Corrección guardada' : 'Guardado'}: ${dto.descripcion} · ${dto.cantidad} ${dto.unidad}`);
+                  setUltimoGuardado(`${editing ? t('stocktaking.correction_saved') : t('stocktaking.saved')}: ${dto.descripcion} · ${dto.cantidad} ${dto.unidad}`);
                   setForm(f => ({ ...blank(), unidad: f.unidad, ubicacion: f.ubicacion }));
                   setEditing(null); setPreview(null);
                 });
@@ -389,44 +397,46 @@ export const LevantamientoPage: React.FC = () => {
                   onSelect={product => { setForm(f => ({ ...blank(), ubicacion: f.ubicacion, productoId: product.id, descripcion: product.nombre, codigo: product.codigo, codigoBarras: product.codigoBarras || '', unidad: product.unidadMedida, categoria: product.categoria?.nombre || '', cantidad: '' })); setPreview(null); }}
                 />
                 {ultimoGuardado && <p role="status" className="operation-card">✅ {ultimoGuardado}</p>}
-                <h2>{editing ? 'Corregir conteo' : 'Contar producto'}</h2>
+                <h2>{editing ? t('stocktaking.edit_count') : t('stocktaking.count_product')}</h2>
                 {propia && (
                   <div role="alert" className="operation-error">
-                    <strong>Este artículo ya está en el conteo.</strong> Cantidad registrada: {Number(propia.cantidad)} {propia.unidad}.
-                    No se suma: corrija ese conteo.{' '}
-                    <button type="button" className="btn btn-secondary" onClick={() => editarItem(propia)}>Editar conteo anterior</button>
+                    <strong>{t('stocktaking.already')}</strong> {t('stocktaking.recorded_quantity')} {Number(propia.cantidad)} {propia.unidad}.
+                    {t('stocktaking.own_help')}{' '}
+                    <button type="button" className="btn btn-secondary" onClick={() => editarItem(propia)}>{t('stocktaking.edit_previous')}</button>
                   </div>
                 )}
                 {!propia && ajenas.length > 0 && (
                   <div role="status" className="operation-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-                    <strong>⚠️ Otro usuario ya contó este artículo</strong> (cantidad {ajenas.map((a: any) => Number(a.cantidad)).join(', ')}).
-                    Al guardar quedará en conflicto para que el administrador concilie. No se suma.
+                    <strong>{t('stocktaking.other_counted')}</strong> ({t('stocktaking.short_quantity')} {ajenas.map((a: any) => Number(a.cantidad)).join(', ')}).
+                    {t('stocktaking.other_help')}
                   </div>
                 )}
                 <fieldset disabled={busy || isReadOnly || !!pendingCount} className="operation-form">
-                  <label>Descripción y variante
-                    <input className="form-input" required value={form.descripcion} onChange={e => set('descripcion', e.target.value)} placeholder="Tipo, medida, espesor, color…" />
+                  <label>{t('stocktaking.description')}
+                    <input className="form-input" required value={form.descripcion} onChange={e => set('descripcion', e.target.value)} placeholder={t('stocktaking.variant_placeholder')} />
                   </label>
-                  <label>Cantidad
+                  <label>{t('stocktaking.quantity')}
                     <input className="form-input" type="number" min="0" step="0.01" required value={form.cantidad} onChange={e => set('cantidad', e.target.value)} />
                   </label>
-                  <label>Unidad
+                  <label>{t('stocktaking.unit')}
                     <select className="form-input" value={form.unidad} onChange={e => set('unidad', e.target.value)}>
                       {['UNIDAD', 'PIE', 'METRO', 'METRO_CUADRADO', 'METRO_CUBICO', 'LIBRA', 'KG', 'GALON', 'LITRO', 'CAJA', 'PAQUETE', 'OTRO'].map(u => <option key={u}>{u}</option>)}
                     </select>
                   </label>
                   {(['codigo', 'codigoBarras', 'marca', 'categoria', 'ubicacion', 'precioCosto', 'precioVenta', 'margen', 'notas'] as const).map(key => (
                     <label key={key}>
-                      {{ codigo: 'Código interno o fabricante (opcional)', codigoBarras: 'Código de barras (opcional)', marca: 'Marca', categoria: 'Categoría', ubicacion: 'Zona o ubicación', precioCosto: 'Costo', precioVenta: 'Precio de venta', margen: 'Margen %', notas: 'Notas' }[key]}
+                      {t(`stocktaking.fields.${key}`)}
                       <input className="form-input" type={['precioCosto', 'precioVenta', 'margen'].includes(key) ? 'number' : 'text'}
                         min="0" step="0.01" max={key === 'margen' ? 100 : undefined}
+                        list={key === 'categoria' ? 'count-categories' : undefined}
                         value={form[key]} onChange={e => set(key, e.target.value)} />
                     </label>
                   ))}
+                  <datalist id="count-categories">{[...new Set([...rubroConfig.categoriasDefault, ...(active.items ?? []).map((i: any) => i.categoria).filter(Boolean)])].map((c: any) => <option key={c} value={c} />)}</datalist>
                 </fieldset>
-                <p>Si el producto es nuevo, complete costo y precio antes de aplicar. Los artículos sin código recibirán uno interno.</p>
-                <button className="btn btn-primary" disabled={busy || isReadOnly || !!pendingCount || !!propia}>Guardar y siguiente</button>
-                {editing && <button className="btn btn-secondary" type="button" onClick={() => { setEditing(null); setForm(blank()); }}>Cancelar corrección</button>}
+                <p>{t('stocktaking.price_help')}</p>
+                <button className="btn btn-primary" disabled={busy || isReadOnly || !!pendingCount || !!propia}>{t('stocktaking.save_next')}</button>
+                {editing && <button className="btn btn-secondary" type="button" onClick={() => { setEditing(null); setForm(blank()); }}>{t('stocktaking.cancel_edit')}</button>}
               </form>
             )}
 
@@ -435,18 +445,18 @@ export const LevantamientoPage: React.FC = () => {
               <table>
                 <thead>
                   <tr>
-                    <th>Producto</th><th>Código</th><th>Cantidad</th><th>Zona</th>
-                    <th>Contador</th><th>Costo / precio</th><th>Acciones</th>
+                    <th>{t('stocktaking.product')}</th><th>{t('stocktaking.code')}</th><th>{t('stocktaking.quantity')}</th><th>{t('stocktaking.zone')}</th>
+                    <th>{t('stocktaking.counter')}</th><th>{t('stocktaking.cost_price')}</th><th>{t('stocktaking.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {active.items.map((i: any) => (
                     <tr key={i.id} style={i.conflicto ? { background: '#fef9c3' } : undefined}>
                       <td>
-                        {i.conflicto && <span title="Conflicto: otro usuario contó el mismo producto" style={{ marginRight: 4 }}>⚠️</span>}
+                        {i.conflicto && <span title={t('stocktaking.conflict_tooltip')} style={{ marginRight: 4 }}>⚠️</span>}
                         {i.descripcion}
                       </td>
-                      <td>{i.codigo || i.codigoBarras || 'Sin código'}</td>
+                      <td>{i.codigo || i.codigoBarras || t('stocktaking.no_code')}</td>
                       <td>{Number(i.cantidad)} {i.unidad}</td>
                       <td>{i.ubicacion}</td>
                       <td style={{ fontSize: '0.85em', color: '#64748b' }}>{i.contadorId ?? '—'}</td>
@@ -454,14 +464,14 @@ export const LevantamientoPage: React.FC = () => {
                       <td>
                         {!closed && (
                           <>
-                            <button disabled={busy || isReadOnly} onClick={() => editarItem(i)}>Corregir</button>
+                            <button disabled={busy || isReadOnly} onClick={() => editarItem(i)}>{t('stocktaking.correct')}</button>
                             <button disabled={busy || isReadOnly} onClick={() => {
-                              if (window.confirm('¿Eliminar este conteo?'))
+                              if (window.confirm(t('stocktaking.delete_confirm')))
                                 void action(async () => {
                                   await api.delete(`/levantamientos/${activeId}/items/${i.id}`, { params: { version: i.version } });
                                   setPreview(null);
                                 });
-                            }}>Eliminar</button>
+                            }}>{t('stocktaking.delete')}</button>
                           </>
                         )}
                       </td>
@@ -474,18 +484,18 @@ export const LevantamientoPage: React.FC = () => {
             {/* Vista previa de aplicación */}
             {preview && (
               <section className="operation-card">
-                <h2>Vista previa de aplicación</h2>
-                <p>Las cantidades revisadas sustituirán las existencias indicadas. Si cambia el inventario, será necesario revisar nuevamente.</p>
+                <h2>{t('stocktaking.preview')}</h2>
+                <p>{t('stocktaking.preview_help')}</p>
                 <div className="operation-table">
                   <table>
-                    <thead><tr><th>Producto</th><th>Antes</th><th>Conteo</th><th>Revisión</th></tr></thead>
+                    <thead><tr><th>{t('stocktaking.product')}</th><th>{t('stocktaking.before')}</th><th>{t('stocktaking.count')}</th><th>{t('stocktaking.review')}</th></tr></thead>
                     <tbody>
                       {preview.rows.map((r: any) => (
                         <tr key={r.item.id} style={r.errores.length ? { background: '#fee2e2' } : undefined}>
                           <td>{r.codigo} · {r.nombre}</td>
                           <td>{r.anterior}</td>
                           <td>{r.nuevo}</td>
-                          <td>{r.errores.length ? r.errores.join('; ') : r.productoId ? 'Actualizar existente' : 'Crear producto'}</td>
+                          <td>{r.errores.length ? r.errores.join('; ') : r.productoId ? t('stocktaking.update_existing') : t('stocktaking.create_product')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -496,13 +506,13 @@ export const LevantamientoPage: React.FC = () => {
                     className="btn btn-primary"
                     disabled={busy || isReadOnly || active.estado !== 'FINALIZADO' || !preview.rows.length || preview.rows.some((r: any) => r.errores.length)}
                     onClick={() => {
-                      if (window.confirm('¿Aplicar este conteo revisado al inventario?'))
+                      if (window.confirm(t('stocktaking.apply_confirm')))
                         void action(async () => {
                           await api.post(`/levantamientos/${activeId}/aplicar`, { token: preview.token });
                           setPreview(null);
                         });
                     }}>
-                    Aplicar al inventario
+                    {t('stocktaking.apply')}
                   </button>
                 )}
               </section>

@@ -59,55 +59,20 @@ describe('cameraError()', () => {
 
   const mod = loadTs('barcodeScanner.ts', { window: windowMock, navigator: navigatorMock, document: {} });
 
-  // Nota: cameraError() usa "error instanceof Error" que falla en contextos VM distintos.
-  // Pasamos objetos con { name, message } que simulan la forma que tiene un DOMException real.
-  // La función hace: const name = error instanceof Error ? error.name : '';
-  // Para que funcione en VM, usamos el Error del contexto del módulo (pasado como global).
-
-  test('NotAllowedError → mensaje de permiso denegado', () => {
-    // Usamos un objeto plano con name para simular el comportamiento de cameraError
-    // La función usa: const name = error instanceof Error ? error.name : '';
-    // En el contexto VM, pasamos objeto con la misma firma
-    const err = { name: 'NotAllowedError', message: 'bloqueado' };
-    // La función cameraError verifica instanceof Error; en VM no pasa, pero chequeamos con string name
-    // Probamos directamente la lógica equivalente:
-    const name = err.name;
-    const expected = name === 'NotAllowedError' || name === 'SecurityError'
-      ? 'Permiso de cámara denegado. Habilítelo para este sitio en Safari o introduzca el código manualmente.'
-      : null;
-    assert.ok(expected !== null && expected.toLowerCase().includes('permiso'));
-  });
-
-  test('SecurityError → mensaje de permiso denegado', () => {
-    const name = 'SecurityError';
-    const msg = name === 'NotAllowedError' || name === 'SecurityError'
-      ? 'Permiso de cámara denegado. Habilítelo para este sitio en Safari o introduzca el código manualmente.'
-      : '';
-    assert.ok(msg.toLowerCase().includes('permiso'), `"${msg}"`);
-  });
-
-  test('NotReadableError → cámara ocupada', () => {
-    const name = 'NotReadableError';
-    const msg = name === 'NotReadableError' || name === 'AbortError'
-      ? 'La cámara está ocupada o no pudo iniciarse. Cierre otras aplicaciones y reintente.'
-      : '';
-    assert.ok(msg.toLowerCase().includes('ocupada'), `"${msg}"`);
-  });
-
-  test('AbortError → cámara no pudo iniciarse', () => {
-    const name = 'AbortError';
-    const msg = name === 'NotReadableError' || name === 'AbortError'
-      ? 'La cámara está ocupada o no pudo iniciarse. Cierre otras aplicaciones y reintente.'
-      : '';
-    assert.ok(msg.toLowerCase().includes('iniciarse') || msg.toLowerCase().includes('ocupada'), `"${msg}"`);
-  });
-
-  test('NotFoundError → cámara no disponible', () => {
-    const name = 'NotFoundError';
-    const msg = name === 'NotFoundError' || name === 'OverconstrainedError'
-      ? 'No se encontró una cámara disponible. Puede introducir el código manualmente.'
-      : '';
-    assert.ok(msg.toLowerCase().includes('disponible'), `"${msg}"`);
+  // Objetos de error de otro realm: la API de cámara puede entregar DOMException.
+  for (const [name, expected] of [
+    ['NotAllowedError', /permiso.*denegado/i],
+    ['SecurityError', /permiso.*denegado/i],
+    ['NotReadableError', /cámara.*ocupada/i],
+    ['AbortError', /cámara.*ocupada/i],
+    ['NotFoundError', /cámara.*disponible/i],
+  ]) {
+    test(`${name}: ejecuta cameraError real, incluso entre realms`, () => {
+      assert.match(mod.cameraError({ name, message: 'camera failure' }), expected);
+    });
+  }
+  test('permiso denegado traducido al inglés', () => {
+    assert.match(mod.cameraError({ name: 'NotAllowedError' }, 'en'), /Camera permission denied/);
   });
 
   test('cameraError() con string → mensaje genérico de escáner', () => {

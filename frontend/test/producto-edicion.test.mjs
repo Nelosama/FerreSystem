@@ -57,6 +57,7 @@ test('cambiar existencias exige motivo y lo envía junto con el nuevo valor', ()
   const form = { ...formularioDesde(producto), stockActual: '35', motivo: 'Conteo de mostrador' };
   const { payload, sensibles } = construirCambiosProducto(producto, form);
   assert.equal(payload.stockActual, 35);
+  assert.equal(payload.stockAnterior, 40);
   assert.equal(payload.motivo, 'Conteo de mostrador');
   assert.deepEqual(sensibles, ['stockActual']);
 });
