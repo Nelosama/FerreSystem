@@ -28,7 +28,7 @@ export const LevantamientoProductLookup: React.FC<{
     const controller = new AbortController(); request.current = controller;
     const current = ++generation.current;
     setSearch(code); setSelected(null); setProducts([]); setMessage(''); setLoading(true);
-    onSearch(scanned ? code : '');
+    if (scanned) onSearch(code);
     try {
       const response = await api.get<CountProduct[]>('/productos', { params: { search: code }, signal: controller.signal });
       if (current !== generation.current || blocked.current) return;
@@ -39,7 +39,9 @@ export const LevantamientoProductLookup: React.FC<{
         setProducts(rows.slice(0, 20));
         setMessage(exact.length > 1 ? 'Código ambiguo. Seleccione y compruebe el producto.' : rows.length
           ? 'Seleccione el producto correcto; no se encontró una coincidencia exacta.'
-          : 'Producto no encontrado. Busque por nombre o código interno, o complete un conteo nuevo para revisión. Escanear no crea productos.');
+          : scanned
+            ? 'Código de barras no registrado. Busque por nombre o código interno. Escanear no crea productos nuevos.'
+            : 'Producto no encontrado. Revise el código o nombre e intente de nuevo.');
       }
     } catch (error: unknown) {
       if (controller.signal.aborted || current !== generation.current) return;
