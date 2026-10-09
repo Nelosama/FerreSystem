@@ -422,7 +422,7 @@
     "global_filter": "FILTRO DE FECHAS GLOBAL",
     "from": "Desde",
     "to": "Hasta",
-    "dates_utc_notice": "Fechas del reporte en UTC.",
+    "dates_utc_notice": "Fechas del reporte en hora de {zona}.",
     "loading": "Cargando…",
     "fetch_error": "No se pudieron consultar los reportes",
     "net_sales": "Ventas netas",

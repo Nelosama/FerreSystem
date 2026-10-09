@@ -24,7 +24,7 @@ import {
   Percent,
   Download,
 } from 'lucide-react';
-import { formatLempiras } from '../utils/format';
+import { ZONA_HORARIA_NEGOCIO, formatLempiras } from '../utils/format';
 import { descargarReciboPDF } from '../components/ReciboPDF';
 
 export const POSPage: React.FC = () => {
@@ -669,7 +669,7 @@ export const POSPage: React.FC = () => {
               <div style={styles.ticketFacturaMeta}>
                 <div><strong>{t('pos.receipt')}</strong></div>
                 <div>{t('pos.invoice_number')}: <strong>V-{numeroVentaGenerado}</strong></div>
-                <div>{t('common.date')}: {ventaRegistrada?.createdAt ? new Date(ventaRegistrada.createdAt).toLocaleString(locale === 'en' ? 'en-US' : 'es-HN') : ''}</div>
+                <div>{t('common.date')}: {ventaRegistrada?.createdAt ? new Date(ventaRegistrada.createdAt).toLocaleString(locale === 'en' ? 'en-US' : 'es-HN', { timeZone: ZONA_HORARIA_NEGOCIO }) : ''}</div>
                 <div>{t('pos.cashier')}: {user?.nombre || ''}</div>
                 <div>{t('common.client')}: {clienteNombre}</div>
                 {clienteRtn && <div>{t('pos.customer_rtn')}: {clienteRtn}</div>}
@@ -728,7 +728,7 @@ export const POSPage: React.FC = () => {
                     {
                       tipo: 'VENTA',
                       numeroDocumento: numeroVentaGenerado,
-                      fechaEmision: ventaRegistrada?.createdAt ? new Date(ventaRegistrada.createdAt).toLocaleString(locale === 'en' ? 'en-US' : 'es-HN') : '',
+                      fechaEmision: ventaRegistrada?.createdAt ? new Date(ventaRegistrada.createdAt).toLocaleString(locale === 'en' ? 'en-US' : 'es-HN', { timeZone: ZONA_HORARIA_NEGOCIO }) : '',
                       clienteNombre: clienteNombre || 'Consumidor Final',
                       clienteRtn: clienteRtn || undefined,
                       vendedorNombre: user?.nombre || '',

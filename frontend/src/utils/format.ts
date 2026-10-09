@@ -21,6 +21,20 @@ export function formatNumber(amount: number): string {
   });
 }
 
+/** Zona de referencia del negocio. Valor por defecto; no es una zona fija del sistema. */
+export const ZONA_HORARIA_NEGOCIO = 'America/Tegucigalpa';
+
+/**
+ * Día calendario (YYYY-MM-DD) de un instante en la zona indicada.
+ * Usar en lugar de `toISOString().slice(0, 10)`, que devuelve el día UTC y, en
+ * America/Tegucigalpa, adelanta el día desde las 18:00 locales.
+ */
+export function diaCalendarioEnZona(instante: Date = new Date(), zona: string = ZONA_HORARIA_NEGOCIO): string {
+  const partes = new Intl.DateTimeFormat('en-US', { timeZone: zona, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(instante);
+  const v = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? '';
+  return `${v('year')}-${v('month')}-${v('day')}`;
+}
+
 /**
  * Formatea una fecha de calendario (sin hora, p. ej. un vencimiento) tal como fue
  * capturada. Las fechas llegan como medianoche UTC; convertirlas a la zona local
