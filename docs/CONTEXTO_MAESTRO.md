@@ -207,6 +207,8 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 | **Diagnóstico pendientes** — ítems 2,3,5-11 PENDIENTES | Item 5 (barcode cámara): PARCIAL vía PR #76. Exportación CSV/Excel: PARCIAL (sin plantillas). Ítem 2 (multiusuario), 3 (offline), 7 (zonas), 9 (reconteo): NO implementados. |
 | **Documentación** | Este archivo actualizado. Rama `docs/contexto-levantamiento-post-rebase`. |
 | **PR #79 — Auditoría P1/P2 completada** | Dos defectos confirmados y corregidos. Commit `bac89b1b` en rama `docs/contexto-levantamiento-post-rebase`. **Pendiente: push y merge manual.** |
+**FS-09 (2026-10-09)** — rama `fix/fs-09-pagos-proveedor`, PR abierto, sin merge/despliegue. `OperacionesService.pagar` (`backend/src/operaciones/operaciones.service.ts`): un pago CXP por TARJETA/TRANSFERENCIA ya no exige caja abierta ni crea `movimientos_caja` (caja_id null); solo EFECTIVO valida efectivo disponible y descuenta del arqueo. UI "Origen del pago" explica el efecto en caja. Tests: 3 nuevos en `compras-proveedores.spec.ts` (operaciones 27/27). Supuesto: el defecto reportado era que pagos no-efectivo contaminaban el cajón; confirmar con el dueño. Sin validar contra PostgreSQL real (mocks).
+
 ### Auditoría PR #79 (2026-10-09)
 
 **Hallazgo P1 — `??0` silencia precios null del catálogo:**

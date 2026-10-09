@@ -503,6 +503,36 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
     expect(accAfter.saldo).toBe(600);
   });
 
+  // FS-09: origen del pago a proveedor y afectación de caja
+  const crearCxp = async (solicitudId: string, factura: string) => {
+    await service.compra('tenant-A', 'admin-1', { solicitudId, proveedorId: 'prov-1', numeroFactura: factura, isv: 0, items: [{ productoId: 'prod-cement', cantidad: 10, costo: 100 }] });
+    return (await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.documento === factura);
+  };
+
+  it('FS-09: pago en EFECTIVO a proveedor descuenta del cajón (movimiento negativo)', async () => {
+    const acc = await crearCxp('sol-fs09-ef', 'FACT-FS09-EF');
+    const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-ef', monto: 300, metodo: 'EFECTIVO' });
+    expect(pay.caja_id).toBe('caja-admin-1');
+    const nuevo = dbCashMovements['caja-admin-1'].find(m => m.tipo === 'PAGO_CXP');
+    expect(nuevo).toMatchObject({ monto: -300, metodo: 'EFECTIVO' });
+  });
+
+  it('FS-09: pago por TRANSFERENCIA no exige caja abierta ni crea movimiento de caja', async () => {
+    const acc = await crearCxp('sol-fs09-tr', 'FACT-FS09-TR');
+    dbCashBoxes = {};
+    const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-tr', monto: 250, metodo: 'TRANSFERENCIA' });
+    expect(pay.caja_id).toBeNull();
+    expect(Object.values(dbCashMovements).flat().some(m => m.tipo === 'PAGO_CXP')).toBe(false);
+    const after = (await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id);
+    expect(after.saldo).toBe(750);
+  });
+
+  it('FS-09: pago en EFECTIVO sin caja abierta se rechaza', async () => {
+    const acc = await crearCxp('sol-fs09-nc', 'FACT-FS09-NC');
+    dbCashBoxes = {};
+    await expect(service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-nc', monto: 100, metodo: 'EFECTIVO' })).rejects.toThrow('Abra su caja');
+  });
+
   // Escenario 5: Actualización de costo vigente al subir o bajar en la recepción
   it('Escenario 5: La recepción de mercancía actualiza el costo vigente tanto si sube como si baja', async () => {
     // Cemento costo inicial = 180.00
