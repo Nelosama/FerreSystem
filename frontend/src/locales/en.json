@@ -164,10 +164,33 @@
     "perm_cot_convertir": "Convert quotation to sale",
     "perm_rep_ver": "View sales reports",
     "perm_usr_gestionar": "Manage users and permissions",
-    "perm_cfg_editar": "Edit store settings"
+    "perm_cfg_editar": "Edit store settings",
+    "save_error": "The user could not be saved.",
+    "saved_success": "User {name} saved successfully.",
+    "updated_success": "User {name} updated successfully."
   },
   "clients": {
-    "new_client": "NEW CUSTOMER"
+    "new_client": "NEW CUSTOMER",
+    "client_name": "Customer name",
+    "client_type": "Customer type",
+    "rtn": "Tax ID (RTN)",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "edit_client": "EDIT CUSTOMER",
+    "save_client": "Save customer",
+    "saving": "Saving...",
+    "saved_success": "Customer {name} saved successfully.",
+    "updated_success": "Customer {name} updated successfully.",
+    "save_error": "The customer could not be saved.",
+    "fetch_error": "The customer list could not be loaded.",
+    "confirm_delete": "Delete customer",
+    "delete_warning": "Are you sure you want to delete {name}?",
+    "delete_subtext": "The customer will no longer appear in the list or at the point of sale.",
+    "delete_permanently": "Delete permanently",
+    "deleting": "Deleting...",
+    "deleted_success": "Customer {name} deleted successfully.",
+    "delete_error": "The customer could not be deleted."
   },
   "pos": {
     "title": "POINT OF SALE",
@@ -983,5 +1006,19 @@
     "GESTION": "Staff",
     "ANALISIS": "Analysis",
     "CONFIGURACION": "Settings"
+  },
+  "validation": {
+    "required_field": "This field is required.",
+    "invalid_email": "Enter a valid email address.",
+    "invalid_rtn_length": "The Honduran RTN must contain exactly 14 digits.",
+    "min_length": "Must contain at least {min} characters.",
+    "number_range": "The value must be between {min} and {max}.",
+    "form_has_errors": "Review the highlighted fields before continuing.",
+    "err_409_client": "A customer with this information (tax ID or email) already exists.",
+    "err_409_user": "A user with this email address already exists.",
+    "err_403": "You do not have the permissions required for this operation.",
+    "err_400_general": "The submitted data is not valid. Review the form and try again.",
+    "err_500": "A server error occurred while processing the request. Please try again later.",
+    "err_network": "Could not reach the server. Check your internet connection and try again."
   }
 }

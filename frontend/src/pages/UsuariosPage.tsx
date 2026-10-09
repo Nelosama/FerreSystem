@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { TopBar } from '../components/TopBar';
-import { useI18n } from '../context/I18nContext';
 
 export interface Usuario {
   id: string;
@@ -59,6 +58,35 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
+
+/** Traduce un error de la API de usuarios a un mensaje para el usuario. */
+export function formatUsuarioApiError(err: any, defaultMsg: string, t: (key: string, options?: any) => string): string {
+  if (!err) return defaultMsg;
+  const status = err.response?.status;
+  const rawMsg = err.response?.data?.message;
+
+  if (status === 409) {
+    return t('validation.err_409_user');
+  }
+  if (status === 403 || status === 401) {
+    return t('validation.err_403');
+  }
+  if (status === 400) {
+    if (Array.isArray(rawMsg)) return rawMsg.join(', ');
+    if (typeof rawMsg === 'string' && rawMsg.trim()) return rawMsg;
+    return t('validation.err_400_general');
+  }
+  if (status >= 500) {
+    return t('validation.err_500');
+  }
+  if (err.message === 'Network Error' || !err.response) {
+    return t('validation.err_network');
+  }
+  if (rawMsg) {
+    return Array.isArray(rawMsg) ? rawMsg.join(', ') : String(rawMsg);
+  }
+  return defaultMsg;
+}
 
 export const UsuariosPage: React.FC = () => {
   const { t } = useI18n();

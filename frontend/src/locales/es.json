@@ -164,10 +164,33 @@
     "perm_cot_convertir": "Convertir cotización a venta",
     "perm_rep_ver": "Ver reportes de ventas",
     "perm_usr_gestionar": "Gestionar usuarios y permisos",
-    "perm_cfg_editar": "Editar configuración de ferretería"
+    "perm_cfg_editar": "Editar configuración de ferretería",
+    "save_error": "No se pudo guardar el usuario.",
+    "saved_success": "Usuario {name} guardado correctamente.",
+    "updated_success": "Usuario {name} actualizado correctamente."
   },
   "clients": {
-    "new_client": "NUEVO CLIENTE"
+    "new_client": "NUEVO CLIENTE",
+    "client_name": "Nombre del cliente",
+    "client_type": "Tipo de cliente",
+    "rtn": "RTN",
+    "phone": "Teléfono",
+    "email": "Correo electrónico",
+    "address": "Dirección",
+    "edit_client": "EDITAR CLIENTE",
+    "save_client": "Guardar cliente",
+    "saving": "Guardando...",
+    "saved_success": "Cliente {name} guardado correctamente.",
+    "updated_success": "Cliente {name} actualizado correctamente.",
+    "save_error": "No se pudo guardar el cliente.",
+    "fetch_error": "No se pudo cargar el listado de clientes.",
+    "confirm_delete": "Eliminar cliente",
+    "delete_warning": "¿Seguro que desea eliminar a {name}?",
+    "delete_subtext": "El cliente dejará de aparecer en el listado y en el punto de venta.",
+    "delete_permanently": "Eliminar definitivamente",
+    "deleting": "Eliminando...",
+    "deleted_success": "Cliente {name} eliminado correctamente.",
+    "delete_error": "No se pudo eliminar el cliente."
   },
   "pos": {
     "title": "PUNTO DE VENTA",
@@ -983,5 +1006,19 @@
     "GESTION": "Gestión",
     "ANALISIS": "Análisis",
     "CONFIGURACION": "Configuración"
+  },
+  "validation": {
+    "required_field": "Este campo es obligatorio.",
+    "invalid_email": "Ingrese un correo electrónico válido.",
+    "invalid_rtn_length": "El RTN de Honduras debe contener exactamente 14 dígitos numéricos.",
+    "min_length": "Debe contener al menos {min} caracteres.",
+    "number_range": "El valor debe estar entre {min} y {max}.",
+    "form_has_errors": "Revise los campos marcados antes de continuar.",
+    "err_409_client": "Ya existe un cliente registrado con esta información (RTN o correo).",
+    "err_409_user": "Ya existe un usuario registrado con este correo electrónico.",
+    "err_403": "No tiene los permisos necesarios para realizar esta operación.",
+    "err_400_general": "Los datos enviados no son válidos. Revise el formulario e intente nuevamente.",
+    "err_500": "Ocurrió un error en el servidor al procesar la solicitud. Intente nuevamente más tarde.",
+    "err_network": "No se pudo conectar con el servidor. Verifique su conexión a internet e inténtelo nuevamente."
   }
 }
