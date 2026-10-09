@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
-import { ZONA_HORARIA_NEGOCIO, rangoDiasEnZona } from '../common/zona-horaria';
+import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
 import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
 import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, PagoDto, ProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 
@@ -83,10 +83,10 @@ export class OperacionesService {
    await audit(tx,tenantId,userId,'COMPRA_RECIBIR',receptionId,{orderId,items:dto.items});return reception;
   },{timeout:60000});
  }
- async cuentas(tenantId:string,userId:string,tipo:string){
+ async cuentas(tenantId:string,userId:string,tipo:string,ahora=new Date()){
   if(!['CXC','CXP'].includes(tipo))throw new BadRequestException('Tipo inválido');
   const user=await actor(this.prisma,tenantId,userId);if(tipo==='CXP'&&user.rol!=='ADMIN')throw new ForbiddenException('Cuentas por pagar requieren administrador');
-  const accounts=await query(this.prisma,'SELECT c.*, COALESCE(cl.nombre,p.nombre) AS nombre, COALESCE(o.numero_factura, v.numero_venta::text) AS documento, c.saldo>0 AND c.vencimiento::date < (NOW() AT TIME ZONE $3)::date AS vencida FROM cuentas_operativas c LEFT JOIN clientes cl ON cl.id=c.cliente_id LEFT JOIN proveedores p ON p.id=c.proveedor_id LEFT JOIN ordenes_compra o ON o.id=c.documento_id LEFT JOIN ventas v ON v.id=c.documento_id WHERE c.tenant_id=$1 AND c.tipo=$2 ORDER BY c.created_at DESC',tenantId,tipo,ZONA_HORARIA_NEGOCIO);
+  const accounts=await query(this.prisma,'SELECT c.*, COALESCE(cl.nombre,p.nombre) AS nombre, COALESCE(o.numero_factura, v.numero_venta::text) AS documento, c.saldo>0 AND c.vencimiento::date < ($4::timestamptz AT TIME ZONE $3)::date AS vencida FROM cuentas_operativas c LEFT JOIN clientes cl ON cl.id=c.cliente_id LEFT JOIN proveedores p ON p.id=c.proveedor_id LEFT JOIN ordenes_compra o ON o.id=c.documento_id LEFT JOIN ventas v ON v.id=c.documento_id WHERE c.tenant_id=$1 AND c.tipo=$2 ORDER BY c.created_at DESC',tenantId,tipo,ZONA_HORARIA_NEGOCIO,ahora.toISOString());
   for(const c of accounts)c.pagos=await query(this.prisma,'SELECT * FROM pagos_cuenta WHERE cuenta_id=$1 AND tenant_id=$2 ORDER BY created_at DESC',c.id,tenantId);
   return accounts;
  }
@@ -192,7 +192,7 @@ export class OperacionesService {
   for(const v of ventas)v.items=await query(this.prisma,'SELECT d.*,p.nombre,d.cantidad-COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS cantidad FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1 AND d.cantidad>COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0)',v.id);
   return ventas.filter(v=>v.items.length>0);
  }
- async resumen(tenantId:string,desde:string,hasta:string,zona=ZONA_HORARIA_NEGOCIO){
+ async resumen(tenantId:string,desde:string,hasta:string,zona=ZONA_HORARIA_NEGOCIO,ahora=new Date()){
   if(![desde,hasta].every(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&!Number.isNaN(Date.parse(d))&&new Date(d).toISOString().slice(0,10)===d)||desde>hasta)throw new BadRequestException('Rango de fechas inválido');
   // created_at se guarda en UTC (TIMESTAMP sin zona): el día se calcula en la zona del negocio y se compara en UTC.
   const {inicio,fin}=rangoDiasEnZona(desde,hasta,zona);
@@ -200,7 +200,8 @@ export class OperacionesService {
    devoluciones:await query(this.prisma,"SELECT COUNT(*)::int AS cantidad,COALESCE(SUM(monto),0) AS monto FROM devoluciones WHERE tenant_id=$1 AND created_at>=($2::timestamptz AT TIME ZONE 'UTC') AND created_at<($3::timestamptz AT TIME ZONE 'UTC')",tenantId,inicio.toISOString(),fin.toISOString()),
    metodos:await query(this.prisma,'SELECT metodo_pago,COUNT(*)::int AS cantidad,SUM(total) AS total FROM ventas WHERE tenant_id=$1 AND estado=\'COMPLETADA\' AND created_at>=($2::timestamptz AT TIME ZONE \'UTC\') AND created_at<($3::timestamptz AT TIME ZONE \'UTC\') GROUP BY metodo_pago',tenantId,inicio.toISOString(),fin.toISOString()),
    rotacion:await query(this.prisma,'SELECT p.id,p.codigo,p.nombre,SUM(d.cantidad) AS cantidad FROM detalles_venta d JOIN ventas v ON v.id=d.venta_id JOIN productos p ON p.id=d.producto_id WHERE v.tenant_id=$1 AND v.estado=\'COMPLETADA\' AND d.sin_inventario=false AND v.created_at>=($2::timestamptz AT TIME ZONE \'UTC\') AND v.created_at<($3::timestamptz AT TIME ZONE \'UTC\') GROUP BY p.id ORDER BY cantidad DESC LIMIT 30',tenantId,inicio.toISOString(),fin.toISOString()),
-   alertas:await query(this.prisma,'SELECT tipo,COUNT(*)::int AS cantidad,SUM(saldo) AS saldo FROM cuentas_operativas WHERE tenant_id=$1 AND saldo>0 AND vencimiento<=NOW()+INTERVAL \'7 days\' GROUP BY tipo',tenantId),
+   // Alerta de 7 días por fecha calendario en la zona del negocio (día de hoy + 7 inclusive), no por instante.
+   alertas:await query(this.prisma,'SELECT tipo,COUNT(*)::int AS cantidad,SUM(saldo) AS saldo FROM cuentas_operativas WHERE tenant_id=$1 AND saldo>0 AND vencimiento::date <= $2::date GROUP BY tipo',tenantId,sumarDias(diaCalendario(ahora,zona),7)),
   };
  } async buscarVenta(tenantId:string,numero:string){
   const n=Number(numero);if(!Number.isSafeInteger(n)||n<1)throw new BadRequestException('Número de venta inválido');

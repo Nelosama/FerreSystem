@@ -391,9 +391,9 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 - **D3 · Anulación y corrección.** No hay endpoint para anular compras, recepciones ni pagos. Revertir una recepción plantea una pregunta de costo vigente (¿qué recepción queda vigente?). Requiere diseño y autorización.
 - **D4 · ISV de la factura.** Se captura manualmente y no se valida contra las líneas. Alternativa: calcular el impuesto desde las líneas gravadas. Regla fiscal: no cambiado.
 - **D5 · Costo editado manualmente.** Un ADMIN o BODEGUERO puede cambiar `precioCosto` en el catálogo (FS-07, decisión D1), lo que rompe la regla «costo vigente = última recepción». Decidir si se bloquea o se audita como excepción.
-- **D6 · Alertas de vencimiento a 7 días.** El resumen del dashboard (`resumen`, `vencimiento <= NOW() + 7 días`) sigue usando instante, no calendario de Tegucigalpa. Diferencia de menos de un día. Pendiente.
+- **D6 · Alertas de vencimiento a 7 días.** **Resuelta en la revisión final del PR #103:** `resumen()` compara `vencimiento::date <= día de Tegucigalpa + 7` (antes comparaba instante UTC y en 18:00–23:59 locales incluía el día +8). Pruebas en `compras.postgres.integration.ts`. Sin cambio de reglas de reconocimiento de deuda.
 
-**Conciliación propuesta para datos históricos (no ejecutada; solo lectura)**
+**Conciliación propuesta para datos históricos (solo lectura; consultas completas en `backend/scripts/auditoria-compras-lectura.sql`, ejecutadas en PostgreSQL temporal por la prueba de auditoría)**
 
 Antes de decidir qué hacer con H1, conviene medir si existen registros en el módulo legado y si algún pago CxP histórico quedó en caja. Consultas de solo lectura para ejecutar en una réplica o copia:
 
@@ -405,7 +405,7 @@ SELECT COUNT(*) AS pagos_legado FROM pagos_proveedor p JOIN compras_proveedor c 
 -- Pagos CxP históricos que sí quedaron ligados a una caja (incorrecto según FS-09).
 SELECT p.id, p.monto, p.metodo, p.caja_id, p.created_at FROM pagos_cuenta p JOIN cuentas_operativas c ON c.id = p.cuenta_id WHERE c.tipo = 'CXP' AND p.caja_id IS NOT NULL;
 -- Movimientos de caja generados por pagos CxP históricos.
-SELECT * FROM movimientos_caja WHERE tipo = 'PAGO_CXP';
+SELECT m.* FROM movimientos_caja m JOIN cajas c ON c.id = m.caja_id WHERE c.tenant_id = '<tenant>' AND m.concepto ILIKE '%CXP%';  -- corregido: movimientos_caja no tiene columna tipo; el concepto no está tipificado
 ```
 
 Si aparecen filas en la última consulta, la propuesta es **no modificar** `movimientos_caja` ni `cierres`: documentar cada caso con su cierre histórico y proponer un asiento de conciliación auditable, aprobado por el dueño.
@@ -416,6 +416,55 @@ Si aparecen filas en la última consulta, la propuesta es **no modificar** `movi
 - **Datos legados:** `compras_proveedor` y `pagos_proveedor` pueden contener deuda que no aparece en CxP (ejecutar la consulta de conciliación).
 - Playwright con backend simulado: no prueba persistencia.
 - Alertas de vencimiento (D6) y ISV manual (D4).
+
+#### Revisión final de PR #103 (2026-10-09)
+
+**Alcance de esta revisión:** no se modifica producción, datos reales, ni permisos. No se implementan compras al contado, cambio del momento de reconocer CxP, anulación de recepciones, automatización de ISV ni cambio de permisos de costo manual (D1–D5 quedan pendientes). La rama no toca ningún archivo de caja ni de cierres (`git diff --name-only origin/main...HEAD`).
+
+**Hallazgo adicional H7 (P2, corregido):** la alerta de vencimiento a 7 días de `resumen()` comparaba contra `NOW() + 7 días` en instante UTC. Reproducido con una prueba exploratoria de un solo uso (a las 18:00 y 23:59 de Tegucigalpa la cuenta con vencimiento el día +8 entraba en la alerta; a las 00:00 no). Corrección: límite calendario `sumarDias(diaCalendario(ahora, zona), 7)` y comparación `vencimiento::date <= $2::date`. `cuentas()` recibe el mismo instante de referencia (`ahora`) para que la marca `vencida` sea verificable a cualquier hora; la regla no cambia.
+
+**Matriz de rutas: legado frente a actual** (`backend/src/operaciones/operaciones.controller.ts`; el módulo `/compras` ya no está registrado en `app.module.ts`)
+
+| Ruta legada | Estado | Ruta vigente | Diferencias de permiso |
+|---|---|---|---|
+| `GET /compras` | retirada | `GET /operaciones/compras` | `inventario.ver`; ADMIN y BODEGUERO. Incluye las líneas (no hay ruta de detalle aparte). |
+| `POST /compras` | retirada | `POST /operaciones/compras` (registra factura y CxP, sin recibir) | `inventario.editar`; ADMIN y BODEGUERO. Ya no escribe costos ni existencias. |
+| `GET /compras/:id` | retirada | sin equivalente de detalle; usar `GET /operaciones/compras` | — |
+| `POST /compras/:id/pagos` | retirada | `POST /operaciones/cuentas/:id/pagos` | Guard ADMIN y CAJERO; el servicio rechaza no-ADMIN para CxP («requieren administrador»). Probado en PostgreSQL. |
+| `GET /productos/:id/historial-compras` | retirada | `GET /operaciones/productos/:id/historial` | `inventario.ver`; ADMIN y BODEGUERO. |
+| — (nuevo) | — | `POST /operaciones/compras/:id/recepciones` | Única vía que aumenta existencias y actualiza `costo_vigente`. |
+
+Verificación: la ausencia de las rutas legadas se deduce de que el controlador y el módulo ya no existen; no hay prueba HTTP que lo afirme. Las pruebas HTTP de `operation-modules.http.spec.ts` ya no contienen esos casos.
+
+**Pruebas añadidas en esta revisión** (todas contra PostgreSQL real salvo que se indique)
+- Alerta de 7 días y vencida: 00:00, 18:00 y 23:59 locales, cambio de día a las 00:00, cuenta pagada que sale de la alerta, límites día +7 incluido y día +8 excluido.
+- Secuencia de costos 45 → 60 → 40: costo vigente 40, costo histórico por compra `[45, 60, 40]`, precio de venta sin cambio.
+- Recepción rechazada: costo vigente, existencias y líneas sin cambio.
+- Factura reenviada con la misma solicitud: misma orden y una sola CxP.
+- Auditoría histórica: `backend/scripts/auditoria-compras-lectura.sql` (11 consultas, solo `SELECT`). La prueba las ejecuta dentro de `SET TRANSACTION READ ONLY` sobre datos con anomalías sembradas por SQL (factura duplicada con espacios y mayúsculas, orden RECIBIDA con líneas pendientes, saldo que no concilia) y verifica que se detectan, que no cambian los datos, y que una escritura en modo lectura falla.
+- Frontend simulado (`compras-simulado.spec.ts`): registrar factura con doble clic envía una sola solicitud.
+
+**Resultados locales de esta revisión** (ejecutados, no declarados)
+- Backend unitarias: 326/326. Integración PostgreSQL como usuario sin privilegios: 169/169 en 9 archivos (línea base 159; +6 vencimiento, +3 costos/recepción/idempotencia, +1 auditoría).
+- `tsc -p tsconfig.build.json`, `nest build`, `oxlint`: sin errores. Avisos existentes en archivos no tocados y en `operaciones.service.ts` (`no-useless-default-assignment`, por parámetros por defecto que ya existían). `test:scripts`: 13/13.
+- Prettier: `operaciones.service.ts` y `compras.postgres.integration.ts` ya no cumplían Prettier en `HEAD`; no se reformatearon para no ensuciar el diff.
+- Frontend: `npm test` 157/157; `tsc -b` sin errores; build con `VITE_API_URL=https://api.example.test/api` correcto; `npm run lint` sin errores (avisos `react(set-state-in-effect)` en páginas no tocadas); Playwright completo 85/85 (línea base 84; +1 doble clic de factura).
+- Migraciones: sin cambios en `backend/prisma` en la rama.
+
+**Qué no cubre esta revisión (riesgo residual declarado)**
+- No hay prueba automatizada de que los cierres de caja históricos queden intactos tras pagos CxP. La rama no toca código de caja ni de cierres, pero la comprobación explícita sigue pendiente.
+- Playwright usa backend simulado: valida la interfaz, no la persistencia.
+- Sidebar y topnav no se validaron visualmente.
+- No se ejecutó la consulta de conciliación contra datos históricos reales: no hay acceso a la base de producción desde este entorno. Es el primer paso antes de decidir sobre H1.
+- Los datos del módulo legado (`compras_proveedor`, `pagos_proveedor`) pueden contener deuda que no aparece en CxP.
+
+**Decisiones pendientes** (sin implementar; ver D1–D6 arriba)
+- D1 compra al contado, D2 momento de reconocer la CxP, D3 anulación de recepciones, D4 ISV automatizado: sin cambio.
+- D5 costo editado a mano: **recomendación** restringir el cambio de `precioCosto` a ADMIN, exigir motivo y registrar auditoría con valor anterior y nuevo. No implementado por instrucción: requiere autorización de negocio.
+
+**Riesgos residuales:** datos históricos del módulo legado (ejecutar la auditoría antes de decidir), costo editable a mano hasta decidir D5, prueba de cierres pendiente, UI validada solo con backend simulado.
+
+**Veredicto de esta revisión:** APTO PARA MERGE, condicionado a que el commit nuevo tenga los workflows de GitHub Actions en verde y que la rama siga sin conflictos con `main` en el momento de fusionar. La fusión no se ha hecho.
 
 ### FS-07 — edición integral y segura de productos (2026-10-09)
 

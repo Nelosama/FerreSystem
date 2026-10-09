@@ -14,6 +14,7 @@ type Sim = {
   stock: number;
   recepciones: { solicitudId: string; body: any }[];
   pagos: { solicitudId: string; body: any }[];
+  facturas: { solicitudId: string; body: any }[];
   aplicadas: Set<string>;
   fallarSiguienteRecepcion: boolean;
   errores: string[];
@@ -29,7 +30,7 @@ const test = base.extend<{ sim: Sim }>({
         items: [{ id: 'det-1', codigo: 'TOR-1', nombre: 'Tornillo', cantidad: 200, cantidad_recibida: 0, precio_costo: 45 }],
       },
       cuenta: { id: 'cta-1', tipo: 'CXP', nombre: proveedor.nombre, documento: 'FAC-100', monto: 9000, saldo: 9000, vencimiento: '2026-11-15', vencida: false, pagos: [] },
-      stock: 100, recepciones: [], pagos: [], aplicadas: new Set<string>(), fallarSiguienteRecepcion: false, errores: [], inesperados: [],
+      stock: 100, recepciones: [], pagos: [], facturas: [], aplicadas: new Set<string>(), fallarSiguienteRecepcion: false, errores: [], inesperados: [],
     };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
@@ -55,6 +56,11 @@ const test = base.extend<{ sim: Sim }>({
         if (method === 'GET' && path === '/operaciones/proveedores') return responder(route, 200, [proveedor]);
         if (method === 'GET' && path === '/productos') return responder(route, 200, [{ id: 'prod-1', codigo: 'TOR-1', nombre: 'Tornillo', precioCosto: 45, precioVenta: 70, stockActual: sim.stock, stockMinimo: 0, unidadMedida: 'UNIDAD', activo: true }]);
         if (method === 'GET' && path === '/operaciones/compras') return responder(route, 200, [{ ...sim.orden, items: sim.orden.items.map((i: any) => ({ ...i })) }]);
+        if (method === 'POST' && path === '/operaciones/compras') {
+          const body = request.postDataJSON();
+          sim.facturas.push({ solicitudId: body.solicitudId, body });
+          return responder(route, 201, { id: 'orden-2' });
+        }
         if (method === 'GET' && path === '/operaciones/cuentas') return responder(route, 200, url.searchParams.get('tipo') === 'CXP' ? [sim.cuenta] : []);
 
         const recepcion = path.match(/^\/operaciones\/compras\/([^/]+)\/recepciones$/);
@@ -142,6 +148,20 @@ test.describe('Ciclo de compras — interfaz con backend simulado (E2E simulado)
     await expect.poll(() => sim.recepciones.length).toBe(2);
     expect(sim.recepciones[1].solicitudId).toBe(sim.recepciones[0].solicitudId);
     expect(sim.stock).toBe(300);
+  });
+
+  test('un doble clic en Registrar factura envía una sola factura', async ({ page, sim }) => {
+    await ingresar(page, '/ordenes-compra');
+    const formulario = page.locator('form').filter({ hasText: 'Registrar factura de compra' });
+    await formulario.locator('select').first().selectOption('prov-1');
+    await formulario.getByRole('textbox', { name: 'Número de factura' }).or(formulario.locator('input[required]').nth(0)).fill('FAC-200');
+    await formulario.locator('select').nth(1).selectOption('prod-1');
+    await formulario.getByRole('button', { name: 'Agregar producto' }).click();
+    await formulario.getByRole('button', { name: 'Registrar factura' }).dblclick();
+    await expect.poll(() => sim.facturas.length).toBeGreaterThanOrEqual(1);
+    await page.waitForTimeout(200);
+    expect(sim.facturas).toHaveLength(1);
+    expect(sim.facturas[0].body).toMatchObject({ proveedorId: 'prov-1', numeroFactura: 'FAC-200' });
   });
 
   test('registrar un pago a proveedor pide confirmación, avisa que no afecta la caja y marca la cuenta como pagada', async ({ page, sim }) => {

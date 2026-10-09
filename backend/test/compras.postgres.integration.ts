@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { createServer } from 'node:net';
@@ -272,7 +272,7 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
   it('una cuenta por pagar con vencimiento de ayer en Tegucigalpa aparece vencida', async () => {
     const ayer = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
     const diaAyer = diaCalendario(ayer, 'America/Tegucigalpa');
-    const orden = await ops.compra(tenantId, users.ADMIN, compraDe('FAC-1900', 45, 200, { vencimiento: diaAyer }));
+    await ops.compra(tenantId, users.ADMIN, compraDe('FAC-1900', 45, 200, { vencimiento: diaAyer }));
     const [fila] = (await ops.cuentas(tenantId, users.ADMIN, 'CXP') as any[]).filter(c => c.documento === 'FAC-1900');
     expect(fila.vencida).toBe(true);
   });
@@ -308,5 +308,140 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
     await expect(ops.compra(tenantId, users.ADMIN, { ...compraDe('FAC-2300', 45, 10), items: [{ productoId, cantidad: 10, costo: 45 }, { productoId: ajeno, cantidad: 1, costo: 1 }] })).rejects.toThrow('no encontrado');
     expect(await prisma.ordenCompra.count({ where: { tenantId } })).toBe(0);
     expect(await prisma.cuentaOperativa.count({ where: { tenantId } })).toBe(0);
+  });
+
+  // ─── Alerta de 7 días y vencida por calendario de Tegucigalpa (instantes fijos) ───
+
+  // Hoy es 9 oct en Tegucigalpa (UTC-6, sin horario de verano). Cuentas: 8 (vencida), 9 (hoy), 16 (día +7), 17 (día +8).
+  const prepararVencimientos = async () => {
+    for (const [factura, vencimiento] of [['FAC-3001', '2026-10-08'], ['FAC-3002', '2026-10-09'], ['FAC-3003', '2026-10-16'], ['FAC-3004', '2026-10-17']]) {
+      await ops.compra(tenantId, users.ADMIN, compraDe(factura, 10, 1, { vencimiento }));
+    }
+  };
+  const alertaCxp = async (ahora: Date) => {
+    const resumen = await ops.resumen(tenantId, '2026-10-01', '2026-10-31', 'America/Tegucigalpa', ahora) as any;
+    const fila = resumen.alertas.find((a: any) => a.tipo === 'CXP');
+    return { cantidad: fila?.cantidad ?? 0, saldo: Number(fila?.saldo ?? 0) };
+  };
+  const vencidaPorFactura = async (ahora: Date) => Object.fromEntries(
+    ((await ops.cuentas(tenantId, users.ADMIN, 'CXP', ahora)) as any[]).map(c => [c.documento, c.vencida]),
+  );
+
+  it('alerta de 7 días a las 00:00 (Tegucigalpa): incluye vencidas, hoy y día +7; excluye día +8', async () => {
+    await prepararVencimientos();
+    expect(await alertaCxp(new Date('2026-10-09T06:00:00Z'))).toEqual({ cantidad: 3, saldo: 30 });
+  });
+
+  it('alerta de 7 días a las 18:00 (Tegucigalpa) no incluye el día +8 aunque el instante UTC lo alcance', async () => {
+    await prepararVencimientos();
+    expect(await alertaCxp(new Date('2026-10-10T00:00:00Z'))).toEqual({ cantidad: 3, saldo: 30 });
+  });
+
+  it('alerta de 7 días a las 23:59 (Tegucigalpa) no incluye el día +8', async () => {
+    await prepararVencimientos();
+    expect(await alertaCxp(new Date('2026-10-10T05:59:00Z'))).toEqual({ cantidad: 3, saldo: 30 });
+  });
+
+  it('al cambiar de día a las 00:00 (Tegucigalpa) el límite avanza: el día +8 anterior entra y el día 8 sigue como vencida', async () => {
+    await prepararVencimientos();
+    expect(await alertaCxp(new Date('2026-10-10T06:00:00Z'))).toEqual({ cantidad: 4, saldo: 40 });
+  });
+
+  it('una cuenta pagada por completo sale de la alerta de 7 días', async () => {
+    await prepararVencimientos();
+    const [orden] = await sql('SELECT id FROM ordenes_compra WHERE tenant_id=$1 AND numero_factura=$2', tenantId, 'FAC-3003');
+    const cuenta = await cuentaDe(orden.id);
+    await ops.pagar(tenantId, users.ADMIN, cuenta.id, { solicitudId: randomUUID(), monto: 10, metodo: 'EFECTIVO' } as any);
+    expect(await alertaCxp(new Date('2026-10-09T06:00:00Z'))).toEqual({ cantidad: 2, saldo: 20 });
+  });
+
+  it('vencida a las 23:59 (Tegucigalpa) solo marca el día anterior; a las 00:00 del día siguiente marca también el día de hoy', async () => {
+    await prepararVencimientos();
+    const aun = await vencidaPorFactura(new Date('2026-10-10T05:59:00Z'));
+    expect(aun['FAC-3001']).toBe(true);
+    expect(aun['FAC-3002']).toBe(false);
+    const despues = await vencidaPorFactura(new Date('2026-10-10T06:00:00Z'));
+    expect(despues['FAC-3002']).toBe(true);
+    expect(despues['FAC-3004']).toBe(false);
+  });
+
+  it('secuencia de costos 45, 60 y 40: el costo vigente sigue a la última recepción, cada compra conserva su costo y el precio de venta no cambia', async () => {
+    const recibirCompra = async (factura: string, costo: number) => {
+      const orden = await ops.compra(tenantId, users.ADMIN, compraDe(factura, costo, 10));
+      const detalle = await detalleDe(orden.id);
+      await ops.recibir(tenantId, users.ADMIN, orden.id, { solicitudId: randomUUID(), items: [{ detalleId: detalle.id, cantidad: 10 }] } as any);
+      return orden.id;
+    };
+    const ordenes = [await recibirCompra('FAC-5001', 45), await recibirCompra('FAC-5002', 60), await recibirCompra('FAC-5003', 40)];
+    const producto = await prisma.producto.findUniqueOrThrow({ where: { id: productoId } });
+    expect(Number(producto.costoVigente)).toBe(40);
+    expect(Number(producto.precioCosto)).toBe(40);
+    expect(Number(producto.precioVenta)).toBe(70);
+    const costosPorCompra = await Promise.all(ordenes.map(async id => Number((await sql('SELECT precio_costo FROM detalles_orden_compra WHERE orden_id=$1', id))[0].precio_costo)));
+    expect(costosPorCompra).toEqual([45, 60, 40]);
+  });
+
+  it('una recepción rechazada no cambia el costo vigente ni el costo de la compra', async () => {
+    const antes = await prisma.producto.findUniqueOrThrow({ where: { id: productoId } });
+    const orden = await ops.compra(tenantId, users.ADMIN, compraDe('FAC-5100', 99, 5));
+    const detalle = await detalleDe(orden.id);
+    await expect(ops.recibir(tenantId, users.ADMIN, orden.id, { solicitudId: randomUUID(), items: [{ detalleId: detalle.id, cantidad: 6 }] } as any)).rejects.toThrow();
+    const despues = await prisma.producto.findUniqueOrThrow({ where: { id: productoId } });
+    expect(Number(despues.costoVigente)).toBe(Number(antes.costoVigente));
+    expect(Number(despues.stockActual)).toBe(Number(antes.stockActual));
+    expect(Number((await detalleDe(orden.id)).cantidad_recibida)).toBe(0);
+  });
+
+  it('registrar la misma factura con la misma solicitud devuelve la misma orden y una sola cuenta por pagar', async () => {
+    const datos = compraDe('FAC-5200', 45, 10);
+    const primera = await ops.compra(tenantId, users.ADMIN, datos);
+    const reenvio = await ops.compra(tenantId, users.ADMIN, datos);
+    expect(reenvio.id).toBe(primera.id);
+    expect(await prisma.ordenCompra.count({ where: { tenantId, numeroFactura: 'FAC-5200' } })).toBe(1);
+    expect(await prisma.cuentaOperativa.count({ where: { tenantId, tipo: 'CXP', documentoId: primera.id } })).toBe(1);
+  });
+
+  // ─── Auditoría histórica de solo lectura ───────────────────────────────
+
+  it('las consultas de auditoría son de solo lectura y detectan anomalías sembradas sin modificar datos', async () => {
+    const a = await ops.compra(tenantId, users.ADMIN, compraDe('FAC-9001', 45, 10));
+    const b = await ops.compra(tenantId, users.ADMIN, compraDe('FAC-9002', 45, 10));
+    // Anomalías sembradas directamente en SQL (los servicios no permiten producirlas):
+    await sql("UPDATE ordenes_compra SET numero_factura=' fac-9001 ' WHERE id=$1", b.id);
+    await sql("UPDATE ordenes_compra SET estado='RECIBIDA' WHERE id=$1", a.id);
+    await sql('UPDATE cuentas_operativas SET saldo=999 WHERE documento_id=$1', a.id);
+
+    const consultas = readFileSync(resolve('scripts/auditoria-compras-lectura.sql'), 'utf8')
+      .split(/^-- @consulta /m).slice(1)
+      .map(bloque => {
+        const [nombre, ...lineas] = bloque.split('\n');
+        return { nombre: nombre.trim(), sql: lineas.filter(l => !l.startsWith('--')).join('\n').trim() };
+      });
+    expect(consultas.length).toBeGreaterThanOrEqual(10);
+
+    const hallazgos: Record<string, number> = {};
+    for (const { nombre, sql: texto } of consultas) {
+      const filas = await prisma.$transaction(async tx => {
+        await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+        return tx.$queryRawUnsafe<any[]>(texto, tenantId);
+      });
+      hallazgos[nombre] = filas.length;
+    }
+    expect(hallazgos.factura_duplicada_ordenes).toBe(1);
+    expect(hallazgos.orden_recibida_con_lineas_pendientes).toBe(1);
+    expect(hallazgos.cuenta_saldo_no_concilia).toBe(1);
+    for (const nombre of ['factura_duplicada_legacy', 'recepcion_no_coincide_con_costos', 'cxp_monto_distinto_de_orden', 'cxp_sin_orden_de_origen', 'pago_cxp_con_caja', 'movimiento_caja_con_concepto_cxp', 'pagos_legacy_superan_compra']) {
+      expect(hallazgos[nombre], nombre).toBe(0);
+    }
+
+    // Las consultas no modifican nada: las anomalías sembradas siguen tal cual.
+    expect(Number((await sql('SELECT saldo FROM cuentas_operativas WHERE documento_id=$1', a.id))[0].saldo)).toBe(999);
+    expect((await sql('SELECT numero_factura FROM ordenes_compra WHERE id=$1', b.id))[0].numero_factura).toBe(' fac-9001 ');
+
+    // Un intento de escritura dentro de la misma modalidad de lectura se rechaza.
+    await expect(prisma.$transaction(async tx => {
+      await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+      await tx.$executeRawUnsafe("UPDATE ordenes_compra SET notas='x' WHERE tenant_id=$1", tenantId);
+    })).rejects.toThrow(/read-only/);
   });
 });
