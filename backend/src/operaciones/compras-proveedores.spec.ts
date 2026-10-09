@@ -48,6 +48,8 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
   let dbCostsHistory: Record<string, any[]> = {};
   let dbAccounts: Record<string, any> = {};
   let dbPayments: Record<string, any> = {};
+  let dbClients: Record<string, any> = {};
+  let dbSales: Record<string, any> = {};
   let dbCashBoxes: Record<string, any> = {};
   let dbCashMovements: Record<string, any[]> = {};
   let dbAuditLogs: Record<string, any[]> = {};
@@ -261,6 +263,25 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
         }
         return [{ id: accId }];
       }
+      // 6b. Clientes y ventas a crédito (ruta CXC — necesaria para probar que su comportamiento no cambió)
+      if (sql.includes('UPDATE clientes SET saldo_pendiente=saldo_pendiente-$1')) {
+        const [monto, clienteId, tenantId] = params;
+        const cl = dbClients[clienteId];
+        if (cl && cl.tenant_id === tenantId && Number(cl.saldo_pendiente) >= Number(monto)) {
+          cl.saldo_pendiente = Number(cl.saldo_pendiente) - Number(monto);
+          return [{ id: clienteId }];
+        }
+        return [];
+      }
+      if (sql.includes('UPDATE ventas SET saldo_credito=GREATEST')) {
+        const [monto, ventaId, tenantId] = params;
+        const v = dbSales[ventaId];
+        if (v && v.tenant_id === tenantId && v.tipo_pago === 'CREDITO') {
+          v.saldo_credito = Math.max(Number(v.saldo_credito ?? v.total) - Number(monto), 0);
+          return [{ id: ventaId }];
+        }
+        return [];
+      }
 
       // 7. Caja
       if (sql.includes("SELECT * FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado='ABIERTA'")) {
@@ -351,6 +372,13 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
     dbPayments = {};
     dbStockMovements = {};
     dbAuditLogs = {};
+
+    dbClients = {
+      'cli-1': { id: 'cli-1', tenant_id: 'tenant-A', nombre: 'Constructora El Progreso', saldo_pendiente: 1000 },
+    };
+    dbSales = {
+      'venta-cxc-1': { id: 'venta-cxc-1', tenant_id: 'tenant-A', total: 1000, saldo_credito: 1000, tipo_pago: 'CREDITO' },
+    };
 
     dbCashBoxes = {
       'caja-admin-1': { id: 'caja-admin-1', tenant_id: 'tenant-A', usuario_id: 'admin-1', estado: 'ABIERTA', monto_apertura: 5000 },
@@ -503,34 +531,265 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
     expect(accAfter.saldo).toBe(600);
   });
 
-  // FS-09: origen del pago a proveedor y afectación de caja
-  const crearCxp = async (solicitudId: string, factura: string) => {
-    await service.compra('tenant-A', 'admin-1', { solicitudId, proveedorId: 'prov-1', numeroFactura: factura, isv: 0, items: [{ productoId: 'prod-cement', cantidad: 10, costo: 100 }] });
-    return (await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.documento === factura);
-  };
+  // ==========================================================================
+  // FS-09 — Los pagos a proveedor (CXP) son INDEPENDIENTES de la caja registradora.
+  // Regla confirmada por el propietario: ningún pago CXP, ni siquiera en EFECTIVO,
+  // puede exigir caja abierta ni modificar el saldo, los movimientos o el arqueo de caja.
+  // Escenarios obligatorios A–H.
+  // ==========================================================================
+  describe('FS-09: pagos a proveedor independientes de la caja', () => {
+    // Crea una CXP de 1000 (10 × 100) y devuelve la cuenta
+    const crearCxp = async (solicitudId: string, factura: string) => {
+      await service.compra('tenant-A', 'admin-1', { solicitudId, proveedorId: 'prov-1', numeroFactura: factura, isv: 0, items: [{ productoId: 'prod-cement', cantidad: 10, costo: 100 }] });
+      return (await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.documento === factura);
+    };
 
-  it('FS-09: pago en EFECTIVO a proveedor descuenta del cajón (movimiento negativo)', async () => {
-    const acc = await crearCxp('sol-fs09-ef', 'FACT-FS09-EF');
-    const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-ef', monto: 300, metodo: 'EFECTIVO' });
-    expect(pay.caja_id).toBe('caja-admin-1');
-    const nuevo = dbCashMovements['caja-admin-1'].find(m => m.tipo === 'PAGO_CXP');
-    expect(nuevo).toMatchObject({ monto: -300, metodo: 'EFECTIVO' });
-  });
+    // Todos los movimientos de caja registrados, de cualquier caja
+    const todosLosMovimientos = () => Object.values(dbCashMovements).flat();
 
-  it('FS-09: pago por TRANSFERENCIA no exige caja abierta ni crea movimiento de caja', async () => {
-    const acc = await crearCxp('sol-fs09-tr', 'FACT-FS09-TR');
-    dbCashBoxes = {};
-    const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-tr', monto: 250, metodo: 'TRANSFERENCIA' });
-    expect(pay.caja_id).toBeNull();
-    expect(Object.values(dbCashMovements).flat().some(m => m.tipo === 'PAGO_CXP')).toBe(false);
-    const after = (await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id);
-    expect(after.saldo).toBe(750);
-  });
+    // Saldo de caja = fondo de apertura + movimientos en efectivo (misma fórmula que el arqueo del servicio)
+    const saldoDeCaja = (cajaId: string) => {
+      const box: any = dbCashBoxes[cajaId];
+      if (!box) return null;
+      const movs = dbCashMovements[cajaId] || [];
+      return Number(box.monto_apertura) + movs.filter(m => m.metodo === 'EFECTIVO').reduce((sum, m) => sum + Number(m.monto), 0);
+    };
 
-  it('FS-09: pago en EFECTIVO sin caja abierta se rechaza', async () => {
-    const acc = await crearCxp('sol-fs09-nc', 'FACT-FS09-NC');
-    dbCashBoxes = {};
-    await expect(service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-nc', monto: 100, metodo: 'EFECTIVO' })).rejects.toThrow('Abra su caja');
+    // Invariante global de FS-09: ninguna operación CXP deja rastro en movimientos_caja
+    const esperarSinMovimientosCxp = () => {
+      expect(todosLosMovimientos().some(m => m.tipo === 'PAGO_CXP')).toBe(false);
+      expect(todosLosMovimientos().some(m => m.concepto === 'Pago a proveedor')).toBe(false);
+    };
+
+    it('Escenario A: pago CXP en EFECTIVO sin caja abierta es permitido y no toca movimientos_caja', async () => {
+      const acc = await crearCxp('sol-fs09-a', 'FACT-FS09-A');
+      dbCashBoxes = {};
+      dbCashMovements = {};
+
+      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-a', monto: 400, metodo: 'EFECTIVO' });
+
+      expect(pay.metodo).toBe('EFECTIVO');
+      expect(pay.monto).toBe(400);
+      expect(pay.caja_id).toBeNull();
+      expect(todosLosMovimientos()).toHaveLength(0);
+      esperarSinMovimientosCxp();
+
+      const after = (await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id);
+      expect(after.saldo).toBe(600);
+    });
+
+    it('Escenario B: pago CXP por TRANSFERENCIA sin caja abierta es permitido y no toca movimientos_caja', async () => {
+      const acc = await crearCxp('sol-fs09-b', 'FACT-FS09-B');
+      dbCashBoxes = {};
+      dbCashMovements = {};
+
+      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-b', monto: 250, metodo: 'TRANSFERENCIA' });
+
+      expect(pay.metodo).toBe('TRANSFERENCIA');
+      expect(pay.caja_id).toBeNull();
+      expect(todosLosMovimientos()).toHaveLength(0);
+      esperarSinMovimientosCxp();
+
+      const after = (await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id);
+      expect(after.saldo).toBe(750);
+    });
+
+    it('Escenario C: pago CXP con TARJETA sin caja abierta es permitido y no toca movimientos_caja', async () => {
+      const acc = await crearCxp('sol-fs09-c', 'FACT-FS09-C');
+      dbCashBoxes = {};
+      dbCashMovements = {};
+
+      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-c', monto: 125.5, metodo: 'TARJETA' });
+
+      expect(pay.metodo).toBe('TARJETA');
+      expect(pay.caja_id).toBeNull();
+      expect(todosLosMovimientos()).toHaveLength(0);
+      esperarSinMovimientosCxp();
+
+      const after = (await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id);
+      expect(after.saldo).toBe(874.5);
+    });
+
+    it('Escenario D: pago CXP en EFECTIVO con caja abierta deja el saldo de caja idéntico', async () => {
+      const acc = await crearCxp('sol-fs09-d', 'FACT-FS09-D');
+
+      // La caja 'caja-admin-1' está abierta con L 5,000 de fondo y un movimiento inicial de L 5,000
+      const saldoAntes = saldoDeCaja('caja-admin-1');
+      const movimientosAntes = [...(dbCashMovements['caja-admin-1'] || [])];
+      expect(saldoAntes).not.toBeNull();
+
+      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-d', monto: 800, metodo: 'EFECTIVO' });
+
+      // Criterio definitivo de aceptación: la caja no cambió en nada
+      expect(saldoDeCaja('caja-admin-1')).toBe(saldoAntes);
+      expect(dbCashMovements['caja-admin-1']).toHaveLength(movimientosAntes.length);
+      expect(dbCashMovements['caja-admin-1']).toEqual(movimientosAntes);
+      esperarSinMovimientosCxp();
+
+      // El pago se registró en cuentas por pagar, desvinculado de la caja
+      expect(pay.caja_id).toBeNull();
+      const after = (await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id);
+      expect(after.saldo).toBe(200); // 1000 − 800
+    });
+
+    it('Escenario D (bis): un pago en efectivo mayor al efectivo disponible en caja ya no se rechaza por falta de efectivo', async () => {
+      const acc = await crearCxp('sol-fs09-d2', 'FACT-FS09-D2');
+      // Caja abierta con poco efectivo: antes esto fallaba con "Efectivo insuficiente en la caja"
+      dbCashBoxes = { 'caja-admin-1': { id: 'caja-admin-1', tenant_id: 'tenant-A', usuario_id: 'admin-1', estado: 'ABIERTA', monto_apertura: 10 } };
+      dbCashMovements = { 'caja-admin-1': [{ id: 'mov-init', caja_id: 'caja-admin-1', metodo: 'EFECTIVO', monto: 10 }] };
+      const saldoAntes = saldoDeCaja('caja-admin-1');
+
+      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-d2', monto: 900, metodo: 'EFECTIVO' });
+
+      expect(pay.monto).toBe(900);
+      expect(pay.caja_id).toBeNull();
+      expect(saldoDeCaja('caja-admin-1')).toBe(saldoAntes);
+      esperarSinMovimientosCxp();
+    });
+
+    it('Escenario E: un pago parcial disminuye únicamente el saldo pendiente de esa factura', async () => {
+      const acc = await crearCxp('sol-fs09-e1', 'FACT-FS09-E1');
+      const otra = await crearCxp('sol-fs09-e2', 'FACT-FS09-E2');
+      dbCashBoxes = {};
+      dbCashMovements = {};
+
+      await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-e', monto: 300, metodo: 'EFECTIVO' });
+
+      const cuentas = await service.cuentas('tenant-A', 'admin-1', 'CXP');
+      expect(cuentas.find(x => x.id === acc.id).saldo).toBe(700);   // 1000 − 300
+      expect(cuentas.find(x => x.id === acc.id).monto).toBe(1000);  // monto original intacto
+      expect(cuentas.find(x => x.id === otra.id).saldo).toBe(1000); // la otra factura no se tocó
+      esperarSinMovimientosCxp();
+    });
+
+    it('Escenario F: reintentar la misma solicitud no duplica el pago ni el descuento del saldo', async () => {
+      const acc = await crearCxp('sol-fs09-f', 'FACT-FS09-F');
+      dbCashBoxes = {};
+      dbCashMovements = {};
+
+      const primero = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-f', monto: 500, metodo: 'EFECTIVO' });
+      const saldoTrasPrimero = (await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id).saldo;
+      expect(saldoTrasPrimero).toBe(500);
+
+      const reintento = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-f', monto: 500, metodo: 'EFECTIVO' });
+
+      expect(reintento.id).toBe(primero.id);
+      expect(Object.values(dbPayments).filter((p: any) => p.solicitud_id === 'pay-fs09-f')).toHaveLength(1);
+      expect((await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id).saldo).toBe(500);
+      esperarSinMovimientosCxp();
+    });
+
+    it('Escenario F (bis): reusar la solicitudId con otros datos se rechaza por conflicto', async () => {
+      const acc = await crearCxp('sol-fs09-f2', 'FACT-FS09-F2');
+      dbCashBoxes = {};
+      dbCashMovements = {};
+
+      await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-f2', monto: 200, metodo: 'EFECTIVO' });
+
+      await expect(
+        service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-f2', monto: 350, metodo: 'TRANSFERENCIA' }),
+      ).rejects.toThrow('Solicitud utilizada para otro pago');
+
+      expect((await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id).saldo).toBe(800);
+      esperarSinMovimientosCxp();
+    });
+
+    it('Escenario G: un pago superior al saldo pendiente se rechaza sin modificar datos', async () => {
+      const acc = await crearCxp('sol-fs09-g', 'FACT-FS09-G');
+      dbCashBoxes = {};
+      dbCashMovements = {};
+      const pagosAntes = Object.keys(dbPayments).length;
+
+      await expect(
+        service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-g', monto: 1000.01, metodo: 'EFECTIVO' }),
+      ).rejects.toThrow('Pago mayor al saldo');
+
+      expect((await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id).saldo).toBe(1000);
+      expect(Object.keys(dbPayments).length).toBe(pagosAntes);
+      expect(todosLosMovimientos()).toHaveLength(0);
+      esperarSinMovimientosCxp();
+    });
+
+    it('Escenario H: un usuario sin autorización no puede registrar pagos a proveedores', async () => {
+      const acc = await crearCxp('sol-fs09-h', 'FACT-FS09-H');
+      dbCashBoxes = {};
+      dbCashMovements = {};
+      const pagosAntes = Object.keys(dbPayments).length;
+
+      // CAJERO: entra al método pero no puede pagar una CXP
+      await expect(
+        service.pagar('tenant-A', 'cajero-1', acc.id, { solicitudId: 'pay-fs09-h-cajero', monto: 100, metodo: 'EFECTIVO' }),
+      ).rejects.toThrow('Pago a proveedor requiere administrador');
+
+      // BODEGUERO: rol no autorizado para la operación
+      await expect(
+        service.pagar('tenant-A', 'bodeguero-1', acc.id, { solicitudId: 'pay-fs09-h-bodega', monto: 100, metodo: 'EFECTIVO' }),
+      ).rejects.toThrow('Su rol de usuario no tiene autorización para acceder a esta función');
+
+      // Admin de otro tenant: la cuenta no existe para él
+      await expect(
+        service.pagar('tenant-B', 'admin-B', acc.id, { solicitudId: 'pay-fs09-h-tenantB', monto: 100, metodo: 'EFECTIVO' }),
+      ).rejects.toThrow('Cuenta no encontrada');
+
+      // Vía HTTP, el cajero recibe 403 del guard
+      await request(app.getHttpServer())
+        .post(`/operaciones/cuentas/${acc.id}/pagos`)
+        .set('Authorization', `Bearer ${createToken('cajero-1', 'tenant-A', 'CAJERO')}`)
+        .send({ solicitudId: 'pay-fs09-h-http', monto: 100, metodo: 'EFECTIVO' })
+        .expect(403);
+
+      // Nada se registró y la caja sigue intacta
+      expect(Object.keys(dbPayments).length).toBe(pagosAntes);
+      expect((await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id).saldo).toBe(1000);
+      esperarSinMovimientosCxp();
+    });
+
+    it('Regresión CXC: un abono de cliente sigue exigiendo caja abierta y sí afecta el arqueo', async () => {
+      // Cuenta por cobrar sembrada directamente para probar pagar() en aislamiento
+      dbAccounts['cxc-1'] = {
+        id: 'cxc-1', tenant_id: 'tenant-A', usuario_id: 'admin-1', tipo: 'CXC',
+        documento_id: 'venta-cxc-1', cliente_id: 'cli-1', proveedor_id: null,
+        monto: 1000, saldo: 1000, vencimiento: null, created_at: new Date().toISOString(),
+      };
+
+      // Sin caja abierta, el abono de cliente se rechaza (comportamiento CXC sin cambios)
+      dbCashBoxes = {};
+      await expect(
+        service.pagar('tenant-A', 'admin-1', 'cxc-1', { solicitudId: 'abono-sin-caja', monto: 100, metodo: 'EFECTIVO' }),
+      ).rejects.toThrow('Abra su caja');
+
+      // Con caja abierta, genera el movimiento ABONO_CXC positivo y sube el saldo de caja
+      dbCashBoxes = { 'caja-admin-1': { id: 'caja-admin-1', tenant_id: 'tenant-A', usuario_id: 'admin-1', estado: 'ABIERTA', monto_apertura: 5000 } };
+      dbCashMovements = { 'caja-admin-1': [] };
+
+      const abono = await service.pagar('tenant-A', 'admin-1', 'cxc-1', { solicitudId: 'abono-con-caja', monto: 300, metodo: 'EFECTIVO' });
+
+      expect(abono.caja_id).toBe('caja-admin-1');
+      expect(dbCashMovements['caja-admin-1']).toHaveLength(1);
+      expect(dbCashMovements['caja-admin-1'][0]).toMatchObject({ tipo: 'ABONO_CXC', monto: 300, metodo: 'EFECTIVO', concepto: 'Abono de cliente' });
+      expect(saldoDeCaja('caja-admin-1')).toBe(5300);
+      expect(dbClients['cli-1'].saldo_pendiente).toBe(700);
+      expect(dbSales['venta-cxc-1'].saldo_credito).toBe(700);
+    });
+
+    it('Auditoría: el pago CXP queda registrado con proveedor, factura, método, monto y usuario responsable', async () => {
+      const acc = await crearCxp('sol-fs09-aud', 'FACT-FS09-AUD');
+      dbCashBoxes = {};
+      dbCashMovements = {};
+
+      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-aud', monto: 450, metodo: 'TRANSFERENCIA', notas: 'Abono factura proveedor' });
+
+      // El registro del pago conserva método, monto, usuario, fecha y la cuenta (de donde cuelga proveedor y factura)
+      expect(pay).toMatchObject({ monto: 450, metodo: 'TRANSFERENCIA', usuario_id: 'admin-1', cuenta_id: acc.id, caja_id: null, notas: 'Abono factura proveedor' });
+      expect(pay.created_at).toBeTruthy();
+
+      const log = (dbAuditLogs['tenant-A'] || []).find(a => a.operacion === 'CUENTA_PAGAR' && a.entidad_id === pay.id);
+      expect(log).toBeDefined();
+      expect(log.usuario_id).toBe('admin-1');
+      expect(log.datos).toMatchObject({ tipo: 'CXP', monto: 450, metodo: 'TRANSFERENCIA', afectaCaja: false, cajaId: null, proveedorId: 'prov-1' });
+      expect(log.datos.documentoId).toBe('sol-fs09-aud');
+      esperarSinMovimientosCxp();
+    });
   });
 
   // Escenario 5: Actualización de costo vigente al subir o bajar en la recepción

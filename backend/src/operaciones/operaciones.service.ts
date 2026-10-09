@@ -99,13 +99,11 @@ export class OperacionesService {
    const [c]=await query(tx,'SELECT * FROM cuentas_operativas WHERE id=$1 AND tenant_id=$2 FOR UPDATE',cuentaId,tenantId);if(!c)throw new NotFoundException('Cuenta no encontrada');
    if(c.tipo==='CXP'&&user.rol!=='ADMIN')throw new ForbiddenException('Pago a proveedor requiere administrador');
    const monto=decimal(dto.monto,'Pago',true),metodo=paymentMethod(dto.metodo);if(monto>Number(c.saldo))throw new BadRequestException('Pago mayor al saldo');
-   // Un pago a proveedor por transferencia o tarjeta sale de la cuenta bancaria, no del cajón: no exige caja abierta ni altera el arqueo.
-   const afectaCaja=c.tipo==='CXC'||metodo==='EFECTIVO';
+   // FS-09 (regla del propietario): los pagos a proveedor (CXP) son independientes de la caja registradora.
+   // Ningún método —EFECTIVO incluido— exige caja abierta ni genera movimientos_caja: un pago a proveedor es una
+   // salida de fondos administrativos, no del cajón del cajero. Solo los abonos de clientes (CXC) afectan el arqueo.
+   const afectaCaja=c.tipo==='CXC';
    const caja=afectaCaja?await openCash(tx,tenantId,userId):null;
-   if(caja&&c.tipo==='CXP') {
-    const [cash]=await query(tx,"SELECT COALESCE(SUM(monto),0) AS total FROM movimientos_caja WHERE caja_id=$1 AND metodo='EFECTIVO'",caja.id);
-    if(monto>money(Number(caja.monto_apertura)+Number(cash.total)))throw new BadRequestException('Efectivo insuficiente en la caja para pagar al proveedor');
-   }
    const [p]=await query(tx,'INSERT INTO pagos_cuenta (id,tenant_id,cuenta_id,solicitud_id,solicitud_hash,monto,metodo,usuario_id,caja_id,notas) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',id(),tenantId,c.id,dto.solicitudId,hash,monto,metodo,userId,caja?.id ?? null,dto.notas || null);
    await query(tx,'UPDATE cuentas_operativas SET saldo=saldo-$1 WHERE id=$2 RETURNING id',monto,c.id);
    if(c.tipo==='CXC'&&c.cliente_id){
@@ -113,8 +111,8 @@ export class OperacionesService {
     if(!client)throw new ConflictException('El saldo del cliente no coincide con la cuenta por cobrar');
     await query(tx,'UPDATE ventas SET saldo_credito=GREATEST(COALESCE(saldo_credito,total)-$1,0) WHERE id=$2 AND tenant_id=$3 AND tipo_pago=\'CREDITO\' RETURNING id',monto,c.documento_id,tenantId);
    }
-   if(caja)await cashMovement(tx,caja.id,userId,c.tipo==='CXC'?'ABONO_CXC':'PAGO_CXP',c.tipo==='CXC'?monto:-monto,metodo,p.id,c.tipo==='CXC'?'Abono de cliente':'Pago a proveedor');
-   await audit(tx,tenantId,userId,'CUENTA_PAGAR',p.id,{cuentaId,monto,metodo,afectaCaja:!!caja});return p;
+   if(caja)await cashMovement(tx,caja.id,userId,'ABONO_CXC',monto,metodo,p.id,'Abono de cliente');
+   await audit(tx,tenantId,userId,'CUENTA_PAGAR',p.id,{cuentaId,tipo:c.tipo,monto,metodo,afectaCaja,cajaId:caja?.id??null,proveedorId:c.proveedor_id??null,clienteId:c.cliente_id??null,documentoId:c.documento_id??null});return p;
   });
  }
  async caja(tenantId:string,userId:string){
