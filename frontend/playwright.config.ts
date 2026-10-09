@@ -2,7 +2,12 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: ['**/seed-alex.spec.ts'],
+  // 'unsafe/' contiene scripts de siembra manual que NUNCA deben correr en CI
+  // ni contra entornos con datos reales. Los archivos de esa carpeta leen
+  // credenciales y URL de variables de entorno y bloquean dominios de producción.
+  // El patrón cubre tanto la ubicación original (e2e/seed-alex.spec.ts, por si
+  // alguien lo restaura) como la carpeta canónica (e2e/unsafe/**).
+  testIgnore: ['**/unsafe/**', '**/seed-alex.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

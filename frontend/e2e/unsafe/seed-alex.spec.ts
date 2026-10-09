@@ -1,8 +1,62 @@
+/**
+ * seed-alex.spec.ts — Script de siembra de datos de demostración
+ *
+ * ⚠️  USO MANUAL ÚNICAMENTE — NUNCA ejecutar en CI ni contra producción.
+ *
+ * Requiere variables de entorno:
+ *   SEED_TARGET_URL  — URL base del entorno de pruebas aislado (OBLIGATORIA)
+ *   SEED_EMAIL       — Correo del administrador de prueba (OBLIGATORIA)
+ *   SEED_PASSWORD    — Contraseña del administrador de prueba (OBLIGATORIA)
+ *
+ * Ver e2e/unsafe/README.md para instrucciones de uso.
+ */
+
 import { test, expect, Page } from '@playwright/test';
 
-const BASE_URL = 'https://ferre-system.vercel.app';
-const EMAIL = 'alex@gmail.com';
-const PASSWORD = '12345678';
+// ─── Guardia de seguridad ─────────────────────────────────────────────────────
+// Bloquea cualquier intento de ejecutar este script sin configuración explícita
+// o contra un dominio de producción conocido.
+
+const PRODUCTION_DOMAINS = [
+  'vercel.app',
+  'onrender.com',
+  'supabase.co',
+  'ferresystem.com',
+];
+
+const BASE_URL = process.env.SEED_TARGET_URL ?? '';
+const EMAIL    = process.env.SEED_EMAIL ?? '';
+const PASSWORD = process.env.SEED_PASSWORD ?? '';
+
+function assertSafeEnvironment() {
+  if (!BASE_URL) {
+    throw new Error(
+      '[SEED BLOQUEADO] La variable SEED_TARGET_URL no está definida. ' +
+      'Este script solo puede ejecutarse con una URL de entorno de pruebas aislado. ' +
+      'Ver e2e/unsafe/README.md.',
+    );
+  }
+  if (!EMAIL || !PASSWORD) {
+    throw new Error(
+      '[SEED BLOQUEADO] Las variables SEED_EMAIL y SEED_PASSWORD son obligatorias. ' +
+      'No incluir credenciales en el código fuente.',
+    );
+  }
+  const lower = BASE_URL.toLowerCase();
+  for (const domain of PRODUCTION_DOMAINS) {
+    if (lower.includes(domain)) {
+      throw new Error(
+        `[SEED BLOQUEADO] SEED_TARGET_URL apunta a un dominio de producción prohibido: "${domain}". ` +
+        'Usa únicamente un servidor local o de staging aislado.',
+      );
+    }
+  }
+}
+
+// La guardia se ejecuta antes de cualquier test.
+assertSafeEnvironment();
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function login(page: Page) {
   await page.goto(`${BASE_URL}/login`);
@@ -53,23 +107,19 @@ test('2. Crear productos', async ({ page }) => {
     await page.getByLabel(/nombre/i).fill(p.nombre);
     await page.getByLabel(/código|codigo/i).fill(p.codigo);
 
-    // Categoría
     const catSelect = page.getByLabel(/categoría|categoria/i);
     if (await catSelect.isVisible()) {
       await catSelect.selectOption({ label: p.categoria });
     }
 
-    // Unidad
     const unidadField = page.getByLabel(/unidad/i);
     if (await unidadField.isVisible()) {
       await unidadField.fill(p.unidad);
     }
 
-    // Costo y precio
     await page.getByLabel(/costo/i).fill(String(p.costo));
     await page.getByLabel(/precio/i).first().fill(String(p.precio));
 
-    // Stock
     const stockField = page.getByLabel(/stock|existencia|cantidad/i);
     if (await stockField.isVisible()) {
       await stockField.fill(String(p.stock));
@@ -138,7 +188,6 @@ test('4. Crear clientes', async ({ page }) => {
     await page.getByRole('button', { name: /guardar|crear|aceptar/i }).click();
     await page.waitForTimeout(1000);
 
-    // Habilitar crédito si aplica
     if (c.credito) {
       await page.getByText(c.nombre).first().click();
       const creditoBtn = page.getByRole('button', { name: /crédito|credito|habilitar/i });
@@ -159,7 +208,6 @@ test('4. Crear clientes', async ({ page }) => {
 test('5. Realizar ventas de prueba', async ({ page }) => {
   await login(page);
 
-  // Venta 1 — Contado
   await page.goto(`${BASE_URL}/pos`);
   await page.waitForTimeout(1000);
 
@@ -175,7 +223,6 @@ test('5. Realizar ventas de prueba', async ({ page }) => {
     await page.waitForTimeout(300);
   }
 
-  // Método de pago contado
   const pagoBtn = page.getByRole('button', { name: /cobrar|pagar|procesar/i });
   if (await pagoBtn.isVisible()) {
     await pagoBtn.click();
