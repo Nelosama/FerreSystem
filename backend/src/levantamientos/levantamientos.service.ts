@@ -15,18 +15,24 @@ export class LevantamientosService {
  private async session(tx:any,tenantId:string,id:string){const l=await tx.levantamiento.findFirst({where:{tenantId,id},include:{items:{orderBy:{id:'asc'}}}});if(!l)throw new NotFoundException('Levantamiento no encontrado');return l;}
  private editable(l:any){if(l.estado==='FINALIZADO'||l.aplicadoAt)throw new ConflictException('El levantamiento está cerrado');}
 
- /** Ítems capturados por OTRO usuario que comparten producto, código o código de barras con la identidad indicada. Regla única para alta y edición (FS-06). */
- private conflictingItems(items:any[],userId:string,identidad:{productoId?:string|null;codigo?:string|null;codigoBarras?:string|null},excluirId?:string){
+ /** Ítems del conteo que coinciden por producto, código o código de barras con la identidad indicada (FS-06 fase 2). */
+ private coincidencias(items:any[],identidad:{productoId?:string|null;codigo?:string|null;codigoBarras?:string|null},excluirId?:string){
   const codeNorm=identidad.codigo?.trim().toUpperCase()||null;
   const barcode=identidad.codigoBarras?.trim()||null;
   return items.filter(i=>{
-   if(i.id===excluirId||i.contadorId===userId)return false; // mismo usuario corrigiendo su propio conteo no es conflicto
+   if(i.id===excluirId)return false;
    const iCode=i.codigo?.trim().toUpperCase()||null;
    const iBar=i.codigoBarras?.trim()||null;
    return (identidad.productoId&&i.productoId===identidad.productoId)||
           (codeNorm&&iCode&&codeNorm===iCode)||
           (barcode&&iBar&&barcode===iBar);
   });
+ }
+
+ /** Un empleado no puede contar dos veces el mismo artículo: debe editar su conteo anterior. Nunca se suman cantidades. */
+ private rechazarDuplicadoPropio(coincidentes:any[],userId:string){
+  const propio=coincidentes.find(i=>i.contadorId===userId);
+  if(propio)throw new ConflictException({message:'Este artículo ya está contado en este levantamiento. Edite el conteo anterior en lugar de capturarlo de nuevo.',code:'CONTEO_DUPLICADO',itemId:propio.id});
  }
 
  // ─── LEVANTAMIENTO CRUD ───────────────────────────────────────────────────
@@ -41,7 +47,22 @@ export class LevantamientosService {
  }
 
  async create(tenantId:string,userId:string,dto:CreateLevantamientoDto){
-  return this.prisma.levantamiento.create({data:{tenantId,nombre:text(dto.nombre,'Nombre'),descripcion:dto.descripcion,estado:'BORRADOR',createdBy:userId}});
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   const nombre=text(dto.nombre,'Nombre');
+   // FS-06 fase 2: un reintento con la misma clave devuelve el levantamiento original; la misma clave con otros datos es conflicto.
+   const hash=fingerprint({nombre,descripcion:dto.descripcion??null});
+   if(dto.solicitudId){
+    const previo=await tx.levantamiento.findFirst({where:{tenantId,solicitudId:dto.solicitudId}});
+    if(previo){
+     if(previo.solicitudHash!==hash)throw new ConflictException('La clave de solicitud ya se usó para otro levantamiento');
+     return previo;
+    }
+   }
+   const l=await tx.levantamiento.create({data:{tenantId,nombre,descripcion:dto.descripcion,estado:'BORRADOR',createdBy:userId,solicitudId:dto.solicitudId??null,solicitudHash:dto.solicitudId?hash:null}});
+   await audit(tx,tenantId,userId,'LEVANTAMIENTO_CREAR',l.id,{nombre,descripcion:dto.descripcion??null});
+   return l;
+  });
  }
 
  async update(tenantId:string,id:string,dto:UpdateLevantamientoDto,userId:string){
@@ -93,7 +114,8 @@ export class LevantamientosService {
    // Detectar conflicto: ¿ya existe un ítem del mismo producto/código capturado por OTRO usuario?
    const codeNorm=dto.codigo?.trim().toUpperCase()||null;
    const barcode=dto.codigoBarras?.trim()||null;
-   const conflicting=this.conflictingItems(l.items,userId,{productoId:dto.productoId,codigo:dto.codigo,codigoBarras:dto.codigoBarras});
+   const conflicting=this.coincidencias(l.items,{productoId:dto.productoId,codigo:dto.codigo,codigoBarras:dto.codigoBarras});
+   this.rechazarDuplicadoPropio(conflicting,userId);
    const hayConflicto=conflicting.length>0;
 
    // Si hay conflicto, marcar los ítems existentes también como conflicto
@@ -134,7 +156,8 @@ export class LevantamientosService {
    // FS-06: la identidad resultante se evalúa con la misma regla del alta; si coincide con otro usuario, ambos quedan en conflicto.
    const codigo=dto.codigo!==undefined?(dto.codigo?.trim().toUpperCase()||null):previous.codigo;
    const codigoBarras=dto.codigoBarras!==undefined?(dto.codigoBarras?.trim()||null):previous.codigoBarras;
-   const conflicting=this.conflictingItems(l.items,userId,{productoId:previous.productoId,codigo,codigoBarras},itemId);
+   const conflicting=this.coincidencias(l.items,{productoId:previous.productoId,codigo,codigoBarras},itemId);
+   this.rechazarDuplicadoPropio(conflicting,userId);
    for(const c of conflicting){if(!c.conflicto)await tx.levantamientoItem.update({where:{id:c.id},data:{conflicto:true}});}
    const item=await tx.levantamientoItem.update({
     where:{id:itemId},
@@ -318,6 +341,7 @@ export class LevantamientosService {
     conflicto:item.conflicto,
     matchedByBarcode:!!(p&&item.codigoBarras&&p.codigoBarras===item.codigoBarras),
     catalogBarcode:p?.codigoBarras||null,
+    catalogMarca:p?.marca||null,
     reservado:p?Number(p.stockReservado||0):0,
     anterior:p?Number(p.stockActual):0,
     nuevo:Number(item.cantidad),
@@ -357,11 +381,11 @@ export class LevantamientosService {
     if(!pid){
      let categoriaId:string|null=null;
      if(r.item.categoria?.trim()){const nombre=r.item.categoria.trim();categoriaId=(await tx.categoria.upsert({where:{tenantId_nombre:{tenantId,nombre}},create:{tenantId,nombre},update:{}})).id;}
-     const p=await tx.producto.create({data:{tenantId,codigo:r.codigo,codigoBarras:r.item.codigoBarras||null,nombre:r.nombre,descripcion:r.item.descripcion,categoriaId,stockActual:r.nuevo,stockMinimo:0,precioCosto:r.precioCosto,precioVenta:r.precioVenta,margen:r.item.margen,unidadMedida:r.unidad as any}});
+     const p=await tx.producto.create({data:{tenantId,codigo:r.codigo,codigoBarras:r.item.codigoBarras||null,marca:r.item.marca?.trim()||null,nombre:r.nombre,descripcion:r.item.descripcion,categoriaId,stockActual:r.nuevo,stockMinimo:0,precioCosto:r.precioCosto,precioVenta:r.precioVenta,margen:r.item.margen,unidadMedida:r.unidad as any}});
      pid=p.id;
     }else{
      if(r.precioCosto==null||r.precioVenta==null)throw new BadRequestException(`El producto ${r.nombre} (${r.codigo}) no tiene costo o precio definido; corríjalo antes de aplicar`);
-     await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,...(r.item.codigoBarras&&r.matchedByBarcode?{codigoBarras:r.item.codigoBarras}:r.item.codigoBarras&&!r.catalogBarcode?{codigoBarras:r.item.codigoBarras}:{}),precioCosto:r.precioCosto,precioVenta:r.precioVenta,...(r.item.margen!=null?{margen:r.item.margen}:{})}});
+     await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,...(r.item.marca?.trim()&&!r.catalogMarca?{marca:r.item.marca.trim()}:{}),...(r.item.codigoBarras&&r.matchedByBarcode?{codigoBarras:r.item.codigoBarras}:r.item.codigoBarras&&!r.catalogBarcode?{codigoBarras:r.item.codigoBarras}:{}),precioCosto:r.precioCosto,precioVenta:r.precioVenta,...(r.item.margen!=null?{margen:r.item.margen}:{})}});
     }
     await tx.levantamientoItem.update({where:{id:r.item.id},data:{productoId:pid}});
     await movement(tx,tenantId,userId,pid!,'LEVANTAMIENTO',r.anterior,r.nuevo,lid,'Conteo revisado y aplicado');

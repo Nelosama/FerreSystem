@@ -177,14 +177,16 @@ describe('Multiusuario — detección de conflictos', () => {
   expect(result.conflicto).toBe(true);
  });
 
- it('mismo usuario corrigiendo su propio conteo NO genera conflicto', async () => {
+ it('mismo usuario repitiendo un artículo ya contado recibe CONTEO_DUPLICADO y no crea otro ítem (FS-06 fase 2)', async () => {
   prisma.levantamiento.findFirst.mockResolvedValue({
    id: 'l', estado: 'EN_PROGRESO',
    items: [{ id: 'item-A', productoId: 'p1', codigo: null, codigoBarras: null, contadorId: 'userA', conflicto: false }],
   });
-  const result = await service.createItem('t', 'l',
-   { descripcion: 'Tornillo actualizado', cantidad: 3, productoId: 'p1' }, 'userA');
-  expect(result.conflicto).toBe(false);
+  const error = await service.createItem('t', 'l',
+   { descripcion: 'Tornillo', cantidad: 3, productoId: 'p1' }, 'userA').catch((e: any) => e);
+  expect(error.getStatus()).toBe(409);
+  expect(error.getResponse()).toMatchObject({ code: 'CONTEO_DUPLICADO', itemId: 'item-A' });
+  expect(prisma.levantamientoItem.create).not.toHaveBeenCalled();
  });
 
  it('detecta conflicto por código de barras igual', async () => {

@@ -229,6 +229,7 @@ model Producto {
   codigo        String
   codigoBarras  String?     @map("codigo_barras")
   codigoFabricante String? @map("codigo_fabricante")
+  marca String?
   margen Decimal? @db.Decimal(5,2)
   ultimaCompraAt DateTime? @map("ultima_compra_at")
   nombre        String
@@ -503,6 +504,9 @@ model Levantamiento {
   createdBy   String?             @map("created_by")
   aplicadoAt DateTime? @map("aplicado_at")
   aplicadoPor String? @map("aplicado_por")
+  // FS-06: clave de solicitud para reintentos seguros de la creación (PostgreSQL garantiza unicidad por empresa).
+  solicitudId   String? @map("solicitud_id")
+  solicitudHash String? @map("solicitud_hash")
   createdAt   DateTime            @default(now()) @map("created_at")
   updatedAt   DateTime            @updatedAt @map("updated_at")
 
@@ -517,6 +521,7 @@ model Levantamiento {
 
   @@index([tenantId])
   @@index([tenantId, estado])
+  @@unique([tenantId, solicitudId])
   @@index([tenantId, createdAt])
   @@map("levantamientos")
 }

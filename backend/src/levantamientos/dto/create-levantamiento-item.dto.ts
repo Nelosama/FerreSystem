@@ -7,8 +7,8 @@ export class CreateLevantamientoItemDto {
  @IsOptional() @IsString() unidad?:string;
  @IsOptional() @IsString() @MaxLength(100) codigo?:string;
  @IsOptional() @IsString() @MaxLength(100) codigoBarras?:string;
- @IsOptional() @IsString() marca?:string;
- @IsOptional() @IsString() categoria?:string;
+ @IsOptional() @IsString() @MaxLength(100) marca?:string;
+ @IsOptional() @IsString() @MaxLength(100) categoria?:string;
  @IsOptional() @IsString() ubicacion?:string;
  @IsOptional() @IsString() notas?:string;
  @IsOptional() @IsString() productoId?:string;
@@ -24,8 +24,8 @@ export class UpdateLevantamientoItemDto {
  @IsOptional() @IsString() unidad?:string;
  @IsOptional() @IsString() @MaxLength(100) codigo?:string;
  @IsOptional() @IsString() @MaxLength(100) codigoBarras?:string;
- @IsOptional() @IsString() marca?:string;
- @IsOptional() @IsString() categoria?:string;
+ @IsOptional() @IsString() @MaxLength(100) marca?:string;
+ @IsOptional() @IsString() @MaxLength(100) categoria?:string;
  @IsOptional() @IsString() ubicacion?:string;
  @IsOptional() @IsString() notas?:string;
  @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) precioCosto?:number;
