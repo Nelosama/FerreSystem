@@ -70,6 +70,7 @@ export const PERMISOS_DEFAULT_POR_ROL = {
     descuentoMaximo: 10,
   },
 };
+
 import { api } from '../utils/api';
 import {
   Users,
@@ -159,7 +160,7 @@ export const UsuariosPage: React.FC = () => {
     };
 
     fetchUsuariosBackend();
-  }, []);
+  }, [t]);
 
   const abrirNuevoUsuario = () => {
     setUsuarioEditando(null);
@@ -351,7 +352,7 @@ export const UsuariosPage: React.FC = () => {
           {loadingList ? (
             <div style={{ padding: '36px', textAlign: 'center', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <Loader2 size={20} className="animate-spin" />
-              <span>Cargando usuarios desde la API real...</span>
+              <span>{t('users.loading_users')}</span>
             </div>
           ) : (
             <table className="industrial-table">
@@ -803,4 +804,3 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-text-muted)',
   },
 };
-
