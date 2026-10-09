@@ -230,6 +230,12 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 **Acción requerida por Daniel:** `git push origin docs/contexto-levantamiento-post-rebase`
 
 
+### Agente autónomo de correcciones — 2026-10-09 (bitácora de `docs/BITACORA_PENDIENTES_2026-10-09.md`, rama `docs/bitacora-auditoria-admin-20261009`)
+
+Estado de PRs abiertos (ninguno fusionado; verificar en GitHub): #89 FS-01, #90 FS-03, #91 FS-02, #92 FS-08, #93 FS-09, #94 SEC-012, #95 FS-04 (nuevo: `formatFechaCalendario`, vitest 2/2, tsc limpio). Rama `feat/fs-41-automatizacion-tecnica` existe sin commits propios ni PR.
+
+Siguiente prioridad: FS-05 (reportes en zona horaria del tenant), FS-15 (vencimiento derivado del plazo del cliente; depende de #91), FS-06/07/19 (inventario), FS-10, FS-14, FS-18. No se ha desplegado ni validado nada en producción.
+
 ### Bitácoras anteriores (resumen)
 
 - **2026-10-08** — Jules PR #67: FUNC-002/004; Codex SEC-005 PR #70; Codex FUNC-001 rama `fix/func-001-cotizacion-venta`; Codex LEV-001 PR #73; docs UX PR #74; E15 PR #75.
