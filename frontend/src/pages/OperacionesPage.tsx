@@ -3,7 +3,7 @@ import { validarLineaCompra, costoSugerido } from '../utils/compraCosto';
 import { api } from '../utils/api';
 import { useTenant } from '../context/TenantContext';
 import { TopBar } from '../components/TopBar';
-import { formatLempiras, formatFechaCalendario } from '../utils/format';
+import { ZONA_HORARIA_NEGOCIO, formatLempiras, formatFechaCalendario } from '../utils/format';
 import { availableTasks } from '../utils/taskNavigation';
 import { useI18n } from '../context/I18nContext';
 import { Link } from 'react-router-dom';
@@ -12,7 +12,7 @@ import './OperacionesPage.css';
 type Mode = 'compras' | 'caja' | 'cuentas' | 'entregas';
 const errorMessage = (e: any) => { const m=e.response?.data?.message; return Array.isArray(m)?m.join(', '):m || 'No se pudo confirmar la operación. Revise la conexión y reintente.'; };
 const amount = (v:any) => formatLempiras(Number(v || 0));
-const fecha = (v:any) => v ? new Date(v).toLocaleString('es-HN') : '—';
+const fecha = (v:any) => v ? new Date(v).toLocaleString('es-HN',{timeZone:ZONA_HORARIA_NEGOCIO}) : '—';
 
 export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  const {tenant,user,isReadOnly}=useTenant();

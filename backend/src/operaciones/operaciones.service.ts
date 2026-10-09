@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
+import { ZONA_HORARIA_NEGOCIO, rangoDiasEnZona } from '../common/zona-horaria';
 import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
 import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, PagoDto, ProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 
@@ -191,12 +192,14 @@ export class OperacionesService {
   for(const v of ventas)v.items=await query(this.prisma,'SELECT d.*,p.nombre,d.cantidad-COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS cantidad FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1 AND d.cantidad>COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0)',v.id);
   return ventas.filter(v=>v.items.length>0);
  }
- async resumen(tenantId:string,desde:string,hasta:string){
+ async resumen(tenantId:string,desde:string,hasta:string,zona=ZONA_HORARIA_NEGOCIO){
   if(![desde,hasta].every(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&!Number.isNaN(Date.parse(d))&&new Date(d).toISOString().slice(0,10)===d)||desde>hasta)throw new BadRequestException('Rango de fechas inválido');
+  // created_at se guarda en UTC (TIMESTAMP sin zona): el día se calcula en la zona del negocio y se compara en UTC.
+  const {inicio,fin}=rangoDiasEnZona(desde,hasta,zona);
   return {
-   devoluciones:await query(this.prisma,"SELECT COUNT(*)::int AS cantidad,COALESCE(SUM(monto),0) AS monto FROM devoluciones WHERE tenant_id=$1 AND created_at>=$2::date AND created_at<$3::date+INTERVAL '1 day'",tenantId,desde,hasta),
-   metodos:await query(this.prisma,'SELECT metodo_pago,COUNT(*)::int AS cantidad,SUM(total) AS total FROM ventas WHERE tenant_id=$1 AND estado=\'COMPLETADA\' AND created_at>=$2::date AND created_at<$3::date+INTERVAL \'1 day\' GROUP BY metodo_pago',tenantId,desde,hasta),
-   rotacion:await query(this.prisma,'SELECT p.id,p.codigo,p.nombre,SUM(d.cantidad) AS cantidad FROM detalles_venta d JOIN ventas v ON v.id=d.venta_id JOIN productos p ON p.id=d.producto_id WHERE v.tenant_id=$1 AND v.estado=\'COMPLETADA\' AND d.sin_inventario=false AND v.created_at>=$2::date AND v.created_at<$3::date+INTERVAL \'1 day\' GROUP BY p.id ORDER BY cantidad DESC LIMIT 30',tenantId,desde,hasta),
+   devoluciones:await query(this.prisma,"SELECT COUNT(*)::int AS cantidad,COALESCE(SUM(monto),0) AS monto FROM devoluciones WHERE tenant_id=$1 AND created_at>=($2::timestamptz AT TIME ZONE 'UTC') AND created_at<($3::timestamptz AT TIME ZONE 'UTC')",tenantId,inicio.toISOString(),fin.toISOString()),
+   metodos:await query(this.prisma,'SELECT metodo_pago,COUNT(*)::int AS cantidad,SUM(total) AS total FROM ventas WHERE tenant_id=$1 AND estado=\'COMPLETADA\' AND created_at>=($2::timestamptz AT TIME ZONE \'UTC\') AND created_at<($3::timestamptz AT TIME ZONE \'UTC\') GROUP BY metodo_pago',tenantId,inicio.toISOString(),fin.toISOString()),
+   rotacion:await query(this.prisma,'SELECT p.id,p.codigo,p.nombre,SUM(d.cantidad) AS cantidad FROM detalles_venta d JOIN ventas v ON v.id=d.venta_id JOIN productos p ON p.id=d.producto_id WHERE v.tenant_id=$1 AND v.estado=\'COMPLETADA\' AND d.sin_inventario=false AND v.created_at>=($2::timestamptz AT TIME ZONE \'UTC\') AND v.created_at<($3::timestamptz AT TIME ZONE \'UTC\') GROUP BY p.id ORDER BY cantidad DESC LIMIT 30',tenantId,inicio.toISOString(),fin.toISOString()),
    alertas:await query(this.prisma,'SELECT tipo,COUNT(*)::int AS cantidad,SUM(saldo) AS saldo FROM cuentas_operativas WHERE tenant_id=$1 AND saldo>0 AND vencimiento<=NOW()+INTERVAL \'7 days\' GROUP BY tipo',tenantId),
   };
  } async buscarVenta(tenantId:string,numero:string){

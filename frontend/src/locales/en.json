@@ -422,7 +422,7 @@
     "global_filter": "GLOBAL DATE FILTER",
     "from": "From",
     "to": "To",
-    "dates_utc_notice": "Report dates in UTC.",
+    "dates_utc_notice": "Report dates in {zona} time.",
     "loading": "Loading…",
     "fetch_error": "Could not fetch reports",
     "net_sales": "Net sales",
