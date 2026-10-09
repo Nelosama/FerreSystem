@@ -19,18 +19,27 @@ it('la cadena ordenada instala el esquema actual y tenant_configuration es aditi
   const db = new PGlite();
   try {
     const names = readdirSync('prisma/migrations').filter(name => /^\d{14}_/.test(name)).sort();
-    expect(names.at(-1)).toBe('20261006000100_tenant_configuration');
-    for (const name of names.slice(0, -1)) {
-      await db.exec(readFileSync(`prisma/migrations/${name}/migration.sql`, 'utf8'));
+    const objetivo = '20261006000100_tenant_configuration';
+    const indice = names.indexOf(objetivo);
+    // La prueba verifica que tenant_configuration es aditiva sobre las migraciones
+    // anteriores; no exige que siga siendo la última del directorio.
+    expect(indice).toBeGreaterThan(-1);
+    const aplicar = (name: string) => db.exec(readFileSync(`prisma/migrations/${name}/migration.sql`, 'utf8'));
+    for (const name of names.slice(0, indice)) {
+      await aplicar(name);
     }
     // Registros sintéticos en una base efímera creada por esta prueba, nunca una base existente.
     await db.exec("INSERT INTO tenants(id, nombre_comercial, modo_navegacion, updated_at) VALUES ('legacy', 'Anterior', 'TOPNAV', NOW());");
     const oldProjection = "SELECT id, nombre_comercial, modo_navegacion FROM tenants WHERE id = 'legacy'";
     const before = await db.query(oldProjection);
-    await db.exec(readFileSync(`prisma/migrations/${names.at(-1)}/migration.sql`, 'utf8'));
+    await aplicar(objetivo);
     expect((await db.query(oldProjection)).rows).toEqual(before.rows);
     expect((await db.query("SELECT configuracion FROM tenants WHERE id = 'legacy'")).rows).toEqual([{ configuracion: {} }]);
     await db.exec("INSERT INTO tenants(id, nombre_comercial, updated_at) VALUES ('new', 'Nueva', NOW());");
     expect((await db.query("SELECT configuracion FROM tenants WHERE id = 'new'")).rows).toEqual([{ configuracion: {} }]);
+    // La cadena completa, incluidas las migraciones posteriores, se instala sin error.
+    for (const name of names.slice(indice + 1)) {
+      await aplicar(name);
+    }
   } finally { await db.close(); }
 }, 30000);
