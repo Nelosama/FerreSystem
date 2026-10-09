@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { generatePassword } from '../utils/generatePassword';
 import {
   Plus,
   CheckCircle,
@@ -875,7 +876,7 @@ export const SuperAdminPage: React.FC = () => {
                 onClick={() => {
                   setFormAdminNombre('');
                   setFormAdminEmail('');
-                  setFormAdminPassword('FerreAdmin2026!');
+                  setFormAdminPassword('');
                   setFormAdminTenantId(tenants[0]?.id || 't-1');
                   setFormAdminActivo(true);
                   setModalNuevoAdmin(true);
@@ -1635,13 +1636,16 @@ export const SuperAdminPage: React.FC = () => {
               <div className="form-group">
                 <label className="form-label">{t('uxAudit.temporary_password')} </label>
                 <input
-                  type="password"
+                  type="text"
                   required
-                  placeholder="••••••••"
+                  minLength={8}
+                  autoComplete="new-password"
+                  placeholder="Mínimo 8 caracteres, letras y números"
                   value={formAdminPassword}
                   onChange={(e) => setFormAdminPassword(e.target.value)}
                   className="form-input"
                 />
+                <button type="button" className="btn btn-secondary" style={{ marginTop: 6 }} onClick={() => setFormAdminPassword(generatePassword())}>Generar contraseña segura</button>
               </div>
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
