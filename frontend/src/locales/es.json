@@ -1100,5 +1100,11 @@
       "after": "Después",
       "user_reason": "Usuario / motivo"
     }
+  },
+  "purchases": {
+    "confirm_reception": "Confirmar la recepción de {lineas} línea(s). Aumentará las existencias y actualizará el costo vigente. Esta acción no se deshace automáticamente.",
+    "confirm_payment": "Registrar un pago de {monto} con {metodo}. ¿Confirmar?",
+    "cxp_note": "Los pagos a proveedores no afectan la caja POS, sin importar el método de pago.",
+    "paid": "PAGADA"
   }
 }

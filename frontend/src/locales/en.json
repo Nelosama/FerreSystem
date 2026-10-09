@@ -1100,5 +1100,11 @@
       "after": "After",
       "user_reason": "User / reason"
     }
+  },
+  "purchases": {
+    "confirm_reception": "Confirm receiving {lineas} line(s). This will increase stock and update the current cost. It is not reversed automatically.",
+    "confirm_payment": "Record a payment of {monto} by {metodo}. Confirm?",
+    "cxp_note": "Supplier payments do not affect the POS cash drawer, whatever the payment method.",
+    "paid": "PAID"
   }
 }
