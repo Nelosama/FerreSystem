@@ -144,6 +144,7 @@ model Tenant {
   secuencias       SecuenciaTenant[]
   modulos          TenantModule[]
   levantamientos   Levantamiento[]
+  levantamientoSesiones LevantamientoSesion[]
 
   @@map("tenants")
 }
@@ -508,6 +509,7 @@ model Levantamiento {
   // Relaciones
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   items       LevantamientoItem[]
+  sesiones    LevantamientoSesion[]
 
   @@index([tenantId])
   @@index([tenantId, estado])
@@ -535,6 +537,9 @@ model LevantamientoItem {
   version Int @default(1)
   createdBy String? @map("created_by")
   updatedBy String? @map("updated_by")
+  // Multiusuario: quién capturó este ítem y si está en conflicto con otro
+  contadorId String? @map("contador_id")
+  conflicto  Boolean @default(false)
   marca           String?
   categoria       String?
   notas           String?
@@ -545,7 +550,28 @@ model LevantamientoItem {
   levantamiento   Levantamiento @relation(fields: [levantamientoId], references: [id], onDelete: Cascade)
 
   @@index([levantamientoId])
+  @@index([levantamientoId, conflicto])
   @@map("levantamiento_items")
+}
+
+// ============================================================
+// SESIONES ACTIVAS DE LEVANTAMIENTO (heartbeat multiusuario)
+// ============================================================
+model LevantamientoSesion {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  levantamientoId String   @map("levantamiento_id")
+  usuarioId       String   @map("usuario_id")
+  nombreUsuario   String   @map("nombre_usuario")
+  ultimoHeartbeat DateTime @default(now()) @map("ultimo_heartbeat")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([levantamientoId, usuarioId])
+  @@index([levantamientoId])
+  @@index([tenantId])
+  @@map("levantamiento_sesiones")
 }
 
 
