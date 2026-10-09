@@ -15,7 +15,6 @@ const evaluate = (file, mocks, globals = {}) => {
   const filePath = fs.existsSync(file) ? file : `frontend/${file}`;
   const context = { exports: {}, console, ...globals, require: (name) => {
     if (name in mocks) return mocks[name];
-    if (name.endsWith('/inventoryNumber')) return evaluate('src/utils/inventoryNumber.ts', {});
     if (name.endsWith('/unidadMedida')) return evaluate('src/utils/unidadMedida.ts', {});
     if (name.endsWith('/numeroCliente')) return evaluate('src/utils/numeroCliente.ts', {});
     if (name.endsWith('/tenantSettings')) return evaluate('src/utils/tenantSettings.ts', {}, globals);

@@ -4,7 +4,6 @@ import { Upload, Download, AlertTriangle, Check, X, FileSpreadsheet, CheckCircle
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
-import { inventoryNumber } from '../utils/inventoryNumber';
 import { normalizarUnidadMedida } from '../utils/unidadMedida';
 
 interface ImportarProductosModalProps {
@@ -127,22 +126,22 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
         errores.push(t('inventory.invalid_name'));
       }
 
-      const numCosto = inventoryNumber(precioCostoStr, 0);
+      const numCosto = parseFloat(precioCostoStr || '0');
       if (isNaN(numCosto) || numCosto < 0) {
         errores.push(t('inventory.invalid_prices'));
       }
 
-      const numVenta = inventoryNumber(precioVentaStr, 0);
+      const numVenta = parseFloat(precioVentaStr || '0');
       if (isNaN(numVenta) || numVenta < 0) {
         errores.push(t('inventory.invalid_prices'));
       }
 
-      const numStock = inventoryNumber(stockActualStr, 0);
+      const numStock = Number(stockActualStr || '0');
       if (isNaN(numStock) || numStock < 0) {
         errores.push(t('inventory.invalid_prices'));
       }
 
-      const numStockMin = inventoryNumber(stockMinimoStr, 5);
+      const numStockMin = Number(stockMinimoStr || '5');
       if (isNaN(numStockMin) || numStockMin < 0) {
         errores.push(t('inventory.invalid_prices'));
       }
