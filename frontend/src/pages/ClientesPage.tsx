@@ -12,12 +12,41 @@ import {
   X,
   Check,
   AlertCircle,
+  CheckCircle2,
   Loader2,
   Phone,
   Mail,
   MapPin,
   UserCheck,
 } from 'lucide-react';
+
+export function formatApiError(err: any, defaultMsg: string, t: (key: string, options?: any) => string): string {
+  if (!err) return defaultMsg;
+  const status = err.response?.status;
+  const rawMsg = err.response?.data?.message;
+
+  if (status === 409) {
+    return t('validation.err_409_client');
+  }
+  if (status === 403 || status === 401) {
+    return t('validation.err_403');
+  }
+  if (status === 400) {
+    if (Array.isArray(rawMsg)) return rawMsg.join(', ');
+    if (typeof rawMsg === 'string' && rawMsg.trim()) return rawMsg;
+    return t('validation.err_400_general');
+  }
+  if (status >= 500) {
+    return t('validation.err_500');
+  }
+  if (err.message === 'Network Error' || !err.response) {
+    return t('validation.err_network');
+  }
+  if (rawMsg) {
+    return Array.isArray(rawMsg) ? rawMsg.join(', ') : String(rawMsg);
+  }
+  return defaultMsg;
+}
 
 export interface Cliente {
   id: string;
@@ -41,6 +70,7 @@ export const ClientesPage: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
 
   // Modales
@@ -48,13 +78,15 @@ export const ClientesPage: React.FC = () => {
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [clienteEliminar, setClienteEliminar] = useState<Cliente | null>(null);
 
-  // Form states
+  // Form states & field-level errors
   const [formNombre, setFormNombre] = useState('');
   const [formRtn, setFormRtn] = useState('');
   const [formTelefono, setFormTelefono] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formDireccion, setFormDireccion] = useState('');
   const [formTipo, setFormTipo] = useState<'CONSUMIDOR_FINAL' | 'MAYORISTA' | 'CONTRATISTA'>('CONSUMIDOR_FINAL');
+
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const fetchClientes = useCallback(async () => {
     setLoading(true);
@@ -66,16 +98,11 @@ export const ClientesPage: React.FC = () => {
       setClientes(response.data);
     } catch (err: any) {
       console.error('Error al obtener clientes:', err);
-      const msg = err.response?.data?.message
-        ? Array.isArray(err.response.data.message)
-          ? err.response.data.message.join(', ')
-          : err.response.data.message
-        : 'No se pudo conectar con el servidor para obtener los clientes.';
-      setErrorBanner(msg);
+      setErrorBanner(formatApiError(err, t('clients.fetch_error'), t));
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, t]);
 
   useEffect(() => {
     fetchClientes();
@@ -89,6 +116,7 @@ export const ClientesPage: React.FC = () => {
     setFormEmail('');
     setFormDireccion('');
     setFormTipo('CONSUMIDOR_FINAL');
+    setFieldErrors({});
     setModalError(null);
     setModalFormAbierto(true);
   };
@@ -101,13 +129,51 @@ export const ClientesPage: React.FC = () => {
     setFormEmail(c.email || '');
     setFormDireccion(c.direccion || '');
     setFormTipo(c.tipo);
+    setFieldErrors({});
     setModalError(null);
     setModalFormAbierto(true);
   };
 
+  const validarFormulario = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formNombre.trim()) {
+      errors.nombre = t('validation.required_field');
+    }
+
+    if (formEmail.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formEmail.trim())) {
+        errors.email = t('validation.invalid_email');
+      }
+    }
+
+    if (formRtn.trim()) {
+      const cleanRtn = formRtn.replace(/\D/g, '');
+      if (cleanRtn.length !== 14) {
+        errors.rtn = t('validation.invalid_rtn_length');
+      }
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const showSuccess = (msg: string) => {
+    setSuccessBanner(msg);
+    setTimeout(() => {
+      setSuccessBanner(null);
+    }, 4000);
+  };
+
   const handleGuardarCliente = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formNombre.trim()) return;
+    if (submitting) return;
+
+    if (!validarFormulario()) {
+      setModalError(t('validation.form_has_errors'));
+      return;
+    }
 
     setSubmitting(true);
     setModalError(null);
@@ -124,19 +190,16 @@ export const ClientesPage: React.FC = () => {
     try {
       if (clienteEditando) {
         await api.put(`/clientes/${clienteEditando.id}`, payload);
+        showSuccess(t('clients.updated_success', { name: payload.nombre }));
       } else {
         await api.post('/clientes', payload);
+        showSuccess(t('clients.saved_success', { name: payload.nombre }));
       }
       setModalFormAbierto(false);
       await fetchClientes();
     } catch (err: any) {
       console.error('Error al guardar cliente:', err);
-      const msg = err.response?.data?.message
-        ? Array.isArray(err.response.data.message)
-          ? err.response.data.message.join(', ')
-          : err.response.data.message
-        : 'Error al conectar con la API real para guardar el cliente.';
-      setModalError(msg);
+      setModalError(formatApiError(err, t('clients.save_error'), t));
     } finally {
       setSubmitting(false);
     }
@@ -145,21 +208,18 @@ export const ClientesPage: React.FC = () => {
   const handleEliminarCliente = async () => {
     if (!clienteEliminar || deletingId) return;
 
+    const nombreEliminado = clienteEliminar.nombre;
     setDeletingId(clienteEliminar.id);
     setErrorBanner(null);
 
     try {
       await api.delete(`/clientes/${clienteEliminar.id}`);
       setClienteEliminar(null);
+      showSuccess(t('clients.deleted_success', { name: nombreEliminado }));
       await fetchClientes();
     } catch (err: any) {
       console.error('Error al eliminar cliente:', err);
-      const msg = err.response?.data?.message
-        ? Array.isArray(err.response.data.message)
-          ? err.response.data.message.join(', ')
-          : err.response.data.message
-        : 'No se pudo eliminar el cliente. Verifique que no tenga operaciones asociadas.';
-      setErrorBanner(msg);
+      setErrorBanner(formatApiError(err, t('clients.delete_error'), t));
       setClienteEliminar(null);
     } finally {
       setDeletingId(null);
@@ -168,13 +228,20 @@ export const ClientesPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="GESTIÓN DE CLIENTES" subtitle="Directorio Comercial y Datos Fiscales RTN" />
+      <TopBar title={t('clients.new_client')} subtitle={t('tasks.clientes.description')} />
 
       <main style={styles.content}>
         {errorBanner && (
           <div style={styles.errorBanner}>
-            <AlertCircle size={18} />
+            <AlertCircle size={18} style={{ flexShrink: 0 }} />
             <span>{errorBanner}</span>
+          </div>
+        )}
+
+        {successBanner && (
+          <div style={styles.successBanner}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+            <span>{successBanner}</span>
           </div>
         )}
 
@@ -189,6 +256,16 @@ export const ClientesPage: React.FC = () => {
               className="form-input"
               style={{ paddingLeft: '38px', height: '42px' }}
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                aria-label={t('common.clear_search')}
+                style={styles.clearSearchBtn}
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
 
           <button type="button" className="btn btn-primary" onClick={abrirNuevoCliente}>
@@ -301,51 +378,78 @@ export const ClientesPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Users size={20} color="var(--color-primary)" />
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                  {clienteEditando ? 'EDITAR CLIENTE' : 'NUEVO CLIENTE'}
+                  {clienteEditando ? t('clients.edit_client') : t('clients.new_client')}
                 </h2>
               </div>
-              <button type="button" onClick={() => setModalFormAbierto(false)} style={styles.closeBtn}>
+              <button
+                type="button"
+                onClick={() => setModalFormAbierto(false)}
+                style={styles.closeBtn}
+                aria-label={t('common.close_modal')}
+              >
                 <X size={20} />
               </button>
             </div>
 
             {modalError && (
               <div style={styles.modalErrorBanner}>
-                <AlertCircle size={16} />
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
                 <span>{modalError}</span>
               </div>
             )}
 
             <form onSubmit={handleGuardarCliente} style={{ marginTop: '16px' }}>
-              <p>{clienteEditando ? `${t('clientPicker.numberLabel')}: ${formatNumeroCliente(clienteEditando.numeroCliente)}` : t('clientPicker.numberAutomatic')}</p>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>
+                {clienteEditando ? `${t('clientPicker.numberLabel')}: ${formatNumeroCliente(clienteEditando.numeroCliente)}` : t('clientPicker.numberAutomatic')}
+              </p>
+
               <div className="form-group">
-                <label className="form-label">NOMBRE COMPLETO / RAZÓN SOCIAL *</label>
+                <label className="form-label">
+                  {t('clients.client_name')} <span style={{ color: '#DC2626' }}>*</span>
+                </label>
                 <input
                   type="text"
                   required
+                  disabled={submitting}
                   placeholder="Ej. Constructora del Norte S.A."
                   value={formNombre}
-                  onChange={(e) => setFormNombre(e.target.value)}
+                  onChange={(e) => {
+                    setFormNombre(e.target.value);
+                    if (fieldErrors.nombre) setFieldErrors({ ...fieldErrors, nombre: '' });
+                  }}
                   className="form-input"
+                  style={fieldErrors.nombre ? styles.inputError : {}}
                 />
+                {fieldErrors.nombre && (
+                  <span style={styles.fieldErrorText}>{fieldErrors.nombre}</span>
+                )}
               </div>
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">RTN / IDENTIFICACIÓN FISCAL</label>
+                  <label className="form-label">{t('clients.rtn')}</label>
                   <input
                     type="text"
+                    disabled={submitting}
                     placeholder="Ej. 08011990123456"
                     value={formRtn}
-                    onChange={(e) => setFormRtn(e.target.value)}
+                    onChange={(e) => {
+                      setFormRtn(e.target.value);
+                      if (fieldErrors.rtn) setFieldErrors({ ...fieldErrors, rtn: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.rtn ? styles.inputError : {}}
                   />
+                  {fieldErrors.rtn && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.rtn}</span>
+                  )}
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">TIPO DE CLIENTE</label>
+                  <label className="form-label">{t('clients.client_type')} <span style={{ color: '#DC2626' }}>*</span></label>
                   <select
                     value={formTipo}
+                    disabled={submitting}
                     onChange={(e) => setFormTipo(e.target.value as any)}
                     className="form-select"
                   >
@@ -358,9 +462,10 @@ export const ClientesPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">TELÉFONO DE CONTACTO</label>
+                  <label className="form-label">{t('clients.phone')}</label>
                   <input
                     type="text"
+                    disabled={submitting}
                     placeholder="+504 9999-8888"
                     value={formTelefono}
                     onChange={(e) => setFormTelefono(e.target.value)}
@@ -369,21 +474,30 @@ export const ClientesPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">CORREO ELECTRÓNICO</label>
+                  <label className="form-label">{t('clients.email')}</label>
                   <input
                     type="email"
+                    disabled={submitting}
                     placeholder="contacto@empresa.hn"
                     value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
+                    onChange={(e) => {
+                      setFormEmail(e.target.value);
+                      if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.email ? styles.inputError : {}}
                   />
+                  {fieldErrors.email && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.email}</span>
+                  )}
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label">DIRECCIÓN FÍSICA</label>
+                <label className="form-label">{t('clients.address')}</label>
                 <textarea
                   rows={2}
+                  disabled={submitting}
                   placeholder="Ej. Barrio El Centro, Ave. San Isidro, La Ceiba"
                   value={formDireccion}
                   onChange={(e) => setFormDireccion(e.target.value)}
@@ -399,18 +513,18 @@ export const ClientesPage: React.FC = () => {
                   disabled={submitting}
                   onClick={() => setModalFormAbierto(false)}
                 >
-                  CANCELAR
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
                   {submitting ? (
                     <>
                       <Loader2 size={16} className="animate-spin" />
-                      <span>GUARDANDO...</span>
+                      <span>{t('clients.saving')}</span>
                     </>
                   ) : (
                     <>
                       <Check size={16} strokeWidth={2.6} />
-                      <span>GUARDAR CLIENTE</span>
+                      <span>{t('clients.save_client')}</span>
                     </>
                   )}
                 </button>
@@ -428,7 +542,7 @@ export const ClientesPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#DC2626' }}>
                 <AlertCircle size={20} />
                 <h2 style={{ fontSize: '15px', textTransform: 'uppercase', color: '#DC2626' }}>
-                  CONFIRMAR ELIMINACIÓN
+                  {t('clients.confirm_delete')}
                 </h2>
               </div>
               <button
@@ -436,16 +550,17 @@ export const ClientesPage: React.FC = () => {
                 onClick={() => !deletingId && setClienteEliminar(null)}
                 disabled={Boolean(deletingId)}
                 style={styles.closeBtn}
+                aria-label={t('common.close_modal')}
               >
                 <X size={20} />
               </button>
             </div>
 
             <div style={{ marginTop: '16px', fontSize: '13px', lineHeight: '1.5', color: '#444' }}>
-              ¿Está seguro de eliminar al cliente <strong>{clienteEliminar.nombre}</strong>?
+              {t('clients.delete_warning', { name: clienteEliminar.nombre })}
               <br />
               <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '6px', display: 'block' }}>
-                Esta acción enviará una petición DELETE a la API real en Supabase. Si el cliente posee ventas o cotizaciones asociadas, la API rechazará la operación para mantener la integridad histórica.
+                {t('clients.delete_subtext')}
               </span>
             </div>
 
@@ -456,7 +571,7 @@ export const ClientesPage: React.FC = () => {
                 disabled={Boolean(deletingId)}
                 onClick={() => setClienteEliminar(null)}
               >
-                CANCELAR
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -468,10 +583,10 @@ export const ClientesPage: React.FC = () => {
                 {deletingId ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    <span>ELIMINANDO...</span>
+                    <span>{t('clients.deleting')}</span>
                   </>
                 ) : (
-                  <span>ELIMINAR DEFINITIVAMENTE</span>
+                  <span>{t('clients.delete_permanently')}</span>
                 )}
               </button>
             </div>
@@ -508,6 +623,19 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '10px',
   },
+  successBanner: {
+    marginBottom: '16px',
+    padding: '12px 16px',
+    backgroundColor: '#DCFCE7',
+    border: '1px solid #22C55E',
+    borderRadius: '4px',
+    color: '#15803D',
+    fontSize: '13px',
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
   modalErrorBanner: {
     marginTop: '12px',
     padding: '10px 14px',
@@ -520,6 +648,17 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
+  },
+  inputError: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
+  },
+  fieldErrorText: {
+    fontSize: '11px',
+    color: '#DC2626',
+    fontWeight: 600,
+    marginTop: '4px',
+    display: 'block',
   },
   actionsBar: {
     display: 'flex',
@@ -537,6 +676,16 @@ const styles: Record<string, React.CSSProperties> = {
     left: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
+    color: 'var(--color-text-muted)',
+  },
+  clearSearchBtn: {
+    position: 'absolute',
+    right: '10px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
     color: 'var(--color-text-muted)',
   },
   modalOverlay: {

@@ -1,6 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { TopBar } from '../components/TopBar';
-import { useI18n } from '../context/I18nContext';
+
+export function formatUsuarioApiError(err: any, defaultMsg: string, t: (key: string, options?: any) => string): string {
+  if (!err) return defaultMsg;
+  const status = err.response?.status;
+  const rawMsg = err.response?.data?.message;
+
+  if (status === 409) {
+    return t('validation.err_409_user');
+  }
+  if (status === 403 || status === 401) {
+    return t('validation.err_403');
+  }
+  if (status === 400) {
+    if (Array.isArray(rawMsg)) return rawMsg.join(', ');
+    if (typeof rawMsg === 'string' && rawMsg.trim()) return rawMsg;
+    return t('validation.err_400_general');
+  }
+  if (status >= 500) {
+    return t('validation.err_500');
+  }
+  if (err.message === 'Network Error' || !err.response) {
+    return t('validation.err_network');
+  }
+  if (rawMsg) {
+    return Array.isArray(rawMsg) ? rawMsg.join(', ') : String(rawMsg);
+  }
+  return defaultMsg;
+}
 
 export interface Usuario {
   id: string;
@@ -58,34 +85,35 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react';
+import { useI18n } from '../context/I18nContext';
+
+const TODOS_LOS_PERMISOS = [
+    { clave: 'pos.vender', labelKey: 'tasks.pos.title' },
+    { clave: 'pos.anular_venta', labelKey: 'tasks.devoluciones.title' },
+    { clave: 'pos.aplicar_descuento', labelKey: 'pos.apply_discount' },
+    { clave: 'inventario.ver', labelKey: 'tasks.inventario.title' },
+    { clave: 'inventario.editar', labelKey: 'inventory.new_product' },
+    { clave: 'cotizaciones.crear', labelKey: 'quotations.new_quotation' },
+    { clave: 'cotizaciones.aprobar', labelKey: 'operational.aprobada' },
+    { clave: 'cotizaciones.convertir_venta', labelKey: 'quotations.convert_to_sale' },
+    { clave: 'reportes.ver', labelKey: 'tasks.reportes.title' },
+    { clave: 'usuarios.gestionar', labelKey: 'tasks.usuarios.title' },
+    { clave: 'configuracion.editar', labelKey: 'tasks.configuracion.title' },
+];
 
 export const UsuariosPage: React.FC = () => {
   const { t } = useI18n();
-
-  const TODOS_LOS_PERMISOS = [
-    { clave: 'pos.vender', labelKey: 'users.perm_pos_vender' },
-    { clave: 'pos.anular_venta', labelKey: 'users.perm_pos_anular' },
-    { clave: 'pos.aplicar_descuento', labelKey: 'users.perm_pos_descuento' },
-    { clave: 'inventario.ver', labelKey: 'users.perm_inv_ver' },
-    { clave: 'inventario.editar', labelKey: 'users.perm_inv_editar' },
-    { clave: 'cotizaciones.crear', labelKey: 'users.perm_cot_crear' },
-    { clave: 'cotizaciones.aprobar', labelKey: 'users.perm_cot_aprobar' },
-    { clave: 'cotizaciones.convertir_venta', labelKey: 'users.perm_cot_convertir' },
-    { clave: 'reportes.ver', labelKey: 'users.perm_rep_ver' },
-    { clave: 'usuarios.gestionar', labelKey: 'users.perm_usr_gestionar' },
-    { clave: 'configuracion.editar', labelKey: 'users.perm_cfg_editar' },
-  ];
-
   const [listaUsuarios, setListaUsuarios] = useState<Usuario[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState<Usuario | null>(null);
 
-  // Form states
+  // Form states & field-level errors
   const [formNombre, setFormNombre] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formPassword, setFormPassword] = useState('');
@@ -94,6 +122,8 @@ export const UsuariosPage: React.FC = () => {
   const [formPermisos, setFormPermisos] = useState<string[]>([]);
   const [formDescuentoMaximo, setFormDescuentoMaximo] = useState<number>(10);
   const [formActivo, setFormActivo] = useState(true);
+
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const SUCURSALES_OPCIONES = [
     'Sucursal Centro (Principal)',
@@ -123,12 +153,7 @@ export const UsuariosPage: React.FC = () => {
         }
       } catch (err: any) {
         console.error('Error al obtener lista de usuarios desde la API real:', err);
-        const errorMsg = err.response?.data?.message
-          ? Array.isArray(err.response.data.message)
-            ? err.response.data.message.join(', ')
-            : err.response.data.message
-          : t('users.error_loading');
-        setErrorBanner(errorMsg);
+        setErrorBanner(formatUsuarioApiError(err, t('users.fetch_error'), t));
       } finally {
         setLoadingList(false);
       }
@@ -147,6 +172,7 @@ export const UsuariosPage: React.FC = () => {
     setFormPermisos(PERMISOS_DEFAULT_POR_ROL.CAJERO.permisos);
     setFormDescuentoMaximo(PERMISOS_DEFAULT_POR_ROL.CAJERO.descuentoMaximo);
     setFormActivo(true);
+    setFieldErrors({});
     setModalError(null);
     setModalAbierto(true);
   };
@@ -161,8 +187,44 @@ export const UsuariosPage: React.FC = () => {
     setFormPermisos(usr.permisos);
     setFormDescuentoMaximo(usr.descuentoMaximo);
     setFormActivo(usr.activo);
+    setFieldErrors({});
     setModalError(null);
     setModalAbierto(true);
+  };
+
+  const validarFormularioUsuario = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formNombre.trim()) {
+      errors.nombre = t('validation.required_field');
+    }
+
+    if (!formEmail.trim()) {
+      errors.email = t('validation.required_field');
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formEmail.trim())) {
+        errors.email = t('validation.invalid_email');
+      }
+    }
+
+    if (!usuarioEditando && (!formPassword || formPassword.length < 6)) {
+      errors.password = t('validation.min_length', { min: 6 });
+    }
+
+    if (formDescuentoMaximo < 0 || formDescuentoMaximo > 100 || isNaN(formDescuentoMaximo)) {
+      errors.descuentoMaximo = t('validation.number_range', { min: 0, max: 100 });
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const showSuccess = (msg: string) => {
+    setSuccessBanner(msg);
+    setTimeout(() => {
+      setSuccessBanner(null);
+    }, 4000);
   };
 
   const handleCambioRolBase = (nuevoRol: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR') => {
@@ -182,7 +244,12 @@ export const UsuariosPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formNombre || !formEmail) return;
+    if (submitting) return;
+
+    if (!validarFormularioUsuario()) {
+      setModalError(t('validation.form_has_errors'));
+      return;
+    }
 
     setSubmitting(true);
     setModalError(null);
@@ -217,6 +284,7 @@ export const UsuariosPage: React.FC = () => {
         setListaUsuarios((prev) =>
           prev.map((u) => (u.id === usuarioEditando.id ? updatedUsuario : u)),
         );
+        showSuccess(t('users.updated_success', { name: updatedUsuario.nombre }));
       } else {
         // HTTP POST to real backend
         const res = await api.post('/usuarios', payload);
@@ -234,18 +302,13 @@ export const UsuariosPage: React.FC = () => {
         };
 
         setListaUsuarios((prev) => [nuevoUsuario, ...prev]);
+        showSuccess(t('users.saved_success', { name: nuevoUsuario.nombre }));
       }
 
       setModalAbierto(false);
     } catch (err: any) {
       console.error('Error al guardar usuario en backend:', err);
-      const msg = err.response?.data?.message
-        ? Array.isArray(err.response.data.message)
-          ? err.response.data.message.join(', ')
-          : err.response.data.message
-        : err.message || 'Error de conexión con la API backend en Render. Revisa la URL y estado del servidor.';
-
-      setModalError(msg);
+      setModalError(formatUsuarioApiError(err, t('users.save_error'), t));
     } finally {
       setSubmitting(false);
     }
@@ -258,8 +321,15 @@ export const UsuariosPage: React.FC = () => {
       <main style={styles.content}>
         {errorBanner && (
           <div style={styles.errorBanner}>
-            <AlertCircle size={18} />
+            <AlertCircle size={18} style={{ flexShrink: 0 }} />
             <span>{errorBanner}</span>
+          </div>
+        )}
+
+        {successBanner && (
+          <div style={styles.successBanner}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+            <span>{successBanner}</span>
           </div>
         )}
 
@@ -368,7 +438,7 @@ export const UsuariosPage: React.FC = () => {
 
             {modalError && (
               <div style={styles.modalErrorBanner}>
-                <AlertCircle size={16} />
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
                 <span>{modalError}</span>
               </div>
             )}
@@ -376,49 +446,80 @@ export const UsuariosPage: React.FC = () => {
             <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.full_name')}</label>
+                  <label className="form-label">
+                    {t('users.full_name')} <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
                   <input
                     type="text"
                     required
+                    disabled={submitting}
                     placeholder={t('users.placeholder_name')}
                     value={formNombre}
-                    onChange={(e) => setFormNombre(e.target.value)}
+                    onChange={(e) => {
+                      setFormNombre(e.target.value);
+                      if (fieldErrors.nombre) setFieldErrors({ ...fieldErrors, nombre: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.nombre ? styles.inputError : {}}
                   />
+                  {fieldErrors.nombre && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.nombre}</span>
+                  )}
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.email')}</label>
+                  <label className="form-label">
+                    {t('users.email')} <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
                   <input
                     type="email"
                     required
+                    disabled={submitting}
                     placeholder={t('users.placeholder_email')}
                     value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
+                    onChange={(e) => {
+                      setFormEmail(e.target.value);
+                      if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.email ? styles.inputError : {}}
                   />
+                  {fieldErrors.email && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.email}</span>
+                  )}
                 </div>
               </div>
 
               {!usuarioEditando && (
                 <div className="form-group">
-                  <label className="form-label">{t('users.temp_password')}</label>
+                  <label className="form-label">
+                    {t('users.temp_password')} <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
                   <input
                     type="password"
                     required
+                    disabled={submitting}
                     placeholder="••••••••"
                     value={formPassword}
-                    onChange={(e) => setFormPassword(e.target.value)}
+                    onChange={(e) => {
+                      setFormPassword(e.target.value);
+                      if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.password ? styles.inputError : {}}
                   />
+                  {fieldErrors.password && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.password}</span>
+                  )}
                 </div>
               )}
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.work_branch')}</label>
+                  <label className="form-label">{t('users.work_branch')} <span style={{ color: '#DC2626' }}>*</span></label>
                   <select
                     value={formSucursalActual}
+                    disabled={submitting}
                     onChange={(e) => setFormSucursalActual(e.target.value)}
                     className="form-select"
                   >
@@ -431,9 +532,10 @@ export const UsuariosPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.base_role')}</label>
+                  <label className="form-label">{t('users.base_role')} <span style={{ color: '#DC2626' }}>*</span></label>
                   <select
                     value={formRolBase}
+                    disabled={submitting}
                     onChange={(e) =>
                       handleCambioRolBase(e.target.value as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR')
                     }
@@ -449,16 +551,24 @@ export const UsuariosPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.max_allowed_discount')}</label>
+                  <label className="form-label">{t('users.max_allowed_discount')} <span style={{ color: '#DC2626' }}>*</span></label>
                   <input
                     type="number"
                     min="0"
                     max="100"
                     required
+                    disabled={submitting}
                     value={formDescuentoMaximo}
-                    onChange={(e) => setFormDescuentoMaximo(Number(e.target.value))}
+                    onChange={(e) => {
+                      setFormDescuentoMaximo(Number(e.target.value));
+                      if (fieldErrors.descuentoMaximo) setFieldErrors({ ...fieldErrors, descuentoMaximo: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.descuentoMaximo ? styles.inputError : {}}
                   />
+                  {fieldErrors.descuentoMaximo && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.descuentoMaximo}</span>
+                  )}
                 </div>
               </div>
 
@@ -580,6 +690,19 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '10px',
   },
+  successBanner: {
+    marginBottom: '16px',
+    padding: '12px 16px',
+    backgroundColor: '#DCFCE7',
+    border: '1px solid #22C55E',
+    borderRadius: '4px',
+    color: '#15803D',
+    fontSize: '13px',
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
   modalErrorBanner: {
     marginTop: '12px',
     padding: '10px 14px',
@@ -592,6 +715,17 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
+  },
+  inputError: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
+  },
+  fieldErrorText: {
+    fontSize: '11px',
+    color: '#DC2626',
+    fontWeight: 600,
+    marginTop: '4px',
+    display: 'block',
   },
   headerRow: {
     display: 'flex',
