@@ -264,6 +264,28 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 - Worker Restic cifrado con verificación de checksum/restauración aislada previo a retención. Prueba PostgreSQL 18 + restic local temporal pasa, pero NO configura ni acredita destino remoto de producción. Backup operativo permanece BLOQUEADO hasta despliegue a staging y prueba externa satisfactoria.
 - Consola movida del dashboard ADMIN a Super Admin; rutas con `SuperAdminGuard`. Tests backend/frontend y limitaciones en documento FS-41.
 - Sin cambios a base/producción, sin merge ni despliegue. Pendiente infraestructura de cliente, credenciales externas fuera del repo, webhook/monitor, restauración staging y revisión PR.
+### FS-06 — auditoría e integridad del levantamiento inicial de inventario (2026-10-09)
+
+- **Rama:** `fix/fs-06-levantamiento-inventario` desde `origin/main` `4c104a24`. PR abierto hacia `main`. Sin merge ni despliegue.
+- **Ya resuelto en `main` antes de este trabajo (verificado en código, no reabierto):** normalización y protección de barcode (PR #73/#76, LEV-001); guard de precio null en `aplicar()` (`levantamientos.service.ts`, auditoría P1 de PR #79); `@MaxLength(100)` en `codigoBarras` de DTOs de levantamiento y producto; idempotencia de alta por `solicitudId` con hash de contenido; bloqueo de doble envío en frontend (`inFlight`) y `solicitudId` persistido en `localStorage` para reintentos; `lockTenant` en alta y edición de productos (no hay duplicado por concurrencia en `productos.create`).
+- **Defectos confirmados con pruebas en PostgreSQL real (HTTP) que fallaban antes del cambio y ahora pasan:**
+  1. `productoId` de otra empresa se guardaba sin validar en el conteo → ahora `400` (`createItem`).
+  2. `heartbeat` creaba presencia en levantamientos de otra empresa → ahora `404`.
+  3. Producto heredado con código en minúsculas no se identificaba en preview/aplicar → se creaba un producto duplicado que solo difería en mayúsculas. Corregido con comparación sin distinguir mayúsculas.
+  4. Editar un conteo para que coincida con el de otro usuario no marcaba conflicto → alta y edición usan ahora la misma regla (`conflictingItems`) y limpian conflictos huérfanos.
+- **Protecciones verificadas que ya pasan (regresión añadida):** dos solicitudes simultáneas con el mismo `solicitudId` crean un solo ítem y una sola auditoría `CONTEO_CREAR`; reintento tras pérdida de respuesta no duplica existencias; editar solo el nombre de un producto conserva código, barcode, costo, precio, existencias y unidad.
+- **Pruebas:** integración PostgreSQL 16 (`levantamientos.postgres.integration.ts`): antes del cambio 4 de 16 fallaban (defectos 1–4); tras la corrección 16/16. Suite de integración completa **6 archivos, 86/86**. Unitarias backend **316/316** (en `main`; 3 mocks de la unitaria se ajustaron para el nuevo comportamiento sin relajar aserciones). `tsc -p tsconfig.build.json` y oxlint sin errores. Todo ejecutado como `nobody` (`runuser`).
+- **Permisos y tenant:** cubiertos por pruebas existentes: CAJERO `403` en alta de productos, levantamientos y conteo; BODEGUERO sin permiso `403` y no puede aplicar; aislamiento de levantamientos, ítems y productos entre empresas.
+- **No implementado (fuera de lo verificable o requiere decisión):**
+  - **Fase 3 UX** (búsqueda por categoría, flujo de escáner en móvil, confirmaciones visibles): no modificada en este PR. Requiere validación en navegador y dispositivo real, no hecha aquí.
+  - **Fase 4 fotografías:** no implementada. La bitácora `BITACORA_UI_UX_FOTOGRAFIAS_20261008.md` deja pendiente topología Wi‑Fi, HTTPS LAN y servicio local. Solo existe el campo `imagenUrl` (texto). No se simula.
+  - **Lotes, series, vencimientos y garantías:** `Producto` no tiene esos campos en el esquema. No se inventó modelo. Garantías existe en frontend, sin verificar persistencia en backend.
+- **Decisiones pendientes (requieren autorización, no implementadas):**
+  1. `marca`, `categoría`, `ubicación` y `notas` se capturan en el conteo, pero al crear un producto nuevo solo se usan `categoría` y `descripción`. `marca`, `ubicación` y `notas` no se persisten en el catálogo porque `Producto` no tiene esos campos. Opciones: ampliar `Producto` (cambio de esquema) o documentar que quedan solo en el historial del conteo.
+  2. Mismo usuario captura el mismo producto dos veces: no se marca conflicto al capturar; el bloqueo ocurre al previsualizar ("Conteo duplicado"). Regla de negocio: ¿sumar, reemplazar o advertir al capturar?
+  3. `POST /levantamientos` no tiene idempotencia (sin `solicitudId`). Un reintento tras pérdida de respuesta puede crear dos levantamientos. El frontend lo evita con bloqueo de doble clic, pero no ante reintento de red.
+- **Riesgos residuales:** Playwright y navegador real no ejecutados; iPhone y cámara sin validar (LEV-015); `ubicacion` solo en historial; búsqueda de preview sin índice para códigos muy numerosos (`OR` con una cláusula por código); mocks de la unitaria dependen de la forma de la consulta.
+
 **FIN DEL CONTEXTO VIGENTE**
 
 
