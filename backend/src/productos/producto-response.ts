@@ -17,12 +17,12 @@ export function publicProduct(p: any): any {
   const {
     id, codigo, codigoBarras, codigoFabricante, nombre, descripcion,
     categoriaId, precioVenta, stockActual, stockReservado, stockDisponible,
-    stockMinimo, stockBajo, stockFisico, unidadMedida, usaMedida, activo, imagenUrl, marca,
+    stockMinimo, stockBajo, stockFisico, unidadMedida, usaMedida, activo, imagenUrl, marca, version,
   } = p;
   return {
     id, codigo, codigoBarras, codigoFabricante, nombre, descripcion,
     categoriaId, precioVenta, stockActual, stockReservado, stockDisponible,
-    stockMinimo, stockBajo, stockFisico, unidadMedida, usaMedida, activo, imagenUrl, marca,
+    stockMinimo, stockBajo, stockFisico, unidadMedida, usaMedida, activo, imagenUrl, marca, version,
     ...(p.categoria !== undefined ? {
       categoria: p.categoria ? { id: p.categoria.id, nombre: p.categoria.nombre } : null,
     } : {}),

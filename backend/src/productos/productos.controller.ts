@@ -23,8 +23,9 @@ export class ProductosController {
     @TenantId() tenantId: string,
     @Query('search') search?: string,
     @Query('categoriaId') categoriaId?: string,
+    @Query('incluirInactivos') incluirInactivos?: string,
   ) {
-    return this.productosService.findAll(tenantId, search, categoriaId);
+    return this.productosService.findAll(tenantId, search, categoriaId, incluirInactivos === 'true');
   }
 
   @Get('alertas/stock-bajo')
