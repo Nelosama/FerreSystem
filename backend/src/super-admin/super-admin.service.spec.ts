@@ -62,10 +62,20 @@ describe('SuperAdminService', () => {
   it('issues support tokens with the actual tenant identity and role', async () => {
     prisma.superAdmin.findUnique.mockResolvedValue(admin);
     prisma.usuario = { findFirst: vi.fn().mockResolvedValue({ id: 'u1', tenantId: 't1', email: 'u@test.com', nombre: 'Cajero', rol: 'CAJERO', activo: true, tenant: { estado: 'ACTIVO' } }) };
+    prisma.auditoriaOperacion = { create: vi.fn().mockResolvedValue({}) };
     const result = await service.supportToken(admin.id, 't1', 'u1');
+    expect(prisma.auditoriaOperacion.create).toHaveBeenCalledWith({ data: expect.objectContaining({ tenantId: 't1', usuarioId: 'u1', operacion: 'SOPORTE_IMPERSONAR', datos: expect.objectContaining({ superAdminId: admin.id, readOnly: true }) }) });
     expect(prisma.usuario.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'u1', tenantId: 't1', activo: true } }));
     expect(jwt.sign).toHaveBeenCalledWith(expect.objectContaining({ sub: 'u1', tenantId: 't1', rol: 'CAJERO', type: 'tenant', impersonatedBy: admin.id, readOnly: true }), { expiresIn: '15m' });
     expect(result.user.rol).toBe('CAJERO');
+  });
+
+  it('FS SEC-012: no emite token de soporte si la auditoría falla', async () => {
+    prisma.superAdmin.findUnique.mockResolvedValue(admin);
+    prisma.usuario = { findFirst: vi.fn().mockResolvedValue({ id: 'u1', tenantId: 't1', email: 'u@test.com', rol: 'CAJERO', activo: true, tenant: { estado: 'ACTIVO' } }) };
+    prisma.auditoriaOperacion = { create: vi.fn().mockRejectedValue(new Error('db')) };
+    await expect(service.supportToken(admin.id, 't1', 'u1')).rejects.toThrow('db');
+    expect(jwt.sign).not.toHaveBeenCalled();
   });
 
   it('rejects support for suspended companies and disabled superadmins', async () => {

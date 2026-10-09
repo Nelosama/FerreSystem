@@ -207,6 +207,8 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 | **Diagnóstico pendientes** — ítems 2,3,5-11 PENDIENTES | Item 5 (barcode cámara): PARCIAL vía PR #76. Exportación CSV/Excel: PARCIAL (sin plantillas). Ítem 2 (multiusuario), 3 (offline), 7 (zonas), 9 (reconteo): NO implementados. |
 | **Documentación** | Este archivo actualizado. Rama `docs/contexto-levantamiento-post-rebase`. |
 | **PR #79 — Auditoría P1/P2 completada** | Dos defectos confirmados y corregidos. Commit `bac89b1b` en rama `docs/contexto-levantamiento-post-rebase`. **Pendiente: push y merge manual.** |
+**SEC-012 (2026-10-09)** — rama `fix/sec-012-auditoria-impersonacion`, PR abierto, sin merge/despliegue. `SuperAdminService.supportToken` registra en `auditoria_operaciones` (`SOPORTE_IMPERSONAR`: superadmin, usuario, rol, readOnly, 15 min) antes de emitir el token; si el registro falla no se emite. Tests en `super-admin.service.spec.ts` (18/18), `tsc` build OK. Alcance: audita la emisión del token, no cada acción hecha durante la sesión (solo lectura por defecto; con `readOnly=false` las escrituras quedan a nombre del usuario suplantado — pendiente propagar `impersonatedBy` a `audit()`).
+
 ### Auditoría PR #79 (2026-10-09)
 
 **Hallazgo P1 — `??0` silencia precios null del catálogo:**

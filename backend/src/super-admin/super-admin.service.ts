@@ -140,6 +140,13 @@ export class SuperAdminService {
     if (!usuario || usuario.tenant.estado !== 'ACTIVO') {
       throw new NotFoundException('Usuario o ferretería no disponible para soporte');
     }
+    // Auditoría durable antes de emitir el token: si no se puede registrar, no hay acceso de soporte.
+    await this.prisma.auditoriaOperacion.create({
+      data: {
+        tenantId, usuarioId: usuario.id, operacion: 'SOPORTE_IMPERSONAR', entidadId: usuario.id,
+        datos: { superAdminId: adminId, superAdminEmail: admin.email, usuarioEmail: usuario.email, rol: usuario.rol, readOnly, expiraEnMinutos: 15 },
+      },
+    });
     return {
       accessToken: this.jwtService.sign({
         sub: usuario.id, tenantId, email: usuario.email, rol: usuario.rol,
