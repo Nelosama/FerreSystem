@@ -1,9 +1,10 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsEnum, IsBoolean, IsUrl, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsEnum, IsBoolean, IsUrl, MaxLength, IsUUID, ValidateIf } from 'class-validator';
 
 import { UnidadMedida as UnidadMedidaEnum } from '@prisma/client';
 export { UnidadMedidaEnum };
 
 export class CreateProductoDto {
+  @IsOptional() @IsUUID('4') solicitudId?: string;
   @IsString()
   @IsOptional()
   codigo?: string;
@@ -37,18 +38,22 @@ export class CreateProductoDto {
 
   @IsNumber({maxDecimalPlaces:2}, { message: 'El precio de venta debe ser un número' })
   @Min(0, { message: 'El precio de venta no puede ser negativo' })
+  @Max(9999999999.99)
   precioVenta: number;
 
   @IsNumber({maxDecimalPlaces:2}, { message: 'El precio de costo debe ser un número' })
   @Min(0, { message: 'El precio de costo no puede ser negativo' })
+  @Max(9999999999.99)
   precioCosto: number;
 
   @IsNumber({maxDecimalPlaces:2})
   @Min(0)
+  @Max(9999999999.99)
   stockActual: number;
 
   @IsNumber({maxDecimalPlaces:2})
   @Min(0)
+  @Max(9999999999.99)
   stockMinimo: number;
 
   @IsEnum(UnidadMedidaEnum, { message: 'Unidad de medida no válida' })
@@ -91,22 +96,26 @@ export class UpdateProductoDto {
 
   @IsNumber({maxDecimalPlaces:2})
   @Min(0)
-  @IsOptional()
+  @ValidateIf((_o, value) => value !== undefined)
+  @Max(9999999999.99)
   precioVenta?: number;
 
   @IsNumber({maxDecimalPlaces:2})
   @Min(0)
-  @IsOptional()
+  @ValidateIf((_o, value) => value !== undefined)
+  @Max(9999999999.99)
   precioCosto?: number;
 
   @IsNumber({maxDecimalPlaces:2})
   @Min(0)
-  @IsOptional()
+  @ValidateIf((_o, value) => value !== undefined)
+  @Max(9999999999.99)
   stockActual?: number;
 
   @IsNumber({maxDecimalPlaces:2})
   @Min(0)
-  @IsOptional()
+  @ValidateIf((_o, value) => value !== undefined)
+  @Max(9999999999.99)
   stockMinimo?: number;
 
   @IsEnum(UnidadMedidaEnum)

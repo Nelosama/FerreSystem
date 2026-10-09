@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { actor, authorizedActor, audit, fingerprint, lockTenant, movement, query, text } from '../operaciones/ledger';
 import { CreateLevantamientoDto, UpdateLevantamientoDto } from './dto/create-levantamiento.dto';
 import { CreateLevantamientoItemDto, UpdateLevantamientoItemDto } from './dto/create-levantamiento-item.dto';
+import { UnidadMedida } from '@prisma/client';
 
 @Injectable()
 export class LevantamientosService {
@@ -29,8 +30,9 @@ export class LevantamientosService {
   const {solicitudId,...data}=dto;const hash=fingerprint({lid,userId,data});
   if(solicitudId){
    const previous=await tx.levantamientoItem.findFirst({where:{id:solicitudId}});
+   const [record]=await query(tx,"SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND entidad_id=$2 AND operacion='CONTEO_CREAR'",tenantId,solicitudId);
+   if(record&&!previous)throw new ConflictException('El conteo de esta solicitud fue eliminado; recargue para conciliar');
    if(previous){
-    const [record]=await query(tx,"SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND entidad_id=$2 AND operacion='CONTEO_CREAR'",tenantId,solicitudId);
     if(previous.levantamientoId!==lid||record?.datos?.hash!==hash)throw new ConflictException('Solicitud utilizada para otro conteo');
     return this.item(previous);
    }
@@ -55,15 +57,17 @@ export class LevantamientosService {
   const candidates=await tx.producto.findMany({where:{tenantId,OR:[
    {id:{in:items.map(i=>i.productoId).filter(Boolean)}},
    {codigo:{in:items.map(i=>i.codigo).filter(Boolean),mode:'insensitive'}},
+   {codigoFabricante:{in:items.map(i=>i.codigo).filter(Boolean),mode:'insensitive'}},
    {codigoBarras:{in:items.map(i=>i.codigoBarras).filter(Boolean)}}
   ]}});
   for(const item of items){
-   const products=candidates.filter(p=>p.id===item.productoId||item.codigo&&p.codigo.toUpperCase()===item.codigo.toUpperCase()||item.codigoBarras&&p.codigoBarras===item.codigoBarras);
+   const products=candidates.filter(p=>p.id===item.productoId||item.codigo&&(p.codigo.toUpperCase()===item.codigo||p.codigoFabricante?.toUpperCase()===item.codigo)||item.codigoBarras&&p.codigoBarras===item.codigoBarras);
    const p=products.length===1?products[0]:null;
    const internal=item.codigo||`${item.descripcion.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'-').slice(0,18)}-${item.id.slice(0,8).toUpperCase()}`;
    const key=p?.id||internal;
    const errors:string[]=[];
-   if(products.length>1)errors.push('Código/barcode identifica productos diferentes');
+   if(products.length>1)errors.push('Código interno, fabricante o barcode identifica productos diferentes; use un identificador inequívoco');
+   if(!Object.values(UnidadMedida).includes(String(item.unidad||'UNIDAD').toUpperCase() as UnidadMedida))errors.push('Unidad inválida; corrija el conteo antes de aplicar');
    if(p&&!p.activo)errors.push('Producto inactivo');
    if(p&&String(item.unidad||'UNIDAD').toUpperCase()!==p.unidadMedida)errors.push('La unidad contada no coincide con la del producto; concilie sin convertir cantidades automáticamente');
    if(p&&Number(item.cantidad)<Number(p.stockReservado||0))errors.push('Conteo menor a mercancía pendiente de entrega');
@@ -90,8 +94,8 @@ export class LevantamientosService {
    let pid=r.productoId;
    if(!pid){
     let categoriaId:string|null=null;if(r.item.categoria?.trim()){const nombre=r.item.categoria.trim();categoriaId=(await tx.categoria.upsert({where:{tenantId_nombre:{tenantId,nombre}},create:{tenantId,nombre},update:{}})).id;}
-    const p=await tx.producto.create({data:{tenantId,codigo:r.codigo,codigoBarras:r.item.codigoBarras||null,nombre:r.nombre,descripcion:r.item.descripcion,categoriaId,stockActual:r.nuevo,stockMinimo:0,precioCosto:r.precioCosto,precioVenta:r.precioVenta,margen:r.item.margen,unidadMedida:r.unidad as any}});pid=p.id;
-   }else await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,...(r.item.codigoBarras?{codigoBarras:r.item.codigoBarras}:{}),precioCosto:r.precioCosto!,precioVenta:r.precioVenta!,...(r.item.margen!=null?{margen:r.item.margen}:{})}});
+    const p=await tx.producto.create({data:{tenantId,codigo:r.codigo,codigoBarras:r.item.codigoBarras||null,nombre:r.nombre,descripcion:r.item.descripcion,categoriaId,stockActual:r.nuevo,stockMinimo:0,precioCosto:r.precioCosto,costoVigente:r.precioCosto,precioVenta:r.precioVenta,margen:r.item.margen,unidadMedida:r.unidad as any}});pid=p.id;
+   }else await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,...(r.item.codigoBarras?{codigoBarras:r.item.codigoBarras}:{}),precioCosto:r.precioCosto!,costoVigente:r.precioCosto!,precioVenta:r.precioVenta!,...(r.item.margen!=null?{margen:r.item.margen}:{})}});
    await tx.levantamientoItem.update({where:{id:r.item.id},data:{productoId:pid}});
    await movement(tx,tenantId,userId,pid!,'LEVANTAMIENTO',r.anterior,r.nuevo,lid,'Conteo revisado y aplicado');
   }

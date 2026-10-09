@@ -1,5 +1,7 @@
+import { productCreation } from '../utils/productCreation';
+import { useTenant } from '../context/TenantContext';
 import { ProductoGestion } from '../components/ProductoGestion';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Search, Plus, Upload, AlertTriangle, Check, X, Calendar, ShieldCheck, RefreshCw } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
@@ -12,6 +14,25 @@ import { normalizarUnidadMedida } from '../utils/unidadMedida';
 
 export const InventarioPage: React.FC = () => {
   const rubroConfig = useRubroConfig();
+  const { tenant, user, isReadOnly } = useTenant();
+  const scope = tenant.id + ':' + user?.id;
+  const currentScope = useRef(scope); currentScope.current = scope;
+  const creator = useMemo(() => productCreation('ferre_pending_product:' + scope, localStorage,
+    body => api.post('/productos', body), () => crypto.randomUUID()), [scope]);
+  const submission = useMemo(() => ({ active: false }), [creator]);
+  const [saving, setSaving] = useState(false);
+  const [pendingName, setPendingName] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const refreshPending = useCallback(() => {
+    try { setPendingName(creator.pending()?.nombre || ''); }
+    catch { setSaveError('No se puede leer el alta pendiente. Conserve los datos locales y solicite ayuda.'); setPendingName('Alta pendiente'); }
+  }, [creator]);
+  useEffect(() => {
+    setSaving(false); setSaveError(''); setModalAbierto(false); refreshPending();
+    setProductos([]);
+    setFormCodigo(''); setFormBarcode(''); setFormFabricante(''); setFormNombre('');
+    setFormPrecioVenta(''); setFormPrecioCosto(''); setFormStockActual(''); setFormStockMinimo('');
+  }, [scope, refreshPending]);
   const { t } = useI18n();
 
   const [productos, setProductos] = useState<ProductItem[]>([]);
@@ -26,6 +47,7 @@ export const InventarioPage: React.FC = () => {
     setErrorText(null);
     try {
       const response = await api.get('/productos');
+      if (currentScope.current !== scope) return;
       // Format response data to match ProductItem interface
       const data = response.data.map((p: any) => ({
         id: p.id,
@@ -49,10 +71,11 @@ export const InventarioPage: React.FC = () => {
       }));
       setProductos(data);
     } catch (err: any) {
+      if (currentScope.current !== scope) return;
       console.error('Error al cargar productos desde la API:', err);
       setErrorText('Error al cargar productos desde el servidor.');
     }
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     fetchProductos();
@@ -76,7 +99,7 @@ export const InventarioPage: React.FC = () => {
   const [formNumeroSerie, setFormNumeroSerie] = useState('');
   const [formMesesGarantia, setFormMesesGarantia] = useState('');
 
-  const categorias = ['TODAS', ...rubroConfig.categoriasDefault];
+  const categorias = ['TODAS', ...new Set([...rubroConfig.categoriasDefault, ...productos.map(p => p.categoria).filter(Boolean)])];
 
   const productosFiltrados = productos.filter((p) => {
     const matchSearch =
@@ -86,12 +109,22 @@ export const InventarioPage: React.FC = () => {
     return matchSearch && matchCat;
   });
 
-  const handleCrearProducto = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formNombre || !formPrecioVenta) return;
-
+  const guardarProducto = async (recover = false) => {
+    if (submission.active || isReadOnly || (!recover && (!formNombre.trim() || !formPrecioVenta))) return;
+    submission.active = true;
+    setSaving(true); setSaveError('');
     try {
-      await api.post('/productos', {
+      if (recover) {
+        const draft = creator.pending();
+        if (draft) {
+          setFormNombre(draft.nombre); setFormCodigo(String(draft.codigo || ''));
+          setFormBarcode(String(draft.codigoBarras || '')); setFormFabricante(String(draft.codigoFabricante || ''));
+          setFormCategoria(String(draft.categoria || 'General')); setFormUnidadMedida(String(draft.unidadMedida || 'UNIDAD').toLowerCase());
+          setFormPrecioVenta(String(draft.precioVenta)); setFormPrecioCosto(String(draft.precioCosto));
+          setFormStockActual(String(draft.stockActual)); setFormStockMinimo(String(draft.stockMinimo));
+        }
+      }
+      const saved = await creator.save(recover ? undefined : {
         codigo: formCodigo.toUpperCase().trim() || undefined,
         codigoBarras: formBarcode.trim() || undefined,
         codigoFabricante: formFabricante.trim() || undefined,
@@ -105,7 +138,10 @@ export const InventarioPage: React.FC = () => {
         usaMedida: false,
       });
 
+      if (!saved || currentScope.current !== scope) return;
+      refreshPending();
       await fetchProductos();
+      if (currentScope.current !== scope) return;
       setModalAbierto(false);
 
       // Limpiar formulario
@@ -121,15 +157,27 @@ export const InventarioPage: React.FC = () => {
       setFormMesesGarantia('');
     } catch (err: any) {
       console.error('Error al crear producto:', err);
-      alert(err.response?.data?.message || 'Error al guardar el producto en el servidor');
+      if (currentScope.current === scope) {
+        const message = err.response?.data?.message;
+        setSaveError(Array.isArray(message) ? message.join(', ') : message || err.message || 'No se pudo confirmar el alta. Reintente la operación pendiente.');
+        if (recover) setModalAbierto(true);
+      }
+    } finally {
+      submission.active = false;
+      if (currentScope.current === scope) { setSaving(false); refreshPending(); }
     }
   };
+  const handleCrearProducto = (e: React.FormEvent) => { e.preventDefault(); void guardarProducto(); };
 
   return (
     <div style={styles.container}>
       <TopBar title={rubroConfig.nombreCatalogo.toUpperCase()} subtitle={t('inventory.subtitle')} />
 
       <main style={styles.content}>
+        {saveError && <p role="alert">{saveError}</p>}
+        {pendingName && <div role="status" className="industrial-card">Alta pendiente de confirmar: <strong>{pendingName}</strong>. Reintente para recuperar la misma operación.
+          <button type="button" className="btn btn-secondary" disabled={saving || isReadOnly} onClick={() => void guardarProducto(true)}>Confirmar alta pendiente</button>
+        </div>}
         <ProductoGestion productos={productos} onSaved={fetchProductos}/>
         {/* Barra de Filtros y Acción */}
         <div style={styles.actionsBar}>
@@ -174,6 +222,7 @@ export const InventarioPage: React.FC = () => {
             <button
               type="button"
               className="btn btn-primary"
+              disabled={saving || !!pendingName || isReadOnly}
               onClick={() => setModalAbierto(true)}
             >
               <Plus size={18} strokeWidth={2.5} />
@@ -299,6 +348,9 @@ export const InventarioPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleCrearProducto} style={{ marginTop: '16px' }}>
+              {saveError && <p role="alert">{saveError}</p>}
+              {pendingName && <button type="button" className="btn btn-secondary" disabled={saving || isReadOnly} onClick={() => void guardarProducto(true)}>Confirmar alta pendiente</button>}
+              <fieldset disabled={saving || !!pendingName || isReadOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
                   <label className="form-label">{t('inventory.sku')}</label>
@@ -471,10 +523,11 @@ export const InventarioPage: React.FC = () => {
                 >
                   {t('operational.cancelar')}
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  <Check size={16} strokeWidth={2.6} /> {t('inventory.save_product')}
+                <button type="submit" className="btn btn-primary" disabled={saving || !!pendingName || isReadOnly}>
+                  <Check size={16} strokeWidth={2.6} /> {saving ? 'Guardando…' : t('inventory.save_product')}
                 </button>
               </div>
+              </fieldset>
             </form>
           </div>
         </div>
@@ -504,7 +557,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   searchWrapper: {
     position: 'relative',
-    minWidth: '320px',
+    minWidth: 'min(100%, 320px)',
     flex: 1,
   },
   searchIcon: {
@@ -552,6 +605,8 @@ const styles: Record<string, React.CSSProperties> = {
   modalContent: {
     width: '100%',
     maxWidth: '580px',
+    maxHeight: '90dvh',
+    overflowY: 'auto',
   },
   modalHeader: {
     display: 'flex',
@@ -568,6 +623,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   formRow: {
     display: 'flex',
+    flexWrap: 'wrap',
     gap: '14px',
   },
 };

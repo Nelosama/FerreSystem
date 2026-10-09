@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { authorizedActor, audit, decimal, id, lockTenant, movement, query, text } from '../operaciones/ledger';
+import { authorizedActor, audit, decimal, fingerprint, id, lockTenant, movement, query, text } from '../operaciones/ledger';
 import type { CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
 import { publicProduct } from './producto-response';
 
@@ -27,6 +27,17 @@ export class ProductosService {
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
    await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
+   const {solicitudId,...payload}=dto;
+   const hash=fingerprint({userId,data:Object.fromEntries(Object.entries(payload).filter(([,value])=>value!==undefined).sort(([a],[b])=>a.localeCompare(b)))});
+   if(solicitudId){
+    const [record]=await query(tx,"SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND entidad_id=$2 AND operacion='PRODUCTO_SOLICITUD'",tenantId,solicitudId);
+    if(record){
+     if(record.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otro producto o usuario');
+     const existing=await tx.producto.findFirst({where:{tenantId,id:record.datos.productoId},include:{categoria:{select:{id:true,nombre:true}}}});
+     if(!existing)throw new ConflictException('El producto de esta solicitud ya no está disponible; revise la auditoría');
+     return this.format(existing);
+    }
+   }
    const nombre=text(dto.nombre,'Nombre');
    let codigo=dto.codigo?.trim().toUpperCase();
    if(!codigo){
@@ -35,9 +46,11 @@ export class ProductosService {
    }
    if(await tx.producto.findFirst({where:{tenantId,codigo:{equals:codigo,mode:'insensitive'}}}))throw new ConflictException('Código ya registrado');
    const barcode=dto.codigoBarras?.trim()||null;
-   if(barcode&&await tx.producto.findFirst({where:{tenantId,codigoBarras:barcode,activo:true}}))throw new ConflictException('Código de barras ya registrado');
-   const p=await tx.producto.create({data:{tenantId,codigo,nombre,codigoBarras:barcode,codigoFabricante:dto.codigoFabricante?.trim()||null,imagenUrl:dto.imagenUrl||null,descripcion:dto.descripcion,categoriaId:await this.category(tx,tenantId,dto),usaMedida:dto.usaMedida??false,precioVenta:decimal(dto.precioVenta,'Precio'),precioCosto:decimal(dto.precioCosto,'Costo'),margen:dto.margen,stockActual:decimal(dto.stockActual,'Stock'),stockMinimo:decimal(dto.stockMinimo,'Mínimo'),unidadMedida:dto.unidadMedida||'UNIDAD'},include:{categoria:{select:{id:true,nombre:true}}}});
-   await movement(tx,tenantId,userId,p.id,'INICIAL',0,Number(p.stockActual),p.id,'Alta inicial de producto');await audit(tx,tenantId,userId,'PRODUCTO_CREAR',p.id,{codigo,stock:Number(p.stockActual)});return this.format(p);
+   if(barcode&&await tx.producto.findFirst({where:{tenantId,codigoBarras:barcode}}))throw new ConflictException('Código de barras ya registrado');
+   const p=await tx.producto.create({data:{tenantId,codigo,nombre,codigoBarras:barcode,codigoFabricante:dto.codigoFabricante?.trim()||null,imagenUrl:dto.imagenUrl||null,descripcion:dto.descripcion,categoriaId:await this.category(tx,tenantId,dto),usaMedida:dto.usaMedida??false,precioVenta:decimal(dto.precioVenta,'Precio'),precioCosto:decimal(dto.precioCosto,'Costo'),costoVigente:decimal(dto.precioCosto,'Costo'),margen:dto.margen,stockActual:decimal(dto.stockActual,'Stock'),stockMinimo:decimal(dto.stockMinimo,'Mínimo'),unidadMedida:dto.unidadMedida||'UNIDAD'},include:{categoria:{select:{id:true,nombre:true}}}});
+   await movement(tx,tenantId,userId,p.id,'INICIAL',0,Number(p.stockActual),p.id,'Alta inicial de producto');await audit(tx,tenantId,userId,'PRODUCTO_CREAR',p.id,{codigo,stock:Number(p.stockActual)});
+   if(solicitudId)await audit(tx,tenantId,userId,'PRODUCTO_SOLICITUD',solicitudId,{hash,productoId:p.id});
+   return this.format(p);
   });
  }
  async update(tenantId:string,productId:string,dto:UpdateProductoDto,userId:string){
@@ -49,10 +62,12 @@ export class ProductosService {
    if(dto.stockActual!==undefined && Number(old.stockActual)!==dto.stockActual && !dto.motivo?.trim())throw new BadRequestException('Indique un motivo para cambiar existencias');
    const codigo=dto.codigo!==undefined?text(dto.codigo,'Código').toUpperCase():undefined,barcode=dto.codigoBarras?.trim()||null;
    if(codigo&&await tx.producto.findFirst({where:{tenantId,id:{not:productId},codigo:{equals:codigo,mode:'insensitive'}}}))throw new ConflictException('Código ya registrado');
-   if(barcode&&await tx.producto.findFirst({where:{tenantId,id:{not:productId},codigoBarras:barcode,activo:true}}))throw new ConflictException('Código de barras ya registrado');
+   if(barcode&&await tx.producto.findFirst({where:{tenantId,id:{not:productId},codigoBarras:barcode}}))throw new ConflictException('Código de barras ya registrado');
    const data:any={};
    for(const f of ['descripcion','usaMedida','unidadMedida','margen','codigoFabricante','imagenUrl'] as const)if(dto[f]!==undefined)data[f]=dto[f];
    for(const f of ['precioVenta','precioCosto','stockActual','stockMinimo'] as const)if(dto[f]!==undefined)data[f]=decimal(dto[f],f);
+   if(dto.precioCosto!==undefined)data.costoVigente=data.precioCosto;
+   if(dto.codigoFabricante!==undefined)data.codigoFabricante=dto.codigoFabricante?.trim()||null;
    if(codigo)data.codigo=codigo;if(dto.nombre!==undefined)data.nombre=text(dto.nombre,'Nombre');if(dto.codigoBarras!==undefined)data.codigoBarras=barcode;
    if(dto.categoriaId!==undefined||dto.categoria!==undefined)data.categoriaId=await this.category(tx,tenantId,dto);
    const p=await tx.producto.update({where:{id:productId},data,include:{categoria:{select:{id:true,nombre:true}}}});
