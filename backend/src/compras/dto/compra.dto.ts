@@ -1,4 +1,5 @@
 import { Type } from 'class-transformer';
+import { EmptyToUndefined } from '../../common/empty-to-undefined';
 import { ArrayMinSize, ArrayMaxSize, IsArray, IsDateString, IsNumber, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export class DetalleCompraDto {
@@ -11,7 +12,7 @@ export class CreateCompraDto {
   @IsString() proveedorId!: string;
   @IsOptional() @IsString() @MaxLength(100) numeroFactura?: string;
   @IsDateString() fecha!: string;
-  @IsOptional() @IsDateString() vencimiento?: string;
+  @IsOptional() @EmptyToUndefined() @IsDateString() vencimiento?: string;
   @IsOptional() @IsString() @MaxLength(2000) notas?: string;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => DetalleCompraDto) detalles!: DetalleCompraDto[];
 }
