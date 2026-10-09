@@ -28,7 +28,7 @@ describe('API de administradores de empresa', () => {
     expect(service.createTenantAdmin).not.toHaveBeenCalled(); expect(service.updateTenantAdmin).not.toHaveBeenCalled();
   });
   it('acepta Super Admin y descarta cambios de empresa o rol del body', async () => {
-    await request(app.getHttpServer()).post('/admin/tenants/A/admins').set('x-test-role', 'SUPERADMIN').send({ nombre: 'Admin', email: 'admin@example.test', password: 'secure-test-password', tenantId: 'B', rol: 'SUPER_ADMIN' }).expect(201);
+    await request(app.getHttpServer()).post('/admin/tenants/A/admins').set('x-test-role', 'SUPERADMIN').send({ nombre: 'Admin', email: 'admin@example.test', password: 'SecurePassword123', tenantId: 'B', rol: 'SUPER_ADMIN' }).expect(201);
     expect(service.createTenantAdmin).toHaveBeenCalledWith('A', expect.objectContaining({ nombre: 'Admin' }));
     const body = service.createTenantAdmin.mock.calls[0][1]; expect(body.tenantId).toBeUndefined(); expect(body.rol).toBeUndefined();
   });

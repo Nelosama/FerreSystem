@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { generatePassword } from '../utils/generatePassword';
 import { TopBar } from '../components/TopBar';
 
 export interface Usuario {
@@ -119,6 +120,7 @@ export const UsuariosPage: React.FC = () => {
   const [formNombre, setFormNombre] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formPassword, setFormPassword] = useState('');
+  const [mostrarPassword, setMostrarPassword] = useState(false);
   const [formRolBase, setFormRolBase] = useState<'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR'>('CAJERO');
   const [formSucursalActual, setFormSucursalActual] = useState('Sucursal Centro (Principal)');
   const [formPermisos, setFormPermisos] = useState<string[]>([]);
@@ -173,7 +175,8 @@ export const UsuariosPage: React.FC = () => {
     setUsuarioEditando(null);
     setFormNombre('');
     setFormEmail('');
-    setFormPassword('Ferre2026!');
+    setFormPassword('');
+    setMostrarPassword(false);
     setFormRolBase('CAJERO');
     setFormSucursalActual('Sucursal Centro (Principal)');
     setFormPermisos(PERMISOS_DEFAULT_POR_ROL.CAJERO.permisos);
@@ -215,8 +218,8 @@ export const UsuariosPage: React.FC = () => {
       }
     }
 
-    if (!usuarioEditando && (!formPassword || formPassword.length < 6)) {
-      errors.password = t('validation.min_length', { min: 6 });
+    if (!usuarioEditando && (!formPassword || formPassword.length < 8 || !/[A-Za-z]/.test(formPassword) || !/\d/.test(formPassword))) {
+      errors.password = 'Mínimo 8 caracteres, con letras y números';
     }
 
     if (formDescuentoMaximo < 0 || formDescuentoMaximo > 100 || isNaN(formDescuentoMaximo)) {
@@ -495,10 +498,11 @@ export const UsuariosPage: React.FC = () => {
                 <div className="form-group">
                   <label className="form-label">{t('users.temp_password')}</label>
                   <input
-                    type="password"
+                    type={mostrarPassword ? 'text' : 'password'}
                     required
                     disabled={submitting}
-                    placeholder="••••••••"
+                    placeholder="Mínimo 8 caracteres"
+                    autoComplete="new-password"
                     value={formPassword}
                     onChange={(e) => {
                       setFormPassword(e.target.value);
@@ -507,6 +511,7 @@ export const UsuariosPage: React.FC = () => {
                     className="form-input"
                     style={fieldErrors.password ? styles.inputError : {}}
                   />
+                  <button type="button" className="btn btn-secondary" disabled={submitting} style={{ marginTop: 6 }} onClick={() => { setFormPassword(generatePassword()); setMostrarPassword(true); }}>Generar contraseña segura</button>
                   {fieldErrors.password && (
                     <span style={styles.fieldErrorText}>{fieldErrors.password}</span>
                   )}

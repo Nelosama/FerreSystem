@@ -1,4 +1,5 @@
 import { IsString, IsEmail, IsEnum, IsBoolean, IsOptional, MinLength, IsArray, IsNumber, Min, Max, ArrayMaxSize } from 'class-validator';
+import { IsAllowedPassword } from '../../common/password-policy';
 import { Rol } from '@prisma/client';
 
 export class UpdateUsuarioDto {
@@ -12,7 +13,7 @@ export class UpdateUsuarioDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(6)
+  @IsAllowedPassword()
   password?: string;
 
   @IsOptional()
