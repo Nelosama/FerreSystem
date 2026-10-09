@@ -29,8 +29,14 @@ export function formatNumber(amount: number): string {
  */
 export function formatFechaCalendario(value?: string | Date | null): string {
   if (!value) return '—';
+  if (value instanceof Date && Number.isNaN(value.getTime())) return '—';
   const iso = value instanceof Date ? value.toISOString() : String(value);
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?=$|T|\s)/.exec(iso);
   if (!m) return '—';
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  // Rechaza fechas imposibles (p. ej. 2026-99-99 o 2026-02-30) comparando contra el calendario real.
+  const check = new Date(0);
+  check.setUTCFullYear(year, month - 1, day);
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return '—';
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
