@@ -20,27 +20,27 @@ import {
   UserCheck,
 } from 'lucide-react';
 
-export function formatApiError(err: any, defaultMsg: string): string {
+export function formatApiError(err: any, defaultMsg: string, t: (key: string, options?: any) => string): string {
   if (!err) return defaultMsg;
   const status = err.response?.status;
   const rawMsg = err.response?.data?.message;
 
   if (status === 409) {
-    return 'Ya existe un cliente registrado con esta información (RTN o correo).';
+    return t('validation.err_409_client');
   }
   if (status === 403 || status === 401) {
-    return 'No tiene los permisos necesarios para realizar esta operación.';
+    return t('validation.err_403');
   }
   if (status === 400) {
     if (Array.isArray(rawMsg)) return rawMsg.join(', ');
     if (typeof rawMsg === 'string' && rawMsg.trim()) return rawMsg;
-    return 'Datos del cliente no válidos. Revise la información ingresada e inténtelo nuevamente.';
+    return t('validation.err_400_general');
   }
   if (status >= 500) {
-    return 'Ocurrió un error en el servidor al procesar la solicitud. Intente nuevamente más tarde.';
+    return t('validation.err_500');
   }
   if (err.message === 'Network Error' || !err.response) {
-    return 'No se pudo conectar con el servidor. Verifique su conexión a internet e inténtelo nuevamente.';
+    return t('validation.err_network');
   }
   if (rawMsg) {
     return Array.isArray(rawMsg) ? rawMsg.join(', ') : String(rawMsg);
@@ -98,11 +98,11 @@ export const ClientesPage: React.FC = () => {
       setClientes(response.data);
     } catch (err: any) {
       console.error('Error al obtener clientes:', err);
-      setErrorBanner(formatApiError(err, 'No se pudo obtener la lista de clientes. Intente nuevamente.'));
+      setErrorBanner(formatApiError(err, t('clients.fetch_error'), t));
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, t]);
 
   useEffect(() => {
     fetchClientes();
@@ -138,22 +138,20 @@ export const ClientesPage: React.FC = () => {
     const errors: Record<string, string> = {};
 
     if (!formNombre.trim()) {
-      errors.nombre = 'El nombre o razón social es obligatorio.';
-    } else if (formNombre.trim().length < 3) {
-      errors.nombre = 'El nombre debe tener al menos 3 caracteres.';
+      errors.nombre = t('validation.required_field');
     }
 
     if (formEmail.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formEmail.trim())) {
-        errors.email = 'Ingrese un correo electrónico válido (ej. contacto@empresa.hn).';
+        errors.email = t('validation.invalid_email');
       }
     }
 
     if (formRtn.trim()) {
       const cleanRtn = formRtn.replace(/\D/g, '');
       if (cleanRtn.length !== 14) {
-        errors.rtn = 'El RTN de Honduras debe contener exactamente 14 dígitos numéricos.';
+        errors.rtn = t('validation.invalid_rtn_length');
       }
     }
 
@@ -173,7 +171,7 @@ export const ClientesPage: React.FC = () => {
     if (submitting) return;
 
     if (!validarFormulario()) {
-      setModalError('Por favor corrija los campos marcados antes de guardar.');
+      setModalError(t('validation.form_has_errors'));
       return;
     }
 
@@ -192,16 +190,16 @@ export const ClientesPage: React.FC = () => {
     try {
       if (clienteEditando) {
         await api.put(`/clientes/${clienteEditando.id}`, payload);
-        showSuccess(`Cliente "${payload.nombre}" actualizado correctamente.`);
+        showSuccess(t('clients.updated_success', { name: payload.nombre }));
       } else {
         await api.post('/clientes', payload);
-        showSuccess(`Cliente "${payload.nombre}" creado exitosamente.`);
+        showSuccess(t('clients.saved_success', { name: payload.nombre }));
       }
       setModalFormAbierto(false);
       await fetchClientes();
     } catch (err: any) {
       console.error('Error al guardar cliente:', err);
-      setModalError(formatApiError(err, 'No se pudo guardar el cliente. Revise la información e inténtelo de nuevo.'));
+      setModalError(formatApiError(err, t('clients.save_error'), t));
     } finally {
       setSubmitting(false);
     }
@@ -217,11 +215,11 @@ export const ClientesPage: React.FC = () => {
     try {
       await api.delete(`/clientes/${clienteEliminar.id}`);
       setClienteEliminar(null);
-      showSuccess(`Cliente "${nombreEliminado}" eliminado correctamente.`);
+      showSuccess(t('clients.deleted_success', { name: nombreEliminado }));
       await fetchClientes();
     } catch (err: any) {
       console.error('Error al eliminar cliente:', err);
-      setErrorBanner(formatApiError(err, 'No se pudo eliminar el cliente. Verifique que no posea ventas ni cotizaciones.'));
+      setErrorBanner(formatApiError(err, t('clients.delete_error'), t));
       setClienteEliminar(null);
     } finally {
       setDeletingId(null);
@@ -230,7 +228,7 @@ export const ClientesPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="GESTIÓN DE CLIENTES" subtitle="Directorio Comercial y Datos Fiscales RTN" />
+      <TopBar title={t('clients.new_client')} subtitle={t('tasks.clientes.description')} />
 
       <main style={styles.content}>
         {errorBanner && (
@@ -258,6 +256,16 @@ export const ClientesPage: React.FC = () => {
               className="form-input"
               style={{ paddingLeft: '38px', height: '42px' }}
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                aria-label={t('common.clear_search')}
+                style={styles.clearSearchBtn}
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
 
           <button type="button" className="btn btn-primary" onClick={abrirNuevoCliente}>
@@ -370,10 +378,15 @@ export const ClientesPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Users size={20} color="var(--color-primary)" />
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                  {clienteEditando ? 'EDITAR CLIENTE' : 'NUEVO CLIENTE'}
+                  {clienteEditando ? t('clients.edit_client') : t('clients.new_client')}
                 </h2>
               </div>
-              <button type="button" onClick={() => setModalFormAbierto(false)} style={styles.closeBtn}>
+              <button
+                type="button"
+                onClick={() => setModalFormAbierto(false)}
+                style={styles.closeBtn}
+                aria-label={t('common.close_modal')}
+              >
                 <X size={20} />
               </button>
             </div>
@@ -392,7 +405,7 @@ export const ClientesPage: React.FC = () => {
 
               <div className="form-group">
                 <label className="form-label">
-                  NOMBRE COMPLETO / RAZÓN SOCIAL <span style={{ color: '#DC2626' }}>*</span>
+                  {t('clients.client_name')} <span style={{ color: '#DC2626' }}>*</span>
                 </label>
                 <input
                   type="text"
@@ -414,7 +427,7 @@ export const ClientesPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">RTN / IDENTIFICACIÓN FISCAL (14 DÍGITOS)</label>
+                  <label className="form-label">{t('clients.rtn')}</label>
                   <input
                     type="text"
                     disabled={submitting}
@@ -433,7 +446,7 @@ export const ClientesPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">TIPO DE CLIENTE <span style={{ color: '#DC2626' }}>*</span></label>
+                  <label className="form-label">{t('clients.client_type')} <span style={{ color: '#DC2626' }}>*</span></label>
                   <select
                     value={formTipo}
                     disabled={submitting}
@@ -449,7 +462,7 @@ export const ClientesPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">TELÉFONO DE CONTACTO</label>
+                  <label className="form-label">{t('clients.phone')}</label>
                   <input
                     type="text"
                     disabled={submitting}
@@ -461,7 +474,7 @@ export const ClientesPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">CORREO ELECTRÓNICO</label>
+                  <label className="form-label">{t('clients.email')}</label>
                   <input
                     type="email"
                     disabled={submitting}
@@ -481,7 +494,7 @@ export const ClientesPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">DIRECCIÓN FÍSICA</label>
+                <label className="form-label">{t('clients.address')}</label>
                 <textarea
                   rows={2}
                   disabled={submitting}
@@ -500,18 +513,18 @@ export const ClientesPage: React.FC = () => {
                   disabled={submitting}
                   onClick={() => setModalFormAbierto(false)}
                 >
-                  CANCELAR
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
                   {submitting ? (
                     <>
                       <Loader2 size={16} className="animate-spin" />
-                      <span>GUARDANDO...</span>
+                      <span>{t('clients.saving')}</span>
                     </>
                   ) : (
                     <>
                       <Check size={16} strokeWidth={2.6} />
-                      <span>GUARDAR CLIENTE</span>
+                      <span>{t('clients.save_client')}</span>
                     </>
                   )}
                 </button>
@@ -529,7 +542,7 @@ export const ClientesPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#DC2626' }}>
                 <AlertCircle size={20} />
                 <h2 style={{ fontSize: '15px', textTransform: 'uppercase', color: '#DC2626' }}>
-                  CONFIRMAR ELIMINACIÓN
+                  {t('clients.confirm_delete')}
                 </h2>
               </div>
               <button
@@ -537,16 +550,17 @@ export const ClientesPage: React.FC = () => {
                 onClick={() => !deletingId && setClienteEliminar(null)}
                 disabled={Boolean(deletingId)}
                 style={styles.closeBtn}
+                aria-label={t('common.close_modal')}
               >
                 <X size={20} />
               </button>
             </div>
 
             <div style={{ marginTop: '16px', fontSize: '13px', lineHeight: '1.5', color: '#444' }}>
-              ¿Está seguro de eliminar al cliente <strong>{clienteEliminar.nombre}</strong>?
+              {t('clients.delete_warning', { name: clienteEliminar.nombre })}
               <br />
               <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '6px', display: 'block' }}>
-                Esta acción enviará una petición DELETE a la API real en Supabase. Si el cliente posee ventas o cotizaciones asociadas, la API rechazará la operación para mantener la integridad histórica.
+                {t('clients.delete_subtext')}
               </span>
             </div>
 
@@ -557,7 +571,7 @@ export const ClientesPage: React.FC = () => {
                 disabled={Boolean(deletingId)}
                 onClick={() => setClienteEliminar(null)}
               >
-                CANCELAR
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -569,10 +583,10 @@ export const ClientesPage: React.FC = () => {
                 {deletingId ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    <span>ELIMINANDO...</span>
+                    <span>{t('clients.deleting')}</span>
                   </>
                 ) : (
-                  <span>ELIMINAR DEFINITIVAMENTE</span>
+                  <span>{t('clients.delete_permanently')}</span>
                 )}
               </button>
             </div>
@@ -662,6 +676,16 @@ const styles: Record<string, React.CSSProperties> = {
     left: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
+    color: 'var(--color-text-muted)',
+  },
+  clearSearchBtn: {
+    position: 'absolute',
+    right: '10px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
     color: 'var(--color-text-muted)',
   },
   modalOverlay: {

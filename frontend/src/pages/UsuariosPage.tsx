@@ -1,27 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { TopBar } from '../components/TopBar';
 
-export function formatUsuarioApiError(err: any, defaultMsg: string): string {
+export function formatUsuarioApiError(err: any, defaultMsg: string, t: (key: string, options?: any) => string): string {
   if (!err) return defaultMsg;
   const status = err.response?.status;
   const rawMsg = err.response?.data?.message;
 
   if (status === 409) {
-    return 'Ya existe un usuario registrado con este correo electrónico.';
+    return t('validation.err_409_user');
   }
   if (status === 403 || status === 401) {
-    return 'No tiene permisos suficientes para gestionar usuarios o modificar este perfil.';
+    return t('validation.err_403');
   }
   if (status === 400) {
     if (Array.isArray(rawMsg)) return rawMsg.join(', ');
     if (typeof rawMsg === 'string' && rawMsg.trim()) return rawMsg;
-    return 'Los datos del usuario ingresados no son válidos. Por favor revise el formulario.';
+    return t('validation.err_400_general');
   }
   if (status >= 500) {
-    return 'Ocurrió un error en el servidor al guardar el usuario. Reintente en unos momentos.';
+    return t('validation.err_500');
   }
   if (err.message === 'Network Error' || !err.response) {
-    return 'No se pudo conectar con el servidor backend. Verifique su conexión a internet.';
+    return t('validation.err_network');
   }
   if (rawMsg) {
     return Array.isArray(rawMsg) ? rawMsg.join(', ') : String(rawMsg);
@@ -84,22 +84,24 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react';
+import { useI18n } from '../context/I18nContext';
 
 const TODOS_LOS_PERMISOS = [
-  { clave: 'pos.vender', label: 'Realizar ventas en POS' },
-  { clave: 'pos.anular_venta', label: 'Anular ventas en POS' },
-  { clave: 'pos.aplicar_descuento', label: 'Aplicar descuentos' },
-  { clave: 'inventario.ver', label: 'Ver catálogo e inventario' },
-  { clave: 'inventario.editar', label: 'Crear / Editar productos' },
-  { clave: 'cotizaciones.crear', label: 'Crear cotizaciones' },
-  { clave: 'cotizaciones.aprobar', label: 'Aprobar cotizaciones' },
-  { clave: 'cotizaciones.convertir_venta', label: 'Convertir cotización a venta' },
-  { clave: 'reportes.ver', label: 'Ver reportes de ventas' },
-  { clave: 'usuarios.gestionar', label: 'Gestionar usuarios y permisos' },
-  { clave: 'configuracion.editar', label: 'Editar configuración de ferretería' },
+    { clave: 'pos.vender', labelKey: 'tasks.pos.title' },
+    { clave: 'pos.anular_venta', labelKey: 'tasks.devoluciones.title' },
+    { clave: 'pos.aplicar_descuento', labelKey: 'pos.apply_discount' },
+    { clave: 'inventario.ver', labelKey: 'tasks.inventario.title' },
+    { clave: 'inventario.editar', labelKey: 'inventory.new_product' },
+    { clave: 'cotizaciones.crear', labelKey: 'quotations.new_quotation' },
+    { clave: 'cotizaciones.aprobar', labelKey: 'operational.aprobada' },
+    { clave: 'cotizaciones.convertir_venta', labelKey: 'quotations.convert_to_sale' },
+    { clave: 'reportes.ver', labelKey: 'tasks.reportes.title' },
+    { clave: 'usuarios.gestionar', labelKey: 'tasks.usuarios.title' },
+    { clave: 'configuracion.editar', labelKey: 'tasks.configuracion.title' },
 ];
 
 export const UsuariosPage: React.FC = () => {
+  const { t } = useI18n();
   const [listaUsuarios, setListaUsuarios] = useState<Usuario[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -150,7 +152,7 @@ export const UsuariosPage: React.FC = () => {
         }
       } catch (err: any) {
         console.error('Error al obtener lista de usuarios desde la API real:', err);
-        setErrorBanner(formatUsuarioApiError(err, 'No se pudo conectar con el servidor para obtener los usuarios.'));
+        setErrorBanner(formatUsuarioApiError(err, t('users.fetch_error'), t));
       } finally {
         setLoadingList(false);
       }
@@ -193,26 +195,24 @@ export const UsuariosPage: React.FC = () => {
     const errors: Record<string, string> = {};
 
     if (!formNombre.trim()) {
-      errors.nombre = 'El nombre completo del usuario es obligatorio.';
-    } else if (formNombre.trim().length < 3) {
-      errors.nombre = 'El nombre debe contener al menos 3 caracteres.';
+      errors.nombre = t('validation.required_field');
     }
 
     if (!formEmail.trim()) {
-      errors.email = 'El correo electrónico es obligatorio.';
+      errors.email = t('validation.required_field');
     } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formEmail.trim())) {
-        errors.email = 'Ingrese un correo electrónico válido (ej. usuario@empresa.hn).';
+        errors.email = t('validation.invalid_email');
       }
     }
 
     if (!usuarioEditando && (!formPassword || formPassword.length < 6)) {
-      errors.password = 'La contraseña temporal debe tener al menos 6 caracteres.';
+      errors.password = t('validation.min_length', { min: 6 });
     }
 
     if (formDescuentoMaximo < 0 || formDescuentoMaximo > 100 || isNaN(formDescuentoMaximo)) {
-      errors.descuentoMaximo = 'El descuento máximo debe estar entre 0% y 100%.';
+      errors.descuentoMaximo = t('validation.number_range', { min: 0, max: 100 });
     }
 
     setFieldErrors(errors);
@@ -246,7 +246,7 @@ export const UsuariosPage: React.FC = () => {
     if (submitting) return;
 
     if (!validarFormularioUsuario()) {
-      setModalError('Revise los campos marcados antes de guardar el usuario.');
+      setModalError(t('validation.form_has_errors'));
       return;
     }
 
@@ -283,7 +283,7 @@ export const UsuariosPage: React.FC = () => {
         setListaUsuarios((prev) =>
           prev.map((u) => (u.id === usuarioEditando.id ? updatedUsuario : u)),
         );
-        showSuccess(`Usuario "${updatedUsuario.nombre}" actualizado correctamente.`);
+        showSuccess(t('users.updated_success', { name: updatedUsuario.nombre }));
       } else {
         // HTTP POST to real backend
         const res = await api.post('/usuarios', payload);
@@ -301,13 +301,13 @@ export const UsuariosPage: React.FC = () => {
         };
 
         setListaUsuarios((prev) => [nuevoUsuario, ...prev]);
-        showSuccess(`Usuario "${nuevoUsuario.nombre}" creado exitosamente.`);
+        showSuccess(t('users.saved_success', { name: nuevoUsuario.nombre }));
       }
 
       setModalAbierto(false);
     } catch (err: any) {
       console.error('Error al guardar usuario en backend:', err);
-      setModalError(formatUsuarioApiError(err, 'No se pudo guardar el usuario. Inténtelo de nuevo.'));
+      setModalError(formatUsuarioApiError(err, t('users.save_error'), t));
     } finally {
       setSubmitting(false);
     }
@@ -315,7 +315,7 @@ export const UsuariosPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title="GESTIÓN DE USUARIOS Y PERMISOS" subtitle="Administración de Personal de la Ferretería" />
+      <TopBar title={t('users.title')} subtitle={t('users.subtitle')} />
 
       <main style={styles.content}>
         {errorBanner && (
@@ -334,15 +334,15 @@ export const UsuariosPage: React.FC = () => {
 
         <div style={styles.headerRow}>
           <div>
-            <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>EQUIPO DE TRABAJO</h2>
+            <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('users.team')}</h2>
             <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-              Asignación de roles base, personalización fina de permisos individuales y límites de descuento.
+              {t('users.team_desc')}
             </p>
           </div>
 
           <button type="button" className="btn btn-primary" onClick={abrirNuevoUsuario}>
             <Plus size={18} strokeWidth={2.5} />
-            <span>NUEVO USUARIO</span>
+            <span>{t('users.new_user')}</span>
           </button>
         </div>
 
@@ -357,14 +357,14 @@ export const UsuariosPage: React.FC = () => {
             <table className="industrial-table">
               <thead>
                 <tr>
-                  <th>NOMBRE DEL USUARIO</th>
-                  <th>CORREO ELECTRÓNICO</th>
-                  <th>SUCURSAL ASIGNADA</th>
-                  <th style={{ textAlign: 'center' }}>ROL BASE</th>
-                  <th style={{ textAlign: 'center' }}>DESC. MÁXIMO</th>
-                  <th style={{ textAlign: 'center' }}>PERMISOS ACTIVOS</th>
-                  <th style={{ textAlign: 'center' }}>ESTADO</th>
-                  <th style={{ textAlign: 'center' }}>ACCIONES</th>
+                  <th>{t('users.user_name')}</th>
+                  <th>{t('users.email')}</th>
+                  <th>{t('users.assigned_branch')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('users.base_role')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('users.max_discount')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('users.active_permissions')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('users.status')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('users.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -384,16 +384,16 @@ export const UsuariosPage: React.FC = () => {
                       {u.descuentoMaximo}%
                     </td>
                     <td style={{ textAlign: 'center', fontSize: '11px', color: '#666' }}>
-                      <span className="badge badge-neutral">{(u.permisos || []).length} permisos</span>
+                      <span className="badge badge-neutral">{t('users.permissions_count', { count: (u.permisos || []).length })}</span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       {u.activo ? (
                         <span className="badge badge-success">
-                          <CheckCircle2 size={11} /> ACTIVO
+                          <CheckCircle2 size={11} /> {t('users.active')}
                         </span>
                       ) : (
                         <span className="badge badge-danger">
-                          <XCircle size={11} /> INACTIVO
+                          <XCircle size={11} /> {t('users.inactive')}
                         </span>
                       )}
                     </td>
@@ -403,7 +403,7 @@ export const UsuariosPage: React.FC = () => {
                         className="btn btn-secondary btn-sm"
                         onClick={() => abrirEditarUsuario(u)}
                       >
-                        <Edit2 size={13} /> EDITAR
+                        <Edit2 size={13} /> {t('users.edit')}
                       </button>
                     </td>
                   </tr>
@@ -422,10 +422,15 @@ export const UsuariosPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Users size={20} color="var(--color-primary)" />
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                  {usuarioEditando ? 'EDITAR USUARIO' : 'NUEVO USUARIO'}
+                  {usuarioEditando ? t('users.edit_user') : t('users.new_user')}
                 </h2>
               </div>
-              <button type="button" onClick={() => setModalAbierto(false)} style={styles.closeBtn}>
+              <button
+                type="button"
+                onClick={() => setModalAbierto(false)}
+                style={styles.closeBtn}
+                aria-label={t('common.close_modal')}
+              >
                 <X size={20} />
               </button>
             </div>
@@ -441,13 +446,13 @@ export const UsuariosPage: React.FC = () => {
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
                   <label className="form-label">
-                    NOMBRE COMPLETO <span style={{ color: '#DC2626' }}>*</span>
+                    {t('users.full_name')} <span style={{ color: '#DC2626' }}>*</span>
                   </label>
                   <input
                     type="text"
                     required
                     disabled={submitting}
-                    placeholder="Ej. Mario López"
+                    placeholder={t('users.placeholder_name')}
                     value={formNombre}
                     onChange={(e) => {
                       setFormNombre(e.target.value);
@@ -463,13 +468,13 @@ export const UsuariosPage: React.FC = () => {
 
                 <div className="form-group" style={{ flex: 1 }}>
                   <label className="form-label">
-                    CORREO ELECTRÓNICO <span style={{ color: '#DC2626' }}>*</span>
+                    {t('users.email')} <span style={{ color: '#DC2626' }}>*</span>
                   </label>
                   <input
                     type="email"
                     required
                     disabled={submitting}
-                    placeholder="mario@lamundial.hn"
+                    placeholder={t('users.placeholder_email')}
                     value={formEmail}
                     onChange={(e) => {
                       setFormEmail(e.target.value);
@@ -487,7 +492,7 @@ export const UsuariosPage: React.FC = () => {
               {!usuarioEditando && (
                 <div className="form-group">
                   <label className="form-label">
-                    CONTRASEÑA TEMPORAL <span style={{ color: '#DC2626' }}>*</span>
+                    {t('users.temp_password')} <span style={{ color: '#DC2626' }}>*</span>
                   </label>
                   <input
                     type="password"
@@ -510,7 +515,7 @@ export const UsuariosPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">SUCURSAL DE TRABAJO (TRASLADO / ASIGNACIÓN) <span style={{ color: '#DC2626' }}>*</span></label>
+                  <label className="form-label">{t('users.work_branch')} <span style={{ color: '#DC2626' }}>*</span></label>
                   <select
                     value={formSucursalActual}
                     disabled={submitting}
@@ -526,7 +531,7 @@ export const UsuariosPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">ROL BASE <span style={{ color: '#DC2626' }}>*</span></label>
+                  <label className="form-label">{t('users.base_role')} <span style={{ color: '#DC2626' }}>*</span></label>
                   <select
                     value={formRolBase}
                     disabled={submitting}
@@ -545,7 +550,7 @@ export const UsuariosPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">DESCUENTO MÁXIMO PERMITIDO (0-100%) <span style={{ color: '#DC2626' }}>*</span></label>
+                  <label className="form-label">{t('users.max_allowed_discount')} <span style={{ color: '#DC2626' }}>*</span></label>
                   <input
                     type="number"
                     min="0"
@@ -567,7 +572,7 @@ export const UsuariosPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">ESTADO DE CUENTA</label>
+                <label className="form-label">{t('users.account_status')}</label>
                 <div style={{ display: 'flex', gap: '16px', marginTop: '6px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}>
                     <input
@@ -576,7 +581,7 @@ export const UsuariosPage: React.FC = () => {
                       checked={formActivo === true}
                       onChange={() => setFormActivo(true)}
                     />
-                    Activo (Puede iniciar sesión)
+                    {t('users.active_can_login')}
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#DC2626' }}>
                     <input
@@ -585,7 +590,7 @@ export const UsuariosPage: React.FC = () => {
                       checked={formActivo === false}
                       onChange={() => setFormActivo(false)}
                     />
-                    Inactivo (Bloqueado)
+                    {t('users.inactive_blocked')}
                   </label>
                 </div>
               </div>
@@ -595,7 +600,7 @@ export const UsuariosPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                   <ShieldCheck size={16} color="var(--color-primary)" />
                   <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase' }}>
-                    PERSONALIZACIÓN FINA DE PERMISOS
+                    {t('users.fine_tuning_permissions')}
                   </span>
                 </div>
 
@@ -619,7 +624,7 @@ export const UsuariosPage: React.FC = () => {
                         />
                         <div>
                           <div style={styles.permisoKey}>{p.clave}</div>
-                          <div style={styles.permisoLabel}>{p.label}</div>
+                          <div style={styles.permisoLabel}>{t(p.labelKey)}</div>
                         </div>
                       </div>
                     );
@@ -634,18 +639,18 @@ export const UsuariosPage: React.FC = () => {
                   disabled={submitting}
                   onClick={() => setModalAbierto(false)}
                 >
-                  CANCELAR
+                  {t('users.cancel')}
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
                   {submitting ? (
                     <>
                       <Loader2 size={16} className="animate-spin" />
-                      <span>GUARDANDO...</span>
+                      <span>{t('users.saving')}</span>
                     </>
                   ) : (
                     <>
                       <Check size={16} strokeWidth={2.6} />
-                      <span>GUARDAR USUARIO</span>
+                      <span>{t('users.save_user')}</span>
                     </>
                   )}
                 </button>
