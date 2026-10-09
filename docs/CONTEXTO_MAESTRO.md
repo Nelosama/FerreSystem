@@ -466,6 +466,71 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 
 **Veredicto de esta revisión:** APTO PARA MERGE, condicionado a que el commit nuevo tenga los workflows de GitHub Actions en verde y que la rama siga sin conflictos con `main` en el momento de fusionar. La fusión no se ha hecho.
 
+### Crédito de clientes — blindaje P0 (2026-10-09, rama `fix/p0-credit-integrity`)
+
+**Base:** `main` `00f72c02` (PR #103 ya fusionado). Rama nueva desde `main`. Sin merge ni despliegue. Sin migraciones: `backend/prisma` no cambia.
+
+**Evidencia de la auditoría de Codex:** no encontrada en el repositorio ni en los artefactos de la sesión. Las menciones de Codex en el repositorio son de otros temas (escáner de código de barras, `907b33db` revertido). No se usaron resultados de Codex. Todos los defectos se reprodujeron directamente con PostgreSQL real.
+
+**Reproducción inicial** (`backend/test/credito.postgres.integration.ts`, 15 casos, antes de corregir): **8 fallaban y 7 pasaban**.
+- Fallaban: conversión de cotización a crédito por encima del límite (C1), conversión a crédito de cliente sin crédito habilitado (C1), venta de cotización guardada como `CONTADO` sin saldo de crédito (C2), reintento de abono heredado aplicado dos veces (C3), abono heredado sin `pagos_cuenta`, caja ni auditoría (C3), devolución de venta a crédito que deja la deuda del cliente en 115 (C4), y la invariante CxC = monto − pagos rota por el abono heredado (C3).
+- Pasaban (protecciones existentes): dos ventas que compiten por el mismo cupo (serializadas por `lockTenant`), dos pagos simultáneos sobre la misma CxC, reintento de `pagar` con la misma solicitud, abonos sucesivos hasta saldar, aislamiento entre empresas y consistencia cliente = suma de CxC.
+- Nota del arnés: la primera versión aplicaba DDL generado desde el esquema y no incluía los triggers de numeración de clientes de las migraciones. Se cambió a la cadena completa de migraciones, en orden, sobre base vacía (verificada sin errores).
+
+**Causas raíz**
+- **C1 · Cotización a crédito sin validación de crédito.** `convertirAVenta` creaba la CxC sin revisar `creditoHabilitado`, `activo` ni el límite.
+- **C2 · Cotización a crédito incompleta.** No guardaba `tipo_pago = CREDITO` ni `saldo_credito`, y no incrementaba `clientes.saldo_pendiente`. Ventas, abonos y devoluciones tratan esos campos como la fuente de verdad.
+- **C3 · Ruta paralela de abonos.** `POST /clientes/:id/abonos` (`ClientesService.addPayment`) no tenía idempotencia, no registraba caja, `pagos_cuenta` ni auditoría, y sí reducía la CxC y el saldo del cliente. No tenía llamadas desde el frontend.
+- **C4 · Cancelación incompleta.** `ejecutarDevolucion` reducía la CxC pero no `clientes.saldo_pendiente` ni `ventas.saldo_credito`: deuda ficticia.
+
+**P0 corregidos**
+- **P0-A (conversión a crédito):** la conversión desde cotización aplica las mismas reglas que una venta directa: cliente activo, crédito habilitado, límite con saldo actual. Guarda `tipo_pago`, `saldo_credito` e incrementa el saldo del cliente, todo en la misma transacción. Una cotización no puede convertirse dos veces. Una venta con solicitud repetida no duplica venta, CxC ni saldo.
+- **P0-B (abonos):** el único camino de abono es `POST /operaciones/cuentas/:id/pagos` (`operaciones.pagar`): idempotente por `solicitud_id` con hash, bloqueo `FOR UPDATE` de la CxC, actualización condicional del cliente, caja (`ABONO_CXC`), `pagos_cuenta` y auditoría. La ruta heredada `POST /clientes/:id/abonos` queda **bloqueada con HTTP 410** (`GoneException`) y no modifica saldos. No se inventó una regla nueva para ella.
+- **P0-C (cancelaciones):** la devolución de venta a crédito cancela en la misma transacción la CxC, el saldo del cliente y `saldo_credito`. Con abonos previos se mantiene la **regla vigente** documentada en `CONTEXTO_MAESTRO` (sección de devoluciones): primero se cancela el crédito pendiente y el excedente pagado es reembolso. Nota: en un primer intento se bloqueó este caso, pero contradecía la regla documentada y se revirtió antes de cerrar la fase.
+
+**Matriz de invariantes y pruebas** (todas contra PostgreSQL real salvo indicación)
+| Invariante | Prueba |
+|---|---|
+| Saldo de CxC = monto − pagos − crédito cancelado por devolución | `invariante: el saldo de cada CxC…` |
+| Saldo del cliente = suma de sus CxC abiertas | `invariante: el saldo del cliente…` |
+| Ninguna operación consume más crédito que el autorizado | `P0-A dos ventas…` (cupo de 150, una de 115) y `P0-A una venta… supera el límite` |
+| Solicitud repetida no duplica obligaciones ni pagos | `P0-B un reintento de la misma solicitud…`, `una misma solicitud de venta…`, `una cotización convertida… no puede convertirse de nuevo` |
+| Transacción fallida sin cambios parciales | `caso 7…` (inconsistencia previa; el abono falla tras escribir CxC y pago) |
+| Operaciones de un tenant no afectan a otro | `multi-tenant…` |
+| Cancelaciones sin deuda ficticia | `P0-C devolver… sin abonos…` y `con abonos…` |
+| Trazabilidad por operación | `P0-B un abono de CxC (ruta canónica)…` (pago, caja y auditoría `CUENTA_PAGAR`) |
+| Abonos parciales hasta saldar exactamente | `P0-B abonos parciales sucesivos…` |
+| Revocación de permisos antes de ejecutar | `caso 6…` (el autorizador pierde el rol; `ejecutarAutorizada` rechaza) |
+
+**Casos de estrés solicitados**
+- Caso 1 (dos ventas por el mismo crédito): cubierto, PostgreSQL real.
+- Caso 2 (doble clic en abonar) y caso 3 (reintento tras perder la respuesta): cubiertos a nivel backend con la misma solicitud. La prueba usa el mismo usuario.
+- Caso 4 (dos cajeros sobre la misma CxC): cubierto con concurrencia real, pero **ambas operaciones usan el mismo ADMIN**. No se simularon dos usuarios distintos.
+- Caso 5 (devolución y abono simultáneos sobre la misma venta): cubierto. Se verifica que exactamente una prospera y que los saldos coinciden.
+- Caso 6 (ADMIN que pierde autorización antes de ejecutar): cubierto como **revocación secuencial**, no concurrente.
+- Caso 7 (fallo intencional entre escrituras): cubierto con una inconsistencia previa que provoca el fallo tras escribir CxC y pago.
+- Caso 8 (cliente o CxC de otro tenant): cubierto.
+- Caso 9 (abonos sucesivos hasta exacto): cubierto.
+- Caso 10 (cancelación con pagos previos): cubierto con la regla vigente.
+
+**Resultados locales** (ejecutados)
+- Backend unitarias: 326/326. Se actualizaron dos pruebas unitarias por cambio de comportamiento intencional (abono heredado bloqueado) y por fixture incompleto (CxC sin cliente).
+- Integración PostgreSQL (usuario no root): 190/190 en 10 archivos (línea base 169 + 21 de crédito).
+- `tsc -p tsconfig.build.json`, `nest build`, `oxlint`: sin errores.
+- Frontend: `npm test` 157/157, `tsc -b`, build correctos. Playwright 85/85. **Las E2E usan backend simulado.** No se cambió el frontend: la interfaz ya muestra los mensajes del backend (`POSPage`, `OperacionesPage`).
+
+**Decisiones de negocio pendientes (no implementadas)**
+- Ruta heredada `POST /clientes/:id/abonos`: se bloquea (410). Si algún integrador la usa, debe migrar a `/operaciones/cuentas/:id/pagos`. Decidir si se elimina por completo.
+- Reembolso con abonos: se conserva la regla vigente, pero el importe mostrado es estimado y puede cambiar con pagos o devoluciones posteriores. Necesita confirmación del propietario sobre el comportamiento final.
+- Conversiones a crédito hechas antes de esta corrección: si la cotización se convirtió a crédito, la venta tiene CxC pero `clientes.saldo_pendiente` no incluye ese saldo. Hace falta una conciliación de solo lectura antes de corregir datos.
+
+**Riesgos residuales**
+- La conciliación de datos históricos no se ha ejecutado sobre producción.
+- Caso 4 y caso 6 no se probaron con usuarios concurrentes distintos.
+- Playwright usa backend simulado; no demuestra persistencia.
+- Sidebar y topnav no se validaron visualmente.
+- Esta fase no añade prueba automatizada de cierres de caja históricos (pendiente desde la revisión de PR #103).
+
 ### FS-07 — edición integral y segura de productos (2026-10-09)
 
 - **Base:** `main` `52703309` (PR #101, FS-06 fase 2, **ya fusionado** por `Nelosama` el 2026-10-09 20:43 UTC; CI de `59e39313` en success). Rama `fix/fs-07-edicion-productos`. PR abierto hacia `main`. Sin merge ni despliegue.
