@@ -57,6 +57,9 @@ export interface Cliente {
   email?: string | null;
   direccion?: string | null;
   tipo: 'CONSUMIDOR_FINAL' | 'MAYORISTA' | 'CONTRATISTA';
+  creditoHabilitado?: boolean;
+  limiteCredito?: string | number | null;
+  saldoPendiente?: string | number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -77,6 +80,11 @@ export const ClientesPage: React.FC = () => {
   const [modalFormAbierto, setModalFormAbierto] = useState(false);
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [clienteEliminar, setClienteEliminar] = useState<Cliente | null>(null);
+  const [clienteCredito, setClienteCredito] = useState<Cliente | null>(null);
+  const [creditoActivo, setCreditoActivo] = useState(false);
+  const [creditoLimite, setCreditoLimite] = useState('');
+  const [creditoError, setCreditoError] = useState<string | null>(null);
+  const [guardandoCredito, setGuardandoCredito] = useState(false);
 
   // Form states & field-level errors
   const [formNombre, setFormNombre] = useState('');
@@ -87,6 +95,36 @@ export const ClientesPage: React.FC = () => {
   const [formTipo, setFormTipo] = useState<'CONSUMIDOR_FINAL' | 'MAYORISTA' | 'CONTRATISTA'>('CONSUMIDOR_FINAL');
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const abrirCredito = (c: Cliente) => {
+    setClienteCredito(c);
+    setCreditoActivo(!!c.creditoHabilitado);
+    setCreditoLimite(c.limiteCredito === null || c.limiteCredito === undefined ? '' : String(Number(c.limiteCredito)));
+    setCreditoError(null);
+  };
+
+  const guardarCredito = async () => {
+    if (!clienteCredito) return;
+    const texto = creditoLimite.trim();
+    const limite = texto === '' ? null : Number(texto);
+    if (limite !== null && (!Number.isFinite(limite) || limite < 0)) {
+      setCreditoError('El límite debe ser un número mayor o igual a 0, o vacío para crédito sin límite.');
+      return;
+    }
+    setGuardandoCredito(true);
+    setCreditoError(null);
+    try {
+      await api.patch(`/clientes/${clienteCredito.id}/credito`, { creditoHabilitado: creditoActivo, limiteCredito: limite });
+      setSuccessBanner(`Crédito de ${clienteCredito.nombre} actualizado.`);
+      setClienteCredito(null);
+      await fetchClientes();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      setCreditoError(Array.isArray(msg) ? msg.join(', ') : msg || 'No se pudo guardar el crédito.');
+    } finally {
+      setGuardandoCredito(false);
+    }
+  };
 
   const fetchClientes = useCallback(async () => {
     setLoading(true);
@@ -291,13 +329,14 @@ export const ClientesPage: React.FC = () => {
                   <th>CONTACTO</th>
                   <th>DIRECCIÓN</th>
                   <th style={{ textAlign: 'center' }}>TIPO</th>
+                  <th style={{ textAlign: 'center' }}>CRÉDITO</th>
                   <th style={{ textAlign: 'center' }}>ACCIONES</th>
                 </tr>
               </thead>
               <tbody>
                 {clientes.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-muted)' }}>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-muted)' }}>
                       No se encontraron clientes registrados.
                     </td>
                   </tr>
@@ -342,8 +381,20 @@ export const ClientesPage: React.FC = () => {
                           {c.tipo.replace('_', ' ')}
                         </span>
                       </td>
+                      <td style={{ textAlign: 'center', fontSize: '12px' }}>
+                        {c.creditoHabilitado ? (
+                          <>
+                            <span className="badge badge-dark" style={{ fontSize: '10px' }}>HABILITADO</span>
+                            <div>Límite: {c.limiteCredito === null || c.limiteCredito === undefined ? 'sin límite' : `L ${Number(c.limiteCredito).toFixed(2)}`}</div>
+                            <div>Saldo: L {Number(c.saldoPendiente ?? 0).toFixed(2)}</div>
+                          </>
+                        ) : <span style={{ color: 'var(--color-text-muted)' }}>No habilitado</span>}
+                      </td>
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => abrirCredito(c)}>
+                            CRÉDITO
+                          </button>
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
@@ -530,6 +581,32 @@ export const ClientesPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {clienteCredito && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '440px' }}>
+            <div style={styles.modalHeader}>
+              <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>Crédito: {clienteCredito.nombre}</h2>
+              <button type="button" aria-label={t('common.close_modal')} onClick={() => setClienteCredito(null)} className="btn btn-secondary btn-sm">✕</button>
+            </div>
+            <div style={{ padding: '16px', display: 'grid', gap: '12px' }}>
+              {creditoError && <div role="alert" style={styles.modalErrorBanner}><span>{creditoError}</span></div>}
+              <p style={{ fontSize: '12px' }}>Saldo pendiente actual: L {Number(clienteCredito.saldoPendiente ?? 0).toFixed(2)}</p>
+              <label style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input type="checkbox" checked={creditoActivo} disabled={guardandoCredito} onChange={e => setCreditoActivo(e.target.checked)} />
+                Permitir ventas a crédito a este cliente
+              </label>
+              <label>Límite de crédito (L), vacío = sin límite
+                <input className="form-input" type="number" min="0" step="0.01" inputMode="decimal" value={creditoLimite} disabled={guardandoCredito} onChange={e => setCreditoLimite(e.target.value)} />
+              </label>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" disabled={guardandoCredito} onClick={() => setClienteCredito(null)}>Cancelar</button>
+                <button type="button" className="btn btn-primary" disabled={guardandoCredito} onClick={guardarCredito}>{guardandoCredito ? 'Guardando…' : 'Guardar crédito'}</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

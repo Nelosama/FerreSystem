@@ -207,6 +207,8 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 | **Diagnóstico pendientes** — ítems 2,3,5-11 PENDIENTES | Item 5 (barcode cámara): PARCIAL vía PR #76. Exportación CSV/Excel: PARCIAL (sin plantillas). Ítem 2 (multiusuario), 3 (offline), 7 (zonas), 9 (reconteo): NO implementados. |
 | **Documentación** | Este archivo actualizado. Rama `docs/contexto-levantamiento-post-rebase`. |
 | **PR #79 — Auditoría P1/P2 completada** | Dos defectos confirmados y corregidos. Commit `bac89b1b` en rama `docs/contexto-levantamiento-post-rebase`. **Pendiente: push y merge manual.** |
+**FS-02 (2026-10-09)** — rama `fix/fs-02-credito-clientes`, PR abierto, sin merge/despliegue. `ClientesPage.tsx`: columna Crédito (estado, límite, saldo), botón CRÉDITO y modal que usa el endpoint existente `PATCH /clientes/:id/credito` (solo ADMIN; límite vacío = sin límite; el backend rechaza límite < saldo). Test `frontend/test/clientes-credito-ui.test.mjs`, `tsc` app OK. No validado en navegador ni con datos reales.
+
 ### Auditoría PR #79 (2026-10-09)
 
 **Hallazgo P1 — `??0` silencia precios null del catálogo:**
@@ -229,6 +231,12 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 
 **Acción requerida por Daniel:** `git push origin docs/contexto-levantamiento-post-rebase`
 
+
+### Bitácora FS (sesión autónoma 2026-10-09)
+
+| FS | Estado | Rama | Evidencia |
+|---|---|---|---|
+| FS-01 | Corregido, PR abierto (sin merge/despliegue) | `fix/fs-01-pos-vencimiento-iso` | Causa: `@IsOptional()` no omite `''`; el pendiente corregido del POS guardaba `vencimiento: ''` y el backend respondía "must be a valid ISO 8601 date string", dejando la venta pendiente bloqueada. Fix: `backend/src/common/empty-to-undefined.ts` aplicado a `vencimiento` en ventas/operaciones/compras + POS envía `pending.vencimiento \|\| undefined`. Test: `backend/src/ventas/create-venta-vencimiento.spec.ts` (11/11 en `src/ventas`). No validado en navegador ni producción. |
 
 ### Bitácoras anteriores (resumen)
 
