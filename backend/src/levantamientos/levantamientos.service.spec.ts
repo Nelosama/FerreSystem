@@ -51,9 +51,9 @@ describe('Identidad de productos durante el levantamiento', () => {
   prisma={
    $transaction:vi.fn((fn:any)=>fn(prisma)), $queryRawUnsafe:vi.fn(async()=>[]),
    levantamiento:{findFirst:vi.fn().mockResolvedValue({id:'l',estado:'EN_PROGRESO',items:[]})},
-   levantamientoItem:{create:vi.fn(async({data}:any)=>data),update:vi.fn(async({data}:any)=>data)},
+   levantamientoItem:{create:vi.fn(async({data}:any)=>data),update:vi.fn(async({data}:any)=>data),findMany:vi.fn().mockResolvedValue([])},
    producto:{findMany:vi.fn(async({where}:any)=>[product].filter(p=>where.OR.some((condition:any)=>
-    condition.id?.in.includes(p.id)||condition.codigo?.in.some((code:string)=>code.toUpperCase()===p.codigo)||condition.codigoBarras?.in.includes(p.codigoBarras))))},
+    condition.id?.in.includes(p.id)||(condition.codigo?.equals!==undefined&&condition.codigo.equals.toUpperCase()===p.codigo.toUpperCase())||condition.codigoBarras?.in.includes(p.codigoBarras))))},
   };
   service=new LevantamientosService(prisma);
  });
@@ -160,7 +160,7 @@ describe('Multiusuario — detección de conflictos', () => {
     update: vi.fn(async ({ data }:any) => ({ id: 'upd', ...data })),
     findMany: vi.fn().mockResolvedValue([]),
    },
-   producto: { findMany: vi.fn().mockResolvedValue([]) },
+   producto: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue({ id: 'p1' }) },
   };
   service = new LevantamientosService(prisma);
  });

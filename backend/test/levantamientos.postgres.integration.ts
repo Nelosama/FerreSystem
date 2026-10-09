@@ -204,4 +204,66 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     await apply(p.token).expect(409);
     expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).stockActual)).toBe(7);
   });
+
+  // ─── FS-06: integridad y trazabilidad ─────────────────────────────────────
+
+  it('rechaza un productoId que pertenece a otra empresa sin guardar el conteo (FS-06)',async()=>{
+    const ajeno=(await call('post','/productos',{codigo:'AJENO-1',nombre:'Ajeno',precioCosto:8,precioVenta:9,stockActual:20,stockMinimo:0,unidadMedida:'METRO'},'OTHER').expect(201)).body;
+    await add(item({productoId:ajeno.id})).expect(400);
+    expect(await prisma.levantamientoItem.count({where:{levantamientoId:lid}})).toBe(0);
+  });
+
+  it('no registra presencia de usuarios en un levantamiento de otra empresa (FS-06)',async()=>{
+    await call('post',`/levantamientos/${lid}/heartbeat`,{nombreUsuario:'Ajeno'},'OTHER').expect(404);
+    expect(await prisma.levantamientoSesion.count({where:{levantamientoId:lid}})).toBe(0);
+  });
+
+  it('dos solicitudes simultáneas con el mismo solicitudId crean un solo conteo y una sola auditoría (FS-06)',async()=>{
+    const body=item({codigoBarras:'555000'});
+    const [a,b]=await Promise.all([add(body),add(body)]);
+    expect([a.status,b.status].sort()).toEqual([201,201]);
+    expect(a.body.id).toBe(b.body.id);
+    expect(await prisma.levantamientoItem.count({where:{levantamientoId:lid}})).toBe(1);
+    const [audit]=await prisma.$queryRawUnsafe<{n:number}[]>("SELECT COUNT(*)::int AS n FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='CONTEO_CREAR' AND entidad_id=$2",tenantId,a.body.id);
+    expect(audit.n).toBe(1);
+  });
+
+  it('reintentar una captura con el mismo solicitudId tras perder la respuesta no duplica existencias (FS-06)',async()=>{
+    const body=item({codigoBarras:'555001',cantidad:4});
+    const first=(await add(body).expect(201)).body;
+    const retry=(await add(body).expect(201)).body;
+    expect(retry.id).toBe(first.id);
+    expect(await prisma.levantamientoItem.count({where:{levantamientoId:lid}})).toBe(1);
+    expect(Number((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:first.id}})).cantidad)).toBe(4);
+  });
+
+  it('un código heredado en minúsculas identifica el producto existente y no crea un duplicado al aplicar (FS-06)',async()=>{
+    const legacy=await prisma.producto.create({data:{tenantId,codigo:'legacy-x1',nombre:'Heredado',unidadMedida:'UNIDAD',precioCosto:1,precioVenta:2,stockActual:5}});
+    await add(item({codigo:'LEGACY-X1',cantidad:7,unidad:'UNIDAD',precioCosto:1,precioVenta:2})).expect(201);
+    await finish();
+    const p=(await preview()).body;
+    expect(p.rows[0].productoId).toBe(legacy.id);
+    expect(p.rows[0].errores).toEqual([]);
+    await apply(p.token).expect(201);
+    expect(await prisma.producto.count({where:{tenantId,codigo:{equals:'LEGACY-X1',mode:'insensitive'}}})).toBe(1);
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:legacy.id}})).stockActual)).toBe(7);
+  });
+
+  it('editar un conteo para coincidir con el de otro usuario marca conflicto en ambos (FS-06)',async()=>{
+    const a=(await call('post',`/levantamientos/${lid}/items`,item({codigo:'AAA-1',cantidad:1}),'ADMIN').expect(201)).body;
+    const b=(await call('post',`/levantamientos/${lid}/items`,item({codigo:'BBB-1',cantidad:1}),'BODEGUERO').expect(201)).body;
+    expect(a.conflicto).toBe(false);
+    const edited=(await call('patch',`/levantamientos/${lid}/items/${b.id}`,{version:b.version,codigo:'aaa-1'},'BODEGUERO').expect(200)).body;
+    expect(edited.conflicto).toBe(true);
+    expect((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:a.id}})).conflicto).toBe(true);
+  });
+
+  it('editar solo el nombre de un producto conserva código, barcode, costo, precio, existencias y unidad (FS-06)',async()=>{
+    const before=await prisma.producto.findUniqueOrThrow({where:{id:productId}});
+    await call('put',`/productos/${productId}`,{nombre:'Cable metro reforzado'}).expect(200);
+    const after=await prisma.producto.findUniqueOrThrow({where:{id:productId}});
+    expect(after.nombre).toBe('Cable metro reforzado');
+    expect([after.codigo,after.codigoBarras,Number(after.precioCosto),Number(after.precioVenta),Number(after.stockActual),after.unidadMedida])
+      .toEqual([before.codigo,before.codigoBarras,Number(before.precioCosto),Number(before.precioVenta),Number(before.stockActual),before.unidadMedida]);
+  });
 });

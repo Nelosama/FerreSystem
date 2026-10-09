@@ -15,6 +15,20 @@ export class LevantamientosService {
  private async session(tx:any,tenantId:string,id:string){const l=await tx.levantamiento.findFirst({where:{tenantId,id},include:{items:{orderBy:{id:'asc'}}}});if(!l)throw new NotFoundException('Levantamiento no encontrado');return l;}
  private editable(l:any){if(l.estado==='FINALIZADO'||l.aplicadoAt)throw new ConflictException('El levantamiento está cerrado');}
 
+ /** Ítems capturados por OTRO usuario que comparten producto, código o código de barras con la identidad indicada. Regla única para alta y edición (FS-06). */
+ private conflictingItems(items:any[],userId:string,identidad:{productoId?:string|null;codigo?:string|null;codigoBarras?:string|null},excluirId?:string){
+  const codeNorm=identidad.codigo?.trim().toUpperCase()||null;
+  const barcode=identidad.codigoBarras?.trim()||null;
+  return items.filter(i=>{
+   if(i.id===excluirId||i.contadorId===userId)return false; // mismo usuario corrigiendo su propio conteo no es conflicto
+   const iCode=i.codigo?.trim().toUpperCase()||null;
+   const iBar=i.codigoBarras?.trim()||null;
+   return (identidad.productoId&&i.productoId===identidad.productoId)||
+          (codeNorm&&iCode&&codeNorm===iCode)||
+          (barcode&&iBar&&barcode===iBar);
+  });
+ }
+
  // ─── LEVANTAMIENTO CRUD ───────────────────────────────────────────────────
 
  async findAll(tenantId:string){
@@ -73,17 +87,13 @@ export class LevantamientosService {
    }
    this.editable(l);
 
+   // FS-06: el producto de referencia debe pertenecer a esta empresa; un id ajeno no se guarda.
+   if(dto.productoId&&!(await tx.producto.findFirst({where:{id:dto.productoId,tenantId},select:{id:true}})))throw new BadRequestException('El producto indicado no pertenece a esta empresa');
+
    // Detectar conflicto: ¿ya existe un ítem del mismo producto/código capturado por OTRO usuario?
    const codeNorm=dto.codigo?.trim().toUpperCase()||null;
    const barcode=dto.codigoBarras?.trim()||null;
-   const conflicting=l.items.filter(i=>{
-    if(i.contadorId===userId)return false; // mismo usuario editando no es conflicto
-    const iCode=i.codigo?.trim().toUpperCase()||null;
-    const iBar=i.codigoBarras?.trim()||null;
-    return (dto.productoId&&i.productoId===dto.productoId)||
-           (codeNorm&&iCode&&codeNorm===iCode)||
-           (barcode&&iBar&&barcode===iBar);
-   });
+   const conflicting=this.conflictingItems(l.items,userId,{productoId:dto.productoId,codigo:dto.codigo,codigoBarras:dto.codigoBarras});
    const hayConflicto=conflicting.length>0;
 
    // Si hay conflicto, marcar los ítems existentes también como conflicto
@@ -121,17 +131,24 @@ export class LevantamientosService {
    if(!previous)throw new NotFoundException('Item no encontrado');
    if(dto.version!==previous.version)throw new ConflictException('Otro usuario modificó el conteo; recargue y concilie');
    const {version,...data}=dto;
+   // FS-06: la identidad resultante se evalúa con la misma regla del alta; si coincide con otro usuario, ambos quedan en conflicto.
+   const codigo=dto.codigo!==undefined?(dto.codigo?.trim().toUpperCase()||null):previous.codigo;
+   const codigoBarras=dto.codigoBarras!==undefined?(dto.codigoBarras?.trim()||null):previous.codigoBarras;
+   const conflicting=this.conflictingItems(l.items,userId,{productoId:previous.productoId,codigo,codigoBarras},itemId);
+   for(const c of conflicting){if(!c.conflicto)await tx.levantamientoItem.update({where:{id:c.id},data:{conflicto:true}});}
    const item=await tx.levantamientoItem.update({
     where:{id:itemId},
     data:{
      ...data,
-     ...(dto.codigo!==undefined?{codigo:dto.codigo?.trim().toUpperCase()||null}:{}),
-     ...(dto.codigoBarras!==undefined?{codigoBarras:dto.codigoBarras?.trim()||null}:{}),
+     codigo,
+     codigoBarras,
      ...(dto.descripcion!==undefined?{descripcion:text(dto.descripcion,'Descripción')}:{}),
+     conflicto:conflicting.length>0,
      version:{increment:1},
      updatedBy:userId,
     }
    });
+   await this.limpiarConflictosHuerfanos(tx,lid);
    await audit(tx,tenantId,userId,'CONTEO_EDITAR',item.id,{anterior:this.item(previous),nuevo:this.item(item)});
    return this.item(item);
   });
@@ -239,6 +256,8 @@ export class LevantamientosService {
 
  /** El cliente llama cada 60 s para registrar presencia */
  async heartbeat(tenantId:string,lid:string,userId:string,nombreUsuario:string){
+  // FS-06: solo se registra presencia en levantamientos de la empresa del usuario.
+  if(!(await this.prisma.levantamiento.findFirst({where:{tenantId,id:lid},select:{id:true}})))throw new NotFoundException('Levantamiento no encontrado');
   await this.prisma.levantamientoSesion.upsert({
    where:{levantamientoId_usuarioId:{levantamientoId:lid,usuarioId:userId}},
    create:{tenantId,levantamientoId:lid,usuarioId:userId,nombreUsuario,ultimoHeartbeat:new Date()},
@@ -269,9 +288,10 @@ export class LevantamientosService {
   const l=await this.session(tx,tenantId,lid);
   const rows:any[]=[],seen=new Set<string>(),barcodes=new Set<string>();
   const items=l.items.map((i:any)=>({...i,codigo:i.codigo?.trim().toUpperCase()||null,codigoBarras:i.codigoBarras?.trim()||null}));
+  // FS-06: el código se compara sin distinguir mayúsculas; productos heredados pueden estar en minúsculas.
   const candidates=await tx.producto.findMany({where:{tenantId,OR:[
    {id:{in:items.map((i:any)=>i.productoId).filter(Boolean)}},
-   {codigo:{in:items.map((i:any)=>i.codigo).filter(Boolean)}},
+   ...items.map((i:any)=>i.codigo).filter(Boolean).map((codigo:string)=>({codigo:{equals:codigo,mode:'insensitive'}})),
    {codigoBarras:{in:items.map((i:any)=>i.codigoBarras).filter(Boolean)}}
   ]}});
   for(const item of items){
