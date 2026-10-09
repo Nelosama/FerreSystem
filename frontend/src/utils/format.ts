@@ -20,3 +20,17 @@ export function formatNumber(amount: number): string {
     maximumFractionDigits: 2,
   });
 }
+
+/**
+ * Formatea una fecha de calendario (sin hora, p. ej. un vencimiento) tal como fue
+ * capturada. Las fechas llegan como medianoche UTC; convertirlas a la zona local
+ * las mostraría un día antes en America/Tegucigalpa (UTC-6).
+ * Ej: "2026-10-09T00:00:00.000Z" -> "09/10/2026"
+ */
+export function formatFechaCalendario(value?: string | Date | null): string {
+  if (!value) return '—';
+  const iso = value instanceof Date ? value.toISOString() : String(value);
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return '—';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
