@@ -93,6 +93,11 @@ export interface ProductItem {
   usaMedida?: boolean;
   activo?: boolean;
   stockBajo?: boolean;
+  /** FS-07: versión para la edición concurrente y campos reales de categoría y marca. */
+  version?: number;
+  marca?: string | null;
+  categoriaId?: string | null;
+  categoriaNombre?: string;
   fechaVencimiento?: string;
   lote?: string;
   numeroSerie?: string;

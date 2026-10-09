@@ -39,6 +39,11 @@ export const InventarioPage: React.FC = () => {
         precioCosto: Number(p.precioCosto),
         margen:p.margen==null?undefined:Number(p.margen),
         imagenUrl:p.imagenUrl,
+        // FS-07: campos reales para editar. 'categoria' es solo texto de visualización (usa 'General' como respaldo).
+        version: p.version,
+        marca: p.marca ?? null,
+        categoriaId: p.categoriaId ?? null,
+        categoriaNombre: p.categoria?.nombre ?? '',
         stockActual: Number(p.stockActual),
         stockReservado:Number(p.stockReservado||0),stockDisponible:Number(p.stockDisponible??p.stockActual),
         stockMinimo: Number(p.stockMinimo),

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsEnum, IsBoolean, IsUrl, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsInt, Min, Max, IsEnum, IsBoolean, IsUrl, MaxLength } from 'class-validator';
 
 import { UnidadMedida as UnidadMedidaEnum } from '@prisma/client';
 export { UnidadMedidaEnum };
@@ -60,6 +60,11 @@ export class CreateProductoDto {
 
 export class UpdateProductoDto {
   @IsOptional() @IsString() motivo?: string;
+  /** FS-07: versión leída por el cliente. Si otro usuario la cambió después, la edición se rechaza sin sobrescribir. */
+  @IsInt({ message: 'Falta la versión del producto; recargue la pantalla' }) @Min(1)
+  version!: number;
+  /** FS-07: estado del producto. Solo el administrador puede cambiarlo. */
+  @IsOptional() @IsBoolean() activo?: boolean;
   @IsString()
   @IsOptional()
   codigo?: string;

@@ -230,6 +230,8 @@ model Producto {
   codigoBarras  String?     @map("codigo_barras")
   codigoFabricante String? @map("codigo_fabricante")
   marca String?
+  // FS-07: control de concurrencia optimista; cada edición exitosa incrementa la versión.
+  version Int @default(1)
   margen Decimal? @db.Decimal(5,2)
   ultimaCompraAt DateTime? @map("ultima_compra_at")
   nombre        String

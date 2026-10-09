@@ -184,7 +184,7 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     await add(item({codigoBarras:' 001234 '})).expect(201);
     await finish();await apply((await preview()).body.token).expect(201);
     expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:foreign.id}})).stockActual)).toBe(20);
-    await call('put',`/productos/${productId}`,{stockActual:99,motivo:'Ajeno'},'OTHER').expect(404);
+    await call('put',`/productos/${productId}`,{version:1,stockActual:99,motivo:'Ajeno'},'OTHER').expect(404);
   });
 
   it('rechaza cajero, permiso revocado y aplicación por bodeguero',async()=>{
@@ -262,7 +262,7 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
 
   it('editar solo el nombre de un producto conserva código, barcode, costo, precio, existencias y unidad (FS-06)',async()=>{
     const before=await prisma.producto.findUniqueOrThrow({where:{id:productId}});
-    await call('put',`/productos/${productId}`,{nombre:'Cable metro reforzado'}).expect(200);
+    await call('put',`/productos/${productId}`,{version:1,nombre:'Cable metro reforzado'}).expect(200);
     const after=await prisma.producto.findUniqueOrThrow({where:{id:productId}});
     expect(after.nombre).toBe('Cable metro reforzado');
     expect([after.codigo,after.codigoBarras,Number(after.precioCosto),Number(after.precioVenta),Number(after.stockActual),after.unidadMedida])
@@ -276,17 +276,17 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
   it('persiste la marca al crear y editar en catálogo; una actualización parcial o vacía no la borra (FS-06 fase 2)',async()=>{
     const creado=(await crearProducto({codigo:'MARCA-1',nombre:'Taladro',marca:'  Bosch  '}).expect(201)).body;
     expect(creado.marca).toBe('Bosch');
-    await call('put',`/productos/${creado.id}`,{nombre:'Taladro 500W'}).expect(200);
-    await call('put',`/productos/${creado.id}`,{marca:'   '}).expect(200);
+    await call('put',`/productos/${creado.id}`,{version:1,nombre:'Taladro 500W'}).expect(200);
+    await call('put',`/productos/${creado.id}`,{version:2,marca:'   '}).expect(200);
     expect((await prisma.producto.findUniqueOrThrow({where:{id:creado.id}})).marca).toBe('Bosch');
-    await call('put',`/productos/${creado.id}`,{marca:'DeWalt'}).expect(200);
+    await call('put',`/productos/${creado.id}`,{version:3,marca:'DeWalt'}).expect(200);
     expect((await prisma.producto.findUniqueOrThrow({where:{id:creado.id}})).marca).toBe('DeWalt');
   });
 
   it('la categoría se conserva al crear y en actualizaciones parciales (FS-06 fase 2)',async()=>{
     const creado=(await crearProducto({codigo:'CAT-1',nombre:'Tornillo',categoria:'Fijación'}).expect(201)).body;
     expect(creado.categoria?.nombre).toBe('Fijación');
-    await call('put',`/productos/${creado.id}`,{nombre:'Tornillo 2"'}).expect(200);
+    await call('put',`/productos/${creado.id}`,{version:1,nombre:'Tornillo 2"'}).expect(200);
     const after=await prisma.producto.findUniqueOrThrow({where:{id:creado.id},include:{categoria:true}});
     expect(after.categoria?.nombre).toBe('Fijación');
   });

@@ -340,6 +340,91 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 - **Fase 4 fotografías:** no implementada (fase separada).
 - Lotes, series, vencimientos y garantías: sin modelo en el esquema.
 
+### FS-07 — edición integral y segura de productos (2026-10-09)
+
+- **Base:** `main` `52703309` (PR #101, FS-06 fase 2, **ya fusionado** por `Nelosama` el 2026-10-09 20:43 UTC; CI de `59e39313` en success). Rama `fix/fs-07-edicion-productos`. PR abierto hacia `main`. Sin merge ni despliegue.
+
+**Matriz de campos (auditoría antes del cambio)**
+
+| Campo | En BD | En formulario | Editable | Persistencia real antes → después |
+|---|---|---|---|---|
+| Nombre, descripción, código interno, código de barras, código fabricante | sí | sí | sí | sí, sin control de versión → con versión |
+| Marca | sí (FS-06) | sí | sí | sí; vacío no borra (FS-06) |
+| Categoría | sí (`categoriaId`) | **no** | solo API | sí; `''` **borraba** la categoría → vacío no cambia |
+| Unidad de medida | sí | **no** | solo API | sí, sin protección con historial → protegida |
+| Precio de venta | sí | sí | sí | sí, auditado; ventas históricas intactas (probado) |
+| Costo vigente | sí | sí | sí (ADMIN/BODEGUERO) | sí, auditado; ver decisión D1 |
+| Margen propio | sí | sí | sí | sí |
+| Stock mínimo | sí | sí | sí | sí |
+| Existencias | sí | sí, **siempre enviado** | sí, con motivo | sí, con AJUSTE; **un formulario viejo podía revertirlas** → ahora protegido |
+| Estado activo | sí | **no** | solo baja lógica (ADMIN) | **sin reactivación desde la UI** → reactivable |
+| Imagen (URL) | sí | sí | sí | sí (fotografías: fase separada) |
+| Usa medida | sí | no | solo API | sí |
+| Lotes, series, vencimientos | **no** existen en el esquema | — | — | no se inventó modelo |
+
+**Hallazgos**
+
+- `PUT /productos/:id` sin control de concurrencia: una edición simultánea o un formulario abierto sobrescribía en silencio.
+- El formulario enviaba `stockActual` en cada guardado: un valor leído antes podía revertir existencias.
+- `InventarioPage` reducía cada producto a una lista blanca de campos **sin `version`**: con el control de versión, ninguna edición se habría podido guardar. Corregido junto con el control de versión.
+- `categoria: ''` en actualización parcial borraba la categoría.
+- Desactivar era irreversible desde la interfaz (la lista solo muestra activos).
+- Cambiar la unidad de medida reinterpretaba cantidades históricas.
+- Código de barras repetido solo se validaba contra productos activos.
+- Auditoría `PRODUCTO_EDITAR` guardaba solo costo, precio y stock anteriores: cambios de nombre, código o barras no tenían valor anterior.
+- Importador masivo (`ImportarProductosModal`) llama a `PUT /productos/:id` y sobrescribe existencias al elegir «sobrescribir» (comportamiento existente, ver D4).
+
+**Cambios implementados**
+
+- **Versión (control optimista):** columna `productos.version` (default 1). Cada edición exitosa la incrementa. Una versión obsoleta responde `409` con `code: PRODUCTO_VERSION` y no escribe nada. La validación ocurre dentro de la transacción con `lockTenant`.
+- **Edición parcial:** `UpdateProductoDto` exige `version`; sin ella, `400`. El backend escribe solo los campos enviados. Frontend: `construirCambiosProducto` envía solo lo que cambió, la versión, y las existencias únicamente si cambiaron (con motivo).
+- **Estado:** `activo` editable solo por ADMIN (`403` para BODEGUERO y CAJERO). `GET /productos?incluirInactivos=true` permite reactivar.
+- **Unidad de medida:** cambia solo si no hay existencias, reservas ni movimientos distintos del alta `INICIAL`; si no, `409` con mensaje.
+- **Códigos:** código interno único por empresa sin distinguir mayúsculas; código de barras único entre **todos** los productos de la empresa (activos o inactivos), en alta y edición y al reactivar. Empresas distintas pueden usar los mismos códigos.
+- **Categoría:** vacía no cambia la categoría (igual que la marca).
+- **Auditoría `PRODUCTO_EDITAR`:** `datos.cambios` con `{anterior, nuevo}` de cada campo modificado, `motivo`, `version` anterior y nueva; el usuario queda en `usuario_id`.
+- **Frontend:** `ProductoGestion` reescrito en grupos (Identificación, Clasificación, Precios y costo, Existencias, Estado, Imagen), con validación antes de guardar, advertencia de confirmación para cambios sensibles (códigos, unidad, precios, existencias, estado), prevención de doble envío, mensaje de éxito, error de conexión sin perder datos, y conflicto de versión que recarga la lista. Textos en ES y EN (`product_edit.*`). Categoría, unidad y estado ahora son editables en la interfaz.
+- **Importador:** envía la versión que leyó del listado; un producto cambiado después se cuenta como error, no se sobrescribe.
+- **Corrección de regresión detectada por E2E:** `InventarioPage` ahora conserva `version`, `marca`, `categoriaId` y nombre real de categoría. `'General'` (texto de visualización) ya no se convierte en categoría.
+
+**Migración**
+
+- `backend/prisma/migrations/20261009130000_fs07_version_producto/migration.sql`: `ALTER TABLE productos ADD COLUMN version INTEGER NOT NULL DEFAULT 1`. Solo agrega columna con valor por defecto; no modifica existencias, precios ni filas existentes. Reversión manual: `ALTER TABLE productos DROP COLUMN version`.
+- Listas explícitas de migraciones de `ventas.postgres.integration.ts` y `reportes-zona-horaria.postgres.integration.ts` actualizadas.
+
+**Pruebas**
+
+- Unitarias backend: **331/331** (`npx vitest run`). `tsc -p tsconfig.build.json` y `nest build` sin errores. Lint de `src/productos` y `src/levantamientos` sin errores.
+- Integración PostgreSQL 16 (usuario `nobody`): suite completa **8 archivos, 135/135**. Nuevo `test/productos-edicion.postgres.integration.ts`: **15/15** (edición parcial sin pérdida; versión obsoleta sin revertir existencias; edición simultánea; reintento; código y barras con auditoría; duplicados activos e inactivos; otra empresa; permisos ADMIN/BODEGUERO/CAJERO; reactivación; existencias sin cambio por nombre/marca/categoría; AJUSTE con motivo auditado; precio y costo sin tocar ventas históricas; unidad protegida; marca y categoría que persisten; edición sin versión rechazada).
+- **Mutación de control:** al desactivar la comprobación de versión, fallan 3 pruebas de concurrencia (versión obsoleta, simultáneas, reintento). Archivo restaurado.
+- Pruebas existentes actualizadas por el nuevo contrato (enviar versión): `productos.postgres.integration.ts` (SEC-005 y BODEGUERO) y 6 pruebas de `levantamientos.postgres.integration.ts`. Ninguna aserción se relajó.
+- Frontend `npm test`: **157/157** (incluye `producto-edicion.test.mjs`, 14 casos, con regresión del mapeo de inventario). `tsc -b` y `vite build` (con `VITE_API_URL=https://api.example.test/api`) correctos. Lint de archivos tocados sin errores.
+- Playwright (suite de la CI): **79/79** (71 previas + **8 nuevas** de `e2e/productos-edicion.spec.ts`: edición parcial, confirmación de costo con cancelación, conflicto de versión, doble clic, fallo de red y reintento, motivo de existencias, reactivación, móvil 390 px). Usa servidor simulado en memoria con la misma regla de versión; **valida la interfaz y el contrato del payload, no el backend real**.
+
+**Decisiones pendientes (no implementadas; requieren autorización)**
+
+- **D1 · Costo vigente manual (financiero).** Hoy ADMIN y BODEGUERO pueden cambiar el costo a mano; queda auditado. Alternativas: (a) mantener así; (b) bloquear el cambio manual y que el costo solo cambie por recepción de compra o ajuste con motivo; (c) manual solo ADMIN con motivo obligatorio. Impacta reglas de compras: no cambiado.
+- **D2 · Código de barras y productos inactivos.** Implementado como único en toda la empresa (más estricto). Alternativa: solo activos. Riesgo: duplicados heredados entre inactivos impedirán crear o reactivar ese código hasta corregirlos. Conviene consultar primero los datos reales.
+- **D3 · Unidad de medida.** Implementado: cambio solo sin historial. Alternativa: factores de conversión (no implementados; requieren definición de negocio).
+- **D4 · Importador «sobrescribir».** Mantiene que el archivo sustituya existencias de productos existentes (auditado con motivo «Importación de inventario revisada»). Decidir si debe confirmarse por separado o solo sobrescribir precios.
+- **D5 · Borrar marca o categoría.** En actualización parcial vacío no borra. Para borrar hace falta un indicador explícito (p. ej. `null` o acción dedicada). No implementado.
+- **D6 · Visibilidad de inactivos.** `incluirInactivos` lo puede pedir cualquiera con acceso al listado de productos. Alternativa: solo ADMIN.
+
+**Riesgos residuales**
+
+- **Despliegue acoplado:** las versiones antiguas del frontend (en caché) envían `PUT` sin `version` y recibirán `400`. Desplegar backend y frontend juntos y refrescar el navegador.
+- **Datos de producción:** antes de activar, consultar duplicados de código de barras entre productos inactivos (D2).
+- **Interfaz no validada visualmente** en SIDEBAR y TOPNAV: no hubo cambios de navegación, pero no se capturaron capturas en ambos modos.
+- Playwright con servidor simulado: no prueba el backend real ni el importador.
+- Importador masivo sin prueba automatizada propia (cambios de versión verificados solo por compilación).
+- Textos de ayuda de `ProductoGestion` nuevos en ES y EN; otras pantallas del catálogo siguen con textos existentes.
+
+**Pendientes de otras fases**
+
+- Ubicación física por sucursal: bloqueada (sin modelo de sucursal).
+- Validación en iPhone real: pendiente.
+- Lotes, series, vencimientos y garantías: sin modelo en el esquema.
+
 ### FS-05 — fechas y horarios de reportes (2026-10-09)
 
 - **Causa raíz:** `created_at` es `TIMESTAMP(3)` sin zona que guarda UTC. El resumen de `/operaciones/resumen` filtraba con `created_at >= $2::date`, es decir, medianoche UTC; el dashboard calculaba "hoy", "ayer" y la tendencia con `setHours`, que usa la zona del servidor (UTC en el despliegue). Resultado: ventas de 18:00–23:59 hora de Tegucigalpa caían en el día siguiente. La página de Reportes además armaba su rango por defecto con `toISOString()` y mostraba el aviso «Fechas del reporte en UTC».
