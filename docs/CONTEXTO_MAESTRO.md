@@ -2201,3 +2201,82 @@ Chromium usa el bundle compilado. La prueba de login falla al sustituir únicame
 
 Se pueden verificar el código y la compilación en este entorno. No hay acceso autenticado configurado a Render ni a la base cloud; no se inspeccionó ni modificó esa base, no se cambió el servicio de Render y no se hizo merge a `main`. Las pruebas simuladas de navegador no certifican el login de producción. La aceptación del despliegue completo depende de ejecutar y comprobar los pasos anteriores.
 
+
+---
+
+## Levantamiento multiusuario — feat/levantamiento-multiusuario (2026-10-08)
+
+**Rama:** `feat/levantamiento-multiusuario` · **Commit:** `ab03fca7`
+**Estado:** implementación completa pendiente de PR y revisión. No se hizo merge a `main`.
+
+### Objetivo
+
+Implementar el pendiente n.º 2 del levantamiento de inventario: conteo multiusuario seguro.
+
+### Cambios implementados
+
+#### Base de datos (Prisma + migración)
+- `LevantamientoItem`: nuevos campos `contadorId` (quién contó) y `conflicto` (boolean, default false)
+- Nuevo modelo `LevantamientoSesion`: presencia por heartbeat (TTL 5 min, unique por levantamiento+usuario)
+- Migración: `backend/prisma/migrations/20261009000000_levantamiento_multiusuario/migration.sql`
+
+#### Backend — levantamientos.service.ts (353 líneas)
+- **Detección de conflicto** en `createItem()`: si otro usuario ya contó el mismo producto (por `productoId`, código o barcode), ambos ítems quedan con `conflicto=true`. El mismo usuario editando su propio conteo nunca genera conflicto.
+- **Regla de conciliación documentada**: nunca suma ni elige automáticamente. El ADMIN debe llamar `POST /conciliar` eligiendo `mantenerItemId` y opcionalmente `cantidadManual`.
+- **`aplicar()` bloqueado** mientras haya ítems con `conflicto=true`.
+- **`previsualizar()`** incluye el error "Conteo en conflicto: conciliar antes de aplicar" en `row.errores`.
+- **Heartbeat / presencia**: `heartbeat()`, `findParticipantes()`, `salirSesion()`.
+- **Huérfanos**: `limpiarConflictosHuerfanos()` limpia la bandera si uno de los dos ítems en conflicto se elimina.
+
+#### Backend — controller (5 nuevos endpoints)
+```
+GET    /levantamientos/:id/participantes   — lista usuarios activos (< 5 min)
+POST   /levantamientos/:id/heartbeat       — registrar presencia (todos los roles)
+DELETE /levantamientos/:id/heartbeat       — salir sesión
+GET    /levantamientos/:id/conflictos      — lista ítems en conflicto (ADMIN)
+POST   /levantamientos/:id/conciliar       — elegir conteo a conservar (ADMIN)
+```
+
+#### Frontend — LevantamientoPage.tsx (465 líneas)
+- `useEffect` de heartbeat: POST cada 60 s, DELETE al salir/desmontar.
+- `ParticipantesBanner`: badge de usuarios activos, se actualiza cada 30 s.
+- `ConflictosPanel`: solo ADMIN; tabla con botones "Conservar este" y entrada de cantidad manual.
+- Tabla de ítems: columna "Contador", filas en amarillo si hay conflicto, badge ⚠️.
+- Botón "Revisar impacto" deshabilitado con tooltip mientras haya conflictos pendientes.
+- Mensaje de aviso para no-ADMIN cuando hay conflictos activos.
+
+### Pruebas — 31/31 ✅
+
+| Suite | Tests | Resultado |
+|---|---|---|
+| Conteo protegido y aplicación explícita | 6 | ✅ |
+| Identidad de productos durante el levantamiento | 4 | ✅ |
+| Auditoría P1/P2 — aplicar() protege barcode y precios | 5 | ✅ |
+| Multiusuario — detección de conflictos | 6 | ✅ |
+| Multiusuario — conciliación de conflictos | 4 | ✅ |
+| Multiusuario — heartbeat y participantes | 3 | ✅ |
+| Aislamiento por tenant | 3 | ✅ |
+| **Total** | **31** | **31/31** |
+
+TypeScript (`tsc --noEmit`): 0 errores. Lint (oxlint): 0 errores, 128 advertencias preexistentes.
+
+### Regla de conciliación — documentación explícita
+
+> **Nunca se suman ni se auto-eligen conteos simultáneos.**
+>
+> Cuando dos usuarios registran el mismo producto en el mismo levantamiento, ambos ítems quedan marcados como `conflicto=true`. El levantamiento no se puede aplicar al inventario mientras existan conflictos. El ADMIN debe llamar `POST /conciliar` con `mantenerItemId` (el ítem a conservar) y, opcionalmente, `cantidadManual` (si ninguno de los dos conteos es correcto). El ítem elegido queda con `conflicto=false`; los hermanos se eliminan con registro de auditoría.
+
+### Limitaciones y pendientes
+
+- La migración SQL requiere ejecutar `prisma migrate deploy` en el entorno de staging/producción. No se ejecutó contra la base cloud.
+- Pruebas de integración con PostgreSQL real no incluidas en esta rama (requieren base de pruebas aislada).
+- Las pruebas de frontend (Vitest/JSDOM) no cubren el componente multiusuario aún — los componentes `ParticipantesBanner` y `ConflictosPanel` son funciones puras testeables si se agrega un suite de componentes.
+- La validación `prisma validate` falló en el entorno cloud por bloqueo de red al CDN de Prisma; el schema fue validado manualmente con script Python.
+
+### Para crear el PR
+
+```bash
+git push origin feat/levantamiento-multiusuario
+gh pr create --base main --title "feat(levantamientos): conteo multiusuario seguro" \
+  --body "Ver docs/CONTEXTO_MAESTRO.md sección 2026-10-08"
+```

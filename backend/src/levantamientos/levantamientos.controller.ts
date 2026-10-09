@@ -1,7 +1,7 @@
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { Query } from '@nestjs/common';
 import { Roles } from '../common/decorators/roles.decorator';
-import { AplicarLevantamientoDto } from './dto/create-levantamiento-item.dto';
+import { AplicarLevantamientoDto, ConciliarItemDto, HeartbeatDto } from './dto/create-levantamiento-item.dto';
 import {
   Controller,
   Get,
@@ -29,6 +29,8 @@ import { CreateLevantamientoItemDto, UpdateLevantamientoItemDto } from './dto/cr
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 export class LevantamientosController {
   constructor(private readonly levantamientosService: LevantamientosService) {}
+
+  // ─── LEVANTAMIENTO ───────────────────────────────────────────────────────
 
   @Get()
   async findAll(@TenantId() tenantId: string) {
@@ -65,12 +67,72 @@ export class LevantamientosController {
   }
 
   @Get(':id/preview')
-  preview(@TenantId() tenantId:string,@Param('id') id:string){return this.levantamientosService.previsualizar(tenantId,id);}
+  preview(@TenantId() tenantId:string, @Param('id') id:string) {
+    return this.levantamientosService.previsualizar(tenantId, id);
+  }
+
   @Post(':id/aplicar')
   @Roles('ADMIN')
-  aplicar(@TenantId() tenantId:string,@CurrentUser('sub') userId:string,@Param('id') id:string,@Body() dto:AplicarLevantamientoDto){return this.levantamientosService.aplicar(tenantId,userId,id,dto.token);}
+  aplicar(
+    @TenantId() tenantId:string,
+    @CurrentUser('sub') userId:string,
+    @Param('id') id:string,
+    @Body() dto:AplicarLevantamientoDto,
+  ) {
+    return this.levantamientosService.aplicar(tenantId, userId, id, dto.token);
+  }
 
-  // --- ITEMS ---
+  // ─── SESIONES ACTIVAS (multiusuario) ─────────────────────────────────────
+
+  /** Lista los usuarios que están activos en este levantamiento (heartbeat < 5 min) */
+  @Get(':id/participantes')
+  findParticipantes(@TenantId() tenantId:string, @Param('id') id:string) {
+    return this.levantamientosService.findParticipantes(tenantId, id);
+  }
+
+  /** Heartbeat: el cliente llama cada 60 s para registrar presencia */
+  @Post(':id/heartbeat')
+  heartbeat(
+    @TenantId() tenantId:string,
+    @Param('id') id:string,
+    @CurrentUser('sub') userId:string,
+    @Body() dto:HeartbeatDto,
+  ) {
+    return this.levantamientosService.heartbeat(tenantId, id, userId, dto.nombreUsuario);
+  }
+
+  /** El cliente llama al salir de la página para limpiar su sesión */
+  @Delete(':id/heartbeat')
+  salirSesion(
+    @TenantId() tenantId:string,
+    @Param('id') id:string,
+    @CurrentUser('sub') userId:string,
+  ) {
+    return this.levantamientosService.salirSesion(tenantId, id, userId);
+  }
+
+  // ─── CONFLICTOS ────────────────────────────────────────────────────────────
+
+  /** Lista ítems en conflicto (mismo producto contado por dos usuarios) */
+  @Get(':id/conflictos')
+  @Roles('ADMIN')
+  findConflictos(@TenantId() tenantId:string, @Param('id') id:string) {
+    return this.levantamientosService.findConflictos(tenantId, id);
+  }
+
+  /** ADMIN elige qué conteo conservar (o una cantidad manual) */
+  @Post(':id/conciliar')
+  @Roles('ADMIN')
+  conciliar(
+    @TenantId() tenantId:string,
+    @Param('id') id:string,
+    @Body() dto:ConciliarItemDto,
+    @CurrentUser('sub') userId:string,
+  ) {
+    return this.levantamientosService.conciliarConflicto(tenantId, id, dto, userId);
+  }
+
+  // ─── ITEMS ────────────────────────────────────────────────────────────────
 
   @Get(':id/items')
   async findItems(
@@ -112,4 +174,3 @@ export class LevantamientosController {
     return this.levantamientosService.removeItem(tenantId, levantamientoId, itemId, userId, Number(version));
   }
 }
-
