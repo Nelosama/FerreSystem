@@ -12,6 +12,7 @@ export interface JwtValidatedPayload {
   type: 'tenant' | 'super_admin';
   tenantId?: string;
   impersonatedBy?: string;
+  soporteSesionId?: string;
   readOnly?: boolean;
   permisos?:string[];
   permisosConfigurados?:boolean;
@@ -36,6 +37,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.type === 'tenant') {
       const user=await this.prisma.usuario.findFirst({where:{id:payload.sub,tenantId:payload.tenantId,activo:true},include:{tenant:true}});
       if(!user || user.tenant.estado !== 'ACTIVO') throw new UnauthorizedException('Usuario o empresa no disponible');
+      // Una sesión de soporte solo es válida si el Super Admin que la originó sigue activo y el token trae su sesión auditada.
+      if (payload.impersonatedBy) {
+        if (typeof payload.soporteSesionId !== 'string' || !payload.soporteSesionId) throw new UnauthorizedException('Sesión de soporte inválida');
+        const superAdmin = await this.prisma.superAdmin.findUnique({ where: { id: String(payload.impersonatedBy) }, select: { activo: true } });
+        if (!superAdmin?.activo) throw new UnauthorizedException('Sesión de soporte no autorizada');
+      }
       return {
         sub: payload.sub,
         email: payload.email,
@@ -45,7 +52,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         descuentoMaximo:Number(user.descuentoMaximo),
         type: 'tenant',
         tenantId: payload.tenantId,
-        ...(payload.impersonatedBy ? { impersonatedBy: payload.impersonatedBy, readOnly: payload.readOnly !== false } : {}),
+        ...(payload.impersonatedBy ? { impersonatedBy: payload.impersonatedBy, soporteSesionId: payload.soporteSesionId, readOnly: payload.readOnly !== false } : {}),
       };
     }
 

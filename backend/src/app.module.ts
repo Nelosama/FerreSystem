@@ -1,4 +1,5 @@
 import { BackupStatusController } from './common/backup-status.controller';
+import { SupportAuditInterceptor } from './common/interceptors/support-audit.interceptor';
 import { HealthController } from './common/health.controller';
 import { OperacionesModule } from './operaciones/operaciones.module';
 import { Module } from '@nestjs/common';
@@ -43,6 +44,7 @@ import { ComprasModule } from './compras/compras.module';
   ],
   controllers: [HealthController, BackupStatusController],
   providers: [
+    { provide: APP_INTERCEPTOR, useClass: SupportAuditInterceptor },
     { provide: APP_INTERCEPTOR, useClass: CashierResponseInterceptor },
     {
       provide: APP_GUARD,

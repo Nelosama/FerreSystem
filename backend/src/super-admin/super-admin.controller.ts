@@ -41,7 +41,7 @@ export class SuperAdminController {
   @Post('support/token')
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   async supportToken(@Req() req: Request & { user: { sub: string } }, @Body() dto: SupportTokenDto) {
-    return this.superAdminService.supportToken(req.user.sub, dto.tenantId, dto.usuarioId, dto.readOnly);
+    return this.superAdminService.supportToken(req.user.sub, dto.tenantId, dto.usuarioId, dto.readOnly ?? true, { motivo: dto.motivo, confirmarEscritura: dto.confirmarEscritura === true });
   }
 
   @Post('tenants')

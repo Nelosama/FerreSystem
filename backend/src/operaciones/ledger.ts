@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { withSupportIdentity } from '../common/support-context';
 import type { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
 
@@ -30,7 +31,7 @@ export async function lockTenant(tx: Tx, tenantId: string) {
   await query(tx, 'SELECT 1 FROM pg_advisory_xact_lock(hashtextextended($1, 0))', `OPERACION:${tenantId}`);
 }
 export async function audit(tx: Tx, tenantId: string, usuarioId: string, operacion: string, entidadId: string, datos: unknown) {
-  await query(tx, 'INSERT INTO auditoria_operaciones (id,tenant_id,usuario_id,operacion,entidad_id,datos) VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING id', id(), tenantId, usuarioId, operacion, entidadId, JSON.stringify(datos));
+  await query(tx, 'INSERT INTO auditoria_operaciones (id,tenant_id,usuario_id,operacion,entidad_id,datos) VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING id', id(), tenantId, usuarioId, operacion, entidadId, JSON.stringify(withSupportIdentity(datos)));
 }
 export async function movement(tx: Tx, tenantId: string, usuarioId: string, productoId: string, tipo: string, anterior: number, nuevo: number, documentoId: string, motivo: string) {
   await query(tx, 'INSERT INTO movimientos_inventario (id,tenant_id,usuario_id,producto_id,tipo,anterior,nuevo,cantidad,documento_id,motivo) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id', id(), tenantId, usuarioId, productoId, tipo, anterior, nuevo, money(nuevo - anterior), documentoId, motivo);
