@@ -1,33 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TopBar } from '../components/TopBar';
-
-export function formatUsuarioApiError(err: any, defaultMsg: string, t: (key: string, options?: any) => string): string {
-  if (!err) return defaultMsg;
-  const status = err.response?.status;
-  const rawMsg = err.response?.data?.message;
-
-  if (status === 409) {
-    return t('validation.err_409_user');
-  }
-  if (status === 403 || status === 401) {
-    return t('validation.err_403');
-  }
-  if (status === 400) {
-    if (Array.isArray(rawMsg)) return rawMsg.join(', ');
-    if (typeof rawMsg === 'string' && rawMsg.trim()) return rawMsg;
-    return t('validation.err_400_general');
-  }
-  if (status >= 500) {
-    return t('validation.err_500');
-  }
-  if (err.message === 'Network Error' || !err.response) {
-    return t('validation.err_network');
-  }
-  if (rawMsg) {
-    return Array.isArray(rawMsg) ? rawMsg.join(', ') : String(rawMsg);
-  }
-  return defaultMsg;
-}
+import { useI18n } from '../context/I18nContext';
 
 export interface Usuario {
   id: string;
@@ -87,22 +60,23 @@ import {
 } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
 
-const TODOS_LOS_PERMISOS = [
-    { clave: 'pos.vender', labelKey: 'tasks.pos.title' },
-    { clave: 'pos.anular_venta', labelKey: 'tasks.devoluciones.title' },
-    { clave: 'pos.aplicar_descuento', labelKey: 'pos.apply_discount' },
-    { clave: 'inventario.ver', labelKey: 'tasks.inventario.title' },
-    { clave: 'inventario.editar', labelKey: 'inventory.new_product' },
-    { clave: 'cotizaciones.crear', labelKey: 'quotations.new_quotation' },
-    { clave: 'cotizaciones.aprobar', labelKey: 'operational.aprobada' },
-    { clave: 'cotizaciones.convertir_venta', labelKey: 'quotations.convert_to_sale' },
-    { clave: 'reportes.ver', labelKey: 'tasks.reportes.title' },
-    { clave: 'usuarios.gestionar', labelKey: 'tasks.usuarios.title' },
-    { clave: 'configuracion.editar', labelKey: 'tasks.configuracion.title' },
-];
-
 export const UsuariosPage: React.FC = () => {
   const { t } = useI18n();
+
+  const TODOS_LOS_PERMISOS = [
+    { clave: 'pos.vender', labelKey: 'users.perm_pos_vender' },
+    { clave: 'pos.anular_venta', labelKey: 'users.perm_pos_anular' },
+    { clave: 'pos.aplicar_descuento', labelKey: 'users.perm_pos_descuento' },
+    { clave: 'inventario.ver', labelKey: 'users.perm_inv_ver' },
+    { clave: 'inventario.editar', labelKey: 'users.perm_inv_editar' },
+    { clave: 'cotizaciones.crear', labelKey: 'users.perm_cot_crear' },
+    { clave: 'cotizaciones.aprobar', labelKey: 'users.perm_cot_aprobar' },
+    { clave: 'cotizaciones.convertir_venta', labelKey: 'users.perm_cot_convertir' },
+    { clave: 'reportes.ver', labelKey: 'users.perm_rep_ver' },
+    { clave: 'usuarios.gestionar', labelKey: 'users.perm_usr_gestionar' },
+    { clave: 'configuracion.editar', labelKey: 'users.perm_cfg_editar' },
+  ];
+
   const [listaUsuarios, setListaUsuarios] = useState<Usuario[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -153,7 +127,12 @@ export const UsuariosPage: React.FC = () => {
         }
       } catch (err: any) {
         console.error('Error al obtener lista de usuarios desde la API real:', err);
-        setErrorBanner(formatUsuarioApiError(err, t('users.fetch_error'), t));
+        const errorMsg = err.response?.data?.message
+          ? Array.isArray(err.response.data.message)
+            ? err.response.data.message.join(', ')
+            : err.response.data.message
+          : t('users.error_loading');
+        setErrorBanner(errorMsg);
       } finally {
         setLoadingList(false);
       }
@@ -446,13 +425,10 @@ export const UsuariosPage: React.FC = () => {
             <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">
-                    {t('users.full_name')} <span style={{ color: '#DC2626' }}>*</span>
-                  </label>
+                  <label className="form-label">{t('users.full_name')}</label>
                   <input
                     type="text"
                     required
-                    disabled={submitting}
                     placeholder={t('users.placeholder_name')}
                     value={formNombre}
                     onChange={(e) => {
@@ -468,13 +444,10 @@ export const UsuariosPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">
-                    {t('users.email')} <span style={{ color: '#DC2626' }}>*</span>
-                  </label>
+                  <label className="form-label">{t('users.email')}</label>
                   <input
                     type="email"
                     required
-                    disabled={submitting}
                     placeholder={t('users.placeholder_email')}
                     value={formEmail}
                     onChange={(e) => {
@@ -492,9 +465,7 @@ export const UsuariosPage: React.FC = () => {
 
               {!usuarioEditando && (
                 <div className="form-group">
-                  <label className="form-label">
-                    {t('users.temp_password')} <span style={{ color: '#DC2626' }}>*</span>
-                  </label>
+                  <label className="form-label">{t('users.temp_password')}</label>
                   <input
                     type="password"
                     required
@@ -516,7 +487,7 @@ export const UsuariosPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.work_branch')} <span style={{ color: '#DC2626' }}>*</span></label>
+                  <label className="form-label">{t('users.work_branch')}</label>
                   <select
                     value={formSucursalActual}
                     disabled={submitting}
@@ -532,7 +503,7 @@ export const UsuariosPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.base_role')} <span style={{ color: '#DC2626' }}>*</span></label>
+                  <label className="form-label">{t('users.base_role')}</label>
                   <select
                     value={formRolBase}
                     disabled={submitting}
@@ -551,7 +522,7 @@ export const UsuariosPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.max_allowed_discount')} <span style={{ color: '#DC2626' }}>*</span></label>
+                  <label className="form-label">{t('users.max_allowed_discount')}</label>
                   <input
                     type="number"
                     min="0"
