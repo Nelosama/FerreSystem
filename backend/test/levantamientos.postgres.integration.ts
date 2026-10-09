@@ -130,10 +130,12 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
 
   it('bloquea dos barcodes equivalentes sin afectar existencias',async()=>{
     await add(item({codigoBarras:' 0099 '})).expect(201);
-    await add(item({codigoBarras:'0099'})).expect(201);
+    // FS-06 fase 2: la captura por API rechaza el duplicado propio; la vista previa debe seguir bloqueando un duplicado que llegue por otra vía.
+    await add(item({codigoBarras:'0099'})).expect(409);
+    await prisma.levantamientoItem.create({data:{levantamientoId:lid,descripcion:'Cable metro',cantidad:1,unidad:'METRO',codigoBarras:'0099',contadorId:users.ADMIN.id,createdBy:users.ADMIN.id,updatedBy:users.ADMIN.id}});
     await finish();
     const p=(await preview()).body;
-    expect(p.rows[1].errores).toContain('Código de barras repetido en el conteo');
+    expect(p.rows.flatMap((r:any)=>r.errores)).toContain('Código de barras repetido en el conteo');
     await apply(p.token).expect(400);
     expect(await prisma.producto.count({where:{tenantId}})).toBe(1);
     expect(await prisma.movimientoInventario.count({where:{tenantId}})).toBe(0);
@@ -265,5 +267,139 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     expect(after.nombre).toBe('Cable metro reforzado');
     expect([after.codigo,after.codigoBarras,Number(after.precioCosto),Number(after.precioVenta),Number(after.stockActual),after.unidadMedida])
       .toEqual([before.codigo,before.codigoBarras,Number(before.precioCosto),Number(before.precioVenta),Number(before.stockActual),before.unidadMedida]);
+  });
+
+  // ─── FS-06 fase 2: persistencia, duplicados, idempotencia ─────────────────
+
+  const crearProducto=(body:any,role='ADMIN')=>call('post','/productos',{precioCosto:2,precioVenta:4,stockActual:0,stockMinimo:0,unidadMedida:'UNIDAD',...body},role);
+
+  it('persiste la marca al crear y editar en catálogo; una actualización parcial o vacía no la borra (FS-06 fase 2)',async()=>{
+    const creado=(await crearProducto({codigo:'MARCA-1',nombre:'Taladro',marca:'  Bosch  '}).expect(201)).body;
+    expect(creado.marca).toBe('Bosch');
+    await call('put',`/productos/${creado.id}`,{nombre:'Taladro 500W'}).expect(200);
+    await call('put',`/productos/${creado.id}`,{marca:'   '}).expect(200);
+    expect((await prisma.producto.findUniqueOrThrow({where:{id:creado.id}})).marca).toBe('Bosch');
+    await call('put',`/productos/${creado.id}`,{marca:'DeWalt'}).expect(200);
+    expect((await prisma.producto.findUniqueOrThrow({where:{id:creado.id}})).marca).toBe('DeWalt');
+  });
+
+  it('la categoría se conserva al crear y en actualizaciones parciales (FS-06 fase 2)',async()=>{
+    const creado=(await crearProducto({codigo:'CAT-1',nombre:'Tornillo',categoria:'Fijación'}).expect(201)).body;
+    expect(creado.categoria?.nombre).toBe('Fijación');
+    await call('put',`/productos/${creado.id}`,{nombre:'Tornillo 2"'}).expect(200);
+    const after=await prisma.producto.findUniqueOrThrow({where:{id:creado.id},include:{categoria:true}});
+    expect(after.categoria?.nombre).toBe('Fijación');
+  });
+
+  it('aplicar un conteo nuevo persiste marca y categoría; en un producto existente solo completa marca vacía y nunca la sobrescribe (FS-06 fase 2)',async()=>{
+    await add(item({descripcion:'Llave inglesa',codigo:'LLAVE-9',marca:'Stanley',categoria:'Herramientas',unidad:'UNIDAD',cantidad:2,precioCosto:5,precioVenta:9})).expect(201);
+    await add(item({descripcion:'Cable metro',codigoBarras:'001234',marca:'Truper',cantidad:5,unidad:'METRO'})).expect(201);
+    await finish();
+    const p=(await preview()).body;
+    expect(p.rows.every((r:any)=>r.errores.length===0)).toBe(true);
+    await apply(p.token).expect(201);
+    const nuevo=await prisma.producto.findFirstOrThrow({where:{tenantId,codigo:'LLAVE-9'},include:{categoria:true}});
+    expect([nuevo.marca,nuevo.categoria?.nombre]).toEqual(['Stanley','Herramientas']);
+    expect((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).marca).toBe('Truper');
+    // Segunda aplicación de otro levantamiento: la marca ya existente en catálogo no se reemplaza.
+    await prisma.producto.update({where:{id:productId},data:{marca:'Makita'}});
+    const lid2=(await call('post','/levantamientos',{nombre:'Segundo conteo'}).expect(201)).body.id;
+    await call('post',`/levantamientos/${lid2}/items`,item({codigoBarras:'001234',marca:'Bosch',cantidad:5,unidad:'METRO'})).expect(201);
+    await call('patch',`/levantamientos/${lid2}`,{estado:'FINALIZADO'}).expect(200);
+    const p2=(await call('get',`/levantamientos/${lid2}/preview`).expect(200)).body;
+    await call('post',`/levantamientos/${lid2}/aplicar`,{token:p2.token}).expect(201);
+    expect((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).marca).toBe('Makita');
+  });
+
+  it('los campos opcionales no impiden capturar ni aplicar un artículo nuevo (FS-06 fase 2)',async()=>{
+    await add({descripcion:'Clavo 2 pulgadas',cantidad:10,unidad:'UNIDAD',precioCosto:0.5,precioVenta:1}).expect(201);
+    await finish();
+    const p=(await preview()).body;
+    expect(p.rows[0].errores).toEqual([]);
+    await apply(p.token).expect(201);
+  });
+
+  it('las notas del conteo quedan en el historial de auditoría y no se copian al catálogo (FS-06 fase 2)',async()=>{
+    const created=(await add(item({codigo:'NOTA-1',notas:'Caja dañada, revisar en bodega'})).expect(201)).body;
+    const [audit]=await prisma.$queryRawUnsafe<{datos:any}[]>("SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='CONTEO_CREAR' AND entidad_id=$2",tenantId,created.id);
+    expect(audit.datos.nuevo.notas).toBe('Caja dañada, revisar en bodega');
+    expect(await prisma.producto.count({where:{tenantId,codigo:'NOTA-1'}})).toBe(0);
+  });
+
+  it('repetir un artículo ya contado por el mismo empleado devuelve CONTEO_DUPLICADO, sin sumar ni crear ítem (FS-06 fase 2)',async()=>{
+    const first=(await add(item({codigo:'REP-1',cantidad:2})).expect(201)).body;
+    const dup=(await add(item({codigo:'rep-1',cantidad:3})).expect(409)).body;
+    expect(dup).toMatchObject({code:'CONTEO_DUPLICADO',itemId:first.id});
+    expect(await prisma.levantamientoItem.count({where:{levantamientoId:lid}})).toBe(1);
+    expect(Number((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:first.id}})).cantidad)).toBe(2);
+  });
+
+  it('detecta el duplicado propio por producto y por código de barras, y al editar un conteo hacia otro existente (FS-06 fase 2)',async()=>{
+    const porProducto=(await add(item({productoId:productId,cantidad:1})).expect(201)).body;
+    expect((await add(item({productoId:productId,cantidad:1})).expect(409)).body.itemId).toBe(porProducto.id);
+    const aEditar=(await add(item({descripcion:'Tuerca',codigo:'EDIT-A',cantidad:1})).expect(201)).body;
+    const editable=(await add(item({descripcion:'Tuerca 2',codigo:'EDIT-B',cantidad:1})).expect(201)).body;
+    const cambio=await call('patch',`/levantamientos/${lid}/items/${editable.id}`,{version:editable.version,codigo:'edit-a'}).expect(409);
+    expect(cambio.body).toMatchObject({code:'CONTEO_DUPLICADO',itemId:aEditar.id});
+    expect(Number((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:editable.id}})).version)).toBe(1);
+  });
+
+  it('simultáneas: dos capturas del mismo empleado y mismo artículo con claves distintas producen un solo conteo (FS-06 fase 2)',async()=>{
+    const [a,b]=await Promise.all([add(item({codigo:'DOBLE-1'})),add(item({codigo:'DOBLE-1'}))]);
+    expect([a.status,b.status].sort()).toEqual([201,409]);
+    expect(await prisma.levantamientoItem.count({where:{levantamientoId:lid}})).toBe(1);
+  });
+
+  it('entre empleados distintos el mismo artículo se registra con conflicto para conciliación (FS-06 fase 2)',async()=>{
+    const admin=(await call('post',`/levantamientos/${lid}/items`,item({codigoBarras:'888001'}),'ADMIN').expect(201)).body;
+    const bodeguero=(await call('post',`/levantamientos/${lid}/items`,item({codigoBarras:'888001'}),'BODEGUERO').expect(201)).body;
+    expect(bodeguero.conflicto).toBe(true);
+    expect((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:admin.id}})).conflicto).toBe(true);
+  });
+
+  it('reintentar la creación con la misma clave tras perder la respuesta devuelve el levantamiento original (FS-06 fase 2)',async()=>{
+    const solicitudId=randomUUID();
+    const body={nombre:'Conteo bodega norte',descripcion:'Pasillo 3',solicitudId};
+    const first=(await call('post','/levantamientos',body).expect(201)).body;
+    const retry=(await call('post','/levantamientos',body).expect(201)).body;
+    expect(retry.id).toBe(first.id);
+    expect(await prisma.levantamiento.count({where:{tenantId,nombre:'Conteo bodega norte'}})).toBe(1);
+  });
+
+  it('dos creaciones simultáneas con la misma clave producen un solo levantamiento (FS-06 fase 2)',async()=>{
+    const solicitudId=randomUUID();
+    const body={nombre:'Conteo simultáneo',solicitudId};
+    const [a,b]=await Promise.all([call('post','/levantamientos',body),call('post','/levantamientos',body)]);
+    expect([a.status,b.status]).toEqual([201,201]);
+    expect(a.body.id).toBe(b.body.id);
+    expect(await prisma.levantamiento.count({where:{tenantId,nombre:'Conteo simultáneo'}})).toBe(1);
+  });
+
+  it('reutilizar una clave con datos distintos produce conflicto controlado y no crea nada (FS-06 fase 2)',async()=>{
+    const solicitudId=randomUUID();
+    await call('post','/levantamientos',{nombre:'Original',solicitudId}).expect(201);
+    const conflicto=await call('post','/levantamientos',{nombre:'Otro nombre',solicitudId}).expect(409);
+    expect(conflicto.body.message).toContain('clave de solicitud');
+    expect(await prisma.levantamiento.count({where:{tenantId}})).toBe(2);
+  });
+
+  it('la misma clave en otra empresa crea un levantamiento independiente (aislamiento) (FS-06 fase 2)',async()=>{
+    const solicitudId=randomUUID();
+    const propio=(await call('post','/levantamientos',{nombre:'Propio',solicitudId}).expect(201)).body;
+    const ajeno=(await call('post','/levantamientos',{nombre:'Ajeno',solicitudId},'OTHER').expect(201)).body;
+    expect(ajeno.id).not.toBe(propio.id);
+  });
+
+  it('flujo completo: crear, capturar con marca, finalizar, aplicar y reintentar la aplicación sin duplicar movimientos (FS-06 fase 2)',async()=>{
+    const solicitudId=randomUUID();
+    const nuevo=(await call('post','/levantamientos',{nombre:'Flujo completo',solicitudId}).expect(201)).body;
+    await call('post',`/levantamientos/${nuevo.id}/items`,item({codigo:'FLUJO-1',marca:'Pretul',categoria:'Pintura',unidad:'GALON',cantidad:4,precioCosto:30,precioVenta:45})).expect(201);
+    await call('patch',`/levantamientos/${nuevo.id}`,{estado:'FINALIZADO'}).expect(200);
+    const p=(await call('get',`/levantamientos/${nuevo.id}/preview`).expect(200)).body;
+    await call('post',`/levantamientos/${nuevo.id}/aplicar`,{token:p.token}).expect(201);
+    await call('post',`/levantamientos/${nuevo.id}/aplicar`,{token:p.token}).expect(201);
+    const producto=await prisma.producto.findFirstOrThrow({where:{tenantId,codigo:'FLUJO-1'}});
+    expect([producto.marca,Number(producto.stockActual)]).toEqual(['Pretul',4]);
+    expect(await prisma.movimientoInventario.count({where:{tenantId,productoId:producto.id,documentoId:nuevo.id}})).toBe(1);
   });
 });

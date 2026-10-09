@@ -13,6 +13,7 @@ export class CreateProductoDto {
   @MaxLength(100)
   codigoBarras?: string;
   @IsOptional() @IsString() codigoFabricante?: string;
+  @IsOptional() @IsString() @MaxLength(100) marca?: string;
   @IsOptional() @IsUrl({protocols:['https'],require_protocol:true}) @MaxLength(2048) imagenUrl?:string;
   @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?: number;
 
@@ -68,6 +69,7 @@ export class UpdateProductoDto {
   @MaxLength(100)
   codigoBarras?: string;
   @IsOptional() @IsString() codigoFabricante?: string;
+  @IsOptional() @IsString() @MaxLength(100) marca?: string;
   @IsOptional() @IsUrl({protocols:['https'],require_protocol:true}) @MaxLength(2048) imagenUrl?:string;
   @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?: number;
 

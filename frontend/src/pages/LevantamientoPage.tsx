@@ -11,8 +11,17 @@ import { readStoredJson } from '../utils/storage';
 const blank = () => ({
   descripcion: '', cantidad: '1', unidad: 'UNIDAD',
   codigo: '', codigoBarras: '', marca: '', categoria: '',
-  ubicacion: '', precioCosto: '', precioVenta: '', margen: '', notas: '',
+  ubicacion: '', precioCosto: '', precioVenta: '', margen: '', notas: '', productoId: '',
 });
+/** Misma identidad que el servidor: producto, código interno o código de barras (sin distinguir mayúsculas). */
+const identidadCoincide = (item: any, f: { productoId?: string; codigo?: string; codigoBarras?: string }) => {
+  const codigo = f.codigo?.trim().toUpperCase();
+  const barras = f.codigoBarras?.trim();
+  return (!!f.productoId && item.productoId === f.productoId)
+    || (!!codigo && !!item.codigo && item.codigo.trim().toUpperCase() === codigo)
+    || (!!barras && !!item.codigoBarras && item.codigoBarras.trim() === barras);
+};
+const CLAVE_LEVANTAMIENTO = (tenantId: string, userId?: string) => `ferre_pending_levantamiento:${tenantId}:${userId}`;
 const message = (e: any) => {
   const m = e.response?.data?.message;
   return Array.isArray(m) ? m.join(', ') : m || 'No se pudo guardar. Revise la conexión y reintente.';
@@ -83,48 +92,53 @@ function ConflictosPanel({
             <table>
               <thead><tr><th>Usuario</th><th>Descripción</th><th>Cantidad</th><th>Zona</th><th>Acción</th></tr></thead>
               <tbody>
-                {grupo.items.map((item: any) => {
-                  const [manual, setManual] = React.useState<string>('');
-                  return (
-                    <tr key={item.id} style={{ background: '#fefce8' }}>
-                      <td>{item.contadorId ?? '—'}</td>
-                      <td>{item.descripcion}</td>
-                      <td>{Number(item.cantidad)} {item.unidad}</td>
-                      <td>{item.ubicacion || '—'}</td>
-                      <td style={{ minWidth: 260 }}>
-                        <button
-                          className="btn btn-primary"
-                          disabled={resolviendo || busy}
-                          onClick={() => conciliar(item.id)}
-                          style={{ marginRight: 4, marginBottom: 4 }}
-                        >
-                          Conservar este ({Number(item.cantidad)})
-                        </button>
-                        <span style={{ display: 'block', fontSize: '0.85em', color: '#64748b', marginBottom: 4 }}>o cantidad manual:</span>
-                        <input
-                          type="number" min="0" step="0.01"
-                          style={{ width: 80, marginRight: 4 }}
-                          placeholder="Cant."
-                          value={manual}
-                          onChange={e => setManual(e.target.value)}
-                        />
-                        <button
-                          className="btn btn-secondary"
-                          disabled={resolviendo || busy || manual === ''}
-                          onClick={() => conciliar(item.id, Number(manual))}
-                        >
-                          Usar {manual || '…'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {grupo.items.map((item: any) => (
+                  <ConflictoFila key={item.id} item={item} disabled={resolviendo || busy} onConciliar={conciliar} />
+                ))}
               </tbody>
             </table>
           </div>
         </div>
       ))}
     </section>
+  );
+}
+
+/** Fila de conflicto: el valor manual es estado propio de cada fila (no se puede usar un hook dentro de un map). */
+function ConflictoFila({ item, disabled, onConciliar }: { item: any; disabled: boolean; onConciliar: (id: string, cantidad?: number) => void }) {
+  const [manual, setManual] = useState<string>('');
+  return (
+    <tr style={{ background: '#fefce8' }}>
+      <td>{item.contadorId ?? '—'}</td>
+      <td>{item.descripcion}</td>
+      <td>{Number(item.cantidad)} {item.unidad}</td>
+      <td>{item.ubicacion || '—'}</td>
+      <td style={{ minWidth: 260 }}>
+        <button
+          className="btn btn-primary"
+          disabled={disabled}
+          onClick={() => onConciliar(item.id)}
+          style={{ marginRight: 4, marginBottom: 4 }}
+        >
+          Conservar este ({Number(item.cantidad)})
+        </button>
+        <span style={{ display: 'block', fontSize: '0.85em', color: '#64748b', marginBottom: 4 }}>o cantidad manual:</span>
+        <input
+          type="number" min="0" step="0.01"
+          style={{ width: 80, marginRight: 4 }}
+          placeholder="Cant."
+          value={manual}
+          onChange={e => setManual(e.target.value)}
+        />
+        <button
+          className="btn btn-secondary"
+          disabled={disabled || manual === ''}
+          onClick={() => onConciliar(item.id, Number(manual))}
+        >
+          Usar {manual || '…'}
+        </button>
+      </td>
+    </tr>
   );
 }
 
@@ -141,6 +155,7 @@ export const LevantamientoPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lookupRevision, setLookupRevision] = useState(0);
+  const [ultimoGuardado, setUltimoGuardado] = useState('');
   const inFlight = useRef(false);
   const heartbeatTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -150,6 +165,9 @@ export const LevantamientoPage: React.FC = () => {
 
   const closed = active?.estado === 'FINALIZADO' || !!active?.aplicadoAt;
   const hayConflictos = active?.items?.some((i: any) => i.conflicto) ?? false;
+  const coincidentes: any[] = (active?.items ?? []).filter((i: any) => i.id !== editing?.id && identidadCoincide(i, form));
+  const propia = coincidentes.find((i: any) => i.contadorId === user?.id);
+  const ajenas = coincidentes.filter((i: any) => i.contadorId !== user?.id);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -197,6 +215,8 @@ export const LevantamientoPage: React.FC = () => {
       throw e;
     }
     localStorage.removeItem(pendingKey); setPendingCount(null);
+    // Confirmación visible también al confirmar un conteo pendiente tras un fallo de red.
+    setUltimoGuardado(`Guardado: ${command.dto.descripcion} · ${command.dto.cantidad} ${command.dto.unidad}`);
     setLookupRevision(v => v + 1);
     setForm(f => ({ ...blank(), unidad: f.unidad, ubicacion: f.ubicacion }));
     setPreview(null);
@@ -211,6 +231,10 @@ export const LevantamientoPage: React.FC = () => {
   }));
 
   const set = (key: keyof ReturnType<typeof blank>, value: string) => setForm(f => ({ ...f, [key]: value }));
+  const editarItem = (i: any) => {
+    setEditing(i); setError('');
+    setForm(Object.fromEntries(Object.keys(blank()).map(k => [k, i[k] == null ? '' : String(i[k])])) as ReturnType<typeof blank>);
+  };
 
   return (
     <div>
@@ -242,8 +266,20 @@ export const LevantamientoPage: React.FC = () => {
             <form className="operation-card operation-form" onSubmit={e => {
               e.preventDefault();
               void action(async () => {
-                const r = await api.post('/levantamientos', { nombre });
-                setNombre(''); setActiveId(r.data.id);
+                const claveLev = CLAVE_LEVANTAMIENTO(tenant.id, user?.id);
+                const nombreLimpio = nombre.trim();
+                const previo = readStoredJson<any>(claveLev, null);
+                const solicitud = previo && previo.nombre === nombreLimpio ? previo : { nombre: nombreLimpio, solicitudId: crypto.randomUUID() };
+                localStorage.setItem(claveLev, JSON.stringify(solicitud));
+                try {
+                  const r = await api.post('/levantamientos', solicitud);
+                  localStorage.removeItem(claveLev);
+                  setNombre(''); setActiveId(r.data.id);
+                } catch (e: any) {
+                  // Solo un error de validación o de clave reutilizada descarta la clave; un fallo de red la conserva para reintentar.
+                  if ([400, 409, 422].includes(e.response?.status)) localStorage.removeItem(claveLev);
+                  throw e;
+                }
               });
             }}>
               <label>Nombre del levantamiento
@@ -323,10 +359,12 @@ export const LevantamientoPage: React.FC = () => {
               <form className="operation-card" onSubmit={e => {
                 e.preventDefault();
                 void action(async () => {
+                  if (propia) throw new Error('Este artículo ya está en el conteo. Edite el conteo anterior; no se suma.');
                   const dto: any = {
                     ...form, cantidad: Number(form.cantidad),
                     codigo: form.codigo || undefined,
                     codigoBarras: form.codigoBarras || undefined,
+                    productoId: form.productoId || undefined,
                   };
                   for (const key of ['precioCosto', 'precioVenta', 'margen'] as const)
                     dto[key] = form[key] === '' ? undefined : Number(form[key]);
@@ -339,6 +377,7 @@ export const LevantamientoPage: React.FC = () => {
                     setPendingCount(command);
                     await sendCount(command);
                   }
+                  setUltimoGuardado(`${editing ? 'Corrección guardada' : 'Guardado'}: ${dto.descripcion} · ${dto.cantidad} ${dto.unidad}`);
                   setForm(f => ({ ...blank(), unidad: f.unidad, ubicacion: f.ubicacion }));
                   setEditing(null); setPreview(null);
                 });
@@ -347,9 +386,23 @@ export const LevantamientoPage: React.FC = () => {
                   key={`${tenant.id}:${user?.id}:${activeId}:${editing?.id || ''}:${lookupRevision}`}
                   disabled={busy || isReadOnly || !!pendingCount || !!editing}
                   onSearch={code => { setForm(f => ({ ...blank(), ubicacion: f.ubicacion, codigoBarras: code })); setPreview(null); }}
-                  onSelect={product => { setForm(f => ({ ...blank(), ubicacion: f.ubicacion, descripcion: product.nombre, codigo: product.codigo, codigoBarras: product.codigoBarras || '', unidad: product.unidadMedida, categoria: product.categoria?.nombre || '', cantidad: '' })); setPreview(null); }}
+                  onSelect={product => { setForm(f => ({ ...blank(), ubicacion: f.ubicacion, productoId: product.id, descripcion: product.nombre, codigo: product.codigo, codigoBarras: product.codigoBarras || '', unidad: product.unidadMedida, categoria: product.categoria?.nombre || '', cantidad: '' })); setPreview(null); }}
                 />
+                {ultimoGuardado && <p role="status" className="operation-card">✅ {ultimoGuardado}</p>}
                 <h2>{editing ? 'Corregir conteo' : 'Contar producto'}</h2>
+                {propia && (
+                  <div role="alert" className="operation-error">
+                    <strong>Este artículo ya está en el conteo.</strong> Cantidad registrada: {Number(propia.cantidad)} {propia.unidad}.
+                    No se suma: corrija ese conteo.{' '}
+                    <button type="button" className="btn btn-secondary" onClick={() => editarItem(propia)}>Editar conteo anterior</button>
+                  </div>
+                )}
+                {!propia && ajenas.length > 0 && (
+                  <div role="status" className="operation-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                    <strong>⚠️ Otro usuario ya contó este artículo</strong> (cantidad {ajenas.map((a: any) => Number(a.cantidad)).join(', ')}).
+                    Al guardar quedará en conflicto para que el administrador concilie. No se suma.
+                  </div>
+                )}
                 <fieldset disabled={busy || isReadOnly || !!pendingCount} className="operation-form">
                   <label>Descripción y variante
                     <input className="form-input" required value={form.descripcion} onChange={e => set('descripcion', e.target.value)} placeholder="Tipo, medida, espesor, color…" />
@@ -372,7 +425,7 @@ export const LevantamientoPage: React.FC = () => {
                   ))}
                 </fieldset>
                 <p>Si el producto es nuevo, complete costo y precio antes de aplicar. Los artículos sin código recibirán uno interno.</p>
-                <button className="btn btn-primary" disabled={busy || isReadOnly || !!pendingCount}>Guardar y siguiente</button>
+                <button className="btn btn-primary" disabled={busy || isReadOnly || !!pendingCount || !!propia}>Guardar y siguiente</button>
                 {editing && <button className="btn btn-secondary" type="button" onClick={() => { setEditing(null); setForm(blank()); }}>Cancelar corrección</button>}
               </form>
             )}
@@ -401,10 +454,7 @@ export const LevantamientoPage: React.FC = () => {
                       <td>
                         {!closed && (
                           <>
-                            <button disabled={busy || isReadOnly} onClick={() => {
-                              setEditing(i);
-                              setForm(Object.fromEntries(Object.keys(blank()).map(k => [k, i[k] == null ? '' : String(i[k])])) as ReturnType<typeof blank>);
-                            }}>Corregir</button>
+                            <button disabled={busy || isReadOnly} onClick={() => editarItem(i)}>Corregir</button>
                             <button disabled={busy || isReadOnly} onClick={() => {
                               if (window.confirm('¿Eliminar este conteo?'))
                                 void action(async () => {

@@ -62,6 +62,7 @@ export const InventarioPage: React.FC = () => {
   const [formCodigo, setFormCodigo] = useState('');
   const [formBarcode,setFormBarcode]=useState('');
   const [formFabricante,setFormFabricante]=useState('');
+  const [formMarca,setFormMarca]=useState('');
   const [formNombre, setFormNombre] = useState('');
   const [formCategoria, setFormCategoria] = useState(rubroConfig.categoriasDefault[0] || 'General');
   const [formUnidadMedida, setFormUnidadMedida] = useState(rubroConfig.unidadesMedida[0] || 'unidad');
@@ -95,6 +96,7 @@ export const InventarioPage: React.FC = () => {
         codigo: formCodigo.toUpperCase().trim() || undefined,
         codigoBarras: formBarcode.trim() || undefined,
         codigoFabricante: formFabricante.trim() || undefined,
+        marca: formMarca.trim() || undefined,
         nombre: formNombre.trim(),
         categoria: formCategoria,
         precioVenta: parseFloat(formPrecioVenta) || 0,
@@ -109,7 +111,7 @@ export const InventarioPage: React.FC = () => {
       setModalAbierto(false);
 
       // Limpiar formulario
-      setFormCodigo('');setFormBarcode('');setFormFabricante('');
+      setFormCodigo('');setFormBarcode('');setFormFabricante('');setFormMarca('');
       setFormNombre('');
       setFormPrecioVenta('');
       setFormPrecioCosto('');
@@ -331,7 +333,7 @@ export const InventarioPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-group"><label className="form-label">Código de barras (opcional)</label><input className="form-input" value={formBarcode} onChange={e=>setFormBarcode(e.target.value)}/></div><div className="form-group"><label className="form-label">Código del fabricante (opcional)</label><input className="form-input" value={formFabricante} onChange={e=>setFormFabricante(e.target.value)}/></div><div className="form-group">
+              <div className="form-group"><label className="form-label">Código de barras (opcional)</label><input className="form-input" value={formBarcode} onChange={e=>setFormBarcode(e.target.value)}/></div><div className="form-group"><label className="form-label">Código del fabricante (opcional)</label><input className="form-input" value={formFabricante} onChange={e=>setFormFabricante(e.target.value)}/></div><div className="form-group"><label className="form-label">Marca (opcional)</label><input className="form-input" value={formMarca} onChange={e=>setFormMarca(e.target.value)}/></div><div className="form-group">
                 <label className="form-label">{t('inventory.article_description')}</label>
                 <input
                   type="text"

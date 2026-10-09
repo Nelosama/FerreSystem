@@ -286,6 +286,60 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
   3. `POST /levantamientos` no tiene idempotencia (sin `solicitudId`). Un reintento tras pérdida de respuesta puede crear dos levantamientos. El frontend lo evita con bloqueo de doble clic, pero no ante reintento de red.
 - **Riesgos residuales:** Playwright y navegador real no ejecutados; iPhone y cámara sin validar (LEV-015); `ubicacion` solo en historial; búsqueda de preview sin índice para códigos muy numerosos (`OR` con una cláusula por código); mocks de la unitaria dependen de la forma de la consulta.
 
+### FS-06 fase 2 — levantamiento de inventario listo para operación (2026-10-09)
+
+- **Base:** `main` `318802ab` (PR #100, FS-06 fase 1, **ya fusionado** por `Nelosama` el 2026-10-09 19:31 UTC). Esta fase no duplica correcciones de fase 1. Rama `fix/fs-06-fase-2-levantamiento-operacion`. PR abierto hacia `main`. Sin merge ni despliegue.
+- **Estado de decisiones de fase 1:** (1) marca → **resuelta** en esta fase. Ubicación → **bloqueada** (ver pendientes). (2) mismo empleado repetido → **resuelta**: se rechaza con `409 CONTEO_DUPLICADO`; el empleado debe editar el conteo anterior. (3) idempotencia de `POST /levantamientos` → **resuelta** con clave persistida y unicidad en PostgreSQL.
+
+**Hallazgos de la auditoría (antes de cambiar código)**
+
+- La **marca** se captura en el formulario y en el conteo, pero `Producto` no tenía campo: se perdía al aplicar. Tampoco se podía editar en el catálogo (`ProductoGestion` y alta en `InventarioPage`).
+- La **categoría** sí se conservaba al crear y editar productos (`productos.service`). En el conteo solo se usaba al crear un producto nuevo al aplicar; no se modifica en productos existentes.
+- Un empleado que repetía un artículo **no** recibía conflicto: el duplicado solo se detectaba al previsualizar (`Conteo duplicado`).
+- `POST /levantamientos` no tenía idempotencia: un reintento tras perder la respuesta podía crear dos levantamientos.
+- **Ubicación** y **notas**: la ubicación no existe a nivel de sucursal (no hay modelo de sucursal). Las notas se guardan en el ítem y en la auditoría `CONTEO_CREAR`/`CONTEO_EDITAR`, pero no se copian al catálogo (correcto).
+- Frontend: sin advertencia antes de guardar; sin confirmación visible al confirmar un conteo pendiente tras un fallo de red; `ConflictosPanel` llamaba `useState` dentro de un `map` (incumple reglas de hooks, `oxlint` lo marcaba como error).
+- **Lotes, series, vencimientos y garantías:** `Producto` no tiene esos campos; no se inventó modelo.
+
+**Cambios implementados**
+
+- **Catálogo / marca:** `marca` en alta y edición (DTO máx. 100); se devuelve en la respuesta pública; una actualización parcial o vacía **no borra** la marca existente. `ProductoGestion` e `InventarioPage` la muestran.
+- **Aplicar:** productos nuevos reciben la marca del conteo; productos existentes solo la reciben **si el catálogo no tiene marca**. Nunca se sobrescribe. Vista previa expone `catalogMarca`.
+- **Duplicados:** `coincidencias()` devuelve todos los ítems que coinciden por producto, código o código de barras. Si el mismo empleado ya lo contó → `409 CONTEO_DUPLICADO` con `itemId` (alta y edición). Si lo contó otro empleado → se registra con `conflicto=true` para conciliación del administrador (sin cambio de regla). Nunca se suman cantidades. La protección se apoya en `lockTenant`, por lo que dos solicitudes simultáneas no la evaden.
+- **Idempotencia de `POST /levantamientos`:** `solicitudId` (UUID v4, opcional). Misma clave y mismos datos → devuelve el levantamiento original. Misma clave con otros datos → `409` controlado. Concurrencia serializada por `lockTenant` y respaldada por índice único `(tenant_id, solicitud_id)`. Alta ahora genera auditoría `LEVANTAMIENTO_CREAR`.
+- **Frontend (levantamiento):** clave de creación persistida en `localStorage` (un fallo de red la conserva; 400/409/422 la descartan); advertencia **bloqueante** del propio duplicado con botón «Editar conteo anterior» y botón de guardar deshabilitado; advertencia **informativa** cuando otro empleado ya contó el artículo; confirmación visible «Guardado: …» también al confirmar un conteo pendiente; `ConflictoFila` extraída (corrige la regla de hooks).
+
+**Migraciones**
+
+- `backend/prisma/migrations/20261009120000_fs06_marca_idempotencia_levantamiento/migration.sql`: `productos.marca TEXT NULL`; `levantamientos.solicitud_id TEXT NULL`, `levantamientos.solicitud_hash TEXT NULL`; índice único `levantamientos_tenant_id_solicitud_id_key`. Solo agrega columnas nullables e índice; **no modifica filas existentes ni inventarios**. Los levantamientos históricos quedan con `solicitud_id` NULL, que el índice no compara. Reversión manual si hiciera falta: `DROP INDEX`, luego `DROP COLUMN` (sin pérdida de datos previos).
+- Las listas explícitas de migraciones de `ventas.postgres.integration.ts` y `reportes-zona-horaria.postgres.integration.ts` se actualizaron con la nueva migración.
+
+**Pruebas**
+
+- Unitarias backend: **331/331** (`levantamientos.service.spec.ts`: 31/31; la prueba de «mismo usuario sin conflicto» pasó a verificar `CONTEO_DUPLICADO` y que no se crea ítem).
+- Integración PostgreSQL (`levantamientos.postgres.integration.ts`): **30/30**. Nuevas: marca persistida y actualizaciones parciales; categoría; aplicar con/sin sobrescribir marca; campos opcionales; notas solo en auditoría; duplicado propio por código, producto y edición; simultáneas con claves distintas; conflicto entre empleados; reintento tras pérdida de respuesta; creación simultánea con la misma clave; clave reutilizada con datos distintos; aislamiento entre empresas; flujo completo con reintento de aplicación sin movimientos duplicados.
+- La prueba «bloquea dos barcodes equivalentes» se reescribió: la captura por API ahora responde `409`, y la red de seguridad del preview se prueba con un duplicado insertado directamente.
+- Suite de integración completa: **7 archivos, 120/120** (incluye migraciones desde cero con `migrate deploy`).
+- Frontend `npm test`: **143/143**. `tsc -b`, `vite build` y oxlint de archivos tocados: sin errores.
+- Playwright (`frontend`, suite de la CI): **71/71** (64 previas + **7 nuevas** de `e2e/levantamiento.spec.ts`: fallo de red al crear, reintento de conteo pendiente, duplicado propio con edición, aviso de otro empleado, 409 de carrera entre dispositivos, flujo completo hasta aplicar, y móvil 390 px sin desbordamiento). Las E2E usan un servidor simulado en memoria por prueba: validan la interfaz, no el backend real.
+- Todo ejecutado como `nobody` (PostgreSQL 16).
+
+**Riesgos residuales**
+
+- Interpretación de reglas a revisar: (a) el duplicado propio se **rechaza**, no se puede forzar; (b) la marca vacía en una edición **no borra** la marca; (c) la marca del conteo **no reemplaza** la del catálogo.
+- `ubicación` solo se guarda en el historial del conteo.
+- Playwright con servidor simulado: no prueba el backend real ni el flujo de cámara.
+- Búsqueda de candidatos del preview con una cláusula `OR` por código: sin índice dedicado para catálogos muy grandes.
+- Idempotencia de `POST /levantamientos` solo aplica si el cliente envía `solicitudId`; la UI siempre lo envía.
+
+**Funcionalidades pendientes**
+
+- **Ubicación física por sucursal:** bloqueada. No existe modelo de sucursal en el esquema (multi-sede está en propuesta). Requiere autorización: modelo de sucursal y ubicación por producto y sucursal. Sin tocar existencias por sede.
+- **Validación en iPhone real (Safari):** permisos de cámara, inicio/cierre, lectura de códigos, permiso denegado, sin cámara y entrada manual. **No validado en dispositivo.** LEV-015 sigue abierto.
+- **Fase 3 UX completa:** búsqueda por categoría en el conteo, revisión de diferencias más clara y prueba de navegación SIDEBAR/TOPNAV en móvil con levantamiento. Solo se cubrieron advertencias, confirmaciones, mensajes y el E2E de móvil.
+- **Fase 4 fotografías:** no implementada (fase separada).
+- Lotes, series, vencimientos y garantías: sin modelo en el esquema.
+
 ### FS-05 — fechas y horarios de reportes (2026-10-09)
 
 - **Causa raíz:** `created_at` es `TIMESTAMP(3)` sin zona que guarda UTC. El resumen de `/operaciones/resumen` filtraba con `created_at >= $2::date`, es decir, medianoche UTC; el dashboard calculaba "hoy", "ayer" y la tendencia con `setHours`, que usa la zona del servidor (UTC en el despliegue). Resultado: ventas de 18:00–23:59 hora de Tegucigalpa caían en el día siguiente. La página de Reportes además armaba su rango por defecto con `toISOString()` y mostraba el aviso «Fechas del reporte en UTC».
