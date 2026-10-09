@@ -1,5 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { TopBar } from '../components/TopBar';
+
+export function formatUsuarioApiError(err: any, defaultMsg: string): string {
+  if (!err) return defaultMsg;
+  const status = err.response?.status;
+  const rawMsg = err.response?.data?.message;
+
+  if (status === 409) {
+    return 'Ya existe un usuario registrado con este correo electrónico.';
+  }
+  if (status === 403 || status === 401) {
+    return 'No tiene permisos suficientes para gestionar usuarios o modificar este perfil.';
+  }
+  if (status === 400) {
+    if (Array.isArray(rawMsg)) return rawMsg.join(', ');
+    if (typeof rawMsg === 'string' && rawMsg.trim()) return rawMsg;
+    return 'Los datos del usuario ingresados no son válidos. Por favor revise el formulario.';
+  }
+  if (status >= 500) {
+    return 'Ocurrió un error en el servidor al guardar el usuario. Reintente en unos momentos.';
+  }
+  if (err.message === 'Network Error' || !err.response) {
+    return 'No se pudo conectar con el servidor backend. Verifique su conexión a internet.';
+  }
+  if (rawMsg) {
+    return Array.isArray(rawMsg) ? rawMsg.join(', ') : String(rawMsg);
+  }
+  return defaultMsg;
+}
+
 export interface Usuario {
   id: string;
   nombre: string;
@@ -75,12 +104,13 @@ export const UsuariosPage: React.FC = () => {
   const [loadingList, setLoadingList] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState<Usuario | null>(null);
 
-  // Form states
+  // Form states & field-level errors
   const [formNombre, setFormNombre] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formPassword, setFormPassword] = useState('');
@@ -89,6 +119,8 @@ export const UsuariosPage: React.FC = () => {
   const [formPermisos, setFormPermisos] = useState<string[]>([]);
   const [formDescuentoMaximo, setFormDescuentoMaximo] = useState<number>(10);
   const [formActivo, setFormActivo] = useState(true);
+
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const SUCURSALES_OPCIONES = [
     'Sucursal Centro (Principal)',
@@ -118,12 +150,7 @@ export const UsuariosPage: React.FC = () => {
         }
       } catch (err: any) {
         console.error('Error al obtener lista de usuarios desde la API real:', err);
-        const errorMsg = err.response?.data?.message
-          ? Array.isArray(err.response.data.message)
-            ? err.response.data.message.join(', ')
-            : err.response.data.message
-          : 'No se pudo conectar con la API de usuarios en el servidor backend.';
-        setErrorBanner(errorMsg);
+        setErrorBanner(formatUsuarioApiError(err, 'No se pudo conectar con el servidor para obtener los usuarios.'));
       } finally {
         setLoadingList(false);
       }
@@ -142,6 +169,7 @@ export const UsuariosPage: React.FC = () => {
     setFormPermisos(PERMISOS_DEFAULT_POR_ROL.CAJERO.permisos);
     setFormDescuentoMaximo(PERMISOS_DEFAULT_POR_ROL.CAJERO.descuentoMaximo);
     setFormActivo(true);
+    setFieldErrors({});
     setModalError(null);
     setModalAbierto(true);
   };
@@ -156,8 +184,46 @@ export const UsuariosPage: React.FC = () => {
     setFormPermisos(usr.permisos);
     setFormDescuentoMaximo(usr.descuentoMaximo);
     setFormActivo(usr.activo);
+    setFieldErrors({});
     setModalError(null);
     setModalAbierto(true);
+  };
+
+  const validarFormularioUsuario = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formNombre.trim()) {
+      errors.nombre = 'El nombre completo del usuario es obligatorio.';
+    } else if (formNombre.trim().length < 3) {
+      errors.nombre = 'El nombre debe contener al menos 3 caracteres.';
+    }
+
+    if (!formEmail.trim()) {
+      errors.email = 'El correo electrónico es obligatorio.';
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formEmail.trim())) {
+        errors.email = 'Ingrese un correo electrónico válido (ej. usuario@empresa.hn).';
+      }
+    }
+
+    if (!usuarioEditando && (!formPassword || formPassword.length < 6)) {
+      errors.password = 'La contraseña temporal debe tener al menos 6 caracteres.';
+    }
+
+    if (formDescuentoMaximo < 0 || formDescuentoMaximo > 100 || isNaN(formDescuentoMaximo)) {
+      errors.descuentoMaximo = 'El descuento máximo debe estar entre 0% y 100%.';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const showSuccess = (msg: string) => {
+    setSuccessBanner(msg);
+    setTimeout(() => {
+      setSuccessBanner(null);
+    }, 4000);
   };
 
   const handleCambioRolBase = (nuevoRol: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR') => {
@@ -177,7 +243,12 @@ export const UsuariosPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formNombre || !formEmail) return;
+    if (submitting) return;
+
+    if (!validarFormularioUsuario()) {
+      setModalError('Revise los campos marcados antes de guardar el usuario.');
+      return;
+    }
 
     setSubmitting(true);
     setModalError(null);
@@ -212,6 +283,7 @@ export const UsuariosPage: React.FC = () => {
         setListaUsuarios((prev) =>
           prev.map((u) => (u.id === usuarioEditando.id ? updatedUsuario : u)),
         );
+        showSuccess(`Usuario "${updatedUsuario.nombre}" actualizado correctamente.`);
       } else {
         // HTTP POST to real backend
         const res = await api.post('/usuarios', payload);
@@ -229,18 +301,13 @@ export const UsuariosPage: React.FC = () => {
         };
 
         setListaUsuarios((prev) => [nuevoUsuario, ...prev]);
+        showSuccess(`Usuario "${nuevoUsuario.nombre}" creado exitosamente.`);
       }
 
       setModalAbierto(false);
     } catch (err: any) {
       console.error('Error al guardar usuario en backend:', err);
-      const msg = err.response?.data?.message
-        ? Array.isArray(err.response.data.message)
-          ? err.response.data.message.join(', ')
-          : err.response.data.message
-        : err.message || 'Error de conexión con la API backend en Render. Revisa la URL y estado del servidor.';
-
-      setModalError(msg);
+      setModalError(formatUsuarioApiError(err, 'No se pudo guardar el usuario. Inténtelo de nuevo.'));
     } finally {
       setSubmitting(false);
     }
@@ -253,8 +320,15 @@ export const UsuariosPage: React.FC = () => {
       <main style={styles.content}>
         {errorBanner && (
           <div style={styles.errorBanner}>
-            <AlertCircle size={18} />
+            <AlertCircle size={18} style={{ flexShrink: 0 }} />
             <span>{errorBanner}</span>
+          </div>
+        )}
+
+        {successBanner && (
+          <div style={styles.successBanner}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+            <span>{successBanner}</span>
           </div>
         )}
 
@@ -358,7 +432,7 @@ export const UsuariosPage: React.FC = () => {
 
             {modalError && (
               <div style={styles.modalErrorBanner}>
-                <AlertCircle size={16} />
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
                 <span>{modalError}</span>
               </div>
             )}
@@ -366,49 +440,80 @@ export const UsuariosPage: React.FC = () => {
             <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">NOMBRE COMPLETO</label>
+                  <label className="form-label">
+                    NOMBRE COMPLETO <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
                   <input
                     type="text"
                     required
+                    disabled={submitting}
                     placeholder="Ej. Mario López"
                     value={formNombre}
-                    onChange={(e) => setFormNombre(e.target.value)}
+                    onChange={(e) => {
+                      setFormNombre(e.target.value);
+                      if (fieldErrors.nombre) setFieldErrors({ ...fieldErrors, nombre: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.nombre ? styles.inputError : {}}
                   />
+                  {fieldErrors.nombre && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.nombre}</span>
+                  )}
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">CORREO ELECTRÓNICO</label>
+                  <label className="form-label">
+                    CORREO ELECTRÓNICO <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
                   <input
                     type="email"
                     required
+                    disabled={submitting}
                     placeholder="mario@lamundial.hn"
                     value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
+                    onChange={(e) => {
+                      setFormEmail(e.target.value);
+                      if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.email ? styles.inputError : {}}
                   />
+                  {fieldErrors.email && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.email}</span>
+                  )}
                 </div>
               </div>
 
               {!usuarioEditando && (
                 <div className="form-group">
-                  <label className="form-label">CONTRASEÑA TEMPORAL</label>
+                  <label className="form-label">
+                    CONTRASEÑA TEMPORAL <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
                   <input
                     type="password"
                     required
+                    disabled={submitting}
                     placeholder="••••••••"
                     value={formPassword}
-                    onChange={(e) => setFormPassword(e.target.value)}
+                    onChange={(e) => {
+                      setFormPassword(e.target.value);
+                      if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.password ? styles.inputError : {}}
                   />
+                  {fieldErrors.password && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.password}</span>
+                  )}
                 </div>
               )}
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">SUCURSAL DE TRABAJO (TRASLADO / ASIGNACIÓN)</label>
+                  <label className="form-label">SUCURSAL DE TRABAJO (TRASLADO / ASIGNACIÓN) <span style={{ color: '#DC2626' }}>*</span></label>
                   <select
                     value={formSucursalActual}
+                    disabled={submitting}
                     onChange={(e) => setFormSucursalActual(e.target.value)}
                     className="form-select"
                   >
@@ -421,9 +526,10 @@ export const UsuariosPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">ROL BASE</label>
+                  <label className="form-label">ROL BASE <span style={{ color: '#DC2626' }}>*</span></label>
                   <select
                     value={formRolBase}
+                    disabled={submitting}
                     onChange={(e) =>
                       handleCambioRolBase(e.target.value as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR')
                     }
@@ -439,16 +545,24 @@ export const UsuariosPage: React.FC = () => {
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">DESCUENTO MÁXIMO PERMITIDO (%)</label>
+                  <label className="form-label">DESCUENTO MÁXIMO PERMITIDO (0-100%) <span style={{ color: '#DC2626' }}>*</span></label>
                   <input
                     type="number"
                     min="0"
                     max="100"
                     required
+                    disabled={submitting}
                     value={formDescuentoMaximo}
-                    onChange={(e) => setFormDescuentoMaximo(Number(e.target.value))}
+                    onChange={(e) => {
+                      setFormDescuentoMaximo(Number(e.target.value));
+                      if (fieldErrors.descuentoMaximo) setFieldErrors({ ...fieldErrors, descuentoMaximo: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.descuentoMaximo ? styles.inputError : {}}
                   />
+                  {fieldErrors.descuentoMaximo && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.descuentoMaximo}</span>
+                  )}
                 </div>
               </div>
 
@@ -570,6 +684,19 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '10px',
   },
+  successBanner: {
+    marginBottom: '16px',
+    padding: '12px 16px',
+    backgroundColor: '#DCFCE7',
+    border: '1px solid #22C55E',
+    borderRadius: '4px',
+    color: '#15803D',
+    fontSize: '13px',
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
   modalErrorBanner: {
     marginTop: '12px',
     padding: '10px 14px',
@@ -582,6 +709,17 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
+  },
+  inputError: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
+  },
+  fieldErrorText: {
+    fontSize: '11px',
+    color: '#DC2626',
+    fontWeight: 600,
+    marginTop: '4px',
+    display: 'block',
   },
   headerRow: {
     display: 'flex',

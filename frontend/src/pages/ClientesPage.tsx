@@ -12,12 +12,41 @@ import {
   X,
   Check,
   AlertCircle,
+  CheckCircle2,
   Loader2,
   Phone,
   Mail,
   MapPin,
   UserCheck,
 } from 'lucide-react';
+
+export function formatApiError(err: any, defaultMsg: string): string {
+  if (!err) return defaultMsg;
+  const status = err.response?.status;
+  const rawMsg = err.response?.data?.message;
+
+  if (status === 409) {
+    return 'Ya existe un cliente registrado con esta información (RTN o correo).';
+  }
+  if (status === 403 || status === 401) {
+    return 'No tiene los permisos necesarios para realizar esta operación.';
+  }
+  if (status === 400) {
+    if (Array.isArray(rawMsg)) return rawMsg.join(', ');
+    if (typeof rawMsg === 'string' && rawMsg.trim()) return rawMsg;
+    return 'Datos del cliente no válidos. Revise la información ingresada e inténtelo nuevamente.';
+  }
+  if (status >= 500) {
+    return 'Ocurrió un error en el servidor al procesar la solicitud. Intente nuevamente más tarde.';
+  }
+  if (err.message === 'Network Error' || !err.response) {
+    return 'No se pudo conectar con el servidor. Verifique su conexión a internet e inténtelo nuevamente.';
+  }
+  if (rawMsg) {
+    return Array.isArray(rawMsg) ? rawMsg.join(', ') : String(rawMsg);
+  }
+  return defaultMsg;
+}
 
 export interface Cliente {
   id: string;
@@ -41,6 +70,7 @@ export const ClientesPage: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
 
   // Modales
@@ -48,13 +78,15 @@ export const ClientesPage: React.FC = () => {
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [clienteEliminar, setClienteEliminar] = useState<Cliente | null>(null);
 
-  // Form states
+  // Form states & field-level errors
   const [formNombre, setFormNombre] = useState('');
   const [formRtn, setFormRtn] = useState('');
   const [formTelefono, setFormTelefono] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formDireccion, setFormDireccion] = useState('');
   const [formTipo, setFormTipo] = useState<'CONSUMIDOR_FINAL' | 'MAYORISTA' | 'CONTRATISTA'>('CONSUMIDOR_FINAL');
+
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const fetchClientes = useCallback(async () => {
     setLoading(true);
@@ -66,12 +98,7 @@ export const ClientesPage: React.FC = () => {
       setClientes(response.data);
     } catch (err: any) {
       console.error('Error al obtener clientes:', err);
-      const msg = err.response?.data?.message
-        ? Array.isArray(err.response.data.message)
-          ? err.response.data.message.join(', ')
-          : err.response.data.message
-        : 'No se pudo conectar con el servidor para obtener los clientes.';
-      setErrorBanner(msg);
+      setErrorBanner(formatApiError(err, 'No se pudo obtener la lista de clientes. Intente nuevamente.'));
     } finally {
       setLoading(false);
     }
@@ -89,6 +116,7 @@ export const ClientesPage: React.FC = () => {
     setFormEmail('');
     setFormDireccion('');
     setFormTipo('CONSUMIDOR_FINAL');
+    setFieldErrors({});
     setModalError(null);
     setModalFormAbierto(true);
   };
@@ -101,13 +129,53 @@ export const ClientesPage: React.FC = () => {
     setFormEmail(c.email || '');
     setFormDireccion(c.direccion || '');
     setFormTipo(c.tipo);
+    setFieldErrors({});
     setModalError(null);
     setModalFormAbierto(true);
   };
 
+  const validarFormulario = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formNombre.trim()) {
+      errors.nombre = 'El nombre o razón social es obligatorio.';
+    } else if (formNombre.trim().length < 3) {
+      errors.nombre = 'El nombre debe tener al menos 3 caracteres.';
+    }
+
+    if (formEmail.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formEmail.trim())) {
+        errors.email = 'Ingrese un correo electrónico válido (ej. contacto@empresa.hn).';
+      }
+    }
+
+    if (formRtn.trim()) {
+      const cleanRtn = formRtn.replace(/\D/g, '');
+      if (cleanRtn.length !== 14) {
+        errors.rtn = 'El RTN de Honduras debe contener exactamente 14 dígitos numéricos.';
+      }
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const showSuccess = (msg: string) => {
+    setSuccessBanner(msg);
+    setTimeout(() => {
+      setSuccessBanner(null);
+    }, 4000);
+  };
+
   const handleGuardarCliente = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formNombre.trim()) return;
+    if (submitting) return;
+
+    if (!validarFormulario()) {
+      setModalError('Por favor corrija los campos marcados antes de guardar.');
+      return;
+    }
 
     setSubmitting(true);
     setModalError(null);
@@ -124,19 +192,16 @@ export const ClientesPage: React.FC = () => {
     try {
       if (clienteEditando) {
         await api.put(`/clientes/${clienteEditando.id}`, payload);
+        showSuccess(`Cliente "${payload.nombre}" actualizado correctamente.`);
       } else {
         await api.post('/clientes', payload);
+        showSuccess(`Cliente "${payload.nombre}" creado exitosamente.`);
       }
       setModalFormAbierto(false);
       await fetchClientes();
     } catch (err: any) {
       console.error('Error al guardar cliente:', err);
-      const msg = err.response?.data?.message
-        ? Array.isArray(err.response.data.message)
-          ? err.response.data.message.join(', ')
-          : err.response.data.message
-        : 'Error al conectar con la API real para guardar el cliente.';
-      setModalError(msg);
+      setModalError(formatApiError(err, 'No se pudo guardar el cliente. Revise la información e inténtelo de nuevo.'));
     } finally {
       setSubmitting(false);
     }
@@ -145,21 +210,18 @@ export const ClientesPage: React.FC = () => {
   const handleEliminarCliente = async () => {
     if (!clienteEliminar || deletingId) return;
 
+    const nombreEliminado = clienteEliminar.nombre;
     setDeletingId(clienteEliminar.id);
     setErrorBanner(null);
 
     try {
       await api.delete(`/clientes/${clienteEliminar.id}`);
       setClienteEliminar(null);
+      showSuccess(`Cliente "${nombreEliminado}" eliminado correctamente.`);
       await fetchClientes();
     } catch (err: any) {
       console.error('Error al eliminar cliente:', err);
-      const msg = err.response?.data?.message
-        ? Array.isArray(err.response.data.message)
-          ? err.response.data.message.join(', ')
-          : err.response.data.message
-        : 'No se pudo eliminar el cliente. Verifique que no tenga operaciones asociadas.';
-      setErrorBanner(msg);
+      setErrorBanner(formatApiError(err, 'No se pudo eliminar el cliente. Verifique que no posea ventas ni cotizaciones.'));
       setClienteEliminar(null);
     } finally {
       setDeletingId(null);
@@ -173,8 +235,15 @@ export const ClientesPage: React.FC = () => {
       <main style={styles.content}>
         {errorBanner && (
           <div style={styles.errorBanner}>
-            <AlertCircle size={18} />
+            <AlertCircle size={18} style={{ flexShrink: 0 }} />
             <span>{errorBanner}</span>
+          </div>
+        )}
+
+        {successBanner && (
+          <div style={styles.successBanner}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+            <span>{successBanner}</span>
           </div>
         )}
 
@@ -311,41 +380,63 @@ export const ClientesPage: React.FC = () => {
 
             {modalError && (
               <div style={styles.modalErrorBanner}>
-                <AlertCircle size={16} />
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
                 <span>{modalError}</span>
               </div>
             )}
 
             <form onSubmit={handleGuardarCliente} style={{ marginTop: '16px' }}>
-              <p>{clienteEditando ? `${t('clientPicker.numberLabel')}: ${formatNumeroCliente(clienteEditando.numeroCliente)}` : t('clientPicker.numberAutomatic')}</p>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>
+                {clienteEditando ? `${t('clientPicker.numberLabel')}: ${formatNumeroCliente(clienteEditando.numeroCliente)}` : t('clientPicker.numberAutomatic')}
+              </p>
+
               <div className="form-group">
-                <label className="form-label">NOMBRE COMPLETO / RAZÓN SOCIAL *</label>
+                <label className="form-label">
+                  NOMBRE COMPLETO / RAZÓN SOCIAL <span style={{ color: '#DC2626' }}>*</span>
+                </label>
                 <input
                   type="text"
                   required
+                  disabled={submitting}
                   placeholder="Ej. Constructora del Norte S.A."
                   value={formNombre}
-                  onChange={(e) => setFormNombre(e.target.value)}
+                  onChange={(e) => {
+                    setFormNombre(e.target.value);
+                    if (fieldErrors.nombre) setFieldErrors({ ...fieldErrors, nombre: '' });
+                  }}
                   className="form-input"
+                  style={fieldErrors.nombre ? styles.inputError : {}}
                 />
+                {fieldErrors.nombre && (
+                  <span style={styles.fieldErrorText}>{fieldErrors.nombre}</span>
+                )}
               </div>
 
               <div style={styles.formRow}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">RTN / IDENTIFICACIÓN FISCAL</label>
+                  <label className="form-label">RTN / IDENTIFICACIÓN FISCAL (14 DÍGITOS)</label>
                   <input
                     type="text"
+                    disabled={submitting}
                     placeholder="Ej. 08011990123456"
                     value={formRtn}
-                    onChange={(e) => setFormRtn(e.target.value)}
+                    onChange={(e) => {
+                      setFormRtn(e.target.value);
+                      if (fieldErrors.rtn) setFieldErrors({ ...fieldErrors, rtn: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.rtn ? styles.inputError : {}}
                   />
+                  {fieldErrors.rtn && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.rtn}</span>
+                  )}
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">TIPO DE CLIENTE</label>
+                  <label className="form-label">TIPO DE CLIENTE <span style={{ color: '#DC2626' }}>*</span></label>
                   <select
                     value={formTipo}
+                    disabled={submitting}
                     onChange={(e) => setFormTipo(e.target.value as any)}
                     className="form-select"
                   >
@@ -361,6 +452,7 @@ export const ClientesPage: React.FC = () => {
                   <label className="form-label">TELÉFONO DE CONTACTO</label>
                   <input
                     type="text"
+                    disabled={submitting}
                     placeholder="+504 9999-8888"
                     value={formTelefono}
                     onChange={(e) => setFormTelefono(e.target.value)}
@@ -372,11 +464,19 @@ export const ClientesPage: React.FC = () => {
                   <label className="form-label">CORREO ELECTRÓNICO</label>
                   <input
                     type="email"
+                    disabled={submitting}
                     placeholder="contacto@empresa.hn"
                     value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
+                    onChange={(e) => {
+                      setFormEmail(e.target.value);
+                      if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: '' });
+                    }}
                     className="form-input"
+                    style={fieldErrors.email ? styles.inputError : {}}
                   />
+                  {fieldErrors.email && (
+                    <span style={styles.fieldErrorText}>{fieldErrors.email}</span>
+                  )}
                 </div>
               </div>
 
@@ -384,6 +484,7 @@ export const ClientesPage: React.FC = () => {
                 <label className="form-label">DIRECCIÓN FÍSICA</label>
                 <textarea
                   rows={2}
+                  disabled={submitting}
                   placeholder="Ej. Barrio El Centro, Ave. San Isidro, La Ceiba"
                   value={formDireccion}
                   onChange={(e) => setFormDireccion(e.target.value)}
@@ -508,6 +609,19 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '10px',
   },
+  successBanner: {
+    marginBottom: '16px',
+    padding: '12px 16px',
+    backgroundColor: '#DCFCE7',
+    border: '1px solid #22C55E',
+    borderRadius: '4px',
+    color: '#15803D',
+    fontSize: '13px',
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
   modalErrorBanner: {
     marginTop: '12px',
     padding: '10px 14px',
@@ -520,6 +634,17 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
+  },
+  inputError: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
+  },
+  fieldErrorText: {
+    fontSize: '11px',
+    color: '#DC2626',
+    fontWeight: 600,
+    marginTop: '4px',
+    display: 'block',
   },
   actionsBar: {
     display: 'flex',
