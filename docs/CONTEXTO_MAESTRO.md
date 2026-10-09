@@ -230,6 +230,12 @@ Sistema SaaS multi-tenant para ferreterías: POS, inventario, levantamiento fís
 **Acción requerida por Daniel:** `git push origin docs/contexto-levantamiento-post-rebase`
 
 
+### Bitácora FS (sesión autónoma 2026-10-09)
+
+| FS | Estado | Rama | Evidencia |
+|---|---|---|---|
+| FS-01 | Corregido, PR abierto (sin merge/despliegue) | `fix/fs-01-pos-vencimiento-iso` | Causa: `@IsOptional()` no omite `''`; el pendiente corregido del POS guardaba `vencimiento: ''` y el backend respondía "must be a valid ISO 8601 date string", dejando la venta pendiente bloqueada. Fix: `backend/src/common/empty-to-undefined.ts` aplicado a `vencimiento` en ventas/operaciones/compras + POS envía `pending.vencimiento \|\| undefined`. Test: `backend/src/ventas/create-venta-vencimiento.spec.ts` (11/11 en `src/ventas`). No validado en navegador ni producción. |
+
 ### Bitácoras anteriores (resumen)
 
 - **2026-10-08** — Jules PR #67: FUNC-002/004; Codex SEC-005 PR #70; Codex FUNC-001 rama `fix/func-001-cotizacion-venta`; Codex LEV-001 PR #73; docs UX PR #74; E15 PR #75.
