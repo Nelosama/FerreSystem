@@ -5,7 +5,7 @@ import { useTenant } from '../context/TenantContext';
 import { exportToCSV } from '../utils/csvExport';
 import { exportToExcel } from '../utils/excelExport';
 import './OperacionesPage.css';
-import { BarcodeScanner } from '../components/BarcodeScanner';
+import { LevantamientoProductLookup } from '../components/LevantamientoProductLookup';
 import { readStoredJson } from '../utils/storage';
 const blank=()=>({descripcion:'',cantidad:'1',unidad:'UNIDAD',codigo:'',codigoBarras:'',marca:'',categoria:'',ubicacion:'',precioCosto:'',precioVenta:'',margen:'',notas:''});
 const message=(e:any)=>{const m=e.response?.data?.message;return Array.isArray(m)?m.join(', '):m||'No se pudo guardar. Revise la conexión y reintente.';};
@@ -14,6 +14,7 @@ export const LevantamientoPage:React.FC=()=>{
  const [sessions,setSessions]=useState<any[]>([]),[activeId,setActiveId]=useState(''),[active,setActive]=useState<any>(null);
  const [nombre,setNombre]=useState(''),[form,setForm]=useState(blank()),[editing,setEditing]=useState<any>(null),[preview,setPreview]=useState<any>(null);
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);const inFlight=useRef(false);
+ const [lookupRevision,setLookupRevision]=useState(0);
  const pendingKey=`ferre_pending_count:${tenant.id}:${user?.id}`;
  const [pendingCount,setPendingCount]=useState<any>(()=>readStoredJson(pendingKey,null));
  useEffect(()=>{setPendingCount(readStoredJson(pendingKey,null));},[pendingKey]);
@@ -22,7 +23,7 @@ export const LevantamientoPage:React.FC=()=>{
  useEffect(()=>{void load();},[load]);
  useEffect(()=>{setActiveId('');setActive(null);setPreview(null);setEditing(null);setForm(blank());},[tenant.id]);
  const action=async(fn:()=>Promise<void>)=>{if(inFlight.current||isReadOnly)return;inFlight.current=true;setBusy(true);setError('');try{await fn();await load();}catch(e){setError(message(e));}finally{inFlight.current=false;setBusy(false);}};
- const sendCount=async(command:any)=>{try{await api.post(`/levantamientos/${command.lid}/items`,command.dto);}catch(e:any){if([400,403,404,409,422].includes(e.response?.status)){localStorage.removeItem(pendingKey);setPendingCount(null);}throw e;}localStorage.removeItem(pendingKey);setPendingCount(null);setForm(f=>({...blank(),unidad:f.unidad,ubicacion:f.ubicacion}));setPreview(null);};
+ const sendCount=async(command:any)=>{try{await api.post(`/levantamientos/${command.lid}/items`,command.dto);}catch(e:any){if([400,403,404,409,422].includes(e.response?.status)){localStorage.removeItem(pendingKey);setPendingCount(null);}throw e;}localStorage.removeItem(pendingKey);setPendingCount(null);setLookupRevision(value=>value+1);setForm(f=>({...blank(),unidad:f.unidad,ubicacion:f.ubicacion}));setPreview(null);};
  const exportRows=()=>active.items.map((i:any)=>({codigo:i.codigo||'',codigoBarras:i.codigoBarras||'',descripcion:i.descripcion,cantidad:Number(i.cantidad),unidad:i.unidad,categoria:i.categoria||'',costo:i.precioCosto??'',precio:i.precioVenta??'',margen:i.margen??'',ubicacion:i.ubicacion||'',marca:i.marca||'',notas:i.notas||''}));
  const set=(key:keyof ReturnType<typeof blank>,value:string)=>setForm(f=>({...f,[key]:value}));
  return <div><TopBar title="LEVANTAMIENTO DE INVENTARIO" subtitle="Conteo, revisión y aplicación al inventario"/><main className="operation-page">
@@ -42,7 +43,9 @@ export const LevantamientoPage:React.FC=()=>{
    for(const key of ['precioCosto','precioVenta','margen'] as const)dto[key]=form[key]===''?undefined:Number(form[key]);
    if(editing)await api.patch(`/levantamientos/${activeId}/items/${editing.id}`,{...dto,version:editing.version});else {if(pendingCount)throw new Error('Confirme el conteo pendiente');const command={lid:activeId,dto:{...dto,solicitudId:crypto.randomUUID()}};localStorage.setItem(pendingKey,JSON.stringify(command));setPendingCount(command);await sendCount(command);}
    setForm(f=>({...blank(),unidad:f.unidad,ubicacion:f.ubicacion}));setEditing(null);setPreview(null);
-  });}}><BarcodeScanner disabled={busy||isReadOnly||!!pendingCount} onCode={code=>set('codigoBarras',code)}/><h2>{editing?'Corregir conteo':'Contar producto'}</h2><fieldset disabled={busy||isReadOnly||!!pendingCount} className="operation-form">
+  });}}><LevantamientoProductLookup key={`${tenant.id}:${user?.id}:${activeId}:${editing?.id||''}:${lookupRevision}`} disabled={busy||isReadOnly||!!pendingCount||!!editing}
+    onSearch={code=>{setForm(f=>({...blank(),ubicacion:f.ubicacion,codigoBarras:code}));setPreview(null);}}
+    onSelect={product=>{setForm(f=>({...blank(),ubicacion:f.ubicacion,descripcion:product.nombre,codigo:product.codigo,codigoBarras:product.codigoBarras||'',unidad:product.unidadMedida,categoria:product.categoria?.nombre||'',cantidad:''}));setPreview(null);}} /><h2>{editing?'Corregir conteo':'Contar producto'}</h2><fieldset disabled={busy||isReadOnly||!!pendingCount} className="operation-form">
    <label>Descripción y variante<input className="form-input" required value={form.descripcion} onChange={e=>set('descripcion',e.target.value)} placeholder="Tipo, medida, espesor, color…"/></label><label>Cantidad<input className="form-input" type="number" min="0" step="0.01" required value={form.cantidad} onChange={e=>set('cantidad',e.target.value)}/></label><label>Unidad<select className="form-input" value={form.unidad} onChange={e=>set('unidad',e.target.value)}>{['UNIDAD','PIE','METRO','METRO_CUADRADO','METRO_CUBICO','LIBRA','KG','GALON','LITRO','CAJA','PAQUETE','OTRO'].map(u=><option key={u}>{u}</option>)}</select></label>
    {(['codigo','codigoBarras','marca','categoria','ubicacion','precioCosto','precioVenta','margen','notas'] as const).map(key=><label key={key}>{{codigo:'Código interno o fabricante (opcional)',codigoBarras:'Código de barras (opcional)',marca:'Marca',categoria:'Categoría',ubicacion:'Zona o ubicación',precioCosto:'Costo',precioVenta:'Precio de venta',margen:'Margen %',notas:'Notas'}[key]}<input className="form-input" type={['precioCosto','precioVenta','margen'].includes(key)?'number':'text'} min="0" step="0.01" max={key==='margen'?100:undefined} value={form[key]} onChange={e=>set(key,e.target.value)}/></label>)}
   </fieldset><p>Si el producto es nuevo, complete costo y precio antes de aplicar. Los artículos sin código recibirán uno interno.</p><button className="btn btn-primary" disabled={busy||isReadOnly||!!pendingCount}>Guardar y siguiente</button>{editing&&<button className="btn btn-secondary" type="button" onClick={()=>{setEditing(null);setForm(blank());}}>Cancelar corrección</button>}</form>}
