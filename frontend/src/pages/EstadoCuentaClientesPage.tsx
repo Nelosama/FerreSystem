@@ -95,13 +95,13 @@ export const EstadoCuentaClientesPage: React.FC = () => {
           </section>
           <section className="operation-card">
             <h2>{t('customer_statement.movements')}</h2>
-            {estado.movimientos.length === 0 ? <p>{t('customer_statement.no_movements')}</p> : (
+            {(estado.movimientos ?? []).length === 0 ? <p>{t('customer_statement.no_movements')}</p> : (
               <div className="operation-table"><table>
                 <thead><tr>
                   <th>{t('customer_statement.date')}</th><th>{t('customer_statement.type')}</th><th>{t('customer_statement.invoice')}</th>
                   <th>{t('customer_statement.amount')}</th><th>{t('customer_statement.running_balance')}</th><th>{t('customer_statement.user')}</th><th>{t('customer_statement.reference')}</th>
                 </tr></thead>
-                <tbody>{estado.movimientos.map((m, i) => (
+                <tbody>{(estado.movimientos ?? []).map((m, i) => (
                   <tr key={`${m.fecha}-${i}`}>
                     <td>{new Date(m.fecha).toLocaleString()}</td>
                     <td>{m.tipo === 'CARGO' ? t('customer_statement.charge') : t('customer_statement.payment')}{m.metodo ? ` · ${m.metodo}` : ''}</td>

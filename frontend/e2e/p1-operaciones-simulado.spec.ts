@@ -25,6 +25,7 @@ const cliente = { id: 'cli-1', codigo: 'CLI-000001', numeroCliente: 1, nombre: '
 const estadoCuenta = {
   cliente: { id: 'cli-1', codigo: 'CLI-000001', numeroCliente: 1, nombre: 'Constructora del Norte', creditoHabilitado: true, limiteCredito: 1000, saldoPendiente: 300 },
   saldoCuentas: 300, conciliado: true,
+  movimientos: [],
   cuentas: [{ id: 'cu-1', documento: 'V-10', monto: 500, saldo: 300, vencimiento: '2026-01-01T00:00:00.000Z', vencida: true, creadaEn: '2026-01-01T00:00:00.000Z',
     abonos: [{ id: 'ab-1', monto: 200, metodo: 'EFECTIVO', fecha: '2026-01-05T00:00:00.000Z', notas: null }] }],
 };
