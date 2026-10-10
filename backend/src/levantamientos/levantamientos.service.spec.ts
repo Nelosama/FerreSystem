@@ -232,8 +232,8 @@ describe('Multiusuario — detección de conflictos', () => {
 // ─── Multiusuario: conciliación explícita ────────────────────────────────────
 describe('Multiusuario — conciliación de conflictos', () => {
  let prisma:any, service:LevantamientosService;
- const itemA = { id: 'item-A', productoId: 'p1', codigo: 'P1', codigoBarras: '001', contadorId: 'userA', conflicto: true, cantidad: 5, unidad: 'UNIDAD', descripcion: 'Tubo' };
- const itemB = { id: 'item-B', productoId: 'p1', codigo: 'P1', codigoBarras: '001', contadorId: 'userB', conflicto: true, cantidad: 8, unidad: 'UNIDAD', descripcion: 'Tubo' };
+ const itemA = { id: 'item-A', version: 1, productoId: 'p1', codigo: 'P1', codigoBarras: '001', contadorId: 'userA', conflicto: true, cantidad: 5, unidad: 'UNIDAD', descripcion: 'Tubo' };
+ const itemB = { id: 'item-B', version: 1, productoId: 'p1', codigo: 'P1', codigoBarras: '001', contadorId: 'userB', conflicto: true, cantidad: 8, unidad: 'UNIDAD', descripcion: 'Tubo' };
 
  beforeEach(() => {
   prisma = {
@@ -246,11 +246,14 @@ describe('Multiusuario — conciliación de conflictos', () => {
     findMany: vi.fn().mockResolvedValue([]),
    },
   };
+  prisma.usuario = { findMany: vi.fn().mockResolvedValue([]) };
   service = new LevantamientosService(prisma);
  });
 
+ const token = async () => (await service.findConflictos('t', 'l'))[0].token;
+
  it('ADMIN puede elegir qué conteo conservar — el otro se elimina', async () => {
-  await service.conciliarConflicto('t', 'l', { mantenerItemId: 'item-A' }, 'admin');
+  await service.conciliarConflicto('t', 'l', { mantenerItemId: 'item-A', token: await token() }, 'admin');
   expect(prisma.levantamientoItem.delete).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'item-B' } }));
   expect(prisma.levantamientoItem.update).toHaveBeenCalledWith(expect.objectContaining({
    where: { id: 'item-A' },
@@ -259,7 +262,7 @@ describe('Multiusuario — conciliación de conflictos', () => {
  });
 
  it('ADMIN puede ingresar cantidad manual al conciliar', async () => {
-  await service.conciliarConflicto('t', 'l', { mantenerItemId: 'item-A', cantidadManual: 6 }, 'admin');
+  await service.conciliarConflicto('t', 'l', { mantenerItemId: 'item-A', token: await token(), cantidadManual: 6 }, 'admin');
   expect(prisma.levantamientoItem.update).toHaveBeenCalledWith(expect.objectContaining({
    where: { id: 'item-A' },
    data: expect.objectContaining({ cantidad: 6, conflicto: false }),
@@ -268,13 +271,13 @@ describe('Multiusuario — conciliación de conflictos', () => {
 
  it('no-ADMIN no puede conciliar conflictos', async () => {
   prisma.$queryRawUnsafe.mockImplementation(async () => [{ rol: 'EMPLEADO' }]);
-  await expect(service.conciliarConflicto('t', 'l', { mantenerItemId: 'item-A' }, 'empleado')).rejects.toThrow();
+  await expect(service.conciliarConflicto('t', 'l', { mantenerItemId: 'item-A', token: await token() }, 'empleado')).rejects.toThrow();
  });
 
  it('rechaza mantenerItemId que no es un ítem en conflicto', async () => {
   // El ítem 'inexistente' no está en la lista de ítems del levantamiento
   prisma.levantamiento.findFirst.mockResolvedValue({ id: 'l', estado: 'EN_PROGRESO', aplicadoAt: null, items: [itemA, itemB] });
-  await expect(service.conciliarConflicto('t', 'l', { mantenerItemId: 'inexistente' }, 'admin')).rejects.toThrow(/no encontrado|conflicto/i);
+  await expect(service.conciliarConflicto('t', 'l', { mantenerItemId: 'inexistente', token: await token() }, 'admin')).rejects.toThrow(/no encontrado|conflicto/i);
  });
 });
 

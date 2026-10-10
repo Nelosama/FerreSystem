@@ -35,6 +35,7 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
   const add=(body:any)=>call('post',`/levantamientos/${lid}/items`,body);
   const finish=()=>call('patch',`/levantamientos/${lid}`,{estado:'FINALIZADO'}).expect(200);
   const preview=()=>call('get',`/levantamientos/${lid}/preview`).expect(200);
+  const conflictToken=async(id:string)=>(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body.find((g:any)=>g.items.some((i:any)=>i.id===id)).token;
   const apply=(token:string)=>call('post',`/levantamientos/${lid}/aplicar`,{token});
   beforeAll(async () => {
     if (!existsSync(exe('initdb'))) throw new Error(`PostgreSQL not installed at ${bin}`);
@@ -401,5 +402,65 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     const producto=await prisma.producto.findFirstOrThrow({where:{tenantId,codigo:'FLUJO-1'}});
     expect([producto.marca,Number(producto.stockActual)]).toEqual(['Pretul',4]);
     expect(await prisma.movimientoInventario.count({where:{tenantId,productoId:producto.id,documentoId:nuevo.id}})).toBe(1);
+  });
+  it('QA-INV-003: capturas encadenadas por ID, código de barras y código interno forman un solo conflicto conciliable',async()=>{
+    const a=(await add(item({productoId:productId,codigoBarras:'001234'})).expect(201)).body;
+    const b=(await call('post',`/levantamientos/${lid}/items`,item({codigoBarras:'001234',codigo:'cab-9'}),'BODEGUERO').expect(201)).body;
+    const c=(await call('post',`/levantamientos/${lid}/items`,item({codigo:'CAB-9'}),'ADMIN').expect(201)).body;
+    expect([b.conflicto,c.conflicto]).toEqual([true,true]);
+    const grupos=(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body;
+    expect(grupos).toHaveLength(1);
+    expect(grupos[0].items.map((i:any)=>i.id).sort()).toEqual([a.id,b.id,c.id].sort());
+    const otro=(await call('post',`/levantamientos/${lid}/items`,item({descripcion:'Tornillo',codigo:'TOR-1',cantidad:7}),'BODEGUERO').expect(201)).body;
+    const p0=(await preview()).body;
+    expect(p0.rows.filter((r:any)=>r.item.id!==otro.id).every((r:any)=>r.errores.some((e:string)=>e.includes('conflicto')))).toBe(true);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token:await conflictToken(a.id)}).expect(201);
+    const restantes=(await prisma.levantamientoItem.findMany({where:{levantamientoId:lid}})).map(r=>r.id).sort();
+    expect(restantes).toEqual([a.id,otro.id].sort());
+    expect((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:a.id}})).conflicto).toBe(false);
+    const p=(await preview()).body;
+    expect(p.rows.some((r:any)=>r.errores.some((e:string)=>e.includes('duplicado')||e.includes('conflicto')))).toBe(false);
+  });
+
+  it('QA-INV-003: editar solo la cantidad mantiene el conflicto en ambos y la conciliación posterior funciona',async()=>{
+    const a=(await add(item({productoId:productId,codigoBarras:'001234'})).expect(201)).body;
+    const b=(await call('post',`/levantamientos/${lid}/items`,item({codigoBarras:'001234'}),'BODEGUERO').expect(201)).body;
+    await call('patch',`/levantamientos/${lid}/items/${b.id}`,{version:b.version,cantidad:4},'BODEGUERO').expect(200);
+    expect((await prisma.levantamientoItem.findMany({where:{levantamientoId:lid}})).every(r=>r.conflicto)).toBe(true);
+    const grupos=(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body;
+    expect(grupos).toHaveLength(1);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:b.id,token:await conflictToken(b.id),cantidadManual:4}).expect(201);
+    expect(await prisma.levantamientoItem.findUnique({where:{id:a.id}})).toBeNull();
+    expect(Number((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:b.id}})).cantidad)).toBe(4);
+  });
+
+  it('QA-INV-003: quitar la identidad compartida limpia el conflicto del par que queda',async()=>{
+    await add(item({productoId:productId,codigoBarras:'001234'})).expect(201);
+    const b=(await call('post',`/levantamientos/${lid}/items`,item({codigoBarras:'001234'}),'BODEGUERO').expect(201)).body;
+    await call('patch',`/levantamientos/${lid}/items/${b.id}`,{version:b.version,codigoBarras:'999001'},'BODEGUERO').expect(200);
+    expect(await prisma.levantamientoItem.count({where:{levantamientoId:lid,conflicto:true}})).toBe(0);
+    expect((await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body).toEqual([]);
+  });
+
+  it('QA-INV-004: conflictos muestran el nombre del contador y conservan su id; desactivados y eliminados se identifican',async()=>{
+    await prisma.usuario.update({where:{id:users.BODEGUERO.id},data:{nombre:'Ana Pérez'}});
+    await add(item({productoId:productId,codigoBarras:'001234'})).expect(201);
+    const b=(await call('post',`/levantamientos/${lid}/items`,item({codigoBarras:'001234'}),'BODEGUERO').expect(201)).body;
+    const filaB=async()=>(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body[0].items.find((i:any)=>i.id===b.id);
+    expect(await filaB()).toMatchObject({contadorId:users.BODEGUERO.id,contador:{id:users.BODEGUERO.id,nombre:'Ana Pérez',estado:'ACTIVO'}});
+    await prisma.usuario.update({where:{id:users.BODEGUERO.id},data:{activo:false}});
+    expect((await filaB()).contador).toEqual({id:users.BODEGUERO.id,nombre:'Ana Pérez',estado:'DESACTIVADO'});
+    await prisma.usuario.delete({where:{id:users.BODEGUERO.id}});
+    expect((await filaB()).contador).toEqual({id:users.BODEGUERO.id,nombre:null,estado:'NO_DISPONIBLE'});
+    const detalle=(await call('get',`/levantamientos/${lid}`).expect(200)).body;
+    expect(detalle.items.find((i:any)=>i.id===b.id).contador).toEqual({id:users.BODEGUERO.id,nombre:null,estado:'NO_DISPONIBLE'});
+  });
+
+  it('QA-INV-004: el nombre del contador solo se resuelve dentro de la empresa',async()=>{
+    await add(item({productoId:productId,codigoBarras:'001234'})).expect(201);
+    const b=(await call('post',`/levantamientos/${lid}/items`,item({codigoBarras:'001234'}),'BODEGUERO').expect(201)).body;
+    await prisma.levantamientoItem.update({where:{id:b.id},data:{contadorId:users.OTHER.id}});
+    const fila=(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body[0].items.find((i:any)=>i.id===b.id);
+    expect(fila.contador).toEqual({id:users.OTHER.id,nombre:null,estado:'NO_DISPONIBLE'});
   });
 });

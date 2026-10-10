@@ -98,46 +98,51 @@ describe('Auditoría independiente / reproducciones confirmadas', () => {
   });
 
 
-  // Estas pruebas afirman el comportamiento defectuoso observado, no aceptación.
-  it('QA-INV-001: aplicar no invalida versión; formulario antiguo revierte precio', async()=>{
+  // Regresiones del contrato seguro: las solicitudes obsoletas nunca sobrescriben datos recientes.
+  it('QA-INV-001: aplicar invalida el formulario antiguo y conserva el precio revisado', async()=>{
     const old=(await call('get',`/productos/${productId}`).expect(200)).body;
     await add(item({productoId:productId,cantidad:8,precioVenta:9})).expect(201);
     await finish(); const p=(await preview()).body; await apply(p.token).expect(201);
     const applied=await prisma.producto.findUniqueOrThrow({where:{id:productId}});
     expect(Number(applied.precioVenta)).toBe(9);
-    expect(applied.version).toBe(old.version);
-    await call('put',`/productos/${productId}`,{version:old.version,precioVenta:5}).expect(200);
-    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).precioVenta)).toBe(5);
-    console.log('QA-INV-001: precio 4 -> conteo 9 -> formulario obsoleto 5, HTTP 200, versión inicial 1');
+    expect(applied.version).toBe(old.version+1);
+    await call('put',`/productos/${productId}`,{version:old.version,precioVenta:5}).expect(409);
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).precioVenta)).toBe(9);
+
   });
-  it('QA-INV-002: conciliación antigua elimina un conteo modificado sin advertir',async()=>{
+  it('QA-INV-002: conciliación obsoleta conserva 12; tras recargar permite una decisión explícita',async()=>{
     const a=(await add(item({productoId:productId,cantidad:3})).expect(201)).body;
     const b=(await call('post',`/levantamientos/${lid}/items`,item({productoId:productId,cantidad:4}),'BODEGUERO').expect(201)).body;
     const snapshot=(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body;
     expect(snapshot[0].items.map((i:any)=>i.cantidad).sort()).toEqual([3,4]);
     await call('patch',`/levantamientos/${lid}/items/${b.id}`,{version:b.version,cantidad:12},'BODEGUERO').expect(200);
-    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id}).expect(201);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token:snapshot[0].token}).expect(409);
+    expect(Number((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:b.id}})).cantidad)).toBe(12);
+    expect(await prisma.auditoriaOperacion.count({where:{tenantId,operacion:'CONTEO_CONCILIAR_ELIMINAR'}})).toBe(0);
+    const fresh=(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body;
+    expect(fresh[0].token).not.toBe(snapshot[0].token);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token:fresh[0].token}).expect(201);
     expect(await prisma.levantamientoItem.findUnique({where:{id:b.id}})).toBeNull();
     const [audit]=await prisma.$queryRawUnsafe<any[]>("SELECT datos FROM auditoria_operaciones WHERE entidad_id=$1 AND operacion='CONTEO_CONCILIAR_ELIMINAR'",b.id);
-    expect(audit.datos.anterior).toBeUndefined();
+    expect(audit.datos.anterior).toMatchObject({id:b.id,cantidad:12,contadorId:users.BODEGUERO.id,version:b.version+1});
     await finish(); const p=(await preview()).body; await apply(p.token).expect(201);
     expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).stockActual)).toBe(3);
-    console.log('QA-INV-002: administrador vio 4, empleado corrigió a 12, conciliación obsoleta borró 12 y aplicó 3');
+
   });
-  it('QA-INV-003: identidad mixta separa conflictos; edición limpia ambos y bloquea conciliación',async()=>{
+  it('QA-INV-003: identidad mixta forma un solo conflicto conciliable; edición y conciliación lo conservan',async()=>{
     const a=(await add(item({productoId:productId,codigoBarras:'001234'})).expect(201)).body;
     const b=(await call('post',`/levantamientos/${lid}/items`,item({codigoBarras:'001234'}),'BODEGUERO').expect(201)).body;
     const groups=(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body;
-    expect(groups).toHaveLength(2); expect(groups.every((g:any)=>g.items.length===1)).toBe(true);
+    expect(groups).toHaveLength(1); expect(groups[0].items.map((i:any)=>i.id).sort()).toEqual([a.id,b.id].sort());
     await call('patch',`/levantamientos/${lid}/items/${b.id}`,{version:b.version,cantidad:4},'BODEGUERO').expect(200);
     const rows=await prisma.levantamientoItem.findMany({where:{levantamientoId:lid}});
-    expect(rows.every(r=>!r.conflicto)).toBe(true);
-    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id}).expect(404);
-    const p=(await preview()).body; expect(p.rows.some((r:any)=>r.errores.some((e:string)=>e.includes('duplicado')))).toBe(true);
-    console.log('QA-INV-003: dos grupos individuales, banderas limpiadas, conciliación 404 y preview duplicado');
+    expect(rows.every(r=>r.conflicto)).toBe(true);
+    const fresh=(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body;
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token:fresh[0].token}).expect(201);
+    expect(await prisma.levantamientoItem.findUnique({where:{id:b.id}})).toBeNull();
+    const p=(await preview()).body; expect(p.rows.some((r:any)=>r.errores.some((e:string)=>e.includes('duplicado')))).toBe(false);
   });
-
-  it('QA-INV-001B: recepción no invalida formulario de costo y deja costos inconsistentes',async()=>{
+  it('QA-INV-001B: recepción invalida el costo obsoleto y conserva costo, precio e historial',async()=>{
     const old=(await call('get',`/productos/${productId}`).expect(200)).body;
     const proveedor=await prisma.proveedor.create({data:{tenantId,nombre:'Proveedor QA'}});
     const ops=new OperacionesService(prisma);
@@ -145,10 +150,103 @@ describe('Auditoría independiente / reproducciones confirmadas', () => {
     const [line]=await prisma.$queryRawUnsafe<{id:string}[]>('SELECT id FROM detalles_orden_compra WHERE orden_id=$1',order.id);
     await ops.recibir(tenantId,users.BODEGUERO.id,order.id,{solicitudId:randomUUID(),items:[{detalleId:line.id,cantidad:5}]} as any);
     const received=await prisma.producto.findUniqueOrThrow({where:{id:productId}});
-    expect(received.version).toBe(old.version); expect(Number(received.precioCosto)).toBe(6);
-    await call('put',`/productos/${productId}`,{version:old.version,precioCosto:3}).expect(200);
+    expect(received.version).toBe(old.version+1); expect(Number(received.precioCosto)).toBe(6);
+    await call('put',`/productos/${productId}`,{version:old.version,precioCosto:3}).expect(409);
     const after=await prisma.producto.findUniqueOrThrow({where:{id:productId}});
-    expect([Number(after.precioCosto),Number(after.costoVigente),Number(after.stockActual)]).toEqual([3,6,13]);
+    expect([Number(after.precioCosto),Number(after.costoVigente),Number(after.stockActual)]).toEqual([6,6,13]);
+    expect(Number(after.precioVenta)).toBe(4);
     expect(await prisma.costoCompra.count({where:{tenantId,productoId:productId}})).toBe(1);
   });
+  const conflictToken=async(id:string)=>(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body.find((g:any)=>g.items.some((i:any)=>i.id===id)).token;
+  const conflictPair=async()=>{
+    const a=(await add(item({productoId:productId,cantidad:3})).expect(201)).body;
+    const b=(await call('post',`/levantamientos/${lid}/items`,item({productoId:productId,cantidad:4}),'BODEGUERO').expect(201)).body;
+    return {a,b,token:await conflictToken(a.id)};
+  };
+
+  it('QA-INV-002: el token cubre también el conteo conservado y permite releerlo después de editar',async()=>{
+    const {a,b,token}=await conflictPair();
+    await call('patch',`/levantamientos/${lid}/items/${a.id}`,{version:a.version,cantidad:12}).expect(200);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token}).expect(409);
+    expect(await prisma.levantamientoItem.findUnique({where:{id:b.id}})).not.toBeNull();
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token:await conflictToken(a.id)}).expect(201);
+    expect(Number((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:a.id}})).cantidad)).toBe(12);
+  });
+
+  it('QA-INV-002: un nuevo integrante invalida el snapshot sin eliminar ningún conteo',async()=>{
+    const {a,b,token}=await conflictPair();
+    const id=randomUUID();
+    await prisma.usuario.create({data:{id,tenantId,nombre:'Segundo administrador',email:`${id}@test.invalid`,passwordHash:'not-a-password',rol:'ADMIN',permisosConfigurados:true,permisos:['inventario.editar']}});
+    users.SECOND={id,token:jwt.sign({sub:id,tenantId,type:'tenant'})};
+    const c=(await call('post',`/levantamientos/${lid}/items`,item({productoId:productId,cantidad:5}),'SECOND').expect(201)).body;
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token}).expect(409);
+    expect(await prisma.levantamientoItem.count({where:{id:{in:[a.id,b.id,c.id]}}})).toBe(3);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:c.id,token:await conflictToken(c.id),cantidadManual:7.25}).expect(201);
+    expect(Number((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:c.id}})).cantidad)).toBe(7.25);
+  });
+
+  it('QA-INV-002: cambiar otro producto no bloquea una decisión válida de este grupo',async()=>{
+    const {a,b,token}=await conflictPair();
+    const otherA=(await add(item({codigo:'OTRO',cantidad:5})).expect(201)).body;
+    const otherB=(await call('post',`/levantamientos/${lid}/items`,item({codigo:'OTRO',cantidad:6}),'BODEGUERO').expect(201)).body;
+    await call('patch',`/levantamientos/${lid}/items/${otherB.id}`,{version:otherB.version,cantidad:9},'BODEGUERO').expect(200);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token}).expect(201);
+    expect(await prisma.levantamientoItem.findUnique({where:{id:b.id}})).toBeNull();
+    expect(await prisma.levantamientoItem.count({where:{id:{in:[otherA.id,otherB.id]},conflicto:true}})).toBe(2);
+  });
+
+  it('QA-INV-002: solicitudes sin snapshot y actores sin permisos no modifican el grupo',async()=>{
+    const {a,token}=await conflictPair();
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id}).expect(400);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token},'BODEGUERO').expect(403);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token},'CAJERO').expect(403);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token},'OTHER').expect(404);
+    expect(await prisma.levantamientoItem.count({where:{levantamientoId:lid,conflicto:true}})).toBe(2);
+  });
+
+  it('QA-INV-002: dos decisiones simultáneas solo confirman una y no duplican auditorías',async()=>{
+    const {a,b,token}=await conflictPair();
+    const results=await Promise.all([
+      call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token}),
+      call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:b.id,token}),
+    ]);
+    expect(results.filter(r=>r.status===201)).toHaveLength(1);
+    expect(results.every(r=>[201,404,409].includes(r.status))).toBe(true);
+    expect(await prisma.levantamientoItem.count({where:{levantamientoId:lid}})).toBe(1);
+    expect(await prisma.auditoriaOperacion.count({where:{tenantId,operacion:'CONTEO_CONCILIAR'}})).toBe(1);
+    expect(await prisma.auditoriaOperacion.count({where:{tenantId,operacion:'CONTEO_CONCILIAR_ELIMINAR'}})).toBe(1);
+  });
+
+  it('QA-INV-002: edición y decisión concurrentes conservan un orden transaccional sin perder 12',async()=>{
+    const {a,b,token}=await conflictPair();
+    const [edit,resolve]=await Promise.all([
+      call('patch',`/levantamientos/${lid}/items/${b.id}`,{version:b.version,cantidad:12},'BODEGUERO'),
+      call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token}),
+    ]);
+    if(edit.status===200){
+      expect(resolve.status).toBe(409);
+      expect(Number((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:b.id}})).cantidad)).toBe(12);
+    }else{
+      expect(edit.status).toBe(404); expect(resolve.status).toBe(201);
+      const [audit]=await prisma.$queryRawUnsafe<any[]>("SELECT datos FROM auditoria_operaciones WHERE entidad_id=$1 AND operacion='CONTEO_CONCILIAR_ELIMINAR'",b.id);
+      expect(audit.datos.anterior.cantidad).toBe(4);
+    }
+  });
+
+  it('QA-INV-002: un fallo al auditar después de eliminar revierte todo y permite reintentar el snapshot',async()=>{
+    const {a,b,token}=await conflictPair();
+    await prisma.$executeRawUnsafe("CREATE FUNCTION fail_reconciliation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.operacion='CONTEO_CONCILIAR' THEN RAISE EXCEPTION 'fallo QA'; END IF; RETURN NEW; END $$");
+    await prisma.$executeRawUnsafe('CREATE TRIGGER fail_reconciliation BEFORE INSERT ON auditoria_operaciones FOR EACH ROW EXECUTE FUNCTION fail_reconciliation()');
+    try{
+      await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token}).expect(500);
+      expect(await prisma.levantamientoItem.count({where:{id:{in:[a.id,b.id]},conflicto:true}})).toBe(2);
+      expect((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:a.id}})).version).toBe(a.version);
+      expect(await prisma.auditoriaOperacion.count({where:{tenantId,operacion:'CONTEO_CONCILIAR_ELIMINAR'}})).toBe(0);
+    }finally{
+      await prisma.$executeRawUnsafe('DROP TRIGGER fail_reconciliation ON auditoria_operaciones');
+      await prisma.$executeRawUnsafe('DROP FUNCTION fail_reconciliation()');
+    }
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token}).expect(201);
+  });
+
 });

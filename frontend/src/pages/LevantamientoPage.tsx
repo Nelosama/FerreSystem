@@ -62,6 +62,7 @@ function ConflictosPanel({
   const [grupos, setGrupos] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [resolviendo, setResolviendo] = useState(false);
+  const enviando = useRef(false);
 
   const cargar = useCallback(async () => {
     try { setGrupos((await api.get(`/levantamientos/${lid}/conflictos`)).data); }
@@ -70,17 +71,21 @@ function ConflictosPanel({
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  if (!grupos.length) return null;
+  if (!grupos.length && !error) return null;
 
-  const conciliar = async (mantenerItemId: string, cantidadManual?: number) => {
-    if (resolviendo || isReadOnly) return;
+  const conciliar = async (mantenerItemId: string, token: string, cantidadManual?: number) => {
+    if (enviando.current || busy || isReadOnly) return;
+    enviando.current = true;
     setResolviendo(true); setError('');
     try {
-      await api.post(`/levantamientos/${lid}/conciliar`, { mantenerItemId, ...(cantidadManual != null ? { cantidadManual } : {}) });
+      await api.post(`/levantamientos/${lid}/conciliar`, { mantenerItemId, token, ...(cantidadManual != null ? { cantidadManual } : {}) });
       await cargar();
       onResolved();
-    } catch (e) { setError(message(e, t('stocktaking.error'))); }
-    finally { setResolviendo(false); }
+    } catch (e: any) {
+      setError(message(e, t('stocktaking.error')));
+      if (e.response?.status === 409) { await cargar(); onResolved(); }
+    }
+    finally { enviando.current = false; setResolviendo(false); }
   };
 
   return (
@@ -98,7 +103,7 @@ function ConflictosPanel({
               <thead><tr><th>{t('stocktaking.user')}</th><th>{t('stocktaking.plain_description')}</th><th>{t('stocktaking.quantity')}</th><th>{t('stocktaking.zone')}</th><th>{t('stocktaking.action')}</th></tr></thead>
               <tbody>
                 {grupo.items.map((item: any) => (
-                  <ConflictoFila key={item.id} item={item} disabled={resolviendo || busy} onConciliar={conciliar} />
+                  <ConflictoFila key={`${item.id}:${grupo.token}`} item={item} disabled={resolviendo || busy || isReadOnly} onConciliar={(id, cantidad) => void conciliar(id, grupo.token, cantidad)} />
                 ))}
               </tbody>
             </table>
@@ -109,13 +114,29 @@ function ConflictosPanel({
   );
 }
 
+/** Contador por nombre; el identificador original queda visible debajo para trazabilidad. */
+function Contador({ item }: { item: any }) {
+  const { t } = useI18n();
+  if (!item.contadorId) return <>—</>;
+  const nombre: string | null = item.contador?.nombre ?? null;
+  return (
+    <>
+      <div>
+        {nombre ?? t('stocktaking.counter_unavailable')}
+        {item.contador?.estado === 'DESACTIVADO' && <> {t('stocktaking.counter_inactive')}</>}
+      </div>
+      <small title={item.contadorId} style={{ color: '#64748b' }}>{t('stocktaking.counter_id')}: {item.contadorId}</small>
+    </>
+  );
+}
+
 /** Fila de conflicto: el valor manual es estado propio de cada fila (no se puede usar un hook dentro de un map). */
 function ConflictoFila({ item, disabled, onConciliar }: { item: any; disabled: boolean; onConciliar: (id: string, cantidad?: number) => void }) {
   const { t } = useI18n();
   const [manual, setManual] = useState<string>('');
   return (
     <tr style={{ background: '#fefce8' }}>
-      <td>{item.contadorId ?? '—'}</td>
+      <td><Contador item={item} /></td>
       <td>{item.descripcion}</td>
       <td>{Number(item.cantidad)} {item.unidad}</td>
       <td>{item.ubicacion || '—'}</td>
@@ -459,7 +480,7 @@ export const LevantamientoPage: React.FC = () => {
                       <td>{i.codigo || i.codigoBarras || t('stocktaking.no_code')}</td>
                       <td>{Number(i.cantidad)} {i.unidad}</td>
                       <td>{i.ubicacion}</td>
-                      <td style={{ fontSize: '0.85em', color: '#64748b' }}>{i.contadorNombre || i.contadorId ?? '—'}</td>
+                      <td style={{ fontSize: '0.85em', color: '#64748b' }}><Contador item={i} /></td>
                       <td>{i.precioCosto ?? '—'} / {i.precioVenta ?? '—'}</td>
                       <td>
                         {!closed && (

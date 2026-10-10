@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { expect, test as base, type Page, type Route } from '@playwright/test';
 
 // Recorrido del levantamiento de inventario (FS-06 fase 2).
@@ -20,6 +21,7 @@ type Sim = {
   fallarSiguiente: Set<'lev' | 'item'>;
   errores: string[];
   inesperados: string[];
+  conciliaciones: { mantenerItemId: string; token: string; cantidadManual?: number }[];
 };
 
 const itemBase = (partial: Partial<Item>): Item => ({
@@ -33,7 +35,7 @@ const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
     const sim: Sim = {
       levantamientos: [], solicitudesLev: new Map(), solicitudesItem: new Map(), postsItem: [], postsLev: [],
-      aplicarTokens: [], fallarSiguiente: new Set(), errores: [], inesperados: [],
+      conciliaciones: [], aplicarTokens: [], fallarSiguiente: new Set(), errores: [], inesperados: [],
     };
     const origen = new URL(baseURL!).origin;
     page.on('pageerror', e => sim.errores.push(e.message));
@@ -79,7 +81,18 @@ const test = base.extend<{ sim: Sim }>({
           if (!l) return responder(route, 404, { message: 'Levantamiento no encontrado' });
           if (method === 'GET' && resto === '') return responder(route, 200, l);
           if (method === 'GET' && resto === 'participantes') return responder(route, 200, []);
-          if (method === 'GET' && resto === 'conflictos') return responder(route, 200, [{key:'QA-CABLE',items:l.items}]);
+          const conflictivos = l.items.filter(i => i.conflicto);
+          const token = createHash('sha256').update(JSON.stringify(conflictivos.map(i => [i.id, i.version, i.cantidad]))).digest('hex');
+          if (method === 'GET' && resto === 'conflictos') return responder(route, 200, conflictivos.length ? [{key:'QA-CABLE',token,items:conflictivos}] : []);
+          if (method === 'POST' && resto === 'conciliar') {
+            sim.conciliaciones.push(body);
+            if (body.token !== token) return responder(route, 409, {code:'CONTEO_CONFLICTO_VERSION',message:'Los conteos del conflicto cambiaron; recargue y revise las cantidades antes de conciliar'});
+            const elegido = conflictivos.find(i => i.id === body.mantenerItemId);
+            if (!elegido) return responder(route, 404, {message:'Ítem en conflicto no encontrado'});
+            l.items = l.items.filter(i => !i.conflicto || i.id === elegido.id);
+            Object.assign(elegido, {conflicto:false, version:elegido.version+1, cantidad:body.cantidadManual ?? elegido.cantidad});
+            return responder(route, 201, elegido);
+          }
           if (method === 'POST' && resto === 'heartbeat') return responder(route, 201, { ok: true });
           if (method === 'DELETE' && resto === 'heartbeat') return responder(route, 200, { ok: true });
           if (method === 'PATCH' && resto === '') { l.estado = body.estado; return responder(route, 200, l); }
@@ -151,11 +164,50 @@ async function contar(page: Page, datos: { descripcion: string; cantidad?: strin
 }
 
 
-test('QA-INV-004: conciliación identifica al empleado por UUID sin nombre',async({page,sim})=>{
- const employeeId='ce4833d4-b09c-4eb3-a233-271a10211640';
- sim.levantamientos.push({id:'qa-lev',nombre:'Conflicto QA',estado:'EN_PROGRESO',aplicadoAt:null,items:[itemBase({id:'qa-item',descripcion:'Cable',cantidad:4,contadorId:employeeId,conflicto:true})]});
+test('QA-INV-004: conciliación muestra el nombre del contador y conserva su identificador',async({page,sim})=>{
+ // La respuesta simulada replica el contrato del backend: contador resuelto dentro de la empresa.
+ const ana='ce4833d4-b09c-4eb3-a233-271a10211640';
+ const luis='0b9c1f2e-7d1a-4f8e-9a3b-2c5d6e7f8a9b';
+ const retirado='5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d';
+ sim.levantamientos.push({id:'qa-lev',nombre:'Conflicto QA',estado:'EN_PROGRESO',aplicadoAt:null,items:[
+  itemBase({id:'qa-item',descripcion:'Cable',cantidad:4,contadorId:ana,contador:{id:ana,nombre:'Ana Pérez',estado:'ACTIVO'},conflicto:true}),
+  itemBase({id:'qa-item-2',descripcion:'Cable',cantidad:6,contadorId:luis,contador:{id:luis,nombre:'Luis Ortega',estado:'DESACTIVADO'},conflicto:true}),
+  itemBase({id:'qa-item-3',descripcion:'Cable',cantidad:7,contadorId:retirado,contador:{id:retirado,nombre:null,estado:'NO_DISPONIBLE'},conflicto:true}),
+ ]});
  await ingresar(page); await page.getByRole('button',{name:/Conflicto QA/}).click();
  const panel=page.locator('section').filter({has:page.getByRole('heading',{name:'Conflictos pendientes'})});
- await expect(panel.getByRole('cell',{name:employeeId,exact:true})).toBeVisible();
- await page.screenshot({path:'test-results/qa-conflictos-uuid.png',fullPage:true});
+ await expect(panel.getByRole('cell').filter({hasText:'Ana Pérez'})).toBeVisible();
+ await expect(panel.getByRole('cell').filter({hasText:'Luis Ortega (desactivado)'})).toBeVisible();
+ await expect(panel.getByRole('cell').filter({hasText:'Usuario no disponible'})).toBeVisible();
+ await expect(panel.getByText(ana)).toHaveCount(1);
+ await expect(panel.getByText(retirado)).toHaveCount(1);
+ await page.screenshot({path:'test-results/qa-conflictos-nombre.png',fullPage:true});
 });
+
+for (const width of [1280, 390]) {
+  test(`QA-INV-002: conciliación obsoleta recarga 12 y exige nueva decisión; doble clic (${width}px, API simulada)`, async ({ page, sim }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const a = itemBase({ id: 'qa-a', descripcion: 'Cable', cantidad: 3, conflicto: true, contador: { nombre: 'Ana', estado: 'ACTIVO' } });
+    const b = itemBase({ id: 'qa-b', descripcion: 'Cable', cantidad: 4, conflicto: true, contadorId: otroUsuario, contador: { nombre: 'Luis', estado: 'ACTIVO' } });
+    const l = { id: 'qa-lev', nombre: 'Conflicto QA', estado: 'EN_PROGRESO', aplicadoAt: null, items: [a, b] };
+    sim.levantamientos.push(l);
+    await ingresar(page);
+    await page.getByRole('button', { name: /Conflicto QA/ }).click();
+    const panel = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Conflictos pendientes' }) });
+    await expect(panel.getByRole('button', { name: 'Conservar este (4)', exact: true })).toBeVisible();
+    await panel.getByRole('spinbutton').first().fill('8');
+    Object.assign(b, { cantidad: 12, version: 2 }); // Otro empleado cambia el servidor después de cargar la pantalla.
+    await panel.getByRole('button', { name: 'Conservar este (3)', exact: true }).click();
+    await expect(panel.getByRole('alert')).toContainText('Los conteos del conflicto cambiaron');
+    await expect(panel.getByRole('button', { name: 'Conservar este (12)', exact: true })).toBeVisible();
+    await expect(panel.getByRole('spinbutton').first()).toHaveValue('');
+    expect(sim.conciliaciones).toHaveLength(1);
+    expect(l.items).toHaveLength(2);
+    await panel.getByRole('button', { name: 'Conservar este (12)', exact: true }).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
+    await expect(page.getByRole('heading', { name: 'Conflictos pendientes' })).toHaveCount(0);
+    expect(sim.conciliaciones).toHaveLength(2);
+    expect(sim.conciliaciones[1].token).not.toBe(sim.conciliaciones[0].token);
+    expect(sim.conciliaciones[1].mantenerItemId).toBe(b.id);
+    expect(l.items.map(i => [i.id, i.cantidad])).toEqual([[b.id, 12]]);
+  });
+}
