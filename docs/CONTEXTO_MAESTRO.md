@@ -131,6 +131,22 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Riesgos abiertos:** D1 fiscal (sin aprobación del responsable); límites por defecto (L 5 000 / L 25 000 / cupo 50 % / 36 h) pendientes de decisión; caja única por empresa (`dispositivosMax=1`); rutas nuevas sin entrada en el menú (solo por URL); textos de contingencia solo en español.
 - **Pendientes:** PR de integración en borrador hacia `main` (no fusionar sin aprobación); si #127 o #128 cambian, repetir la integración desde su nuevo commit.
 
+## Autenticación fase 3 — límites de intentos, sesiones revocables y rotación (2026-10-10, rama `claude/security-audit-fase-3`, sin merge)
+
+- **Base:** `claude/security-audit-fase-2` (PR #132) + merge de `origin/claude/integracion-pos-offline-p1` `58941e5d`. No se modificaron PR existentes; no hay merge, despliegue ni migraciones productivas. Detalle y procedimientos: [AUTENTICACION_FASE3_SESIONES_20261010.md](AUTENTICACION_FASE3_SESIONES_20261010.md).
+- **Límite de intentos:** por cuenta (5 fallos / 15 min → bloqueo 15 min) y por IP (100 / 15 min), en `intentos_login` con clave hasheada y contadores atómicos. Respuesta 429 con `Retry-After`, igual para correos existentes e inexistentes. Aplica a login de tenants y de Super Admin (`auth/login-rate-limit.ts`).
+- **Proxy:** `TRUST_PROXY=1` en Render es obligatorio; sin él todos los usuarios comparten la IP del proxy y el límite por IP puede bloquear a toda la tienda.
+- **Sesiones revocables:** tabla `sesiones_auth`; `sid` en access y refresh; la estrategia JWT revalida sesión, sujeto, revocación y vencimiento en cada petición. Logout revoca la sesión del cookie y del Bearer (incluye soporte). Cambio de contraseña y desactivación revocan todas las sesiones del usuario. El refresh no rota (evita romper pestañas concurrentes).
+- **Transición de tokens:** `AUTH_ACEPTAR_TOKENS_SIN_SESION=true` por defecto; fijar en `false` 16 min después del despliegue. Refresh previos a #132 y de #132 se rechazan: un inicio de sesión por usuario.
+- **Rotación de `JWT_SECRET`:** sin doble clave; cierre planificado de sesiones (SQL en el documento) y cambio del secreto.
+- **Contingencia offline:** verificado en frontend (`offline/sync.ts`) y backend: el 401 deja la operación `PENDIENTE` en IndexedDB, el logout no la borra y el UUID es idempotente. Prueba PostgreSQL del lote tras cerrar y reabrir sesión.
+- **Migración nueva (requiere DBA):** `20261012000000_autenticacion_sesiones_intentos`. Aditiva: dos tablas nuevas, sin cambio de filas. Reversión: DROP de ambas tablas. Añadida también a la lista de migraciones de `test/ventas.postgres.integration.ts`, que usa una lista fija.
+- **Pruebas:** `test/autenticacion-fase3.postgres.integration.ts` 25/25; unitarias 349/349 (specs de auth y super admin con mocks actualizados); integración PostgreSQL completa 24 archivos, 412 aprobadas, 1 omitida (ejecutada como usuario no root).
+- **Pendientes:** limpieza de `sesiones_auth` e `intentos_login` (job); rotación de refresh con detección de reutilización (requiere ventana de gracia); logs de login con correo (R-08); confirmar `NODE_ENV=production`, `JWT_SECRET` y `TRUST_PROXY` en Render antes del despliegue.
+- **Coordinación:** archivos compartidos tocados: `main.ts` (trust proxy y validación), `usuarios.service.ts` (revocación), `schema.prisma` (dos modelos al final), `ventas.postgres.integration.ts` (lista de migraciones). No aparecen en #130 ni #131 al revisar sus archivos; no hubo agentes activos con los que coordinar en vivo.
+
+---
+
 ## Auditoría de seguridad fase 2 (2026-10-10, rama `claude/security-audit-fase-2`, [PR #132](https://github.com/Nelosama/FerreSystem/pull/132) sin merge)
 
 - **Base:** `origin/claude/integracion-pos-offline-p1` `bc0a0125` (PR #129). No se modificó #127, #128 ni #129; no hay merge, despliegue ni migraciones. Informe completo y matriz: [AUDITORIA_SEGURIDAD_FASE2_20261010.md](AUDITORIA_SEGURIDAD_FASE2_20261010.md).

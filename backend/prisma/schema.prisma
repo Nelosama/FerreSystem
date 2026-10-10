@@ -1051,3 +1051,35 @@ model OperacionContingencia {
   @@index([tenantId, recibidoAt])
   @@map("operaciones_contingencia")
 }
+
+// ============================================================
+// AUTENTICACIÓN (fase 3): contadores de intentos y sesiones revocables
+// ============================================================
+
+// Clave hasheada (cuenta o IP). Sin datos personales en claro.
+model IntentoLogin {
+  clave          String    @id
+  fallos         Int       @default(0)
+  ventanaInicio  DateTime  @default(now()) @map("ventana_inicio") @db.Timestamptz
+  bloqueadoHasta DateTime? @map("bloqueado_hasta") @db.Timestamptz
+  actualizadoAt  DateTime  @default(now()) @map("actualizado_at") @db.Timestamptz
+
+  @@index([actualizadoAt])
+  @@map("intentos_login")
+}
+
+// Una fila por inicio de sesión. El id viaja en el claim `sid` de access y refresh tokens.
+model SesionAuth {
+  id               String    @id @default(uuid())
+  tipo             String
+  sujetoId         String    @map("sujeto_id")
+  tenantId         String?   @map("tenant_id")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz
+  revocationMotivo String?   @map("revocation_motivo")
+
+  @@index([sujetoId])
+  @@index([expiresAt])
+  @@map("sesiones_auth")
+}
