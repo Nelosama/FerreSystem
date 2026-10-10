@@ -6,8 +6,10 @@ import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerpr
 import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 import { eliminarVinculoProveedor, guardarVinculoProveedor, listarProveedoresProducto, registrarCostoProveedor } from './productos-proveedores';
 import { estadoCuentaCliente } from './estado-cuenta-cliente';
-import { normalizarAutorizacion, registrarAprobacion } from './aprobaciones-bancarias';
+import { esMetodoElectronico, normalizarAutorizacion, registrarAprobacion } from './aprobaciones-bancarias';
 import { listarConciliaciones, registrarConciliacion } from './conciliacion-bancaria';
+
+export interface FiltrosCuentas { clienteId?: string; proveedorId?: string; estado?: string; desde?: string; hasta?: string }
 
 @Injectable()
 export class OperacionesService {
@@ -65,7 +67,7 @@ export class OperacionesService {
   },{timeout:60000});
  }
  // Relación producto–proveedor (ver productos-proveedores.ts). Lectura: inventario.ver; cambios: inventario.editar.
- estadoCuentaCliente(tenantId:string,clienteId:string){return estadoCuentaCliente(this.prisma,tenantId,clienteId);}
+ estadoCuentaCliente(tenantId:string,clienteId:string,rol?:string){return estadoCuentaCliente(this.prisma,tenantId,clienteId,rol==='ADMIN');}
  registrarConciliacionBancaria(tenantId:string,userId:string,dto:ConciliacionBancariaDto){return registrarConciliacion(this.prisma,tenantId,userId,dto);}
  conciliacionesBancarias(tenantId:string,userId:string,fecha?:string){return listarConciliaciones(this.prisma,tenantId,userId,fecha);}
  proveedoresProducto(tenantId:string,productoId:string){return listarProveedoresProducto(this.prisma,tenantId,productoId);}
@@ -104,11 +106,39 @@ export class OperacionesService {
    await audit(tx,tenantId,userId,'COMPRA_RECIBIR',receptionId,{orderId,items:dto.items});return reception;
   },{timeout:60000});
  }
- async cuentas(tenantId:string,userId:string,tipo:string,ahora=new Date()){
+ // Estado de deuda: PAGADA (saldo 0), VENCIDA (saldo y vencimiento pasado), PARCIAL (abono sin saldar), PENDIENTE.
+ // POR_VENCER es un filtro: saldo abierto con vencimiento hasta 7 días desde hoy (día de negocio).
+ async cuentas(tenantId:string,userId:string,tipo:string,ahora=new Date(),filtros:FiltrosCuentas={}){
   if(!['CXC','CXP'].includes(tipo))throw new BadRequestException('Tipo inválido');
   const user=await actor(this.prisma,tenantId,userId);if(tipo==='CXP'&&user.rol!=='ADMIN')throw new ForbiddenException('Cuentas por pagar requieren administrador');
-  const accounts=await query(this.prisma,'SELECT c.*, COALESCE(cl.nombre,p.nombre) AS nombre, COALESCE(o.numero_factura, v.numero_venta::text) AS documento, c.saldo>0 AND c.vencimiento::date < ($4::timestamptz AT TIME ZONE $3)::date AS vencida FROM cuentas_operativas c LEFT JOIN clientes cl ON cl.id=c.cliente_id LEFT JOIN proveedores p ON p.id=c.proveedor_id LEFT JOIN ordenes_compra o ON o.id=c.documento_id LEFT JOIN ventas v ON v.id=c.documento_id WHERE c.tenant_id=$1 AND c.tipo=$2 ORDER BY c.created_at DESC',tenantId,tipo,ZONA_HORARIA_NEGOCIO,ahora.toISOString());
-  for(const c of accounts)c.pagos=await query(this.prisma,'SELECT * FROM pagos_cuenta WHERE cuenta_id=$1 AND tenant_id=$2 ORDER BY created_at DESC',c.id,tenantId);
+  const estados=['PENDIENTE','PARCIAL','VENCIDA','PAGADA','POR_VENCER'];
+  if(filtros.estado&&!estados.includes(filtros.estado))throw new BadRequestException('Estado de deuda inválido');
+  const hoy=diaCalendario(ahora,ZONA_HORARIA_NEGOCIO);
+  const args:any[]=[tenantId,tipo,ZONA_HORARIA_NEGOCIO,ahora.toISOString(),hoy];
+  const where:string[]=[];
+  if(filtros.clienteId){args.push(filtros.clienteId);where.push(`t.cliente_id=$${args.length}`);}
+  if(filtros.proveedorId){args.push(filtros.proveedorId);where.push(`t.proveedor_id=$${args.length}`);}
+  if(filtros.desde){const r=rangoDiasEnZona(filtros.desde,filtros.hasta??filtros.desde,ZONA_HORARIA_NEGOCIO);args.push(r.inicio.toISOString(),r.fin.toISOString());where.push(`t.created_at>=($${args.length-1}::timestamptz AT TIME ZONE 'UTC') AND t.created_at<($${args.length}::timestamptz AT TIME ZONE 'UTC')`);}
+  else if(filtros.hasta){const r=rangoDiasEnZona(filtros.hasta,filtros.hasta,ZONA_HORARIA_NEGOCIO);args.push(r.fin.toISOString());where.push(`t.created_at<($${args.length}::timestamptz AT TIME ZONE 'UTC')`);}
+  if(filtros.estado==='POR_VENCER')where.push('t.por_vencer');
+  else if(filtros.estado){args.push(filtros.estado);where.push(`t.estado=$${args.length}`);}
+  const sql=`SELECT t.* FROM (
+    SELECT c.*, COALESCE(cl.nombre,p.nombre) AS nombre, COALESCE(o.numero_factura, v.numero_venta::text) AS documento,
+      (c.saldo>0 AND c.vencimiento::date < $5::date) AS vencida,
+      (c.saldo>0 AND c.vencimiento::date >= $5::date AND c.vencimiento::date <= ($5::date + 7)) AS por_vencer,
+      CASE WHEN c.saldo<=0 THEN 'PAGADA' WHEN c.vencimiento::date < $5::date THEN 'VENCIDA' WHEN c.saldo<c.monto THEN 'PARCIAL' ELSE 'PENDIENTE' END AS estado
+    FROM cuentas_operativas c LEFT JOIN clientes cl ON cl.id=c.cliente_id AND cl.tenant_id=c.tenant_id LEFT JOIN proveedores p ON p.id=c.proveedor_id AND p.tenant_id=c.tenant_id
+    LEFT JOIN ordenes_compra o ON o.id=c.documento_id AND o.tenant_id=c.tenant_id LEFT JOIN ventas v ON v.id=c.documento_id AND v.tenant_id=c.tenant_id
+    WHERE c.tenant_id=$1 AND c.tipo=$2) t
+    ${where.length?'WHERE '+where.join(' AND '):''}
+    ORDER BY t.created_at DESC`;
+  const accounts=await query(this.prisma,sql,...args);
+  // Historial de pagos con responsable y referencia (voucher de tarjeta/transferencia cuando existe).
+  for(const c of accounts)c.pagos=await query(this.prisma,
+    `SELECT p.*, u.nombre AS usuario_nombre, COALESCE(ap.referencia, p.referencia) AS referencia, ap.terminal
+       FROM pagos_cuenta p LEFT JOIN usuarios u ON u.id=p.usuario_id AND u.tenant_id=p.tenant_id
+       LEFT JOIN aprobaciones_bancarias ap ON ap.tenant_id=p.tenant_id AND ap.origen='ABONO' AND ap.origen_id=p.id
+      WHERE p.cuenta_id=$1 AND p.tenant_id=$2 ORDER BY p.created_at DESC`,c.id,tenantId);
   return accounts;
  }
  async pagar(tenantId:string,userId:string,cuentaId:string,dto:PagoDto){
@@ -127,8 +157,13 @@ export class OperacionesService {
    const afectaCaja=c.tipo==='CXC';
    // Abonos de cliente con tarjeta o transferencia exigen autorización bancaria. Las cuentas por pagar no la requieren.
    const autorizacion=c.tipo==='CXC'?normalizarAutorizacion(metodo,dto.pagoElectronico):null;
+   // CxP: referencia opcional del comprobante (transferencia, cheque o recibo). No se repite en la misma factura.
+   const referenciaCxp=c.tipo==='CXP'?((dto.referencia??dto.pagoElectronico?.referencia)?.trim().toUpperCase()||null):null;
+   // Decisión aprobada: un pago electrónico a proveedor conserva referencia o comprobante verificable.
+   if(c.tipo==='CXP'&&esMetodoElectronico(metodo)&&!referenciaCxp)throw new BadRequestException('Registre la referencia o comprobante del pago electrónico al proveedor');
+   if(referenciaCxp){const [repetida]=await query(tx,'SELECT id FROM pagos_cuenta WHERE tenant_id=$1 AND cuenta_id=$2 AND referencia=$3',tenantId,c.id,referenciaCxp);if(repetida)throw new ConflictException('Esta referencia de pago ya fue registrada en esta factura');}
    const caja=afectaCaja?await openCash(tx,tenantId,userId):null;
-   const [p]=await query(tx,'INSERT INTO pagos_cuenta (id,tenant_id,cuenta_id,solicitud_id,solicitud_hash,monto,metodo,usuario_id,caja_id,notas) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',id(),tenantId,c.id,dto.solicitudId,hash,monto,metodo,userId,caja?.id ?? null,dto.notas || null);
+   const [p]=await query(tx,'INSERT INTO pagos_cuenta (id,tenant_id,cuenta_id,solicitud_id,solicitud_hash,monto,metodo,usuario_id,caja_id,notas,referencia) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',id(),tenantId,c.id,dto.solicitudId,hash,monto,metodo,userId,caja?.id ?? null,dto.notas || null,referenciaCxp);
    await query(tx,'UPDATE cuentas_operativas SET saldo=saldo-$1 WHERE id=$2 RETURNING id',monto,c.id);
    if(autorizacion)await registrarAprobacion(tx,tenantId,userId,autorizacion,monto,'ABONO',p.id);
    if(c.tipo==='CXC'&&c.cliente_id){
@@ -416,6 +451,9 @@ export class OperacionesService {
     }
    }
    const refund=money(monto-credito),metodo=paymentMethod(dto.metodo);let caja:any=null;
+   // Un reembolso electrónico sin comprobante del procesador no se registra: no se simula una devolución bancaria.
+   if(refund>0&&esMetodoElectronico(dto.metodo)&&!dto.pagoElectronico?.referencia)throw new BadRequestException('El reembolso por tarjeta o transferencia requiere el comprobante o autorización del procesador');
+   const autorizacionReembolso=refund>0?normalizarAutorizacion(dto.metodo,dto.pagoElectronico):null;
    if(refund>0){caja=await openCash(tx,tenantId,userId);if(metodo==='EFECTIVO'){
     const [cash]=await query(tx,"SELECT COALESCE(SUM(monto),0) AS monto FROM movimientos_caja WHERE caja_id=$1 AND metodo='EFECTIVO'",caja.id);
     if(refund>money(Number(caja.monto_apertura)+Number(cash.monto)))throw new ConflictException('Efectivo insuficiente para reembolsar');
@@ -434,7 +472,7 @@ export class OperacionesService {
     }
    }
    if(caja)await cashMovement(tx,caja.id,userId,'DEVOLUCION',-refund,metodo,result.id,`Devolución de venta ${v.numero_venta}`);
-   await audit(tx,tenantId,userId,'VENTA_DEVOLVER',result.id,{ventaId,monto,credito,refund,metodo,items:dto.items});return result;
+   await audit(tx,tenantId,userId,'VENTA_DEVOLVER',result.id,{ventaId,monto,credito,refund,metodo,items:dto.items,comprobanteProcesador:autorizacionReembolso});return result;
  }
 
  async auditoria(tenantId:string,page:number){return query(this.prisma,'SELECT a.*,u.nombre AS usuario_nombre FROM auditoria_operaciones a LEFT JOIN usuarios u ON u.id=a.usuario_id WHERE a.tenant_id=$1 ORDER BY a.created_at DESC,a.id DESC LIMIT 100 OFFSET $2',tenantId,Math.max(0,Math.floor(Number.isFinite(page)?page:0))*100);}

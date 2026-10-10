@@ -163,12 +163,14 @@ export class ClientesService {
         data: {
           creditoHabilitado: dto.creditoHabilitado,
           ...(dto.limiteCredito !== undefined ? { limiteCredito: limite } : {}),
+          ...(dto.plazoCreditoDias !== undefined ? { plazoCreditoDias: dto.plazoCreditoDias } : {}),
         },
       });
       const actualizado = await tx.cliente.findFirst({ where: { id, tenantId } });
       const resumen = (c: typeof cliente) => ({
         creditoHabilitado: c.creditoHabilitado,
         limiteCredito: c.limiteCredito === null ? null : Number(c.limiteCredito),
+        plazoCreditoDias: c.plazoCreditoDias ?? null,
       });
       await audit(tx, tenantId, usuarioId, 'CLIENTE_CREDITO_EDITAR', id, {
         cliente: cliente.nombre,

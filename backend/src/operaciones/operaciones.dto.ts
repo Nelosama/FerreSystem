@@ -44,6 +44,7 @@ export class PagoDto {
  @IsNumber({maxDecimalPlaces:2}) @Min(0.01) monto!: number;
  @IsIn(['EFECTIVO','TARJETA','TRANSFERENCIA']) metodo!: string;
  @IsOptional() @IsString() notas?: string;
+ @IsOptional() @IsString() @MaxLength(60) referencia?: string;
  @IsOptional() @ValidateNested() @Type(() => PagoElectronicoDto) pagoElectronico?: PagoElectronicoDto;
 }
 // Conciliación del POS bancario (ADMIN): total y cantidad que muestra el cierre del banco por terminal y día.
@@ -84,6 +85,8 @@ export class DevolucionDto {
  @IsUUID('4') solicitudId!:string;
  @IsString() @IsNotEmpty() @MaxLength(500) motivo!:string;
  @IsIn(['EFECTIVO','TARJETA','TRANSFERENCIA']) metodo!:string;
+ // Reembolso electrónico: comprobante o autorización del procesador. Obligatorio si el reembolso sale por tarjeta o transferencia.
+ @IsOptional() @ValidateNested() @Type(()=>PagoElectronicoDto) pagoElectronico?:PagoElectronicoDto;
  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({each:true}) @Type(()=>DevolucionItemDto) items!:DevolucionItemDto[];
 }
 export class DecisionDevolucionDto {

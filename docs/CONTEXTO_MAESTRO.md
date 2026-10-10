@@ -995,6 +995,20 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - **Pendientes / riesgos:** (1) `cotizaciones.service.ts` (≈7 bloques `setHours`) sigue usando la zona del servidor para vencimientos; mismo patrón, fuera de alcance de FS-05, decidir si se corrige. (2) `ApartadosPage`, `TransferenciasPage`, `GarantiasPage` y `PedidosEspecialesPage` corregidos en la rama `fix/fechas-zona-negocio-modulos` (bloque siguiente); `AuditoriaPage`/`DevolucionesPage` siguen pendientes. (3) El supuesto de que la sesión de PostgreSQL y `NOW()` usan UTC para columnas `TIMESTAMP` no está verificado en producción (`SHOW timezone`). (4) Los datos históricos no se tocaron, pero los reportes de días pasados **cambiarán** al desplegar: ventas de 18:00–23:59 locales se moverán al día correcto. Avisar al cliente antes de desplegar. (5) Sin validación en navegador ni en producción.
 - PR [#99](https://github.com/Nelosama/FerreSystem/pull/99), rama `fix/fs-05-reportes-zona-horaria`: **fusionado en `main`** (`ef6b9fa1`). Se fusionó **antes** de registrar la aprobación funcional del cambio histórico, que sigue **PENDIENTE**: registrarla o evaluar su reversión/comunicación. Sin despliegue.
 
+## BALANCE — cuentas por cobrar y por pagar: cierre condicionado (2026-10-10 UTC)
+
+- **Agente:** BALANCE — Desarrollo Financiero FerreSystem. **Rama:** `claude/balance-cxc-cxp` (base PR #135, `claude/conciliacion-pagos-cxc`). **HEAD de código:** `cb74444c` (+ pruebas y documentación de cierre posteriores, ver `docs/HANDOFF_NEXUS_BALANCE_20261010.md`). PR #142 en draft. **Sin merge, sin migraciones productivas, sin despliegue.**
+- **Estado (cierre autorizado):** cierre funcional y entrada en espera. Saldo a favor y reembolsos: solo diseño, sin implementar ni migrar. Entrega a NEXUS en `docs/HANDOFF_NEXUS_BALANCE_20261010.md`.
+- **Veredicto:** integración GO condicionado (después de PR #135 y de las migraciones de NEXUS); producción NO-GO hasta cerrar decisiones pendientes y validar en staging.
+- **Implementado:** plazo al convertir cotización a crédito con vencimiento guardado (cambios posteriores no tocan facturas; sin plazo no hay VENCIDA); reembolso por tarjeta o transferencia exige comprobante del procesador (400 sin él; se audita); referencia única por factura y empresa; idempotencia por `solicitudId` obligatoria; permisos CAJERO (CXC) y ADMIN (CXP); historial con referencia y responsable.
+- **No implementado (diseño en `docs/DISENO_SALDO_FAVOR_REEMBOLSOS_BALANCE.md`):** saldo a favor y reembolso autorizado diferido. Cambian el comportamiento de devoluciones y requieren tablas nuevas; esperan decisión y coordinación con NEXUS.
+- **Pruebas (2026-10-10):** backend unitarias 345/345; integración PostgreSQL 25 archivos, 417 aprobadas, 1 omitida; devoluciones 8/8; pagos bancarios 24/24; cotizaciones 8/8; frontend unitarias 225/225; Playwright simulado 126/126; E2E real 35/35 (incluye 6 de BALANCE).
+- **Limitaciones:** la pantalla de devoluciones no captura comprobante, así que un reembolso con tarjeta falla con 400 hasta que se añada; la unicidad del comprobante de reembolso requiere ampliar el CHECK `origen` de `aprobaciones_bancarias` (migración para NEXUS).
+- **Migraciones para NEXUS, en orden:** `20261012000000_conciliacion_pagos_bancarios` (PR #135), `20261013000000_balance_referencia_pagos`, `20261014000000_cliente_plazo_credito`. NEXUS debe verificar historial y dependencias antes de aplicar.
+- **Contratos:** ATLAS (vencimiento de ventas y cotizaciones a crédito; sin tocar inventario), FORJA (facturas de proveedor y pagos con `solicitudId` y referencia), NEXUS (migraciones y restricciones compuestas). Detalle en `docs/BALANCE_CXC_CXP_20261010.md` sección 8.
+- **Hallazgo fuera de BALANCE:** `frontend/e2e-real/contingencia-real.spec.ts` (caso 9) depende del stock compartido del Taladro; no corregido.
+- **CENTINELA:** revisión multi-tenant de `conciliaciones`, `ordenes_compra` y uniones de `pagos_cuenta` pendiente; BALANCE no implementó migraciones de seguridad.
+
 **FIN DEL CONTEXTO VIGENTE**
 
 

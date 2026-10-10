@@ -15,6 +15,7 @@ import { CashierResponseInterceptor } from '../src/common/interceptors/cashier-r
 import { PrismaService } from '../src/prisma/prisma.service';
 import { CotizacionesController } from '../src/cotizaciones/cotizaciones.controller';
 import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
+import { diaCalendario, sumarDias } from '../src/common/zona-horaria';
 
 // Dedicated disposable cluster. Never use an external DATABASE_URL or apply migrations.
 describe('FUNC-001 / HTTP and isolated PostgreSQL', () => {
@@ -127,6 +128,24 @@ describe('FUNC-001 / HTTP and isolated PostgreSQL', () => {
     for (const p of await prisma.producto.findMany({ where: { tenantId } })) expect(Number(p.stockReservado)).toBe(0);
     await post().expect(201);
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
+  });
+
+  it('conversión a crédito toma el plazo vigente del cliente y guarda el vencimiento en la cuenta; un cambio posterior de plazo no lo modifica', async () => {
+    const cot = await prisma.cotizacion.findUniqueOrThrow({ where: { id: cotizacionId } });
+    await prisma.cliente.update({ where: { id: cot.clienteId! }, data: { creditoHabilitado: true, plazoCreditoDias: 15 } });
+    const response = await post(cotizacionId, { metodoPago: 'CREDITO' }).expect(201);
+    const cuenta = await prisma.cuentaOperativa.findFirstOrThrow({ where: { tenantId, documentoId: response.body.ventaId, tipo: 'CXC' } });
+    expect(cuenta.vencimiento!.toISOString().slice(0, 10)).toBe(sumarDias(diaCalendario(new Date()), 15));
+    await prisma.cliente.update({ where: { id: cot.clienteId! }, data: { plazoCreditoDias: 60 } });
+    expect((await prisma.cuentaOperativa.findUniqueOrThrow({ where: { id: cuenta.id } })).vencimiento!.toISOString().slice(0, 10)).toBe(sumarDias(diaCalendario(new Date()), 15));
+  });
+
+  it('conversión a crédito de cliente sin plazo deja la cuenta sin vencimiento (nunca VENCIDA automáticamente)', async () => {
+    const cot = await prisma.cotizacion.findUniqueOrThrow({ where: { id: cotizacionId } });
+    await prisma.cliente.update({ where: { id: cot.clienteId! }, data: { creditoHabilitado: true, plazoCreditoDias: null } });
+    const response = await post(cotizacionId, { metodoPago: 'CREDITO' }).expect(201);
+    const cuenta = await prisma.cuentaOperativa.findFirstOrThrow({ where: { tenantId, documentoId: response.body.ventaId, tipo: 'CXC' } });
+    expect(cuenta.vencimiento).toBeNull();
   });
 
   it('ID inexistente o de otro tenant y método inválido no crean ventas', async () => {

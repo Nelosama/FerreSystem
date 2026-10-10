@@ -295,6 +295,7 @@ model Cliente {
   direccion   String?
   tipo        TipoCliente @default(CONSUMIDOR_FINAL)
   creditoHabilitado Boolean @default(false) @map("credito_habilitado")
+  plazoCreditoDias Int? @map("plazo_credito_dias")
   limiteCredito Decimal?  @map("limite_credito") @db.Decimal(12, 2)
   saldoPendiente Decimal  @default(0) @map("saldo_pendiente") @db.Decimal(12, 2)
   activo      Boolean     @default(true)
@@ -835,6 +836,7 @@ model PagoCuenta {
  usuarioId String @map("usuario_id")
  cajaId String? @map("caja_id")
  notas String?
+ referencia String?
  createdAt DateTime @default(now()) @map("created_at")
  @@unique([tenantId,solicitudId])
  @@index([cuentaId])

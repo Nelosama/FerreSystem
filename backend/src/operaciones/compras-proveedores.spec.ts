@@ -583,7 +583,7 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       dbCashBoxes = {};
       dbCashMovements = {};
 
-      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-b', monto: 250, metodo: 'TRANSFERENCIA' });
+      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-b', monto: 250, metodo: 'TRANSFERENCIA', referencia: 'TRF-FS09-B' });
 
       expect(pay.metodo).toBe('TRANSFERENCIA');
       expect(pay.caja_id).toBeNull();
@@ -599,7 +599,7 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       dbCashBoxes = {};
       dbCashMovements = {};
 
-      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-c', monto: 125.5, metodo: 'TARJETA' });
+      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-c', monto: 125.5, metodo: 'TARJETA', referencia: 'TAR-FS09-C' });
 
       expect(pay.metodo).toBe('TARJETA');
       expect(pay.caja_id).toBeNull();
@@ -687,7 +687,7 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-f2', monto: 200, metodo: 'EFECTIVO' });
 
       await expect(
-        service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-f2', monto: 350, metodo: 'TRANSFERENCIA' }),
+        service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-f2', monto: 350, metodo: 'TRANSFERENCIA', referencia: 'TRF-FS09-F2' }),
       ).rejects.toThrow('Solicitud utilizada para otro pago');
 
       expect((await service.cuentas('tenant-A', 'admin-1', 'CXP')).find(x => x.id === acc.id).saldo).toBe(800);
@@ -777,7 +777,7 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       dbCashBoxes = {};
       dbCashMovements = {};
 
-      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-aud', monto: 450, metodo: 'TRANSFERENCIA', notas: 'Abono factura proveedor' });
+      const pay = await service.pagar('tenant-A', 'admin-1', acc.id, { solicitudId: 'pay-fs09-aud', monto: 450, metodo: 'TRANSFERENCIA', referencia: 'TRF-FS09-AUD', notas: 'Abono factura proveedor' });
 
       // El registro del pago conserva método, monto, usuario, fecha y la cuenta (de donde cuelga proveedor y factura)
       expect(pay).toMatchObject({ monto: 450, metodo: 'TRANSFERENCIA', usuario_id: 'admin-1', cuenta_id: acc.id, caja_id: null, notas: 'Abono factura proveedor' });

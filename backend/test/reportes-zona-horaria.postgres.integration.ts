@@ -92,7 +92,7 @@ describe('Reportes FS-05 / PostgreSQL aislado', () => {
       '20261009130000_fs07_version_producto',
       '20261010120000_coberturas_garantia',
       '20261010140000_productos_proveedores',
-      '20261011000000_pos_contingencia_offline', '20261012000000_conciliacion_pagos_bancarios',
+      '20261011000000_pos_contingencia_offline', '20261012000000_conciliacion_pagos_bancarios', '20261013000000_balance_referencia_pagos', '20261014000000_cliente_plazo_credito',
     ]) {
       psqlFile(resolve(`prisma/migrations/${migration}/migration.sql`));
     }

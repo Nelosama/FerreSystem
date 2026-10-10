@@ -10,9 +10,10 @@ type Abono = { id: string; monto: number; metodo: string; fecha: string; notas: 
 type CuentaCliente = { id: string; documento: string; monto: number; saldo: number; vencimiento: string | null; vencida: boolean; creadaEn: string; abonos: Abono[] };
 type Estado = {
   cliente: { id: string; codigo: string; numeroCliente: number; nombre: string; creditoHabilitado: boolean; limiteCredito: number | null; saldoPendiente: number };
-  saldoCuentas: number; conciliado: boolean; cuentas: CuentaCliente[];
+  saldoCuentas: number; conciliado: boolean; cuentas: CuentaCliente[]; movimientos: Movimiento[];
 };
 type ClienteBusqueda = { id: string; nombre: string; codigo: string; numeroCliente: number };
+type Movimiento = { fecha: string; tipo: 'CARGO' | 'ABONO'; documento: string | null; metodo: string | null; monto: number; usuario: string | null; referencia: string | null; saldoAcumulado: number };
 
 export const EstadoCuentaClientesPage: React.FC = () => {
   const { t } = useI18n();
@@ -91,6 +92,28 @@ export const EstadoCuentaClientesPage: React.FC = () => {
                 )}
               </article>
             ))}
+          </section>
+          <section className="operation-card">
+            <h2>{t('customer_statement.movements')}</h2>
+            {(estado.movimientos ?? []).length === 0 ? <p>{t('customer_statement.no_movements')}</p> : (
+              <div className="operation-table"><table>
+                <thead><tr>
+                  <th>{t('customer_statement.date')}</th><th>{t('customer_statement.type')}</th><th>{t('customer_statement.invoice')}</th>
+                  <th>{t('customer_statement.amount')}</th><th>{t('customer_statement.running_balance')}</th><th>{t('customer_statement.user')}</th><th>{t('customer_statement.reference')}</th>
+                </tr></thead>
+                <tbody>{(estado.movimientos ?? []).map((m, i) => (
+                  <tr key={`${m.fecha}-${i}`}>
+                    <td>{new Date(m.fecha).toLocaleString()}</td>
+                    <td>{m.tipo === 'CARGO' ? t('customer_statement.charge') : t('customer_statement.payment')}{m.metodo ? ` · ${m.metodo}` : ''}</td>
+                    <td>{m.documento ?? '—'}</td>
+                    <td>{formatLempiras(m.monto)}</td>
+                    <td><strong>{formatLempiras(m.saldoAcumulado)}</strong></td>
+                    <td>{m.usuario ?? '—'}</td>
+                    <td>{m.referencia ?? '—'}</td>
+                  </tr>
+                ))}</tbody>
+              </table></div>
+            )}
           </section>
         </>
       )}
