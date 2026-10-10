@@ -16,7 +16,7 @@ corrección: el modal no ofrece selector de método. La UI ahora permite elegir 
 cuatro métodos existentes y envía el elegido al backend. Crédito exige un cliente
 registrado en la UI; las validaciones de habilitación y límite permanecen en backend.
 Se conserva el bloqueo de doble confirmación y se reinicia el selector al abrir
-otra cotización. El backend y las reglas de caja no cambian.
+otra cotización. Se usan los métodos que el backend ya admite, sin cambiar las reglas de caja.
 
 **QA-VENTA-002 / P1 — vigencia mostrada un día antes.** El servicio trataba el DATE
 devuelto por PostgreSQL a medianoche UTC como un instante del negocio. Una cotización
@@ -100,4 +100,6 @@ no sustituye la nueva evidencia de navegador con PostgreSQL.
 No se accedió a producción, no se hizo merge ni se ejecutó despliegue. No se
 modifican CONTEXTO_MAESTRO.md, fechasNegocio.ts, las seis páginas excluidas ni ramas
 de Claude. No se afirma preparación integral para producción: quedan pendientes
-la revisión del propietario y CI del PR publicado.
+la revisión del propietario y CI del PR. La rama está publicada; la creación del PR
+mediante `gh pr create` recibió `Post https://api.github.com/graphql: Forbidden`.
+El acceso a la API de GitHub debe restablecerse para crearlo y verificar sus checks.
