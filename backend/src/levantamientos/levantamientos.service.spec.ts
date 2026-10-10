@@ -26,10 +26,12 @@ describe('Conteo protegido y aplicación explícita',()=>{
   prisma.levantamiento.findFirst.mockResolvedValue({id:'l',estado:'FINALIZADO',items:[]});
   await expect(service.createItem('t','l',{descripcion:'Cable',cantidad:1},'u')).rejects.toThrow('cerrado');
  });
- it('un código desconocido exige costo y precio para crear el producto',async()=>{
+ it('un código desconocido se cuenta como producto nuevo pendiente de precio, sin exigir precio al conteo',async()=>{
   prisma.levantamiento.findFirst.mockResolvedValue({id:'l',estado:'FINALIZADO',items:[{id:'abc12345',codigo:'NUEVO',descripcion:'Cable',cantidad:2,unidad:'METRO'}]});
   const preview=await service.previsualizar('t','l');
-  expect(preview.rows[0].errores).toContain('Producto nuevo requiere costo y precio');
+  expect(preview.rows[0].errores).toEqual([]);
+  expect(preview.rows[0].precioPendiente).toBe(true);
+  expect(preview.rows[0]).not.toHaveProperty('precioCosto');
  });
  it('rechaza una vista previa obsoleta y no toca el stock',async()=>{
   prisma.levantamiento.findFirst.mockResolvedValue({id:'l',estado:'FINALIZADO',items:[{id:'abc12345',codigo:'P1',descripcion:'Cable',cantidad:2,unidad:'METRO',precioCosto:1,precioVenta:2}]});
@@ -137,13 +139,16 @@ describe('Auditoría P1/P2 — aplicar() protege barcode y precios',()=>{
   expect(updateCall.data.precioCosto).not.toBe(0);
   expect(updateCall.data.precioVenta).not.toBe(0);
  });
- it('lanza error explícito si el producto del catálogo tiene precio null',async()=>{
-  const nullPrices={...baseProduct,precioCosto:null,precioVenta:null};
-  prisma.producto.findMany.mockResolvedValue([nullPrices]);
+ it('aplicar un conteo no escribe costo, precio de venta ni margen del catálogo',async()=>{
+  prisma.producto.findMany.mockResolvedValue([baseProduct]);
   prisma.levantamiento.findFirst.mockResolvedValue({id:'l',estado:'FINALIZADO',aplicadoAt:null,
-   items:[itemABC({precioCosto:null,precioVenta:null})]});
+   items:[itemABC({precioCosto:9,precioVenta:99,margen:50})]});
   const {token}=await service.previsualizar('t','l');
-  await expect(service.aplicar('t','u','l',token)).rejects.toThrow(/precio/i);
+  await service.aplicar('t','u','l',token);
+  const data=prisma.producto.update.mock.calls[0][0].data;
+  expect(data).not.toHaveProperty('precioCosto');
+  expect(data).not.toHaveProperty('precioVenta');
+  expect(data).not.toHaveProperty('margen');
  });
 });
 

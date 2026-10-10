@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 // (docs/POS_OFFLINE_CONTINGENCIA_DISENO.md). Fija comportamiento VIGENTE; no es una especificación futura.
 // Un cambio intencional en estas reglas (PR de implementación aprobado) debe actualizar la prueba a propósito.
 
-const PRODUCTO = { id: 'p1', tenantId: 'T', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20, stockReservado: 0, activo: true };
+const PRODUCTO = { id: 'p1', tenantId: 'T', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20, stockReservado: 0, activo: true, precioAprobado: true };
 const ventaCreada = (extra = {}) => ({
   id: 'v1', numeroVenta: 7, usuarioId: 'U', tenantId: 'T', clienteId: null, metodoPago: 'EFECTIVO', tipoPago: 'CONTADO',
   descuento: 0, notas: null, subtotal: 20, isv: 3, total: 23, saldoCredito: null, solicitudHash: null,

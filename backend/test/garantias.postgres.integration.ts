@@ -90,7 +90,7 @@ describe('Garantías / PostgreSQL aislado', () => {
 
     // Histórico: un reclamo existente en la tabla `garantias` que no debe cambiar.
     await prisma.$executeRawUnsafe(`INSERT INTO tenants (id, nombre_comercial, estado, updated_at) VALUES ('tenant-hist', 'Histórico', 'ACTIVO', NOW())`);
-    await prisma.$executeRawUnsafe(`INSERT INTO productos (id, tenant_id, codigo, nombre, precio_venta, precio_costo, updated_at) VALUES ('prod-hist', 'tenant-hist', 'H-1', 'Histórico', 1, 1, NOW())`);
+    await prisma.$executeRawUnsafe(`INSERT INTO productos (id, tenant_id, codigo, nombre, precio_venta, precio_costo, precio_aprobado, updated_at) VALUES ('prod-hist', 'tenant-hist', 'H-1', 'Histórico', 1, 1, true, NOW())`);
     await prisma.$executeRawUnsafe(`INSERT INTO garantias (id, tenant_id, codigo, cliente_nombre, producto_id, motivo_falla, estado, updated_at) VALUES ('rec-hist', 'tenant-hist', 'REC-1', 'Cliente histórico', 'prod-hist', 'Falla previa', 'RECIBIDO', NOW())`);
 
     tenantA = randomUUID();
@@ -105,8 +105,8 @@ describe('Garantías / PostgreSQL aislado', () => {
     };
     for (const rol of ['ADMIN', 'CAJERO', 'BODEGUERO']) await crear(tenantA, rol);
     await crear(tenantB, 'ADMIN');
-    productoA = (await prisma.producto.create({ data: { tenantId: tenantA, codigo: 'TAL-1', nombre: 'Taladro', precioVenta: 100, precioCosto: 60 } as any })).id;
-    productoB = (await prisma.producto.create({ data: { tenantId: tenantB, codigo: 'TAL-1', nombre: 'Taladro B', precioVenta: 100, precioCosto: 60 } as any })).id;
+    productoA = (await prisma.producto.create({ data: {precioAprobado:true, tenantId: tenantA, codigo: 'TAL-1', nombre: 'Taladro', precioVenta: 100, precioCosto: 60 } as any })).id;
+    productoB = (await prisma.producto.create({ data: {precioAprobado:true, tenantId: tenantB, codigo: 'TAL-1', nombre: 'Taladro B', precioVenta: 100, precioCosto: 60 } as any })).id;
 
     const module = await Test.createTestingModule({
       controllers: [GarantiasController],

@@ -68,7 +68,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
       await prisma.usuario.create({ data: { id, tenantId, nombre: rol, email: `${id}@test.invalid`, passwordHash: 'x', rol, permisosConfigurados: false, permisos: [] } as any });
     }
     await operaciones.abrir(tenantId, cajero, { solicitudId: randomUUID(), monto: 100 } as any);
-    const producto = await prisma.producto.create({ data: { tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20 } as any });
+    const producto = await prisma.producto.create({ data: {precioAprobado:true, tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20 } as any });
     const dispositivoId = randomUUID();
     await contingencia.registrarDispositivo(tenantId, cajero, { dispositivoId, nombre: 'Caja principal' });
     return { tenantId, admin, cajero, producto: producto.id, dispositivoId };

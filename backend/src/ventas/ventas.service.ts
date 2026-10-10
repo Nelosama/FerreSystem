@@ -209,6 +209,9 @@ export class VentasService {
         if (!prod) {
           throw new NotFoundException(`Producto con ID ${item.productoId} no encontrado o inactivo`);
         }
+        if (!prod.precioAprobado) {
+          throw new BadRequestException(`"${prod.nombre}" no tiene precio aprobado por el administrador; no se puede vender`);
+        }
 
         const reservado=Number(prod.stockReservado||0);
         const stockDisponible = money(Number(prod.stockActual)-reservado);
