@@ -1,0 +1,7628 @@
+{
+"descripcion": "Vectores de dinero: precio en centavos, cantidad en cent\u00e9simas, ISV 15% mitad arriba. Copia id\u00e9ntica backend/frontend.",
+"casos": [
+{
+"lineas": [
+{
+"precioCentavos": 1030,
+"cantidadCentesimas": 100
+}
+],
+"esperado": {
+"lineas": [
+1030
+],
+"subtotal": 1030,
+"isv": 155,
+"total": 1185
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 999,
+"cantidadCentesimas": 250
+}
+],
+"esperado": {
+"lineas": [
+2498
+],
+"subtotal": 2498,
+"isv": 375,
+"total": 2873
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 1,
+"cantidadCentesimas": 1
+}
+],
+"esperado": {
+"lineas": [
+0
+],
+"subtotal": 0,
+"isv": 0,
+"total": 0
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 5,
+"cantidadCentesimas": 50
+}
+],
+"esperado": {
+"lineas": [
+3
+],
+"subtotal": 3,
+"isv": 0,
+"total": 3
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 12345,
+"cantidadCentesimas": 275
+},
+{
+"precioCentavos": 1999,
+"cantidadCentesimas": 100
+}
+],
+"esperado": {
+"lineas": [
+33949,
+1999
+],
+"subtotal": 35948,
+"isv": 5392,
+"total": 41340
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 100,
+"cantidadCentesimas": 100
+}
+],
+"esperado": {
+"lineas": [
+100
+],
+"subtotal": 100,
+"isv": 15,
+"total": 115
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 333,
+"cantidadCentesimas": 333
+},
+{
+"precioCentavos": 777,
+"cantidadCentesimas": 125
+}
+],
+"esperado": {
+"lineas": [
+1109,
+971
+],
+"subtotal": 2080,
+"isv": 312,
+"total": 2392
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 99999,
+"cantidadCentesimas": 9999
+}
+],
+"esperado": {
+"lineas": [
+9998900
+],
+"subtotal": 9998900,
+"isv": 1499835,
+"total": 11498735
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 496955,
+"cantidadCentesimas": 19773
+},
+{
+"precioCentavos": 207002,
+"cantidadCentesimas": 85320
+},
+{
+"precioCentavos": 25316,
+"cantidadCentesimas": 9495
+}
+],
+"esperado": {
+"lineas": [
+98262912,
+176614106,
+2403754
+],
+"subtotal": 277280772,
+"isv": 41592116,
+"total": 318872888
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 49352,
+"cantidadCentesimas": 47932
+},
+{
+"precioCentavos": 305549,
+"cantidadCentesimas": 7603
+},
+{
+"precioCentavos": 476947,
+"cantidadCentesimas": 66511
+},
+{
+"precioCentavos": 112564,
+"cantidadCentesimas": 4915
+},
+{
+"precioCentavos": 45062,
+"cantidadCentesimas": 56839
+}
+],
+"esperado": {
+"lineas": [
+23655401,
+23230890,
+317222219,
+5532521,
+25612790
+],
+"subtotal": 395253821,
+"isv": 59288073,
+"total": 454541894
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 36625,
+"cantidadCentesimas": 31545
+},
+{
+"precioCentavos": 47560,
+"cantidadCentesimas": 72227
+},
+{
+"precioCentavos": 222571,
+"cantidadCentesimas": 7748
+},
+{
+"precioCentavos": 433509,
+"cantidadCentesimas": 74116
+}
+],
+"esperado": {
+"lineas": [
+11553356,
+34351161,
+17244801,
+321299530
+],
+"subtotal": 384448848,
+"isv": 57667327,
+"total": 442116175
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 496737,
+"cantidadCentesimas": 29261
+}
+],
+"esperado": {
+"lineas": [
+145350214
+],
+"subtotal": 145350214,
+"isv": 21802532,
+"total": 167152746
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 496873,
+"cantidadCentesimas": 8109
+},
+{
+"precioCentavos": 302569,
+"cantidadCentesimas": 76749
+},
+{
+"precioCentavos": 207975,
+"cantidadCentesimas": 6500
+},
+{
+"precioCentavos": 115911,
+"cantidadCentesimas": 6106
+},
+{
+"precioCentavos": 291853,
+"cantidadCentesimas": 17456
+}
+],
+"esperado": {
+"lineas": [
+40291432,
+232218682,
+13518375,
+7077526,
+50945860
+],
+"subtotal": 344051875,
+"isv": 51607781,
+"total": 395659656
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 219750,
+"cantidadCentesimas": 18908
+},
+{
+"precioCentavos": 283476,
+"cantidadCentesimas": 15440
+},
+{
+"precioCentavos": 299324,
+"cantidadCentesimas": 40434
+}
+],
+"esperado": {
+"lineas": [
+41550330,
+43768694,
+121028666
+],
+"subtotal": 206347690,
+"isv": 30952154,
+"total": 237299844
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 427886,
+"cantidadCentesimas": 89392
+},
+{
+"precioCentavos": 94753,
+"cantidadCentesimas": 13508
+},
+{
+"precioCentavos": 304926,
+"cantidadCentesimas": 74869
+},
+{
+"precioCentavos": 334975,
+"cantidadCentesimas": 24625
+},
+{
+"precioCentavos": 195244,
+"cantidadCentesimas": 12771
+}
+],
+"esperado": {
+"lineas": [
+382495853,
+12799235,
+228295047,
+82487594,
+24934611
+],
+"subtotal": 731012340,
+"isv": 109651851,
+"total": 840664191
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 373352,
+"cantidadCentesimas": 8230
+},
+{
+"precioCentavos": 295892,
+"cantidadCentesimas": 7813
+},
+{
+"precioCentavos": 324540,
+"cantidadCentesimas": 26996
+},
+{
+"precioCentavos": 260265,
+"cantidadCentesimas": 89182
+},
+{
+"precioCentavos": 278775,
+"cantidadCentesimas": 56046
+}
+],
+"esperado": {
+"lineas": [
+30726870,
+23118042,
+87612818,
+232109532,
+156242237
+],
+"subtotal": 529809499,
+"isv": 79471425,
+"total": 609280924
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 244110,
+"cantidadCentesimas": 76751
+},
+{
+"precioCentavos": 484150,
+"cantidadCentesimas": 59400
+},
+{
+"precioCentavos": 189574,
+"cantidadCentesimas": 39292
+}
+],
+"esperado": {
+"lineas": [
+187356866,
+287585100,
+74487416
+],
+"subtotal": 549429382,
+"isv": 82414407,
+"total": 631843789
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 416484,
+"cantidadCentesimas": 23563
+},
+{
+"precioCentavos": 366475,
+"cantidadCentesimas": 31995
+}
+],
+"esperado": {
+"lineas": [
+98136125,
+117253676
+],
+"subtotal": 215389801,
+"isv": 32308470,
+"total": 247698271
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 301164,
+"cantidadCentesimas": 39355
+}
+],
+"esperado": {
+"lineas": [
+118523092
+],
+"subtotal": 118523092,
+"isv": 17778464,
+"total": 136301556
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 259584,
+"cantidadCentesimas": 45021
+},
+{
+"precioCentavos": 382440,
+"cantidadCentesimas": 58830
+},
+{
+"precioCentavos": 150963,
+"cantidadCentesimas": 79818
+},
+{
+"precioCentavos": 38379,
+"cantidadCentesimas": 15476
+},
+{
+"precioCentavos": 268401,
+"cantidadCentesimas": 54805
+}
+],
+"esperado": {
+"lineas": [
+116867313,
+224989452,
+120495647,
+5939534,
+147097168
+],
+"subtotal": 615389114,
+"isv": 92308367,
+"total": 707697481
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 396960,
+"cantidadCentesimas": 44834
+},
+{
+"precioCentavos": 79684,
+"cantidadCentesimas": 64090
+}
+],
+"esperado": {
+"lineas": [
+177973046,
+51069476
+],
+"subtotal": 229042522,
+"isv": 34356378,
+"total": 263398900
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 20556,
+"cantidadCentesimas": 87585
+},
+{
+"precioCentavos": 40696,
+"cantidadCentesimas": 73149
+},
+{
+"precioCentavos": 300431,
+"cantidadCentesimas": 41124
+},
+{
+"precioCentavos": 178323,
+"cantidadCentesimas": 91134
+}
+],
+"esperado": {
+"lineas": [
+18003973,
+29768717,
+123549244,
+162512883
+],
+"subtotal": 333834817,
+"isv": 50075223,
+"total": 383910040
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 311621,
+"cantidadCentesimas": 65101
+},
+{
+"precioCentavos": 304033,
+"cantidadCentesimas": 59796
+},
+{
+"precioCentavos": 36052,
+"cantidadCentesimas": 12268
+}
+],
+"esperado": {
+"lineas": [
+202868387,
+181799573,
+4422859
+],
+"subtotal": 389090819,
+"isv": 58363623,
+"total": 447454442
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 248565,
+"cantidadCentesimas": 91363
+},
+{
+"precioCentavos": 348208,
+"cantidadCentesimas": 8520
+},
+{
+"precioCentavos": 31809,
+"cantidadCentesimas": 95835
+}
+],
+"esperado": {
+"lineas": [
+227096441,
+29667322,
+30484155
+],
+"subtotal": 287247918,
+"isv": 43087188,
+"total": 330335106
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 339282,
+"cantidadCentesimas": 75753
+},
+{
+"precioCentavos": 357165,
+"cantidadCentesimas": 58412
+},
+{
+"precioCentavos": 149211,
+"cantidadCentesimas": 93930
+}
+],
+"esperado": {
+"lineas": [
+257016293,
+208627220,
+140153892
+],
+"subtotal": 605797405,
+"isv": 90869611,
+"total": 696667016
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 465065,
+"cantidadCentesimas": 87642
+},
+{
+"precioCentavos": 181931,
+"cantidadCentesimas": 2958
+},
+{
+"precioCentavos": 493171,
+"cantidadCentesimas": 60516
+},
+{
+"precioCentavos": 186366,
+"cantidadCentesimas": 22027
+}
+],
+"esperado": {
+"lineas": [
+407592267,
+5381519,
+298447362,
+41050839
+],
+"subtotal": 752471987,
+"isv": 112870798,
+"total": 865342785
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 61392,
+"cantidadCentesimas": 64710
+},
+{
+"precioCentavos": 30910,
+"cantidadCentesimas": 28601
+},
+{
+"precioCentavos": 402776,
+"cantidadCentesimas": 37675
+},
+{
+"precioCentavos": 67812,
+"cantidadCentesimas": 96779
+},
+{
+"precioCentavos": 129822,
+"cantidadCentesimas": 52154
+}
+],
+"esperado": {
+"lineas": [
+39726763,
+8840569,
+151745858,
+65627775,
+67707366
+],
+"subtotal": 333648331,
+"isv": 50047250,
+"total": 383695581
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 480676,
+"cantidadCentesimas": 65079
+},
+{
+"precioCentavos": 42248,
+"cantidadCentesimas": 21806
+},
+{
+"precioCentavos": 235504,
+"cantidadCentesimas": 52645
+},
+{
+"precioCentavos": 288065,
+"cantidadCentesimas": 36417
+}
+],
+"esperado": {
+"lineas": [
+312819134,
+9212599,
+123981081,
+104904631
+],
+"subtotal": 550917445,
+"isv": 82637617,
+"total": 633555062
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 429539,
+"cantidadCentesimas": 56430
+},
+{
+"precioCentavos": 452977,
+"cantidadCentesimas": 72119
+}
+],
+"esperado": {
+"lineas": [
+242388858,
+326682483
+],
+"subtotal": 569071341,
+"isv": 85360701,
+"total": 654432042
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 370356,
+"cantidadCentesimas": 54434
+},
+{
+"precioCentavos": 188100,
+"cantidadCentesimas": 89486
+},
+{
+"precioCentavos": 463572,
+"cantidadCentesimas": 49866
+}
+],
+"esperado": {
+"lineas": [
+201599585,
+168323166,
+231164814
+],
+"subtotal": 601087565,
+"isv": 90163135,
+"total": 691250700
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 79127,
+"cantidadCentesimas": 10877
+},
+{
+"precioCentavos": 92389,
+"cantidadCentesimas": 19831
+}
+],
+"esperado": {
+"lineas": [
+8606644,
+18321663
+],
+"subtotal": 26928307,
+"isv": 4039246,
+"total": 30967553
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 345253,
+"cantidadCentesimas": 30584
+},
+{
+"precioCentavos": 6325,
+"cantidadCentesimas": 63566
+}
+],
+"esperado": {
+"lineas": [
+105592178,
+4020550
+],
+"subtotal": 109612728,
+"isv": 16441909,
+"total": 126054637
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 95601,
+"cantidadCentesimas": 34439
+},
+{
+"precioCentavos": 147813,
+"cantidadCentesimas": 537
+},
+{
+"precioCentavos": 76377,
+"cantidadCentesimas": 54913
+},
+{
+"precioCentavos": 280280,
+"cantidadCentesimas": 48399
+},
+{
+"precioCentavos": 319718,
+"cantidadCentesimas": 74232
+}
+],
+"esperado": {
+"lineas": [
+32924028,
+793756,
+41940902,
+135652717,
+237333066
+],
+"subtotal": 448644469,
+"isv": 67296670,
+"total": 515941139
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 499698,
+"cantidadCentesimas": 16449
+},
+{
+"precioCentavos": 362018,
+"cantidadCentesimas": 67567
+},
+{
+"precioCentavos": 498192,
+"cantidadCentesimas": 80950
+}
+],
+"esperado": {
+"lineas": [
+82195324,
+244604702,
+403286424
+],
+"subtotal": 730086450,
+"isv": 109512968,
+"total": 839599418
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 239413,
+"cantidadCentesimas": 89205
+}
+],
+"esperado": {
+"lineas": [
+213568367
+],
+"subtotal": 213568367,
+"isv": 32035255,
+"total": 245603622
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 205720,
+"cantidadCentesimas": 52176
+},
+{
+"precioCentavos": 209180,
+"cantidadCentesimas": 51659
+},
+{
+"precioCentavos": 54284,
+"cantidadCentesimas": 63115
+},
+{
+"precioCentavos": 332551,
+"cantidadCentesimas": 52487
+},
+{
+"precioCentavos": 32636,
+"cantidadCentesimas": 24984
+}
+],
+"esperado": {
+"lineas": [
+107336467,
+108060296,
+34261347,
+174546043,
+8153778
+],
+"subtotal": 432357931,
+"isv": 64853690,
+"total": 497211621
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 109453,
+"cantidadCentesimas": 57754
+}
+],
+"esperado": {
+"lineas": [
+63213486
+],
+"subtotal": 63213486,
+"isv": 9482023,
+"total": 72695509
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 57635,
+"cantidadCentesimas": 44572
+},
+{
+"precioCentavos": 314955,
+"cantidadCentesimas": 6892
+}
+],
+"esperado": {
+"lineas": [
+25689072,
+21706699
+],
+"subtotal": 47395771,
+"isv": 7109366,
+"total": 54505137
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 123,
+"cantidadCentesimas": 74290
+}
+],
+"esperado": {
+"lineas": [
+91377
+],
+"subtotal": 91377,
+"isv": 13707,
+"total": 105084
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 281343,
+"cantidadCentesimas": 13300
+},
+{
+"precioCentavos": 497523,
+"cantidadCentesimas": 47660
+}
+],
+"esperado": {
+"lineas": [
+37418619,
+237119462
+],
+"subtotal": 274538081,
+"isv": 41180712,
+"total": 315718793
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 13370,
+"cantidadCentesimas": 9217
+},
+{
+"precioCentavos": 458402,
+"cantidadCentesimas": 27257
+},
+{
+"precioCentavos": 321950,
+"cantidadCentesimas": 49314
+},
+{
+"precioCentavos": 77884,
+"cantidadCentesimas": 83154
+},
+{
+"precioCentavos": 132256,
+"cantidadCentesimas": 45534
+}
+],
+"esperado": {
+"lineas": [
+1232313,
+124946633,
+158766423,
+64763661,
+60221447
+],
+"subtotal": 409930477,
+"isv": 61489572,
+"total": 471420049
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 190927,
+"cantidadCentesimas": 62148
+},
+{
+"precioCentavos": 64405,
+"cantidadCentesimas": 15120
+},
+{
+"precioCentavos": 445088,
+"cantidadCentesimas": 63973
+},
+{
+"precioCentavos": 244313,
+"cantidadCentesimas": 62967
+},
+{
+"precioCentavos": 253669,
+"cantidadCentesimas": 40876
+}
+],
+"esperado": {
+"lineas": [
+118657312,
+9738036,
+284736146,
+153836567,
+103689740
+],
+"subtotal": 670657801,
+"isv": 100598670,
+"total": 771256471
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 75560,
+"cantidadCentesimas": 13394
+}
+],
+"esperado": {
+"lineas": [
+10120506
+],
+"subtotal": 10120506,
+"isv": 1518076,
+"total": 11638582
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 388158,
+"cantidadCentesimas": 34703
+},
+{
+"precioCentavos": 250936,
+"cantidadCentesimas": 90710
+},
+{
+"precioCentavos": 84641,
+"cantidadCentesimas": 67677
+}
+],
+"esperado": {
+"lineas": [
+134702471,
+227624046,
+57282490
+],
+"subtotal": 419609007,
+"isv": 62941351,
+"total": 482550358
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 107592,
+"cantidadCentesimas": 69240
+}
+],
+"esperado": {
+"lineas": [
+74496701
+],
+"subtotal": 74496701,
+"isv": 11174505,
+"total": 85671206
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 76862,
+"cantidadCentesimas": 90449
+},
+{
+"precioCentavos": 284779,
+"cantidadCentesimas": 3545
+},
+{
+"precioCentavos": 397486,
+"cantidadCentesimas": 69221
+}
+],
+"esperado": {
+"lineas": [
+69520910,
+10095416,
+275143784
+],
+"subtotal": 354760110,
+"isv": 53214017,
+"total": 407974127
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 337074,
+"cantidadCentesimas": 11929
+},
+{
+"precioCentavos": 365008,
+"cantidadCentesimas": 34225
+},
+{
+"precioCentavos": 271790,
+"cantidadCentesimas": 48065
+}
+],
+"esperado": {
+"lineas": [
+40209557,
+124923988,
+130635864
+],
+"subtotal": 295769409,
+"isv": 44365411,
+"total": 340134820
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 186488,
+"cantidadCentesimas": 29202
+},
+{
+"precioCentavos": 279232,
+"cantidadCentesimas": 70985
+}
+],
+"esperado": {
+"lineas": [
+54458226,
+198212835
+],
+"subtotal": 252671061,
+"isv": 37900659,
+"total": 290571720
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 172840,
+"cantidadCentesimas": 83420
+},
+{
+"precioCentavos": 116939,
+"cantidadCentesimas": 80378
+},
+{
+"precioCentavos": 425466,
+"cantidadCentesimas": 99395
+},
+{
+"precioCentavos": 447024,
+"cantidadCentesimas": 25579
+},
+{
+"precioCentavos": 422618,
+"cantidadCentesimas": 31378
+}
+],
+"esperado": {
+"lineas": [
+144183128,
+93993229,
+422891931,
+114344269,
+132609076
+],
+"subtotal": 908021633,
+"isv": 136203245,
+"total": 1044224878
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 387907,
+"cantidadCentesimas": 29720
+},
+{
+"precioCentavos": 104815,
+"cantidadCentesimas": 67848
+},
+{
+"precioCentavos": 258360,
+"cantidadCentesimas": 46605
+},
+{
+"precioCentavos": 383257,
+"cantidadCentesimas": 3799
+}
+],
+"esperado": {
+"lineas": [
+115285960,
+71114881,
+120408678,
+14559933
+],
+"subtotal": 321369452,
+"isv": 48205418,
+"total": 369574870
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 414248,
+"cantidadCentesimas": 36624
+}
+],
+"esperado": {
+"lineas": [
+151714188
+],
+"subtotal": 151714188,
+"isv": 22757128,
+"total": 174471316
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 135883,
+"cantidadCentesimas": 25382
+},
+{
+"precioCentavos": 363081,
+"cantidadCentesimas": 79317
+},
+{
+"precioCentavos": 180503,
+"cantidadCentesimas": 58620
+},
+{
+"precioCentavos": 423922,
+"cantidadCentesimas": 94782
+}
+],
+"esperado": {
+"lineas": [
+34489823,
+287984957,
+105810859,
+401801750
+],
+"subtotal": 830087389,
+"isv": 124513108,
+"total": 954600497
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 191175,
+"cantidadCentesimas": 10557
+},
+{
+"precioCentavos": 115586,
+"cantidadCentesimas": 13390
+},
+{
+"precioCentavos": 118933,
+"cantidadCentesimas": 61615
+}
+],
+"esperado": {
+"lineas": [
+20182345,
+15476965,
+73280568
+],
+"subtotal": 108939878,
+"isv": 16340982,
+"total": 125280860
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 177072,
+"cantidadCentesimas": 26788
+},
+{
+"precioCentavos": 253050,
+"cantidadCentesimas": 81798
+}
+],
+"esperado": {
+"lineas": [
+47434047,
+206989839
+],
+"subtotal": 254423886,
+"isv": 38163583,
+"total": 292587469
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 440631,
+"cantidadCentesimas": 251
+},
+{
+"precioCentavos": 251383,
+"cantidadCentesimas": 85588
+},
+{
+"precioCentavos": 180359,
+"cantidadCentesimas": 84297
+},
+{
+"precioCentavos": 44449,
+"cantidadCentesimas": 86585
+},
+{
+"precioCentavos": 62865,
+"cantidadCentesimas": 50927
+}
+],
+"esperado": {
+"lineas": [
+1105984,
+215153682,
+152037226,
+38486167,
+32015259
+],
+"subtotal": 438798318,
+"isv": 65819748,
+"total": 504618066
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 250627,
+"cantidadCentesimas": 23400
+},
+{
+"precioCentavos": 227502,
+"cantidadCentesimas": 83342
+}
+],
+"esperado": {
+"lineas": [
+58646718,
+189604717
+],
+"subtotal": 248251435,
+"isv": 37237715,
+"total": 285489150
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 45482,
+"cantidadCentesimas": 94612
+},
+{
+"precioCentavos": 207534,
+"cantidadCentesimas": 60708
+},
+{
+"precioCentavos": 210443,
+"cantidadCentesimas": 97433
+}
+],
+"esperado": {
+"lineas": [
+43031430,
+125989741,
+205040928
+],
+"subtotal": 374062099,
+"isv": 56109315,
+"total": 430171414
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 380004,
+"cantidadCentesimas": 20822
+}
+],
+"esperado": {
+"lineas": [
+79124433
+],
+"subtotal": 79124433,
+"isv": 11868665,
+"total": 90993098
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 66605,
+"cantidadCentesimas": 3611
+},
+{
+"precioCentavos": 79247,
+"cantidadCentesimas": 77439
+}
+],
+"esperado": {
+"lineas": [
+2405107,
+61368084
+],
+"subtotal": 63773191,
+"isv": 9565979,
+"total": 73339170
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 422840,
+"cantidadCentesimas": 85965
+},
+{
+"precioCentavos": 76638,
+"cantidadCentesimas": 80161
+},
+{
+"precioCentavos": 433330,
+"cantidadCentesimas": 78102
+},
+{
+"precioCentavos": 248700,
+"cantidadCentesimas": 86150
+}
+],
+"esperado": {
+"lineas": [
+363494406,
+61433787,
+338439397,
+214255050
+],
+"subtotal": 977622640,
+"isv": 146643396,
+"total": 1124266036
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 81744,
+"cantidadCentesimas": 71914
+},
+{
+"precioCentavos": 287460,
+"cantidadCentesimas": 17169
+},
+{
+"precioCentavos": 11219,
+"cantidadCentesimas": 1867
+}
+],
+"esperado": {
+"lineas": [
+58785380,
+49354007,
+209459
+],
+"subtotal": 108348846,
+"isv": 16252327,
+"total": 124601173
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 276081,
+"cantidadCentesimas": 98238
+}
+],
+"esperado": {
+"lineas": [
+271216453
+],
+"subtotal": 271216453,
+"isv": 40682468,
+"total": 311898921
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 227442,
+"cantidadCentesimas": 25534
+},
+{
+"precioCentavos": 433144,
+"cantidadCentesimas": 27662
+}
+],
+"esperado": {
+"lineas": [
+58075040,
+119816293
+],
+"subtotal": 177891333,
+"isv": 26683700,
+"total": 204575033
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 132034,
+"cantidadCentesimas": 27890
+}
+],
+"esperado": {
+"lineas": [
+36824283
+],
+"subtotal": 36824283,
+"isv": 5523642,
+"total": 42347925
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 262754,
+"cantidadCentesimas": 31528
+},
+{
+"precioCentavos": 400389,
+"cantidadCentesimas": 76866
+},
+{
+"precioCentavos": 170913,
+"cantidadCentesimas": 33996
+}
+],
+"esperado": {
+"lineas": [
+82841081,
+307763009,
+58103583
+],
+"subtotal": 448707673,
+"isv": 67306151,
+"total": 516013824
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 219684,
+"cantidadCentesimas": 17181
+},
+{
+"precioCentavos": 31932,
+"cantidadCentesimas": 96984
+},
+{
+"precioCentavos": 185485,
+"cantidadCentesimas": 60053
+},
+{
+"precioCentavos": 347328,
+"cantidadCentesimas": 76461
+},
+{
+"precioCentavos": 427320,
+"cantidadCentesimas": 67733
+}
+],
+"esperado": {
+"lineas": [
+37743908,
+30968931,
+111389307,
+265570462,
+289436656
+],
+"subtotal": 735109264,
+"isv": 110266390,
+"total": 845375654
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 433660,
+"cantidadCentesimas": 65753
+},
+{
+"precioCentavos": 68558,
+"cantidadCentesimas": 69708
+},
+{
+"precioCentavos": 79606,
+"cantidadCentesimas": 68618
+},
+{
+"precioCentavos": 267674,
+"cantidadCentesimas": 2452
+}
+],
+"esperado": {
+"lineas": [
+285144460,
+47790411,
+54624045,
+6563366
+],
+"subtotal": 394122282,
+"isv": 59118342,
+"total": 453240624
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 407113,
+"cantidadCentesimas": 24001
+},
+{
+"precioCentavos": 319058,
+"cantidadCentesimas": 516
+},
+{
+"precioCentavos": 406868,
+"cantidadCentesimas": 19635
+},
+{
+"precioCentavos": 90360,
+"cantidadCentesimas": 18555
+}
+],
+"esperado": {
+"lineas": [
+97711191,
+1646339,
+79888532,
+16766298
+],
+"subtotal": 196012360,
+"isv": 29401854,
+"total": 225414214
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 324588,
+"cantidadCentesimas": 95053
+},
+{
+"precioCentavos": 63092,
+"cantidadCentesimas": 72939
+},
+{
+"precioCentavos": 32378,
+"cantidadCentesimas": 42728
+},
+{
+"precioCentavos": 357739,
+"cantidadCentesimas": 67942
+}
+],
+"esperado": {
+"lineas": [
+308530632,
+46018674,
+13834472,
+243055031
+],
+"subtotal": 611438809,
+"isv": 91715821,
+"total": 703154630
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 291212,
+"cantidadCentesimas": 63241
+},
+{
+"precioCentavos": 411185,
+"cantidadCentesimas": 13908
+},
+{
+"precioCentavos": 463066,
+"cantidadCentesimas": 73440
+},
+{
+"precioCentavos": 29792,
+"cantidadCentesimas": 32571
+},
+{
+"precioCentavos": 100300,
+"cantidadCentesimas": 36297
+}
+],
+"esperado": {
+"lineas": [
+184165381,
+57187610,
+340075670,
+9703552,
+36405891
+],
+"subtotal": 627538104,
+"isv": 94130716,
+"total": 721668820
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 404888,
+"cantidadCentesimas": 12812
+}
+],
+"esperado": {
+"lineas": [
+51874251
+],
+"subtotal": 51874251,
+"isv": 7781138,
+"total": 59655389
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 237071,
+"cantidadCentesimas": 73627
+},
+{
+"precioCentavos": 14610,
+"cantidadCentesimas": 99614
+},
+{
+"precioCentavos": 468720,
+"cantidadCentesimas": 8306
+},
+{
+"precioCentavos": 232390,
+"cantidadCentesimas": 42679
+},
+{
+"precioCentavos": 321142,
+"cantidadCentesimas": 66264
+}
+],
+"esperado": {
+"lineas": [
+174548265,
+14553605,
+38931883,
+99181728,
+212801535
+],
+"subtotal": 540017016,
+"isv": 81002552,
+"total": 621019568
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 268521,
+"cantidadCentesimas": 26137
+},
+{
+"precioCentavos": 363191,
+"cantidadCentesimas": 36332
+},
+{
+"precioCentavos": 237160,
+"cantidadCentesimas": 66606
+},
+{
+"precioCentavos": 279596,
+"cantidadCentesimas": 62658
+},
+{
+"precioCentavos": 266209,
+"cantidadCentesimas": 32461
+}
+],
+"esperado": {
+"lineas": [
+70183334,
+131954554,
+157962790,
+175189262,
+86414103
+],
+"subtotal": 621704043,
+"isv": 93255606,
+"total": 714959649
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 459558,
+"cantidadCentesimas": 34026
+},
+{
+"precioCentavos": 483805,
+"cantidadCentesimas": 73337
+},
+{
+"precioCentavos": 468061,
+"cantidadCentesimas": 26554
+},
+{
+"precioCentavos": 440402,
+"cantidadCentesimas": 58659
+},
+{
+"precioCentavos": 71898,
+"cantidadCentesimas": 54610
+}
+],
+"esperado": {
+"lineas": [
+156369205,
+354808073,
+124288918,
+258335409,
+39263498
+],
+"subtotal": 933065103,
+"isv": 139959765,
+"total": 1073024868
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 205712,
+"cantidadCentesimas": 57950
+}
+],
+"esperado": {
+"lineas": [
+119210104
+],
+"subtotal": 119210104,
+"isv": 17881516,
+"total": 137091620
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 38036,
+"cantidadCentesimas": 87970
+},
+{
+"precioCentavos": 126165,
+"cantidadCentesimas": 56144
+},
+{
+"precioCentavos": 38337,
+"cantidadCentesimas": 27878
+}
+],
+"esperado": {
+"lineas": [
+33460269,
+70834078,
+10687589
+],
+"subtotal": 114981936,
+"isv": 17247290,
+"total": 132229226
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 411009,
+"cantidadCentesimas": 16037
+},
+{
+"precioCentavos": 470301,
+"cantidadCentesimas": 20244
+},
+{
+"precioCentavos": 492572,
+"cantidadCentesimas": 93864
+}
+],
+"esperado": {
+"lineas": [
+65913513,
+95207734,
+462347782
+],
+"subtotal": 623469029,
+"isv": 93520354,
+"total": 716989383
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 74963,
+"cantidadCentesimas": 33176
+},
+{
+"precioCentavos": 462859,
+"cantidadCentesimas": 17991
+},
+{
+"precioCentavos": 245229,
+"cantidadCentesimas": 28782
+}
+],
+"esperado": {
+"lineas": [
+24869725,
+83272963,
+70581811
+],
+"subtotal": 178724499,
+"isv": 26808675,
+"total": 205533174
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 208802,
+"cantidadCentesimas": 63867
+}
+],
+"esperado": {
+"lineas": [
+133355573
+],
+"subtotal": 133355573,
+"isv": 20003336,
+"total": 153358909
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 350137,
+"cantidadCentesimas": 29323
+},
+{
+"precioCentavos": 84655,
+"cantidadCentesimas": 92580
+}
+],
+"esperado": {
+"lineas": [
+102670673,
+78373599
+],
+"subtotal": 181044272,
+"isv": 27156641,
+"total": 208200913
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 270326,
+"cantidadCentesimas": 52929
+},
+{
+"precioCentavos": 177795,
+"cantidadCentesimas": 55218
+},
+{
+"precioCentavos": 102627,
+"cantidadCentesimas": 46743
+},
+{
+"precioCentavos": 167000,
+"cantidadCentesimas": 12085
+}
+],
+"esperado": {
+"lineas": [
+143080849,
+98174843,
+47970939,
+20181950
+],
+"subtotal": 309408581,
+"isv": 46411287,
+"total": 355819868
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 10215,
+"cantidadCentesimas": 44300
+},
+{
+"precioCentavos": 290482,
+"cantidadCentesimas": 60119
+},
+{
+"precioCentavos": 230927,
+"cantidadCentesimas": 92164
+}
+],
+"esperado": {
+"lineas": [
+4525245,
+174634874,
+212831560
+],
+"subtotal": 391991679,
+"isv": 58798752,
+"total": 450790431
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 201508,
+"cantidadCentesimas": 43451
+}
+],
+"esperado": {
+"lineas": [
+87557241
+],
+"subtotal": 87557241,
+"isv": 13133586,
+"total": 100690827
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 327118,
+"cantidadCentesimas": 38726
+},
+{
+"precioCentavos": 268573,
+"cantidadCentesimas": 8427
+},
+{
+"precioCentavos": 59166,
+"cantidadCentesimas": 29958
+},
+{
+"precioCentavos": 459482,
+"cantidadCentesimas": 13734
+},
+{
+"precioCentavos": 44073,
+"cantidadCentesimas": 34809
+}
+],
+"esperado": {
+"lineas": [
+126679717,
+22632647,
+17724950,
+63105258,
+15341371
+],
+"subtotal": 245483943,
+"isv": 36822591,
+"total": 282306534
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 20756,
+"cantidadCentesimas": 23797
+},
+{
+"precioCentavos": 141792,
+"cantidadCentesimas": 99062
+},
+{
+"precioCentavos": 67925,
+"cantidadCentesimas": 55346
+}
+],
+"esperado": {
+"lineas": [
+4939305,
+140461991,
+37593771
+],
+"subtotal": 182995067,
+"isv": 27449260,
+"total": 210444327
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 212834,
+"cantidadCentesimas": 19578
+},
+{
+"precioCentavos": 281333,
+"cantidadCentesimas": 67474
+},
+{
+"precioCentavos": 299157,
+"cantidadCentesimas": 64830
+}
+],
+"esperado": {
+"lineas": [
+41668641,
+189826628,
+193943483
+],
+"subtotal": 425438752,
+"isv": 63815813,
+"total": 489254565
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 46904,
+"cantidadCentesimas": 36578
+},
+{
+"precioCentavos": 30161,
+"cantidadCentesimas": 90205
+},
+{
+"precioCentavos": 96126,
+"cantidadCentesimas": 55748
+}
+],
+"esperado": {
+"lineas": [
+17156545,
+27206730,
+53588322
+],
+"subtotal": 97951597,
+"isv": 14692740,
+"total": 112644337
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 140994,
+"cantidadCentesimas": 2207
+}
+],
+"esperado": {
+"lineas": [
+3111738
+],
+"subtotal": 3111738,
+"isv": 466761,
+"total": 3578499
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 420285,
+"cantidadCentesimas": 34152
+}
+],
+"esperado": {
+"lineas": [
+143535733
+],
+"subtotal": 143535733,
+"isv": 21530360,
+"total": 165066093
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 318861,
+"cantidadCentesimas": 29152
+}
+],
+"esperado": {
+"lineas": [
+92954359
+],
+"subtotal": 92954359,
+"isv": 13943154,
+"total": 106897513
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 138649,
+"cantidadCentesimas": 15949
+}
+],
+"esperado": {
+"lineas": [
+22113129
+],
+"subtotal": 22113129,
+"isv": 3316969,
+"total": 25430098
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 6054,
+"cantidadCentesimas": 44454
+},
+{
+"precioCentavos": 289965,
+"cantidadCentesimas": 54757
+},
+{
+"precioCentavos": 485842,
+"cantidadCentesimas": 35109
+},
+{
+"precioCentavos": 325952,
+"cantidadCentesimas": 16938
+}
+],
+"esperado": {
+"lineas": [
+2691245,
+158776135,
+170574268,
+55209750
+],
+"subtotal": 387251398,
+"isv": 58087710,
+"total": 445339108
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 276256,
+"cantidadCentesimas": 93001
+}
+],
+"esperado": {
+"lineas": [
+256920843
+],
+"subtotal": 256920843,
+"isv": 38538126,
+"total": 295458969
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 491849,
+"cantidadCentesimas": 14347
+},
+{
+"precioCentavos": 84646,
+"cantidadCentesimas": 34328
+}
+],
+"esperado": {
+"lineas": [
+70565576,
+29057279
+],
+"subtotal": 99622855,
+"isv": 14943428,
+"total": 114566283
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 94973,
+"cantidadCentesimas": 26447
+}
+],
+"esperado": {
+"lineas": [
+25117509
+],
+"subtotal": 25117509,
+"isv": 3767626,
+"total": 28885135
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 329605,
+"cantidadCentesimas": 39978
+},
+{
+"precioCentavos": 278442,
+"cantidadCentesimas": 99549
+},
+{
+"precioCentavos": 107936,
+"cantidadCentesimas": 38006
+}
+],
+"esperado": {
+"lineas": [
+131769487,
+277186227,
+41022156
+],
+"subtotal": 449977870,
+"isv": 67496681,
+"total": 517474551
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 262191,
+"cantidadCentesimas": 88101
+},
+{
+"precioCentavos": 93271,
+"cantidadCentesimas": 35458
+},
+{
+"precioCentavos": 181929,
+"cantidadCentesimas": 2381
+},
+{
+"precioCentavos": 131308,
+"cantidadCentesimas": 4844
+}
+],
+"esperado": {
+"lineas": [
+230992893,
+33072031,
+4331729,
+6360560
+],
+"subtotal": 274757213,
+"isv": 41213582,
+"total": 315970795
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 9665,
+"cantidadCentesimas": 96087
+}
+],
+"esperado": {
+"lineas": [
+9286809
+],
+"subtotal": 9286809,
+"isv": 1393021,
+"total": 10679830
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 288909,
+"cantidadCentesimas": 24833
+},
+{
+"precioCentavos": 269608,
+"cantidadCentesimas": 62228
+},
+{
+"precioCentavos": 128807,
+"cantidadCentesimas": 58597
+},
+{
+"precioCentavos": 55723,
+"cantidadCentesimas": 86288
+},
+{
+"precioCentavos": 429351,
+"cantidadCentesimas": 85211
+}
+],
+"esperado": {
+"lineas": [
+71744772,
+167771666,
+75477038,
+48082262,
+365854281
+],
+"subtotal": 728930019,
+"isv": 109339503,
+"total": 838269522
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 344201,
+"cantidadCentesimas": 64881
+},
+{
+"precioCentavos": 286213,
+"cantidadCentesimas": 51523
+},
+{
+"precioCentavos": 265650,
+"cantidadCentesimas": 40342
+},
+{
+"precioCentavos": 360575,
+"cantidadCentesimas": 28205
+}
+],
+"esperado": {
+"lineas": [
+223321051,
+147465524,
+107168523,
+101700179
+],
+"subtotal": 579655277,
+"isv": 86948292,
+"total": 666603569
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 179676,
+"cantidadCentesimas": 26035
+},
+{
+"precioCentavos": 436358,
+"cantidadCentesimas": 92632
+}
+],
+"esperado": {
+"lineas": [
+46778647,
+404207143
+],
+"subtotal": 450985790,
+"isv": 67647869,
+"total": 518633659
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 212179,
+"cantidadCentesimas": 45555
+},
+{
+"precioCentavos": 28516,
+"cantidadCentesimas": 17016
+}
+],
+"esperado": {
+"lineas": [
+96658143,
+4852283
+],
+"subtotal": 101510426,
+"isv": 15226564,
+"total": 116736990
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 37080,
+"cantidadCentesimas": 81979
+}
+],
+"esperado": {
+"lineas": [
+30397813
+],
+"subtotal": 30397813,
+"isv": 4559672,
+"total": 34957485
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 225833,
+"cantidadCentesimas": 21398
+},
+{
+"precioCentavos": 29047,
+"cantidadCentesimas": 11074
+},
+{
+"precioCentavos": 348771,
+"cantidadCentesimas": 49923
+}
+],
+"esperado": {
+"lineas": [
+48323745,
+3216665,
+174116946
+],
+"subtotal": 225657356,
+"isv": 33848603,
+"total": 259505959
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 351558,
+"cantidadCentesimas": 36954
+},
+{
+"precioCentavos": 313933,
+"cantidadCentesimas": 31748
+},
+{
+"precioCentavos": 363167,
+"cantidadCentesimas": 38412
+},
+{
+"precioCentavos": 23718,
+"cantidadCentesimas": 60222
+},
+{
+"precioCentavos": 97178,
+"cantidadCentesimas": 20649
+}
+],
+"esperado": {
+"lineas": [
+129914743,
+99667449,
+139499708,
+14283454,
+20066285
+],
+"subtotal": 403431639,
+"isv": 60514746,
+"total": 463946385
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 233741,
+"cantidadCentesimas": 475
+},
+{
+"precioCentavos": 138016,
+"cantidadCentesimas": 47729
+},
+{
+"precioCentavos": 172453,
+"cantidadCentesimas": 71707
+}
+],
+"esperado": {
+"lineas": [
+1110270,
+65873657,
+123660873
+],
+"subtotal": 190644800,
+"isv": 28596720,
+"total": 219241520
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 128161,
+"cantidadCentesimas": 4516
+},
+{
+"precioCentavos": 462626,
+"cantidadCentesimas": 40574
+},
+{
+"precioCentavos": 114225,
+"cantidadCentesimas": 46739
+}
+],
+"esperado": {
+"lineas": [
+5787751,
+187705873,
+53387623
+],
+"subtotal": 246881247,
+"isv": 37032187,
+"total": 283913434
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 561,
+"cantidadCentesimas": 43953
+},
+{
+"precioCentavos": 200083,
+"cantidadCentesimas": 10996
+}
+],
+"esperado": {
+"lineas": [
+246576,
+22001127
+],
+"subtotal": 22247703,
+"isv": 3337155,
+"total": 25584858
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 146240,
+"cantidadCentesimas": 65899
+},
+{
+"precioCentavos": 343943,
+"cantidadCentesimas": 26343
+},
+{
+"precioCentavos": 130118,
+"cantidadCentesimas": 66157
+},
+{
+"precioCentavos": 406973,
+"cantidadCentesimas": 649
+}
+],
+"esperado": {
+"lineas": [
+96370698,
+90604904,
+86082165,
+2641255
+],
+"subtotal": 275699022,
+"isv": 41354853,
+"total": 317053875
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 138501,
+"cantidadCentesimas": 11765
+}
+],
+"esperado": {
+"lineas": [
+16294643
+],
+"subtotal": 16294643,
+"isv": 2444196,
+"total": 18738839
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 209459,
+"cantidadCentesimas": 76914
+},
+{
+"precioCentavos": 21846,
+"cantidadCentesimas": 51640
+}
+],
+"esperado": {
+"lineas": [
+161103295,
+11281274
+],
+"subtotal": 172384569,
+"isv": 25857685,
+"total": 198242254
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 157101,
+"cantidadCentesimas": 39878
+}
+],
+"esperado": {
+"lineas": [
+62648737
+],
+"subtotal": 62648737,
+"isv": 9397311,
+"total": 72046048
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 44294,
+"cantidadCentesimas": 76754
+},
+{
+"precioCentavos": 277448,
+"cantidadCentesimas": 98375
+}
+],
+"esperado": {
+"lineas": [
+33997417,
+272939470
+],
+"subtotal": 306936887,
+"isv": 46040533,
+"total": 352977420
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 344743,
+"cantidadCentesimas": 93847
+},
+{
+"precioCentavos": 411064,
+"cantidadCentesimas": 78193
+}
+],
+"esperado": {
+"lineas": [
+323530963,
+321423274
+],
+"subtotal": 644954237,
+"isv": 96743136,
+"total": 741697373
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 400720,
+"cantidadCentesimas": 42748
+},
+{
+"precioCentavos": 377843,
+"cantidadCentesimas": 64775
+},
+{
+"precioCentavos": 78362,
+"cantidadCentesimas": 37248
+},
+{
+"precioCentavos": 379667,
+"cantidadCentesimas": 81096
+}
+],
+"esperado": {
+"lineas": [
+171299786,
+244747803,
+29188278,
+307894750
+],
+"subtotal": 753130617,
+"isv": 112969593,
+"total": 866100210
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 22958,
+"cantidadCentesimas": 93718
+},
+{
+"precioCentavos": 467635,
+"cantidadCentesimas": 67238
+}
+],
+"esperado": {
+"lineas": [
+21515778,
+314428421
+],
+"subtotal": 335944199,
+"isv": 50391630,
+"total": 386335829
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 384750,
+"cantidadCentesimas": 91889
+},
+{
+"precioCentavos": 425837,
+"cantidadCentesimas": 66263
+},
+{
+"precioCentavos": 73038,
+"cantidadCentesimas": 68650
+},
+{
+"precioCentavos": 394720,
+"cantidadCentesimas": 66109
+}
+],
+"esperado": {
+"lineas": [
+353542928,
+282172371,
+50140587,
+260945445
+],
+"subtotal": 946801331,
+"isv": 142020200,
+"total": 1088821531
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 437748,
+"cantidadCentesimas": 2108
+},
+{
+"precioCentavos": 433277,
+"cantidadCentesimas": 89978
+},
+{
+"precioCentavos": 306217,
+"cantidadCentesimas": 93217
+},
+{
+"precioCentavos": 358034,
+"cantidadCentesimas": 90876
+},
+{
+"precioCentavos": 337060,
+"cantidadCentesimas": 30139
+}
+],
+"esperado": {
+"lineas": [
+9227728,
+389853979,
+285446301,
+325366978,
+101586513
+],
+"subtotal": 1111481499,
+"isv": 166722225,
+"total": 1278203724
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 16338,
+"cantidadCentesimas": 5487
+}
+],
+"esperado": {
+"lineas": [
+896466
+],
+"subtotal": 896466,
+"isv": 134470,
+"total": 1030936
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 334035,
+"cantidadCentesimas": 47279
+},
+{
+"precioCentavos": 55007,
+"cantidadCentesimas": 49365
+}
+],
+"esperado": {
+"lineas": [
+157928408,
+27154206
+],
+"subtotal": 185082614,
+"isv": 27762392,
+"total": 212845006
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 292830,
+"cantidadCentesimas": 6656
+},
+{
+"precioCentavos": 329131,
+"cantidadCentesimas": 2470
+},
+{
+"precioCentavos": 328324,
+"cantidadCentesimas": 69658
+},
+{
+"precioCentavos": 356865,
+"cantidadCentesimas": 32055
+}
+],
+"esperado": {
+"lineas": [
+19490765,
+8129536,
+228703932,
+114393076
+],
+"subtotal": 370717309,
+"isv": 55607596,
+"total": 426324905
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 138304,
+"cantidadCentesimas": 435
+},
+{
+"precioCentavos": 239573,
+"cantidadCentesimas": 9190
+},
+{
+"precioCentavos": 392307,
+"cantidadCentesimas": 65926
+},
+{
+"precioCentavos": 470736,
+"cantidadCentesimas": 70150
+}
+],
+"esperado": {
+"lineas": [
+601622,
+22016759,
+258632313,
+330221304
+],
+"subtotal": 611471998,
+"isv": 91720800,
+"total": 703192798
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 345663,
+"cantidadCentesimas": 68943
+}
+],
+"esperado": {
+"lineas": [
+238310442
+],
+"subtotal": 238310442,
+"isv": 35746566,
+"total": 274057008
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 390977,
+"cantidadCentesimas": 96573
+}
+],
+"esperado": {
+"lineas": [
+377578218
+],
+"subtotal": 377578218,
+"isv": 56636733,
+"total": 434214951
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 132223,
+"cantidadCentesimas": 9759
+},
+{
+"precioCentavos": 443618,
+"cantidadCentesimas": 34808
+},
+{
+"precioCentavos": 123096,
+"cantidadCentesimas": 95596
+},
+{
+"precioCentavos": 396594,
+"cantidadCentesimas": 26899
+}
+],
+"esperado": {
+"lineas": [
+12903643,
+154414553,
+117674852,
+106679820
+],
+"subtotal": 391672868,
+"isv": 58750930,
+"total": 450423798
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 387884,
+"cantidadCentesimas": 85188
+},
+{
+"precioCentavos": 241351,
+"cantidadCentesimas": 64743
+}
+],
+"esperado": {
+"lineas": [
+330430622,
+156257878
+],
+"subtotal": 486688500,
+"isv": 73003275,
+"total": 559691775
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 40234,
+"cantidadCentesimas": 62785
+},
+{
+"precioCentavos": 477347,
+"cantidadCentesimas": 89614
+},
+{
+"precioCentavos": 150638,
+"cantidadCentesimas": 6128
+},
+{
+"precioCentavos": 323473,
+"cantidadCentesimas": 82942
+}
+],
+"esperado": {
+"lineas": [
+25260917,
+427769741,
+9231097,
+268294976
+],
+"subtotal": 730556731,
+"isv": 109583510,
+"total": 840140241
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 40618,
+"cantidadCentesimas": 78605
+},
+{
+"precioCentavos": 77294,
+"cantidadCentesimas": 43487
+}
+],
+"esperado": {
+"lineas": [
+31927779,
+33612842
+],
+"subtotal": 65540621,
+"isv": 9831093,
+"total": 75371714
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 341592,
+"cantidadCentesimas": 97415
+},
+{
+"precioCentavos": 363273,
+"cantidadCentesimas": 39901
+},
+{
+"precioCentavos": 325662,
+"cantidadCentesimas": 74418
+}
+],
+"esperado": {
+"lineas": [
+332761847,
+144949560,
+242351147
+],
+"subtotal": 720062554,
+"isv": 108009383,
+"total": 828071937
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 6538,
+"cantidadCentesimas": 63232
+},
+{
+"precioCentavos": 31804,
+"cantidadCentesimas": 63675
+}
+],
+"esperado": {
+"lineas": [
+4134108,
+20251197
+],
+"subtotal": 24385305,
+"isv": 3657796,
+"total": 28043101
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 352323,
+"cantidadCentesimas": 13045
+},
+{
+"precioCentavos": 362905,
+"cantidadCentesimas": 28534
+},
+{
+"precioCentavos": 354266,
+"cantidadCentesimas": 64175
+}
+],
+"esperado": {
+"lineas": [
+45960535,
+103551313,
+227350206
+],
+"subtotal": 376862054,
+"isv": 56529308,
+"total": 433391362
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 371653,
+"cantidadCentesimas": 67704
+},
+{
+"precioCentavos": 149708,
+"cantidadCentesimas": 60905
+},
+{
+"precioCentavos": 244265,
+"cantidadCentesimas": 61125
+}
+],
+"esperado": {
+"lineas": [
+251623947,
+91179657,
+149306981
+],
+"subtotal": 492110585,
+"isv": 73816588,
+"total": 565927173
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 468537,
+"cantidadCentesimas": 71969
+}
+],
+"esperado": {
+"lineas": [
+337201394
+],
+"subtotal": 337201394,
+"isv": 50580209,
+"total": 387781603
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 163408,
+"cantidadCentesimas": 11254
+},
+{
+"precioCentavos": 490867,
+"cantidadCentesimas": 61990
+}
+],
+"esperado": {
+"lineas": [
+18389936,
+304288453
+],
+"subtotal": 322678389,
+"isv": 48401758,
+"total": 371080147
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 151828,
+"cantidadCentesimas": 60159
+}
+],
+"esperado": {
+"lineas": [
+91338207
+],
+"subtotal": 91338207,
+"isv": 13700731,
+"total": 105038938
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 429863,
+"cantidadCentesimas": 66404
+}
+],
+"esperado": {
+"lineas": [
+285446227
+],
+"subtotal": 285446227,
+"isv": 42816934,
+"total": 328263161
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 140854,
+"cantidadCentesimas": 50705
+},
+{
+"precioCentavos": 110016,
+"cantidadCentesimas": 27619
+},
+{
+"precioCentavos": 39119,
+"cantidadCentesimas": 76215
+},
+{
+"precioCentavos": 47345,
+"cantidadCentesimas": 18579
+}
+],
+"esperado": {
+"lineas": [
+71420021,
+30385319,
+29814546,
+8796228
+],
+"subtotal": 140416114,
+"isv": 21062417,
+"total": 161478531
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 137264,
+"cantidadCentesimas": 47128
+},
+{
+"precioCentavos": 69524,
+"cantidadCentesimas": 79085
+},
+{
+"precioCentavos": 430030,
+"cantidadCentesimas": 82795
+},
+{
+"precioCentavos": 266729,
+"cantidadCentesimas": 36644
+},
+{
+"precioCentavos": 464972,
+"cantidadCentesimas": 14769
+}
+],
+"esperado": {
+"lineas": [
+64689778,
+54983055,
+356043339,
+97740175,
+68671715
+],
+"subtotal": 642128062,
+"isv": 96319209,
+"total": 738447271
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 121312,
+"cantidadCentesimas": 65260
+},
+{
+"precioCentavos": 470657,
+"cantidadCentesimas": 63720
+},
+{
+"precioCentavos": 206612,
+"cantidadCentesimas": 3256
+}
+],
+"esperado": {
+"lineas": [
+79168211,
+299902640,
+6727287
+],
+"subtotal": 385798138,
+"isv": 57869721,
+"total": 443667859
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 1883,
+"cantidadCentesimas": 64448
+},
+{
+"precioCentavos": 357349,
+"cantidadCentesimas": 59083
+}
+],
+"esperado": {
+"lineas": [
+1213556,
+211132510
+],
+"subtotal": 212346066,
+"isv": 31851910,
+"total": 244197976
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 158310,
+"cantidadCentesimas": 95314
+},
+{
+"precioCentavos": 73772,
+"cantidadCentesimas": 54550
+},
+{
+"precioCentavos": 180335,
+"cantidadCentesimas": 49297
+},
+{
+"precioCentavos": 165716,
+"cantidadCentesimas": 15848
+}
+],
+"esperado": {
+"lineas": [
+150891593,
+40242626,
+88899745,
+26262672
+],
+"subtotal": 306296636,
+"isv": 45944495,
+"total": 352241131
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 913,
+"cantidadCentesimas": 42540
+},
+{
+"precioCentavos": 393601,
+"cantidadCentesimas": 44339
+},
+{
+"precioCentavos": 439936,
+"cantidadCentesimas": 52201
+}
+],
+"esperado": {
+"lineas": [
+388390,
+174518747,
+229650991
+],
+"subtotal": 404558128,
+"isv": 60683719,
+"total": 465241847
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 492769,
+"cantidadCentesimas": 25657
+}
+],
+"esperado": {
+"lineas": [
+126429742
+],
+"subtotal": 126429742,
+"isv": 18964461,
+"total": 145394203
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 472681,
+"cantidadCentesimas": 96982
+}
+],
+"esperado": {
+"lineas": [
+458415487
+],
+"subtotal": 458415487,
+"isv": 68762323,
+"total": 527177810
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 132757,
+"cantidadCentesimas": 48788
+},
+{
+"precioCentavos": 34067,
+"cantidadCentesimas": 51499
+},
+{
+"precioCentavos": 204557,
+"cantidadCentesimas": 77225
+}
+],
+"esperado": {
+"lineas": [
+64769485,
+17544164,
+157969143
+],
+"subtotal": 240282792,
+"isv": 36042419,
+"total": 276325211
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 189116,
+"cantidadCentesimas": 56106
+}
+],
+"esperado": {
+"lineas": [
+106105423
+],
+"subtotal": 106105423,
+"isv": 15915813,
+"total": 122021236
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 447876,
+"cantidadCentesimas": 6327
+},
+{
+"precioCentavos": 147135,
+"cantidadCentesimas": 13332
+},
+{
+"precioCentavos": 27063,
+"cantidadCentesimas": 86767
+}
+],
+"esperado": {
+"lineas": [
+28337115,
+19616038,
+23481753
+],
+"subtotal": 71434906,
+"isv": 10715236,
+"total": 82150142
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 332904,
+"cantidadCentesimas": 19519
+},
+{
+"precioCentavos": 130718,
+"cantidadCentesimas": 34830
+},
+{
+"precioCentavos": 228716,
+"cantidadCentesimas": 66973
+}
+],
+"esperado": {
+"lineas": [
+64979532,
+45529079,
+153177967
+],
+"subtotal": 263686578,
+"isv": 39552987,
+"total": 303239565
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 99536,
+"cantidadCentesimas": 48936
+},
+{
+"precioCentavos": 411641,
+"cantidadCentesimas": 56066
+},
+{
+"precioCentavos": 463611,
+"cantidadCentesimas": 3803
+}
+],
+"esperado": {
+"lineas": [
+48708937,
+230790643,
+17631126
+],
+"subtotal": 297130706,
+"isv": 44569606,
+"total": 341700312
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 478898,
+"cantidadCentesimas": 72634
+},
+{
+"precioCentavos": 287954,
+"cantidadCentesimas": 26665
+},
+{
+"precioCentavos": 377264,
+"cantidadCentesimas": 10562
+},
+{
+"precioCentavos": 25940,
+"cantidadCentesimas": 95991
+}
+],
+"esperado": {
+"lineas": [
+347842773,
+76782934,
+39846624,
+24900065
+],
+"subtotal": 489372396,
+"isv": 73405859,
+"total": 562778255
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 236381,
+"cantidadCentesimas": 80599
+},
+{
+"precioCentavos": 394615,
+"cantidadCentesimas": 18163
+},
+{
+"precioCentavos": 337899,
+"cantidadCentesimas": 37514
+},
+{
+"precioCentavos": 254582,
+"cantidadCentesimas": 6420
+}
+],
+"esperado": {
+"lineas": [
+190520722,
+71673922,
+126759431,
+16344164
+],
+"subtotal": 405298239,
+"isv": 60794736,
+"total": 466092975
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 66748,
+"cantidadCentesimas": 22383
+},
+{
+"precioCentavos": 247561,
+"cantidadCentesimas": 54378
+},
+{
+"precioCentavos": 180179,
+"cantidadCentesimas": 36930
+},
+{
+"precioCentavos": 156119,
+"cantidadCentesimas": 33521
+},
+{
+"precioCentavos": 387466,
+"cantidadCentesimas": 96829
+}
+],
+"esperado": {
+"lineas": [
+14940205,
+134618721,
+66540105,
+52332650,
+375179453
+],
+"subtotal": 643611134,
+"isv": 96541670,
+"total": 740152804
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 212971,
+"cantidadCentesimas": 85983
+},
+{
+"precioCentavos": 125130,
+"cantidadCentesimas": 39432
+},
+{
+"precioCentavos": 253327,
+"cantidadCentesimas": 73050
+}
+],
+"esperado": {
+"lineas": [
+183118855,
+49341262,
+185055374
+],
+"subtotal": 417515491,
+"isv": 62627324,
+"total": 480142815
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 62780,
+"cantidadCentesimas": 21933
+},
+{
+"precioCentavos": 337225,
+"cantidadCentesimas": 21189
+},
+{
+"precioCentavos": 39412,
+"cantidadCentesimas": 27247
+},
+{
+"precioCentavos": 262462,
+"cantidadCentesimas": 65153
+}
+],
+"esperado": {
+"lineas": [
+13769537,
+71454605,
+10738588,
+171001867
+],
+"subtotal": 266964597,
+"isv": 40044690,
+"total": 307009287
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 115357,
+"cantidadCentesimas": 59374
+},
+{
+"precioCentavos": 475141,
+"cantidadCentesimas": 43626
+},
+{
+"precioCentavos": 398065,
+"cantidadCentesimas": 58978
+},
+{
+"precioCentavos": 224093,
+"cantidadCentesimas": 18298
+},
+{
+"precioCentavos": 287198,
+"cantidadCentesimas": 25220
+}
+],
+"esperado": {
+"lineas": [
+68492065,
+207285013,
+234770776,
+41004537,
+72431336
+],
+"subtotal": 623983727,
+"isv": 93597559,
+"total": 717581286
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 47561,
+"cantidadCentesimas": 22898
+},
+{
+"precioCentavos": 179284,
+"cantidadCentesimas": 72860
+}
+],
+"esperado": {
+"lineas": [
+10890518,
+130626322
+],
+"subtotal": 141516840,
+"isv": 21227526,
+"total": 162744366
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 167399,
+"cantidadCentesimas": 31343
+}
+],
+"esperado": {
+"lineas": [
+52467869
+],
+"subtotal": 52467869,
+"isv": 7870180,
+"total": 60338049
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 135454,
+"cantidadCentesimas": 74661
+},
+{
+"precioCentavos": 105981,
+"cantidadCentesimas": 2633
+},
+{
+"precioCentavos": 393037,
+"cantidadCentesimas": 54105
+}
+],
+"esperado": {
+"lineas": [
+101131311,
+2790480,
+212652669
+],
+"subtotal": 316574460,
+"isv": 47486169,
+"total": 364060629
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 216995,
+"cantidadCentesimas": 97759
+},
+{
+"precioCentavos": 274816,
+"cantidadCentesimas": 27526
+},
+{
+"precioCentavos": 197587,
+"cantidadCentesimas": 35421
+},
+{
+"precioCentavos": 177316,
+"cantidadCentesimas": 98581
+}
+],
+"esperado": {
+"lineas": [
+212132142,
+75645852,
+69987291,
+174799886
+],
+"subtotal": 532565171,
+"isv": 79884776,
+"total": 612449947
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 261172,
+"cantidadCentesimas": 36375
+}
+],
+"esperado": {
+"lineas": [
+95001315
+],
+"subtotal": 95001315,
+"isv": 14250197,
+"total": 109251512
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 188820,
+"cantidadCentesimas": 16499
+},
+{
+"precioCentavos": 360057,
+"cantidadCentesimas": 65982
+},
+{
+"precioCentavos": 277467,
+"cantidadCentesimas": 82527
+},
+{
+"precioCentavos": 414352,
+"cantidadCentesimas": 28307
+},
+{
+"precioCentavos": 48549,
+"cantidadCentesimas": 35524
+}
+],
+"esperado": {
+"lineas": [
+31153412,
+237572810,
+228985191,
+117290621,
+17246547
+],
+"subtotal": 632248581,
+"isv": 94837287,
+"total": 727085868
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 201621,
+"cantidadCentesimas": 52397
+},
+{
+"precioCentavos": 338581,
+"cantidadCentesimas": 58440
+}
+],
+"esperado": {
+"lineas": [
+105643355,
+197866736
+],
+"subtotal": 303510091,
+"isv": 45526514,
+"total": 349036605
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 163587,
+"cantidadCentesimas": 2859
+},
+{
+"precioCentavos": 66715,
+"cantidadCentesimas": 4227
+},
+{
+"precioCentavos": 222928,
+"cantidadCentesimas": 92998
+},
+{
+"precioCentavos": 400394,
+"cantidadCentesimas": 62033
+}
+],
+"esperado": {
+"lineas": [
+4676952,
+2820043,
+207318581,
+248376410
+],
+"subtotal": 463191986,
+"isv": 69478798,
+"total": 532670784
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 256810,
+"cantidadCentesimas": 24
+},
+{
+"precioCentavos": 38346,
+"cantidadCentesimas": 51318
+},
+{
+"precioCentavos": 487713,
+"cantidadCentesimas": 69188
+},
+{
+"precioCentavos": 448509,
+"cantidadCentesimas": 61362
+},
+{
+"precioCentavos": 235380,
+"cantidadCentesimas": 32567
+}
+],
+"esperado": {
+"lineas": [
+61634,
+19678400,
+337438870,
+275214093,
+76656205
+],
+"subtotal": 709049202,
+"isv": 106357380,
+"total": 815406582
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 117336,
+"cantidadCentesimas": 20235
+}
+],
+"esperado": {
+"lineas": [
+23742940
+],
+"subtotal": 23742940,
+"isv": 3561441,
+"total": 27304381
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 273871,
+"cantidadCentesimas": 89401
+},
+{
+"precioCentavos": 57090,
+"cantidadCentesimas": 94600
+}
+],
+"esperado": {
+"lineas": [
+244843413,
+54007140
+],
+"subtotal": 298850553,
+"isv": 44827583,
+"total": 343678136
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 44567,
+"cantidadCentesimas": 72287
+},
+{
+"precioCentavos": 407300,
+"cantidadCentesimas": 5184
+},
+{
+"precioCentavos": 717,
+"cantidadCentesimas": 16470
+},
+{
+"precioCentavos": 121938,
+"cantidadCentesimas": 74631
+}
+],
+"esperado": {
+"lineas": [
+32216147,
+21114432,
+118090,
+91003549
+],
+"subtotal": 144452218,
+"isv": 21667833,
+"total": 166120051
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 338431,
+"cantidadCentesimas": 93720
+}
+],
+"esperado": {
+"lineas": [
+317177533
+],
+"subtotal": 317177533,
+"isv": 47576630,
+"total": 364754163
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 67092,
+"cantidadCentesimas": 82114
+},
+{
+"precioCentavos": 132013,
+"cantidadCentesimas": 69240
+},
+{
+"precioCentavos": 333600,
+"cantidadCentesimas": 57335
+}
+],
+"esperado": {
+"lineas": [
+55091925,
+91405801,
+191269560
+],
+"subtotal": 337767286,
+"isv": 50665093,
+"total": 388432379
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 52138,
+"cantidadCentesimas": 9222
+}
+],
+"esperado": {
+"lineas": [
+4808166
+],
+"subtotal": 4808166,
+"isv": 721225,
+"total": 5529391
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 274956,
+"cantidadCentesimas": 76401
+},
+{
+"precioCentavos": 100507,
+"cantidadCentesimas": 50867
+},
+{
+"precioCentavos": 136778,
+"cantidadCentesimas": 29306
+}
+],
+"esperado": {
+"lineas": [
+210069134,
+51124896,
+40084161
+],
+"subtotal": 301278191,
+"isv": 45191729,
+"total": 346469920
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 604,
+"cantidadCentesimas": 1372
+},
+{
+"precioCentavos": 281793,
+"cantidadCentesimas": 39521
+},
+{
+"precioCentavos": 241535,
+"cantidadCentesimas": 36518
+},
+{
+"precioCentavos": 165863,
+"cantidadCentesimas": 84486
+},
+{
+"precioCentavos": 440094,
+"cantidadCentesimas": 31767
+}
+],
+"esperado": {
+"lineas": [
+8287,
+111367412,
+88203751,
+140131014,
+139804661
+],
+"subtotal": 479515125,
+"isv": 71927269,
+"total": 551442394
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 275922,
+"cantidadCentesimas": 30772
+},
+{
+"precioCentavos": 286787,
+"cantidadCentesimas": 32383
+},
+{
+"precioCentavos": 15352,
+"cantidadCentesimas": 53977
+},
+{
+"precioCentavos": 369442,
+"cantidadCentesimas": 85151
+}
+],
+"esperado": {
+"lineas": [
+84906718,
+92870234,
+8286549,
+314583557
+],
+"subtotal": 500647058,
+"isv": 75097059,
+"total": 575744117
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 28998,
+"cantidadCentesimas": 2856
+},
+{
+"precioCentavos": 101773,
+"cantidadCentesimas": 65315
+},
+{
+"precioCentavos": 463916,
+"cantidadCentesimas": 88404
+}
+],
+"esperado": {
+"lineas": [
+828183,
+66473035,
+410120301
+],
+"subtotal": 477421519,
+"isv": 71613228,
+"total": 549034747
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 42516,
+"cantidadCentesimas": 33720
+},
+{
+"precioCentavos": 119455,
+"cantidadCentesimas": 87472
+},
+{
+"precioCentavos": 222468,
+"cantidadCentesimas": 48526
+},
+{
+"precioCentavos": 118902,
+"cantidadCentesimas": 64612
+}
+],
+"esperado": {
+"lineas": [
+14336395,
+104489678,
+107954822,
+76824960
+],
+"subtotal": 303605855,
+"isv": 45540878,
+"total": 349146733
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 364812,
+"cantidadCentesimas": 44310
+}
+],
+"esperado": {
+"lineas": [
+161648197
+],
+"subtotal": 161648197,
+"isv": 24247230,
+"total": 185895427
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 189960,
+"cantidadCentesimas": 89466
+},
+{
+"precioCentavos": 207806,
+"cantidadCentesimas": 25963
+},
+{
+"precioCentavos": 3541,
+"cantidadCentesimas": 38288
+},
+{
+"precioCentavos": 387517,
+"cantidadCentesimas": 66176
+}
+],
+"esperado": {
+"lineas": [
+169949614,
+53952672,
+1355778,
+256443250
+],
+"subtotal": 481701314,
+"isv": 72255197,
+"total": 553956511
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 107594,
+"cantidadCentesimas": 64972
+}
+],
+"esperado": {
+"lineas": [
+69905974
+],
+"subtotal": 69905974,
+"isv": 10485896,
+"total": 80391870
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 163429,
+"cantidadCentesimas": 25420
+},
+{
+"precioCentavos": 121011,
+"cantidadCentesimas": 60964
+}
+],
+"esperado": {
+"lineas": [
+41543652,
+73773146
+],
+"subtotal": 115316798,
+"isv": 17297520,
+"total": 132614318
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 138948,
+"cantidadCentesimas": 99677
+},
+{
+"precioCentavos": 466268,
+"cantidadCentesimas": 38658
+}
+],
+"esperado": {
+"lineas": [
+138499198,
+180249883
+],
+"subtotal": 318749081,
+"isv": 47812362,
+"total": 366561443
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 499084,
+"cantidadCentesimas": 81737
+}
+],
+"esperado": {
+"lineas": [
+407936289
+],
+"subtotal": 407936289,
+"isv": 61190443,
+"total": 469126732
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 319868,
+"cantidadCentesimas": 24552
+},
+{
+"precioCentavos": 470012,
+"cantidadCentesimas": 29272
+},
+{
+"precioCentavos": 254308,
+"cantidadCentesimas": 54661
+},
+{
+"precioCentavos": 477310,
+"cantidadCentesimas": 87202
+}
+],
+"esperado": {
+"lineas": [
+78533991,
+137581913,
+139007296,
+416223866
+],
+"subtotal": 771347066,
+"isv": 115702060,
+"total": 887049126
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 497425,
+"cantidadCentesimas": 77962
+}
+],
+"esperado": {
+"lineas": [
+387802479
+],
+"subtotal": 387802479,
+"isv": 58170372,
+"total": 445972851
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 483354,
+"cantidadCentesimas": 51572
+},
+{
+"precioCentavos": 28500,
+"cantidadCentesimas": 27912
+}
+],
+"esperado": {
+"lineas": [
+249275325,
+7954920
+],
+"subtotal": 257230245,
+"isv": 38584537,
+"total": 295814782
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 312543,
+"cantidadCentesimas": 18601
+}
+],
+"esperado": {
+"lineas": [
+58136123
+],
+"subtotal": 58136123,
+"isv": 8720418,
+"total": 66856541
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 27180,
+"cantidadCentesimas": 93043
+},
+{
+"precioCentavos": 31529,
+"cantidadCentesimas": 24131
+},
+{
+"precioCentavos": 206214,
+"cantidadCentesimas": 58936
+},
+{
+"precioCentavos": 470899,
+"cantidadCentesimas": 93328
+}
+],
+"esperado": {
+"lineas": [
+25289087,
+7608263,
+121534283,
+439480619
+],
+"subtotal": 593912252,
+"isv": 89086838,
+"total": 682999090
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 384159,
+"cantidadCentesimas": 14839
+},
+{
+"precioCentavos": 41609,
+"cantidadCentesimas": 21710
+},
+{
+"precioCentavos": 172619,
+"cantidadCentesimas": 24994
+}
+],
+"esperado": {
+"lineas": [
+57005354,
+9033314,
+43144393
+],
+"subtotal": 109183061,
+"isv": 16377459,
+"total": 125560520
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 342082,
+"cantidadCentesimas": 68787
+},
+{
+"precioCentavos": 391281,
+"cantidadCentesimas": 61292
+}
+],
+"esperado": {
+"lineas": [
+235307945,
+239823951
+],
+"subtotal": 475131896,
+"isv": 71269784,
+"total": 546401680
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 163488,
+"cantidadCentesimas": 87089
+}
+],
+"esperado": {
+"lineas": [
+142380064
+],
+"subtotal": 142380064,
+"isv": 21357010,
+"total": 163737074
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 439945,
+"cantidadCentesimas": 49006
+},
+{
+"precioCentavos": 173906,
+"cantidadCentesimas": 57991
+},
+{
+"precioCentavos": 88742,
+"cantidadCentesimas": 14282
+},
+{
+"precioCentavos": 1506,
+"cantidadCentesimas": 10256
+}
+],
+"esperado": {
+"lineas": [
+215599447,
+100849828,
+12674132,
+154455
+],
+"subtotal": 329277862,
+"isv": 49391679,
+"total": 378669541
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 42344,
+"cantidadCentesimas": 46068
+},
+{
+"precioCentavos": 220297,
+"cantidadCentesimas": 16215
+},
+{
+"precioCentavos": 294194,
+"cantidadCentesimas": 99459
+}
+],
+"esperado": {
+"lineas": [
+19507034,
+35721159,
+292602410
+],
+"subtotal": 347830603,
+"isv": 52174590,
+"total": 400005193
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 199298,
+"cantidadCentesimas": 46745
+},
+{
+"precioCentavos": 403038,
+"cantidadCentesimas": 40462
+}
+],
+"esperado": {
+"lineas": [
+93161850,
+163077236
+],
+"subtotal": 256239086,
+"isv": 38435863,
+"total": 294674949
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 46012,
+"cantidadCentesimas": 6457
+},
+{
+"precioCentavos": 369758,
+"cantidadCentesimas": 62058
+},
+{
+"precioCentavos": 102612,
+"cantidadCentesimas": 48853
+},
+{
+"precioCentavos": 283918,
+"cantidadCentesimas": 58504
+}
+],
+"esperado": {
+"lineas": [
+2970995,
+229464420,
+50129040,
+166103387
+],
+"subtotal": 448667842,
+"isv": 67300176,
+"total": 515968018
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 169508,
+"cantidadCentesimas": 47743
+},
+{
+"precioCentavos": 386568,
+"cantidadCentesimas": 62199
+}
+],
+"esperado": {
+"lineas": [
+80928204,
+240441430
+],
+"subtotal": 321369634,
+"isv": 48205445,
+"total": 369575079
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 331173,
+"cantidadCentesimas": 53845
+}
+],
+"esperado": {
+"lineas": [
+178320102
+],
+"subtotal": 178320102,
+"isv": 26748015,
+"total": 205068117
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 425630,
+"cantidadCentesimas": 81974
+},
+{
+"precioCentavos": 401955,
+"cantidadCentesimas": 53055
+}
+],
+"esperado": {
+"lineas": [
+348905936,
+213257225
+],
+"subtotal": 562163161,
+"isv": 84324474,
+"total": 646487635
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 196906,
+"cantidadCentesimas": 4569
+}
+],
+"esperado": {
+"lineas": [
+8996635
+],
+"subtotal": 8996635,
+"isv": 1349495,
+"total": 10346130
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 32810,
+"cantidadCentesimas": 8127
+},
+{
+"precioCentavos": 134751,
+"cantidadCentesimas": 25552
+},
+{
+"precioCentavos": 391794,
+"cantidadCentesimas": 8239
+},
+{
+"precioCentavos": 471100,
+"cantidadCentesimas": 79380
+}
+],
+"esperado": {
+"lineas": [
+2666469,
+34431576,
+32279908,
+373959180
+],
+"subtotal": 443337133,
+"isv": 66500570,
+"total": 509837703
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 190304,
+"cantidadCentesimas": 35693
+},
+{
+"precioCentavos": 175622,
+"cantidadCentesimas": 80869
+},
+{
+"precioCentavos": 22852,
+"cantidadCentesimas": 34364
+}
+],
+"esperado": {
+"lineas": [
+67925207,
+142023755,
+7852861
+],
+"subtotal": 217801823,
+"isv": 32670273,
+"total": 250472096
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 484562,
+"cantidadCentesimas": 36128
+},
+{
+"precioCentavos": 155927,
+"cantidadCentesimas": 495
+},
+{
+"precioCentavos": 378312,
+"cantidadCentesimas": 99045
+}
+],
+"esperado": {
+"lineas": [
+175062559,
+771839,
+374699120
+],
+"subtotal": 550533518,
+"isv": 82580028,
+"total": 633113546
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 480489,
+"cantidadCentesimas": 83098
+},
+{
+"precioCentavos": 496233,
+"cantidadCentesimas": 8564
+},
+{
+"precioCentavos": 12718,
+"cantidadCentesimas": 30654
+},
+{
+"precioCentavos": 56236,
+"cantidadCentesimas": 62284
+},
+{
+"precioCentavos": 375166,
+"cantidadCentesimas": 61046
+}
+],
+"esperado": {
+"lineas": [
+399276749,
+42497394,
+3898576,
+35026030,
+229023836
+],
+"subtotal": 709722585,
+"isv": 106458388,
+"total": 816180973
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 414083,
+"cantidadCentesimas": 32906
+},
+{
+"precioCentavos": 478961,
+"cantidadCentesimas": 56353
+},
+{
+"precioCentavos": 427190,
+"cantidadCentesimas": 64681
+},
+{
+"precioCentavos": 69577,
+"cantidadCentesimas": 65083
+}
+],
+"esperado": {
+"lineas": [
+136258152,
+269908892,
+276310764,
+45282799
+],
+"subtotal": 727760607,
+"isv": 109164091,
+"total": 836924698
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 4565,
+"cantidadCentesimas": 96796
+},
+{
+"precioCentavos": 159025,
+"cantidadCentesimas": 90717
+}
+],
+"esperado": {
+"lineas": [
+4418737,
+144262709
+],
+"subtotal": 148681446,
+"isv": 22302217,
+"total": 170983663
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 318377,
+"cantidadCentesimas": 30952
+},
+{
+"precioCentavos": 171862,
+"cantidadCentesimas": 41884
+}
+],
+"esperado": {
+"lineas": [
+98544049,
+71982680
+],
+"subtotal": 170526729,
+"isv": 25579009,
+"total": 196105738
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 189719,
+"cantidadCentesimas": 78082
+},
+{
+"precioCentavos": 41427,
+"cantidadCentesimas": 67094
+},
+{
+"precioCentavos": 103449,
+"cantidadCentesimas": 51339
+},
+{
+"precioCentavos": 394729,
+"cantidadCentesimas": 20964
+}
+],
+"esperado": {
+"lineas": [
+148136390,
+27795031,
+53109682,
+82750988
+],
+"subtotal": 311792091,
+"isv": 46768814,
+"total": 358560905
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 213782,
+"cantidadCentesimas": 8485
+},
+{
+"precioCentavos": 340550,
+"cantidadCentesimas": 4439
+}
+],
+"esperado": {
+"lineas": [
+18139403,
+15117015
+],
+"subtotal": 33256418,
+"isv": 4988463,
+"total": 38244881
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 289719,
+"cantidadCentesimas": 71384
+},
+{
+"precioCentavos": 170792,
+"cantidadCentesimas": 21063
+},
+{
+"precioCentavos": 223638,
+"cantidadCentesimas": 13792
+},
+{
+"precioCentavos": 37836,
+"cantidadCentesimas": 34720
+}
+],
+"esperado": {
+"lineas": [
+206813011,
+35973919,
+30844153,
+13136659
+],
+"subtotal": 286767742,
+"isv": 43015161,
+"total": 329782903
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 44084,
+"cantidadCentesimas": 27308
+},
+{
+"precioCentavos": 50554,
+"cantidadCentesimas": 55190
+},
+{
+"precioCentavos": 261345,
+"cantidadCentesimas": 93032
+},
+{
+"precioCentavos": 234338,
+"cantidadCentesimas": 22701
+},
+{
+"precioCentavos": 122787,
+"cantidadCentesimas": 17424
+}
+],
+"esperado": {
+"lineas": [
+12038459,
+27900753,
+243134480,
+53197069,
+21394407
+],
+"subtotal": 357665168,
+"isv": 53649775,
+"total": 411314943
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 241657,
+"cantidadCentesimas": 81305
+},
+{
+"precioCentavos": 467279,
+"cantidadCentesimas": 88357
+},
+{
+"precioCentavos": 123173,
+"cantidadCentesimas": 98039
+},
+{
+"precioCentavos": 282363,
+"cantidadCentesimas": 87088
+}
+],
+"esperado": {
+"lineas": [
+196479224,
+412873706,
+120757577,
+245904289
+],
+"subtotal": 976014796,
+"isv": 146402219,
+"total": 1122417015
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 408814,
+"cantidadCentesimas": 38526
+}
+],
+"esperado": {
+"lineas": [
+157499682
+],
+"subtotal": 157499682,
+"isv": 23624952,
+"total": 181124634
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 146485,
+"cantidadCentesimas": 74303
+},
+{
+"precioCentavos": 140335,
+"cantidadCentesimas": 48887
+},
+{
+"precioCentavos": 133199,
+"cantidadCentesimas": 96740
+}
+],
+"esperado": {
+"lineas": [
+108842750,
+68605571,
+128856713
+],
+"subtotal": 306305034,
+"isv": 45945755,
+"total": 352250789
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 104433,
+"cantidadCentesimas": 57593
+},
+{
+"precioCentavos": 129725,
+"cantidadCentesimas": 24345
+},
+{
+"precioCentavos": 128629,
+"cantidadCentesimas": 30868
+}
+],
+"esperado": {
+"lineas": [
+60146098,
+31581551,
+39705200
+],
+"subtotal": 131432849,
+"isv": 19714927,
+"total": 151147776
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 147511,
+"cantidadCentesimas": 75797
+},
+{
+"precioCentavos": 98698,
+"cantidadCentesimas": 42774
+}
+],
+"esperado": {
+"lineas": [
+111808913,
+42217083
+],
+"subtotal": 154025996,
+"isv": 23103899,
+"total": 177129895
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 207655,
+"cantidadCentesimas": 32985
+}
+],
+"esperado": {
+"lineas": [
+68495002
+],
+"subtotal": 68495002,
+"isv": 10274250,
+"total": 78769252
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 265985,
+"cantidadCentesimas": 68985
+},
+{
+"precioCentavos": 121311,
+"cantidadCentesimas": 85150
+}
+],
+"esperado": {
+"lineas": [
+183489752,
+103296317
+],
+"subtotal": 286786069,
+"isv": 43017910,
+"total": 329803979
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 342532,
+"cantidadCentesimas": 60807
+}
+],
+"esperado": {
+"lineas": [
+208283433
+],
+"subtotal": 208283433,
+"isv": 31242515,
+"total": 239525948
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 53652,
+"cantidadCentesimas": 589
+}
+],
+"esperado": {
+"lineas": [
+316010
+],
+"subtotal": 316010,
+"isv": 47402,
+"total": 363412
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 462855,
+"cantidadCentesimas": 30293
+},
+{
+"precioCentavos": 440694,
+"cantidadCentesimas": 58760
+},
+{
+"precioCentavos": 479397,
+"cantidadCentesimas": 49005
+},
+{
+"precioCentavos": 21162,
+"cantidadCentesimas": 38493
+}
+],
+"esperado": {
+"lineas": [
+140212665,
+258951794,
+234928500,
+8145889
+],
+"subtotal": 642238848,
+"isv": 96335827,
+"total": 738574675
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 62504,
+"cantidadCentesimas": 6605
+},
+{
+"precioCentavos": 99391,
+"cantidadCentesimas": 78708
+}
+],
+"esperado": {
+"lineas": [
+4128389,
+78228668
+],
+"subtotal": 82357057,
+"isv": 12353559,
+"total": 94710616
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 101797,
+"cantidadCentesimas": 9846
+},
+{
+"precioCentavos": 195160,
+"cantidadCentesimas": 67197
+},
+{
+"precioCentavos": 454101,
+"cantidadCentesimas": 23300
+},
+{
+"precioCentavos": 235466,
+"cantidadCentesimas": 79042
+},
+{
+"precioCentavos": 136288,
+"cantidadCentesimas": 87131
+}
+],
+"esperado": {
+"lineas": [
+10022933,
+131141665,
+105805533,
+186117036,
+118749097
+],
+"subtotal": 551836264,
+"isv": 82775440,
+"total": 634611704
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 55460,
+"cantidadCentesimas": 83553
+}
+],
+"esperado": {
+"lineas": [
+46338494
+],
+"subtotal": 46338494,
+"isv": 6950774,
+"total": 53289268
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 372091,
+"cantidadCentesimas": 81258
+},
+{
+"precioCentavos": 183344,
+"cantidadCentesimas": 28528
+},
+{
+"precioCentavos": 19637,
+"cantidadCentesimas": 48328
+},
+{
+"precioCentavos": 178267,
+"cantidadCentesimas": 18530
+},
+{
+"precioCentavos": 23156,
+"cantidadCentesimas": 26736
+}
+],
+"esperado": {
+"lineas": [
+302353705,
+52304376,
+9490169,
+33032875,
+6190988
+],
+"subtotal": 403372113,
+"isv": 60505817,
+"total": 463877930
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 20047,
+"cantidadCentesimas": 78568
+},
+{
+"precioCentavos": 383899,
+"cantidadCentesimas": 85413
+},
+{
+"precioCentavos": 479176,
+"cantidadCentesimas": 26666
+}
+],
+"esperado": {
+"lineas": [
+15750527,
+327899653,
+127777072
+],
+"subtotal": 471427252,
+"isv": 70714088,
+"total": 542141340
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 429305,
+"cantidadCentesimas": 42894
+}
+],
+"esperado": {
+"lineas": [
+184146087
+],
+"subtotal": 184146087,
+"isv": 27621913,
+"total": 211768000
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 355635,
+"cantidadCentesimas": 48734
+},
+{
+"precioCentavos": 97070,
+"cantidadCentesimas": 81398
+},
+{
+"precioCentavos": 163681,
+"cantidadCentesimas": 10216
+},
+{
+"precioCentavos": 106645,
+"cantidadCentesimas": 4125
+}
+],
+"esperado": {
+"lineas": [
+173315161,
+79013039,
+16721651,
+4399106
+],
+"subtotal": 273448957,
+"isv": 41017344,
+"total": 314466301
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 287334,
+"cantidadCentesimas": 63375
+},
+{
+"precioCentavos": 33173,
+"cantidadCentesimas": 53500
+},
+{
+"precioCentavos": 53157,
+"cantidadCentesimas": 51813
+},
+{
+"precioCentavos": 348142,
+"cantidadCentesimas": 72108
+}
+],
+"esperado": {
+"lineas": [
+182097923,
+17747555,
+27542236,
+251038233
+],
+"subtotal": 478425947,
+"isv": 71763892,
+"total": 550189839
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 335116,
+"cantidadCentesimas": 69993
+},
+{
+"precioCentavos": 47791,
+"cantidadCentesimas": 85598
+}
+],
+"esperado": {
+"lineas": [
+234557742,
+40908140
+],
+"subtotal": 275465882,
+"isv": 41319882,
+"total": 316785764
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 208548,
+"cantidadCentesimas": 91149
+},
+{
+"precioCentavos": 142170,
+"cantidadCentesimas": 53712
+}
+],
+"esperado": {
+"lineas": [
+190089417,
+76362350
+],
+"subtotal": 266451767,
+"isv": 39967765,
+"total": 306419532
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 350126,
+"cantidadCentesimas": 40318
+},
+{
+"precioCentavos": 219072,
+"cantidadCentesimas": 6732
+},
+{
+"precioCentavos": 163768,
+"cantidadCentesimas": 97693
+}
+],
+"esperado": {
+"lineas": [
+141163801,
+14747927,
+159989872
+],
+"subtotal": 315901600,
+"isv": 47385240,
+"total": 363286840
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 463311,
+"cantidadCentesimas": 46817
+},
+{
+"precioCentavos": 217098,
+"cantidadCentesimas": 54585
+},
+{
+"precioCentavos": 9549,
+"cantidadCentesimas": 47682
+},
+{
+"precioCentavos": 337893,
+"cantidadCentesimas": 25848
+},
+{
+"precioCentavos": 204856,
+"cantidadCentesimas": 95425
+}
+],
+"esperado": {
+"lineas": [
+216908311,
+118502943,
+4553154,
+87338583,
+195483838
+],
+"subtotal": 622786829,
+"isv": 93418024,
+"total": 716204853
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 106781,
+"cantidadCentesimas": 771
+},
+{
+"precioCentavos": 227628,
+"cantidadCentesimas": 20522
+},
+{
+"precioCentavos": 222170,
+"cantidadCentesimas": 14882
+},
+{
+"precioCentavos": 430110,
+"cantidadCentesimas": 11861
+}
+],
+"esperado": {
+"lineas": [
+823282,
+46713818,
+33063339,
+51015347
+],
+"subtotal": 131615786,
+"isv": 19742368,
+"total": 151358154
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 302932,
+"cantidadCentesimas": 47806
+},
+{
+"precioCentavos": 241648,
+"cantidadCentesimas": 21306
+},
+{
+"precioCentavos": 68145,
+"cantidadCentesimas": 1945
+},
+{
+"precioCentavos": 27104,
+"cantidadCentesimas": 72293
+}
+],
+"esperado": {
+"lineas": [
+144819672,
+51485523,
+1325420,
+19594295
+],
+"subtotal": 217224910,
+"isv": 32583737,
+"total": 249808647
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 335894,
+"cantidadCentesimas": 51999
+},
+{
+"precioCentavos": 46678,
+"cantidadCentesimas": 75087
+}
+],
+"esperado": {
+"lineas": [
+174661521,
+35049110
+],
+"subtotal": 209710631,
+"isv": 31456595,
+"total": 241167226
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 486135,
+"cantidadCentesimas": 48608
+},
+{
+"precioCentavos": 386531,
+"cantidadCentesimas": 66121
+},
+{
+"precioCentavos": 90013,
+"cantidadCentesimas": 19122
+},
+{
+"precioCentavos": 182424,
+"cantidadCentesimas": 37133
+},
+{
+"precioCentavos": 84838,
+"cantidadCentesimas": 68310
+}
+],
+"esperado": {
+"lineas": [
+236300501,
+255578163,
+17212286,
+67739504,
+57952838
+],
+"subtotal": 634783292,
+"isv": 95217494,
+"total": 730000786
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 485229,
+"cantidadCentesimas": 8795
+},
+{
+"precioCentavos": 57039,
+"cantidadCentesimas": 50297
+}
+],
+"esperado": {
+"lineas": [
+42675891,
+28688906
+],
+"subtotal": 71364797,
+"isv": 10704720,
+"total": 82069517
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 395081,
+"cantidadCentesimas": 25866
+},
+{
+"precioCentavos": 158134,
+"cantidadCentesimas": 16601
+},
+{
+"precioCentavos": 438983,
+"cantidadCentesimas": 5702
+},
+{
+"precioCentavos": 478570,
+"cantidadCentesimas": 63274
+}
+],
+"esperado": {
+"lineas": [
+102191651,
+26251825,
+25030811,
+302810382
+],
+"subtotal": 456284669,
+"isv": 68442700,
+"total": 524727369
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 27984,
+"cantidadCentesimas": 79646
+},
+{
+"precioCentavos": 485579,
+"cantidadCentesimas": 83410
+},
+{
+"precioCentavos": 203369,
+"cantidadCentesimas": 11311
+}
+],
+"esperado": {
+"lineas": [
+22288137,
+405021444,
+23003068
+],
+"subtotal": 450312649,
+"isv": 67546897,
+"total": 517859546
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 360824,
+"cantidadCentesimas": 21008
+},
+{
+"precioCentavos": 335715,
+"cantidadCentesimas": 29108
+},
+{
+"precioCentavos": 325611,
+"cantidadCentesimas": 53017
+},
+{
+"precioCentavos": 322296,
+"cantidadCentesimas": 25705
+},
+{
+"precioCentavos": 434734,
+"cantidadCentesimas": 61992
+}
+],
+"esperado": {
+"lineas": [
+75801906,
+97719922,
+172629184,
+82846187,
+269500301
+],
+"subtotal": 698497500,
+"isv": 104774625,
+"total": 803272125
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 296447,
+"cantidadCentesimas": 28592
+},
+{
+"precioCentavos": 21870,
+"cantidadCentesimas": 52396
+}
+],
+"esperado": {
+"lineas": [
+84760126,
+11459005
+],
+"subtotal": 96219131,
+"isv": 14432870,
+"total": 110652001
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 82041,
+"cantidadCentesimas": 50277
+},
+{
+"precioCentavos": 188329,
+"cantidadCentesimas": 16130
+},
+{
+"precioCentavos": 78364,
+"cantidadCentesimas": 32383
+},
+{
+"precioCentavos": 380048,
+"cantidadCentesimas": 25244
+},
+{
+"precioCentavos": 21548,
+"cantidadCentesimas": 73708
+}
+],
+"esperado": {
+"lineas": [
+41247754,
+30377468,
+25376614,
+95939317,
+15882600
+],
+"subtotal": 208823753,
+"isv": 31323563,
+"total": 240147316
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 350171,
+"cantidadCentesimas": 42494
+}
+],
+"esperado": {
+"lineas": [
+148801665
+],
+"subtotal": 148801665,
+"isv": 22320250,
+"total": 171121915
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 204387,
+"cantidadCentesimas": 78581
+}
+],
+"esperado": {
+"lineas": [
+160609348
+],
+"subtotal": 160609348,
+"isv": 24091402,
+"total": 184700750
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 288386,
+"cantidadCentesimas": 82188
+},
+{
+"precioCentavos": 407942,
+"cantidadCentesimas": 40137
+},
+{
+"precioCentavos": 340278,
+"cantidadCentesimas": 55060
+},
+{
+"precioCentavos": 161592,
+"cantidadCentesimas": 76366
+}
+],
+"esperado": {
+"lineas": [
+237018686,
+163735681,
+187357067,
+123401347
+],
+"subtotal": 711512781,
+"isv": 106726917,
+"total": 818239698
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 223211,
+"cantidadCentesimas": 51015
+},
+{
+"precioCentavos": 345424,
+"cantidadCentesimas": 48163
+}
+],
+"esperado": {
+"lineas": [
+113871092,
+166366561
+],
+"subtotal": 280237653,
+"isv": 42035648,
+"total": 322273301
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 264021,
+"cantidadCentesimas": 57456
+},
+{
+"precioCentavos": 93724,
+"cantidadCentesimas": 3064
+},
+{
+"precioCentavos": 1840,
+"cantidadCentesimas": 81120
+},
+{
+"precioCentavos": 256640,
+"cantidadCentesimas": 60985
+}
+],
+"esperado": {
+"lineas": [
+151695906,
+2871703,
+1492608,
+156511904
+],
+"subtotal": 312572121,
+"isv": 46885818,
+"total": 359457939
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 234262,
+"cantidadCentesimas": 81078
+},
+{
+"precioCentavos": 408932,
+"cantidadCentesimas": 60069
+}
+],
+"esperado": {
+"lineas": [
+189934944,
+245641363
+],
+"subtotal": 435576307,
+"isv": 65336446,
+"total": 500912753
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 424951,
+"cantidadCentesimas": 62026
+},
+{
+"precioCentavos": 209895,
+"cantidadCentesimas": 14035
+}
+],
+"esperado": {
+"lineas": [
+263580107,
+29458763
+],
+"subtotal": 293038870,
+"isv": 43955831,
+"total": 336994701
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 67348,
+"cantidadCentesimas": 47000
+}
+],
+"esperado": {
+"lineas": [
+31653560
+],
+"subtotal": 31653560,
+"isv": 4748034,
+"total": 36401594
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 191540,
+"cantidadCentesimas": 12022
+},
+{
+"precioCentavos": 420627,
+"cantidadCentesimas": 57930
+},
+{
+"precioCentavos": 264421,
+"cantidadCentesimas": 66868
+},
+{
+"precioCentavos": 344508,
+"cantidadCentesimas": 5344
+}
+],
+"esperado": {
+"lineas": [
+23026939,
+243669221,
+176813034,
+18410508
+],
+"subtotal": 461919702,
+"isv": 69287955,
+"total": 531207657
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 333677,
+"cantidadCentesimas": 17075
+}
+],
+"esperado": {
+"lineas": [
+56975348
+],
+"subtotal": 56975348,
+"isv": 8546302,
+"total": 65521650
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 483460,
+"cantidadCentesimas": 96139
+}
+],
+"esperado": {
+"lineas": [
+464793609
+],
+"subtotal": 464793609,
+"isv": 69719041,
+"total": 534512650
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 407706,
+"cantidadCentesimas": 94424
+},
+{
+"precioCentavos": 268164,
+"cantidadCentesimas": 10482
+},
+{
+"precioCentavos": 28451,
+"cantidadCentesimas": 98574
+}
+],
+"esperado": {
+"lineas": [
+384972313,
+28108950,
+28045289
+],
+"subtotal": 441126552,
+"isv": 66168983,
+"total": 507295535
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 469169,
+"cantidadCentesimas": 49528
+},
+{
+"precioCentavos": 342227,
+"cantidadCentesimas": 17851
+},
+{
+"precioCentavos": 13557,
+"cantidadCentesimas": 8701
+},
+{
+"precioCentavos": 321978,
+"cantidadCentesimas": 95956
+},
+{
+"precioCentavos": 363096,
+"cantidadCentesimas": 14364
+}
+],
+"esperado": {
+"lineas": [
+232370022,
+61090942,
+1179595,
+308957210,
+52155109
+],
+"subtotal": 655752878,
+"isv": 98362932,
+"total": 754115810
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 69006,
+"cantidadCentesimas": 64471
+},
+{
+"precioCentavos": 150933,
+"cantidadCentesimas": 21642
+}
+],
+"esperado": {
+"lineas": [
+44488858,
+32664920
+],
+"subtotal": 77153778,
+"isv": 11573067,
+"total": 88726845
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 34350,
+"cantidadCentesimas": 45993
+},
+{
+"precioCentavos": 320049,
+"cantidadCentesimas": 99114
+}
+],
+"esperado": {
+"lineas": [
+15798596,
+317213366
+],
+"subtotal": 333011962,
+"isv": 49951794,
+"total": 382963756
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 83240,
+"cantidadCentesimas": 42447
+},
+{
+"precioCentavos": 470044,
+"cantidadCentesimas": 80417
+},
+{
+"precioCentavos": 144176,
+"cantidadCentesimas": 59822
+}
+],
+"esperado": {
+"lineas": [
+35332883,
+377995283,
+86248967
+],
+"subtotal": 499577133,
+"isv": 74936570,
+"total": 574513703
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 133254,
+"cantidadCentesimas": 65827
+},
+{
+"precioCentavos": 482297,
+"cantidadCentesimas": 62929
+}
+],
+"esperado": {
+"lineas": [
+87717111,
+303504679
+],
+"subtotal": 391221790,
+"isv": 58683269,
+"total": 449905059
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 310320,
+"cantidadCentesimas": 34455
+},
+{
+"precioCentavos": 322892,
+"cantidadCentesimas": 66324
+}
+],
+"esperado": {
+"lineas": [
+106920756,
+214154890
+],
+"subtotal": 321075646,
+"isv": 48161347,
+"total": 369236993
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 167289,
+"cantidadCentesimas": 48794
+},
+{
+"precioCentavos": 19312,
+"cantidadCentesimas": 26076
+}
+],
+"esperado": {
+"lineas": [
+81626995,
+5035797
+],
+"subtotal": 86662792,
+"isv": 12999419,
+"total": 99662211
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 211533,
+"cantidadCentesimas": 21133
+},
+{
+"precioCentavos": 333747,
+"cantidadCentesimas": 36464
+}
+],
+"esperado": {
+"lineas": [
+44703269,
+121697506
+],
+"subtotal": 166400775,
+"isv": 24960116,
+"total": 191360891
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 469455,
+"cantidadCentesimas": 49394
+},
+{
+"precioCentavos": 88470,
+"cantidadCentesimas": 34648
+},
+{
+"precioCentavos": 60335,
+"cantidadCentesimas": 69563
+}
+],
+"esperado": {
+"lineas": [
+231882603,
+30653086,
+41970836
+],
+"subtotal": 304506525,
+"isv": 45675979,
+"total": 350182504
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 333615,
+"cantidadCentesimas": 47157
+}
+],
+"esperado": {
+"lineas": [
+157322826
+],
+"subtotal": 157322826,
+"isv": 23598424,
+"total": 180921250
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 291075,
+"cantidadCentesimas": 68348
+},
+{
+"precioCentavos": 304110,
+"cantidadCentesimas": 90274
+},
+{
+"precioCentavos": 462703,
+"cantidadCentesimas": 13712
+},
+{
+"precioCentavos": 132138,
+"cantidadCentesimas": 70216
+}
+],
+"esperado": {
+"lineas": [
+198943941,
+274532261,
+63445835,
+92782018
+],
+"subtotal": 629704055,
+"isv": 94455608,
+"total": 724159663
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 386885,
+"cantidadCentesimas": 48689
+},
+{
+"precioCentavos": 138808,
+"cantidadCentesimas": 49249
+},
+{
+"precioCentavos": 193434,
+"cantidadCentesimas": 75676
+},
+{
+"precioCentavos": 76649,
+"cantidadCentesimas": 47219
+}
+],
+"esperado": {
+"lineas": [
+188370438,
+68361552,
+146383114,
+36192891
+],
+"subtotal": 439307995,
+"isv": 65896199,
+"total": 505204194
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 400892,
+"cantidadCentesimas": 10668
+},
+{
+"precioCentavos": 231883,
+"cantidadCentesimas": 30153
+},
+{
+"precioCentavos": 92672,
+"cantidadCentesimas": 80659
+}
+],
+"esperado": {
+"lineas": [
+42767159,
+69919681,
+74748308
+],
+"subtotal": 187435148,
+"isv": 28115272,
+"total": 215550420
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 155391,
+"cantidadCentesimas": 67648
+}
+],
+"esperado": {
+"lineas": [
+105118904
+],
+"subtotal": 105118904,
+"isv": 15767836,
+"total": 120886740
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 162568,
+"cantidadCentesimas": 83787
+},
+{
+"precioCentavos": 456287,
+"cantidadCentesimas": 76792
+},
+{
+"precioCentavos": 486781,
+"cantidadCentesimas": 86993
+}
+],
+"esperado": {
+"lineas": [
+136210850,
+350391913,
+423465395
+],
+"subtotal": 910068158,
+"isv": 136510224,
+"total": 1046578382
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 384324,
+"cantidadCentesimas": 235
+},
+{
+"precioCentavos": 391706,
+"cantidadCentesimas": 4430
+},
+{
+"precioCentavos": 116202,
+"cantidadCentesimas": 19578
+}
+],
+"esperado": {
+"lineas": [
+903161,
+17352576,
+22750028
+],
+"subtotal": 41005765,
+"isv": 6150865,
+"total": 47156630
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 322989,
+"cantidadCentesimas": 82002
+},
+{
+"precioCentavos": 226615,
+"cantidadCentesimas": 54748
+},
+{
+"precioCentavos": 268791,
+"cantidadCentesimas": 47724
+}
+],
+"esperado": {
+"lineas": [
+264857440,
+124067180,
+128277817
+],
+"subtotal": 517202437,
+"isv": 77580366,
+"total": 594782803
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 69219,
+"cantidadCentesimas": 64015
+}
+],
+"esperado": {
+"lineas": [
+44310543
+],
+"subtotal": 44310543,
+"isv": 6646581,
+"total": 50957124
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 321137,
+"cantidadCentesimas": 85605
+},
+{
+"precioCentavos": 23899,
+"cantidadCentesimas": 2922
+}
+],
+"esperado": {
+"lineas": [
+274909329,
+698329
+],
+"subtotal": 275607658,
+"isv": 41341149,
+"total": 316948807
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 1372,
+"cantidadCentesimas": 74334
+}
+],
+"esperado": {
+"lineas": [
+1019862
+],
+"subtotal": 1019862,
+"isv": 152979,
+"total": 1172841
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 159247,
+"cantidadCentesimas": 13942
+},
+{
+"precioCentavos": 274250,
+"cantidadCentesimas": 46813
+},
+{
+"precioCentavos": 280030,
+"cantidadCentesimas": 29395
+}
+],
+"esperado": {
+"lineas": [
+22202217,
+128384653,
+82314819
+],
+"subtotal": 232901689,
+"isv": 34935253,
+"total": 267836942
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 305970,
+"cantidadCentesimas": 39473
+},
+{
+"precioCentavos": 308854,
+"cantidadCentesimas": 17528
+},
+{
+"precioCentavos": 107052,
+"cantidadCentesimas": 48004
+},
+{
+"precioCentavos": 327119,
+"cantidadCentesimas": 62247
+}
+],
+"esperado": {
+"lineas": [
+120775538,
+54135929,
+51389242,
+203621764
+],
+"subtotal": 429922473,
+"isv": 64488371,
+"total": 494410844
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 70648,
+"cantidadCentesimas": 1850
+},
+{
+"precioCentavos": 491044,
+"cantidadCentesimas": 31928
+}
+],
+"esperado": {
+"lineas": [
+1306988,
+156780528
+],
+"subtotal": 158087516,
+"isv": 23713127,
+"total": 181800643
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 236377,
+"cantidadCentesimas": 12558
+},
+{
+"precioCentavos": 33381,
+"cantidadCentesimas": 83652
+}
+],
+"esperado": {
+"lineas": [
+29684224,
+27923874
+],
+"subtotal": 57608098,
+"isv": 8641215,
+"total": 66249313
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 456805,
+"cantidadCentesimas": 87225
+},
+{
+"precioCentavos": 410076,
+"cantidadCentesimas": 35359
+}
+],
+"esperado": {
+"lineas": [
+398448161,
+144998773
+],
+"subtotal": 543446934,
+"isv": 81517040,
+"total": 624963974
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 425497,
+"cantidadCentesimas": 34635
+},
+{
+"precioCentavos": 6028,
+"cantidadCentesimas": 7358
+},
+{
+"precioCentavos": 338139,
+"cantidadCentesimas": 73706
+},
+{
+"precioCentavos": 468020,
+"cantidadCentesimas": 45919
+}
+],
+"esperado": {
+"lineas": [
+147370886,
+443540,
+249228731,
+214910104
+],
+"subtotal": 611953261,
+"isv": 91792989,
+"total": 703746250
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 338483,
+"cantidadCentesimas": 75822
+},
+{
+"precioCentavos": 232656,
+"cantidadCentesimas": 78890
+},
+{
+"precioCentavos": 491341,
+"cantidadCentesimas": 67841
+},
+{
+"precioCentavos": 384577,
+"cantidadCentesimas": 64600
+},
+{
+"precioCentavos": 130285,
+"cantidadCentesimas": 21640
+}
+],
+"esperado": {
+"lineas": [
+256644580,
+183542318,
+333330648,
+248436742,
+28193674
+],
+"subtotal": 1050147962,
+"isv": 157522194,
+"total": 1207670156
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 23070,
+"cantidadCentesimas": 8065
+}
+],
+"esperado": {
+"lineas": [
+1860596
+],
+"subtotal": 1860596,
+"isv": 279089,
+"total": 2139685
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 13226,
+"cantidadCentesimas": 53214
+},
+{
+"precioCentavos": 97339,
+"cantidadCentesimas": 31152
+},
+{
+"precioCentavos": 83476,
+"cantidadCentesimas": 7652
+},
+{
+"precioCentavos": 478016,
+"cantidadCentesimas": 13752
+},
+{
+"precioCentavos": 6476,
+"cantidadCentesimas": 80300
+}
+],
+"esperado": {
+"lineas": [
+7038084,
+30323045,
+6387584,
+65736760,
+5200228
+],
+"subtotal": 114685701,
+"isv": 17202855,
+"total": 131888556
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 344353,
+"cantidadCentesimas": 25856
+},
+{
+"precioCentavos": 74589,
+"cantidadCentesimas": 54157
+},
+{
+"precioCentavos": 104606,
+"cantidadCentesimas": 67930
+},
+{
+"precioCentavos": 318811,
+"cantidadCentesimas": 84240
+},
+{
+"precioCentavos": 265787,
+"cantidadCentesimas": 84882
+}
+],
+"esperado": {
+"lineas": [
+89035912,
+40395165,
+71058856,
+268566386,
+225605321
+],
+"subtotal": 694661640,
+"isv": 104199246,
+"total": 798860886
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 426446,
+"cantidadCentesimas": 80372
+},
+{
+"precioCentavos": 91562,
+"cantidadCentesimas": 66661
+},
+{
+"precioCentavos": 162206,
+"cantidadCentesimas": 8359
+},
+{
+"precioCentavos": 157426,
+"cantidadCentesimas": 82047
+}
+],
+"esperado": {
+"lineas": [
+342743179,
+61036145,
+13558800,
+129163310
+],
+"subtotal": 546501434,
+"isv": 81975215,
+"total": 628476649
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 466277,
+"cantidadCentesimas": 94937
+}
+],
+"esperado": {
+"lineas": [
+442669395
+],
+"subtotal": 442669395,
+"isv": 66400409,
+"total": 509069804
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 375075,
+"cantidadCentesimas": 70570
+},
+{
+"precioCentavos": 3329,
+"cantidadCentesimas": 49173
+},
+{
+"precioCentavos": 442726,
+"cantidadCentesimas": 57233
+},
+{
+"precioCentavos": 390693,
+"cantidadCentesimas": 60984
+}
+],
+"esperado": {
+"lineas": [
+264690428,
+1636969,
+253385372,
+238260219
+],
+"subtotal": 757972988,
+"isv": 113695948,
+"total": 871668936
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 388894,
+"cantidadCentesimas": 85922
+}
+],
+"esperado": {
+"lineas": [
+334145503
+],
+"subtotal": 334145503,
+"isv": 50121825,
+"total": 384267328
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 91956,
+"cantidadCentesimas": 29616
+},
+{
+"precioCentavos": 55198,
+"cantidadCentesimas": 34266
+},
+{
+"precioCentavos": 121791,
+"cantidadCentesimas": 84413
+},
+{
+"precioCentavos": 20352,
+"cantidadCentesimas": 16157
+}
+],
+"esperado": {
+"lineas": [
+27233689,
+18914147,
+102807437,
+3288273
+],
+"subtotal": 152243546,
+"isv": 22836532,
+"total": 175080078
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 467285,
+"cantidadCentesimas": 98259
+},
+{
+"precioCentavos": 485060,
+"cantidadCentesimas": 91110
+},
+{
+"precioCentavos": 494326,
+"cantidadCentesimas": 34512
+}
+],
+"esperado": {
+"lineas": [
+459149568,
+441938166,
+170601789
+],
+"subtotal": 1071689523,
+"isv": 160753428,
+"total": 1232442951
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 139455,
+"cantidadCentesimas": 83345
+}
+],
+"esperado": {
+"lineas": [
+116228770
+],
+"subtotal": 116228770,
+"isv": 17434316,
+"total": 133663086
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 356115,
+"cantidadCentesimas": 57155
+},
+{
+"precioCentavos": 359522,
+"cantidadCentesimas": 68583
+},
+{
+"precioCentavos": 139092,
+"cantidadCentesimas": 38748
+},
+{
+"precioCentavos": 336595,
+"cantidadCentesimas": 28443
+},
+{
+"precioCentavos": 44786,
+"cantidadCentesimas": 66510
+}
+],
+"esperado": {
+"lineas": [
+203537528,
+246570973,
+53895368,
+95737716,
+29787169
+],
+"subtotal": 629528754,
+"isv": 94429313,
+"total": 723958067
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 89009,
+"cantidadCentesimas": 34128
+}
+],
+"esperado": {
+"lineas": [
+30376992
+],
+"subtotal": 30376992,
+"isv": 4556549,
+"total": 34933541
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 441306,
+"cantidadCentesimas": 97502
+},
+{
+"precioCentavos": 106314,
+"cantidadCentesimas": 20865
+}
+],
+"esperado": {
+"lineas": [
+430282176,
+22182416
+],
+"subtotal": 452464592,
+"isv": 67869689,
+"total": 520334281
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 100631,
+"cantidadCentesimas": 50949
+},
+{
+"precioCentavos": 172257,
+"cantidadCentesimas": 78805
+},
+{
+"precioCentavos": 125393,
+"cantidadCentesimas": 49736
+}
+],
+"esperado": {
+"lineas": [
+51270488,
+135747129,
+62365462
+],
+"subtotal": 249383079,
+"isv": 37407462,
+"total": 286790541
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 246150,
+"cantidadCentesimas": 61885
+},
+{
+"precioCentavos": 440251,
+"cantidadCentesimas": 69550
+},
+{
+"precioCentavos": 365753,
+"cantidadCentesimas": 837
+},
+{
+"precioCentavos": 449589,
+"cantidadCentesimas": 3476
+},
+{
+"precioCentavos": 229227,
+"cantidadCentesimas": 94978
+}
+],
+"esperado": {
+"lineas": [
+152329928,
+306194571,
+3061353,
+15627714,
+217715220
+],
+"subtotal": 694928786,
+"isv": 104239318,
+"total": 799168104
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 299023,
+"cantidadCentesimas": 40338
+},
+{
+"precioCentavos": 413770,
+"cantidadCentesimas": 27783
+}
+],
+"esperado": {
+"lineas": [
+120619898,
+114957719
+],
+"subtotal": 235577617,
+"isv": 35336643,
+"total": 270914260
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 326434,
+"cantidadCentesimas": 76721
+},
+{
+"precioCentavos": 40791,
+"cantidadCentesimas": 74083
+},
+{
+"precioCentavos": 477517,
+"cantidadCentesimas": 22485
+},
+{
+"precioCentavos": 75810,
+"cantidadCentesimas": 4315
+}
+],
+"esperado": {
+"lineas": [
+250443429,
+30219197,
+107369697,
+3271202
+],
+"subtotal": 391303525,
+"isv": 58695529,
+"total": 449999054
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 58665,
+"cantidadCentesimas": 13983
+}
+],
+"esperado": {
+"lineas": [
+8203127
+],
+"subtotal": 8203127,
+"isv": 1230469,
+"total": 9433596
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 487037,
+"cantidadCentesimas": 21209
+},
+{
+"precioCentavos": 180808,
+"cantidadCentesimas": 18592
+},
+{
+"precioCentavos": 367390,
+"cantidadCentesimas": 3767
+},
+{
+"precioCentavos": 16185,
+"cantidadCentesimas": 5460
+},
+{
+"precioCentavos": 72563,
+"cantidadCentesimas": 90784
+}
+],
+"esperado": {
+"lineas": [
+103295677,
+33615823,
+13839581,
+883701,
+65875594
+],
+"subtotal": 217510376,
+"isv": 32626556,
+"total": 250136932
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 365433,
+"cantidadCentesimas": 8891
+}
+],
+"esperado": {
+"lineas": [
+32490648
+],
+"subtotal": 32490648,
+"isv": 4873597,
+"total": 37364245
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 34480,
+"cantidadCentesimas": 77395
+}
+],
+"esperado": {
+"lineas": [
+26685796
+],
+"subtotal": 26685796,
+"isv": 4002869,
+"total": 30688665
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 104497,
+"cantidadCentesimas": 69979
+},
+{
+"precioCentavos": 467288,
+"cantidadCentesimas": 87054
+},
+{
+"precioCentavos": 34576,
+"cantidadCentesimas": 99061
+}
+],
+"esperado": {
+"lineas": [
+73125956,
+406792896,
+34251331
+],
+"subtotal": 514170183,
+"isv": 77125527,
+"total": 591295710
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 56160,
+"cantidadCentesimas": 32320
+},
+{
+"precioCentavos": 107859,
+"cantidadCentesimas": 26629
+},
+{
+"precioCentavos": 58705,
+"cantidadCentesimas": 4439
+},
+{
+"precioCentavos": 18050,
+"cantidadCentesimas": 98797
+}
+],
+"esperado": {
+"lineas": [
+18150912,
+28721773,
+2605915,
+17832859
+],
+"subtotal": 67311459,
+"isv": 10096719,
+"total": 77408178
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 432570,
+"cantidadCentesimas": 98491
+}
+],
+"esperado": {
+"lineas": [
+426042519
+],
+"subtotal": 426042519,
+"isv": 63906378,
+"total": 489948897
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 250146,
+"cantidadCentesimas": 13092
+},
+{
+"precioCentavos": 69549,
+"cantidadCentesimas": 12827
+},
+{
+"precioCentavos": 415219,
+"cantidadCentesimas": 99270
+}
+],
+"esperado": {
+"lineas": [
+32749114,
+8921050,
+412187901
+],
+"subtotal": 453858065,
+"isv": 68078710,
+"total": 521936775
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 154382,
+"cantidadCentesimas": 41831
+},
+{
+"precioCentavos": 176432,
+"cantidadCentesimas": 55544
+}
+],
+"esperado": {
+"lineas": [
+64579534,
+97997390
+],
+"subtotal": 162576924,
+"isv": 24386539,
+"total": 186963463
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 10968,
+"cantidadCentesimas": 45994
+},
+{
+"precioCentavos": 134586,
+"cantidadCentesimas": 37041
+},
+{
+"precioCentavos": 25380,
+"cantidadCentesimas": 93817
+}
+],
+"esperado": {
+"lineas": [
+5044622,
+49852000,
+23810755
+],
+"subtotal": 78707377,
+"isv": 11806107,
+"total": 90513484
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 477278,
+"cantidadCentesimas": 42052
+},
+{
+"precioCentavos": 403302,
+"cantidadCentesimas": 78907
+},
+{
+"precioCentavos": 264104,
+"cantidadCentesimas": 62402
+}
+],
+"esperado": {
+"lineas": [
+200704945,
+318233509,
+164806178
+],
+"subtotal": 683744632,
+"isv": 102561695,
+"total": 786306327
+}
+},
+{
+"lineas": [
+{
+"precioCentavos": 324155,
+"cantidadCentesimas": 97735
+},
+{
+"precioCentavos": 16244,
+"cantidadCentesimas": 54123
+},
+{
+"precioCentavos": 16384,
+"cantidadCentesimas": 57207
+}
+],
+"esperado": {
+"lineas": [
+316812889,
+8791740,
+9372795
+],
+"subtotal": 334977424,
+"isv": 50246614,
+"total": 385224038
+}
+}
+]
+}
