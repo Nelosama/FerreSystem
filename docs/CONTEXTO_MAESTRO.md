@@ -58,6 +58,26 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Garantías — módulo operativo por factura (2026-10-10 UTC)
+
+- **Rama/PR:** `feat/garantias-produccion`, dependiente de PR #118 (`feat/garantias-dias`). Sin merge ni despliegue.
+- **Decisión funcional:** garantías solo en días calendario, de 1 a 3650. El vencimiento es fecha de la factura (día de negocio `America/Tegucigalpa`) más días. Se retiró la regla de meses.
+- **Entidad nueva:** `coberturas_garantia` (modelo `CoberturaGarantia`), una fila por línea de factura. **No se reutiliza `garantias`**: esa tabla registra reclamos (`RECIBIDO → … → RECHAZADO`, con `motivo_falla` obligatorio y `cliente_nombre` como texto) y no tiene modelo Prisma. Sus datos no se modifican.
+- **Migración:** `backend/prisma/migrations/20261010120000_coberturas_garantia/migration.sql`. Solo crea tabla, índices, FK, CHECKs y un trigger de integridad. No altera tablas existentes.
+- **Integridad en PostgreSQL:** `dias_garantia` entre 1 y 3650; `fecha_vencimiento = fecha_venta + dias_garantia`; `UNIQUE(tenant, línea)` y `UNIQUE(tenant, solicitud)`; trigger que rechaza una línea que no pertenece a la factura, un producto distinto del de la línea o una factura de otra empresa.
+- **Backend:** módulo `backend/src/garantias/` (`GET /garantias/facturas/:numero`, `GET|POST /garantias/coberturas`, `PATCH /garantias/coberturas/:id`). Crear y editar: solo ADMIN. Consultar: ADMIN y CAJERO. Módulo `garantias`. Registrado en `app.module.ts`.
+- **Auditoría:** `GARANTIA_CREAR` y `GARANTIA_EDITAR` con antes/después. Campos `creado_por` y `actualizado_por`.
+- **Frontend:** `GarantiasPage.tsx` usa solo la API. Sin `localStorage` ni datos de demostración. Flujo: buscar factura, elegir línea, días, vista previa, guardar. El vencimiento de la vista previa se calcula con la fecha de la factura. El servidor guarda el valor definitivo. Montada en `/garantias`; sigue oculta en el menú (`PENDING_MODULES`).
+- **Pruebas:**
+  - `backend/test/garantias.postgres.integration.ts`: 35 casos con PostgreSQL 16 y cadena completa de migraciones. Cubre 30/90/180/365 días, cambios de mes y año, bisiesto, factura inexistente, línea ajena, trigger, duplicados, 5 solicitudes concurrentes, permisos por rol, aislamiento entre tenants, auditoría e histórico de `garantias`.
+  - Suite de integración completa: 294/294 en 14 archivos. Unitarias backend: 329/329.
+  - Frontend: 184/184 unitarias, `tsc`, build y lint sin errores nuevos. Playwright: 106/106. Las 6 pruebas nuevas usan **backend simulado**.
+- **Aplicación futura (no ejecutada en producción):** tras copia de seguridad y autorización, `npx prisma migrate deploy` en la base de destino. **No usar `prisma migrate dev` contra producción**: el esquema no mapea tablas existentes (`garantias`, `historial_garantias`, `pedidos_especiales`, etc.), y su diff propondría eliminarlas.
+- **Limitaciones:** Playwright con backend real no se ejecutó. No hay verificación en navegador de la app completa con sesión real. Sin modelo de sucursal. Límite de 3650 días técnico. Módulo oculto del menú hasta decisión de habilitación.
+- **Pendiente antes de operar:** decidir habilitación en `PENDING_MODULES`; revisar la migración con DBA; aplicar en staging; validar con personal de la ferretería.
+
+---
+
 ## Caja y arqueo — implementación para entrega (2026-10-10 UTC)
 
 - **Rama:** `claude/intelligent-cerf-b3ldo0` (designada para esta sesión; partió de `origin/main` `605cb941`, sin cambios de inventario). PR publicado hacia `main` sin merge ni despliegue. Sin producción ni datos reales en las pruebas.

@@ -21,13 +21,13 @@ const load = (file) => {
   const source = fs.readFileSync(abs, 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
   const req = (spec) => load(path.resolve(path.dirname(abs), spec.endsWith('.ts') ? spec : `${spec}.ts`));
-  vm.runInNewContext(code, { exports: mod.exports, module: mod, Date, Intl, require: req });
+  vm.runInNewContext(code, { exports: mod.exports, module: mod, Date, Intl, crypto: globalThis.crypto, require: req });
   return mod.exports;
 };
 
 const { diaCalendarioEnZona } = load('src/utils/format.ts');
 const { formatearFechaNegocio } = load('src/utils/fechasNegocio.ts');
-const { DIAS_GARANTIA_MAX, validarDiasGarantia, vencimientoGarantia, vigenciaDeRegistro } = load('src/utils/garantias.ts');
+const { DIAS_GARANTIA_MAX, validarDiasGarantia, vencimientoGarantia, generarSolicitudId } = load('src/utils/garantias.ts');
 
 // 2026-10-10T02:30Z = 2026-10-09 20:30 en Tegucigalpa (UTC-6, sin horario de verano).
 const INSTANTE = new Date('2026-10-10T02:30:00.000Z');
@@ -85,6 +85,12 @@ test('365 días desde 9 oct 2027 cruza el 29 feb 2028 y vence el 8 oct 2028', ()
   assert.equal(vencimientoGarantia('2028-01-01', 366), '2029-01-01');
 });
 
+test('la vista previa usa la fecha de la factura y no la del navegador', () => {
+  // La fecha de la factura es un dato, no el día actual: el vencimiento depende solo de ella.
+  assert.equal(vencimientoGarantia('2026-10-09', 30), '2026-11-08');
+  for (const tz of ZONAS_NAVEGADOR) conZona(tz, () => assert.equal(vencimientoGarantia('2026-10-09', 30), '2026-11-08', `zona ${tz}`));
+});
+
 test('la fecha de inicio es el día de negocio, sin desplazarse por la zona del navegador', () => {
   for (const tz of ZONAS_NAVEGADOR) {
     conZona(tz, () => {
@@ -97,20 +103,9 @@ test('la fecha de inicio es el día de negocio, sin desplazarse por la zona del 
   }
 });
 
-test('registro nuevo con días: la vigencia es días', () => {
-  const nuevo = vigenciaDeRegistro({ diasGarantia: 90, fechaVencimientoGarantia: '2027-01-07' });
-  assert.equal(nuevo.tipo, 'dias');
-  assert.equal(nuevo.valor, 90);
-});
-
-test('registro anterior con meses se muestra como meses y NO se convierte a días', () => {
-  const previo = { mesesGarantia: 12, fechaVencimientoGarantia: '2027-01-10' };
-  const v = vigenciaDeRegistro(previo);
-  assert.equal(v.tipo, 'meses');
-  assert.equal(v.valor, 12);
-  assert.notEqual(v.valor, 360);
-});
-
-test('registro sin vigencia devuelve null', () => {
-  assert.equal(vigenciaDeRegistro({}), null);
+test('generarSolicitudId produce UUID v4 distintos', () => {
+  const a = generarSolicitudId();
+  const b = generarSolicitudId();
+  assert.match(a, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.notEqual(a, b);
 });

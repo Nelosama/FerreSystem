@@ -876,3 +876,33 @@ model SolicitudDevolucion {
  @@index([tenantId,solicitanteId])
  @@map("solicitudes_devolucion")
 }
+
+// ============================================================
+// COBERTURA DE GARANTÍA (vigencia en días calendario por línea de factura)
+// Distinta de la tabla `garantias`, que registra reclamos. Las relaciones se
+// declaran como columnas con FK en la migración, para no modificar los modelos
+// de ventas, productos, usuarios ni tenants.
+// ============================================================
+
+model CoberturaGarantia {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  ventaId          String   @map("venta_id")
+  detalleVentaId   String   @map("detalle_venta_id")
+  productoId       String   @map("producto_id")
+  numeroSerie      String?  @map("numero_serie")
+  fechaVenta       DateTime @map("fecha_venta") @db.Date
+  diasGarantia     Int      @map("dias_garantia")
+  fechaVencimiento DateTime @map("fecha_vencimiento") @db.Date
+  solicitudId      String   @map("solicitud_id")
+  creadoPor        String   @map("creado_por")
+  actualizadoPor   String?  @map("actualizado_por")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, detalleVentaId])
+  @@unique([tenantId, solicitudId])
+  @@index([tenantId, ventaId])
+  @@index([tenantId, fechaVencimiento])
+  @@map("coberturas_garantia")
+}
