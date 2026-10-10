@@ -34,6 +34,8 @@ export interface OperacionLocal {
   cambioCentavos: number;
   clienteNombre: string;
   clienteRtn: string;
+  /** Nombre comercial de la empresa al cobrar. Solo para el comprobante impreso; no se envía al servidor. */
+  ferreteria?: string;
   esquemaVersion: number;
   estado: EstadoLocal;
   intentos: number;

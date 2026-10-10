@@ -111,6 +111,44 @@ Verificación contra el código de `claude/integracion-pos-offline-p1` (PR #129)
 
 **Ejecución de esta verificación:** simulada 120/120; E2E real 29/29 (14 de contingencia); frontend unitarias 224/224; build con `VITE_API_URL=/api`; integración de contingencia y piloto 31/31 (con las dos nuevas aserciones de inventario).
 
+## 4c. Comprobante, reimpresión, integridad y entrega en línea (ronda ATLAS)
+
+**Comprobante interno.** `frontend/src/offline/comprobante.ts` construye el comprobante solo desde el registro local guardado. Incluye: ferretería (guardada al cobrar), número temporal CT, fecha y hora de la operación, cajero, cliente, código y descripción de cada producto, cantidad, precio unitario y subtotal por línea, subtotal, ISV, total, efectivo recibido y cambio. Lleva el título «COMPROBANTE INTERNO DE CONTINGENCIA» y el aviso «NO ES FACTURA FISCAL». No usa numeración SAR ni CAI.
+
+**Impresión.** Hoja de estilos de impresión propia: 80 mm (72 mm útiles) y 58 mm (52 mm útiles), con selector por equipo. Solo se imprime el comprobante; botones y menús quedan ocultos. No se añade ninguna dependencia.
+
+**Reimpresión.** Cada venta del diario tiene «Reimprimir». Reimprimir reconstruye el comprobante desde el registro local y no crea operaciones. Ahora el diario muestra todas las ventas (antes, solo las últimas 12).
+
+**Integridad.** La impresión se hace después del guardado. Una falla o cancelación no revierte la venta ni habilita un segundo cobro. Si falla, la pantalla avisa y deja reimprimir.
+
+| Requisito | Prueba automatizada | Requiere hardware |
+|---|---|---|
+| Campos del comprobante, aviso no fiscal, subtotal por línea, redondeo | `frontend/test/comprobante-contingencia.test.mjs` (8) y simulada «el comprobante interno trae…» | No |
+| Reimprimir desde el diario sin crear venta | Simulada «reimprimir desde el diario…» | No |
+| Recargar después de guardar | Simulada «recargar el navegador…» | No |
+| Impresión que falla no revierte ni duplica el cobro | Simulada «una impresora que falla…» (con mutación: quitar el manejo de error la hace fallar) | Impresora apagada: C4 |
+| Cancelar el diálogo | Simulada «cancelar el diálogo…» | Diálogo real: C3 |
+| Papel 58 mm y recordatorio | Simulada «el papel de 58 mm…» | Papel real: C1–C2 |
+| Dos ventas consecutivas sin internet | Simulada «dos ventas consecutivas sin internet» | No |
+| Existencia local baja al instante | Simulada «la existencia local baja…» | No |
+| Solo efectivo | Backend: `metodoPago` solo admite `EFECTIVO` (DTO) y el servicio lo fija; UI con un solo botón de cobro | No |
+
+**Entrega de ventas en línea.** La auditoría, las garantías verificadas y las alternativas están en `docs/POS_VENTA_ENTREGA_DECISION.md`. Resumen:
+
+- Verificado: sin doble descuento (entrega repetida y simultánea → un movimiento), devolución `NO_ENTREGADO` libera la reserva sin tocar stock físico.
+- Corregido: `entregar` aceptaba una venta totalmente devuelta y la marcaba como entregada sin movimiento. Ahora rechaza con «fue devuelta; no hay entrega pendiente». Prueba: `piloto-flujo-completo` (entrega después de devolver).
+- Abierto (decisión del dueño): la reserva bloquea ventas posteriores (R2), no caduca (R3) y la entrega se confirma en otra pantalla (R1). Opciones A–D en el documento; no se cambió el flujo del cajero ni del bodeguero.
+
+**Pruebas automatizadas de esta ronda** (sobre el commit que contiene esta sección):
+
+- Backend unitarias: 345/345.
+- Integración PostgreSQL 16 (`REAL_SETTINGS_BROWSER=1`, usuario no root): 377/377 en 22 archivos. Incluye 11 de `piloto-flujo-completo` (5 nuevas: entrega repetida, entrega simultánea, venta sin entregar visible como pendiente, devolución NO_ENTREGADO, entrega tras devolución).
+- Frontend unitarias: 232/232. `tsc -b`, build con `VITE_API_URL=/api` y lint: sin errores.
+- E2E real (`run.sh`): 29/29; contingencia 14/14.
+- E2E simulada: 128/128 (8 nuevas: impresión, reimpresión, recarga, falla y cancelación de impresión, papel 58 mm, dos ventas sin internet, existencia local).
+
+**Pruebas que requieren hardware (no ejecutadas):** C1–C8 de `docs/POS_PILOTO_CHECKLIST_FISICO.md`: ancho real del papel, impresora apagada o sin papel, cancelación real, AirPrint en iPhone y reimpresión después de reiniciar el navegador.
+
 ## 5. Service worker, almacenamiento lleno y pérdida de respuesta
 
 | Riesgo | Cobertura | Resultado | Límite |

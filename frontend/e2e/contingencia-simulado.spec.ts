@@ -10,11 +10,11 @@ const producto = { id: 'prod-1', codigo: 'TOR-1', nombre: 'Tornillo 2 pulgadas',
   libreCentesimas: 4000, cupoCentesimas: 2000, usaMedida: false, unidadMedida: 'UNIDAD' };
 const VIGENTE = new Date(Date.now() + 30 * 3_600_000).toISOString();
 
-type Sim = { operacionesRecibidas: string[]; colgarPrimera: boolean; errores: string[] };
+type Sim = { operacionesRecibidas: string[]; colgarPrimera: boolean; errores: string[]; sinRed: boolean };
 
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
-    const sim: Sim = { operacionesRecibidas: [], colgarPrimera: false, errores: [] };
+    const sim: Sim = { operacionesRecibidas: [], colgarPrimera: false, errores: [], sinRed: false };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
     page.on('pageerror', (e) => sim.errores.push(e.message));
@@ -26,6 +26,7 @@ const test = base.extend<{ sim: Sim }>({
       if (!url.pathname.startsWith('/api/')) { if (url.origin === origen) await route.continue(); else await route.abort(); return; }
       const method = request.method();
       const path = url.pathname.slice(4);
+      if (sim.sinRed) { await route.abort(); return; } // sin internet: ninguna llamada a la API llega
       if (method === 'OPTIONS') { await route.fulfill({ status: 204, headers: { ...cabeceras, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } }); return; }
       if (method === 'GET' && path === '/tenant/settings') return responder(route, 200, { ...tenant, modoNavegacion: 'SIDEBAR' });
       if (method === 'GET' && path === '/auth/me') return responder(route, 200, { user: { sub: usuario.id, tenantId: tenant.id, rol: usuario.rol, permisos: ['pos.vender'], permisosConfigurados: true, descuentoMaximo: 0, nombre: usuario.nombre } });
@@ -171,5 +172,135 @@ test.describe('Contingencia POS — red y almacenamiento con backend simulado', 
     const estadoDe = async (c: string) => (await diario(page)).find((o) => o.correlativoLocal === c)?.estado;
     expect(await estadoDe('CT-01-0001')).toBe('ENVIANDO');
     expect(await estadoDe('CT-01-0002')).toBe('PENDIENTE');
+  });
+});
+
+// Impresión: window.print se sustituye para registrar lo que se enviaría a la impresora térmica.
+// Una impresora real no se puede simular aquí; ver docs/POS_PILOTO_CHECKLIST_FISICO.md.
+async function preparaImpresion(page: Page) {
+  await page.addInitScript(() => {
+    (window as any).__impresiones = [];
+    (window as any).__fallarImpresion = false;
+    (window as any).__cancelarImpresion = false;
+    window.print = () => {
+      if ((window as any).__fallarImpresion) throw new Error('Impresora no disponible');
+      if ((window as any).__cancelarImpresion) return; // el cajero cierra el diálogo: el navegador no informa la cancelación
+      const nodo = document.querySelector('.pc-comprobante-impresion');
+      (window as any).__impresiones.push({ texto: nodo?.textContent ?? '', clase: nodo?.className ?? '' });
+    };
+  });
+}
+const impresiones = (page: Page) => page.evaluate(() => (window as any).__impresiones as { texto: string; clase: string }[]);
+
+test.describe('Impresión del comprobante de contingencia', () => {
+  test('el comprobante interno trae ferretería, CT, cajero, código, descripción, cantidades, precios, total, efectivo y cambio', async ({ page }) => {
+    await preparaImpresion(page);
+    await ingresarYAbrirPos(page);
+    await venderUnTornillo(page);
+    await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0001' })).toBeVisible();
+    await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
+    await expect.poll(async () => (await impresiones(page)).length).toBe(1);
+    const [{ texto, clase }] = await impresiones(page);
+    expect(clase).toContain('papel-80');
+    for (const esperado of [
+      'COMPROBANTE INTERNO DE CONTINGENCIA', 'NO ES FACTURA FISCAL', 'Ferretería de contingencia',
+      'Número temporal: CT-01-0001', 'Cajero: Cajero de prueba', 'Cliente: Consumidor final',
+      'TOR-1 Tornillo 2 pulgadas', '1 x L 10.00 = L 10.00',
+      'Subtotal', 'L 10.00', 'ISV 15%', 'L 1.50', 'TOTAL', 'L 11.50', 'Efectivo recibido', 'L 20.00', 'Cambio entregado', 'L 8.50',
+    ]) expect(texto, esperado).toContain(esperado);
+    expect(texto).not.toMatch(/CAI|factura N/i);
+  });
+
+  test('reimprimir desde el diario muestra el mismo comprobante y no crea otra venta', async ({ page }) => {
+    await preparaImpresion(page);
+    await ingresarYAbrirPos(page);
+    await venderUnTornillo(page);
+    await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
+    await expect.poll(async () => (await impresiones(page)).length).toBe(1);
+    await page.getByRole('button', { name: 'Reimprimir' }).click();
+    await expect.poll(async () => (await impresiones(page)).length).toBe(2);
+    const [primera, segunda] = await impresiones(page);
+    expect(segunda.texto).toBe(primera.texto);
+    expect((await diario(page)).map((o) => o.correlativoLocal)).toEqual(['CT-01-0001']);
+  });
+
+  test('recargar el navegador después de guardar: la venta sigue en el diario y se reimprime', async ({ page }) => {
+    await preparaImpresion(page);
+    await ingresarYAbrirPos(page);
+    await venderUnTornillo(page);
+    await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0001' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('button', { name: /Tornillo 2 pulgadas/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Reimprimir' }).click();
+    await expect.poll(async () => (await impresiones(page)).length).toBe(1);
+    expect((await impresiones(page))[0].texto).toContain('Número temporal: CT-01-0001');
+    expect((await diario(page)).length).toBe(1);
+  });
+
+  test('una impresora que falla no revierte la venta, no permite cobrarla otra vez y deja atender al siguiente cliente', async ({ page, sim }) => {
+    await preparaImpresion(page);
+    await ingresarYAbrirPos(page);
+    await venderUnTornillo(page);
+    await page.evaluate(() => { (window as any).__fallarImpresion = true; });
+    await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
+    await expect(page.getByRole('status').or(page.getByRole('alert')).filter({ hasText: 'No se pudo imprimir' })).toBeVisible();
+    await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0001' })).toBeVisible();
+    expect((await diario(page)).map((o) => o.correlativoLocal)).toEqual(['CT-01-0001']);
+    await page.getByRole('button', { name: 'Siguiente cliente' }).click();
+    await page.evaluate(() => { (window as any).__fallarImpresion = false; });
+    await venderUnTornillo(page);
+    await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0002' })).toBeVisible();
+    expect((await diario(page)).map((o) => o.correlativoLocal).sort()).toEqual(['CT-01-0001', 'CT-01-0002']);
+    expect(sim.errores).toEqual([]);
+  });
+
+  test('cancelar el diálogo de impresión no cambia la venta ni muestra un error', async ({ page }) => {
+    await preparaImpresion(page);
+    await ingresarYAbrirPos(page);
+    await venderUnTornillo(page);
+    await page.evaluate(() => { (window as any).__cancelarImpresion = true; });
+    await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
+    await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0001' })).toBeVisible();
+    await expect(page.getByText(/No se pudo imprimir|NO se guardó/)).toHaveCount(0);
+    expect((await diario(page)).length).toBe(1);
+  });
+
+  test('el papel de 58 mm se aplica al comprobante y se recuerda al recargar', async ({ page }) => {
+    await preparaImpresion(page);
+    await ingresarYAbrirPos(page);
+    await page.getByLabel('Papel de la impresora').selectOption('58');
+    await venderUnTornillo(page);
+    await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
+    await expect.poll(async () => (await impresiones(page)).length).toBe(1);
+    expect((await impresiones(page))[0].clase).toContain('papel-58');
+    await page.reload();
+    await expect(page.getByLabel('Papel de la impresora')).toHaveValue('58');
+  });
+});
+
+test.describe('Contingencia POS — sin internet y existencias locales', () => {
+  test('dos ventas consecutivas sin internet: ambas quedan guardadas y pendientes, sin duplicar', async ({ page, sim }) => {
+    await ingresarYAbrirPos(page);
+    sim.sinRed = true;
+    await venderUnTornillo(page);
+    await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0001' })).toBeVisible();
+    await page.getByRole('button', { name: 'Siguiente cliente' }).click();
+    await venderUnTornillo(page);
+    await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0002' })).toBeVisible();
+    await expect.poll(async () => (await diario(page)).length, { timeout: 5_000 }).toBe(2);
+    expect(sim.operacionesRecibidas).toEqual([]);
+    expect(sim.errores).toEqual([]);
+  });
+
+  test('la existencia local baja al instante con cada venta, sin esperar la sincronización', async ({ page, sim }) => {
+    await ingresarYAbrirPos(page);
+    sim.colgarPrimera = true;
+    const tornillo = page.getByRole('button', { name: /Tornillo 2 pulgadas/ });
+    await expect(tornillo).toContainText('Disponible: 20');
+    await venderUnTornillo(page);
+    await expect(tornillo).toContainText('Disponible: 19');
+    await page.getByRole('button', { name: 'Siguiente cliente' }).click();
+    await venderUnTornillo(page);
+    await expect(tornillo).toContainText('Disponible: 18');
   });
 });
