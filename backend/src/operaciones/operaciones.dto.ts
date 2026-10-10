@@ -79,3 +79,7 @@ export class DecisionDevolucionDto {
  @IsIn(['AUTORIZADA','RECHAZADA']) decision!:string;
  @IsString() @IsNotEmpty() @MaxLength(500) motivo!:string;
 }
+export class EntregarVentaDto {
+ @IsUUID('4') solicitudId!:string;
+ @IsString() @IsNotEmpty() @MaxLength(200) receptorNombre!:string;
+}

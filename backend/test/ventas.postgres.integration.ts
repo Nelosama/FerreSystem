@@ -65,7 +65,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261002000000_add_customer_numbers/migration.sql')], { windowsHide: true, timeout: 30000 });
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261004000000_operacion_ferreteria/migration.sql')], {timeout:30000});
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261005000000_autorizaciones_devolucion/migration.sql')], {timeout:30000});
-    for (const migration of ['20261005000000_compras_proveedor_y_costo_vigente', '20261006000000_clientes_credito', '20261006000100_tenant_configuration', '20261009000000_levantamiento_multiusuario', '20261009120000_fs06_marca_idempotencia_levantamiento', '20261009130000_fs07_version_producto', '20261010120000_coberturas_garantia', '20261010140000_productos_proveedores', '20261011000000_pos_contingencia_offline']) {
+    for (const migration of ['20261005000000_compras_proveedor_y_costo_vigente', '20261006000000_clientes_credito', '20261006000100_tenant_configuration', '20261009000000_levantamiento_multiusuario', '20261009120000_fs06_marca_idempotencia_levantamiento', '20261009130000_fs07_version_producto', '20261010120000_coberturas_garantia', '20261010140000_productos_proveedores', '20261011000000_pos_contingencia_offline', '20261012000000_entrega_eventos_y_cantidades']) {
       execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve(`prisma/migrations/${migration}/migration.sql`)], { timeout: 30000 });
     }
     databaseUrl = `postgresql://postgres@127.0.0.1:${port}/postgres?connection_limit=8`;
@@ -610,7 +610,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect(Number(p.stockActual)).toBe(2.75);expect(Number(p.stockReservado)).toBe(2);
     expect(await available()).toBe(.75);
     await expect(ventas.create(tenantId,usuarioId,request(1))).rejects.toThrow('Stock insuficiente');
-    await Promise.all([ops.entregar(tenantId,usuarioId,sale.id),ops.entregar(tenantId,usuarioId,sale.id)]);
+    const entrega={solicitudId:randomUUID(),receptorNombre:'Cliente de prueba'};await Promise.all([ops.entregar(tenantId,usuarioId,sale.id,entrega),ops.entregar(tenantId,usuarioId,sale.id,entrega)]);
     p=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
     expect(Number(p.stockActual)).toBe(.75);expect(Number(p.stockReservado)).toBe(0);
     expect(await prisma.movimientoInventario.count({where:{tenantId,tipo:'ENTREGA'}})).toBe(1);
@@ -619,7 +619,7 @@ describe('Ventas / PostgreSQL aislado', () => {
   it('una devolución entregada restaura inventario, reembolsa una sola vez y no permite devolver de más',async()=>{
     await prisma.usuario.update({where:{id:usuarioId},data:{rol:'ADMIN'}});
     const ops=new OperacionesService(prisma),sale=await ventas.create(tenantId,usuarioId,request(2));
-    await ops.entregar(tenantId,usuarioId,sale.id);
+    await ops.entregar(tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),receptorNombre:'Cliente de prueba'});
     const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
     const command={solicitudId:randomUUID(),motivo:'Producto equivocado',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'INVENTARIO'}]};
     await Promise.all([ops.devolver(tenantId,usuarioId,sale.id,command),ops.devolver(tenantId,usuarioId,sale.id,command)]);
@@ -637,7 +637,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     await ops.devolver(tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),motivo:'Cancelación parcial',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'NO_ENTREGADO'}]});
     expect(Number((await ops.cuentas(tenantId,usuarioId,'CXC'))[0].saldo)).toBe(11.5);
     expect((await ops.caja(tenantId,usuarioId))[0].efectivoEsperado).toBe(1000);
-    await ops.entregar(tenantId,usuarioId,sale.id);
+    await ops.entregar(tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),receptorNombre:'Cliente de prueba'});
     const p=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});
     expect(Number(p.stockActual)).toBe(1.75);expect(Number(p.stockReservado)).toBe(0);
   });
@@ -760,7 +760,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const {ops,adminId,sale,command}=await authorizedReturn();
     await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
     await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'});
-    await ops.entregar(tenantId,usuarioId,sale.id);
+    await ops.entregar(tenantId,adminId,sale.id,{solicitudId:randomUUID(),receptorNombre:'Cliente de prueba'});
     await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('destino físico');
     expect(await prisma.devolucion.count({where:{tenantId}})).toBe(0);
   });
@@ -780,7 +780,7 @@ describe('Ventas / PostgreSQL aislado', () => {
 
   it('devolución autorizada parcial de mercancía entregada restaura solo lo devuelto y conserva la venta',async()=>{
     const {ops,adminId,sale,command}=await authorizedReturn();
-    await ops.entregar(tenantId,usuarioId,sale.id);
+    await ops.entregar(tenantId,adminId,sale.id,{solicitudId:randomUUID(),receptorNombre:'Cliente de prueba'});
     command.items[0].cantidad=.5;command.items[0].destino='INVENTARIO';
     const before=Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual);
     await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);

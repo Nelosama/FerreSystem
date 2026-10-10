@@ -9,6 +9,7 @@ export interface CartItem {
 }
 
 export interface SaleDraft {
+  modoEntrega?: 'MOSTRADOR' | 'BODEGA';
   cart: CartItem[];
   clienteNombre: string;
   clienteRtn: string;
@@ -29,6 +30,7 @@ const validDraft = (sale: SaleDraft) => sale && Array.isArray(sale.cart) && sale
     optionalString(item.proveedorId) && (!item.sinInventario || !!item.proveedorId)) &&
   typeof sale.clienteNombre === 'string' && typeof sale.clienteRtn === 'string' &&
   optionalString(sale.clienteId) && optionalString(sale.vencimiento) &&
+  (sale.modoEntrega === undefined || sale.modoEntrega === 'MOSTRADOR' || sale.modoEntrega === 'BODEGA') &&
   ['EFECTIVO', 'TARJETA', 'CREDITO', 'TRANSFERENCIA'].includes(sale.metodoPago) &&
   Number.isFinite(sale.descuentoPorcentaje) && sale.descuentoPorcentaje >= 0 && sale.descuentoPorcentaje <= 100;
 

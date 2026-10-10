@@ -192,7 +192,7 @@ export default function PosContingenciaPage() {
   const resultados = useMemo(() => {
     if (!ventana) return [];
     const q = busqueda.trim().toLowerCase();
-    const lista = ventana.productos.filter((p) => !q || p.nombre.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q) || (p.codigoBarras ?? '').toLowerCase() === q);
+    const lista = ventana.productos.filter((p) => p.precioCentavos > 0 && (!q || p.nombre.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q) || (p.codigoBarras ?? '').toLowerCase() === q));
     return lista.slice(0, 60);
   }, [busqueda, ventana]);
 
@@ -369,7 +369,7 @@ export default function PosContingenciaPage() {
             onChange={(e) => setBusqueda(e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== 'Enter' || !ventana) return;
-              const exacto = ventana.productos.find((p) => p.codigo.toLowerCase() === busqueda.trim().toLowerCase() || (p.codigoBarras ?? '') === busqueda.trim());
+              const exacto = ventana.productos.find((p) => p.precioCentavos > 0 && (p.codigo.toLowerCase() === busqueda.trim().toLowerCase() || (p.codigoBarras ?? '') === busqueda.trim()));
               if (exacto) { agregar(exacto); setBusqueda(''); }
             }}
             disabled={!ventana || operador === false}

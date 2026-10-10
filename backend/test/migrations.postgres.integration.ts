@@ -176,6 +176,37 @@ describe('Instalación y adopción / PostgreSQL aislado', () => {
     expect(cli(db.url, 'adopt', ['--through', initial, '--backup-manifest', manifest], { FERRE_REFERENCE_DATABASE_URL: db.url }).status).toBe(1);
     expect(JSON.parse(cli(db.url, 'inspect').output).state).toBe('REQUIERE_BASELINE');
   }, 60000);
+  it('backfill de la migración de entregas conserva ventas legadas: entregadas, pendientes, contingencia y sin inventario', async () => {
+    const db = database();
+    const previous = names[names.indexOf('20261012000000_entrega_eventos_y_cantidades') - 1];
+    apply(db.name, previous);
+    const psql = (sql: string) => execFileSync(executable('psql'), ['-X', '-At', '-h', '127.0.0.1', '-p', port, '-U', 'postgres', '-d', db.name, '-v', 'ON_ERROR_STOP=1', '-c', sql], { timeout: 30000, stdio: 'pipe' }).toString().trim();
+    const t = randomUUID(), u = randomUUID(), p1 = randomUUID(), p2 = randomUUID();
+    psql(`INSERT INTO tenants (id, nombre_comercial, updated_at) VALUES ('${t}', 'Legado', now())`);
+    psql(`INSERT INTO usuarios (id, tenant_id, email, password_hash, nombre, rol, updated_at) VALUES ('${u}', '${t}', 'legado@example.test', 'x', 'Legado', 'ADMIN', now())`);
+    psql(`INSERT INTO productos (id, tenant_id, codigo, nombre, stock_actual, precio_venta, precio_costo, updated_at) VALUES ('${p1}', '${t}', 'L1', 'Legado 1', 10, 10, 5, now()), ('${p2}', '${t}', 'L2', 'Legado 2', 10, 10, 5, now())`);
+    let numero = 0;
+    const venta = (id: string, origen: string, entregado: boolean) => psql(`INSERT INTO ventas (id, tenant_id, numero_venta, usuario_id, subtotal, isv, total, origen${entregado ? ', entregado_at' : ''}) VALUES ('${id}', '${t}', ${++numero}, '${u}', 20, 0, 20, '${origen}'${entregado ? ', now()' : ''})`);
+    const linea = (id: string, v: string, p: string, sinInv: boolean) => psql(`INSERT INTO detalles_venta (id, venta_id, producto_id, cantidad, precio_unitario, subtotal, sin_inventario) VALUES ('${id}', '${v}', '${p}', 2, 10, 20, ${sinInv})`);
+    const [vEntregada, vPendiente, vContingencia, vSinInv] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    const [dEntregada, dPendiente, dContingencia, dSinInv] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    venta(vEntregada, 'ONLINE', true); linea(dEntregada, vEntregada, p1, false);
+    venta(vPendiente, 'ONLINE', false); linea(dPendiente, vPendiente, p1, false);
+    venta(vContingencia, 'CONTINGENCIA', true); linea(dContingencia, vContingencia, p2, false);
+    venta(vSinInv, 'ONLINE', false); linea(dSinInv, vSinInv, p2, true);
+    const antes = psql(`SELECT count(*) FROM ventas`);
+    execFileSync(executable('psql'), ['-X', '-h', '127.0.0.1', '-p', port, '-U', 'postgres', '-d', db.name, '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations', '20261012000000_entrega_eventos_y_cantidades', 'migration.sql')], { timeout: 30000, stdio: 'pipe' });
+    const fila = (id: string) => psql(`SELECT modo_entrega || '|' || cantidad_entregada || '|' || cantidad_devuelta_reingresada || '|' || cantidad_devuelta_sin_reingreso || '|' || cantidad_cancelada || '|' || cantidad_preparada FROM detalles_venta WHERE id='${id}'`);
+    expect(psql(`SELECT count(*) FROM ventas`)).toBe(antes);
+    expect(fila(dEntregada)).toMatch(/\|2\.00\|0\.00\|0\.00\|0\.00\|0\.00$/);
+    expect(fila(dPendiente)).toMatch(/\|0\.00\|0\.00\|0\.00\|0\.00\|0\.00$/);
+    expect(fila(dContingencia)).toMatch(/^MOSTRADOR\|2\.00\|/);
+    expect(fila(dSinInv)).toMatch(/^SIN_INVENTARIO\|0\.00\|/);
+    expect(psql(`SELECT count(*) FROM detalles_venta WHERE cantidad_entregada + cantidad_cancelada > cantidad OR cantidad_entregada < cantidad_devuelta_reingresada + cantidad_devuelta_sin_reingreso`)).toBe('0');
+    expect(psql(`SELECT count(*) FROM detalles_venta WHERE tenant_id IS NULL`)).toBe('0');
+    expect(cli(db.url, 'inspect').status).toBe(0);
+  }, 90000);
+
   it('respalda y restaura venta, entrega, devolución autorizada, caja y auditoría sin repetir ajustes', async () => {
     const source=database();expect(cli(source.url,'deploy').status).toBe(0);
     const tenant=await source.prisma.tenant.create({data:{nombreComercial:'Ensayo aislado'}});
@@ -185,7 +216,7 @@ describe('Instalación y adopción / PostgreSQL aislado', () => {
     const ops=new OperacionesService(source.prisma as PrismaService);
     await ops.abrir(tenant.id,cashier.id,{solicitudId:randomUUID(),monto:100});
     const sale=await new VentasService(source.prisma as PrismaService).create(tenant.id,cashier.id,{solicitudId:randomUUID(),metodoPago:'EFECTIVO',detalles:[{productoId:product.id,cantidad:2,precioUnitario:10}]});
-    await ops.entregar(tenant.id,cashier.id,sale.id);
+    await ops.entregar(tenant.id,admin.id,sale.id,{solicitudId:randomUUID(),receptorNombre:'Cliente de prueba'});
     const original=await ops.buscarVenta(tenant.id,String(sale.numeroVenta));
     const command={solicitudId:randomUUID(),motivo:'Ensayo de devolución parcial',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'INVENTARIO'}]};
     await ops.solicitarDevolucion(tenant.id,cashier.id,sale.id,command);

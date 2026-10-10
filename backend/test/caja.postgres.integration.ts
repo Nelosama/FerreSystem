@@ -139,7 +139,7 @@ describe('Caja y arqueo / PostgreSQL aislado', () => {
     await abrir(adminId, 1000);
     const vendida = await venta(adminId, 'EFECTIVO');
     const detalle = await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: vendida.id } });
-    await ops.entregar(tenantId, adminId, vendida.id);
+    await ops.entregar(tenantId, adminId, vendida.id, {solicitudId:randomUUID(),receptorNombre:'Cliente de prueba'});
     const devolucion = await ops.devolver(tenantId, adminId, vendida.id, {
       solicitudId: randomUUID(), motivo: 'Producto defectuoso', metodo: 'EFECTIVO',
       items: [{ detalleId: detalle.id, cantidad: 1, destino: 'INVENTARIO' }],

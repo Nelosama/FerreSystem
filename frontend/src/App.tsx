@@ -21,6 +21,7 @@ import { useTenant } from './context/TenantContext';
 
 const AuditoriaPage=React.lazy(()=>import('./pages/AuditoriaPage').then(m=>({default:m.AuditoriaPage})));
 const DevolucionesPage=React.lazy(()=>import('./pages/DevolucionesPage').then(m=>({default:m.DevolucionesPage})));
+const EntregasPage=React.lazy(()=>import('./pages/EntregasPage').then(m=>({default:m.EntregasPage})));
 const OperacionesPage=React.lazy(()=>import('./pages/OperacionesPage').then(m=>({default:m.OperacionesPage})));
 
 // Dynamic page imports with React.lazy
@@ -366,7 +367,7 @@ export const App: React.FC = () => {
                   />
 
                   <Route path="/cuentas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO']}><AppLayout><OperacionesPage modo="cuentas"/></AppLayout></ProtectedRoute>}/>
-                  <Route path="/entregas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','BODEGUERO']}><AppLayout><OperacionesPage modo="entregas"/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/entregas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','BODEGUERO']}><AppLayout><EntregasPage/></AppLayout></ProtectedRoute>}/>
                   {/* Fallback */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

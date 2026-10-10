@@ -1,4 +1,6 @@
-import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, id as nuevoId, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { aCentesimas, huellaCanonica, normalizarTexto } from '../common/huella-solicitud';
+import { cent, registrarEventosCobro } from '../entregas/entregas-core';
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -113,6 +115,7 @@ export class VentasService {
         sinInventario?: boolean;
         proveedorId?: string;
         ordenCompraId?: string;
+        modoEntrega?: 'MOSTRADOR' | 'BODEGA';
       }[];
     },
   ) {
@@ -127,7 +130,33 @@ export class VentasService {
     }
     const metodo = dto.metodoPago || (tipoPago === 'CREDITO' ? 'CREDITO' : 'EFECTIVO');
     const descuento = decimal(dto.descuento || 0, 'Descuento');
-    const requestHash = fingerprint({usuarioId,dto});
+    // Huella canónica (v2): mismo contenido, misma huella, sin importar orden de claves o líneas. Las ventas
+    // anteriores conservan su huella heredada y se comparan con ella.
+    const huellaHeredada = fingerprint({usuarioId,dto});
+    let requestHash: string;
+    try {
+      requestHash = 'v2:' + huellaCanonica({
+        v: 2, usuarioId,
+        clienteId: dto.clienteId ?? null,
+        clienteNombre: normalizarTexto(dto.clienteNombre),
+        clienteRtn: normalizarTexto(dto.clienteRtn),
+        vencimiento: dto.vencimiento ?? null,
+        metodo, tipoPago,
+        descuentoCentesimas: aCentesimas(descuento, 'El descuento'),
+        notas: normalizarTexto(dto.notas),
+        detalles: dto.detalles.map((d) => ({
+          productoId: d.productoId,
+          cantidadCentesimas: aCentesimas(d.cantidad, 'La cantidad', true),
+          precioCentesimas: d.precioUnitario === undefined ? null : aCentesimas(d.precioUnitario, 'El precio'),
+          sinInventario: !!d.sinInventario,
+          proveedorId: d.proveedorId ?? null,
+          ordenCompraId: d.ordenCompraId ?? null,
+          modoEntrega: d.sinInventario ? 'SIN_INVENTARIO' : (d.modoEntrega ?? 'BODEGA'),
+        })).sort((a, b) => (a.productoId < b.productoId ? -1 : a.productoId > b.productoId ? 1 : 0)),
+      });
+    } catch (error) {
+      throw new BadRequestException((error as Error).message);
+    }
 
     // Transacción atómica completa: número correlativo, descuento de inventario y guardado
     return this.prisma.$transaction(async (tx) => {
@@ -152,7 +181,7 @@ export class VentasService {
               return true;
             });
           if (anterior.tenantId !== tenantId || anterior.usuarioId !== usuarioId ||
-              (anterior.solicitudHash && anterior.solicitudHash !== requestHash) ||
+              (anterior.solicitudHash && anterior.solicitudHash !== (anterior.solicitudHash.startsWith('v2:') ? requestHash : huellaHeredada)) ||
               anterior.clienteId !== (dto.clienteId || null) ||
               anterior.metodoPago !== metodo || anterior.tipoPago !== tipoPago ||
               Number(anterior.descuento) !== descuento || anterior.notas !== (dto.notas || null) ||
@@ -197,6 +226,8 @@ export class VentasService {
         sinInventario: boolean;
         proveedorId: string | null;
         ordenCompraId: string | null;
+        modo: 'MOSTRADOR' | 'BODEGA' | 'SIN_INVENTARIO';
+        stockAntes: number;
       }[] = [];
 
       for (const item of dto.detalles) {
@@ -209,17 +240,26 @@ export class VentasService {
         if (!prod) {
           throw new NotFoundException(`Producto con ID ${item.productoId} no encontrado o inactivo`);
         }
+        // Contrato de precio aprobado (acordado con KARDEX): producto activo con precio de venta mayor que cero.
+        if (!(Number(prod.precioVenta) > 0)) {
+          throw new BadRequestException(`«${prod.nombre}» no tiene precio de venta aprobado; no se puede vender`);
+        }
+        if (item.sinInventario && item.modoEntrega) throw new BadRequestException('La venta sin inventario no admite modo de entrega');
+        const modo: 'MOSTRADOR' | 'BODEGA' | 'SIN_INVENTARIO' = item.sinInventario ? 'SIN_INVENTARIO' : (item.modoEntrega ?? 'BODEGA');
 
         const reservado=Number(prod.stockReservado||0);
         const stockDisponible = money(Number(prod.stockActual)-reservado);
         if (!item.sinInventario && stockDisponible < item.cantidad) {
           throw new BadRequestException(
-            `Stock insuficiente para "${prod.nombre}". Disponible: ${stockDisponible}, Solicitado: ${item.cantidad}`,
+            modo === 'MOSTRADOR'
+              ? `No hay existencias disponibles de "${prod.nombre}" para entregar ahora (disponible: ${stockDisponible}). Si la mercancía está pendiente de entregar, use Cobrar y dejar en bodega.`
+              : `Stock insuficiente para "${prod.nombre}". Disponible: ${stockDisponible}, Solicitado: ${item.cantidad}`,
           );
         }
 
         const precioUnitario = item.precioUnitario !== undefined ? item.precioUnitario : Number(prod.precioVenta);
         decimal(precioUnitario,'Precio unitario');
+        if (!(precioUnitario > 0)) throw new BadRequestException('El precio unitario debe ser mayor que cero');
         if (user.rol !== 'ADMIN' && precioUnitario !== Number(prod.precioVenta)) throw new ConflictException('El precio cambió; actualice el catálogo o solicite al administrador');
         if (item.sinInventario) {
           const [provider] = await query(tx,'SELECT id FROM proveedores WHERE id=$1 AND tenant_id=$2',item.proveedorId || '',tenantId);
@@ -231,9 +271,10 @@ export class VentasService {
 
         // Descontar inventario con precisión decimal exacta
         if (!item.sinInventario) {
+        // MOSTRADOR descuenta existencias al cobrar (entrega inmediata); BODEGA las reserva para entrega posterior.
         const descontado = await tx.producto.updateMany({
           where: { id: prod.id, tenantId, activo: true, stockActual: { gte: money(item.cantidad+reservado) }, stockReservado:reservado },
-          data: { stockReservado: { increment: item.cantidad } },
+          data: modo === 'MOSTRADOR' ? { stockActual: { decrement: item.cantidad } } : { stockReservado: { increment: item.cantidad } },
         });
         if (descontado.count !== 1) {
           throw new BadRequestException(`Stock insuficiente para "${prod.nombre}" o producto inactivo`);
@@ -250,6 +291,8 @@ export class VentasService {
           sinInventario: !!item.sinInventario,
           proveedorId: item.proveedorId || null,
           ordenCompraId: item.ordenCompraId || null,
+          modo,
+          stockAntes: cent(prod.stockActual),
         });
       }
 
@@ -259,6 +302,7 @@ export class VentasService {
       const baseGravable = money(subtotalTotal - descuento);
       const isv = Math.round(baseGravable * 0.15 * 100) / 100;
       const total = Math.round((baseGravable + isv) * 100) / 100;
+      if (!(total > 0)) throw new BadRequestException('La venta debe tener un importe mayor que cero');
 
       if (tipoPago === 'CREDITO' && clienteCredito.limiteCredito !== null) {
         const nuevoSaldo = money(Number(clienteCredito.saldoPendiente) + total);
@@ -272,7 +316,7 @@ export class VentasService {
         data: {
           ...(dto.solicitudId && { id: dto.solicitudId }),
           tenantId,
-          reservaPendiente:detallesParaCrear.some(d=>!d.sinInventario),
+          reservaPendiente:detallesParaCrear.some(d=>d.modo==='BODEGA'),
           numeroVenta,
           clienteId: dto.clienteId || null,
           usuarioId,
@@ -299,6 +343,9 @@ export class VentasService {
               sinInventario: d.sinInventario,
               proveedorId: d.proveedorId,
               ordenCompraId: d.ordenCompraId,
+              tenantId,
+              modoEntrega: d.modo,
+              cantidadEntregada: d.modo === 'MOSTRADOR' ? d.cantidad : 0,
             })),
           },
         },
@@ -318,6 +365,15 @@ export class VentasService {
         if (updated.count !== 1) throw new BadRequestException('El cliente no tiene habilitado el crédito');
         await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,dto.vencimiento);
       }
+      // Eventos de cobro y, si hubo entrega inmediata, de entrega con su movimiento de inventario.
+      const porProducto = new Map(detallesParaCrear.map((d) => [d.productoId, d]));
+      await registrarEventosCobro(tx, {
+        tenantId, usuarioId, ventaId: venta.id, origen: 'ONLINE', solicitud: dto.solicitudId ?? nuevoId(),
+        lineas: venta.detalles.map((d) => ({
+          detalleId: d.id, productoId: d.productoId, cantidadCentesimas: cent(d.cantidad),
+          modo: d.modoEntrega as 'MOSTRADOR' | 'BODEGA' | 'SIN_INVENTARIO', stockAntes: porProducto.get(d.productoId)!.stockAntes,
+        })),
+      });
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',total,metodo,venta.id,`Venta ${numeroVenta}`);
       await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id});
       return this.formatVentaCreada(venta);
@@ -339,6 +395,8 @@ export class VentasService {
         cantidad: Number(d.cantidad),
         precioUnitario: Number(d.precioUnitario),
         subtotal: Number(d.subtotal),
+        modoEntrega: d.modoEntrega,
+        cantidadEntregada: Number(d.cantidadEntregada),
       })),
     };
   }
