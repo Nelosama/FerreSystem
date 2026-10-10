@@ -1,54 +1,82 @@
-# Contratos de cobro y entrega — para validación de KARDEX, CENTINELA y BALANCE
+# Contratos de cobro y entrega — revisión 2 (para validación de KARDEX, CENTINELA y BALANCE)
 
-_Informe de **ATLAS**. Estos contratos describen lo que ATLAS necesita de cada área y lo que ATLAS entrega. Ninguna área ha validado todavía. Cada área debe responder en la sección «Validación» antes de implementar._
+_Informe de **ATLAS**. Estos contratos describen lo que ATLAS necesita de cada área y lo que ATLAS entrega. **Ninguna área ha validado todavía.** Las casillas de validación permanecen sin marcar hasta que cada área responda._
 
-Diseño general: `docs/POS_ENTREGA_DISENO_TECNICO.md`.
+Diseño general: `docs/POS_ENTREGA_DISENO_TECNICO.md` (revisión 2).
+
+Principios que aplican a los tres contratos:
+- Inventario único por empresa (P2). `MOSTRADOR` y `BODEGA` son modos de entrega, no ubicaciones.
+- Ninguna venta pagada se cancela automáticamente (P11).
+- Ventas abiertas sin cambios (P6). Migración solo en copia (P10).
 
 ---
 
 ## 1. Contrato con KARDEX (inventario y existencias)
 
-### 1.1 Eventos que ATLAS emite
+### 1.1 Eventos de movimiento
 
-Cada evento es un movimiento en `movimientos_inventario` con los campos existentes más `detalle_venta_id` (nuevo).
+Un evento de entrega o devolución física produce **un movimiento por línea** en `movimientos_inventario`, con el `evento_id` que lo agrupa.
 
-| Evento | `tipo` | Cantidad (firmada) | `documento_id` | `detalle_venta_id` | Efecto en `stockActual` | Efecto en `stockReservado` | Cuándo |
-|---|---|---|---|---|---|---|---|
-| Venta de mostrador | `ENTREGA` | `−cantidad` | `ventaId` | Sí | `−cantidad` | — | Al cobrar (`MOSTRADOR`) |
-| Venta de contingencia sincronizada | `ENTREGA` | `−cantidad` | `ventaId` | Sí | `−cantidad` | — | Al sincronizar (una vez por `operacionId`) |
-| Pedido de bodega cobrado | (sin movimiento de stock) | — | — | — | — | `+cantidad` | Al cobrar (`BODEGA`) |
-| Preparación de pedido | (sin movimiento de stock) | — | — | — | — | — | Cambio de estado de línea |
-| Entrega de pedido | `ENTREGA` | `−cantidad_entregada` | `ventaId` | Sí | `−cantidad_entregada` | `−cantidad_entregada` | Al entregar |
-| Liberación de reserva (ADMIN) | (sin movimiento de stock) | — | — | — | — | `−cantidad` | Con motivo |
-| Devolución con retorno físico | `INGRESO` | `+cantidad` | `devolucionId` | Sí | `+cantidad` | — | Al devolver |
-| Devolución de reserva no entregada | (sin movimiento de stock) | — | — | — | — | `−cantidad` | Al devolver `NO_ENTREGADO` |
+| Evento | `tipo` | Cantidad firmada | `documento_id` | `evento_id` | `detalle_venta_id` | Efecto en `stockActual` | Efecto en `stockReservado` | Cuándo |
+|---|---|---|---|---|---|---|---|---|
+| Cobro en mostrador | `ENTREGA` | `−q` | `ventaId` | Sí | Sí | `−q` | — | Al cobrar (`MOSTRADOR`), en la misma transacción |
+| Cobro de bodega | — | — | — | — | — | — | `+q` | Al cobrar (`BODEGA`). Sin movimiento de stock; cambio de reserva |
+| Preparación | — | — | — | — | — | — | — | Sin efecto en stock |
+| Entrega de pedido | `ENTREGA` | `−q` | `ventaId` | Sí | Sí | `−q` | `−q` | Al entregar pedido (parcial o total) |
+| Liberación de pendiente (ADMIN) | — | — | — | — | — | — | `−q` | Con motivo. Sin efecto en stock físico |
+| Devolución física | `INGRESO` | `+q` | `ventaId` | Sí | Sí | `+q` | — | Solo sobre lo entregado (`R ≤ E`) |
+| Devolución de mercancía dañada o a proveedor | — | — | — | — | — | — | — | Sin reingreso; registro de motivo |
+| Contingencia sincronizada | `ENTREGA` | `−q` | `ventaId` | Sí | Sí | `−q` | — | Una vez por `operacion_id` |
 
-**Nota:** la liberación de reserva y la devolución de reserva no entregada no son movimientos de stock. Son cambios de reserva. KARDEX debe confirmar si quiere una bitácora separada para reservas. ATLAS propone registrarlas en `entregas_eventos` (y no en `movimientos_inventario`) para no alterar el significado del libro de movimientos.
+**Cambio respecto de la revisión 1:** el índice único `(documento_id, detalle_venta_id)` se elimina. La unicidad pasa a ser `(evento_id, detalle_venta_id)`, lo que permite entregas parciales sucesivas sobre la misma línea.
 
-### 1.2 Invariantes que ATLAS garantiza y que KARDEX debe verificar
+**Identificadores:** cada movimiento lleva `evento_id` (UUID de la acción) y `detalle_venta_id`. Un reintento con la misma `solicitud_id` no produce movimientos nuevos.
+
+### 1.2 Contadores por línea que KARDEX debe conocer
+
+| Columna | Significado |
+|---|---|
+| `cantidad` (`C`) | Vendida |
+| `cantidad_preparada` (`P`) | Preparada en bodega; sin efecto de stock |
+| `cantidad_entregada` (`E`) | Entregada; ya descontada de `stockActual` |
+| `cantidad_devuelta` (`R`) | De lo entregado, reingresada físicamente |
+| `cantidad_cancelada` (`N`) | Pendiente liberado sin entrega |
+
+Derivados: reserva restante `Rr = C − E − N`; mercancía en poder del cliente `Pc = E − R`.
+
+### 1.3 Invariantes que ATLAS garantiza y KARDEX debe verificar
 
 | ID | Invariante | Verificación |
 |---|---|---|
-| G7 | `stockReservado` = Σ cantidades de líneas `BODEGA` en estado `PENDIENTE` o `LISTA` (menos entregadas y devueltas) | Informe de conciliación y prueba T20 |
-| G8 | `stockActual` = inicial + Σ `INGRESO` − Σ `ENTREGA` ± `AJUSTE` registrados | Informe de conciliación y prueba T21 |
-| G1 | Como máximo un `ENTREGA` por (`documento_id`, `detalle_venta_id`) | Índice único parcial (prueba T09) |
+| I1 | `0 ≤ E ≤ C` | CHECK y prueba T23 |
+| I2 | `0 ≤ N` y `E + N ≤ C` | CHECK y T15, T16 |
+| I3 | `0 ≤ R ≤ E` | CHECK y T18 |
+| I4 | `0 ≤ P ≤ C − E − N` | CHECK y T13 |
+| I5 | `MOSTRADOR`: `N = 0`, `P = 0` | CHECK |
+| I7 | `stockReservado = Σ Rr` sobre líneas `BODEGA` del producto | Conciliación y T21 |
+| I8 | `stockActual = S₀ + Σ ingresos − Σ E + Σ R` con ajustes registrados | Conciliación y T22 |
+| — | `stockReservado ≥ 0` | CHECK en `productos` |
 
-### 1.3 Preguntas para KARDEX
+**No se garantiza** `stockReservado ≤ stockActual`. Un ajuste de inventario puede dejar reservas por encima del stock. KARDEX debe decidir cómo se reporta esa situación (P-K1 abajo).
 
-1. **Disponible:** ¿se mantiene `disponible = stockActual − stockReservado`? ¿Debe el disponible excluir reservas de pedidos vencidos? (ATLAS propone que no; las alertas avisan).
-2. **Existencias negativas:** la regla actual impide existencias negativas en venta. ¿Se mantiene para entregas de bodega? (ATLAS propone sí).
-3. **Movimientos de reserva:** ¿bitácora separada o `entregas_eventos`? (propuesta: `entregas_eventos`).
-4. **Cambio de modo:** ¿es correcto que `modo_entrega` no pueda cambiar después del cobro?
-5. **Ventas abiertas (P6):** ¿cómo se concilian las reservas abiertas antes de la migración? (propuesta: informe de pedidos abiertos; sin cambio automático).
-6. **Costo:** el movimiento `ENTREGA` no modifica costo. ¿Es correcto para la valuación?
+### 1.4 Preguntas para KARDEX
 
-### 1.4 Validación de KARDEX
+1. **Disponible:** ¿se mantiene `disponible = stockActual − stockReservado`? ATLAS propone que sí, sin excluir pedidos antiguos (las alertas avisan; no liberan).
+2. **Reserva por encima del stock tras un ajuste (P-K1):** ¿debe bloquearse el ajuste, avisar, o permitirlo con registro? ATLAS propone avisar y registrar; no bloquear.
+3. **Existencias negativas:** ¿se mantiene la regla de no permitir existencias negativas en entregas?
+4. **Movimientos de liberación y de devolución de pendiente:** ATLAS propone que no sean movimientos de stock, sino eventos en `entregas_eventos`. ¿KARDEX necesita verlos en su bitácora de reservas?
+5. **Ventas abiertas (P6):** su reserva actual corresponde a `Rr = C` por línea. ¿KARDEX confirma que esa lectura es correcta para la conciliación inicial?
+6. **Backfill de entregadas (T30):** ¿KARDEX acepta que las ventas ya entregadas reciban `E = C` sin movimiento nuevo, solo con el movimiento histórico existente?
+7. **Costo:** el movimiento `ENTREGA` no altera costo. ¿Es correcto para la valuación?
+
+### 1.5 Validación de KARDEX
 
 | Punto | Acepta | Observación |
 |---|---|---|
-| 1.1 Eventos | ☐ | |
-| 1.2 Invariantes | ☐ | |
-| 1.3 Preguntas 1–6 | ☐ | |
+| 1.1 Eventos de movimiento | ☐ | |
+| 1.2 Contadores | ☐ | |
+| 1.3 Invariantes | ☐ | |
+| 1.4 Preguntas 1–7 | ☐ | |
 
 ---
 
@@ -58,80 +86,99 @@ Cada evento es un movimiento en `movimientos_inventario` con los campos existent
 
 | Acción | ADMIN | CAJERO | VENDEDOR | BODEGUERO | Regla adicional |
 |---|---|---|---|---|---|
-| Cobrar en mostrador | ✔ | ✔ | ✔ | — | Con `pos.vender` |
-| Cobrar y dejar en bodega | ✔ | ✔ | ✔ | — | Con `pos.vender` |
-| Preparar pedido | ✔ | — | — | ✔ | Propuesta P3 |
-| Entregar pedido | ✔ | Solo sus ventas (P3) | — | ✔ | Receptor obligatorio |
-| Liberar reserva | ✔ | — | — | — | Motivo ≥ 10 caracteres |
-| Ver alertas de pedidos | ✔ | ✔ (sus ventas) | — | ✔ | |
+| Cobrar en mostrador (`MOSTRADOR`) | ✔ | ✔ | ✔ | — | Con `pos.vender` |
+| Cobrar y dejar en bodega (`BODEGA`) | ✔ | ✔ | ✔ | — | Con `pos.vender` |
+| Preparar pedido | ✔ | — | — | ✔ | P3 |
+| Entregar pedido (parcial o total) | ✔ | — | — | ✔ | P3. Receptor obligatorio (P4) |
+| Liberar pendiente | ✔ | — | — | — | Motivo ≥ 10 caracteres (P7) |
+| Devolución física | ✔ | — | — | — | Motivo ≥ 10 caracteres |
+| Ver pedidos y alertas | ✔ | ✔ (sus ventas) | ✔ (sus ventas) | ✔ | |
 | Ver conciliación de existencias | ✔ | — | — | — | Solo lectura |
-| Devolver mostrador/bodega | ✔ | Solicitud (flujo actual) | — | — | Sin cambio |
-| Línea `BODEGA` en contingencia | Rechazado para todos | | | | Regla del servidor |
+| `MOSTRADOR` en contingencia offline | ✔ | ✔ | ✔ | — | Solo mostrador; `BODEGA` rechazado para todos |
+
+**Cambio respecto de la revisión 1:** CAJERO ya no entrega pedidos de bodega. P3 fija BODEGUERO o ADMIN. El cajero conserva el cobro y ve sus propias alertas.
 
 ### 2.2 Reglas que ATLAS necesita que CENTINELA confirme
 
-1. **Autorización en servidor.** Cada acción valida rol y, cuando aplica, que el cajero sea el de la venta. La pantalla oculta el botón, pero no es la defensa.
-2. **Sesión vencida.** Una entrega requiere sesión vigente y en línea. Sin conexión no se entrega mercancía de bodega (regla de offline).
-3. **Revocación.** Si un usuario se desactiva, sus entregas pendientes siguen visibles para ADMIN y no se pueden entregar con esa cuenta.
-4. **Sincronización offline.** La sincronización solo lleva operaciones de mostrador, con `usuario_id` del cajero que cobró. El sincronizador no puede registrar entregas de bodega ni liberar reservas.
-5. **Suplantación del receptor.** El nombre del receptor es texto libre; el sistema registra quién lo capturó (`usuario_id`), no lo verifica.
-6. **Datos personales.** El documento del receptor (P4) se guarda cifrado en reposo si se aprueba, o no se guarda.
-7. **Inmutabilidad.** `entregas_eventos` no admite `UPDATE` ni `DELETE`, ni siquiera de ADMIN.
-8. **Auditoría.** Cada acción queda en `auditoria_operaciones` además del evento.
+1. **Autorización en servidor.** Cada acción valida rol y, cuando aplica, pertenencia a la venta. El ocultamiento de botones no es la defensa.
+2. **Sesión vigente.** Entregar pedidos requiere sesión vigente y conexión. Sin conexión no se entrega mercancía de bodega (regla offline).
+3. **Usuario desactivado.** Sus pedidos pendientes siguen visibles para ADMIN. No puede registrar eventos con su cuenta desactivada.
+4. **Sincronización offline.** Solo lleva ventas de mostrador (`MOSTRADOR`), con `usuario_id` del cajero que cobró. No puede registrar entregas de bodega, preparaciones ni liberaciones.
+5. **Solicitud única.** `solicitud_id` es único por empresa. La base lo impone. Un reintento con la misma solicitud devuelve el resultado original; con una solicitud distinta, se aplican las reglas de cantidad.
+6. **Ventana anti-repetición (P12, propuesta):** una entrega con las mismas líneas dentro de 30 s requiere confirmación explícita. CENTINELA debe confirmar que el campo `confirmarRepeticion` no puede usarse para eludir el tope de cantidades. El tope siempre prevalece.
+7. **Receptor.** El nombre es texto libre. El sistema registra quién lo capturó (`usuario_id`); no verifica identidad. No se captura documento de identidad en esta fase.
+8. **Inmutabilidad.** `entregas_eventos` y `entregas_eventos_lineas` no admiten `UPDATE` ni `DELETE`, ni siquiera de ADMIN.
+9. **Auditoría.** Cada acción también se registra en `auditoria_operaciones`.
+10. **Datos personales.** Nombre del receptor y motivo: minimizar, retención pendiente (P-C1).
 
 ### 2.3 Preguntas para CENTINELA
 
-1. ¿Debe ADMIN tener permiso para liberar reservas sin segunda aprobación? (propuesta: no, con motivo y registro).
-2. ¿Se exige doble confirmación para entregas parciales?
-3. ¿Qué tiempo máximo de sesión para una entrega en mostrador?
-4. ¿Debe registrarse la IP o el dispositivo de la entrega? (propuesta: dispositivo del POS, ya disponible).
+1. ¿ADMIN necesita una segunda aprobación para liberar pendientes, o basta con motivo y registro? (propuesta: motivo y registro).
+2. ¿Qué tiempo de sesión máximo se acepta para una entrega? ¿Debe exigirse reautenticación para entregas de bodega?
+3. ¿Se registra el dispositivo del POS en cada evento? (propuesta: sí; ya existe en contingencia).
+4. ¿La ventana anti-repetición debe ser de 30 s o de otro valor? (P12).
+5. **P-C1:** ¿qué retención aplicar al nombre del receptor y a los motivos?
 
 ### 2.4 Validación de CENTINELA
 
 | Punto | Acepta | Observación |
 |---|---|---|
 | 2.1 Matriz | ☐ | |
-| 2.2 Reglas 1–8 | ☐ | |
-| 2.3 Preguntas 1–4 | ☐ | |
+| 2.2 Reglas 1–10 | ☐ | |
+| 2.3 Preguntas 1–5 | ☐ | |
 
 ---
 
 ## 3. Contrato con BALANCE (procesos financieros y conciliación)
 
-### 3.1 Efectos financieros
+### 3.1 Separación de cobro y reconocimiento (P8)
 
-| Evento | Caja | Ventas del día | Cuentas por cobrar | Observación |
+El sistema registra **eventos**; BALANCE define cuándo se reconoce el ingreso contable.
+
+| Evento del sistema | Qué registra | Qué no registra |
+|---|---|---|
+| `COBRO` | Monto cobrado, método (solo efectivo en contingencia), cajero, caja | Reconocimiento contable |
+| `ENTREGA` | Cantidades entregadas, responsable, receptor | Ingreso ni caja |
+| `LIBERACION` | Cantidad liberada, motivo, responsable | Devolución de dinero |
+| `DEVOLUCION_FISICA` | Cantidad reingresada, motivo | Reembolso (proceso formal, P7) |
+
+### 3.2 Efectos financieros propuestos
+
+| Evento | Caja | Ingreso del día (cobro) | Ingreso contable (BALANCE) | Pasivo o compromiso |
 |---|---|---|---|---|
-| Cobro de mostrador | Entrada de efectivo o tarjeta (movimiento de cobro, como hoy) | Sí | No | Entrega y cobro en el mismo acto |
-| Cobro de bodega | Entrada de efectivo o tarjeta | Sí | No | Mercancía pendiente; el ingreso ya existe |
-| Entrega de bodega | Ninguno | No (ya contabilizado) | No | Solo cambia el estado de la línea |
-| Liberación de reserva | Ninguno | Sin cambio | Sin cambio | Reembolso por devolución formal (P7) |
-| Devolución con reembolso | Salida de efectivo (flujo actual) | Ajuste según proceso | — | Sin cambio |
-| Devolución de mercancía entregada | Ninguno o reembolso | Ajuste según proceso | — | Stock vuelve a inventario |
-| Sincronización de contingencia | Ya registrada en caja al cobrar offline | Sin doble conteo | — | Una vez por `operacionId` |
+| Cobro en mostrador | Entrada | Sí | Por definir (P8) | No |
+| Cobro de bodega | Entrada | Sí | Por definir (P8) | Mercancía pendiente |
+| Entrega de pedido | Ninguna | No (ya contado en cobro) | Sin cambio | Se reduce el compromiso |
+| Liberación de pendiente | Ninguna | Sin cambio | Sin cambio | Se reduce el compromiso |
+| Devolución formal con reembolso | Salida de efectivo (proceso actual) | Ajuste según proceso | Ajuste | — |
+| Devolución física | Ninguna o reembolso | Ajuste según proceso | Ajuste | — |
+| Contingencia sincronizada | Ya registrada al cobrar offline | Sin doble conteo | — | — |
 
-### 3.2 Reportes que deben separar
+### 3.3 Reportes que BALANCE debe poder obtener
 
-1. **Ventas cobradas por cajero** (independiente de la entrega).
-2. **Entregas registradas por responsable** (quién confirmó la salida).
-3. **Pedidos abiertos por antigüedad** (compromisos, no ingreso).
-4. **Reservas abiertas por producto** (cifra de KARDEX; BALANCE solo la reporta).
+1. **Cobros por cajero** (independiente de la entrega).
+2. **Entregas por responsable** (quién confirmó la salida).
+3. **Pedidos abiertos por antigüedad** y monto (compromisos).
+4. **Reservas por producto** (cifra de KARDEX; BALANCE solo la reporta).
+5. **Conciliación diaria:** cobros del día contra entregas del día y devoluciones. Diferencias por cajero.
 
-### 3.3 Preguntas para BALANCE
+### 3.4 Preguntas para BALANCE
 
-1. **Reconocimiento de ingreso (P8):** ¿al cobro, como hoy? ATLAS propone sí.
-2. **Pedidos pagados no entregados:** ¿se reportan como pasivo o solo como compromiso? ¿Hay implicación fiscal en esta decisión? (Pendiente de validación competente; no se trata como fiscalmente aprobado).
-3. **Venta de contingencia:** ¿se concilia por `operacionId` y por `correlativo CT` contra la factura central al sincronizar?
-4. **Cierre de caja:** ¿el efectivo de pedidos cobrados en bodega cuenta en el cierre del día de cobro? (Propuesta: sí).
-5. **Diferencias:** ¿qué tolerancia usar en la conciliación diaria entre cobros y entregas?
+1. **P8 — reconocimiento de ingreso:** ¿el ingreso contable se reconoce al cobro o al entregar? ATLAS registra ambos eventos; la decisión es de BALANCE.
+2. **Pedidos cobrados y no entregados:** ¿se reportan como pasivo, como compromiso o de otra forma? Hay implicaciones fiscales que **no** se consideran aprobadas: requieren validación competente.
+3. **Contingencia:** ¿la conciliación se hace por `operacion_id` y por correlativo `CT` contra la factura central al sincronizar?
+4. **Cierre de caja:** ¿el efectivo de un pedido cobrado en bodega cuenta en el cierre del día de cobro? (propuesta: sí).
+5. **Tolerancia:** ¿qué diferencia se acepta en la conciliación diaria entre cobros y entregas?
+6. **Devolución física:** ¿cómo se trata el ajuste contable cuando la mercancía vuelve a existencias?
 
-### 3.4 Validación de BALANCE
+### 3.5 Validación de BALANCE
 
 | Punto | Acepta | Observación |
 |---|---|---|
-| 3.1 Efectos | ☐ | |
-| 3.2 Reportes | ☐ | |
-| 3.3 Preguntas 1–5 | ☐ | |
+| 3.1 Separación cobro y reconocimiento | ☐ | |
+| 3.2 Efectos financieros | ☐ | |
+| 3.3 Reportes | ☐ | |
+| 3.4 Preguntas 1–6 | ☐ | |
 
 ---
 
@@ -139,17 +186,21 @@ Cada evento es un movimiento en `movimientos_inventario` con los campos existent
 
 | Área | Entregable | Estado |
 |---|---|---|
-| KARDEX | Eventos de movimiento (§1.1), invariantes (§1.2), conciliación por endpoint | Diseñado |
-| CENTINELA | Matriz de permisos (§2.1), reglas de sesión y offline (§2.2) | Diseñado |
-| BALANCE | Efectos de caja y reportes (§3.1–3.2) | Diseñado |
-| FARO | Plan de pruebas T01–T34 (`POS_ENTREGA_DISENO_TECNICO.md` §8) | Diseñado |
+| KARDEX | Eventos (§1.1), contadores (§1.2), invariantes (§1.3) | Diseñado; **no validado** |
+| CENTINELA | Matriz (§2.1), reglas (§2.2) | Diseñado; **no validado** |
+| BALANCE | Separación cobro/reconocimiento (§3.1), efectos (§3.2), reportes (§3.3) | Diseñado; **no validado** |
+| FARO | Plan de pruebas T01–T41 (diseño §11) | Diseñado; pendiente de escritura en rojo |
 
-## 5. Condición para implementar
+---
+
+## 5. Condiciones para implementar
 
 ATLAS no implementará hasta que:
 
-1. El dueño decida P1 a P5 y P7 a P9 (`POS_ENTREGA_DISENO_TECNICO.md` §9).
-2. KARDEX, CENTINELA y BALANCE completen sus secciones de validación.
-3. FARO tenga T01–T23 y T33–T34 escritas y en rojo.
+1. El dueño decida P12 y las preguntas abiertas de P-K1 y P-C1.
+2. KARDEX, CENTINELA y BALANCE completen sus validaciones. Hasta entonces, las casillas quedan sin marcar.
+3. FARO escriba T01–T29, T31–T36 y T39–T41 en rojo sobre la base actual.
 
 Sin merge. Sin migraciones productivas. Ventas abiertas sin cambios.
+
+_Informe de ATLAS. Revisión 2._
