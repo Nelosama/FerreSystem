@@ -22,13 +22,32 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
-## POS offline de contingencia (efectivo, cortes de hasta 24 h) — diseño y caracterización (2026-10-10)
+## POS offline de contingencia (efectivo) — implementación y pruebas (2026-10-10)
 
-- **Rama/PR:** `claude/pos-offline-contingencia` desde `origin/main` `7ccfad25`. Solo documentación y pruebas de caracterización; **sin cambio de comportamiento, esquema, migraciones, dependencias, merge ni despliegue.** Infraestructura, respaldos y migración quedan fuera (otra sesión).
-- **Documento:** [POS_OFFLINE_CONTINGENCIA_DISENO.md](POS_OFFLINE_CONTINGENCIA_DISENO.md): diagnóstico (H1–H11), IndexedDB vs SQLite (recomendado IndexedDB `durability: 'strict'` + papel con secuencia; plan B agente local SQLite), diseño (ventana de contingencia con instantánea de precios, diario inmutable, cupos, sesión del cajero, comprobante), implicaciones fiscales, sincronización/conciliación sin rechazos, archivos, plan de 11 PR, pruebas y 12 decisiones (D1–D12). Complementa [ARQUITECTURA_CONTINUIDAD_POS_20261010.md](ARQUITECTURA_CONTINUIDAD_POS_20261010.md).
-- **Hallazgos clave comprobados en código:** sin service worker/IndexedDB; catálogo solo en estado React; un único hueco `localStorage` por usuario; la venta no guarda efectivo recibido/cambio/dispositivo/origen y `created_at` es hora del servidor; todo rechazo (precio, stock, caja) descartaría una venta ya entregada; `solicitudId` opcional; `crypto.randomUUID` directo en POS; axios sin timeout; no hay datos fiscales SAR (CAI/rango) en el modelo.
-- **Pruebas de caracterización:** `frontend/test/pos-offline-caracterizacion.test.mjs` (16) y `backend/src/ventas/ventas.contingencia-caracterizacion.spec.ts` (11). Mocks; no prueban PostgreSQL real, apagón físico ni fiscalidad.
-- **Pendiente:** aprobación del diseño; decisión fiscal (D1) antes de cualquier venta offline; D2–D12. Ninguna implementación financiera offline autorizada.
+- **Ramas/commits:** `claude/pos-offline-contingencia` (diseño y caracterización, `e30e9a1c`); `claude/pos-offline-backend` (esquema, migración aditiva, servicio, controlador, pruebas PostgreSQL y frontend offline: `4eacd14c` y `cd1dfaf9`). Sin merge, migración en producción ni despliegue.
+- **Activación:** apagada por defecto. Requiere `POS_OFFLINE_ENABLED=true` en el entorno **y** `configuracion.contingenciaOffline.habilitada` por empresa (la activa un ADMIN). Sin ambas, el backend responde 403/409.
+- **Alcance implementado (solo efectivo):** ventana de contingencia con instantánea de precios y cupo conservador (50 % de lo libre por defecto); una caja de contingencia por empresa (`dispositivosMax=1`); diario local en IndexedDB con confirmación solo tras transacción completa; correlativo local `CT-NN-NNNN` y definitivo `V-NNNNNNNN`; sincronización idempotente por UUID; conflictos en revisión sin rechazo silencioso; referencia de factura externa (no es numeración fiscal).
+- **Backend:** `backend/src/contingencia/` (controlador `/contingencia/*`, servicio, DTOs). Migración `20261011000000_pos_contingencia_offline`: 4 tablas nuevas, columnas aditivas en `ventas`, trigger que impide UPDATE y DELETE de la carga recibida. `backend/src/common/dinero.ts` comparte vectores con el frontend.
+- **Frontend:** `src/offline/` (db, journal, sync, ventana, money), `pages/PosContingenciaPage.tsx` (ruta `/pos-contingencia`), `pages/ContingenciaAdminPage.tsx` (ruta `/contingencia-admin`, ADMIN), `public/sw.js` (shell y recursos del build; la API nunca se cachea; sin `skipWaiting`). Se corrigió `utils/authInterceptors.ts`: un refresh sin respuesta de la API ya no borra la sesión.
+- **Decisión de diseño:** la secuencia y el correlativo duplicados no se rechazan: se conservan y quedan en revisión (`SECUENCIA_DUPLICADA`).
+- **Pruebas ejecutadas (2026-10-10):**
+  - Backend unitarias: **344/344** (36 archivos). `tsc -p tsconfig.build.json` sin errores.
+  - Backend integración PostgreSQL 16 como usuario no root, cadena completa de migraciones: `test/contingencia.postgres.integration.ts` **23/23**; suite completa **17 archivos, 339 pasan y 1 omitida** (origen de la omisión no identificado en esta sesión). Se corrigieron las listas explícitas de migraciones de `ventas` y `reportes-zona-horaria`, que ya no incluían las migraciones nuevas.
+  - Frontend unitarias: **218/218** (incluye `offline-logica.test.mjs` y la caracterización). `tsc -b` y build de producción correctos. Lint sin errores (avisos del mismo tipo que ya existían).
+  - E2E real con backend NestJS, PostgreSQL temporal y navegador Chromium con IndexedDB y service worker reales: `frontend/e2e-real/contingencia-real.spec.ts` **13/13** (en línea, sin conexión, reconexión, reinicio con pendientes en perfil persistente, dos pestañas, recuperación de operación "enviando", pérdida de respuesta, cambio de precio durante la desconexión, conflicto de stock aceptado por el administrador, caja cerrada, sesión vencida, panel, exportación sin credenciales). Suite `e2e-real` completa: **28/28**.
+  - Suite de navegador con backend simulado: **106/106**.
+- **Pruebas no realizadas (límites declarados):**
+  1. Timeouts de red reales: no se simularon; solo cortes de red del navegador.
+  2. Apagón eléctrico y reinicio de Windows: no ejecutados. La durabilidad de IndexedDB ante corte de energía **no está demostrada**. El protocolo está en `docs/POS_CONTINGENCIA_PROTOCOLO_APAGON.md` (estado: no ejecutado).
+  3. iPhone/Safari y PWA instalada: no probados en dispositivo. El panel móvil se probó solo en viewport de escritorio.
+  4. Actualización del service worker tras una versión nueva: no probada.
+  5. Límite de cuota de almacenamiento lleno: no probado en navegador real.
+- **Bloqueos y decisiones pendientes (no resueltos por mí):**
+  - **D1 fiscal:** la leyenda y el procedimiento de comprobante de contingencia requieren aprobación del responsable fiscal antes de activar en clientes reales. El sistema no emite numeración fiscal ni CAI.
+  - Límites por defecto (cupo 50 %, L 5 000 por venta, L 25 000 acumulado, vigencia 36 h) pendientes de decisión del propietario.
+  - Una caja de contingencia por empresa (`dispositivosMax=1`): ampliar requiere decisión.
+  - Prueba física con UPS, corte controlado y firma de resultados (sección 7 del protocolo).
+- **Pendientes técnicos:** PR de revisión (borrador); coordinación con las ramas de Claude en `POSPage.tsx` (no modificado) y `ventas.service.ts` (no modificado); interfaz en inglés pendiente (textos en español).
 
 ---
 
