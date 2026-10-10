@@ -158,7 +158,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     defaultLabel: 'CLIENTES',
     route: '/clientes',
     icon: Users,
-    allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+    allowedRoles: ['ADMIN'],
     category: 'CLIENTES',
   },
   {
@@ -233,7 +233,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
 export const NAVIGATION_CATEGORIES = ['SYSTEM', 'OPERACION', 'INVENTARIO', 'CLIENTES', 'GESTION', 'ANALISIS', 'CONFIGURACION'] as const;
 export const ROLE_PRIORITIES: Record<string, string[]> = {
   SUPERADMIN: ['superadmin'], ADMIN: ['ordenes_compra', 'inventario', 'usuarios', 'reportes'],
-  CAJERO: ['arqueo_caja', 'pos', 'cuentas', 'clientes'],
-  VENDEDOR: ['pos', 'cotizaciones', 'clientes', 'arqueo_caja'],
+  CAJERO: ['arqueo_caja', 'pos', 'cuentas'],
+  VENDEDOR: ['pos', 'cotizaciones', 'arqueo_caja'],
   BODEGUERO: ['entregas', 'inventario', 'ordenes_compra', 'levantamiento'],
 };

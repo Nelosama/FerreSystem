@@ -1,6 +1,7 @@
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Rol } from '../types/prisma-enums';
 import { ClientesService } from './clientes.service';
 import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
@@ -24,7 +25,7 @@ export class ClientesController {
   }
 
   @Get('buscar')
-  @Roles(Rol.ADMIN, Rol.CAJERO)
+  @Roles(Rol.ADMIN, Rol.CAJERO, Rol.VENDEDOR)
   search(@TenantId() tenantId: string, @Query('q') query: string) {
     return this.clientesService.search(tenantId, query);
   }
@@ -53,8 +54,8 @@ export class ClientesController {
   }
 
   @Patch(':id/credito')
-  async updateCredit(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdateCreditoClienteDto) {
-    return this.clientesService.updateCredit(tenantId, id, dto);
+  async updateCredit(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Param('id') id: string, @Body() dto: UpdateCreditoClienteDto) {
+    return this.clientesService.updateCredit(tenantId, id, dto, usuarioId);
   }
 
   @Post(':id/abonos')

@@ -164,7 +164,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/clientes"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']}>
+                      <ProtectedRoute allowedRoles={['ADMIN']}>
                         <AppLayout>
                           <ClientesPage />
                         </AppLayout>
