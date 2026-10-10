@@ -213,8 +213,10 @@ export const ProductoGestion: React.FC<{ productos: any[]; onSaved: () => Promis
           </tr></thead><tbody>{history.movimientos.map((m: any) => <tr key={m.id}>
             <td>{new Date(m.created_at).toLocaleString()}</td><td>{m.tipo}</td><td>{Number(m.anterior)}</td><td>{Number(m.cantidad)}</td><td>{Number(m.nuevo)}</td><td>{m.usuario_nombre} · {m.motivo}</td>
           </tr>)}</tbody></table></div>
+          {history.costos && (<>
           <h3>{t('product_edit.purchases_title')}</h3>
           <ul>{history.costos.map((c: any) => <li key={c.id}>{new Date(c.fecha).toLocaleString()} · {c.proveedor_nombre} · {t('product_edit.invoice')} {c.numero_factura} · {Number(c.cantidad)} × {formatLempiras(Number(c.costo))}</li>)}</ul>
+          </>)}
         </>
       )}
     </section>

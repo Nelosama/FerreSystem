@@ -149,6 +149,8 @@ export class ProductosService {
    const aprueba=dto.aprobar===true&&!old.precioAprobado;
    if(dto.aprobar===true&&ventaNueva<=0)throw new BadRequestException('Defina un precio de venta mayor que cero antes de aprobar');
    if(!hayCambios&&!aprueba)throw new BadRequestException('No hay cambios de precio que guardar');
+   // Un producto aprobado (o que se aprueba) conserva un precio de venta positivo: nunca se vende a L 0.
+   if((old.precioAprobado||aprueba)&&ventaNueva<=0)throw new BadRequestException('El producto aprobado requiere un precio de venta mayor que cero');
    const data:any={precioCosto:costoNuevo,precioVenta:ventaNueva};
    // Modificar un precio ya aprobado conserva la aprobación; el cambio queda registrado con su responsable.
    if(hayCambios){data.precioModificadoPor=userId;data.precioModificadoAt=new Date();}

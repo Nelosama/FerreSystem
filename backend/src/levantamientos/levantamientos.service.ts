@@ -377,7 +377,8 @@ export class LevantamientosService {
     nuevo:Number(item.cantidad),
     // Pendiente de precio: producto nuevo, o existente que aún no tiene precio aprobado para venta.
     precioPendiente:!p||!p.precioAprobado,
-    datosCompletos:!!(item.descripcion?.trim()&&(item.categoria?.trim()||p?.categoriaId)),
+    // Completo: nombre, categoría y unidad. La descripción adicional es opcional.
+    datosCompletos:!!(item.descripcion?.trim()&&(item.categoria?.trim()||p?.categoriaId)&&(item.unidad||p?.unidadMedida)),
     unidad:p?.unidadMedida||String(item.unidad).toUpperCase(),
     errores:errors,
    });

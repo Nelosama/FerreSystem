@@ -87,11 +87,12 @@ describe('SEC-005 product HTTP responses (real JWT, guards, service; mocked pers
       expect(unwrap(response.body).stockActual).toBe(8);
     }
   });
-  it.each([true, false])('BODEGUERO preserves effective inventory permission (configured=%s)', async configured => {
+  // Regla del dueño: el personal de bodega no consulta costos ni márgenes, aunque tenga inventario.ver.
+  it.each([true, false])('BODEGUERO never receives costs or margins (configured=%s)', async configured => {
     const auth = token('BODEGUERO', configured ? ['inventario.ver'] : [], configured);
     for (const path of paths) {
       const response = await get(path, auth.value).expect(200);
-      expect(unwrap(response.body)).toHaveProperty('costoVigente', '5');
+      expectPublic(unwrap(response.body));
     }
   });
   it.each(['CAJERO', 'VENDEDOR'])('legacy %s and arbitrary inventory permission do not grant a financial role', async role => {
@@ -117,10 +118,11 @@ describe('SEC-005 product HTTP responses (real JWT, guards, service; mocked pers
     expectPublic(response.body[0]);
     expect(response.body[0]).toMatchObject({ stockActual: 6, stockFisico: 8, stockBajo: true });
   });
-  it('reloads revoked permission and role with the same JWT', async () => {
-    const auth = token('BODEGUERO', ['inventario.ver']);
+  it('reloads the role with the same JWT: an administrator loses costs when demoted', async () => {
+    const auth = token('ADMIN', ['inventario.ver']);
     expect((await get('/productos/product-a', auth.value)).body).toHaveProperty('precioCosto');
-    users.get(auth.sub).permisos = [];
+    users.get(auth.sub).rol = 'BODEGUERO';
+    users.get(auth.sub).permisos = ['inventario.ver'];
     expectPublic((await get('/productos/product-a', auth.value)).body);
     users.get(auth.sub).rol = 'VENDEDOR';
     users.get(auth.sub).permisos = ['inventario.ver'];

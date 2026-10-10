@@ -24,7 +24,7 @@ const plano = (valor) => JSON.parse(JSON.stringify(valor));
 
 const producto = {
   id: 'p1', codigo: 'CAB-1', nombre: 'Cable', descripcion: 'Rollo 100 m', categoriaNombre: 'Electricidad',
-  precioCosto: 8, precioVenta: 12, precioAprobado: true, stockActual: 40, version: 3, activo: true,
+  precioCosto: 8, precioVenta: 12, precioAprobado: true, stockActual: 40, version: 3, activo: true, unidadMedida: 'METRO',
 };
 
 test('margen calculado sobre el precio de venta, con dos decimales', () => {
@@ -62,11 +62,14 @@ test('un precio vacío o inválido no genera cambio', () => {
   assert.deepEqual(plano(modulo.cambiosDePrecio(producto, '', '')), { payload: {}, hayCambios: false });
 });
 
-test('datos completos exigen descripción y categoría', () => {
+test('completo exige nombre, categoría y unidad; la descripción es opcional', () => {
+  const sinDescripcion = { ...producto, descripcion: null, unidadMedida: 'METRO' };
   assert.equal(modulo.datosCompletos(producto), true);
-  assert.equal(modulo.datosCompletos({ ...producto, descripcion: '' }), false);
+  assert.equal(modulo.datosCompletos(sinDescripcion), true);
   assert.equal(modulo.datosCompletos({ ...producto, categoriaNombre: null, categoria: null }), false);
   assert.equal(modulo.datosCompletos({ ...producto, categoriaNombre: null, categoria: { nombre: 'Herramientas' } }), true);
+  assert.equal(modulo.datosCompletos({ ...producto, unidadMedida: '' }), false);
+  assert.equal(modulo.datosCompletos({ ...producto, nombre: '  ' }), false);
 });
 
 test('pendiente de precio es lo contrario de aprobado', () => {

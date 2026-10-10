@@ -163,13 +163,28 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
   - Playwright con backend simulado **120/120** (Chromium 1194 instalado en el entorno; el binario por defecto no está).
   - E2E con backend real (`frontend/e2e-real/precios-real.spec.ts`, vía `e2e-real/run.sh`): **1/1**. El personal captura sin precio y ve «pendiente»; el dueño filtra, ve margen 33.33 %, aprueba; la base de datos guarda precio, aprobador y auditoría; el personal recibe 403 al cambiar precio. Capturas en `scratchpad` de la sesión (no se publican en el repo).
   - `tsc -b`, `vite build`, oxlint sin errores (solo avisos de patrón existente).
-- **Bloqueos y decisiones pendientes:**
-  1. **Contingencia offline (no modificada por restricción):** `contingencia.service.ts`, `construirCatalogo` (~línea 157), incluye productos sin precio aprobado (precio 0) y `tx.venta.create` (~línea 450) crea ventas sin pasar por `ventas.service`. Con la contingencia activa, un producto pendiente podría venderse offline a precio 0. Falta: filtrar `precioAprobado: true` en el catálogo de la ventana y validar al sincronizar. La contingencia está apagada por defecto (`POS_OFFLINE_ENABLED` y configuración por empresa). Requiere autorización explícita.
-  2. **Productos existentes aprobados por migración:** es una decisión de negocio. Si el dueño quiere revisar precios antes de vender, debe marcarse pendiente en una migración aparte; no se hizo.
-  3. **Conflicto de criterio con #134 (LEV-004):** #134 deja sin corregir que aplicar un conteo sobrescriba costo, precio y margen, porque la prueba `QA-INV-001` exige aplicar el precio revisado. Esta rama implementa la regla del encargo («los ajustes nunca sobrescriben costo, precio ni margen») y ajusta esa prueba en `auditoria-inventario.postgres.integration.ts`. #134 no implementa esta corrección, así que no hay duplicado; sí hay que decidir el criterio antes de integrar ambas.
-  4. **Costo manual de BODEGUERO** (decisión D1 de FS-07): queda cerrada por el encargo; solo ADMIN fija precios.
-  5. Columnas `margen`, `precio_*` de `levantamiento_items` quedan sin uso (no se borran). `margen` almacenado en `productos` tampoco se escribe; el margen mostrado es calculado.
-  6. No validado en iPhone/Safari, Windows ni con datos reales de la ferretería. Sin prueba de hardware.
+- **Cierre funcional (decisiones del dueño, 2026-10-11):**
+  1. Aprobado: el personal registra productos sin precio; el ADMIN fija costo, precio y aprobación.
+  2. Aprobado: aplicar un conteo solo modifica existencias; nunca costo, precio ni margen. Prevalece sobre `QA-INV-001` de #134 (la prueba de #134 se ajusta en `auditoria-inventario.postgres.integration.ts`).
+  3. Aprobado con condición: productos existentes quedan aprobados solo con precio de venta > 0 (`UPDATE ... WHERE precio_venta > 0`). El resto queda pendiente de revisión del ADMIN.
+  4. Aprobado: completo = nombre, categoría y unidad de medida; la descripción es opcional (backend `levantamientos.service.ts` y `utils/precios.ts`).
+  5. Rechazado: vender o cotizar sin precio aprobado, incluso offline.
+- **Contingencia offline (P0, `contingencia.service.ts`):**
+  - Catálogo de la ventana: solo productos con `precio_aprobado=true` y `precio_venta > 0`.
+  - Sincronización: revalida en el servidor `precio_aprobado` y precio > 0. Conflictos `PRODUCTO_SIN_PRECIO_APROBADO` y `PRECIO_NO_VALIDO`, de severidad DURO y no superables por un administrador. La operación queda en `REVISION` con motivo, sin venta, sin movimiento de caja, sin descuento de inventario y sin cobro confirmado en el servidor.
+  - Idempotencia: el mismo UUID no duplica nada. Si la revisión es solo por precio, un reenvío la revalida (`revisionPorPrecio`); una vez aprobado el precio, aplica una sola vez.
+- **Personal de bodega (BODEGUERO):** `canReadProductFinancials` solo para ADMIN. `CashierResponseInterceptor` oculta a todo usuario de tenant que no sea ADMIN las claves de costo y margen, incluida cualquier clave que contenga `costo` o `margen` (p. ej. `ultimo_costo`). La vista pública expone `precioAprobado` (booleano), sin costo, margen ni responsable.
+- **Pruebas ejecutadas (2026-10-11, PostgreSQL 16 real, usuario no root):**
+  - Integración nueva: `test/contingencia-precio-aprobado.postgres.integration.ts` (6 casos: catálogo, pérdida de aprobación antes de sincronizar, L 0 con forzado de administrador, precio del servidor en cero, reconexión con reenvíos concurrentes, revisión no de precio no se revalida sola).
+  - `test/precios-aprobacion.postgres.integration.ts`: 14 casos, incluidos ocultamiento de costos a BODEGUERO por HTTP (compras, historial, proveedores, entregas, productos) y pérdida de acceso tras cambio de rol.
+  - Integración completa: **24 archivos, 391 aprobadas, 1 omitida** (la misma omitida de siempre).
+  - Unitarias backend 345/345; frontend unitarias 233/233; Playwright simulado 120/120; E2E con backend real `precios-real.spec.ts` 1/1.
+- **Bloqueos restantes:**
+  1. **ATLAS:** no está activo en esta sesión y no hay PR abierto suyo sobre contingencia. Los cambios en `contingencia.service.ts` son acotados (tres puntos y `revisionPorPrecio`), pero deben revisarse con ATLAS antes de integrar. El cliente offline (`src/offline`, `POSPage`) no se tocó: debe mostrar el motivo de revisión por precio; pendiente de ATLAS.
+  2. **NEXUS:** no está activo; la revisión de la migración `20261011150000_precio_aprobacion_producto` (con `WHERE precio_venta > 0`) queda pendiente.
+  3. Reconexión real (apagón, IndexedDB del equipo, reinicio de Windows) no probada; las pruebas simulan los reenvíos con PostgreSQL real.
+  4. Sin validación en iPhone, Safari ni Windows; sin datos reales de la ferretería.
+  5. Columnas legadas `margen` y `precio_*` de `levantamiento_items` y `productos.margen`: sin uso, no se borran.
 - **Bitácora:** lectura del contexto vigente y de PRs abiertos (#129–#135); implementación backend, frontend, migración y pruebas; corrección de fixtures y contratos de pruebas que cambian por diseño (no se relajó ninguna aserción salvo las que describían el comportamiento anterior); PR en borrador pendiente de revisión humana. Sin aceptación del cliente.
 
 ---

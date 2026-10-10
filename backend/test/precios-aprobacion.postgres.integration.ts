@@ -16,6 +16,9 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { LevantamientosController } from '../src/levantamientos/levantamientos.controller';
 import { LevantamientosService } from '../src/levantamientos/levantamientos.service';
 import { VentasService } from '../src/ventas/ventas.service';
+import { OperacionesController } from '../src/operaciones/operaciones.controller';
+import { OperacionesService } from '../src/operaciones/operaciones.service';
+import { COSTO_KEYS } from '../src/common/interceptors/cashier-response.interceptor';
 
 import { ProductosController } from '../src/productos/productos.controller';
 import { ProductosService } from '../src/productos/productos.service';
@@ -60,8 +63,8 @@ describe('Precios y aprobación para venta — HTTP y PostgreSQL aislado', () =>
     prisma = new PrismaService({ datasources: { db: { url } } });
     await prisma.$connect();
     const module = await Test.createTestingModule({
-      controllers: [LevantamientosController, ProductosController],
-      providers: [LevantamientosService, ProductosService, JwtStrategy,
+      controllers: [LevantamientosController, ProductosController, OperacionesController],
+      providers: [LevantamientosService, ProductosService, OperacionesService, JwtStrategy,
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigService, useValue: { get: (key: string) => key === 'JWT_SECRET' ? secret : undefined } },
         { provide: APP_INTERCEPTOR, useClass: CashierResponseInterceptor },
@@ -107,7 +110,8 @@ describe('Precios y aprobación para venta — HTTP y PostgreSQL aislado', () =>
 
   it('el personal no define precios: alta sin precio queda pendiente y con precio responde 403',async()=>{
     const pendiente=(await call('post','/productos',{nombre:'Clavo 2 pulgadas',stockActual:0,stockMinimo:0,solicitudId:randomUUID()},'BODEGUERO').expect(201)).body;
-    expect(pendiente).toMatchObject({precioVenta:0,precioCosto:0});
+    expect(pendiente).toMatchObject({precioVenta:0});
+    expect(pendiente).not.toHaveProperty('precioCosto');
     const stored=await prisma.producto.findUniqueOrThrow({where:{id:pendiente.id}});
     expect(stored.precioAprobado).toBe(false);
     await call('post','/productos',{nombre:'Tuerca',stockActual:0,stockMinimo:0,precioVenta:5,precioCosto:1,solicitudId:randomUUID()},'BODEGUERO').expect(403);
@@ -201,5 +205,58 @@ describe('Precios y aprobación para venta — HTTP y PostgreSQL aislado', () =>
     const stored=await prisma.producto.findUniqueOrThrow({where:{id:productId}});
     expect([Number(stored.stockActual),Number(stored.precioCosto),Number(stored.precioVenta),stored.margen]).toEqual([15,2,4,null]);
     expect(await prisma.movimientoInventario.count({where:{tenantId,productoId:productId,tipo:'AJUSTE'}})).toBe(1);
+  });
+  // ── Ninguna respuesta destinada al personal de bodega expone costos ni márgenes ──
+  const clavesFinancieras = (valor: any, acumulado: string[] = []): string[] => {
+    if (Array.isArray(valor)) valor.forEach(v => clavesFinancieras(v, acumulado));
+    else if (valor && typeof valor === 'object') {
+      for (const [clave, v] of Object.entries(valor)) {
+        if (COSTO_KEYS.includes(clave) || /costo|margen/i.test(clave)) acumulado.push(clave);
+        clavesFinancieras(v, acumulado);
+      }
+    }
+    return acumulado;
+  };
+
+  it('BODEGUERO no recibe costos ni márgenes en ninguna lectura de inventario, compras o entregas; el ADMIN sí', async () => {
+    const proveedor = await prisma.proveedor.create({ data: { tenantId, nombre: 'Proveedor sintético' } });
+    const ops = new OperacionesService(prisma);
+    const orden = await ops.compra(tenantId, users.ADMIN.id, { solicitudId: randomUUID(), proveedorId: proveedor.id, numeroFactura: 'FAC-PRECIOS-1', isv: 0, fecha: '2026-10-09', vencimiento: '2026-11-09', items: [{ productoId: productId, cantidad: 5, costo: 6 }] } as any);
+    const [linea] = await prisma.$queryRawUnsafe<{ id: string }[]>('SELECT id FROM detalles_orden_compra WHERE orden_id=$1', orden.id);
+    await ops.recibir(tenantId, users.BODEGUERO.id, orden.id, { solicitudId: randomUUID(), items: [{ detalleId: linea.id, cantidad: 5 }] } as any);
+
+    await call('get', '/productos/comercial', {}, 'BODEGUERO').expect(403);
+    const rutas = [`/productos/${productId}`, '/productos', '/productos/alertas/stock-bajo',
+      `/operaciones/productos/${productId}/proveedores`, `/operaciones/productos/${productId}/historial`, '/operaciones/compras', '/operaciones/entregas'];
+    for (const ruta of rutas) {
+      const respuesta = await call('get', ruta, {}, 'BODEGUERO');
+      expect(respuesta.status, ruta).toBe(200);
+      expect(clavesFinancieras(respuesta.body), ruta).toEqual([]);
+    }
+    const admin = await call('get', `/productos/${productId}`, {}, 'ADMIN').expect(200);
+    expect(admin.body).toHaveProperty('precioCosto');
+    const historialAdmin = await call('get', `/operaciones/productos/${productId}/historial`, {}, 'ADMIN').expect(200);
+    expect(clavesFinancieras(historialAdmin.body).length).toBeGreaterThan(0);
+  });
+
+  it('el mismo usuario que deja de ser ADMIN pierde el acceso a costos en la siguiente petición', async () => {
+    const promovido = await prisma.usuario.findFirstOrThrow({ where: { tenantId, rol: 'BODEGUERO' } });
+    await prisma.usuario.update({ where: { id: promovido.id }, data: { rol: 'ADMIN' } });
+    expect(clavesFinancieras((await call('get', `/productos/${productId}`, {}, 'BODEGUERO')).body).length).toBeGreaterThan(0);
+    await prisma.usuario.update({ where: { id: promovido.id }, data: { rol: 'BODEGUERO' } });
+    expect(clavesFinancieras((await call('get', `/productos/${productId}`, {}, 'BODEGUERO')).body)).toEqual([]);
+  });
+  it('completo exige nombre, categoría y unidad en el conteo; la descripción no es obligatoria', async () => {
+    await add(item({ descripcion: 'Tuerca sin categoría', cantidad: 1, unidad: 'UNIDAD' })).expect(201);
+    await add(item({ descripcion: 'Tuerca 3/8', cantidad: 2, unidad: 'UNIDAD', categoria: 'Ferretería' })).expect(201);
+    await finish();
+    const rows = (await preview()).body.rows;
+    expect(rows.find((r: any) => r.nombre === 'Tuerca sin categoría')).toMatchObject({ datosCompletos: false });
+    expect(rows.find((r: any) => r.nombre === 'Tuerca 3/8')).toMatchObject({ datosCompletos: true });
+  });
+
+  it('un producto aprobado no puede quedar con precio de venta cero', async () => {
+    await priceCall(productId, { version: 1, precioVenta: 0 }).expect(400);
+    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productId } })).precioVenta)).toBe(4);
   });
 });

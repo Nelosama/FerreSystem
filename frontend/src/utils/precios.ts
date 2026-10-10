@@ -8,6 +8,7 @@ export interface ProductoPrecio {
   codigo: string;
   nombre: string;
   descripcion?: string | null;
+  unidadMedida?: string | null;
   categoriaNombre?: string | null;
   categoria?: { nombre?: string | null } | null;
   precioCosto: number;
@@ -33,10 +34,10 @@ export function margenCalculado(costo: number, venta: number): number | null {
   return Math.round(((venta - costo) / venta) * 10000) / 100;
 }
 
-/** Descripción y categoría presentes: el producto tiene datos suficientes para venderse. */
+/** Completo: nombre, categoría y unidad de medida. La descripción adicional es opcional. */
 export function datosCompletos(producto: ProductoPrecio): boolean {
   const categoria = texto(producto.categoriaNombre ?? producto.categoria?.nombre);
-  return texto(producto.descripcion) !== '' && categoria !== '';
+  return texto(producto.nombre) !== '' && categoria !== '' && texto(producto.unidadMedida) !== '';
 }
 
 export function precioPendiente(producto: ProductoPrecio): boolean {
