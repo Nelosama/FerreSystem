@@ -65,7 +65,10 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadTemplate = () => {
-    const headers = ['nombre', 'codigo', 'categoria', 'precioCosto', 'precioVenta', 'stockActual', 'stockMinimo', 'unidadMedida'];
+    // P1: BODEGUERO no recibe ni exporta costos o precios comerciales; la plantilla solo pide datos de identidad y existencias.
+    const headers = esAdmin
+      ? ['nombre', 'codigo', 'categoria', 'precioCosto', 'precioVenta', 'stockActual', 'stockMinimo', 'unidadMedida']
+      : ['nombre', 'codigo', 'categoria', 'stockActual', 'stockMinimo', 'unidadMedida'];
     const cats = rubroConfig.categoriasDefault.length > 0 ? rubroConfig.categoriasDefault : ['General', 'Otros'];
     const units = rubroConfig.unidadesMedida.length > 0 ? rubroConfig.unidadesMedida : ['unidad', 'metro'];
 
@@ -450,8 +453,8 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                           <th>NOMBRE</th>
                           <th>CATEGORÍA</th>
                           <th>UNIDAD</th>
-                          <th style={{ textAlign: 'right' }}>COSTO</th>
-                          <th style={{ textAlign: 'right' }}>VENTA</th>
+                          {esAdmin && <th style={{ textAlign: 'right' }}>COSTO</th>}
+                          {esAdmin && <th style={{ textAlign: 'right' }}>VENTA</th>}
                           <th style={{ textAlign: 'center' }}>STOCK</th>
                           <th>ESTADO</th>
                         </tr>
@@ -469,8 +472,8 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                             <td>{r.nombre || <em style={{ color: '#DC2626' }}>[Vacío]</em>}</td>
                             <td>{r.categoria}</td>
                             <td style={{ textTransform: 'lowercase' }}>{r.unidadMedida}</td>
-                            <td style={{ textAlign: 'right' }}>L. {r.precioCosto.toFixed(2)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 700 }}>L. {r.precioVenta.toFixed(2)}</td>
+                            {esAdmin && <td style={{ textAlign: 'right' }}>L. {r.precioCosto.toFixed(2)}</td>}
+                            {esAdmin && <td style={{ textAlign: 'right', fontWeight: 700 }}>L. {r.precioVenta.toFixed(2)}</td>}
                             <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.stockActual}</td>
                             <td>
                               {r.esValido ? (

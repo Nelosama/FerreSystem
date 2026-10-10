@@ -4,11 +4,13 @@ import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { createServer } from 'node:net';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
 import { LevantamientosService } from '../src/levantamientos/levantamientos.service';
 import { ProductosService } from '../src/productos/productos.service';
+import { VentasService } from '../src/ventas/ventas.service';
 
 // Auditoría del ciclo de inventario (compra → recepción → ajuste → conteo → aplicación).
 // Clúster PostgreSQL desechable, usuario no root. Nunca usa DATABASE_URL productiva ni migraciones.
@@ -16,7 +18,7 @@ describe('Ciclo de inventario / PostgreSQL real', () => {
   const bin = process.env.PG_BIN || '/usr/bin';
   const exe = (name: string) => join(bin, name);
   let directory: string, prisma: PrismaService, started = false;
-  let operaciones: OperacionesService, levantamientos: LevantamientosService, productos: ProductosService;
+  let operaciones: OperacionesService, levantamientos: LevantamientosService, productos: ProductosService, ventas: VentasService;
   let tenantId: string, adminId: string, bodegueroId: string, proveedorId: string;
 
   const crearProducto = async (datos: Record<string, unknown>) => (await prisma.producto.create({
@@ -45,6 +47,7 @@ describe('Ciclo de inventario / PostgreSQL real', () => {
     operaciones = new OperacionesService(prisma);
     levantamientos = new LevantamientosService(prisma);
     productos = new ProductosService(prisma);
+    ventas = new VentasService(prisma);
   }, 180000);
 
   afterAll(async () => {
@@ -233,5 +236,61 @@ describe('Ciclo de inventario / PostgreSQL real', () => {
     const historico = await prisma.$queryRawUnsafe<any[]>('SELECT costo, proveedor_id FROM costos_compra WHERE tenant_id=$1 AND producto_id=$2 ORDER BY fecha', tenantId, productoId);
     expect(historico.map(h => Number(h.costo))).toEqual([3, 2.5]);
     expect(historico.every(h => h.proveedor_id === proveedorId)).toBe(true);
+  });
+
+  // ── P0 (PR #134): nunca queda disponible para venta un producto sin precio de venta válido ──
+  it('P0: ADMIN da de alta sin precio de venta y el producto no queda disponible', async () => {
+    const creado = await productos.create(tenantId, { nombre: 'Sin precio', codigo: 'SP-1', precioCosto: 3, precioVenta: 0, stockActual: 1, stockMinimo: 0, unidadMedida: 'UNIDAD' } as any, adminId);
+    expect([creado.activo, creado.pendienteConfiguracion]).toEqual([false, true]);
+    expect(await prisma.producto.findFirst({ where: { id: creado.id, tenantId, activo: true } })).toBeNull();
+  });
+
+  it('P0: fijar precio de venta cero a un producto activo se rechaza y conserva el precio', async () => {
+    const productoId = await crearProducto({ stockActual: 1, precioVenta: 4 });
+    await expect(productos.update(tenantId, productoId, { version: 1, precioVenta: 0 } as any, adminId)).rejects.toBeInstanceOf(BadRequestException);
+    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).precioVenta)).toBe(4);
+  });
+
+  it('P0: una venta no usa un producto activo sin precio de venta válido, aunque la base lo tenga así', async () => {
+    const productoId = await crearProducto({ stockActual: 10, precioVenta: 0 });
+    const cajaId = randomUUID();
+    await prisma.caja.create({ data: { id: cajaId, tenantId, codigo: `CAJA-${cajaId}`, usuarioId: adminId, montoApertura: 0 } as any });
+    await expect(ventas.create(tenantId, adminId, { metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles: [{ productoId, cantidad: 1 }] } as any))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(await stockDe(productoId)).toBe(10);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
+  });
+
+  // P1 (PR #134): diagnóstico de costos históricos de solo lectura; no corrige datos.
+  it('diagnóstico de costos es de solo lectura y clasifica costo comercial frente a costo vigente y última compra', async () => {
+    const legado = await crearProducto({ codigo: 'DIAG-B', stockActual: 0, precioCosto: 5, costoVigente: 3 });
+    await comprarYRecibir(legado, 2, 3);
+    await prisma.producto.update({ where: { id: legado }, data: { precioCosto: 5, costoVigente: 3 } });
+    const sinVigente = await crearProducto({ codigo: 'DIAG-C', stockActual: 0, precioCosto: 4, costoVigente: null });
+    const igual = await crearProducto({ codigo: 'DIAG-A', stockActual: 0, precioCosto: 2, costoVigente: 2 });
+    const antes = await prisma.producto.findMany({ where: { tenantId }, orderBy: { codigo: 'asc' } });
+
+    const sql = readFileSync(resolve('scripts/diagnostico-costos-vigentes.sql'), 'utf8');
+    const filas = await prisma.$transaction(async tx => {
+      await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+      return tx.$queryRawUnsafe<any[]>(sql);
+    });
+    const propias = filas.filter(f => f.tenant_id === tenantId);
+    expect(propias.map(f => [f.codigo, f.diagnostico])).toEqual([
+      ['DIAG-B', 'COSTO_VIGENTE_COINCIDE_CON_ULTIMA_COMPRA'],
+      ['DIAG-C', 'SIN_COSTO_VIGENTE'],
+    ]);
+    expect(Number(propias[0].costo_ultima_compra)).toBe(3);
+    expect(propias.some(f => f.producto_id === igual)).toBe(false);
+
+    // La transacción de solo lectura rechaza cualquier escritura.
+    await expect(prisma.$transaction(async tx => {
+      await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+      await tx.$executeRawUnsafe('UPDATE productos SET precio_costo = 0 WHERE tenant_id = $1', tenantId);
+    })).rejects.toThrow();
+    const despues = await prisma.producto.findMany({ where: { tenantId }, orderBy: { codigo: 'asc' } });
+    expect(despues.map(p => [p.id, Number(p.precioCosto), p.costoVigente === null ? null : Number(p.costoVigente)]))
+      .toEqual(antes.map(p => [p.id, Number(p.precioCosto), p.costoVigente === null ? null : Number(p.costoVigente)]));
+    expect(sinVigente).toBeDefined();
   });
 });

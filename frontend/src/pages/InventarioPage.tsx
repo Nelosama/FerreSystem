@@ -231,7 +231,7 @@ const InventarioContent: React.FC = () => {
                 <th>{t('inventory.category')}</th>
                 <th>{t('common.unit')}</th>
                 <th className="numeric-cell" style={{ textAlign: 'right' }}>{t('inventory.price')}</th>
-                <th className="numeric-cell" style={{ textAlign: 'right' }}>{t('inventory.cost')}</th>
+                {esAdmin && <th className="numeric-cell" style={{ textAlign: 'right' }}>{t('inventory.cost')}</th>}
                 <th style={{ textAlign: 'center' }}>{t('inventory.stock')}</th>
                 <th style={{ textAlign: 'center' }}>{t('inventory.minimum')}</th>
                 <th style={{ textAlign: 'center' }}>{t('common.status')}</th>
@@ -276,9 +276,9 @@ const InventarioContent: React.FC = () => {
                       <td className="numeric-cell" style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, whiteSpace: 'nowrap' }}>
                         {formatLempiras(p.precioVenta)}
                       </td>
-                      <td className="numeric-cell" style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                      {esAdmin && (<td className="numeric-cell" style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                         {formatLempiras(p.precioCosto)}
-                      </td>
+                      </td>)}
                       <td className="numeric-cell" style={{ textAlign: 'center', fontFamily: 'var(--font-display)',
                           fontWeight: 800,
                           fontSize: '15px',

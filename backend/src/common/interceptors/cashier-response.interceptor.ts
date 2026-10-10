@@ -6,7 +6,7 @@ export function withoutCosts(value: any): any {
   if (Array.isArray(value)) return value.map(withoutCosts);
   if (!value || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return value;
   return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !['precioCosto', 'precio_costo', 'costoUnitario', 'costo_unitario', 'costo', 'costos', 'margen', 'ultimaCompraAt'].includes(key))
+    .filter(([key]) => !['precioCosto', 'precio_costo', 'costoUnitario', 'costo_unitario', 'costo', 'costos', 'costoVigente', 'costo_vigente', 'margen', 'ultimaCompraAt'].includes(key))
     .map(([key, item]) => [key, withoutCosts(item)]));
 }
 

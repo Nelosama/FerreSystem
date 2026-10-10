@@ -308,6 +308,22 @@ Decisiones del dueño aplicadas en el PR: (1) edición de producto por ADMIN com
 6. Sin prueba e2e dedicada para el levantamiento sin precios; la cobertura proviene de la suite existente, la compilación y las pruebas de integración.
 7. Sin acreditar: hardware, iPhone, sucursales y aceptación del cliente.
 
+### Cierre técnico PR #134 — KARDEX (2026-10-10 UTC)
+
+- **P0 (corregido):** ADMIN ya no crea ni habilita productos sin precio de venta válido; fijar precio cero a un producto activo responde 400; ninguna venta usa un producto sin precio aprobado (`ventas.service.ts`).
+- **P1 privacidad (corregido en servidor):** BODEGUERO no recibe costo, margen ni costo vigente en productos (`canReadProductFinancials` solo ADMIN). Levantamiento: respuestas sin costos ni margen para no ADMIN; advertencias reducidas a un conteo (`levantamiento-response.interceptor.ts`). CAJERO conserva precio de venta. Frontend: importador, inventario, edición de producto y exportación del conteo ocultan costos y márgenes a no ADMIN.
+- **P1 conciliación de costos:** diagnóstico de solo lectura en `backend/scripts/diagnostico-costos-vigentes.sql`; propuesta con respaldo CSV, simulacro y rollback en `docs/CONCILIACION_COSTOS_PROPUESTA.md`. No se ejecutó ninguna corrección.
+- **P2 e2e:** prueba del levantamiento: sin campos de costo, precio ni margen; el alta no envía precios; el responsable y las existencias quedan registrados; las advertencias se muestran y la aplicación envía solo el token.
+- **ATLAS:** no existe rama ni PR de ATLAS en el remoto. Dependencias y superficies de conflicto en `docs/ATLAS_DEPENDENCIAS_PR134.md`; no se implementó contrato alguno.
+- **Evidencia:** `docs/kardex-evidencia-pr134/RESULTADOS.md`.
+
+**Riesgos abiertos antes de merge:**
+1. Conciliación de costos históricos: requiere decisión del dueño (reglas A, 2 y 3 de la propuesta).
+2. El historial de compras (`GET /operaciones/productos/:id/historial`) y la lista de compras siguen mostrando costos a BODEGUERO, por diseño existente de compras; decidir si se restringe.
+3. Catálogo del POS offline (`contingencia.service.ts`, sincronización) puede incluir productos activos heredados con precio cero. No se modificó por regla de no tocar POS offline; coordinar con su responsable antes de merge.
+4. ATLAS: sin base verificable; revisar `ventas.create` y `operaciones.entregar` antes de implementar.
+
+
 ---
 
 ## Inventario — estado vigente de las correcciones QA-INV (verificado en main, 2026-10-10 UTC)

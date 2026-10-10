@@ -465,4 +465,21 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     const fila=(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body[0].items.find((i:any)=>i.id===b.id);
     expect(fila.contador).toEqual({id:users.OTHER.id,nombre:null,estado:'NO_DISPONIBLE'});
   });
+
+  it('P1 HTTP: BODEGUERO cuenta sin ver costo, margen ni diferencias comerciales con valores; ADMIN sí las ve y el conteo queda intacto',async()=>{
+    await add(item({codigo:'CABLE',cantidad:9,unidad:'METRO',precioCosto:7,precioVenta:9,margen:90})).expect(201);
+    await finish();
+    const admin=(await preview()).body;
+    expect(admin.rows[0].advertencias.length).toBeGreaterThan(0);
+    const bodeguero=(await call('get',`/levantamientos/${lid}/preview`,{},'BODEGUERO').expect(200)).body;
+    const fila=bodeguero.rows[0];
+    // P1: el precio de venta sí es visible a BODEGUERO (operación de catálogo); costo, margen y advertencias no.
+    for(const campo of ['precioCosto','margen','advertencias']) expect(fila).not.toHaveProperty(campo);
+    expect(fila.diferenciasComerciales).toBeGreaterThan(0);
+    expect(JSON.stringify(bodeguero)).not.toMatch(/precioCosto|"margen"|costo vigente|Costo contado/);
+    const items=(await call('get',`/levantamientos/${lid}/items`,{},'BODEGUERO').expect(200)).body;
+    expect(items[0]).not.toHaveProperty('precioCosto');
+    expect(items[0]).not.toHaveProperty('margen');
+    expect(Number(items[0].cantidad)).toBe(9);
+  });
 });

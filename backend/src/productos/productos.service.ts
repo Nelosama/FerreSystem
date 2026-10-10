@@ -54,7 +54,10 @@ export class ProductosService {
    if(barcode&&await tx.producto.findFirst({where:{tenantId,codigoBarras:barcode}}))throw new ConflictException('Código de barras ya registrado');
    // Costo vigente y costo comercial son el mismo dato: se crean sincronizados.
    const precioCosto=esAdmin?decimal(dto.precioCosto,'Costo'):0;
-   const p=await tx.producto.create({data:{tenantId,codigo,nombre,codigoBarras:barcode,codigoFabricante:dto.codigoFabricante?.trim()||null,marca:dto.marca?.trim()||null,imagenUrl:dto.imagenUrl||null,descripcion:dto.descripcion,categoriaId:await this.category(tx,tenantId,dto),usaMedida:dto.usaMedida??false,precioVenta:esAdmin?decimal(dto.precioVenta,'Precio'):0,precioCosto,costoVigente:precioCosto,margen:esAdmin?dto.margen:null,activo:esAdmin,stockActual:decimal(dto.stockActual,'Stock'),stockMinimo:decimal(dto.stockMinimo,'Mínimo'),unidadMedida:dto.unidadMedida||'UNIDAD'},include:{categoria:{select:{id:true,nombre:true}}}});
+   const precioVenta=esAdmin?decimal(dto.precioVenta,'Precio'):0;
+   // P0 (PR #134): un producto sin precio de venta válido nunca queda disponible para venta, aunque lo cree ADMIN.
+   const disponible=esAdmin&&precioVenta>0;
+   const p=await tx.producto.create({data:{tenantId,codigo,nombre,codigoBarras:barcode,codigoFabricante:dto.codigoFabricante?.trim()||null,marca:dto.marca?.trim()||null,imagenUrl:dto.imagenUrl||null,descripcion:dto.descripcion,categoriaId:await this.category(tx,tenantId,dto),usaMedida:dto.usaMedida??false,precioVenta,precioCosto,costoVigente:precioCosto,margen:esAdmin?dto.margen:null,activo:disponible,stockActual:decimal(dto.stockActual,'Stock'),stockMinimo:decimal(dto.stockMinimo,'Mínimo'),unidadMedida:dto.unidadMedida||'UNIDAD'},include:{categoria:{select:{id:true,nombre:true}}}});
    await movement(tx,tenantId,userId,p.id,'INICIAL',0,Number(p.stockActual),p.id,'Alta inicial de producto');await audit(tx,tenantId,userId,'PRODUCTO_CREAR',p.id,{codigo,stock:Number(p.stockActual),...(dto.solicitudId?{solicitudId:dto.solicitudId,solicitudHash}:{})});return this.format(p);
   });
  }
@@ -74,7 +77,9 @@ export class ProductosService {
    if(cambiaPrecios&&usuario.rol!=='ADMIN')throw new ForbiddenException('Solo el administrador puede definir costo, precio o margen');
    // Pendiente de precio: un producto sin precio de venta aprobado no se habilita para venta.
    const precioFinal=dto.precioVenta!==undefined?Number(dto.precioVenta):Number(old.precioVenta);
-   if(reactivando&&precioFinal<=0)throw new BadRequestException('Defina el precio de venta antes de habilitar el producto');
+   // P0: sin precio de venta válido no hay producto disponible. Aplica a habilitar y a fijar precio cero en un producto activo.
+   const activoFinal=dto.activo!==undefined?dto.activo:old.activo;
+   if((reactivando||dto.precioVenta!==undefined)&&activoFinal&&precioFinal<=0)throw new BadRequestException('Un producto disponible para venta requiere precio de venta mayor a cero');
    if(dto.stockActual!==undefined&&dto.stockActual<Number(old.stockReservado))throw new ConflictException('El conteo no cubre las ventas pendientes de entrega');
    const cambiaStock=dto.stockActual!==undefined&&Number(old.stockActual)!==dto.stockActual;
    if(cambiaStock&&dto.stockAnterior===undefined)throw new BadRequestException('Recargue el producto antes de ajustar existencias: falta la cantidad anterior');

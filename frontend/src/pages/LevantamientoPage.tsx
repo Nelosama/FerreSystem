@@ -254,7 +254,7 @@ export const LevantamientoPage: React.FC = () => {
   const exportRows = () => active.items.map((i: any) => ({
     codigo: i.codigo || '', codigoBarras: i.codigoBarras || '', descripcion: i.descripcion,
     cantidad: Number(i.cantidad), unidad: i.unidad, categoria: i.categoria || '',
-    costo: i.precioCosto ?? '', precio: i.precioVenta ?? '', margen: i.margen ?? '',
+    ...(user?.rol === 'ADMIN' ? { costo: i.precioCosto ?? '', precio: i.precioVenta ?? '', margen: i.margen ?? '' } : {}),
     ubicacion: i.ubicacion || '', marca: i.marca || '', notas: i.notas || '',
     contador: i.contadorId || '', conflicto: i.conflicto ? 'Sí' : '',
   }));
