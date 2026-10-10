@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-09, America/Tegucigalpa** — auditoría PR #79 completada: P1 guard precios null + P2 tests aplicar(); 19/19 tests pasan; commit `bac89b1b` listo para push.
+Última revisión: **2026-10-10 UTC** — inventario para entrega al cliente, PR [#105](https://github.com/Nelosama/FerreSystem/pull/105); resultados, alcance y pendientes en el bloque de inventario siguiente. Las bitácoras anteriores se conservan.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -22,9 +22,9 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
-## Inventario — corrección prioritaria para entrega al cliente (2026-10-09)
+## Inventario — corrección prioritaria para entrega al cliente (2026-10-09/10 UTC)
 
-**Estado de esta revisión:** rama `fix/inventario-entrega-cliente` desde `origin/main` `00f72c02` (PR #103 ya fusionado). Un único PR hacia main; sin merge, despliegue ni consultas a producción. Este bloque describe la revisión más reciente de inventario; las bitácoras fechadas de abajo se conservan como evidencia histórica.
+**Estado de esta revisión:** rama `fix/inventario-entrega-cliente` desde `origin/main` `00f72c02` (PR #103 ya fusionado). PR [#105](https://github.com/Nelosama/FerreSystem/pull/105) hacia main; sin merge, comandos de despliegue ni consultas a producción. Este bloque describe la revisión más reciente de inventario; las bitácoras fechadas de abajo se conservan como evidencia histórica.
 
 **Continuidad y aislamiento:** revisados los PR #37/#39/#43/#44/#51/#73/#76/#79/#100/#101/#102/#103. Se reutilizan CRUD, generación de códigos internos, conteo persistente, idempotencia del conteo, conciliación multiusuario, preview/aplicar, versión de producto, auditoría y recepción con costo de última compra. Claude trabaja en PR #104 (`fix/p0-credit-integrity`): esta rama no modifica sus archivos de clientes, cotizaciones, operaciones, crédito ni sus pruebas. El único archivo compartido es este contexto, donde la sección de inventario se agrega al principio y su sección de crédito se conserva en su rama. No se modifica el esquema Prisma ni se añaden migraciones.
 
@@ -34,7 +34,7 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 |---|---|---|
 | Alta directa repetida genera otro producto y otro stock inicial si no lleva código. | `POST /productos` sin identidad de solicitud; la UI no bloqueaba envíos. | `solicitudId` UUID v4 + hash estable del contenido en `PRODUCTO_CREAR`, misma transacción y bloqueo de empresa. Reintento devuelve el producto existente; clave usada con otros datos o por otro empleado responde 409. Frontend persiste clave y contenido por empresa/usuario, muestra Guardando/Guardado, y bloquea doble envío. |
 | Buscar una categoría no encuentra sus productos; filtros solo incluyen categorías predeterminadas. | API busca solo campos de producto; frontend ignora categorías de catálogo. | Búsqueda por nombre de categoría y trim del término; filtros incluyen las categorías reales. Lookup del conteo anuncia búsqueda por código, descripción o categoría; captura de categoría conserva texto libre y agrega sugerencias. |
-| `null` en edición puede convertir cantidades o precios a 0; códigos null pueden provocar error interno. | `@IsOptional()` omite validación de null; `Number(null)` produce cero. | Campos opcionales validan si no son undefined: null inválido responde 400 antes de escribir. `imagenUrl: null` conserva su contrato de borrado explícito. |
+| `null` en edición puede convertir cantidades o precios a 0; códigos null pueden provocar error interno. | `@IsOptional()` omite validación de null; `Number(null)` produce cero. | Campos opcionales validan si no son undefined: null inválido responde 400 antes de escribir. `imagenUrl: null` y `margen: null` conservan sus contratos de borrado explícito. |
 | Baja lógica no invalida formularios antiguos; se puede reactivar con una versión obsoleta. | DELETE no incrementa `productos.version`. | Baja incrementa versión; edición con versión anterior responde 409. |
 | Un ajuste abierto antes de una recepción borra las existencias recibidas. | Recepciones/entregas cambian cantidades mediante SQL sin incrementar `productos.version`; la versión sola no detecta el cambio. | Un ajuste que cambia stock exige `stockAnterior` y lo compara dentro de la transacción. Si cambió responde `409 PRODUCTO_STOCK`; la UI recarga. Importador también envía la cantidad leída. Reproducción SQL del contrato vigente y prueba con recepción efectiva/ajuste concurrentes. |
 | Alta no permite guardar descripción ni indicar venta por medida; captura datos sin persistencia y el modal resulta difícil en móvil. | `usaMedida: false` fijo; descripción omitida; controles de lote/serie/vencimiento sin campo en BD; modal sin límite vertical. | Nombre y variante primero; códigos internos automáticos; descripción y datos opcionales plegados; usaMedida editable; cantidades a dos decimales; modal desplazable y columnas adaptables. Se retiran los controles que simulaban persistencia de lote/serie/vencimiento/garantía. |
@@ -68,7 +68,7 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 **Resultados locales finales y límites:**
 
 - Backend unitarias: 326/326. Scripts: 13/13. TypeScript de compilación, Nest build y lint ejecutados sin errores; avisos existentes.
-- PostgreSQL real: **185/185 en 9 archivos**; `productos-edicion.postgres.integration.ts` 31/31. Clústeres temporales PostgreSQL 17.11 como usuario no root; nunca se usa DATABASE_URL de producción. DDL del esquema actual para las suites HTTP y migraciones reales en la suite de migraciones.
+- PostgreSQL real: **186/186 en 9 archivos**; `productos-edicion.postgres.integration.ts` 32/32. Clústeres temporales PostgreSQL 17.11 como usuario no root; nunca se usa DATABASE_URL de producción. DDL del esquema actual para las suites HTTP y migraciones reales en la suite de migraciones.
 - Frontend: 163/163, incluidos cinco casos con ZXing real e imágenes sintéticas EAN-13/EAN-8/UPC-A/CODE-128/checksum inválido. TypeScript (`tsc -b`), Vite build y lint sin errores. Avisos previos de React y tamaño del bundle.
 - Playwright Chromium: **93/93**. APIs simuladas: verifica interfaz y payloads; no acredita persistencia.
 - Playwright WebKit 26.6 con emulación iPhone 13: 23/23; archivo `frontend/playwright.inventory-webkit.config.ts`. APIs y permiso de cámara simulados. **No es Safari instalado en un iPhone físico y no acredita cámara real.** El decodificador con imágenes sintéticas tampoco valida iluminación/enfoque/etiquetas del cliente.

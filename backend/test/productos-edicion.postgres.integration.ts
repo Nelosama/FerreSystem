@@ -376,4 +376,14 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
     expect(await prisma.movimientoInventario.count({ where: { productoId: p.id, tipo: 'AJUSTE' } })).toBe(ajuste.status === 200 ? 1 : 0);
   });
 
+  it('conserva el borrado explícito del margen opcional, sin modificar precios o existencias', async () => {
+    const p = (await alta({ margen: 20 }).expect(201)).body;
+    await editar(p.id, { version: 1, margen: null }).expect(200);
+    const stored = await fila(p.id);
+    expect(stored.margen).toBeNull();
+    expect(Number(stored.precioCosto)).toBe(8);
+    expect(Number(stored.precioVenta)).toBe(12);
+    expect(Number(stored.stockActual)).toBe(40);
+  });
+
 });

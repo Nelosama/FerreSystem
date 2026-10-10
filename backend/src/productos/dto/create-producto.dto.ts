@@ -19,7 +19,7 @@ export class CreateProductoDto {
   @ValidateIf((_object, value) => value !== undefined) @IsString() codigoFabricante?: string;
   @ValidateIf((_object, value) => value !== undefined) @IsString() @MaxLength(100) marca?: string;
   @ValidateIf((_object, value) => value !== undefined && value !== null) @IsUrl({protocols:['https'],require_protocol:true}) @MaxLength(2048) imagenUrl?:string;
-  @ValidateIf((_object, value) => value !== undefined) @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?: number;
+  @ValidateIf((_object, value) => value !== undefined && value !== null) @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?: number | null;
 
   @IsString()
   @IsNotEmpty({ message: 'El nombre del producto es requerido' })
@@ -83,7 +83,7 @@ export class UpdateProductoDto {
   @ValidateIf((_object, value) => value !== undefined) @IsString() codigoFabricante?: string;
   @ValidateIf((_object, value) => value !== undefined) @IsString() @MaxLength(100) marca?: string;
   @ValidateIf((_object, value) => value !== undefined && value !== null) @IsUrl({protocols:['https'],require_protocol:true}) @MaxLength(2048) imagenUrl?:string;
-  @ValidateIf((_object, value) => value !== undefined) @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?: number;
+  @ValidateIf((_object, value) => value !== undefined && value !== null) @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?: number | null;
 
   @IsString()
   @ValidateIf((_object, value) => value !== undefined)
