@@ -22,6 +22,15 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Cotizaciones — vigencia por día de negocio (2026-10-10 UTC)
+
+- **Rama:** `claude/sleepy-pasteur-sgoihg` desde `origin/main` `2398e45f`. Sin PR, merge ni despliegue.
+- **Defecto corregido (FS-05 pendiente 1):** `backend/src/cotizaciones/cotizaciones.service.ts` usaba `setHours` (zona del servidor) para decidir `porVencerHoy`/`vencida`. Ahora compara días calendario de `America/Tegucigalpa` con `diaCalendario` (`common/zona-horaria.ts`). Una fecha de solo día (`YYYY-MM-DD`) se guarda como inicio de ese día de negocio con `inicioDiaEnZona`, para no desplazarla un día.
+- **Pruebas:** `cotizaciones.service.spec.ts` 3 casos nuevos. Con el código anterior fallan 2 (vigente hoy en hora de negocio; fecha de solo día); con la corrección pasan. Backend unitarias con `TZ=UTC`: 329/329. `tsc -p tsconfig.build.json` sin errores. Sin PostgreSQL local: no se ejecutó integración.
+- **Pendientes del mismo tema:** `ApartadosPage`, `TransferenciasPage`, `GarantiasPage`, `PedidosEspecialesPage` y `AuditoriaPage`/`DevolucionesPage` aún formatean fechas sin zona de negocio (sin verificar). Inventario queda con Codex (PR #108 abierto).
+
+---
+
 ## Caja y arqueo — implementación para entrega (2026-10-10 UTC)
 
 - **Rama:** `claude/intelligent-cerf-b3ldo0` (designada para esta sesión; partió de `origin/main` `605cb941`, sin cambios de inventario). PR publicado hacia `main` sin merge ni despliegue. Sin producción ni datos reales en las pruebas.
