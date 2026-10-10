@@ -102,6 +102,9 @@ export class ClientesService {
   }
 
   async update(tenantId: string, id: string, dto: UpdateClienteDto) {
+    if (dto.nombre !== undefined && (typeof dto.nombre !== 'string' || !dto.nombre.trim())) {
+      throw new BadRequestException('El nombre del cliente es obligatorio');
+    }
     const result = await this.prisma.cliente.updateMany({
       where: { id, tenantId },
       data: {
@@ -123,23 +126,22 @@ export class ClientesService {
     return { success: true };
   }
 
+  /**
+   * Búsqueda comercial para POS y cotizaciones (CAJERO y ADMIN). Usa el mismo criterio que la lista
+   * del administrador, pero devuelve solo datos necesarios para atender al cliente: sin saldos,
+   * límites de crédito, correo, dirección ni notas.
+   */
   async search(tenantId: string, value?: string) {
-    const query = value?.trim();
-    if (!query) return [];
-    const matches = await this.prisma.cliente.findMany({
-      where: {
-        tenantId,
-        activo: true,
-        OR: [
-          { codigo: { contains: query, mode: 'insensitive' } },
-          { nombre: { contains: query, mode: 'insensitive' } },
-        ],
-      },
-      select: { id: true, codigo: true, nombre: true, creditoHabilitado: true },
-      orderBy: { nombre: 'asc' },
-      take: 30,
-    });
-    return matches;
+    const clientes = await this.findAll(tenantId, value ?? '', 12);
+    return clientes.map((cliente) => ({
+      id: cliente.id,
+      numeroCliente: cliente.numeroCliente,
+      codigo: cliente.codigo,
+      nombre: cliente.nombre,
+      rtn: cliente.rtn,
+      telefono: cliente.telefono,
+      creditoHabilitado: cliente.creditoHabilitado,
+    }));
   }
 
   async updateCredit(tenantId: string, id: string, dto: UpdateCreditoClienteDto) {

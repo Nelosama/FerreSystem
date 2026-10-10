@@ -295,9 +295,9 @@ test('selector busca por teléfono y descarta respuestas de búsquedas anteriore
   page.find((node) => node.props.id === 'quotation-client-search').props.onChange({ target: { value: '99990000' } });
   page.render(props); await page.effects();
   await new Promise((resolve) => setTimeout(resolve, 280));
-  assert.equal(pending[1].url, '/clientes');
-  assert.equal(pending[1].config.params.search, '99990000');
-  assert.equal(pending[1].config.params.limit, 12);
+  // Búsqueda comercial para CAJERO y ADMIN: /clientes/buscar con q (no el listado administrativo).
+  assert.equal(pending[1].url, '/clientes/buscar');
+  assert.equal(pending[1].config.params.q, '99990000');
   const client = { id: 'client-2', numeroCliente: 12, nombre: 'Cliente correcto', telefono: '+504 9999-0000' };
   pending[1].resolve({ data: [client] }); await page.effects(); page.render(props);
   pending[0].resolve({ data: [{ id: 'old', nombre: 'Respuesta antigua' }] }); await page.effects();
