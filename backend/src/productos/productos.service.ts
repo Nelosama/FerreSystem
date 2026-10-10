@@ -145,7 +145,9 @@ export class ProductosService {
    const costoNuevo=dto.precioCosto!==undefined?decimal(dto.precioCosto,'Costo'):Number(old.precioCosto);
    const ventaNueva=dto.precioVenta!==undefined?decimal(dto.precioVenta,'Precio de venta'):Number(old.precioVenta);
    // El costo vigente lo fija la última compra recibida. Un costo ya originado por compra no se edita a mano.
-   if(costoNuevo!==Number(old.precioCosto)&&old.costoVigente!=null)throw new BadRequestException('El costo lo fija la última compra recibida; no se edita a mano');
+   // NEXUS (integración): la señal es ultimaCompraAt, que solo fija la recepción. costoVigente no sirve: el alta de
+   // producto (KARDEX) ya lo rellena con el costo inicial, así que bloquearía productos que nunca tuvieron compra.
+   if(costoNuevo!==Number(old.precioCosto)&&old.ultimaCompraAt!=null)throw new BadRequestException('El costo lo fija la última compra recibida; no se edita a mano');
    const cambios:Record<string,{anterior:number;nuevo:number}>={};
    if(costoNuevo!==Number(old.precioCosto))cambios.precioCosto={anterior:Number(old.precioCosto),nuevo:costoNuevo};
    if(ventaNueva!==Number(old.precioVenta))cambios.precioVenta={anterior:Number(old.precioVenta),nuevo:ventaNueva};
