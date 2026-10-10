@@ -73,7 +73,8 @@ export class OperacionesService {
     const [prod]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 AND activo=true FOR UPDATE',line.producto_id,tenantId);
     if(!prod)throw new NotFoundException('Producto no disponible');
     // La fecha de recepción es la fecha comercial de actualización. Un costo menor también reemplaza el anterior.
-    await query(tx,'UPDATE productos SET stock_actual=stock_actual+$1,precio_costo=$2,costo_vigente=$2,ultima_compra_at=$3,updated_at=NOW() WHERE id=$4 AND tenant_id=$5 RETURNING id',quantity,line.precio_costo,reception.fecha,prod.id,tenantId);
+    // QA-INV-001B: incrementar versión para invalidar formularios antiguos de edición
+    await query(tx,'UPDATE productos SET stock_actual=stock_actual+$1,precio_costo=$2,costo_vigente=$2,ultima_compra_at=$3,version=version+1,updated_at=NOW() WHERE id=$4 AND tenant_id=$5 RETURNING id',quantity,line.precio_costo,reception.fecha,prod.id,tenantId);
     await query(tx,'UPDATE detalles_orden_compra SET cantidad_recibida=cantidad_recibida+$1 WHERE id=$2 RETURNING id',quantity,line.id);
     await query(tx,'INSERT INTO costos_compra (id,tenant_id,producto_id,proveedor_id,orden_id,recepcion_id,cantidad,costo,fecha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',id(),tenantId,prod.id,order.proveedor_id,order.id,receptionId,quantity,line.precio_costo,reception.fecha);
     await movement(tx,tenantId,userId,prod.id,'COMPRA',Number(prod.stock_actual),money(Number(prod.stock_actual)+quantity),receptionId,`Factura ${order.numero_factura}`);

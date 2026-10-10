@@ -459,7 +459,7 @@ export const LevantamientoPage: React.FC = () => {
                       <td>{i.codigo || i.codigoBarras || t('stocktaking.no_code')}</td>
                       <td>{Number(i.cantidad)} {i.unidad}</td>
                       <td>{i.ubicacion}</td>
-                      <td style={{ fontSize: '0.85em', color: '#64748b' }}>{i.contadorId ?? '—'}</td>
+                      <td style={{ fontSize: '0.85em', color: '#64748b' }}>{i.contadorNombre || i.contadorId ?? '—'}</td>
                       <td>{i.precioCosto ?? '—'} / {i.precioVenta ?? '—'}</td>
                       <td>
                         {!closed && (

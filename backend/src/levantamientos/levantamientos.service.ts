@@ -11,7 +11,20 @@ const SESION_TTL_MS = 5 * 60 * 1000; // 5 minutos
 export class LevantamientosService {
  constructor(private readonly prisma:PrismaService){}
 
- private item(i:any){return {...i,cantidad:Number(i.cantidad),precioCosto:i.precioCosto==null?null:Number(i.precioCosto),precioVenta:i.precioVenta==null?null:Number(i.precioVenta),margen:i.margen==null?null:Number(i.margen)};}
+ // QA-INV-004: Resolver nombre del usuario desde contadorId
+ private async item(i:any,tx?:any){
+  const result={...i,cantidad:Number(i.cantidad),precioCosto:i.precioCosto==null?null:Number(i.precioCosto),precioVenta:i.precioVenta==null?null:Number(i.precioVenta),margen:i.margen==null?null:Number(i.margen)};
+  // Si hay contadorId, intentar resolver el nombre del usuario dentro de la misma transacción
+  if(result.contadorId&&tx){
+   try{
+    const user=await tx.usuario.findUnique({where:{id:result.contadorId},select:{nombre:true}});
+    result.contadorNombre=user?.nombre||result.contadorId; // Fallback a UUID si no existe
+   }catch{
+    result.contadorNombre=result.contadorId;
+   }
+  }
+  return result;
+ }
  private async session(tx:any,tenantId:string,id:string){const l=await tx.levantamiento.findFirst({where:{tenantId,id},include:{items:{orderBy:{id:'asc'}}}});if(!l)throw new NotFoundException('Levantamiento no encontrado');return l;}
  private editable(l:any){if(l.estado==='FINALIZADO'||l.aplicadoAt)throw new ConflictException('El levantamiento está cerrado');}
 
@@ -42,8 +55,12 @@ export class LevantamientosService {
  }
 
  async findOne(tenantId:string,id:string){
-  const l=await this.session(this.prisma,tenantId,id);
-  return {...l,items:l.items.map(i=>this.item(i))};
+  // QA-INV-004: Resolver nombres en transacción
+  return this.prisma.$transaction(async tx=>{
+   const l=await this.session(tx,tenantId,id);
+   const items=await Promise.all(l.items.map(i=>this.item(i,tx)));
+   return {...l,items};
+  });
  }
 
  async create(tenantId:string,userId:string,dto:CreateLevantamientoDto){
@@ -196,16 +213,19 @@ export class LevantamientosService {
 
  /** Lista todos los ítems marcados con conflicto=true, agrupados por producto */
  async findConflictos(tenantId:string,lid:string){
-  const l=await this.session(this.prisma,tenantId,lid);
-  const conflictivos=l.items.filter((i:any)=>i.conflicto).map((i:any)=>this.item(i));
-  // Agrupar por identidad (producto/código/barcode)
-  const grupos:Record<string,any[]>={};
-  for(const item of conflictivos){
-   const key=item.productoId||item.codigo?.toUpperCase()||item.codigoBarras||item.descripcion;
-   if(!grupos[key])grupos[key]=[];
-   grupos[key].push(item);
-  }
-  return Object.entries(grupos).map(([key,items])=>({key,items}));
+  return this.prisma.$transaction(async tx=>{
+   const l=await this.session(tx,tenantId,lid);
+   // QA-INV-004: Resolver nombres en la transacción
+   const conflictivos=await Promise.all(l.items.filter((i:any)=>i.conflicto).map((i:any)=>this.item(i,tx)));
+   // Agrupar por identidad (producto/código/barcode)
+   const grupos:Record<string,any[]>={};
+   for(const item of conflictivos){
+    const key=item.productoId||item.codigo?.toUpperCase()||item.codigoBarras||item.descripcion;
+    if(!grupos[key])grupos[key]=[];
+    grupos[key].push(item);
+   }
+   return Object.entries(grupos).map(([key,items])=>({key,items}));
+  });
  }
 
  /**
@@ -222,6 +242,17 @@ export class LevantamientosService {
 
    const itemMantener=l.items.find((i:any)=>i.id===dto.mantenerItemId);
    if(!itemMantener||!itemMantener.conflicto)throw new NotFoundException('Ítem en conflicto no encontrado');
+
+   // QA-INV-002: Validar que el ítem no fue modificado después de captura inicial
+   // Si `updatedBy` está presente, significa que fue editado. La conciliación solo es válida
+   // si el ítem es el original capturado, no una versión modificada.
+   // Los ítems hermanos pueden haber sido editados; si eso pasó, rechazar la conciliación.
+   const editedBrothers=l.items.filter((i:any)=>
+    i.conflicto&&i.id!==dto.mantenerItemId&&i.updatedBy
+   );
+   if(editedBrothers.length>0){
+    throw new ConflictException(`No se puede conciliar: el conteo ha sido modificado después de la captura. Por favor, revise el levantamiento y vuelva a capturar.`);
+   }
 
    // Encontrar todos los ítems que comparten identidad con el ítem elegido
    const keyId=itemMantener.productoId;
@@ -261,10 +292,18 @@ export class LevantamientosService {
  /** Quita la bandera conflicto de ítems que quedaron sin "par" conflictivo */
  private async limpiarConflictosHuerfanos(tx:any,lid:string){
   const items=await tx.levantamientoItem.findMany({where:{levantamientoId:lid,conflicto:true}});
-  // Agrupar por identidad; si un grupo tiene sólo 1 ítem ya no es conflicto
+  // QA-INV-003: Agrupar por la MISMA identidad que en preview() para evitar mezclar ítems distintos
+  // Solo agrupar por: productoId (si existe) OR código OR barcode
+  // NO usar descripción como fallback, porque dos ítems sin ID pero con descripción igual
+  // pueden ser productos distintos.
   const grupos:Record<string,string[]>={};
   for(const i of items){
-   const key=i.productoId||i.codigo?.toUpperCase()||i.codigoBarras||i.descripcion;
+   // Mismo matching que en preview() línea ~321
+   const keyId=i.productoId?`id:${i.productoId}`:null;
+   const keyCodigo=i.codigo?.trim().toUpperCase()?`code:${i.codigo.trim().toUpperCase()}`:null;
+   const keyBarcode=i.codigoBarras?.trim()?`barcode:${i.codigoBarras.trim()}`:null;
+   const key=keyId||keyCodigo||keyBarcode;
+   if(!key)continue; // Sin identidad clara, no agrupar
    if(!grupos[key])grupos[key]=[];
    grupos[key].push(i.id);
   }
@@ -385,7 +424,8 @@ export class LevantamientosService {
      pid=p.id;
     }else{
      if(r.precioCosto==null||r.precioVenta==null)throw new BadRequestException(`El producto ${r.nombre} (${r.codigo}) no tiene costo o precio definido; corríjalo antes de aplicar`);
-     await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,...(r.item.marca?.trim()&&!r.catalogMarca?{marca:r.item.marca.trim()}:{}),...(r.item.codigoBarras&&r.matchedByBarcode?{codigoBarras:r.item.codigoBarras}:r.item.codigoBarras&&!r.catalogBarcode?{codigoBarras:r.item.codigoBarras}:{}),precioCosto:r.precioCosto,precioVenta:r.precioVenta,...(r.item.margen!=null?{margen:r.item.margen}:{})}});
+     // QA-INV-001: incrementar versión al aplicar levantamiento para invalidar formularios antiguos
+     await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,version:{increment:1},...(r.item.marca?.trim()&&!r.catalogMarca?{marca:r.item.marca.trim()}:{}),...(r.item.codigoBarras&&r.matchedByBarcode?{codigoBarras:r.item.codigoBarras}:r.item.codigoBarras&&!r.catalogBarcode?{codigoBarras:r.item.codigoBarras}:{}),precioCosto:r.precioCosto,precioVenta:r.precioVenta,...(r.item.margen!=null?{margen:r.item.margen}:{})}});
     }
     await tx.levantamientoItem.update({where:{id:r.item.id},data:{productoId:pid}});
     await movement(tx,tenantId,userId,pid!,'LEVANTAMIENTO',r.anterior,r.nuevo,lid,'Conteo revisado y aplicado');
