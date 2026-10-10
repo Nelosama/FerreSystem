@@ -12,7 +12,7 @@ import { LevantamientosService } from '../src/levantamientos/levantamientos.serv
 import { UsuariosService } from '../src/usuarios/usuarios.service';
 import { ProductosService } from '../src/productos/productos.service';
 import { ClientesService } from '../src/clientes/clientes.service';
-import { lockTenant } from '../src/operaciones/ledger';
+import { idSolicitud, lockTenant } from '../src/operaciones/ledger';
 import * as bcrypt from 'bcrypt';
 import { checkSettingsHttp } from './settings-http-checks';
 
@@ -760,7 +760,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const {ops,adminId,sale,command}=await authorizedReturn();
     await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
     await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'});
-    await ops.entregar(tenantId,usuarioId,sale.id);
+    await ops.entregar(tenantId,adminId,sale.id);
     await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('destino físico');
     expect(await prisma.devolucion.count({where:{tenantId}})).toBe(0);
   });
@@ -780,7 +780,7 @@ describe('Ventas / PostgreSQL aislado', () => {
 
   it('devolución autorizada parcial de mercancía entregada restaura solo lo devuelto y conserva la venta',async()=>{
     const {ops,adminId,sale,command}=await authorizedReturn();
-    await ops.entregar(tenantId,usuarioId,sale.id);
+    await ops.entregar(tenantId,adminId,sale.id);
     command.items[0].cantidad=.5;command.items[0].destino='INVENTARIO';
     const before=Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual);
     await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
@@ -810,8 +810,8 @@ describe('Ventas / PostgreSQL aislado', () => {
     const secondAdmin=randomUUID();
     await prisma.usuario.create({data:{id:secondAdmin,tenantId,nombre:'Segundo administrador',email:'admin2@example.test',passwordHash:'test-only',rol:'ADMIN'}});
     await ops.solicitarDevolucion(tenantId,usuarioId,sale.id,command);
-    expect((await ops.solicitudesDevolucion(tenantId,adminId))[0].id).toBe(command.solicitudId);
-    expect((await ops.solicitudesDevolucion(tenantId,secondAdmin))[0].id).toBe(command.solicitudId);
+    expect((await ops.solicitudesDevolucion(tenantId,adminId))[0].id).toBe(idSolicitud(tenantId,command.solicitudId));
+    expect((await ops.solicitudesDevolucion(tenantId,secondAdmin))[0].id).toBe(idSolicitud(tenantId,command.solicitudId));
     await ops.decidirDevolucion(tenantId,secondAdmin,command.solicitudId,{decision:'AUTORIZADA',motivo:'Revisado por segundo administrador'});
     const request=await ops.consultarDevolucion(tenantId,adminId,command.solicitudId);
     expect(request.administrador_id).toBe(secondAdmin);
@@ -836,7 +836,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect(request.estado).toBe(winner.value.estado);
     expect(request.administrador_id).toBe(winner.value.administrador_id);
     const audit=await ops.auditoria(tenantId,0);
-    const decisions=audit.filter(a=>a.operacion==='DEVOLUCION_DECIDIR'&&a.entidad_id===command.solicitudId);
+    const decisions=audit.filter(a=>a.operacion==='DEVOLUCION_DECIDIR'&&a.entidad_id===idSolicitud(tenantId,command.solicitudId));
     expect(decisions).toHaveLength(1);
     expect(decisions[0].usuario_id).toBe(request.administrador_id);
     expect(await prisma.devolucion.count({where:{tenantId}})).toBe(0);

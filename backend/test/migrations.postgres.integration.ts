@@ -185,7 +185,7 @@ describe('Instalación y adopción / PostgreSQL aislado', () => {
     const ops=new OperacionesService(source.prisma as PrismaService);
     await ops.abrir(tenant.id,cashier.id,{solicitudId:randomUUID(),monto:100});
     const sale=await new VentasService(source.prisma as PrismaService).create(tenant.id,cashier.id,{solicitudId:randomUUID(),metodoPago:'EFECTIVO',detalles:[{productoId:product.id,cantidad:2,precioUnitario:10}]});
-    await ops.entregar(tenant.id,cashier.id,sale.id);
+    await ops.entregar(tenant.id,admin.id,sale.id);
     const original=await ops.buscarVenta(tenant.id,String(sale.numeroVenta));
     const command={solicitudId:randomUUID(),motivo:'Ensayo de devolución parcial',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'INVENTARIO'}]};
     await ops.solicitarDevolucion(tenant.id,cashier.id,sale.id,command);

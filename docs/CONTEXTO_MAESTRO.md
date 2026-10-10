@@ -63,6 +63,9 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Correcciones CENTINELA D1/D3/R1 (ATLAS, 2026-10-10, rama `claude/atlas-correcciones-centinela`, base `nexus/integracion-temp` @ `e8b75ae6`)
+Detalle y pruebas en `docs/CENTINELA_CORRECCIONES_D1_D3_R1_ATLAS.md`. D1: entregar solo ADMIN/BODEGUERO (HTTP y servicio). R1: `GET /operaciones/entregas` filtra por rol (CAJERO solo lo suyo). D3: identificador interno de solicitudes derivado por empresa (`idSolicitud` en `operaciones/ledger.ts`); contingencia (`dispositivos_pos`, `operaciones_contingencia`) queda fuera a propósito (riesgo residual documentado). Sin merge, despliegue ni migración. Falla preexistente en la base: prueba «Chromium real: conversión por transferencia…» de `ciclo-ventas`.
+
 ## P1 operaciones — implementación (2026-10-10, rama `claude/p1-operaciones`)
 
 - **Base:** `main` `7ccfad25`. Rama nueva; sin merge, sin despliegue, sin migraciones productivas. No se tocaron `POSPage.tsx`, contingencia, sincronización, service worker ni IndexedDB (trabajo del agente POS en `claude/pos-offline-*`).

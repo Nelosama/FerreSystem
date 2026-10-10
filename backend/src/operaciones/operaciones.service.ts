@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, ConflictException, ForbiddenException,
 import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
-import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
+import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, idSolicitud, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
 import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 import { eliminarVinculoProveedor, guardarVinculoProveedor, listarProveedoresProducto, registrarCostoProveedor } from './productos-proveedores';
 import { estadoCuentaCliente } from './estado-cuenta-cliente';
@@ -22,9 +22,9 @@ export class OperacionesService {
    await lockTenant(tx,tenantId);
    await authorizedActor(tx,tenantId,userId,['ADMIN']);
    const hash=fingerprint({userId,dto});
-   const [old]=await query(tx,"SELECT p.*,a.datos FROM proveedores p JOIN auditoria_operaciones a ON a.entidad_id=p.id AND a.operacion='PROVEEDOR_CREAR' WHERE p.id=$1 AND p.tenant_id=$2",dto.solicitudId,tenantId);
+   const [old]=await query(tx,"SELECT p.*,a.datos FROM proveedores p JOIN auditoria_operaciones a ON a.entidad_id=p.id AND a.operacion='PROVEEDOR_CREAR' WHERE p.id IN ($1,$3) AND p.tenant_id=$2",idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
    if(old){if(old.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otro proveedor');return old;}
-   const [p] = await query(tx, 'INSERT INTO proveedores (id,tenant_id,nombre,telefono,rtn,updated_at) VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *', dto.solicitudId, tenantId, text(dto.nombre,'Proveedor'), dto.telefono || null, dto.rtn || null);
+   const [p] = await query(tx, 'INSERT INTO proveedores (id,tenant_id,nombre,telefono,rtn,updated_at) VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *', idSolicitud(tenantId,dto.solicitudId), tenantId, text(dto.nombre,'Proveedor'), dto.telefono || null, dto.rtn || null);
    await audit(tx,tenantId,userId,'PROVEEDOR_CREAR',p.id,{nombre:p.nombre,hash});return p;
   });
  }
@@ -39,7 +39,7 @@ export class OperacionesService {
    // Costos de compra: solo ADMIN. BODEGUERO registra recepciones y cantidades, no costos.
    const user=await authorizedActor(tx,tenantId,userId,['ADMIN'],'inventario.editar');
    const hash=fingerprint({userId,dto});
-   const [previous] = await query(tx, 'SELECT o.*, a.datos FROM ordenes_compra o JOIN auditoria_operaciones a ON a.entidad_id=o.id AND a.operacion=\'COMPRA_CREAR\' WHERE o.id=$1 AND o.tenant_id=$2',dto.solicitudId,tenantId);
+   const [previous] = await query(tx, 'SELECT o.*, a.datos FROM ordenes_compra o JOIN auditoria_operaciones a ON a.entidad_id=o.id AND a.operacion=\'COMPRA_CREAR\' WHERE o.id IN ($1,$3) AND o.tenant_id=$2',idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
    if(previous){if(previous.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otra compra');return previous;}
    const [p]=await query(tx,'SELECT id FROM proveedores WHERE id=$1 AND tenant_id=$2',dto.proveedorId,tenantId);if(!p)throw new NotFoundException('Proveedor no encontrado');
    if(!dto.items?.length)throw new BadRequestException('Agregue productos');
@@ -56,7 +56,7 @@ export class OperacionesService {
    // D1: compra al contado. Pagar a proveedor es función de administrador (igual que pagar()).
    if(dto.pagoContado&&user.rol!=='ADMIN')throw new ForbiddenException('Compra al contado requiere administrador');
    const metodoContado=dto.pagoContado?paymentMethod(dto.pagoContado.metodo):null;
-   const [order]=await query(tx,'INSERT INTO ordenes_compra (id,tenant_id,codigo,proveedor_id,usuario_id,subtotal,isv,total,estado,numero_factura,vencimiento,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,\'SOLICITADA\',$9,$10::timestamp,NOW()) RETURNING *',dto.solicitudId,tenantId,`COMP-${dto.solicitudId}`,p.id,userId,subtotal,tax,total,numeroFactura,dto.vencimiento || null);
+   const [order]=await query(tx,'INSERT INTO ordenes_compra (id,tenant_id,codigo,proveedor_id,usuario_id,subtotal,isv,total,estado,numero_factura,vencimiento,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,\'SOLICITADA\',$9,$10::timestamp,NOW()) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,`COMP-${dto.solicitudId}`,p.id,userId,subtotal,tax,total,numeroFactura,dto.vencimiento || null);
    for(const item of dto.items)await query(tx,'INSERT INTO detalles_orden_compra (id,orden_id,producto_id,cantidad,precio_costo,subtotal) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',id(),order.id,item.productoId,item.cantidad,item.costo,money(item.cantidad*item.costo));
    const cuentaId=await account(tx,tenantId,userId,'CXP',order.id,p.id,total,dto.vencimiento);
    // El pago de contado usa la misma solicitud que la factura: un reintento no paga dos veces. No toca la caja.
@@ -225,10 +225,10 @@ export class OperacionesService {
    await lockTenant(tx,tenantId);
    await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
    const monto=decimal(dto.monto,'Apertura');
-   const [prev]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3',dto.solicitudId,tenantId,userId);
+   const [prev]=await query(tx,'SELECT * FROM cajas WHERE id IN ($1,$4) AND tenant_id=$2 AND usuario_id=$3',idSolicitud(tenantId,dto.solicitudId),tenantId,userId,dto.solicitudId);
    if(prev){if(Number(prev.monto_apertura)!==monto)throw new ConflictException('Solicitud utilizada para otra apertura');return prev;}
    const [open]=await query(tx,'SELECT id FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado=\'ABIERTA\'',tenantId,userId);if(open)throw new ConflictException('Ya tiene una caja abierta');
-   const [c]=await query(tx,'INSERT INTO cajas (id,tenant_id,codigo,usuario_id,monto_apertura) VALUES ($1,$2,$3,$4,$5) RETURNING *',dto.solicitudId,tenantId,`CAJA-${dto.solicitudId}`,userId,monto);await audit(tx,tenantId,userId,'CAJA_ABRIR',c.id,{monto});return c;
+   const [c]=await query(tx,'INSERT INTO cajas (id,tenant_id,codigo,usuario_id,monto_apertura) VALUES ($1,$2,$3,$4,$5) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,`CAJA-${dto.solicitudId}`,userId,monto);await audit(tx,tenantId,userId,'CAJA_ABRIR',c.id,{monto});return c;
   });
  }
  async cerrar(tenantId:string,userId:string,cajaId:string,dto:CerrarCajaDto){
@@ -260,13 +260,13 @@ export class OperacionesService {
    const referencia=dto.referencia?.trim()||null;
    // Idempotencia: el identificador de solicitud es el identificador del movimiento.
    const signed=dto.tipo==='EGRESO_MANUAL'?-monto:monto;
-   const [previo]=await query(tx,'SELECT m.*,c.tenant_id AS caja_tenant_id FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id WHERE m.id=$1',dto.solicitudId);
+   const [previo]=await query(tx,'SELECT m.*,c.tenant_id AS caja_tenant_id FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id WHERE m.id IN ($1,$3) AND c.tenant_id=$2',idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
    if(previo){if(previo.caja_tenant_id!==tenantId||previo.caja_id!==cajaId||previo.tipo!==dto.tipo||Number(previo.monto)!==signed||previo.concepto!==concepto)throw new ConflictException('Solicitud utilizada para otro movimiento');return previo;}
    const [c]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3 FOR UPDATE',cajaId,tenantId,userId);if(!c)throw new NotFoundException('Caja no encontrada');
    if(c.estado!=='ABIERTA')throw new ConflictException('La caja está cerrada');
    const movements=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1',c.id);
    if(dto.tipo==='EGRESO_MANUAL'&&monto>this.resumenCaja(c,movements).efectivoEsperado)throw new ConflictException('Efectivo insuficiente para esta salida');
-   const [movimiento]=await query(tx,'INSERT INTO movimientos_caja (id,caja_id,usuario_id,tipo,monto,metodo,referencia,concepto) VALUES ($1,$2,$3,$4::"TipoMovimientoCaja",$5,\'EFECTIVO\',$6,$7) RETURNING *',dto.solicitudId,c.id,userId,dto.tipo,signed,referencia,concepto);
+   const [movimiento]=await query(tx,'INSERT INTO movimientos_caja (id,caja_id,usuario_id,tipo,monto,metodo,referencia,concepto) VALUES ($1,$2,$3,$4::"TipoMovimientoCaja",$5,\'EFECTIVO\',$6,$7) RETURNING *',idSolicitud(tenantId,dto.solicitudId),c.id,userId,dto.tipo,signed,referencia,concepto);
    await audit(tx,tenantId,userId,'CAJA_MOVIMIENTO_MANUAL',movimiento.id,{cajaId:c.id,tipo:dto.tipo,monto,concepto,referencia,autorizacion:user.rol==='ADMIN'?'ROL_ADMIN':'PERMISO_CAJA'});
    return movimiento;
   });
@@ -295,7 +295,7 @@ export class OperacionesService {
  async entregar(tenantId:string,userId:string,ventaId:string){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
-   await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','BODEGUERO']);
+   await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO']);
    const [v]=await query(tx,'SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado=\'COMPLETADA\' FOR UPDATE',ventaId,tenantId);if(!v)throw new NotFoundException('Venta registrada no encontrada');
    if(v.entregado_at)return v;
    if(v.reserva_pendiente){
@@ -313,8 +313,11 @@ export class OperacionesService {
    const [delivered]=await query(tx,'UPDATE ventas SET reserva_pendiente=false,entregado_at=NOW(),entregado_por=$1 WHERE id=$2 RETURNING *',userId,v.id);await audit(tx,tenantId,userId,'VENTA_ENTREGAR',v.id,{fecha:delivered.entregado_at});return delivered;
   });
  }
- async entregas(tenantId:string){
-  const ventas=await query(this.prisma,"SELECT v.*,COALESCE(c.nombre,v.cliente_nombre) AS cliente_nombre FROM ventas v LEFT JOIN clientes c ON c.id=v.cliente_id WHERE v.tenant_id=$1 AND v.estado='COMPLETADA' AND v.entregado_at IS NULL ORDER BY v.created_at",tenantId);
+ // ADMIN y BODEGUERO ven todas las entregas pendientes de su empresa; CAJERO solo las ventas que registró.
+ async entregas(tenantId:string,userId:string){
+  const user=await authorizedActor(this.prisma,tenantId,userId,['ADMIN','CAJERO','BODEGUERO']);
+  const todas=user.rol!=='CAJERO';
+  const ventas=await query(this.prisma,"SELECT v.*,COALESCE(c.nombre,v.cliente_nombre) AS cliente_nombre FROM ventas v LEFT JOIN clientes c ON c.id=v.cliente_id AND c.tenant_id=v.tenant_id WHERE v.tenant_id=$1 AND v.estado='COMPLETADA' AND v.entregado_at IS NULL AND ($2::boolean OR v.usuario_id=$3) ORDER BY v.created_at",tenantId,todas,userId);
   for(const v of ventas)v.items=await query(this.prisma,'SELECT d.*,p.nombre,d.cantidad-COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS cantidad FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1 AND d.cantidad>COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0)',v.id);
   return ventas.filter(v=>v.items.length>0);
  }
@@ -359,7 +362,7 @@ export class OperacionesService {
    await lockTenant(tx,tenantId);
    const user=await actor(tx,tenantId,userId);
    if(user.rol!=='ADMIN')throw new ForbiddenException('Solo un administrador puede registrar una devolución directa');
-   const [request]=await query(tx,'SELECT id FROM solicitudes_devolucion WHERE id=$1',dto.solicitudId);
+   const [request]=await query(tx,'SELECT id FROM solicitudes_devolucion WHERE id IN ($1,$3) AND tenant_id=$2',idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
    if(request)throw new ConflictException('Este identificador pertenece a una solicitud; ejecútela desde su autorización');
    return this.ejecutarDevolucion(tx,tenantId,userId,ventaId,dto);
   },{timeout:60000});
@@ -370,13 +373,13 @@ export class OperacionesService {
    const user=await actor(tx,tenantId,userId);
    if(!['ADMIN','CAJERO','VENDEDOR'].includes(user.rol))throw new ForbiddenException('No puede solicitar devoluciones');
    const hash=fingerprint({userId,ventaId,dto});
-   const [previous]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id=$1',dto.solicitudId);
+   const [previous]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$3) AND tenant_id=$2',idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
    if(previous){if(previous.tenant_id!==tenantId||previous.solicitante_id!==userId||previous.solicitud_hash!==hash)throw new ConflictException('Solicitud utilizada para otra devolución');return previous;}
-   const [used]=await query(tx,'SELECT id FROM devoluciones WHERE id=$1',dto.solicitudId);
+   const [used]=await query(tx,'SELECT id FROM devoluciones WHERE id IN ($1,$3) AND tenant_id=$2',idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
    if(used)throw new ConflictException('Identificador ya utilizado');
    const {monto}=await this.planDevolucion(tx,tenantId,ventaId,dto);
    text(dto.motivo,'Motivo');paymentMethod(dto.metodo);
-   const [result]=await query(tx,'INSERT INTO solicitudes_devolucion(id,tenant_id,venta_id,solicitante_id,solicitud_hash,comando,monto_estimado) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) RETURNING *',dto.solicitudId,tenantId,ventaId,userId,hash,JSON.stringify(dto),monto);
+   const [result]=await query(tx,'INSERT INTO solicitudes_devolucion(id,tenant_id,venta_id,solicitante_id,solicitud_hash,comando,monto_estimado) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,ventaId,userId,hash,JSON.stringify(dto),monto);
    await audit(tx,tenantId,userId,'DEVOLUCION_SOLICITAR',result.id,{ventaId,items:dto.items,motivo:dto.motivo});return result;
   },{timeout:60000});
  }
@@ -394,14 +397,14 @@ export class OperacionesService {
  }
  async consultarDevolucionDirecta(tenantId:string,userId:string,requestId:string){
   await actor(this.prisma,tenantId,userId);
-  const [result]=await query(this.prisma,'SELECT * FROM devoluciones WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3',requestId,tenantId,userId);
+  const [result]=await query(this.prisma,'SELECT * FROM devoluciones WHERE id IN ($1,$4) AND tenant_id=$2 AND usuario_id=$3',idSolicitud(tenantId,requestId),tenantId,userId,requestId);
   if(!result)throw new NotFoundException('Devolución no encontrada');return result;
  }
  async consultarDevolucion(tenantId:string,userId:string,requestId:string){
   const user=await actor(this.prisma,tenantId,userId);
-  const [request]=await query(this.prisma,'SELECT * FROM solicitudes_devolucion WHERE id=$1 AND tenant_id=$2',requestId,tenantId);
+  const [request]=await query(this.prisma,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$3) AND tenant_id=$2',idSolicitud(tenantId,requestId),tenantId,requestId);
   if(!request||(user.rol!=='ADMIN'&&request.solicitante_id!==userId))throw new NotFoundException('Solicitud no encontrada');
-  const [result]=await query(this.prisma,'SELECT * FROM devoluciones WHERE id=$1 AND tenant_id=$2',requestId,tenantId);
+  const [result]=await query(this.prisma,'SELECT * FROM devoluciones WHERE id IN ($1,$3) AND tenant_id=$2',request.id,tenantId,idSolicitud(tenantId,String(request.comando?.solicitudId??requestId)));
   return {...request,resultado:result||null};
  }
  async decidirDevolucion(tenantId:string,userId:string,requestId:string,dto:DecisionDevolucionDto){
@@ -411,15 +414,15 @@ export class OperacionesService {
    if(user.rol!=='ADMIN')throw new ForbiddenException('La autorización requiere administrador');
    const motivo=text(dto.motivo,'Motivo de la decisión');
    if(!['AUTORIZADA','RECHAZADA'].includes(dto.decision))throw new BadRequestException('Decisión inválida');
-   const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id=$1 AND tenant_id=$2 FOR UPDATE',requestId,tenantId);
+   const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$3) AND tenant_id=$2 FOR UPDATE',idSolicitud(tenantId,requestId),tenantId,requestId);
    if(!request)throw new NotFoundException('Solicitud no encontrada');
    if(request.estado!=='PENDIENTE'){
     if(request.administrador_id===userId&&request.motivo_decision===motivo&&(request.estado===dto.decision||(request.estado==='EJECUTADA'&&dto.decision==='AUTORIZADA')))return request;
     throw new ConflictException('La solicitud ya tiene una decisión');
    }
    if(dto.decision==='AUTORIZADA')await this.planDevolucion(tx,tenantId,request.venta_id,request.comando);
-   const [result]=await query(tx,'UPDATE solicitudes_devolucion SET estado=$1,administrador_id=$2,motivo_decision=$3,decidida_at=NOW() WHERE id=$4 RETURNING *',dto.decision,userId,motivo,requestId);
-   await audit(tx,tenantId,userId,'DEVOLUCION_DECIDIR',requestId,{decision:dto.decision,motivo,solicitanteId:request.solicitante_id});return result;
+   const [result]=await query(tx,'UPDATE solicitudes_devolucion SET estado=$1,administrador_id=$2,motivo_decision=$3,decidida_at=NOW() WHERE id=$4 RETURNING *',dto.decision,userId,motivo,request.id);
+   await audit(tx,tenantId,userId,'DEVOLUCION_DECIDIR',request.id,{decision:dto.decision,motivo,solicitanteId:request.solicitante_id});return result;
   },{timeout:60000});
  }
  async ejecutarAutorizada(tenantId:string,userId:string,requestId:string){
@@ -427,7 +430,7 @@ export class OperacionesService {
    await lockTenant(tx,tenantId);
    const executor=await actor(tx,tenantId,userId);
    if(!['ADMIN','CAJERO','VENDEDOR'].includes(executor.rol))throw new ForbiddenException('No puede ejecutar devoluciones');
-   const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id=$1 AND tenant_id=$2 AND solicitante_id=$3 FOR UPDATE',requestId,tenantId,userId);
+   const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$4) AND tenant_id=$2 AND solicitante_id=$3 FOR UPDATE',idSolicitud(tenantId,requestId),tenantId,userId,requestId);
    if(!request)throw new NotFoundException('Solicitud no encontrada');
    if(!['AUTORIZADA','EJECUTADA'].includes(request.estado))throw new ForbiddenException('La solicitud debe estar autorizada antes de ejecutar');
    if(request.estado!=='EJECUTADA'){
@@ -436,15 +439,15 @@ export class OperacionesService {
    }
    const result=await this.ejecutarDevolucion(tx,tenantId,userId,request.venta_id,request.comando);
    if(request.estado!=='EJECUTADA'){
-    await query(tx,"UPDATE solicitudes_devolucion SET estado='EJECUTADA' WHERE id=$1 RETURNING id",requestId);
-    await audit(tx,tenantId,userId,'DEVOLUCION_EJECUTAR_AUTORIZADA',requestId,{administradorId:request.administrador_id,ventaId:request.venta_id});
+    await query(tx,"UPDATE solicitudes_devolucion SET estado='EJECUTADA' WHERE id=$1 RETURNING id",request.id);
+    await audit(tx,tenantId,userId,'DEVOLUCION_EJECUTAR_AUTORIZADA',request.id,{administradorId:request.administrador_id,ventaId:request.venta_id});
    }
    return result;
   },{timeout:60000});
  }
  private async ejecutarDevolucion(tx:Tx,tenantId:string,userId:string,ventaId:string,dto:DevolucionDto){
    const hash=fingerprint({userId,ventaId,dto});
-   const [previous]=await query(tx,'SELECT * FROM devoluciones WHERE id=$1',dto.solicitudId);
+   const [previous]=await query(tx,'SELECT * FROM devoluciones WHERE id IN ($1,$3) AND tenant_id=$2',idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
    if(previous){if(previous.tenant_id!==tenantId||previous.solicitud_hash!==hash)throw new ConflictException('Solicitud utilizada para otra devolución');return previous;}
    const {v,details,monto}=await this.planDevolucion(tx,tenantId,ventaId,dto);
    let credito=0;
@@ -466,7 +469,7 @@ export class OperacionesService {
     const [cash]=await query(tx,"SELECT COALESCE(SUM(monto),0) AS monto FROM movimientos_caja WHERE caja_id=$1 AND metodo='EFECTIVO'",caja.id);
     if(refund>money(Number(caja.monto_apertura)+Number(cash.monto)))throw new ConflictException('Efectivo insuficiente para reembolsar');
    }}
-   const [result]=await query(tx,'INSERT INTO devoluciones(id,tenant_id,venta_id,usuario_id,solicitud_hash,motivo,monto,credito_cancelado,reembolso,metodo,caja_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',dto.solicitudId,tenantId,v.id,userId,hash,text(dto.motivo,'Motivo'),monto,credito,refund,metodo,caja?.id||null);
+   const [result]=await query(tx,'INSERT INTO devoluciones(id,tenant_id,venta_id,usuario_id,solicitud_hash,motivo,monto,credito_cancelado,reembolso,metodo,caja_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,v.id,userId,hash,text(dto.motivo,'Motivo'),monto,credito,refund,metodo,caja?.id||null);
    for(const item of dto.items){
     const d=details.find(d=>d.id===item.detalleId);
     await query(tx,'INSERT INTO detalles_devolucion(id,devolucion_id,detalle_venta_id,cantidad,destino) VALUES($1,$2,$3,$4,$5) RETURNING id',id(),result.id,d.id,item.cantidad,item.destino);

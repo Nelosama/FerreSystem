@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { actor, authorizedActor, audit, fingerprint, lockTenant, movement, query, text } from '../operaciones/ledger';
+import { actor, authorizedActor, audit, candidatosSolicitud, fingerprint, idSolicitud, lockTenant, movement, query, text } from '../operaciones/ledger';
 import { CreateLevantamientoDto, UpdateLevantamientoDto } from './dto/create-levantamiento.dto';
 import { CreateLevantamientoItemDto, UpdateLevantamientoItemDto, ConciliarItemDto } from './dto/create-levantamiento-item.dto';
 
@@ -143,9 +143,11 @@ export class LevantamientosService {
    const hash=fingerprint({lid,userId,data});
    // Idempotencia: si ya existe un ítem con este solicitudId, devolver el existente
    if(solicitudId){
-    const previous=await tx.levantamientoItem.findFirst({where:{id:solicitudId}});
+    // Solo cuentan los conteos de esta empresa: el identificador de otra empresa se trata como libre.
+    const candidato=await tx.levantamientoItem.findFirst({where:{id:{in:candidatosSolicitud(tenantId,solicitudId)}}});
+    const previous=candidato&&await tx.levantamiento.findFirst({where:{id:candidato.levantamientoId,tenantId},select:{id:true}})?candidato:null;
     if(previous){
-     const [record]=await query(tx,"SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND entidad_id=$2 AND operacion='CONTEO_CREAR'",tenantId,solicitudId);
+     const [record]=await query(tx,"SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND entidad_id=$2 AND operacion='CONTEO_CREAR'",tenantId,previous.id);
      if(previous.levantamientoId!==lid||record?.datos?.hash!==hash)throw new ConflictException('Solicitud utilizada para otro conteo');
      return this.item(previous);
     }
@@ -172,7 +174,7 @@ export class LevantamientosService {
    const item=await tx.levantamientoItem.create({
     data:{
      ...data,
-     ...(solicitudId?{id:solicitudId}:{}),
+     ...(solicitudId?{id:idSolicitud(tenantId,solicitudId)}:{}),
      descripcion:text(dto.descripcion,'Descripción'),
      codigo:codeNorm,
      codigoBarras:barcode,
