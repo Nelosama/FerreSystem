@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { api } from '../utils/api';
-import { formatLempiras } from '../utils/format';
+import { formatInstanteNegocio, formatLempiras } from '../utils/format';
 import './OperacionesPage.css';
 
 type Command = { kind: 'SOLICITAR' | 'EJECUTAR' | 'DECIDIR' | 'DIRECTA'; requestId: string; saleId?: string; dto?: any };
@@ -235,7 +235,7 @@ export const DevolucionesPage: React.FC = () => {
           <p>Se reduce primero el crédito pendiente; el excedente se registra como reembolso desde tu caja abierta. Solo los productos que vuelven a existencias vendibles aumentan el inventario. El reembolso con tarjeta o transferencia se registra aquí; el sistema no lo procesa en el banco.</p>
           <button className="btn btn-primary">Enviar solicitud de autorización</button>
         </fieldset>
-        <h3>Devoluciones anteriores</h3>{sale.devoluciones.length ? sale.devoluciones.map((item: any) => <p key={item.id}>{new Date(item.created_at).toLocaleString('es-HN')} · {item.motivo} · {formatLempiras(Number(item.monto))}</p>) : <p>No hay devoluciones registradas para esta venta.</p>}
+        <h3>Devoluciones anteriores</h3>{sale.devoluciones.length ? sale.devoluciones.map((item: any) => <p key={item.id}>{formatInstanteNegocio(item.created_at)} · {item.motivo} · {formatLempiras(Number(item.monto))}</p>) : <p>No hay devoluciones registradas para esta venta.</p>}
       </form>}
       <section className="operation-card"><h2>{isAdmin ? 'Solicitudes para revisar' : 'Mis solicitudes'}</h2>
         <button className="btn btn-secondary" disabled={loading || busy} onClick={() => setRefresh(value => value + 1)}>Actualizar estados</button>
@@ -244,7 +244,7 @@ export const DevolucionesPage: React.FC = () => {
         {!loading && !listError && !requests.length && <p>No hay solicitudes en esta página.</p>}
         {!loading && !listError && requests.map(request => <article className="operation-card" key={request.id}>
           <h3>Venta {request.numero_venta} · {statuses[request.estado] || request.estado}</h3>
-          <p>Solicita: {request.solicitante_nombre} · {new Date(request.created_at).toLocaleString('es-HN')}</p>
+          <p>Solicita: {request.solicitante_nombre} · {formatInstanteNegocio(request.created_at)}</p>
           <p>Motivo: {request.comando.motivo} · Método propuesto: {request.comando.metodo}</p>
           <p>Importe estimado a devolver: {formatLempiras(Number(request.monto_estimado))}. El crédito pendiente y el reembolso se calculan al confirmar.</p>
           <p>Total de la venta original: {formatLempiras(Number(request.total_venta))} · Pago original: {request.metodo_pago}</p>

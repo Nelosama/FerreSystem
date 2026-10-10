@@ -36,6 +36,16 @@ export function diaCalendarioEnZona(instante: Date = new Date(), zona: string = 
 }
 
 /**
+ * Fecha y hora de un instante (p. ej. created_at del servidor) en la zona del negocio,
+ * no en la del navegador. Ej: "2026-10-10T02:30:00Z" -> "9 oct 2026, 20:30:00" (es-HN).
+ */
+export function formatInstanteNegocio(value: string | Date, locale: string = 'es-HN', zona: string = ZONA_HORARIA_NEGOCIO): string {
+  const instante = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(instante.getTime())) return '—';
+  return instante.toLocaleString(locale, { timeZone: zona });
+}
+
+/**
  * Formatea una fecha de calendario (sin hora, p. ej. un vencimiento) tal como fue
  * capturada. Las fechas llegan como medianoche UTC; convertirlas a la zona local
  * las mostraría un día antes en America/Tegucigalpa (UTC-6).

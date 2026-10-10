@@ -22,6 +22,17 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Auditoría y Devoluciones — instantes en zona de negocio (2026-10-10 UTC)
+
+- **Rama:** `fix/fechas-negocio-auditoria-devoluciones`, desde `origin/main` `2398e45f`. Independiente de PR #112. Sin merge ni despliegue.
+- **Defecto:** `AuditoriaPage` y `DevolucionesPage` mostraban `created_at` con `toLocaleString('es-HN')` sin zona. La hora dependía del navegador: una venta a las 20:30 de Tegucigalpa se veía a las 02:30 del día siguiente en un equipo configurado en UTC.
+- **Corrección:** `formatInstanteNegocio(value)` en `frontend/src/utils/format.ts` fija `America/Tegucigalpa`. Lo usan ambas pantallas.
+- **Pruebas:** `frontend/test/auditoria-devoluciones-zona.test.mjs` (3 casos, varias zonas de navegador). Con la zona eliminada, la prueba falla (`TZ=UTC`). `devoluciones-recovery.test.mjs` mockea `../utils/format`; se añadió el nuevo helper al mock.
+- **Verificación:** `npm test` 166/166; `tsc -b` y `vite build` correctos; `oxlint` sin errores; Playwright 98/98 (con `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` del Chromium instalado).
+- **Limitaciones:** el backend de auditoría y de devoluciones no se cambió; no se verificó con PostgreSQL en este PR. Las pantallas que usan fechas de calendario (`YYYY-MM-DD`) no se tocan aquí.
+
+---
+
 ## Caja y arqueo — implementación para entrega (2026-10-10 UTC)
 
 - **Rama:** `claude/intelligent-cerf-b3ldo0` (designada para esta sesión; partió de `origin/main` `605cb941`, sin cambios de inventario). PR publicado hacia `main` sin merge ni despliegue. Sin producción ni datos reales en las pruebas.

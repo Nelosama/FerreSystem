@@ -40,7 +40,7 @@ const harness = (saved, api, role = 'ADMIN') => {
     react: { ...react, default: react, __esModule: true },
     '../components/TopBar': { TopBar: 'TopBar' },
     '../context/TenantContext': { useTenant: () => ({ tenant: { id: 'tenant-A' }, user: { id: 'user-A', rol: role }, isReadOnly: false }) },
-    '../utils/api': { api }, '../utils/format': { formatLempiras: String }, './OperacionesPage.css': {},
+    '../utils/api': { api }, '../utils/format': { formatLempiras: String, formatInstanteNegocio: String }, './OperacionesPage.css': {},
   };
   const source = fs.readFileSync('src/pages/DevolucionesPage.tsx', 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText;
