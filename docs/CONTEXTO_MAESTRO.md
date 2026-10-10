@@ -131,6 +131,39 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Riesgos abiertos:** D1 fiscal (sin aprobación del responsable); límites por defecto (L 5 000 / L 25 000 / cupo 50 % / 36 h) pendientes de decisión; caja única por empresa (`dispositivosMax=1`); rutas nuevas sin entrada en el menú (solo por URL); textos de contingencia solo en español.
 - **Pendientes:** PR de integración en borrador hacia `main` (no fusionar sin aprobación); si #127 o #128 cambian, repetir la integración desde su nuevo commit.
 
+## Autenticación fase 3 — límites de intentos, sesiones revocables y rotación (2026-10-10, rama `claude/security-audit-fase-3`, [PR #133](https://github.com/Nelosama/FerreSystem/pull/133) sin merge)
+
+- **Base:** `claude/security-audit-fase-2` (PR #132) + merge de `origin/claude/integracion-pos-offline-p1` `58941e5d`. No se modificaron PR existentes; no hay merge, despliegue ni migraciones productivas. Detalle y procedimientos: [AUTENTICACION_FASE3_SESIONES_20261010.md](AUTENTICACION_FASE3_SESIONES_20261010.md).
+- **Límite de intentos:** por cuenta (5 fallos / 15 min → bloqueo 15 min) y por IP (100 / 15 min), en `intentos_login` con clave hasheada y contadores atómicos. Respuesta 429 con `Retry-After`, igual para correos existentes e inexistentes. Aplica a login de tenants y de Super Admin (`auth/login-rate-limit.ts`).
+- **Proxy:** `TRUST_PROXY=1` en Render es obligatorio; sin él todos los usuarios comparten la IP del proxy y el límite por IP puede bloquear a toda la tienda.
+- **Sesiones revocables:** tabla `sesiones_auth`; `sid` en access y refresh; la estrategia JWT revalida sesión, sujeto, revocación y vencimiento en cada petición. Logout revoca la sesión del cookie y del Bearer (incluye soporte). Cambio de contraseña y desactivación revocan todas las sesiones del usuario. El refresh no rota (evita romper pestañas concurrentes).
+- **Transición de tokens:** `AUTH_ACEPTAR_TOKENS_SIN_SESION=true` por defecto; fijar en `false` 16 min después del despliegue. Refresh previos a #132 y de #132 se rechazan: un inicio de sesión por usuario.
+- **Rotación de `JWT_SECRET`:** sin doble clave; cierre planificado de sesiones (SQL en el documento) y cambio del secreto.
+- **Contingencia offline:** verificado en frontend (`offline/sync.ts`) y backend: el 401 deja la operación `PENDIENTE` en IndexedDB, el logout no la borra y el UUID es idempotente. Prueba PostgreSQL del lote tras cerrar y reabrir sesión.
+- **Migración nueva (requiere DBA):** `20261012000000_autenticacion_sesiones_intentos`. Aditiva: dos tablas nuevas, sin cambio de filas. Reversión: DROP de ambas tablas. Añadida también a la lista de migraciones de `test/ventas.postgres.integration.ts`, que usa una lista fija.
+- **Pruebas:** `test/autenticacion-fase3.postgres.integration.ts` 25/25; unitarias 349/349 (specs de auth y super admin con mocks actualizados); integración PostgreSQL completa 24 archivos, 412 aprobadas, 1 omitida (ejecutada como usuario no root).
+- **Pendientes:** limpieza de `sesiones_auth` e `intentos_login` (job); rotación de refresh con detección de reutilización (requiere ventana de gracia); logs de login con correo (R-08); confirmar `NODE_ENV=production`, `JWT_SECRET` y `TRUST_PROXY` en Render antes del despliegue.
+- **Coordinación:** archivos compartidos tocados: `main.ts` (trust proxy y validación), `usuarios.service.ts` (revocación), `schema.prisma` (dos modelos al final), `ventas.postgres.integration.ts` (lista de migraciones). No aparecen en #130 ni #131 al revisar sus archivos; no hubo agentes activos con los que coordinar en vivo.
+
+---
+
+## Auditoría de seguridad fase 2 (2026-10-10, rama `claude/security-audit-fase-2`, [PR #132](https://github.com/Nelosama/FerreSystem/pull/132) sin merge)
+
+- **Base:** `origin/claude/integracion-pos-offline-p1` `bc0a0125` (PR #129). No se modificó #127, #128 ni #129; no hay merge, despliegue ni migraciones. Informe completo y matriz: [AUDITORIA_SEGURIDAD_FASE2_20261010.md](AUDITORIA_SEGURIDAD_FASE2_20261010.md).
+- **Corregido (reproducido antes con PostgreSQL real o prueba unitaria):**
+  - SEC-01 HIGH: `costo_unitario` llegaba a VENDEDOR (`GET /operaciones/ventas/buscar`) y a BODEGUERO sin `inventario.ver` (`GET /operaciones/entregas`). `common/interceptors/cashier-response.interceptor.ts` aplica ahora la regla de `canReadProductFinancials`.
+  - SEC-02 MEDIUM: BODEGUERO leía `/ventas` y `/cotizaciones` (datos de clientes). `ventas.controller.ts` y `cotizaciones.controller.ts` restringen a ADMIN, CAJERO y VENDEDOR.
+  - SEC-03 MEDIUM: refresh token aceptado como token de API. Refresh con `typ: 'refresh'` (`auth.service.ts`, `super-admin.service.ts`); `jwt.strategy.ts` lo rechaza.
+  - SEC-04 MEDIUM: Super Admin desactivado conservaba acceso. `jwt.strategy.ts` revalida `superAdmin.activo`.
+  - SEC-05 LOW: login revelaba cuenta inactiva o empresa suspendida sin contraseña correcta. `auth.service.ts` verifica la contraseña primero.
+- **Verificado sin hallazgo:** aislamiento entre empresas en ventas, historial, cotizaciones y ajustes de existencias (404 o rechazo); la hipótesis de costo en `ventas.findById` y `formatCotizacion` se descartó porque remapean detalles.
+- **Pruebas:** `test/seguridad-fase2.postgres.integration.ts` 16/16 (era 6 fallos reproducidos); `src/auth/auth.security.spec.ts` 4/4 (era 2 fallos). Backend unitarias 349/349. Integración PostgreSQL 22 archivos, 381 aprobadas, 1 omitida (línea base 365 aprobadas, 1 omitida). `tsc -p tsconfig.build.json` y `oxlint` limpios en archivos tocados. Ejecutar integración como usuario no root (`runuser -u nobody`) porque initdb no corre como root.
+- **Ajustes de fixtures existentes:** `auth.service.spec.ts`, `super-admin.service.spec.ts` (refresh con `typ`) y `productos-security.http.spec.ts` (mock de `superAdmin`).
+- **Pendientes y riesgos:** R-01 refresh tokens previos al despliegue válidos como bearer hasta 7 días (rotar `JWT_SECRET` o esperar); R-02 sin limitación de intentos en `/auth/login`; R-03 logout sin revocación (requiere `tokenVersion`); R-04 costo manual ADMIN/BODEGUERO (decisión D1); R-05 VENDEDOR ve ventas y cotizaciones de toda la empresa (decisión de negocio). Detalle en el informe.
+- **Coordinación:** los archivos tocados no aparecen en #127 a #131. #131 también modifica este documento; posible conflicto de texto al integrar. Confirmar con el dueño antes de merge.
+- **No verificado:** producción (Render/Supabase), respaldos y configuración real de `NODE_ENV` y `JWT_SECRET` en Render (R-09, R-10).
+
+---
 ## Validación final de preproducción POS offline — PR #129 (2026-10-10)
 
 - **Estado:** candidato técnicamente validado para **piloto controlado interno**. **NO-GO** para clientes reales hasta D1 fiscal, decisiones comerciales y pruebas físicas. Sin merge, despliegue ni migración productiva. Detalle: `docs/POS_PILOTO_QA_FINAL.md`; checklist físico no ejecutado: `docs/POS_PILOTO_CHECKLIST_FISICO.md`.

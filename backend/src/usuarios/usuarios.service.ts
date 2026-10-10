@@ -4,6 +4,7 @@ import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { authorizedActor,audit,lockTenant } from '../operaciones/ledger';
 import * as bcrypt from 'bcrypt';
+import { revocarSesionesDeSujeto } from '../auth/sesiones-auth';
 const select={id:true,tenantId:true,nombre:true,email:true,rol:true,activo:true,permisos:true,permisosConfigurados:true,descuentoMaximo:true,createdAt:true,updatedAt:true} as const;
 @Injectable()
 export class UsuariosService {
@@ -37,6 +38,8 @@ export class UsuariosService {
    if(dto.permisos!==undefined){data.permisos=dto.permisos;data.permisosConfigurados=true;}
    if(dto.descuentoMaximo!==undefined)data.descuentoMaximo=dto.descuentoMaximo;
    const user=await tx.usuario.update({where:{id},data,select});
+   // Cambio de contraseña o desactivación: se cierran todas las sesiones abiertas del usuario.
+   if(passwordHash||dto.activo===false)await revocarSesionesDeSujeto(tx,id,passwordHash?'CAMBIO_CONTRASEÑA':'USUARIO_DESACTIVADO');
    await audit(tx,tenantId,actorId,'USUARIO_EDITAR',id,{anterior:old,nuevo:user,cambioPassword:!!passwordHash});return user;
   });
  }

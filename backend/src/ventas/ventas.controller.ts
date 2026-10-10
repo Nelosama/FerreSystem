@@ -13,6 +13,8 @@ import { CreateVentaDto } from './dto/create-venta.dto';
 @Controller('ventas')
 @RequiredModule('pos')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+// Lectura de ventas (datos de clientes, RTN y totales): nunca para BODEGUERO. Las rutas con @Roles propias lo sobrescriben.
+@Roles('ADMIN', 'CAJERO', 'VENDEDOR')
 export class VentasController {
   constructor(private readonly ventasService: VentasService) {}
 
