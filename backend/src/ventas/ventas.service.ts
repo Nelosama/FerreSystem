@@ -214,9 +214,9 @@ export class VentasService {
         if (!prod) {
           throw new NotFoundException(`Producto con ID ${item.productoId} no encontrado o inactivo`);
         }
-        // P0 (PR #134): sin precio de venta aprobado no se vende, ni a precio libre ni con inventario.
-        if (Number(prod.precioVenta) <= 0) {
-          throw new BadRequestException(`"${prod.nombre}" no tiene precio de venta aprobado`);
+        // Defensa en profundidad: aprobación y precio positivo, ambos obligatorios para vender.
+        if (!prod.precioAprobado || Number(prod.precioVenta) <= 0) {
+          throw new BadRequestException(`"${prod.nombre}" no tiene precio aprobado por el administrador; no se puede vender`);
         }
 
         const reservado=Number(prod.stockReservado||0);

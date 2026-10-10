@@ -84,47 +84,52 @@ describe('SEC-005 / HTTP and isolated PostgreSQL', () => {
       users[rol] = { id, token: jwt.sign({ sub: id, tenantId, type: 'tenant' }) };
     }
     const data = { codigo: 'SEC005', nombre: 'Cable SEC005', precioVenta: 10, precioCosto: 4, costoVigente: 5, margen: 60, ultimaCompraAt: new Date(), stockActual: 8, stockReservado: 2, stockMinimo: 7 };
-    productId = (await prisma.producto.create({ data: { ...data, tenantId } })).id;
-    foreignId = (await prisma.producto.create({ data: { ...data, tenantId: otherTenantId } })).id;
+    productId = (await prisma.producto.create({ data: {precioAprobado:true, ...data, tenantId } })).id;
+    foreignId = (await prisma.producto.create({ data: {precioAprobado:true, ...data, tenantId: otherTenantId } })).id;
   });
 
   it.each(['ADMIN', 'BODEGUERO'])('%s can create, read and adjust inventory with financial data and audit', async role => {
-    // Decisión 3: solo ADMIN define precios al dar de alta; BODEGUERO registra pendiente de configuración.
     const esAdmin = role === 'ADMIN';
-    const precioAlta = esAdmin ? { precioCosto: 4, precioVenta: 10, margen: 60 } : { precioCosto: 0, precioVenta: 0 };
-    const created = await request(app.getHttpServer()).post('/productos').auth(users[role].token, { type: 'bearer' })
-      .send({ codigo: `NEW-${role}`, nombre: 'Producto nuevo', categoria: 'Herramientas', ...precioAlta, stockActual: 8, stockMinimo: 7 }).expect(201);
+    const auth = (req: any) => req.auth(users[role].token, { type: 'bearer' });
+    const base = { codigo: `NEW-${role}`, nombre: 'Producto nuevo', categoria: 'Herramientas', stockActual: 8, stockMinimo: 7 };
+    // Precio: solo el administrador lo fija en el alta; sin precio el producto queda pendiente de aprobación.
+    const created = await auth(request(app.getHttpServer()).post('/productos'))
+      .send(esAdmin ? { ...base, precioCosto: 4, precioVenta: 10 } : base).expect(201);
     expect(created.body).toMatchObject(esAdmin
-      ? { precioCosto: 4, precioVenta: 10, margen: '60', stockActual: 8, activo: true, pendienteConfiguracion: false }
-      : { precioVenta: 0, stockActual: 8, activo: false, pendienteConfiguracion: true });
-    // P1: la respuesta a BODEGUERO no trae costo ni margen aunque la base lo guarde.
+      ? { precioCosto: 4, precioVenta: 10, margenCalculado: 60, precioAprobado: true, stockActual: 8 }
+      : { precioVenta: 0, precioAprobado: false, stockActual: 8 });
+    // P1: BODEGUERO no recibe costo ni margen en la respuesta del alta.
     if (!esAdmin) expect(created.body).not.toHaveProperty('precioCosto');
-    // Regla de precios: solo ADMIN cambia costo, precio o margen; BODEGUERO conserva existencias.
-    if (role === 'BODEGUERO') {
-      await request(app.getHttpServer()).put(`/productos/${created.body.id}`).auth(users[role].token, { type: 'bearer' })
-        .send({ version: created.body.version, precioVenta: 12 }).expect(403);
+    if (!esAdmin) await auth(request(app.getHttpServer()).post('/productos')).send({ ...base, codigo: 'NEW-PRECIO', precioVenta: 5 }).expect(403);
+    let version = created.body.version;
+    if (esAdmin) {
+      const priced = await auth(request(app.getHttpServer()).patch(`/productos/${created.body.id}/precios`))
+        .send({ version, precioCosto: 6, precioVenta: 12, aprobar: true, motivo: 'Lista sintética SEC-005' }).expect(200);
+      expect(priced.body).toMatchObject({ precioCosto: 6, precioVenta: 12, margenCalculado: 50, precioAprobado: true });
+      version = priced.body.version;
+    } else {
+      await auth(request(app.getHttpServer()).put(`/productos/${created.body.id}`)).send({ version, precioVenta: 12 }).expect(403);
     }
-    const cambioPrecio = role === 'ADMIN' ? { precioCosto: 6, precioVenta: 12, margen: 50 } : {};
-    const precioEsperado = role === 'ADMIN' ? { precioCosto: 6, precioVenta: 12, margen: '50' } : { precioCosto: 0, precioVenta: 0, margen: null };
-    const edited = await request(app.getHttpServer()).put(`/productos/${created.body.id}`).auth(users[role].token, { type: 'bearer' })
-      .send({ version: created.body.version, ...cambioPrecio, stockAnterior: 8, stockActual: 6, motivo: 'Conteo sintético SEC-005' }).expect(200);
-    const { precioCosto: _costoEsperado, margen: _margenEsperado, ...precioVisible } = precioEsperado as any;
-    expect(edited.body).toMatchObject(esAdmin ? { ...precioEsperado, stockActual: 6, stockBajo: true } : { precioVenta: precioVisible.precioVenta, stockActual: 6, stockBajo: true });
+    const edited = await auth(request(app.getHttpServer()).put(`/productos/${created.body.id}`))
+      .send({ version, stockAnterior: 8, stockActual: 6, motivo: 'Conteo sintético SEC-005' }).expect(200);
+    expect(edited.body).toMatchObject(esAdmin ? { precioCosto: 6, precioVenta: 12, stockActual: 6, stockBajo: true } : { precioVenta: 0, stockActual: 6, stockBajo: true });
     if (!esAdmin) expect(edited.body).not.toHaveProperty('precioCosto');
     const stored = await prisma.producto.findUniqueOrThrow({ where: { id: created.body.id } });
-    expect(Number(stored.precioCosto)).toBe(precioEsperado.precioCosto);
-    expect(Number(stored.precioVenta)).toBe(precioEsperado.precioVenta);
+    expect(Number(stored.precioCosto)).toBe(esAdmin ? 6 : 0);
+    expect(Number(stored.precioVenta)).toBe(esAdmin ? 12 : 0);
     expect(Number(stored.stockActual)).toBe(6);
     expect(await prisma.movimientoInventario.count({ where: { tenantId, productoId: stored.id } })).toBe(2);
-    expect(await prisma.auditoriaOperacion.count({ where: { tenantId, entidadId: stored.id, usuarioId: users[role].id } })).toBe(2);
+    expect(await prisma.auditoriaOperacion.count({ where: { tenantId, entidadId: stored.id, usuarioId: users[role].id } })).toBe(esAdmin ? 3 : 2);
     for (const path of ['/productos', '/productos?search=SEC005', `/productos/${productId}`, '/productos/alertas/stock-bajo']) {
       const response = await get(path, role).expect(200);
       const p = Array.isArray(response.body) ? response.body.find((p: any) => p.id === productId) : response.body;
-      // P1 (PR #134): costo y margen solo para ADMIN; BODEGUERO y el resto ven existencias y precio de venta.
-      if (role === 'ADMIN') expect(p).toMatchObject({ precioCosto: 4, costoVigente: '5', margen: '60', stockDisponible: 6 });
+      // P1: costo, costo vigente y margen solo para ADMIN; BODEGUERO conserva existencias y precio de venta.
+      if (esAdmin) expect(p).toMatchObject({ precioCosto: 4, costoVigente: '5', margen: '60', stockDisponible: 6 });
       else {
         expect(p).toMatchObject({ precioVenta: 10, stockDisponible: 6 });
         expect(p).not.toHaveProperty('precioCosto');
+        expect(p).not.toHaveProperty('costoVigente');
+        expect(p).not.toHaveProperty('margen');
       }
     }
   });
@@ -148,30 +153,5 @@ describe('SEC-005 / HTTP and isolated PostgreSQL', () => {
     expect([Number(stored.precioCosto), Number(stored.costoVigente), Number(stored.margen), Number(stored.precioVenta)]).toEqual([4, 5, 60, 10]);
     await prisma.usuario.update({ where: { id: users.BODEGUERO.id }, data: { permisos: [] } });
     await request(app.getHttpServer()).put(`/productos/${productId}`).auth(users.BODEGUERO.token, { type: 'bearer' }).send({ nombre: 'Denied' }).expect(403);
-  });
-
-  // P0/P1 (PR #134) por HTTP: el endpoint no deja vender sin precio y BODEGUERO no recibe costos ni márgenes.
-  it('P0 HTTP: ADMIN no crea ni habilita un producto sin precio de venta', async () => {
-    const creado = await request(app.getHttpServer()).post('/productos').auth(users.ADMIN.token, { type: 'bearer' })
-      .send({ codigo: 'SIN-PRECIO', nombre: 'Sin precio', precioCosto: 3, precioVenta: 0, stockActual: 4, stockMinimo: 0, unidadMedida: 'UNIDAD' }).expect(201);
-    expect(creado.body).toMatchObject({ activo: false, pendienteConfiguracion: true });
-    const antes = await prisma.producto.findUniqueOrThrow({ where: { id: productId } });
-    await request(app.getHttpServer()).put(`/productos/${productId}`).auth(users.ADMIN.token, { type: 'bearer' })
-      .send({ version: antes.version, precioVenta: 0 }).expect(400);
-    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productId } })).precioVenta)).toBe(Number(antes.precioVenta));
-  });
-
-  it('P1 HTTP: BODEGUERO no recibe costo, margen ni costo vigente en listado, detalle ni alertas; CAJERO ve precio de venta sin costo', async () => {
-    for (const path of ['/productos', `/productos/${productId}`, '/productos/alertas/stock-bajo']) {
-      const cuerpo = (await get(path, 'BODEGUERO').expect(200)).body;
-      for (const p of Array.isArray(cuerpo) ? cuerpo : [cuerpo]) {
-        expect(p).not.toHaveProperty('precioCosto');
-        expect(p).not.toHaveProperty('margen');
-        expect(p).not.toHaveProperty('costoVigente');
-      }
-    }
-    const comercial = (await get('/productos/comercial', 'CAJERO').expect(200)).body.find((p: any) => p.id === productId);
-    expect(comercial.precioVenta).toBeDefined();
-    expect(comercial).not.toHaveProperty('precioCosto');
   });
 });

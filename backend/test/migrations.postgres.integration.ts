@@ -181,7 +181,7 @@ describe('Instalación y adopción / PostgreSQL aislado', () => {
     const tenant=await source.prisma.tenant.create({data:{nombreComercial:'Ensayo aislado'}});
     const cashier=await source.prisma.usuario.create({data:{tenantId:tenant.id,nombre:'Cajero ensayo',email:'cashier@example.test',passwordHash:'test-only',rol:'CAJERO'}});
     const admin=await source.prisma.usuario.create({data:{tenantId:tenant.id,nombre:'Admin ensayo',email:'admin@example.test',passwordHash:'test-only',rol:'ADMIN'}});
-    const product=await source.prisma.producto.create({data:{tenantId:tenant.id,codigo:'ENSAYO',nombre:'Producto ensayo',stockActual:10,precioVenta:10,precioCosto:5}});
+    const product=await source.prisma.producto.create({data:{precioAprobado:true,tenantId:tenant.id,codigo:'ENSAYO',nombre:'Producto ensayo',stockActual:10,precioVenta:10,precioCosto:5}});
     const ops=new OperacionesService(source.prisma as PrismaService);
     await ops.abrir(tenant.id,cashier.id,{solicitudId:randomUUID(),monto:100});
     const sale=await new VentasService(source.prisma as PrismaService).create(tenant.id,cashier.id,{solicitudId:randomUUID(),metodoPago:'EFECTIVO',detalles:[{productoId:product.id,cantidad:2,precioUnitario:10}]});

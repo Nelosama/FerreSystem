@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import Papa from 'papaparse';
 import { Upload, Download, AlertTriangle, Check, X, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
 import { useRubroConfig } from '../hooks/useRubroConfig';
-import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { normalizarUnidadMedida } from '../utils/unidadMedida';
@@ -17,8 +16,6 @@ interface ParsedRow {
   codigo: string;
   nombre: string;
   categoria: string;
-  precioCosto: number;
-  precioVenta: number;
   stockActual: number;
   stockMinimo: number;
   unidadMedida: string;
@@ -37,9 +34,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { user } = useTenant();
-  // Decisión 3: solo ADMIN define costo y precio; BODEGUERO importa existencias y datos sin precios.
-  const esAdmin = user?.rol === 'ADMIN';
   const [productos, setProductos] = useState<any[]>([]);
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
@@ -65,10 +59,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadTemplate = () => {
-    // P1: BODEGUERO no recibe ni exporta costos o precios comerciales; la plantilla solo pide datos de identidad y existencias.
-    const headers = esAdmin
-      ? ['nombre', 'codigo', 'categoria', 'precioCosto', 'precioVenta', 'stockActual', 'stockMinimo', 'unidadMedida']
-      : ['nombre', 'codigo', 'categoria', 'stockActual', 'stockMinimo', 'unidadMedida'];
+    const headers = ['nombre', 'codigo', 'categoria', 'stockActual', 'stockMinimo', 'unidadMedida'];
     const cats = rubroConfig.categoriasDefault.length > 0 ? rubroConfig.categoriasDefault : ['General', 'Otros'];
     const units = rubroConfig.unidadesMedida.length > 0 ? rubroConfig.unidadesMedida : ['unidad', 'metro'];
 
@@ -117,8 +108,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
       const codigo = getFieldValue(raw, ['codigo', 'code', 'sku', 'codigoproducto', 'cod']);
       const nombre = getFieldValue(raw, ['nombre', 'name', 'producto', 'articulo', 'descripcion']);
       let categoria = getFieldValue(raw, ['categoria', 'category', 'cat']);
-      const precioCostoStr = getFieldValue(raw, ['preciocosto', 'costo', 'cost', 'costprice']);
-      const precioVentaStr = getFieldValue(raw, ['precioventa', 'precio', 'price', 'sellingprice']);
       const stockActualStr = getFieldValue(raw, ['stockactual', 'stock', 'cantidad', 'qty', 'quantity']);
       const stockMinimoStr = getFieldValue(raw, ['stockminimo', 'minimo', 'minstock']);
       let unidadMedida = getFieldValue(raw, ['unidadmedida', 'unidad', 'medida', 'unit']);
@@ -133,15 +122,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
         errores.push(t('inventory.invalid_name'));
       }
 
-      const numCosto = parseFloat(precioCostoStr || '0');
-      if (isNaN(numCosto) || numCosto < 0) {
-        errores.push(t('inventory.invalid_prices'));
-      }
-
-      const numVenta = parseFloat(precioVentaStr || '0');
-      if (isNaN(numVenta) || numVenta < 0) {
-        errores.push(t('inventory.invalid_prices'));
-      }
 
       const numStock = Number(stockActualStr || '0');
       if (isNaN(numStock) || numStock < 0) {
@@ -171,8 +151,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
         codigo,
         nombre,
         categoria,
-        precioCosto: isNaN(numCosto) ? 0 : numCosto,
-        precioVenta: isNaN(numVenta) ? 0 : numVenta,
         stockActual: isNaN(numStock) ? 0 : numStock,
         stockMinimo: isNaN(numStockMin) ? 5 : numStockMin,
         unidadMedida,
@@ -271,10 +249,10 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
           const existente = existentes.get(payload.codigo);
           if (existente) {
             if (!sobrescribir) { omitidos++; continue; }
-            await api.put(`/productos/${existente.id}`, { ...payload, ...(esAdmin ? { precioVenta: r.precioVenta, precioCosto: r.precioCosto } : {}), version: existente.version, stockAnterior: existente.stockActual });
+            await api.put(`/productos/${existente.id}`, { ...payload, version: existente.version, stockAnterior: existente.stockActual });
             actualizados++;
           } else {
-            const res = await api.post('/productos', { ...payload, precioVenta: esAdmin ? r.precioVenta : 0, precioCosto: esAdmin ? r.precioCosto : 0 });
+            const res = await api.post('/productos', payload);
             existentes.set(payload.codigo, { id: res.data.id, version: res.data.version ?? 1, stockActual: Number(res.data.stockActual) });
             importados++;
           }
@@ -374,7 +352,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                   className="btn btn-primary"
                   onClick={() => ejecutarImportacion(true)}
                 >
-                  <Check size={16} /> Sobrescribir stock y precio
+                  <Check size={16} /> Sobrescribir existencias
                 </button>
               </div>
             </div>
@@ -453,8 +431,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                           <th>NOMBRE</th>
                           <th>CATEGORÍA</th>
                           <th>UNIDAD</th>
-                          {esAdmin && <th style={{ textAlign: 'right' }}>COSTO</th>}
-                          {esAdmin && <th style={{ textAlign: 'right' }}>VENTA</th>}
                           <th style={{ textAlign: 'center' }}>STOCK</th>
                           <th>ESTADO</th>
                         </tr>
@@ -472,8 +448,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                             <td>{r.nombre || <em style={{ color: '#DC2626' }}>[Vacío]</em>}</td>
                             <td>{r.categoria}</td>
                             <td style={{ textTransform: 'lowercase' }}>{r.unidadMedida}</td>
-                            {esAdmin && <td style={{ textAlign: 'right' }}>L. {r.precioCosto.toFixed(2)}</td>}
-                            {esAdmin && <td style={{ textAlign: 'right', fontWeight: 700 }}>L. {r.precioVenta.toFixed(2)}</td>}
                             <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.stockActual}</td>
                             <td>
                               {r.esValido ? (

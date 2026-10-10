@@ -36,7 +36,8 @@ export class OperacionesService {
  async compra(tenantId: string,userId: string,dto: CompraDto) {
   return this.prisma.$transaction(async tx => {
    await lockTenant(tx,tenantId);
-   const user=await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
+   // Costos de compra: solo ADMIN. BODEGUERO registra recepciones y cantidades, no costos.
+   const user=await authorizedActor(tx,tenantId,userId,['ADMIN'],'inventario.editar');
    const hash=fingerprint({userId,dto});
    const [previous] = await query(tx, 'SELECT o.*, a.datos FROM ordenes_compra o JOIN auditoria_operaciones a ON a.entidad_id=o.id AND a.operacion=\'COMPRA_CREAR\' WHERE o.id=$1 AND o.tenant_id=$2',dto.solicitudId,tenantId);
    if(previous){if(previous.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otra compra');return previous;}

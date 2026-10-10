@@ -24,11 +24,6 @@ const GRUPOS: { titulo: string; campos: { k: string; tipo?: 'texto' | 'numero' |
     { k: 'unidadMedida', tipo: 'select', ayuda: 'unidad' },
     { k: 'usaMedida', tipo: 'check' },
   ] },
-  { titulo: 'group_prices', campos: [
-    { k: 'precioVenta', tipo: 'numero', requerido: true },
-    { k: 'precioCosto', tipo: 'numero', ayuda: 'costo' },
-    { k: 'margen', tipo: 'numero' },
-  ] },
   { titulo: 'group_stock', campos: [
     { k: 'stockMinimo', tipo: 'numero' },
   ] },

@@ -244,23 +244,22 @@ test.describe('Levantamiento de inventario (FS-06 fase 2)', () => {
     expect(sim.aplicarTokens[0]).toBe(`tok-2-2-5`);
   });
 
-  // P2 (PR #134): el conteo no captura ni cambia costos, precios o márgenes; registra existencias y responsable;
-  // las advertencias comerciales se muestran y nunca viajan a la aplicación.
-  test('conteo sin precios: no hay campos comerciales, las advertencias no se aplican y la aplicación envía solo el token', async ({ page, sim }) => {
+  // P2 (consolidación KARDEX): el conteo no captura, lee ni muestra costos, precios o márgenes; registra existencias
+  // y responsable; y la aplicación envía solo el token de la vista previa, nunca datos comerciales.
+  test('conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token', async ({ page, sim }) => {
     await ingresar(page);
     await crearLevantamiento(page, 'Conteo sin precios');
     for (const etiqueta of ['Costo', 'Precio de venta', 'Margen %']) {
       await expect(page.getByLabel(etiqueta, { exact: true })).toHaveCount(0);
     }
-    // Vista previa con precio del catálogo y una diferencia comercial informativa.
+    // Vista previa como la devuelve el servidor de #140: solo identidad, existencias y token; sin precios ni advertencias.
     await page.route('**/api/levantamientos/*/preview', async route => {
       const item = sim.levantamientos[0].items[0];
       await route.fulfill({
         status: 200,
         json: {
           estado: 'FINALIZADO', aplicadoAt: null, token: 'tok-p2',
-          rows: [{ item, productoId: 'prod-cable', codigo: 'CABLE', nombre: 'Cable metro', anterior: 8, nuevo: 9, errores: [], conflicto: false,
-            contadorId: admin.id, precioCosto: 2, precioVenta: 4, advertencias: ['Costo contado (7) no se aplica; el costo vigente es 2'] }],
+          rows: [{ item, productoId: 'prod-cable', codigo: 'CABLE', nombre: 'Cable metro', anterior: 8, nuevo: 9, errores: [], conflicto: false, contadorId: admin.id }],
         },
         headers: { 'access-control-allow-origin': new URL(page.url()).origin, 'access-control-allow-credentials': 'true' },
       });
@@ -280,7 +279,8 @@ test.describe('Levantamiento de inventario (FS-06 fase 2)', () => {
     await page.getByRole('button', { name: 'Finalizar conteo' }).click();
     await expect(page.getByRole('heading', { name: /FINALIZADO/ })).toBeVisible();
     await page.getByRole('button', { name: 'Revisar impacto en inventario' }).click();
-    await expect(page.getByText('Costo contado (7) no se aplica; el costo vigente es 2')).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'CABLE · Cable metro', exact: true })).toBeVisible();
+    await expect(page.getByText(/no se aplica|Costo contado|Precio contado|Margen contado/)).toHaveCount(0);
 
     const aplicacion = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/aplicar'));
     page.once('dialog', d => d.accept());

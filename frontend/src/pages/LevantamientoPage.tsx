@@ -254,7 +254,6 @@ export const LevantamientoPage: React.FC = () => {
   const exportRows = () => active.items.map((i: any) => ({
     codigo: i.codigo || '', codigoBarras: i.codigoBarras || '', descripcion: i.descripcion,
     cantidad: Number(i.cantidad), unidad: i.unidad, categoria: i.categoria || '',
-    ...(user?.rol === 'ADMIN' ? { costo: i.precioCosto ?? '', precio: i.precioVenta ?? '', margen: i.margen ?? '' } : {}),
     ubicacion: i.ubicacion || '', marca: i.marca || '', notas: i.notas || '',
     contador: i.contadorId || '', conflicto: i.conflicto ? 'Sí' : '',
   }));
@@ -452,7 +451,7 @@ export const LevantamientoPage: React.FC = () => {
                   ))}
                   <datalist id="count-categories">{[...new Set([...rubroConfig.categoriasDefault, ...(active.items ?? []).map((i: any) => i.categoria).filter(Boolean)])].map((c: any) => <option key={c} value={c} />)}</datalist>
                 </fieldset>
-                <p>{t('stocktaking.price_help')}</p>
+                <p>{t('stocktaking.price_admin_note')}</p>
                 <button className="btn btn-primary" disabled={busy || isReadOnly || !!pendingCount || !!propia}>{t('stocktaking.save_next')}</button>
                 {editing && <button className="btn btn-secondary" type="button" onClick={() => { setEditing(null); setForm(blank()); }}>{t('stocktaking.cancel_edit')}</button>}
               </form>
@@ -464,7 +463,7 @@ export const LevantamientoPage: React.FC = () => {
                 <thead>
                   <tr>
                     <th>{t('stocktaking.product')}</th><th>{t('stocktaking.code')}</th><th>{t('stocktaking.quantity')}</th><th>{t('stocktaking.zone')}</th>
-                    <th>{t('stocktaking.counter')}</th><th>{t('stocktaking.actions')}</th>
+                    <th>{t('stocktaking.counter')}</th><th>{t('stocktaking.data_status')}</th><th>{t('stocktaking.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -478,6 +477,11 @@ export const LevantamientoPage: React.FC = () => {
                       <td>{Number(i.cantidad)} {i.unidad}</td>
                       <td>{i.ubicacion}</td>
                       <td style={{ fontSize: '0.85em', color: '#64748b' }}><Contador item={i} /></td>
+                      <td>
+                        <span className={`badge ${i.descripcion && (i.categoria || i.productoId) ? 'badge-success' : 'badge-warning'}`}>
+                          {i.descripcion && (i.categoria || i.productoId) ? t('stocktaking.status_complete') : t('stocktaking.status_incomplete')}
+                        </span>
+                      </td>
                       <td>
                         {!closed && (
                           <>
@@ -512,7 +516,7 @@ export const LevantamientoPage: React.FC = () => {
                           <td>{r.codigo} · {r.nombre}</td>
                           <td>{r.anterior}</td>
                           <td>{r.nuevo}</td>
-                          <td>{r.errores.length ? r.errores.join('; ') : r.productoId ? t('stocktaking.update_existing') : t('stocktaking.create_product')}{r.advertencias?.length ? <small style={{ display: 'block', color: '#64748b' }}>{r.advertencias.join('. ')}</small> : null}</td>
+                          <td>{r.errores.length ? r.errores.join('; ') : r.productoId ? t('stocktaking.update_existing') : t('stocktaking.create_product')}</td>
                         </tr>
                       ))}
                     </tbody>

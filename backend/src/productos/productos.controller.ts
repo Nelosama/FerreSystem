@@ -1,6 +1,6 @@
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Controller, ForbiddenException, Get, Post, Put, Delete, Body, Param, Query, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Patch, Post, Put, Delete, Body, Param, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ProductoResponseInterceptor } from './producto-response.interceptor';
 import { ProductosService } from './productos.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -9,7 +9,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { RequiredModule } from '../common/decorators/required-module.decorator';
-import { CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
+import { CambiarPreciosProductoDto, CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
 
 @Controller('productos')
 @RequiredModule('inventario')
@@ -71,6 +71,19 @@ export class ProductosController {
     @CurrentUser('sub') userId: string,
   ) {
     return this.productosService.update(tenantId, id, dto, userId);
+  }
+
+  /** Precios y aprobación para venta: solo el administrador. */
+  @Patch(':id/precios')
+  @RequiredPermission('inventario.editar')
+  @Roles('ADMIN')
+  async cambiarPrecios(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: CambiarPreciosProductoDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.productosService.cambiarPrecios(tenantId, id, dto, userId);
   }
 
   @Delete(':id')

@@ -93,7 +93,7 @@ describe('Estado de cuenta de cliente / PostgreSQL aislado', () => {
       users[clave] = jwt.sign({ sub: id, tenantId: tenant, type: 'tenant' });
     }
 
-    const producto = await prisma.producto.create({ data: { tenantId, codigo: 'PRV-001', nombre: 'Tornillo 2 pulgadas', precioCosto: 10, precioVenta: 15, stockActual: 0 } as any });
+    const producto = await prisma.producto.create({ data: {precioAprobado:true, tenantId, codigo: 'PRV-001', nombre: 'Tornillo 2 pulgadas', precioCosto: 10, precioVenta: 15, stockActual: 0 } as any });
     productoId = producto.id;
     proveedorA = (await prisma.proveedor.create({ data: { tenantId, nombre: 'Distribuidora Norte' } })).id;
     proveedorB = (await prisma.proveedor.create({ data: { tenantId, nombre: 'Ferretera Sur' } })).id;

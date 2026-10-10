@@ -244,6 +244,37 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Ronda ATLAS (comprobante, impresión y entrega):** comprobante interno completo desde el registro local (`frontend/src/offline/comprobante.ts`), reimpresión desde el diario, papel 58/80 mm e impresión que nunca revierte la venta. Corregido: `entregar` aceptaba ventas totalmente devueltas. Pendiente de decisión del dueño sobre la entrega de la venta en línea: `docs/POS_VENTA_ENTREGA_DECISION.md` (opciones A–D; sin cambio de flujo). Impresión física (C1–C8) no ejecutada. Resultados en `docs/POS_PILOTO_QA_FINAL.md` §4c.
 - **Regla confirmada por el dueño (venta offline = venta normal):** verificada en `docs/POS_PILOTO_QA_FINAL.md` §4b. Corregido: si releer la lista fallaba tras guardar, la UI mostraba «NO se guardó» (`PosContingenciaPage.tsx`). Añadidas pruebas: relectura fallida tras guardar, siguiente cliente con sincronización colgada y salida de inventario `ENTREGA` por operación. Brechas abiertas: comprobante sin líneas de producto y stock central desfasado hasta sincronizar.
 
+## Levantamiento inicial y administración de precios (2026-10-11)
+
+- **Rama/PR:** `claude/keen-goldberg-62o7f1`, desde la rama de integración `claude/integracion-pos-offline-p1` ([#129](https://github.com/Nelosama/FerreSystem/pull/129), HEAD verificado `6373692f`). PR de borrador [#140](https://github.com/Nelosama/FerreSystem/pull/140) hacia esa base. Sin merge, despliegue ni migraciones productivas. No se modifica la contingencia offline (ver bloqueo 1).
+- **Reglas implementadas:**
+  1. **Personal** (ADMIN/BODEGUERO con `inventario.editar`) captura productos sin precio. `POST /productos` sin `precioVenta`/`precioCosto` deja `precio_aprobado=false` (pendiente). Con precio responde 403; `margen` responde 400 (se calcula, no se captura).
+  2. **Ficha de producto** (`PUT /productos/:id`): ningún rol cambia precio ni margen (403 / 400). Nombre, códigos, categoría, unidad y existencias siguen igual.
+  3. **Pantalla `/precios`** (solo ADMIN, menú «Precios y aprobación»): fija costo y precio, muestra margen calculado en vivo y aprueba para venta (exige precio > 0). `PATCH /productos/:id/precios` exige `version`. Registra `precio_aprobado_por/at` y `precio_modificado_por/at`; auditoría `PRECIO_APROBAR` / `PRECIO_MODIFICAR` con antes, después y motivo. Modificar un precio ya aprobado conserva la aprobación.
+  4. **Venta y cotización** (`ventas.service.ts`, `cotizaciones.service.ts` → `processLineItems`): producto sin precio aprobado responde 400 dentro de la transacción; no se crea venta, ni reserva, ni cotización.
+  5. **Conteo** (`levantamientos.service.ts`): no lee ni escribe costo, precio ni margen. Aplicar solo cambia existencias y, si estaban vacíos, marca y código de barras. Un producto nuevo del conteo se crea con precio 0 y pendiente.
+  6. **Compras:** sin cambios de código. La recepción no toca `precio_venta` (`compras.postgres.integration.ts`, costo vigente = última recepción).
+  7. **Importador de productos:** ya no lee ni envía precios; sobrescribir afecta existencias.
+  8. **Estados en pantalla:** «Pendiente de aprobación» (precio) y «Completo / Incompleto» (descripción y categoría presentes; propuesta por confirmar con el dueño).
+- **Migración** `backend/prisma/migrations/20261011150000_precio_aprobacion_producto`: solo agrega columnas e índice. Productos existentes quedan aprobados con `precio_aprobado_por = 'LEGADO_MIGRACION'` para que no dejen de venderse. Requiere revisión de DBA y confirmación del dueño.
+- **Pruebas ejecutadas (2026-10-11, entorno local):**
+  - Backend unitarias **345/345**. `tsc -p tsconfig.build.json` sin errores.
+  - Integración PostgreSQL 16, usuario no root, cadena completa de migraciones: **23 archivos, 381 aprobadas, 1 omitida** (la misma omitida que ya tenía la base). Incluye `test/precios-aprobacion.postgres.integration.ts` (nueva, 10 casos: personal sin precio, alta del dueño, ficha sin precio, conteo sin precio, producto nuevo pendiente, venta bloqueada, validaciones de aprobación, aprobación auditada, modificación con antes y después, ajuste de existencias sin tocar precio).
+  - Frontend unitarias **233/233** (`test/precios.test.mjs` 8/8, `producto-edicion.test.mjs` 15/15).
+  - Playwright con backend simulado **120/120** (Chromium 1194 instalado en el entorno; el binario por defecto no está).
+  - E2E con backend real (`frontend/e2e-real/precios-real.spec.ts`, vía `e2e-real/run.sh`): **1/1**. El personal captura sin precio y ve «pendiente»; el dueño filtra, ve margen 33.33 %, aprueba; la base de datos guarda precio, aprobador y auditoría; el personal recibe 403 al cambiar precio. Capturas en `scratchpad` de la sesión (no se publican en el repo).
+  - `tsc -b`, `vite build`, oxlint sin errores (solo avisos de patrón existente).
+- **Bloqueos y decisiones pendientes:**
+  1. **Contingencia offline (no modificada por restricción):** `contingencia.service.ts`, `construirCatalogo` (~línea 157), incluye productos sin precio aprobado (precio 0) y `tx.venta.create` (~línea 450) crea ventas sin pasar por `ventas.service`. Con la contingencia activa, un producto pendiente podría venderse offline a precio 0. Falta: filtrar `precioAprobado: true` en el catálogo de la ventana y validar al sincronizar. La contingencia está apagada por defecto (`POS_OFFLINE_ENABLED` y configuración por empresa). Requiere autorización explícita.
+  2. **Productos existentes aprobados por migración:** es una decisión de negocio. Si el dueño quiere revisar precios antes de vender, debe marcarse pendiente en una migración aparte; no se hizo.
+  3. **Conflicto de criterio con #134 (LEV-004):** #134 deja sin corregir que aplicar un conteo sobrescriba costo, precio y margen, porque la prueba `QA-INV-001` exige aplicar el precio revisado. Esta rama implementa la regla del encargo («los ajustes nunca sobrescriben costo, precio ni margen») y ajusta esa prueba en `auditoria-inventario.postgres.integration.ts`. #134 no implementa esta corrección, así que no hay duplicado; sí hay que decidir el criterio antes de integrar ambas.
+  4. **Costo manual de BODEGUERO** (decisión D1 de FS-07): queda cerrada por el encargo; solo ADMIN fija precios.
+  5. Columnas `margen`, `precio_*` de `levantamiento_items` quedan sin uso (no se borran). `margen` almacenado en `productos` tampoco se escribe; el margen mostrado es calculado.
+  6. No validado en iPhone/Safari, Windows ni con datos reales de la ferretería. Sin prueba de hardware.
+- **Bitácora:** lectura del contexto vigente y de PRs abiertos (#129–#135); implementación backend, frontend, migración y pruebas; corrección de fixtures y contratos de pruebas que cambian por diseño (no se relajó ninguna aserción salvo las que describían el comportamiento anterior); PR en borrador pendiente de revisión humana. Sin aceptación del cliente.
+
+---
+
 ## Continuidad POS y sincronización — auditoría y propuesta (2026-10-10)
 
 - **Base comprobada:** `main` y `origin/main` `5eae989dfab0ea04cc6861406ec30df459ae16c2`, checkout principal limpio; fetch realizado. Al iniciar, PR #122 abierto (`fix/qa-clientes-cajero`). Trabajo de Claude en Clientes/POS/permisos protegido; no se cambian esos archivos ni se abren PRs de implementación.
@@ -418,6 +449,16 @@ Decisiones del dueño aplicadas en el PR: (1) edición de producto por ADMIN com
 - **P2 e2e:** prueba del levantamiento: sin campos de costo, precio ni margen; el alta no envía precios; el responsable y las existencias quedan registrados; las advertencias se muestran y la aplicación envía solo el token.
 - **ATLAS:** no existe rama ni PR de ATLAS en el remoto. Dependencias y superficies de conflicto en `docs/ATLAS_DEPENDENCIAS_PR134.md`; no se implementó contrato alguno.
 - **Evidencia:** `docs/kardex-evidencia-pr134/RESULTADOS.md`.
+
+### Consolidación #134 + #140 — rama temporal `claude/kardex-consolidacion-134-140` (KARDEX, 2026-10-10 UTC)
+
+- **Base:** `claude/integracion-pos-offline-p1` (PR #129, `c5fe4982`) + PR #140 (`1d3971be`) + PR #134 (`57c64962`). Integración sin merge, despliegue ni migraciones productivas.
+- **Regla de venta:** `activo AND precio_aprobado AND precio_venta > 0`. `activo` no equivale a aprobado. Solo ADMIN aprueba por `PATCH /productos/:id/precios`. Cambiar el precio de venta de un aprobado lo revoca; un cambio solo de costo lo conserva.
+- **Privacidad:** BODEGUERO sin costos, márgenes ni totales de compra en productos, levantamiento, compras, historial, proveedores del producto y entregas (`SinCostosParaBodeguero`, probado por HTTP). CAJERO conserva el precio de venta autorizado.
+- **Migración:** solo los productos legados con precio > 0 quedan aprobados; los de precio cero quedan pendientes.
+- **Pruebas:** backend unitarias 353/353; integración PostgreSQL 402 pasan y 1 omitida (preexistente); build, lint y `tsc` sin errores. Frontend unitarias 241/241, lint, build; Playwright 128/129; e2e real 30/30 con migraciones completas. El único fallo (`contingencia-simulado`, "existencia local baja") es **preexistente en la base de #129**: en cinco repeticiones falla 3 veces sobre `c5fe4982`. No se corrigió: pertenece al POS offline de ATLAS.
+- **Pendiente antes de merge:** filtro de aprobación en el catálogo offline (ATLAS); decisión del dueño sobre `POST /operaciones/compras` con costo para BODEGUERO; aprobación automática de legados con precio > 0 (NEXUS y dueño); conciliación de costos sobre datos reales (solo sintético hasta ahora).
+- **Coordinación:** `docs/COORDINACION_ATLAS_NEXUS_CONSOLIDACION.md`. No hubo canal en vivo con ATLAS ni NEXUS en esta sesión.
 
 **Riesgos abiertos antes de merge:**
 1. Conciliación de costos históricos: requiere decisión del dueño (reglas A, 2 y 3 de la propuesta).

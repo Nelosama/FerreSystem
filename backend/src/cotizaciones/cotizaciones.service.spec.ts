@@ -76,6 +76,7 @@ describe('CotizacionesService', () => {
       unidadMedida: 'PIE',
       usaMedida: true,
       precioVenta: 39.00,
+      precioAprobado: true,
       activo: true,
     });
 
@@ -199,7 +200,7 @@ describe('CotizacionesService', () => {
       });
       mockPrisma.$queryRaw.mockResolvedValue([{ ultimo_numero: 10 }]);
       mockPrisma.cliente.findFirst.mockResolvedValue({ id: 'c-1', nombre: 'Cliente', rtn: null, telefono: null });
-      mockPrisma.producto.findFirst.mockResolvedValue({ id: 'p-1', nombre: 'Clavo', precioVenta: 10, stockActual: 5, activo: true });
+      mockPrisma.producto.findFirst.mockResolvedValue({ id: 'p-1', nombre: 'Clavo', precioVenta: 10, stockActual: 5, activo: true, precioAprobado: true });
 
       const detalle = { productoId: 'p-1', cantidad: 1, precioUnitario: 10 };
       await service.create('tenant-1', 'user-1', { clienteId: 'c-1', fechaValidez: '2026-10-09', detalles: [detalle] } as any);

@@ -22,7 +22,8 @@
     "audit": "AUDITORÍA",
     "mobile_admin": "Resumen móvil",
     "customer_statement": "Estado de cuenta",
-    "bank_reconciliation": "Conciliación bancaria"
+    "bank_reconciliation": "Conciliación bancaria",
+    "prices": "PRECIOS Y APROBACIÓN"
   },
   "stock_taking": {
     "title": "LEVANTAMIENTO DE INVENTARIO",
@@ -292,7 +293,9 @@
     "initial_stock": "STOCK INICIAL",
     "minimum_alert": "STOCK MÍNIMO ALERTA",
     "save_product": "GUARDAR PRODUCTO",
-    "import_summary_counts": "{imported} productos importados, {updated} actualizados, {skipped} omitidos, {errors} con error (no importados)"
+    "import_summary_counts": "{imported} productos importados, {updated} actualizados, {skipped} omitidos, {errors} con error (no importados)",
+    "price_pending": "Pendiente de precio",
+    "price_admin_note": "El precio lo fija el administrador en Precios y aprobación. El producto no se vende hasta aprobarlo."
   },
   "layaway": {
     "title": "APARTADOS Y RESERVAS",
@@ -1348,7 +1351,11 @@
       "precioVenta": "Precio de venta",
       "margen": "Margen %",
       "notas": "Notas"
-    }
+    },
+    "price_admin_note": "Los precios no se capturan en el conteo: el administrador los fija y aprueba en Precios y aprobación.",
+    "data_status": "Datos",
+    "status_complete": "Completo",
+    "status_incomplete": "Incompleto"
   },
   "admin_mobile": {
     "title": "Resumen administrativo",
@@ -1473,5 +1480,38 @@
       "PAGADA": "Pagada",
       "POR_VENCER": "Por vencer (7 días)"
     }
+  },
+  "prices": {
+    "title": "Precios y aprobación",
+    "subtitle": "Solo administración: fije costo y precio, y apruebe los productos para venta.",
+    "filter_pending": "Pendientes de precio",
+    "filter_approved": "Aprobados",
+    "filter_all": "Todos",
+    "search": "Buscar por nombre o código",
+    "empty": "No hay productos en esta lista.",
+    "pick": "Seleccione un producto para revisar su precio.",
+    "count_pending": "{n} pendientes de precio",
+    "cost": "Costo",
+    "price": "Precio de venta",
+    "margin": "Margen calculado",
+    "margin_hint": "(precio − costo) ÷ precio",
+    "save": "Guardar precios",
+    "approve": "Aprobar para venta",
+    "approve_needs_price": "Defina un precio de venta mayor que cero para aprobar.",
+    "reason": "Motivo del cambio (opcional)",
+    "approved_by": "Aprobado por {nombre} el {fecha}",
+    "modified_by": "Último cambio de precio por {nombre} el {fecha}",
+    "legacy": "Anterior a la aprobación de precios",
+    "pending_state": "Pendiente de aprobación",
+    "approved_state": "Aprobado para venta",
+    "complete": "Completo",
+    "incomplete": "Incompleto",
+    "stock": "Existencias",
+    "saved": "Precios guardados.",
+    "approved": "Producto aprobado para venta.",
+    "no_changes": "No hay cambios que guardar.",
+    "invalid": "Revise costo y precio: deben ser números iguales o mayores que cero.",
+    "conflict": "El producto cambió en otro equipo. Se recargó la lista; revise antes de guardar.",
+    "error": "No se pudo guardar. Intente de nuevo."
   }
 }

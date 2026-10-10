@@ -1,6 +1,6 @@
 import { RequiredAnyModule, RequiredModule } from '../common/decorators/required-module.decorator';
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { OperacionesService } from './operaciones.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
@@ -8,6 +8,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { SinCostosParaBodeguero } from '../common/interceptors/sin-costos-bodeguero.interceptor';
 import { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 @Controller('operaciones')
 @UseGuards(JwtAuthGuard,TenantGuard,RolesGuard)
@@ -19,9 +20,9 @@ export class OperacionesController {
  @RequiredModule('ordenes_compra')
  @Post('proveedores') @Roles('ADMIN') proveedor(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:ProveedorDto){return this.service.proveedor(t,u,dto);}
  @RequiredModule('ordenes_compra')
- @Get('compras') @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') compras(@TenantId() t:string){return this.service.compras(t);}
+ @Get('compras') @UseInterceptors(SinCostosParaBodeguero(['subtotal','isv','total'])) @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') compras(@TenantId() t:string){return this.service.compras(t);}
  @RequiredModule('ordenes_compra')
- @Post('compras') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') compra(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:CompraDto){return this.service.compra(t,u,dto);}
+ @Post('compras') @UseInterceptors(SinCostosParaBodeguero(['subtotal','isv','total'])) @RequiredPermission('inventario.editar') @Roles('ADMIN') compra(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:CompraDto){return this.service.compra(t,u,dto);}
  @RequiredModule('ordenes_compra', 'inventario')
  @Post('compras/:id/recepciones') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') recibir(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:RecepcionDto){return this.service.recibir(t,u,id,dto);}
  @Get('cuentas') @Roles('ADMIN','CAJERO') cuentas(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('tipo') tipo:string,@Query('clienteId') clienteId?:string,@Query('proveedorId') proveedorId?:string,@Query('estado') estado?:string,@Query('desde') desde?:string,@Query('hasta') hasta?:string){return this.service.cuentas(t,u,tipo,undefined,{clienteId,proveedorId,estado,desde,hasta});}
@@ -36,19 +37,19 @@ export class OperacionesController {
  @Post('conciliaciones-bancarias') @Roles('ADMIN') registrarConciliacionBancaria(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:ConciliacionBancariaDto){return this.service.registrarConciliacionBancaria(t,u,dto);}
  @Get('conciliaciones-bancarias') @Roles('ADMIN') conciliacionesBancarias(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('fecha') fecha?:string){return this.service.conciliacionesBancarias(t,u,fecha);}
  @Get('clientes/:id/estado-cuenta') @Roles('ADMIN','CAJERO') estadoCuentaCliente(@TenantId() t:string,@CurrentUser('rol') rol:string,@Param('id') id:string){return this.service.estadoCuentaCliente(t,id,rol);}
- @Get('productos/:id/proveedores') @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') proveedoresProducto(@TenantId() t:string,@Param('id') id:string){return this.service.proveedoresProducto(t,id);}
+ @Get('productos/:id/proveedores') @UseInterceptors(SinCostosParaBodeguero()) @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') proveedoresProducto(@TenantId() t:string,@Param('id') id:string){return this.service.proveedoresProducto(t,id);}
  @RequiredModule('inventario')
  @Put('productos/:id/proveedores/:proveedorId') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') guardarProveedorProducto(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Param('proveedorId') proveedorId:string,@Body() dto:ProductoProveedorDto){return this.service.guardarProveedorProducto(t,u,id,proveedorId,dto);}
  @RequiredModule('inventario')
  @Delete('productos/:id/proveedores/:proveedorId') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') eliminarProveedorProducto(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Param('proveedorId') proveedorId:string){return this.service.eliminarProveedorProducto(t,u,id,proveedorId);}
  @RequiredModule('inventario')
- @Get('productos/:id/historial') @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') historial(@TenantId() t:string,@Param('id') id:string){return this.service.historial(t,id);}
+ @Get('productos/:id/historial') @UseInterceptors(SinCostosParaBodeguero()) @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') historial(@TenantId() t:string,@Param('id') id:string){return this.service.historial(t,id);}
  @RequiredModule('inventario')
  @Post('productos/:id/ajuste') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') ajustar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:AjusteDto){return this.service.ajustar(t,u,id,dto);}
  @RequiredModule('pos')
  @Post('ventas/:id/entregar') @Roles('ADMIN','CAJERO','BODEGUERO') entregar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.entregar(t,u,id);}
  @RequiredModule('pos')
- @Get('entregas') @Roles('ADMIN','CAJERO','BODEGUERO') entregas(@TenantId() t:string){return this.service.entregas(t);}
+ @Get('entregas') @UseInterceptors(SinCostosParaBodeguero()) @Roles('ADMIN','CAJERO','BODEGUERO') entregas(@TenantId() t:string){return this.service.entregas(t);}
  @RequiredModule('reportes')
  @Get('resumen') @RequiredPermission('reportes.ver') @Roles('ADMIN') resumen(@TenantId() t:string,@Query('desde') desde:string,@Query('hasta') hasta:string){return this.service.resumen(t,desde,hasta);}
  @RequiredModule('pos')

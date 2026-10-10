@@ -112,6 +112,15 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     category: 'INVENTARIO',
   },
   {
+    key: 'precios',
+    labelKey: 'menu.prices',
+    defaultLabel: 'PRECIOS Y APROBACIÓN',
+    route: '/precios',
+    icon: Tags,
+    allowedRoles: ['ADMIN'],
+    category: 'INVENTARIO',
+  },
+  {
     key: 'levantamiento',
     labelKey: 'menu.stock_taking',
     defaultLabel: 'LEVANTAMIENTO',

@@ -119,7 +119,7 @@ describe('Reportes FS-05 / PostgreSQL aislado', () => {
     const productoId = randomUUID();
     await prisma.tenant.create({ data: { id: tenantId, nombreComercial: 'Ferretería prueba' } });
     await prisma.usuario.create({ data: { id: usuarioId, tenantId, nombre: 'Cajero prueba', email: `${usuarioId}@example.test`, passwordHash: 'test-only' } });
-    await prisma.producto.create({ data: { id: productoId, tenantId, codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 1000, stockMinimo: 0 } });
+    await prisma.producto.create({ data: {precioAprobado:true, id: productoId, tenantId, codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 1000, stockMinimo: 0 } });
     let numero = 0;
     const ventaIds: Record<string, string> = {};
     for (const [clave, v] of Object.entries(FIXTURE)) {

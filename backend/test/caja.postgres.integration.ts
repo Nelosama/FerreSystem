@@ -78,7 +78,7 @@ describe('Caja y arqueo / PostgreSQL aislado', () => {
     await usuario(otroAdminId, otroTenantId, 'ADMIN');
     const cliente = await prisma.cliente.create({ data: { tenantId, nombre: 'Cliente con crédito', creditoHabilitado: true, limiteCredito: 1000 } });
     clienteId = cliente.id;
-    productoId = (await prisma.producto.create({ data: { tenantId, codigo: 'CJ-1', nombre: 'Producto de caja', precioVenta: 100, precioCosto: 50, stockActual: 1000, stockMinimo: 0 } })).id;
+    productoId = (await prisma.producto.create({ data: {precioAprobado:true, tenantId, codigo: 'CJ-1', nombre: 'Producto de caja', precioVenta: 100, precioCosto: 50, stockActual: 1000, stockMinimo: 0 } })).id;
   });
 
   // Venta de 1 unidad a 100 + ISV 15 % = 115.

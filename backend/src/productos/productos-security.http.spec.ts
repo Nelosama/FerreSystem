@@ -18,7 +18,7 @@ describe('SEC-005 product HTTP responses (real JWT, guards, service; mocked pers
   const jwt = new JwtService({ secret });
   const users = new Map<string, any>();
   const product = {
-    id: 'product-a', tenantId: 'tenant-a', codigo: 'CABLE', nombre: 'Cable',
+    id: 'product-a', tenantId: 'tenant-a', codigo: 'CABLE', nombre: 'Cable', precioAprobado: true,
     codigoBarras: '123', codigoFabricante: 'CAB', descripcion: 'Por metro',
     precioVenta: new Prisma.Decimal(10), precioCosto: new Prisma.Decimal(4),
     costoVigente: new Prisma.Decimal(5), margen: new Prisma.Decimal(60),

@@ -1,24 +1,35 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { authorizedActor, audit, fingerprint, decimal, id, lockTenant, movement, query, text } from '../operaciones/ledger';
-import type { CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
+import type { CambiarPreciosProductoDto, CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
 import { publicProduct } from './producto-response';
+
+/** Marca de la migración para productos que ya se vendían antes de la aprobación de precios. */
+const LEGADO_PRECIO='LEGADO_MIGRACION';
 
 @Injectable()
 export class ProductosService {
  constructor(private readonly prisma: PrismaService) {}
- private format(p:any){return {...p,pendienteConfiguracion:Number(p.precioVenta)<=0,precioVenta:Number(p.precioVenta),precioCosto:Number(p.precioCosto),stockActual:Number(p.stockActual),stockReservado:Number(p.stockReservado||0),stockDisponible:Number(p.stockActual)-Number(p.stockReservado||0),stockMinimo:Number(p.stockMinimo),stockBajo:Number(p.stockActual)-Number(p.stockReservado||0)<=Number(p.stockMinimo)};}
+ private format(p:any){const venta=Number(p.precioVenta),costo=Number(p.precioCosto);return {...p,pendienteConfiguracion:!p.precioAprobado,precioVenta:venta,precioCosto:costo,margenCalculado:venta>0?Math.round((venta-costo)/venta*10000)/100:null,stockActual:Number(p.stockActual),stockReservado:Number(p.stockReservado||0),stockDisponible:Number(p.stockActual)-Number(p.stockReservado||0),stockMinimo:Number(p.stockMinimo),stockBajo:Number(p.stockActual)-Number(p.stockReservado||0)<=Number(p.stockMinimo)};}
+ private async conAutores(tenantId:string,rows:any[]){
+  const ids=[...new Set(rows.flatMap(r=>[r.precioAprobadoPor,r.precioModificadoPor]).filter((v:string|null):v is string=>!!v&&v!==LEGADO_PRECIO))];
+  const usuarios=ids.length?await this.prisma.usuario.findMany({where:{tenantId,id:{in:ids}},select:{id:true,nombre:true}}):[];
+  const nombres=new Map(usuarios.map(u=>[u.id,u.nombre]));
+  return rows.map(r=>({...r,precioAprobadoPorNombre:r.precioAprobadoPor===LEGADO_PRECIO?'Anterior a la aprobación de precios':(nombres.get(r.precioAprobadoPor)??null),precioModificadoPorNombre:nombres.get(r.precioModificadoPor)??null}));
+ }
  async findAll(tenantId:string,search?:string,categoriaId?:string,incluirInactivos=false,pendientes=false){
-  // Pendientes de configuración: sin precio de venta válido; permanecen inactivos hasta que ADMIN los configure.
-  const where:any={tenantId,...(incluirInactivos||pendientes?{}:{activo:true}),...(categoriaId?{categoriaId}:{}),...(pendientes?{precioVenta:0}:{})};
+  // Pendientes de aprobación: sin precio aprobado por ADMIN; se listan aunque estén inactivos.
+  const where:any={tenantId,...(incluirInactivos||pendientes?{}:{activo:true}),...(categoriaId?{categoriaId}:{}),...(pendientes?{precioAprobado:false}:{})};
   const term=search?.trim();
   if(term)where.OR=[...['nombre','descripcion','codigo','codigoBarras','codigoFabricante'].map(field=>({[field]:{contains:term,mode:'insensitive'}})),{categoria:{nombre:{contains:term,mode:'insensitive'}}}];
-  return (await this.prisma.producto.findMany({where,include:{categoria:{select:{id:true,nombre:true}}},orderBy:{nombre:'asc'}})).map(p=>this.format(p));
+  const rows=await this.prisma.producto.findMany({where,include:{categoria:{select:{id:true,nombre:true}}},orderBy:{nombre:'asc'}});
+  return (await this.conAutores(tenantId,rows)).map(p=>this.format(p));
  }
  async comercial(tenantId:string){
-  const rows=await this.findAll(tenantId);return rows.map(p=>publicProduct({...p,stockFisico:p.stockActual,stockActual:p.stockDisponible}));
+  // Consulta comercial y POS: solo productos con precio aprobado por ADMIN y precio positivo.
+  const rows=(await this.findAll(tenantId)).filter(p=>p.precioAprobado===true&&Number(p.precioVenta)>0);return rows.map(p=>publicProduct({...p,stockFisico:p.stockActual,stockActual:p.stockDisponible}));
  }
- async findById(tenantId:string,id:string){const p=await this.prisma.producto.findFirst({where:{id,tenantId},include:{categoria:true}});if(!p)throw new NotFoundException('Producto no encontrado');return this.format(p);}
+ async findById(tenantId:string,id:string){const p=await this.prisma.producto.findFirst({where:{id,tenantId},include:{categoria:true}});if(!p)throw new NotFoundException('Producto no encontrado');return this.format((await this.conAutores(tenantId,[p]))[0]);}
  async getLowStock(tenantId:string){return (await this.findAll(tenantId)).filter(p=>p.stockBajo);}
  private async category(tx:any,tenantId:string,dto:{categoriaId?:string;categoria?:string}){
   if(dto.categoriaId){const c=await tx.categoria.findFirst({where:{id:dto.categoriaId,tenantId}});if(!c)throw new NotFoundException('Categoría no encontrada');return c.id;}
@@ -28,10 +39,7 @@ export class ProductosService {
  async create(tenantId:string,dto:CreateProductoDto,userId:string){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
-   const usuario=await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
-   const esAdmin=usuario.rol==='ADMIN';
-   // Regla de precios (decisión 3): BODEGUERO no define costo, precio ni margen. Su alta queda pendiente de configuración por ADMIN.
-   if(!esAdmin&&(Number(dto.precioCosto)!==0||Number(dto.precioVenta)!==0||(dto.margen!=null&&Number(dto.margen)!==0)))throw new ForbiddenException('Solo el administrador define costo, precio o margen; el producto se registra pendiente de configuración');
+   const actor=await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
    // Auditoría y alta comparten transacción y lock de empresa; no requiere otra tabla.
    const solicitudHash=dto.solicitudId?fingerprint(Object.fromEntries(Object.entries(dto).filter(([key,value])=>key!=='solicitudId'&&value!==undefined).sort(([a],[b])=>a.localeCompare(b)))):null;
    if(dto.solicitudId){
@@ -43,6 +51,9 @@ export class ProductosService {
      return this.format(saved);
     }
    }
+   const esAdmin=actor.rol==='ADMIN';
+   if(!esAdmin&&(dto.precioVenta!==undefined||dto.precioCosto!==undefined))throw new ForbiddenException('Solo el administrador define precios; el producto quedará pendiente hasta su aprobación');
+   if(dto.margen!==undefined)throw new BadRequestException('El margen se calcula desde costo y precio; no se captura');
    const nombre=text(dto.nombre,'Nombre');
    let codigo=dto.codigo?.trim().toUpperCase();
    if(!codigo){
@@ -52,13 +63,12 @@ export class ProductosService {
    if(await tx.producto.findFirst({where:{tenantId,codigo:{equals:codigo,mode:'insensitive'}}}))throw new ConflictException('Código ya registrado');
    const barcode=dto.codigoBarras?.trim()||null;
    if(barcode&&await tx.producto.findFirst({where:{tenantId,codigoBarras:barcode}}))throw new ConflictException('Código de barras ya registrado');
-   // Costo vigente y costo comercial son el mismo dato: se crean sincronizados.
-   const precioCosto=esAdmin?decimal(dto.precioCosto,'Costo'):0;
-   const precioVenta=esAdmin?decimal(dto.precioVenta,'Precio'):0;
-   // P0 (PR #134): un producto sin precio de venta válido nunca queda disponible para venta, aunque lo cree ADMIN.
-   const disponible=esAdmin&&precioVenta>0;
-   const p=await tx.producto.create({data:{tenantId,codigo,nombre,codigoBarras:barcode,codigoFabricante:dto.codigoFabricante?.trim()||null,marca:dto.marca?.trim()||null,imagenUrl:dto.imagenUrl||null,descripcion:dto.descripcion,categoriaId:await this.category(tx,tenantId,dto),usaMedida:dto.usaMedida??false,precioVenta,precioCosto,costoVigente:precioCosto,margen:esAdmin?dto.margen:null,activo:disponible,stockActual:decimal(dto.stockActual,'Stock'),stockMinimo:decimal(dto.stockMinimo,'Mínimo'),unidadMedida:dto.unidadMedida||'UNIDAD'},include:{categoria:{select:{id:true,nombre:true}}}});
-   await movement(tx,tenantId,userId,p.id,'INICIAL',0,Number(p.stockActual),p.id,'Alta inicial de producto');await audit(tx,tenantId,userId,'PRODUCTO_CREAR',p.id,{codigo,stock:Number(p.stockActual),...(dto.solicitudId?{solicitudId:dto.solicitudId,solicitudHash}:{})});return this.format(p);
+   // Un precio fijado por el administrador en el alta queda aprobado por él; sin precio, el producto queda pendiente.
+   const precioVenta=esAdmin&&dto.precioVenta!==undefined?decimal(dto.precioVenta,'Precio'):0;
+   const precioCosto=esAdmin&&dto.precioCosto!==undefined?decimal(dto.precioCosto,'Costo'):0;
+   const aprobado=esAdmin&&precioVenta>0;
+   const p=await tx.producto.create({data:{tenantId,codigo,nombre,codigoBarras:barcode,codigoFabricante:dto.codigoFabricante?.trim()||null,marca:dto.marca?.trim()||null,imagenUrl:dto.imagenUrl||null,descripcion:dto.descripcion,categoriaId:await this.category(tx,tenantId,dto),usaMedida:dto.usaMedida??false,precioVenta:precioVenta,precioCosto:precioCosto,costoVigente:precioCosto,precioAprobado:aprobado,precioAprobadoPor:aprobado?userId:null,precioAprobadoAt:aprobado?new Date():null,stockActual:decimal(dto.stockActual,'Stock'),stockMinimo:decimal(dto.stockMinimo,'Mínimo'),unidadMedida:dto.unidadMedida||'UNIDAD'},include:{categoria:{select:{id:true,nombre:true}}}});
+   await movement(tx,tenantId,userId,p.id,'INICIAL',0,Number(p.stockActual),p.id,'Alta inicial de producto');await audit(tx,tenantId,userId,'PRODUCTO_CREAR',p.id,{codigo,stock:Number(p.stockActual),precioPendiente:!aprobado,...(dto.solicitudId?{solicitudId:dto.solicitudId,solicitudHash}:{})});return this.format(p);
   });
  }
  async update(tenantId:string,productId:string,dto:UpdateProductoDto,userId:string){
@@ -68,18 +78,11 @@ export class ProductosService {
    const old=await tx.producto.findFirst({where:{id:productId,tenantId}});if(!old)throw new NotFoundException('Producto no encontrado');
    // FS-07: concurrencia optimista. Una versión obsoleta se rechaza antes de aplicar cualquier cambio.
    if(dto.version!==old.version)throw new ConflictException({message:'El producto fue modificado por otro usuario. Recargue la información antes de guardar.',code:'PRODUCTO_VERSION',versionActual:old.version});
+   if(dto.precioVenta!==undefined||dto.precioCosto!==undefined)throw new ForbiddenException('Los precios se cambian en Precios y aprobación, no en la ficha del producto');
+   if(dto.margen!==undefined)throw new BadRequestException('El margen se calcula desde costo y precio; no se captura');
    const reactivando=dto.activo===true&&!old.activo;
    const desactivando=dto.activo===false&&old.activo;
    if((reactivando||desactivando)&&usuario.rol!=='ADMIN')throw new ForbiddenException('Solo el administrador puede activar o desactivar productos');
-   // Regla de precios (dueño): solo ADMIN define costo, precio o margen. Repetir el valor vigente (p. ej. importación) no cuenta como cambio.
-   const cambiaPrecios=(['precioVenta','precioCosto'] as const).some(f=>dto[f]!==undefined&&Number(dto[f])!==Number(old[f]))
-    ||(dto.margen!==undefined&&(dto.margen==null?old.margen!=null:Number(dto.margen)!==Number(old.margen)));
-   if(cambiaPrecios&&usuario.rol!=='ADMIN')throw new ForbiddenException('Solo el administrador puede definir costo, precio o margen');
-   // Pendiente de precio: un producto sin precio de venta aprobado no se habilita para venta.
-   const precioFinal=dto.precioVenta!==undefined?Number(dto.precioVenta):Number(old.precioVenta);
-   // P0: sin precio de venta válido no hay producto disponible. Aplica a habilitar y a fijar precio cero en un producto activo.
-   const activoFinal=dto.activo!==undefined?dto.activo:old.activo;
-   if((reactivando||dto.precioVenta!==undefined)&&activoFinal&&precioFinal<=0)throw new BadRequestException('Un producto disponible para venta requiere precio de venta mayor a cero');
    if(dto.stockActual!==undefined&&dto.stockActual<Number(old.stockReservado))throw new ConflictException('El conteo no cubre las ventas pendientes de entrega');
    const cambiaStock=dto.stockActual!==undefined&&Number(old.stockActual)!==dto.stockActual;
    if(cambiaStock&&dto.stockAnterior===undefined)throw new BadRequestException('Recargue el producto antes de ajustar existencias: falta la cantidad anterior');
@@ -104,11 +107,8 @@ export class ProductosService {
    if(dto.codigoFabricante!==undefined)data.codigoFabricante=dto.codigoFabricante.trim()||null;
    if(dto.usaMedida!==undefined)data.usaMedida=dto.usaMedida;
    if(dto.unidadMedida!==undefined)data.unidadMedida=dto.unidadMedida;
-   if(dto.margen!==undefined)data.margen=dto.margen;
    if(dto.imagenUrl!==undefined)data.imagenUrl=dto.imagenUrl||null;
-   for(const f of ['precioVenta','precioCosto','stockMinimo'] as const)if(dto[f]!==undefined)data[f]=decimal(dto[f],f);
-   // Costo vigente y costo comercial son el mismo dato: una edición de costo lo actualiza en ambos campos.
-   if(data.precioCosto!==undefined)data.costoVigente=data.precioCosto;
+   if(dto.stockMinimo!==undefined)data.stockMinimo=decimal(dto.stockMinimo,'stockMinimo');
    if(cambiaStock)data.stockActual=decimal(dto.stockActual,'stockActual');
    if(codigo)data.codigo=codigo;
    if(dto.nombre!==undefined)data.nombre=text(dto.nombre,'Nombre');
@@ -128,11 +128,44 @@ export class ProductosService {
 
  /** Campo por campo, solo los que realmente cambiaron. Decimal se compara como número. */
  private cambiosProducto(antes:any,despues:any){
-  const campos=['codigo','codigoBarras','codigoFabricante','marca','nombre','descripcion','categoriaId','precioVenta','precioCosto','costoVigente','stockActual','stockMinimo','margen','unidadMedida','usaMedida','imagenUrl','activo'] as const;
+  const campos=['codigo','codigoBarras','codigoFabricante','marca','nombre','descripcion','categoriaId','precioVenta','precioCosto','stockActual','stockMinimo','margen','unidadMedida','usaMedida','imagenUrl','activo'] as const;
   const norm=(v:any)=>v==null?null:(typeof v==='object'?Number(v.toString()):v);
   const cambios:Record<string,{anterior:any;nuevo:any}>={};
   for(const c of campos){const a=norm(antes[c]),n=norm(despues[c]);if(a!==n)cambios[c]={anterior:a,nuevo:n};}
   return cambios;
+ }
+
+ /** Precios y aprobación para venta: solo ADMIN. Cada cambio queda auditado con valor anterior, nuevo y responsable. */
+ async cambiarPrecios(tenantId:string,productId:string,dto:CambiarPreciosProductoDto,userId:string){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN'],'inventario.editar');
+   const old=await tx.producto.findFirst({where:{id:productId,tenantId}});if(!old)throw new NotFoundException('Producto no encontrado');
+   if(dto.version!==old.version)throw new ConflictException({message:'El producto fue modificado por otro usuario. Recargue la información antes de guardar.',code:'PRODUCTO_VERSION',versionActual:old.version});
+   const costoNuevo=dto.precioCosto!==undefined?decimal(dto.precioCosto,'Costo'):Number(old.precioCosto);
+   const ventaNueva=dto.precioVenta!==undefined?decimal(dto.precioVenta,'Precio de venta'):Number(old.precioVenta);
+   const cambios:Record<string,{anterior:number;nuevo:number}>={};
+   if(costoNuevo!==Number(old.precioCosto))cambios.precioCosto={anterior:Number(old.precioCosto),nuevo:costoNuevo};
+   if(ventaNueva!==Number(old.precioVenta))cambios.precioVenta={anterior:Number(old.precioVenta),nuevo:ventaNueva};
+   const hayCambios=Object.keys(cambios).length>0;
+   if(dto.aprobar===true&&ventaNueva<=0)throw new BadRequestException('Defina un precio de venta mayor que cero antes de aprobar');
+   // Revocación (decisión del dueño): cambiar el precio de venta de un producto aprobado exige una nueva aprobación explícita.
+   // Un cambio solo de costo no revoca la aprobación. Un precio no positivo nunca queda autorizado.
+   const cambiaVenta=ventaNueva!==Number(old.precioVenta);
+   const aprueba=dto.aprobar===true&&(!old.precioAprobado||cambiaVenta);
+   const aprobadoFinal=ventaNueva>0&&(aprueba||(old.precioAprobado&&!cambiaVenta));
+   const revoca=old.precioAprobado&&!aprobadoFinal;
+   if(!hayCambios&&!aprueba)throw new BadRequestException('No hay cambios de precio que guardar');
+   const data:any={precioCosto:costoNuevo,precioVenta:ventaNueva};
+   // Costo vigente y costo comercial son el mismo dato: un cambio de costo se refleja en ambos.
+   if(costoNuevo!==Number(old.precioCosto))data.costoVigente=costoNuevo;
+   if(hayCambios){data.precioModificadoPor=userId;data.precioModificadoAt=new Date();}
+   if(aprueba){data.precioAprobado=true;data.precioAprobadoPor=userId;data.precioAprobadoAt=new Date();}
+   if(revoca){data.precioAprobado=false;data.precioAprobadoPor=null;data.precioAprobadoAt=null;}
+   const p=await tx.producto.update({where:{id:productId},data:{...data,version:{increment:1}},include:{categoria:{select:{id:true,nombre:true}}}});
+   await audit(tx,tenantId,userId,aprueba?'PRECIO_APROBAR':'PRECIO_MODIFICAR',productId,{cambios,aprobado:p.precioAprobado,revocada:revoca,motivo:dto.motivo?.trim()||null,version:{anterior:old.version,nueva:p.version}});
+   return this.format((await this.conAutores(tenantId,[p]))[0]);
+  });
  }
 
  async delete(tenantId:string,productId:string,userId:string){return this.prisma.$transaction(async tx=>{await lockTenant(tx,tenantId);await authorizedActor(tx,tenantId,userId,['ADMIN'],'inventario.editar');const p=await tx.producto.findFirst({where:{id:productId,tenantId}});if(!p)throw new NotFoundException('Producto no encontrado');const result=await tx.producto.update({where:{id:productId},data:{activo:false,version:{increment:1}}});await audit(tx,tenantId,userId,'PRODUCTO_DESACTIVAR',productId,{});return this.format(result);});}

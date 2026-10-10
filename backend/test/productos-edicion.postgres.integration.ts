@@ -30,14 +30,20 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
   const users: Record<string, { id: string; token: string }> = {};
   const call = (method: 'get' | 'post' | 'put' | 'delete', path: string, body = {}, role = 'ADMIN') =>
     request(app.getHttpServer())[method](`/api${path}`).auth(users[role].token, { type: 'bearer' }).send(body);
-  const alta = (body: any = {}, role = 'ADMIN') => call('post', '/productos', {
-    codigo: `P-${randomUUID().slice(0, 8)}`, nombre: 'Producto de prueba', precioCosto: 8, precioVenta: 12,
-    stockActual: 40, stockMinimo: 5, unidadMedida: 'METRO', ...body,
-  }, role);
+  const alta = (body: any = {}, role = 'ADMIN') => {
+    const { margen, precioVenta, precioCosto, ...sinPrecio } = body;
+    // Precios y margen: solo ADMIN en el alta (el margen se calcula, no se captura).
+    const precios = role === 'ADMIN' ? { precioCosto: 8, precioVenta: 12, ...(precioCosto !== undefined ? { precioCosto } : {}), ...(precioVenta !== undefined ? { precioVenta } : {}) } : {};
+    return call('post', '/productos', {
+      codigo: `P-${randomUUID().slice(0, 8)}`, nombre: 'Producto de prueba', stockActual: 40, stockMinimo: 5, unidadMedida: 'METRO', ...sinPrecio, ...precios,
+    }, role);
+  };
   const editar = (id: string, body: any, role = 'ADMIN') => call('put', `/productos/${id}`, body, role);
+  // Precio y aprobación: única ruta de cambio de precio (solo ADMIN).
+  const precios = (id: string, body: any, role = 'ADMIN') => call('patch', `/productos/${id}/precios`, body, role);
   const fila = (id: string) => prisma.producto.findUniqueOrThrow({ where: { id } });
-  const auditoria = (entidadId: string) => prisma.$queryRawUnsafe<{ usuario_id: string; datos: any }[]>(
-    "SELECT usuario_id, datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='PRODUCTO_EDITAR' AND entidad_id=$2 ORDER BY created_at", tenantId, entidadId);
+  const auditoria = (entidadId: string, operacion = 'PRODUCTO_EDITAR') => prisma.$queryRawUnsafe<{ usuario_id: string; datos: any }[]>(
+    "SELECT usuario_id, datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion=$3 AND entidad_id=$2 ORDER BY created_at", tenantId, entidadId, operacion);
 
   beforeAll(async () => {
     if (!existsSync(exe('initdb'))) throw new Error(`PostgreSQL not installed at ${bin}`);
@@ -95,7 +101,7 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
   });
 
   it('una edición parcial conserva todos los campos que no se enviaron (FS-07)', async () => {
-    const creado = (await alta({ codigo: 'CAB-1', nombre: 'Cable', codigoBarras: '7701', codigoFabricante: 'FAB-9', descripcion: 'Rollo 100 m', marca: 'Truper', categoria: 'Electricidad', margen: 25, precioVenta: 12, precioCosto: 8, stockActual: 40, stockMinimo: 5 }).expect(201)).body;
+    const creado = (await alta({ codigo: 'CAB-1', nombre: 'Cable', codigoBarras: '7701', codigoFabricante: 'FAB-9', descripcion: 'Rollo 100 m', marca: 'Truper', categoria: 'Electricidad', precioVenta: 12, precioCosto: 8, stockActual: 40, stockMinimo: 5 }).expect(201)).body;
     const antes = await fila(creado.id);
     await editar(creado.id, { version: creado.version, nombre: 'Cable reforzado' }).expect(200);
     const despues = await fila(creado.id);
@@ -125,8 +131,8 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
   it('reintentar una edición ya aplicada no la repite: responde conflicto y la versión no avanza (FS-07)', async () => {
     const p = (await alta().expect(201)).body;
     const cuerpo = { version: 1, precioVenta: 15 };
-    await editar(p.id, cuerpo).expect(200);
-    await editar(p.id, cuerpo).expect(409);
+    await precios(p.id, cuerpo).expect(200);
+    await precios(p.id, cuerpo).expect(409);
     const f = await fila(p.id);
     expect(Number(f.precioVenta)).toBe(15);
     expect(f.version).toBe(2);
@@ -213,11 +219,11 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
   it('un cambio de precio y costo no modifica ventas anteriores y queda trazado en auditoría (FS-07)', async () => {
     const p = (await alta({ precioVenta: 12, precioCosto: 8 }).expect(201)).body;
     const venta = await prisma.venta.create({ data: { tenantId, numeroVenta: 1, usuarioId: users.ADMIN.id, subtotal: 12, isv: 0, total: 12, detalles: { create: [{ productoId: p.id, cantidad: 1, precioUnitario: 12, subtotal: 12 }] } } });
-    await editar(p.id, { version: 1, precioVenta: 20, precioCosto: 9 }).expect(200);
+    await precios(p.id, { version: 1, precioVenta: 20, precioCosto: 9 }).expect(200);
     const historica = await prisma.venta.findUniqueOrThrow({ where: { id: venta.id }, include: { detalles: true } });
     expect(Number(historica.total)).toBe(12);
     expect(Number(historica.detalles[0].precioUnitario)).toBe(12);
-    const [registro] = await auditoria(p.id);
+    const [registro] = await auditoria(p.id, 'PRECIO_MODIFICAR');
     expect(registro.datos.cambios).toMatchObject({ precioVenta: { anterior: 12, nuevo: 20 }, precioCosto: { anterior: 8, nuevo: 9 } });
   });
 
@@ -248,7 +254,7 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
   it('alta sin código con reintento concurrente persiste un solo producto y movimiento inicial', async () => {
     const solicitudId = randomUUID();
     // BODEGUERO registra sin precio: el producto queda pendiente de configuración (decisión 3).
-    const body = { codigo: '', nombre: 'Canaleta blanca 4 pulgadas', stockActual: 12.75, solicitudId, precioCosto: 0, precioVenta: 0 };
+    const body = { codigo: '', nombre: 'Canaleta blanca 4 pulgadas', stockActual: 12.75, solicitudId, precioCosto: undefined, precioVenta: undefined };
     const [a, b] = await Promise.all([alta(body, 'BODEGUERO'), alta(body, 'BODEGUERO')]);
     expect([a.status, b.status]).toEqual([201, 201]);
     expect(a.body.id).toBe(b.body.id);
@@ -344,18 +350,19 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
     ['Tornillo galvanizado 2 pulgadas', 'Venta por peso', 'LIBRA', 8.75],
     ['Aerosol rojo 400 ml', 'Pintura brillante', 'UNIDAD', 6],
   ])('empleado registra %s con código interno generado y persistencia real', async (nombre, descripcion, unidadMedida, stockActual) => {
-    const response = await alta({ codigo: '', nombre, descripcion, unidadMedida, stockActual, precioCosto: 0, precioVenta: 0, solicitudId: randomUUID() }, 'BODEGUERO').expect(201);
+    // Alta de BODEGUERO: sin ninguna clave de precio; el producto queda pendiente de aprobación del dueño.
+    const response = await alta({ codigo: '', nombre, descripcion, unidadMedida, stockActual, precioCosto: undefined, precioVenta: undefined, solicitudId: randomUUID() }, 'BODEGUERO').expect(201);
     const stored = await fila(response.body.id);
     expect(stored).toMatchObject({ nombre, descripcion, unidadMedida });
-    // Alta de BODEGUERO: pendiente de precio, inactiva y sin margen.
-    expect([stored.activo, Number(stored.precioVenta), stored.margen]).toEqual([false, 0, null]);
+    // Alta de BODEGUERO: pendiente de aprobación de precio y sin margen; no vendible.
+    expect([stored.precioAprobado, Number(stored.precioVenta), stored.margen]).toEqual([false, 0, null]);
     expect(stored.codigo).toBeTruthy();
     expect(Number(stored.stockActual)).toBe(stockActual);
   });
 
   it('dos empleados registrando el mismo código simultáneamente no duplican existencias', async () => {
     const body = { codigo: 'TOR-2', codigoBarras: '770000000001', stockActual: 2.75 };
-    const responses = await Promise.all([alta({ ...body, solicitudId: randomUUID() }), alta({ ...body, precioCosto: 0, precioVenta: 0, solicitudId: randomUUID() }, 'BODEGUERO')]);
+    const responses = await Promise.all([alta({ ...body, solicitudId: randomUUID() }), alta({ ...body, precioCosto: undefined, precioVenta: undefined, solicitudId: randomUUID() }, 'BODEGUERO')]);
     expect(responses.map(r => r.status).sort((a, b) => a - b)).toEqual([201, 409]);
     expect(await prisma.producto.count({ where: { tenantId } })).toBe(1);
     expect(await prisma.movimientoInventario.count({ where: { tenantId } })).toBe(1);
@@ -390,11 +397,13 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
     expect(await prisma.movimientoInventario.count({ where: { productoId: p.id, tipo: 'AJUSTE' } })).toBe(ajuste.status === 200 ? 1 : 0);
   });
 
-  it('conserva el borrado explícito del margen opcional, sin modificar precios o existencias', async () => {
-    const p = (await alta({ margen: 20 }).expect(201)).body;
-    await editar(p.id, { version: 1, margen: null }).expect(200);
+  it('el margen no se captura: la ficha lo rechaza y no altera precios ni existencias', async () => {
+    const p = (await alta().expect(201)).body;
+    await editar(p.id, { version: 1, margen: 20 }).expect(400);
+    await editar(p.id, { version: 1, margen: null }).expect(400);
     const stored = await fila(p.id);
     expect(stored.margen).toBeNull();
+    expect(stored.version).toBe(1);
     expect(Number(stored.precioCosto)).toBe(8);
     expect(Number(stored.precioVenta)).toBe(12);
     expect(Number(stored.stockActual)).toBe(40);

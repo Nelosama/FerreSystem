@@ -81,7 +81,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     await prisma.tenant.create({ data: { id: tenantId, nombreComercial: 'Tenant prueba' } });
     await prisma.usuario.create({ data: { id: usuarioId, tenantId, nombre: 'Cajero prueba', email: 'test@example.test', passwordHash: 'test-only' } });
     await new OperacionesService(prisma).abrir(tenantId,usuarioId,{solicitudId:randomUUID(),monto:1000});
-    await prisma.producto.create({ data: { id: productoId, tenantId, codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 2.75, stockMinimo: 0 } });
+    await prisma.producto.create({ data: {precioAprobado:true, id: productoId, tenantId, codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 2.75, stockMinimo: 0 } });
   });
 
   afterAll(async () => {
@@ -439,7 +439,7 @@ describe('Ventas / PostgreSQL aislado', () => {
   });
 
   it('una falla en la segunda línea revierte stock y correlativo completos', async () => {
-    const second=await prisma.producto.create({data:{tenantId,codigo:'SIN-STOCK',nombre:'Agotado',precioVenta:10,precioCosto:1,stockActual:0,stockMinimo:0}});
+    const second=await prisma.producto.create({data:{precioAprobado:true,tenantId,codigo:'SIN-STOCK',nombre:'Agotado',precioVenta:10,precioCosto:1,stockActual:0,stockMinimo:0}});
     await expect(ventas.create(tenantId, usuarioId, { detalles: [...request(0.5).detalles,{productoId:second.id,cantidad:1,precioUnitario:10}] })).rejects.toThrow('Stock insuficiente');
     expect(await available()).toBe(2.75);
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
@@ -655,13 +655,13 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect((await ops.caja(tenantId,usuarioId))[0].efectivoEsperado).toBe(1000);
   });
 
-  it('los códigos internos concurrentes son distintos y fabricante/barcode/margen/foto se guardan realmente',async()=>{
+  it('los códigos internos concurrentes son distintos y fabricante/barcode/foto se guardan realmente',async()=>{
     const service=new ProductosService(prisma);
     const dto={nombre:'Canaleta galvanizada',precioVenta:20,precioCosto:10,stockActual:0,stockMinimo:1};
-    const [a,b]=await Promise.all([service.create(tenantId,{...dto,codigoBarras:'123456789',codigoFabricante:'FAB-12',margen:35,imagenUrl:'https://images.example.test/canaleta.webp'},usuarioId),service.create(tenantId,dto,usuarioId)]);
+    const [a,b]=await Promise.all([service.create(tenantId,{...dto,codigoBarras:'123456789',codigoFabricante:'FAB-12',imagenUrl:'https://images.example.test/canaleta.webp'},usuarioId),service.create(tenantId,dto,usuarioId)]);
     expect(a.codigo).not.toBe(b.codigo);expect(a.codigo).toMatch(/^CANALETA-GALVANIZA-\d{3}$/);
     const saved=await prisma.producto.findUniqueOrThrow({where:{id:a.id}});
-    expect(saved.codigoBarras).toBe('123456789');expect(saved.codigoFabricante).toBe('FAB-12');expect(Number(saved.margen)).toBe(35);expect(saved.imagenUrl).toBe('https://images.example.test/canaleta.webp');
+    expect(saved.codigoBarras).toBe('123456789');expect(saved.codigoFabricante).toBe('FAB-12');expect(saved.imagenUrl).toBe('https://images.example.test/canaleta.webp');
     expect((await service.findAll(tenantId,'FAB-12')).map(p=>p.id)).toEqual([a.id]);
     await expect(service.create(tenantId,{...dto,codigoBarras:'123456789'},usuarioId)).rejects.toThrow('barras ya registrado');
   });

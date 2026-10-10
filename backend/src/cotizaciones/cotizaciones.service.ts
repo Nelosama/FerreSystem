@@ -581,6 +581,9 @@ export class CotizacionesService {
       if (!prod) {
         throw new NotFoundException(`Producto con ID ${item.productoId} no encontrado o inactivo`);
       }
+      if (!prod.precioAprobado) {
+        throw new BadRequestException(`"${prod.nombre}" no tiene precio aprobado por el administrador; no se puede cotizar ni vender`);
+      }
 
       const usaMedida = Boolean(prod.usaMedida);
       const cantidad = Number(item.cantidad);

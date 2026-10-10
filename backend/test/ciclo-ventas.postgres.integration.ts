@@ -229,7 +229,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     await http('put', `/productos/${p.id}`, { version: p.version, activo: false }).expect(200);
     await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(404);
     const otro = await prisma.tenant.create({ data: { nombreComercial: 'Otro tenant QA' } });
-    const ajeno = await prisma.producto.create({ data: { tenantId: otro.id, codigo: 'AJENO', nombre: 'Ajeno', precioVenta: 100, precioCosto: 40, stockActual: 10 } });
+    const ajeno = await prisma.producto.create({ data: {precioAprobado:true, tenantId: otro.id, codigo: 'AJENO', nombre: 'Ajeno', precioVenta: 100, precioCosto: 40, stockActual: 10 } });
     await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: ajeno.id, cantidad: 1 }] }).expect(404);
     const activo = await producto('ACTIVO', 100, 1);
     await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: activo.id, cantidad: 2 }] }).expect(400);
