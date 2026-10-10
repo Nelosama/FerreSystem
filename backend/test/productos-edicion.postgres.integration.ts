@@ -168,6 +168,17 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
     expect((await fila(p.id)).activo).toBe(false);
   });
 
+  it('solo el administrador puede listar productos inactivos (BODEGUERO y CAJERO reciben 403)', async () => {
+    const p = (await alta().expect(201)).body;
+    await editar(p.id, { version: 1, activo: false }).expect(200);
+    await call('get', '/productos?incluirInactivos=true', {}, 'BODEGUERO').expect(403);
+    await call('get', '/productos?incluirInactivos=true', {}, 'CAJERO').expect(403);
+    const admin = (await call('get', '/productos?incluirInactivos=true', {}, 'ADMIN').expect(200)).body;
+    expect(admin.some((x: any) => x.id === p.id)).toBe(true);
+    const normalBodeguero = (await call('get', '/productos', {}, 'BODEGUERO').expect(200)).body;
+    expect(normalBodeguero.some((x: any) => x.id === p.id)).toBe(false);
+  });
+
   it('un producto inactivo sale del listado normal, aparece con incluirInactivos y se reactiva (FS-07)', async () => {
     const p = (await alta().expect(201)).body;
     await editar(p.id, { version: 1, activo: false }).expect(200);
