@@ -394,6 +394,36 @@ test.describe('POS offline de contingencia — backend real', () => {
     expect(filas.status()).toBe(200);
   });
 
+  test('14. actualización del service worker: una versión nueva espera y no se activa mientras la caja trabaja', async () => {
+    const { page } = await abrir();
+    const { readFileSync, writeFileSync } = await import('node:fs');
+    const { join: unir } = await import('node:path');
+    const destino = unir(process.env.E2E_DIST!, 'sw.js');
+    const original = readFileSync(destino, 'utf8');
+    try {
+      await ingresar(page, CAJERO, '/pos-contingencia');
+      await expect(page.getByRole('button', { name: new RegExp(TALADRO) })).toBeVisible();
+      await controlada(page);
+      // Publica una versión nueva del worker (cambia el nombre de caché).
+      writeFileSync(destino, original.replace(/ferresystem-shell-v\d+/, 'ferresystem-shell-vnueva'));
+      const estado = await page.evaluate(async () => {
+        const reg = await navigator.serviceWorker.getRegistration();
+        await reg!.update();
+        await new Promise((r) => setTimeout(r, 4000));
+        return {
+          esperando: reg!.waiting !== null,
+          // Solo la versión activa limpia la caché anterior: si sigue la v1, la nueva no se ha activado.
+          cachesActivas: await caches.keys(),
+        };
+      });
+      expect(estado.esperando).toBe(true);
+      expect(estado.cachesActivas).toContain('ferresystem-shell-v1');
+      await expect(page.getByRole('button', { name: new RegExp(TALADRO) })).toBeVisible();
+    } finally {
+      writeFileSync(destino, original);
+    }
+  });
+
   test('13. el diario exportado no contiene tokens ni credenciales', async () => {
     const { page } = await abrir();
     await ingresar(page, CAJERO, '/pos-contingencia');

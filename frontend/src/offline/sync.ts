@@ -4,6 +4,8 @@ import { actualizarSincronizacion, listarOperaciones, recuperarEnvios, type Conf
 // Sincronización del diario con el servidor. Idempotente por UUID: reenviar la misma operación no duplica nada.
 
 export const TAMANO_LOTE = 20;
+/** Límite de espera por petición de contingencia. Sin él, una conexión colgada deja operaciones en "enviando". */
+export const TIMEOUT_CONTINGENCIA_MS = 20_000;
 
 export interface RespuestaOperacion {
   operacionId: string;
@@ -79,7 +81,7 @@ export async function sincronizarPendientes(
         dispositivoId,
         pendientesRestantes: todas.filter((o) => o.estado === 'PENDIENTE' && !lote.some((l) => l.operacionId === o.operacionId)).length,
         operaciones: lote.map(aOperacionDto),
-      });
+      }, { timeout: TIMEOUT_CONTINGENCIA_MS });
       const porId = new Map<string, RespuestaOperacion>((data.resultados as RespuestaOperacion[]).map((r) => [r.operacionId, r]));
       for (const op of lote) {
         const r = porId.get(op.operacionId) ?? { operacionId: op.operacionId, estado: 'ERROR_TEMPORAL' as const, mensaje: 'Sin respuesta para esta operación' };
@@ -144,7 +146,7 @@ export async function refrescarRevisiones(api: AxiosInstance, usuario: { id: str
   const todas = await listarOperaciones();
   const enRevision = todas.filter((o) => (o.estado === 'REVISION' || (o.estado === 'SINCRONIZADA' && o.requiereRevision)) && puedeEnviar(o, usuario));
   if (!enRevision.length) return 0;
-  const { data } = await api.get('/contingencia/operaciones/estados', { params: { ids: enRevision.slice(0, 100).map((o) => o.operacionId).join(',') } });
+  const { data } = await api.get('/contingencia/operaciones/estados', { params: { ids: enRevision.slice(0, 100).map((o) => o.operacionId).join(',') }, timeout: TIMEOUT_CONTINGENCIA_MS });
   let cambios = 0;
   for (const s of data as EstadoServidor[]) {
     const op = enRevision.find((o) => o.operacionId === s.operacionId);
@@ -187,7 +189,7 @@ export async function renovarVentana(api: AxiosInstance, dispositivo: Dispositiv
     dispositivoId: dispositivo.id,
     catalogoHashActual: previa?.catalogoHash,
     relojLocal: new Date().toISOString(),
-  });
+  }, { timeout: TIMEOUT_CONTINGENCIA_MS });
   const v = data.ventana;
   const productos = data.catalogo ? data.catalogo.productos : previa?.productos ?? [];
   const nueva: VentanaLocal = {
@@ -201,7 +203,7 @@ export async function renovarVentana(api: AxiosInstance, dispositivo: Dispositiv
 
 /** Registra el equipo en el servidor. Un 409 por límite de cajas no impide el uso del equipo ya registrado. */
 export async function registrarDispositivoEnServidor(api: AxiosInstance, dispositivo: DispositivoLocal): Promise<DispositivoLocal> {
-  const { data } = await api.post('/contingencia/dispositivos', { dispositivoId: dispositivo.id, nombre: dispositivo.nombre });
+  const { data } = await api.post('/contingencia/dispositivos', { dispositivoId: dispositivo.id, nombre: dispositivo.nombre }, { timeout: TIMEOUT_CONTINGENCIA_MS });
   const actualizado = { ...dispositivo, codigo: data.codigo, nombre: data.nombre, registrado: true };
   await guardarDispositivo(actualizado);
   return actualizado;

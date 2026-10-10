@@ -156,7 +156,7 @@ export class ContingenciaService {
   private async construirCatalogo(tx: Tx | PrismaService, tenantId: string, config: ConfigEfectiva) {
     const productos = await (tx as any).producto.findMany({
       where: { tenantId, activo: true },
-      select: { id: true, codigo: true, codigoBarras: true, nombre: true, precioVenta: true, stockActual: true, stockReservado: true, usaMedida: true, unidadMedida: true },
+      select: { id: true, codigo: true, codigoBarras: true, nombre: true, precioVenta: true, precioCosto: true, stockActual: true, stockReservado: true, usaMedida: true, unidadMedida: true },
       orderBy: { id: 'asc' },
     });
     const margen = config.margenUnidades * 100;
@@ -168,6 +168,8 @@ export class ContingenciaService {
         id: p.id, codigo: p.codigo, codigoBarras: p.codigoBarras ?? null, nombre: p.nombre,
         precioCentavos: Math.round(Number(p.precioVenta) * 100), libreCentesimas: libre, cupoCentesimas: cupo,
         usaMedida: Boolean(p.usaMedida), unidadMedida: String(p.unidadMedida ?? 'UNIDAD'),
+        // Costo vigente al emitir la ventana: se guarda solo en la instantánea del servidor, nunca se envía al equipo.
+        costoCentavos: Math.round(Number(p.precioCosto ?? 0) * 100),
       };
     });
   }
@@ -211,7 +213,7 @@ export class ContingenciaService {
         emitidaAt: ventana.emitidaAt, vigenteHasta: ventana.vigenteHasta, catalogoHash: hash, limites: ventana.limites,
         secuenciaServidor: maxima, serverNow: ahora.toISOString(),
       },
-      catalogo: dto.catalogoHashActual === hash ? null : { hash, generadoAt: ahora.toISOString(), productos },
+      catalogo: dto.catalogoHashActual === hash ? null : { hash, generadoAt: ahora.toISOString(), productos: productos.map(({ costoCentavos: _costo, ...publico }: any) => publico) },
     };
   }
 
@@ -458,7 +460,7 @@ export class ContingenciaService {
         detalles: {
           create: dto.lineas.map((l, i) => ({
             productoId: l.productoId, cantidad: l.cantidadCentesimas / 100, precioUnitario: centavosADecimal(l.precioCentavos),
-            subtotal: centavosADecimal(calculo.lineas[i]), costoUnitario: Number(productos.get(l.productoId).precio_costo ?? 0), sinInventario: false,
+            subtotal: centavosADecimal(calculo.lineas[i]), costoUnitario: centavosADecimal(enVentana.get(l.productoId)?.costoCentavos ?? 0), sinInventario: false,
           })),
         },
       },

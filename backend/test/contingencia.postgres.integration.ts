@@ -7,6 +7,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { ContingenciaService } from '../src/contingencia/contingencia.service';
+import { OperacionesService } from '../src/operaciones/operaciones.service';
 
 // POS offline de contingencia contra PostgreSQL real: cadena completa de migraciones, clúster temporal exclusivo.
 // Nunca lee DATABASE_URL. Ejecutar como usuario no root (initdb lo exige).
@@ -17,6 +18,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
   let started = false;
   let prisma: PrismaService;
   let svc: ContingenciaService;
+  let operaciones: OperacionesService;
 
   beforeAll(async () => {
     if (!existsSync(exe('initdb'))) throw new Error(`PostgreSQL no instalado en ${bin}`);
@@ -39,6 +41,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
     prisma = new PrismaService({ datasources: { db: { url } } });
     await prisma.$connect();
     svc = new ContingenciaService(prisma);
+    operaciones = new OperacionesService(prisma);
   }, 180000);
 
   afterAll(async () => {
@@ -346,6 +349,43 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       await prisma.dispositivoPos.update({ where: { id: e.dispositivoId }, data: { ultimoContactoAt: new Date(Date.now() - 3600_000) } });
       const r = await svc.resumen(e.tenantId);
       expect(r.aviso).toMatch(/desactualizad/);
+    });
+  });
+
+  describe('proveedores, compras y costos durante la contingencia', () => {
+    it('la venta offline conserva el costo vigente al emitir la ventana aunque una compra lo cambie durante el corte', async () => {
+      const e = await empresa();
+      const proveedor = await prisma.proveedor.create({ data: { tenantId: e.tenantId, nombre: 'Distribuidora Norte' } });
+      const v = await ventana(e); // costo del tornillo al emitir: 4.00
+      // Durante el corte la oficina recibe una compra: costo 6.00 y 10 unidades más.
+      const compra = await operaciones.compra(e.tenantId, e.admin, {
+        solicitudId: randomUUID(), proveedorId: proveedor.id, numeroFactura: 'FAC-CORTE-1', isv: 0,
+        items: [{ productoId: e.p1, cantidad: 10, costo: 6 }],
+      } as any);
+      const detalle = await prisma.detalleOrdenCompra.findFirstOrThrow({ where: { ordenId: compra.id } });
+      await operaciones.recibir(e.tenantId, e.admin, compra.id, { solicitudId: randomUUID(), items: [{ detalleId: detalle.id, cantidad: 10 }] } as any);
+      expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: e.p1 } })).precioCosto)).toBe(6);
+      expect(await stock(e.p1)).toBe(30);
+
+      // La caja vende 2 unidades con el catálogo de la ventana.
+      const [res] = (await enviar(e, [operacion(e, v.id)])).resultados;
+      expect(res.estado).toBe('APLICADA');
+      const [linea] = await prisma.detalleVenta.findMany({ where: { ventaId: res.ventaId } });
+      expect(Number(linea.costoUnitario)).toBe(4);
+      expect(await stock(e.p1)).toBe(28);
+      // El equipo nunca recibe el costo.
+      const { catalogo } = await svc.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      expect(JSON.stringify(catalogo)).not.toMatch(/costoCentavos|precioCosto/);
+    });
+
+    it('el mismo producto vendido después de la compra usa el costo nuevo (la instantánea nueva lo refleja)', async () => {
+      const e = await empresa();
+      await prisma.producto.update({ where: { id: e.p1 }, data: { precioCosto: 6 } });
+      const v = await ventana(e);
+      const [res] = (await enviar(e, [operacion(e, v.id)])).resultados;
+      expect(res.estado).toBe('APLICADA');
+      const [linea] = await prisma.detalleVenta.findMany({ where: { ventaId: res.ventaId } });
+      expect(Number(linea.costoUnitario)).toBe(6);
     });
   });
 });
