@@ -1,0 +1,133 @@
+
+> backend@0.0.1 test:integration
+> vitest run --config ./vitest.config.integration.ts
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.integration.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.11 /workspace/FerreSystem/backend
+
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:45: NOTICE:  relation "proveedores" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:46: NOTICE:  relation "proveedores_tenant_id_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:47: NOTICE:  relation "proveedores_tenant_id_nombre_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:65: NOTICE:  relation "ordenes_compra" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:66: NOTICE:  relation "ordenes_compra_tenant_id_codigo_key" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:67: NOTICE:  relation "ordenes_compra_tenant_id_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:68: NOTICE:  relation "ordenes_compra_tenant_id_estado_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:77: NOTICE:  relation "detalles_orden_compra" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:78: NOTICE:  relation "detalles_orden_compra_orden_id_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:129: NOTICE:  relation "cajas" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:130: NOTICE:  relation "cajas_tenant_id_codigo_key" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:131: NOTICE:  relation "cajas_tenant_id_estado_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:132: NOTICE:  relation "cajas_tenant_id_usuario_id_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:143: NOTICE:  relation "movimientos_caja" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:144: NOTICE:  relation "movimientos_caja_caja_id_idx" already exists, skipping
+Navegador + API + PostgreSQL reales: guardar, recargar y nuevo contexto/login APROBADOS
+[Nest] 11659  - 10/10/2026, 4:52:01 AM   ERROR [ClientesService] Numeración de clientes no disponible (P2002). Verificar la migración 20261002000000_add_customer_numbers y el trigger clientes_assign_number.
+[Nest] 12022  - 10/10/2026, 4:52:04 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError: 
+Invalid `prisma.$queryRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `P0001`. Message: `ERROR: fallo sintético de auditoría`
+    at Un.handleRequestError (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:7447)
+    at Un.handleAndLogRequestError (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:6771)
+    at Un.request (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:6478)
+    at l (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:9644)
+    at query (/workspace/FerreSystem/backend/src/operaciones/ledger.ts:28:18)
+    at audit (/workspace/FerreSystem/backend/src/operaciones/ledger.ts:35:3)
+    at /workspace/FerreSystem/backend/src/productos/productos.service.ts:52:110
+    at Proxy._transactionWithCallback (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:8005) {
+  code: 'P2010',
+  clientVersion: '6.4.1',
+  meta: {
+    code: 'P0001',
+    message: 'ERROR: fallo sintético de auditoría'
+  }
+}
+[Nest] 12178  - 10/10/2026, 4:52:09 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError: 
+Invalid `prisma.$queryRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `P0001`. Message: `ERROR: fallo QA`
+    at Un.handleRequestError (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:7447)
+    at Un.handleAndLogRequestError (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:6771)
+    at Un.request (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:6478)
+    at l (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:9644)
+    at query (/workspace/FerreSystem/backend/src/operaciones/ledger.ts:28:18)
+    at audit (/workspace/FerreSystem/backend/src/operaciones/ledger.ts:35:3)
+    at /workspace/FerreSystem/backend/src/levantamientos/levantamientos.service.ts:291:4
+    at Proxy._transactionWithCallback (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:8005) {
+  code: 'P2010',
+  clientVersion: '6.4.1',
+  meta: {
+    code: 'P0001',
+    message: 'ERROR: fallo QA'
+  }
+}
+[Nest] 12521  - 10/10/2026, 4:52:17 AM   ERROR [ExceptionsHandler] PrismaClientUnknownRequestError: 
+Invalid `tx.cotizacion.update()` invocation in
+/workspace/FerreSystem/backend/src/cotizaciones/cotizaciones.service.ts:544:27
+
+  541 await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',Number(venta.total),metodoPago,venta.id,'Venta desde cotización');
+  542 await audit(tx,tenantId,usuarioId,'COTIZACION_VENDER',venta.id,{cotizacionId,total:Number(venta.total)});
+  543 // Actualizar estado de la cotización
+→ 544 await tx.cotizacion.update(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(PostgresError { code: "P0001", message: "Fallo sintético antes de commit", severity: "ERROR", detail: None, column: None, hint: None }), transient: false })
+    at Un.handleRequestError (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:7638)
+    at Un.handleAndLogRequestError (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:6771)
+    at Un.request (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:6478)
+    at l (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:9644)
+    at /workspace/FerreSystem/backend/src/cotizaciones/cotizaciones.service.ts:544:7
+    at Proxy._transactionWithCallback (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:8005) {
+  clientVersion: '6.4.1'
+}
+[Nest] 12744  - 10/10/2026, 4:52:22 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError: 
+Invalid `prisma.$queryRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `P0001`. Message: `ERROR: Fallo sintético de auditoría`
+    at Un.handleRequestError (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:7447)
+    at Un.handleAndLogRequestError (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:6771)
+    at Un.request (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:6478)
+    at l (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:9644)
+    at query (/workspace/FerreSystem/backend/src/operaciones/ledger.ts:28:18)
+    at audit (/workspace/FerreSystem/backend/src/operaciones/ledger.ts:35:3)
+    at /workspace/FerreSystem/backend/src/operaciones/operaciones.service.ts:117:4
+    at Proxy._transactionWithCallback (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:8005) {
+  code: 'P2010',
+  clientVersion: '6.4.1',
+  meta: {
+    code: 'P0001',
+    message: 'ERROR: Fallo sintético de auditoría'
+  }
+}
+[Nest] 12744  - 10/10/2026, 4:52:22 AM   ERROR [ExceptionsHandler] PrismaClientUnknownRequestError: 
+Invalid `this.prisma.auditoriaOperacion.create()` invocation in
+/workspace/FerreSystem/backend/src/common/interceptors/support-audit.interceptor.ts:34:109
+
+  31 const ruta = request.route?.path ?? 'desconocida';
+  32 const entidadId = String(request.params?.id ?? request.params?.[Object.keys(request.params ?? {})[0]] ?? ruta);
+  33 const base = { metodo: request.method, ruta, params: request.params ?? {}, _soporte: { superAdminId: supportContext.impersonatedBy, soporteSesionId: supportContext.soporteSesionId, readOnly: false } };
+→ 34 const registrar = (operacion: string, extra: Record<string, unknown>) => this.prisma.auditoriaOperacion.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(PostgresError { code: "P0001", message: "Fallo sintético de auditoría", severity: "ERROR", detail: None, column: None, hint: None }), transient: false })
+    at Un.handleRequestError (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:7638)
+    at Un.handleAndLogRequestError (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:6771)
+    at Un.request (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:121:6478)
+    at l (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:9644) {
+  clientVersion: '6.4.1'
+}
+
+ Test Files  14 passed (14)
+      Tests  274 passed | 1 expected fail (275)
+   Start at  04:51:26
+   Duration  57.65s (transform 506ms, setup 0ms, import 4.14s, tests 52.08s, environment 1ms)
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

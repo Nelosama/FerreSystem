@@ -29,6 +29,8 @@ import { diaCalendario } from '../src/common/zona-horaria';
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { TenantModuleGuard } from '../src/common/guards/tenant-module.guard';
+import { Reflector } from '@nestjs/core';
 
 // Ciclo operativo HTTP con PostgreSQL temporal y todas las migraciones reales.
 // Nunca lee DATABASE_URL.
@@ -77,6 +79,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     }).compile();
     app = module.createNestApplication({ logger: false });
     app.setGlobalPrefix('api');
+    app.useGlobalGuards(new TenantModuleGuard(module.get(Reflector), prisma));
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
     await app.listen(0, '127.0.0.1');
@@ -109,6 +112,64 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     const result = await http('post', '/productos', { solicitudId: randomUUID(), codigo, nombre: `QA ${codigo}`, precioCosto: 40, precioVenta, stockActual, stockMinimo: 0 }).expect(201);
     return result.body;
   }
+
+  it('jornada completa: compra, recepción, cotización, tres medios, crédito, abono y arqueo concilian en PostgreSQL', async () => {
+    const p = await producto('JORNADA', 100, 2);
+    const supplier = await http('post', '/operaciones/proveedores', { solicitudId: randomUUID(), nombre: 'Distribuidora jornada QA' }).expect(201);
+    const purchaseBody = { solicitudId: randomUUID(), proveedorId: supplier.body.id, numeroFactura: 'QA-JORNADA', isv: 0, items: [{ productoId: p.id, cantidad: 10, costo: 60 }] };
+    const purchase = await http('post', '/operaciones/compras', purchaseBody).expect(201);
+    await http('post', '/operaciones/compras', purchaseBody).expect(201);
+    const lines = await prisma.$queryRawUnsafe<any[]>('SELECT id FROM detalles_orden_compra WHERE orden_id=$1', purchase.body.id);
+    const reception = { solicitudId: randomUUID(), items: [{ detalleId: lines[0].id, cantidad: 10 }] };
+    await Promise.all([http('post', `/operaciones/compras/${purchase.body.id}/recepciones`, reception).expect(201), http('post', `/operaciones/compras/${purchase.body.id}/recepciones`, reception).expect(201)]);
+    const received = await prisma.producto.findUniqueOrThrow({ where: { id: p.id } });
+    expect([Number(received.stockActual), Number(received.costoVigente), Number(received.precioVenta)]).toEqual([12, 60, 100]);
+    const catalog = await http('get', '/productos/comercial').expect(200);
+    expect(catalog.body.some((x: any) => x.id === p.id)).toBe(true);
+    const sales: string[] = [];
+    const quote = await http('post', '/cotizaciones', { detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(201);
+    const converted = await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'EFECTIVO' }).expect(201);
+    sales.push(converted.body.ventaId);
+    for (const metodoPago of ['TRANSFERENCIA', 'TARJETA']) {
+      const body = { solicitudId: randomUUID(), metodoPago, detalles: [{ productoId: p.id, cantidad: 1 }] };
+      const sale = await http('post', '/ventas', body).expect(201);
+      await http('post', '/ventas', body).expect(201);
+      sales.push(sale.body.id);
+    }
+    const client = await http('post', '/clientes', { nombre: 'Cliente jornada QA' }).expect(201);
+    await http('patch', `/clientes/${client.body.id}/credito`, { creditoHabilitado: true, limiteCredito: 500 }).expect(200);
+    const credit = await http('post', '/ventas', { solicitudId: randomUUID(), clienteId: client.body.id, metodoPago: 'CREDITO', detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(201);
+    sales.push(credit.body.id);
+    const account = await prisma.cuentaOperativa.findFirstOrThrow({ where: { tenantId, tipo: 'CXC', documentoId: credit.body.id } });
+    const payment = { solicitudId: randomUUID(), monto: 30, metodo: 'EFECTIVO' };
+    await Promise.all([http('post', `/operaciones/cuentas/${account.id}/pagos`, payment).expect(201), http('post', `/operaciones/cuentas/${account.id}/pagos`, payment).expect(201)]);
+    for (const id of sales) {
+      await http('post', `/operaciones/ventas/${id}/entregar`).expect(201);
+      await http('post', `/operaciones/ventas/${id}/entregar`).expect(201);
+    }
+    const ingreso = { solicitudId: randomUUID(), tipo: 'INGRESO_MANUAL', monto: 20, concepto: 'Fondo adicional QA' };
+    await http('post', `/operaciones/caja/${cajaId}/movimientos`, ingreso).expect(201);
+    await http('post', `/operaciones/caja/${cajaId}/movimientos`, ingreso).expect(201);
+    await http('post', `/operaciones/caja/${cajaId}/movimientos`, { solicitudId: randomUUID(), tipo: 'EGRESO_MANUAL', monto: 10, concepto: 'Retiro QA' }).expect(201);
+    const cash = (await http('get', '/operaciones/caja').expect(200)).body[0];
+    expect(cash.efectivoEsperado).toBe(255); // 100 + 115 + 30 + 20 - 10.
+    expect(cash.totales.TRANSFERENCIA).toBe(115); expect(cash.totales.TARJETA).toBe(115);
+    const close = await http('post', `/operaciones/caja/${cajaId}/cerrar`, { monto: 255 }).expect(201);
+    expect(Number(close.body.diferencia)).toBe(0);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(4);
+    expect(Number((await prisma.venta.aggregate({ where: { tenantId }, _sum: { total: true } }))._sum.total)).toBe(460);
+    const stock = await prisma.producto.findUniqueOrThrow({ where: { id: p.id } });
+    expect([Number(stock.stockActual), Number(stock.stockReservado)]).toEqual([8, 0]);
+    expect(await prisma.movimientoInventario.count({ where: { tenantId, tipo: 'ENTREGA' } })).toBe(4);
+    expect(await prisma.movimientoInventario.count({ where: { tenantId, tipo: 'COMPRA' } })).toBe(1);
+    expect(await prisma.costoCompra.count({ where: { tenantId, productoId: p.id } })).toBe(1);
+    const physicalLedger = await prisma.$queryRawUnsafe<any[]>('SELECT COALESCE(SUM(cantidad),0) AS cantidad FROM movimientos_inventario WHERE tenant_id=$1 AND producto_id=$2', tenantId, p.id);
+    expect(Number(physicalLedger[0].cantidad)).toBe(8);
+    expect(Number((await prisma.cuentaOperativa.findUniqueOrThrow({ where: { id: account.id } })).saldo)).toBe(85);
+    expect(Number((await prisma.cliente.findUniqueOrThrow({ where: { id: client.body.id } })).saldoPendiente)).toBe(85);
+    expect(Number((await prisma.cuentaOperativa.findFirstOrThrow({ where: { tenantId, tipo: 'CXP' } })).saldo)).toBe(600);
+    expect(await prisma.auditoriaOperacion.count({ where: { tenantId, operacion: 'CAJA_CERRAR' } })).toBe(1);
+  });
 
   it.each(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA'])('producto → cotización → %s → entrega → cierre, sin duplicaciones', async metodoPago => {
     const a = await producto(); const b = await producto('B', 50);
@@ -242,6 +303,39 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect(Number(stock.stockActual)).toBe(1); expect(Number(stock.stockReservado)).toBe(1);
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
     expect((await http('get', '/operaciones/caja').expect(200)).body[0].efectivoEsperado).toBe(215);
+  });
+
+  it('seguridad HTTP: CAJERO, datos inválidos, tenant ajeno y módulo deshabilitado no escriben', async () => {
+    const p = await producto('SEGURIDAD');
+    const cashier = await prisma.usuario.create({ data: { tenantId, rol: 'CAJERO', nombre: 'QA permisos', email: `${randomUUID()}@example.test`, passwordHash: await bcrypt.hash(password, 4) } });
+    const login = await request(app.getHttpServer()).post('/api/auth/login').send({ tenantId, email: cashier.email, password }).expect(200);
+    const cashierToken = login.body.accessToken;
+    await http('post', '/operaciones/proveedores', { solicitudId: randomUUID(), nombre: 'No autorizado' }, cashierToken).expect(403);
+    await http('post', '/productos', { solicitudId: randomUUID(), nombre: 'No autorizado', precioCosto: 1, precioVenta: 2, stockActual: 1 }, cashierToken).expect(403);
+    await http('get', '/operaciones/auditoria', undefined, cashierToken).expect(403);
+    await http('post', `/operaciones/caja/${cajaId}/movimientos`, { solicitudId: randomUUID(), tipo: 'EGRESO_MANUAL', monto: 10, concepto: 'Sin permiso' }, cashierToken).expect(403);
+    await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: -1 }] }).expect(400);
+    await request(app.getHttpServer()).post('/api/ventas').send({ solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(401);
+    const other = await prisma.tenant.create({ data: { nombreComercial: 'Otro negocio QA' } });
+    const otherUser = await prisma.usuario.create({ data: { tenantId: other.id, rol: 'ADMIN', nombre: 'Ajeno QA', email: `${randomUUID()}@example.test`, passwordHash: await bcrypt.hash(password, 4) } });
+    const otherLogin = await request(app.getHttpServer()).post('/api/auth/login').send({ tenantId: other.id, email: otherUser.email, password }).expect(200);
+    await http('post', '/operaciones/caja/abrir', { solicitudId: randomUUID(), monto: 0 }, otherLogin.body.accessToken).expect(201);
+    await http('get', `/operaciones/caja/${cajaId}`, undefined, otherLogin.body.accessToken).expect(404);
+    await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: 1 }] }, otherLogin.body.accessToken).expect(404);
+    await prisma.tenantModule.create({ data: { tenantId, moduleKey: 'pos', enabled: false } });
+    await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(403);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
+    expect(await prisma.proveedor.count({ where: { tenantId } })).toBe(0);
+    const stock = await prisma.producto.findUniqueOrThrow({ where: { id: p.id } });
+    expect([Number(stock.stockActual), Number(stock.stockReservado)]).toEqual([10, 0]);
+    expect((await http('get', '/operaciones/caja').expect(200)).body[0].efectivoEsperado).toBe(100);
+  });
+
+  // QA-CLI-001: defecto conocido P2. Se conserva la expectativa contractual
+  // 400; it.fails registra una falla esperada, no aprobación del módulo.
+  it.fails('QA-CLI-001: editar nombre de cliente con null debe responder 400, no 500', async () => {
+    const client = await http('post', '/clientes', { nombre: 'Cliente nulidad QA' }).expect(201);
+    await http('put', `/clientes/${client.body.id}`, { nombre: null }).expect(400);
   });
 
   it('cotización vencida exige renovar vigencia antes de convertir, sin cobros ni reservas por rechazo', async () => {

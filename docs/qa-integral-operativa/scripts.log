@@ -1,0 +1,34 @@
+
+> backend@0.0.1 test:scripts
+> node --test scripts/*.test.mjs
+
+✔ requires remote encrypted repository, explicit source, bounded retention/frequency (1.146602ms)
+✔ upload/readback/restore precede retention; corruption and restore errors never prune (33.508578ms)
+{"at":"2026-10-10T04:49:10.649Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+{"at":"2026-10-10T04:49:10.650Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+{"at":"2026-10-10T04:49:10.651Z","success":true,"alertDelivery":"failed"}
+{"at":"2026-10-10T04:49:10.653Z","success":false,"errorCode":"DUMP","alertDelivery":"failed"}
+✔ bounded exponential retry records every run, last success survives failure and restart (7.617269ms)
+✔ webhook failures remain visible and payload contains no database details (0.506585ms)
+✔ restore environment cannot inherit source service, URL, credentials or cloud secrets (7.669247ms)
+✔ scheduler runs independently, waits configured interval and never overlaps cycles (0.634008ms)
+✔ rechaza destinos nuevos dentro del proyecto mediante un enlace externo (5.430274ms)
+✔ canonicaliza destinos externos y distingue el proyecto de un directorio hermano (0.584593ms)
+✔ no trata un enlace roto como un ancestro pendiente de crear (2.894484ms)
+✔ prepare y preflight rechazan enlaces al repositorio antes de crear archivos (163.678716ms)
+✔ prepare conserva barras POSIX y dólares literales en la configuración Compose (269.445003ms)
+✔ preflight informa por IPC el respaldo verificado después de escribir su manifiesto (197.768412ms)
+✔ preflight no anuncia un respaldo cuya validación de archivo falla (150.78494ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 883.642845
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
