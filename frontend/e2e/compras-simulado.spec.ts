@@ -113,16 +113,24 @@ async function ingresar(page: Page, ruta: string) {
   await page.goto(ruta);
 }
 
+/** Abre la primera compra pendiente y deja todo lo pendiente listo para recibir. */
+async function prepararRecepcion(page: Page) {
+  const tarjeta = page.getByRole('article').first();
+  await tarjeta.getByRole('button', { name: 'Recibir mercancía' }).click();
+  await tarjeta.getByRole('button', { name: 'Recibir todo' }).click();
+  return tarjeta;
+}
+
 test.describe('Ciclo de compras — interfaz con backend simulado (E2E simulado)', () => {
   test('recibir mercancía exige confirmación: cancelar no envía nada; aceptar envía una sola recepción', async ({ page, sim }) => {
     await ingresar(page, '/ordenes-compra');
-    await expect(page.getByRole('button', { name: 'Confirmar recepción' })).toBeVisible();
+    const tarjeta = await prepararRecepcion(page);
     page.once('dialog', d => { expect(d.message()).toMatch(/aumentará las existencias/i); void d.dismiss(); });
-    await page.getByRole('button', { name: 'Confirmar recepción' }).click();
+    await tarjeta.getByRole('button', { name: 'Confirmar recepción' }).click();
     await page.waitForTimeout(150);
     expect(sim.recepciones).toHaveLength(0);
     page.once('dialog', d => d.accept());
-    await page.getByRole('button', { name: 'Confirmar recepción' }).click();
+    await tarjeta.getByRole('button', { name: 'Confirmar recepción' }).click();
     await expect.poll(() => sim.recepciones.length).toBe(1);
     expect(sim.stock).toBe(300);
   });
@@ -130,34 +138,37 @@ test.describe('Ciclo de compras — interfaz con backend simulado (E2E simulado)
   test('un doble clic en Confirmar recepción envía una sola recepción', async ({ page, sim }) => {
     await ingresar(page, '/ordenes-compra');
     page.on('dialog', d => void d.accept());
-    await page.getByRole('button', { name: 'Confirmar recepción' }).dblclick();
+    const tarjeta = await prepararRecepcion(page);
+    await tarjeta.getByRole('button', { name: 'Confirmar recepción' }).dblclick();
     await expect.poll(() => sim.recepciones.length).toBeGreaterThanOrEqual(1);
     await page.waitForTimeout(200);
     expect(sim.recepciones).toHaveLength(1);
     expect(sim.stock).toBe(300);
   });
 
-  test('si se pierde la respuesta, la recepción queda pendiente y el reintento usa la misma solicitud', async ({ page, sim }) => {
+  test('si se pierde la respuesta, la recepción no se duplica y el reintento usa la misma solicitud', async ({ page, sim }) => {
     await ingresar(page, '/ordenes-compra');
     page.on('dialog', d => void d.accept());
     sim.fallarSiguienteRecepcion = true;
-    await page.getByRole('button', { name: 'Confirmar recepción' }).click();
-    await expect(page.getByText('Hay una operación pendiente de confirmar')).toBeVisible();
-    // El reintento reenvía exactamente la misma operación pendiente, con su misma solicitud.
-    await page.getByRole('button', { name: 'Confirmar operación pendiente' }).click();
+    const tarjeta = await prepararRecepcion(page);
+    await tarjeta.getByRole('button', { name: 'Confirmar recepción' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'No se registró la recepción' })).toBeVisible();
+    // El reintento reenvía la misma solicitud: el servidor la aplica una sola vez.
+    await tarjeta.getByRole('button', { name: 'Confirmar recepción' }).click();
     await expect.poll(() => sim.recepciones.length).toBe(2);
     expect(sim.recepciones[1].solicitudId).toBe(sim.recepciones[0].solicitudId);
     expect(sim.stock).toBe(300);
   });
 
-  test('un doble clic en Registrar factura envía una sola factura', async ({ page, sim }) => {
+  test('un doble clic en Confirmar compra envía una sola factura', async ({ page, sim }) => {
     await ingresar(page, '/ordenes-compra');
-    const formulario = page.locator('form').filter({ hasText: 'Registrar factura de compra' });
-    await formulario.locator('select').first().selectOption('prov-1');
-    await formulario.getByRole('textbox', { name: 'Número de factura' }).or(formulario.locator('input[required]').nth(0)).fill('FAC-200');
-    await formulario.locator('select').nth(1).selectOption('prod-1');
-    await formulario.getByRole('button', { name: 'Agregar producto' }).click();
-    await formulario.getByRole('button', { name: 'Registrar factura' }).dblclick();
+    await page.getByLabel(/^Proveedor/).selectOption('prov-1');
+    await page.getByLabel('Número de factura', { exact: true }).fill('FAC-200');
+    await page.getByLabel(/^Producto/).selectOption('prod-1');
+    await page.getByLabel('Cantidad', { exact: true }).fill('5');
+    await page.getByLabel('Costo unitario', { exact: true }).fill('10');
+    await page.getByRole('button', { name: 'Agregar producto' }).click();
+    await page.getByRole('button', { name: 'Confirmar compra' }).dblclick();
     await expect.poll(() => sim.facturas.length).toBeGreaterThanOrEqual(1);
     await page.waitForTimeout(200);
     expect(sim.facturas).toHaveLength(1);
@@ -184,7 +195,7 @@ test.describe('Ciclo de compras — interfaz con backend simulado (E2E simulado)
   test('el ciclo de compras cabe en un teléfono sin desbordamiento horizontal', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await ingresar(page, '/ordenes-compra');
-    await expect(page.getByRole('button', { name: 'Confirmar recepción' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Confirmar compra' })).toBeVisible();
     const sinDesborde = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
     expect(sinDesborde).toBe(true);
   });
