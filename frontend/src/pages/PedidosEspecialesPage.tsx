@@ -4,6 +4,7 @@ import { Plus, Search, Bell, CheckCircle } from 'lucide-react';
 import { diaCalendarioEnZona, formatLempiras } from '../utils/format';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
+import { formatearFechaNegocio } from '../utils/fechasNegocio';
 
 export interface PedidoEspecialItem {
   id: string;
@@ -46,7 +47,7 @@ const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
 
 export const PedidosEspecialesPage: React.FC = () => {
   const { tenant } = useTenant();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const currentTenantId = tenant?.id || 'tenant-demo-1';
   const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
 
@@ -175,7 +176,7 @@ export const PedidosEspecialesPage: React.FC = () => {
                   <td style={{ fontWeight: 600 }}>{p.productoNombre}</td>
                   <td style={{ textAlign: 'center', fontWeight: 900 }}>{p.cantidad}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatLempiras(p.precioEstimado)}</td>
-                  <td style={{ textAlign: 'center', fontSize: '12px' }}>{p.fechaSolicitud}</td>
+                  <td style={{ textAlign: 'center', fontSize: '12px' }}>{formatearFechaNegocio(p.fechaSolicitud, locale)}</td>
                   <td style={{ textAlign: 'center' }}>
                     {p.estado === 'PENDIENTE' && <span className="badge badge-warning">EN ESPERA STOCK</span>}
                     {p.estado === 'STOCK_LLEGA' && <span className="badge badge-dark">STOCK DISPONIBLE</span>}

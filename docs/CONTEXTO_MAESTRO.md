@@ -24,20 +24,16 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ## Fechas de negocio en Apartados, Transferencias, Garantías y Pedidos Especiales (2026-10-10 UTC)
 
-- **Rama:** `fix/fechas-zona-negocio-modulos`, creada desde `origin/main` `2398e45f`. Sin merge, sin despliegue, sin PR (lo abre el director).
-- **Problema:** las cuatro pantallas guardaban fechas de negocio con `new Date().toISOString().split('T')[0]`, es decir, el día UTC. Entre 18:00 y 23:59 hora de Tegucigalpa el registro caía en el día siguiente. Garantías calculaba el vencimiento con `setMonth` sobre un `Date` local y luego lo pasaba a UTC.
-- **Corrección:** `diaCalendarioEnZona()` (existente en `frontend/src/utils/format.ts`) para "hoy" y los abonos. Nueva `frontend/src/utils/fechasNegocio.ts` con `sumarDiasCalendario` (límite de apartado a 30 días) y `sumarMesesCalendario` (vencimiento de garantía, mismo desborde que `setMonth`). Sin cambios de textos ni de estructura visual.
-- **Pantallas sin cambios de fecha:** ninguna de las cuatro compara fechas contra "hoy". No hay lógica de "vencido" ni "por vencer": el estado de garantía (`VIGENTE`/`EXPIRADA`) y el de apartado son literales de datos de ejemplo. Por eso no hay comparaciones que corregir.
-- **Pruebas (2026-10-10, entorno local, Node v22.22.0 frente al `24.x` declarado en `package.json`):**
-  - Nueva `frontend/test/fechas-negocio.test.mjs`: **7/7** con `TZ=UTC`, `Asia/Tokyo` y `America/Tegucigalpa`.
-  - Reproducción previa: con la expresión anterior (`toISOString`) en `diaCalendarioEnZona`, **3 de 7 fallan** (instante 2026-10-10T02:30Z, alta de apartado y vencimiento de garantía). Cambio revertido tras la prueba.
-  - Frontend `npm test` **170/170** (163 previas + 7 nuevas), con `TZ=UTC` también 170/170; `tsc -b` sin errores; `vite build` con `VITE_API_URL=/api` correcto; `oxlint` sin errores en los archivos tocados (4 avisos `set-state-in-effect` en efectos ya existentes de esas páginas).
-- **Limitaciones:**
-  1. Las cuatro pantallas trabajan con datos de ejemplo en `localStorage` y sin backend. Las fechas ya guardadas en `localStorage` conservan el día UTC anterior; no se migraron.
-  2. Se muestran como texto `YYYY-MM-DD` tal como se guardan (sin cambio de formato). El criterio de aceptación pedía «9 oct 2026»; el texto mostrado para ese instante es `2026-10-09`.
-  3. No se verificó en navegador ni con Playwright.
-  4. `AuditoriaPage` y `DevolucionesPage` quedan fuera de alcance y pendientes.
-- **Pendientes:** revisión de código y apertura de PR por el director; decidir si el formato visible debe pasar a «9 oct 2026».
+- **Rama:** `fix/fechas-zona-negocio-modulos` (PR #112), desde `origin/main` `2398e45f`. Sin merge ni despliegue.
+- **Problema original:** las cuatro pantallas guardaban fechas de negocio con `toISOString()` (día UTC). Entre 18:00 y 23:59 de Tegucigalpa el registro caía en el día siguiente.
+- **Corrección de zona:** "hoy" y abonos con `diaCalendarioEnZona()` (`frontend/src/utils/format.ts`). Aritmética de calendario en `frontend/src/utils/fechasNegocio.ts`.
+- **Formato visible (nuevo):** `formatearFechaNegocio(dia, locale)` muestra `YYYY-MM-DD` como `9 oct 2026` (es-HN) o `Oct 9, 2026` (en). Formatea con UTC sobre el propio día y no desplaza la fecha. Las cuatro pantallas lo usan con el `locale` de `useI18n`. Los datos guardados no cambian.
+- **Vencimiento de garantía (propuesta técnica, pendiente de validación funcional):** `sumarMesesCalendario` usa el último día válido del mes destino. 31 ene + 1 mes = 28 feb 2026; 31 ene + 1 mes = 29 feb 2028; 30 nov + 3 meses = 28 feb. Antes, `setMonth` desbordaba (31 ene + 1 = 3 mar). Los requisitos (`docs/REQUISITOS_NEGOCIO_VALIDADO.md`) no fijan esta regla. **Requiere confirmación del responsable antes del merge.**
+- **Pruebas:** `frontend/test/fechas-negocio.test.mjs` 11/11 con `TZ=UTC`, `Asia/Tokyo` y `America/Tegucigalpa`. Incluye meses cortos, años bisiestos, fin de año, formato es/en y entradas no válidas. Con la expresión anterior, las pruebas de zona fallan.
+- **Frontend completo:** `npm test` 174/174; `tsc -b` sin errores; `vite build` con `VITE_API_URL=/api` correcto; `oxlint` sin errores (avisos `set-state-in-effect` preexistentes).
+- **Playwright:** 98/98 con backend simulado, usando `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. El binario por defecto de Playwright (`…-1243`) no está instalado; no se descargó nada.
+- **Limitaciones:** datos de ejemplo en `localStorage`; las fechas ya guardadas conservan el día UTC anterior y no se migraron. `AuditoriaPage` y `DevolucionesPage` quedan fuera de alcance. Node local v22; el proyecto declara 24.x.
+- **Pendientes antes del merge:** (1) validación funcional de la regla de fin de mes en garantías; (2) revisión del PR por el director.
 
 ## Caja y arqueo — implementación para entrega (2026-10-10 UTC)
 

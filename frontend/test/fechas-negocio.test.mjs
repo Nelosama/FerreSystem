@@ -27,7 +27,7 @@ const load = (file) => {
 };
 
 const { diaCalendarioEnZona, ZONA_HORARIA_NEGOCIO } = load('src/utils/format.ts');
-const { sumarDiasCalendario, sumarMesesCalendario } = load('src/utils/fechasNegocio.ts');
+const { sumarDiasCalendario, sumarMesesCalendario, formatearFechaNegocio } = load('src/utils/fechasNegocio.ts');
 
 // 2026-10-10T02:30Z = 2026-10-09 20:30 en Tegucigalpa (UTC-6, sin horario de verano).
 const INSTANTE = new Date('2026-10-10T02:30:00.000Z');
@@ -80,8 +80,44 @@ test('suma de días cruza fin de mes, fin de año y febrero bisiesto', () => {
   assert.equal(sumarDiasCalendario('2026-10-09', 0), '2026-10-09');
 });
 
-test('suma de meses conserva el desborde de Date.setMonth (31 ene + 1 mes = 3 mar en 2026)', () => {
-  assert.equal(sumarMesesCalendario('2026-01-31', 1), '2026-03-03');
+test('suma de meses usa el último día válido del mes destino (no desborda como Date.setMonth)', () => {
+  // Supuesto técnico pendiente de validación funcional (ver fechasNegocio.ts).
+  assert.equal(sumarMesesCalendario('2026-01-31', 1), '2026-02-28');
+  assert.equal(sumarMesesCalendario('2028-01-31', 1), '2028-02-29');
+  assert.equal(sumarMesesCalendario('2026-11-30', 3), '2027-02-28');
+  assert.equal(sumarMesesCalendario('2027-08-31', 6), '2028-02-29');
+});
+
+test('suma de meses en años bisiestos y cambio de año', () => {
+  assert.equal(sumarMesesCalendario('2027-02-28', 12), '2028-02-28');
+  assert.equal(sumarMesesCalendario('2026-12-15', 1), '2027-01-15');
+  assert.equal(sumarMesesCalendario('2026-10-09', 0), '2026-10-09');
+  assert.equal(sumarMesesCalendario('2026-03-15', -2), '2026-01-15');
+});
+
+test('formato de fecha de negocio en español y en inglés, sin desplazar el día', () => {
+  assert.equal(formatearFechaNegocio('2026-10-09', 'es'), '9 oct 2026');
+  assert.equal(formatearFechaNegocio('2026-01-31', 'es'), '31 ene 2026');
+  assert.equal(formatearFechaNegocio('2026-10-09', 'en'), 'Oct 9, 2026');
+  for (const tz of ZONAS_NAVEGADOR) {
+    conZona(tz, () => {
+      assert.equal(formatearFechaNegocio('2026-10-09', 'es'), '9 oct 2026', `zona ${tz}`);
+      assert.equal(formatearFechaNegocio(diaCalendarioEnZona(INSTANTE), 'es'), '9 oct 2026', `zona ${tz}`);
+    });
+  }
+});
+
+test('formato cerca de medianoche UTC: un instante de las 23:59 UTC mantiene su día calendario', () => {
+  const casi = new Date('2026-10-09T23:59:59.000Z');
+  assert.equal(formatearFechaNegocio(diaCalendarioEnZona(casi), 'es'), '9 oct 2026');
+  assert.equal(formatearFechaNegocio(sumarDiasCalendario('2026-12-31', 1), 'es'), '1 ene 2027');
+});
+
+test('formato devuelve guion para entradas vacías o no válidas', () => {
+  assert.equal(formatearFechaNegocio(null), '—');
+  assert.equal(formatearFechaNegocio(''), '—');
+  assert.equal(formatearFechaNegocio('2026-02-30'), '—');
+  assert.equal(formatearFechaNegocio('10/10/2026'), '—');
 });
 
 test('fechas de entrada no válidas se rechazan', () => {

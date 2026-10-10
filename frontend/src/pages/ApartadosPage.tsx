@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Plus, Search, DollarSign, CheckCircle, XCircle } from 'lucide-react';
 import { diaCalendarioEnZona, formatLempiras } from '../utils/format';
-import { sumarDiasCalendario } from '../utils/fechasNegocio';
+import { formatearFechaNegocio, sumarDiasCalendario } from '../utils/fechasNegocio';
 import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
@@ -77,7 +77,7 @@ export const ApartadosPage: React.FC = () => {
       if (Array.isArray(res.data)) setProductos(res.data);
     }).catch(err => console.error(err));
   }, []);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const currentTenantId = tenant?.id || 'tenant-demo-1';
   const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
 
@@ -263,7 +263,7 @@ export const ApartadosPage: React.FC = () => {
                   <td style={{ textAlign: 'right', color: a.saldoPendiente > 0 ? '#DC2626' : 'var(--color-text-muted)', fontWeight: 800 }}>
                     {formatLempiras(a.saldoPendiente)}
                   </td>
-                  <td style={{ textAlign: 'center', fontSize: '12px' }}>{a.fechaLimite}</td>
+                  <td style={{ textAlign: 'center', fontSize: '12px' }}>{formatearFechaNegocio(a.fechaLimite, locale)}</td>
                   <td style={{ textAlign: 'center' }}>
                     {a.estado === 'ACTIVO' && <span className="badge badge-warning">ACTIVO</span>}
                     {a.estado === 'COMPLETADO' && <span className="badge badge-success">COMPLETADO</span>}
