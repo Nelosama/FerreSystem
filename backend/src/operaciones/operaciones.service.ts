@@ -31,7 +31,7 @@ export class OperacionesService {
  async compra(tenantId: string,userId: string,dto: CompraDto) {
   return this.prisma.$transaction(async tx => {
    await lockTenant(tx,tenantId);
-   await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
+   const user=await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
    const hash=fingerprint({userId,dto});
    const [previous] = await query(tx, 'SELECT o.*, a.datos FROM ordenes_compra o JOIN auditoria_operaciones a ON a.entidad_id=o.id AND a.operacion=\'COMPRA_CREAR\' WHERE o.id=$1 AND o.tenant_id=$2',dto.solicitudId,tenantId);
    if(previous){if(previous.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otra compra');return previous;}
@@ -47,10 +47,18 @@ export class OperacionesService {
     subtotal=money(subtotal+money(decimal(item.cantidad,'Cantidad',true)*decimal(item.costo,'Costo')));
    }
    const tax=decimal(dto.isv,'Impuesto'), total=decimal(money(subtotal+tax),'Total');
+   // D1: compra al contado. Pagar a proveedor es función de administrador (igual que pagar()).
+   if(dto.pagoContado&&user.rol!=='ADMIN')throw new ForbiddenException('Compra al contado requiere administrador');
+   const metodoContado=dto.pagoContado?paymentMethod(dto.pagoContado.metodo):null;
    const [order]=await query(tx,'INSERT INTO ordenes_compra (id,tenant_id,codigo,proveedor_id,usuario_id,subtotal,isv,total,estado,numero_factura,vencimiento,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,\'SOLICITADA\',$9,$10::timestamp,NOW()) RETURNING *',dto.solicitudId,tenantId,`COMP-${dto.solicitudId}`,p.id,userId,subtotal,tax,total,numeroFactura,dto.vencimiento || null);
    for(const item of dto.items)await query(tx,'INSERT INTO detalles_orden_compra (id,orden_id,producto_id,cantidad,precio_costo,subtotal) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',id(),order.id,item.productoId,item.cantidad,item.costo,money(item.cantidad*item.costo));
-   await account(tx,tenantId,userId,'CXP',order.id,p.id,total,dto.vencimiento);
-   await audit(tx,tenantId,userId,'COMPRA_CREAR',order.id,{hash,total,numeroFactura});return order;
+   const cuentaId=await account(tx,tenantId,userId,'CXP',order.id,p.id,total,dto.vencimiento);
+   // El pago de contado usa la misma solicitud que la factura: un reintento no paga dos veces. No toca la caja.
+   if(metodoContado){
+    await query(tx,'INSERT INTO pagos_cuenta (id,tenant_id,cuenta_id,solicitud_id,solicitud_hash,monto,metodo,usuario_id,caja_id,notas) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULL,$9) RETURNING id',id(),tenantId,cuentaId,dto.solicitudId,hash,total,metodoContado,userId,'Compra al contado');
+    await query(tx,'UPDATE cuentas_operativas SET saldo=0 WHERE id=$1 RETURNING id',cuentaId);
+   }
+   await audit(tx,tenantId,userId,'COMPRA_CREAR',order.id,{hash,total,numeroFactura,contado:metodoContado});return order;
   },{timeout:60000});
  }
  // Relación producto–proveedor (ver productos-proveedores.ts). Lectura: inventario.ver; cambios: inventario.editar.

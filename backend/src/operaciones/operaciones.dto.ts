@@ -17,6 +17,10 @@ export class CompraItemDto {
  @IsNumber({maxDecimalPlaces:2}) @Min(0.01) cantidad!: number;
  @IsNumber({maxDecimalPlaces:2}) @Min(0) costo!: number;
 }
+// Compra al contado (D1): la factura nace ya pagada por el total, sin caja (FS-09). Solo ADMIN puede pagarla.
+export class PagoContadoDto {
+ @IsIn(['EFECTIVO','TARJETA','TRANSFERENCIA']) metodo!: string;
+}
 export class CompraDto {
  @IsUUID('4') solicitudId!: string;
  @IsString() @IsNotEmpty() proveedorId!: string;
@@ -24,6 +28,7 @@ export class CompraDto {
  @IsOptional() @EmptyToUndefined() @IsDateString() vencimiento?: string;
  @IsNumber({maxDecimalPlaces:2}) @Min(0) isv!: number;
  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({each:true}) @Type(() => CompraItemDto) items!: CompraItemDto[];
+ @IsOptional() @ValidateNested() @Type(() => PagoContadoDto) pagoContado?: PagoContadoDto;
 }
 export class RecepcionItemDto {
  @IsString() @IsNotEmpty() detalleId!: string;
