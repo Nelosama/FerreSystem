@@ -38,10 +38,10 @@ Las ramas de los agentes **no se modificaron**; cada una entra por merge o cherr
 | `7abf4e88` | Merge de KARDEX; resuelve controlador, locales JSON, listas de migraciones, docs | KARDEX, BALANCE |
 | `8397c5b9` | Merge de BALANCE (sin conflictos) | BALANCE |
 | `1c074578` | Cherry-pick de FORJA; resuelve `OperacionesPage.tsx` | FORJA |
-| `ff7c3f26` | Solo pruebas: fixtures con `precioAprobado:true`; expectativas de BODEGUERO | BALANCE, FORJA, CENTINELA |
-| `3f939d58` | Guarda de costo manual por `ultimaCompraAt` en vez de `costoVigente` | **FORJA y KARDEX** |
-| `3aca6a53` | La búsqueda de ventas conserva `costo_unitario` solo para ADMIN | **KARDEX** |
-| (siguiente) | Solo E2E reales: `seed.cjs` crea productos aprobados; casos de `TARJETA` envían `pagoElectronico`. Más docs, matriz multi-tenant y parche de KARDEX | FARO, BALANCE |
+| `a7b7d012` | Solo pruebas: fixtures con `precioAprobado:true`; expectativas de BODEGUERO | BALANCE, FORJA, CENTINELA |
+| `55735b24` | Guarda de costo manual por `ultimaCompraAt` en vez de `costoVigente` | **FORJA y KARDEX** |
+| `429ab117` | La búsqueda de ventas conserva `costo_unitario` solo para ADMIN | **KARDEX** |
+| `6b88ee0b` | Solo E2E reales: `seed.cjs` crea productos aprobados; casos de `TARJETA` envían `pagoElectronico`. Más docs, matriz multi-tenant y parche de KARDEX | FARO, BALANCE |
 
 ## 3. Cadena de migraciones (20)
 
@@ -65,7 +65,7 @@ El orden completo se aplica con `prisma migrate deploy` sin error. Las 17 y 18 c
 
 | Punto | Estado | Prueba |
 |---|---|---|
-| Búsqueda de ventas: ADMIN conserva, CAJERO y VENDEDOR no | Cumple (commit `3aca6a53`) | `seguridad-fase2` |
+| Búsqueda de ventas: ADMIN conserva, CAJERO y VENDEDOR no | Cumple (commit `429ab117`) | `seguridad-fase2` |
 | Entregas: BODEGUERO (con o sin `inventario.ver`) no recibe costo | Cumple | `seguridad-fase2` (se actualizó la prueba que exigía lo contrario) |
 | Compras con costos: BODEGUERO rechazado, ADMIN sí | Cumple | `compras*`, `sin-costos-bodeguero.http.spec` |
 | Alta de producto con precio, costo o margen: BODEGUERO no | Cumple | `productos-security` |
@@ -105,9 +105,9 @@ La corrección de BALANCE (`5f974f76`) solo añadió referencias a los pagos de 
 | # | Pendiente | Dueño |
 |---|---|---|
 | 1 | El commit `7c0e73b0` de #140 («no vender productos sin precio aprobado offline; ocultar costos al personal») **no está en la consolidación de KARDEX**; #143 lo arrastra. Puede afectar la contingencia offline | KARDEX + ATLAS |
-| 2 | Confirmar los commits `3f939d58` y `3aca6a53` (§2) | FORJA, KARDEX |
+| 2 | Confirmar los commits `55735b24` y `429ab117` (§2) | FORJA, KARDEX |
 | 3 | Brecha de pruebas de costos por rol (§4) | FARO, KARDEX, CENTINELA |
-| 4 | Parche de KARDEX equivalente a `3aca6a53`: `docs/parches/kardex-busqueda-venta-costo-solo-admin.patch` | KARDEX |
+| 4 | Parche de KARDEX equivalente a `429ab117`: `docs/parches/kardex-busqueda-venta-costo-solo-admin.patch` | KARDEX |
 
 ## 8. Verificación (PostgreSQL 16.15 temporal, base vacía)
 
@@ -124,7 +124,7 @@ La corrección de BALANCE (`5f974f76`) solo añadió referencias a los pagos de 
 | Playwright con backend simulado | No ejecutado |
 | Producción | **No verificada** |
 
-Historial de la reducción de fallos de integración: 24 tras integrar KARDEX, BALANCE y FORJA → 4 tras los ajustes de fixtures y expectativas → 0 tras los commits `3f939d58` y `3aca6a53`.
+Historial de la reducción de fallos de integración: 24 tras integrar KARDEX, BALANCE y FORJA → 4 tras los ajustes de fixtures y expectativas → 0 tras los commits `55735b24` y `429ab117`.
 
 ## 9. Propuesta multi-tenant (trabajo separado)
 
