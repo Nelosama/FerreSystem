@@ -366,6 +366,9 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       await operaciones.recibir(e.tenantId, e.admin, compra.id, { solicitudId: randomUUID(), items: [{ detalleId: detalle.id, cantidad: 10 }] } as any);
       expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: e.p1 } })).precioCosto)).toBe(6);
       expect(await stock(e.p1)).toBe(30);
+      // La recepción actualiza la asociación producto–proveedor con el último costo.
+      const asociacion = () => prisma.productoProveedor.findFirstOrThrow({ where: { tenantId: e.tenantId, productoId: e.p1, proveedorId: proveedor.id } });
+      expect(Number((await asociacion()).ultimoCosto)).toBe(6);
 
       // La caja vende 2 unidades con el catálogo de la ventana.
       const [res] = (await enviar(e, [operacion(e, v.id)])).resultados;
@@ -373,6 +376,8 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       const [linea] = await prisma.detalleVenta.findMany({ where: { ventaId: res.ventaId } });
       expect(Number(linea.costoUnitario)).toBe(4);
       expect(await stock(e.p1)).toBe(28);
+      // La venta offline no modifica la asociación con el proveedor.
+      expect(Number((await asociacion()).ultimoCosto)).toBe(6);
       // El equipo nunca recibe el costo.
       const { catalogo } = await svc.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       expect(JSON.stringify(catalogo)).not.toMatch(/costoCentavos|precioCosto/);
