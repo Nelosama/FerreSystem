@@ -563,7 +563,10 @@
       "quotations": "QUOTATIONS",
       "operations": "OPERATIONS",
       "customers": "CUSTOMERS"
-    }
+    },
+    "net_total": "Net collected total after returns (includes tax)",
+    "base_label": "Subtotal",
+    "tax_label": "Tax"
   },
   "operational": {
     "items": "ITEMS",
