@@ -121,7 +121,7 @@ describe('CotizacionesService', () => {
   it('revierte conversión si un decremento concurrente agotó stock', async () => {
     mockPrisma.$queryRaw.mockResolvedValue([{ ultimo_numero: 11 }]);
     mockPrisma.cotizacion.findFirst.mockResolvedValue({
-      id: 'cot-123', estado: 'APROBADA',descuento:0, detalles: [{
+      id: 'cot-123', estado: 'APROBADA', fechaValidez: new Date('2099-12-31T00:00:00.000Z'), descuento:0, detalles: [{
         productoId:'p-1',precioUnitario:10,cantidad: 2.75, totalMedida: 2.75, producto: { id: 'p-1', nombre: 'Cable',precioVenta:10, stockActual: 3 },
       }],
     });
@@ -166,7 +166,7 @@ describe('CotizacionesService', () => {
       vi.setSystemTime(ahoraTegucigalpa);
       mockPrisma.cotizacion.findFirst.mockResolvedValue({
         id: 'cot-1', estado: 'ENVIADA', descuento: 0, descuentoGeneral: 0, detalles: [],
-        fechaValidez: new Date('2026-10-09T06:00:00.000Z'),
+        fechaValidez: new Date('2026-10-09T00:00:00.000Z'),
       });
 
       const result = await service.findById('tenant-1', 'cot-1');
@@ -180,7 +180,7 @@ describe('CotizacionesService', () => {
       vi.setSystemTime(ahoraTegucigalpa);
       mockPrisma.cotizacion.findFirst.mockResolvedValue({
         id: 'cot-2', estado: 'ENVIADA', descuento: 0, descuentoGeneral: 0, detalles: [],
-        fechaValidez: new Date('2026-10-08T06:00:00.000Z'),
+        fechaValidez: new Date('2026-10-08T00:00:00.000Z'),
       });
 
       const result = await service.findById('tenant-1', 'cot-2');

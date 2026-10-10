@@ -200,6 +200,7 @@
     "total": "Total a Pagar",
     "checkout": "Procesar Venta",
     "cash": "Efectivo",
+    "transfer": "Transferencia",
     "card": "Tarjeta",
     "credit": "Crédito",
     "search_products": "Buscar por código o nombre de producto...",
@@ -236,6 +237,8 @@
     "branch": "Sucursal"
   },
   "quotations": {
+    "tax_included": "(ISV incluido)",
+    "inventory_reservation_notice": "La venta reserva los productos. Las existencias físicas se descuentan al registrar la entrega.",
     "title": "GESTIÓN DE COTIZACIONES",
     "subtitle": "Presupuestos y Cotizaciones de Proforma",
     "new_quotation": "NUEVA COTIZACIÓN",

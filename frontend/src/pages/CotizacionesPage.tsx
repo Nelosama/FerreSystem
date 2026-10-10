@@ -55,7 +55,7 @@ export const CotizacionesPage: React.FC = () => {
         direccion: c.clienteDireccion || c.cliente?.direccion || '',
         usuarioNombre: c.usuarioNombre || c.usuario?.nombre || 'Atención en Tienda',
         fechaEmision: new Date(c.createdAt).toLocaleDateString('es-HN'),
-        fechaValidez: new Date(c.fechaValidez).toLocaleDateString('es-HN'),
+        fechaValidez: new Date(c.fechaValidez).toLocaleDateString('es-HN', { timeZone: 'UTC' }),
         diasValidez: c.diasValidez,
         condicionesPago: c.condicionesPago,
         subtotal: Number(c.subtotal),
@@ -131,6 +131,7 @@ export const CotizacionesPage: React.FC = () => {
   const [editingCotizacionId, setEditingCotizacionId] = useState<string | null>(null);
   const [modalPdf, setModalPdf] = useState<QuotationItem | null>(null);
   const [modalConvertir, setModalConvertir] = useState<QuotationItem | null>(null);
+  const [metodoConversion, setMetodoConversion] = useState<'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'CREDITO'>('EFECTIVO');
   const conversionEnCurso = useRef(false);
   const [convirtiendo, setConvirtiendo] = useState(false);
   const [modalProductoPicker, setModalProductoPicker] = useState<boolean>(false);
@@ -248,7 +249,7 @@ export const CotizacionesPage: React.FC = () => {
     conversionEnCurso.current = true;
     setConvirtiendo(true);
     try {
-      await api.post(`/cotizaciones/${cot.id}/convertir`);
+      await api.post(`/cotizaciones/${cot.id}/convertir`, { metodoPago: metodoConversion });
       setCotizaciones(actuales => actuales.map(actual => actual.id === cot.id ? { ...actual, estado: 'CONVERTIDA' } : actual));
       setModalConvertir(null);
       await fetchCotizacionesYProductos();
@@ -808,7 +809,7 @@ export const CotizacionesPage: React.FC = () => {
                             type="button"
                             className="btn btn-primary btn-sm"
                             disabled={isReadOnly}
-                            onClick={() => setModalConvertir(c)}
+                            onClick={() => { setMetodoConversion('EFECTIVO'); setModalConvertir(c); }}
                             title={isReadOnly ? 'Modo solo lectura — soporte activo' : 'Convertir a Factura/Venta POS'}
                           >
                             <ArrowRightCircle size={13} /> {t('operational.a_venta')}
@@ -1339,11 +1340,24 @@ export const CotizacionesPage: React.FC = () => {
               <div style={styles.convertDetailBox}>
                 <div><strong>{t('operational.cliente')}</strong> {modalConvertir.cliente}</div>
                 {modalConvertir.rtn && <div><strong>RTN:</strong> {modalConvertir.rtn}</div>}
-                <div><strong>{t('operational.total_a_cobrar')}</strong> {formatLempiras(modalConvertir.total)} {t('operational.isv_15_incluido')}</div>
+                <div><strong>{t('operational.total_a_cobrar')}</strong> {formatLempiras(modalConvertir.total)} {t('quotations.tax_included')}</div>
                 <div style={{ color: '#D97706', fontWeight: 700, marginTop: '4px' }}>
-                  {t('operational.impacto_en_inventario_descontara_automaticamente_el_stock_correspondiente_a_los_items_solicitados')}
+                  {t('quotations.inventory_reservation_notice')}
                 </div>
               </div>
+              <label htmlFor="quotation-payment-method">{t('pos.payment_method')}</label>
+              <select
+                id="quotation-payment-method"
+                className="form-input"
+                value={metodoConversion}
+                disabled={convirtiendo}
+                onChange={event => setMetodoConversion(event.target.value as typeof metodoConversion)}
+              >
+                <option value="EFECTIVO">{t('pos.cash')}</option>
+                <option value="TARJETA">{t('pos.card')}</option>
+                <option value="TRANSFERENCIA">{t('pos.transfer')}</option>
+                <option value="CREDITO" disabled={!modalConvertir.clienteId}>{t('pos.credit')}</option>
+              </select>
             </div>
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>

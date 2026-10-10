@@ -200,6 +200,7 @@
     "total": "Total Due",
     "checkout": "Process Sale",
     "cash": "Cash",
+    "transfer": "Transfer",
     "card": "Card",
     "credit": "Credit",
     "search_products": "Search by product code or name...",
@@ -236,6 +237,8 @@
     "branch": "Branch"
   },
   "quotations": {
+    "tax_included": "(tax included)",
+    "inventory_reservation_notice": "The sale reserves the products. Physical stock is deducted when delivery is recorded.",
     "title": "QUOTATION MANAGEMENT",
     "subtitle": "Budgets and Proforma Quotations",
     "new_quotation": "NEW QUOTATION",
