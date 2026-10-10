@@ -238,6 +238,32 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Inventario — auditoría del ciclo compra→recepción→ajuste→venta y correcciones (2026-10-10 UTC)
+
+- **Base:** `origin/claude/integracion-pos-offline-p1` `58941e5d` (head de PR #129, draft). **Rama de trabajo:** `claude/brave-carson-v2g7q5`, PR nuevo hacia esa base. No se tocó el POS offline, contingencia ni archivos de otros agentes. No hay cambios de esquema ni migraciones; no hubo merge, despliegue ni consultas a producción.
+- **Reproducción:** `backend/test/inventario-ciclo.postgres.integration.ts` (PostgreSQL 16 desechable, usuario no root). Las tres pruebas del archivo fallaron antes de corregir. LEV-004 se reprodujo en una ejecución previa; su prueba se retiró porque el comportamiento depende de una decisión pendiente.
+
+| Hallazgo | Severidad | Estado |
+|---|---|---|
+| **QA-AJ-001:** `POST /operaciones/productos/:id/ajuste` fijaba el stock absoluto sin comparar existencias anteriores. Recepción de 5 sobre 10 y ajuste a 12 dejó 12 (se perdieron 3). | P1 | Corregido: `stockAnterior` obligatorio (`operaciones.dto.ts`), comparación bajo bloqueo con `409 PRODUCTO_STOCK`, `version+1`. |
+| **QA-AJ-002:** el mismo endpoint aceptaba ajustes sin cantidad anterior. | P2 | Corregido: `400` antes de escribir. El frontend no llama este endpoint (verificado con búsqueda en el repositorio); la edición de producto ya enviaba `stockAnterior`. |
+| **QA-COS-001:** `GET /operaciones/ventas/buscar` (roles incl. VENDEDOR) devolvía `costo_unitario` de cada línea por `SELECT d.*`. CAJERO estaba cubierto por `CashierResponseInterceptor`; VENDEDOR no. | P1 | Corregido: se quita `costo_unitario` de las líneas de búsqueda. |
+| **LEV-004:** aplicar un conteo sobrescribe `precioCosto`, `precioVenta` y `margen` del catálogo (observado costo 2→7 en PostgreSQL). | P1 | **No corregido: decisión de negocio pendiente.** La prueba existente `QA-INV-001` exige que el precio revisado se aplique; cambiarlo contradice ese diseño. Propuesta: el conteo no cambia costo; solo advertencia en vista previa. |
+
+**Pruebas (2026-10-10):** unitarias backend 345/345; integración PostgreSQL 374 pasan y 1 omitida (ya omitida antes) de 375, incluidas las 3 nuevas; `tsc -p tsconfig.build.json` sin errores. No se ejecutaron pruebas de frontend (no se modificó). Tests de tipo de `test/*.ts` reportan globals faltantes (`describe`/`expect`) desde antes de este cambio; no bloquean el build.
+
+**Verificado sin defecto:** costo y margen fuera de productos para CAJERO/VENDEDOR (`publicProduct`); levantamientos solo ADMIN/BODEGUERO; cotizaciones mapean líneas sin costo; `entregas` solo ADMIN/CAJERO/BODEGUERO (CAJERO filtrado por interceptor); recepción conserva costo de la línea de compra y actualiza costo vigente incluso si baja.
+
+**Riesgos restantes (no corregidos):**
+1. LEV-004 (arriba): requiere decisión del dueño sobre si el conteo puede cambiar costo y precio.
+2. Venta sin inventario (`sinInventario`) se acepta para productos con existencias: no hay validación de faltante ni reserva. Requiere regla de negocio antes de endurecer.
+3. Costo manual de producto (ADMIN/BODEGUERO) sigue permitido y auditado, pendiente de decisión (ya registrado).
+4. `cotizaciones.findById` devuelve `tenant: true` completo (no revisado en esta ronda; no es costo).
+5. Compatibilidad: API externa que llame `/ajuste` debe enviar `stockAnterior`.
+6. Sin acreditar: hardware, iPhone, sucursales y aceptación del cliente (sin cambios en esos puntos).
+
+---
+
 ## Inventario — estado vigente de las correcciones QA-INV (verificado en main, 2026-10-10 UTC)
 
 Esta sección describe el estado actual. Las secciones de auditoría y reproducción siguientes son históricas: registran defectos **antes** de la corrección y no describen el código vigente.
