@@ -38,10 +38,31 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 | Resumen administrativo para iPhone | Implementado | `024f4f45` | Ruta `/admin-movil` (solo ADMIN): ventas del día, cajas abiertas, existencias bajo mínimo, clientes con saldo, CxP a 7 días, solicitudes pendientes, reportes. `resumen-movil.test.mjs` 6/6; `admin-movil-simulado.spec.ts` 3/3 a 390 px (backend simulado) |
 | Restricción de módulo en rutas de inventario | Corregido | `9c53c524` | Un commit anterior había desplazado `@RequiredModule('inventario')` del historial; regresión detectada por `operation-modules.http.spec.ts` |
 
+**Segunda ronda (2026-10-10, PR #127, sin merge):**
+
+| Ítem | Estado | Evidencia |
+|---|---|---|
+| Pantalla de proveedores por producto | Terminado | `frontend/src/components/ProveedoresProductoPanel.tsx`, dentro de la ficha de producto. E2E `p1-operaciones-simulado.spec.ts` (alta con código y preferido; error de inactivo) |
+| Compra al contado y fuente del pago | Terminado (ADMIN) | Selector en Órdenes de compra. Fuente declarada en pantalla: fondos administrativos, **no caja**. El backend nunca descuenta caja (FS-09). E2E: payload con `pagoContado`; BODEGUERO sin selector |
+| Estado de cuenta de clientes | Terminado (ADMIN) | `/estado-cuenta-clientes` + ítem de menú. Saldo, límite, conciliación, vencidas y abonos. E2E ADMIN; CAJERO y VENDEDOR sin acceso |
+| Permisos del estado de cuenta y buscador | Revisado | Estado de cuenta solo ADMIN (403 a CAJERO, BODEGUERO, VENDEDOR). Buscador a VENDEDOR: conjunto exacto `codigo, creditoHabilitado, id, nombre, numeroCliente, rtn, telefono`; sin saldo, límite, correo ni dirección. Prueba PG negativa |
+| Admin móvil (sin POS offline) | Terminado en su alcance | Accesos a estados de cuenta, inventario, cuentas y arqueo. Sigue sin prueba en iPhone físico |
+| Compatibilidad con `claude/pos-offline-backend` | Analizada, **no integrada** | Ver bloque siguiente |
+
+**Compatibilidad con `claude/pos-offline-backend` (no fusionada):**
+- Su migración `20261011000000_pos_contingencia_offline` crea 4 tablas nuevas y hace `ALTER TABLE ventas`. No toca tablas que cambia esta rama, y su nombre no choca con `20261010140000_productos_proveedores`.
+- El esquema choca **textualmente** al fusionar: ambos añaden modelos al final de `schema.prisma`. Resolución: conservar los dos bloques. Verificado en un worktree desechable; no se incorporó nada.
+- Las listas explícitas de migraciones de `ventas.postgres.integration.ts` y `reportes-zona-horaria.postgres.integration.ts` también chocan. Al integrar, deben incluir **las dos** migraciones nuevas.
+- `CONTEXTO_MAESTRO.md` choca al fusionar. Resolver a mano, sin borrar bloques de ninguno.
+- Su migración altera `ventas`; su DBA debe revisar ambas en orden antes de `migrate deploy`.
+
+**Regresión encontrada y corregida:** el panel nuevo llamaba `GET /operaciones/productos/:id/proveedores`, que el simulador de edición de productos no conocía. Fallaban 9 pruebas E2E. Corregido en `productos-edicion.spec.ts`.
+
 **Pruebas ejecutadas (2026-10-10, entorno local):**
 - Backend unitarias: **330/330** (`npx vitest run`).
 - Integración PostgreSQL 16, cadena completa de migraciones, usuario no root: suite completa **19 archivos, 336 aprobadas, 1 omitida**, sin fallos. Ejecutada antes del último commit (`cb41e8dd`); ese archivo se verificó aparte (3/3).
 - Frontend unitarias: **191/191** (`node --test test/*.test.mjs`); `tsc -b` correcto; `oxlint` sin errores en archivos tocados (avisos `set-state-in-effect` del patrón existente).
+- Segunda ronda: integración PostgreSQL **20 archivos, 340 aprobadas, 1 omitida**; backend unitarias **330/330**; frontend unitarias **191/191**; Playwright Chromium **116/116** (incluye 7 E2E nuevas).
 - Playwright Chromium: **109/109** tras ajustar `navigation-settings.spec.ts` (con FS-14, el grupo "Clientes y cobros" del cajero ya no aparece con un solo ítem). Las E2E usan backend simulado: validan interfaz y contrato, no persistencia.
 
 **Clasificación de módulos (Fase 6):**
