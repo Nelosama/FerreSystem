@@ -3,7 +3,8 @@ import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
 import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
-import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
+import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
+import { eliminarVinculoProveedor, guardarVinculoProveedor, listarProveedoresProducto, registrarCostoProveedor } from './productos-proveedores';
 
 @Injectable()
 export class OperacionesService {
@@ -52,6 +53,10 @@ export class OperacionesService {
    await audit(tx,tenantId,userId,'COMPRA_CREAR',order.id,{hash,total,numeroFactura});return order;
   },{timeout:60000});
  }
+ // Relación producto–proveedor (ver productos-proveedores.ts). Lectura: inventario.ver; cambios: inventario.editar.
+ proveedoresProducto(tenantId:string,productoId:string){return listarProveedoresProducto(this.prisma,tenantId,productoId);}
+ guardarProveedorProducto(tenantId:string,userId:string,productoId:string,proveedorId:string,dto:ProductoProveedorDto){return guardarVinculoProveedor(this.prisma,tenantId,userId,productoId,proveedorId,dto);}
+ eliminarProveedorProducto(tenantId:string,userId:string,productoId:string,proveedorId:string){return eliminarVinculoProveedor(this.prisma,tenantId,userId,productoId,proveedorId);}
  async recibir(tenantId:string,userId:string,orderId:string,dto:RecepcionDto){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
@@ -77,6 +82,7 @@ export class OperacionesService {
     await query(tx,'UPDATE productos SET stock_actual=stock_actual+$1,precio_costo=$2,costo_vigente=$2,ultima_compra_at=$3,version=version+1,updated_at=NOW() WHERE id=$4 AND tenant_id=$5 RETURNING id',quantity,line.precio_costo,reception.fecha,prod.id,tenantId);
     await query(tx,'UPDATE detalles_orden_compra SET cantidad_recibida=cantidad_recibida+$1 WHERE id=$2 RETURNING id',quantity,line.id);
     await query(tx,'INSERT INTO costos_compra (id,tenant_id,producto_id,proveedor_id,orden_id,recepcion_id,cantidad,costo,fecha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',id(),tenantId,prod.id,order.proveedor_id,order.id,receptionId,quantity,line.precio_costo,reception.fecha);
+    await registrarCostoProveedor(tx,tenantId,userId,prod.id,order.proveedor_id,Number(line.precio_costo),reception.fecha);
     await movement(tx,tenantId,userId,prod.id,'COMPRA',Number(prod.stock_actual),money(Number(prod.stock_actual)+quantity),receptionId,`Factura ${order.numero_factura}`);
    }
    const [pending]=await query(tx,'SELECT COUNT(*)::int AS cantidad FROM detalles_orden_compra WHERE orden_id=$1 AND cantidad_recibida<cantidad',order.id);

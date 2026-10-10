@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsArray, ArrayMinSize, ArrayMaxSize, ValidateNested, IsUUID, IsIn, IsDateString, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsArray, ArrayMinSize, ArrayMaxSize, ValidateNested, IsUUID, IsIn, IsDateString, MaxLength, IsBoolean } from 'class-validator';
 import { EmptyToUndefined } from '../common/empty-to-undefined';
 import { Type } from 'class-transformer';
 
@@ -7,6 +7,10 @@ export class ProveedorDto {
  @IsString() @IsNotEmpty() @MaxLength(200) nombre!: string;
  @IsOptional() @IsString() telefono?: string;
  @IsOptional() @IsString() rtn?: string;
+}
+export class ProductoProveedorDto {
+  @IsOptional() @IsString() @MaxLength(100) codigoProveedor?: string | null;
+  @IsBoolean() esPreferido!: boolean;
 }
 export class CompraItemDto {
  @IsString() @IsNotEmpty() productoId!: string;
