@@ -23,6 +23,7 @@ import { SuperAdminService } from '../src/super-admin/super-admin.service';
 import { UsuariosService } from '../src/usuarios/usuarios.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { sesionVigente } from '../src/auth/sesiones-auth';
+import { leerConfiguracionAuth } from '../src/auth/auth-config';
 
 // Autenticación fase 3: límite de intentos, sesiones revocables, transición de tokens y contingencia offline.
 // Clúster PostgreSQL temporal y dedicado. Ejecutar sin root (initdb lo exige).
@@ -380,6 +381,69 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
       // El lote responde 201 con el resultado de cada operación: el rechazo viaja en el cuerpo, no como error HTTP.
       expect(res.body.resultados[0]).toMatchObject({ operacionId, estado: 'RECHAZADA_TECNICA' });
       expect(await prisma.venta.count({ where: { id: operacionId } })).toBe(0);
+    });
+  });
+
+  describe('validación final: sincronización, proxy, empresas y transición', () => {
+    it('access token vencido: el refresh renueva la sesión y el lote pendiente se aplica una vez', async () => {
+      const ventanaRes = await contingencia.emitirVentana(tenantId, cajeroId, { dispositivoId } as any);
+      const operacionId = randomUUID();
+      const lote = { dispositivoId, pendientesRestantes: 0, operaciones: [{
+        operacionId, dispositivoId, ventanaId: ventanaRes.ventana.id, secuenciaLocal: 9, correlativoLocal: 'CT-01-0009',
+        ocurridoAtLocal: new Date().toISOString(), cajeroId,
+        lineas: [{ productoId, cantidadCentesimas: 100, precioCentavos: 1000 }],
+        subtotalCentavos: 1000, isvCentavos: 150, totalCentavos: 1150, efectivoRecibidoCentavos: 1150, cambioCentavos: 0, esquemaVersion: 1,
+      }] };
+      const sesion = await login('cajero@auth.test.invalid').expect(200);
+      // Access token ya vencido con el mismo sid; el refresh de la cookie sigue vigente.
+      const vencido = jwt.sign({ sub: cajeroId, tenantId, email: 'cajero@auth.test.invalid', rol: 'CAJERO', type: 'tenant', sid: await sesionDe(sesion.body.accessToken), exp: Math.floor(Date.now() / 1000) - 60 }, { noTimestamp: true });
+      await request(app.getHttpServer()).post('/api/contingencia/operaciones').auth(vencido, { type: 'bearer' }).send(lote).expect(401);
+      const renovado = await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', refreshCookie(sesion)).expect(200);
+      const res = await request(app.getHttpServer()).post('/api/contingencia/operaciones').auth(renovado.body.accessToken, { type: 'bearer' }).send(lote).expect(201);
+      expect(res.body.resultados[0]).toMatchObject({ operacionId, estado: 'APLICADA' });
+      expect(await prisma.venta.count({ where: { id: operacionId } })).toBe(1);
+    });
+
+    it('con TRUST_PROXY=1, un X-Forwarded-For falsificado por el cliente no cambia el cubo: se usa la IP que añade el proxy', async () => {
+      const instancia = app.getHttpAdapter().getInstance();
+      instancia.set('trust proxy', 1);
+      const previo = env.AUTH_LOGIN_MAX_FALLOS_IP;
+      env.AUTH_LOGIN_MAX_FALLOS_IP = '2';
+      try {
+        // El cliente real es 203.0.113.50; el proxy añade esa IP al final de la cadena.
+        await login('y1@auth.test.invalid', 'mala-clave').set('X-Forwarded-For', '10.66.66.1, 203.0.113.50').expect(401);
+        await login('y2@auth.test.invalid', 'mala-clave').set('X-Forwarded-For', '10.66.66.2, 203.0.113.50').expect(401);
+        await login('admin@auth.test.invalid').set('X-Forwarded-For', '10.66.66.3, 203.0.113.50').expect(429);
+        await login('admin@auth.test.invalid').set('X-Forwarded-For', '10.66.66.4, 198.51.100.1').expect(200);
+      } finally {
+        env.AUTH_LOGIN_MAX_FALLOS_IP = previo;
+        instancia.set('trust proxy', false);
+      }
+    });
+
+    it('un token con el sid de una sesión de otra empresa no autoriza, aunque la firma sea válida', async () => {
+      const otraEmpresa = randomUUID();
+      const otroUsuario = randomUUID();
+      await prisma.tenant.create({ data: { id: otraEmpresa, nombreComercial: 'Otra empresa', estado: 'ACTIVO' } });
+      await prisma.usuario.create({ data: { id: otroUsuario, tenantId: otraEmpresa, nombre: 'Ajeno', email: 'ajeno@auth.test.invalid', passwordHash: await bcrypt.hash(password, 4), rol: 'ADMIN', permisosConfigurados: false, permisos: [] } as any });
+      const sesionAjena = await request(app.getHttpServer()).post('/api/auth/login').send({ email: 'ajeno@auth.test.invalid', password, tenantId: otraEmpresa }).expect(200);
+      const sidAjeno = await sesionDe(sesionAjena.body.accessToken);
+      // Sujeto de la empresa A con el sid de la empresa B y tenantId de A: no coincide con la sesión.
+      const cruzado = jwt.sign({ sub: adminId, tenantId, type: 'tenant', rol: 'ADMIN', sid: sidAjeno });
+      await get('/auth/me', cruzado).expect(401);
+      // Mismo sid con tenantId de B: el usuario no existe en B con ese id.
+      const cruzadoB = jwt.sign({ sub: adminId, tenantId: otraEmpresa, type: 'tenant', rol: 'ADMIN', sid: sidAjeno });
+      await get('/auth/me', cruzadoB).expect(401);
+    });
+
+    it('transición con fecha límite vencida: un token sin sesión deja de aceptarse sin reiniciar la API', async () => {
+      const sinSesion = jwt.sign({ sub: adminId, tenantId, type: 'tenant', rol: 'ADMIN' }, { expiresIn: '5m' });
+      const config = { get: (k: string) => (k === 'JWT_SECRET' ? secret : k === 'AUTH_ACEPTAR_TOKENS_SIN_SESION' ? 'true' : k === 'NODE_ENV' ? 'production' : k === 'AUTH_TOKENS_SIN_SESION_HASTA' ? new Date(Date.now() + 2000).toISOString() : undefined) } as unknown as ConfigService;
+      const estrategia = new JwtStrategy(config, prisma);
+      await expect(estrategia.validate(jwt.decode(sinSesion))).resolves.toMatchObject({ sub: adminId });
+      await new Promise(r => setTimeout(r, 2100));
+      await expect(estrategia.validate(jwt.decode(sinSesion))).rejects.toThrow(UnauthorizedException);
+      expect(leerConfiguracionAuth({ get: (k: string) => (k === 'NODE_ENV' ? 'production' : undefined) }).aceptarTokensSinSesion).toBe(false);
     });
   });
 });

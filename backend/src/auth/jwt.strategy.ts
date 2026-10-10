@@ -4,7 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { getJwtSecret } from './jwt-secret';
-import { leerConfiguracionAuth } from './auth-config';
+import { aceptaTokenSinSesion, ConfiguracionAuth, leerConfiguracionAuth } from './auth-config';
 import { sesionVigente } from './sesiones-auth';
 
 export interface JwtValidatedPayload {
@@ -23,7 +23,7 @@ export interface JwtValidatedPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  private readonly aceptarTokensSinSesion: boolean;
+  private readonly configuracionAuth: ConfiguracionAuth;
 
   constructor(configService: ConfigService, private readonly prisma: PrismaService) {
     super({
@@ -31,13 +31,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ignoreExpiration: false,
       secretOrKey: getJwtSecret(configService),
     });
-    this.aceptarTokensSinSesion = leerConfiguracionAuth(configService).aceptarTokensSinSesion;
+    this.configuracionAuth = leerConfiguracionAuth(configService);
   }
 
   // Una sesión revocada o vencida no autoriza nada, aunque la firma y el vencimiento del token sean válidos.
   private async exigirSesion(payload: any) {
     if (!payload.sid) {
-      if (this.aceptarTokensSinSesion) return;
+      if (aceptaTokenSinSesion(this.configuracionAuth)) return;
       throw new UnauthorizedException('Sesión no válida. Inicie sesión de nuevo.');
     }
     if (!(await sesionVigente(this.prisma, String(payload.sid), String(payload.sub)))) {

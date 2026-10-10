@@ -51,18 +51,18 @@
 
 | Tipo de token emitido antes de esta versión | Efecto al desplegar |
 |---|---|
-| Access token sin `sid` (vida 15 min) | Se acepta mientras `AUTH_ACEPTAR_TOKENS_SIN_SESION` sea `true` (valor por defecto en esta versión). |
-| Refresh token de #132 (con `typ` pero sin `sid`) | Se rechaza: el usuario inicia sesión una vez. Igual que en #132. |
+| Access token sin `sid` (vida 15 min) | **En producción se rechaza por defecto.** Solo se acepta si `AUTH_ACEPTAR_TOKENS_SIN_SESION=true` **y** `AUTH_TOKENS_SIN_SESION_HASTA` (fecha ISO 8601) es futura y no supera 24 h desde el arranque. Fuera de producción, la transición sigue disponible para desarrollo y pruebas. |
+| Refresh token de #132 (con `typ` pero sin `sid`) | Se rechaza siempre: el usuario inicia sesión una vez. Igual que en #132. |
 | Refresh token de versiones anteriores a #132 (sin `typ`) | Ya se rechazaba desde #132. |
 
 **Orden de despliegue:**
 1. Aplicar la migración `20261012000000_autenticacion_sesiones_intentos` (aditiva, ver §5). **Sin migración, el código nuevo falla al iniciar sesión.**
 2. Desplegar el código con `TRUST_PROXY=1` y `AUTH_ACEPTAR_TOKENS_SIN_SESION=true`.
 3. Esperar **al menos 16 minutos** tras el despliegue (vida del access token + margen).
-4. Fijar `AUTH_ACEPTAR_TOKENS_SIN_SESION=false` y reiniciar. Desde este momento, todo token sin `sid` responde 401.
+4. No hace falta reiniciar para cerrar la transición: al llegar `AUTH_TOKENS_SIN_SESION_HASTA`, cada petición deja de aceptar tokens sin `sid`. Para cerrarla antes, fijar `AUTH_ACEPTAR_TOKENS_SIN_SESION=false` y reiniciar.
 5. Avisar al personal: los equipos con ventas pendientes en IndexedDB deben iniciar sesión de nuevo; las ventas se sincronizan después (ver §6).
 
-La validación de la variable es estricta al arrancar (`validarConfiguracionAuth`): un valor distinto de `true`/`false` impide iniciar la API.
+La validación es estricta al arrancar (`validarConfiguracionAuth`): un valor distinto de `true`/`false` impide iniciar la API, y en producción una transición sin fecha límite, con fecha pasada o con más de 24 h impide iniciarla. **No existe transición indefinida en producción.**
 
 ### 3.2 Rotación controlada de `JWT_SECRET`
 
@@ -86,12 +86,13 @@ No hay doble clave: los tokens firmados con el secreto anterior dejan de validar
 
 | Variable | Defecto | Función |
 |---|---|---|
-| `TRUST_PROXY` | sin definir (no confiar) | Número de proxies confiables. Render: `1`. Entero ≥ 1 o error al arrancar. |
+| `TRUST_PROXY` | sin definir (no confiar) | Número de proxies confiables. Local (Caddy → API): `1`, ya definido en `deploy/local/compose.yaml`. Render: **pendiente de verificar** (§9). Entero ≥ 1 o error al arrancar. |
 | `AUTH_LOGIN_MAX_FALLOS_CUENTA` | `5` | Fallos por cuenta antes del bloqueo. |
 | `AUTH_LOGIN_MAX_FALLOS_IP` | `100` | Fallos por IP antes del bloqueo. |
 | `AUTH_LOGIN_VENTANA_SEGUNDOS` | `900` | Ventana de conteo. |
 | `AUTH_LOGIN_BLOQUEO_SEGUNDOS` | `900` | Duración del bloqueo. |
-| `AUTH_ACEPTAR_TOKENS_SIN_SESION` | `true` | Transición (§3.1). Fijar en `false` tras el despliegue. |
+| `AUTH_ACEPTAR_TOKENS_SIN_SESION` | producción: `false`; resto: `true` | Transición (§3.1). |
+| `AUTH_TOKENS_SIN_SESION_HASTA` | sin definir | Fecha ISO 8601 límite de la transición. Obligatoria en producción si la transición está activa; máximo 24 h. |
 
 ## 5. Migraciones (requieren aprobación de DBA antes de producción)
 
@@ -143,3 +144,9 @@ Revisado en el frontend (`offline/sync.ts`, `TenantContext.tsx`, `authIntercepto
 | Limpieza de `sesiones_auth` e `intentos_login` | LOW | Pendiente (job de mantenimiento). |
 | Logs de login con correo (R-08) | LOW | Sin cambio en esta fase. |
 | Rotación de `JWT_SECRET` sin doble clave | LOW | Decisión: cierre de sesiones planificado (§3.2). |
+
+## 9. Verificación del proxy (pendiente antes de producción)
+
+- **Local (`deploy/local`):** Caddy es el único salto hacia `backend:3000`; `TRUST_PROXY=1` es el valor correcto. Verificar en la instalación real: enviar 3 fallos de login con `X-Forwarded-For` distinto en cada petición desde el mismo equipo y comprobar que la cuarta (con cuenta correcta) responde 429 si el límite por IP está fijado en 3. Si no bloquea, Caddy no está añadiendo la IP real y el límite por IP no protege. Caddy no está instalado en el entorno de validación: **no verificado**.
+- **Render:** el repositorio no documenta el número de saltos del enrutador de Render. **No se puede afirmar `TRUST_PROXY=1` sin prueba en el servicio.** Procedimiento: en un servicio de staging, con `AUTH_LOGIN_MAX_FALLOS_IP=3`, hacer 3 fallos desde una red y 1 intento correcto desde otra red distinta. Resultado esperado: la segunda red entra (200). Si la segunda red recibe 429, el número de proxies es incorrecto (demasiado bajo o demasiado alto) o Render no envía `X-Forwarded-For`.
+- **Prueba automatizada (PostgreSQL):** con `TRUST_PROXY=1`, `X-Forwarded-For` falsificado por el cliente no cambia el cubo; se usa la última IP (la que añade el proxy).

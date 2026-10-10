@@ -13,7 +13,7 @@ CREATE TABLE "intentos_login" (
     CONSTRAINT "intentos_login_pkey" PRIMARY KEY ("clave")
 );
 
-CREATE INDEX "intentos_login_actualizado_idx" ON "intentos_login"("actualizado_at");
+CREATE INDEX "intentos_login_actualizado_at_idx" ON "intentos_login"("actualizado_at");
 
 CREATE TABLE "sesiones_auth" (
     "id" TEXT NOT NULL,
@@ -29,5 +29,5 @@ CREATE TABLE "sesiones_auth" (
     CONSTRAINT "sesiones_auth_tipo_check" CHECK ("tipo" IN ('TENANT', 'SOPORTE', 'SUPER_ADMIN'))
 );
 
-CREATE INDEX "sesiones_auth_sujeto_idx" ON "sesiones_auth"("sujeto_id");
-CREATE INDEX "sesiones_auth_expires_idx" ON "sesiones_auth"("expires_at");
+CREATE INDEX "sesiones_auth_sujeto_id_idx" ON "sesiones_auth"("sujeto_id");
+CREATE INDEX "sesiones_auth_expires_at_idx" ON "sesiones_auth"("expires_at");
