@@ -2,6 +2,19 @@ import { account, authorizedActor, audit, cashMovement, id, lockTenant, money, o
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
+import { diaCalendario, inicioDiaEnZona } from '../common/zona-horaria';
+
+/** Fecha de solo día (YYYY-MM-DD) se guarda como inicio del día en la zona del negocio. */
+const SOLO_DIA = /^\d{4}-\d{2}-\d{2}$/;
+
+function fechaValidezDesdeDto(valor: string): Date {
+  return SOLO_DIA.test(valor) ? inicioDiaEnZona(valor) : new Date(valor);
+}
+
+/** Días calendario de `hasta` menos `desde` (ambos YYYY-MM-DD). */
+function diasEntre(desde: string, hasta: string): number {
+  return Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / (24 * 60 * 60 * 1000));
+}
 
 @Injectable()
 export class CotizacionesService {
@@ -23,7 +36,6 @@ export class CotizacionesService {
     });
 
     const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
 
     return cotizaciones.map((c) => this.formatCotizacion(c, hoy));
   }
@@ -46,7 +58,6 @@ export class CotizacionesService {
     }
 
     const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
     return this.formatCotizacion(c, hoy);
   }
 
@@ -116,7 +127,7 @@ export class CotizacionesService {
 
       const diasVal = dto.diasValidez || 15;
       const fechaValidez = dto.fechaValidez
-        ? new Date(dto.fechaValidez)
+        ? fechaValidezDesdeDto(dto.fechaValidez)
         : new Date(Date.now() + diasVal * 24 * 60 * 60 * 1000);
 
       const cotizacion = await tx.cotizacion.create({
@@ -171,8 +182,7 @@ export class CotizacionesService {
       });
 
       const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      return this.formatCotizacion(cotizacion, hoy);
+            return this.formatCotizacion(cotizacion, hoy);
     });
   }
 
@@ -244,7 +254,7 @@ export class CotizacionesService {
 
       const diasVal = dto.diasValidez || existing.diasValidez;
       const fechaValidez = dto.fechaValidez
-        ? new Date(dto.fechaValidez)
+        ? fechaValidezDesdeDto(dto.fechaValidez)
         : new Date(Date.now() + diasVal * 24 * 60 * 60 * 1000);
 
       const updated = await tx.cotizacion.update({
@@ -296,8 +306,7 @@ export class CotizacionesService {
       });
 
       const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      return this.formatCotizacion(updated, hoy);
+            return this.formatCotizacion(updated, hoy);
     });
   }
 
@@ -375,8 +384,7 @@ export class CotizacionesService {
       });
 
       const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      return this.formatCotizacion(duplicada, hoy);
+            return this.formatCotizacion(duplicada, hoy);
     });
   }
 
@@ -408,8 +416,7 @@ export class CotizacionesService {
       });
 
       const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      return this.formatCotizacion(updated, hoy);
+            return this.formatCotizacion(updated, hoy);
     });
   }
 
@@ -614,9 +621,8 @@ export class CotizacionesService {
   }
 
   private formatCotizacion(c: any, hoy: Date) {
-    const fechaVal = new Date(c.fechaValidez);
-    fechaVal.setHours(0, 0, 0, 0);
-    const diferenciaDias = Math.ceil((fechaVal.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+    // Vigencia por día calendario del negocio, no por la zona horaria del servidor.
+    const diferenciaDias = diasEntre(diaCalendario(hoy), diaCalendario(new Date(c.fechaValidez)));
 
     return {
       ...c,

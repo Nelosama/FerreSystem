@@ -1,6 +1,6 @@
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Post, Put, Delete, Body, Param, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ProductoResponseInterceptor } from './producto-response.interceptor';
 import { ProductosService } from './productos.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -21,10 +21,15 @@ export class ProductosController {
   @Get()
   async findAll(
     @TenantId() tenantId: string,
+    @CurrentUser() usuario: { rol?: string },
     @Query('search') search?: string,
     @Query('categoriaId') categoriaId?: string,
     @Query('incluirInactivos') incluirInactivos?: string,
   ) {
+    // Ver inactivos es parte de la reactivación, que solo puede hacer el administrador.
+    if (incluirInactivos === 'true' && usuario?.rol !== 'ADMIN') {
+      throw new ForbiddenException('Solo el administrador puede ver productos inactivos');
+    }
     return this.productosService.findAll(tenantId, search, categoriaId, incluirInactivos === 'true');
   }
 

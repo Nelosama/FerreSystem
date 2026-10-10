@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsInt, MaxLength, IsUUID, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsInt, MaxLength, IsUUID, IsBoolean, Matches } from 'class-validator';
 
 export class CreateLevantamientoItemDto {
  @IsOptional() @IsUUID('4') solicitudId?:string;
@@ -39,6 +39,8 @@ export class AplicarLevantamientoDto {
 
 /** Resolución explícita de conflicto de conteo — solo ADMIN */
 export class ConciliarItemDto {
+ /** Snapshot de todos los conteos del grupo que revisó el administrador. */
+ @IsString() @Matches(/^[a-f0-9]{64}$/) token!:string;
  /** ID del ítem que se desea conservar */
  @IsUUID('4') mantenerItemId!:string;
  /** Cantidad alternativa; si se omite se usa la del ítem elegido */

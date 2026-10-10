@@ -62,6 +62,7 @@ function ConflictosPanel({
   const [grupos, setGrupos] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [resolviendo, setResolviendo] = useState(false);
+  const enviando = useRef(false);
 
   const cargar = useCallback(async () => {
     try { setGrupos((await api.get(`/levantamientos/${lid}/conflictos`)).data); }
@@ -70,17 +71,21 @@ function ConflictosPanel({
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  if (!grupos.length) return null;
+  if (!grupos.length && !error) return null;
 
-  const conciliar = async (mantenerItemId: string, cantidadManual?: number) => {
-    if (resolviendo || isReadOnly) return;
+  const conciliar = async (mantenerItemId: string, token: string, cantidadManual?: number) => {
+    if (enviando.current || busy || isReadOnly) return;
+    enviando.current = true;
     setResolviendo(true); setError('');
     try {
-      await api.post(`/levantamientos/${lid}/conciliar`, { mantenerItemId, ...(cantidadManual != null ? { cantidadManual } : {}) });
+      await api.post(`/levantamientos/${lid}/conciliar`, { mantenerItemId, token, ...(cantidadManual != null ? { cantidadManual } : {}) });
       await cargar();
       onResolved();
-    } catch (e) { setError(message(e, t('stocktaking.error'))); }
-    finally { setResolviendo(false); }
+    } catch (e: any) {
+      setError(message(e, t('stocktaking.error')));
+      if (e.response?.status === 409) { await cargar(); onResolved(); }
+    }
+    finally { enviando.current = false; setResolviendo(false); }
   };
 
   return (
@@ -98,7 +103,7 @@ function ConflictosPanel({
               <thead><tr><th>{t('stocktaking.user')}</th><th>{t('stocktaking.plain_description')}</th><th>{t('stocktaking.quantity')}</th><th>{t('stocktaking.zone')}</th><th>{t('stocktaking.action')}</th></tr></thead>
               <tbody>
                 {grupo.items.map((item: any) => (
-                  <ConflictoFila key={item.id} item={item} disabled={resolviendo || busy} onConciliar={conciliar} />
+                  <ConflictoFila key={`${item.id}:${grupo.token}`} item={item} disabled={resolviendo || busy || isReadOnly} onConciliar={(id, cantidad) => void conciliar(id, grupo.token, cantidad)} />
                 ))}
               </tbody>
             </table>
