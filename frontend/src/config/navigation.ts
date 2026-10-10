@@ -148,7 +148,8 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     route: '/garantias',
     icon: Shield,
     moduleKey: 'garantias',
-    allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+    // Igual que GET/POST /garantias en el backend: el vendedor no consulta coberturas (FS-14 en garantías).
+    allowedRoles: ['ADMIN', 'CAJERO'],
     category: 'INVENTARIO',
   },
 
