@@ -152,5 +152,61 @@ describe('CotizacionesService', () => {
     await expect(service.updateEstado('tenant-1', 'cot-1', 'CONVERTIDA')).rejects.toThrow('use convertir');
     expect(mockPrisma.cotizacion.update).not.toHaveBeenCalled();
   });
+
+  describe('vigencia por día calendario del negocio (America/Tegucigalpa)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    // 2026-10-10 02:30 UTC = 2026-10-09 20:30 en Tegucigalpa: ya es otro día en UTC.
+    const ahoraTegucigalpa = new Date('2026-10-10T02:30:00.000Z');
+
+    it('una cotización válida hasta hoy (hora de negocio) sigue por vencer hoy, no vencida', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(ahoraTegucigalpa);
+      mockPrisma.cotizacion.findFirst.mockResolvedValue({
+        id: 'cot-1', estado: 'ENVIADA', descuento: 0, descuentoGeneral: 0, detalles: [],
+        fechaValidez: new Date('2026-10-09T06:00:00.000Z'),
+      });
+
+      const result = await service.findById('tenant-1', 'cot-1');
+
+      expect(result.porVencerHoy).toBe(true);
+      expect(result.vencida).toBe(false);
+    });
+
+    it('una cotización válida hasta ayer (hora de negocio) está vencida', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(ahoraTegucigalpa);
+      mockPrisma.cotizacion.findFirst.mockResolvedValue({
+        id: 'cot-2', estado: 'ENVIADA', descuento: 0, descuentoGeneral: 0, detalles: [],
+        fechaValidez: new Date('2026-10-08T06:00:00.000Z'),
+      });
+
+      const result = await service.findById('tenant-1', 'cot-2');
+
+      expect(result.porVencerHoy).toBe(false);
+      expect(result.vencida).toBe(true);
+    });
+
+    it('una fecha de solo día enviada por el cliente vence ese día de negocio completo', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(ahoraTegucigalpa);
+      mockPrisma.cotizacion.create.mockResolvedValue({
+        id: 'cot-3', tenantId: 'tenant-1', numeroCotizacion: 11, estado: 'BORRADOR',
+        subtotal: 0, porcentajeIsv: 15, isv: 0, descuento: 0, descuentoGeneral: 0, total: 0,
+        fechaValidez: new Date('2026-10-09T06:00:00.000Z'), detalles: [],
+      });
+      mockPrisma.$queryRaw.mockResolvedValue([{ ultimo_numero: 10 }]);
+      mockPrisma.cliente.findFirst.mockResolvedValue({ id: 'c-1', nombre: 'Cliente', rtn: null, telefono: null });
+      mockPrisma.producto.findFirst.mockResolvedValue({ id: 'p-1', nombre: 'Clavo', precioVenta: 10, stockActual: 5, activo: true });
+
+      const detalle = { productoId: 'p-1', cantidad: 1, precioUnitario: 10 };
+      await service.create('tenant-1', 'user-1', { clienteId: 'c-1', fechaValidez: '2026-10-09', detalles: [detalle] } as any);
+
+      const dataEnviada = mockPrisma.cotizacion.create.mock.calls.at(-1)?.[0]?.data;
+      expect(dataEnviada?.fechaValidez?.toISOString()).toBe('2026-10-09T06:00:00.000Z');
+    });
+  });
 });
 
