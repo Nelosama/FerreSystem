@@ -1398,7 +1398,14 @@
     "no_payments": "Sin abonos registrados.",
     "date": "Fecha",
     "method": "Método",
-    "payment": "Abono"
+    "payment": "Abono",
+    "movements": "Movimientos y saldo acumulado",
+    "no_movements": "Sin movimientos.",
+    "type": "Tipo",
+    "charge": "Cargo (factura)",
+    "running_balance": "Saldo acumulado",
+    "user": "Responsable",
+    "reference": "Referencia"
   },
   "supplier_link": {
     "title": "Proveedores del producto",
@@ -1445,5 +1452,22 @@
     "by": "Registró",
     "error": "No se pudo registrar la conciliación.",
     "network": "Sin conexión. Intente de nuevo."
+  },
+  "balance": {
+    "filters": "Filtros de cuentas",
+    "state": "Estado de deuda",
+    "all": "Todos",
+    "from": "Desde (emisión)",
+    "to": "Hasta (emisión)",
+    "search_customer": "Buscar cliente o factura",
+    "search_supplier": "Buscar proveedor o factura",
+    "payment_reference": "Referencia de pago (comprobante)",
+    "estado": {
+      "PENDIENTE": "Pendiente",
+      "PARCIAL": "Parcial",
+      "VENCIDA": "Vencida",
+      "PAGADA": "Pagada",
+      "POR_VENCER": "Por vencer (7 días)"
+    }
   }
 }

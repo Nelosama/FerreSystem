@@ -1398,7 +1398,14 @@
     "no_payments": "No payments recorded.",
     "date": "Date",
     "method": "Method",
-    "payment": "Payment"
+    "payment": "Payment",
+    "movements": "Movements and running balance",
+    "no_movements": "No movements.",
+    "type": "Type",
+    "charge": "Charge (invoice)",
+    "running_balance": "Running balance",
+    "user": "Responsible",
+    "reference": "Reference"
   },
   "supplier_link": {
     "title": "Product suppliers",
@@ -1445,5 +1452,22 @@
     "by": "Registered by",
     "error": "The reconciliation could not be registered.",
     "network": "No connection. Try again."
+  },
+  "balance": {
+    "filters": "Account filters",
+    "state": "Debt status",
+    "all": "All",
+    "from": "From (issued)",
+    "to": "To (issued)",
+    "search_customer": "Search customer or invoice",
+    "search_supplier": "Search supplier or invoice",
+    "payment_reference": "Payment reference (receipt)",
+    "estado": {
+      "PENDIENTE": "Pending",
+      "PARCIAL": "Partial",
+      "VENCIDA": "Overdue",
+      "PAGADA": "Paid",
+      "POR_VENCER": "Due in 7 days"
+    }
   }
 }
