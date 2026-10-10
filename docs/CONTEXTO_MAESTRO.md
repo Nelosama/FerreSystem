@@ -131,7 +131,7 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Riesgos abiertos:** D1 fiscal (sin aprobación del responsable); límites por defecto (L 5 000 / L 25 000 / cupo 50 % / 36 h) pendientes de decisión; caja única por empresa (`dispositivosMax=1`); rutas nuevas sin entrada en el menú (solo por URL); textos de contingencia solo en español.
 - **Pendientes:** PR de integración en borrador hacia `main` (no fusionar sin aprobación); si #127 o #128 cambian, repetir la integración desde su nuevo commit.
 
-## Auditoría de seguridad fase 2 (2026-10-10, rama `claude/security-audit-fase-2`, PR sin merge)
+## Auditoría de seguridad fase 2 (2026-10-10, rama `claude/security-audit-fase-2`, [PR #132](https://github.com/Nelosama/FerreSystem/pull/132) sin merge)
 
 - **Base:** `origin/claude/integracion-pos-offline-p1` `bc0a0125` (PR #129). No se modificó #127, #128 ni #129; no hay merge, despliegue ni migraciones. Informe completo y matriz: [AUDITORIA_SEGURIDAD_FASE2_20261010.md](AUDITORIA_SEGURIDAD_FASE2_20261010.md).
 - **Corregido (reproducido antes con PostgreSQL real o prueba unitaria):**
