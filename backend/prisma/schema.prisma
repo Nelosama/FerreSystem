@@ -239,6 +239,12 @@ model Producto {
   marca String?
   // FS-07: control de concurrencia optimista; cada edición exitosa incrementa la versión.
   version Int @default(1)
+  // Precio para venta: solo un ADMIN fija precios y aprueba. Sin aprobación no se puede vender.
+  precioAprobado Boolean @default(false) @map("precio_aprobado")
+  precioAprobadoPor String? @map("precio_aprobado_por")
+  precioAprobadoAt DateTime? @map("precio_aprobado_at")
+  precioModificadoPor String? @map("precio_modificado_por")
+  precioModificadoAt DateTime? @map("precio_modificado_at")
   margen Decimal? @db.Decimal(5,2)
   ultimaCompraAt DateTime? @map("ultima_compra_at")
   nombre        String
@@ -271,6 +277,7 @@ model Producto {
   @@index([tenantId, activo])
   @@index([tenantId, nombre])
   @@index([tenantId, codigoBarras])
+  @@index([tenantId, precioAprobado])
   proveedoresProducto ProductoProveedor[]
   @@map("productos")
 }

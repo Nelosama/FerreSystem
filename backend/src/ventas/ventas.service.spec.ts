@@ -52,6 +52,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
       tenantId,
       nombre: 'Cable Eléctrico 12 AWG',
       precioVenta: 25.5,
+      precioAprobado: true,
       stockActual: 10.0,
       activo: true,
     });
@@ -101,7 +102,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
 
   it('rechaza una venta si el stock cambió después de la lectura', async () => {
     mockPrisma.producto.findFirst.mockResolvedValue({
-      id: 'prod-123', nombre: 'Cable', stockActual: 10, precioVenta: 25.5,
+      id: 'prod-123', nombre: 'Cable', stockActual: 10, precioVenta: 25.5, precioAprobado: true,
     });
     mockPrisma.producto.updateMany.mockResolvedValue({ count: 0 });
     await expect(service.create('tenant-A', 'user-A', {
@@ -134,7 +135,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
   it('solo permite un cobro cuando dos lecturas ven el mismo stock', async () => {
     let stock = 2.75;
     mockPrisma.producto.findFirst.mockResolvedValue({
-      id: 'prod-123', nombre: 'Cable', stockActual: 2.75, precioVenta: 10,
+      id: 'prod-123', nombre: 'Cable', stockActual: 2.75, precioVenta: 10, precioAprobado: true,
     });
     // Modela el UPDATE condicional: la segunda petición observa el saldo
     // actualizado al intentar descontar, aunque su lectura fuera antigua.

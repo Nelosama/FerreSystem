@@ -84,23 +84,39 @@ describe('SEC-005 / HTTP and isolated PostgreSQL', () => {
       users[rol] = { id, token: jwt.sign({ sub: id, tenantId, type: 'tenant' }) };
     }
     const data = { codigo: 'SEC005', nombre: 'Cable SEC005', precioVenta: 10, precioCosto: 4, costoVigente: 5, margen: 60, ultimaCompraAt: new Date(), stockActual: 8, stockReservado: 2, stockMinimo: 7 };
-    productId = (await prisma.producto.create({ data: { ...data, tenantId } })).id;
-    foreignId = (await prisma.producto.create({ data: { ...data, tenantId: otherTenantId } })).id;
+    productId = (await prisma.producto.create({ data: {precioAprobado:true, ...data, tenantId } })).id;
+    foreignId = (await prisma.producto.create({ data: {precioAprobado:true, ...data, tenantId: otherTenantId } })).id;
   });
 
   it.each(['ADMIN', 'BODEGUERO'])('%s can create, read and adjust inventory with financial data and audit', async role => {
-    const created = await request(app.getHttpServer()).post('/productos').auth(users[role].token, { type: 'bearer' })
-      .send({ codigo: `NEW-${role}`, nombre: 'Producto nuevo', categoria: 'Herramientas', precioCosto: 4, precioVenta: 10, margen: 60, stockActual: 8, stockMinimo: 7 }).expect(201);
-    expect(created.body).toMatchObject({ precioCosto: 4, precioVenta: 10, margen: '60', stockActual: 8 });
-    const edited = await request(app.getHttpServer()).put(`/productos/${created.body.id}`).auth(users[role].token, { type: 'bearer' })
-      .send({ version: created.body.version, precioCosto: 6, precioVenta: 12, margen: 50, stockAnterior: 8, stockActual: 6, motivo: 'Conteo sintético SEC-005' }).expect(200);
-    expect(edited.body).toMatchObject({ precioCosto: 6, precioVenta: 12, margen: '50', stockActual: 6, stockBajo: true });
+    const esAdmin = role === 'ADMIN';
+    const auth = (req: any) => req.auth(users[role].token, { type: 'bearer' });
+    const base = { codigo: `NEW-${role}`, nombre: 'Producto nuevo', categoria: 'Herramientas', stockActual: 8, stockMinimo: 7 };
+    // Precio: solo el administrador lo fija en el alta; sin precio el producto queda pendiente de aprobación.
+    const created = await auth(request(app.getHttpServer()).post('/productos'))
+      .send(esAdmin ? { ...base, precioCosto: 4, precioVenta: 10 } : base).expect(201);
+    expect(created.body).toMatchObject(esAdmin
+      ? { precioCosto: 4, precioVenta: 10, margenCalculado: 60, precioAprobado: true, stockActual: 8 }
+      : { precioCosto: 0, precioVenta: 0, precioAprobado: false, stockActual: 8 });
+    if (!esAdmin) await auth(request(app.getHttpServer()).post('/productos')).send({ ...base, codigo: 'NEW-PRECIO', precioVenta: 5 }).expect(403);
+    let version = created.body.version;
+    if (esAdmin) {
+      const priced = await auth(request(app.getHttpServer()).patch(`/productos/${created.body.id}/precios`))
+        .send({ version, precioCosto: 6, precioVenta: 12, aprobar: true, motivo: 'Lista sintética SEC-005' }).expect(200);
+      expect(priced.body).toMatchObject({ precioCosto: 6, precioVenta: 12, margenCalculado: 50, precioAprobado: true });
+      version = priced.body.version;
+    } else {
+      await auth(request(app.getHttpServer()).put(`/productos/${created.body.id}`)).send({ version, precioVenta: 12 }).expect(403);
+    }
+    const edited = await auth(request(app.getHttpServer()).put(`/productos/${created.body.id}`))
+      .send({ version, stockAnterior: 8, stockActual: 6, motivo: 'Conteo sintético SEC-005' }).expect(200);
+    expect(edited.body).toMatchObject({ precioCosto: esAdmin ? 6 : 0, precioVenta: esAdmin ? 12 : 0, stockActual: 6, stockBajo: true });
     const stored = await prisma.producto.findUniqueOrThrow({ where: { id: created.body.id } });
-    expect(Number(stored.precioCosto)).toBe(6);
-    expect(Number(stored.precioVenta)).toBe(12);
+    expect(Number(stored.precioCosto)).toBe(esAdmin ? 6 : 0);
+    expect(Number(stored.precioVenta)).toBe(esAdmin ? 12 : 0);
     expect(Number(stored.stockActual)).toBe(6);
     expect(await prisma.movimientoInventario.count({ where: { tenantId, productoId: stored.id } })).toBe(2);
-    expect(await prisma.auditoriaOperacion.count({ where: { tenantId, entidadId: stored.id, usuarioId: users[role].id } })).toBe(2);
+    expect(await prisma.auditoriaOperacion.count({ where: { tenantId, entidadId: stored.id, usuarioId: users[role].id } })).toBe(esAdmin ? 3 : 2);
     for (const path of ['/productos', '/productos?search=SEC005', `/productos/${productId}`, '/productos/alertas/stock-bajo']) {
       const response = await get(path, role).expect(200);
       const p = Array.isArray(response.body) ? response.body.find((p: any) => p.id === productId) : response.body;

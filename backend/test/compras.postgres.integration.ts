@@ -71,7 +71,7 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
     await prisma.usuario.create({ data: { id: otro, tenantId: otherTenantId, nombre: 'Ajeno', email: `${otro}@test.invalid`, passwordHash: 'not-a-password', rol: 'ADMIN' } });
     users.OTHER = otro;
     proveedorId = (await prisma.proveedor.create({ data: { tenantId, nombre: 'Distribuidora Central' } })).id;
-    productoId = (await prisma.producto.create({ data: { tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioCosto: 50, precioVenta: 70, stockActual: 100, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
+    productoId = (await prisma.producto.create({ data: {precioAprobado:true, tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioCosto: 50, precioVenta: 70, stockActual: 100, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
   });
 
   // ─── Compra y CxP ────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
     const otroProveedor = (await prisma.proveedor.create({ data: { tenantId, nombre: 'Otro proveedor' } })).id;
     await ops.compra(tenantId, users.ADMIN, { ...compraDe('FAC-300', 45, 10), proveedorId: otroProveedor });
     const otroTenantProveedor = (await prisma.proveedor.create({ data: { tenantId: otherTenantId, nombre: 'Ajeno' } })).id;
-    const otroProducto = (await prisma.producto.create({ data: { tenantId: otherTenantId, codigo: 'TOR-1', nombre: 'Ajeno', precioCosto: 1, precioVenta: 2, stockActual: 0, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
+    const otroProducto = (await prisma.producto.create({ data: {precioAprobado:true, tenantId: otherTenantId, codigo: 'TOR-1', nombre: 'Ajeno', precioCosto: 1, precioVenta: 2, stockActual: 0, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
     await ops.compra(otherTenantId, users.OTHER, { ...compraDe('FAC-300', 1, 1), proveedorId: otroTenantProveedor, items: [{ productoId: otroProducto, cantidad: 1, costo: 1 }] });
   });
 
@@ -304,7 +304,7 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
   });
 
   it('una compra con un producto de otra empresa se rechaza sin crear orden ni cuenta (rollback)', async () => {
-    const ajeno = (await prisma.producto.create({ data: { tenantId: otherTenantId, codigo: 'AJ-1', nombre: 'Ajeno', precioCosto: 1, precioVenta: 2, stockActual: 0, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
+    const ajeno = (await prisma.producto.create({ data: {precioAprobado:true, tenantId: otherTenantId, codigo: 'AJ-1', nombre: 'Ajeno', precioCosto: 1, precioVenta: 2, stockActual: 0, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
     await expect(ops.compra(tenantId, users.ADMIN, { ...compraDe('FAC-2300', 45, 10), items: [{ productoId, cantidad: 10, costo: 45 }, { productoId: ajeno, cantidad: 1, costo: 1 }] })).rejects.toThrow('no encontrado');
     expect(await prisma.ordenCompra.count({ where: { tenantId } })).toBe(0);
     expect(await prisma.cuentaOperativa.count({ where: { tenantId } })).toBe(0);

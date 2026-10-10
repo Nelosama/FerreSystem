@@ -93,7 +93,7 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     const id=randomUUID();
     await prisma.usuario.create({data:{id,tenantId:otherTenantId,nombre:'Ajeno',email:`${id}@test.invalid`,passwordHash:'not-a-password',rol:'ADMIN'}});
     users.OTHER={id,token:jwt.sign({sub:id,tenantId:otherTenantId,type:'tenant'})};
-    productId=(await prisma.producto.create({data:{tenantId,codigo:'CABLE',codigoBarras:'001234',nombre:'Cable metro',unidadMedida:'METRO',precioCosto:2,precioVenta:4,stockActual:8,stockReservado:1}})).id;
+    productId=(await prisma.producto.create({data:{precioAprobado:true,tenantId,codigo:'CABLE',codigoBarras:'001234',nombre:'Cable metro',unidadMedida:'METRO',precioCosto:2,precioVenta:4,stockActual:8,stockReservado:1}})).id;
     lid=(await call('post','/levantamientos',{nombre:'Conteo inicial'}).expect(201)).body.id;
   });
 
@@ -175,7 +175,8 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     expect(await prisma.movimientoInventario.count({where:{tenantId,tipo:'LEVANTAMIENTO'}})).toBe(4);
     expect(await prisma.compraProveedor.count({where:{tenantId}})).toBe(0);
     const zero=await prisma.producto.findFirstOrThrow({where:{tenantId,nombre:'Canaleta 6 metros'}});
-    expect([Number(zero.stockActual),Number(zero.precioCosto),Number(zero.precioVenta)]).toEqual([0,2,4]);
+    // El conteo no fija precio: el producto nuevo queda pendiente de aprobación del administrador.
+    expect([Number(zero.stockActual),Number(zero.precioCosto),Number(zero.precioVenta),zero.precioAprobado]).toEqual([0,0,0,false]);
   });
 
   it('aísla sesiones e items y permite el mismo barcode en otro tenant sin mezclar productos',async()=>{
@@ -241,7 +242,7 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
   });
 
   it('un código heredado en minúsculas identifica el producto existente y no crea un duplicado al aplicar (FS-06)',async()=>{
-    const legacy=await prisma.producto.create({data:{tenantId,codigo:'legacy-x1',nombre:'Heredado',unidadMedida:'UNIDAD',precioCosto:1,precioVenta:2,stockActual:5}});
+    const legacy=await prisma.producto.create({data:{precioAprobado:true,tenantId,codigo:'legacy-x1',nombre:'Heredado',unidadMedida:'UNIDAD',precioCosto:1,precioVenta:2,stockActual:5}});
     await add(item({codigo:'LEGACY-X1',cantidad:7,unidad:'UNIDAD',precioCosto:1,precioVenta:2})).expect(201);
     await finish();
     const p=(await preview()).body;

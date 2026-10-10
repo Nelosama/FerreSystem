@@ -46,6 +46,7 @@ function fixture() {
     nombre: 'Cable',
     codigo: 'CABLE',
     precioVenta: 10,
+    precioAprobado: true,
     precioCosto: 5,
     stockActual: 10,
     stockReservado: 0,

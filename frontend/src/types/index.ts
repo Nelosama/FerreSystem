@@ -77,6 +77,8 @@ export interface UserInfo {
 export interface ProductItem {
   id: string;
   codigo: string;
+  /** Solo visible para administración: false = pendiente de aprobación de precio para venta. */
+  precioAprobado?: boolean;
   codigoBarras?: string;
   codigoFabricante?: string;
   imagenUrl?:string;
