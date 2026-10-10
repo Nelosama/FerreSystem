@@ -37,7 +37,7 @@ Nota: el SHA de #129 cambió desde la última integración (`58941e5d` → `6373
 | Backend integración PostgreSQL 16 (usuario no root, clúster temporal) | **25 archivos, 418 aprobadas, 1 omitida** (la omitida ya existía) |
 | Prueba de autenticación fase 3 (PostgreSQL) | **29/29** |
 | Prueba de migración con datos previos (PostgreSQL) | **2/2**: filas previas sin cambio (hash antes/después), restricciones CHECK y cliente Prisma operativo |
-| Deriva de esquema tras migrar todo | Sin deriva en `sesiones_auth` ni `intentos_login`. Quedan ~255 líneas de deriva **anteriores** (tablas de apartados, comisiones, etc.) presentes en #129 sin mi migración |
+| Deriva de esquema tras migrar todo | Sin deriva en `sesiones_auth` ni `intentos_login`. Quedan ~219 líneas de deriva **ya presentes en `main`**: tablas que existen en las migraciones y no en `schema.prisma` (corrección: la dirección es base → esquema). #129 no añade deriva propia tras la alineación de CENTINELA |
 | Frontend unitarias (`node --test`) | **224/224** |
 | E2E real (API compilada, PostgreSQL temporal con `prisma migrate deploy`, frontend real) | **29/29** (incluye contingencia offline en línea, garantías, POS cliente y roles) |
 | E2E con backend simulado (Playwright, Chromium preinstalado) | **120/120** |
@@ -63,7 +63,7 @@ Notas de ejecución:
 |---|---|---|---|
 | `20261012000000_autenticacion_sesiones_intentos` | Aditiva: crea `intentos_login` y `sesiones_auth`, índices y CHECK de `tipo` | El código de #133 (sin ella, el login falla) | `DROP TABLE sesiones_auth; DROP TABLE intentos_login;` (pierde sesiones y contadores; sin efecto en ventas, caja, inventario ni auditoría) |
 
-**Riesgo previo, no causado por esta fase:** la deriva de ~255 líneas indica que el esquema de #129 tiene tablas y columnas que no están en las migraciones. `prisma migrate deploy` no las creará en una base nueva. Requiere revisión del dueño y de DBA antes de cualquier despliegue de #129.
+**Riesgo previo, no causado por esta fase:** la deriva de ~255 líneas indica que el esquema de #129 tiene tablas que existen en las migraciones y no en el esquema (corrección: la dirección es base → esquema). `prisma migrate deploy` no reconcilia el esquema. Requiere revisión del dueño y de DBA antes de cualquier despliegue de #129.
 
 No se ejecutó ninguna migración productiva.
 

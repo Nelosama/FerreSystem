@@ -151,6 +151,7 @@ model Tenant {
   contingenciaVentanas ContingenciaVentana[]
   catalogoInstantaneas CatalogoInstantanea[]
   operacionesContingencia OperacionContingencia[]
+  productosProveedores ProductoProveedor[]
   @@map("tenants")
 }
 
@@ -202,6 +203,8 @@ model Usuario {
   @@unique([tenantId, email])
   @@index([tenantId])
   @@map("usuarios")
+  productosProveedoresCreados     ProductoProveedor[] @relation("ProductoProveedorCreado")
+  productosProveedoresActualizados ProductoProveedor[] @relation("ProductoProveedorActualizado")
 }
 
 // ============================================================
@@ -948,6 +951,9 @@ model ProductoProveedor {
   actualizadoPor  String?   @map("actualizado_por")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "productos_proveedores_tenant_fkey")
+  creadoPorUsuario     Usuario? @relation("ProductoProveedorCreado", fields: [creadoPor], references: [id], onDelete: Restrict, map: "productos_proveedores_creado_fkey")
+  actualizadoPorUsuario Usuario? @relation("ProductoProveedorActualizado", fields: [actualizadoPor], references: [id], onDelete: Restrict, map: "productos_proveedores_actualizado_fkey")
   producto        Producto  @relation(fields: [productoId], references: [id], onDelete: Restrict, map: "productos_proveedores_producto_fkey")
   proveedor       Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Restrict, map: "productos_proveedores_proveedor_fkey")
   @@unique([tenantId, productoId, proveedorId], map: "productos_proveedores_tenant_producto_proveedor_key")
@@ -970,7 +976,7 @@ model DispositivoPos {
   ultimaSyncAt        DateTime? @map("ultima_sync_at")
   pendientesReportados Int      @default(0) @map("pendientes_reportados")
 
-  tenant   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "dispositivos_pos_tenant_fkey")
   ventanas ContingenciaVentana[]
   operaciones OperacionContingencia[]
 
@@ -984,7 +990,7 @@ model CatalogoInstantanea {
   datos    Json
   creadaAt DateTime @default(now()) @map("creada_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "catalogo_instantaneas_tenant_fkey")
 
   @@id([tenantId, hash])
   @@map("catalogo_instantaneas")
@@ -1002,8 +1008,8 @@ model ContingenciaVentana {
   limites       Json
   revocadaAt    DateTime? @map("revocada_at")
 
-  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  dispositivo DispositivoPos @relation(fields: [dispositivoId], references: [id])
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "contingencia_ventanas_tenant_fkey")
+  dispositivo DispositivoPos @relation(fields: [dispositivoId], references: [id], map: "contingencia_ventanas_dispositivo_fkey")
   operaciones OperacionContingencia[]
 
   @@index([tenantId, dispositivoId, emitidaAt])
@@ -1039,13 +1045,13 @@ model OperacionContingencia {
   resueltoAt         DateTime? @map("resuelto_at")
   referenciaFacturaExterna String? @map("referencia_factura_externa")
 
-  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  dispositivo DispositivoPos      @relation(fields: [dispositivoId], references: [id])
-  ventana     ContingenciaVentana @relation(fields: [ventanaId], references: [id])
-  venta       Venta?              @relation(fields: [ventaId], references: [id], onDelete: Restrict)
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "operaciones_contingencia_tenant_fkey")
+  dispositivo DispositivoPos      @relation(fields: [dispositivoId], references: [id], map: "operaciones_contingencia_dispositivo_fkey")
+  ventana     ContingenciaVentana @relation(fields: [ventanaId], references: [id], map: "operaciones_contingencia_ventana_fkey")
+  venta       Venta?              @relation(fields: [ventaId], references: [id], onDelete: Restrict, map: "operaciones_contingencia_venta_fkey")
 
   // Sin unicidad: un duplicado de secuencia o correlativo (dos UUID distintos) se conserva y queda en revisión, nunca se rechaza.
-  @@index([tenantId, dispositivoId, secuenciaLocal])
+  @@index([tenantId, dispositivoId, secuenciaLocal], map: "operaciones_contingencia_tenant_id_dispositivo_id_secuencia_loc")
   @@index([tenantId, correlativoLocal])
   @@index([tenantId, estado])
   @@index([tenantId, recibidoAt])
