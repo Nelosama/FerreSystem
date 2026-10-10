@@ -3,7 +3,7 @@ import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
 import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
-import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, PagoDto, ProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
+import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 
 @Injectable()
 export class OperacionesService {
@@ -116,15 +116,45 @@ export class OperacionesService {
    await audit(tx,tenantId,userId,'CUENTA_PAGAR',p.id,{cuentaId,tipo:c.tipo,monto,metodo,afectaCaja,cajaId:caja?.id??null,proveedorId:c.proveedor_id??null,clienteId:c.cliente_id??null,documentoId:c.documento_id??null});return p;
   });
  }
+ // Caja: el efectivo esperado solo suma movimientos EFECTIVO. Tarjeta, transferencia y crédito son totales informativos.
+ private resumenCaja(c:any,movements:any[]){
+  const efectivo=movements.filter(m=>m.metodo==='EFECTIVO').map(m=>Number(m.monto));
+  const ingresosEfectivo=money(efectivo.filter(n=>n>0).reduce((s,n)=>s+n,0));
+  const egresosEfectivo=money(-efectivo.filter(n=>n<0).reduce((s,n)=>s+n,0));
+  const resumen:any={fondoInicial:money(Number(c.monto_apertura)),ingresosEfectivo,egresosEfectivo,efectivoEsperado:money(Number(c.monto_apertura)+ingresosEfectivo-egresosEfectivo),totalesPorMetodo:Object.fromEntries(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].map(method=>[method,money(movements.filter(m=>m.metodo===method).reduce((s,m)=>s+Number(m.monto),0))]))};
+  if(c.estado==='CERRADA'){resumen.efectivoContado=Number(c.monto_cierre_fisico);resumen.diferencia=Number(c.diferencia);}
+  return resumen;
+ }
  async caja(tenantId:string,userId:string){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
    const cajas=await query(tx,'SELECT * FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 ORDER BY fecha_apertura DESC LIMIT 30',tenantId,userId);
    for(const c of cajas){
-    const movements=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1 ORDER BY created_at',c.id);c.movimientos=movements;
-    c.efectivoEsperado=money(Number(c.monto_apertura)+movements.filter(m=>m.metodo==='EFECTIVO').reduce((sum,m)=>sum+Number(m.monto),0));
-    c.totales=Object.fromEntries(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].map(method=>[method,money(movements.filter(m=>m.metodo===method).reduce((sum,m)=>sum+Number(m.monto),0))]));
+    const movements=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1 ORDER BY created_at,id',c.id);c.movimientos=movements;
+    c.resumen=this.resumenCaja(c,movements);c.efectivoEsperado=c.resumen.efectivoEsperado;c.totales=c.resumen.totalesPorMetodo;
    }return cajas;
+  });
+ }
+ async cajaDetalle(tenantId:string,userId:string,cajaId:string){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   const user=await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
+   const [c]=await query(tx,'SELECT c.*,u.nombre AS usuario_nombre FROM cajas c LEFT JOIN usuarios u ON u.id=c.usuario_id WHERE c.id=$1 AND c.tenant_id=$2',cajaId,tenantId);
+   if(!c||(user.rol!=='ADMIN'&&c.usuario_id!==userId))throw new NotFoundException('Caja no encontrada');
+   const movimientos=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1 ORDER BY created_at,id',c.id);
+   return {...c,movimientos,resumen:this.resumenCaja(c,movimientos)};
+  });
+ }
+ // Solo ADMIN: consulta de cierres de todos los cajeros de la empresa.
+ async cierresCaja(tenantId:string,userId:string,filtros:{estado?:string;usuarioId?:string;desde?:string;hasta?:string}){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN']);
+   const where=['c.tenant_id=$1'],args:any[]=[tenantId];
+   if(filtros.estado){if(!['ABIERTA','CERRADA'].includes(filtros.estado))throw new BadRequestException('Estado de caja inválido');args.push(filtros.estado);where.push(`c.estado=$${args.length}::"EstadoCaja"`);}
+   if(filtros.usuarioId){args.push(filtros.usuarioId);where.push(`c.usuario_id=$${args.length}`);}
+   for(const [campo,operador] of [['desde','>='],['hasta','<']] as const){const valor=filtros[campo];if(!valor)continue;const fecha=new Date(valor);if(Number.isNaN(fecha.getTime()))throw new BadRequestException('Fecha de consulta inválida');args.push(fecha.toISOString());where.push(`c.fecha_apertura ${operador} $${args.length}::timestamptz`);}
+   return query(tx,`SELECT c.id,c.codigo,c.usuario_id,u.nombre AS usuario_nombre,c.estado,c.fecha_apertura,c.fecha_cierre,c.monto_apertura,c.monto_cierre_fisico,c.monto_esperado,c.diferencia,c.notas,COALESCE((SELECT SUM(m.monto) FROM movimientos_caja m WHERE m.caja_id=c.id AND m.metodo='EFECTIVO'),0) AS efectivo_neto FROM cajas c LEFT JOIN usuarios u ON u.id=c.usuario_id WHERE ${where.join(' AND ')} ORDER BY c.fecha_apertura DESC,c.id DESC LIMIT 100`,...args);
   });
  }
  async abrir(tenantId:string,userId:string,dto:AbrirCajaDto){
@@ -143,12 +173,39 @@ export class OperacionesService {
    await lockTenant(tx,tenantId);
    await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
    const monto=decimal(dto.monto,'Efectivo contado');
+   const notas=dto.notas?.trim()||null;
    const [c]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3 FOR UPDATE',cajaId,tenantId,userId);if(!c)throw new NotFoundException('Caja no encontrada');
-   if(c.estado==='CERRADA'){if(Number(c.monto_cierre_fisico)!==monto || c.notas!==(dto.notas||null))throw new ConflictException('La caja ya está cerrada');return c;}
-   const [sum]=await query(tx,'SELECT COALESCE(SUM(monto),0) AS monto FROM movimientos_caja WHERE caja_id=$1 AND metodo=\'EFECTIVO\'',c.id);
-   const esperado=money(Number(c.monto_apertura)+Number(sum.monto));
-   const [closed]=await query(tx,'UPDATE cajas SET monto_cierre_fisico=$1,monto_esperado=$2,diferencia=$3,estado=\'CERRADA\',fecha_cierre=NOW(),notas=$4 WHERE id=$5 RETURNING *',monto,esperado,money(monto-esperado),dto.notas||null,c.id);
-   await audit(tx,tenantId,userId,'CAJA_CERRAR',c.id,{monto,esperado,diferencia:money(monto-esperado)});return closed;
+   // Repetir el mismo cierre responde igual; un segundo cierre distinto se rechaza sin tocar el resultado confirmado.
+   if(c.estado==='CERRADA'){if(Number(c.monto_cierre_fisico)!==monto||(c.notas??null)!==notas)throw new ConflictException('La caja ya está cerrada');return c;}
+   const movements=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1',c.id);
+   const esperado=this.resumenCaja(c,movements).efectivoEsperado;
+   const diferencia=money(monto-esperado);
+   if(diferencia!==0&&!notas)throw new BadRequestException('Explique la diferencia de caja antes de cerrar');
+   const [closed]=await query(tx,'UPDATE cajas SET monto_cierre_fisico=$1,monto_esperado=$2,diferencia=$3,estado=\'CERRADA\',fecha_cierre=NOW(),notas=$4 WHERE id=$5 RETURNING *',monto,esperado,diferencia,notas,c.id);
+   await audit(tx,tenantId,userId,'CAJA_CERRAR',c.id,{monto,esperado,diferencia,notas});
+   return {...closed,resumen:this.resumenCaja(closed,movements)};
+  });
+ }
+ // Entradas y salidas de efectivo: el cajero solo puede registrarlas con el permiso caja.movimientos_manuales; ADMIN siempre puede.
+ async movimientoCaja(tenantId:string,userId:string,cajaId:string,dto:MovimientoCajaDto){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   const user=await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
+   if(user.rol!=='ADMIN'&&!user.permisos?.includes('caja.movimientos_manuales'))throw new ForbiddenException('No tiene el permiso requerido para registrar entradas o salidas de caja');
+   const monto=decimal(dto.monto,'Monto',true);
+   const concepto=text(dto.concepto,'Concepto');
+   const referencia=dto.referencia?.trim()||null;
+   // Idempotencia: el identificador de solicitud es el identificador del movimiento.
+   const signed=dto.tipo==='EGRESO_MANUAL'?-monto:monto;
+   const [previo]=await query(tx,'SELECT m.*,c.tenant_id AS caja_tenant_id FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id WHERE m.id=$1',dto.solicitudId);
+   if(previo){if(previo.caja_tenant_id!==tenantId||previo.caja_id!==cajaId||previo.tipo!==dto.tipo||Number(previo.monto)!==signed||previo.concepto!==concepto)throw new ConflictException('Solicitud utilizada para otro movimiento');return previo;}
+   const [c]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3 FOR UPDATE',cajaId,tenantId,userId);if(!c)throw new NotFoundException('Caja no encontrada');
+   if(c.estado!=='ABIERTA')throw new ConflictException('La caja está cerrada');
+   const movements=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1',c.id);
+   if(dto.tipo==='EGRESO_MANUAL'&&monto>this.resumenCaja(c,movements).efectivoEsperado)throw new ConflictException('Efectivo insuficiente para esta salida');
+   const [movimiento]=await query(tx,'INSERT INTO movimientos_caja (id,caja_id,usuario_id,tipo,monto,metodo,referencia,concepto) VALUES ($1,$2,$3,$4::"TipoMovimientoCaja",$5,\'EFECTIVO\',$6,$7) RETURNING *',dto.solicitudId,c.id,userId,dto.tipo,signed,referencia,concepto);
+   await audit(tx,tenantId,userId,'CAJA_MOVIMIENTO_MANUAL',movimiento.id,{cajaId:c.id,tipo:dto.tipo,monto,concepto,referencia,autorizacion:user.rol==='ADMIN'?'ROL_ADMIN':'PERMISO_CAJA'});
+   return movimiento;
   });
  }
  async historial(tenantId:string,productoId:string){
