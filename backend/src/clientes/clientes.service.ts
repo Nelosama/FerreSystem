@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException, ServiceUnavailableException, ConflictException, Logger, BadRequestException } from '@nestjs/common';
-import { decimal, lockTenant, money } from '../operaciones/ledger';
+import { Injectable, NotFoundException, ServiceUnavailableException, Logger, BadRequestException, GoneException } from '@nestjs/common';
+import { decimal, lockTenant } from '../operaciones/ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
 import { UpdateCreditoClienteDto } from './dto/cliente.dto';
@@ -165,74 +165,10 @@ export class ClientesService {
     });
   }
 
-  async addPayment(tenantId: string, id: string, dto: CreateAbonoClienteDto) {
-    const amount = decimal(dto.monto, 'Abono', true);
-    const fecha = dto.fecha ? new Date(dto.fecha) : new Date();
-
-    return this.prisma.$transaction(async (tx) => {
-      await lockTenant(tx, tenantId);
-      const cliente = await tx.cliente.findFirst({ where: { id, tenantId } });
-      if (!cliente) throw new NotFoundException('Cliente no encontrado');
-      if (amount > Number(cliente.saldoPendiente)) {
-        throw new BadRequestException('El abono no puede superar el saldo pendiente del cliente');
-      }
-
-      const creditSales = dto.ventaId
-        ? [await tx.venta.findFirst({
-            where: { id: dto.ventaId, tenantId, clienteId: id, tipoPago: 'CREDITO' },
-          })].filter(Boolean)
-        : await tx.venta.findMany({
-            where: { tenantId, clienteId: id, tipoPago: 'CREDITO', saldoCredito: { gt: 0 } },
-            orderBy: { createdAt: 'asc' },
-          });
-      if (dto.ventaId && !creditSales.length) throw new NotFoundException('Venta a crédito no encontrada para este cliente');
-
-      let remaining = amount;
-      for (const sale of creditSales) {
-        const balance = Number(sale.saldoCredito ?? sale.total);
-        if (dto.ventaId && amount > balance) {
-          throw new BadRequestException('El abono no puede superar el saldo pendiente de la venta');
-        }
-        const applied = Math.min(remaining, balance);
-        if (applied <= 0) continue;
-        const updatedSale = await tx.venta.updateMany({
-          where: { id: sale.id, tenantId, clienteId: id, saldoCredito: { gte: applied } },
-          data: { saldoCredito: { decrement: applied } },
-        });
-        if (updatedSale.count !== 1) throw new ConflictException('El saldo de la venta cambió; vuelva a intentar');
-        const account = await tx.cuentaOperativa.findFirst({
-          where: { tenantId, tipo: 'CXC', documentoId: sale.id },
-          select: { id: true },
-        });
-        if (!account) throw new ConflictException('No se encontró la cuenta por cobrar de la venta');
-        const updatedAccount = await tx.cuentaOperativa.updateMany({
-          where: { id: account.id, tenantId, saldo: { gte: applied } },
-          data: { saldo: { decrement: applied } },
-        });
-        if (updatedAccount.count !== 1) throw new ConflictException('El saldo de la cuenta por cobrar cambió; vuelva a intentar');
-        remaining = money(remaining - applied);
-        if (remaining <= 0) break;
-      }
-      if (remaining > 0) throw new BadRequestException('El abono supera el saldo pendiente de las ventas a crédito');
-
-      const updated = await tx.cliente.updateMany({
-        where: { id, tenantId, saldoPendiente: { gte: amount } },
-        data: { saldoPendiente: { decrement: amount } },
-      });
-      if (updated.count !== 1) throw new ConflictException('El saldo del cliente cambió; vuelva a intentar');
-
-      return tx.abonoCliente.create({
-        data: {
-          tenantId,
-          clienteId: id,
-          ventaId: dto.ventaId || null,
-          monto: amount,
-          fecha,
-          metodo: dto.metodo?.trim() || null,
-          notas: dto.notas?.trim() || null,
-        },
-      });
-    });
+  // Ruta heredada bloqueada: no era idempotente, no registraba caja, pagos_cuenta ni auditoría, y dejaba la CxC
+  // sin su pago. Los abonos se registran con POST /operaciones/cuentas/:id/pagos (idempotente, con caja y auditoría).
+  async addPayment(_tenantId: string, _id: string, _dto: CreateAbonoClienteDto) {
+    throw new GoneException('Los abonos se registran desde Cuentas y abonos (POST /operaciones/cuentas/:id/pagos)');
   }
 }
 

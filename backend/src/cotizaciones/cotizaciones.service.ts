@@ -451,6 +451,17 @@ export class CotizacionesService {
       }
 
       if (metodoPago === 'CREDITO' && !cotizacion.clienteId) throw new BadRequestException('Seleccione un cliente registrado para vender a crédito');
+      // Crédito: mismas reglas que una venta directa (cliente activo, crédito habilitado y límite con el saldo actual).
+      // lockTenant serializa esta conversión con las ventas de la empresa, así que el cupo no puede agotarse dos veces.
+      const totalVenta = Number(cotizacion.total);
+      if (metodoPago === 'CREDITO') {
+        const clienteCredito = await tx.cliente.findFirst({ where: { id: cotizacion.clienteId!, tenantId } });
+        if (!clienteCredito || !clienteCredito.activo) throw new NotFoundException('Cliente seleccionado no existe o está inactivo');
+        if (!clienteCredito.creditoHabilitado) throw new BadRequestException('El cliente no tiene habilitado el crédito');
+        if (clienteCredito.limiteCredito !== null && money(Number(clienteCredito.saldoPendiente) + totalVenta) > Number(clienteCredito.limiteCredito)) {
+          throw new BadRequestException('La venta supera el límite de crédito disponible del cliente');
+        }
+      }
       if(new Set(cotizacion.detalles.map(d=>d.productoId)).size!==cotizacion.detalles.length) throw new BadRequestException('Agrupe las líneas del mismo producto antes de convertir la cotización');
       const bruto=money(cotizacion.detalles.reduce((sum,d)=>sum+Number(d.totalMedida)*Number(d.precioUnitario),0));
       validateDiscount(user,bruto,Number(cotizacion.descuento));
@@ -493,6 +504,8 @@ export class CotizacionesService {
           descuento: cotizacion.descuento,
           total: cotizacion.total,
           metodoPago,
+          tipoPago: metodoPago === 'CREDITO' ? 'CREDITO' : 'CONTADO',
+          saldoCredito: metodoPago === 'CREDITO' ? totalVenta : null,
           estado: 'COMPLETADA',
           notas: `Convertida de Cotización #COT-${cotizacion.numeroCotizacion.toString().padStart(4, '0')}`,
           detalles: {
@@ -507,7 +520,11 @@ export class CotizacionesService {
         },
       });
 
-      if(metodoPago==='CREDITO') await account(tx,tenantId,usuarioId,'CXC',venta.id,cotizacion.clienteId!,Number(venta.total));
+      if(metodoPago==='CREDITO'){
+        const saldoCliente=await tx.cliente.updateMany({where:{id:cotizacion.clienteId!,tenantId,activo:true,creditoHabilitado:true},data:{saldoPendiente:{increment:totalVenta}}});
+        if(saldoCliente.count!==1)throw new BadRequestException('El cliente no tiene habilitado el crédito');
+        await account(tx,tenantId,usuarioId,'CXC',venta.id,cotizacion.clienteId!,Number(venta.total));
+      }
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',Number(venta.total),metodoPago,venta.id,'Venta desde cotización');
       await audit(tx,tenantId,usuarioId,'COTIZACION_VENDER',venta.id,{cotizacionId,total:Number(venta.total)});
       // Actualizar estado de la cotización

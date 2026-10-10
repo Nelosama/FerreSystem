@@ -324,7 +324,15 @@ export class OperacionesService {
    if(v.metodo_pago==='CREDITO'){
     const [c]=await query(tx,"SELECT * FROM cuentas_operativas WHERE tenant_id=$1 AND tipo='CXC' AND documento_id=$2 FOR UPDATE",tenantId,v.id);
     if(!c)throw new ConflictException('Concilie la cuenta histórica antes de devolver una venta a crédito');
+    // Regla vigente (CONTEXTO_MAESTRO, devoluciones): primero se cancela el crédito pendiente; el excedente pagado es reembolso.
     credito=Math.min(monto,Number(c.saldo));await query(tx,'UPDATE cuentas_operativas SET saldo=saldo-$1 WHERE id=$2 RETURNING id',credito,c.id);
+    if(credito>0){
+     // La deuda del cliente y de la venta se cancelan junto con la CxC para no dejar deuda ficticia.
+     if(!c.cliente_id)throw new ConflictException('La cuenta por cobrar no tiene cliente asociado');
+     const [cliente]=await query(tx,'UPDATE clientes SET saldo_pendiente=saldo_pendiente-$1 WHERE id=$2 AND tenant_id=$3 AND saldo_pendiente>=$1 RETURNING id',credito,c.cliente_id,tenantId);
+     if(!cliente)throw new ConflictException('El saldo del cliente no coincide con la cuenta por cobrar');
+     await query(tx,"UPDATE ventas SET saldo_credito=GREATEST(COALESCE(saldo_credito,total)-$1,0) WHERE id=$2 AND tenant_id=$3 AND tipo_pago='CREDITO' RETURNING id",credito,v.id,tenantId);
+    }
    }
    const refund=money(monto-credito),metodo=paymentMethod(dto.metodo);let caja:any=null;
    if(refund>0){caja=await openCash(tx,tenantId,userId);if(metodo==='EFECTIVO'){

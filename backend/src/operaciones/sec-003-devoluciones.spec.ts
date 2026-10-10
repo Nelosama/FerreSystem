@@ -57,6 +57,7 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
   let dbRequests: Record<string, any> = {};
   let dbReturns: Record<string, any> = {};
   let dbAccounts: Record<string, any> = {};
+  let dbClients: Record<string, any> = {};
   let dbCashBoxes: Record<string, any> = {};
   let dbCashMovements: Record<string, any[]> = {};
   let dbProducts: Record<string, any> = {};
@@ -166,6 +167,16 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
         const [tenantId, docId] = params;
         const acc = Object.values(dbAccounts).find((a: any) => a.tenant_id === tenantId && a.tipo === 'CXC' && a.documento_id === docId);
         return acc ? [acc] : [];
+      }
+      if (sql.includes('SELECT COUNT(*)::int AS n FROM pagos_cuenta WHERE cuenta_id=$1')) {
+        return [{ n: 0 }];
+      }
+      if (sql.includes('UPDATE clientes SET saldo_pendiente=saldo_pendiente-$1 WHERE id=$2')) {
+        const [monto, clienteId] = params;
+        const cliente = dbClients[clienteId];
+        if (!cliente || Number(cliente.saldo_pendiente) < Number(monto)) return [];
+        cliente.saldo_pendiente = Number(cliente.saldo_pendiente) - Number(monto);
+        return [{ id: clienteId }];
       }
       if (sql.includes('UPDATE cuentas_operativas SET saldo=saldo-$1 WHERE id=$2')) {
         const [monto, accId] = params;
@@ -305,7 +316,10 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
     };
 
     dbAccounts = {
-      'cxc-1': { id: 'cxc-1', tenant_id: 'tenant-A', tipo: 'CXC', documento_id: 'venta-credito-1', saldo: 300 },
+      'cxc-1': { id: 'cxc-1', tenant_id: 'tenant-A', tipo: 'CXC', documento_id: 'venta-credito-1', cliente_id: 'cliente-1', saldo: 300 },
+    };
+    dbClients = {
+      'cliente-1': { id: 'cliente-1', tenant_id: 'tenant-A', saldo_pendiente: 300 },
     };
 
     dbCashBoxes = {
@@ -647,6 +661,7 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
 
       // Credit account balance should be reduced from 300 to 200
       expect(dbAccounts['cxc-1'].saldo).toBe(200);
+      expect(dbClients['cliente-1'].saldo_pendiente).toBe(200); // la deuda del cliente se cancela con la CxC
       expect(dbReturns['sol-credito-1'].credito_cancelado).toBe(100);
       expect(dbReturns['sol-credito-1'].reembolso).toBe(0); // No cash refund for credit return
     });
