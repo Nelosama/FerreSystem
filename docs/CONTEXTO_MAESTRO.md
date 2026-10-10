@@ -275,6 +275,20 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Compras, proveedores y costos vigentes — cierre funcional (2026-10-11, FORJA)
+
+- **Rama:** `claude/forja-compras-proveedores`, apilada sobre `claude/keen-goldberg-62o7f1` (#140), porque reutiliza su control de costos. Sin merge, despliegue ni migraciones productivas.
+- **Ya existía y se verificó (no se duplicó):** proveedores; orden/factura con número, fecha y vencimiento; recepción parcial por línea con bloqueo `FOR UPDATE`; idempotencia por `solicitud_id` (con hash de contenido); existencias solo por cantidad recibida; costo vigente = costo de la última recepción, también si baja; historial `costos_compra` por proveedor; una sola cuenta por pagar por factura (`account()`, la recepción no crea deuda); factura repetida rechazada sin distinguir mayúsculas ni espacios; compra al contado; pagos sin tocar inventario ni costos.
+- **Implementado en esta misión:**
+  1. Auditoría `COMPRA_RECIBIR` con costo anterior, costo nuevo, cantidad, proveedor, factura y responsable por producto (`operaciones.service.ts`, `recibir`).
+  2. Un ADMIN ya no edita a mano un costo originado por compra (`productos.service.ts`, `cambiarPrecios`): responde 400. Antes de la primera recepción sí puede fijar el costo inicial.
+  3. La tabla de recepción del administrador oculta la columna de costo a los demás roles (`OperacionesPage.tsx`).
+- **Decisión que se mantiene:** recibir más de lo autorizado se rechaza para todos los roles, sin override. Un proceso de aprobación de excedentes requiere decisión del dueño.
+- **Pruebas (PostgreSQL 16 real, usuario no root):** `test/compras-cierre.postgres.integration.ts`, 10 casos nuevos: auditoría con costos, costo que sube y baja sin tocar precio ni aprobación, proveedores con costos distintos, recepción duplicada, sobre-recepción también para ADMIN, crédito con recepciones parciales (una deuda), factura repetida, pago que no altera inventario ni costo, edición manual de costo bloqueada, acceso no autorizado y separación entre empresas. Integración completa: 25 archivos, 401 aprobadas, 1 omitida. Unitarias backend 345/345; frontend 233/233; Playwright simulado 120/120.
+- **Pendientes:** la UI de compras sigue en un componente compartido (`OperacionesPage.tsx`) con textos en español fijo; falta la traducción completa y un flujo guiado en móvil. Integración con #142 (BALANCE) no probada en conjunto: BALANCE modifica `cuentas` y `pagar`, que este cambio no toca.
+
+---
+
 ## Continuidad POS y sincronización — auditoría y propuesta (2026-10-10)
 
 - **Base comprobada:** `main` y `origin/main` `5eae989dfab0ea04cc6861406ec30df459ae16c2`, checkout principal limpio; fetch realizado. Al iniciar, PR #122 abierto (`fix/qa-clientes-cajero`). Trabajo de Claude en Clientes/POS/permisos protegido; no se cambian esos archivos ni se abren PRs de implementación.

@@ -144,6 +144,8 @@ export class ProductosService {
    if(dto.version!==old.version)throw new ConflictException({message:'El producto fue modificado por otro usuario. Recargue la información antes de guardar.',code:'PRODUCTO_VERSION',versionActual:old.version});
    const costoNuevo=dto.precioCosto!==undefined?decimal(dto.precioCosto,'Costo'):Number(old.precioCosto);
    const ventaNueva=dto.precioVenta!==undefined?decimal(dto.precioVenta,'Precio de venta'):Number(old.precioVenta);
+   // El costo vigente lo fija la última compra recibida. Un costo ya originado por compra no se edita a mano.
+   if(costoNuevo!==Number(old.precioCosto)&&old.costoVigente!=null)throw new BadRequestException('El costo lo fija la última compra recibida; no se edita a mano');
    const cambios:Record<string,{anterior:number;nuevo:number}>={};
    if(costoNuevo!==Number(old.precioCosto))cambios.precioCosto={anterior:Number(old.precioCosto),nuevo:costoNuevo};
    if(ventaNueva!==Number(old.precioVenta))cambios.precioVenta={anterior:Number(old.precioVenta),nuevo:ventaNueva};

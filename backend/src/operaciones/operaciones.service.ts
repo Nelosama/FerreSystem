@@ -87,6 +87,8 @@ export class OperacionesService {
    if(!dto.items?.length || new Set(dto.items.map(x=>x.detalleId)).size!==dto.items.length)throw new BadRequestException('Recepción vacía o líneas repetidas');
    const receptionId=id();
    const [reception]=await query(tx,'INSERT INTO recepciones_compra (id,tenant_id,orden_id,solicitud_id,solicitud_hash,usuario_id,fecha) VALUES ($1,$2,$3,$4,$5,$6,clock_timestamp()) RETURNING *',receptionId,tenantId,order.id,dto.solicitudId,hash,userId);
+   // Auditoría del costo: anterior, nuevo, compra, factura y responsable por producto.
+   const cambiosCosto:any[]=[];
    for(const item of dto.items){
     const quantity=decimal(item.cantidad,'Cantidad',true);
     const [line]=await query(tx,'SELECT * FROM detalles_orden_compra WHERE id=$1 AND orden_id=$2 FOR UPDATE',item.detalleId,order.id);
@@ -96,6 +98,7 @@ export class OperacionesService {
     if(!prod)throw new NotFoundException('Producto no disponible');
     // La fecha de recepción es la fecha comercial de actualización. Un costo menor también reemplaza el anterior.
     // QA-INV-001B: incrementar versión para invalidar formularios antiguos de edición
+    cambiosCosto.push({productoId:prod.id,costoAnterior:Number(prod.precio_costo),costoVigenteAnterior:prod.costo_vigente==null?null:Number(prod.costo_vigente),costoNuevo:Number(line.precio_costo),cantidad:Number(quantity),proveedorId:order.proveedor_id,numeroFactura:order.numero_factura});
     await query(tx,'UPDATE productos SET stock_actual=stock_actual+$1,precio_costo=$2,costo_vigente=$2,ultima_compra_at=$3,version=version+1,updated_at=NOW() WHERE id=$4 AND tenant_id=$5 RETURNING id',quantity,line.precio_costo,reception.fecha,prod.id,tenantId);
     await query(tx,'UPDATE detalles_orden_compra SET cantidad_recibida=cantidad_recibida+$1 WHERE id=$2 RETURNING id',quantity,line.id);
     await query(tx,'INSERT INTO costos_compra (id,tenant_id,producto_id,proveedor_id,orden_id,recepcion_id,cantidad,costo,fecha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',id(),tenantId,prod.id,order.proveedor_id,order.id,receptionId,quantity,line.precio_costo,reception.fecha);
@@ -104,7 +107,7 @@ export class OperacionesService {
    }
    const [pending]=await query(tx,'SELECT COUNT(*)::int AS cantidad FROM detalles_orden_compra WHERE orden_id=$1 AND cantidad_recibida<cantidad',order.id);
    if(pending.cantidad===0)await query(tx,'UPDATE ordenes_compra SET estado=\'RECIBIDA\',fecha_entrega=NOW(),updated_at=NOW() WHERE id=$1 RETURNING id',order.id);
-   await audit(tx,tenantId,userId,'COMPRA_RECIBIR',receptionId,{orderId,items:dto.items});return reception;
+   await audit(tx,tenantId,userId,'COMPRA_RECIBIR',receptionId,{orderId,numeroFactura:order.numero_factura,proveedorId:order.proveedor_id,items:dto.items,costos:cambiosCosto});return reception;
   },{timeout:60000});
  }
  // Estado de deuda: PAGADA (saldo 0), VENCIDA (saldo y vencimiento pasado), PARCIAL (abono sin saldar), PENDIENTE.
