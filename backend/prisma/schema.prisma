@@ -1042,7 +1042,7 @@ model OperacionContingencia {
   tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   dispositivo DispositivoPos      @relation(fields: [dispositivoId], references: [id])
   ventana     ContingenciaVentana @relation(fields: [ventanaId], references: [id])
-  venta       Venta?              @relation(fields: [ventaId], references: [id])
+  venta       Venta?              @relation(fields: [ventaId], references: [id], onDelete: Restrict)
 
   // Sin unicidad: un duplicado de secuencia o correlativo (dos UUID distintos) se conserva y queda en revisión, nunca se rechaza.
   @@index([tenantId, dispositivoId, secuenciaLocal])
