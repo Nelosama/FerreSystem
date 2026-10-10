@@ -34,8 +34,11 @@ export class OperacionesController {
  @Post('caja/:id/cerrar') @Roles('ADMIN','CAJERO','VENDEDOR') cerrar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:CerrarCajaDto){return this.service.cerrar(t,u,id,dto);}
  @RequiredModule('inventario')
  @Get('productos/:id/proveedores') @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') proveedoresProducto(@TenantId() t:string,@Param('id') id:string){return this.service.proveedoresProducto(t,id);}
+ @RequiredModule('inventario')
  @Put('productos/:id/proveedores/:proveedorId') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') guardarProveedorProducto(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Param('proveedorId') proveedorId:string,@Body() dto:ProductoProveedorDto){return this.service.guardarProveedorProducto(t,u,id,proveedorId,dto);}
+ @RequiredModule('inventario')
  @Delete('productos/:id/proveedores/:proveedorId') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') eliminarProveedorProducto(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Param('proveedorId') proveedorId:string){return this.service.eliminarProveedorProducto(t,u,id,proveedorId);}
+ @RequiredModule('inventario')
  @Get('productos/:id/historial') @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') historial(@TenantId() t:string,@Param('id') id:string){return this.service.historial(t,id);}
  @RequiredModule('inventario')
  @Post('productos/:id/ajuste') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') ajustar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:AjusteDto){return this.service.ajustar(t,u,id,dto);}
