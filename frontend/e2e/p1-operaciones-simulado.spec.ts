@@ -32,7 +32,7 @@ const estadoCuenta = {
 const test = base.extend<{ sim: Sim; rol: Rol }>({
   rol: ['ADMIN', { option: true }],
   sim: [async ({ page, baseURL, rol }, use) => {
-    const sim: Sim = { rol, vinculos: [{ id: 'vi-1', proveedor_id: 'prov-1', proveedor_nombre: 'Distribuidora Norte', codigo_proveedor: null, es_preferido: false, ultimo_costo: 40, ultima_compra_at: '2026-10-01T12:00:00.000Z' }], puts: [], deletes: [], compras: [], fallarPut: null, errores: [], inesperados: [] };
+    const sim: Sim = { rol, vinculos: [{ id: 'vi-1', proveedor_id: 'prov-1', proveedor_nombre: 'Distribuidora Norte', codigo_proveedor: null, es_preferido: true, ultimo_costo: 40, ultima_compra_at: '2026-10-01T12:00:00.000Z' }] as any, puts: [], deletes: [], compras: [], fallarPut: null, errores: [], inesperados: [] };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
     page.on('pageerror', e => sim.errores.push(e.message));
@@ -124,7 +124,15 @@ test.describe('Proveedores por producto (simulado)', () => {
 test.describe('Compra al contado (simulado)', () => {
   test.describe('como ADMIN', () => {
     test.use({ rol: 'ADMIN' });
-      test('ADMIN marca compra al contado y el payload lleva pagoContado sin mencionar caja', async ({ page, sim }) => {
+      test('al elegir un producto sugiere su proveedor preferido y el botón lo selecciona', async ({ page }) => {
+      await ingresar(page, '/ordenes-compra');
+      await page.getByLabel('Producto').selectOption('prod-1');
+      await expect(page.getByText('Proveedor preferido de este producto:')).toBeVisible();
+      await page.getByRole('button', { name: 'Usar preferido' }).click();
+      await expect(page.getByLabel('Proveedor').first()).toHaveValue('prov-1');
+    });
+
+    test('ADMIN marca compra al contado y el payload lleva pagoContado sin mencionar caja', async ({ page, sim }) => {
     await ingresar(page, '/ordenes-compra');
     await expect(page.getByRole('heading', { name: 'Registrar factura de compra' })).toBeVisible();
     await page.getByRole('checkbox', { name: 'Pagar al contado al registrar' }).check();
