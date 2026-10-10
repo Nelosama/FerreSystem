@@ -44,6 +44,7 @@ export class PagoDto {
  @IsNumber({maxDecimalPlaces:2}) @Min(0.01) monto!: number;
  @IsIn(['EFECTIVO','TARJETA','TRANSFERENCIA']) metodo!: string;
  @IsOptional() @IsString() notas?: string;
+ @IsOptional() @IsString() @MaxLength(60) referencia?: string;
  @IsOptional() @ValidateNested() @Type(() => PagoElectronicoDto) pagoElectronico?: PagoElectronicoDto;
 }
 // Conciliación del POS bancario (ADMIN): total y cantidad que muestra el cierre del banco por terminal y día.

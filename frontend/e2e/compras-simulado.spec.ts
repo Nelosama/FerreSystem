@@ -180,7 +180,7 @@ test.describe('Ciclo de compras — interfaz con backend simulado (E2E simulado)
     await expect.poll(() => sim.pagos.length).toBe(1);
     expect(sim.pagos[0].body).toMatchObject({ metodo: 'EFECTIVO' });
     expect(sim.cuenta.saldo).toBe(0);
-    await expect(page.getByText('PAGADA')).toBeVisible();
+    await expect(page.getByText('· PAGADA')).toBeVisible();
   });
 
   test('el ciclo de compras cabe en un teléfono sin desbordamiento horizontal', async ({ page }) => {

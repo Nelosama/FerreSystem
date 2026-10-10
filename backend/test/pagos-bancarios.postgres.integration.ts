@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { VentasService } from '../src/ventas/ventas.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
-import { diaCalendario } from '../src/common/zona-horaria';
+import { diaCalendario, sumarDias } from '../src/common/zona-horaria';
 
 // Control de pagos con tarjeta/transferencia y conciliación del POS bancario contra PostgreSQL real.
 // Cadena completa de migraciones, clúster temporal. Llama a los servicios reales (sin mocks).
@@ -191,11 +191,12 @@ describe('Pagos bancarios, crédito y conciliación / PostgreSQL aislado', () =>
       await expect(venta(admin, { metodoPago: 'TARJETA', pagoElectronico: { referencia: 'ABN-DUP', terminal: 'POS-01' } })).rejects.toThrow('ya fue registrada');
     });
 
-    it('los pagos a proveedor (CXP) no exigen autorización bancaria', async () => {
+    it('un pago electrónico a proveedor exige referencia o comprobante verificable', async () => {
       const proveedor = await prisma.proveedor.create({ data: { tenantId: tenantA, nombre: 'Proveedor' } });
       const orden = await ops.compra(tenantA, admin, { solicitudId: randomUUID(), proveedorId: proveedor.id, numeroFactura: 'FAC-CXP', isv: 0, items: [{ productoId, cantidad: 2, costo: 60 }] } as any);
       const cuenta = (await sql("SELECT id FROM cuentas_operativas WHERE documento_id=$1 AND tipo='CXP'", orden.id))[0];
-      await expect(ops.pagar(tenantA, admin, cuenta.id, { solicitudId: randomUUID(), monto: 50, metodo: 'TARJETA' } as any)).resolves.toBeTruthy();
+      await expect(ops.pagar(tenantA, admin, cuenta.id, { solicitudId: randomUUID(), monto: 50, metodo: 'TARJETA' } as any)).rejects.toThrow('referencia o comprobante');
+      await expect(ops.pagar(tenantA, admin, cuenta.id, { solicitudId: randomUUID(), monto: 50, metodo: 'TARJETA', pagoElectronico: { referencia: 'POS-PROV-50', terminal: 'POS-01' } } as any)).resolves.toBeTruthy();
     });
   });
 
@@ -259,6 +260,25 @@ describe('Pagos bancarios, crédito y conciliación / PostgreSQL aislado', () =>
       await conciliar(admin, { totalBanco: 115, cantidadBanco: 1 });
       const despues = await sql("SELECT (SELECT COUNT(*) FROM ventas WHERE tenant_id=$1)::int AS v, (SELECT COUNT(*) FROM aprobaciones_bancarias WHERE tenant_id=$1)::int AS a, (SELECT COALESCE(SUM(monto),0)::text FROM movimientos_caja)::text AS m", tenantA);
       expect(despues).toEqual(antes);
+    });
+  });
+
+  describe('plazo de crédito (BALANCE)', () => {
+    const vencimientoDe = async (cuentaId: string) => (await sql('SELECT vencimiento::date::text AS v FROM cuentas_operativas WHERE id=$1', cuentaId))[0].v;
+    it('una factura a crédito vence según el plazo del cliente y conserva esa fecha aunque el plazo cambie después', async () => {
+      const cliente = await prisma.cliente.create({ data: { tenantId: tenantA, nombre: 'Cliente Plazo', creditoHabilitado: true, limiteCredito: 10000, saldoPendiente: 0, plazoCreditoDias: 15 } as any });
+      const v = await venta(admin, { clienteId: cliente.id, tipoPago: 'CREDITO', metodoPago: 'CREDITO', vencimiento: '2099-01-01' });
+      const cuenta = (await sql('SELECT id FROM cuentas_operativas WHERE documento_id=$1', v.id))[0];
+      const esperado = sumarDias(diaCalendario(new Date()), 15);
+      expect(await vencimientoDe(cuenta.id)).toBe(esperado);
+      await prisma.cliente.update({ where: { id: cliente.id }, data: { plazoCreditoDias: 60 } });
+      expect(await vencimientoDe(cuenta.id)).toBe(esperado);
+    });
+    it('sin plazo configurado, la factura conserva el vencimiento indicado (compatibilidad)', async () => {
+      const cliente = await prisma.cliente.create({ data: { tenantId: tenantA, nombre: 'Cliente Sin Plazo', creditoHabilitado: true, limiteCredito: 10000, saldoPendiente: 0 } as any });
+      const v = await venta(admin, { clienteId: cliente.id, tipoPago: 'CREDITO', metodoPago: 'CREDITO', vencimiento: '2030-06-30' });
+      const cuenta = (await sql('SELECT id FROM cuentas_operativas WHERE documento_id=$1', v.id))[0];
+      expect(await vencimientoDe(cuenta.id)).toBe('2030-06-30');
     });
   });
 });

@@ -1,4 +1,5 @@
 import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { diaCalendario, sumarDias } from '../common/zona-horaria';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -324,7 +325,10 @@ export class VentasService {
           data: { saldoPendiente: { increment: total } },
         });
         if (updated.count !== 1) throw new BadRequestException('El cliente no tiene habilitado el crédito');
-        await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,dto.vencimiento);
+        // Decisión aprobada: el vencimiento de una factura nueva sale del plazo de crédito del cliente y se conserva
+        // aunque después cambie el plazo. Sin plazo configurado se mantiene el vencimiento indicado (compatibilidad).
+        const vencimiento = clienteCredito?.plazoCreditoDias ? sumarDias(diaCalendario(new Date()), clienteCredito.plazoCreditoDias) : dto.vencimiento;
+        await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,vencimiento);
       }
       if (autorizacion) await registrarAprobacion(tx,tenantId,usuarioId,autorizacion,Number(total),'VENTA',venta.id);
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',total,metodo,venta.id,`Venta ${numeroVenta}`);
