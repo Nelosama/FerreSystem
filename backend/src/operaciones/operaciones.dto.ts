@@ -85,6 +85,8 @@ export class DevolucionDto {
  @IsUUID('4') solicitudId!:string;
  @IsString() @IsNotEmpty() @MaxLength(500) motivo!:string;
  @IsIn(['EFECTIVO','TARJETA','TRANSFERENCIA']) metodo!:string;
+ // Reembolso electrónico: comprobante o autorización del procesador. Obligatorio si el reembolso sale por tarjeta o transferencia.
+ @IsOptional() @ValidateNested() @Type(()=>PagoElectronicoDto) pagoElectronico?:PagoElectronicoDto;
  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({each:true}) @Type(()=>DevolucionItemDto) items!:DevolucionItemDto[];
 }
 export class DecisionDevolucionDto {

@@ -150,4 +150,37 @@ describe('Devoluciones con crédito, saldo y reembolsos / PostgreSQL aislado', (
       expect(await sql('SELECT COUNT(*)::int AS n FROM devoluciones WHERE venta_id=$1', v.id)).toEqual([{ n: 1 }]);
     });
   });
+
+  describe('reembolsos electrónicos: evidencia del procesador', () => {
+    const devolverTarjeta = (ventaId: string, pagoElectronico?: any, solicitudId = randomUUID()) => lineasDe(ventaId).then(async lineas => ops.devolver(tenantA, admin, ventaId, {
+      solicitudId, metodo: 'TARJETA', motivo: 'Reembolso de prueba', pagoElectronico, items: [{ detalleId: lineas[0].id, cantidad: 1, destino: await destinoDe(ventaId) }],
+    } as any));
+    const auditoriaDevolucion = (ventaId: string) => sql("SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='VENTA_DEVOLVER' AND datos->>'ventaId'=$2", tenantA, ventaId);
+
+    it('reembolso con tarjeta sin comprobante del procesador responde 400, no registra devolución ni toca caja', async () => {
+      const v = await venta(admin);
+      const cajaAntes = await sql('SELECT COUNT(*)::int AS n FROM movimientos_caja');
+      await expect(devolverTarjeta(v.id)).rejects.toThrow('requiere el comprobante o autorización del procesador');
+      expect(await sql('SELECT COUNT(*)::int AS n FROM devoluciones WHERE venta_id=$1', v.id)).toEqual([{ n: 0 }]);
+      expect(await sql('SELECT COUNT(*)::int AS n FROM movimientos_caja')).toEqual(cajaAntes);
+      expect(await auditoriaDevolucion(v.id)).toEqual([]);
+    });
+
+    it('reembolso con tarjeta con comprobante: movimiento de caja negativo y comprobante normalizado en la auditoría', async () => {
+      const v = await venta(admin);
+      await devolverTarjeta(v.id, { referencia: 'dev-ok-01', terminal: 'pos-02' });
+      expect((await reembolsosCaja(v.id))[0]).toEqual({ total: -115, n: 1 });
+      const [fila] = await auditoriaDevolucion(v.id);
+      expect(fila.datos.comprobanteProcesador).toEqual({ metodo: 'TARJETA', terminal: 'POS-02', referencia: 'DEV-OK-01' });
+      expect(fila.datos.refund).toBe(115);
+    });
+
+    it('reintento con el mismo comprobante y la misma solicitud no duplica el reembolso', async () => {
+      const v = await venta(admin);
+      const solicitudId = randomUUID();
+      await devolverTarjeta(v.id, { referencia: 'DEV-RET-03', terminal: 'POS-02' }, solicitudId);
+      await devolverTarjeta(v.id, { referencia: 'DEV-RET-03', terminal: 'POS-02' }, solicitudId);
+      expect((await reembolsosCaja(v.id))[0]).toEqual({ total: -115, n: 1 });
+    });
+  });
 });

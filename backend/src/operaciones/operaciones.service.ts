@@ -451,6 +451,9 @@ export class OperacionesService {
     }
    }
    const refund=money(monto-credito),metodo=paymentMethod(dto.metodo);let caja:any=null;
+   // Un reembolso electrónico sin comprobante del procesador no se registra: no se simula una devolución bancaria.
+   if(refund>0&&esMetodoElectronico(dto.metodo)&&!dto.pagoElectronico?.referencia)throw new BadRequestException('El reembolso por tarjeta o transferencia requiere el comprobante o autorización del procesador');
+   const autorizacionReembolso=refund>0?normalizarAutorizacion(dto.metodo,dto.pagoElectronico):null;
    if(refund>0){caja=await openCash(tx,tenantId,userId);if(metodo==='EFECTIVO'){
     const [cash]=await query(tx,"SELECT COALESCE(SUM(monto),0) AS monto FROM movimientos_caja WHERE caja_id=$1 AND metodo='EFECTIVO'",caja.id);
     if(refund>money(Number(caja.monto_apertura)+Number(cash.monto)))throw new ConflictException('Efectivo insuficiente para reembolsar');
@@ -469,7 +472,7 @@ export class OperacionesService {
     }
    }
    if(caja)await cashMovement(tx,caja.id,userId,'DEVOLUCION',-refund,metodo,result.id,`Devolución de venta ${v.numero_venta}`);
-   await audit(tx,tenantId,userId,'VENTA_DEVOLVER',result.id,{ventaId,monto,credito,refund,metodo,items:dto.items});return result;
+   await audit(tx,tenantId,userId,'VENTA_DEVOLVER',result.id,{ventaId,monto,credito,refund,metodo,items:dto.items,comprobanteProcesador:autorizacionReembolso});return result;
  }
 
  async auditoria(tenantId:string,page:number){return query(this.prisma,'SELECT a.*,u.nombre AS usuario_nombre FROM auditoria_operaciones a LEFT JOIN usuarios u ON u.id=a.usuario_id WHERE a.tenant_id=$1 ORDER BY a.created_at DESC,a.id DESC LIMIT 100 OFFSET $2',tenantId,Math.max(0,Math.floor(Number.isFinite(page)?page:0))*100);}
