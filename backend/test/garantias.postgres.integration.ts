@@ -103,7 +103,7 @@ describe('Garantías / PostgreSQL aislado', () => {
       await prisma.usuario.create({ data: { id, tenantId, nombre: `${rol} ${tenantId.slice(0, 4)}`, email: `${id}@test.invalid`, passwordHash: 'x', rol, permisosConfigurados: true, permisos: [] } as any });
       users[`${rol}-${tenantId === tenantA ? 'A' : 'B'}`] = { id, token: jwt.sign({ sub: id, tenantId, type: 'tenant' }), tenantId };
     };
-    for (const rol of ['ADMIN', 'CAJERO', 'BODEGUERO']) await crear(tenantA, rol);
+    for (const rol of ['ADMIN', 'CAJERO', 'BODEGUERO', 'VENDEDOR']) await crear(tenantA, rol);
     await crear(tenantB, 'ADMIN');
     productoA = (await prisma.producto.create({ data: { tenantId: tenantA, codigo: 'TAL-1', nombre: 'Taladro', precioVenta: 100, precioCosto: 60 } as any })).id;
     productoB = (await prisma.producto.create({ data: { tenantId: tenantB, codigo: 'TAL-1', nombre: 'Taladro B', precioVenta: 100, precioCosto: 60 } as any })).id;
@@ -305,6 +305,23 @@ describe('Garantías / PostgreSQL aislado', () => {
       await call('patch', `/garantias/coberturas/${creada.body.id}`, 'ADMIN-A', { diasGarantia: 60 }).expect(200);
       await call('get', `/garantias/facturas/${v.numeroVenta}`, 'CAJERO-A').expect(200);
       await call('get', '/garantias/coberturas', 'CAJERO-A').expect(200);
+    });
+
+    it('el vendedor no consulta ni cambia coberturas (403), igual que la ruta del frontend', async () => {
+      const v = await venta(tenantA, users['ADMIN-A'].id, '2026-10-10T18:00:00.000Z', [{ productoId: productoA }]);
+      await call('get', '/garantias/coberturas', 'VENDEDOR-A').expect(403);
+      await call('get', `/garantias/facturas/${v.numeroVenta}`, 'VENDEDOR-A').expect(403);
+      await call('post', '/garantias/coberturas', 'VENDEDOR-A', { ventaId: v.id, detalleVentaId: v.detalles[0].id, diasGarantia: 30, solicitudId: randomUUID() }).expect(403);
+    });
+
+    it('el listado muestra quién creó y quién actualizó cada cobertura, por nombre', async () => {
+      const v = await venta(tenantA, users['ADMIN-A'].id, '2026-10-10T18:00:00.000Z', [{ productoId: productoA }]);
+      const creada = await call('post', '/garantias/coberturas', 'ADMIN-A', { ventaId: v.id, detalleVentaId: v.detalles[0].id, diasGarantia: 30, solicitudId: randomUUID() }).expect(201);
+      await call('patch', `/garantias/coberturas/${creada.body.id}`, 'ADMIN-A', { diasGarantia: 45 }).expect(200);
+      const nombreAdmin = (await prisma.usuario.findUniqueOrThrow({ where: { id: users['ADMIN-A'].id } })).nombre;
+      const lista = await call('get', '/garantias/coberturas', 'CAJERO-A').expect(200);
+      const fila = lista.body.find((f: any) => f.id === creada.body.id);
+      expect(fila).toMatchObject({ creadoPorNombre: nombreAdmin, actualizadoPorNombre: nombreAdmin });
     });
 
     it('el bodeguero no accede a garantías', async () => {
