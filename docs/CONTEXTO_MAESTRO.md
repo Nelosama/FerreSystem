@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-10 UTC** — caja y arqueo (rama `claude/intelligent-cerf-b3ldo0`, sin merge ni despliegue; bloque siguiente) e inventario para entrega, PR [#105](https://github.com/Nelosama/FerreSystem/pull/105). Las bitácoras anteriores se conservan.
+Última revisión: **2026-10-10, America/Tegucigalpa** — arquitectura de continuidad POS, fase exclusivamente documental desde `main` `5eae989d`; ver bloque siguiente. Las bitácoras anteriores se conservan como fotografías fechadas y no sustituyen el estado de Git.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -19,6 +19,19 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 7. **No hacer merge automático** ni desplegar a producción sin autorización explícita del dueño del proyecto.
 
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
+
+---
+
+## Continuidad POS y sincronización — auditoría y propuesta (2026-10-10)
+
+- **Base comprobada:** `main` y `origin/main` `5eae989dfab0ea04cc6861406ec30df459ae16c2`, checkout principal limpio; fetch realizado. Al iniciar, PR #122 abierto (`fix/qa-clientes-cajero`). Trabajo de Claude en Clientes/POS/permisos protegido; no se cambian esos archivos ni se abren PRs de implementación.
+- **Rama:** `codex/docs-alta-disponibilidad`, worktree independiente. Solo documentación. Informe: [ARQUITECTURA_CONTINUIDAD_POS_20261010.md](ARQUITECTURA_CONTINUIDAD_POS_20261010.md), con auditoría de las ocho preguntas, diagrama Mermaid, matriz de fallas, riesgos, sincronización, respaldos, fases, archivos y pruebas futuras.
+- **Hallazgos vigentes comprobados en código:** POS guarda borrador y pendiente en localStorage; no catálogo persistente ni service worker. Recuperación por UUID y transacción central ya existen; idempotencia exige `solicitudId`, opcional en DTO. No hay sincronización automática de catálogo. Precio distinto se rechaza para no-ADMIN; ADMIN puede conservar otro precio. Venta reserva stock; entrega reduce físico. `productos.version` no cambia en todos los escritores de existencias. TARJETA/TRANSFERENCIA no acreditan autorización bancaria. Fotos: solo URL, sin servicio LAN implementado.
+- **Respaldos:** worker FS-41 sí está en la base auditada: dump, Restic cifrado, readback, restore aislado, retención. No se verificó que esté configurado o funcionando en producción. `deploy/local/compose.yaml` es instalación alternativa sin sincronización con cloud; no usarla como failover automático.
+- **Propuesta, no implementación:** nube como autoridad única; fotos opcionales; validación/aceptación explícita de importes; recuperación automática por identidad; polling inicial y luego cursor/outbox transaccional; PWA de consulta/borradores. Ventas offline de efectivo requieren fase separada con cuotas exclusivas, diario durable, conciliación y aprobación fiscal; tarjeta/crédito/numeración fiscal offline bloqueados en el alcance inicial.
+- **Pruebas ejecutadas en esta sesión, base sin cambios:** frontend `node --test test/pos-client-credit.test.mjs test/receipt-fiscal.test.mjs` **9/9**; selección por nombre en `test/operaciones.test.mjs` **19/19** (POS/recuperación/devoluciones); backend `node --test scripts/backup-worker.test.mjs` **6/6**. Total seleccionado **34/34**. Handlers, transporte y comandos simulados; no prueban PostgreSQL real, datáfono, apagón físico ni backup externo. No se reutilizan cifras históricas como resultados de esta sesión.
+- **Pendientes reales:** revisión de arquitectura y política de precio aceptado; plan/RPO/RTO/presupuesto de infraestructura; responsable de incidentes; inventario de hardware y red; decisión offline solo borrador frente a piloto condicionado. Toda implementación requiere autorización por fase y revisar las ramas de Claude antes de tocar archivos compartidos. Sin migraciones, merge, despliegue ni aceptación del cliente.
+- **Bitácora:** lectura del contexto vigente, inspección Git/PR/código y documentación oficial, ejecución de pruebas seleccionadas, propuesta y actualización de este estado. Verificación documental: enlaces locales y `git diff --check`; diff limitado a los dos documentos. PR documental se enlaza tras publicarlo.
 
 ---
 
