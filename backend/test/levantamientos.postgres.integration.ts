@@ -35,6 +35,7 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
   const add=(body:any)=>call('post',`/levantamientos/${lid}/items`,body);
   const finish=()=>call('patch',`/levantamientos/${lid}`,{estado:'FINALIZADO'}).expect(200);
   const preview=()=>call('get',`/levantamientos/${lid}/preview`).expect(200);
+  const conflictToken=async(id:string)=>(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body.find((g:any)=>g.items.some((i:any)=>i.id===id)).token;
   const apply=(token:string)=>call('post',`/levantamientos/${lid}/aplicar`,{token});
   beforeAll(async () => {
     if (!existsSync(exe('initdb'))) throw new Error(`PostgreSQL not installed at ${bin}`);
@@ -413,7 +414,7 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     const otro=(await call('post',`/levantamientos/${lid}/items`,item({descripcion:'Tornillo',codigo:'TOR-1',cantidad:7}),'BODEGUERO').expect(201)).body;
     const p0=(await preview()).body;
     expect(p0.rows.filter((r:any)=>r.item.id!==otro.id).every((r:any)=>r.errores.some((e:string)=>e.includes('conflicto')))).toBe(true);
-    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id}).expect(201);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id,token:await conflictToken(a.id)}).expect(201);
     const restantes=(await prisma.levantamientoItem.findMany({where:{levantamientoId:lid}})).map(r=>r.id).sort();
     expect(restantes).toEqual([a.id,otro.id].sort());
     expect((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:a.id}})).conflicto).toBe(false);
@@ -428,7 +429,7 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     expect((await prisma.levantamientoItem.findMany({where:{levantamientoId:lid}})).every(r=>r.conflicto)).toBe(true);
     const grupos=(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body;
     expect(grupos).toHaveLength(1);
-    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:b.id,cantidadManual:4}).expect(201);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:b.id,token:await conflictToken(b.id),cantidadManual:4}).expect(201);
     expect(await prisma.levantamientoItem.findUnique({where:{id:a.id}})).toBeNull();
     expect(Number((await prisma.levantamientoItem.findUniqueOrThrow({where:{id:b.id}})).cantidad)).toBe(4);
   });

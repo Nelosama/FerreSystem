@@ -241,7 +241,16 @@ export class LevantamientosService {
  async findConflictos(tenantId:string,lid:string){
   const l=await this.session(this.prisma,tenantId,lid);
   const conflictivos=await this.conContador(tenantId,l.items.filter((i:any)=>i.conflicto).map((i:any)=>this.item(i)));
-  return this.grupos(conflictivos).map(items=>({key:this.claveGrupo(items),items}));
+  return this.grupos(conflictivos).map(items=>({key:this.claveGrupo(items),token:this.tokenConflicto(tenantId,lid,items),items}));
+ }
+
+ /** Snapshot del grupo revisado, ligado a empresa y levantamiento; los nombres no afectan la decisión. */
+ private tokenConflicto(tenantId:string,lid:string,items:any[]){
+  return fingerprint({tenantId,lid,items:items.map(i=>({
+   id:i.id,version:i.version,cantidad:Number(i.cantidad),...this.identidad(i),
+   descripcion:i.descripcion,unidad:i.unidad,ubicacion:i.ubicacion,contadorId:i.contadorId,
+   conflicto:i.conflicto,
+  })).sort((a,b)=>a.id.localeCompare(b.id))});
  }
 
  /**
@@ -261,13 +270,14 @@ export class LevantamientosService {
 
    // Hermanos: los demás conflictos del mismo grupo que muestra la pantalla (misma regla que detección y limpieza)
    const grupo=this.grupos(l.items.filter((i:any)=>i.conflicto)).find(g=>g.some(i=>i.id===dto.mantenerItemId))??[];
+   if(dto.token!==this.tokenConflicto(tenantId,lid,grupo))throw new ConflictException({code:'CONTEO_CONFLICTO_VERSION',message:'Los conteos del conflicto cambiaron; recargue y revise las cantidades antes de conciliar'});
    const hermanos=grupo.filter(i=>i.id!==dto.mantenerItemId);
 
    if(!hermanos.length)throw new BadRequestException('No hay ítems en conflicto para conciliar con este');
 
    // Eliminar los hermanos
    for(const h of hermanos){
-    await audit(tx,tenantId,userId,'CONTEO_CONCILIAR_ELIMINAR',h.id,{motivo:'Conciliación por administrador',mantener:dto.mantenerItemId});
+    await audit(tx,tenantId,userId,'CONTEO_CONCILIAR_ELIMINAR',h.id,{motivo:'Conciliación por administrador',mantener:dto.mantenerItemId,anterior:this.item(h),token:dto.token});
     await tx.levantamientoItem.delete({where:{id:h.id}});
    }
 
@@ -278,7 +288,7 @@ export class LevantamientosService {
     updateData.cantidad=dto.cantidadManual;
    }
    const resultado=await tx.levantamientoItem.update({where:{id:dto.mantenerItemId},data:updateData});
-   await audit(tx,tenantId,userId,'CONTEO_CONCILIAR',dto.mantenerItemId,{hermanos:hermanos.map(h=>h.id),cantidadElegida:dto.cantidadManual??Number(itemMantener.cantidad)});
+   await audit(tx,tenantId,userId,'CONTEO_CONCILIAR',dto.mantenerItemId,{anterior:this.item(itemMantener),token:dto.token,hermanos:hermanos.map(h=>h.id),cantidadElegida:dto.cantidadManual??Number(itemMantener.cantidad)});
 
    // Limpiar otros conflictos huérfanos
    await this.limpiarConflictosHuerfanos(tx,lid);
@@ -405,7 +415,7 @@ export class LevantamientosService {
      pid=p.id;
     }else{
      if(r.precioCosto==null||r.precioVenta==null)throw new BadRequestException(`El producto ${r.nombre} (${r.codigo}) no tiene costo o precio definido; corríjalo antes de aplicar`);
-     await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,...(r.item.marca?.trim()&&!r.catalogMarca?{marca:r.item.marca.trim()}:{}),...(r.item.codigoBarras&&r.matchedByBarcode?{codigoBarras:r.item.codigoBarras}:r.item.codigoBarras&&!r.catalogBarcode?{codigoBarras:r.item.codigoBarras}:{}),precioCosto:r.precioCosto,precioVenta:r.precioVenta,...(r.item.margen!=null?{margen:r.item.margen}:{})}});
+     await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,version:{increment:1},...(r.item.marca?.trim()&&!r.catalogMarca?{marca:r.item.marca.trim()}:{}),...(r.item.codigoBarras&&r.matchedByBarcode?{codigoBarras:r.item.codigoBarras}:r.item.codigoBarras&&!r.catalogBarcode?{codigoBarras:r.item.codigoBarras}:{}),precioCosto:r.precioCosto,precioVenta:r.precioVenta,...(r.item.margen!=null?{margen:r.item.margen}:{})}});
     }
     await tx.levantamientoItem.update({where:{id:r.item.id},data:{productoId:pid}});
     await movement(tx,tenantId,userId,pid!,'LEVANTAMIENTO',r.anterior,r.nuevo,lid,'Conteo revisado y aplicado');

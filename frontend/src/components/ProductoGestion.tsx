@@ -40,7 +40,7 @@ const GRUPOS: { titulo: string; campos: { k: string; tipo?: 'texto' | 'numero' |
 ];
 
 export const ProductoGestion: React.FC<{ productos: any[]; onSaved: () => Promise<void> }> = ({ productos, onSaved }) => {
-  const { isReadOnly } = useTenant();
+  const { isReadOnly, user } = useTenant();
   const { t } = useI18n();
   const [selected, setSelected] = useState<any>(null);
   const [form, setForm] = useState<FormularioProducto>({});
@@ -162,10 +162,12 @@ export const ProductoGestion: React.FC<{ productos: any[]; onSaved: () => Promis
   return (
     <section className="operation-card">
       <h2>{t('product_edit.title')}</h2>
-      <label className="form-hint">
-        <input type="checkbox" checked={mostrarInactivos} disabled={busy}
-          onChange={e => void cargarInactivos(e.target.checked)} /> {t('product_edit.show_inactive')}
-      </label>
+      {user?.rol === 'ADMIN' && (
+        <label className="form-hint">
+          <input type="checkbox" checked={mostrarInactivos} disabled={busy}
+            onChange={e => void cargarInactivos(e.target.checked)} /> {t('product_edit.show_inactive')}
+        </label>
+      )}
       <label>{t('product_edit.select_label')}
         <select className="form-input" disabled={busy} value={selected?.id || ''} onChange={e => elegir(e.target.value)}>
           <option value="">{t('product_edit.select_placeholder')}</option>
