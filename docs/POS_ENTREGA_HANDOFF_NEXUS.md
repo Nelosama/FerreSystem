@@ -18,7 +18,7 @@ Restricciones: invariantes por línea I2–I5 como `CHECK`; modo de línea inmut
 Ventas con `entregado_at` → `cantidad_entregada = cantidad`; origen `CONTINGENCIA` → `MOSTRADOR` entregada; `sin_inventario` → `SIN_INVENTARIO`; devoluciones previas por destino (INVENTARIO → reingresada; DAÑADO/PROVEEDOR → sin reingreso; NO_ENTREGADO → cancelada). Conserva el número de ventas.
 
 ## Pruebas de la migración
-`psql` aplica las 40+ migraciones en PG16 limpio; `prisma migrate deploy` (e2e real) y la suite `migrations.postgres.integration.ts` pasan; 53/53 en `cobro-entrega.postgres.integration.ts`.
+`psql` aplica las 16 migraciones en PG16 limpio; `prisma migrate deploy` (e2e real) y la suite `migrations.postgres.integration.ts` pasan; 53/53 en `cobro-entrega.postgres.integration.ts`.
 
 ## Deriva Prisma ↔ SQL (hallazgo para NEXUS)
 `prisma migrate diff` contra una base con todas las migraciones reporta deriva **preexistente** (FK y CHECK del repositorio gestionados en SQL, p. ej. `apartados`, `cajas`, `costos_compra`). De esta migración aparecen:
