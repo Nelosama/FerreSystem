@@ -71,6 +71,8 @@ const test = base.extend<{ sim: Sim }>({
           if (sim.perderRespuestaAlta) { sim.perderRespuestaAlta = false; await route.abort(); return; }
           return responder(route, 201, actual);
         }
+        // Panel de proveedores del producto (PR #127): sin asociaciones en este simulador.
+        if (method === 'GET' && /^\/operaciones\/productos\/[^/]+\/proveedores$/.test(path)) return responder(route, 200, []);
         const historial = path.match(/^\/operaciones\/productos\/([^/]+)\/historial$/);
         if (method === 'GET' && historial) { sim.historial.push(historial[1]); return responder(route, 200, { movimientos: [], costos: [] }); }
         // Panel de proveedores por producto (P1, #127): sin vínculos en esta prueba.
