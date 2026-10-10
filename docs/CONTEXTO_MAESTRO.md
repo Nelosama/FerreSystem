@@ -95,6 +95,21 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Integración QA P1 + contingencia POS (2026-10-10, rama `claude/integracion-pos-offline-p1`)
+
+- **Estado:** integración técnicamente verificada en rama temporal; **NO aprobada para producción**. Sin merge a `main`, sin despliegue, sin migraciones productivas.
+- **Base y commits:** `main` `7ccfad25`; `1deb3117` (#127 P1 operaciones, `claude/p1-operaciones`); `f281be62` (#128 contingencia, `claude/pos-offline-backend`); resolución de conflictos `2ab05cd0`; `99df299c` (costo de la ventana, timeout de sincronización, pruebas); `5c5df9bb` (asociación producto–proveedor en contingencia; mock del panel de proveedores en FS-07); `6f683331` (matriz de QA).
+- **Conflictos resueltos:** `schema.prisma` (ambos modelos conservados, sin `prisma format`), `App.tsx` (rutas `/pos-contingencia`, `/contingencia-admin`, `/estado-cuenta-clientes`, `/admin-movil`, `/cuentas` conviven), listas de migraciones en `ventas` y `reportes-zona-horaria`, `CONTEXTO_MAESTRO.md` (dos secciones conservadas).
+- **Defectos corregidos en la integración:** el costo de una venta offline se tomaba al sincronizar (ahora, el de la ventana); sincronización sin timeout (ahora 20 s por llamada); la caja no veía la decisión del administrador (`refrescarRevisiones`); 9 fallos de FS-07 por una petición del panel P1 no interceptada en la suite simulada.
+- **Pruebas ejecutadas sobre `5c5df9bb`:**
+  - Backend unitarias 345/345; integración PostgreSQL 16 como `nobody` 366/366 con `REAL_SETTINGS_BROWSER=1` (la prueba opt-in de Chromium real pasa 16/16). Contingencia 25/25 sobre el commit final.
+  - Frontend unitarias 224/224; `tsc -b`, build y lint sin errores.
+  - E2E real (`frontend/e2e-real/run.sh`, PostgreSQL temporal, API real, Chromium): 29/29; contingencia 14/14.
+  - E2E con backend simulado: 118/118.
+- **Lo que no se ejecutó (no declarar aprobado):** Windows (Chrome/Edge, durabilidad IndexedDB, reinicio), iPhone/Safari y PWA instalada, apagón eléctrico real (`docs/POS_CONTINGENCIA_PROTOCOLO_APAGON.md`, sin ejecutar), cuota de almacenamiento real (la prueba simulada inyecta `QuotaExceededError`), timeouts de red reales en la tienda, cámara y códigos impresos. Detalle en `docs/POS_INTEGRACION_QA_MATRIZ.md` §7.
+- **Riesgos abiertos:** D1 fiscal (sin aprobación del responsable); límites por defecto (L 5 000 / L 25 000 / cupo 50 % / 36 h) pendientes de decisión; caja única por empresa (`dispositivosMax=1`); rutas nuevas sin entrada en el menú (solo por URL); textos de contingencia solo en español.
+- **Pendientes:** PR de integración en borrador hacia `main` (no fusionar sin aprobación); si #127 o #128 cambian, repetir la integración desde su nuevo commit.
+
 ## Continuidad POS y sincronización — auditoría y propuesta (2026-10-10)
 
 - **Base comprobada:** `main` y `origin/main` `5eae989dfab0ea04cc6861406ec30df459ae16c2`, checkout principal limpio; fetch realizado. Al iniciar, PR #122 abierto (`fix/qa-clientes-cajero`). Trabajo de Claude en Clientes/POS/permisos protegido; no se cambian esos archivos ni se abren PRs de implementación.
