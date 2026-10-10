@@ -83,6 +83,7 @@ describe('Productos y proveedores / PostgreSQL aislado', () => {
       ['ADMIN', tenantId, 'ADMIN', []],
       ['BODEGUERO', tenantId, 'BODEGUERO', ['inventario.editar', 'inventario.ver']],
       ['CAJERO', tenantId, 'CAJERO', []],
+      ['VENDEDOR', tenantId, 'VENDEDOR', []],
       ['OTRO_ADMIN', otherTenantId, 'ADMIN', []],
     ] as const) {
       const id = randomUUID();
@@ -147,6 +148,8 @@ describe('Productos y proveedores / PostgreSQL aislado', () => {
     expect(lista.body[0]).toMatchObject({ proveedor_nombre: 'Distribuidora Norte', ultimo_costo: 40 });
     await http('get', `/productos/${productoId}/proveedores`, 'CAJERO').expect(403);
     await http('put', `/productos/${productoId}/proveedores/${proveedorB}`, 'CAJERO', { esPreferido: false }).expect(403);
+    await http('get', `/productos/${productoId}/proveedores`, 'VENDEDOR').expect(403);
+    await http('delete', `/productos/${productoId}/proveedores/${proveedorB}`, 'VENDEDOR').expect(403);
   });
 
   it('un solo proveedor preferido por producto; el cambio queda auditado con valor anterior', async () => {

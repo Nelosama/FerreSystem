@@ -154,6 +154,15 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
 
   // CLIENTES
   {
+    key: 'estado_cuenta_clientes',
+    labelKey: 'menu.customer_statement',
+    defaultLabel: 'ESTADO DE CUENTA',
+    route: '/estado-cuenta-clientes',
+    icon: Users,
+    allowedRoles: ['ADMIN'],
+    category: 'CLIENTES',
+  },
+  {
     key: 'clientes',
     labelKey: 'menu.clients',
     defaultLabel: 'CLIENTES',

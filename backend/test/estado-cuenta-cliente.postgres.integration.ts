@@ -15,6 +15,8 @@ import { CashierResponseInterceptor } from '../src/common/interceptors/cashier-r
 import { PrismaService } from '../src/prisma/prisma.service';
 import { OperacionesController } from '../src/operaciones/operaciones.controller';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
+import { ClientesController } from '../src/clientes/clientes.controller';
+import { ClientesService } from '../src/clientes/clientes.service';
 
 // Estado de cuenta de cliente contra PostgreSQL real (HTTP con JWT): cuentas CXC, abonos, vencimiento por día
 // de negocio, conciliación con el saldo del cliente, permiso solo ADMIN y aislamiento entre empresas.
@@ -82,6 +84,7 @@ describe('Estado de cuenta de cliente / PostgreSQL aislado', () => {
       ['ADMIN', tenantId, 'ADMIN', []],
       ['BODEGUERO', tenantId, 'BODEGUERO', ['inventario.editar', 'inventario.ver']],
       ['CAJERO', tenantId, 'CAJERO', []],
+      ['VENDEDOR', tenantId, 'VENDEDOR', []],
       ['OTRO_ADMIN', otherTenantId, 'ADMIN', []],
     ] as const) {
       const id = randomUUID();
@@ -96,8 +99,8 @@ describe('Estado de cuenta de cliente / PostgreSQL aislado', () => {
     proveedorB = (await prisma.proveedor.create({ data: { tenantId, nombre: 'Ferretera Sur' } })).id;
 
     const module = await Test.createTestingModule({
-      controllers: [OperacionesController],
-      providers: [OperacionesService, JwtStrategy,
+      controllers: [OperacionesController, ClientesController],
+      providers: [OperacionesService, ClientesService, JwtStrategy,
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigService, useValue: { get: (key: string) => key === 'JWT_SECRET' ? secret : undefined } },
         { provide: APP_INTERCEPTOR, useClass: CashierResponseInterceptor },
@@ -150,5 +153,14 @@ describe('Estado de cuenta de cliente / PostgreSQL aislado', () => {
     await http('get', `/clientes/${cliente.id}/estado-cuenta`, 'BODEGUERO').expect(403);
     await http('get', `/clientes/${cliente.id}/estado-cuenta`, 'OTRO_ADMIN').expect(404);
     await http('get', `/clientes/${randomUUID()}/estado-cuenta`, 'ADMIN').expect(404);
+  });
+
+  it('VENDEDOR no ve estado de cuenta y el buscador le devuelve solo datos comerciales (sin saldo, límite ni datos privados)', async () => {
+    const cliente = await prisma.cliente.create({ data: { tenantId, nombre: 'Cliente Comercial Seguro', email: 'privado@test.invalid', direccion: 'Dir privada', rtn: '08019999000001', creditoHabilitado: true, limiteCredito: 5000, saldoPendiente: 1234 } as any });
+    await http('get', `/clientes/${cliente.id}/estado-cuenta`, 'VENDEDOR').expect(403);
+    const res = await request(app.getHttpServer()).get('/api/clientes/buscar?q=Comercial%20Seguro').auth(users.VENDEDOR, { type: 'bearer' }).expect(200);
+    expect(res.body).toHaveLength(1);
+    expect(Object.keys(res.body[0]).sort()).toEqual(['codigo', 'creditoHabilitado', 'id', 'nombre', 'numeroCliente', 'rtn', 'telefono']);
+    expect(JSON.stringify(res.body)).not.toMatch(/1234|5000|privado@|Dir privada/);
   });
 });
