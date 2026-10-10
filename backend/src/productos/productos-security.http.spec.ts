@@ -43,6 +43,9 @@ describe('SEC-005 product HTTP responses (real JWT, guards, service; mocked pers
       findMany: vi.fn(async ({ where }: any) => rows.filter(p => matches(p, where))),
       findFirst: vi.fn(async ({ where }: any) => rows.find(p => matches(p, where)) ?? null),
     },
+    superAdmin: {
+      findUnique: vi.fn(async ({ where }: any) => ({ activo: where.id === 'platform' })),
+    },
   };
   const token = (rol: string, permisos: string[] = [], configured = true, tenantId = 'tenant-a') => {
     const sub = `${rol}-${users.size}`;

@@ -13,6 +13,8 @@ import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
 @Controller('cotizaciones')
 @RequiredModule('cotizaciones')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+// Cotizaciones incluyen contacto y RTN de clientes: el acceso por defecto es comercial, no de bodega.
+@Roles('ADMIN', 'CAJERO', 'VENDEDOR')
 export class CotizacionesController {
   constructor(private readonly cotizacionesService: CotizacionesService) {}
 
