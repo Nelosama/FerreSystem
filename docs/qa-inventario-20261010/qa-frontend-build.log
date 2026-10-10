@@ -1,0 +1,61 @@
+
+> frontend@0.0.0 build
+> tsc -b && vite build
+
+vite v8.3.1 building client environment for production...
+transforming...
+✓ 2364 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                1.35 kB │ gzip:   0.64 kB
+dist/assets/POSPage-CjD5O9Sm.css               1.14 kB │ gzip:   0.46 kB
+dist/assets/OperacionesPage-BXa_nbhv.css       1.31 kB │ gzip:   0.51 kB
+dist/assets/index-CC8Y77NE.css                13.20 kB │ gzip:   3.11 kB
+dist/assets/ArqueoCajaPage-FfVk4sRO.js         0.18 kB │ gzip:   0.16 kB
+dist/assets/OrdenesCompraPage-BmT7qMgd.js      0.18 kB │ gzip:   0.16 kB
+dist/assets/plus-BCllU72X.js                   0.19 kB │ gzip:   0.17 kB
+dist/assets/circle-check-DuXVxMYh.js           0.24 kB │ gzip:   0.21 kB
+dist/assets/mail-D1yM2edZ.js                   0.25 kB │ gzip:   0.22 kB
+dist/assets/circle-check-big-BunBmkVr.js       0.25 kB │ gzip:   0.22 kB
+dist/assets/generatePassword-BHL_7Koo.js       0.26 kB │ gzip:   0.24 kB
+dist/assets/circle-x-CnuEJeLp.js               0.26 kB │ gzip:   0.21 kB
+dist/assets/download-DG3vI-ky.js               0.26 kB │ gzip:   0.22 kB
+dist/assets/panels-top-left-DyEAuahh.js        0.28 kB │ gzip:   0.23 kB
+dist/assets/pen-BdmH_wAt.js                    0.29 kB │ gzip:   0.24 kB
+dist/assets/circle-alert-CSFni0-b.js           0.31 kB │ gzip:   0.22 kB
+dist/assets/coins-CALvmlPH.js                  0.32 kB │ gzip:   0.25 kB
+dist/assets/triangle-alert-DaCL2sxA.js         0.32 kB │ gzip:   0.25 kB
+dist/assets/requestId-BVRCCgdi.js              0.33 kB │ gzip:   0.23 kB
+dist/assets/refresh-cw-C7sF_5B_.js             0.35 kB │ gzip:   0.25 kB
+dist/assets/file-text-D8CEw2t1.js              0.42 kB │ gzip:   0.27 kB
+dist/assets/numeroCliente-CJCLgwTV.js          0.45 kB │ gzip:   0.32 kB
+dist/assets/receipt-BAS6rCRq.js                0.69 kB │ gzip:   0.31 kB
+dist/assets/csvExport-DzcgKtg3.js              0.69 kB │ gzip:   0.44 kB
+dist/assets/AuditoriaPage-B196b8Aj.js          3.00 kB │ gzip:   1.32 kB
+dist/assets/ComisionesPage-7yKRBKL_.js         3.55 kB │ gzip:   1.44 kB
+dist/assets/BarcodeScanner-BCgDbGdL.js         4.26 kB │ gzip:   1.92 kB
+dist/assets/LoginPage-sLPwbmwk.js              4.67 kB │ gzip:   2.00 kB
+dist/assets/ReportesPage-BJuoJY_J.js           4.67 kB │ gzip:   1.35 kB
+dist/assets/DashboardPage-D_Cy5tkd.js          6.35 kB │ gzip:   2.25 kB
+dist/assets/OperacionesPage-B66RQOCi.js       14.96 kB │ gzip:   4.41 kB
+dist/assets/DevolucionesPage-DVS0XJ4R.js      15.38 kB │ gzip:   4.96 kB
+dist/assets/UsuariosPage-xUwjesqs.js          16.46 kB │ gzip:   4.51 kB
+dist/assets/ClientesPage-BAVkcax6.js          18.15 kB │ gzip:   5.07 kB
+dist/assets/ConfiguracionPage-CkqN8q22.js     20.20 kB │ gzip:   5.25 kB
+dist/assets/LevantamientoPage-Re1WvDrO.js     21.52 kB │ gzip:   6.40 kB
+dist/assets/POSPage-CRbJqg93.js               30.79 kB │ gzip:   9.09 kB
+dist/assets/CotizacionesPage-9tMyNR7A.js      50.85 kB │ gzip:  11.12 kB
+dist/assets/SuperAdminPage-CZkgcFux.js        57.16 kB │ gzip:  12.02 kB
+dist/assets/InventarioPage-qgNaWWk-.js        57.21 kB │ gzip:  17.27 kB
+dist/assets/TenantContext-DdZyO7PH.js        114.85 kB │ gzip:  40.44 kB
+dist/assets/TopBar-CsQc8GZ3.js               115.44 kB │ gzip:  42.49 kB
+dist/assets/index-7PUNPE2b.js                266.09 kB │ gzip:  81.13 kB
+dist/assets/zxingDecoder-D-YVjW1c.js         452.26 kB │ gzip: 119.55 kB
+dist/assets/ClientePicker-B-TLg2OT.js      1,209.37 kB │ gzip: 446.73 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 2.38s

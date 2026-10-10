@@ -1,0 +1,36 @@
+[WebServer] (node:29523) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 23 tests using 2 workers
+
+(node:29543) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:29542) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Skipping host requirements validation logic because `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS` env variable is set.
+Skipping host requirements validation logic because `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS` env variable is set.
+  ✓   2 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:154:3 › Levantamiento de inventario (FS-06 fase 2) › crear levantamiento: un fallo de red conserva la clave y el reintento no duplica el levantamiento (5.6s)
+  ✓   1 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:168:3 › Levantamiento de inventario (FS-06 fase 2) › contar: un envío perdido queda pendiente, se confirma sin duplicar y el guardado es visible (6.8s)
+  ✓   3 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:182:3 › Levantamiento de inventario (FS-06 fase 2) › advierte antes de guardar un artículo ya contado por el mismo empleado y permite editar el conteo anterior (4.0s)
+  ✓   4 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:197:3 › Levantamiento de inventario (FS-06 fase 2) › avisa, sin bloquear, cuando otro empleado ya contó el artículo y registra el conflicto (4.8s)
+  ✓   5 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:210:3 › Levantamiento de inventario (FS-06 fase 2) › si otro dispositivo registró el artículo después de cargar la pantalla, el servidor rechaza el duplicado y muestra el motivo (4.3s)
+  ✓   6 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:222:3 › Levantamiento de inventario (FS-06 fase 2) › flujo completo: crear, contar con marca, finalizar, revisar impacto y aplicar (6.4s)
+  ✓   7 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:251:3 › Levantamiento en teléfono › la captura cabe en el ancho del teléfono y registra un producto sin fotografía (4.4s)
+  ✓   8 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:126:3 › Edición de productos (FS-07) › una edición parcial envía solo el nombre y la versión, sin tocar existencias ni precios (3.5s)
+  ✓   9 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:140:3 › Edición de productos (FS-07) › cambiar costo pide confirmación; cancelar no envía nada y aceptar envía el costo (3.8s)
+  ✓  10 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:158:3 › Edición de productos (FS-07) › si otro usuario cambió el producto, el servidor rechaza la edición, no sobrescribe y recarga la lista (4.0s)
+  ✓  11 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:173:3 › Edición de productos (FS-07) › un doble clic en Guardar envía una sola edición (3.7s)
+  ✓  12 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:185:3 › Edición de productos (FS-07) › un fallo de red no pierde el formulario y el reintento usa la misma versión (4.0s)
+  ✓  13 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:201:3 › Edición de productos (FS-07) › cambiar existencias exige motivo antes de enviar (4.0s)
+  ✓  15 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:231:3 › Edición de productos (FS-07) › la edición cabe en un teléfono sin desbordamiento horizontal (3.3s)
+  ✓  14 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:217:3 › Edición de productos (FS-07) › reactivar un producto inactivo: se muestra al activar la opción y se envía activo=true tras confirmar (3.7s)
+  ✓  16 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:246:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en SIDEBAR (4.5s)
+  ✓  17 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:246:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en TOPNAV (4.6s)
+  ✓  19 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:285:3 › Inventario para entrega al cliente / API simulada › código de barras duplicado muestra el error y conserva el formulario (4.1s)
+  ✓  18 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:268:3 › Inventario para entrega al cliente / API simulada › respuesta perdida y recarga: confirma la misma alta sin crear otro producto (4.7s)
+  ✓  20 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:300:3 › Inventario para entrega al cliente / API simulada › buscar por categoría real y descripción filtra el catálogo (3.4s)
+  ✓  21 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:315:3 › Inventario para entrega al cliente / API simulada › una recepción mientras el formulario está abierto impide un ajuste obsoleto (3.4s)
+  ✓  22 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:328:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático (3.7s)
+  ✓  23 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:349:3 › Inventario para entrega al cliente / API simulada › alta y cámara muestran textos en inglés (4.0s)
+
+  23 passed (53.0s)

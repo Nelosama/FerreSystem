@@ -1,0 +1,45 @@
+[WebServer] (node:19341) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:19360) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Skipping host requirements validation logic because `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS` env variable is set.
+  ✘  1 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:328:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático (2ms)
+
+
+  1) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:328:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático 
+
+    Error: browserType.launch: Target page, context or browser has been closed
+    Browser logs:
+
+    <launching> /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh --inspector-pipe --headless --no-startup-window
+    <launched> pid=19372
+    [pid=19372][err] /home/agent/.cache/ms-playwright/webkit-2359/minibrowser-wpe/bin/MiniBrowser: error while loading shared libraries: libharfbuzz-icu.so.0: cannot open shared object file: No such file or directory
+    Call log:
+      - <launching> /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh --inspector-pipe --headless --no-startup-window
+      - <launched> pid=19372
+      - [pid=19372][err] /home/agent/.cache/ms-playwright/webkit-2359/minibrowser-wpe/bin/MiniBrowser: error while loading shared libraries: libharfbuzz-icu.so.0: cannot open shared object file: No such file or directory
+      - [pid=19372] <gracefully close start>
+      - [pid=19372] <kill>
+      - [pid=19372] <will force kill>
+      - [pid=19372] exception while trying to kill process: Error: kill ESRCH
+      - [pid=19372] <process did exit: exitCode=127, signal=null>
+      - [pid=19372] starting temporary directories cleanup
+      - [pid=19372] finished temporary directories cleanup
+      - [pid=19372] <gracefully close end>
+
+
+    Error Context: test-results-webkit/productos-edicion-Inventar-ffe07-manual-sin-envío-automático-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Inventar-ffe07-manual-sin-envío-automático-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Inventar-ffe07-manual-sin-envío-automático-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:328:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático 
