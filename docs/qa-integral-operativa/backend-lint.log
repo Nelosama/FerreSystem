@@ -1,0 +1,171 @@
+
+> backend@0.0.1 lint
+> oxlint --type-aware src/ test/
+
+src/levantamientos/dto/create-levantamiento-item.dto.ts:1:90: warning eslint(no-unused-vars): Identifier 'IsBoolean' is imported but never used. help: Consider removing this import.
+src/cotizaciones/cotizaciones.service.spec.ts:7:7: warning eslint(no-unused-vars): Variable 'prisma' is assigned a value but never used. Unused variables should start with a '_'. help: Did you mean to use this variable?
+test/migrations.postgres.integration.ts:2:49: warning eslint(no-unused-vars): Identifier 'writeFileSync' is imported but never used. help: Consider removing this import.
+src/usuarios/dto/update-usuario.dto.ts:1:60: warning eslint(no-unused-vars): Identifier 'MinLength' is imported but never used. help: Consider removing this import.
+src/usuarios/dto/create-usuario.dto.ts:1:60: warning eslint(no-unused-vars): Identifier 'MinLength' is imported but never used. help: Consider removing this import.
+src/levantamientos/levantamientos.service.ts:1:81: warning eslint(no-unused-vars): Identifier 'ForbiddenException' is imported but never used. help: Consider removing this import.
+src/levantamientos/levantamientos.service.ts:198:11: warning eslint(no-unused-vars): Variable 'version' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+src/levantamientos/levantamientos.service.spec.ts:345:8: warning eslint(no-unused-vars): Variable 'lev' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+src/app.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/app.controller.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/app.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/prisma/prisma.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/guards/jwt-auth.guard.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/guards/super-admin.guard.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/backup-worker-status.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/backup-worker-status.ts:8:34: warning typescript(no-base-to-string): 'value.snapshot' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
+src/common/backup-worker-status.ts:8:83: warning typescript(no-base-to-string): 'value.sha256' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
+src/common/backup-worker-status.ts:10:33: warning typescript(no-base-to-string): 'value.errorCode' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
+src/common/backup-worker-status.ts:10:60: warning typescript(no-base-to-string): 'value.errorCode' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
+src/common/backup-worker-status.ts:12:90: warning typescript(no-base-to-string): 'value.alertDelivery' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
+src/common/backup-status.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/support-context.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/interceptors/support-audit.interceptor.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/health.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/operaciones/ledger.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/zona-horaria.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/empty-to-undefined.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/operaciones/operaciones.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/operaciones/operaciones.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/decorators/required-module.decorator.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/decorators/required-permission.decorator.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/guards/tenant.guard.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/decorators/roles.decorator.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/guards/roles.guard.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/decorators/tenant-id.decorator.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/decorators/current-user.decorator.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/operaciones/operaciones.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/operaciones/operaciones.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/interceptors/cashier-response.interceptor.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/prisma/prisma.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/tenant-modules.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/guards/tenant-module.guard.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/auth/jwt-secret.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/tenants/tenant-configuration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/auth/dto/login.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/auth/auth.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/auth/auth.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/auth/jwt.strategy.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/auth/auth.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/password-policy.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/super-admin/tenant-admin.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/super-admin/super-admin.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/super-admin/support-token.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/super-admin/super-admin.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/super-admin/super-admin.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/tenants/tenants.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/tenants/tenants.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/tenants/tenants.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/types/prisma-enums.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/productos/dto/create-producto.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/productos/producto-response.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/productos/productos.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/productos/producto-response.interceptor.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/productos/productos.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/productos/productos.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/clientes/dto/create-cliente.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/clientes/dto/cliente.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/clientes/dto/abono.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/clientes/clientes.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/clientes/clientes.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/clientes/clientes.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/ventas/ventas.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/ventas/dto/create-venta.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/ventas/ventas.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/ventas/ventas.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/cotizaciones/dto/create-cotizacion.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/cotizaciones/cotizaciones.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/cotizaciones/cotizaciones.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/cotizaciones/cotizaciones.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/dashboard/dashboard.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/dashboard/dashboard.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/dashboard/dashboard.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/usuarios/dto/create-usuario.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/usuarios/dto/update-usuario.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/usuarios/usuarios.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/usuarios/usuarios.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/usuarios/usuarios.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/levantamientos/dto/create-levantamiento-item.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/levantamientos/dto/create-levantamiento.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/levantamientos/levantamientos.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/levantamientos/levantamientos.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/levantamientos/levantamientos.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/proveedores/dto/proveedor.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/proveedores/proveedores.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/proveedores/proveedores.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/proveedores/proveedores.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/app.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/declarations.d.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/frontend-cors.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/main.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/auth/auth.service.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/auth/jwt-secret.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/clientes/clientes.service.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/authorization-revocation.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/backup-maintenance.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/backup-status.controller.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/frontend-cors.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/frontend-cors.spec.ts:41:21: warning typescript(no-base-to-string): 'error' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
+src/common/frontend-cors.spec.ts:42:21: warning typescript(no-base-to-string): 'error' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
+src/common/frontend-cors.spec.ts:43:21: warning typescript(no-base-to-string): 'error' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
+src/common/health.controller.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/operation-modules.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/password-policy.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/roles-access.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/support-impersonation.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/tenant-modules.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/zona-horaria.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/guards/auth-kind-guards.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/guards/tenant-module.guard.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/guards/tenant-module.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/cotizaciones/cotizaciones.service.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/dashboard/dashboard.zona-horaria.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/levantamientos/levantamientos.service.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/operaciones/compras-proveedores.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/operaciones/resumen-zona-horaria.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/operaciones/sec-003-devoluciones.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/productos/productos-security.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/super-admin/super-admin.service.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/super-admin/tenant-admin.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/tenants/tenant-configuration-migration.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/tenants/tenants.controller.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/tenants/tenants.service.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/tenants/tenants.controller.spec.ts:44:65: warning typescript(unbound-method): Avoid referencing unbound methods which may cause unintentional scoping of `this`. help: If your function does not access `this`, you can annotate it with `this: void`, or consider using an arrow function instead.
+src/ventas/create-venta-vencimiento.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/ventas/ventas-history.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/ventas/ventas.service.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/app.e2e-spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/auditoria-inventario.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/backup-scheduler.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/caja.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/ciclo-ventas.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/compras.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/auditoria-inventario.postgres.integration.ts:136:95: warning typescript(require-array-sort-compare): Require 'compare' argument.
+test/caja.postgres.integration.ts:262:12: warning typescript(require-array-sort-compare): Require 'compare' argument.
+test/caja.postgres.integration.ts:262:58: warning typescript(require-array-sort-compare): Require 'compare' argument.
+test/cotizaciones.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/credito.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/cotizaciones.postgres.integration.ts:111:12: warning typescript(require-array-sort-compare): Require 'compare' argument.
+test/dashboard.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/levantamientos.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/migrations.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/productos-edicion.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/productos-edicion.postgres.integration.ts:120:12: warning typescript(require-array-sort-compare): Require 'compare' argument.
+test/levantamientos.postgres.integration.ts:227:12: warning typescript(require-array-sort-compare): Require 'compare' argument.
+test/productos.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/levantamientos.postgres.integration.ts:350:12: warning typescript(require-array-sort-compare): Require 'compare' argument.
+test/reportes-zona-horaria.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/levantamientos.postgres.integration.ts:413:63: warning typescript(require-array-sort-compare): Require 'compare' argument.
+test/levantamientos.postgres.integration.ts:419:31: warning typescript(require-array-sort-compare): Require 'compare' argument.
+test/settings-http-checks.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/ventas.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/soporte-auditoria.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
