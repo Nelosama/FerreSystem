@@ -127,6 +127,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
       await operaciones.entregar(e.tenantId, e.cajero, enLinea.id);
       expect(await reservado()).toBe(0);
       expect(await stock(e.producto)).toBe(28);
+      expect(await prisma.movimientoInventario.count({ where: { documentoId: enLinea.id, tipo: 'ENTREGA' } })).toBe(1);
 
       // 6. Venta en contingencia: el equipo emite su ventana con la existencia actual (28) y cobra 2 tornillos.
       const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
@@ -137,6 +138,13 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
       expect(resultado.estado).toBe('APLICADA');
       expect(resultado.requiereRevision).toBe(false);
       expect(await stock(e.producto)).toBe(26);
+      // Una salida de inventario por la operación, con existencias anteriores y nuevas.
+      const salidas = () => prisma.movimientoInventario.findMany({ where: { tenantId: e.tenantId, documentoId: resultado.ventaId, tipo: 'ENTREGA' } });
+      const [salida] = await salidas();
+      expect(await salidas()).toHaveLength(1);
+      expect(Number(salida.cantidad)).toBe(-2); // cantidad = nuevo − anterior: salida negativa
+      expect(Number(salida.anterior)).toBe(28);
+      expect(Number(salida.nuevo)).toBe(26);
       const ventaOffline = await prisma.venta.findUniqueOrThrow({ where: { id: resultado.ventaId } });
       expect(ventaOffline.origen).toBe('CONTINGENCIA');
       expect(ventaOffline.correlativoLocal).toBe(offline.correlativoLocal);
@@ -147,6 +155,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
       // Reenvío tras pérdida de respuesta: no duplica venta, stock ni caja.
       const [reenvio] = (await enviar(e, [offline])).resultados;
       expect(reenvio.ventaId).toBe(resultado.ventaId);
+      expect(await salidas()).toHaveLength(1);
       expect(await prisma.venta.count({ where: { tenantId: e.tenantId } })).toBe(2);
       expect(await stock(e.producto)).toBe(26);
 

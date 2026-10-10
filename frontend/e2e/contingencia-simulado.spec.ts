@@ -124,4 +124,52 @@ test.describe('Contingencia POS — red y almacenamiento con backend simulado', 
     expect((await diario(page)).length).toBe(antes);
     expect(sim.operacionesRecibidas).toEqual([]);
   });
+
+  test('si la lista del diario falla después de guardar, la venta sigue confirmada y no se dice que no se guardó', async ({ page, sim }) => {
+    await ingresarYAbrirPos(page);
+    // La primera lectura del diario que ocurre después de una escritura falla (la escritura sí se completó).
+    await page.addInitScript(() => {
+      const add = IDBObjectStore.prototype.add;
+      const getAll = IDBObjectStore.prototype.getAll;
+      IDBObjectStore.prototype.add = function (...args: any[]) {
+        const peticion = add.apply(this, args as any);
+        if ((window as any).__fallarLecturaTrasGuardar && this.name === 'operaciones') (window as any).__armado = true;
+        return peticion;
+      } as any;
+      IDBObjectStore.prototype.getAll = function (...args: any[]) {
+        if ((window as any).__armado && this.name === 'operaciones') {
+          (window as any).__armado = false;
+          (window as any).__fallarLecturaTrasGuardar = false;
+          throw new DOMException('Lectura fallida tras guardar', 'UnknownError');
+        }
+        return getAll.apply(this, args as any);
+      } as any;
+    });
+    await page.reload();
+    await expect(page.getByRole('button', { name: /Tornillo 2 pulgadas/ })).toBeVisible();
+    await page.evaluate(() => { (window as any).__fallarLecturaTrasGuardar = true; });
+
+    await venderUnTornillo(page);
+    await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0001' })).toBeVisible();
+    await expect(page.getByText(/NO se guardó/)).toHaveCount(0);
+    // La venta está en el diario aunque la lista no se pudo recargar.
+    expect((await diario(page)).map((o) => o.correlativoLocal)).toEqual(['CT-01-0001']);
+    expect(sim.errores).toEqual([]);
+  });
+
+  test('la venta siguiente se cobra y guarda mientras la sincronización de la anterior sigue sin respuesta', async ({ page, sim }) => {
+    await ingresarYAbrirPos(page);
+    sim.colgarPrimera = true;
+    await venderUnTornillo(page);
+    await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0001' })).toBeVisible();
+    // Mientras el envío de la primera espera respuesta, el cajero atiende al siguiente cliente de inmediato.
+    await page.getByRole('button', { name: 'Siguiente cliente' }).click();
+    await venderUnTornillo(page);
+    await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0002' })).toBeVisible({ timeout: 5_000 });
+    expect(sim.operacionesRecibidas.length).toBe(1);
+    // El diario no tiene orden garantizado (se lee por UUID): cada venta se busca por su correlativo.
+    const estadoDe = async (c: string) => (await diario(page)).find((o) => o.correlativoLocal === c)?.estado;
+    expect(await estadoDe('CT-01-0001')).toBe('ENVIANDO');
+    expect(await estadoDe('CT-01-0002')).toBe('PENDIENTE');
+  });
 });

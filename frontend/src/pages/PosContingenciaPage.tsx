@@ -274,7 +274,8 @@ export default function PosContingenciaPage() {
       setConfirmacion(guardada);
       setLineas([]); setClienteNombre(''); setClienteRtn(''); setEfectivoTexto('');
       setMensaje({ tipo: 'ok', texto: `Venta guardada en este equipo: ${guardada.correlativoLocal}. Entregue el cambio y la mercancía.` });
-      await recargarDiario();
+      // La venta ya está guardada: un fallo al releer la lista no puede presentarla como no guardada.
+      recargarDiario().catch(() => setMensaje({ tipo: 'aviso', texto: `Venta guardada en este equipo: ${guardada.correlativoLocal}. No se pudo actualizar la lista; recargue la página antes de cerrar el turno.` }));
       void borrarBorrador().catch(() => undefined);
       if (enLinea) void sincronizar();
     } catch (error: any) {

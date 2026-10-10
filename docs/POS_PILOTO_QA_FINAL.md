@@ -83,6 +83,34 @@ Comando: `npx prisma migrate deploy` sobre una base vacía (clúster nuevo, usua
 
 Cobertura adicional en `contingencia.postgres.integration.ts` (25 pruebas: conflictos de precio, stock, caja cerrada, usuario desactivado, ventana revocada, límites, inmutabilidad del diario, aislamiento, costo vigente).
 
+## 4b. Regla de negocio confirmada: venta offline = venta normal
+
+Verificación contra el código de `claude/integracion-pos-offline-p1` (PR #129). Sin reimplementación: solo corrección del defecto de la fila 3 y pruebas faltantes.
+
+| Requisito | Dónde se cumple | Evidencia |
+|---|---|---|
+| 1. Cajero selecciona productos | `PosContingenciaPage.tsx` | E2E real 2 |
+| 2. Cobra en efectivo y calcula cambio | `cobrar()` calcula `cambioCentavos = efectivo − total` | E2E real 1 y 4 (efectivo, cambio y total en servidor) |
+| 3. Guardado durable antes de confirmar | `registrarOperacion` → `transaccion` resuelve solo en `oncomplete` (durabilidad `strict`) | Simulado: cuota llena → «NO se guardó», sin comprobante, sin operación |
+| 4. Comprobante interno | Bloque «Venta guardada en este equipo: CT-NN-NNNN» con total, recibido y cambio | E2E real 1 y 2 |
+| 5. Entrega de la mercancía | Mensaje «Entregue el cambio y la mercancía» solo después del guardado | Mismo flujo que 3 |
+| 6. Siguiente cliente sin esperar internet | `cobrar()` no espera la sincronización (`void sincronizar()`); el botón «Siguiente cliente» queda disponible | **Nueva** prueba simulada: la venta 2 se guarda con el envío de la venta 1 colgado |
+| Conservar UUID, correlativo CT, productos, cantidades, precios, efectivo y cambio | Registro `OperacionLocal` (`NuevaOperacion` + `secuenciaLocal`, `correlativoLocal`) | E2E real 1 y 4; integración PostgreSQL |
+| Salida de inventario asociada | Local: la línea reduce el disponible del equipo al instante (`disponibleLocal`). Central: un movimiento `ENTREGA` por operación al sincronizar | **Nuevo** en `piloto-flujo-completo`: una salida con `cantidad=-2`, anterior 28, nuevo 26; el reenvío no añade ninguna |
+| Sincronizar al recuperar conexión | Evento `online` y cada 30 s; `sincronizarPendientes` | E2E real 3 |
+| Idempotencia y sin doble descuento | UUID de operación; `ventas`, `movimientos_caja` y `movimientos_inventario` no se duplican tras reenvío | Integración contingencia 167 y piloto; E2E real 7 |
+| Conflictos retenidos para revisión | Estados `REVISION` con motivo; el administrador resuelve con nota de 10 caracteres | E2E real 9 y 12; integración de conflictos |
+
+**Defecto corregido en esta verificación** (`PosContingenciaPage.tsx`): `recargarDiario()` estaba dentro del `try` del guardado. Si releer la lista fallaba **después** de guardar, el `catch` mostraba «La venta NO se guardó… No entregue la mercancía», aunque la venta sí estuviera en el diario. Riesgo: el cajero no entrega una mercancía ya cobrada, o la vuelve a cobrar. Corrección: la relectura ya no afecta al resultado del guardado; si falla, el aviso dice que la venta está guardada y que hay que recargar la página. Prueba que lo reproduce: `contingencia-simulado.spec.ts` «si la lista del diario falla después de guardar…» (fallaba antes de la corrección; pasa después).
+
+**Brechas abiertas (no corregidas, decisión del dueño):**
+
+- **Comprobante sin detalle de productos.** El comprobante muestra correlativo, total, recibido y cambio, pero no las líneas. «Imprimir comprobante» imprime la página completa, no un comprobante. La regla pide «comprobante interno»; el detalle de líneas debe confirmarse con el dueño antes de cambiar la pantalla.
+- **Stock central desfasado mientras la venta no se sincroniza.** Es inherente al modo offline: el movimiento `ENTREGA` se registra al sincronizar, no al cobrar. Los reportes de inventario del servidor no reflejan la venta hasta entonces; el equipo sí la refleja. Documentar para el administrador.
+- **Venta en línea reserva; venta offline descuenta de inmediato.** Ver §7 (riesgo alto). La regla «venta normal» exige decidir si la venta en línea de efectivo también debe entregar automáticamente.
+
+**Ejecución de esta verificación:** simulada 120/120; E2E real 29/29 (14 de contingencia); frontend unitarias 224/224; build con `VITE_API_URL=/api`; integración de contingencia y piloto 31/31 (con las dos nuevas aserciones de inventario).
+
 ## 5. Service worker, almacenamiento lleno y pérdida de respuesta
 
 | Riesgo | Cobertura | Resultado | Límite |
