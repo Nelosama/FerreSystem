@@ -563,7 +563,10 @@
       "quotations": "COTIZACIONES",
       "operations": "OPERACIONES",
       "customers": "CLIENTES"
-    }
+    },
+    "net_total": "Total cobrado neto de devoluciones (incluye ISV)",
+    "base_label": "Base",
+    "tax_label": "ISV"
   },
   "operational": {
     "items": "ITEMS",

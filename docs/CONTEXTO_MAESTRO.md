@@ -33,6 +33,14 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Riesgos abiertos:** (R1) comprobación de deriva de solo lectura contra producción, pendiente del responsable; (R2) conflicto de texto con #138 y con #129 (2 bloques en `schema.prisma` en cada caso, validado por simulación): integrar #138 primero y rebasar esta rama; (R3) `auditoria_soporte` (SEC-012) requiere decisión de conservación con CENTINELA; (R4) `listas_precio` y `clientes.lista_precio_id` sin uso en backend, decisión de negocio pendiente; (R5) sin prueba de aislamiento multi-tenant para las tablas históricas.
 - **Pendientes antes de integrar:** diff de solo lectura en producción; revisión de CENTINELA; orden de integración con #138; decisión sobre tablas históricas. Sin migración que aplicar.
 - **Bitácora:** replicación de `main` con 13 migraciones en PostgreSQL 16 temporal; diff de `main`, #129, #137 y #138; clasificación; modelos y relaciones; prueba nueva con mutación; simulación de merge con #138 y #129; informe y docs de agente. Pruebas con `nobody` (sin root) como el resto de integración.
+## Fase funcional de módulos administrativos (2026-10-10, PR #130 y #131, sin merge)
+
+- **Base:** `claude/integracion-pos-offline-p1` (integra #127 y #128, según #129). No se modificó #129 ni `main`. El POS offline no se tocó.
+- **Terminado:** garantías alineadas con el backend (VENDEDOR 403) y responsables por nombre en el listado (#130); proveedor preferido sugerido en compras, reportes con base e ISV separados, guardia de módulos pendientes y matriz QA (#131).
+- **Pruebas:** integración PostgreSQL 21 archivos, 367 aprobadas, 1 omitida; backend unitarias 345/345; frontend unitarias 227/227; Playwright 119/119.
+- **Bloqueado por decisión del dueño:** reclamos de garantía y comprobantes; comprobante de devolución; corrección auditada de cierres; precedencia de listas de precio; apartados; pedidos especiales; comisiones; idioma por empresa (diseño en la matriz).
+- **Bloqueado por dependencia:** transferencias y existencias por sucursal, sin modelo de sucursal.
+- **Detalle y decisiones:** `docs/FASE_FUNCIONAL_MODULOS_ADMIN_20261010.md`.
 
 ---
 
