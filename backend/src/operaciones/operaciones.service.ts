@@ -3,9 +3,10 @@ import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
 import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
-import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
+import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, EntregarVentaDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 import { eliminarVinculoProveedor, guardarVinculoProveedor, listarProveedoresProducto, registrarCostoProveedor } from './productos-proveedores';
 import { estadoCuentaCliente } from './estado-cuenta-cliente';
+import { aplicarDestinosDevolucion, cent, entregarLineas, ROLES_ENTREGA, type DestinoDevolucion } from '../entregas/entregas-core';
 
 @Injectable()
 export class OperacionesService {
@@ -242,30 +243,36 @@ export class OperacionesService {
    const result={hash,stock,anterior:Number(prod.stock_actual),motivo};await audit(tx,tenantId,userId,'STOCK_AJUSTAR',dto.solicitudId,result);return result;
   });
  }
- async entregar(tenantId:string,userId:string,ventaId:string){
+ // Entrega heredada: entrega lo que siga pendiente de la venta (bodega). Delega en el núcleo de entregas:
+ // reglas de cantidades, receptor obligatorio e idempotencia por solicitud.
+ async entregar(tenantId:string,userId:string,ventaId:string,dto:EntregarVentaDto){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
-   await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','BODEGUERO']);
-   const [v]=await query(tx,'SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado=\'COMPLETADA\' FOR UPDATE',ventaId,tenantId);if(!v)throw new NotFoundException('Venta registrada no encontrada');
-   if(v.entregado_at)return v;
-   if(v.reserva_pendiente){
-    const details=await query(tx,'SELECT d.*,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d WHERE venta_id=$1 AND sin_inventario=false',v.id);
-    // Si toda la mercancía reservada volvió por devolución, no hay nada que entregar: no se registra una entrega falsa.
-    if(!details.some(d=>Number(d.cantidad)-Number(d.devuelto)>0))throw new ConflictException('La mercancía de esta venta fue devuelta; no hay entrega pendiente');
-    for(const d of details){
-     const [p]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.producto_id,tenantId);
-     const quantity=money(Number(d.cantidad)-Number(d.devuelto));if(quantity===0)continue;
-     if(!p||Number(p.stock_actual)<quantity||Number(p.stock_reservado)<quantity)throw new ConflictException('Existencias reservadas inconsistentes; revise inventario');
-     await query(tx,'UPDATE productos SET stock_actual=stock_actual-$1,stock_reservado=stock_reservado-$1,updated_at=NOW() WHERE id=$2 RETURNING id',quantity,p.id);
-     await movement(tx,tenantId,userId,p.id,'ENTREGA',Number(p.stock_actual),money(Number(p.stock_actual)-quantity),v.id,'Entrega de venta registrada');
+   await authorizedActor(tx,tenantId,userId,ROLES_ENTREGA);
+   const [anterior]=await query(tx,'SELECT id FROM entregas_eventos WHERE tenant_id=$1 AND solicitud_id=$2 AND venta_id=$3',tenantId,dto.solicitudId,ventaId);
+   let lineas:{detalleId:string;cantidad:number}[];
+   if(anterior){
+    // Reintento: se reconstruye lo entregado en la primera vez para que la huella coincida o el conflicto sea explícito.
+    const previas=await query(tx,'SELECT detalle_venta_id, cantidad FROM entregas_eventos_lineas WHERE tenant_id=$1 AND evento_id=$2',tenantId,anterior.id);
+    lineas=previas.map(l=>({detalleId:l.detalle_venta_id,cantidad:Number(l.cantidad)}));
+   }else{
+    const pendientes=await query(tx,"SELECT id, cantidad - cantidad_entregada - cantidad_cancelada AS pendiente FROM detalles_venta WHERE tenant_id=$1 AND venta_id=$2 AND modo_entrega='BODEGA' AND cantidad - cantidad_entregada - cantidad_cancelada > 0 ORDER BY id",tenantId,ventaId);
+    if(!pendientes.length){
+     const [venta]=await query(tx,"SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado='COMPLETADA'",ventaId,tenantId);
+     if(!venta)throw new NotFoundException('Venta registrada no encontrada');
+     // Ya entregada: la confirmación repetida es inofensiva. Devuelta o cancelada sin entrega: no se registra una entrega falsa.
+     if(!venta.entregado_at)throw new ConflictException('La mercancía de esta venta fue devuelta o cancelada; no hay entrega pendiente');
+     return venta;
     }
+    lineas=pendientes.map(l=>({detalleId:l.id,cantidad:Number(l.pendiente)}));
    }
-   const [delivered]=await query(tx,'UPDATE ventas SET reserva_pendiente=false,entregado_at=NOW(),entregado_por=$1 WHERE id=$2 RETURNING *',userId,v.id);await audit(tx,tenantId,userId,'VENTA_ENTREGAR',v.id,{fecha:delivered.entregado_at});return delivered;
-  });
+   return entregarLineas(tx,{tenantId,usuarioId:userId,ventaId,solicitudId:dto.solicitudId,receptorNombre:dto.receptorNombre,lineas});
+  },{timeout:60000});
  }
+ // Ventas con mercancía pendiente de entrega (modo bodega). Cantidad = lo que falta entregar.
  async entregas(tenantId:string){
-  const ventas=await query(this.prisma,"SELECT v.*,COALESCE(c.nombre,v.cliente_nombre) AS cliente_nombre FROM ventas v LEFT JOIN clientes c ON c.id=v.cliente_id WHERE v.tenant_id=$1 AND v.estado='COMPLETADA' AND v.entregado_at IS NULL ORDER BY v.created_at",tenantId);
-  for(const v of ventas)v.items=await query(this.prisma,'SELECT d.*,p.nombre,d.cantidad-COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS cantidad FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1 AND d.cantidad>COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0)',v.id);
+  const ventas=await query(this.prisma,"SELECT v.*,COALESCE(c.nombre,v.cliente_nombre) AS cliente_nombre FROM ventas v LEFT JOIN clientes c ON c.id=v.cliente_id WHERE v.tenant_id=$1 AND v.estado='COMPLETADA' AND v.reserva_pendiente=true ORDER BY v.created_at",tenantId);
+  for(const v of ventas)v.items=await query(this.prisma,"SELECT d.*,p.nombre,p.codigo,d.cantidad-d.cantidad_entregada-d.cantidad_cancelada AS cantidad FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1 AND d.tenant_id=$2 AND d.modo_entrega='BODEGA' AND d.cantidad-d.cantidad_entregada-d.cantidad_cancelada>0 ORDER BY p.nombre",v.id,tenantId);
   return ventas.filter(v=>v.items.length>0);
  }
  async resumen(tenantId:string,desde:string,hasta:string,zona=ZONA_HORARIA_NEGOCIO,ahora=new Date()){
@@ -293,10 +300,17 @@ export class OperacionesService {
    for(const d of details){gross+=Number(d.cantidad)*Number(d.precio_unitario);before+=Number(d.devuelto)*Number(d.precio_unitario);}
    for(const item of dto.items){
     const d=details.find(d=>d.id===item.detalleId),quantity=decimal(item.cantidad,'Cantidad',true);if(!d)throw new NotFoundException('Línea de venta no encontrada');
-    if(quantity>money(Number(d.cantidad)-Number(d.devuelto)))throw new BadRequestException('Cantidad supera lo vendido pendiente de devolver');
-    if(v.reserva_pendiente&&!d.sin_inventario&&item.destino!=='NO_ENTREGADO')throw new BadRequestException('La mercancía reservada debe cancelarse como no entregada');
-    if(!v.reserva_pendiente&&!d.sin_inventario&&item.destino==='NO_ENTREGADO')throw new BadRequestException('La mercancía ya entregada requiere un destino físico');
-    if(d.sin_inventario&&item.destino==='INVENTARIO')throw new BadRequestException('Mercancía sin inventario requiere recepción física separada');
+    if(d.sin_inventario){
+     if(quantity>money(Number(d.cantidad)-Number(d.devuelto)))throw new BadRequestException('Cantidad supera lo vendido pendiente de devolver');
+     if(item.destino==='INVENTARIO')throw new BadRequestException('Mercancía sin inventario requiere recepción física separada');
+    }else{
+     // Límites por línea (docs/POS_ENTREGA_DISENO_TECNICO.md §2.3): lo pendiente se cancela; lo entregado vuelve con un destino físico.
+     const C=cent(d.cantidad),E=cent(d.cantidad_entregada),R=cent(d.cantidad_devuelta_reingresada),S=cent(d.cantidad_devuelta_sin_reingreso),N=cent(d.cantidad_cancelada),q=cent(quantity);
+     if(item.destino==='NO_ENTREGADO'){
+      if(d.modo_entrega!=='BODEGA')throw new BadRequestException('La mercancía ya se entregó al cobrar; requiere un destino físico');
+      if(q>C-E-N)throw new BadRequestException(`Cantidad supera lo pendiente de entrega (pendiente: ${((C-E-N)/100).toFixed(2)}); la mercancía entregada requiere un destino físico`);
+     }else if(q>E-R-S)throw new BadRequestException(`Cantidad supera lo vendido pendiente de devolver (disponible para devolver: ${((E-R-S)/100).toFixed(2)})`);
+    }
     added+=quantity*Number(d.precio_unitario);
    }
    const [old]=await query(tx,'SELECT COALESCE(SUM(monto),0) AS monto FROM devoluciones WHERE venta_id=$1',v.id);
@@ -419,15 +433,9 @@ export class OperacionesService {
    for(const item of dto.items){
     const d=details.find(d=>d.id===item.detalleId);
     await query(tx,'INSERT INTO detalles_devolucion(id,devolucion_id,detalle_venta_id,cantidad,destino) VALUES($1,$2,$3,$4,$5) RETURNING id',id(),result.id,d.id,item.cantidad,item.destino);
-    if(!d.sin_inventario){
-     const [p]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.producto_id,tenantId);
-     if(v.reserva_pendiente)await query(tx,'UPDATE productos SET stock_reservado=stock_reservado-$1,updated_at=NOW() WHERE id=$2 RETURNING id',item.cantidad,p.id);
-     else if(item.destino==='INVENTARIO'){
-      await query(tx,'UPDATE productos SET stock_actual=stock_actual+$1,updated_at=NOW() WHERE id=$2 RETURNING id',item.cantidad,p.id);
-      await movement(tx,tenantId,userId,p.id,'DEVOLUCION',Number(p.stock_actual),money(Number(p.stock_actual)+item.cantidad),result.id,dto.motivo);
-     }
-    }
    }
+   // Existencias y contadores por línea: reingreso (INVENTARIO), sin reingreso (DAÑADO, PROVEEDOR) o liberación de la reserva (NO_ENTREGADO).
+   await aplicarDestinosDevolucion(tx,{tenantId,usuarioId:userId,ventaId:v.id,solicitudBase:dto.solicitudId,motivo:String(dto.motivo??'').trim(),items:dto.items.map(i=>({detalleId:i.detalleId,cantidad:i.cantidad,destino:i.destino as DestinoDevolucion}))});
    if(caja)await cashMovement(tx,caja.id,userId,'DEVOLUCION',-refund,metodo,result.id,`Devolución de venta ${v.numero_venta}`);
    await audit(tx,tenantId,userId,'VENTA_DEVOLVER',result.id,{ventaId,monto,credito,refund,metodo,items:dto.items});return result;
  }

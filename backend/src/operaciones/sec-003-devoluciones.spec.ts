@@ -211,6 +211,51 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
         }
         return [{ id }];
       }
+      // ── Núcleo de entregas: líneas con contadores, eventos y actualizaciones con límite ──
+      const detalleDe = (detalleId: string) => Object.values(dbSaleDetails).flat().find((d: any) => d.id === detalleId) as any;
+      if (sql.includes('FROM detalles_venta d JOIN productos p')) {
+        const ventaId = params[1];
+        return (dbSaleDetails[ventaId] || []).map((d: any) => {
+          const prod = dbProducts[d.producto_id] || {};
+          return { ...d, nombre: prod.nombre, codigo: prod.codigo ?? d.producto_id, stock_actual: prod.stock_actual, stock_reservado: prod.stock_reservado };
+        });
+      }
+      if (sql.includes('UPDATE detalles_venta SET cantidad_devuelta_reingresada') || sql.includes('UPDATE detalles_venta SET cantidad_devuelta_sin_reingreso')) {
+        const [tenantId, detalleId, cantidad] = params;
+        const d = detalleDe(detalleId);
+        const q = Number(cantidad);
+        if (!d || d.tenant_id !== tenantId || Number(d.cantidad_devuelta_reingresada) + Number(d.cantidad_devuelta_sin_reingreso) + q > Number(d.cantidad_entregada)) return [];
+        const campo = sql.includes('cantidad_devuelta_reingresada =') ? 'cantidad_devuelta_reingresada' : 'cantidad_devuelta_sin_reingreso';
+        d[campo] = Number(d[campo]) + q;
+        return [{ id: detalleId }];
+      }
+      if (sql.includes('UPDATE detalles_venta SET cantidad_cancelada')) {
+        const [tenantId, detalleId, cantidad] = params;
+        const d = detalleDe(detalleId);
+        const q = Number(cantidad);
+        if (!d || d.tenant_id !== tenantId || d.modo_entrega !== 'BODEGA' || Number(d.cantidad_entregada) + Number(d.cantidad_cancelada) + q > Number(d.cantidad)) return [];
+        d.cantidad_cancelada = Number(d.cantidad_cancelada) + q;
+        d.cantidad_preparada = Math.min(Number(d.cantidad_preparada), Number(d.cantidad) - Number(d.cantidad_entregada) - Number(d.cantidad_cancelada));
+        return [{ id: detalleId }];
+      }
+      if (sql.includes('UPDATE productos SET stock_actual = stock_actual + $3::numeric')) {
+        const [tenantId, prodId, cantidad] = params;
+        const prod = dbProducts[prodId];
+        if (!prod || prod.tenant_id !== tenantId) return [];
+        prod.stock_actual = Number(prod.stock_actual) + Number(cantidad);
+        return [{ id: prodId }];
+      }
+      if (sql.includes('UPDATE productos SET stock_reservado = stock_reservado - $3::numeric')) {
+        const [tenantId, prodId, cantidad] = params;
+        const prod = dbProducts[prodId];
+        if (!prod || prod.tenant_id !== tenantId || Number(prod.stock_reservado) < Number(cantidad)) return [];
+        prod.stock_reservado = Number(prod.stock_reservado) - Number(cantidad);
+        return [{ id: prodId }];
+      }
+      if (sql.includes('INSERT INTO entregas_eventos_lineas')) return [{ detalle_venta_id: params[2] }];
+      if (sql.includes('INSERT INTO entregas_eventos')) return [{ id: params[0] }];
+      if (sql.includes('COUNT(*) FILTER (WHERE modo_entrega')) return [{ pendientes: 0, entregado: 0 }];
+      if (sql.includes('UPDATE ventas SET reserva_pendiente=$3')) return [{ id: params[0] }];
       if (sql.includes('SELECT * FROM productos WHERE id=$1 AND tenant_id=$2')) {
         const [prodId, tenantId] = params;
         const p = dbProducts[prodId];
@@ -305,13 +350,13 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
 
     dbSaleDetails = {
       'venta-1': [
-        { id: 'det-1', venta_id: 'venta-1', producto_id: 'prod-1', cantidad: 2, precio_unitario: 100, sin_inventario: false },
+        { id: 'det-1', tenant_id: 'tenant-A', venta_id: 'venta-1', producto_id: 'prod-1', cantidad: 2, precio_unitario: 100, sin_inventario: false, modo_entrega: 'MOSTRADOR', cantidad_preparada: 0, cantidad_entregada: 2, cantidad_devuelta_reingresada: 0, cantidad_devuelta_sin_reingreso: 0, cantidad_cancelada: 0 },
       ],
       'venta-credito-1': [
-        { id: 'det-2', venta_id: 'venta-credito-1', producto_id: 'prod-2', cantidad: 3, precio_unitario: 100, sin_inventario: false },
+        { id: 'det-2', tenant_id: 'tenant-A', venta_id: 'venta-credito-1', producto_id: 'prod-2', cantidad: 3, precio_unitario: 100, sin_inventario: false, modo_entrega: 'MOSTRADOR', cantidad_preparada: 0, cantidad_entregada: 3, cantidad_devuelta_reingresada: 0, cantidad_devuelta_sin_reingreso: 0, cantidad_cancelada: 0 },
       ],
       'venta-tenant-B': [
-        { id: 'det-B', venta_id: 'venta-tenant-B', producto_id: 'prod-B', cantidad: 1, precio_unitario: 150, sin_inventario: false },
+        { id: 'det-B', tenant_id: 'tenant-B', venta_id: 'venta-tenant-B', producto_id: 'prod-B', cantidad: 1, precio_unitario: 150, sin_inventario: false, modo_entrega: 'MOSTRADOR', cantidad_preparada: 0, cantidad_entregada: 1, cantidad_devuelta_reingresada: 0, cantidad_devuelta_sin_reingreso: 0, cantidad_cancelada: 0 },
       ],
     };
 

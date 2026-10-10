@@ -425,6 +425,14 @@ model DetalleVenta {
   sinInventario Boolean @default(false) @map("sin_inventario")
   proveedorId String? @map("proveedor_id")
   ordenCompraId String? @map("orden_compra_id")
+  // Cobro y entrega (docs/POS_ENTREGA_DISENO_TECNICO.md). Las claves compuestas (tenant_id, …) viven en SQL.
+  tenantId                     String?  @map("tenant_id")
+  modoEntrega                  String   @default("BODEGA") @map("modo_entrega")
+  cantidadPreparada            Decimal  @default(0) @map("cantidad_preparada") @db.Decimal(12, 2)
+  cantidadEntregada            Decimal  @default(0) @map("cantidad_entregada") @db.Decimal(12, 2)
+  cantidadDevueltaReingresada  Decimal  @default(0) @map("cantidad_devuelta_reingresada") @db.Decimal(12, 2)
+  cantidadDevueltaSinReingreso Decimal  @default(0) @map("cantidad_devuelta_sin_reingreso") @db.Decimal(12, 2)
+  cantidadCancelada            Decimal  @default(0) @map("cantidad_cancelada") @db.Decimal(12, 2)
 
   // Relaciones
   venta          Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
@@ -765,6 +773,8 @@ model MovimientoInventario {
  nuevo Decimal @db.Decimal(12,2)
  documentoId String @map("documento_id")
  motivo String
+ eventoId String? @map("evento_id")
+ detalleVentaId String? @map("detalle_venta_id")
  createdAt DateTime @default(now()) @map("created_at")
  @@index([tenantId,productoId,createdAt])
  @@map("movimientos_inventario")
@@ -1050,4 +1060,35 @@ model OperacionContingencia {
   @@index([tenantId, estado])
   @@index([tenantId, recibidoAt])
   @@map("operaciones_contingencia")
+}
+
+// Cobro y entrega: eventos de solo inserción. Ver docs/POS_ENTREGA_DISENO_TECNICO.md §3.3.
+model EntregaEvento {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  solicitudId    String   @map("solicitud_id")
+  huella         String   @db.Char(64)
+  tipo           String
+  ventaId        String   @map("venta_id")
+  usuarioId      String   @map("usuario_id")
+  receptorNombre String?  @map("receptor_nombre")
+  motivo         String?
+  origen         String
+  dispositivoId  String?  @map("dispositivo_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, solicitudId])
+  @@index([tenantId, ventaId, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("entregas_eventos")
+}
+
+model EntregaEventoLinea {
+  tenantId       String  @map("tenant_id")
+  eventoId       String  @map("evento_id")
+  detalleVentaId String  @map("detalle_venta_id")
+  cantidad       Decimal @db.Decimal(12, 2)
+
+  @@id([tenantId, eventoId, detalleVentaId])
+  @@map("entregas_eventos_lineas")
 }

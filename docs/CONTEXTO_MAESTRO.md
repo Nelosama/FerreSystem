@@ -22,6 +22,21 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Cobro y entrega — implementación (ATLAS, 2026-10-10, rama `claude/atlas-cobro-entrega`, base `claude/integracion-pos-offline-p1`)
+
+**Estado:** código funcionando y probado en PostgreSQL 16 real; **sin merge, sin despliegue, sin migración productiva**. Diseño base: `docs/POS_ENTREGA_DISENO_TECNICO.md` (rev. 3, `c5fe4982`).
+
+- **Migración aditiva** `backend/prisma/migrations/20261012000000_entrega_eventos_y_cantidades`: contadores por línea (`cantidad_preparada/entregada/devuelta_reingresada/devuelta_sin_reingreso/cancelada`), `modo_entrega` (`MOSTRADOR|BODEGA|SIN_INVENTARIO`), `tenant_id` en `detalles_venta`, tablas `entregas_eventos` y `entregas_eventos_lineas` (solo inserción, `UNIQUE(tenant_id, solicitud_id)`, huella SHA-256), FK compuestas por tenant, CHECK de invariantes. Backfill probado con ventas legadas (`test/migrations.postgres.integration.ts`).
+- **Cobro:** `ventas.service.ts` acepta `modoEntrega` por línea. MOSTRADOR entrega y descuenta al cobrar; BODEGA reserva (por defecto, como antes); sin inventario no mueve stock. Huella canónica en `common/huella-solicitud.ts`: la misma `solicitudId` con contenido distinto devuelve `SOLICITUD_REUTILIZADA`.
+- **Entregas:** módulo `backend/src/entregas/` (`GET /entregas/pendientes`, `GET /entregas/ventas/:id`, `POST …/entregas|preparacion|liberaciones`). Entrega parcial con receptor obligatorio, actor ADMIN/BODEGUERO, descuento exactamente una vez (UPDATE condicionado + evento idempotente). `POST /operaciones/ventas/:id/entregar` ahora exige `solicitudId` y `receptorNombre` y delega al mismo núcleo; sobre venta sin entrega pendiente responde 409.
+- **Devoluciones:** por línea sobre lo realmente entregado; INVENTARIO reingresa, DAÑADO/PROVEEDOR no reingresan, NO_ENTREGADO libera reserva. Motivo no vacío (el mínimo de 10 caracteres solo rige en liberación explícita).
+- **Contingencia:** el catálogo solo incluye productos activos con precio de venta > 0 (contrato `precioAprobado` con KARDEX); al sincronizar se revalida precio y se rechaza de forma permanente (`IMPORTE_INVALIDO`, `PRODUCTO_SIN_PRECIO_APROBADO`) sin crear ventas de importe cero; la venta local queda en revisión.
+- **Interfaz:** POS con «Procesar Venta» (entrega en mostrador) y «Cobrar y dejar en bodega»; nueva `EntregasPage` en `/entregas` (cantidades vendidas/entregadas/pendientes, entrega parcial, receptor, solicitud estable en reintentos); el catálogo offline del cliente descarta precios ≤ 0.
+- **Pruebas (2026-10-10):** backend unitarias 356/356; integración PostgreSQL 429/429 (incluye `cobro-entrega.postgres.integration.ts` 51 casos, backfill y Chromium real); frontend `npm test` 232/232; Playwright simulado 131/131 (incluye `e2e/entregas-simulado.spec.ts`).
+- **Desviaciones del diseño:** `DEFAULT 'BODEGA'` conservado en `modo_entrega`; devoluciones unificadas en el endpoint existente; sin endpoints de devolución nuevos.
+- **Pendiente real:** prueba de navegador contra backend real del botón «Cobrar y dejar en bodega» y de `EntregasPage` (solo simulado); `OperacionesPage` modo `entregas` queda sin ruta (código heredado); validación de KARDEX (movimientos), CENTINELA (permisos), BALANCE (efectos financieros) y NEXUS (FK compuestas fuera de Prisma) aún no recibida; P12 no implementado; no se probó contra producción.
+
+
 ## P1 operaciones — implementación (2026-10-10, rama `claude/p1-operaciones`)
 
 - **Base:** `main` `7ccfad25`. Rama nueva; sin merge, sin despliegue, sin migraciones productivas. No se tocaron `POSPage.tsx`, contingencia, sincronización, service worker ni IndexedDB (trabajo del agente POS en `claude/pos-offline-*`).
