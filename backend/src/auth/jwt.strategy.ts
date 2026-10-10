@@ -4,6 +4,8 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { getJwtSecret } from './jwt-secret';
+import { leerConfiguracionAuth } from './auth-config';
+import { sesionVigente } from './sesiones-auth';
 
 export interface JwtValidatedPayload {
   sub: string;
@@ -21,12 +23,26 @@ export interface JwtValidatedPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly aceptarTokensSinSesion: boolean;
+
   constructor(configService: ConfigService, private readonly prisma: PrismaService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: getJwtSecret(configService),
     });
+    this.aceptarTokensSinSesion = leerConfiguracionAuth(configService).aceptarTokensSinSesion;
+  }
+
+  // Una sesión revocada o vencida no autoriza nada, aunque la firma y el vencimiento del token sean válidos.
+  private async exigirSesion(payload: any) {
+    if (!payload.sid) {
+      if (this.aceptarTokensSinSesion) return;
+      throw new UnauthorizedException('Sesión no válida. Inicie sesión de nuevo.');
+    }
+    if (!(await sesionVigente(this.prisma, String(payload.sid), String(payload.sub)))) {
+      throw new UnauthorizedException('Sesión cerrada o vencida. Inicie sesión de nuevo.');
+    }
   }
 
   async validate(payload: any): Promise<JwtValidatedPayload> {
@@ -39,6 +55,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.type === 'tenant') {
       const user=await this.prisma.usuario.findFirst({where:{id:payload.sub,tenantId:payload.tenantId,activo:true},include:{tenant:true}});
       if(!user || user.tenant.estado !== 'ACTIVO') throw new UnauthorizedException('Usuario o empresa no disponible');
+      await this.exigirSesion(payload);
       // Una sesión de soporte solo es válida si el Super Admin que la originó sigue activo y el token trae su sesión auditada.
       if (payload.impersonatedBy) {
         if (typeof payload.soporteSesionId !== 'string' || !payload.soporteSesionId) throw new UnauthorizedException('Sesión de soporte inválida');
@@ -62,6 +79,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Revalidar en cada petición: un Super Admin desactivado no conserva acceso hasta que expire el token.
       const superAdmin = await this.prisma.superAdmin.findUnique({ where: { id: String(payload.sub) }, select: { activo: true } });
       if (!superAdmin?.activo) throw new UnauthorizedException('Super Admin no autorizado');
+      await this.exigirSesion(payload);
       return {
         sub: payload.sub,
         email: payload.email,

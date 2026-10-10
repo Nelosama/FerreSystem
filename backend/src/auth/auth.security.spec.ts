@@ -11,10 +11,11 @@ describe('AuthService / oráculo de cuentas', () => {
   const mockPrisma = {
     usuario: { findFirst: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
     superAdmin: { findUnique: vi.fn().mockResolvedValue(null) },
+    sesionAuth: { create: vi.fn().mockResolvedValue({}), findUnique: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) }, $queryRaw: vi.fn().mockResolvedValue([{ segundos: 0 }]), $executeRaw: vi.fn().mockResolvedValue(0),
   };
-  const res = { cookie: vi.fn(), clearCookie: vi.fn() } as any;
+  const res = { cookie: vi.fn(), clearCookie: vi.fn(), setHeader: vi.fn() } as any;
   const passwordHash = bcrypt.hashSync('Clave-Correcta-2026!', 4);
-  const jwtMock = { sign: vi.fn().mockReturnValue('token'), verify: vi.fn() };
+  const jwtMock = { sign: vi.fn().mockReturnValue('token'), verify: vi.fn(), decode: vi.fn().mockReturnValue({ exp: 4102444800 }) };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({

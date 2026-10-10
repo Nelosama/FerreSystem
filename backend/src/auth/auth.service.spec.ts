@@ -18,11 +18,13 @@ describe('AuthService', () => {
     superAdmin: {
       findUnique: vi.fn(),
     },
+    sesionAuth: { create: vi.fn().mockResolvedValue({}), findUnique: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) }, $queryRaw: vi.fn().mockResolvedValue([{ segundos: 0 }]), $executeRaw: vi.fn().mockResolvedValue(0),
   };
 
   const mockJwtService = {
     sign: vi.fn().mockReturnValue('mock-jwt-token'),
     verify: vi.fn(),
+    decode: vi.fn().mockReturnValue({ exp: 4102444800 }),
   };
 
   const mockConfigService = {
@@ -32,6 +34,7 @@ describe('AuthService', () => {
   const mockResponse = {
     cookie: vi.fn(),
     clearCookie: vi.fn(),
+    setHeader: vi.fn(),
   } as any;
 
   beforeEach(async () => {
@@ -76,7 +79,7 @@ describe('AuthService', () => {
       expect(result.type).toBe('super_admin');
       expect(result.superAdmin.id).toBe('sa-1');
       expect(mockJwtService.sign).toHaveBeenCalledWith(
-        { sub: 'sa-1', email: 'admin@example.com', rol: 'SUPER_ADMIN', type: 'super_admin' },
+        { sub: 'sa-1', email: 'admin@example.com', rol: 'SUPER_ADMIN', type: 'super_admin', sid: expect.any(String) },
         expect.any(Object),
       );
       expect(mockResponse.cookie).toHaveBeenCalledWith(
@@ -269,7 +272,8 @@ describe('AuthService', () => {
 
   describe('refresh y logout tenant', () => {
     it('refresca únicamente una sesión tenant activa', async () => {
-      mockJwtService.verify.mockReturnValue({ sub: 'u-1', type: 'tenant', tenantId: 'tenant-1', typ: 'refresh' });
+      mockJwtService.verify.mockReturnValue({ sub: 'u-1', type: 'tenant', tenantId: 'tenant-1', typ: 'refresh', sid: 's-1' });
+      mockPrisma.sesionAuth.findUnique.mockResolvedValue({ sujetoId: 'u-1', revokedAt: null, expiresAt: new Date(Date.now() + 60_000) });
       mockPrisma.usuario.findUnique.mockResolvedValue({
         id: 'u-1',
         tenantId: 'tenant-1',
@@ -296,8 +300,8 @@ describe('AuthService', () => {
       expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', { path: '/' });
     });
 
-    it('logout tenant elimina la cookie tenant', () => {
-      expect(service.logout(mockResponse)).toMatchObject({ success: true });
+    it('logout tenant elimina la cookie tenant', async () => {
+      expect(await service.logout(mockResponse)).toMatchObject({ success: true });
       expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', { path: '/' });
     });
   });

@@ -21,25 +21,28 @@ describe('SuperAdminService', () => {
     prisma = {
       superAdmin: { findUnique: vi.fn() },
       $transaction: vi.fn(),
+      sesionAuth: { create: vi.fn().mockResolvedValue({}), findUnique: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) }, $queryRaw: vi.fn().mockResolvedValue([{ segundos: 0 }]), $executeRaw: vi.fn().mockResolvedValue(0),
     };
     jwt = {
       sign: vi.fn().mockReturnValue('signed-token'),
       verify: vi.fn(),
+      decode: vi.fn().mockReturnValue({ exp: 4102444800 }),
     };
     config = {
       get: vi.fn((key: string, fallback: unknown) => key === 'NODE_ENV' ? 'production' : fallback),
     };
-    response = { cookie: vi.fn(), clearCookie: vi.fn() };
+    response = { cookie: vi.fn(), clearCookie: vi.fn(), setHeader: vi.fn() };
     service = new SuperAdminService(prisma, jwt, config);
   });
 
   it('refreshes only active super-admin sessions', async () => {
-    jwt.verify.mockReturnValue({ sub: admin.id, rol: 'SUPER_ADMIN', type: 'super_admin', typ: 'refresh' });
+    jwt.verify.mockReturnValue({ sub: admin.id, rol: 'SUPER_ADMIN', type: 'super_admin', typ: 'refresh', sid: 's-1' });
+    prisma.sesionAuth.findUnique.mockResolvedValue({ sujetoId: admin.id, revokedAt: null, expiresAt: new Date(Date.now() + 60_000) });
     prisma.superAdmin.findUnique.mockResolvedValue(admin);
 
     await expect(service.refresh('refresh-token', response)).resolves.toEqual({ accessToken: 'signed-token' });
     expect(jwt.sign).toHaveBeenCalledWith(
-      { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin' },
+      { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', sid: 's-1' },
       expect.any(Object),
     );
   });
@@ -130,8 +133,8 @@ describe('SuperAdminService', () => {
     expect(response.clearCookie).toHaveBeenCalledWith('superAdminRefreshToken', { path: '/api/admin/auth' });
   });
 
-  it('logout clears only the Super Admin refresh cookie', () => {
-    expect(service.logout(response)).toMatchObject({ success: true });
+  it('logout clears only the Super Admin refresh cookie', async () => {
+    expect(await service.logout(response)).toMatchObject({ success: true });
     expect(response.clearCookie).toHaveBeenCalledWith('superAdminRefreshToken', { path: '/api/admin/auth' });
   });
 
@@ -192,7 +195,7 @@ describe('SuperAdminService', () => {
   });
 
   it('hashes reset passwords and returns safe fields', async () => {
-    const tx = { $queryRawUnsafe: vi.fn().mockResolvedValue([]), usuario: { findFirst: vi.fn().mockResolvedValue({ activo: true }), update: vi.fn().mockResolvedValue({ id: 'admin-A' }) } };
+    const tx = { $queryRawUnsafe: vi.fn().mockResolvedValue([]), usuario: { findFirst: vi.fn().mockResolvedValue({ activo: true }), update: vi.fn().mockResolvedValue({ id: 'admin-A' }) }, sesionAuth: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) } };
     prisma.$transaction.mockImplementation(callback => callback(tx));
     const result = await service.updateTenantAdmin('company-A', 'admin-A', { password: 'new-password-123' });
     const { data, select } = tx.usuario.update.mock.calls[0][0];

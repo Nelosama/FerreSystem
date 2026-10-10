@@ -6,6 +6,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import type { Request, Response } from 'express';
 import { LoginDto } from './dto/login.dto';
+import { randomUUID } from 'node:crypto';
+import { leerConfiguracionAuth } from './auth-config';
+import { clavesDeLogin, excepcionLimiteLogin, registrarExitoLogin, registrarFalloLogin, segundosBloqueados } from './login-rate-limit';
+import { crearSesion, revocarSesion, sesionVigente, sidDeToken } from './sesiones-auth';
+
+const bearerDe = (req?: Request) => req?.headers?.authorization?.replace(/^Bearer /, '') || undefined;
 
 @Injectable()
 export class AuthService {
@@ -17,7 +23,32 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
+  // Límite de intentos por cuenta y por IP. Un fallo cuenta aunque la cuenta no exista.
   async login(loginDto: LoginDto, res: Response, req?: Request) {
+    const claves = clavesDeLogin(loginDto?.email, req?.ip);
+    const segundos = await segundosBloqueados(this.prisma, claves);
+    if (segundos > 0) {
+      res.setHeader('Retry-After', String(segundos));
+      throw excepcionLimiteLogin(segundos);
+    }
+    try {
+      const resultado = await this.autenticar(loginDto, res, req);
+      await registrarExitoLogin(this.prisma, claves);
+      return resultado;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        await registrarFalloLogin(this.prisma, claves, leerConfiguracionAuth(this.configService));
+      }
+      throw error;
+    }
+  }
+
+  private expiracionRefresh(refreshToken: string): Date {
+    const decoded = this.jwtService.decode(refreshToken) as { exp?: number } | null;
+    return new Date((decoded?.exp ?? 0) * 1000);
+  }
+
+  private async autenticar(loginDto: LoginDto, res: Response, req?: Request) {
     const { email, password } = loginDto;
     const targetTenantId = loginDto.tenantId || (req?.headers['x-tenant-id'] as string) || undefined;
 
@@ -42,11 +73,13 @@ export class AuthService {
         throw new UnauthorizedException('Credenciales inválidas');
       }
 
+      const sid = randomUUID();
       const payload = {
         sub: superAdmin.id,
         email: superAdmin.email,
         rol: 'SUPER_ADMIN',
         type: 'super_admin',
+        sid,
       };
       const accessToken = this.jwtService.sign(payload, {
         expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
@@ -54,6 +87,7 @@ export class AuthService {
       const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
         expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
       });
+      await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: superAdmin.id, expiresAt: this.expiracionRefresh(refreshToken) });
       const isProduction = this.configService.get('NODE_ENV') === 'production';
 
       res.cookie('superAdminRefreshToken', refreshToken, {
@@ -185,12 +219,14 @@ export class AuthService {
 
     // Etapa 8: Generación de JWT
     this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 8] Generando tokens JWT para usuario ID: ${usuario.id}`);
+    const sid = randomUUID();
     const payload = {
       sub: usuario.id,
       tenantId: usuario.tenantId,
       rol: usuario.rol,
       email: usuario.email,
       type: 'tenant',
+      sid,
     };
 
     const accessToken = this.jwtService.sign(payload, {
@@ -200,6 +236,8 @@ export class AuthService {
     const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
       expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
     });
+
+    await crearSesion(this.prisma, { id: sid, tipo: 'TENANT', sujetoId: usuario.id, tenantId: usuario.tenantId, expiresAt: this.expiracionRefresh(refreshToken) });
 
     // Guardar refresh token en cookie httpOnly + secure
     const isProduction = this.configService.get('NODE_ENV') === 'production';
@@ -253,6 +291,9 @@ export class AuthService {
       if (decoded.typ !== 'refresh' || decoded.type !== 'tenant' || !decoded.tenantId) {
         throw new UnauthorizedException('Token inválido para refrescar sesión');
       }
+      if (!decoded.sid || !(await sesionVigente(this.prisma, String(decoded.sid), String(decoded.sub)))) {
+        throw new UnauthorizedException('Sesión cerrada o vencida');
+      }
 
       const usuario = await this.prisma.usuario.findUnique({
         where: { id: decoded.sub },
@@ -269,6 +310,7 @@ export class AuthService {
         rol: usuario.rol,
         email: usuario.email,
         type: 'tenant',
+        sid: decoded.sid,
       };
 
       const accessToken = this.jwtService.sign(newPayload, {
@@ -282,8 +324,13 @@ export class AuthService {
     }
   }
 
-  logout(res: Response) {
+  // Revoca la sesión del refresh token (cookie) y la del Bearer enviado (incluye sesiones de soporte).
+  async logout(res: Response, req?: Request) {
     res.clearCookie('refreshToken', { path: '/' });
+    const sids = new Set([sidDeToken(this.jwtService, req?.cookies?.refreshToken), sidDeToken(this.jwtService, bearerDe(req))]);
+    for (const sid of sids) {
+      if (sid) await revocarSesion(this.prisma, sid, 'LOGOUT');
+    }
     return { success: true, message: 'Sesión cerrada correctamente' };
   }
 }

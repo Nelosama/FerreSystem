@@ -3,11 +3,18 @@ import { AppModule } from './app.module';
 import * as cookieParserImport from 'cookie-parser';
 import { ValidationPipe } from '@nestjs/common';
 import { createFrontendCorsOptions } from './common/frontend-cors';
+import { leerTrustProxy, validarConfiguracionAuth } from './auth/auth-config';
 
 const cookieParser = (cookieParserImport as any).default || cookieParserImport;
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Falla al arrancar si la configuración de autenticación es inválida.
+  validarConfiguracionAuth(process.env);
+  // Detrás de un proxy (Render), req.ip solo es el cliente real si el número de proxies confiables está configurado.
+  const trustProxy = leerTrustProxy(process.env.TRUST_PROXY);
+  if (trustProxy) app.getHttpAdapter().getInstance().set('trust proxy', trustProxy);
 
   // Parse cookies for httpOnly refresh tokens
   app.use(cookieParser());
