@@ -122,18 +122,20 @@ test('el POS genera la identidad de la venta con crypto.randomUUID directo (sin 
 const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
   e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]);
 
-test('no existe hoy service worker, IndexedDB ni caché de catálogo (actualizar al llegar la PWA)', () => {
-  const files = [...walk('src'), ...walk('public'), 'index.html', 'vite.config.ts', 'package.json'];
+test('el service worker existe, no cachea la API y el POS base sigue sin persistir catálogo (el de contingencia es otra página)', () => {
+  // Actualizado por el PR de contingencia: el shell se cachea; la API nunca. POSPage.tsx no cambió.
+  const sw = fs.readFileSync('public/sw.js', 'utf8');
+  assert.match(sw, /url\.pathname\.startsWith\('\/api'\)\) return;/);
+  assert.doesNotMatch(sw.replace(/\/\/.*$/gm, ''), /skipWaiting\(/);
   const hits = [];
-  for (const file of files) {
-    if (!/\.(tsx?|html|json|webmanifest|js)$/.test(file)) continue;
+  for (const file of [...walk('src'), 'index.html', 'vite.config.ts']) {
+    if (!/\.(tsx?|html)$/.test(file)) continue;
+    if (/offline|PosContingencia|ContingenciaAdmin/.test(file)) continue;
     const text = fs.readFileSync(file, 'utf8');
-    if (/serviceWorker|indexedDB|workbox|vite-plugin-pwa|navigator\.onLine|caches\.open/.test(text)) hits.push(file);
+    if (/serviceWorker|indexedDB|workbox|caches\.open/.test(text)) hits.push(file);
   }
-  // Único uso de navigator.onLine: estado de respaldos del Super Admin; el POS no detecta conectividad.
-  assert.deepEqual(hits, ['src/utils/maintenancePolling.ts']);
-  assert.doesNotMatch(fs.readFileSync('src/pages/POSPage.tsx', 'utf8'), /navigator|addEventListener\('(on|off)line'/);
-  assert.ok(fs.existsSync('public/manifest.webmanifest'), 'el manifiesto existe (instalable) pero sin service worker');
+  assert.deepEqual(hits, ['src/main.tsx']);
+  assert.ok(fs.existsSync('public/manifest.webmanifest'));
 });
 
 test('el catálogo del POS vive solo en estado React: no se persiste', () => {
@@ -177,11 +179,24 @@ test('sin conexión (error sin respuesta) el interceptor NO toca la sesión ni r
   assert.equal(window.location.href, '');
 });
 
-test('401 con refresh que falla (p. ej. sin internet): elimina el token y redirige a /login', async () => {
-  // Hallazgo: una renovación fallida por red es indistinguible de una sesión revocada; se pierde la sesión.
+test('401 con refresh que falla por red: conserva la sesión para reintentar al volver la conexión', async () => {
+  // Cambio de comportamiento (PR de contingencia): sin respuesta de la API no se sabe si la sesión venció;
+  // borrar el token en ese caso dejaba operaciones pendientes sin forma de enviarlas.
   const localStorage = memoryStorage();
   localStorage.setItem('ferre_token', 'T1');
   const { fail, window } = interceptors(localStorage, async () => { throw new Error('Network Error'); });
+  await assert.rejects(fail({
+    response: { status: 401 }, config: { url: '/ventas', headers: { Authorization: 'Bearer T1' } },
+  }));
+  assert.equal(localStorage.getItem('ferre_token'), 'T1');
+  assert.equal(window.location.href, '');
+});
+
+test('401 con refresh rechazado por la API (sesión vencida de verdad): elimina el token y redirige', async () => {
+  const localStorage = memoryStorage();
+  localStorage.setItem('ferre_token', 'T1');
+  const rechazo = Object.assign(new Error('Unauthorized'), { response: { status: 401 } });
+  const { fail, window } = interceptors(localStorage, async () => { throw rechazo; });
   await assert.rejects(fail({
     response: { status: 401 }, config: { url: '/ventas', headers: { Authorization: 'Bearer T1' } },
   }));
