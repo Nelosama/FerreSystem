@@ -4,6 +4,8 @@ import { actor, authorizedActor, audit, fingerprint, lockTenant, movement, query
 import { CreateLevantamientoDto, UpdateLevantamientoDto } from './dto/create-levantamiento.dto';
 import { CreateLevantamientoItemDto, UpdateLevantamientoItemDto, ConciliarItemDto } from './dto/create-levantamiento-item.dto';
 
+type Identidad={productoId:string|null;codigo:string|null;codigoBarras:string|null};
+
 /** Sesión considerada activa si el heartbeat no supera este umbral (ms) */
 const SESION_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
@@ -15,17 +17,58 @@ export class LevantamientosService {
  private async session(tx:any,tenantId:string,id:string){const l=await tx.levantamiento.findFirst({where:{tenantId,id},include:{items:{orderBy:{id:'asc'}}}});if(!l)throw new NotFoundException('Levantamiento no encontrado');return l;}
  private editable(l:any){if(l.estado==='FINALIZADO'||l.aplicadoAt)throw new ConflictException('El levantamiento está cerrado');}
 
+ /** Identidad canónica de un ítem: producto, código interno (mayúsculas) y código de barras (sin espacios). */
+ private identidad(i:{productoId?:string|null;codigo?:string|null;codigoBarras?:string|null}){
+  return {productoId:i.productoId||null,codigo:i.codigo?.trim().toUpperCase()||null,codigoBarras:i.codigoBarras?.trim()||null};
+ }
+
+ /** Dos ítems son el mismo artículo si comparten producto, código interno o código de barras. */
+ private coinciden(a:Identidad,b:Identidad){
+  return (!!a.productoId&&a.productoId===b.productoId)||(!!a.codigo&&a.codigo===b.codigo)||(!!a.codigoBarras&&a.codigoBarras===b.codigoBarras);
+ }
+
  /** Ítems del conteo que coinciden por producto, código o código de barras con la identidad indicada (FS-06 fase 2). */
  private coincidencias(items:any[],identidad:{productoId?:string|null;codigo?:string|null;codigoBarras?:string|null},excluirId?:string){
-  const codeNorm=identidad.codigo?.trim().toUpperCase()||null;
-  const barcode=identidad.codigoBarras?.trim()||null;
-  return items.filter(i=>{
-   if(i.id===excluirId)return false;
-   const iCode=i.codigo?.trim().toUpperCase()||null;
-   const iBar=i.codigoBarras?.trim()||null;
-   return (identidad.productoId&&i.productoId===identidad.productoId)||
-          (codeNorm&&iCode&&codeNorm===iCode)||
-          (barcode&&iBar&&barcode===iBar);
+  const ref=this.identidad(identidad);
+  return items.filter(i=>i.id!==excluirId&&this.coinciden(ref,this.identidad(i)));
+ }
+
+ /**
+  * Agrupa por componentes conectados: A(producto) y B(código de barras) forman grupo aunque A y C solo compartan código con B.
+  * Detección, agrupación, conciliación y limpieza usan esta misma regla; así ningún conflicto queda sin su par.
+  */
+ private grupos(items:any[]):any[][]{
+  const restantes=[...items],grupos:any[][]=[];
+  while(restantes.length){
+   const grupo=[restantes.shift()];
+   for(let k=0;k<grupo.length;k++){
+    const ref=this.identidad(grupo[k]);
+    for(let j=0;j<restantes.length;){
+     if(this.coinciden(ref,this.identidad(restantes[j])))grupo.push(...restantes.splice(j,1));
+     else j++;
+    }
+   }
+   grupos.push(grupo);
+  }
+  return grupos;
+ }
+
+ private claveGrupo(grupo:any[]){
+  const ids=grupo.map(i=>this.identidad(i));
+  return ids.find(i=>i.productoId)?.productoId??ids.find(i=>i.codigo)?.codigo??ids.find(i=>i.codigoBarras)?.codigoBarras??grupo[0].descripcion;
+ }
+
+ /** Añade el nombre del contador dentro de la misma empresa; `contadorId` se conserva para trazabilidad. */
+ private async conContador(tenantId:string,items:any[]){
+  const ids=[...new Set(items.map(i=>i.contadorId).filter(Boolean))] as string[];
+  if(!ids.length)return items.map(i=>({...i,contador:null}));
+  const usuarios=await this.prisma.usuario.findMany({where:{tenantId,id:{in:ids}},select:{id:true,nombre:true,activo:true}});
+  const porId=new Map(usuarios.map(u=>[u.id,u]));
+  return items.map(i=>{
+   if(!i.contadorId)return {...i,contador:null};
+   const u=porId.get(i.contadorId);
+   // Ausente o de otra empresa: no se revela el nombre ni se distingue eliminado de ajeno.
+   return {...i,contador:{id:i.contadorId,nombre:u?.nombre??null,estado:!u?'NO_DISPONIBLE':u.activo?'ACTIVO':'DESACTIVADO'}};
   });
  }
 
@@ -43,7 +86,7 @@ export class LevantamientosService {
 
  async findOne(tenantId:string,id:string){
   const l=await this.session(this.prisma,tenantId,id);
-  return {...l,items:l.items.map(i=>this.item(i))};
+  return {...l,items:await this.conContador(tenantId,l.items.map(i=>this.item(i)))};
  }
 
  async create(tenantId:string,userId:string,dto:CreateLevantamientoDto){
@@ -197,15 +240,8 @@ export class LevantamientosService {
  /** Lista todos los ítems marcados con conflicto=true, agrupados por producto */
  async findConflictos(tenantId:string,lid:string){
   const l=await this.session(this.prisma,tenantId,lid);
-  const conflictivos=l.items.filter((i:any)=>i.conflicto).map((i:any)=>this.item(i));
-  // Agrupar por identidad (producto/código/barcode)
-  const grupos:Record<string,any[]>={};
-  for(const item of conflictivos){
-   const key=item.productoId||item.codigo?.toUpperCase()||item.codigoBarras||item.descripcion;
-   if(!grupos[key])grupos[key]=[];
-   grupos[key].push(item);
-  }
-  return Object.entries(grupos).map(([key,items])=>({key,items}));
+  const conflictivos=await this.conContador(tenantId,l.items.filter((i:any)=>i.conflicto).map((i:any)=>this.item(i)));
+  return this.grupos(conflictivos).map(items=>({key:this.claveGrupo(items),items}));
  }
 
  /**
@@ -223,17 +259,9 @@ export class LevantamientosService {
    const itemMantener=l.items.find((i:any)=>i.id===dto.mantenerItemId);
    if(!itemMantener||!itemMantener.conflicto)throw new NotFoundException('Ítem en conflicto no encontrado');
 
-   // Encontrar todos los ítems que comparten identidad con el ítem elegido
-   const keyId=itemMantener.productoId;
-   const keyCodigo=itemMantener.codigo?.toUpperCase();
-   const keyBarcode=itemMantener.codigoBarras;
-   const hermanos=l.items.filter((i:any)=>
-    i.conflicto&&i.id!==dto.mantenerItemId&&(
-     (keyId&&i.productoId===keyId)||
-     (keyCodigo&&i.codigo?.toUpperCase()===keyCodigo)||
-     (keyBarcode&&i.codigoBarras===keyBarcode)
-    )
-   );
+   // Hermanos: los demás conflictos del mismo grupo que muestra la pantalla (misma regla que detección y limpieza)
+   const grupo=this.grupos(l.items.filter((i:any)=>i.conflicto)).find(g=>g.some(i=>i.id===dto.mantenerItemId))??[];
+   const hermanos=grupo.filter(i=>i.id!==dto.mantenerItemId);
 
    if(!hermanos.length)throw new BadRequestException('No hay ítems en conflicto para conciliar con este');
 
@@ -261,17 +289,9 @@ export class LevantamientosService {
  /** Quita la bandera conflicto de ítems que quedaron sin "par" conflictivo */
  private async limpiarConflictosHuerfanos(tx:any,lid:string){
   const items=await tx.levantamientoItem.findMany({where:{levantamientoId:lid,conflicto:true}});
-  // Agrupar por identidad; si un grupo tiene sólo 1 ítem ya no es conflicto
-  const grupos:Record<string,string[]>={};
-  for(const i of items){
-   const key=i.productoId||i.codigo?.toUpperCase()||i.codigoBarras||i.descripcion;
-   if(!grupos[key])grupos[key]=[];
-   grupos[key].push(i.id);
-  }
-  for(const [,ids] of Object.entries(grupos)){
-   if(ids.length===1){
-    await tx.levantamientoItem.update({where:{id:ids[0]},data:{conflicto:false}});
-   }
+  // Un grupo de un solo ítem ya no es conflicto; se agrupa con la misma regla que la detección
+  for(const grupo of this.grupos(items)){
+   if(grupo.length===1)await tx.levantamientoItem.update({where:{id:grupo[0].id},data:{conflicto:false}});
   }
  }
 
