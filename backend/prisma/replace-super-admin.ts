@@ -2,15 +2,18 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
-const targetEmail = 'nelo@admin.com';
+const targetEmail = process.env.SUPER_ADMIN_OBJETIVO_EMAIL ?? '';
 
 async function main() {
   const password = process.env.SUPER_ADMIN_PASSWORD;
+  if (!targetEmail) {
+    throw new Error('SUPER_ADMIN_OBJETIVO_EMAIL es obligatorio. No hay correo por defecto.');
+  }
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL must be configured for the explicit admin replacement command.');
   }
   if (process.env.CONFIRM_SUPER_ADMIN_REPLACEMENT !== targetEmail) {
-    throw new Error(`Set CONFIRM_SUPER_ADMIN_REPLACEMENT to ${targetEmail} to confirm this operation.`);
+    throw new Error('Set CONFIRM_SUPER_ADMIN_REPLACEMENT to the value of SUPER_ADMIN_OBJETIVO_EMAIL to confirm this operation.');
   }
   if (!password || password.length < 8) {
     throw new Error('SUPER_ADMIN_PASSWORD must contain at least 8 characters.');

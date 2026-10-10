@@ -89,3 +89,9 @@
 | 3. Configuración y secretos | Pendiente de verificación en Render, Vercel y Supabase | Revisión con acceso autorizado |
 
 Este informe no autoriza el despliegue. No se modificó infraestructura productiva, no se fusionó ningún PR y no se ejecutaron migraciones productivas.
+
+## Actualización de CENTINELA (cierre de seguridad y protección de producción)
+
+- **Bloqueo 1 (TRUST_PROXY):** sigue pendiente. Se revirtió `TRUST_PROXY: "1"` en `deploy/local/compose.yaml`: esa cabecera estaba comprometida en la integración anterior sin verificación real de Caddy, y la instrucción es no configurar saltos por suposición. Ver `CENTINELA_CONTROLES_BASE_DE_DATOS_20261010.md` §5.
+- **Bloqueo 2 (deriva):** el informe técnico para el responsable de base de datos está en `CENTINELA_INFORME_DBA_DERIVA_20261010.md`. La evidencia se regeneró: la versión previa estaba mal etiquetada.
+- **Bloqueo 3 (secretos):** nuevo hallazgo CRITICAL en el seed (credencial fija de Super Admin, presente en el historial). Ver `CENTINELA_CONTROLES_BASE_DE_DATOS_20261010.md` §1.

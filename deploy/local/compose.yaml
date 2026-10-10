@@ -29,8 +29,6 @@ services:
       database: {condition: service_healthy}
     environment:
       NODE_ENV: production
-      # Caddy es el único proxy delante de la API: el cliente real es la última IP de X-Forwarded-For.
-      TRUST_PROXY: "1"
       FERRE_BACKUP_STATUS_FILE: /backups/latest-status.json
       DATABASE_HOST: database
       FRONTEND_URL: https://${FERRE_HOST:?Configure FERRE_HOST}

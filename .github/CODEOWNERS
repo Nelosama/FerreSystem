@@ -1,0 +1,7 @@
+# CENTINELA: los cambios de base de datos, despliegue y seguridad requieren revisión explícita del responsable.
+/backend/prisma/                         @Nelosama
+/backend/scripts/migration-safe.mjs      @Nelosama
+/backend/scripts/verificar-migraciones.mjs @Nelosama
+/deploy/                                 @Nelosama
+/.github/                                @Nelosama
+/docs/agentes/                           @Nelosama
