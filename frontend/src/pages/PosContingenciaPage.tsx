@@ -13,6 +13,7 @@ import {
   type DispositivoLocal, type ProductoVenta, type VentanaLocal,
 } from '../offline/ventana';
 import { registrarDispositivoEnServidor, renovarVentana, sincronizarPendientes } from '../offline/sync';
+import { construirComprobante, type ComprobanteContingencia } from '../offline/comprobante';
 import './PosContingenciaPage.css';
 
 // POS de contingencia en efectivo. Funciona con la página cargada aunque no haya red: el catálogo, el diario
@@ -21,6 +22,12 @@ import './PosContingenciaPage.css';
 const INTERVALO_SYNC_MS = 30_000;
 const UMBRAL_RENOVAR_MS = 2 * 3_600_000;
 const LIMITE_LINEAS = 60;
+const CLAVE_PAPEL = 'pos-contingencia-papel';
+
+// Ancho de la impresora térmica por equipo (58 u 80 mm). Es una preferencia de pantalla, no un dato de la venta.
+function leerPapel(): '58' | '80' {
+  try { return localStorage.getItem(CLAVE_PAPEL) === '58' ? '58' : '80'; } catch { return '80'; }
+}
 
 type Linea = LineaLocal & { productoIdCatalogo?: string };
 
@@ -47,6 +54,8 @@ export default function PosContingenciaPage() {
   const [efectivoTexto, setEfectivoTexto] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [confirmacion, setConfirmacion] = useState<OperacionLocal | null>(null);
+  const [aImprimir, setAImprimir] = useState<OperacionLocal | null>(null);
+  const [papel, setPapel] = useState<'58' | '80'>(leerPapel);
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'ok' | 'aviso'; texto: string } | null>(null);
   const [ultimaSync, setUltimaSync] = useState<string | undefined>(undefined);
   const [habilitada, setHabilitada] = useState<boolean | null>(null);
@@ -254,6 +263,22 @@ export default function PosContingenciaPage() {
     return null;
   };
 
+  const cambiarPapel = (valor: '58' | '80') => {
+    setPapel(valor);
+    try { localStorage.setItem(CLAVE_PAPEL, valor); } catch { /* sin almacenamiento: la preferencia dura solo esta sesión */ }
+  };
+
+  // Imprime desde el registro local ya guardado. Una falla de impresión solo avisa: la venta no se revierte
+  // y no se vuelve a cobrar. Reimprimir nunca crea una operación.
+  const imprimir = (operacion: OperacionLocal) => {
+    setAImprimir(operacion);
+    requestAnimationFrame(() => {
+      try { window.print(); } catch {
+        setMensaje({ tipo: 'aviso', texto: `No se pudo imprimir. La venta ${operacion.correlativoLocal} sigue guardada en este equipo; reimprímala desde «Ventas guardadas en este equipo».` });
+      }
+    });
+  };
+
   const cobrar = async () => {
     if (guardandoRef.current) return;
     const bloqueo = motivoBloqueo();
@@ -263,7 +288,7 @@ export default function PosContingenciaPage() {
     setGuardando(true);
     const nueva: NuevaOperacion = {
       operacionId: crypto.randomUUID(), dispositivoId: dispositivo.id, ventanaId: ventana.ventanaId, cajeroId: user.id,
-      cajeroNombre: user.nombre, cajaId: ventana.cajaId, ocurridoAtLocal: new Date().toISOString(),
+      cajeroNombre: user.nombre, cajaId: ventana.cajaId, ocurridoAtLocal: new Date().toISOString(), ferreteria: tenant?.nombreComercial ?? '',
       lineas: lineas.map(({ productoIdCatalogo: _ignorar, ...l }) => l),
       subtotalCentavos: totales.subtotal, isvCentavos: totales.isv, totalCentavos: totales.total,
       efectivoRecibidoCentavos: efectivoCentavos, cambioCentavos: efectivoCentavos - totales.total,
@@ -427,7 +452,7 @@ export default function PosContingenciaPage() {
               <strong>Venta guardada en este equipo: {confirmacion.correlativoLocal}</strong>
               <div>Total {formatearCentavos(confirmacion.totalCentavos)} · Recibido {formatearCentavos(confirmacion.efectivoRecibidoCentavos)} · Cambio {formatearCentavos(confirmacion.cambioCentavos)}</div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                <button className="pc-btn" onClick={() => window.print()}>Imprimir comprobante</button>
+                <button className="pc-btn" onClick={() => imprimir(confirmacion)}>Imprimir comprobante</button>
                 <button className="pc-btn primario" style={{ fontSize: 16, minHeight: 44, width: 'auto' }} onClick={() => { setConfirmacion(null); setMensaje(null); }}>Siguiente cliente</button>
               </div>
             </div>
@@ -438,43 +463,56 @@ export default function PosContingenciaPage() {
       <section className="pc-panel" style={{ margin: '0 16px 16px' }} aria-label="Ventas de este equipo">
         <h2>Ventas guardadas en este equipo</h2>
         {ops.length === 0 ? <p>Todavía no hay ventas de contingencia en este equipo.</p> : (
-          <ul className="pc-pendientes">
-            {ops.slice(-12).reverse().map((op) => (
+          <ul className="pc-pendientes pc-pendientes-todas">
+            {[...ops].reverse().map((op) => (
               <li key={op.operacionId}>
                 <strong>{op.correlativoLocal}</strong> · {formatearCentavos(op.totalCentavos)} · {new Date(op.creadaAt).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' })} · {textoEstado(op)}
                 {op.correlativoDefinitivo && <> · Central: {op.correlativoDefinitivo}</>}
+                <button className="pc-btn pc-reimprimir" onClick={() => imprimir(op)}>Reimprimir</button>
               </li>
             ))}
           </ul>
         )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+          <label className="pc-papel">Papel de la impresora
+            <select value={papel} onChange={(e) => cambiarPapel(e.target.value as '58' | '80')}>
+              <option value="80">80 mm</option>
+              <option value="58">58 mm</option>
+            </select>
+          </label>
           <button className="pc-btn" onClick={descargarDiario}>Exportar diario (respaldo)</button>
           {enLinea && dispositivo?.registrado && <button className="pc-btn" onClick={() => void sincronizar()} disabled={operador === false}>Enviar pendientes ahora</button>}
         </div>
         {operador === false && <p role="status">Esta pestaña no cobra porque otra pestaña del POS ya está activa.</p>}
       </section>
 
-      <div className="pc-comprobante" aria-hidden="true">
-        {confirmacion && (
-          <div>
-            <strong>COMPROBANTE INTERNO DE CONTINGENCIA</strong><br />
-            NO ES FACTURA FISCAL<br />
-            {tenant?.nombreComercial}<br />
-            Ref. local: {confirmacion.correlativoLocal}<br />
-            Fecha: {new Date(confirmacion.creadaAt).toLocaleString('es-HN')}<br />
-            Cajero: {confirmacion.cajeroNombre}<br />
-            Cliente: {confirmacion.clienteNombre || 'Consumidor final'}<br />
-            {confirmacion.lineas.map((l) => (
-              <div key={l.productoId}>{l.nombre} {formatearCentesimas(l.cantidadCentesimas)} x {formatearCentavos(l.precioCentavos)}</div>
+      {aImprimir && (() => {
+        const c: ComprobanteContingencia = construirComprobante(aImprimir, tenant?.nombreComercial ?? '');
+        return (
+          <div className={`pc-comprobante-impresion papel-${papel}`} aria-hidden="true">
+            <div className="pc-imp-titulo">{c.titulo}</div>
+            <div className="pc-imp-aviso">{c.aviso}</div>
+            <div className="pc-imp-centrado">{c.ferreteria}</div>
+            <div>Número temporal: {c.correlativo}</div>
+            <div>Fecha: {c.fechaHora}</div>
+            <div>Cajero: {c.cajero}</div>
+            <div>Cliente: {c.cliente}</div>
+            <div className="pc-imp-separador" />
+            {c.lineas.map((l, n) => (
+              <div key={n} className="pc-imp-linea-producto">
+                <div>{l.codigo} {l.nombre}</div>
+                <div className="pc-imp-detalle">{l.cantidad} x {l.precioUnitario} = {l.subtotal}</div>
+              </div>
             ))}
-            Subtotal: {formatearCentavos(confirmacion.subtotalCentavos)}<br />
-            ISV 15%: {formatearCentavos(confirmacion.isvCentavos)}<br />
-            TOTAL: {formatearCentavos(confirmacion.totalCentavos)}<br />
-            Efectivo: {formatearCentavos(confirmacion.efectivoRecibidoCentavos)}<br />
-            Cambio: {formatearCentavos(confirmacion.cambioCentavos)}<br />
+            <div className="pc-imp-separador" />
+            <div className="pc-imp-fila"><span>Subtotal</span><span>{c.subtotal}</span></div>
+            <div className="pc-imp-fila"><span>ISV 15%</span><span>{c.isv}</span></div>
+            <div className="pc-imp-fila pc-imp-total"><span>TOTAL</span><span>{c.total}</span></div>
+            <div className="pc-imp-fila"><span>Efectivo recibido</span><span>{c.efectivo}</span></div>
+            <div className="pc-imp-fila"><span>Cambio entregado</span><span>{c.cambio}</span></div>
           </div>
-        )}
-      </div>
+        );
+      })()}
     </div>
   );
 }

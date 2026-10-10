@@ -232,4 +232,72 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
       expect(await stock(a.producto)).toBe(19);
     });
   });
+
+  describe('entrega de ventas en línea: sin doble descuento y sin reservas huérfanas', () => {
+    const reservado = async (id: string) => Number((await prisma.producto.findUniqueOrThrow({ where: { id } })).stockReservado);
+    const movimientosEntrega = (tenantId: string, ventaId: string) =>
+      prisma.movimientoInventario.count({ where: { tenantId, documentoId: ventaId, tipo: 'ENTREGA' } });
+
+    async function ventaEnLinea(e: Awaited<ReturnType<typeof empresa>>, cantidad = 2) {
+      return ventas.create(e.tenantId, e.cajero, { detalles: [{ productoId: e.producto, cantidad, precioUnitario: 10 }], solicitudId: randomUUID() } as any);
+    }
+
+    it('entregar dos veces la misma venta descuenta el stock una sola vez', async () => {
+      const e = await empresa();
+      const venta = await ventaEnLinea(e);
+      await operaciones.entregar(e.tenantId, e.cajero, venta.id);
+      await operaciones.entregar(e.tenantId, e.cajero, venta.id);
+      expect(await stock(e.producto)).toBe(18);
+      expect(await reservado(e.producto)).toBe(0);
+      expect(await movimientosEntrega(e.tenantId, venta.id)).toBe(1);
+    });
+
+    it('confirmaciones de entrega simultáneas (varias pestañas o usuarios) descuentan una sola vez', async () => {
+      const e = await empresa();
+      const venta = await ventaEnLinea(e);
+      const resultados = await Promise.allSettled([1, 2, 3].map(() => operaciones.entregar(e.tenantId, e.cajero, venta.id)));
+      expect(resultados.every((r) => r.status === 'fulfilled')).toBe(true);
+      expect(await stock(e.producto)).toBe(18);
+      expect(await reservado(e.producto)).toBe(0);
+      expect(await movimientosEntrega(e.tenantId, venta.id)).toBe(1);
+    });
+
+    it('una venta cobrada sin entrega sigue reservada y visible en la lista de entregas pendientes', async () => {
+      const e = await empresa();
+      const venta = await ventaEnLinea(e);
+      expect(await reservado(e.producto)).toBe(2);
+      expect(await stock(e.producto)).toBe(20);
+      const pendientes = await operaciones.entregas(e.tenantId);
+      expect(pendientes.map((v: any) => v.id)).toContain(venta.id);
+    });
+
+    it('devolver mercancía reservada como NO_ENTREGADO libera la reserva sin tocar el stock físico', async () => {
+      const e = await empresa();
+      const venta = await ventaEnLinea(e);
+      const detalle = await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: venta.id } });
+      await operaciones.abrir(e.tenantId, e.admin, { solicitudId: randomUUID(), monto: 100 } as any); // caja abierta con fondo para el reembolso en efectivo
+      await operaciones.devolver(e.tenantId, e.admin, venta.id, {
+        solicitudId: randomUUID(), motivo: 'Cliente no recibe la mercancía', metodo: 'EFECTIVO',
+        items: [{ detalleId: detalle.id, cantidad: 2, destino: 'NO_ENTREGADO' }],
+      } as any);
+      expect(await reservado(e.producto)).toBe(0);
+      expect(await stock(e.producto)).toBe(20);
+      expect(await movimientosEntrega(e.tenantId, venta.id)).toBe(0);
+    });
+
+    it('después de devolver la mercancía no se puede confirmar su entrega', async () => {
+      const e = await empresa();
+      const venta = await ventaEnLinea(e);
+      const detalle = await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: venta.id } });
+      await operaciones.abrir(e.tenantId, e.admin, { solicitudId: randomUUID(), monto: 100 } as any); // caja abierta con fondo para el reembolso en efectivo
+      await operaciones.devolver(e.tenantId, e.admin, venta.id, {
+        solicitudId: randomUUID(), motivo: 'Cliente no recibe la mercancía', metodo: 'EFECTIVO',
+        items: [{ detalleId: detalle.id, cantidad: 2, destino: 'NO_ENTREGADO' }],
+      } as any);
+      // Aun devuelta, la venta no vuelve a descontar stock al confirmar: ni doble descuento ni salida fantasma.
+      await expect(operaciones.entregar(e.tenantId, e.cajero, venta.id)).rejects.toThrow('fue devuelta; no hay entrega pendiente');
+      expect(await stock(e.producto)).toBe(20);
+      expect(await movimientosEntrega(e.tenantId, venta.id)).toBe(0);
+    });
+  });
 });

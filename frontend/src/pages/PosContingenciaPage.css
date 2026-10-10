@@ -37,9 +37,29 @@ table.pc-tabla th, table.pc-tabla td { text-align: left; padding: 8px 4px; borde
 .pc-confirmacion { border: 2px solid #16a34a; background: #f0fdf4; border-radius: 14px; padding: 14px; }
 .pc-pendientes { font-size: 14px; }
 .pc-pendientes li { margin: 4px 0; }
-.pc-comprobante { display: none; }
+.pc-comprobante-impresion { display: none; }
+.pc-papel { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.pc-papel select { font-size: 15px; padding: 6px; border-radius: 8px; }
+.pc-reimprimir { margin-left: 8px; font-size: 14px; min-height: 36px; padding: 6px 10px; }
+.pc-pendientes-todas { max-height: 40vh; overflow: auto; }
 @media print {
-  body * { visibility: hidden; }
-  .pc-comprobante, .pc-comprobante * { visibility: visible; }
-  .pc-comprobante { display: block; position: absolute; left: 0; top: 0; width: 72mm; font-family: monospace; font-size: 12px; }
+  @page { margin: 0; }
+  body * { visibility: hidden !important; }
+  .pc-comprobante-impresion, .pc-comprobante-impresion * { visibility: visible !important; }
+  .pc-comprobante-impresion {
+    display: block; position: absolute; left: 0; top: 0; background: #fff; color: #000;
+    font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.3; padding: 2mm 1mm;
+  }
+  /* Impresoras térmicas: el ancho útil del rollo es menor que el papel. */
+  .pc-comprobante-impresion.papel-80 { width: 72mm; }
+  .pc-comprobante-impresion.papel-58 { width: 52mm; font-size: 10px; }
+  .pc-imp-titulo { font-weight: 700; text-align: center; }
+  .pc-imp-aviso { font-size: 0.9em; text-align: center; margin: 2mm 0; }
+  .pc-imp-centrado { text-align: center; font-weight: 700; margin: 2mm 0; }
+  .pc-imp-separador { border-top: 1px dashed #000; margin: 2mm 0; }
+  .pc-imp-linea-producto { margin-bottom: 1mm; word-break: break-word; }
+  .pc-imp-detalle { padding-left: 3mm; }
+  .pc-imp-fila { display: flex; justify-content: space-between; gap: 2mm; }
+  .pc-imp-total { font-weight: 700; font-size: 1.1em; }
+  .pc-reimprimir, button, select, label { display: none !important; }
 }

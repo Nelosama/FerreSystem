@@ -250,6 +250,8 @@ export class OperacionesService {
    if(v.entregado_at)return v;
    if(v.reserva_pendiente){
     const details=await query(tx,'SELECT d.*,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d WHERE venta_id=$1 AND sin_inventario=false',v.id);
+    // Si toda la mercancía reservada volvió por devolución, no hay nada que entregar: no se registra una entrega falsa.
+    if(!details.some(d=>Number(d.cantidad)-Number(d.devuelto)>0))throw new ConflictException('La mercancía de esta venta fue devuelta; no hay entrega pendiente');
     for(const d of details){
      const [p]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.producto_id,tenantId);
      const quantity=money(Number(d.cantidad)-Number(d.devuelto));if(quantity===0)continue;

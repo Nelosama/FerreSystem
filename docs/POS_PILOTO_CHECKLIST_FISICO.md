@@ -48,6 +48,23 @@ Registrar: modelo de iPhone, versión de iOS, versión de Safari, si la PWA se i
 
 Versiones probadas: iOS ______ · Safari ______ · Modelo ______ · Fecha ______ · Responsable ______
 
+## C. Impresión térmica (hardware real)
+
+Registrar: marca y modelo de la impresora, ancho del papel (58 u 80 mm), conexión (USB, red, Bluetooth), controlador instalado, escala del diálogo (100 %) y márgenes (ninguno).
+
+| # | Paso | Resultado esperado | Estado | Evidencia |
+|---|---|---|---|---|
+| C1 | Imprimir un comprobante con papel de 80 mm (selector del POS en 80 mm) | Ancho completo sin cortar texto; producto, cantidades, precios, total, efectivo y cambio legibles | ☐ | |
+| C2 | Repetir con papel de 58 mm (selector en 58 mm) | Sin cortes laterales; líneas de producto completas | ☐ | |
+| C3 | Cancelar el diálogo de impresión | La venta sigue en «Ventas guardadas»; no aparece error ni se pide cobrar | ☐ | |
+| C4 | Impresora apagada o sin papel al pulsar «Imprimir» | Aviso «No se pudo imprimir»; la venta sigue guardada; el cajero atiende al siguiente cliente | ☐ | |
+| C5 | Reimprimir desde «Ventas guardadas» después de C4 | Mismo comprobante (mismo CT); no aparece una venta nueva | ☐ | |
+| C6 | Cerrar y reabrir el navegador, luego reimprimir una venta del día | Comprobante idéntico al original | ☐ | |
+| C7 | Imprimir desde iPhone/iPad con AirPrint (si el piloto lo usa) | Comprobante legible; no se imprime la barra del navegador | ☐ | |
+| C8 | Verificar que el comprobante dice «COMPROBANTE INTERNO DE CONTINGENCIA» y «NO ES FACTURA FISCAL» | Texto visible en el papel | ☐ | |
+
+**Qué no prueba la automatización:** el navegador no informa si la impresora recibió el trabajo ni si el usuario canceló el diálogo. Por eso C3 a C5 solo se validan a mano. La automatización (`frontend/e2e/contingencia-simulado.spec.ts`) sustituye `window.print` y prueba que una falla o cancelación no revierte la venta.
+
 ## C. Criterios de aceptación de este checklist
 
 - Cada fila con estado ✅ y evidencia. Cualquier ✖ detiene el piloto hasta corregir o aceptar el riesgo por escrito.
