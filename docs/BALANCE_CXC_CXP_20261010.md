@@ -1,7 +1,7 @@
 # BALANCE: cuentas por cobrar y por pagar (2026-10-10)
 
 **Firma:** BALANCE — Desarrollo Financiero FerreSystem.
-**Base:** `claude/conciliacion-pagos-cxc` (PR #135, pendiente). Rama: `claude/balance-cxc-cxp`. Sin merge, sin migraciones productivas, sin despliegue, sin cambios en `main`.
+**Base:** `claude/conciliacion-pagos-cxc` (PR #135, pendiente). Rama: `claude/balance-cxc-cxp`. HEAD: `5f974f76`. PR #142 en draft. Sin merge, sin migraciones productivas, sin despliegue, sin cambios en `main`.
 
 ## 1. Diagnóstico: qué ya existía
 
@@ -18,59 +18,83 @@
 
 ## 2. Funcionalidades entregadas
 
-- **Estado de deuda por cuenta:** PENDIENTE, PARCIAL, VENCIDA (vencimiento pasado con saldo), PAGADA (saldo cero) y filtro POR_VENCER (vence dentro de los próximos 7 días del día de negocio).
-- **Filtros:** cliente o proveedor, estado de deuda y fecha de emisión (día de negocio `America/Tegucigalpa`).
-- **Historial de pagos:** fecha, monto, método, responsable (nombre) y referencia (autorización bancaria o comprobante del proveedor).
-- **Estado de cuenta del cliente:** movimientos cronológicos (cargos por factura y abonos) con saldo acumulado; el último saldo coincide con el saldo abierto de las cuentas.
-- **Referencia de pago a proveedor:** opcional. No se repite dentro de la misma factura (evita pagar dos veces con el mismo comprobante). La misma referencia sí puede usarse en otra factura.
-- **Permisos:** CXC lo ven y pagan ADMIN y CAJERO. CXP lo ven y pagan solo ADMIN; el cajero recibe 403. BODEGUERO no accede a cuentas.
+- **Estado de deuda por cuenta:** PENDIENTE, PARCIAL, VENCIDA (vencimiento pasado con saldo), PAGADA (saldo cero) y POR_VENCER (7 días del día de negocio `America/Tegucigalpa`).
+- **Filtros:** cliente o proveedor, estado, fecha desde/hasta y búsqueda por nombre o documento.
+- **Plazo de crédito del cliente:** `clientes.plazo_credito_dias` (1–365). Una venta a crédito calcula su vencimiento como día de venta + plazo y lo guarda en la cuenta. Sin plazo, se usa el vencimiento enviado (compatibilidad).
+- **Historial de pagos:** fecha, monto, método, responsable y referencia (autorización bancaria o comprobante del proveedor).
+- **Estado de cuenta del cliente:** movimientos cronológicos con saldo acumulado; ADMIN ve el límite de crédito, CAJERO lo ve sin límite.
+- **Referencia de pago a proveedor:** obligatoria en pagos electrónicos (transferencia y tarjeta); única por factura; la misma referencia puede usarse en otra factura.
+- **Aislamiento por empresa:** todas las uniones de cuentas, pagos, usuarios y clientes filtran por `tenant_id`. Una factura de otra empresa no resuelve número ni cuenta.
+- **Permisos:** CXC lo ven y abonan ADMIN y CAJERO; CXP solo ADMIN (CAJERO recibe 403); BODEGUERO no accede a cuentas.
 
-## 3. Pantallas y endpoints
+## 3. Devoluciones (fase financiera, coordinada con ATLAS)
+
+Reglas ya en código y probadas (`backend/test/devoluciones-cxc.postgres.integration.ts`, 4/4):
+
+- Devolución parcial con deuda pendiente: reduce el saldo de la cuenta y no genera movimiento de caja.
+- Devolución de factura ya abonada: cancela primero el crédito pendiente y reembolsa el excedente con movimiento de caja negativo; los pagos históricos no cambian.
+- Reintento con la misma solicitud: devuelve la misma devolución, un solo reembolso.
+- Dos devoluciones totales simultáneas: solo una aplica.
+
+**No implementado:** saldo a favor del cliente y reembolso parcial diferido. Requieren modelo de saldo a favor con movimientos auditables (ver bloqueos).
+
+## 4. Pantallas y endpoints
 
 | Recurso | Quién | Notas |
 |---|---|---|
-| `GET /operaciones/cuentas?tipo=CXC\|CXP&estado&clienteId&proveedorId&desde&hasta` | ADMIN y CAJERO (CXP solo ADMIN) | Incluye `estado`, `vencida`, `por_vencer`, `pagos` con `usuario_nombre`, `referencia`, `terminal` |
-| `POST /operaciones/cuentas/:id/pagos` | ADMIN y CAJERO (CXP solo ADMIN) | Campo nuevo opcional `referencia` para CXP |
-| `GET /operaciones/clientes/:id/estado-cuenta` | ADMIN | Campo nuevo `movimientos` |
-| Pantalla Cuentas (`/cuentas`) | Según rol | Filtros, distintivo de estado, referencia de pago a proveedor |
-| Pantalla Estado de cuenta (`/estado-cuenta-clientes`) | ADMIN | Tabla de movimientos con saldo acumulado y responsable |
+| `GET /operaciones/cuentas?tipo=CXC\|CXP&estado&clienteId&proveedorId&desde&hasta` | ADMIN y CAJERO (CXP solo ADMIN) | `estado`, `vencida`, `por_vencer`, `pagos` con `usuario_nombre`, `referencia`, `terminal` |
+| `POST /operaciones/cuentas/:id/pagos` | ADMIN y CAJERO (CXP solo ADMIN) | Campo opcional `referencia`; obligatorio en CXP electrónico |
+| `GET /operaciones/clientes/:id/estado-cuenta` | ADMIN y CAJERO | Campo `movimientos`; `limiteCredito` oculto a CAJERO |
+| `PATCH /clientes/:id/credito` | ADMIN | Campo nuevo `plazoCreditoDias` |
+| Pantalla Cuentas (`/cuentas`) | Según rol | Filtros, estado, referencia e historial |
+| Pantalla Estado de cuenta (`/estado-cuenta-clientes`) | ADMIN y CAJERO | Movimientos con saldo acumulado |
 
-## 4. Migración
+## 5. Migraciones (no aplicadas en producción)
 
-`backend/prisma/migrations/20261013000000_balance_referencia_pagos`: añade `pagos_cuenta.referencia` (nullable) y un índice único parcial por empresa, cuenta y referencia. No modifica filas existentes. Aplicar con `prisma migrate deploy` tras copia de seguridad y revisión de DBA. El modelo `PagoCuenta` tiene el campo nuevo (una línea).
+| Migración | Cambio | Notas |
+|---|---|---|
+| `20261013000000_balance_referencia_pagos` | `pagos_cuenta.referencia` nullable, longitud 1–60, índice único parcial por (tenant, cuenta, referencia) | Aditiva |
+| `20261014000000_cliente_plazo_credito` | `clientes.plazo_credito_dias` nullable, 1–365 | Aditiva |
 
-## 5. Pruebas (2026-10-10, entorno local)
+Orden de aplicación: después de `20261012000000_conciliacion_pagos_bancarios` (PR #135).
+
+## 6. Pruebas (2026-10-10, entorno local, Playwright sobre Chromium 1194)
 
 | Suite | Resultado |
 |---|---|
-| `cxc-cxp-balance.postgres.integration.ts` (nueva) | 10/10: varios abonos con estado parcial y saldo correcto, pago total y CXC pagada, sobrepago, reintento sin duplicar, pagos concurrentes (solo uno aplica, saldo nunca negativo), facturas de proveedor duplicadas, estados vencida/parcial/pagada/por vencer, referencia repetida en la misma factura, permisos ADMIN/CAJERO/BODEGUERO, separación entre empresas y persistencia tras cerrar y reabrir la conexión |
-| `estado-cuenta-cliente` y suites de caja, crédito, compras, ventas, pagos bancarios y clientes | 166/166 antes de añadir la prueba nueva; todas en verde |
-| Integración PostgreSQL completa | 24 archivos, 402 aprobadas, 1 omitida |
+| `cxc-cxp-balance.postgres.integration.ts` | 11/11 |
+| `pagos-bancarios.postgres.integration.ts` | 22/22 |
+| `devoluciones-cxc.postgres.integration.ts` | 4/4 |
+| Integración PostgreSQL completa | 25 archivos, 409 aprobadas, 1 omitida (ya omitida antes de BALANCE) |
 | Backend unitarias | 345/345 |
 | Frontend unitarias | 225/225 |
-| Playwright Chromium | 126/126; incluye 3 E2E nuevas (filtro y pago a proveedor con referencia; movimientos con saldo acumulado; cajero sin cuentas por pagar) |
+| `tsc --noEmit` frontend | sin errores |
+| Playwright simulado (completo) | 126/126 |
+| E2E real `frontend/e2e-real/run.sh` | 35/35; incluye 6 de BALANCE en `balance-real.spec.ts` |
 
-**Devoluciones con crédito:** se verifican con las pruebas existentes de cancelación (abonos previos, reembolso, caja). No se añadieron pruebas nuevas.
+**Real E2E BALANCE:** backend NestJS y PostgreSQL temporal, frontend real, sin mocks. Cubre: deuda y abono con saldo actualizado en pantalla y base; pago a proveedor con referencia e historial que muestra referencia y responsable; referencia repetida 409 sin cambio de saldo; cajero sin CXP (403); bodeguero sin cuentas; empresa B no ve ni abona cuentas de empresa A (404, saldo intacto).
 
-## 6. Bloqueos y decisiones del dueño
+**Corrección durante la integración:** el historial de pagos no mostraba referencia ni responsable aunque la API los devolvía; el E2E real lo detectó y se corrigió.
 
-1. **Vencimiento de facturas de cliente:** el estado VENCIDA usa la fecha de vencimiento de la venta a crédito. ¿Debe calcularse desde el plazo del cliente?
-2. **Pagos de proveedor con tarjeta:** no exigen autorización bancaria (solo la referencia opcional). ¿Debe exigirse el mismo control que en cobros?
-3. **Cajero y cuentas por pagar:** el cajero no paga proveedores. ¿Debe existir un perfil intermedio?
-4. **Reembolsos con crédito abonado:** siguen la regla vigente; es decisión pendiente desde la fase de devoluciones.
-5. **Referencia única por empresa:** hoy la unicidad es por factura. ¿Debe ser por empresa para evitar pagar dos facturas con el mismo comprobante?
-6. **Reportes avanzados:** no se han iniciado, como indicó la prioridad.
+## 7. Bloqueos y decisiones del dueño
 
-## 7. Límites
+1. **Saldo a favor:** sin modelo de saldo a favor, un excedente de devolución siempre se reembolsa de caja. Decisión: crear saldo a favor con movimientos auditables.
+2. **Reembolso parcial diferido:** hoy el reembolso es inmediato. Decisión pendiente junto con el punto 1.
+3. **Plazo en cotizaciones:** la conversión de cotización a venta crea CXC con vencimiento nulo. Requiere cambio en la conversión (ATLAS).
+4. **VENCIDA:** hoy usa la fecha de vencimiento guardada (desde el plazo). Confirmar si debe medirse desde la fecha de venta cuando no hay plazo.
+5. **Referencia única:** hoy por factura, con idempotencia por solicitud obligatoria. Confirmar si debe ser por empresa.
+6. **Perfil intermedio:** el cajero no paga proveedores. Confirmar si debe existir un perfil intermedio.
+7. **Reembolso con tarjeta:** requiere autorización bancaria igual que los cobros. Pendiente de decisión.
 
-- Sin verificación en dispositivo móvil real ni en Vercel/Render: solo pruebas locales y simuladas.
-- Playwright usa backend simulado; la persistencia la prueban las pruebas PostgreSQL.
-- Los nuevos endpoints no cambian contratos del POS offline; ATLAS debe revisar que no dependa del listado de cuentas.
+## 8. Pendientes y coordinación
 
-## 8. Instrucciones breves para integrar
+- **NEXUS:** aplicar ambas migraciones; revisar restricciones compuestas por empresa en `pagos_cuenta`, `aprobaciones_bancarias` y `clientes`.
+- **ATLAS:** revisar `ventas.service.ts` (vencimiento por plazo) y la conversión de cotizaciones; BALANCE no tocó inventario ni entregas.
+- **CENTINELA:** revisión multi-tenant de `pagos_cuenta`, `usuarios`, `clientes`, `proveedores`, `aprobaciones_bancarias`, `ventas`, `ordenes_compra`. Sin migraciones de seguridad implementadas por BALANCE.
+- **Fuera de BALANCE:** `frontend/e2e-real/contingencia-real.spec.ts` (caso 9) depende del stock compartido del Taladro; debe aislar su fixture.
 
-1. Integrar después de #135 (PR de pagos), porque reutiliza `aprobaciones_bancarias` y `normalizarAutorizacion`.
-2. Aplicar `20261013000000_balance_referencia_pagos` después de `20261012000000_conciliacion_pagos_bancarios`.
-3. Ejecutar `npx prisma generate` antes de compilar.
-4. Las listas explícitas de migraciones de `ventas` y `reportes-zona-horaria` ya incluyen la nueva migración.
-5. Verificar en staging un abono y un pago a proveedor con referencia antes de usarlos en producción.
+## 9. Límites
+
+- Sin verificación en dispositivo móvil real ni en Vercel/Render: solo pruebas locales.
+- No hay merge, despliegue ni migración productiva en esta fase.
+- El cierre para producción requiere resolver los bloqueos 1–7 y la aplicación de migraciones por NEXUS.

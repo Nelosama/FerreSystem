@@ -36,6 +36,7 @@ test.describe.serial('BALANCE: cuentas por cobrar y por pagar contra backend rea
   let clienteId = '';
   let productoId = '';
   let cuentaVentaId = '';
+  let saldoInicialVenta = 0;
   let documentoVenta = '';
   let proveedorId = '';
   let cuentaCompraId = '';
@@ -47,9 +48,9 @@ test.describe.serial('BALANCE: cuentas por cobrar y por pagar contra backend rea
     expect([201, 409]).toContain(caja.status()); // ya abierta en una ejecución previa del mismo clúster
     const clientes = await (await request.get(`${API}/clientes/buscar?q=Constructora`, { headers: admin.auth })).json();
     clienteId = clientes[0].id;
-    await request.patch(`${API}/clientes/${clienteId}/credito`, { headers: admin.auth, data: { creditoHabilitado: true, limiteCredito: 5000, plazoCreditoDias: 30 } });
+    await request.patch(`${API}/clientes/${clienteId}/credito`, { headers: admin.auth, data: { creditoHabilitado: true, limiteCredito: 20000, plazoCreditoDias: 30 } });
     const productos = await (await request.get(`${API}/productos/comercial`, { headers: admin.auth })).json();
-    productoId = productos.find((p: any) => p.codigo === 'TAL-E2E-1').id;
+    productoId = productos.find((p: any) => p.codigo === 'INV-E2E-2').id;
     const venta = await request.post(`${API}/ventas`, { headers: admin.auth, data: { solicitudId: randomUUID(), clienteId, metodoPago: 'CREDITO', tipoPago: 'CREDITO', detalles: [{ productoId, cantidad: 1 }] } });
     expect(venta.status()).toBe(201);
     const v = await venta.json();
@@ -59,6 +60,9 @@ test.describe.serial('BALANCE: cuentas por cobrar y por pagar contra backend rea
     // Vencimiento = día de venta + plazo del cliente (30), calculado por el servidor.
     const plazo = sql(`SELECT (vencimiento::date - created_at::date) FROM cuentas_operativas WHERE id='${cuentaVentaId}'`);
     expect(plazo).toBe('30');
+    // Producto propio de este spec (no el Taladro compartido por otros specs). ISV 15% sobre 8900 = 10235.
+    saldoInicialVenta = Number(sql(`SELECT saldo::text FROM cuentas_operativas WHERE id='${cuentaVentaId}'`));
+    expect(saldoInicialVenta).toBe(10235);
     const prov = await request.post(`${API}/operaciones/proveedores`, { headers: admin.auth, data: { solicitudId: randomUUID(), nombre: 'Distribuidora E2E Balance' } });
     expect(prov.status()).toBe(201);
     proveedorId = (await prov.json()).id;
@@ -72,12 +76,11 @@ test.describe.serial('BALANCE: cuentas por cobrar y por pagar contra backend rea
     await expect(page.getByText(`Documento ${documentoVenta}`).first()).toBeVisible();
     const tarjeta = page.locator('section.operation-card').filter({ hasText: `Documento ${documentoVenta}` });
     await tarjeta.getByRole('button', { name: 'Registrar abono' }).click();
-    await page.getByRole('button', { name: 'Registrar', exact: true }).click().catch(() => undefined);
     const form = page.locator('form').filter({ has: page.getByRole('heading', { name: /Registrar abono/ }) });
     page.once('dialog', (d) => d.accept());
     await form.locator('input[type="number"]').fill('40');
     await form.getByRole('button', { name: 'Registrar', exact: true }).click();
-    await expect.poll(() => sql(`SELECT saldo::text FROM cuentas_operativas WHERE id='${cuentaVentaId}'`)).toBe('75.00');
+    await expect.poll(() => sql(`SELECT saldo::text FROM cuentas_operativas WHERE id='${cuentaVentaId}'`)).toBe((saldoInicialVenta - 40).toFixed(2));
     await expect(page.locator('section.operation-card').filter({ hasText: `Documento ${documentoVenta}` }).getByText('Parcial').first()).toBeVisible();
     expect(sql(`SELECT COUNT(*) FROM pagos_cuenta WHERE cuenta_id='${cuentaVentaId}'`)).toBe('1');
   });
@@ -126,6 +129,6 @@ test.describe.serial('BALANCE: cuentas por cobrar y por pagar contra backend rea
     expect(filas.map((f: any) => f.id)).not.toContain(cuentaVentaId);
     const pago = await request.post(`${API}/operaciones/cuentas/${cuentaVentaId}/pagos`, { headers: adminB.auth, data: { solicitudId: randomUUID(), monto: 1, metodo: 'EFECTIVO' } });
     expect(pago.status()).toBe(404);
-    expect(sql(`SELECT saldo::text FROM cuentas_operativas WHERE id='${cuentaVentaId}'`)).toBe('75.00');
+    expect(sql(`SELECT saldo::text FROM cuentas_operativas WHERE id='${cuentaVentaId}'`)).toBe((saldoInicialVenta - 40).toFixed(2));
   });
 });
