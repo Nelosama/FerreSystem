@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { createServer } from 'node:net';
@@ -283,11 +283,16 @@ describe('Crédito de clientes / PostgreSQL aislado', () => {
     ]);
     const devolucionOk = resultados[0].status === 'fulfilled';
     const pagoOk = resultados[1].status === 'fulfilled';
-    expect(devolucionOk !== pagoOk).toBe(true); // exactamente una de las dos operaciones prospera
+    // Órdenes válidos: (1) la cancelación primero: el abono se rechaza porque la CxC ya está en cero;
+    // (2) el abono primero: la cancelación cancela el resto (65) y reembolsa el excedente pagado (50).
+    expect(devolucionOk).toBe(true);
+    const reembolso = Number((resultados[0] as PromiseFulfilledResult<any>).value.reembolso);
+    expect(reembolso).toBe(pagoOk ? 50 : 0);
+    expect(Number((resultados[0] as PromiseFulfilledResult<any>).value.credito_cancelado)).toBe(115 - reembolso);
     const saldoCuenta = Number((await prisma.cuentaOperativa.findUniqueOrThrow({ where: { id: cuenta.id } })).saldo);
-    expect(saldoCuenta).toBe(devolucionOk ? 0 : 65);
-    expect(await saldoCliente()).toBe(saldoCuenta);
-    expect(Number((await prisma.venta.findUniqueOrThrow({ where: { id: venta.id } })).saldoCredito)).toBe(saldoCuenta);
+    expect(saldoCuenta).toBe(0);
+    expect(await saldoCliente()).toBe(0);
+    expect(Number((await prisma.venta.findUniqueOrThrow({ where: { id: venta.id } })).saldoCredito)).toBe(0);
   });
 
   it('caso 6: un ADMIN que pierde el rol antes de que se ejecute su autorización impide la devolución', async () => {
@@ -329,5 +334,296 @@ describe('Crédito de clientes / PostgreSQL aislado', () => {
     await expect(cotizaciones.convertirAVenta(tenantId, adminId, cotId, 'CREDITO')).rejects.toThrow(/ya fue convertida/);
     expect(await prisma.cuentaOperativa.count({ where: { tenantId, tipo: 'CXC' } })).toBe(1);
     expect(await saldoCliente()).toBe(115);
+  });
+
+  // ─── Revisión financiera de devoluciones con abonos previos ─────────────
+  // Venta de 1 unidad a 100 + ISV = 115.00. Abono de 30 % = 34.50. Todas las cifras son decimales exactos.
+
+  const cajaEfectivo = async () => Number((await sql("SELECT COALESCE(SUM(m.monto),0)::numeric AS s FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id WHERE c.tenant_id=$1 AND m.metodo='EFECTIVO'", tenantId))[0].s);
+  const movimientosDevolucion = () => sql("SELECT m.monto, m.metodo, m.usuario_id FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id WHERE c.tenant_id=$1 AND m.concepto LIKE 'Devolución de venta%'", tenantId);
+  const devolucionesDe = (ventaId: string) => sql('SELECT * FROM devoluciones WHERE venta_id=$1', ventaId);
+  const auditoriaDevolucion = () => sql("SELECT COUNT(*)::int AS n FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='VENTA_DEVOLVER'", tenantId);
+  const devolverTodo = async (ventaId: string, solicitudId = randomUUID(), usuario = adminId): Promise<any> => {
+    const detalle = await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId } });
+    return ops.devolver(tenantId, usuario, ventaId, {
+      solicitudId, motivo: 'Cancelación', metodo: 'EFECTIVO',
+      items: [{ detalleId: detalle.id, cantidad: 1, destino: 'NO_ENTREGADO' }],
+    } as any);
+  };
+
+  it('Escenario A (sin abonos): cancela la deuda, restablece el crédito disponible y no registra reembolso ni movimiento de caja', async () => {
+    const venta = await ventaCredito();
+    const cajaAntes = await cajaEfectivo();
+    const r = await devolverTodo(venta.id);
+    expect(Number(r.credito_cancelado)).toBe(115);
+    expect(Number(r.reembolso)).toBe(0);
+    expect(Number((await cuentaDe(venta.id)).saldo)).toBe(0);
+    expect(await saldoCliente()).toBe(0);
+    expect(Number((await prisma.cliente.findUniqueOrThrow({ where: { id: clienteId } })).limiteCredito) - await saldoCliente()).toBe(250);
+    expect(await cajaEfectivo()).toBe(cajaAntes);
+    expect(await movimientosDevolucion()).toHaveLength(0);
+    expect(await auditoriaDevolucion()).toEqual([{ n: 1 }]);
+  });
+
+  it('Escenario B (abono parcial 34.50): la deuda pendiente de 80.50 se cancela y el abonado 34.50 es reembolso efectivamente pagado de la caja', async () => {
+    const venta = await ventaCredito();
+    const cuenta = await cuentaDe(venta.id);
+    await pagoCuenta(cuenta.id, 34.5);
+    const cajaAntes = await cajaEfectivo();
+    const r = await devolverTodo(venta.id);
+    expect(Number(r.credito_cancelado)).toBe(80.5);
+    expect(Number(r.reembolso)).toBe(34.5);
+    expect(Number(r.credito_cancelado) + Number(r.reembolso)).toBe(Number(r.monto));
+    // Caja: un único movimiento de salida, por el reembolso ejecutado, con método y responsable.
+    expect(await cajaEfectivo()).toBe(cajaAntes - 34.5);
+    const movs = await movimientosDevolucion();
+    expect(movs).toHaveLength(1);
+    expect(Number(movs[0].monto)).toBe(-34.5);
+    expect(movs[0].usuario_id).toBe(adminId);
+    // Consistencia de la CxC, del cliente y de la venta.
+    expect(Number((await cuentaDe(venta.id)).saldo)).toBe(0);
+    expect(await saldoCliente()).toBe(0);
+    expect(Number((await prisma.venta.findUniqueOrThrow({ where: { id: venta.id } })).saldoCredito)).toBe(0);
+    // El abono legítimo se conserva como historial de pago.
+    expect(Number((await sql('SELECT COALESCE(SUM(monto),0)::numeric AS s FROM pagos_cuenta WHERE cuenta_id=$1', cuenta.id))[0].s)).toBe(34.5);
+    expect((await devolucionesDe(venta.id))[0].caja_id).not.toBeNull();
+  });
+
+  it('Escenario C (venta totalmente pagada 115): no hay deuda pendiente y el reembolso de 115 queda trazable a la caja, el responsable y el método', async () => {
+    const venta = await ventaCredito();
+    const cuenta = await cuentaDe(venta.id);
+    await pagoCuenta(cuenta.id, 115);
+    const cajaAntes = await cajaEfectivo();
+    const r = await devolverTodo(venta.id);
+    expect(Number(r.credito_cancelado)).toBe(0);
+    expect(Number(r.reembolso)).toBe(115);
+    expect(await cajaEfectivo()).toBe(cajaAntes - 115);
+    const [dev] = await devolucionesDe(venta.id);
+    expect(dev).toMatchObject({ metodo: 'EFECTIVO', usuario_id: adminId });
+    expect(dev.caja_id).not.toBeNull();
+    expect(Number((await cuentaDe(venta.id)).saldo)).toBe(0);
+    expect(await saldoCliente()).toBe(0);
+    expect(Number((await sql('SELECT COALESCE(SUM(monto),0)::numeric AS s FROM pagos_cuenta WHERE cuenta_id=$1', cuenta.id))[0].s)).toBe(115);
+  });
+
+  it('Escenario D (reintentos): cancelar dos veces la misma venta no duplica cancelación, reembolso, caja ni auditoría', async () => {
+    const venta = await ventaCredito();
+    await pagoCuenta((await cuentaDe(venta.id)).id, 34.5);
+    const solicitud = randomUUID();
+    const primera = await devolverTodo(venta.id, solicitud);
+    const cajaTrasPrimera = await cajaEfectivo();
+    // Mismo identificador: se devuelve el resultado registrado, sin efectos nuevos.
+    const reenvio = await devolverTodo(venta.id, solicitud);
+    expect(reenvio.id).toBe(primera.id);
+    expect(await cajaEfectivo()).toBe(cajaTrasPrimera);
+    // Nueva solicitud sobre la misma venta ya cancelada: se rechaza y no mueve nada.
+    await expect(devolverTodo(venta.id)).rejects.toThrow();
+    expect(await devolucionesDe(venta.id)).toHaveLength(1);
+    expect(await movimientosDevolucion()).toHaveLength(1);
+    expect(await auditoriaDevolucion()).toEqual([{ n: 1 }]);
+    expect(await saldoCliente()).toBe(0);
+  });
+
+  it('Escenario E (concurrencia): un abono de 34.50 y la cancelación completa en sesiones independientes son consistentes en cualquier orden', async () => {
+    const venta = await ventaCredito();
+    const cuenta = await cuentaDe(venta.id);
+    const cajaAntes = await cajaEfectivo();
+    const [dev, pago] = await Promise.allSettled([devolverTodo(venta.id), pagoCuenta(cuenta.id, 34.5)]);
+    const devolucionOk = dev.status === 'fulfilled';
+    const pagoOk = pago.status === 'fulfilled';
+    const saldoCuenta = Number((await prisma.cuentaOperativa.findUniqueOrThrow({ where: { id: cuenta.id } })).saldo);
+    const cajaDelta = (await cajaEfectivo()) - cajaAntes;
+    if (devolucionOk) {
+      const reembolso = Number(dev.value.reembolso);
+      const credito = Number(dev.value.credito_cancelado);
+      expect(credito + reembolso).toBe(115);
+      expect(saldoCuenta).toBe(0);
+      expect(await saldoCliente()).toBe(0);
+      // El reembolso sale de caja solo si el abono se confirmó antes que la cancelación.
+      expect(cajaDelta).toBe((pagoOk ? 34.5 : 0) - reembolso); // abono en efectivo (+) menos reembolso ejecutado (−)
+      expect(reembolso).toBe(pagoOk ? 34.5 : 0);
+    } else {
+      // La cancelación no se aplicó: el abono, si se confirmó, es el único cambio financiero.
+      expect(pagoOk).toBe(true);
+      expect(saldoCuenta).toBe(80.5);
+      expect(cajaDelta).toBe(34.5);
+      expect(await devolucionesDe(venta.id)).toHaveLength(0);
+    }
+    expect(await saldoCliente()).toBe(saldoCuenta);
+    expect(Number((await prisma.venta.findUniqueOrThrow({ where: { id: venta.id } })).saldoCredito)).toBe(saldoCuenta);
+    expect(await movimientosDevolucion()).toHaveLength(devolucionOk && pagoOk ? 1 : 0);
+  });
+
+  it('Escenario E, orden 1 (abono confirmado antes): la cancelación cancela el resto y reembolsa exactamente el abono', async () => {
+    const venta = await ventaCredito();
+    await pagoCuenta((await cuentaDe(venta.id)).id, 34.5);
+    const cajaAntes = await cajaEfectivo();
+    const r = await devolverTodo(venta.id);
+    expect(Number(r.credito_cancelado)).toBe(80.5);
+    expect(Number(r.reembolso)).toBe(34.5);
+    expect(await cajaEfectivo()).toBe(cajaAntes - 34.5);
+    expect(Number((await cuentaDe(venta.id)).saldo)).toBe(0);
+    expect(await saldoCliente()).toBe(0);
+  });
+
+  it('Escenario E, orden 2 (cancelación confirmada antes): el abono posterior se rechaza y la caja no cambia', async () => {
+    const venta = await ventaCredito();
+    const cuenta = await cuentaDe(venta.id);
+    const cajaAntes = await cajaEfectivo();
+    const r = await devolverTodo(venta.id);
+    expect(Number(r.credito_cancelado)).toBe(115);
+    expect(Number(r.reembolso)).toBe(0);
+    await expect(pagoCuenta(cuenta.id, 34.5)).rejects.toThrow(/saldo/i);
+    expect(await cajaEfectivo()).toBe(cajaAntes);
+    expect(Number((await sql('SELECT COALESCE(SUM(monto),0)::numeric AS s FROM pagos_cuenta WHERE cuenta_id=$1', cuenta.id))[0].s)).toBe(0);
+    expect(await saldoCliente()).toBe(0);
+  });
+
+  it('devoluciones parciales sucesivas con abono: el reembolso total nunca supera lo pagado y la CxC cuadra en cada paso', async () => {
+    // Venta de 2 unidades a 100 + ISV = 230.00; abono de 69.00 (30 %).
+    const venta = await ventas.create(tenantId, adminId, {
+      solicitudId: randomUUID(), clienteId, tipoPago: 'CREDITO', metodoPago: 'CREDITO',
+      detalles: [{ productoId, cantidad: 2, precioUnitario: 100 }],
+    } as any);
+    const cuenta = await cuentaDe(venta.id);
+    await pagoCuenta(cuenta.id, 69);
+    const detalle = await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: venta.id } });
+    const devolverUna = () => ops.devolver(tenantId, adminId, venta.id, {
+      solicitudId: randomUUID(), motivo: 'Parcial', metodo: 'EFECTIVO',
+      items: [{ detalleId: detalle.id, cantidad: 1, destino: 'NO_ENTREGADO' }],
+    } as any) as Promise<any>;
+    const primera = await devolverUna();
+    expect(Number(primera.monto)).toBe(115);
+    expect(Number(primera.credito_cancelado)).toBe(115);   // el crédito pendiente (161) cubre la primera unidad
+    expect(Number(primera.reembolso)).toBe(0);
+    expect(Number((await cuentaDe(venta.id)).saldo)).toBe(46);
+    expect(await saldoCliente()).toBe(46);
+    const segunda = await devolverUna();
+    expect(Number(segunda.monto)).toBe(115);
+    expect(Number(segunda.credito_cancelado)).toBe(46);    // lo que queda de crédito
+    expect(Number(segunda.reembolso)).toBe(69);            // exactamente lo pagado
+    expect(Number((await cuentaDe(venta.id)).saldo)).toBe(0);
+    expect(await saldoCliente()).toBe(0);
+    const devoluciones = await devolucionesDe(venta.id);
+    const totalReembolsos = devoluciones.reduce((acc: number, d: any) => acc + Number(d.reembolso), 0);
+    const totalCredito = devoluciones.reduce((acc: number, d: any) => acc + Number(d.credito_cancelado), 0);
+    expect(totalReembolsos).toBe(69);
+    expect(totalCredito + totalReembolsos).toBe(230);
+  });
+
+  it('conciliación histórica de solo lectura: sin falsos positivos en flujos válidos y detecta anomalías sembradas', async () => {
+    const consultas = readFileSync(resolve('scripts/conciliacion-credito-lectura.sql'), 'utf8')
+      .split(/^-- @consulta /m).slice(1)
+      .map(bloque => {
+        const [nombre, ...lineas] = bloque.split('\n');
+        return { nombre: nombre.trim(), sql: lineas.filter(l => !l.startsWith('--')).join('\n').trim() };
+      });
+    const ejecutar = async (tenant: string) => {
+      const hallazgos: Record<string, number> = {};
+      for (const { nombre, sql: texto } of consultas) {
+        const filas = await prisma.$transaction(async tx => {
+          await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+          return tx.$queryRawUnsafe<any[]>(texto, tenant);
+        });
+        hallazgos[nombre] = filas.length;
+      }
+      return hallazgos;
+    };
+    const estadoDatos = async () => JSON.stringify([
+      await sql('SELECT id, saldo_pendiente FROM clientes WHERE tenant_id=$1 ORDER BY id', tenantId),
+      await sql('SELECT id, saldo, monto FROM cuentas_operativas WHERE tenant_id=$1 ORDER BY id', tenantId),
+      await sql('SELECT id, saldo_credito, tipo_pago FROM ventas WHERE tenant_id=$1 ORDER BY id', tenantId),
+    ]);
+
+    // Flujos válidos: una venta devuelta con abono y otra abierta a crédito.
+    const devuelta = await ventaCredito();
+    await pagoCuenta((await cuentaDe(devuelta.id)).id, 34.5);
+    await devolverTodo(devuelta.id);
+    const abierta = await ventaCredito();
+    expect(await saldoCliente()).toBe(115);
+    const limpio = await ejecutar(tenantId);
+    expect(Object.values(limpio).every(n => n === 0)).toBe(true);
+    expect(await ejecutar(otroTenantId)).toEqual(limpio);
+
+    // Anomalías sembradas por SQL en la base temporal (solo para demostrar la detección).
+    await prisma.cliente.update({ where: { id: clienteId }, data: { saldoPendiente: { increment: 10 } } });
+    await sql("UPDATE ventas SET tipo_pago='CONTADO' WHERE id=$1", abierta.id);
+    await prisma.abonoCliente.create({ data: { tenantId, clienteId, ventaId: devuelta.id, monto: 5, fecha: new Date() } as any });
+    const [dev] = await devolucionesDe(devuelta.id);
+    await sql('UPDATE movimientos_caja SET monto=monto-1 WHERE referencia=$1', dev.id);
+
+    const antes = await estadoDatos();
+    const hallazgos = await ejecutar(tenantId);
+    expect(await estadoDatos()).toBe(antes); // la consulta no modifica nada
+    expect(hallazgos.saldo_cliente_no_concilia).toBe(1);
+    expect(hallazgos.venta_metodo_credito_tipo_contado).toBe(1);
+    expect(hallazgos.abono_cliente_heredado).toBe(1);
+    expect(hallazgos.reembolso_sin_movimiento_de_caja).toBe(1);
+    expect(hallazgos.cxc_sin_cliente).toBe(0);
+    expect(hallazgos.venta_credito_sin_cxc).toBe(0);
+  });
+
+  it('Escenario F (fallo intermedio): un error entre escrituras de la cancelación deja la venta, la CxC, el cliente, la caja y el stock intactos', async () => {
+    const venta = await ventaCredito();
+    await pagoCuenta((await cuentaDe(venta.id)).id, 34.5);
+    const estado = async () => ({
+      saldoCuenta: Number((await cuentaDe(venta.id)).saldo),
+      saldoCliente: await saldoCliente(),
+      saldoCredito: Number((await prisma.venta.findUniqueOrThrow({ where: { id: venta.id } })).saldoCredito),
+      caja: await cajaEfectivo(),
+      devoluciones: (await devolucionesDe(venta.id)).length,
+      movimientos: (await movimientosDevolucion()).length,
+      auditoria: (await auditoriaDevolucion())[0].n,
+      stock: Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual),
+    });
+    const antes = await estado();
+    const solicitud = randomUUID();
+    // Fallo controlado DESPUÉS de reducir CxC, cliente y venta, y de insertar la devolución (detalles_devolucion).
+    await prisma.$executeRawUnsafe("CREATE OR REPLACE FUNCTION fallo_controlado_devolucion() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'fallo controlado'; END $$ LANGUAGE plpgsql");
+    await prisma.$executeRawUnsafe('CREATE TRIGGER fallo_devolucion BEFORE INSERT ON detalles_devolucion FOR EACH ROW EXECUTE FUNCTION fallo_controlado_devolucion()');
+    try {
+      await expect(devolverTodo(venta.id, solicitud)).rejects.toThrow(/fallo controlado/);
+    } finally {
+      await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS fallo_devolucion ON detalles_devolucion');
+    }
+    expect(await estado()).toEqual(antes);
+    // Sin residuos: la misma solicitud, ya sin fallo, se ejecuta una sola vez y con el efecto correcto.
+    const ok = await devolverTodo(venta.id, solicitud);
+    expect(Number(ok.reembolso)).toBe(34.5);
+    expect(await devolucionesDe(venta.id)).toHaveLength(1);
+    expect(await movimientosDevolucion()).toHaveLength(1);
+  });
+
+  it('la ruta heredada de abonos (410) tampoco crea movimientos de caja ni registros financieros', async () => {
+    await ventaCredito();
+    const cajaAntes = await cajaEfectivo();
+    const movimientosAntes = (await sql('SELECT COUNT(*)::int AS n FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id WHERE c.tenant_id=$1', tenantId))[0].n;
+    await expect(abono(clienteId, 10, { solicitudId: randomUUID() })).rejects.toThrow(/Cuentas y abonos/);
+    expect(await cajaEfectivo()).toBe(cajaAntes);
+    expect((await sql('SELECT COUNT(*)::int AS n FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id WHERE c.tenant_id=$1', tenantId))[0].n).toBe(movimientosAntes);
+    expect(await prisma.abonoCliente.count({ where: { tenantId } })).toBe(0);
+  });
+
+  it('permisos: un CAJERO no puede cancelar directamente una venta a crédito, y otra empresa no puede cancelarla', async () => {
+    const venta = await ventaCredito();
+    await expect(devolverTodo(venta.id, randomUUID(), cajeroId)).rejects.toThrow(/administrador/);
+    const otroAdmin = randomUUID();
+    await prisma.usuario.create({ data: { id: otroAdmin, tenantId: otroTenantId, nombre: 'Ajeno', email: `${otroAdmin}@test.invalid`, passwordHash: 'x', rol: 'ADMIN' } });
+    await prisma.caja.create({ data: { tenantId: otroTenantId, usuarioId: otroAdmin, codigo: 'CAJA-AJENA-2', montoApertura: 100 } });
+    await expect(ops.devolver(otroTenantId, otroAdmin, venta.id, { solicitudId: randomUUID(), motivo: 'x', metodo: 'EFECTIVO', items: [] } as any)).rejects.toThrow();
+    expect(Number((await cuentaDe(venta.id)).saldo)).toBe(115);
+    expect(await saldoCliente()).toBe(115);
+    expect(await devolucionesDe(venta.id)).toHaveLength(0);
+  });
+
+  it('una caja cerrada no cambia cuando se cancela una venta a crédito con abonos', async () => {
+    const cerrada = await prisma.caja.create({ data: { tenantId, usuarioId: adminId, codigo: 'CAJA-CERRADA', montoApertura: 500, estado: 'CERRADA' as any } });
+    await sql("INSERT INTO movimientos_caja (id,caja_id,usuario_id,tipo,monto,metodo,referencia,concepto) VALUES ($1,$2,$3,'VENTA_POS',50,'EFECTIVO',NULL,'Venta cerrada')", randomUUID(), cerrada.id, adminId);
+    const antes = (await sql('SELECT COUNT(*)::int AS n FROM movimientos_caja WHERE caja_id=$1', cerrada.id))[0].n;
+    const venta = await ventaCredito();
+    await pagoCuenta((await cuentaDe(venta.id)).id, 34.5);
+    await devolverTodo(venta.id);
+    expect((await sql('SELECT COUNT(*)::int AS n FROM movimientos_caja WHERE caja_id=$1', cerrada.id))[0].n).toBe(antes);
+    expect(Number((await prisma.caja.findUniqueOrThrow({ where: { id: cerrada.id } })).montoApertura)).toBe(500);
   });
 });
