@@ -22,6 +22,23 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Fechas de negocio en Apartados, Transferencias, Garantías y Pedidos Especiales (2026-10-10 UTC)
+
+- **Rama:** `fix/fechas-zona-negocio-modulos`, creada desde `origin/main` `2398e45f`. Sin merge, sin despliegue, sin PR (lo abre el director).
+- **Problema:** las cuatro pantallas guardaban fechas de negocio con `new Date().toISOString().split('T')[0]`, es decir, el día UTC. Entre 18:00 y 23:59 hora de Tegucigalpa el registro caía en el día siguiente. Garantías calculaba el vencimiento con `setMonth` sobre un `Date` local y luego lo pasaba a UTC.
+- **Corrección:** `diaCalendarioEnZona()` (existente en `frontend/src/utils/format.ts`) para "hoy" y los abonos. Nueva `frontend/src/utils/fechasNegocio.ts` con `sumarDiasCalendario` (límite de apartado a 30 días) y `sumarMesesCalendario` (vencimiento de garantía, mismo desborde que `setMonth`). Sin cambios de textos ni de estructura visual.
+- **Pantallas sin cambios de fecha:** ninguna de las cuatro compara fechas contra "hoy". No hay lógica de "vencido" ni "por vencer": el estado de garantía (`VIGENTE`/`EXPIRADA`) y el de apartado son literales de datos de ejemplo. Por eso no hay comparaciones que corregir.
+- **Pruebas (2026-10-10, entorno local, Node v22.22.0 frente al `24.x` declarado en `package.json`):**
+  - Nueva `frontend/test/fechas-negocio.test.mjs`: **7/7** con `TZ=UTC`, `Asia/Tokyo` y `America/Tegucigalpa`.
+  - Reproducción previa: con la expresión anterior (`toISOString`) en `diaCalendarioEnZona`, **3 de 7 fallan** (instante 2026-10-10T02:30Z, alta de apartado y vencimiento de garantía). Cambio revertido tras la prueba.
+  - Frontend `npm test` **170/170** (163 previas + 7 nuevas), con `TZ=UTC` también 170/170; `tsc -b` sin errores; `vite build` con `VITE_API_URL=/api` correcto; `oxlint` sin errores en los archivos tocados (4 avisos `set-state-in-effect` en efectos ya existentes de esas páginas).
+- **Limitaciones:**
+  1. Las cuatro pantallas trabajan con datos de ejemplo en `localStorage` y sin backend. Las fechas ya guardadas en `localStorage` conservan el día UTC anterior; no se migraron.
+  2. Se muestran como texto `YYYY-MM-DD` tal como se guardan (sin cambio de formato). El criterio de aceptación pedía «9 oct 2026»; el texto mostrado para ese instante es `2026-10-09`.
+  3. No se verificó en navegador ni con Playwright.
+  4. `AuditoriaPage` y `DevolucionesPage` quedan fuera de alcance y pendientes.
+- **Pendientes:** revisión de código y apertura de PR por el director; decidir si el formato visible debe pasar a «9 oct 2026».
+
 ## Caja y arqueo — implementación para entrega (2026-10-10 UTC)
 
 - **Rama:** `claude/intelligent-cerf-b3ldo0` (designada para esta sesión; partió de `origin/main` `605cb941`, sin cambios de inventario). PR publicado hacia `main` sin merge ni despliegue. Sin producción ni datos reales en las pruebas.
@@ -777,7 +794,7 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
   - Frontend: 143/143 (`npm test`), `tsc -b` y `vite build` correctos, oxlint sin errores.
   - GitHub Actions sobre el head `157b3732`: `Operación de ferretería` run [37970951477](https://github.com/Nelosama/FerreSystem/actions/runs/37970951477) = **success** (incluye «Backend: compilación y pruebas» e «Integración con persistencia PostgreSQL real», `npm run test:integration`); `Playwright Tests` run [37970951163](https://github.com/Nelosama/FerreSystem/actions/runs/37970951163) = **success**. Ejecuciones previas sobre `7f31a24f` (37966166005) y `18b5adfc` (37970924872) también en success.
   - **Cambio histórico en reportes:** las ventas de 18:00–23:59 locales se asignan al día local correcto. Los totales diarios de días pasados cambian en esa franja; en rangos solo cambian los bordes. Los datos almacenados no se modifican. Impacto documentado en el cuerpo del PR #99. **Aprobación del responsable funcional: PENDIENTE** (no identificado en el repositorio). No fusionar hasta registrarla.
-- **Pendientes / riesgos:** (1) `cotizaciones.service.ts` (≈7 bloques `setHours`) sigue usando la zona del servidor para vencimientos; mismo patrón, fuera de alcance de FS-05, decidir si se corrige. (2) `ApartadosPage`, `TransferenciasPage`, `GarantiasPage`, `PedidosEspecialesPage` y `AuditoriaPage`/`DevolucionesPage` aún formatean o calculan fechas sin zona de negocio. (3) El supuesto de que la sesión de PostgreSQL y `NOW()` usan UTC para columnas `TIMESTAMP` no está verificado en producción (`SHOW timezone`). (4) Los datos históricos no se tocaron, pero los reportes de días pasados **cambiarán** al desplegar: ventas de 18:00–23:59 locales se moverán al día correcto. Avisar al cliente antes de desplegar. (5) Sin validación en navegador ni en producción.
+- **Pendientes / riesgos:** (1) `cotizaciones.service.ts` (≈7 bloques `setHours`) sigue usando la zona del servidor para vencimientos; mismo patrón, fuera de alcance de FS-05, decidir si se corrige. (2) `ApartadosPage`, `TransferenciasPage`, `GarantiasPage` y `PedidosEspecialesPage` corregidos en la rama `fix/fechas-zona-negocio-modulos` (bloque siguiente); `AuditoriaPage`/`DevolucionesPage` siguen pendientes. (3) El supuesto de que la sesión de PostgreSQL y `NOW()` usan UTC para columnas `TIMESTAMP` no está verificado en producción (`SHOW timezone`). (4) Los datos históricos no se tocaron, pero los reportes de días pasados **cambiarán** al desplegar: ventas de 18:00–23:59 locales se moverán al día correcto. Avisar al cliente antes de desplegar. (5) Sin validación en navegador ni en producción.
 - PR [#99](https://github.com/Nelosama/FerreSystem/pull/99), rama `fix/fs-05-reportes-zona-horaria`: **fusionado en `main`** (`ef6b9fa1`). Se fusionó **antes** de registrar la aprobación funcional del cambio histórico, que sigue **PENDIENTE**: registrarla o evaluar su reversión/comunicación. Sin despliegue.
 
 **FIN DEL CONTEXTO VIGENTE**

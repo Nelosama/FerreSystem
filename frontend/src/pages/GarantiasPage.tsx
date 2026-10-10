@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { ShieldCheck, Search, Plus, CheckCircle, AlertTriangle } from 'lucide-react';
+import { diaCalendarioEnZona } from '../utils/format';
+import { sumarMesesCalendario } from '../utils/fechasNegocio';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
 
@@ -93,8 +95,8 @@ export const GarantiasPage: React.FC = () => {
   const handleCrearGarantia = (e: React.FormEvent) => {
     e.preventDefault();
     const m = parseInt(meses, 10) || 12;
-    const today = new Date();
-    const expiry = new Date(today.setMonth(today.getMonth() + m)).toISOString().split('T')[0];
+    const hoy = diaCalendarioEnZona();
+    const expiry = sumarMesesCalendario(hoy, m);
 
     const nueva: RegistroGarantiaItem = {
       id: `gar-${Date.now()}`,
@@ -103,7 +105,7 @@ export const GarantiasPage: React.FC = () => {
       clienteNombre: cliNombre.trim(),
       clienteTelefono: cliTel.trim(),
       numeroFactura: numFactura.trim(),
-      fechaVenta: new Date().toISOString().split('T')[0],
+      fechaVenta: hoy,
       mesesGarantia: m,
       fechaVencimientoGarantia: expiry,
       estado: 'VIGENTE',

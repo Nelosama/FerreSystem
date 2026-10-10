@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { GitBranch, ArrowRight, Plus, CheckCircle, AlertCircle } from 'lucide-react';
+import { diaCalendarioEnZona } from '../utils/format';
 import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
@@ -103,7 +104,7 @@ export const TransferenciasPage: React.FC = () => {
       productoId: prod ? prod.id : 'p-1',
       productoNombre: prod ? prod.nombre : 'Producto',
       cantidad: qty,
-      fechaEnvio: new Date().toISOString().split('T')[0],
+      fechaEnvio: diaCalendarioEnZona(),
       estado: 'EN_TRANSITO',
       usuarioNombre: 'Carlos Ramos (Admin)',
     };

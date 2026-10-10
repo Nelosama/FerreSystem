@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Plus, Search, Bell, CheckCircle } from 'lucide-react';
-import { formatLempiras } from '../utils/format';
+import { diaCalendarioEnZona, formatLempiras } from '../utils/format';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
 
@@ -101,7 +101,7 @@ export const PedidosEspecialesPage: React.FC = () => {
       productoNombre: prodNombre.trim(),
       cantidad: qty,
       precioEstimado: p * qty,
-      fechaSolicitud: new Date().toISOString().split('T')[0],
+      fechaSolicitud: diaCalendarioEnZona(),
       estado: 'PENDIENTE',
     };
 
