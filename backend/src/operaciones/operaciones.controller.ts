@@ -1,6 +1,6 @@
 import { RequiredAnyModule, RequiredModule } from '../common/decorators/required-module.decorator';
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { OperacionesService } from './operaciones.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
@@ -8,7 +8,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
+import { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 @Controller('operaciones')
 @UseGuards(JwtAuthGuard,TenantGuard,RolesGuard)
 @Roles('ADMIN','CAJERO','BODEGUERO','VENDEDOR')
@@ -32,6 +32,13 @@ export class OperacionesController {
  @Post('caja/:id/movimientos') @Roles('ADMIN','CAJERO','VENDEDOR') movimientoCaja(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:MovimientoCajaDto){return this.service.movimientoCaja(t,u,id,dto);}
  @Post('caja/abrir') @Roles('ADMIN','CAJERO','VENDEDOR') abrir(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:AbrirCajaDto){return this.service.abrir(t,u,dto);}
  @Post('caja/:id/cerrar') @Roles('ADMIN','CAJERO','VENDEDOR') cerrar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:CerrarCajaDto){return this.service.cerrar(t,u,id,dto);}
+ @RequiredModule('inventario')
+ @Get('clientes/:id/estado-cuenta') @Roles('ADMIN') estadoCuentaCliente(@TenantId() t:string,@Param('id') id:string){return this.service.estadoCuentaCliente(t,id);}
+ @Get('productos/:id/proveedores') @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') proveedoresProducto(@TenantId() t:string,@Param('id') id:string){return this.service.proveedoresProducto(t,id);}
+ @RequiredModule('inventario')
+ @Put('productos/:id/proveedores/:proveedorId') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') guardarProveedorProducto(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Param('proveedorId') proveedorId:string,@Body() dto:ProductoProveedorDto){return this.service.guardarProveedorProducto(t,u,id,proveedorId,dto);}
+ @RequiredModule('inventario')
+ @Delete('productos/:id/proveedores/:proveedorId') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') eliminarProveedorProducto(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Param('proveedorId') proveedorId:string){return this.service.eliminarProveedorProducto(t,u,id,proveedorId);}
  @RequiredModule('inventario')
  @Get('productos/:id/historial') @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') historial(@TenantId() t:string,@Param('id') id:string){return this.service.historial(t,id);}
  @RequiredModule('inventario')

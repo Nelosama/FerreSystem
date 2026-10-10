@@ -267,6 +267,7 @@ model Producto {
   @@index([tenantId, activo])
   @@index([tenantId, nombre])
   @@index([tenantId, codigoBarras])
+  proveedoresProducto ProductoProveedor[]
   @@map("productos")
 }
 
@@ -632,6 +633,7 @@ model Proveedor {
  comprasRegistradas CompraProveedor[]
  costos CostoCompra[]
  cuentas CuentaOperativa[]
+ proveedoresProducto ProductoProveedor[]
  @@map("proveedores")
 }
 model CompraProveedor {
@@ -919,4 +921,24 @@ model CoberturaGarantia {
   @@index([tenantId, ventaId], map: "coberturas_garantia_tenant_venta_idx")
   @@index([tenantId, fechaVencimiento], map: "coberturas_garantia_tenant_vencimiento_idx")
   @@map("coberturas_garantia")
+}
+
+model ProductoProveedor {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  productoId      String    @map("producto_id")
+  proveedorId     String    @map("proveedor_id")
+  codigoProveedor String?   @map("codigo_proveedor")
+  esPreferido     Boolean   @default(false) @map("es_preferido")
+  ultimoCosto     Decimal?  @map("ultimo_costo") @db.Decimal(12, 2)
+  ultimaCompraAt  DateTime? @map("ultima_compra_at")
+  creadoPor       String?   @map("creado_por")
+  actualizadoPor  String?   @map("actualizado_por")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  producto        Producto  @relation(fields: [productoId], references: [id], onDelete: Restrict, map: "productos_proveedores_producto_fkey")
+  proveedor       Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Restrict, map: "productos_proveedores_proveedor_fkey")
+  @@unique([tenantId, productoId, proveedorId], map: "productos_proveedores_tenant_producto_proveedor_key")
+  @@index([tenantId, proveedorId], map: "productos_proveedores_tenant_proveedor_idx")
+  @@map("productos_proveedores")
 }

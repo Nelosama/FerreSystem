@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ServiceUnavailableException, Logger, BadRequestException, GoneException } from '@nestjs/common';
-import { decimal, lockTenant } from '../operaciones/ledger';
+import { audit, decimal, lockTenant } from '../operaciones/ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
 import { UpdateCreditoClienteDto } from './dto/cliente.dto';
@@ -144,7 +144,9 @@ export class ClientesService {
     }));
   }
 
-  async updateCredit(tenantId: string, id: string, dto: UpdateCreditoClienteDto) {
+  // FS-18: cada cambio de crédito queda auditado (CLIENTE_CREDITO_EDITAR) con valor anterior y nuevo,
+  // en la misma transacción que la escritura. Si la auditoría falla, el cambio no se aplica.
+  async updateCredit(tenantId: string, id: string, dto: UpdateCreditoClienteDto, usuarioId: string) {
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx, tenantId);
       const cliente = await tx.cliente.findFirst({ where: { id, tenantId } });
@@ -163,7 +165,18 @@ export class ClientesService {
           ...(dto.limiteCredito !== undefined ? { limiteCredito: limite } : {}),
         },
       });
-      return tx.cliente.findFirst({ where: { id, tenantId } });
+      const actualizado = await tx.cliente.findFirst({ where: { id, tenantId } });
+      const resumen = (c: typeof cliente) => ({
+        creditoHabilitado: c.creditoHabilitado,
+        limiteCredito: c.limiteCredito === null ? null : Number(c.limiteCredito),
+      });
+      await audit(tx, tenantId, usuarioId, 'CLIENTE_CREDITO_EDITAR', id, {
+        cliente: cliente.nombre,
+        anterior: resumen(cliente),
+        nuevo: resumen(actualizado!),
+        saldoPendiente: Number(cliente.saldoPendiente),
+      });
+      return actualizado;
     });
   }
 
