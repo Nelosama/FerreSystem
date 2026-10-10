@@ -127,7 +127,9 @@ export const ProductoGestion: React.FC<{ productos: any[]; onSaved: () => Promis
   };
 
   const renderCampo = (campo: { k: string; tipo?: string; requerido?: boolean; ayuda?: string }) => {
-    const deshabilitado = busy || isReadOnly;
+    // Decisión 3: costo, precio y margen los cambia solo ADMIN; el campo se muestra, no se edita.
+    const soloAdmin = ['precioVenta', 'precioCosto', 'margen'].includes(campo.k) && user?.rol !== 'ADMIN';
+    const deshabilitado = busy || isReadOnly || soloAdmin;
     const ayuda = campo.ayuda ? <small className="form-hint">{t(`product_edit.hint.${campo.ayuda}`)}</small> : null;
     if (campo.tipo === 'check') {
       return (

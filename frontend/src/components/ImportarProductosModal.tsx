@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Papa from 'papaparse';
 import { Upload, Download, AlertTriangle, Check, X, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
 import { useRubroConfig } from '../hooks/useRubroConfig';
+import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { normalizarUnidadMedida } from '../utils/unidadMedida';
@@ -36,6 +37,9 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { user } = useTenant();
+  // Decisión 3: solo ADMIN define costo y precio; BODEGUERO importa existencias y datos sin precios.
+  const esAdmin = user?.rol === 'ADMIN';
   const [productos, setProductos] = useState<any[]>([]);
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
@@ -255,8 +259,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
           motivo: 'Importación de inventario revisada',
           nombre: r.nombre.trim(),
           categoria: r.categoria,
-          precioVenta: r.precioVenta,
-          precioCosto: r.precioCosto,
           stockActual: r.stockActual,
           stockMinimo: r.stockMinimo,
           unidadMedida: normalizarUnidadMedida(r.unidadMedida),
@@ -266,10 +268,10 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
           const existente = existentes.get(payload.codigo);
           if (existente) {
             if (!sobrescribir) { omitidos++; continue; }
-            await api.put(`/productos/${existente.id}`, { ...payload, version: existente.version, stockAnterior: existente.stockActual });
+            await api.put(`/productos/${existente.id}`, { ...payload, ...(esAdmin ? { precioVenta: r.precioVenta, precioCosto: r.precioCosto } : {}), version: existente.version, stockAnterior: existente.stockActual });
             actualizados++;
           } else {
-            const res = await api.post('/productos', payload);
+            const res = await api.post('/productos', { ...payload, precioVenta: esAdmin ? r.precioVenta : 0, precioCosto: esAdmin ? r.precioCosto : 0 });
             existentes.set(payload.codigo, { id: res.data.id, version: res.data.version ?? 1, stockActual: Number(res.data.stockActual) });
             importados++;
           }

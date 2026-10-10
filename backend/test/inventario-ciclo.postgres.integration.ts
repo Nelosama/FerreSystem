@@ -191,4 +191,47 @@ describe('Ciclo de inventario / PostgreSQL real', () => {
     const habilitado = await productos.update(tenantId, pendiente.id, { version: pendiente.version, activo: true, precioCosto: 1, precioVenta: 2 } as any, adminId);
     expect([habilitado.activo, Number(habilitado.precioVenta)]).toEqual([true, 2]);
   });
+
+  // ── Decisiones KARDEX (PR #134): permisos de BODEGUERO, pendientes y costos por compra ──
+  it('BODEGUERO no define precios al dar de alta: con valores distintos de cero se rechaza; con cero queda pendiente e inactivo', async () => {
+    await expect(productos.create(tenantId, { nombre: 'Varilla', precioCosto: 25, precioVenta: 35, stockActual: 0, stockMinimo: 0, unidadMedida: 'UNIDAD' } as any, bodegueroId))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    await expect(productos.create(tenantId, { nombre: 'Varilla', precioCosto: 0, precioVenta: 0, margen: 40, stockActual: 0, stockMinimo: 0, unidadMedida: 'UNIDAD' } as any, bodegueroId))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    const creado = await productos.create(tenantId, { nombre: 'Varilla', codigo: 'VAR-B', precioCosto: 0, precioVenta: 0, stockActual: 5, stockMinimo: 0, unidadMedida: 'UNIDAD' } as any, bodegueroId);
+    expect([creado.activo, creado.pendienteConfiguracion, Number(creado.precioVenta), Number(creado.precioCosto), creado.margen, Number(creado.stockActual)]).toEqual([false, true, 0, 0, null, 5]);
+  });
+
+  it('ADMIN da de alta con precio y costo vigente sincronizados; un producto así no es pendiente', async () => {
+    const admin = await productos.create(tenantId, { nombre: 'Canaleta', codigo: 'CAN-1', precioCosto: 6, precioVenta: 9, margen: 33, stockActual: 2, stockMinimo: 0, unidadMedida: 'UNIDAD' } as any, adminId);
+    const fila = await prisma.producto.findUniqueOrThrow({ where: { id: admin.id } });
+    expect([fila.activo, Number(fila.precioCosto), Number(fila.costoVigente), Number(fila.precioVenta)]).toEqual([true, 6, 6, 9]);
+    expect(admin.pendienteConfiguracion).toBe(false);
+  });
+
+  it('el administrador localiza los pendientes de configuración con un filtro que BODEGUERO no puede usar', async () => {
+    await productos.create(tenantId, { nombre: 'Pendiente', codigo: 'PEND-L', precioCosto: 0, precioVenta: 0, stockActual: 1, stockMinimo: 0, unidadMedida: 'UNIDAD' } as any, bodegueroId);
+    await productos.create(tenantId, { nombre: 'Configurado', codigo: 'CONF-L', precioCosto: 1, precioVenta: 2, stockActual: 1, stockMinimo: 0, unidadMedida: 'UNIDAD' } as any, adminId);
+    const pendientes = await productos.findAll(tenantId, undefined, undefined, false, true);
+    expect(pendientes.map((p: any) => p.codigo)).toEqual(['PEND-L']);
+  });
+
+  it('una edición de costo por ADMIN actualiza costo comercial y costo vigente juntos; precio de venta no cambia', async () => {
+    const productoId = await crearProducto({ stockActual: 1, precioCosto: 2, costoVigente: 2, precioVenta: 4 });
+    const editado = await productos.update(tenantId, productoId, { version: 1, precioCosto: 3 } as any, adminId);
+    const fila = await prisma.producto.findUniqueOrThrow({ where: { id: productoId } });
+    expect([Number(fila.precioCosto), Number(fila.costoVigente), Number(fila.precioVenta)]).toEqual([3, 3, 4]);
+    expect(editado.version).toBe(2);
+  });
+
+  it('recibir una compra más barata baja el costo vigente, conserva el histórico con proveedor y no cambia el precio de venta', async () => {
+    const productoId = await crearProducto({ stockActual: 0, precioCosto: 2, costoVigente: 2, precioVenta: 4 });
+    await comprarYRecibir(productoId, 5, 3);
+    await comprarYRecibir(productoId, 4, 2.5);
+    const fila = await prisma.producto.findUniqueOrThrow({ where: { id: productoId } });
+    expect([Number(fila.precioCosto), Number(fila.costoVigente), Number(fila.precioVenta), Number(fila.stockActual)]).toEqual([2.5, 2.5, 4, 9]);
+    const historico = await prisma.$queryRawUnsafe<any[]>('SELECT costo, proveedor_id FROM costos_compra WHERE tenant_id=$1 AND producto_id=$2 ORDER BY fecha', tenantId, productoId);
+    expect(historico.map(h => Number(h.costo))).toEqual([3, 2.5]);
+    expect(historico.every(h => h.proveedor_id === proveedorId)).toBe(true);
+  });
 });

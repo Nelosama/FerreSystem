@@ -419,7 +419,7 @@ export class LevantamientosService {
      let categoriaId:string|null=null;
      if(r.item.categoria?.trim()){const nombre=r.item.categoria.trim();categoriaId=(await tx.categoria.upsert({where:{tenantId_nombre:{tenantId,nombre}},create:{tenantId,nombre},update:{}})).id;}
      // Producto nuevo: identidad y existencias del conteo. Costo y precio quedan en cero, inactivo, hasta aprobación del dueño/ADMIN.
-     const p=await tx.producto.create({data:{tenantId,codigo:r.codigo,codigoBarras:r.item.codigoBarras||null,marca:r.item.marca?.trim()||null,nombre:r.nombre,descripcion:r.item.descripcion,categoriaId,stockActual:r.nuevo,stockMinimo:0,precioCosto:0,precioVenta:0,activo:false,unidadMedida:r.unidad as any}});
+     const p=await tx.producto.create({data:{tenantId,codigo:r.codigo,codigoBarras:r.item.codigoBarras||null,marca:r.item.marca?.trim()||null,nombre:r.nombre,descripcion:r.item.descripcion,categoriaId,stockActual:r.nuevo,stockMinimo:0,precioCosto:0,costoVigente:0,precioVenta:0,activo:false,unidadMedida:r.unidad as any}});
      pid=p.id;
     }else{
      // Regla de precios: una auditoría solo cambia existencias; costo, precio, margen, marca y código de barras no se tocan.

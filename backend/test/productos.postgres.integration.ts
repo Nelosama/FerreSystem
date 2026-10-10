@@ -89,16 +89,21 @@ describe('SEC-005 / HTTP and isolated PostgreSQL', () => {
   });
 
   it.each(['ADMIN', 'BODEGUERO'])('%s can create, read and adjust inventory with financial data and audit', async role => {
+    // Decisión 3: solo ADMIN define precios al dar de alta; BODEGUERO registra pendiente de configuración.
+    const esAdmin = role === 'ADMIN';
+    const precioAlta = esAdmin ? { precioCosto: 4, precioVenta: 10, margen: 60 } : { precioCosto: 0, precioVenta: 0 };
     const created = await request(app.getHttpServer()).post('/productos').auth(users[role].token, { type: 'bearer' })
-      .send({ codigo: `NEW-${role}`, nombre: 'Producto nuevo', categoria: 'Herramientas', precioCosto: 4, precioVenta: 10, margen: 60, stockActual: 8, stockMinimo: 7 }).expect(201);
-    expect(created.body).toMatchObject({ precioCosto: 4, precioVenta: 10, margen: '60', stockActual: 8 });
+      .send({ codigo: `NEW-${role}`, nombre: 'Producto nuevo', categoria: 'Herramientas', ...precioAlta, stockActual: 8, stockMinimo: 7 }).expect(201);
+    expect(created.body).toMatchObject(esAdmin
+      ? { precioCosto: 4, precioVenta: 10, margen: '60', stockActual: 8, activo: true, pendienteConfiguracion: false }
+      : { precioCosto: 0, precioVenta: 0, stockActual: 8, activo: false, pendienteConfiguracion: true });
     // Regla de precios: solo ADMIN cambia costo, precio o margen; BODEGUERO conserva existencias.
     if (role === 'BODEGUERO') {
       await request(app.getHttpServer()).put(`/productos/${created.body.id}`).auth(users[role].token, { type: 'bearer' })
         .send({ version: created.body.version, precioVenta: 12 }).expect(403);
     }
     const cambioPrecio = role === 'ADMIN' ? { precioCosto: 6, precioVenta: 12, margen: 50 } : {};
-    const precioEsperado = role === 'ADMIN' ? { precioCosto: 6, precioVenta: 12, margen: '50' } : { precioCosto: 4, precioVenta: 10, margen: '60' };
+    const precioEsperado = role === 'ADMIN' ? { precioCosto: 6, precioVenta: 12, margen: '50' } : { precioCosto: 0, precioVenta: 0, margen: null };
     const edited = await request(app.getHttpServer()).put(`/productos/${created.body.id}`).auth(users[role].token, { type: 'bearer' })
       .send({ version: created.body.version, ...cambioPrecio, stockAnterior: 8, stockActual: 6, motivo: 'Conteo sintético SEC-005' }).expect(200);
     expect(edited.body).toMatchObject({ ...precioEsperado, stockActual: 6, stockBajo: true });

@@ -284,6 +284,30 @@ Regla del dueño: el levantamiento y la auditoría solo cuentan unidades; costo,
 5. **Recepción de compra** escribe `precio_costo` y `costo_vigente`. La regla habla de costo vigente; el campo `precioCosto` del producto también se actualiza. Confirmar que es el comportamiento esperado.
 6. **Marca y código de barras** ya no se completan desde el conteo en productos existentes (antes sí, si el catálogo estaba vacío). Es una consecuencia de "únicamente cantidades"; confirmar.
 
+### Decisiones de KARDEX (agente de inventario y trazabilidad) sobre PR #134 — 2026-10-10 UTC
+
+Decisiones del dueño aplicadas en el PR: (1) edición de producto por ADMIN como vía única de precios, sin módulo nuevo; (2) pendientes con `activo=false` y precio 0, sin migración; (3) BODEGUERO no define costo, precio ni margen en alta ni edición; (4) el levantamiento no modifica costo, precio ni margen; (5) recepción actualiza costo vigente y precio de venta no cambia; (6) el levantamiento no cambia marca ni código de barras de productos existentes.
+
+- **Identificar pendientes:** `GET /productos?pendientes=true` (solo ADMIN, mismo control que `incluirInactivos`). Cada producto devuelve `pendienteConfiguracion` = precio de venta cero. Sin campo nuevo ni migración.
+- **Alta de BODEGUERO (`productos.service.ts`, `create`):** con costo, precio o margen distintos de cero responde 403. Sin precios, el producto queda `activo=false`, precios en cero, sin margen y `pendienteConfiguracion=true`. ADMIN conserva el alta anterior.
+- **Edición (`update`):** solo ADMIN cambia costo, precio o margen (un valor sin cambio real no aplica). Habilitar un producto exige precio de venta mayor que cero.
+- **Costo vigente y costo comercial sincronizados:** `costo_vigente` y `precio_costo` representan el mismo costo comercial vigente. Su único escritor previo era la recepción, y ningún reporte del backend lee `costo_vigente`. Se sincronizan en alta, en edición de costo por ADMIN, en recepción (ya era así) y en el producto pendiente creado desde conteo (cero).
+- **Recepción de compra:** actualiza costo vigente con el costo de la compra más reciente, aunque baje; conserva un registro por recepción con proveedor en `costos_compra`; no cambia el precio de venta. Probado en PostgreSQL.
+- **Frontend:** levantamiento sin captura ni columna de costo, precio o margen; la vista previa muestra advertencias informativas sin aplicarlas; captura de códigos y fotografías conservada. Alta de inventario: BODEGUERO ve nota de pendiente en lugar de precios. Edición de producto: campos de precio bloqueados para no ADMIN. Importador: BODEGUERO no envía precios; las altas quedan en cero.
+
+**Pruebas (2026-10-10, PR #134):** unitarias backend 345/345; integración PostgreSQL 385 pasan y 1 omitida (preexistente) de 386; `tsc` backend y frontend sin errores; frontend unitarias 224/224; Playwright 118/118 con Chromium preinstalado y `VITE_API_URL=/api` local; build de producción compila; lint sin errores en ambos paquetes.
+
+**Pruebas actualizadas por la decisión (no debilitadas):** las pruebas de alta concurrente e idempotente de BODEGUERO envían precios en cero y comprueban que el producto queda pendiente; la prueba de códigos duplicados usa ADMIN para la escritura que debe ganar; SEC-005 comprueba que BODEGUERO recibe 403 al cambiar precio y que su alta queda pendiente.
+
+**Conflictos y riesgos abiertos (revisar antes de merge):**
+1. Módulo de precios separado: no construido (decisión 1).
+2. Pendiente sin campo propio: representado con `activo=false` y precio cero. Un campo `precio_aprobado_at` requeriría migración; no se creó.
+3. Productos legados: `costo_vigente` puede diferir de `precio_costo` en productos creados antes de este cambio; no hay migración de datos. Requiere decisión del dueño o un script de conciliación autorizado.
+4. Importador: la vista previa del archivo todavía muestra costo y precio del archivo a BODEGUERO aunque no se apliquen.
+5. Sucursales: no existe modelo de sucursal; el stock es por empresa.
+6. Sin prueba e2e dedicada para el levantamiento sin precios; la cobertura proviene de la suite existente, la compilación y las pruebas de integración.
+7. Sin acreditar: hardware, iPhone, sucursales y aceptación del cliente.
+
 ---
 
 ## Inventario — estado vigente de las correcciones QA-INV (verificado en main, 2026-10-10 UTC)
