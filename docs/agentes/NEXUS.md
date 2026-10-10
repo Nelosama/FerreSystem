@@ -40,6 +40,8 @@ Garantizar la integridad, seguridad, consistencia y evolución de la base de dat
 ## Entregables de referencia
 
 - Diagnóstico y conciliación de la deriva de `main`: [docs/DIAGNOSTICO_ESQUEMA_NEXUS_20261010.md](../DIAGNOSTICO_ESQUEMA_NEXUS_20261010.md).
+- Integración entre PR y contratos por agente: [docs/INTEGRACION_ESQUEMA_NEXUS_20261010.md](../INTEGRACION_ESQUEMA_NEXUS_20261010.md).
+- Verificación de producción en solo lectura: [docs/VERIFICACION_PRODUCCION_SOLO_LECTURA_NEXUS.md](../VERIFICACION_PRODUCCION_SOLO_LECTURA_NEXUS.md).
 - Estado vigente y bitácora: [docs/CONTEXTO_MAESTRO.md](../CONTEXTO_MAESTRO.md).
 
 Firma de los informes: **NEXUS**.
