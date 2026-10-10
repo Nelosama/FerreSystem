@@ -12,6 +12,7 @@
     "lint": "oxlint src test e2e",
     "test": "node --test test/*.test.mjs",
     "test:browser": "playwright test",
+    "test:e2e-real": "bash e2e-real/run.sh",
     "preview": "vite preview"
   },
   "dependencies": {

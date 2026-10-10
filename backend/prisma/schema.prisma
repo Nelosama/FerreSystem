@@ -146,6 +146,7 @@ model Tenant {
   levantamientos   Levantamiento[]
   levantamientoSesiones LevantamientoSesion[]
 
+  coberturasGarantia CoberturaGarantia[]
   @@map("tenants")
 }
 
@@ -192,6 +193,8 @@ model Usuario {
   ventas       Venta[]
   cotizaciones Cotizacion[]
 
+  coberturasCreadas CoberturaGarantia[] @relation("GarantiaCreadaPor")
+  coberturasActualizadas CoberturaGarantia[] @relation("GarantiaActualizadaPor")
   @@unique([tenantId, email])
   @@index([tenantId])
   @@map("usuarios")
@@ -258,6 +261,7 @@ model Producto {
   costosCompra CostoCompra[]
   movimientosInventario MovimientoInventario[]
 
+  coberturasGarantia CoberturaGarantia[]
   @@unique([tenantId, codigo])
   @@index([tenantId])
   @@index([tenantId, activo])
@@ -365,6 +369,7 @@ model Venta {
   abonos      AbonoCliente[]
   cotizacion  Cotizacion?    // Si fue generada desde una cotización
 
+  coberturasGarantia CoberturaGarantia[]
   @@unique([tenantId, numeroVenta])
   @@index([tenantId])
   @@index([tenantId, estado])
@@ -412,6 +417,7 @@ model DetalleVenta {
   venta          Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
   producto       Producto @relation(fields: [productoId], references: [id])
 
+  coberturasGarantia CoberturaGarantia[]
   @@index([ventaId])
   @@map("detalles_venta")
 }
@@ -900,9 +906,17 @@ model CoberturaGarantia {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  @@unique([tenantId, detalleVentaId])
-  @@unique([tenantId, solicitudId])
-  @@index([tenantId, ventaId])
-  @@index([tenantId, fechaVencimiento])
+  // Relaciones con los mismos nombres de restricción que la migración.
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "coberturas_garantia_tenant_fkey")
+  venta           Venta        @relation(fields: [ventaId], references: [id], onDelete: Restrict, map: "coberturas_garantia_venta_fkey")
+  detalleVenta    DetalleVenta @relation(fields: [detalleVentaId], references: [id], onDelete: Restrict, map: "coberturas_garantia_detalle_fkey")
+  producto        Producto     @relation(fields: [productoId], references: [id], onDelete: Restrict, map: "coberturas_garantia_producto_fkey")
+  creadoPorUsuario      Usuario  @relation("GarantiaCreadaPor", fields: [creadoPor], references: [id], onDelete: Restrict, map: "coberturas_garantia_creado_fkey")
+  actualizadoPorUsuario Usuario? @relation("GarantiaActualizadaPor", fields: [actualizadoPor], references: [id], onDelete: Restrict, map: "coberturas_garantia_actualizado_fkey")
+
+  @@unique([tenantId, detalleVentaId], map: "coberturas_garantia_tenant_detalle_key")
+  @@unique([tenantId, solicitudId], map: "coberturas_garantia_tenant_solicitud_key")
+  @@index([tenantId, ventaId], map: "coberturas_garantia_tenant_venta_idx")
+  @@index([tenantId, fechaVencimiento], map: "coberturas_garantia_tenant_vencimiento_idx")
   @@map("coberturas_garantia")
 }
