@@ -23,6 +23,8 @@ const InventarioContent: React.FC = () => {
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
   const { tenant, user, isReadOnly } = useTenant();
+  // Decisión 3: solo ADMIN define costo y precio; el alta de otro rol queda pendiente de configuración.
+  const esAdmin = user?.rol === 'ADMIN';
   const pendingKey = `ferre_pending_product:${tenant.id}:${user?.id}`;
   const [pendingProduct, setPendingProduct] = useState<any>(() => readStoredJson(pendingKey, null));
   const [saving, setSaving] = useState(false);
@@ -126,11 +128,11 @@ const InventarioContent: React.FC = () => {
       marca: formMarca.trim() || undefined,
       nombre: formNombre.trim(), descripcion: formDescripcion.trim() || undefined,
       categoria: formCategoria,
-      precioVenta: Number(formPrecioVenta), precioCosto: Number(formPrecioCosto || 0),
+      precioVenta: esAdmin ? Number(formPrecioVenta) : 0, precioCosto: esAdmin ? Number(formPrecioCosto || 0) : 0,
       stockActual: Number(formStockActual || 0), stockMinimo: Number(formStockMinimo || 5),
       unidadMedida: normalizarUnidadMedida(formUnidadMedida), usaMedida: formUsaMedida,
     };
-    if (!pendingProduct && (!command.nombre || !formPrecioVenta.trim() ||
+    if (!pendingProduct && (!command.nombre || (esAdmin && !formPrecioVenta.trim()) ||
       [command.precioVenta, command.precioCosto, command.stockActual, command.stockMinimo].some(n =>
         !Number.isFinite(n) || n < 0 || n > 9999999999.99 || Math.abs(n * 100 - Math.round(n * 100)) > 0.00001))) {
       setCreateError(t('inventory_create.validation')); return;
@@ -229,7 +231,7 @@ const InventarioContent: React.FC = () => {
                 <th>{t('inventory.category')}</th>
                 <th>{t('common.unit')}</th>
                 <th className="numeric-cell" style={{ textAlign: 'right' }}>{t('inventory.price')}</th>
-                <th className="numeric-cell" style={{ textAlign: 'right' }}>{t('inventory.cost')}</th>
+                {esAdmin && <th className="numeric-cell" style={{ textAlign: 'right' }}>{t('inventory.cost')}</th>}
                 <th style={{ textAlign: 'center' }}>{t('inventory.stock')}</th>
                 <th style={{ textAlign: 'center' }}>{t('inventory.minimum')}</th>
                 <th style={{ textAlign: 'center' }}>{t('common.status')}</th>
@@ -274,9 +276,9 @@ const InventarioContent: React.FC = () => {
                       <td className="numeric-cell" style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, whiteSpace: 'nowrap' }}>
                         {formatLempiras(p.precioVenta)}
                       </td>
-                      <td className="numeric-cell" style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                      {esAdmin && (<td className="numeric-cell" style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                         {formatLempiras(p.precioCosto)}
-                      </td>
+                      </td>)}
                       <td className="numeric-cell" style={{ textAlign: 'center', fontFamily: 'var(--font-display)',
                           fontWeight: 800,
                           fontSize: '15px',
@@ -350,14 +352,18 @@ const InventarioContent: React.FC = () => {
                     </select>
                   </label>
                 </div>
-                <div style={styles.formRow}>
-                  <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.sale_price')}
-                    <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" required value={formPrecioVenta} onChange={e => setFormPrecioVenta(e.target.value)} />
-                  </label>
-                  <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.cost_price')}
-                    <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={formPrecioCosto} onChange={e => setFormPrecioCosto(e.target.value)} />
-                  </label>
-                </div>
+                {esAdmin ? (
+<div style={styles.formRow}>
+                    <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.sale_price')}
+                      <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" required value={formPrecioVenta} onChange={e => setFormPrecioVenta(e.target.value)} />
+                    </label>
+                    <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.cost_price')}
+                      <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={formPrecioCosto} onChange={e => setFormPrecioCosto(e.target.value)} />
+                    </label>
+                  </div>
+) : (
+  <p className="form-hint">{t('inventory_create.price_pending_note')}</p>
+)}
                 <div style={styles.formRow}>
                   <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.initial_stock')}
                     <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0" value={formStockActual} onChange={e => setFormStockActual(e.target.value)} />

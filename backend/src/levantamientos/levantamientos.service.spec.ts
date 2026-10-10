@@ -26,10 +26,11 @@ describe('Conteo protegido y aplicación explícita',()=>{
   prisma.levantamiento.findFirst.mockResolvedValue({id:'l',estado:'FINALIZADO',items:[]});
   await expect(service.createItem('t','l',{descripcion:'Cable',cantidad:1},'u')).rejects.toThrow('cerrado');
  });
- it('un código desconocido exige costo y precio para crear el producto',async()=>{
+ it('un código desconocido se muestra como pendiente de precio, sin exigir costo ni precio al conteo',async()=>{
   prisma.levantamiento.findFirst.mockResolvedValue({id:'l',estado:'FINALIZADO',items:[{id:'abc12345',codigo:'NUEVO',descripcion:'Cable',cantidad:2,unidad:'METRO'}]});
   const preview=await service.previsualizar('t','l');
-  expect(preview.rows[0].errores).toContain('Producto nuevo requiere costo y precio');
+  expect(preview.rows[0].errores).toEqual([]);
+  expect(preview.rows[0].advertencias).toContain('Producto nuevo sin precio aprobado: se crea pendiente de precio y no se habilita para venta');
  });
  it('rechaza una vista previa obsoleta y no toca el stock',async()=>{
   prisma.levantamiento.findFirst.mockResolvedValue({id:'l',estado:'FINALIZADO',items:[{id:'abc12345',codigo:'P1',descripcion:'Cable',cantidad:2,unidad:'METRO',precioCosto:1,precioVenta:2}]});
@@ -117,7 +118,7 @@ describe('Auditoría P1/P2 — aplicar() protege barcode y precios',()=>{
   expect(updateCall.where.id).toBe('p1');
   expect(updateCall.data.stockActual).toBe(7);
  });
- it('actualiza barcode en catálogo cuando catalogBarcode era null',async()=>{
+ it('la auditoría no escribe código de barras en el catálogo: solo existencias (regla de precios y auditoría)',async()=>{
   const noBar={...baseProduct,codigoBarras:null};
   prisma.producto.findMany.mockResolvedValue([noBar]);
   prisma.levantamiento.findFirst.mockResolvedValue({id:'l',estado:'FINALIZADO',aplicadoAt:null,
@@ -125,7 +126,8 @@ describe('Auditoría P1/P2 — aplicar() protege barcode y precios',()=>{
   const {token}=await service.previsualizar('t','l');
   await service.aplicar('t','u','l',token);
   const updateCall=prisma.producto.update.mock.calls[0][0];
-  expect(updateCall.data.codigoBarras).toBe('NEWBAR');
+  expect(updateCall.data).not.toHaveProperty('codigoBarras');
+  expect(Object.keys(updateCall.data).sort()).toEqual(['stockActual','version']);
  });
  it('preserva precioCosto y precioVenta del catálogo — nunca escribe 0',async()=>{
   prisma.levantamiento.findFirst.mockResolvedValue({id:'l',estado:'FINALIZADO',aplicadoAt:null,
@@ -137,13 +139,16 @@ describe('Auditoría P1/P2 — aplicar() protege barcode y precios',()=>{
   expect(updateCall.data.precioCosto).not.toBe(0);
   expect(updateCall.data.precioVenta).not.toBe(0);
  });
- it('lanza error explícito si el producto del catálogo tiene precio null',async()=>{
+ it('un producto del catálogo sin precio no bloquea la auditoría de existencias',async()=>{
   const nullPrices={...baseProduct,precioCosto:null,precioVenta:null};
   prisma.producto.findMany.mockResolvedValue([nullPrices]);
   prisma.levantamiento.findFirst.mockResolvedValue({id:'l',estado:'FINALIZADO',aplicadoAt:null,
    items:[itemABC({precioCosto:null,precioVenta:null})]});
   const {token}=await service.previsualizar('t','l');
-  await expect(service.aplicar('t','u','l',token)).rejects.toThrow(/precio/i);
+  await expect(service.aplicar('t','u','l',token)).resolves.toBeDefined();
+  const updateCall=prisma.producto.update.mock.calls[0][0];
+  expect(updateCall.data).not.toHaveProperty('precioCosto');
+  expect(updateCall.data).not.toHaveProperty('precioVenta');
  });
 });
 
