@@ -556,7 +556,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     await ventas.create(tenantId,usuarioId,{...request(1),metodoPago:'TRANSFERENCIA'});
     const cash=(await ops.caja(tenantId,usuarioId))[0];
     expect(cash.efectivoEsperado).toBe(1000);expect(cash.totales.TRANSFERENCIA).toBe(11.5);
-    const closed=await ops.cerrar(tenantId,usuarioId,cash.id,{monto:995});
+    const closed=await ops.cerrar(tenantId,usuarioId,cash.id,{monto:995,notas:'Faltante registrado en el arqueo'});
     expect(Number(closed.diferencia)).toBe(-5);
     await expect(ventas.create(tenantId,usuarioId,request(1))).rejects.toThrow('Abra su caja');
   });

@@ -63,10 +63,10 @@ export class LevantamientosService {
   const ids=[...new Set(items.map(i=>i.contadorId).filter(Boolean))] as string[];
   if(!ids.length)return items.map(i=>({...i,contador:null}));
   const usuarios=await this.prisma.usuario.findMany({where:{tenantId,id:{in:ids}},select:{id:true,nombre:true,activo:true}});
-  const porId=new Map(usuarios.map(u=>[u.id,u]));
+  const porId=new Map(usuarios.map((u:{id:string;nombre:string;activo:boolean})=>[u.id,u]));
   return items.map(i=>{
    if(!i.contadorId)return {...i,contador:null};
-   const u=porId.get(i.contadorId);
+   const u=porId.get(i.contadorId) as {id:string;nombre:string;activo:boolean}|undefined;
    // Ausente o de otra empresa: no se revela el nombre ni se distingue eliminado de ajeno.
    return {...i,contador:{id:i.contadorId,nombre:u?.nombre??null,estado:!u?'NO_DISPONIBLE':u.activo?'ACTIVO':'DESACTIVADO'}};
   });

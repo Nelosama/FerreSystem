@@ -1,7 +1,7 @@
 import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum, IsUUID, IsBoolean, IsDateString, ArrayMinSize, ArrayMaxSize, MaxLength } from 'class-validator';
 import { EmptyToUndefined } from '../../common/empty-to-undefined';
 import { Type } from 'class-transformer';
-import { TipoPago } from '@prisma/client';
+import { TipoPago } from '../../types/prisma-enums';
 
 export enum MetodoPagoEnum {
   EFECTIVO = 'EFECTIVO',

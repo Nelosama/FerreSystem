@@ -1,5 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsEmail, IsEnum } from 'class-validator';
-import { TipoCliente } from '@prisma/client';
+import { TipoCliente } from '../../types/prisma-enums';
 
 export class CreateClienteDto {
   @IsString()

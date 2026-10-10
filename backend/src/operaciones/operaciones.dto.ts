@@ -41,7 +41,14 @@ export class AbrirCajaDto {
 }
 export class CerrarCajaDto {
  @IsNumber({maxDecimalPlaces:2}) @Min(0) monto!: number;
- @IsOptional() @IsString() notas?: string;
+ @IsOptional() @IsString() @MaxLength(500) notas?: string;
+}
+export class MovimientoCajaDto {
+ @IsUUID('4') solicitudId!: string;
+ @IsIn(['INGRESO_MANUAL','EGRESO_MANUAL']) tipo!: string;
+ @IsNumber({maxDecimalPlaces:2}) @Min(0.01) monto!: number;
+ @IsString() @IsNotEmpty() @MaxLength(200) concepto!: string;
+ @IsOptional() @IsString() @MaxLength(100) referencia?: string;
 }
 export class AjusteDto {
  @IsUUID('4') solicitudId!: string;
