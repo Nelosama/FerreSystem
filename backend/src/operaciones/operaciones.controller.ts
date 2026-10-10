@@ -53,7 +53,7 @@ export class OperacionesController {
  @RequiredModule('reportes')
  @Get('resumen') @RequiredPermission('reportes.ver') @Roles('ADMIN') resumen(@TenantId() t:string,@Query('desde') desde:string,@Query('hasta') hasta:string){return this.service.resumen(t,desde,hasta);}
  @RequiredModule('pos')
- @Get('ventas/buscar') @Roles('ADMIN','CAJERO','VENDEDOR') buscarVenta(@TenantId() t:string,@Query('numero') n:string){return this.service.buscarVenta(t,n);}
+ @Get('ventas/buscar') @Roles('ADMIN','CAJERO','VENDEDOR') buscarVenta(@TenantId() t:string,@CurrentUser('rol') rol:string,@Query('numero') n:string){return this.service.buscarVenta(t,n,rol);}
  @RequiredModule('pos')
  @Post('ventas/:id/devoluciones') @Roles('ADMIN') devolver(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:DevolucionDto){return this.service.devolver(t,u,id,dto);}
  @RequiredModule('pos')

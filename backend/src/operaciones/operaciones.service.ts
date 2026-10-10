@@ -329,11 +329,11 @@ export class OperacionesService {
    // Alerta de 7 días por fecha calendario en la zona del negocio (día de hoy + 7 inclusive), no por instante.
    alertas:await query(this.prisma,'SELECT tipo,COUNT(*)::int AS cantidad,SUM(saldo) AS saldo FROM cuentas_operativas WHERE tenant_id=$1 AND saldo>0 AND vencimiento::date <= $2::date GROUP BY tipo',tenantId,sumarDias(diaCalendario(ahora,zona),7)),
   };
- } async buscarVenta(tenantId:string,numero:string){
+ } async buscarVenta(tenantId:string,numero:string,rol?:string){
   const n=Number(numero);if(!Number.isSafeInteger(n)||n<1)throw new BadRequestException('Número de venta inválido');
   const [v]=await query(this.prisma,'SELECT * FROM ventas WHERE tenant_id=$1 AND numero_venta=$2',tenantId,n);if(!v)throw new NotFoundException('Venta no encontrada');
-  // QA-COS-001: la búsqueda la usa VENDEDOR, que no ve costos; se quita costo_unitario de cada línea.
-  v.items=(await query(this.prisma,'SELECT d.*,p.nombre,p.codigo,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1',v.id)).map(({costo_unitario:_costo,...linea})=>linea);
+  // QA-COS-001 / regla definitiva del dueño: solo ADMIN consulta costos; para cualquier otro rol (o sin rol) se quita costo_unitario.
+  v.items=(await query(this.prisma,'SELECT d.*,p.nombre,p.codigo,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1',v.id)).map((linea:any)=>{if(rol==='ADMIN')return linea;const {costo_unitario:_costo,...sinCosto}=linea;return sinCosto;});
   v.devoluciones=await query(this.prisma,'SELECT * FROM devoluciones WHERE venta_id=$1 AND tenant_id=$2 ORDER BY created_at',v.id,tenantId);return v;
  }
  private async planDevolucion(tx:Tx,tenantId:string,ventaId:string,dto:DevolucionDto){
