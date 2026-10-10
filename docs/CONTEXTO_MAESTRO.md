@@ -22,6 +22,21 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Fechas de negocio en Apartados, Transferencias, Garantías y Pedidos Especiales (2026-10-10 UTC)
+
+- **Rama:** `fix/fechas-zona-negocio-modulos` (PR #112), desde `origin/main` `2398e45f`. Sin merge ni despliegue.
+- **Problema original:** las cuatro pantallas guardaban fechas de negocio con `toISOString()` (día UTC). Entre 18:00 y 23:59 de Tegucigalpa el registro caía en el día siguiente.
+- **Corrección de zona:** "hoy" y abonos con `diaCalendarioEnZona()` (`frontend/src/utils/format.ts`). Aritmética de calendario en `frontend/src/utils/fechasNegocio.ts`.
+- **Formato visible (nuevo):** `formatearFechaNegocio(dia, locale)` muestra `YYYY-MM-DD` como `9 oct 2026` (es-HN) o `Oct 9, 2026` (en). Formatea con UTC sobre el propio día y no desplaza la fecha. Las cuatro pantallas lo usan con el `locale` de `useI18n`. Los datos guardados no cambian.
+- **Vencimiento de garantía (propuesta técnica, pendiente de validación funcional):** `sumarMesesCalendario` usa el último día válido del mes destino. 31 ene + 1 mes = 28 feb 2026; 31 ene + 1 mes = 29 feb 2028; 30 nov + 3 meses = 28 feb. Antes, `setMonth` desbordaba (31 ene + 1 = 3 mar). Los requisitos (`docs/REQUISITOS_NEGOCIO_VALIDADO.md`) no fijan esta regla. **Requiere confirmación del responsable antes del merge.**
+- **Pruebas:** `frontend/test/fechas-negocio.test.mjs` 11/11 con `TZ=UTC`, `Asia/Tokyo` y `America/Tegucigalpa`. Incluye meses cortos, años bisiestos, fin de año, formato es/en y entradas no válidas. Con la expresión anterior, las pruebas de zona fallan.
+- **Frontend completo:** `npm test` 174/174; `tsc -b` sin errores; `vite build` con `VITE_API_URL=/api` correcto; `oxlint` sin errores (avisos `set-state-in-effect` preexistentes).
+- **Playwright:** 98/98 con backend simulado, usando `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. El binario por defecto de Playwright (`…-1243`) no está instalado; no se descargó nada.
+- **Limitaciones:** datos de ejemplo en `localStorage`; las fechas ya guardadas conservan el día UTC anterior y no se migraron. `AuditoriaPage` y `DevolucionesPage` quedan fuera de alcance. Node local v22; el proyecto declara 24.x.
+- **Pendientes antes del merge:** (1) validación funcional de la regla de fin de mes en garantías; (2) revisión del PR por el director.
+
+---
+
 ## Dashboard — HTTP 500 del resumen (PROD-QA-20261007-01), diagnóstico (2026-10-10 UTC)
 
 - **Ramas/PR:** `fix/dashboard-resumen-500` (PR #111), desde `origin/main` `2398e45f`. Sin merge, despliegue ni acceso a producción.
@@ -787,7 +802,7 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
   - Frontend: 143/143 (`npm test`), `tsc -b` y `vite build` correctos, oxlint sin errores.
   - GitHub Actions sobre el head `157b3732`: `Operación de ferretería` run [37970951477](https://github.com/Nelosama/FerreSystem/actions/runs/37970951477) = **success** (incluye «Backend: compilación y pruebas» e «Integración con persistencia PostgreSQL real», `npm run test:integration`); `Playwright Tests` run [37970951163](https://github.com/Nelosama/FerreSystem/actions/runs/37970951163) = **success**. Ejecuciones previas sobre `7f31a24f` (37966166005) y `18b5adfc` (37970924872) también en success.
   - **Cambio histórico en reportes:** las ventas de 18:00–23:59 locales se asignan al día local correcto. Los totales diarios de días pasados cambian en esa franja; en rangos solo cambian los bordes. Los datos almacenados no se modifican. Impacto documentado en el cuerpo del PR #99. **Aprobación del responsable funcional: PENDIENTE** (no identificado en el repositorio). No fusionar hasta registrarla.
-- **Pendientes / riesgos:** (1) `cotizaciones.service.ts` (≈7 bloques `setHours`) sigue usando la zona del servidor para vencimientos; mismo patrón, fuera de alcance de FS-05, decidir si se corrige. (2) `ApartadosPage`, `TransferenciasPage`, `GarantiasPage`, `PedidosEspecialesPage` y `AuditoriaPage`/`DevolucionesPage` aún formatean o calculan fechas sin zona de negocio. (3) El supuesto de que la sesión de PostgreSQL y `NOW()` usan UTC para columnas `TIMESTAMP` no está verificado en producción (`SHOW timezone`). (4) Los datos históricos no se tocaron, pero los reportes de días pasados **cambiarán** al desplegar: ventas de 18:00–23:59 locales se moverán al día correcto. Avisar al cliente antes de desplegar. (5) Sin validación en navegador ni en producción.
+- **Pendientes / riesgos:** (1) `cotizaciones.service.ts` (≈7 bloques `setHours`) sigue usando la zona del servidor para vencimientos; mismo patrón, fuera de alcance de FS-05, decidir si se corrige. (2) `ApartadosPage`, `TransferenciasPage`, `GarantiasPage` y `PedidosEspecialesPage` corregidos en la rama `fix/fechas-zona-negocio-modulos` (bloque siguiente); `AuditoriaPage`/`DevolucionesPage` siguen pendientes. (3) El supuesto de que la sesión de PostgreSQL y `NOW()` usan UTC para columnas `TIMESTAMP` no está verificado en producción (`SHOW timezone`). (4) Los datos históricos no se tocaron, pero los reportes de días pasados **cambiarán** al desplegar: ventas de 18:00–23:59 locales se moverán al día correcto. Avisar al cliente antes de desplegar. (5) Sin validación en navegador ni en producción.
 - PR [#99](https://github.com/Nelosama/FerreSystem/pull/99), rama `fix/fs-05-reportes-zona-horaria`: **fusionado en `main`** (`ef6b9fa1`). Se fusionó **antes** de registrar la aprobación funcional del cambio histórico, que sigue **PENDIENTE**: registrarla o evaluar su reversión/comunicación. Sin despliegue.
 
 **FIN DEL CONTEXTO VIGENTE**

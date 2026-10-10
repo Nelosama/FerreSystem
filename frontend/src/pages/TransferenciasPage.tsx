@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { GitBranch, ArrowRight, Plus, CheckCircle, AlertCircle } from 'lucide-react';
+import { diaCalendarioEnZona } from '../utils/format';
 import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
+import { formatearFechaNegocio } from '../utils/fechasNegocio';
 import { useTenant } from '../context/TenantContext';
 import { useNotification } from '../context/NotificationContext';
 
@@ -51,7 +53,7 @@ export const TransferenciasPage: React.FC = () => {
       setErrorText('Error de conexión al obtener el catálogo de productos.');
     });
   }, []);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { notificarTransferencia } = useNotification();
 
   const currentTenantId = tenant?.id || 'tenant-demo-1';
@@ -103,7 +105,7 @@ export const TransferenciasPage: React.FC = () => {
       productoId: prod ? prod.id : 'p-1',
       productoNombre: prod ? prod.nombre : 'Producto',
       cantidad: qty,
-      fechaEnvio: new Date().toISOString().split('T')[0],
+      fechaEnvio: diaCalendarioEnZona(),
       estado: 'EN_TRANSITO',
       usuarioNombre: 'Carlos Ramos (Admin)',
     };
@@ -185,7 +187,7 @@ export const TransferenciasPage: React.FC = () => {
                   <td style={{ fontWeight: 700 }}>{t.sucursalDestino}</td>
                   <td style={{ fontWeight: 600 }}>{t.productoNombre}</td>
                   <td style={{ textAlign: 'center', fontWeight: 900, fontSize: '15px' }}>{t.cantidad}</td>
-                  <td style={{ textAlign: 'center', fontSize: '12px' }}>{t.fechaEnvio}</td>
+                  <td style={{ textAlign: 'center', fontSize: '12px' }}>{formatearFechaNegocio(t.fechaEnvio, locale)}</td>
                   <td style={{ textAlign: 'center' }}>
                     {t.estado === 'EN_TRANSITO' ? (
                       <span className="badge badge-warning">EN TRÁNSITO</span>

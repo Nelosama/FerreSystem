@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { ShieldCheck, Search, Plus, CheckCircle, AlertTriangle } from 'lucide-react';
+import { diaCalendarioEnZona } from '../utils/format';
+import { formatearFechaNegocio, sumarMesesCalendario } from '../utils/fechasNegocio';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
 
@@ -48,7 +50,7 @@ const isDemoTenant = (id: string) => id === 'tenant-demo-1' || id === 't-1';
 
 export const GarantiasPage: React.FC = () => {
   const { tenant, isReadOnly } = useTenant();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const currentTenantId = tenant?.id || 'tenant-demo-1';
   const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
 
@@ -93,8 +95,8 @@ export const GarantiasPage: React.FC = () => {
   const handleCrearGarantia = (e: React.FormEvent) => {
     e.preventDefault();
     const m = parseInt(meses, 10) || 12;
-    const today = new Date();
-    const expiry = new Date(today.setMonth(today.getMonth() + m)).toISOString().split('T')[0];
+    const hoy = diaCalendarioEnZona();
+    const expiry = sumarMesesCalendario(hoy, m);
 
     const nueva: RegistroGarantiaItem = {
       id: `gar-${Date.now()}`,
@@ -103,7 +105,7 @@ export const GarantiasPage: React.FC = () => {
       clienteNombre: cliNombre.trim(),
       clienteTelefono: cliTel.trim(),
       numeroFactura: numFactura.trim(),
-      fechaVenta: new Date().toISOString().split('T')[0],
+      fechaVenta: hoy,
       mesesGarantia: m,
       fechaVencimientoGarantia: expiry,
       estado: 'VIGENTE',
@@ -179,9 +181,9 @@ export const GarantiasPage: React.FC = () => {
                     <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{g.clienteTelefono}</div>
                   </td>
                   <td style={{ fontWeight: 600 }}>{g.numeroFactura}</td>
-                  <td style={{ textAlign: 'center', fontSize: '12px' }}>{g.fechaVenta}</td>
+                  <td style={{ textAlign: 'center', fontSize: '12px' }}>{formatearFechaNegocio(g.fechaVenta, locale)}</td>
                   <td style={{ textAlign: 'center', fontWeight: 800 }}>{g.mesesGarantia} MESES</td>
-                  <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700 }}>{g.fechaVencimientoGarantia}</td>
+                  <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700 }}>{formatearFechaNegocio(g.fechaVencimientoGarantia, locale)}</td>
                   <td style={{ textAlign: 'center' }}>
                     {g.estado === 'VIGENTE' ? (
                       <span className="badge badge-success">

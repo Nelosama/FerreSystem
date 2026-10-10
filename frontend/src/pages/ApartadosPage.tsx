@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Plus, Search, DollarSign, CheckCircle, XCircle } from 'lucide-react';
-import { formatLempiras } from '../utils/format';
+import { diaCalendarioEnZona, formatLempiras } from '../utils/format';
+import { formatearFechaNegocio, sumarDiasCalendario } from '../utils/fechasNegocio';
 import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
@@ -76,7 +77,7 @@ export const ApartadosPage: React.FC = () => {
       if (Array.isArray(res.data)) setProductos(res.data);
     }).catch(err => console.error(err));
   }, []);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const currentTenantId = tenant?.id || 'tenant-demo-1';
   const [loadedTenantId, setLoadedTenantId] = useState(currentTenantId);
 
@@ -130,6 +131,7 @@ export const ApartadosPage: React.FC = () => {
     const qty = parseInt(cantidad, 10) || 1;
     const initial = parseFloat(abonoInicial) || 0;
     const total = (prodSel?.precioVenta || 0) * qty;
+    const hoy = diaCalendarioEnZona();
 
     const nuevo: ApartadoItem = {
       id: `apt-${Date.now()}`,
@@ -142,10 +144,10 @@ export const ApartadosPage: React.FC = () => {
       precioTotal: total,
       montoAbonado: initial,
       saldoPendiente: Math.max(0, total - initial),
-      fechaCreacion: new Date().toISOString().split('T')[0],
-      fechaLimite: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      fechaCreacion: hoy,
+      fechaLimite: sumarDiasCalendario(hoy, 30),
       estado: initial >= total ? 'COMPLETADO' : 'ACTIVO',
-      historialAbonos: initial > 0 ? [{ id: `ab-${Date.now()}`, fecha: new Date().toISOString().split('T')[0], monto: initial, nota: 'Abono Inicial' }] : [],
+      historialAbonos: initial > 0 ? [{ id: `ab-${Date.now()}`, fecha: hoy, monto: initial, nota: 'Abono Inicial' }] : [],
     };
 
     setApartados([nuevo, ...apartados]);
@@ -163,7 +165,7 @@ export const ApartadosPage: React.FC = () => {
 
     const nuevoAbono = {
       id: `ab-${Date.now()}`,
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: diaCalendarioEnZona(),
       monto,
       nota: notaAbono.trim() || 'Abono parcial',
     };
@@ -261,7 +263,7 @@ export const ApartadosPage: React.FC = () => {
                   <td style={{ textAlign: 'right', color: a.saldoPendiente > 0 ? '#DC2626' : 'var(--color-text-muted)', fontWeight: 800 }}>
                     {formatLempiras(a.saldoPendiente)}
                   </td>
-                  <td style={{ textAlign: 'center', fontSize: '12px' }}>{a.fechaLimite}</td>
+                  <td style={{ textAlign: 'center', fontSize: '12px' }}>{formatearFechaNegocio(a.fechaLimite, locale)}</td>
                   <td style={{ textAlign: 'center' }}>
                     {a.estado === 'ACTIVO' && <span className="badge badge-warning">ACTIVO</span>}
                     {a.estado === 'COMPLETADO' && <span className="badge badge-success">COMPLETADO</span>}
