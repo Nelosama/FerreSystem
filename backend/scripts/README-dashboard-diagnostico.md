@@ -11,6 +11,12 @@ La causa del incidente de producción requiere evidencia del servidor y de su es
 
 1. El responsable confirma que se puede leer el esquema de la misma base utilizada
    por el backend desplegado. Confirma también el SHA desplegado y la hora del 500.
+   Comprueba en los ajustes privados que `DATABASE_URL` (consultas de Prisma) y
+   `DIRECT_URL` (procedimiento de migraciones) corresponden a la misma base y al
+   esquema `public`; pueden usar hosts distintos por el pooler. No copies sus valores.
+   Revisa los logs existentes del arranque: `start:prod` ejecuta el procedimiento de
+   migraciones, pero arrancar directamente `node dist/main` lo omite. No ejecutes
+   `start:prod`, `migrate:deploy`, `migrate:adopt`, `db push` ni `reset` para diagnosticar.
 2. Usa una conexión de PostgreSQL previamente configurada en un servicio libpq
    llamado `ferresystem_dashboard_lectura`, con un rol sin permisos de escritura,
    lectura de metadatos y de `public._prisma_migrations` si existe. Configura TLS
