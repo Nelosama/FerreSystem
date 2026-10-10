@@ -408,7 +408,13 @@
     "client_name": "CUSTOMER NAME",
     "client_phone": "CUSTOMER PHONE",
     "invoice_number": "INVOICE NUMBER",
-    "warranty_duration": "WARRANTY DURATION (MONTHS)",
+    "warranty_duration": "WARRANTY DAYS",
+    "warranty_duration_short": "Warranty days",
+    "days_unit": "DAYS",
+    "months_legacy": "MONTHS (PREVIOUS RECORD)",
+    "days_error": "Enter a whole number of days between 1 and 3650.",
+    "preview_start": "Start",
+    "preview_end": "Expires",
     "cancel": "CANCEL"
   },
   "special_orders": {

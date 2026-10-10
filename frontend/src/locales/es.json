@@ -408,7 +408,13 @@
     "client_name": "NOMBRE DEL CLIENTE",
     "client_phone": "TELÉFONO CLIENTE",
     "invoice_number": "NÚMERO DE FACTURA",
-    "warranty_duration": "DURACIÓN GARANTÍA (MESES)",
+    "warranty_duration": "DÍAS DE GARANTÍA",
+    "warranty_duration_short": "Días de garantía",
+    "days_unit": "DÍAS",
+    "months_legacy": "MESES (REGISTRO ANTERIOR)",
+    "days_error": "Ingrese una cantidad entera de días entre 1 y 3650.",
+    "preview_start": "Inicio",
+    "preview_end": "Vence",
     "cancel": "CANCELAR"
   },
   "special_orders": {

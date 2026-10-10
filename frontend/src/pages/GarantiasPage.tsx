@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { ShieldCheck, Search, Plus, CheckCircle, AlertTriangle } from 'lucide-react';
 import { diaCalendarioEnZona } from '../utils/format';
-import { formatearFechaNegocio, sumarMesesCalendario } from '../utils/fechasNegocio';
+import { formatearFechaNegocio } from '../utils/fechasNegocio';
+import { DIAS_GARANTIA_MAX, validarDiasGarantia, vencimientoGarantia, vigenciaDeRegistro } from '../utils/garantias';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
 
@@ -13,8 +14,12 @@ export interface RegistroGarantiaItem {
   clienteNombre: string;
   clienteTelefono: string;
   numeroFactura: string;
+  /** Fecha de inicio de la garantía (día de venta, YYYY-MM-DD). */
   fechaVenta: string;
-  mesesGarantia: number;
+  /** Días calendario de garantía. Registros nuevos. */
+  diasGarantia?: number;
+  /** Solo registros anteriores: se muestran como meses, sin convertir. */
+  mesesGarantia?: number;
   fechaVencimientoGarantia: string;
   estado: 'VIGENTE' | 'EXPIRADA';
 }
@@ -90,13 +95,19 @@ export const GarantiasPage: React.FC = () => {
   const [cliNombre, setCliNombre] = useState('');
   const [cliTel, setCliTel] = useState('');
   const [numFactura, setNumFactura] = useState('FACT-1043');
-  const [meses, setMeses] = useState('12');
+  const [dias, setDias] = useState('365');
+  const [diasError, setDiasError] = useState('');
 
   const handleCrearGarantia = (e: React.FormEvent) => {
     e.preventDefault();
-    const m = parseInt(meses, 10) || 12;
+    const diasValidos = validarDiasGarantia(dias);
+    if (diasValidos === null) {
+      setDiasError(t('warranties.days_error'));
+      return;
+    }
+    setDiasError('');
     const hoy = diaCalendarioEnZona();
-    const expiry = sumarMesesCalendario(hoy, m);
+    const expiry = vencimientoGarantia(hoy, diasValidos);
 
     const nueva: RegistroGarantiaItem = {
       id: `gar-${Date.now()}`,
@@ -106,7 +117,7 @@ export const GarantiasPage: React.FC = () => {
       clienteTelefono: cliTel.trim(),
       numeroFactura: numFactura.trim(),
       fechaVenta: hoy,
-      mesesGarantia: m,
+      diasGarantia: diasValidos,
       fechaVencimientoGarantia: expiry,
       estado: 'VIGENTE',
     };
@@ -163,7 +174,7 @@ export const GarantiasPage: React.FC = () => {
                 <th>EQUIPO / PRODUCTO</th>
                 <th>CLIENTE BENEFICIARIO</th>
                 <th>FACTURA</th>
-                <th style={{ textAlign: 'center' }}>FECHA VENTA</th>
+                <th style={{ textAlign: 'center' }}>INICIO (FECHA VENTA)</th>
                 <th style={{ textAlign: 'center' }}>VIGENCIA</th>
                 <th style={{ textAlign: 'center' }}>VENCIMIENTO</th>
                 <th style={{ textAlign: 'center' }}>ESTADO GARANTÍA</th>
@@ -182,7 +193,15 @@ export const GarantiasPage: React.FC = () => {
                   </td>
                   <td style={{ fontWeight: 600 }}>{g.numeroFactura}</td>
                   <td style={{ textAlign: 'center', fontSize: '12px' }}>{formatearFechaNegocio(g.fechaVenta, locale)}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 800 }}>{g.mesesGarantia} MESES</td>
+                  <td style={{ textAlign: 'center', fontWeight: 800 }}>
+                    {(() => {
+                      const v = vigenciaDeRegistro(g);
+                      if (!v) return '—';
+                      return v.tipo === 'dias'
+                        ? `${v.valor} ${t('warranties.days_unit')}`
+                        : `${v.valor} ${t('warranties.months_legacy')}`;
+                    })()}
+                  </td>
                   <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700 }}>{formatearFechaNegocio(g.fechaVencimientoGarantia, locale)}</td>
                   <td style={{ textAlign: 'center' }}>
                     {g.estado === 'VIGENTE' ? (
@@ -274,14 +293,48 @@ export const GarantiasPage: React.FC = () => {
                   <label className="form-label">{t('warranties.warranty_duration')}</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     min="1"
+                    max={DIAS_GARANTIA_MAX}
+                    step="1"
                     required
-                    value={meses}
-                    onChange={(e) => setMeses(e.target.value)}
+                    value={dias}
+                    onChange={(e) => {
+                      setDias(e.target.value);
+                      setDiasError('');
+                    }}
                     className="form-input"
+                    aria-invalid={diasError ? true : undefined}
                   />
+                  {diasError && (
+                    <p role="alert" style={{ color: 'var(--color-danger, #B91C1C)', fontSize: '12px', marginTop: '4px' }}>
+                      {diasError}
+                    </p>
+                  )}
                 </div>
               </div>
+
+              {validarDiasGarantia(dias) !== null && (
+                <div style={styles.vistaPrevia} aria-live="polite">
+                  <div>
+                    <span style={{ opacity: 0.7 }}>{t('warranties.preview_start')}: </span>
+                    <strong>{formatearFechaNegocio(diaCalendarioEnZona(), locale)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ opacity: 0.7 }}>{t('warranties.warranty_duration_short')}: </span>
+                    <strong>{validarDiasGarantia(dias)} {t('warranties.days_unit')}</strong>
+                  </div>
+                  <div>
+                    <span style={{ opacity: 0.7 }}>{t('warranties.preview_end')}: </span>
+                    <strong>
+                      {formatearFechaNegocio(
+                        vencimientoGarantia(diaCalendarioEnZona(), validarDiasGarantia(dias) as number),
+                        locale,
+                      )}
+                    </strong>
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setModalNuevo(false)}>
@@ -350,5 +403,14 @@ const styles: Record<string, React.CSSProperties> = {
   modalHeader: {
     paddingBottom: '12px',
     borderBottom: '2px solid var(--color-border)',
+  },
+  vistaPrevia: {
+    marginTop: '8px',
+    padding: '10px 12px',
+    borderRadius: '6px',
+    border: '1px solid var(--color-border)',
+    fontSize: '13px',
+    display: 'grid',
+    gap: '4px',
   },
 };

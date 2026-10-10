@@ -27,7 +27,7 @@ const load = (file) => {
 };
 
 const { diaCalendarioEnZona, ZONA_HORARIA_NEGOCIO } = load('src/utils/format.ts');
-const { sumarDiasCalendario, sumarMesesCalendario, formatearFechaNegocio } = load('src/utils/fechasNegocio.ts');
+const { sumarDiasCalendario, formatearFechaNegocio } = load('src/utils/fechasNegocio.ts');
 
 // 2026-10-10T02:30Z = 2026-10-09 20:30 en Tegucigalpa (UTC-6, sin horario de verano).
 const INSTANTE = new Date('2026-10-10T02:30:00.000Z');
@@ -66,33 +66,11 @@ test('alta de apartado: fecha de creación = hoy de negocio y límite = hoy + 30
   }
 });
 
-test('garantía: el vencimiento cae en el mismo día de calendario de negocio tras N meses', () => {
-  const hoy = diaCalendarioEnZona(INSTANTE);
-  assert.equal(sumarMesesCalendario(hoy, 12), '2027-10-09');
-  assert.equal(sumarMesesCalendario(hoy, 1), '2026-11-09');
-  assert.equal(sumarMesesCalendario(hoy, 3), '2027-01-09');
-});
-
 test('suma de días cruza fin de mes, fin de año y febrero bisiesto', () => {
   assert.equal(sumarDiasCalendario('2026-12-31', 1), '2027-01-01');
   assert.equal(sumarDiasCalendario('2026-02-28', 1), '2026-03-01');
   assert.equal(sumarDiasCalendario('2028-02-28', 1), '2028-02-29');
   assert.equal(sumarDiasCalendario('2026-10-09', 0), '2026-10-09');
-});
-
-test('suma de meses usa el último día válido del mes destino (no desborda como Date.setMonth)', () => {
-  // Supuesto técnico pendiente de validación funcional (ver fechasNegocio.ts).
-  assert.equal(sumarMesesCalendario('2026-01-31', 1), '2026-02-28');
-  assert.equal(sumarMesesCalendario('2028-01-31', 1), '2028-02-29');
-  assert.equal(sumarMesesCalendario('2026-11-30', 3), '2027-02-28');
-  assert.equal(sumarMesesCalendario('2027-08-31', 6), '2028-02-29');
-});
-
-test('suma de meses en años bisiestos y cambio de año', () => {
-  assert.equal(sumarMesesCalendario('2027-02-28', 12), '2028-02-28');
-  assert.equal(sumarMesesCalendario('2026-12-15', 1), '2027-01-15');
-  assert.equal(sumarMesesCalendario('2026-10-09', 0), '2026-10-09');
-  assert.equal(sumarMesesCalendario('2026-03-15', -2), '2026-01-15');
 });
 
 test('formato de fecha de negocio en español y en inglés, sin desplazar el día', () => {
@@ -122,5 +100,5 @@ test('formato devuelve guion para entradas vacías o no válidas', () => {
 
 test('fechas de entrada no válidas se rechazan', () => {
   assert.throws(() => sumarDiasCalendario('2026-10-10T00:00:00Z', 1), /inválida/);
-  assert.throws(() => sumarMesesCalendario('10/10/2026', 1), /inválida/);
+  assert.throws(() => sumarDiasCalendario('10/10/2026', 1), /inválida/);
 });
