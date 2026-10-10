@@ -1022,8 +1022,9 @@ model OperacionContingencia {
   ventana     ContingenciaVentana @relation(fields: [ventanaId], references: [id])
   venta       Venta?              @relation(fields: [ventaId], references: [id])
 
-  @@unique([tenantId, dispositivoId, secuenciaLocal])
-  @@unique([tenantId, correlativoLocal])
+  // Sin unicidad: un duplicado de secuencia o correlativo (dos UUID distintos) se conserva y queda en revisión, nunca se rechaza.
+  @@index([tenantId, dispositivoId, secuenciaLocal])
+  @@index([tenantId, correlativoLocal])
   @@index([tenantId, estado])
   @@index([tenantId, recibidoAt])
   @@map("operaciones_contingencia")

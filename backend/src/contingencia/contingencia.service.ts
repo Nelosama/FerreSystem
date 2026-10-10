@@ -288,13 +288,12 @@ export class ContingenciaService {
         },
       });
     } catch (error: any) {
-      if (error?.code === 'P2002') {
-        // Carrera: otra petición con el mismo UUID ya lo registró (o secuencia/correlativo duplicados con otro UUID).
-        const ya = await this.prisma.operacionContingencia.findUnique({ where: { id: dto.operacionId } });
-        if (ya && ya.tenantId === tenantId && ya.payloadHash === hash) return ya.estado === 'RECIBIDA' ? this.aplicarYResumir(tenantId, ya.id, {}) : this.resumenOperacion(ya);
-        throw new ConflictException({ message: 'Secuencia o correlativo local ya usados por otra operación', code: 'SECUENCIA_DUPLICADA' });
-      }
-      throw error;
+      if (error?.code !== 'P2002') throw error;
+      // Carrera: otra petición con el mismo UUID ya lo registró.
+      const ya = await this.prisma.operacionContingencia.findUnique({ where: { id: dto.operacionId } });
+      if (!ya || ya.tenantId !== tenantId) throw error;
+      if (ya.payloadHash !== hash) return this.registrarAlteracion(tenantId, usuarioId, ya, dto, hash);
+      return ya.estado === 'RECIBIDA' ? this.aplicarYResumir(tenantId, ya.id, {}) : this.resumenOperacion(ya);
     }
     // 2) Aplicación en transacción aparte.
     return this.aplicarYResumir(tenantId, dto.operacionId, {});
@@ -376,6 +375,12 @@ export class ContingenciaService {
       if (Number(suma) > limites.montoMaxAcumuladoCentavos) conflictos.push({ codigo: 'LIMITE_ACUMULADO_EXCEDIDO', severidad: 'BLANDO', detalle: { maximo: limites.montoMaxAcumuladoCentavos, acumulado: Number(suma) } });
     }
 
+    const duplicados = await query<{ id: string }>(tx,
+      `SELECT id FROM operaciones_contingencia WHERE tenant_id=$1 AND id<>$2 AND (
+         (dispositivo_id=$3 AND secuencia_local=$4) OR correlativo_local=$5) LIMIT 5`,
+      tenantId, op.id, op.dispositivoId, op.secuenciaLocal, op.correlativoLocal);
+    if (duplicados.length) conflictos.push({ codigo: 'SECUENCIA_DUPLICADA', severidad: 'DURO', detalle: { otras: duplicados.map((d) => d.id) } });
+
     // Caja: nunca se altera un cierre histórico.
     let cajaDestino: any = null;
     const [cajaOriginal] = await query(tx, 'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 FOR UPDATE', op.cajaId, tenantId);
@@ -424,7 +429,7 @@ export class ContingenciaService {
     }
 
     // Decisión: ¿qué conflictos duros se pueden aceptar por decisión de un administrador?
-    const superables = new Set(['USUARIO_NO_AUTORIZADO', 'CAJA_CERRADA', 'STOCK_INSUFICIENTE', 'TOTAL_DIFERENTE']);
+    const superables = new Set(['USUARIO_NO_AUTORIZADO', 'CAJA_CERRADA', 'STOCK_INSUFICIENTE', 'TOTAL_DIFERENTE', 'SECUENCIA_DUPLICADA']);
     const bloqueantes = conflictos.filter((c) => c.severidad === 'DURO' && !(forzar && superables.has(c.codigo)));
     if (bloqueantes.length) {
       const actualizada = await tx.operacionContingencia.update({

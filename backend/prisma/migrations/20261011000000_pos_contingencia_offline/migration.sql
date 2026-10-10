@@ -98,15 +98,20 @@ CREATE TABLE "operaciones_contingencia" (
     CONSTRAINT "operaciones_contingencia_venta_fkey" FOREIGN KEY ("venta_id") REFERENCES "ventas"("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX "operaciones_contingencia_venta_id_key" ON "operaciones_contingencia"("venta_id");
-CREATE UNIQUE INDEX "operaciones_contingencia_tenant_id_dispositivo_id_secuencia_local_key" ON "operaciones_contingencia"("tenant_id", "dispositivo_id", "secuencia_local");
-CREATE UNIQUE INDEX "operaciones_contingencia_tenant_id_correlativo_local_key" ON "operaciones_contingencia"("tenant_id", "correlativo_local");
+-- Sin unicidad a propósito: un duplicado se conserva y queda en revisión (SECUENCIA_DUPLICADA), nunca se rechaza.
+CREATE INDEX "operaciones_contingencia_tenant_id_dispositivo_id_secuencia_local_idx" ON "operaciones_contingencia"("tenant_id", "dispositivo_id", "secuencia_local");
+CREATE INDEX "operaciones_contingencia_tenant_id_correlativo_local_idx" ON "operaciones_contingencia"("tenant_id", "correlativo_local");
 CREATE INDEX "operaciones_contingencia_tenant_id_estado_idx" ON "operaciones_contingencia"("tenant_id", "estado");
 CREATE INDEX "operaciones_contingencia_tenant_id_recibido_at_idx" ON "operaciones_contingencia"("tenant_id", "recibido_at");
 
--- Inmutabilidad del diario: la carga recibida y su identidad no pueden modificarse. La aplicación no borra filas;
--- el borrado en cascada al eliminar una empresa se deja permitido a propósito.
+-- Inmutabilidad del diario: la carga recibida no puede modificarse ni borrarse (un diario que pierde filas incumple
+-- el requisito de no eliminar operaciones en silencio). Consecuencia intencional: eliminar una empresa con operaciones
+-- de contingencia falla; debe archivarse, no borrarse.
 CREATE FUNCTION "operaciones_contingencia_inmutable"() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'El diario de contingencia no admite borrados (operacion %)', OLD."id";
+  END IF;
   IF NEW."id" IS DISTINCT FROM OLD."id" OR NEW."tenant_id" IS DISTINCT FROM OLD."tenant_id"
      OR NEW."payload" IS DISTINCT FROM OLD."payload" OR NEW."payload_hash" IS DISTINCT FROM OLD."payload_hash"
      OR NEW."dispositivo_id" IS DISTINCT FROM OLD."dispositivo_id" OR NEW."secuencia_local" IS DISTINCT FROM OLD."secuencia_local"
@@ -117,5 +122,5 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
-CREATE TRIGGER "operaciones_contingencia_inmutable_trg" BEFORE UPDATE ON "operaciones_contingencia"
+CREATE TRIGGER "operaciones_contingencia_inmutable_trg" BEFORE UPDATE OR DELETE ON "operaciones_contingencia"
   FOR EACH ROW EXECUTE FUNCTION "operaciones_contingencia_inmutable"();
