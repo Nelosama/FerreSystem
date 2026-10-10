@@ -145,7 +145,7 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ## Levantamiento inicial y administración de precios (2026-10-11)
 
-- **Rama/PR:** `claude/keen-goldberg-62o7f1`, desde la rama de integración `claude/integracion-pos-offline-p1` ([#129](https://github.com/Nelosama/FerreSystem/pull/129), HEAD verificado `6373692f`). PR de borrador hacia esa base. Sin merge, despliegue ni migraciones productivas. No se modifica la contingencia offline (ver bloqueo 1).
+- **Rama/PR:** `claude/keen-goldberg-62o7f1`, desde la rama de integración `claude/integracion-pos-offline-p1` ([#129](https://github.com/Nelosama/FerreSystem/pull/129), HEAD verificado `6373692f`). PR de borrador [#140](https://github.com/Nelosama/FerreSystem/pull/140) hacia esa base. Sin merge, despliegue ni migraciones productivas. No se modifica la contingencia offline (ver bloqueo 1).
 - **Reglas implementadas:**
   1. **Personal** (ADMIN/BODEGUERO con `inventario.editar`) captura productos sin precio. `POST /productos` sin `precioVenta`/`precioCosto` deja `precio_aprobado=false` (pendiente). Con precio responde 403; `margen` responde 400 (se calcula, no se captura).
   2. **Ficha de producto** (`PUT /productos/:id`): ningún rol cambia precio ni margen (403 / 400). Nombre, códigos, categoría, unidad y existencias siguen igual.
