@@ -147,6 +147,10 @@ model Tenant {
   levantamientoSesiones LevantamientoSesion[]
 
   coberturasGarantia CoberturaGarantia[]
+  dispositivosPos DispositivoPos[]
+  contingenciaVentanas ContingenciaVentana[]
+  catalogoInstantaneas CatalogoInstantanea[]
+  operacionesContingencia OperacionContingencia[]
   @@map("tenants")
 }
 
@@ -358,6 +362,13 @@ model Venta {
   clienteNombre String? @map("cliente_nombre")
   clienteRtn String? @map("cliente_rtn")
   solicitudHash String? @map("solicitud_hash")
+  // Contingencia offline: origen ONLINE|CONTINGENCIA. El correlativo local (CT-01-0001) convive con numeroVenta (definitivo).
+  origen      String      @default("ONLINE")
+  efectivoRecibido Decimal? @map("efectivo_recibido") @db.Decimal(12, 2)
+  cambio      Decimal?    @db.Decimal(12, 2)
+  correlativoLocal String? @map("correlativo_local")
+  ocurridoAt  DateTime?   @map("ocurrido_at")
+  referenciaFacturaExterna String? @map("referencia_factura_externa")
   estado      EstadoVenta @default(COMPLETADA)
   notas       String?
   createdAt   DateTime    @default(now()) @map("created_at")
@@ -371,6 +382,7 @@ model Venta {
   cotizacion  Cotizacion?    // Si fue generada desde una cotización
 
   coberturasGarantia CoberturaGarantia[]
+  operacionContingencia OperacionContingencia?
   @@unique([tenantId, numeroVenta])
   @@index([tenantId])
   @@index([tenantId, estado])
@@ -941,4 +953,101 @@ model ProductoProveedor {
   @@unique([tenantId, productoId, proveedorId], map: "productos_proveedores_tenant_producto_proveedor_key")
   @@index([tenantId, proveedorId], map: "productos_proveedores_tenant_proveedor_idx")
   @@map("productos_proveedores")
+}
+
+// ============================================================
+// POS offline de contingencia (efectivo). Apagado por defecto: ver docs/POS_OFFLINE_CONTINGENCIA_DISENO.md
+// ============================================================
+model DispositivoPos {
+  id                  String    @id
+  tenantId            String    @map("tenant_id")
+  codigo              String
+  nombre              String
+  activo              Boolean   @default(true)
+  registradoPor       String    @map("registrado_por")
+  registradoAt        DateTime  @default(now()) @map("registrado_at")
+  ultimoContactoAt    DateTime? @map("ultimo_contacto_at")
+  ultimaSyncAt        DateTime? @map("ultima_sync_at")
+  pendientesReportados Int      @default(0) @map("pendientes_reportados")
+
+  tenant   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ventanas ContingenciaVentana[]
+  operaciones OperacionContingencia[]
+
+  @@unique([tenantId, codigo])
+  @@map("dispositivos_pos")
+}
+
+model CatalogoInstantanea {
+  tenantId String   @map("tenant_id")
+  hash     String
+  datos    Json
+  creadaAt DateTime @default(now()) @map("creada_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, hash])
+  @@map("catalogo_instantaneas")
+}
+
+model ContingenciaVentana {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id")
+  dispositivoId String    @map("dispositivo_id")
+  usuarioId     String    @map("usuario_id")
+  cajaId        String    @map("caja_id")
+  emitidaAt     DateTime  @default(now()) @map("emitida_at")
+  vigenteHasta  DateTime  @map("vigente_hasta")
+  catalogoHash  String    @map("catalogo_hash")
+  limites       Json
+  revocadaAt    DateTime? @map("revocada_at")
+
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dispositivo DispositivoPos @relation(fields: [dispositivoId], references: [id])
+  operaciones OperacionContingencia[]
+
+  @@index([tenantId, dispositivoId, emitidaAt])
+  @@map("contingencia_ventanas")
+}
+
+// Diario recibido: carga cruda inmutable. Nunca se borra ni se reescribe; el resultado de aplicarla vive en las demás columnas.
+model OperacionContingencia {
+  id                 String    @id // operacionId (UUID v4 del dispositivo) = ventas.id cuando se aplica
+  tenantId           String    @map("tenant_id")
+  dispositivoId      String    @map("dispositivo_id")
+  ventanaId          String    @map("ventana_id")
+  usuarioId          String    @map("usuario_id")
+  cajaId             String    @map("caja_id")
+  secuenciaLocal     Int       @map("secuencia_local")
+  correlativoLocal   String    @map("correlativo_local")
+  ocurridoAtLocal    DateTime  @map("ocurrido_at_local")
+  ocurridoAtEstimado DateTime  @map("ocurrido_at_estimado")
+  recibidoAt         DateTime  @default(now()) @map("recibido_at")
+  payload            Json
+  payloadHash        String    @map("payload_hash")
+  totalCentavos      Int       @map("total_centavos")
+  efectivoRecibidoCentavos Int @map("efectivo_recibido_centavos")
+  // RECIBIDA | APLICADA | REVISION (no aplicada, requiere decisión) | RESUELTA_MANUAL
+  estado             String    @default("RECIBIDA")
+  requiereRevision   Boolean   @default(false) @map("requiere_revision")
+  conflictos         Json      @default("[]")
+  ventaId            String?   @unique @map("venta_id")
+  numeroVenta        Int?      @map("numero_venta")
+  aplicadoAt         DateTime? @map("aplicado_at")
+  resolucion         Json?
+  resueltoPor        String?   @map("resuelto_por")
+  resueltoAt         DateTime? @map("resuelto_at")
+  referenciaFacturaExterna String? @map("referencia_factura_externa")
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dispositivo DispositivoPos      @relation(fields: [dispositivoId], references: [id])
+  ventana     ContingenciaVentana @relation(fields: [ventanaId], references: [id])
+  venta       Venta?              @relation(fields: [ventaId], references: [id])
+
+  // Sin unicidad: un duplicado de secuencia o correlativo (dos UUID distintos) se conserva y queda en revisión, nunca se rechaza.
+  @@index([tenantId, dispositivoId, secuenciaLocal])
+  @@index([tenantId, correlativoLocal])
+  @@index([tenantId, estado])
+  @@index([tenantId, recibidoAt])
+  @@map("operaciones_contingencia")
 }
