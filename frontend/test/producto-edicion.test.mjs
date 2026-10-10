@@ -46,11 +46,19 @@ test('sin cambios no se envían campos y no hay nada que guardar', () => {
 });
 
 test('existencias sin cambio nunca se envían (evita revertir un valor leído antes)', () => {
-  const form = { ...formularioDesde(producto), stockActual: '40', precioVenta: '13' };
+  const form = { ...formularioDesde(producto), stockActual: '40' };
   const { payload } = construirCambiosProducto(producto, form);
   assert.equal('stockActual' in payload, false);
   assert.equal('motivo' in payload, false);
-  assert.equal(payload.precioVenta, 13);
+});
+
+test('la ficha nunca envía precio, costo ni margen aunque cambien (los fija el administrador)', () => {
+  const form = { ...formularioDesde(producto), precioVenta: '14', precioCosto: '9', margen: '40', nombre: 'Cable 12 AWG' };
+  const { payload, cambiados } = construirCambiosProducto(producto, form);
+  assert.equal('precioVenta' in payload, false);
+  assert.equal('precioCosto' in payload, false);
+  assert.equal('margen' in payload, false);
+  assert.deepEqual(cambiados, ['nombre']);
 });
 
 test('cambiar existencias exige motivo y lo envía junto con el nuevo valor', () => {
@@ -62,10 +70,10 @@ test('cambiar existencias exige motivo y lo envía junto con el nuevo valor', ()
   assert.deepEqual(sensibles, ['stockActual']);
 });
 
-test('cambios de costo y precio se marcan como sensibles', () => {
-  const form = { ...formularioDesde(producto), precioVenta: '14', precioCosto: '9' };
+test('cambiar el código de barras se marca como sensible', () => {
+  const form = { ...formularioDesde(producto), codigoBarras: '999' };
   const { sensibles } = construirCambiosProducto(producto, form);
-  assert.deepEqual(sensibles, ['precioVenta', 'precioCosto']);
+  assert.deepEqual(sensibles, ['codigoBarras']);
 });
 
 test('marca y categoría vacías no borran el dato existente', () => {
@@ -115,13 +123,11 @@ test('la versión leída siempre viaja en el payload para detectar ediciones con
   assert.equal(payload.version, 4);
 });
 
-test('validación: nombre, código, precios, existencias y margen', () => {
+test('validación: nombre, código y existencias (sin precio)', () => {
   const base = formularioDesde(producto);
   assert.deepEqual(validarFormularioProducto({ ...base, nombre: '  ' }, producto), [{ campo: 'nombre', motivo: 'requerido' }]);
   assert.deepEqual(validarFormularioProducto({ ...base, codigo: '' }, producto), [{ campo: 'codigo', motivo: 'requerido' }]);
-  assert.deepEqual(validarFormularioProducto({ ...base, precioVenta: '-1' }, producto), [{ campo: 'precioVenta', motivo: 'negativo' }]);
   assert.deepEqual(validarFormularioProducto({ ...base, stockActual: 'abc' }, producto), [{ campo: 'stockActual', motivo: 'numero' }]);
-  assert.deepEqual(validarFormularioProducto({ ...base, margen: '101' }, producto), [{ campo: 'margen', motivo: 'rango' }]);
   assert.deepEqual(validarFormularioProducto(base, producto), []);
 });
 

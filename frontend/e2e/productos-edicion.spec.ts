@@ -139,22 +139,17 @@ test.describe('Edición de productos (FS-07)', () => {
     expect(sim.productos[0]).toMatchObject({ nombre: 'Cable metro reforzado', stockActual: 40, precioVenta: 12.5, version: 2 });
   });
 
-  test('cambiar costo pide confirmación; cancelar no envía nada y aceptar envía el costo', async ({ page, sim }) => {
+  test('la ficha no ofrece cambiar costo ni precio: se fijan en Precios y aprobación', async ({ page, sim }) => {
     const cable = productoBase({});
     sim.productos.push(cable);
     await ingresarAInventario(page);
     await elegirProducto(page, cable.id);
-    await page.getByLabel(/^Costo vigente/).fill('9');
-
-    page.once('dialog', d => { expect(d.message()).toContain('Costo vigente'); void d.dismiss(); });
-    await page.getByRole('button', { name: 'Guardar cambios' }).click();
-    await page.waitForTimeout(100);
-    expect(sim.puts).toHaveLength(0);
-
-    page.once('dialog', d => d.accept());
+    await expect(page.getByLabel(/^Costo vigente/)).toHaveCount(0);
+    await expect(page.getByLabel(/^Precio de venta/)).toHaveCount(0);
+    await page.getByLabel('Nombre y variante', { exact: true }).fill('Cable 12 AWG');
     await page.getByRole('button', { name: 'Guardar cambios' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Producto guardado' })).toBeVisible();
-    expect(sim.puts[0].body).toEqual({ precioCosto: 9, version: 1 });
+    expect(sim.puts[0].body).toEqual({ nombre: 'Cable 12 AWG', version: 1 });
   });
 
   test('si otro usuario cambió el producto, el servidor rechaza la edición, no sobrescribe y recarga la lista', async ({ page, sim }) => {

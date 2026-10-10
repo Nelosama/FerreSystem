@@ -31,7 +31,7 @@ export const MINUTOS_SIN_CONTACTO = 5;
 
 type Severidad = 'DURO' | 'BLANDO';
 interface Conflicto { codigo: string; severidad: Severidad; detalle?: Record<string, unknown> }
-interface OpcionesAplicar { forzar?: boolean; cajaId?: string; resueltoPor?: string }
+interface OpcionesAplicar { forzar?: boolean; cajaId?: string; resueltoPor?: string; revalidar?: boolean }
 
 const pad = (n: number, largo: number) => String(n).padStart(largo, '0');
 export const correlativoDefinitivo = (numeroVenta: number) => `V-${pad(numeroVenta, 8)}`;
@@ -155,7 +155,8 @@ export class ContingenciaService {
 
   private async construirCatalogo(tx: Tx | PrismaService, tenantId: string, config: ConfigEfectiva) {
     const productos = await (tx as any).producto.findMany({
-      where: { tenantId, activo: true },
+      // Pendientes de precio (o con precio no positivo) no se venden offline: no entran al catálogo descargado.
+      where: { tenantId, activo: true, precioAprobado: true, precioVenta: { gt: 0 } },
       select: { id: true, codigo: true, codigoBarras: true, nombre: true, precioVenta: true, precioCosto: true, stockActual: true, stockReservado: true, usaMedida: true, unidadMedida: true },
       orderBy: { id: 'asc' },
     });
@@ -277,6 +278,7 @@ export class ContingenciaService {
       if (existente.tenantId !== tenantId) throw new ConflictException('Identificador de operación no disponible');
       if (existente.payloadHash !== hash) return this.registrarAlteracion(tenantId, usuarioId, existente, dto, hash);
       if (existente.estado === 'RECIBIDA') return this.aplicarYResumir(tenantId, existente.id, {});
+      if (this.revisionPorPrecio(existente)) return this.aplicarYResumir(tenantId, existente.id, { revalidar: true });
       return this.resumenOperacion(existente);
     }
     const estimado = this.estimarHora(dto.ocurridoAtLocal, ventana.limites as any);
@@ -295,7 +297,8 @@ export class ContingenciaService {
       const ya = await this.prisma.operacionContingencia.findUnique({ where: { id: dto.operacionId } });
       if (!ya || ya.tenantId !== tenantId) throw error;
       if (ya.payloadHash !== hash) return this.registrarAlteracion(tenantId, usuarioId, ya, dto, hash);
-      return ya.estado === 'RECIBIDA' ? this.aplicarYResumir(tenantId, ya.id, {}) : this.resumenOperacion(ya);
+      if (ya.estado === 'RECIBIDA') return this.aplicarYResumir(tenantId, ya.id, {});
+      return this.revisionPorPrecio(ya) ? this.aplicarYResumir(tenantId, ya.id, { revalidar: true }) : this.resumenOperacion(ya);
     }
     // 2) Aplicación en transacción aparte.
     return this.aplicarYResumir(tenantId, dto.operacionId, {});
@@ -321,6 +324,13 @@ export class ContingenciaService {
     return this.resumenOperacion(actualizada);
   }
 
+  /** Pendiente solo por precio: al reenviarla se vuelve a validar contra el precio aprobado actual. */
+  private revisionPorPrecio(op: any): boolean {
+    const codigos = new Set(['PRODUCTO_SIN_PRECIO_APROBADO', 'PRECIO_NO_VALIDO']);
+    const conflictos = (op.conflictos as any[]) ?? [];
+    return op.estado === 'REVISION' && conflictos.length > 0 && conflictos.every((c) => codigos.has(c.codigo));
+  }
+
   private async aplicarYResumir(tenantId: string, operacionId: string, opciones: OpcionesAplicar) {
     const fila = await this.prisma.$transaction((tx) => this.aplicar(tx, tenantId, operacionId, opciones), { timeout: 30000 });
     return this.resumenOperacion(fila);
@@ -335,9 +345,10 @@ export class ContingenciaService {
     if (!bloqueada) throw new NotFoundException('Operación no encontrada');
     const op = await tx.operacionContingencia.findUniqueOrThrow({ where: { id: operacionId } });
     if (op.estado === 'APLICADA' || op.estado === 'RESUELTA_MANUAL') return op;
-    if (op.estado === 'REVISION' && !opciones.forzar && !opciones.resueltoPor) return op;
+    if (op.estado === 'REVISION' && !opciones.forzar && !opciones.resueltoPor && !opciones.revalidar) return op;
 
     const dto = op.payload as unknown as OperacionContingenciaDto;
+    // Los conflictos de precio se recalculan en cada reintento; el resto de conflictos previos se conservan.
     const previos = (op.conflictos as any[]).filter((c) => c.codigo === 'OPERACION_ALTERADA');
     const conflictos: Conflicto[] = [...previos];
     const forzar = Boolean(opciones.forzar);
@@ -413,6 +424,11 @@ export class ContingenciaService {
       const p = productos.get(linea.productoId);
       if (!p) { conflictos.push({ codigo: 'PRODUCTO_NO_ENCONTRADO', severidad: 'DURO', detalle: { productoId: linea.productoId } }); continue; }
       if (!p.activo) conflictos.push({ codigo: 'PRODUCTO_INACTIVO', severidad: 'BLANDO', detalle: { productoId: p.id, codigo: p.codigo } });
+      // Revalidación en el servidor, con el estado vigente al sincronizar: sin precio aprobado o con precio no positivo no se confirma la venta ni se cobra L 0.
+      if (!p.precio_aprobado) conflictos.push({ codigo: 'PRODUCTO_SIN_PRECIO_APROBADO', severidad: 'DURO', detalle: { productoId: p.id, codigo: p.codigo } });
+      if (Number(p.precio_venta) <= 0 || linea.precioCentavos <= 0) {
+        conflictos.push({ codigo: 'PRECIO_NO_VALIDO', severidad: 'DURO', detalle: { productoId: p.id, codigo: p.codigo, precioServidor: Number(p.precio_venta), precioCobrado: linea.precioCentavos } });
+      }
       const snap = enVentana.get(linea.productoId);
       if (!snap) conflictos.push({ codigo: 'PRODUCTO_FUERA_DE_VENTANA', severidad: 'BLANDO', detalle: { productoId: p.id, codigo: p.codigo } });
       else {

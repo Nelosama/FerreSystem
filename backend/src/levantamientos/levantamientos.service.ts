@@ -13,7 +13,8 @@ const SESION_TTL_MS = 5 * 60 * 1000; // 5 minutos
 export class LevantamientosService {
  constructor(private readonly prisma:PrismaService){}
 
- private item(i:any){return {...i,cantidad:Number(i.cantidad),precioCosto:i.precioCosto==null?null:Number(i.precioCosto),precioVenta:i.precioVenta==null?null:Number(i.precioVenta),margen:i.margen==null?null:Number(i.margen)};}
+ /** El conteo no expone ni guarda precios: los fija el administrador en Precios y aprobación. */
+ private item(i:any){const {precioCosto:_precioCosto,precioVenta:_precioVenta,margen:_margen,...resto}=i;return {...resto,cantidad:Number(i.cantidad)};}
  private async session(tx:any,tenantId:string,id:string){const l=await tx.levantamiento.findFirst({where:{tenantId,id},include:{items:{orderBy:{id:'asc'}}}});if(!l)throw new NotFoundException('Levantamiento no encontrado');return l;}
  private editable(l:any){if(l.estado==='FINALIZADO'||l.aplicadoAt)throw new ConflictException('El levantamiento está cerrado');}
 
@@ -361,7 +362,6 @@ export class LevantamientosService {
    if(p&&item.codigoBarras&&p.codigoBarras&&p.codigoBarras!==item.codigoBarras)errors.push(`Código de barras del conteo (${item.codigoBarras}) difiere del catálogo (${p.codigoBarras}); verifique que sea el mismo producto`);
    if(item.codigoBarras){if(barcodes.has(item.codigoBarras))errors.push('Código de barras repetido en el conteo');barcodes.add(item.codigoBarras);}
    if(seen.has(key))errors.push('Conteo duplicado: concilie antes de aplicar');seen.add(key);
-   if(!p&&(item.precioCosto==null||item.precioVenta==null))errors.push('Producto nuevo requiere costo y precio');
    rows.push({
     item:this.item(item),
     productoId:p?.id||null,
@@ -375,8 +375,10 @@ export class LevantamientosService {
     reservado:p?Number(p.stockReservado||0):0,
     anterior:p?Number(p.stockActual):0,
     nuevo:Number(item.cantidad),
-    precioCosto:item.precioCosto==null?(p?(p.precioCosto==null?null:Number(p.precioCosto)):null):Number(item.precioCosto),
-    precioVenta:item.precioVenta==null?(p?(p.precioVenta==null?null:Number(p.precioVenta)):null):Number(item.precioVenta),
+    // Pendiente de precio: producto nuevo, o existente que aún no tiene precio aprobado para venta.
+    precioPendiente:!p||!p.precioAprobado,
+    // Completo: nombre, categoría y unidad. La descripción adicional es opcional.
+    datosCompletos:!!(item.descripcion?.trim()&&(item.categoria?.trim()||p?.categoriaId)&&(item.unidad||p?.unidadMedida)),
     unidad:p?.unidadMedida||String(item.unidad).toUpperCase(),
     errores:errors,
    });
@@ -411,11 +413,12 @@ export class LevantamientosService {
     if(!pid){
      let categoriaId:string|null=null;
      if(r.item.categoria?.trim()){const nombre=r.item.categoria.trim();categoriaId=(await tx.categoria.upsert({where:{tenantId_nombre:{tenantId,nombre}},create:{tenantId,nombre},update:{}})).id;}
-     const p=await tx.producto.create({data:{tenantId,codigo:r.codigo,codigoBarras:r.item.codigoBarras||null,marca:r.item.marca?.trim()||null,nombre:r.nombre,descripcion:r.item.descripcion,categoriaId,stockActual:r.nuevo,stockMinimo:0,precioCosto:r.precioCosto,precioVenta:r.precioVenta,margen:r.item.margen,unidadMedida:r.unidad as any}});
+     // Alta desde el conteo: sin precio y sin aprobar. No se vende hasta que el administrador fije y apruebe el precio.
+     const p=await tx.producto.create({data:{tenantId,codigo:r.codigo,codigoBarras:r.item.codigoBarras||null,marca:r.item.marca?.trim()||null,nombre:r.nombre,descripcion:r.item.descripcion,categoriaId,stockActual:r.nuevo,stockMinimo:0,precioCosto:0,precioVenta:0,precioAprobado:false,unidadMedida:r.unidad as any}});
      pid=p.id;
     }else{
-     if(r.precioCosto==null||r.precioVenta==null)throw new BadRequestException(`El producto ${r.nombre} (${r.codigo}) no tiene costo o precio definido; corríjalo antes de aplicar`);
-     await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,version:{increment:1},...(r.item.marca?.trim()&&!r.catalogMarca?{marca:r.item.marca.trim()}:{}),...(r.item.codigoBarras&&r.matchedByBarcode?{codigoBarras:r.item.codigoBarras}:r.item.codigoBarras&&!r.catalogBarcode?{codigoBarras:r.item.codigoBarras}:{}),precioCosto:r.precioCosto,precioVenta:r.precioVenta,...(r.item.margen!=null?{margen:r.item.margen}:{})}});
+     // Ajuste de cantidades: nunca toca costo, precio de venta ni margen del catálogo.
+     await tx.producto.update({where:{id:pid},data:{stockActual:r.nuevo,version:{increment:1},...(r.item.marca?.trim()&&!r.catalogMarca?{marca:r.item.marca.trim()}:{}),...(r.item.codigoBarras&&r.matchedByBarcode?{codigoBarras:r.item.codigoBarras}:r.item.codigoBarras&&!r.catalogBarcode?{codigoBarras:r.item.codigoBarras}:{})}});
     }
     await tx.levantamientoItem.update({where:{id:r.item.id},data:{productoId:pid}});
     await movement(tx,tenantId,userId,pid!,'LEVANTAMIENTO',r.anterior,r.nuevo,lid,'Conteo revisado y aplicado');

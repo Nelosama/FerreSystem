@@ -16,8 +16,6 @@ interface ParsedRow {
   codigo: string;
   nombre: string;
   categoria: string;
-  precioCosto: number;
-  precioVenta: number;
   stockActual: number;
   stockMinimo: number;
   unidadMedida: string;
@@ -61,7 +59,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadTemplate = () => {
-    const headers = ['nombre', 'codigo', 'categoria', 'precioCosto', 'precioVenta', 'stockActual', 'stockMinimo', 'unidadMedida'];
+    const headers = ['nombre', 'codigo', 'categoria', 'stockActual', 'stockMinimo', 'unidadMedida'];
     const cats = rubroConfig.categoriasDefault.length > 0 ? rubroConfig.categoriasDefault : ['General', 'Otros'];
     const units = rubroConfig.unidadesMedida.length > 0 ? rubroConfig.unidadesMedida : ['unidad', 'metro'];
 
@@ -110,8 +108,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
       const codigo = getFieldValue(raw, ['codigo', 'code', 'sku', 'codigoproducto', 'cod']);
       const nombre = getFieldValue(raw, ['nombre', 'name', 'producto', 'articulo', 'descripcion']);
       let categoria = getFieldValue(raw, ['categoria', 'category', 'cat']);
-      const precioCostoStr = getFieldValue(raw, ['preciocosto', 'costo', 'cost', 'costprice']);
-      const precioVentaStr = getFieldValue(raw, ['precioventa', 'precio', 'price', 'sellingprice']);
       const stockActualStr = getFieldValue(raw, ['stockactual', 'stock', 'cantidad', 'qty', 'quantity']);
       const stockMinimoStr = getFieldValue(raw, ['stockminimo', 'minimo', 'minstock']);
       let unidadMedida = getFieldValue(raw, ['unidadmedida', 'unidad', 'medida', 'unit']);
@@ -126,15 +122,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
         errores.push(t('inventory.invalid_name'));
       }
 
-      const numCosto = parseFloat(precioCostoStr || '0');
-      if (isNaN(numCosto) || numCosto < 0) {
-        errores.push(t('inventory.invalid_prices'));
-      }
-
-      const numVenta = parseFloat(precioVentaStr || '0');
-      if (isNaN(numVenta) || numVenta < 0) {
-        errores.push(t('inventory.invalid_prices'));
-      }
 
       const numStock = Number(stockActualStr || '0');
       if (isNaN(numStock) || numStock < 0) {
@@ -164,8 +151,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
         codigo,
         nombre,
         categoria,
-        precioCosto: isNaN(numCosto) ? 0 : numCosto,
-        precioVenta: isNaN(numVenta) ? 0 : numVenta,
         stockActual: isNaN(numStock) ? 0 : numStock,
         stockMinimo: isNaN(numStockMin) ? 5 : numStockMin,
         unidadMedida,
@@ -255,8 +240,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
           motivo: 'Importación de inventario revisada',
           nombre: r.nombre.trim(),
           categoria: r.categoria,
-          precioVenta: r.precioVenta,
-          precioCosto: r.precioCosto,
           stockActual: r.stockActual,
           stockMinimo: r.stockMinimo,
           unidadMedida: normalizarUnidadMedida(r.unidadMedida),
@@ -369,7 +352,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                   className="btn btn-primary"
                   onClick={() => ejecutarImportacion(true)}
                 >
-                  <Check size={16} /> Sobrescribir stock y precio
+                  <Check size={16} /> Sobrescribir existencias
                 </button>
               </div>
             </div>
@@ -448,8 +431,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                           <th>NOMBRE</th>
                           <th>CATEGORÍA</th>
                           <th>UNIDAD</th>
-                          <th style={{ textAlign: 'right' }}>COSTO</th>
-                          <th style={{ textAlign: 'right' }}>VENTA</th>
                           <th style={{ textAlign: 'center' }}>STOCK</th>
                           <th>ESTADO</th>
                         </tr>
@@ -467,8 +448,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                             <td>{r.nombre || <em style={{ color: '#DC2626' }}>[Vacío]</em>}</td>
                             <td>{r.categoria}</td>
                             <td style={{ textTransform: 'lowercase' }}>{r.unidadMedida}</td>
-                            <td style={{ textAlign: 'right' }}>L. {r.precioCosto.toFixed(2)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 700 }}>L. {r.precioVenta.toFixed(2)}</td>
                             <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.stockActual}</td>
                             <td>
                               {r.esValido ? (

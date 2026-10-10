@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-10, America/Tegucigalpa** — implementación P1 de operaciones en `claude/p1-operaciones` desde `main` `7ccfad25` (ver bloque siguiente). El bloque de continuidad POS se conserva debajo. Las bitácoras anteriores se conservan como fotografías fechadas y no sustituyen el estado de Git.
+Última revisión: **2026-10-11, America/Tegucigalpa** — levantamiento y administración de precios en `claude/keen-goldberg-62o7f1` (bloque «Levantamiento inicial y administración de precios»). Anterior: implementación P1 de operaciones en `claude/p1-operaciones` desde `main` `7ccfad25` (ver bloque siguiente). El bloque de continuidad POS se conserva debajo. Las bitácoras anteriores se conservan como fotografías fechadas y no sustituyen el estado de Git.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -147,6 +147,52 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Identidad:** ATLAS (POS y continuidad operativa). Coordinación: KARDEX (inventario), CENTINELA (seguridad y sesiones), FARO (auditoría y QA), BALANCE (conciliaciones). Recomendación de entrega en `docs/POS_VENTA_ENTREGA_DECISION.md` §4b; sin cambio de flujo hasta decisión del dueño.
 - **Ronda ATLAS (comprobante, impresión y entrega):** comprobante interno completo desde el registro local (`frontend/src/offline/comprobante.ts`), reimpresión desde el diario, papel 58/80 mm e impresión que nunca revierte la venta. Corregido: `entregar` aceptaba ventas totalmente devueltas. Pendiente de decisión del dueño sobre la entrega de la venta en línea: `docs/POS_VENTA_ENTREGA_DECISION.md` (opciones A–D; sin cambio de flujo). Impresión física (C1–C8) no ejecutada. Resultados en `docs/POS_PILOTO_QA_FINAL.md` §4c.
 - **Regla confirmada por el dueño (venta offline = venta normal):** verificada en `docs/POS_PILOTO_QA_FINAL.md` §4b. Corregido: si releer la lista fallaba tras guardar, la UI mostraba «NO se guardó» (`PosContingenciaPage.tsx`). Añadidas pruebas: relectura fallida tras guardar, siguiente cliente con sincronización colgada y salida de inventario `ENTREGA` por operación. Brechas abiertas: comprobante sin líneas de producto y stock central desfasado hasta sincronizar.
+
+## Levantamiento inicial y administración de precios (2026-10-11)
+
+- **Rama/PR:** `claude/keen-goldberg-62o7f1`, desde la rama de integración `claude/integracion-pos-offline-p1` ([#129](https://github.com/Nelosama/FerreSystem/pull/129), HEAD verificado `6373692f`). PR de borrador [#140](https://github.com/Nelosama/FerreSystem/pull/140) hacia esa base. Sin merge, despliegue ni migraciones productivas. No se modifica la contingencia offline (ver bloqueo 1).
+- **Reglas implementadas:**
+  1. **Personal** (ADMIN/BODEGUERO con `inventario.editar`) captura productos sin precio. `POST /productos` sin `precioVenta`/`precioCosto` deja `precio_aprobado=false` (pendiente). Con precio responde 403; `margen` responde 400 (se calcula, no se captura).
+  2. **Ficha de producto** (`PUT /productos/:id`): ningún rol cambia precio ni margen (403 / 400). Nombre, códigos, categoría, unidad y existencias siguen igual.
+  3. **Pantalla `/precios`** (solo ADMIN, menú «Precios y aprobación»): fija costo y precio, muestra margen calculado en vivo y aprueba para venta (exige precio > 0). `PATCH /productos/:id/precios` exige `version`. Registra `precio_aprobado_por/at` y `precio_modificado_por/at`; auditoría `PRECIO_APROBAR` / `PRECIO_MODIFICAR` con antes, después y motivo. Modificar un precio ya aprobado conserva la aprobación.
+  4. **Venta y cotización** (`ventas.service.ts`, `cotizaciones.service.ts` → `processLineItems`): producto sin precio aprobado responde 400 dentro de la transacción; no se crea venta, ni reserva, ni cotización.
+  5. **Conteo** (`levantamientos.service.ts`): no lee ni escribe costo, precio ni margen. Aplicar solo cambia existencias y, si estaban vacíos, marca y código de barras. Un producto nuevo del conteo se crea con precio 0 y pendiente.
+  6. **Compras:** sin cambios de código. La recepción no toca `precio_venta` (`compras.postgres.integration.ts`, costo vigente = última recepción).
+  7. **Importador de productos:** ya no lee ni envía precios; sobrescribir afecta existencias.
+  8. **Estados en pantalla:** «Pendiente de aprobación» (precio) y «Completo / Incompleto» (descripción y categoría presentes; propuesta por confirmar con el dueño).
+- **Migración** `backend/prisma/migrations/20261011150000_precio_aprobacion_producto`: solo agrega columnas e índice. Productos existentes quedan aprobados con `precio_aprobado_por = 'LEGADO_MIGRACION'` para que no dejen de venderse. Requiere revisión de DBA y confirmación del dueño.
+- **Pruebas ejecutadas (2026-10-11, entorno local):**
+  - Backend unitarias **345/345**. `tsc -p tsconfig.build.json` sin errores.
+  - Integración PostgreSQL 16, usuario no root, cadena completa de migraciones: **23 archivos, 381 aprobadas, 1 omitida** (la misma omitida que ya tenía la base). Incluye `test/precios-aprobacion.postgres.integration.ts` (nueva, 10 casos: personal sin precio, alta del dueño, ficha sin precio, conteo sin precio, producto nuevo pendiente, venta bloqueada, validaciones de aprobación, aprobación auditada, modificación con antes y después, ajuste de existencias sin tocar precio).
+  - Frontend unitarias **233/233** (`test/precios.test.mjs` 8/8, `producto-edicion.test.mjs` 15/15).
+  - Playwright con backend simulado **120/120** (Chromium 1194 instalado en el entorno; el binario por defecto no está).
+  - E2E con backend real (`frontend/e2e-real/precios-real.spec.ts`, vía `e2e-real/run.sh`): **1/1**. El personal captura sin precio y ve «pendiente»; el dueño filtra, ve margen 33.33 %, aprueba; la base de datos guarda precio, aprobador y auditoría; el personal recibe 403 al cambiar precio. Capturas en `scratchpad` de la sesión (no se publican en el repo).
+  - `tsc -b`, `vite build`, oxlint sin errores (solo avisos de patrón existente).
+- **Cierre funcional (decisiones del dueño, 2026-10-11):**
+  1. Aprobado: el personal registra productos sin precio; el ADMIN fija costo, precio y aprobación.
+  2. Aprobado: aplicar un conteo solo modifica existencias; nunca costo, precio ni margen. Prevalece sobre `QA-INV-001` de #134 (la prueba de #134 se ajusta en `auditoria-inventario.postgres.integration.ts`).
+  3. Aprobado con condición: productos existentes quedan aprobados solo con precio de venta > 0 (`UPDATE ... WHERE precio_venta > 0`). El resto queda pendiente de revisión del ADMIN.
+  4. Aprobado: completo = nombre, categoría y unidad de medida; la descripción es opcional (backend `levantamientos.service.ts` y `utils/precios.ts`).
+  5. Rechazado: vender o cotizar sin precio aprobado, incluso offline.
+- **Contingencia offline (P0, `contingencia.service.ts`):**
+  - Catálogo de la ventana: solo productos con `precio_aprobado=true` y `precio_venta > 0`.
+  - Sincronización: revalida en el servidor `precio_aprobado` y precio > 0. Conflictos `PRODUCTO_SIN_PRECIO_APROBADO` y `PRECIO_NO_VALIDO`, de severidad DURO y no superables por un administrador. La operación queda en `REVISION` con motivo, sin venta, sin movimiento de caja, sin descuento de inventario y sin cobro confirmado en el servidor.
+  - Idempotencia: el mismo UUID no duplica nada. Si la revisión es solo por precio, un reenvío la revalida (`revisionPorPrecio`); una vez aprobado el precio, aplica una sola vez.
+- **Personal de bodega (BODEGUERO):** `canReadProductFinancials` solo para ADMIN. `CashierResponseInterceptor` oculta a todo usuario de tenant que no sea ADMIN las claves de costo y margen, incluida cualquier clave que contenga `costo` o `margen` (p. ej. `ultimo_costo`). La vista pública expone `precioAprobado` (booleano), sin costo, margen ni responsable.
+- **Pruebas ejecutadas (2026-10-11, PostgreSQL 16 real, usuario no root):**
+  - Integración nueva: `test/contingencia-precio-aprobado.postgres.integration.ts` (6 casos: catálogo, pérdida de aprobación antes de sincronizar, L 0 con forzado de administrador, precio del servidor en cero, reconexión con reenvíos concurrentes, revisión no de precio no se revalida sola).
+  - `test/precios-aprobacion.postgres.integration.ts`: 14 casos, incluidos ocultamiento de costos a BODEGUERO por HTTP (compras, historial, proveedores, entregas, productos) y pérdida de acceso tras cambio de rol.
+  - Integración completa: **24 archivos, 391 aprobadas, 1 omitida** (la misma omitida de siempre).
+  - Unitarias backend 345/345; frontend unitarias 233/233; Playwright simulado 120/120; E2E con backend real `precios-real.spec.ts` 1/1.
+- **Bloqueos restantes:**
+  1. **ATLAS:** no está activo en esta sesión y no hay PR abierto suyo sobre contingencia. Los cambios en `contingencia.service.ts` son acotados (tres puntos y `revisionPorPrecio`), pero deben revisarse con ATLAS antes de integrar. El cliente offline (`src/offline`, `POSPage`) no se tocó: debe mostrar el motivo de revisión por precio; pendiente de ATLAS.
+  2. **NEXUS:** no está activo; la revisión de la migración `20261011150000_precio_aprobacion_producto` (con `WHERE precio_venta > 0`) queda pendiente.
+  3. Reconexión real (apagón, IndexedDB del equipo, reinicio de Windows) no probada; las pruebas simulan los reenvíos con PostgreSQL real.
+  4. Sin validación en iPhone, Safari ni Windows; sin datos reales de la ferretería.
+  5. Columnas legadas `margen` y `precio_*` de `levantamiento_items` y `productos.margen`: sin uso, no se borran.
+- **Bitácora:** lectura del contexto vigente y de PRs abiertos (#129–#135); implementación backend, frontend, migración y pruebas; corrección de fixtures y contratos de pruebas que cambian por diseño (no se relajó ninguna aserción salvo las que describían el comportamiento anterior); PR en borrador pendiente de revisión humana. Sin aceptación del cliente.
+
+---
 
 ## Continuidad POS y sincronización — auditoría y propuesta (2026-10-10)
 

@@ -66,8 +66,8 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       await prisma.usuario.create({ data: { id, tenantId, nombre: rol, email: `${id}@test.invalid`, passwordHash: 'x', rol, permisosConfigurados: false, permisos: [] } as any });
     }
     await prisma.caja.create({ data: { tenantId, codigo: 'CAJA-1', usuarioId: cajero, montoApertura: 100, estado: 'ABIERTA' } as any });
-    const p1 = await prisma.producto.create({ data: { tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20 } as any });
-    const p2 = await prisma.producto.create({ data: { tenantId, codigo: 'BIS-1', nombre: 'Bisagra', precioVenta: 25.5, precioCosto: 10, stockActual: 8 } as any });
+    const p1 = await prisma.producto.create({ data: {precioAprobado:true, tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20 } as any });
+    const p2 = await prisma.producto.create({ data: {precioAprobado:true, tenantId, codigo: 'BIS-1', nombre: 'Bisagra', precioVenta: 25.5, precioCosto: 10, stockActual: 8 } as any });
     const dispositivoId = randomUUID();
     if (hab) await svc.registrarDispositivo(tenantId, cajero, { dispositivoId, nombre: 'Caja principal' });
     else await prisma.dispositivoPos.create({ data: { id: dispositivoId, tenantId, codigo: '01', nombre: 'Caja principal', registradoPor: admin } });
