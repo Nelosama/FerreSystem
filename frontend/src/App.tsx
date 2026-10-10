@@ -69,6 +69,9 @@ const ComisionesPage = React.lazy(() =>
 const ReportesPage = React.lazy(() =>
   import('./pages/ReportesPage').then(m => ({ default: m.ReportesPage }))
 );
+const ConciliacionBancariaPage = React.lazy(() =>
+  import('./pages/ConciliacionBancariaPage').then(m => ({ default: m.ConciliacionBancariaPage }))
+);
 const EstadoCuentaClientesPage = React.lazy(() =>
   import('./pages/EstadoCuentaClientesPage').then(m => ({ default: m.EstadoCuentaClientesPage }))
 );
@@ -197,6 +200,16 @@ export const App: React.FC = () => {
                       <ProtectedRoute allowedRoles={['ADMIN']} requiredPermiso="reportes.ver" requiredModule="reportes">
                         <AppLayout>
                           <ReportesPage />
+                        </AppLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/conciliacion-bancaria"
+                    element={
+                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                        <AppLayout>
+                          <ConciliacionBancariaPage />
                         </AppLayout>
                       </ProtectedRoute>
                     }

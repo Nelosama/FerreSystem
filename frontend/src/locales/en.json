@@ -21,7 +21,8 @@
     "returns": "RETURNS",
     "audit": "AUDIT",
     "mobile_admin": "Mobile summary",
-    "customer_statement": "Estado de cuenta"
+    "customer_statement": "Estado de cuenta",
+    "bank_reconciliation": "Bank reconciliation"
   },
   "stock_taking": {
     "title": "STOCK TAKING",
@@ -1424,6 +1425,29 @@
     "saving": "Saving…",
     "choose_supplier": "Choose a supplier",
     "error": "The product supplier could not be saved.",
+    "network": "No connection. Try again."
+  },
+  "bank_recon": {
+    "title": "POS terminal reconciliation",
+    "help": "Compare the bank POS closing total with the card payments recorded on that terminal for the day. Differences are recorded and audited.",
+    "terminal": "POS terminal",
+    "date": "Business date",
+    "bank_total": "Bank total",
+    "bank_count": "Bank transactions",
+    "reason": "Reason",
+    "reason_hint": "Required only when the bank total does not match the system (minimum 10 characters).",
+    "register": "Register reconciliation",
+    "saving": "Registering…",
+    "form": "Register bank reconciliation",
+    "matched": "Reconciliation registered: matches the system.",
+    "registered_with_difference": "Reconciliation registered with a difference. It has been audited.",
+    "history": "Registered reconciliations",
+    "empty": "No reconciliations yet.",
+    "system_total": "System total",
+    "difference": "Difference",
+    "none": "No difference",
+    "by": "Registered by",
+    "error": "The reconciliation could not be registered.",
     "network": "No connection. Try again."
   }
 }

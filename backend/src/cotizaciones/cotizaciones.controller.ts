@@ -80,8 +80,9 @@ export class CotizacionesController {
     @CurrentUser('sub') usuarioId: string,
     @Param('id') cotizacionId: string,
     @Body('metodoPago') metodoPago?: string,
+    @Body('pagoElectronico') pagoElectronico?: { referencia?: string; terminal?: string },
   ) {
-    return this.cotizacionesService.convertirAVenta(tenantId, usuarioId, cotizacionId, metodoPago);
+    return this.cotizacionesService.convertirAVenta(tenantId, usuarioId, cotizacionId, metodoPago, pagoElectronico);
   }
 }
 

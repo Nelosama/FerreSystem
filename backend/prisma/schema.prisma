@@ -164,6 +164,9 @@ model Tenant {
   proveedores        Proveedor[]
   ordenesCompra      OrdenCompra[]
   cajas              Caja[]
+
+  aprobacionesBancarias AprobacionBancaria[]
+  conciliacionesBancarias ConciliacionBancaria[]
   @@map("tenants")
 }
 
@@ -218,6 +221,8 @@ model Usuario {
   cajas         Caja[]
   @@unique([tenantId, email])
   @@index([tenantId])
+  aprobacionesBancarias AprobacionBancaria[]
+  conciliacionesBancarias ConciliacionBancaria[]
   @@map("usuarios")
   productosProveedoresCreados     ProductoProveedor[] @relation("ProductoProveedorCreado")
   productosProveedoresActualizados ProductoProveedor[] @relation("ProductoProveedorActualizado")
@@ -1345,4 +1350,45 @@ model CierreComision {
 
   @@index([tenantId, vendedorId])
   @@map("cierres_comisiones")
+}
+
+model AprobacionBancaria {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  metodo      String
+  terminal    String   @default("")
+  referencia  String
+  monto       Decimal  @db.Decimal(12, 2)
+  origen      String
+  origenId    String   @map("origen_id")
+  usuarioId   String   @map("usuario_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "aprobaciones_bancarias_tenant_fkey")
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Restrict, map: "aprobaciones_bancarias_usuario_fkey")
+  @@unique([tenantId, metodo, terminal, referencia], map: "aprobaciones_bancarias_tenant_metodo_terminal_referencia_key")
+  @@index([tenantId, terminal, createdAt], map: "aprobaciones_bancarias_tenant_terminal_created_idx")
+  @@index([tenantId, origen, origenId], map: "aprobaciones_bancarias_origen_idx")
+  @@map("aprobaciones_bancarias")
+}
+
+model ConciliacionBancaria {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  terminal        String
+  fecha           DateTime @db.Date
+  totalBanco      Decimal  @map("total_banco") @db.Decimal(12, 2)
+  cantidadBanco   Int      @map("cantidad_banco")
+  totalSistema    Decimal  @map("total_sistema") @db.Decimal(12, 2)
+  cantidadSistema Int      @map("cantidad_sistema")
+  diferencia      Decimal  @db.Decimal(12, 2)
+  motivo          String?
+  solicitudId     String   @map("solicitud_id")
+  usuarioId       String   @map("usuario_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "conciliaciones_bancarias_tenant_fkey")
+  usuario         Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Restrict, map: "conciliaciones_bancarias_usuario_fkey")
+  @@unique([tenantId, terminal, fecha], map: "conciliaciones_bancarias_tenant_terminal_fecha_key")
+  @@unique([tenantId, solicitudId], map: "conciliaciones_bancarias_tenant_solicitud_key")
+  @@index([tenantId, fecha], map: "conciliaciones_bancarias_tenant_fecha_idx")
+  @@map("conciliaciones_bancarias")
 }

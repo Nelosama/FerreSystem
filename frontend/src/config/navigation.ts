@@ -153,6 +153,16 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     category: 'INVENTARIO',
   },
 
+  // Conciliación del POS bancario: solo ADMIN (las tarjetas las registra el cajero en la venta).
+  {
+    key: 'conciliacion_bancaria',
+    labelKey: 'menu.bank_reconciliation',
+    defaultLabel: 'CONCILIACIÓN BANCARIA',
+    route: '/conciliacion-bancaria',
+    icon: Smartphone,
+    allowedRoles: ['ADMIN'],
+    category: 'ANALISIS',
+  },
   // CLIENTES
   {
     key: 'estado_cuenta_clientes',

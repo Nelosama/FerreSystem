@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsArray, ArrayMinSize, ArrayMaxSize, ValidateNested, IsUUID, IsIn, IsDateString, MaxLength, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsArray, ArrayMinSize, ArrayMaxSize, ValidateNested, IsUUID, IsIn, IsDateString, MaxLength, IsBoolean, IsInt } from 'class-validator';
 import { EmptyToUndefined } from '../common/empty-to-undefined';
+import { PagoElectronicoDto } from '../common/pago-electronico.dto';
 import { Type } from 'class-transformer';
 
 export class ProveedorDto {
@@ -43,6 +44,16 @@ export class PagoDto {
  @IsNumber({maxDecimalPlaces:2}) @Min(0.01) monto!: number;
  @IsIn(['EFECTIVO','TARJETA','TRANSFERENCIA']) metodo!: string;
  @IsOptional() @IsString() notas?: string;
+ @IsOptional() @ValidateNested() @Type(() => PagoElectronicoDto) pagoElectronico?: PagoElectronicoDto;
+}
+// Conciliación del POS bancario (ADMIN): total y cantidad que muestra el cierre del banco por terminal y día.
+export class ConciliacionBancariaDto {
+ @IsUUID('4') solicitudId!: string;
+ @IsString() @IsNotEmpty() @MaxLength(40) terminal!: string;
+ @IsString() @IsNotEmpty() fecha!: string;
+ @IsNumber({maxDecimalPlaces:2}) @Min(0) totalBanco!: number;
+ @IsInt() @Min(0) cantidadBanco!: number;
+ @IsOptional() @IsString() @MaxLength(500) motivo?: string;
 }
 export class AbrirCajaDto {
  @IsUUID('4') solicitudId!: string;

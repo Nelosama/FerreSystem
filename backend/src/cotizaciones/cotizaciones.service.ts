@@ -3,6 +3,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
 import { diaCalendario, inicioDiaEnZona } from '../common/zona-horaria';
+import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 
 /** Fecha de solo día (YYYY-MM-DD) se guarda como inicio del día en la zona del negocio. */
 const SOLO_DIA = /^\d{4}-\d{2}-\d{2}$/;
@@ -425,11 +426,14 @@ export class CotizacionesService {
     usuarioId: string,
     cotizacionId: string,
     metodoPago: any = 'EFECTIVO',
+    pagoElectronico?: { referencia?: string | null; terminal?: string | null },
   ) {
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx,tenantId);
       const user=await authorizedActor(tx,tenantId,usuarioId,['ADMIN','CAJERO'],'cotizaciones.convertir_venta');
       if (!['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].includes(metodoPago)) throw new BadRequestException('Método de pago inválido');
+      // Tarjeta y transferencia exigen autorización bancaria también al convertir una cotización.
+      const autorizacion = normalizarAutorizacion(metodoPago, pagoElectronico);
       const caja=await openCash(tx,tenantId,usuarioId);
       const ventaId=id();
       // Obtener secuencial de venta
@@ -538,8 +542,9 @@ export class CotizacionesService {
         if(saldoCliente.count!==1)throw new BadRequestException('El cliente no tiene habilitado el crédito');
         await account(tx,tenantId,usuarioId,'CXC',venta.id,cotizacion.clienteId!,Number(venta.total));
       }
+      if (autorizacion) await registrarAprobacion(tx,tenantId,usuarioId,autorizacion,Number(venta.total),'VENTA',venta.id);
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',Number(venta.total),metodoPago,venta.id,'Venta desde cotización');
-      await audit(tx,tenantId,usuarioId,'COTIZACION_VENDER',venta.id,{cotizacionId,total:Number(venta.total)});
+      await audit(tx,tenantId,usuarioId,'COTIZACION_VENDER',venta.id,{cotizacionId,total:Number(venta.total),aprobacion:autorizacion});
       // Actualizar estado de la cotización
       await tx.cotizacion.update({
         where: { id: cotizacion.id },
