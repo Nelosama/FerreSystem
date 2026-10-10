@@ -354,6 +354,16 @@ Decisiones del dueño aplicadas en el PR: (1) edición de producto por ADMIN com
 - **ATLAS:** no existe rama ni PR de ATLAS en el remoto. Dependencias y superficies de conflicto en `docs/ATLAS_DEPENDENCIAS_PR134.md`; no se implementó contrato alguno.
 - **Evidencia:** `docs/kardex-evidencia-pr134/RESULTADOS.md`.
 
+### Consolidación #134 + #140 — rama temporal `claude/kardex-consolidacion-134-140` (KARDEX, 2026-10-10 UTC)
+
+- **Base:** `claude/integracion-pos-offline-p1` (PR #129, `c5fe4982`) + PR #140 (`1d3971be`) + PR #134 (`57c64962`). Integración sin merge, despliegue ni migraciones productivas.
+- **Regla de venta:** `activo AND precio_aprobado AND precio_venta > 0`. `activo` no equivale a aprobado. Solo ADMIN aprueba por `PATCH /productos/:id/precios`. Cambiar el precio de venta de un aprobado lo revoca; un cambio solo de costo lo conserva.
+- **Privacidad:** BODEGUERO sin costos, márgenes ni totales de compra en productos, levantamiento, compras, historial, proveedores del producto y entregas (`SinCostosParaBodeguero`, probado por HTTP). CAJERO conserva el precio de venta autorizado.
+- **Migración:** solo los productos legados con precio > 0 quedan aprobados; los de precio cero quedan pendientes.
+- **Pruebas:** backend unitarias 353/353; integración PostgreSQL 402 pasan y 1 omitida (preexistente); build, lint y `tsc` sin errores. Frontend unitarias 241/241, lint, build; Playwright 128/129; e2e real 30/30 con migraciones completas. El único fallo (`contingencia-simulado`, "existencia local baja") es **preexistente en la base de #129**: en cinco repeticiones falla 3 veces sobre `c5fe4982`. No se corrigió: pertenece al POS offline de ATLAS.
+- **Pendiente antes de merge:** filtro de aprobación en el catálogo offline (ATLAS); decisión del dueño sobre `POST /operaciones/compras` con costo para BODEGUERO; aprobación automática de legados con precio > 0 (NEXUS y dueño); conciliación de costos sobre datos reales (solo sintético hasta ahora).
+- **Coordinación:** `docs/COORDINACION_ATLAS_NEXUS_CONSOLIDACION.md`. No hubo canal en vivo con ATLAS ni NEXUS en esta sesión.
+
 **Riesgos abiertos antes de merge:**
 1. Conciliación de costos históricos: requiere decisión del dueño (reglas A, 2 y 3 de la propuesta).
 2. El historial de compras (`GET /operaciones/productos/:id/historial`) y la lista de compras siguen mostrando costos a BODEGUERO, por diseño existente de compras; decidir si se restringe.

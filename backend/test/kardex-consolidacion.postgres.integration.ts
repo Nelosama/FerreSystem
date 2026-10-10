@@ -152,4 +152,38 @@ describe('KARDEX · consolidación de precios y aprobación / PostgreSQL real', 
     expect(ids).not.toContain(pendiente);
     expect(catalogo.find((p: any) => p.id === aprobado)).not.toHaveProperty('precioCosto');
   });
+
+  // P1 (simulación sobre base temporal): la regla A de docs/CONCILIACION_COSTOS_PROPUESTA.md se ejecuta dentro de una
+  // transacción que siempre se revierte. Cuenta los registros afectados; no escribe en ningún dato.
+  it('simulacro de conciliación de costos: cuenta registros afectados por la regla de última compra y revierte sin escribir', async () => {
+    const proveedorId = randomUUID();
+    await prisma.$executeRawUnsafe('INSERT INTO proveedores (id,tenant_id,nombre,updated_at) VALUES ($1,$2,$3,NOW())', proveedorId, tenantId, 'Proveedor sintético');
+    const conCompra = await crearProducto({ codigo: 'SIM-COMPRA', stockActual: 0, precioCosto: 5, costoVigente: 3, precioAprobado: true });
+    const sinCompra = await crearProducto({ codigo: 'SIM-SIN', stockActual: 0, precioCosto: 4, costoVigente: 4, precioAprobado: true });
+    const orden = await operaciones.compra(tenantId, bodegueroId, { solicitudId: randomUUID(), proveedorId, numeroFactura: 'SIM-1', isv: 0,
+      items: [{ productoId: conCompra, cantidad: 1, costo: 3 }] } as any);
+    expect(orden.id).toBeDefined();
+    // El historial de costos se escribe al recibir; luego se simula el desajuste heredado: costo comercial 5, última compra 3.
+    const [detalle] = await prisma.$queryRawUnsafe<{ id: string }[]>('SELECT id FROM detalles_orden_compra WHERE orden_id=$1', orden.id);
+    await operaciones.recibir(tenantId, bodegueroId, orden.id, { solicitudId: randomUUID(), items: [{ detalleId: detalle.id, cantidad: 1 }] } as any);
+    await prisma.producto.update({ where: { id: conCompra }, data: { precioCosto: 5, costoVigente: 3 } });
+    // Estado previo: el costo comercial 5 difiere de la última compra 3.
+    const antes = await prisma.producto.findMany({ where: { tenantId }, orderBy: { codigo: 'asc' } });
+    let afectados: { id: string }[] = [];
+    await prisma.$transaction(async tx => {
+      afectados = await tx.$queryRawUnsafe<{ id: string }[]>(`
+        UPDATE productos p SET precio_costo = ult.costo, costo_vigente = ult.costo
+        FROM (SELECT DISTINCT ON (c.producto_id) c.producto_id, c.costo FROM costos_compra c WHERE c.tenant_id = $1 ORDER BY c.producto_id, c.fecha DESC) ult
+        WHERE p.id = ult.producto_id AND p.tenant_id = $1 AND p.precio_costo IS DISTINCT FROM ult.costo
+        RETURNING p.id`, tenantId);
+      throw new Error('SIMULACRO_REVERTIDO');
+    }).catch(error => { if (error.message !== 'SIMULACRO_REVERTIDO') throw error; });
+    // Registros afectados: solo el producto con compra cuyo costo comercial difiere de la última compra.
+    expect(afectados.map(a => a.id)).toEqual([conCompra]);
+    // Sin compra: no se toca (regla); la revisión queda fuera de la simulación.
+    expect(afectados.map(a => a.id)).not.toContain(sinCompra);
+    // La transacción revertida no deja escritura alguna.
+    const despues = await prisma.producto.findMany({ where: { tenantId }, orderBy: { codigo: 'asc' } });
+    expect(despues.map(p => [p.id, Number(p.precioCosto), Number(p.costoVigente)])).toEqual(antes.map(p => [p.id, Number(p.precioCosto), Number(p.costoVigente)]));
+  });
 });
