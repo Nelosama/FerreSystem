@@ -7,9 +7,10 @@ import { publicProduct } from './producto-response';
 @Injectable()
 export class ProductosService {
  constructor(private readonly prisma: PrismaService) {}
- private format(p:any){return {...p,precioVenta:Number(p.precioVenta),precioCosto:Number(p.precioCosto),stockActual:Number(p.stockActual),stockReservado:Number(p.stockReservado||0),stockDisponible:Number(p.stockActual)-Number(p.stockReservado||0),stockMinimo:Number(p.stockMinimo),stockBajo:Number(p.stockActual)-Number(p.stockReservado||0)<=Number(p.stockMinimo)};}
- async findAll(tenantId:string,search?:string,categoriaId?:string,incluirInactivos=false){
-  const where:any={tenantId,...(incluirInactivos?{}:{activo:true}),...(categoriaId?{categoriaId}:{})};
+ private format(p:any){return {...p,pendienteConfiguracion:Number(p.precioVenta)<=0,precioVenta:Number(p.precioVenta),precioCosto:Number(p.precioCosto),stockActual:Number(p.stockActual),stockReservado:Number(p.stockReservado||0),stockDisponible:Number(p.stockActual)-Number(p.stockReservado||0),stockMinimo:Number(p.stockMinimo),stockBajo:Number(p.stockActual)-Number(p.stockReservado||0)<=Number(p.stockMinimo)};}
+ async findAll(tenantId:string,search?:string,categoriaId?:string,incluirInactivos=false,pendientes=false){
+  // Pendientes de configuración: sin precio de venta válido; permanecen inactivos hasta que ADMIN los configure.
+  const where:any={tenantId,...(incluirInactivos||pendientes?{}:{activo:true}),...(categoriaId?{categoriaId}:{}),...(pendientes?{precioVenta:0}:{})};
   const term=search?.trim();
   if(term)where.OR=[...['nombre','descripcion','codigo','codigoBarras','codigoFabricante'].map(field=>({[field]:{contains:term,mode:'insensitive'}})),{categoria:{nombre:{contains:term,mode:'insensitive'}}}];
   return (await this.prisma.producto.findMany({where,include:{categoria:{select:{id:true,nombre:true}}},orderBy:{nombre:'asc'}})).map(p=>this.format(p));
@@ -27,7 +28,10 @@ export class ProductosService {
  async create(tenantId:string,dto:CreateProductoDto,userId:string){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
-   await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
+   const usuario=await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
+   const esAdmin=usuario.rol==='ADMIN';
+   // Regla de precios (decisión 3): BODEGUERO no define costo, precio ni margen. Su alta queda pendiente de configuración por ADMIN.
+   if(!esAdmin&&(Number(dto.precioCosto)!==0||Number(dto.precioVenta)!==0||(dto.margen!=null&&Number(dto.margen)!==0)))throw new ForbiddenException('Solo el administrador define costo, precio o margen; el producto se registra pendiente de configuración');
    // Auditoría y alta comparten transacción y lock de empresa; no requiere otra tabla.
    const solicitudHash=dto.solicitudId?fingerprint(Object.fromEntries(Object.entries(dto).filter(([key,value])=>key!=='solicitudId'&&value!==undefined).sort(([a],[b])=>a.localeCompare(b)))):null;
    if(dto.solicitudId){
@@ -48,7 +52,12 @@ export class ProductosService {
    if(await tx.producto.findFirst({where:{tenantId,codigo:{equals:codigo,mode:'insensitive'}}}))throw new ConflictException('Código ya registrado');
    const barcode=dto.codigoBarras?.trim()||null;
    if(barcode&&await tx.producto.findFirst({where:{tenantId,codigoBarras:barcode}}))throw new ConflictException('Código de barras ya registrado');
-   const p=await tx.producto.create({data:{tenantId,codigo,nombre,codigoBarras:barcode,codigoFabricante:dto.codigoFabricante?.trim()||null,marca:dto.marca?.trim()||null,imagenUrl:dto.imagenUrl||null,descripcion:dto.descripcion,categoriaId:await this.category(tx,tenantId,dto),usaMedida:dto.usaMedida??false,precioVenta:decimal(dto.precioVenta,'Precio'),precioCosto:decimal(dto.precioCosto,'Costo'),margen:dto.margen,stockActual:decimal(dto.stockActual,'Stock'),stockMinimo:decimal(dto.stockMinimo,'Mínimo'),unidadMedida:dto.unidadMedida||'UNIDAD'},include:{categoria:{select:{id:true,nombre:true}}}});
+   // Costo vigente y costo comercial son el mismo dato: se crean sincronizados.
+   const precioCosto=esAdmin?decimal(dto.precioCosto,'Costo'):0;
+   const precioVenta=esAdmin?decimal(dto.precioVenta,'Precio'):0;
+   // P0 (PR #134): un producto sin precio de venta válido nunca queda disponible para venta, aunque lo cree ADMIN.
+   const disponible=esAdmin&&precioVenta>0;
+   const p=await tx.producto.create({data:{tenantId,codigo,nombre,codigoBarras:barcode,codigoFabricante:dto.codigoFabricante?.trim()||null,marca:dto.marca?.trim()||null,imagenUrl:dto.imagenUrl||null,descripcion:dto.descripcion,categoriaId:await this.category(tx,tenantId,dto),usaMedida:dto.usaMedida??false,precioVenta,precioCosto,costoVigente:precioCosto,margen:esAdmin?dto.margen:null,activo:disponible,stockActual:decimal(dto.stockActual,'Stock'),stockMinimo:decimal(dto.stockMinimo,'Mínimo'),unidadMedida:dto.unidadMedida||'UNIDAD'},include:{categoria:{select:{id:true,nombre:true}}}});
    await movement(tx,tenantId,userId,p.id,'INICIAL',0,Number(p.stockActual),p.id,'Alta inicial de producto');await audit(tx,tenantId,userId,'PRODUCTO_CREAR',p.id,{codigo,stock:Number(p.stockActual),...(dto.solicitudId?{solicitudId:dto.solicitudId,solicitudHash}:{})});return this.format(p);
   });
  }
@@ -62,6 +71,15 @@ export class ProductosService {
    const reactivando=dto.activo===true&&!old.activo;
    const desactivando=dto.activo===false&&old.activo;
    if((reactivando||desactivando)&&usuario.rol!=='ADMIN')throw new ForbiddenException('Solo el administrador puede activar o desactivar productos');
+   // Regla de precios (dueño): solo ADMIN define costo, precio o margen. Repetir el valor vigente (p. ej. importación) no cuenta como cambio.
+   const cambiaPrecios=(['precioVenta','precioCosto'] as const).some(f=>dto[f]!==undefined&&Number(dto[f])!==Number(old[f]))
+    ||(dto.margen!==undefined&&(dto.margen==null?old.margen!=null:Number(dto.margen)!==Number(old.margen)));
+   if(cambiaPrecios&&usuario.rol!=='ADMIN')throw new ForbiddenException('Solo el administrador puede definir costo, precio o margen');
+   // Pendiente de precio: un producto sin precio de venta aprobado no se habilita para venta.
+   const precioFinal=dto.precioVenta!==undefined?Number(dto.precioVenta):Number(old.precioVenta);
+   // P0: sin precio de venta válido no hay producto disponible. Aplica a habilitar y a fijar precio cero en un producto activo.
+   const activoFinal=dto.activo!==undefined?dto.activo:old.activo;
+   if((reactivando||dto.precioVenta!==undefined)&&activoFinal&&precioFinal<=0)throw new BadRequestException('Un producto disponible para venta requiere precio de venta mayor a cero');
    if(dto.stockActual!==undefined&&dto.stockActual<Number(old.stockReservado))throw new ConflictException('El conteo no cubre las ventas pendientes de entrega');
    const cambiaStock=dto.stockActual!==undefined&&Number(old.stockActual)!==dto.stockActual;
    if(cambiaStock&&dto.stockAnterior===undefined)throw new BadRequestException('Recargue el producto antes de ajustar existencias: falta la cantidad anterior');
@@ -89,6 +107,8 @@ export class ProductosService {
    if(dto.margen!==undefined)data.margen=dto.margen;
    if(dto.imagenUrl!==undefined)data.imagenUrl=dto.imagenUrl||null;
    for(const f of ['precioVenta','precioCosto','stockMinimo'] as const)if(dto[f]!==undefined)data[f]=decimal(dto[f],f);
+   // Costo vigente y costo comercial son el mismo dato: una edición de costo lo actualiza en ambos campos.
+   if(data.precioCosto!==undefined)data.costoVigente=data.precioCosto;
    if(cambiaStock)data.stockActual=decimal(dto.stockActual,'stockActual');
    if(codigo)data.codigo=codigo;
    if(dto.nombre!==undefined)data.nombre=text(dto.nombre,'Nombre');
@@ -108,7 +128,7 @@ export class ProductosService {
 
  /** Campo por campo, solo los que realmente cambiaron. Decimal se compara como número. */
  private cambiosProducto(antes:any,despues:any){
-  const campos=['codigo','codigoBarras','codigoFabricante','marca','nombre','descripcion','categoriaId','precioVenta','precioCosto','stockActual','stockMinimo','margen','unidadMedida','usaMedida','imagenUrl','activo'] as const;
+  const campos=['codigo','codigoBarras','codigoFabricante','marca','nombre','descripcion','categoriaId','precioVenta','precioCosto','costoVigente','stockActual','stockMinimo','margen','unidadMedida','usaMedida','imagenUrl','activo'] as const;
   const norm=(v:any)=>v==null?null:(typeof v==='object'?Number(v.toString()):v);
   const cambios:Record<string,{anterior:any;nuevo:any}>={};
   for(const c of campos){const a=norm(antes[c]),n=norm(despues[c]);if(a!==n)cambios[c]={anterior:a,nuevo:n};}

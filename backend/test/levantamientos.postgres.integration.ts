@@ -175,7 +175,8 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     expect(await prisma.movimientoInventario.count({where:{tenantId,tipo:'LEVANTAMIENTO'}})).toBe(4);
     expect(await prisma.compraProveedor.count({where:{tenantId}})).toBe(0);
     const zero=await prisma.producto.findFirstOrThrow({where:{tenantId,nombre:'Canaleta 6 metros'}});
-    expect([Number(zero.stockActual),Number(zero.precioCosto),Number(zero.precioVenta)]).toEqual([0,2,4]);
+    // Regla de precios: el producto nuevo queda pendiente de precio (0), inactivo y no vendible.
+    expect([Number(zero.stockActual),Number(zero.precioCosto),Number(zero.precioVenta),zero.activo]).toEqual([0,0,0,false]);
   });
 
   it('aísla sesiones e items y permite el mismo barcode en otro tenant sin mezclar productos',async()=>{
@@ -292,7 +293,7 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     expect(after.categoria?.nombre).toBe('Fijación');
   });
 
-  it('aplicar un conteo nuevo persiste marca y categoría; en un producto existente solo completa marca vacía y nunca la sobrescribe (FS-06 fase 2)',async()=>{
+  it('aplicar un conteo nuevo persiste marca y categoría; en un producto existente la auditoría no cambia marca ni código de barras (FS-06 fase 2)',async()=>{
     await add(item({descripcion:'Llave inglesa',codigo:'LLAVE-9',marca:'Stanley',categoria:'Herramientas',unidad:'UNIDAD',cantidad:2,precioCosto:5,precioVenta:9})).expect(201);
     await add(item({descripcion:'Cable metro',codigoBarras:'001234',marca:'Truper',cantidad:5,unidad:'METRO'})).expect(201);
     await finish();
@@ -300,8 +301,9 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     expect(p.rows.every((r:any)=>r.errores.length===0)).toBe(true);
     await apply(p.token).expect(201);
     const nuevo=await prisma.producto.findFirstOrThrow({where:{tenantId,codigo:'LLAVE-9'},include:{categoria:true}});
-    expect([nuevo.marca,nuevo.categoria?.nombre]).toEqual(['Stanley','Herramientas']);
-    expect((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).marca).toBe('Truper');
+    expect([nuevo.marca,nuevo.categoria?.nombre,nuevo.activo,Number(nuevo.precioVenta)]).toEqual(['Stanley','Herramientas',false,0]);
+    // Regla de auditoría: solo existencias; la marca del catálogo no se llena desde el conteo.
+    expect((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).marca).toBeNull();
     // Segunda aplicación de otro levantamiento: la marca ya existente en catálogo no se reemplaza.
     await prisma.producto.update({where:{id:productId},data:{marca:'Makita'}});
     const lid2=(await call('post','/levantamientos',{nombre:'Segundo conteo'}).expect(201)).body.id;
@@ -462,5 +464,22 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     await prisma.levantamientoItem.update({where:{id:b.id},data:{contadorId:users.OTHER.id}});
     const fila=(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body[0].items.find((i:any)=>i.id===b.id);
     expect(fila.contador).toEqual({id:users.OTHER.id,nombre:null,estado:'NO_DISPONIBLE'});
+  });
+
+  it('P1 HTTP: BODEGUERO cuenta sin ver costo, margen ni diferencias comerciales con valores; ADMIN sí las ve y el conteo queda intacto',async()=>{
+    await add(item({codigo:'CABLE',cantidad:9,unidad:'METRO',precioCosto:7,precioVenta:9,margen:90})).expect(201);
+    await finish();
+    const admin=(await preview()).body;
+    expect(admin.rows[0].advertencias.length).toBeGreaterThan(0);
+    const bodeguero=(await call('get',`/levantamientos/${lid}/preview`,{},'BODEGUERO').expect(200)).body;
+    const fila=bodeguero.rows[0];
+    // P1: el precio de venta sí es visible a BODEGUERO (operación de catálogo); costo, margen y advertencias no.
+    for(const campo of ['precioCosto','margen','advertencias']) expect(fila).not.toHaveProperty(campo);
+    expect(fila.diferenciasComerciales).toBeGreaterThan(0);
+    expect(JSON.stringify(bodeguero)).not.toMatch(/precioCosto|"margen"|costo vigente|Costo contado/);
+    const items=(await call('get',`/levantamientos/${lid}/items`,{},'BODEGUERO').expect(200)).body;
+    expect(items[0]).not.toHaveProperty('precioCosto');
+    expect(items[0]).not.toHaveProperty('margen');
+    expect(Number(items[0].cantidad)).toBe(9);
   });
 });

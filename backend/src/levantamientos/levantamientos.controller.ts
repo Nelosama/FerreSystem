@@ -1,5 +1,6 @@
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
-import { Query } from '@nestjs/common';
+import { Query, UseInterceptors } from '@nestjs/common';
+import { LevantamientoResponseInterceptor } from './levantamiento-response.interceptor';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AplicarLevantamientoDto, ConciliarItemDto, HeartbeatDto } from './dto/create-levantamiento-item.dto';
 import {
@@ -23,6 +24,7 @@ import { CreateLevantamientoDto, UpdateLevantamientoDto } from './dto/create-lev
 import { CreateLevantamientoItemDto, UpdateLevantamientoItemDto } from './dto/create-levantamiento-item.dto';
 
 @Controller('levantamientos')
+@UseInterceptors(LevantamientoResponseInterceptor)
 @RequiredPermission('inventario.editar')
 @RequiredModule('levantamiento')
 @Roles('ADMIN','BODEGUERO')

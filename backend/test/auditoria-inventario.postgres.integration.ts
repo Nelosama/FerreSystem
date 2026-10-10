@@ -99,15 +99,16 @@ describe('Auditoría independiente / reproducciones confirmadas', () => {
 
 
   // Regresiones del contrato seguro: las solicitudes obsoletas nunca sobrescriben datos recientes.
-  it('QA-INV-001: aplicar invalida el formulario antiguo y conserva el precio revisado', async()=>{
+  it('QA-INV-001: aplicar invalida el formulario antiguo y no cambia el precio vigente', async()=>{
     const old=(await call('get',`/productos/${productId}`).expect(200)).body;
     await add(item({productoId:productId,cantidad:8,precioVenta:9})).expect(201);
     await finish(); const p=(await preview()).body; await apply(p.token).expect(201);
     const applied=await prisma.producto.findUniqueOrThrow({where:{id:productId}});
-    expect(Number(applied.precioVenta)).toBe(9);
+    // Regla de precios: el precio contado (9) no reemplaza el vigente (4); la auditoría solo cambia existencias.
+    expect(Number(applied.precioVenta)).toBe(4);
     expect(applied.version).toBe(old.version+1);
     await call('put',`/productos/${productId}`,{version:old.version,precioVenta:5}).expect(409);
-    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).precioVenta)).toBe(9);
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).precioVenta)).toBe(4);
 
   });
   it('QA-INV-002: conciliación obsoleta conserva 12; tras recargar permite una decisión explícita',async()=>{

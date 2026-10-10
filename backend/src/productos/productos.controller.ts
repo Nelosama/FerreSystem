@@ -25,12 +25,13 @@ export class ProductosController {
     @Query('search') search?: string,
     @Query('categoriaId') categoriaId?: string,
     @Query('incluirInactivos') incluirInactivos?: string,
+    @Query('pendientes') pendientes?: string,
   ) {
     // Ver inactivos es parte de la reactivación, que solo puede hacer el administrador.
-    if (incluirInactivos === 'true' && usuario?.rol !== 'ADMIN') {
-      throw new ForbiddenException('Solo el administrador puede ver productos inactivos');
+    if ((incluirInactivos === 'true' || pendientes === 'true') && usuario?.rol !== 'ADMIN') {
+      throw new ForbiddenException('Solo el administrador puede ver productos inactivos o pendientes');
     }
-    return this.productosService.findAll(tenantId, search, categoriaId, incluirInactivos === 'true');
+    return this.productosService.findAll(tenantId, search, categoriaId, incluirInactivos === 'true', pendientes === 'true');
   }
 
   @Get('alertas/stock-bajo')

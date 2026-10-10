@@ -62,6 +62,8 @@ export class MovimientoCajaDto {
 export class AjusteDto {
  @IsUUID('4') solicitudId!: string;
  @IsNumber({maxDecimalPlaces:2}) @Min(0) stock!: number;
+ // Existencias que el operador vio al abrir el ajuste; el servidor rechaza el ajuste si ya cambiaron.
+ @IsNumber({maxDecimalPlaces:2}) @Min(0) stockAnterior!: number;
  @IsString() @IsNotEmpty() @MaxLength(500) motivo!: string;
 }
 export class DevolucionItemDto {
