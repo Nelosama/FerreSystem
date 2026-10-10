@@ -62,6 +62,13 @@ export class ProductosService {
    const reactivando=dto.activo===true&&!old.activo;
    const desactivando=dto.activo===false&&old.activo;
    if((reactivando||desactivando)&&usuario.rol!=='ADMIN')throw new ForbiddenException('Solo el administrador puede activar o desactivar productos');
+   // Regla de precios (dueño): solo ADMIN define costo, precio o margen. Repetir el valor vigente (p. ej. importación) no cuenta como cambio.
+   const cambiaPrecios=(['precioVenta','precioCosto'] as const).some(f=>dto[f]!==undefined&&Number(dto[f])!==Number(old[f]))
+    ||(dto.margen!==undefined&&(dto.margen==null?old.margen!=null:Number(dto.margen)!==Number(old.margen)));
+   if(cambiaPrecios&&usuario.rol!=='ADMIN')throw new ForbiddenException('Solo el administrador puede definir costo, precio o margen');
+   // Pendiente de precio: un producto sin precio de venta aprobado no se habilita para venta.
+   const precioFinal=dto.precioVenta!==undefined?Number(dto.precioVenta):Number(old.precioVenta);
+   if(reactivando&&precioFinal<=0)throw new BadRequestException('Defina el precio de venta antes de habilitar el producto');
    if(dto.stockActual!==undefined&&dto.stockActual<Number(old.stockReservado))throw new ConflictException('El conteo no cubre las ventas pendientes de entrega');
    const cambiaStock=dto.stockActual!==undefined&&Number(old.stockActual)!==dto.stockActual;
    if(cambiaStock&&dto.stockAnterior===undefined)throw new BadRequestException('Recargue el producto antes de ajustar existencias: falta la cantidad anterior');

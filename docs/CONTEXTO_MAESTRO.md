@@ -248,19 +248,41 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 | **QA-AJ-001:** `POST /operaciones/productos/:id/ajuste` fijaba el stock absoluto sin comparar existencias anteriores. Recepción de 5 sobre 10 y ajuste a 12 dejó 12 (se perdieron 3). | P1 | Corregido: `stockAnterior` obligatorio (`operaciones.dto.ts`), comparación bajo bloqueo con `409 PRODUCTO_STOCK`, `version+1`. |
 | **QA-AJ-002:** el mismo endpoint aceptaba ajustes sin cantidad anterior. | P2 | Corregido: `400` antes de escribir. El frontend no llama este endpoint (verificado con búsqueda en el repositorio); la edición de producto ya enviaba `stockAnterior`. |
 | **QA-COS-001:** `GET /operaciones/ventas/buscar` (roles incl. VENDEDOR) devolvía `costo_unitario` de cada línea por `SELECT d.*`. CAJERO estaba cubierto por `CashierResponseInterceptor`; VENDEDOR no. | P1 | Corregido: se quita `costo_unitario` de las líneas de búsqueda. |
-| **LEV-004:** aplicar un conteo sobrescribe `precioCosto`, `precioVenta` y `margen` del catálogo (observado costo 2→7 en PostgreSQL). | P1 | **No corregido: decisión de negocio pendiente.** La prueba existente `QA-INV-001` exige que el precio revisado se aplique; cambiarlo contradice ese diseño. Propuesta: el conteo no cambia costo; solo advertencia en vista previa. |
+| **LEV-004:** aplicar un conteo sobrescribía `precioCosto`, `precioVenta` y `margen` del catálogo (costo 2→7 observado en PostgreSQL). | P1 | **Corregido en PR #134 según la regla definitiva del dueño** (ver bloque siguiente). |
 
 **Pruebas (2026-10-10):** unitarias backend 345/345; integración PostgreSQL 374 pasan y 1 omitida (ya omitida antes) de 375, incluidas las 3 nuevas; `tsc -p tsconfig.build.json` sin errores. No se ejecutaron pruebas de frontend (no se modificó). Tests de tipo de `test/*.ts` reportan globals faltantes (`describe`/`expect`) desde antes de este cambio; no bloquean el build.
 
 **Verificado sin defecto:** costo y margen fuera de productos para CAJERO/VENDEDOR (`publicProduct`); levantamientos solo ADMIN/BODEGUERO; cotizaciones mapean líneas sin costo; `entregas` solo ADMIN/CAJERO/BODEGUERO (CAJERO filtrado por interceptor); recepción conserva costo de la línea de compra y actualiza costo vigente incluso si baja.
 
 **Riesgos restantes (no corregidos):**
-1. LEV-004 (arriba): requiere decisión del dueño sobre si el conteo puede cambiar costo y precio.
+1. Conflictos de diseño abiertos (reportados, no resueltos; ver bloque "Regla definitiva de precios").
 2. Venta sin inventario (`sinInventario`) se acepta para productos con existencias: no hay validación de faltante ni reserva. Requiere regla de negocio antes de endurecer.
 3. Costo manual de producto (ADMIN/BODEGUERO) sigue permitido y auditado, pendiente de decisión (ya registrado).
 4. `cotizaciones.findById` devuelve `tenant: true` completo (no revisado en esta ronda; no es costo).
 5. Compatibilidad: API externa que llame `/ajuste` debe enviar `stockAnterior`.
 6. Sin acreditar: hardware, iPhone, sucursales y aceptación del cliente (sin cambios en esos puntos).
+
+---
+
+## Regla definitiva de precios e inventario — implementación en PR #134 (2026-10-10 UTC)
+
+Regla del dueño: el levantamiento y la auditoría solo cuentan unidades; costo, precio y margen los define el dueño o ADMIN en administración de precios; la recepción de compra actualiza el costo vigente sin tocar el precio de venta.
+
+- **Auditoría (`levantamientos.service.ts`, `aplicar`):** solo cambia `stockActual` y `version` de productos existentes, más movimiento `LEVANTAMIENTO` con responsable. No escribe `precioCosto`, `precioVenta`, `margen`, `marca` ni `codigoBarras`. Diferencias de costo, precio o margen aparecen como `advertencias` en la vista previa.
+- **Producto nuevo por conteo:** se crea con identidad y existencias del conteo, `precioCosto=0`, `precioVenta=0`, `activo=false`, sin margen. Pendiente de precio y fuera de venta (las ventas solo leen productos activos).
+- **Edición de precios (`productos.service.ts`, `update`):** costo, precio o margen solo los cambia ADMIN; repetir el valor vigente no cuenta como cambio (importación). Habilitar un producto exige precio de venta mayor que cero. Cambios siguen auditados en `PRODUCTO_EDITAR`.
+- **Token de vista previa:** incluye precios del catálogo; un cambio de precio entre vista previa y aplicación responde 409.
+- **QA-INV-001 adaptado:** la aplicación ya no reemplaza el precio vigente; versión sí incrementa.
+- **Pruebas:** `inventario-ciclo.postgres.integration.ts` 9/9 (4 de regla fallan con el código anterior y pasan ahora). Se adaptaron tres pruebas unitarias del spec de levantamientos y cuatro de integración (QA-INV-001, dos de `levantamientos` y SEC-005 de `productos`). Cada una conserva su comprobación con la nueva expectativa.
+- **Resultados:** unitarias 345/345; integración PostgreSQL 380 pasan y 1 omitida (preexistente) de 381; `tsc -p tsconfig.build.json` sin errores.
+
+**Conflictos de diseño reportados (sin cambiar flujos ajenos):**
+1. **Módulo de administración de precios no existe.** La edición de producto es hoy la única vía para fijar precios; el dueño debe confirmar si se construye módulo separado antes de esta regla.
+2. **Estado "pendiente de precio" no tiene campo propio.** Hoy se representa con `activo=false` y precio 0. Un campo `precio_aprobado_at` requiere migración: no se creó.
+3. **BODEGUERO puede dar de alta productos con precio** (`POST /productos`, alta directa). Contradice la regla; cambiarlo afecta la alta directa de BODEGUERO que el contexto ya define como vigente.
+4. **Frontend de levantamiento** sigue capturando costo, precio y margen; deben ocultarse o quitarse. No se modificó.
+5. **Recepción de compra** escribe `precio_costo` y `costo_vigente`. La regla habla de costo vigente; el campo `precioCosto` del producto también se actualiza. Confirmar que es el comportamiento esperado.
+6. **Marca y código de barras** ya no se completan desde el conteo en productos existentes (antes sí, si el catálogo estaba vacío). Es una consecuencia de "únicamente cantidades"; confirmar.
 
 ---
 

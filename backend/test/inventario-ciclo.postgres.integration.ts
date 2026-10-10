@@ -4,9 +4,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { createServer } from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
+import { LevantamientosService } from '../src/levantamientos/levantamientos.service';
+import { ProductosService } from '../src/productos/productos.service';
 
 // Auditoría del ciclo de inventario (compra → recepción → ajuste → conteo → aplicación).
 // Clúster PostgreSQL desechable, usuario no root. Nunca usa DATABASE_URL productiva ni migraciones.
@@ -14,7 +16,7 @@ describe('Ciclo de inventario / PostgreSQL real', () => {
   const bin = process.env.PG_BIN || '/usr/bin';
   const exe = (name: string) => join(bin, name);
   let directory: string, prisma: PrismaService, started = false;
-  let operaciones: OperacionesService;
+  let operaciones: OperacionesService, levantamientos: LevantamientosService, productos: ProductosService;
   let tenantId: string, adminId: string, bodegueroId: string, proveedorId: string;
 
   const crearProducto = async (datos: Record<string, unknown>) => (await prisma.producto.create({
@@ -41,6 +43,8 @@ describe('Ciclo de inventario / PostgreSQL real', () => {
     prisma = new PrismaService({ datasources: { db: { url } } });
     await prisma.$connect();
     operaciones = new OperacionesService(prisma);
+    levantamientos = new LevantamientosService(prisma);
+    productos = new ProductosService(prisma);
   }, 180000);
 
   afterAll(async () => {
@@ -111,5 +115,80 @@ describe('Ciclo de inventario / PostgreSQL real', () => {
     expect(venta.items).toHaveLength(1);
     expect(venta.items[0]).not.toHaveProperty('costo_unitario');
     expect(Number(venta.items[0].precio_unitario)).toBe(4);
+  });
+
+  // ── Regla de precios (dueño): auditoría solo cuenta; precios los define ADMIN ──
+  const conteo = async (productoId: string | null, datos: Record<string, unknown>) => {
+    const lev = await levantamientos.create(tenantId, adminId, { nombre: `Conteo ${randomUUID().slice(0, 6)}` } as any);
+    await levantamientos.createItem(tenantId, lev.id, { solicitudId: randomUUID(), descripcion: 'Cable metro', unidad: 'METRO', cantidad: 9, ...datos } as any, adminId);
+    await levantamientos.update(tenantId, lev.id, { estado: 'FINALIZADO' } as any, adminId);
+    return lev;
+  };
+
+  it('aplicar una auditoría solo cambia existencias: costo, precio, margen, marca y código de barras no se tocan', async () => {
+    const productoId = await crearProducto({ stockActual: 8, precioCosto: 2, precioVenta: 4, margen: 50, marca: 'Truper', codigoBarras: '001234' });
+    const lev = await conteo(productoId, { codigo: 'CABLE', codigoBarras: '001234', marca: 'Makita', precioCosto: 7, precioVenta: 9, margen: 90 });
+    const { token } = await levantamientos.previsualizar(tenantId, lev.id);
+    await levantamientos.aplicar(tenantId, adminId, lev.id, token);
+
+    const producto = await prisma.producto.findUniqueOrThrow({ where: { id: productoId } });
+    expect([Number(producto.stockActual), Number(producto.precioCosto), Number(producto.precioVenta), Number(producto.margen), producto.marca, producto.codigoBarras, producto.version])
+      .toEqual([9, 2, 4, 50, 'Truper', '001234', 2]);
+    // Trazabilidad: la diferencia de existencias queda como movimiento con responsable; el precio contado queda advertido.
+    const movimiento = await prisma.movimientoInventario.findFirstOrThrow({ where: { tenantId, productoId, tipo: 'LEVANTAMIENTO' } });
+    expect([Number(movimiento.anterior), Number(movimiento.nuevo), movimiento.usuarioId]).toEqual([8, 9, adminId]);
+    const aplicado = await prisma.auditoriaOperacion.findFirstOrThrow({ where: { tenantId, operacion: 'LEVANTAMIENTO_APLICAR', entidadId: lev.id } });
+    expect(JSON.stringify(aplicado.datos)).toContain('no se aplica');
+  });
+
+  it('un producto nuevo de la auditoría queda pendiente de precio: inactivo, sin precio y fuera de venta', async () => {
+    const lev = await conteo(null, { codigo: 'NUEVO-1', descripcion: 'Varilla 3/8', precioCosto: 25, precioVenta: 35, margen: 40 });
+    const { token } = await levantamientos.previsualizar(tenantId, lev.id);
+    await levantamientos.aplicar(tenantId, adminId, lev.id, token);
+
+    const nuevo = await prisma.producto.findFirstOrThrow({ where: { tenantId, codigo: 'NUEVO-1' } });
+    expect([nuevo.activo, Number(nuevo.precioCosto), Number(nuevo.precioVenta), nuevo.margen, Number(nuevo.stockActual)]).toEqual([false, 0, 0, null, 9]);
+    // Una venta solo encuentra productos activos: el pendiente no se puede vender.
+    expect(await prisma.producto.findFirst({ where: { id: nuevo.id, tenantId, activo: true } })).toBeNull();
+  });
+
+  it('un token de vista previa caduca si cambia el precio del catálogo: no se aplica un conteo con precio viejo', async () => {
+    const productoId = await crearProducto({ stockActual: 8, precioVenta: 4 });
+    const lev = await conteo(productoId, { codigo: 'CABLE', cantidad: 9 } as any);
+    const { token } = await levantamientos.previsualizar(tenantId, lev.id);
+    await productos.update(tenantId, productoId, { version: 1, precioVenta: 5 } as any, adminId);
+    await expect(levantamientos.aplicar(tenantId, adminId, lev.id, token)).rejects.toBeInstanceOf(ConflictException);
+    expect(await stockDe(productoId)).toBe(8);
+  });
+
+  it('aplicar dos veces no duplica movimientos ni existencias', async () => {
+    const productoId = await crearProducto({ stockActual: 8 });
+    const lev = await conteo(productoId, { codigo: 'CABLE' });
+    const { token } = await levantamientos.previsualizar(tenantId, lev.id);
+    await levantamientos.aplicar(tenantId, adminId, lev.id, token);
+    await levantamientos.aplicar(tenantId, adminId, lev.id, token);
+    expect(await stockDe(productoId)).toBe(9);
+    expect(await prisma.movimientoInventario.count({ where: { tenantId, productoId, tipo: 'LEVANTAMIENTO' } })).toBe(1);
+  });
+
+  it('solo ADMIN cambia costo, precio o margen; BODEGUERO conserva existencias y repetir el valor no cuenta como cambio', async () => {
+    const productoId = await crearProducto({ stockActual: 8, precioCosto: 2, precioVenta: 4, margen: 50 });
+    await expect(productos.update(tenantId, productoId, { version: 1, precioVenta: 5 } as any, bodegueroId)).rejects.toBeInstanceOf(ForbiddenException);
+    // Importación repite el valor vigente: no es cambio de precio y no se rechaza.
+    const sinCambio = await productos.update(tenantId, productoId, { version: 1, precioVenta: 4, precioCosto: 2, margen: 50 } as any, bodegueroId);
+    expect(Number(sinCambio.precioVenta)).toBe(4);
+    const ajuste = await productos.update(tenantId, productoId, { version: 2, stockAnterior: 8, stockActual: 10, motivo: 'Conteo' } as any, bodegueroId);
+    expect(Number(ajuste.stockActual)).toBe(10);
+    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).precioVenta)).toBe(4);
+  });
+
+  it('un producto pendiente no se habilita sin precio de venta; el ADMIN lo habilita al definir precio', async () => {
+    const lev = await conteo(null, { codigo: 'PEND-1', descripcion: 'Tornillo' });
+    const { token } = await levantamientos.previsualizar(tenantId, lev.id);
+    await levantamientos.aplicar(tenantId, adminId, lev.id, token);
+    const pendiente = await prisma.producto.findFirstOrThrow({ where: { tenantId, codigo: 'PEND-1' } });
+    await expect(productos.update(tenantId, pendiente.id, { version: pendiente.version, activo: true } as any, adminId)).rejects.toBeInstanceOf(BadRequestException);
+    const habilitado = await productos.update(tenantId, pendiente.id, { version: pendiente.version, activo: true, precioCosto: 1, precioVenta: 2 } as any, adminId);
+    expect([habilitado.activo, Number(habilitado.precioVenta)]).toEqual([true, 2]);
   });
 });

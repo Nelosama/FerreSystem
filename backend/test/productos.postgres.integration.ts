@@ -92,12 +92,19 @@ describe('SEC-005 / HTTP and isolated PostgreSQL', () => {
     const created = await request(app.getHttpServer()).post('/productos').auth(users[role].token, { type: 'bearer' })
       .send({ codigo: `NEW-${role}`, nombre: 'Producto nuevo', categoria: 'Herramientas', precioCosto: 4, precioVenta: 10, margen: 60, stockActual: 8, stockMinimo: 7 }).expect(201);
     expect(created.body).toMatchObject({ precioCosto: 4, precioVenta: 10, margen: '60', stockActual: 8 });
+    // Regla de precios: solo ADMIN cambia costo, precio o margen; BODEGUERO conserva existencias.
+    if (role === 'BODEGUERO') {
+      await request(app.getHttpServer()).put(`/productos/${created.body.id}`).auth(users[role].token, { type: 'bearer' })
+        .send({ version: created.body.version, precioVenta: 12 }).expect(403);
+    }
+    const cambioPrecio = role === 'ADMIN' ? { precioCosto: 6, precioVenta: 12, margen: 50 } : {};
+    const precioEsperado = role === 'ADMIN' ? { precioCosto: 6, precioVenta: 12, margen: '50' } : { precioCosto: 4, precioVenta: 10, margen: '60' };
     const edited = await request(app.getHttpServer()).put(`/productos/${created.body.id}`).auth(users[role].token, { type: 'bearer' })
-      .send({ version: created.body.version, precioCosto: 6, precioVenta: 12, margen: 50, stockAnterior: 8, stockActual: 6, motivo: 'Conteo sintético SEC-005' }).expect(200);
-    expect(edited.body).toMatchObject({ precioCosto: 6, precioVenta: 12, margen: '50', stockActual: 6, stockBajo: true });
+      .send({ version: created.body.version, ...cambioPrecio, stockAnterior: 8, stockActual: 6, motivo: 'Conteo sintético SEC-005' }).expect(200);
+    expect(edited.body).toMatchObject({ ...precioEsperado, stockActual: 6, stockBajo: true });
     const stored = await prisma.producto.findUniqueOrThrow({ where: { id: created.body.id } });
-    expect(Number(stored.precioCosto)).toBe(6);
-    expect(Number(stored.precioVenta)).toBe(12);
+    expect(Number(stored.precioCosto)).toBe(precioEsperado.precioCosto);
+    expect(Number(stored.precioVenta)).toBe(precioEsperado.precioVenta);
     expect(Number(stored.stockActual)).toBe(6);
     expect(await prisma.movimientoInventario.count({ where: { tenantId, productoId: stored.id } })).toBe(2);
     expect(await prisma.auditoriaOperacion.count({ where: { tenantId, entidadId: stored.id, usuarioId: users[role].id } })).toBe(2);

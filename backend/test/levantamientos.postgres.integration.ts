@@ -175,7 +175,8 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     expect(await prisma.movimientoInventario.count({where:{tenantId,tipo:'LEVANTAMIENTO'}})).toBe(4);
     expect(await prisma.compraProveedor.count({where:{tenantId}})).toBe(0);
     const zero=await prisma.producto.findFirstOrThrow({where:{tenantId,nombre:'Canaleta 6 metros'}});
-    expect([Number(zero.stockActual),Number(zero.precioCosto),Number(zero.precioVenta)]).toEqual([0,2,4]);
+    // Regla de precios: el producto nuevo queda pendiente de precio (0), inactivo y no vendible.
+    expect([Number(zero.stockActual),Number(zero.precioCosto),Number(zero.precioVenta),zero.activo]).toEqual([0,0,0,false]);
   });
 
   it('aísla sesiones e items y permite el mismo barcode en otro tenant sin mezclar productos',async()=>{
@@ -292,7 +293,7 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     expect(after.categoria?.nombre).toBe('Fijación');
   });
 
-  it('aplicar un conteo nuevo persiste marca y categoría; en un producto existente solo completa marca vacía y nunca la sobrescribe (FS-06 fase 2)',async()=>{
+  it('aplicar un conteo nuevo persiste marca y categoría; en un producto existente la auditoría no cambia marca ni código de barras (FS-06 fase 2)',async()=>{
     await add(item({descripcion:'Llave inglesa',codigo:'LLAVE-9',marca:'Stanley',categoria:'Herramientas',unidad:'UNIDAD',cantidad:2,precioCosto:5,precioVenta:9})).expect(201);
     await add(item({descripcion:'Cable metro',codigoBarras:'001234',marca:'Truper',cantidad:5,unidad:'METRO'})).expect(201);
     await finish();
@@ -300,8 +301,9 @@ describe('LEV-001 / HTTP and isolated PostgreSQL', () => {
     expect(p.rows.every((r:any)=>r.errores.length===0)).toBe(true);
     await apply(p.token).expect(201);
     const nuevo=await prisma.producto.findFirstOrThrow({where:{tenantId,codigo:'LLAVE-9'},include:{categoria:true}});
-    expect([nuevo.marca,nuevo.categoria?.nombre]).toEqual(['Stanley','Herramientas']);
-    expect((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).marca).toBe('Truper');
+    expect([nuevo.marca,nuevo.categoria?.nombre,nuevo.activo,Number(nuevo.precioVenta)]).toEqual(['Stanley','Herramientas',false,0]);
+    // Regla de auditoría: solo existencias; la marca del catálogo no se llena desde el conteo.
+    expect((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).marca).toBeNull();
     // Segunda aplicación de otro levantamiento: la marca ya existente en catálogo no se reemplaza.
     await prisma.producto.update({where:{id:productId},data:{marca:'Makita'}});
     const lid2=(await call('post','/levantamientos',{nombre:'Segundo conteo'}).expect(201)).body.id;
