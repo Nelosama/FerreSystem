@@ -531,6 +531,51 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - Sidebar y topnav no se validaron visualmente.
 - Esta fase no añade prueba automatizada de cierres de caja históricos (pendiente desde la revisión de PR #103).
 
+#### Validación financiera final de devoluciones con abonos (2026-10-10, PR #104)
+
+**Veredicto sobre reembolsos:** el flujo actual **no genera reembolsos pendientes**. Cada devolución ejecuta en la misma transacción: (1) cancela primero el crédito pendiente de la CxC, (2) reduce el saldo del cliente y `saldo_credito` por ese importe, (3) calcula el reembolso como `monto − crédito cancelado` (el excedente pagado), (4) si hay reembolso, registra un movimiento de caja negativo en la **caja abierta del solicitante**, verificando efectivo suficiente cuando el método es EFECTIVO, y (5) guarda devolución, método, caja, responsable y auditoría. Es lo que documenta la regla de devoluciones: el reembolso sale de la caja del solicitante. No existe un estado "reembolso pendiente". Si el negocio quiere reembolsos diferidos, es una decisión nueva (ver pendientes).
+
+**Fuente de verdad de los saldos:** la CxC (`cuentas_operativas.saldo`). `clientes.saldo_pendiente` y `ventas.saldo_credito` son derivados que se actualizan en la misma transacción. Invariante verificada: `saldo CxC = monto − pagos aplicados − crédito cancelado por devoluciones`.
+
+**Escenarios probados** (PostgreSQL real; venta de 1 unidad a 100 + ISV = 115.00; abono de 30 % = 34.50):
+| Escenario | Resultado verificado |
+|---|---|
+| A. Sin abonos | Crédito cancelado 115.00, reembolso 0.00, sin movimiento de caja, crédito disponible vuelve a 250 (límite), 1 auditoría |
+| B. Abono 34.50 | Crédito cancelado 80.50 + reembolso 34.50 = 115.00. Caja −34.50 (un movimiento, usuario y método). Abono conservado en `pagos_cuenta` |
+| C. Pagada 115.00 | Crédito cancelado 0.00, reembolso 115.00, caja −115.00, devolución trazable (caja, usuario, método) |
+| D. Reintentos | Misma solicitud devuelve el mismo registro sin nuevos efectos. Segunda solicitud sobre venta cancelada se rechaza. Una devolución, un movimiento, una auditoría |
+| E. Concurrencia (orden 1 y 2 secuenciales, y concurrente en sesiones independientes) | Orden abono→cancelación: reembolso 34.50. Orden cancelación→abono: abono rechazado (saldo 0), caja sin cambio. En concurrencia, solo son válidos esos dos resultados; la CxC, el cliente y la venta cuadran en ambos |
+| F. Fallo intermedio (trigger de error tras escribir CxC, cliente, venta y devolución) | Estado idéntico al previo (CxC, cliente, venta, caja, devoluciones, auditoría, stock). Después, la misma solicitud se ejecuta una sola vez |
+| Devoluciones parciales sucesivas (2 unidades, abono 69.00) | Primera: crédito 115.00, reembolso 0. Segunda: crédito 46.00, reembolso 69.00. Total reembolsos 69.00 = pagado; crédito + reembolsos = 230.00 |
+| Ruta 410 `POST /clientes/:id/abonos` | Sin pagos, sin saldos alterados, sin movimientos de caja ni abonos creados |
+| Permisos | CAJERO no puede cancelar directamente; otra empresa no puede cancelar; autorizador que pierde el rol impide la ejecución |
+| Caja cerrada | Sus movimientos no cambian al cancelar una venta con abonos |
+
+**Estado de caja** (efectivo, variación por operación): A 0.00 · B −34.50 · C −115.00 · D −34.50 (una sola vez) · E orden 1: −34.50 respecto a la caja tras el abono; concurrente: 0.00 si ambas se confirman; si solo se confirma la cancelación, la caja no cambia · F 0.00 tras el fallo y −34.50 al reintentar.
+
+**Defecto confirmado y corregido en esta revisión:** ninguno en el flujo de reembolsos. Se corrigió la **aserción** de la prueba de caso 5 (concurrencia): asumía que solo prosperaba una de las dos operaciones, lo que venía del bloqueo que se revirtió. Ahora acepta los dos órdenes válidos y verifica cada uno. Las pruebas de orden secuencial lo fijan explícitamente.
+
+**Tratamiento de caja:** registra reembolso automático en la caja abierta del solicitante y no en cierres históricos (la caja debe estar `ABIERTA`). Exige autorización de otro administrador cuando la solicitud la hace un cajero. El administrador que cancela directamente se autoriza a sí mismo (diseño existente, no modificado). Guarda método y responsable.
+
+**Conciliación histórica (solo lectura):** `backend/scripts/conciliacion-credito-lectura.sql` (8 consultas): CxC sin cliente, saldo de cliente que no concilia con sus CxC, venta a crédito sin CxC, firma de conversión antigua (método CREDITO con tipo CONTADO), `ventas.saldo_credito` que no concilia, CxC que no concilia con pagos y devoluciones, reembolsos sin movimiento de caja, y abonos de la ruta heredada (informativo). La prueba verifica cero falsos positivos sobre flujos válidos, detección de anomalías sembradas y que la consulta no modifica datos. **No se ejecutó sobre producción.**
+
+**Antes de una eventual conciliación real hay que verificar:** (1) cuántas conversiones de cotización a crédito se hicieron antes de la corrección y cuáles aún no reflejan saldo del cliente; (2) si hubo abonos por la ruta heredada (`abonos_cliente`) y en qué caja se registraron, porque no tienen pago ni movimiento de caja; (3) qué cierres de caja contienen efectivo de devoluciones o abonos; (4) si algún cliente tiene saldo distinto de la suma de sus CxC; (5) decisión del propietario sobre cada hallazgo antes de corregir.
+
+**Pruebas (ejecutadas):** integración PostgreSQL 16, usuario no root, cadena completa de migraciones: 203/203 en 10 archivos (la suite de crédito tiene 34 casos). Unitarias 326/326. `tsc`, `nest build` y `oxlint` sin errores. Frontend: 157/157, `tsc -b` y build correctos. Playwright 85/85 con backend simulado.
+
+**Frontend:** Cuentas usa `POST /operaciones/cuentas/:id/pagos` con solicitud idempotente. No hay llamadas a `/clientes/:id/abonos`.
+
+**Riesgos residuales**
+- Caso 4 (dos cajeros) y caso 6 (revocación) siguen sin probarse con usuarios concurrentes distintos.
+- La conciliación no se ha ejecutado sobre datos reales.
+- Playwright usa backend simulado.
+- El importe mostrado al administrador es estimado.
+
+**Decisiones de negocio pendientes**
+1. ¿El reembolso debe ser inmediato desde la caja (como está documentado) o diferido como obligación? Hoy no hay estado diferido.
+2. ¿El administrador puede cancelar directamente su propia venta a crédito sin segunda autorización? Hoy sí.
+3. Eliminar o mantener bloqueada `POST /clientes/:id/abonos` (decisión de la fase anterior).
+
 ### FS-07 — edición integral y segura de productos (2026-10-09)
 
 - **Base:** `main` `52703309` (PR #101, FS-06 fase 2, **ya fusionado** por `Nelosama` el 2026-10-09 20:43 UTC; CI de `59e39313` en success). Rama `fix/fs-07-edicion-productos`. PR abierto hacia `main`. Sin merge ni despliegue.
