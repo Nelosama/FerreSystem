@@ -126,7 +126,7 @@ test.describe('Compra al contado (simulado)', () => {
     test.use({ rol: 'ADMIN' });
       test('ADMIN marca compra al contado y el payload lleva pagoContado sin mencionar caja', async ({ page, sim }) => {
     await ingresar(page, '/ordenes-compra');
-    await expect(page.getByRole('heading', { name: 'Registrar factura de compra' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '1. Nueva compra' })).toBeVisible();
     await page.getByRole('checkbox', { name: 'Pagar al contado al registrar' }).check();
     await expect(page.getByText(/NO descuenta la caja del turno/)).toBeVisible();
     await page.getByLabel('Método de pago').selectOption('TARJETA');
@@ -135,7 +135,7 @@ test.describe('Compra al contado (simulado)', () => {
     await page.getByLabel('Producto').selectOption('prod-1');
     await page.getByLabel('Cantidad').fill('5');
     await page.getByRole('button', { name: 'Agregar producto' }).click();
-    await page.getByRole('button', { name: 'Registrar factura' }).click();
+    await page.getByRole('button', { name: 'Confirmar compra' }).click();
     await expect.poll(() => sim.compras.length).toBe(1);
     expect(sim.compras[0]).toMatchObject({ proveedorId: 'prov-1', numeroFactura: 'FAC-900', pagoContado: { metodo: 'TARJETA' } });
     });
@@ -145,7 +145,7 @@ test.describe('Compra al contado (simulado)', () => {
     test.use({ rol: 'BODEGUERO' });
     test('no ve el selector de pago al contado', async ({ page, sim }) => {
       await ingresar(page, '/ordenes-compra');
-      await expect(page.getByRole('heading', { name: 'Registrar factura de compra' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: '1. Nueva compra' })).toBeVisible();
       await expect(page.getByRole('checkbox', { name: 'Pagar al contado al registrar' })).toHaveCount(0);
       expect(sim.compras).toEqual([]);
     });

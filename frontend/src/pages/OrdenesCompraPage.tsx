@@ -1,2 +1,3 @@
-import { OperacionesPage } from './OperacionesPage';
-export const OrdenesCompraPage = () => <OperacionesPage modo="compras"/>;
+import { ComprasPage } from './ComprasPage';
+
+export const OrdenesCompraPage = () => <ComprasPage />;

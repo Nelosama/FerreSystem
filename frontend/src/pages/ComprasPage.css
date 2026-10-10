@@ -1,0 +1,21 @@
+/* Compras: formularios de una columna en teléfono; dos o más columnas en computadora. */
+.compras-page { padding: 0 16px 24px; display: flex; flex-direction: column; gap: 16px; }
+.compras-card, .compras-lista article { display: flex; flex-direction: column; gap: 12px; }
+.compras-grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.compras-grid label, .compras-cantidad { display: flex; flex-direction: column; gap: 4px; font-weight: 600; min-width: 0; }
+.compras-lineas-nuevas { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.compras-lineas-nuevas legend { font-weight: 700; margin-bottom: 4px; }
+.compras-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.compras-items li { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--color-border, #d4d4d8); border-radius: 8px; }
+.compras-item-nombre { font-weight: 700; overflow-wrap: anywhere; }
+.compras-cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.compras-cabecera h3 { margin: 0; font-size: 17px; overflow-wrap: anywhere; }
+.compras-totales, .compras-vacio { margin: 0; }
+.compras-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.compras-error { color: #b91c1c; font-weight: 600; margin: 0; }
+.compras-ok { color: #166534; font-weight: 600; margin: 0; }
+@media (min-width: 900px) {
+  .compras-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; }
+  .compras-lista { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .compras-lista > h2 { grid-column: 1 / -1; }
+}
