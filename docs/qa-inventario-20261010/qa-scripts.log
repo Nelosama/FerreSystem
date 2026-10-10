@@ -1,0 +1,29 @@
+
+> backend@0.0.1 test:scripts
+> node --test scripts/*.test.mjs
+
+✔ requires remote encrypted repository, explicit source, bounded retention/frequency (8.672703ms)
+✔ upload/readback/restore precede retention; corruption and restore errors never prune (237.386073ms)
+{"at":"2026-10-10T01:11:22.751Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+{"at":"2026-10-10T01:11:22.767Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+{"at":"2026-10-10T01:11:22.771Z","success":true,"alertDelivery":"failed"}
+{"at":"2026-10-10T01:11:22.780Z","success":false,"errorCode":"DUMP","alertDelivery":"failed"}
+✔ bounded exponential retry records every run, last success survives failure and restart (92.876909ms)
+✔ webhook failures remain visible and payload contains no database details (3.92992ms)
+✔ restore environment cannot inherit source service, URL, credentials or cloud secrets (60.999971ms)
+✔ scheduler runs independently, waits configured interval and never overlaps cycles (0.977309ms)
+✔ rechaza destinos nuevos dentro del proyecto mediante un enlace externo (5.781415ms)
+✔ canonicaliza destinos externos y distingue el proyecto de un directorio hermano (1.098098ms)
+✔ no trata un enlace roto como un ancestro pendiente de crear (4.1262ms)
+✔ prepare y preflight rechazan enlaces al repositorio antes de crear archivos (367.188694ms)
+✔ prepare conserva barras POSIX y dólares literales en la configuración Compose (906.519014ms)
+✔ preflight informa por IPC el respaldo verificado después de escribir su manifiesto (594.782464ms)
+✔ preflight no anuncia un respaldo cuya validación de archivo falla (738.880974ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3650.307485
