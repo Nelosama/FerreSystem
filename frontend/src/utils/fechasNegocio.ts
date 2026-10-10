@@ -15,30 +15,11 @@ const parseDia = (dia: string): [number, number, number] => {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-const diasDelMes = (anio: number, mes: number) => new Date(Date.UTC(anio, mes, 0)).getUTCDate();
-
 /** Suma días a un día calendario YYYY-MM-DD. Ej: ('2026-10-09', 30) -> '2026-11-08'. */
 export function sumarDiasCalendario(dia: string, dias: number): string {
   const [y, m, d] = parseDia(dia);
   const fecha = new Date(Date.UTC(y, m - 1, d + dias));
   return `${fecha.getUTCFullYear()}-${pad(fecha.getUTCMonth() + 1)}-${pad(fecha.getUTCDate())}`;
-}
-
-/**
- * Suma meses a un día calendario YYYY-MM-DD con regla de último día válido: si el día
- * no existe en el mes destino, se usa el último día de ese mes.
- * Ej: ('2026-01-31', 1) -> '2026-02-28'; ('2028-01-31', 1) -> '2028-02-29';
- *     ('2026-11-30', 3) -> '2027-02-28'; ('2026-10-09', 12) -> '2027-10-09'.
- *
- * SUPUESTO TÉCNICO: los requisitos no fijan esta regla para garantías. Requiere
- * validación del responsable funcional antes de usarla en producción.
- */
-export function sumarMesesCalendario(dia: string, meses: number): string {
-  const [y, m, d] = parseDia(dia);
-  const total = m - 1 + meses;
-  const anio = y + Math.floor(total / 12);
-  const mes = ((total % 12) + 12) % 12;
-  return `${anio}-${pad(mes + 1)}-${pad(Math.min(d, diasDelMes(anio, mes + 1)))}`;
 }
 
 /**
