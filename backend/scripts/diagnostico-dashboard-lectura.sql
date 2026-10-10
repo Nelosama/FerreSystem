@@ -1,15 +1,45 @@
 -- Diagnóstico de SOLO LECTURA del esquema que usa el resumen del dashboard (DashboardService).
--- Compara las columnas que Prisma selecciona (generadas desde prisma/schema.prisma) con
+-- Compara el esquema completo de los modelos implicados (prisma/schema.prisma) con
 -- information_schema de la base indicada. No crea, altera ni borra nada. Termina con ROLLBACK.
 --
 -- Ejecutar en PRODUCCIÓN solo con autorización del responsable y con un usuario de solo lectura:
 --   psql "$URL_LECTURA" -X -v ON_ERROR_STOP=1 -f backend/scripts/diagnostico-dashboard-lectura.sql
 -- No pegar la URL con contraseña en tickets ni en el repositorio.
 
-BEGIN;
-SET TRANSACTION READ ONLY;
+BEGIN READ ONLY;
+SET LOCAL search_path = pg_catalog, public;
+SET LOCAL statement_timeout = '15s';
+SET LOCAL lock_timeout = '3s';
 
--- 1. Columnas que Prisma espera y que faltan en la base (lo que más probablemente produce el 500).
+-- 0. Requisitos de las consultas explícitas del resumen actual. No consulta datos comerciales.
+\echo 'COLUMNAS NECESARIAS PARA EL DASHBOARD ACTUAL QUE NO SON VISIBLES'
+WITH requeridas(tabla, columnas) AS (VALUES
+  ('ventas', ARRAY['id','tenant_id','estado','created_at','total','numero_venta','metodo_pago','cliente_id','usuario_id']),
+  ('productos', ARRAY['id','tenant_id','activo','codigo','nombre','stock_actual','stock_reservado','stock_minimo','unidad_medida']),
+  ('devoluciones', ARRAY['tenant_id','created_at','monto']),
+  ('cotizaciones', ARRAY['tenant_id','estado','fecha_validez']),
+  ('usuarios', ARRAY['id','nombre']),
+  ('clientes', ARRAY['id','nombre'])
+)
+SELECT r.tabla, columna
+FROM requeridas r CROSS JOIN LATERAL unnest(r.columnas) AS columna
+WHERE NOT EXISTS (
+  SELECT 1 FROM information_schema.columns c
+  WHERE c.table_schema = 'public' AND c.table_name = r.tabla AND c.column_name = columna
+)
+ORDER BY r.tabla, columna;
+
+-- information_schema oculta objetos sin permisos. Distinguirlos de objetos ausentes.
+SELECT tabla, to_regclass('public.' || tabla) IS NOT NULL AS existe,
+  has_schema_privilege(current_user, 'public', 'USAGE') AS acceso_esquema,
+  CASE WHEN to_regclass('public.' || tabla) IS NOT NULL
+    THEN has_table_privilege(current_user, to_regclass('public.' || tabla), 'SELECT')
+    ELSE NULL END AS lectura_tabla
+FROM (VALUES ('ventas'), ('productos'), ('devoluciones'), ('cotizaciones'), ('usuarios'), ('clientes')) AS t(tabla);
+
+-- 1. Desajustes del esquema completo. Una columna ausente solo explica el 500 si la
+-- consulta del backend desplegado la utiliza. El resumen actual usa SELECT explícitos.
+\echo 'COLUMNAS DEL ESQUEMA COMPLETO QUE NO SON VISIBLES'
 WITH esperadas(tabla, columna) AS (VALUES
   ('ventas', 'reserva_pendiente'),
   ('ventas', 'id'),
@@ -140,7 +170,7 @@ WHERE p.tablename IS NULL;
 SELECT to_regclass('public._prisma_migrations') IS NOT NULL AS tiene_historial \gset
 \if :tiene_historial
 SELECT migration_name, finished_at, rolled_back_at
-FROM _prisma_migrations
+FROM public._prisma_migrations
 WHERE migration_name >= '20260925'
 ORDER BY migration_name;
 \else

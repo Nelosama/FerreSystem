@@ -22,6 +22,7 @@ export class DashboardService {
 
     // 1. Ventas del día (HNL)
     const ventasHoy = await this.prisma.venta.findMany({
+      select: { total: true },
       where: {
         tenantId,
         estado: 'COMPLETADA',
@@ -34,6 +35,7 @@ export class DashboardService {
 
     // Ventas de ayer para variación porcentual
     const ventasAyer = await this.prisma.venta.findMany({
+      select: { total: true },
       where: {
         tenantId,
         estado: 'COMPLETADA',
@@ -54,7 +56,11 @@ export class DashboardService {
     // 2. Alertas de stock bajo
     const productos = await this.prisma.producto.findMany({
       where: { tenantId, activo: true },
-      include: { categoria: { select: { nombre: true } } },
+      // Seleccionar únicamente datos del resumen evita depender de columnas de otros módulos.
+      select: {
+        id: true, codigo: true, nombre: true, stockActual: true,
+        stockReservado: true, stockMinimo: true, unidadMedida: true,
+      },
       orderBy: { stockActual: 'asc' },
     });
 
@@ -62,6 +68,7 @@ export class DashboardService {
 
     // 3. Cotizaciones pendientes y por vencer hoy
     const cotizaciones = await this.prisma.cotizacion.findMany({
+      select: { fechaValidez: true },
       where: {
         tenantId,
         estado: { in: ['BORRADOR', 'ENVIADA', 'APROBADA'] },
@@ -85,6 +92,7 @@ export class DashboardService {
       const { inicio, fin } = rangoDiasEnZona(dia, dia, zona);
 
       const ventasDia = await this.prisma.venta.findMany({
+        select: { total: true },
         where: {
           tenantId,
           estado: 'COMPLETADA',
@@ -107,7 +115,8 @@ export class DashboardService {
     // 5. Últimas ventas
     const ultimasVentas = await this.prisma.venta.findMany({
       where: { tenantId },
-      include: {
+      select: {
+        id: true, numeroVenta: true, total: true, metodoPago: true, createdAt: true,
         cliente: { select: { nombre: true } },
         usuario: { select: { nombre: true } },
       },
