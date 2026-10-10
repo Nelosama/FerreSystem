@@ -97,7 +97,9 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
     if (role === 'BODEGUERO') await expect(page.locator('.daily-tasks a[href="/entregas"]')).toHaveCount(enabled ? 1 : 0);
     if (['ADMIN', 'CAJERO'].includes(role)) {
       await expect(nav.locator('a[href="/arqueo-caja"]')).toHaveCount(1);
-      if (mode === 'TOPNAV') await nav.getByRole('button', { name: 'Clientes y cobros' }).click();
+      // FS-14: el cajero ya no tiene Clientes; con un solo ítem la categoría puede no mostrarse como grupo.
+      const grupoCobros = nav.getByRole('button', { name: 'Clientes y cobros' });
+      if (mode === 'TOPNAV' && await grupoCobros.count()) await grupoCobros.click();
       await expect(nav.locator('a[href="/cuentas"]')).toHaveCount(1);
     }
     await page.setViewportSize({ width: 390, height: 844 });

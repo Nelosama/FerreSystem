@@ -87,7 +87,7 @@ describe('Reportes FS-05 / PostgreSQL aislado', () => {
       '20261005000000_compras_proveedor_y_costo_vigente',
       '20261006000000_clientes_credito',
       '20261006000100_tenant_configuration',
-      '20261009000000_levantamiento_multiusuario', '20261009120000_fs06_marca_idempotencia_levantamiento', '20261009130000_fs07_version_producto',
+      '20261009000000_levantamiento_multiusuario', '20261009120000_fs06_marca_idempotencia_levantamiento', '20261009130000_fs07_version_producto', '20261010140000_productos_proveedores',
     ]) {
       psqlFile(resolve(`prisma/migrations/${migration}/migration.sql`));
     }
