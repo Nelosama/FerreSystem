@@ -64,7 +64,7 @@
 | Garantías PostgreSQL | 37/37 (incluye VENDEDOR 403 y responsables por nombre) |
 | Reportes PostgreSQL (zona horaria, base + ISV = total) | 20/20 |
 | Frontend unitarias | 224/224 (incluye guardia de módulos pendientes) |
-| Playwright Chromium | Ver registro final en §7 |
+| Playwright Chromium | 119/119 (incluye 7 E2E del panel de proveedores, estado de cuenta y compra al contado, más la sugerencia de preferido) |
 
 ## 7. Límites y riesgos
 
