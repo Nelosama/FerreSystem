@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { ProveedoresProductoPanel } from './ProveedoresProductoPanel';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
@@ -207,6 +208,7 @@ export const ProductoGestion: React.FC<{ productos: any[]; onSaved: () => Promis
         </>
       )}
 
+      {selected && <ProveedoresProductoPanel productoId={selected.id} productoNombre={selected.nombre} soloLectura={isReadOnly} />}
       {history && (
         <>
           <h3>{t('product_edit.history_title')}</h3>

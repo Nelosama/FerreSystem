@@ -20,6 +20,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
 import { LevantamientosModule } from './levantamientos/levantamientos.module';
 import { ProveedoresModule } from './proveedores/proveedores.module';
 import { GarantiasModule } from './garantias/garantias.module';
+import { ContingenciaModule } from './contingencia/contingencia.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { GarantiasModule } from './garantias/garantias.module';
     OperacionesModule,
     ProveedoresModule,
     GarantiasModule,
+    ContingenciaModule,
   ],
   controllers: [HealthController, BackupStatusController],
   providers: [

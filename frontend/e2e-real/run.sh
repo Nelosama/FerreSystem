@@ -19,6 +19,7 @@ export E2E_API_URL="http://127.0.0.1:${API_PORT}/api"
 export E2E_DIST="$WORK/dist"
 export E2E_API_TARGET="http://127.0.0.1:${API_PORT}"
 export PG_BIN
+export POS_OFFLINE_ENABLED=true
 export E2E_PG_PORT="$PG_PORT"
 API_PID=""
 cleanup() {

@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-10, America/Tegucigalpa** — arquitectura de continuidad POS, fase exclusivamente documental desde `main` `5eae989d`; ver bloque siguiente. Las bitácoras anteriores se conservan como fotografías fechadas y no sustituyen el estado de Git.
+Última revisión: **2026-10-10, America/Tegucigalpa** — implementación P1 de operaciones en `claude/p1-operaciones` desde `main` `7ccfad25` (ver bloque siguiente). El bloque de continuidad POS se conserva debajo. Las bitácoras anteriores se conservan como fotografías fechadas y no sustituyen el estado de Git.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -21,6 +21,132 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
 
 ---
+
+## P1 operaciones — implementación (2026-10-10, rama `claude/p1-operaciones`)
+
+- **Base:** `main` `7ccfad25`. Rama nueva; sin merge, sin despliegue, sin migraciones productivas. No se tocaron `POSPage.tsx`, contingencia, sincronización, service worker ni IndexedDB (trabajo del agente POS en `claude/pos-offline-*`).
+- **Migración nueva (aditiva):** `backend/prisma/migrations/20261010140000_productos_proveedores` (tabla `productos_proveedores`). Modelo Prisma añadido en `schema.prisma` con relaciones inversas en `Producto` y `Proveedor`; no se reformateó el archivo. Aplicar con `prisma migrate deploy` tras copia de seguridad y autorización; **no** usar `prisma migrate dev` contra producción (drift de tablas heredadas). Las listas explícitas de migraciones de `ventas.postgres.integration.ts` y `reportes-zona-horaria.postgres.integration.ts` incluyen esta migración.
+
+| Ítem | Estado | Commit | Evidencia |
+|---|---|---|---|
+| FS-14 Menú y ruta de Clientes vs. 403 | Corregido | `b5657475`, `73da8cbe` | Clientes solo ADMIN en menú y ruta; `GET /clientes/buscar` admite VENDEDOR (sin saldos ni límites). `taskNavigation.test.mjs` y `navigation-settings.spec.ts` 41/41 |
+| FS-18 Auditoría de crédito de clientes | Corregido | `c4566f91` | `CLIENTE_CREDITO_EDITAR` con antes/después en la misma transacción; fallo forzado de auditoría revierte el cambio. `clientes-credito-auditoria.postgres.integration.ts` 4/4 |
+| FS-10 Rubro del negocio solo Super Admin | Parcial | `f54b7542` | ADMIN recibe 403 al cambiar `configuracion.rubro`; reenviar el valor vigente sigue permitido. **Pendiente:** idioma por empresa y ocultar selector en ADMIN/CAJERO |
+| Proveedores asociados a producto (alta, código, preferido, último costo) | Implementado | `6b5ae8c4`, `9c53c524` | `GET/PUT/DELETE /operaciones/productos/:id/proveedores/:proveedorId`; la recepción asocia el proveedor y guarda último costo (sube y baja) sin cambiar costo vigente ni historial. `productos-proveedores.postgres.integration.ts` 9/9; mutación (sin hook) hace fallar 4 pruebas |
+| Compra al contado (D1) | Implementado | `8fab4105` | `pagoContado` en `POST /operaciones/compras`; pago en la misma transacción, sin caja (FS-09), solo ADMIN, reintento sin doble pago. `compras-contado.postgres.integration.ts` 7/7 |
+| Estado de cuenta de cliente | API implementada, sin pantalla | `cb41e8dd` | `GET /operaciones/clientes/:id/estado-cuenta` (solo ADMIN): cuentas CXC, abonos, vencimiento por día de negocio y conciliación con el saldo del cliente. `estado-cuenta-cliente.postgres.integration.ts` 3/3 |
+| Resumen administrativo para iPhone | Implementado | `024f4f45` | Ruta `/admin-movil` (solo ADMIN): ventas del día, cajas abiertas, existencias bajo mínimo, clientes con saldo, CxP a 7 días, solicitudes pendientes, reportes. `resumen-movil.test.mjs` 6/6; `admin-movil-simulado.spec.ts` 3/3 a 390 px (backend simulado) |
+| Restricción de módulo en rutas de inventario | Corregido | `9c53c524` | Un commit anterior había desplazado `@RequiredModule('inventario')` del historial; regresión detectada por `operation-modules.http.spec.ts` |
+
+**Segunda ronda (2026-10-10, PR #127, sin merge):**
+
+| Ítem | Estado | Evidencia |
+|---|---|---|
+| Pantalla de proveedores por producto | Terminado | `frontend/src/components/ProveedoresProductoPanel.tsx`, dentro de la ficha de producto. E2E `p1-operaciones-simulado.spec.ts` (alta con código y preferido; error de inactivo) |
+| Compra al contado y fuente del pago | Terminado (ADMIN) | Selector en Órdenes de compra. Fuente declarada en pantalla: fondos administrativos, **no caja**. El backend nunca descuenta caja (FS-09). E2E: payload con `pagoContado`; BODEGUERO sin selector |
+| Estado de cuenta de clientes | Terminado (ADMIN) | `/estado-cuenta-clientes` + ítem de menú. Saldo, límite, conciliación, vencidas y abonos. E2E ADMIN; CAJERO y VENDEDOR sin acceso |
+| Permisos del estado de cuenta y buscador | Revisado | Estado de cuenta solo ADMIN (403 a CAJERO, BODEGUERO, VENDEDOR). Buscador a VENDEDOR: conjunto exacto `codigo, creditoHabilitado, id, nombre, numeroCliente, rtn, telefono`; sin saldo, límite, correo ni dirección. Prueba PG negativa |
+| Admin móvil (sin POS offline) | Terminado en su alcance | Accesos a estados de cuenta, inventario, cuentas y arqueo. Sigue sin prueba en iPhone físico |
+| Compatibilidad con `claude/pos-offline-backend` | Analizada, **no integrada** | Ver bloque siguiente |
+
+**Compatibilidad con `claude/pos-offline-backend` (no fusionada):**
+- Su migración `20261011000000_pos_contingencia_offline` crea 4 tablas nuevas y hace `ALTER TABLE ventas`. No toca tablas que cambia esta rama, y su nombre no choca con `20261010140000_productos_proveedores`.
+- El esquema choca **textualmente** al fusionar: ambos añaden modelos al final de `schema.prisma`. Resolución: conservar los dos bloques. Verificado en un worktree desechable; no se incorporó nada.
+- Las listas explícitas de migraciones de `ventas.postgres.integration.ts` y `reportes-zona-horaria.postgres.integration.ts` también chocan. Al integrar, deben incluir **las dos** migraciones nuevas.
+- `CONTEXTO_MAESTRO.md` choca al fusionar. Resolver a mano, sin borrar bloques de ninguno.
+- Su migración altera `ventas`; su DBA debe revisar ambas en orden antes de `migrate deploy`.
+
+**Regresión encontrada y corregida:** el panel nuevo llamaba `GET /operaciones/productos/:id/proveedores`, que el simulador de edición de productos no conocía. Fallaban 9 pruebas E2E. Corregido en `productos-edicion.spec.ts`.
+
+**Pruebas ejecutadas (2026-10-10, entorno local):**
+- Backend unitarias: **330/330** (`npx vitest run`).
+- Integración PostgreSQL 16, cadena completa de migraciones, usuario no root: suite completa **19 archivos, 336 aprobadas, 1 omitida**, sin fallos. Ejecutada antes del último commit (`cb41e8dd`); ese archivo se verificó aparte (3/3).
+- Frontend unitarias: **191/191** (`node --test test/*.test.mjs`); `tsc -b` correcto; `oxlint` sin errores en archivos tocados (avisos `set-state-in-effect` del patrón existente).
+- Segunda ronda: integración PostgreSQL **20 archivos, 340 aprobadas, 1 omitida**; backend unitarias **330/330**; frontend unitarias **191/191**; Playwright Chromium **116/116** (incluye 7 E2E nuevas).
+- Playwright Chromium: **109/109** tras ajustar `navigation-settings.spec.ts` (con FS-14, el grupo "Clientes y cobros" del cajero ya no aparece con un solo ítem). Las E2E usan backend simulado: validan interfaz y contrato, no persistencia.
+
+**Clasificación de módulos (Fase 6):**
+- Garantías: **parcialmente funcional** (flujo real verificado en `main` según sección de garantías; oculto en menú por `PENDING_MODULES`).
+- Devoluciones y crédito: **funcional y verificado** en PostgreSQL (suites de crédito y devoluciones).
+- Reportes administrativos: **funcional y verificado** en PostgreSQL (zona horaria de negocio).
+- Comisiones: **bloqueado por decisión de negocio**. La pantalla usa estado en memoria, periodo fijo de marzo 2026 y no hay backend ni modelo; falta definir la base de cálculo.
+- Apartados, transferencias (sin modelo de sucursal), pedidos especiales y listas de precio: **pendientes**, ocultos en menú. Transferencias además **bloqueada por sucursales**.
+
+**Pendientes y dependencias (no tocados por no ser ámbito de este trabajo o por requerir decisión):**
+1. **FS-15** venta sin vencimiento por defecto y **FS-20** límite de descuento inconsistente: dependen del POS (`POSPage.tsx`, ventas). Propuesta de integración separada para el agente POS.
+2. **FS-13** recibo sin datos fiscales y rótulo de crédito: POS/recibo; mismo bloqueo.
+3. **FS-16** comisiones: decisión de negocio sobre base y periodo; luego modelo y API.
+4. **FS-17** sucursales ficticias en Usuarios: no hay modelo de sucursal; quitar las opciones falsas es corrección pendiente de autorización.
+5. **FS-10** idioma por empresa y selector solo en configuración del Super Admin.
+6. Pantalla de estado de cuenta de cliente (existe API).
+7. Pantalla de proveedores por producto dentro de la ficha de producto (existe API). Sin UI.
+8. Compra al contado sin selector en la pantalla de compras (existe API).
+9. Hallazgos antiguos que siguen abiertos fuera de este alcance: `coberturas_garantia` no figura en las listas explícitas de migraciones de ventas y reportes.
+
+**Riesgos:** pruebas E2E con backend simulado; el resumen móvil no se ha probado en iPhone físico; la migración requiere revisión de DBA antes de aplicarse.
+
+---
+
+## POS offline de contingencia (efectivo) — implementación y pruebas (2026-10-10)
+
+- **Ramas/commits:** `claude/pos-offline-contingencia` (diseño y caracterización, `e30e9a1c`); `claude/pos-offline-backend` (esquema, migración aditiva, servicio, controlador, pruebas PostgreSQL y frontend offline: `4eacd14c` y `cd1dfaf9`). Sin merge, migración en producción ni despliegue.
+- **Activación:** apagada por defecto. Requiere `POS_OFFLINE_ENABLED=true` en el entorno **y** `configuracion.contingenciaOffline.habilitada` por empresa (la activa un ADMIN). Sin ambas, el backend responde 403/409.
+- **Alcance implementado (solo efectivo):** ventana de contingencia con instantánea de precios y cupo conservador (50 % de lo libre por defecto); una caja de contingencia por empresa (`dispositivosMax=1`); diario local en IndexedDB con confirmación solo tras transacción completa; correlativo local `CT-NN-NNNN` y definitivo `V-NNNNNNNN`; sincronización idempotente por UUID; conflictos en revisión sin rechazo silencioso; referencia de factura externa (no es numeración fiscal).
+- **Backend:** `backend/src/contingencia/` (controlador `/contingencia/*`, servicio, DTOs). Migración `20261011000000_pos_contingencia_offline`: 4 tablas nuevas, columnas aditivas en `ventas`, trigger que impide UPDATE y DELETE de la carga recibida. `backend/src/common/dinero.ts` comparte vectores con el frontend.
+- **Frontend:** `src/offline/` (db, journal, sync, ventana, money), `pages/PosContingenciaPage.tsx` (ruta `/pos-contingencia`), `pages/ContingenciaAdminPage.tsx` (ruta `/contingencia-admin`, ADMIN), `public/sw.js` (shell y recursos del build; la API nunca se cachea; sin `skipWaiting`). Se corrigió `utils/authInterceptors.ts`: un refresh sin respuesta de la API ya no borra la sesión.
+- **Decisión de diseño:** la secuencia y el correlativo duplicados no se rechazan: se conservan y quedan en revisión (`SECUENCIA_DUPLICADA`).
+- **Pruebas ejecutadas (2026-10-10):**
+  - Backend unitarias: **344/344** (36 archivos). `tsc -p tsconfig.build.json` sin errores.
+  - Backend integración PostgreSQL 16 como usuario no root, cadena completa de migraciones: `test/contingencia.postgres.integration.ts` **23/23**; suite completa **17 archivos, 339 pasan y 1 omitida** (origen de la omisión no identificado en esta sesión). Se corrigieron las listas explícitas de migraciones de `ventas` y `reportes-zona-horaria`, que ya no incluían las migraciones nuevas.
+  - Frontend unitarias: **218/218** (incluye `offline-logica.test.mjs` y la caracterización). `tsc -b` y build de producción correctos. Lint sin errores (avisos del mismo tipo que ya existían).
+  - E2E real con backend NestJS, PostgreSQL temporal y navegador Chromium con IndexedDB y service worker reales: `frontend/e2e-real/contingencia-real.spec.ts` **13/13** (en línea, sin conexión, reconexión, reinicio con pendientes en perfil persistente, dos pestañas, recuperación de operación "enviando", pérdida de respuesta, cambio de precio durante la desconexión, conflicto de stock aceptado por el administrador, caja cerrada, sesión vencida, panel, exportación sin credenciales). Suite `e2e-real` completa: **28/28**.
+  - Suite de navegador con backend simulado: **106/106**.
+- **Pruebas no realizadas (límites declarados):**
+  1. Timeouts de red reales: no se simularon; solo cortes de red del navegador.
+  2. Apagón eléctrico y reinicio de Windows: no ejecutados. La durabilidad de IndexedDB ante corte de energía **no está demostrada**. El protocolo está en `docs/POS_CONTINGENCIA_PROTOCOLO_APAGON.md` (estado: no ejecutado).
+  3. iPhone/Safari y PWA instalada: no probados en dispositivo. El panel móvil se probó solo en viewport de escritorio.
+  4. Actualización del service worker tras una versión nueva: no probada.
+  5. Límite de cuota de almacenamiento lleno: no probado en navegador real.
+- **Bloqueos y decisiones pendientes (no resueltos por mí):**
+  - **D1 fiscal:** la leyenda y el procedimiento de comprobante de contingencia requieren aprobación del responsable fiscal antes de activar en clientes reales. El sistema no emite numeración fiscal ni CAI.
+  - Límites por defecto (cupo 50 %, L 5 000 por venta, L 25 000 acumulado, vigencia 36 h) pendientes de decisión del propietario.
+  - Una caja de contingencia por empresa (`dispositivosMax=1`): ampliar requiere decisión.
+  - Prueba física con UPS, corte controlado y firma de resultados (sección 7 del protocolo).
+- **Pendientes técnicos:** PR de revisión (borrador); coordinación con las ramas de Claude en `POSPage.tsx` (no modificado) y `ventas.service.ts` (no modificado); interfaz en inglés pendiente (textos en español).
+
+---
+
+## Integración QA P1 + contingencia POS (2026-10-10, rama `claude/integracion-pos-offline-p1`)
+
+- **Estado:** integración técnicamente verificada en rama temporal; **NO aprobada para producción**. Sin merge a `main`, sin despliegue, sin migraciones productivas.
+- **Base y commits:** `main` `7ccfad25`; `1deb3117` (#127 P1 operaciones, `claude/p1-operaciones`); `f281be62` (#128 contingencia, `claude/pos-offline-backend`); resolución de conflictos `2ab05cd0`; `99df299c` (costo de la ventana, timeout de sincronización, pruebas); `5c5df9bb` (asociación producto–proveedor en contingencia; mock del panel de proveedores en FS-07); `6f683331` (matriz de QA); #127 avanzó a `caa5aa15` y se integró en `a4cda7e3` (sin conflictos; mock duplicado retirado en `f2f4b44e`; `productos-edicion` 16/16 y frontend 224/224 tras la integración).
+- **Conflictos resueltos:** `schema.prisma` (ambos modelos conservados, sin `prisma format`), `App.tsx` (rutas `/pos-contingencia`, `/contingencia-admin`, `/estado-cuenta-clientes`, `/admin-movil`, `/cuentas` conviven), listas de migraciones en `ventas` y `reportes-zona-horaria`, `CONTEXTO_MAESTRO.md` (dos secciones conservadas).
+- **Defectos corregidos en la integración:** el costo de una venta offline se tomaba al sincronizar (ahora, el de la ventana); sincronización sin timeout (ahora 20 s por llamada); la caja no veía la decisión del administrador (`refrescarRevisiones`); 9 fallos de FS-07 por una petición del panel P1 no interceptada en la suite simulada.
+- **Pruebas ejecutadas sobre `5c5df9bb`:**
+  - Backend unitarias 345/345; integración PostgreSQL 16 como `nobody` 366/366 con `REAL_SETTINGS_BROWSER=1` (la prueba opt-in de Chromium real pasa 16/16). Contingencia 25/25 sobre el commit final.
+  - Frontend unitarias 224/224; `tsc -b`, build y lint sin errores.
+  - E2E real (`frontend/e2e-real/run.sh`, PostgreSQL temporal, API real, Chromium): 29/29; contingencia 14/14.
+  - E2E con backend simulado: 118/118.
+- **Lo que no se ejecutó (no declarar aprobado):** Windows (Chrome/Edge, durabilidad IndexedDB, reinicio), iPhone/Safari y PWA instalada, apagón eléctrico real (`docs/POS_CONTINGENCIA_PROTOCOLO_APAGON.md`, sin ejecutar), cuota de almacenamiento real (la prueba simulada inyecta `QuotaExceededError`), timeouts de red reales en la tienda, cámara y códigos impresos. Detalle en `docs/POS_INTEGRACION_QA_MATRIZ.md` §7.
+- **Riesgos abiertos:** D1 fiscal (sin aprobación del responsable); límites por defecto (L 5 000 / L 25 000 / cupo 50 % / 36 h) pendientes de decisión; caja única por empresa (`dispositivosMax=1`); rutas nuevas sin entrada en el menú (solo por URL); textos de contingencia solo en español.
+- **Pendientes:** PR de integración en borrador hacia `main` (no fusionar sin aprobación); si #127 o #128 cambian, repetir la integración desde su nuevo commit.
+
+## Validación final de preproducción POS offline — PR #129 (2026-10-10)
+
+- **Estado:** candidato técnicamente validado para **piloto controlado interno**. **NO-GO** para clientes reales hasta D1 fiscal, decisiones comerciales y pruebas físicas. Sin merge, despliegue ni migración productiva. Detalle: `docs/POS_PILOTO_QA_FINAL.md`; checklist físico no ejecutado: `docs/POS_PILOTO_CHECKLIST_FISICO.md`.
+- **Procedencia:** #127 integrado hasta `caa5aa15` y #128 hasta `f281be62` (ancestros verificados en `HEAD`). Commit de esquema y prueba de flujo: ver `git log` de la rama tras esta sección.
+- **Migraciones:** 15/15 aplicadas en orden sobre PostgreSQL 16 limpio, 0 fallidas. Deriva de las tablas nuevas: solo nombres de restricciones, salvo una diferencia de comportamiento corregida (`onDelete: Restrict` en `operaciones_contingencia.venta`). La deriva de `main` (~170 líneas, preexistente) obliga a usar solo `migrate deploy` tras `migrate:inspect` y respaldo.
+- **Defecto corregido en esta validación:** FK `operaciones_contingencia.venta` con `SetNull` implícito frente a `RESTRICT` en la migración; detectado por `prisma migrate diff`, no por las pruebas.
+- **Pruebas nuevas:** `backend/test/piloto-flujo-completo.postgres.integration.ts` (6): flujo completo proveedor → compra → recepción → costo → venta en línea y entrega → contingencia → sincronización → conciliación de inventario y caja → consulta administrativa; y pruebas negativas (permisos, revisión, otro cajero, idempotencia, aislamiento).
+- **Resultados (sobre `bc0a0125` salvo indicación):** backend unitarias 345/345; integración PostgreSQL 372/372 (22 archivos, con `REAL_SETTINGS_BROWSER=1`); contingencia + piloto 31/31 tras el cambio de esquema; frontend unitarias 224/224; build con `VITE_API_URL=/api`; lint sin errores; E2E real 29/29 (14 de contingencia); simulada 118/118; respaldo worker 6/6.
+- **Riesgo de negocio abierto:** la venta en línea **reserva** stock y se descuenta al entregar (`/operaciones/ventas/:id/entregar`); la venta offline descuenta **de inmediato**. Decidir el procedimiento antes del piloto.
+- **No ejecutado:** Windows, Safari/iPhone, apagón real, cuota de disco real, latencia real de la tienda, restauración de respaldo con restic/pg_dump (`FS41_INTEGRATION`). No declarar aprobados.
+- **Diseño de cobro y entrega, revisión 3 (ATLAS, lista para revisión cruzada, sin implementar):** huella canónica de solicitud con conflicto explícito (§3.6); regla `P' = min(P, Rr')` con demostración por inducción (§2.5–2.7); FK compuestas por tenant y tabla de eventos con `tenant_id` (§3.7, §7); devoluciones con reingreso frente a sin reingreso (§2.4, §4.3). P12 no aprobada ni implementada. Contratos KARDEX, CENTINELA, BALANCE y NEXUS **sin validar**.
+- **Diseño de cobro y entrega, revisión 2 (ATLAS, sin implementar):** corrige índice único por línea (ahora identificadores de evento, idempotencia por solicitud y tope acumulado con CHECK), añade modelo de contadores e invariantes, y elimina el lenguaje de ubicación física (inventario único, P2). Contratos KARDEX, CENTINELA y BALANCE actualizados y **sin validar**.
+- **Diseño de cobro y entrega (ATLAS, sin implementar):** variante B aprobada conceptualmente. Diseño técnico en `docs/POS_ENTREGA_DISENO_TECNICO.md` (flujos, estados por línea, garantías, alertas, cambios por capa, pruebas T01–T34 para FARO, decisiones P1–P11). Contratos para KARDEX, CENTINELA y BALANCE en `docs/POS_ENTREGA_CONTRATOS.md`, pendientes de validación. No se modifican ventas abiertas ni se ejecutan migraciones.
+- **Identidad:** ATLAS (POS y continuidad operativa). Coordinación: KARDEX (inventario), CENTINELA (seguridad y sesiones), FARO (auditoría y QA), BALANCE (conciliaciones). Recomendación de entrega en `docs/POS_VENTA_ENTREGA_DECISION.md` §4b; sin cambio de flujo hasta decisión del dueño.
+- **Ronda ATLAS (comprobante, impresión y entrega):** comprobante interno completo desde el registro local (`frontend/src/offline/comprobante.ts`), reimpresión desde el diario, papel 58/80 mm e impresión que nunca revierte la venta. Corregido: `entregar` aceptaba ventas totalmente devueltas. Pendiente de decisión del dueño sobre la entrega de la venta en línea: `docs/POS_VENTA_ENTREGA_DECISION.md` (opciones A–D; sin cambio de flujo). Impresión física (C1–C8) no ejecutada. Resultados en `docs/POS_PILOTO_QA_FINAL.md` §4c.
+- **Regla confirmada por el dueño (venta offline = venta normal):** verificada en `docs/POS_PILOTO_QA_FINAL.md` §4b. Corregido: si releer la lista fallaba tras guardar, la UI mostraba «NO se guardó» (`PosContingenciaPage.tsx`). Añadidas pruebas: relectura fallida tras guardar, siguiente cliente con sincronización colgada y salida de inventario `ENTREGA` por operación. Brechas abiertas: comprobante sin líneas de producto y stock central desfasado hasta sincronizar.
 
 ## Continuidad POS y sincronización — auditoría y propuesta (2026-10-10)
 

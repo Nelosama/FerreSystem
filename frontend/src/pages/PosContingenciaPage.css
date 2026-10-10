@@ -1,0 +1,65 @@
+/* POS de contingencia: pensado para pantalla táctil de caja y para iPhone. Sin dependencias externas. */
+.pc-root { min-height: 100vh; background: #f8fafc; color: #0f172a; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+.pc-header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 12px 16px; background: #0f172a; color: #fff; position: sticky; top: 0; z-index: 2; }
+.pc-header h1 { font-size: 18px; margin: 0; }
+.pc-estado { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; padding: 6px 12px; border-radius: 999px; font-size: 14px; }
+.pc-estado.en-linea { background: #dcfce7; color: #14532d; }
+.pc-estado.sin-linea { background: #fde68a; color: #78350f; }
+.pc-meta { font-size: 13px; opacity: .9; }
+.pc-aviso { margin: 12px 16px; padding: 12px 14px; border-radius: 10px; background: #fff7ed; border: 1px solid #fdba74; color: #7c2d12; font-size: 15px; }
+.pc-aviso.error { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
+.pc-aviso.ok { background: #f0fdf4; border-color: #86efac; color: #14532d; }
+.pc-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; padding: 16px; }
+@media (max-width: 860px) { .pc-grid { grid-template-columns: 1fr; } }
+.pc-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; }
+.pc-panel h2 { font-size: 16px; margin: 0 0 10px; }
+.pc-buscar { width: 100%; font-size: 20px; padding: 14px; border: 2px solid #cbd5e1; border-radius: 12px; box-sizing: border-box; }
+.pc-resultados { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-top: 12px; max-height: 60vh; overflow: auto; }
+.pc-producto { text-align: left; padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; cursor: pointer; min-height: 88px; }
+.pc-producto:disabled { opacity: .5; cursor: not-allowed; }
+.pc-producto strong { display: block; font-size: 15px; margin-bottom: 4px; }
+.pc-producto span { display: block; font-size: 13px; color: #475569; }
+.pc-precio { font-size: 18px; font-weight: 700; color: #0f172a; margin-top: 6px; }
+table.pc-tabla { width: 100%; border-collapse: collapse; font-size: 15px; }
+table.pc-tabla th, table.pc-tabla td { text-align: left; padding: 8px 4px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+.pc-cant { display: inline-flex; align-items: center; gap: 6px; }
+.pc-cant input { width: 72px; font-size: 16px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 8px; }
+.pc-btn { font-size: 16px; padding: 10px 14px; border-radius: 10px; border: 1px solid #94a3b8; background: #fff; cursor: pointer; min-height: 44px; }
+.pc-btn:disabled { opacity: .45; cursor: not-allowed; }
+.pc-btn.primario { background: #ea580c; border-color: #ea580c; color: #fff; font-weight: 700; font-size: 20px; width: 100%; min-height: 64px; }
+.pc-btn.secundario { background: #e2e8f0; }
+.pc-totales { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: 16px; margin: 12px 0; }
+.pc-totales .total { font-size: 28px; font-weight: 800; }
+.pc-campo { display: grid; gap: 4px; margin-top: 10px; }
+.pc-campo label { font-size: 14px; color: #334155; }
+.pc-campo input { font-size: 22px; padding: 12px; border: 2px solid #cbd5e1; border-radius: 12px; }
+.pc-cambio { font-size: 22px; font-weight: 700; margin-top: 8px; }
+.pc-confirmacion { border: 2px solid #16a34a; background: #f0fdf4; border-radius: 14px; padding: 14px; }
+.pc-pendientes { font-size: 14px; }
+.pc-pendientes li { margin: 4px 0; }
+.pc-comprobante-impresion { display: none; }
+.pc-papel { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.pc-papel select { font-size: 15px; padding: 6px; border-radius: 8px; }
+.pc-reimprimir { margin-left: 8px; font-size: 14px; min-height: 36px; padding: 6px 10px; }
+.pc-pendientes-todas { max-height: 40vh; overflow: auto; }
+@media print {
+  @page { margin: 0; }
+  body * { visibility: hidden !important; }
+  .pc-comprobante-impresion, .pc-comprobante-impresion * { visibility: visible !important; }
+  .pc-comprobante-impresion {
+    display: block; position: absolute; left: 0; top: 0; background: #fff; color: #000;
+    font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.3; padding: 2mm 1mm;
+  }
+  /* Impresoras térmicas: el ancho útil del rollo es menor que el papel. */
+  .pc-comprobante-impresion.papel-80 { width: 72mm; }
+  .pc-comprobante-impresion.papel-58 { width: 52mm; font-size: 10px; }
+  .pc-imp-titulo { font-weight: 700; text-align: center; }
+  .pc-imp-aviso { font-size: 0.9em; text-align: center; margin: 2mm 0; }
+  .pc-imp-centrado { text-align: center; font-weight: 700; margin: 2mm 0; }
+  .pc-imp-separador { border-top: 1px dashed #000; margin: 2mm 0; }
+  .pc-imp-linea-producto { margin-bottom: 1mm; word-break: break-word; }
+  .pc-imp-detalle { padding-left: 3mm; }
+  .pc-imp-fila { display: flex; justify-content: space-between; gap: 2mm; }
+  .pc-imp-total { font-weight: 700; font-size: 1.1em; }
+  .pc-reimprimir, button, select, label { display: none !important; }
+}
