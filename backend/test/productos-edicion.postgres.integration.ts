@@ -253,7 +253,8 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
   });
   it('alta sin código con reintento concurrente persiste un solo producto y movimiento inicial', async () => {
     const solicitudId = randomUUID();
-    const body = { codigo: '', nombre: 'Canaleta blanca 4 pulgadas', stockActual: 12.75, solicitudId };
+    // BODEGUERO registra sin precio: el producto queda pendiente de configuración (decisión 3).
+    const body = { codigo: '', nombre: 'Canaleta blanca 4 pulgadas', stockActual: 12.75, solicitudId, precioCosto: undefined, precioVenta: undefined };
     const [a, b] = await Promise.all([alta(body, 'BODEGUERO'), alta(body, 'BODEGUERO')]);
     expect([a.status, b.status]).toEqual([201, 201]);
     expect(a.body.id).toBe(b.body.id);
@@ -349,16 +350,19 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
     ['Tornillo galvanizado 2 pulgadas', 'Venta por peso', 'LIBRA', 8.75],
     ['Aerosol rojo 400 ml', 'Pintura brillante', 'UNIDAD', 6],
   ])('empleado registra %s con código interno generado y persistencia real', async (nombre, descripcion, unidadMedida, stockActual) => {
-    const response = await alta({ codigo: '', nombre, descripcion, unidadMedida, stockActual, solicitudId: randomUUID() }, 'BODEGUERO').expect(201);
+    // Alta de BODEGUERO: sin ninguna clave de precio; el producto queda pendiente de aprobación del dueño.
+    const response = await alta({ codigo: '', nombre, descripcion, unidadMedida, stockActual, precioCosto: undefined, precioVenta: undefined, solicitudId: randomUUID() }, 'BODEGUERO').expect(201);
     const stored = await fila(response.body.id);
     expect(stored).toMatchObject({ nombre, descripcion, unidadMedida });
+    // Alta de BODEGUERO: pendiente de aprobación de precio y sin margen; no vendible.
+    expect([stored.precioAprobado, Number(stored.precioVenta), stored.margen]).toEqual([false, 0, null]);
     expect(stored.codigo).toBeTruthy();
     expect(Number(stored.stockActual)).toBe(stockActual);
   });
 
   it('dos empleados registrando el mismo código simultáneamente no duplican existencias', async () => {
     const body = { codigo: 'TOR-2', codigoBarras: '770000000001', stockActual: 2.75 };
-    const responses = await Promise.all([alta({ ...body, solicitudId: randomUUID() }), alta({ ...body, solicitudId: randomUUID() }, 'BODEGUERO')]);
+    const responses = await Promise.all([alta({ ...body, solicitudId: randomUUID() }), alta({ ...body, precioCosto: undefined, precioVenta: undefined, solicitudId: randomUUID() }, 'BODEGUERO')]);
     expect(responses.map(r => r.status).sort((a, b) => a - b)).toEqual([201, 409]);
     expect(await prisma.producto.count({ where: { tenantId } })).toBe(1);
     expect(await prisma.movimientoInventario.count({ where: { tenantId } })).toBe(1);

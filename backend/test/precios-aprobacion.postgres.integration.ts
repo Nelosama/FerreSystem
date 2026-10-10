@@ -107,7 +107,9 @@ describe('Precios y aprobación para venta — HTTP y PostgreSQL aislado', () =>
 
   it('el personal no define precios: alta sin precio queda pendiente y con precio responde 403',async()=>{
     const pendiente=(await call('post','/productos',{nombre:'Clavo 2 pulgadas',stockActual:0,stockMinimo:0,solicitudId:randomUUID()},'BODEGUERO').expect(201)).body;
-    expect(pendiente).toMatchObject({precioVenta:0,precioCosto:0});
+    expect(pendiente).toMatchObject({precioVenta:0,pendienteConfiguracion:true});
+    // P1: BODEGUERO no recibe costo en la respuesta del alta.
+    expect(pendiente).not.toHaveProperty('precioCosto');
     const stored=await prisma.producto.findUniqueOrThrow({where:{id:pendiente.id}});
     expect(stored.precioAprobado).toBe(false);
     await call('post','/productos',{nombre:'Tuerca',stockActual:0,stockMinimo:0,precioVenta:5,precioCosto:1,solicitudId:randomUUID()},'BODEGUERO').expect(403);
@@ -187,13 +189,20 @@ describe('Precios y aprobación para venta — HTTP y PostgreSQL aislado', () =>
     expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).stockReservado)).toBe(2);
   });
 
-  it('modificar un precio aprobado conserva la aprobación y deja antes, después y responsable',async()=>{
-    const r=(await priceCall(productId,{version:1,precioVenta:5}).expect(200)).body;
-    expect(r).toMatchObject({precioAprobado:true,precioVenta:5,margenCalculado:60});
-    await priceCall(productId,{version:2,precioVenta:5}).expect(400);
-    const audit=await prisma.auditoriaOperacion.findFirstOrThrow({where:{tenantId,operacion:'PRECIO_MODIFICAR',entidadId:productId}});
-    expect(audit.datos).toMatchObject({cambios:{precioVenta:{anterior:4,nuevo:5}}});
+  // Revocación (decisión del dueño, cierre KARDEX): cambiar el precio de venta de un producto aprobado exige nueva aprobación.
+  // Un cambio solo de costo conserva la aprobación.
+  it('un cambio solo de costo conserva la aprobación; cambiar el precio de venta la revoca y reaprobar exige aprobar',async()=>{
+    const soloCosto=(await priceCall(productId,{version:1,precioCosto:3}).expect(200)).body;
+    expect(soloCosto).toMatchObject({precioAprobado:true,precioCosto:3,precioVenta:4});
+    const revocado=(await priceCall(productId,{version:soloCosto.version,precioVenta:5}).expect(200)).body;
+    expect(revocado).toMatchObject({precioAprobado:false,precioVenta:5});
+    await priceCall(productId,{version:revocado.version,precioVenta:5}).expect(400);
+    const auditorias=await prisma.auditoriaOperacion.findMany({where:{tenantId,operacion:'PRECIO_MODIFICAR',entidadId:productId}});
+    const revocada=auditorias.find(a=>(a.datos as any).revocada===true);
+    expect(revocada?.datos).toMatchObject({cambios:{precioVenta:{anterior:4,nuevo:5}},revocada:true});
     expect((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).precioModificadoPor).toBe(users.ADMIN.id);
+    const reaprobado=(await priceCall(productId,{version:revocado.version,aprobar:true}).expect(200)).body;
+    expect(reaprobado).toMatchObject({precioAprobado:true,precioVenta:5});
   });
 
   it('un ajuste de existencias por la ficha no toca costo, precio ni margen',async()=>{

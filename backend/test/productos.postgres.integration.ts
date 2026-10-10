@@ -97,7 +97,9 @@ describe('SEC-005 / HTTP and isolated PostgreSQL', () => {
       .send(esAdmin ? { ...base, precioCosto: 4, precioVenta: 10 } : base).expect(201);
     expect(created.body).toMatchObject(esAdmin
       ? { precioCosto: 4, precioVenta: 10, margenCalculado: 60, precioAprobado: true, stockActual: 8 }
-      : { precioCosto: 0, precioVenta: 0, precioAprobado: false, stockActual: 8 });
+      : { precioVenta: 0, precioAprobado: false, stockActual: 8 });
+    // P1: BODEGUERO no recibe costo ni margen en la respuesta del alta.
+    if (!esAdmin) expect(created.body).not.toHaveProperty('precioCosto');
     if (!esAdmin) await auth(request(app.getHttpServer()).post('/productos')).send({ ...base, codigo: 'NEW-PRECIO', precioVenta: 5 }).expect(403);
     let version = created.body.version;
     if (esAdmin) {
@@ -110,7 +112,8 @@ describe('SEC-005 / HTTP and isolated PostgreSQL', () => {
     }
     const edited = await auth(request(app.getHttpServer()).put(`/productos/${created.body.id}`))
       .send({ version, stockAnterior: 8, stockActual: 6, motivo: 'Conteo sintético SEC-005' }).expect(200);
-    expect(edited.body).toMatchObject({ precioCosto: esAdmin ? 6 : 0, precioVenta: esAdmin ? 12 : 0, stockActual: 6, stockBajo: true });
+    expect(edited.body).toMatchObject(esAdmin ? { precioCosto: 6, precioVenta: 12, stockActual: 6, stockBajo: true } : { precioVenta: 0, stockActual: 6, stockBajo: true });
+    if (!esAdmin) expect(edited.body).not.toHaveProperty('precioCosto');
     const stored = await prisma.producto.findUniqueOrThrow({ where: { id: created.body.id } });
     expect(Number(stored.precioCosto)).toBe(esAdmin ? 6 : 0);
     expect(Number(stored.precioVenta)).toBe(esAdmin ? 12 : 0);
@@ -120,7 +123,14 @@ describe('SEC-005 / HTTP and isolated PostgreSQL', () => {
     for (const path of ['/productos', '/productos?search=SEC005', `/productos/${productId}`, '/productos/alertas/stock-bajo']) {
       const response = await get(path, role).expect(200);
       const p = Array.isArray(response.body) ? response.body.find((p: any) => p.id === productId) : response.body;
-      expect(p).toMatchObject({ precioCosto: 4, costoVigente: '5', margen: '60', stockDisponible: 6 });
+      // P1: costo, costo vigente y margen solo para ADMIN; BODEGUERO conserva existencias y precio de venta.
+      if (esAdmin) expect(p).toMatchObject({ precioCosto: 4, costoVigente: '5', margen: '60', stockDisponible: 6 });
+      else {
+        expect(p).toMatchObject({ precioVenta: 10, stockDisponible: 6 });
+        expect(p).not.toHaveProperty('precioCosto');
+        expect(p).not.toHaveProperty('costoVigente');
+        expect(p).not.toHaveProperty('margen');
+      }
     }
   });
   it.each(['CAJERO', 'VENDEDOR'])('%s sees operational data and cannot cross tenants', async role => {

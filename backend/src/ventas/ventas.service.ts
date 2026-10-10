@@ -209,7 +209,8 @@ export class VentasService {
         if (!prod) {
           throw new NotFoundException(`Producto con ID ${item.productoId} no encontrado o inactivo`);
         }
-        if (!prod.precioAprobado) {
+        // Defensa en profundidad: aprobación y precio positivo, ambos obligatorios para vender.
+        if (!prod.precioAprobado || Number(prod.precioVenta) <= 0) {
           throw new BadRequestException(`"${prod.nombre}" no tiene precio aprobado por el administrador; no se puede vender`);
         }
 

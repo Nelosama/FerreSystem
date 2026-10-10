@@ -18,7 +18,7 @@ describe('SEC-005 product HTTP responses (real JWT, guards, service; mocked pers
   const jwt = new JwtService({ secret });
   const users = new Map<string, any>();
   const product = {
-    id: 'product-a', tenantId: 'tenant-a', codigo: 'CABLE', nombre: 'Cable',
+    id: 'product-a', tenantId: 'tenant-a', codigo: 'CABLE', nombre: 'Cable', precioAprobado: true,
     codigoBarras: '123', codigoFabricante: 'CAB', descripcion: 'Por metro',
     precioVenta: new Prisma.Decimal(10), precioCosto: new Prisma.Decimal(4),
     costoVigente: new Prisma.Decimal(5), margen: new Prisma.Decimal(60),
@@ -87,11 +87,12 @@ describe('SEC-005 product HTTP responses (real JWT, guards, service; mocked pers
       expect(unwrap(response.body).stockActual).toBe(8);
     }
   });
-  it.each([true, false])('BODEGUERO preserves effective inventory permission (configured=%s)', async configured => {
+  // P1 (PR #134): costos y márgenes son solo de ADMIN; BODEGUERO conserva existencias y precio de venta.
+  it.each([true, false])('BODEGUERO no recibe costos ni márgenes, con permiso de inventario=%s', async configured => {
     const auth = token('BODEGUERO', configured ? ['inventario.ver'] : [], configured);
     for (const path of paths) {
       const response = await get(path, auth.value).expect(200);
-      expect(unwrap(response.body)).toHaveProperty('costoVigente', '5');
+      expectPublic(unwrap(response.body));
     }
   });
   it.each(['CAJERO', 'VENDEDOR'])('legacy %s and arbitrary inventory permission do not grant a financial role', async role => {
@@ -119,12 +120,14 @@ describe('SEC-005 product HTTP responses (real JWT, guards, service; mocked pers
   });
   it('reloads revoked permission and role with the same JWT', async () => {
     const auth = token('BODEGUERO', ['inventario.ver']);
-    expect((await get('/productos/product-a', auth.value)).body).toHaveProperty('precioCosto');
+    expectPublic((await get('/productos/product-a', auth.value)).body);
     users.get(auth.sub).permisos = [];
     expectPublic((await get('/productos/product-a', auth.value)).body);
     users.get(auth.sub).rol = 'VENDEDOR';
     users.get(auth.sub).permisos = ['inventario.ver'];
     expectPublic((await get('/productos/product-a', auth.value)).body);
+    users.get(auth.sub).rol = 'ADMIN';
+    expect((await get('/productos/product-a', auth.value)).body).toHaveProperty('precioCosto');
     users.get(auth.sub).activo = false;
     await get('/productos', auth.value).expect(401);
   });

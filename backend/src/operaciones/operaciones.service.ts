@@ -233,11 +233,15 @@ export class OperacionesService {
    await lockTenant(tx,tenantId);
    await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
    const stock=decimal(dto.stock,'Stock'),motivo=text(dto.motivo,'Motivo'),hash=fingerprint({userId,productoId,dto});
+   // QA-AJ-001: el ajuste fija un valor absoluto; sin la cantidad anterior que vio el operador, una recepción intermedia se perdería.
+   const anterior=decimal(dto.stockAnterior,'Existencias anteriores');
    const [prev]=await query(tx,'SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion=\'STOCK_AJUSTAR\' AND entidad_id=$2',tenantId,dto.solicitudId);
    if(prev){if(prev.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otro ajuste');return prev.datos;}
    const [prod]=await query(tx,'SELECT * FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',productoId,tenantId);if(!prod)throw new NotFoundException('Producto no encontrado');
+   if(Number(prod.stock_actual)!==anterior)throw new ConflictException({message:'Las existencias cambiaron después de abrir el formulario. Recargue el producto antes de ajustar.',code:'PRODUCTO_STOCK'});
    if(stock<Number(prod.stock_reservado))throw new ConflictException('El conteo no cubre las ventas pendientes de entrega');
-   await query(tx,'UPDATE productos SET stock_actual=$1,updated_at=NOW() WHERE id=$2 RETURNING id',stock,prod.id);
+   // Igual que la edición de producto: un ajuste incrementa la versión para invalidar formularios abiertos antes del cambio.
+   await query(tx,'UPDATE productos SET stock_actual=$1,version=version+1,updated_at=NOW() WHERE id=$2 RETURNING id',stock,prod.id);
    await movement(tx,tenantId,userId,prod.id,'AJUSTE',Number(prod.stock_actual),stock,dto.solicitudId,motivo);
    const result={hash,stock,anterior:Number(prod.stock_actual),motivo};await audit(tx,tenantId,userId,'STOCK_AJUSTAR',dto.solicitudId,result);return result;
   });
@@ -282,7 +286,8 @@ export class OperacionesService {
  } async buscarVenta(tenantId:string,numero:string){
   const n=Number(numero);if(!Number.isSafeInteger(n)||n<1)throw new BadRequestException('Número de venta inválido');
   const [v]=await query(this.prisma,'SELECT * FROM ventas WHERE tenant_id=$1 AND numero_venta=$2',tenantId,n);if(!v)throw new NotFoundException('Venta no encontrada');
-  v.items=await query(this.prisma,'SELECT d.*,p.nombre,p.codigo,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1',v.id);
+  // QA-COS-001: la búsqueda la usa VENDEDOR, que no ve costos; se quita costo_unitario de cada línea.
+  v.items=(await query(this.prisma,'SELECT d.*,p.nombre,p.codigo,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1',v.id)).map(({costo_unitario:_costo,...linea})=>linea);
   v.devoluciones=await query(this.prisma,'SELECT * FROM devoluciones WHERE venta_id=$1 AND tenant_id=$2 ORDER BY created_at',v.id,tenantId);return v;
  }
  private async planDevolucion(tx:Tx,tenantId:string,ventaId:string,dto:DevolucionDto){
