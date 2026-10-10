@@ -102,8 +102,8 @@ NEXUS no resuelve el conflicto #134 ↔ #140 ni elige archivos: KARDEX entrega u
 | `tsc -p tsconfig.build.json` (backend) | 0 errores |
 | Frontend `tsc -b` / `vite build` / `npm test` | 0 errores / correcto / 236 de 236 |
 | Backend unitarias | **354 pasan, 3 fallan** (todas `compras-proveedores`, regla de #142) |
-| Integración PostgreSQL | 30 archivos: **481 pasan, 6 fallan** (4 `compras` por #142 + 2 `seguridad-fase2` por #134), 1 omitida (navegador, `REAL_SETTINGS_BROWSER`) |
-| Pruebas nuevas de NEXUS (deriva + FK compuestas) | 15 de 15 |
+| Integración PostgreSQL (commit final) | 31 archivos: **493 pasan, 6 fallan** (4 `compras` por #142 + 2 `seguridad-fase2` por #134), 1 omitida (navegador, `REAL_SETTINGS_BROWSER`) |
+| De ellas, pruebas nuevas de NEXUS (deriva + FK compuestas) | 15 de 15 |
 | Playwright con backend real | **No ejecutado**: la misión lo condiciona a integración completa y hay 2 conflictos abiertos |
 | Playwright con backend simulado | No ejecutado |
 | Producción | **No verificada** (un diff vacío en base temporal no la valida) |
