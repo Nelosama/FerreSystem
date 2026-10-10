@@ -131,7 +131,7 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Riesgos abiertos:** D1 fiscal (sin aprobación del responsable); límites por defecto (L 5 000 / L 25 000 / cupo 50 % / 36 h) pendientes de decisión; caja única por empresa (`dispositivosMax=1`); rutas nuevas sin entrada en el menú (solo por URL); textos de contingencia solo en español.
 - **Pendientes:** PR de integración en borrador hacia `main` (no fusionar sin aprobación); si #127 o #128 cambian, repetir la integración desde su nuevo commit.
 
-## Autenticación fase 3 — límites de intentos, sesiones revocables y rotación (2026-10-10, rama `claude/security-audit-fase-3`, sin merge)
+## Autenticación fase 3 — límites de intentos, sesiones revocables y rotación (2026-10-10, rama `claude/security-audit-fase-3`, [PR #133](https://github.com/Nelosama/FerreSystem/pull/133) sin merge)
 
 - **Base:** `claude/security-audit-fase-2` (PR #132) + merge de `origin/claude/integracion-pos-offline-p1` `58941e5d`. No se modificaron PR existentes; no hay merge, despliegue ni migraciones productivas. Detalle y procedimientos: [AUTENTICACION_FASE3_SESIONES_20261010.md](AUTENTICACION_FASE3_SESIONES_20261010.md).
 - **Límite de intentos:** por cuenta (5 fallos / 15 min → bloqueo 15 min) y por IP (100 / 15 min), en `intentos_login` con clave hasheada y contadores atómicos. Respuesta 429 con `Retry-After`, igual para correos existentes e inexistentes. Aplica a login de tenants y de Super Admin (`auth/login-rate-limit.ts`).
