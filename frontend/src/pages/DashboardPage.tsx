@@ -11,6 +11,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
+import { useTenant } from '../context/TenantContext';
 import { formatLempiras } from '../utils/format';
 import { api } from '../utils/api';
 
@@ -22,7 +23,15 @@ export const DashboardPage: React.FC = () => {
   const [retry, setRetry] = React.useState(0);
   const [dashboardData, setDashboardData] = React.useState<any>(null);
 
+  // El backend solo entrega el resumen a estos roles. Pedirlo a otros roles produce un 403 falso.
+  const { user } = useTenant();
+  const puedeVerResumen = ['ADMIN', 'BODEGUERO', 'VENDEDOR'].includes(user?.rol ?? '');
+
   React.useEffect(() => {
+    if (!puedeVerResumen) {
+      setDashboardLoading(false);
+      return;
+    }
     let active = true;
     setDashboardLoading(true);
     setDashboardError(false);
@@ -38,7 +47,7 @@ export const DashboardPage: React.FC = () => {
     };
     fetchDashboard();
     return () => { active = false; };
-  }, [retry]);
+  }, [retry, puedeVerResumen]);
 
   const totalVentasDia = dashboardData?.ventasDelDia?.total || 0;
   const productosStockBajo = dashboardData?.alertasStock?.items || [];
@@ -52,7 +61,7 @@ export const DashboardPage: React.FC = () => {
         <TaskShortcuts />
         {dashboardLoading && <p role="status">Cargando el resumen del negocio…</p>}
         {dashboardError && <div role="alert">No se pudo cargar el resumen. Puedes seguir usando los accesos de arriba. <button type="button" className="btn btn-secondary" onClick={() => setRetry(value => value + 1)}>Reintentar</button></div>}
-        {!dashboardLoading && !dashboardError && <>
+        {puedeVerResumen && !dashboardLoading && !dashboardError && <>
         {/* Metric Cards Grid */}
         <div style={styles.metricsGrid}>
           {/* Tarjeta 1: Ventas del Día */}
