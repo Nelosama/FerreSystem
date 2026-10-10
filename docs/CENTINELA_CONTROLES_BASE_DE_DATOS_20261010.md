@@ -15,7 +15,7 @@ Este informe responde a: qué rutas del repositorio pueden operar contra la base
 
 **Acciones en esta rama (no requieren infraestructura):**
 - `seed.ts` exige `SUPER_ADMIN_PASSWORD` y `TENANT_ADMIN_PASSWORD` (≥ 12 caracteres), sin valores por defecto. No sobrescribe un Super Admin existente. No imprime claves.
-- `seed.ts` rechaza `NODE_ENV=production` y cualquier host que no sea local, salvo `SEED_CONFIRMAR_HOST=<host>` explícito. Verificado: las tres guardias rechazan antes de conectarse.
+- `seed.ts` rechaza `NODE_ENV=production` y **cualquier base sin marca de entorno registrada** (ver `CENTINELA_SEED_Y_CLAVES_DEMO_20261010.md`). El host ya no se usa como criterio: solo cuenta la marca en la base y su identificador aprobado.
 - `replace-super-admin.ts` ya no contiene el correo personal fijo; exige `SUPER_ADMIN_OBJETIVO_EMAIL` y la confirmación con ese mismo valor.
 - `frontend/e2e-real/seed.cjs` solo escribe en `127.0.0.1`/`localhost` (verificado: rechaza un host remoto).
 

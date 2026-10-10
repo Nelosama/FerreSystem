@@ -33,7 +33,7 @@ test('el SQL destructivo sin marca de aprobación se bloquea', () => {
 });
 
 test('con marca de aprobación explícita, el SQL destructivo se permite y queda registrado', () => {
-  const a = analizarMigracion('m/migration.sql', '-- APROBACION-DESTRUCTIVA: CHG-42 dueño-db\nDROP TABLE "apartados";');
+  const a = analizarMigracion('m/migration.sql', '-- APROBACION-DESTRUCTIVA: CHG-42 @Nelosama\nDROP TABLE "apartados";');
   assert.equal(a.aprobada, true);
   assert.equal(a.bloqueada, false);
 });
@@ -56,4 +56,16 @@ test('las migraciones publicadas son inmutables: solo se permiten archivos nuevo
     { estado: 'R100', ruta: 'backend/prisma/migrations/20261011/migration.sql' },
   ]);
   assert.deepEqual(bloqueados.map((b) => b.estado), ['M', 'D', 'R100']);
+});
+
+test('la marca de aprobación exige ticket y responsable con handle', () => {
+  assert.equal(analizarMigracion('m', '-- APROBACION-DESTRUCTIVA: CHG-42 dueño-db\nDROP TABLE "x";').aprobada, false);
+  assert.equal(analizarMigracion('m', '-- APROBACION-DESTRUCTIVA: CHG-42 @Nelosama\nDROP TABLE "x";').aprobada, true);
+  assert.equal(analizarMigracion('m', '-- APROBACION-DESTRUCTIVA: sin-ticket @Nelosama\nDROP TABLE "x";').aprobada, false);
+});
+
+test('una migración no puede crear la tabla de marca de entorno', () => {
+  const a = analizarMigracion('m', 'CREATE TABLE "entorno_ferresystem" ("id" INTEGER);');
+  assert.equal(a.bloqueada, true);
+  assert.ok(a.operaciones.includes('tabla de marca de entorno'));
 });

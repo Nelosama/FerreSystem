@@ -1,5 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { verificarEntornoSeed } from '../scripts/guard-seed.mjs';
 
 const prisma = new PrismaClient();
 
@@ -10,18 +13,12 @@ function exigirSecreto(nombre: string): string {
   return valor;
 }
 
-function exigirBaseDeDesarrollo(): void {
-  if (process.env.NODE_ENV === 'production') throw new Error('El seed no se ejecuta con NODE_ENV=production.');
-  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL es obligatorio.');
-  const host = new URL(process.env.DATABASE_URL).hostname;
-  const local = ['localhost', '127.0.0.1', '::1'].includes(host);
-  if (!local && process.env.SEED_CONFIRMAR_HOST !== host) {
-    throw new Error(`La base ${host} no es local. Para sembrarla, defina SEED_CONFIRMAR_HOST=${host}; no debe usarse contra producción.`);
-  }
-}
 
 async function main() {
-  exigirBaseDeDesarrollo();
+  // Marca de entorno en la base + lista versionada de identificadores aprobados (ver scripts/guard-seed.mjs).
+  const identificadoresPermitidos: string[] = JSON.parse(readFileSync(resolve('prisma/entornos-seed.json'), 'utf8')).identificadores;
+  const { tipo } = await verificarEntornoSeed({ prisma, env: process.env, identificadoresPermitidos });
+  console.log(`Entorno verificado por marca: ${tipo}`);
   console.log('🌱 Iniciando seed para FerreSystem...');
 
   // 1. Super Admin (dueño del SaaS - Nelo)
@@ -146,10 +143,8 @@ async function main() {
         email: 'cajero@lamundial.hn',
       },
     },
-    update: {
-      passwordHash: tenantAdminPassword,
-      activo: true,
-    },
+    // Una cuenta existente conserva su clave: el seed nunca la reemplaza.
+    update: {},
     create: {
       tenantId: tenant.id,
       nombre: 'Carlos Ramos (Cajero Principal)',

@@ -1,6 +1,9 @@
 name: Operación de ferretería
 on:
   pull_request:
+    # CENTINELA: también las integraciones hacia ramas claude/**; antes solo se ejecutaba hacia main.
+    branches: [main, 'claude/**']
+  push:
     branches: [main]
 permissions:
   contents: read

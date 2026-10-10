@@ -15,7 +15,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
-export const MARCA_APROBACION = /^--\s*APROBACION-DESTRUCTIVA:\s*\S+\s+\S+/m;
+// Ticket (p. ej. CHG-42) y responsable como handle de GitHub, que CODEOWNERS puede verificar.
+export const MARCA_APROBACION = /^--\s*APROBACION-DESTRUCTIVA:\s+[A-Z]+-\d+\s+@[A-Za-z0-9-]+\s*$/m;
+
+const TABLA_DE_MARCA = /\bentorno_ferresystem\b/;
 
 const COMANDOS_PROHIBIDOS = [
   /prisma\s+db\s+(push|seed)\b/,
@@ -52,6 +55,8 @@ export function buscarComandosProhibidos(textos) {
 export function analizarMigracion(ruta, contenido) {
   const sql = sinComentarios(contenido);
   const operaciones = SQL_DESTRUCTIVO.filter(({ patron }) => patron.test(sql)).map(({ motivo }) => motivo);
+  // La marca de entorno del seed se crea a mano, nunca desde una migración.
+  if (TABLA_DE_MARCA.test(sql)) operaciones.push('tabla de marca de entorno');
   const aprobada = MARCA_APROBACION.test(contenido);
   return { ruta, operaciones, aprobada, bloqueada: operaciones.length > 0 && !aprobada };
 }
