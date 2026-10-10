@@ -306,7 +306,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/garantias"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="garantias">
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO']} requiredModule="garantias">
                         <AppLayout>
                           <GarantiasPage />
                         </AppLayout>
