@@ -37,7 +37,7 @@ const TENANT_B = 'e2e-empresa-b';
   const productos = {};
   const producto = async (tenantId, key, codigo, nombre, precio) => {
     productos[key] = await prisma.producto.create({
-      data: { tenantId, codigo, nombre, precioVenta: precio, precioCosto: precio * 0.6, stockActual: 10, stockMinimo: 1 },
+      data: { tenantId, codigo, nombre, precioVenta: precio, precioCosto: precio * 0.6, stockActual: 10, stockMinimo: 1, precioAprobado: true },
     });
   };
   await producto(TENANT_A, 'taladroA', 'TAL-E2E-1', 'Taladro percutor 1/2" E2E', 2500);

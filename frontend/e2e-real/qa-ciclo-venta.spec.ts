@@ -173,7 +173,7 @@ test.describe('2. Venta con tarjeta (POS bancario externo)', () => {
   test('2.1 tarjeta: se registra como tarjeta y no suma al efectivo esperado de la caja', async ({ request }) => {
     const antes = num(`SELECT COALESCE(SUM(monto),0)::float FROM movimientos_caja WHERE usuario_id='${cajero1.id}' AND metodo='EFECTIVO'`);
     const sid = randomUUID();
-    const res = await venta(request, cajero1.token, { solicitudId: sid, metodoPago: 'TARJETA', detalles: [{ productoId: P1, cantidad: 1, precioUnitario: 100 }] });
+    const res = await venta(request, cajero1.token, { solicitudId: sid, metodoPago: 'TARJETA', pagoElectronico: { referencia: 'AUT-E2E-21', terminal: 'POS-E2E' }, detalles: [{ productoId: P1, cantidad: 1, precioUnitario: 100 }] });
     expect(res.status()).toBe(201);
     expect(sql(`SELECT metodo||'|'||monto::float FROM movimientos_caja WHERE referencia='${sid}'`)).toBe('TARJETA|115');
     const despues = num(`SELECT COALESCE(SUM(monto),0)::float FROM movimientos_caja WHERE usuario_id='${cajero1.id}' AND metodo='EFECTIVO'`);
@@ -242,7 +242,7 @@ test.describe('4. Abonos parciales y totales de clientes', () => {
   });
 
   test('4.5 abono total deja el saldo en cero y un abono adicional se rechaza', async ({ request }) => {
-    const total = await request.post(`${API}/operaciones/cuentas/${cuentaC1}/pagos`, { headers: auth(cajero1.token), data: { solicitudId: randomUUID(), monto: 50, metodo: 'TARJETA' } });
+    const total = await request.post(`${API}/operaciones/cuentas/${cuentaC1}/pagos`, { headers: auth(cajero1.token), data: { solicitudId: randomUUID(), monto: 50, metodo: 'TARJETA', pagoElectronico: { referencia: 'AUT-E2E-45', terminal: 'POS-E2E' } } });
     expect(total.status()).toBe(201);
     expect(num(`SELECT saldo::float FROM cuentas_operativas WHERE id='${cuentaC1}'`)).toBe(0);
     expect(num(`SELECT saldo_pendiente::float FROM clientes WHERE id='${C1}'`)).toBe(0);
