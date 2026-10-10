@@ -199,3 +199,7 @@ En iPhone real del cliente: Safari/versión iOS, HTTPS y certificado confiable d
 **Aceptación real del cliente:** no hay prueba de cámara/iPhone, fotografías/LAN/HTTPS ni operación supervisada por empleados con etiquetas y unidades del negocio. Tests aprobados no equivalen a esa aceptación.
 
 Se entrega evidencia para autorizar correcciones específicas. No se implementó ninguna corrección.
+
+## Verificación de base para publicación autorizada
+
+Repetidas las cuatro reproducciones PostgreSQL y la visual Chromium en un checkout detached exactamente `b314ef0ecf2820c57b525d157918413b2972544f`, con solo los dos archivos de reproducción añadidos: **4/4 y 1/1**. No cambia el número de casos únicos. Comandos por hallazgo y resultado observado/contrato correcto en [REPRODUCCIONES.md](qa-inventario-20261010/REPRODUCCIONES.md). Solo publicación de evidencia autorizada; Claude implementará las correcciones y la validación independiente posterior queda pendiente.
