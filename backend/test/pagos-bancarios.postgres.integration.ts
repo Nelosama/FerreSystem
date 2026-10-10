@@ -129,6 +129,13 @@ describe('Pagos bancarios, crédito y conciliación / PostgreSQL aislado', () =>
       expect(await sql('SELECT COUNT(*)::int AS n FROM ventas WHERE tenant_id=$1', tenantA)).toEqual(ventasAntes);
     });
 
+    it('la misma referencia y terminal en otra empresa sí es válida (la unicidad es por empresa)', async () => {
+      await venta(admin, { metodoPago: 'TARJETA', pagoElectronico: { referencia: 'AUT-EMP', terminal: 'POS-01' } });
+      const productoB = await prisma.producto.create({ data: { tenantId: tenantB, codigo: 'B-EMP', nombre: 'Taladro B', precioCosto: 60, precioVenta: 100, stockActual: 100 } as any });
+      await ops.abrir(tenantB, adminB, { solicitudId: randomUUID(), monto: 500 } as any);
+      await expect(ventas.create(tenantB, adminB, { solicitudId: randomUUID(), metodoPago: 'TARJETA', pagoElectronico: { referencia: 'AUT-EMP', terminal: 'POS-01' }, detalles: [{ productoId: productoB.id, cantidad: 1 }] } as any)).resolves.toBeTruthy();
+    });
+
     it('la misma referencia en otra terminal sí es válida (cada POS tiene su propio voucher)', async () => {
       await venta(admin, { metodoPago: 'TARJETA', pagoElectronico: { referencia: 'AUT-TERM', terminal: 'POS-01' } });
       await expect(venta(admin, { metodoPago: 'TARJETA', pagoElectronico: { referencia: 'AUT-TERM', terminal: 'POS-02' } })).resolves.toBeTruthy();
@@ -274,6 +281,11 @@ describe('Pagos bancarios, crédito y conciliación / PostgreSQL aislado', () =>
       await prisma.cliente.update({ where: { id: cliente.id }, data: { plazoCreditoDias: 60 } });
       expect(await vencimientoDe(cuenta.id)).toBe(esperado);
     });
+    it('el plazo de crédito fuera de 1 a 365 días lo rechaza la base de datos', async () => {
+      await expect(prisma.cliente.create({ data: { tenantId: tenantA, nombre: 'Plazo inválido', plazoCreditoDias: 366 } as any })).rejects.toThrow();
+      await expect(prisma.cliente.create({ data: { tenantId: tenantA, nombre: 'Plazo cero', plazoCreditoDias: 0 } as any })).rejects.toThrow();
+    });
+
     it('sin plazo configurado, la factura conserva el vencimiento indicado (compatibilidad)', async () => {
       const cliente = await prisma.cliente.create({ data: { tenantId: tenantA, nombre: 'Cliente Sin Plazo', creditoHabilitado: true, limiteCredito: 10000, saldoPendiente: 0 } as any });
       const v = await venta(admin, { clienteId: cliente.id, tipoPago: 'CREDITO', metodoPago: 'CREDITO', vencimiento: '2030-06-30' });

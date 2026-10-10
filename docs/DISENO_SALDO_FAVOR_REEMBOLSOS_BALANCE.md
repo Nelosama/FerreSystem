@@ -1,6 +1,15 @@
 # Diseño técnico: saldo a favor y reembolsos (BALANCE, 2026-10-10)
 
-**Estado:** diseño propuesto, **no implementado**. Requiere cambio estructural (tablas nuevas y cambio de comportamiento en devoluciones). Pendiente de revisión por NEXUS antes de codificar. Sin migraciones productivas.
+**Estado:** decisiones aprobadas por el propietario el 2026-10-10. **Diseño definitivo, no implementado.** No se crean tablas ni migraciones en esta fase. Implementación en una fase posterior, con coordinación de NEXUS. El contrato para NEXUS está en `docs/HANDOFF_NEXUS_BALANCE_20261010.md`.
+
+## 0. Decisiones aprobadas (2026-10-10)
+
+1. El excedente de una devolución se convierte **por defecto** en saldo a favor del cliente. Hoy se reembolsa de caja de inmediato; el cambio entra con el módulo.
+2. Reembolsos de saldo a favor: autorización ADMIN, auditoría e idempotencia por `solicitud_id`.
+3. Cotizaciones a crédito sin plazo del cliente pueden quedar sin vencimiento (implementado).
+4. Reembolsos con tarjeta: referencia, terminal y comprobante verificable. Implementado en la devolución; la persistencia con unicidad va en la fase posterior.
+5. Unicidad de comprobantes por empresa y procesador: `(tenant_id, metodo, terminal, referencia)`. Referencias reutilizadas en contextos distintos (otra terminal, otro método u otra empresa) son válidas.
+6. No se crean roles financieros nuevos.
 
 ## 1. Regla aprobada por el propietario
 
@@ -47,7 +56,7 @@ Tabla nueva `reembolsos_cliente`: `id`, `tenant_id`, `cliente_id`, `monto`, `est
 
 Operación transaccional: bloquear cliente y cuenta (`FOR UPDATE`), verificar saldo disponible ≥ monto, insertar `APLICADO`, reducir saldo de la cuenta y `clientes.saldo_pendiente`, auditar. Idempotente por `solicitud_id`.
 
-## 4. Cambio de comportamiento en devolución
+## 4. Cambio de comportamiento en devolución (pendiente del módulo)
 
 Propuesta: el excedente de una devolución se registra como `GENERADO` en lugar de reembolso inmediato de caja.
 

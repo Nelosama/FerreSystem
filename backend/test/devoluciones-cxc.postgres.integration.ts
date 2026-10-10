@@ -166,6 +166,12 @@ describe('Devoluciones con crédito, saldo y reembolsos / PostgreSQL aislado', (
       expect(await auditoriaDevolucion(v.id)).toEqual([]);
     });
 
+    it('reembolso con tarjeta con referencia pero sin terminal responde 400 y no toca caja', async () => {
+      const v = await venta(admin);
+      await expect(devolverTarjeta(v.id, { referencia: 'DEV-SIN-TERM' })).rejects.toThrow('Indique la terminal del POS');
+      expect((await reembolsosCaja(v.id))[0]).toEqual({ total: 0, n: 0 });
+    });
+
     it('reembolso con tarjeta con comprobante: movimiento de caja negativo y comprobante normalizado en la auditoría', async () => {
       const v = await venta(admin);
       await devolverTarjeta(v.id, { referencia: 'dev-ok-01', terminal: 'pos-02' });

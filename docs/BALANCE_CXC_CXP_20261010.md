@@ -68,10 +68,10 @@ Orden de aplicación: después de `20261012000000_conciliacion_pagos_bancarios` 
 | Suite | Resultado |
 |---|---|
 | `cxc-cxp-balance.postgres.integration.ts` | 11/11 |
-| `pagos-bancarios.postgres.integration.ts` | 22/22 |
-| `devoluciones-cxc.postgres.integration.ts` | 7/7 |
+| `pagos-bancarios.postgres.integration.ts` | 24/24 |
+| `devoluciones-cxc.postgres.integration.ts` | 8/8 |
 | `cotizaciones.postgres.integration.ts` | 8/8 (incluye conversión a crédito con plazo y sin plazo) |
-| Integración PostgreSQL completa | 25 archivos, 414 aprobadas, 1 omitida (omitida ya antes de BALANCE) |
+| Integración PostgreSQL completa | 25 archivos, 417 aprobadas, 1 omitida (omitida ya antes de BALANCE) |
 | Backend unitarias | 345/345 |
 | Frontend unitarias | 225/225 |
 | `tsc --noEmit` frontend y `tsc -p tsconfig.build.json` backend | sin errores |
@@ -96,6 +96,8 @@ Orden de aplicación: después de `20261012000000_conciliacion_pagos_bancarios` 
 | Saldo a favor y reembolso autorizado diferido | **Diseño entregado, no implementado** (`docs/DISENO_SALDO_FAVOR_REEMBOLSOS_BALANCE.md`) |
 
 ## 8. Contratos de integración
+
+Contrato definitivo, migraciones y casos de prueba para NEXUS: `docs/HANDOFF_NEXUS_BALANCE_20261010.md`.
 
 ### ATLAS (ventas a crédito y conversión de cotizaciones)
 
