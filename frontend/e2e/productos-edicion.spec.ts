@@ -75,8 +75,6 @@ const test = base.extend<{ sim: Sim }>({
         if (method === 'GET' && /^\/operaciones\/productos\/[^/]+\/proveedores$/.test(path)) return responder(route, 200, []);
         const historial = path.match(/^\/operaciones\/productos\/([^/]+)\/historial$/);
         if (method === 'GET' && historial) { sim.historial.push(historial[1]); return responder(route, 200, { movimientos: [], costos: [] }); }
-        // Panel de proveedores por producto (P1, #127): sin vínculos en esta prueba.
-        if (method === 'GET' && /^\/operaciones\/productos\/[^/]+\/proveedores$/.test(path)) return responder(route, 200, []);
 
         const producto = path.match(/^\/productos\/([^/]+)$/);
         if (method === 'PUT' && producto) {
