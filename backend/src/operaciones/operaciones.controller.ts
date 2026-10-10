@@ -22,7 +22,7 @@ export class OperacionesController {
  @RequiredModule('ordenes_compra')
  @Get('compras') @UseInterceptors(SinCostosParaBodeguero(['subtotal','isv','total'])) @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') compras(@TenantId() t:string){return this.service.compras(t);}
  @RequiredModule('ordenes_compra')
- @Post('compras') @UseInterceptors(SinCostosParaBodeguero(['subtotal','isv','total'])) @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') compra(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:CompraDto){return this.service.compra(t,u,dto);}
+ @Post('compras') @UseInterceptors(SinCostosParaBodeguero(['subtotal','isv','total'])) @RequiredPermission('inventario.editar') @Roles('ADMIN') compra(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:CompraDto){return this.service.compra(t,u,dto);}
  @RequiredModule('ordenes_compra', 'inventario')
  @Post('compras/:id/recepciones') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') recibir(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:RecepcionDto){return this.service.recibir(t,u,id,dto);}
  @Get('cuentas') @Roles('ADMIN','CAJERO') cuentas(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('tipo') tipo:string){return this.service.cuentas(t,u,tipo);}

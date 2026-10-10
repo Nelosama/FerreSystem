@@ -88,9 +88,15 @@ describe('KARDEX · BODEGUERO sin costos por ninguna ruta de operaciones (HTTP)'
     await get('/operaciones/productos/p1/historial', 'CAJERO').expect(403);
   });
 
-  it('la respuesta de registrar una compra a BODEGUERO no devuelve totales ni costos', async () => {
-    const cuerpo = (await request(app.getHttpServer()).post('/operaciones/compras').set('x-test-role', 'BODEGUERO')
+  it('BODEGUERO no registra compras con costo: POST /operaciones/compras responde 403', async () => {
+    await request(app.getHttpServer()).post('/operaciones/compras').set('x-test-role', 'BODEGUERO')
+      .send({ solicitudId: '7a1d4c52-7d6a-4b8f-9d3e-2f1c0b9a8e11', proveedorId: 'v1', numeroFactura: 'F-2', isv: 0, items: [{ productoId: 'p1', cantidad: 1, costo: 3 }] }).expect(403);
+    expect(servicio.compra).not.toHaveBeenCalled();
+  });
+
+  it('ADMIN registra la compra y recibe su respuesta completa', async () => {
+    const cuerpo = (await request(app.getHttpServer()).post('/operaciones/compras').set('x-test-role', 'ADMIN')
       .send({ solicitudId: '7a1d4c52-7d6a-4b8f-9d3e-2f1c0b9a8e11', proveedorId: 'v1', numeroFactura: 'F-2', isv: 0, items: [{ productoId: 'p1', cantidad: 1, costo: 3 }] }).expect(201)).body;
-    expect(sinCostos(cuerpo)).not.toMatch(/precio_costo|"total"|"subtotal"|"isv"/);
+    expect(cuerpo).toMatchObject({ total: 34.5, subtotal: 30 });
   });
 });

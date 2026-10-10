@@ -64,3 +64,41 @@ KARDEX no tiene acceso a datos productivos. Los números anteriores son del caso
 
 1. Revisión de la migración `20261011150000` (ver sección 4).
 2. ¿Hay un ambiente de staging con copia de datos para aplicar la migración antes de producción?
+
+---
+
+## Actualización de ronda (cierre de consolidación)
+
+### Decisiones confirmadas por el dueño
+- Legados: aprobación automática solo para productos **activos con precio de venta positivo**. Los demás quedan pendientes. NEXUS valida impacto y respaldo antes de cualquier ejecución; no se ejecuta en producción.
+- BODEGUERO registra productos y cantidades recibidas. No consulta, captura ni modifica costos de compra. `POST /operaciones/compras` es solo ADMIN (controlador y servicio).
+- Cambiar el precio de venta revoca la aprobación. Cambiar solo el costo no la revoca. Solo ADMIN aprueba.
+- Una venta válida y registrada se entrega aunque después se revoque la aprobación. No se modifica el importe de una venta confirmada.
+
+### Contrato para ATLAS (contingencia offline)
+Estado actual verificado en código de `claude/integracion-pos-offline-p1`:
+- `backend/src/contingencia/contingencia.service.ts`, línea 158: el catálogo filtra solo `activo: true`. **No cumple.**
+- Línea 450: la venta offline se crea con `tx.venta.create` directo, sin pasar por la validación de aprobación de `ventas.service.ts`. **No cumple.**
+
+Requisitos que ATLAS debe implementar (KARDEX no edita estos archivos):
+1. Catálogo offline: `activo = true AND precio_aprobado = true AND precio_venta > 0`. Incluir `precioAprobado` en la respuesta del catálogo, para que el cliente lo muestre como no vendible.
+2. Sincronización: el backend valida de nuevo cada línea (producto activo, aprobado y con precio positivo) antes de crear la venta. Si una línea no cumple, la venta no se registra y se devuelve motivo por línea.
+3. Ninguna venta offline puede quedar registrada con un producto pendiente de aprobación, ni por el catálogo ni por la sincronización.
+4. Venta sin inventario (`sinInventario`): misma regla de aprobación.
+5. Entrega (`operaciones.entregar`): no aplica la aprobación; una venta registrada se entrega aunque después se revoque el precio.
+
+Bloqueo: sin los puntos 1 a 3, la activación de contingencia con clientes reales queda **NO-GO**.
+
+### Contrato para FORJA (costos de compra)
+Verificado en tests PostgreSQL (`backend/test/kardex-consolidacion.postgres.integration.ts`, `backend/test/inventario-ciclo.postgres.integration.ts`):
+- Recepción de compra: `precio_costo` y `costo_vigente` toman el último costo recibido, incluso si es menor. Probado con 3 → 2.5.
+- Conteo físico: no cambia costo, precio ni margen. Probado.
+- Historial: cada recepción crea un registro en `costos_compra` con proveedor y orden. Probado.
+- Actualización de costo: no modifica `precio_venta` ni `precio_aprobado`. Probado.
+
+FORJA debe revisar estos contratos. No hubo canal en vivo con FORJA en esta sesión; queda como solicitud documentada.
+
+### Solicitud a NEXUS
+1. Usar la consolidación `claude/kardex-consolidacion-134-140` en lugar de integrar #134 y #140 por separado. Detalle de conservado y reemplazado: `docs/CONSOLIDACION_134_140_CAMBIOS.md`.
+2. Revisar la migración `20261011150000_precio_aprobacion_producto` (filtro `activo = true AND precio_venta > 0`) y validar un respaldo antes de cualquier ejecución productiva.
+3. Confirmar el orden de migraciones con #129 en un entorno de staging.

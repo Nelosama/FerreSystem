@@ -160,7 +160,7 @@ describe('KARDEX · consolidación de precios y aprobación / PostgreSQL real', 
     await prisma.$executeRawUnsafe('INSERT INTO proveedores (id,tenant_id,nombre,updated_at) VALUES ($1,$2,$3,NOW())', proveedorId, tenantId, 'Proveedor sintético');
     const conCompra = await crearProducto({ codigo: 'SIM-COMPRA', stockActual: 0, precioCosto: 5, costoVigente: 3, precioAprobado: true });
     const sinCompra = await crearProducto({ codigo: 'SIM-SIN', stockActual: 0, precioCosto: 4, costoVigente: 4, precioAprobado: true });
-    const orden = await operaciones.compra(tenantId, bodegueroId, { solicitudId: randomUUID(), proveedorId, numeroFactura: 'SIM-1', isv: 0,
+    const orden = await operaciones.compra(tenantId, adminId, { solicitudId: randomUUID(), proveedorId, numeroFactura: 'SIM-1', isv: 0,
       items: [{ productoId: conCompra, cantidad: 1, costo: 3 }] } as any);
     expect(orden.id).toBeDefined();
     // El historial de costos se escribe al recibir; luego se simula el desajuste heredado: costo comercial 5, última compra 3.
@@ -185,5 +185,46 @@ describe('KARDEX · consolidación de precios y aprobación / PostgreSQL real', 
     // La transacción revertida no deja escritura alguna.
     const despues = await prisma.producto.findMany({ where: { tenantId }, orderBy: { codigo: 'asc' } });
     expect(despues.map(p => [p.id, Number(p.precioCosto), Number(p.costoVigente)])).toEqual(antes.map(p => [p.id, Number(p.precioCosto), Number(p.costoVigente)]));
+  });
+
+  // ── Matriz de autorización y contratos para NEXUS y FORJA ──
+  it('BODEGUERO no registra compras con costo en el servicio; ADMIN sí', async () => {
+    const productoId = await crearProducto({ stockActual: 0, precioAprobado: true });
+    const proveedor = randomUUID();
+    await prisma.$executeRawUnsafe('INSERT INTO proveedores (id,tenant_id,nombre,updated_at) VALUES ($1,$2,$3,NOW())', proveedor, tenantId, 'Proveedor matriz');
+    const solicitud = (usuario: string) => operaciones.compra(tenantId, usuario, {
+      solicitudId: randomUUID(), proveedorId: proveedor, numeroFactura: `M-${randomUUID().slice(0, 6)}`, isv: 0,
+      items: [{ productoId, cantidad: 1, costo: 3 }],
+    } as any);
+    await expect(solicitud(bodegueroId)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(solicitud(adminId)).resolves.toBeDefined();
+  });
+
+  it('una venta registrada se entrega aunque después se revoque la aprobación; el importe no cambia', async () => {
+    const productoId = await crearProducto({ stockActual: 5, precioVenta: 4, precioCosto: 2, precioAprobado: true });
+    const cajaId = randomUUID();
+    await prisma.caja.create({ data: { id: cajaId, tenantId, codigo: `CAJA-${cajaId}`, usuarioId: adminId, montoApertura: 0 } as any });
+    const venta = await ventas.create(tenantId, adminId, { metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles: [{ productoId, cantidad: 2 }] } as any);
+    await productos.cambiarPrecios(tenantId, productoId, { version: 1, precioVenta: 6 } as any, adminId);
+    expect((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).precioAprobado).toBe(false);
+    await operaciones.entregar(tenantId, adminId, venta.id);
+    const fila = await prisma.venta.findUniqueOrThrow({ where: { id: venta.id }, include: { detalles: true } });
+    expect(fila.entregadoAt).not.toBeNull();
+    expect([Number(fila.total), Number(fila.detalles[0].precioUnitario)]).toEqual([venta.total, 4]);
+  });
+
+  it('recibir una compra más barata actualiza costo comercial y vigente; no toca precio de venta ni aprobación', async () => {
+    const productoId = await crearProducto({ stockActual: 0, precioVenta: 4, precioCosto: 2, costoVigente: 2, precioAprobado: true });
+    const proveedor = randomUUID();
+    await prisma.$executeRawUnsafe('INSERT INTO proveedores (id,tenant_id,nombre,updated_at) VALUES ($1,$2,$3,NOW())', proveedor, tenantId, 'Proveedor FORJA');
+    const orden = await operaciones.compra(tenantId, adminId, { solicitudId: randomUUID(), proveedorId: proveedor, numeroFactura: `R-${randomUUID().slice(0, 6)}`, isv: 0,
+      items: [{ productoId, cantidad: 3, costo: 2.5 }] } as any);
+    const [detalle] = await prisma.$queryRawUnsafe<{ id: string }[]>('SELECT id FROM detalles_orden_compra WHERE orden_id=$1', orden.id);
+    await operaciones.recibir(tenantId, bodegueroId, orden.id, { solicitudId: randomUUID(), items: [{ detalleId: detalle.id, cantidad: 3 }] } as any);
+    const fila = await prisma.producto.findUniqueOrThrow({ where: { id: productoId } });
+    expect([Number(fila.precioCosto), Number(fila.costoVigente), Number(fila.precioVenta), fila.precioAprobado, Number(fila.stockActual)]).toEqual([2.5, 2.5, 4, true, 3]);
+    const historial = await prisma.$queryRawUnsafe<any[]>('SELECT costo, proveedor_id FROM costos_compra WHERE producto_id=$1', productoId);
+    expect(historial).toHaveLength(1);
+    expect(historial[0].proveedor_id).toBe(proveedor);
   });
 });

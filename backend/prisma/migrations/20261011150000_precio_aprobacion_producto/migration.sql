@@ -10,12 +10,12 @@ ALTER TABLE "productos"
   ADD COLUMN "precio_modificado_por" TEXT,
   ADD COLUMN "precio_modificado_at" TIMESTAMP(3);
 
--- KARDEX (consolidación #134/#140): solo se marcan como legado los productos con precio de venta positivo.
+-- KARDEX (consolidación #134/#140): solo se marcan como legado los productos activos con precio de venta positivo.
 -- Un producto histórico sin precio válido queda pendiente de aprobación; la migración no lo vuelve vendible.
 UPDATE "productos"
 SET "precio_aprobado" = true,
     "precio_aprobado_por" = 'LEGADO_MIGRACION',
     "precio_aprobado_at" = CURRENT_TIMESTAMP
-WHERE "precio_venta" > 0;
+WHERE "activo" = true AND "precio_venta" > 0;
 
 CREATE INDEX "productos_tenant_id_precio_aprobado_idx" ON "productos"("tenant_id", "precio_aprobado");

@@ -143,9 +143,10 @@ test.describe('Compra al contado (simulado)', () => {
 
   test.describe('como BODEGUERO (negativo)', () => {
     test.use({ rol: 'BODEGUERO' });
-    test('no ve el selector de pago al contado', async ({ page, sim }) => {
+    test('no registra facturas de compra: el formulario con costos es solo de ADMIN', async ({ page, sim }) => {
       await ingresar(page, '/ordenes-compra');
-      await expect(page.getByRole('heading', { name: 'Registrar factura de compra' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'COMPRAS Y REPOSICIONES' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Registrar factura de compra' })).toHaveCount(0);
       await expect(page.getByRole('checkbox', { name: 'Pagar al contado al registrar' })).toHaveCount(0);
       expect(sim.compras).toEqual([]);
     });

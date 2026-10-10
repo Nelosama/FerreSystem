@@ -74,7 +74,7 @@ describe('Ciclo de inventario / PostgreSQL real', () => {
 
   // Compra y recepción reales: la recepción suma existencias y registra costo histórico.
   async function comprarYRecibir(productoId: string, cantidad: number, costo: number) {
-    const orden = await operaciones.compra(tenantId, bodegueroId, {
+    const orden = await operaciones.compra(tenantId, adminId, {
       solicitudId: randomUUID(), proveedorId, numeroFactura: `F-${randomUUID().slice(0, 8)}`, isv: 0,
       items: [{ productoId, cantidad, costo }],
     } as any);
