@@ -13,6 +13,7 @@ import './App.css';
 import './v2-theme.css';
 import { TaskFinder } from './components/TaskFinder';
 import { ModuloPendiente } from './components/ModuloPendiente';
+import { GarantiasPage } from './pages/GarantiasPage';
 
 import { useTenant } from './context/TenantContext';
 
@@ -58,7 +59,6 @@ const OrdenesCompraPage = React.lazy(() =>
   import('./pages/OrdenesCompraPage').then(m => ({ default: m.OrdenesCompraPage }))
 );
 const TransferenciasPage=()=> <ModuloPendiente nombre="TRANSFERENCIAS ENTRE SUCURSALES"/>;
-const GarantiasPage=()=> <ModuloPendiente nombre="GARANTÍAS"/>;
 const PedidosEspecialesPage=()=> <ModuloPendiente nombre="PEDIDOS ESPECIALES" especial/>;
 const ListasPrecioPage=()=> <ModuloPendiente nombre="LISTAS DE PRECIO"/>;
 const ComisionesPage = React.lazy(() =>

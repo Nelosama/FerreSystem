@@ -1,13 +1,13 @@
 import { sumarDiasCalendario } from './fechasNegocio';
 
 /**
- * Límite técnico de días por garantía (10 años). No es una regla comercial: evita
- * valores absurdos al escribir. Cambiarlo requiere revisión funcional.
+ * Límite técnico de días por garantía (10 años). Coincide con la validación del backend
+ * y con el CHECK de la base. No es una regla comercial.
  */
 export const DIAS_GARANTIA_MAX = 3650;
 
 /**
- * Interpreta el campo «Días de garantía»: entero positivo entre 1 y DIAS_GARANTIA_MAX.
+ * Interpreta el campo «Días de garantía»: entero entre 1 y DIAS_GARANTIA_MAX.
  * Rechaza decimales, signos, notación científica y texto. Devuelve null si no es válido.
  */
 export function validarDiasGarantia(valor: string): number | null {
@@ -19,28 +19,22 @@ export function validarDiasGarantia(valor: string): number | null {
 }
 
 /**
- * Vencimiento de una garantía: fecha de venta más días calendario.
- * Ej: ('2026-10-09', 30) -> '2026-11-08'; ('2026-12-31', 1) -> '2027-01-01'.
- * Trabaja sobre el día de negocio (YYYY-MM-DD), nunca sobre instantes.
+ * Vista previa del vencimiento: fecha de la factura (YYYY-MM-DD) más días calendario.
+ * El servidor calcula el valor guardado; esta función solo previsualiza.
  */
-export function vencimientoGarantia(fechaVenta: string, dias: number): string {
-  return sumarDiasCalendario(fechaVenta, dias);
-}
-
-/** Campos de vigencia de un registro guardado. Los registros anteriores solo tienen meses. */
-export interface VigenciaRegistro {
-  diasGarantia?: number;
-  mesesGarantia?: number;
+export function vencimientoGarantia(fechaFactura: string, dias: number): string {
+  return sumarDiasCalendario(fechaFactura, dias);
 }
 
 /**
- * Vigencia tal como fue registrada. Un registro anterior con `mesesGarantia` se devuelve como
- * meses: NO se convierte a días (un mes no equivale a 30 días).
+ * Identificador de solicitud UUID v4 para reintentos seguros. Usa crypto.getRandomValues,
+ * que existe también en HTTP sin contexto seguro (donde crypto.randomUUID no está disponible).
  */
-export function vigenciaDeRegistro(
-  registro: VigenciaRegistro,
-): { tipo: 'dias'; valor: number } | { tipo: 'meses'; valor: number } | null {
-  if (typeof registro.diasGarantia === 'number') return { tipo: 'dias', valor: registro.diasGarantia };
-  if (typeof registro.mesesGarantia === 'number') return { tipo: 'meses', valor: registro.mesesGarantia };
-  return null;
+export function generarSolicitudId(): string {
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
