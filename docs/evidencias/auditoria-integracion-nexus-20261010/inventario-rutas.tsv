@@ -1,0 +1,127 @@
+GET	/	(SIN @Roles)	-	app	ninguno	sin-UseGuards-clase
+GET	/health/db	(SIN @Roles)	-	app	ninguno	sin-UseGuards-clase
+POST	/auth/login	(SIN @Roles)	-	auth	ninguno	sin-UseGuards-clase
+POST	/auth/refresh	(SIN @Roles)	-	auth	ninguno	sin-UseGuards-clase
+POST	/auth/logout	(SIN @Roles)	-	auth	ninguno	sin-UseGuards-clase
+GET	/auth/me	(SIN @Roles)	-	auth	ninguno	sin-UseGuards-clase
+GET	/clientes	Rol.ADMIN	-	clientes	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/clientes/buscar	Rol.ADMIN,Rol.CAJERO,Rol.VENDEDOR	-	clientes	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/clientes/:id	Rol.ADMIN	-	clientes	clase	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/clientes	Rol.ADMIN	-	clientes	clase	JwtAuthGuard,TenantGuard,RolesGuard
+PUT	/clientes/:id	Rol.ADMIN	-	clientes	clase	JwtAuthGuard,TenantGuard,RolesGuard
+PATCH	/clientes/:id	Rol.ADMIN	-	clientes	clase	JwtAuthGuard,TenantGuard,RolesGuard
+PATCH	/clientes/:id/credito	Rol.ADMIN	-	clientes	clase	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/clientes/:id/abonos	Rol.ADMIN	-	clientes	clase	JwtAuthGuard,TenantGuard,RolesGuard
+DELETE	/clientes/:id	Rol.ADMIN	-	clientes	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/['maintenance', 'admin/maintenance']/backup	(SIN @Roles)	-	backup-status	ninguno	JwtAuthGuard,SuperAdminGuard
+GET	/health	(SIN @Roles)	-	health	ninguno	sin-UseGuards-clase
+GET	/contingencia/configuracion	ADMIN,CAJERO,VENDEDOR	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+PATCH	/contingencia/configuracion	ADMIN	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/contingencia/dispositivos	ADMIN,CAJERO	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/contingencia/dispositivos	ADMIN	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/contingencia/dispositivos/:id/desactivar	ADMIN	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/contingencia/dispositivos/:id/latido	ADMIN,CAJERO,VENDEDOR	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/contingencia/ventanas	ADMIN,CAJERO	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/contingencia/operaciones	ADMIN,CAJERO	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/contingencia/operaciones/estados	ADMIN,CAJERO	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/contingencia/operaciones	ADMIN	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/contingencia/resumen	ADMIN	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/contingencia/operaciones/:id/resolver	ADMIN	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+PATCH	/contingencia/operaciones/:id/referencia-factura	ADMIN,CAJERO	-	contingencia	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/cotizaciones	ADMIN,CAJERO,VENDEDOR	-	cotizaciones	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/cotizaciones/:id	ADMIN,CAJERO,VENDEDOR	-	cotizaciones	clase	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/cotizaciones	ADMIN,VENDEDOR,CAJERO	cotizaciones.crear	cotizaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+PUT	/cotizaciones/:id	ADMIN,VENDEDOR,CAJERO	cotizaciones.crear	cotizaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/cotizaciones/:id/duplicar	ADMIN,VENDEDOR,CAJERO	-	cotizaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+PATCH	/cotizaciones/:id/estado	ADMIN,VENDEDOR,CAJERO	cotizaciones.aprobar	cotizaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/cotizaciones/:id/convertir	ADMIN,CAJERO	cotizaciones.convertir_venta	cotizaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/dashboard	ADMIN,BODEGUERO,VENDEDOR	-	dashboard	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/garantias/facturas/:numero	ADMIN,CAJERO	-	garantias	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/garantias/coberturas	ADMIN,CAJERO	-	garantias	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/garantias/coberturas	ADMIN	-	garantias	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+PATCH	/garantias/coberturas/:id	ADMIN	-	garantias	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/levantamientos	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/levantamientos/:id	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/levantamientos	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+PATCH	/levantamientos/:id	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+DELETE	/levantamientos/:id	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/levantamientos/:id/preview	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/levantamientos/:id/aplicar	ADMIN	-	levantamientos	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/levantamientos/:id/participantes	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/levantamientos/:id/heartbeat	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+DELETE	/levantamientos/:id/heartbeat	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/levantamientos/:id/conflictos	ADMIN	-	levantamientos	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/levantamientos/:id/conciliar	ADMIN	-	levantamientos	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/levantamientos/:id/items	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/levantamientos/:id/items	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+PATCH	/levantamientos/:id/items/:itemId	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+DELETE	/levantamientos/:id/items/:itemId	ADMIN,BODEGUERO	-	levantamientos	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/proveedores	ADMIN,CAJERO,BODEGUERO,VENDEDOR	-	operaciones	clase	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/proveedores	ADMIN	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/compras	ADMIN,BODEGUERO	inventario.ver	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/compras	ADMIN	inventario.editar	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/compras/:id/recepciones	ADMIN,BODEGUERO	inventario.editar	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/cuentas	ADMIN,CAJERO	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/cuentas/:id/pagos	ADMIN,CAJERO	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/caja	ADMIN,CAJERO,VENDEDOR	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/caja/cierres	ADMIN	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/caja/:id	ADMIN,CAJERO,VENDEDOR	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/caja/:id/movimientos	ADMIN,CAJERO,VENDEDOR	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/caja/abrir	ADMIN,CAJERO,VENDEDOR	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/caja/:id/cerrar	ADMIN,CAJERO,VENDEDOR	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/conciliaciones-bancarias	ADMIN	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/conciliaciones-bancarias	ADMIN	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/clientes/:id/estado-cuenta	ADMIN,CAJERO	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/productos/:id/proveedores	ADMIN,BODEGUERO	inventario.ver	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+PUT	/operaciones/productos/:id/proveedores/:proveedorId	ADMIN,BODEGUERO	inventario.editar	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+DELETE	/operaciones/productos/:id/proveedores/:proveedorId	ADMIN,BODEGUERO	inventario.editar	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/productos/:id/historial	ADMIN,BODEGUERO	inventario.ver	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/productos/:id/ajuste	ADMIN,BODEGUERO	inventario.editar	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/ventas/:id/entregar	ADMIN,CAJERO,BODEGUERO	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/entregas	ADMIN,CAJERO,BODEGUERO	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/resumen	ADMIN	reportes.ver	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/ventas/buscar	ADMIN,CAJERO,VENDEDOR	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/ventas/:id/devoluciones	ADMIN	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/ventas/:id/solicitudes-devolucion	ADMIN,CAJERO,VENDEDOR	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/solicitudes-devolucion	ADMIN,CAJERO,VENDEDOR	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/solicitudes-devolucion/:id	ADMIN,CAJERO,VENDEDOR	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/solicitudes-devolucion/:id/decision	ADMIN	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/operaciones/solicitudes-devolucion/:id/ejecutar	ADMIN,CAJERO,VENDEDOR	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/devoluciones/:id	ADMIN,CAJERO,VENDEDOR	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/operaciones/auditoria	ADMIN	-	operaciones	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/productos	(SIN @Roles)	-	productos	ninguno	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/productos/alertas/stock-bajo	(SIN @Roles)	-	productos	ninguno	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/productos/comercial	ADMIN,CAJERO,VENDEDOR	pos.vender	productos	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/productos/:id	(SIN @Roles)	-	productos	ninguno	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/productos	ADMIN,BODEGUERO	inventario.editar	productos	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+PUT	/productos/:id	ADMIN,BODEGUERO	inventario.editar	productos	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+PATCH	/productos/:id/precios	ADMIN	inventario.editar	productos	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+DELETE	/productos/:id	ADMIN	inventario.editar	productos	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/proveedores	Rol.ADMIN	-	proveedores	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/proveedores	Rol.ADMIN	-	proveedores	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/proveedores/:id	Rol.ADMIN	-	proveedores	clase	JwtAuthGuard,TenantGuard,RolesGuard
+PATCH	/proveedores/:id	Rol.ADMIN	-	proveedores	clase	JwtAuthGuard,TenantGuard,RolesGuard
+DELETE	/proveedores/:id	Rol.ADMIN	-	proveedores	clase	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/admin/auth/login	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+POST	/admin/auth/refresh	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+POST	/admin/auth/logout	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+GET	/admin/tenants	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+POST	/admin/support/token	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+POST	/admin/tenants	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+PATCH	/admin/tenants/:id/status	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+GET	/admin/tenants/:id/modules	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+PUT	/admin/tenants/:id/modules	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+POST	/admin/tenants/:tenantId/admins	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+PATCH	/admin/tenants/:tenantId/admins/:userId	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+PATCH	/admin/tenants/:id	(SIN @Roles)	-	super-admin	ninguno	sin-UseGuards-clase
+GET	/tenant/settings	(SIN @Roles)	-	tenants	ninguno	JwtAuthGuard,TenantGuard,RolesGuard
+PUT	/tenant/settings	ADMIN	-	tenants	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/usuarios	ADMIN	-	usuarios	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/usuarios/:id	ADMIN	-	usuarios	clase	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/usuarios	ADMIN	-	usuarios	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+PUT	/usuarios/:id	ADMIN	-	usuarios	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+DELETE	/usuarios/:id	ADMIN	-	usuarios	metodo	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/ventas	ADMIN,CAJERO,VENDEDOR	-	ventas	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/ventas/solicitudes/:id	ADMIN,CAJERO,VENDEDOR	-	ventas	clase	JwtAuthGuard,TenantGuard,RolesGuard
+GET	/ventas/:id	ADMIN,CAJERO,VENDEDOR	-	ventas	clase	JwtAuthGuard,TenantGuard,RolesGuard
+POST	/ventas	ADMIN,CAJERO,VENDEDOR	pos.vender	ventas	metodo	JwtAuthGuard,TenantGuard,RolesGuard

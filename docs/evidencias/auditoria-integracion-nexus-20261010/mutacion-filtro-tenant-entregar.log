@@ -1,0 +1,36 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.integration.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.11 /home/user/nexus-audit-wt/backend
+
+ ❯ test/centinela-auditoria-integracion.postgres.integration.ts (20 tests | 1 failed) 2126ms
+       × entregas: la empresa B no entrega una venta de A y no cambia su estado 19ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/centinela-auditoria-integracion.postgres.integration.ts > Auditoría CENTINELA de integración / PostgreSQL aislado > A. negativas entre empresas (HTTP con la empresa B sobre datos de A) > entregas: la empresa B no entrega una venta de A y no cambia su estado
+Error: expected 404 "Not Found", got 409 "Conflict"
+ ❯ test/centinela-auditoria-integracion.postgres.integration.ts:167:90
+    165|
+    166|     it('entregas: la empresa B no entrega una venta de A y no cambia s…
+    167|       await post(`/api/operaciones/ventas/${datos.ventaA1}/entregar`, …
+       |                                                                                          ^
+    168|       const [fila] = await sql('SELECT entregado_at FROM ventas WHERE …
+    169|       expect(fila.entregado_at).toBeNull();
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:376:14
+ ❯ node_modules/supertest/lib/test.js:432:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:409:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:274:23
+ ❯ localAssert node_modules/supertest/lib/test.js:196:38
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:203:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed | 3 expected fail (20)
+   Start at  23:15:20
+   Duration  3.14s (transform 420ms, setup 0ms, import 873ms, tests 2.13s, environment 0ms)
+
