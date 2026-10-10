@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-10, America/Tegucigalpa** — arquitectura de continuidad POS, fase exclusivamente documental desde `main` `5eae989d`; ver bloque siguiente. Las bitácoras anteriores se conservan como fotografías fechadas y no sustituyen el estado de Git.
+Última revisión: **2026-10-10, America/Tegucigalpa** — conciliación de deriva Prisma/PostgreSQL (NEXUS) desde `main` `7ccfad25`, borrador de PR; ver bloque siguiente. Antes: arquitectura de continuidad POS, fase exclusivamente documental desde `main` `5eae989d`. Las bitácoras anteriores se conservan como fotografías fechadas y no sustituyen el estado de Git.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -19,6 +19,20 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 7. **No hacer merge automático** ni desplegar a producción sin autorización explícita del dueño del proyecto.
 
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
+
+---
+
+## Esquema Prisma / PostgreSQL — conciliación de deriva (NEXUS, 2026-10-10)
+
+- **Identidad y límites:** [docs/agentes/NEXUS.md](agentes/NEXUS.md). Informe completo, causa raíz, riesgos y GO/NO-GO: [DIAGNOSTICO_ESQUEMA_NEXUS_20261010.md](DIAGNOSTICO_ESQUEMA_NEXUS_20261010.md).
+- **Base comprobada:** `origin/main` `7ccfad25`. Rama de trabajo `claude/focused-franklin-avfmae`, borrador de PR hacia `main`. Sin merge, sin despliegue, sin conexión a producción.
+- **Deriva medida** (`prisma migrate diff` entre base reconstruida solo con migraciones y `schema.prisma`): **219 líneas en `main`**, la cifra de la misión. Contiene 10 tablas con datos sin modelo (`garantias`, `apartados`, `transferencias`, `listas_precio`, `auditoria_soporte`, etc.), 4 enums, la columna `clientes.lista_precio_id`, 9 FK sin relación Prisma, 11 FK con acción `ON UPDATE` distinta y 9 `id` con default de base. #129 y #137 tienen 255 líneas; #138 tiene 219.
+- **Corrección de esta rama (solo modelo):** modelos y relaciones que faltaban en `backend/prisma/schema.prisma`, acciones y defaults alineados con la base, sin migraciones nuevas. Diff resultante: **vacío**. No se elimina ninguna tabla, columna ni dato.
+- **Pruebas:** `prisma validate` y `generate` correctos; `tsc` build sin errores; unitarias **329/329**; integración PostgreSQL **17 archivos, 319/319 pasan, 1 omitida** (prueba de navegador condicionada por `REAL_SETTINGS_BROWSER`, no relacionada). Nueva `backend/test/esquema-deriva.postgres.integration.ts` (3/3): falla con el esquema de `main` (mutación verificada, esquema restaurado).
+- **Límites de la evidencia:** PostgreSQL 16 temporal con base vacía. No hay datos reales ni se consultó producción; el conteo de filas 0 en tablas históricas no describe producción.
+- **Riesgos abiertos:** (R1) comprobación de deriva de solo lectura contra producción, pendiente del responsable; (R2) conflicto de texto con #138 y con #129 (2 bloques en `schema.prisma` en cada caso, validado por simulación): integrar #138 primero y rebasar esta rama; (R3) `auditoria_soporte` (SEC-012) requiere decisión de conservación con CENTINELA; (R4) `listas_precio` y `clientes.lista_precio_id` sin uso en backend, decisión de negocio pendiente; (R5) sin prueba de aislamiento multi-tenant para las tablas históricas.
+- **Pendientes antes de integrar:** diff de solo lectura en producción; revisión de CENTINELA; orden de integración con #138; decisión sobre tablas históricas. Sin migración que aplicar.
+- **Bitácora:** replicación de `main` con 13 migraciones en PostgreSQL 16 temporal; diff de `main`, #129, #137 y #138; clasificación; modelos y relaciones; prueba nueva con mutación; simulación de merge con #138 y #129; informe y docs de agente. Pruebas con `nobody` (sin root) como el resto de integración.
 
 ---
 
