@@ -5,6 +5,10 @@ const backend = path.resolve(__dirname, '../../backend');
 const { PrismaClient } = require(path.join(backend, 'node_modules/@prisma/client'));
 const bcrypt = require(path.join(backend, 'node_modules/bcrypt'));
 
+// CENTINELA: rechaza cualquier destino que no sea el clúster local del E2E (usuarios de prueba con clave conocida).
+if (process.env.NODE_ENV === 'production' || !['127.0.0.1', 'localhost'].includes(new URL(process.env.DATABASE_URL || 'postgresql://invalid/').hostname)) {
+  throw new Error('seed.cjs solo escribe en el clúster local del E2E real (127.0.0.1).');
+}
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
 
 const TENANT_A = 'e2e-empresa-a';

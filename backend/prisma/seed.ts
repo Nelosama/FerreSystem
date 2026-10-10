@@ -3,17 +3,33 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+// CENTINELA: el seed nunca aporta credenciales por defecto ni escribe sobre una base que no sea de desarrollo.
+function exigirSecreto(nombre: string): string {
+  const valor = process.env[nombre];
+  if (!valor || valor.length < 12) throw new Error(`${nombre} es obligatorio (mínimo 12 caracteres). No hay claves por defecto.`);
+  return valor;
+}
+
+function exigirBaseDeDesarrollo(): void {
+  if (process.env.NODE_ENV === 'production') throw new Error('El seed no se ejecuta con NODE_ENV=production.');
+  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL es obligatorio.');
+  const host = new URL(process.env.DATABASE_URL).hostname;
+  const local = ['localhost', '127.0.0.1', '::1'].includes(host);
+  if (!local && process.env.SEED_CONFIRMAR_HOST !== host) {
+    throw new Error(`La base ${host} no es local. Para sembrarla, defina SEED_CONFIRMAR_HOST=${host}; no debe usarse contra producción.`);
+  }
+}
+
 async function main() {
+  exigirBaseDeDesarrollo();
   console.log('🌱 Iniciando seed para FerreSystem...');
 
   // 1. Super Admin (dueño del SaaS - Nelo)
-  const superAdminPassword = await bcrypt.hash('SuperAdmin2026!', 10);
+  const superAdminPassword = await bcrypt.hash(exigirSecreto('SUPER_ADMIN_PASSWORD'), 10);
   const superAdmin = await prisma.superAdmin.upsert({
     where: { email: 'admin@ferresystem.hn' },
-    update: {
-      passwordHash: superAdminPassword,
-      activo: true,
-    },
+    // Un Super Admin existente conserva su clave: el seed no la sobrescribe.
+    update: {},
     create: {
       nombre: 'Nelo — SaaS Owner',
       email: 'admin@ferresystem.hn',
@@ -122,7 +138,7 @@ async function main() {
   });
 
   // 4. Usuario Admin del Tenant
-  const tenantAdminPassword = await bcrypt.hash('Ferre2026!', 10);
+  const tenantAdminPassword = await bcrypt.hash(exigirSecreto('TENANT_ADMIN_PASSWORD'), 10);
   const adminTenant = await prisma.usuario.upsert({
     where: {
       tenantId_email: {
@@ -389,12 +405,8 @@ async function main() {
 
   console.log('\n🎉 Seed completado exitosamente.');
   console.log('--------------------------------------------------');
-  console.log('🔑 Credenciales Super Admin:');
-  console.log('   Email: admin@ferresystem.hn');
-  console.log('   Clave: SuperAdmin2026!');
-  console.log('🔑 Credenciales Tenant (La Mundial):');
-  console.log('   Email: cajero@lamundial.hn');
-  console.log('   Clave: Ferre2026!');
+  console.log('🔑 Super Admin: admin@ferresystem.hn (clave tomada de SUPER_ADMIN_PASSWORD)');
+  console.log('🔑 Tenant demo: cajero@lamundial.hn (clave tomada de TENANT_ADMIN_PASSWORD)');
   console.log('--------------------------------------------------');
 }
 

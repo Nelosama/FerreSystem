@@ -61,3 +61,16 @@ jobs:
         env:
           REAL_SETTINGS_BROWSER: '1'
         run: npm run test:integration
+  guard-base-datos:
+    # CENTINELA: bloquea comandos destructivos (db push, migrate dev/reset, seed) y cambios en migraciones publicadas.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Control de migraciones y comandos destructivos
+        run: node backend/scripts/verificar-migraciones.mjs --base "origin/${GITHUB_BASE_REF:-main}"

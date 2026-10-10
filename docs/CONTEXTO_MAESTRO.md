@@ -131,6 +131,19 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Riesgos abiertos:** D1 fiscal (sin aprobación del responsable); límites por defecto (L 5 000 / L 25 000 / cupo 50 % / 36 h) pendientes de decisión; caja única por empresa (`dispositivosMax=1`); rutas nuevas sin entrada en el menú (solo por URL); textos de contingencia solo en español.
 - **Pendientes:** PR de integración en borrador hacia `main` (no fusionar sin aprobación); si #127 o #128 cambian, repetir la integración desde su nuevo commit.
 
+## CENTINELA — cierre de seguridad y protección de producción (2026-10-10, rama `claude/centinela-cierre-produccion`, sin merge)
+
+- **Veredicto:** GO para integrar; **NO-GO para producción**.
+- **Hallazgo CRITICAL:** `backend/prisma/seed.ts` tenía una credencial fija de Super Admin (presente también en el historial de git y en `main`), y el README afirmaba una guardia de producción que no existía. Corregido en código: sin claves por defecto, sin escritura en producción ni en hosts remotos sin confirmación, sin sobrescribir Super Admins. **Pendiente del dueño:** confirmar y rotar si la clave estuvo activa en algún entorno.
+- **Controles de CI:** `backend/scripts/verificar-migraciones.mjs` (job `guard-base-datos`): bloquea `db push`, `migrate dev/reset`, `db seed` y `--accept-data-loss` en ejecutables; exige aprobación explícita para SQL destructivo en migraciones nuevas; hace inmutables las migraciones publicadas. Pruebas 8/8. `.github/CODEOWNERS` protege base de datos, despliegue y seguridad.
+- **Deriva:** #129 no añade deriva propia tras #138; la de `main` (219 líneas) sigue abierta. Informe para el responsable de base de datos: `docs/CENTINELA_INFORME_DBA_DERIVA_20261010.md`. Evidencia regenerada y verificada por hash en `docs/evidencias/deriva-main-20261010/`.
+- **TRUST_PROXY:** pendiente de prueba real en staging autorizado. Se revirtió la cabecera añadida sin verificación en `deploy/local/compose.yaml`.
+- **Cierre de sesión con IndexedDB:** escenarios E1–E9 documentados (`docs/agentes/ESCENARIOS_CIERRE_SESION_INDEXEDDB.md`), no implementados. Coordinación con ATLAS y FARO pendiente: no había agentes activos. Decisión de producto pendiente sobre la propiedad de la cola (E5).
+- **Identidades:** propuesta de registro en `AGENTS.md` sin reemplazar texto existente (`docs/agentes/REGISTRO_IDENTIDADES_AGENTS_PROPUESTA.md`); no aplicada.
+- **Pruebas:** unitarias 357/357; scripts 21/21; build de producción sin errores. Integración PostgreSQL y E2E no repetidos en esta fase tras los cambios de seed (no afectan a los tests).
+
+---
+
 ## Autenticación fase 3 — límites de intentos, sesiones revocables y rotación (2026-10-10, rama `claude/security-audit-fase-3`, [PR #133](https://github.com/Nelosama/FerreSystem/pull/133) sin merge)
 
 - **Base:** `claude/security-audit-fase-2` (PR #132) + merge de `origin/claude/integracion-pos-offline-p1` `58941e5d`. No se modificaron PR existentes; no hay merge, despliegue ni migraciones productivas. Detalle y procedimientos: [AUTENTICACION_FASE3_SESIONES_20261010.md](AUTENTICACION_FASE3_SESIONES_20261010.md).
