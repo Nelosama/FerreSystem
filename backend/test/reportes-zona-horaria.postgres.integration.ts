@@ -148,6 +148,8 @@ describe('Reportes FS-05 / PostgreSQL aislado', () => {
       const r = await ops().resumen(tenantId, '2026-10-09', '2026-10-09');
       // EFECTIVO: primerMs (10) + ultimoMs (30); TARJETA: noche (20). Excluidos: anterior 23:59:59.999, siguiente 00:00, anulada.
       expect(porMetodo(r.metodos)).toEqual({ EFECTIVO: { cantidad: 2, total: 40 }, TARJETA: { cantidad: 1, total: 20 } });
+      // Base + ISV = total por método: el reporte separa la base y el impuesto sin inventar cifras.
+      for (const m of r.metodos) expect(Number(m.base) + Number(m.isv)).toBeCloseTo(Number(m.total), 2);
       expect(r.rotacion).toHaveLength(1);
       expect(Number(r.rotacion[0].cantidad)).toBe(FIXTURE.primerMs.cantidad + FIXTURE.noche.cantidad + FIXTURE.ultimoMs.cantidad);
       expect(r.devoluciones[0]).toMatchObject({ cantidad: 1 });
