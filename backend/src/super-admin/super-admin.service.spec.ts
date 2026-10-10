@@ -34,7 +34,7 @@ describe('SuperAdminService', () => {
   });
 
   it('refreshes only active super-admin sessions', async () => {
-    jwt.verify.mockReturnValue({ sub: admin.id, rol: 'SUPER_ADMIN', type: 'super_admin' });
+    jwt.verify.mockReturnValue({ sub: admin.id, rol: 'SUPER_ADMIN', type: 'super_admin', typ: 'refresh' });
     prisma.superAdmin.findUnique.mockResolvedValue(admin);
 
     await expect(service.refresh('refresh-token', response)).resolves.toEqual({ accessToken: 'signed-token' });

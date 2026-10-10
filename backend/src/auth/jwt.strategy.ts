@@ -33,6 +33,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!payload || !payload.sub || !payload.type) {
       throw new UnauthorizedException('Token inválido');
     }
+    // El refresh token vive en cookie y solo lo acepta /auth/refresh; nunca autoriza una petición de API.
+    if (payload.typ === 'refresh') throw new UnauthorizedException('Token inválido');
 
     if (payload.type === 'tenant') {
       const user=await this.prisma.usuario.findFirst({where:{id:payload.sub,tenantId:payload.tenantId,activo:true},include:{tenant:true}});
@@ -57,6 +59,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     if (payload.type === 'super_admin') {
+      // Revalidar en cada petición: un Super Admin desactivado no conserva acceso hasta que expire el token.
+      const superAdmin = await this.prisma.superAdmin.findUnique({ where: { id: String(payload.sub) }, select: { activo: true } });
+      if (!superAdmin?.activo) throw new UnauthorizedException('Super Admin no autorizado');
       return {
         sub: payload.sub,
         email: payload.email,

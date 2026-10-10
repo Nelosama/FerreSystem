@@ -51,7 +51,7 @@ export class AuthService {
       const accessToken = this.jwtService.sign(payload, {
         expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
       });
-      const refreshToken = this.jwtService.sign(payload, {
+      const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
         expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
       });
       const isProduction = this.configService.get('NODE_ENV') === 'production';
@@ -148,25 +148,11 @@ export class AuthService {
       `[LOGIN_DIAGNOSTIC] [ETAPA 4] Usuario encontrado - ID: ${usuario.id}, TenantID: ${usuario.tenantId}, Rol: ${usuario.rol}, Activo: ${usuario.activo}`,
     );
 
-    // Etapa 5: Validación de usuario.activo
-    if (!usuario.activo) {
-      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO C] Usuario encontrado pero INACTIVO - ID: ${usuario.id}`);
-      throw new UnauthorizedException('Este usuario ha sido desactivado');
-    }
-    this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 5] Estado del usuario verificado: ACTIVO`);
-
-    // Etapa 6: Validación de usuario.tenant.estado
-    const tenantEstado = usuario.tenant?.estado;
-    this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 6] Verificando estado del tenant (${usuario.tenantId}): ${tenantEstado}`);
-    if (tenantEstado !== 'ACTIVO') {
-      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO D] Tenant NO está ACTIVO (${usuario.tenantId}) - Estado actual: ${tenantEstado}`);
-      throw new UnauthorizedException('La suscripción de la ferretería se encuentra suspendida');
-    }
-
-    // Etapa 7: Validación de contraseña con bcrypt
+    // Etapa 5: Validación de contraseña con bcrypt. Va antes del estado de la cuenta para no revelar
+    // si un correo existe como cuenta inactiva o empresa suspendida sin conocer la contraseña.
     let passwordValido = false;
     try {
-      this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 7] Comparando contraseña con bcrypt.compare()`);
+      this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 5] Comparando contraseña con bcrypt.compare()`);
       passwordValido = await bcrypt.compare(password, usuario.passwordHash);
     } catch (bcryptError: any) {
       this.logger.error(
@@ -180,6 +166,21 @@ export class AuthService {
     if (!passwordValido) {
       this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO B] Contraseña INCORRECTA para usuario ID: ${usuario.id}`);
       throw new UnauthorizedException('Credenciales inválidas');
+    }
+
+    // Etapa 6: Validación de usuario.activo
+    if (!usuario.activo) {
+      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO C] Usuario encontrado pero INACTIVO - ID: ${usuario.id}`);
+      throw new UnauthorizedException('Este usuario ha sido desactivado');
+    }
+    this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 6] Estado del usuario verificado: ACTIVO`);
+
+    // Etapa 7: Validación de usuario.tenant.estado
+    const tenantEstado = usuario.tenant?.estado;
+    this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 7] Verificando estado del tenant (${usuario.tenantId}): ${tenantEstado}`);
+    if (tenantEstado !== 'ACTIVO') {
+      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO D] Tenant NO está ACTIVO (${usuario.tenantId}) - Estado actual: ${tenantEstado}`);
+      throw new UnauthorizedException('La suscripción de la ferretería se encuentra suspendida');
     }
 
     // Etapa 8: Generación de JWT
@@ -196,7 +197,7 @@ export class AuthService {
       expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
     });
 
-    const refreshToken = this.jwtService.sign(payload, {
+    const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
       expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
     });
 
@@ -249,7 +250,7 @@ export class AuthService {
 
     try {
       const decoded = this.jwtService.verify(refreshToken);
-      if (decoded.type !== 'tenant' || !decoded.tenantId) {
+      if (decoded.typ !== 'refresh' || decoded.type !== 'tenant' || !decoded.tenantId) {
         throw new UnauthorizedException('Token inválido para refrescar sesión');
       }
 

@@ -38,7 +38,7 @@ export class SuperAdminService {
     const accessToken = this.jwtService.sign(payload, {
       expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
     });
-    const refreshToken = this.jwtService.sign(payload, {
+    const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
       expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
     });
     const isProduction = this.configService.get('NODE_ENV') === 'production';
@@ -70,7 +70,7 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
       throw new UnauthorizedException('Refresh token de Super Admin expirado o inválido');
     }
-    if (decoded.type !== 'super_admin' || decoded.rol !== 'SUPER_ADMIN' || !decoded.sub) {
+    if (decoded.typ !== 'refresh' || decoded.type !== 'super_admin' || decoded.rol !== 'SUPER_ADMIN' || !decoded.sub) {
       res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
       throw new UnauthorizedException('Refresh token de Super Admin inválido');
     }

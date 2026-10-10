@@ -131,6 +131,24 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Riesgos abiertos:** D1 fiscal (sin aprobación del responsable); límites por defecto (L 5 000 / L 25 000 / cupo 50 % / 36 h) pendientes de decisión; caja única por empresa (`dispositivosMax=1`); rutas nuevas sin entrada en el menú (solo por URL); textos de contingencia solo en español.
 - **Pendientes:** PR de integración en borrador hacia `main` (no fusionar sin aprobación); si #127 o #128 cambian, repetir la integración desde su nuevo commit.
 
+## Auditoría de seguridad fase 2 (2026-10-10, rama `claude/security-audit-fase-2`, PR sin merge)
+
+- **Base:** `origin/claude/integracion-pos-offline-p1` `bc0a0125` (PR #129). No se modificó #127, #128 ni #129; no hay merge, despliegue ni migraciones. Informe completo y matriz: [AUDITORIA_SEGURIDAD_FASE2_20261010.md](AUDITORIA_SEGURIDAD_FASE2_20261010.md).
+- **Corregido (reproducido antes con PostgreSQL real o prueba unitaria):**
+  - SEC-01 HIGH: `costo_unitario` llegaba a VENDEDOR (`GET /operaciones/ventas/buscar`) y a BODEGUERO sin `inventario.ver` (`GET /operaciones/entregas`). `common/interceptors/cashier-response.interceptor.ts` aplica ahora la regla de `canReadProductFinancials`.
+  - SEC-02 MEDIUM: BODEGUERO leía `/ventas` y `/cotizaciones` (datos de clientes). `ventas.controller.ts` y `cotizaciones.controller.ts` restringen a ADMIN, CAJERO y VENDEDOR.
+  - SEC-03 MEDIUM: refresh token aceptado como token de API. Refresh con `typ: 'refresh'` (`auth.service.ts`, `super-admin.service.ts`); `jwt.strategy.ts` lo rechaza.
+  - SEC-04 MEDIUM: Super Admin desactivado conservaba acceso. `jwt.strategy.ts` revalida `superAdmin.activo`.
+  - SEC-05 LOW: login revelaba cuenta inactiva o empresa suspendida sin contraseña correcta. `auth.service.ts` verifica la contraseña primero.
+- **Verificado sin hallazgo:** aislamiento entre empresas en ventas, historial, cotizaciones y ajustes de existencias (404 o rechazo); la hipótesis de costo en `ventas.findById` y `formatCotizacion` se descartó porque remapean detalles.
+- **Pruebas:** `test/seguridad-fase2.postgres.integration.ts` 16/16 (era 6 fallos reproducidos); `src/auth/auth.security.spec.ts` 4/4 (era 2 fallos). Backend unitarias 349/349. Integración PostgreSQL 22 archivos, 381 aprobadas, 1 omitida (línea base 365 aprobadas, 1 omitida). `tsc -p tsconfig.build.json` y `oxlint` limpios en archivos tocados. Ejecutar integración como usuario no root (`runuser -u nobody`) porque initdb no corre como root.
+- **Ajustes de fixtures existentes:** `auth.service.spec.ts`, `super-admin.service.spec.ts` (refresh con `typ`) y `productos-security.http.spec.ts` (mock de `superAdmin`).
+- **Pendientes y riesgos:** R-01 refresh tokens previos al despliegue válidos como bearer hasta 7 días (rotar `JWT_SECRET` o esperar); R-02 sin limitación de intentos en `/auth/login`; R-03 logout sin revocación (requiere `tokenVersion`); R-04 costo manual ADMIN/BODEGUERO (decisión D1); R-05 VENDEDOR ve ventas y cotizaciones de toda la empresa (decisión de negocio). Detalle en el informe.
+- **Coordinación:** los archivos tocados no aparecen en #127 a #131. #131 también modifica este documento; posible conflicto de texto al integrar. Confirmar con el dueño antes de merge.
+- **No verificado:** producción (Render/Supabase), respaldos y configuración real de `NODE_ENV` y `JWT_SECRET` en Render (R-09, R-10).
+
+---
+
 ## Continuidad POS y sincronización — auditoría y propuesta (2026-10-10)
 
 - **Base comprobada:** `main` y `origin/main` `5eae989dfab0ea04cc6861406ec30df459ae16c2`, checkout principal limpio; fetch realizado. Al iniciar, PR #122 abierto (`fix/qa-clientes-cajero`). Trabajo de Claude en Clientes/POS/permisos protegido; no se cambian esos archivos ni se abren PRs de implementación.

@@ -269,7 +269,7 @@ describe('AuthService', () => {
 
   describe('refresh y logout tenant', () => {
     it('refresca únicamente una sesión tenant activa', async () => {
-      mockJwtService.verify.mockReturnValue({ sub: 'u-1', type: 'tenant', tenantId: 'tenant-1' });
+      mockJwtService.verify.mockReturnValue({ sub: 'u-1', type: 'tenant', tenantId: 'tenant-1', typ: 'refresh' });
       mockPrisma.usuario.findUnique.mockResolvedValue({
         id: 'u-1',
         tenantId: 'tenant-1',
