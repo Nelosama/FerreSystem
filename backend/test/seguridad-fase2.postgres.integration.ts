@@ -108,7 +108,7 @@ describe('Seguridad fase 2 / PostgreSQL aislado', () => {
     }
     await prisma.superAdmin.create({ data: { id: superAdminId, nombre: 'Plataforma', email: 'plataforma@test.invalid', passwordHash } });
 
-    productoId = (await prisma.producto.create({ data: { tenantId: tenantA, codigo: 'SEG-1', nombre: 'Cable', precioVenta: 100, precioCosto: 50, stockActual: 1000, stockMinimo: 0 } })).id;
+    productoId = (await prisma.producto.create({ data: { tenantId: tenantA, codigo: 'SEG-1', nombre: 'Cable', precioVenta: 100, precioCosto: 50, stockActual: 1000, stockMinimo: 0, precioAprobado: true } })).id;
     await operaciones.abrir(tenantA, users.cajeroA.id, { solicitudId: randomUUID(), monto: 500 } as any);
     const registrada = await ventas.create(tenantA, users.cajeroA.id, {
       solicitudId: randomUUID(), metodoPago: 'EFECTIVO', detalles: [{ productoId, cantidad: 1, precioUnitario: 100 }],
@@ -151,10 +151,12 @@ describe('Seguridad fase 2 / PostgreSQL aislado', () => {
       expect(entrega.items[0]).not.toHaveProperty('costo_unitario');
     });
 
-    it('BODEGUERO con inventario.ver conserva el costo, según la política de productos', async () => {
+    // Regla definitiva del dueño: solo ADMIN consulta costos. BODEGUERO no, aunque tenga inventario.ver.
+    it('BODEGUERO con inventario.ver NO recibe el costo de la línea en entregas (regla definitiva: solo ADMIN)', async () => {
       const response = await get('/operaciones/entregas', tokens.bodegueroConPermiso).expect(200);
       const entrega = response.body.find((v: any) => v.id === venta.id);
-      expect(Number(entrega.items[0].costo_unitario)).toBe(50);
+      expect(entrega).toBeDefined();
+      expect(entrega.items[0]).not.toHaveProperty('costo_unitario');
     });
   });
 

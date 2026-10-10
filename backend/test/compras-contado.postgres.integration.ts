@@ -124,7 +124,7 @@ describe('Compra al contado y crédito de proveedor / PostgreSQL aislado', () =>
 
   it('solo ADMIN paga al contado: BODEGUERO recibe 403 y no queda factura ni pago', async () => {
     const dto = compra({ pagoContado: { metodo: 'EFECTIVO' } });
-    await expect(ops.compra(tenantId, userIds.BODEGUERO, dto as any)).rejects.toThrow('requiere administrador');
+    await expect(ops.compra(tenantId, userIds.BODEGUERO, dto as any)).rejects.toThrow(/requiere administrador|no tiene autorización/);
     expect(await prisma.ordenCompra.count({ where: { tenantId, numeroFactura: dto.numeroFactura } })).toBe(0);
   });
 
