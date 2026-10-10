@@ -22,6 +22,17 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Fase funcional de módulos administrativos (2026-10-10, PR #130 y #131, sin merge)
+
+- **Base:** `claude/integracion-pos-offline-p1` (integra #127 y #128, según #129). No se modificó #129 ni `main`. El POS offline no se tocó.
+- **Terminado:** garantías alineadas con el backend (VENDEDOR 403) y responsables por nombre en el listado (#130); proveedor preferido sugerido en compras, reportes con base e ISV separados, guardia de módulos pendientes y matriz QA (#131).
+- **Pruebas:** integración PostgreSQL 21 archivos, 367 aprobadas, 1 omitida; backend unitarias 345/345; frontend unitarias 227/227; Playwright 119/119.
+- **Bloqueado por decisión del dueño:** reclamos de garantía y comprobantes; comprobante de devolución; corrección auditada de cierres; precedencia de listas de precio; apartados; pedidos especiales; comisiones; idioma por empresa (diseño en la matriz).
+- **Bloqueado por dependencia:** transferencias y existencias por sucursal, sin modelo de sucursal.
+- **Detalle y decisiones:** `docs/FASE_FUNCIONAL_MODULOS_ADMIN_20261010.md`.
+
+---
+
 ## P1 operaciones — implementación (2026-10-10, rama `claude/p1-operaciones`)
 
 - **Base:** `main` `7ccfad25`. Rama nueva; sin merge, sin despliegue, sin migraciones productivas. No se tocaron `POSPage.tsx`, contingencia, sincronización, service worker ni IndexedDB (trabajo del agente POS en `claude/pos-offline-*`).
