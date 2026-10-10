@@ -54,6 +54,8 @@ const test = base.extend<{ sim: Sim }>({
         };
         if (method === 'GET' && path in vacias) return responder(route, 200, vacias[path]);
         if (method === 'GET' && path === '/operaciones/proveedores') return responder(route, 200, [proveedor]);
+        // Sugerencia de proveedor preferido al elegir producto (PR #127/#130): sin asociaciones en este simulador.
+        if (method === 'GET' && /^\/operaciones\/productos\/[^/]+\/proveedores$/.test(path)) return responder(route, 200, []);
         if (method === 'GET' && path === '/productos') return responder(route, 200, [{ id: 'prod-1', codigo: 'TOR-1', nombre: 'Tornillo', precioCosto: 45, precioVenta: 70, stockActual: sim.stock, stockMinimo: 0, unidadMedida: 'UNIDAD', activo: true }]);
         if (method === 'GET' && path === '/operaciones/compras') return responder(route, 200, [{ ...sim.orden, items: sim.orden.items.map((i: any) => ({ ...i })) }]);
         if (method === 'POST' && path === '/operaciones/compras') {
