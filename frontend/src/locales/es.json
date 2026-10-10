@@ -21,7 +21,8 @@
     "returns": "DEVOLUCIONES",
     "audit": "AUDITORÍA",
     "mobile_admin": "Resumen móvil",
-    "customer_statement": "Estado de cuenta"
+    "customer_statement": "Estado de cuenta",
+    "bank_reconciliation": "Conciliación bancaria"
   },
   "stock_taking": {
     "title": "LEVANTAMIENTO DE INVENTARIO",
@@ -1420,6 +1421,29 @@
     "saving": "Guardando…",
     "choose_supplier": "Seleccione un proveedor",
     "error": "No se pudo guardar el proveedor del producto.",
+    "network": "Sin conexión. Intente de nuevo."
+  },
+  "bank_recon": {
+    "title": "Conciliación del POS bancario",
+    "help": "Compare el total del cierre del POS del banco con las tarjetas registradas en esa terminal el día. Las diferencias quedan registradas y auditadas.",
+    "terminal": "Terminal POS",
+    "date": "Fecha de negocio",
+    "bank_total": "Total del banco",
+    "bank_count": "Transacciones del banco",
+    "reason": "Motivo",
+    "reason_hint": "Obligatorio solo cuando el total del banco no coincide con el sistema (mínimo 10 caracteres).",
+    "register": "Registrar conciliación",
+    "saving": "Registrando…",
+    "form": "Registrar conciliación bancaria",
+    "matched": "Conciliación registrada: coincide con el sistema.",
+    "registered_with_difference": "Conciliación registrada con diferencia. Quedó auditada.",
+    "history": "Conciliaciones registradas",
+    "empty": "Aún no hay conciliaciones.",
+    "system_total": "Total del sistema",
+    "difference": "Diferencia",
+    "none": "Sin diferencia",
+    "by": "Registró",
+    "error": "No se pudo registrar la conciliación.",
     "network": "Sin conexión. Intente de nuevo."
   }
 }

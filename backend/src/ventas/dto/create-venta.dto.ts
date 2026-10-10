@@ -2,6 +2,7 @@ import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptiona
 import { EmptyToUndefined } from '../../common/empty-to-undefined';
 import { Type } from 'class-transformer';
 import { TipoPago } from '../../types/prisma-enums';
+import { PagoElectronicoDto } from '../../common/pago-electronico.dto';
 
 export enum MetodoPagoEnum {
   EFECTIVO = 'EFECTIVO',
@@ -44,6 +45,7 @@ export class CreateVentaDto {
   @IsOptional()
   metodoPago?: MetodoPagoEnum;
 
+  @IsOptional() @ValidateNested() @Type(() => PagoElectronicoDto) pagoElectronico?: PagoElectronicoDto;
   @IsEnum(TipoPago)
   @IsOptional()
   tipoPago?: TipoPago;

@@ -1,4 +1,5 @@
 import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -103,6 +104,7 @@ export class VentasService {
       clienteRtn?: string;
       vencimiento?: string;
       metodoPago?: any;
+      pagoElectronico?: { referencia?: string | null; terminal?: string | null };
       tipoPago?: 'CONTADO' | 'CREDITO';
       descuento?: number;
       notas?: string;
@@ -126,6 +128,8 @@ export class VentasService {
       throw new BadRequestException('El tipo de pago y el método de pago no coinciden');
     }
     const metodo = dto.metodoPago || (tipoPago === 'CREDITO' ? 'CREDITO' : 'EFECTIVO');
+    // Tarjeta y transferencia exigen la autorización bancaria antes de confirmar la venta (sin integración bancaria).
+    const autorizacion = normalizarAutorizacion(metodo, dto.pagoElectronico);
     const descuento = decimal(dto.descuento || 0, 'Descuento');
     const requestHash = fingerprint({usuarioId,dto});
 
@@ -318,8 +322,9 @@ export class VentasService {
         if (updated.count !== 1) throw new BadRequestException('El cliente no tiene habilitado el crédito');
         await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,dto.vencimiento);
       }
+      if (autorizacion) await registrarAprobacion(tx,tenantId,usuarioId,autorizacion,Number(total),'VENTA',venta.id);
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',total,metodo,venta.id,`Venta ${numeroVenta}`);
-      await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id});
+      await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id,aprobacion:autorizacion});
       return this.formatVentaCreada(venta);
     },{timeout:30000});
   }

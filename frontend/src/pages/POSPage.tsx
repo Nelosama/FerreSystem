@@ -27,6 +27,10 @@ import {
 import { ZONA_HORARIA_NEGOCIO, formatLempiras } from '../utils/format';
 import { descargarReciboPDF } from '../components/ReciboPDF';
 
+// Autorización bancaria de tarjeta/transferencia: la registra el cajero tras la aprobación del POS físico.
+const pagoElectronicoDesde = (metodo: string, aut: { referencia: string; terminal: string }) =>
+  (metodo === 'TARJETA' || metodo === 'TRANSFERENCIA') ? { referencia: aut.referencia.trim(), terminal: aut.terminal.trim() } : undefined;
+
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
   const { t, locale } = useI18n();
@@ -63,6 +67,7 @@ export const POSPage: React.FC = () => {
   const [cajaAbierta,setCajaAbierta]=useState(false);
   useEffect(()=>{let alive=true;setProviders([]);setCajaAbierta(false);api.get('/operaciones/proveedores').then(r=>{if(alive)setProviders(r.data);}).catch(()=>{});api.get('/operaciones/caja').then(r=>{if(alive)setCajaAbierta(r.data.some((c:any)=>c.estado==='ABIERTA'));}).catch(()=>{if(alive)setCajaAbierta(false);});return()=>{alive=false;};},[tenant.id,user?.id]);
   const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA'>(initialSale?.metodoPago || 'EFECTIVO');
+  const [autorizacionBancaria, setAutorizacionBancaria] = useState({ referencia: '', terminal: '' });
   const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(initialSale?.descuentoPorcentaje || 0);
   const cobrandoRef = useRef(false);
   const [procesandoVenta, setProcesandoVenta] = useState(false);
@@ -234,6 +239,7 @@ export const POSPage: React.FC = () => {
 
   const mostrarVenta = (venta: any, solicitudId: string) => {
     receiptRecoveryRef.current = { pendingKey, draftKey, solicitudId, draft: localStorage.getItem(draftKey) };
+    setAutorizacionBancaria({ referencia: '', terminal: '' });
     setCorrigiendoPendiente(false);
     setVentaRegistrada(venta);
     setCart(venta.detalles.map((d: any) => ({
@@ -277,6 +283,10 @@ export const POSPage: React.FC = () => {
     if (!ventaPendiente && metodoPago === 'CREDITO' && !clienteId) {
       setErrorText('Seleccione un cliente registrado para vender a crédito'); return;
     }
+    if (!ventaPendiente && (metodoPago === 'TARJETA' || metodoPago === 'TRANSFERENCIA')) {
+      if (autorizacionBancaria.referencia.trim().length < 3) { setErrorText('Registre la autorización bancaria antes de confirmar la venta'); return; }
+      if (metodoPago === 'TARJETA' && !autorizacionBancaria.terminal.trim()) { setErrorText('Indique la terminal del POS bancario'); return; }
+    }
     const requestKey = pendingKey;
     cobrandoRef.current = true;
     setProcesandoVenta(true);
@@ -302,6 +312,7 @@ export const POSPage: React.FC = () => {
       const pending = stored.pending || {
         solicitudId: pendingIdentity || crypto.randomUUID(), cart, clienteNombre, clienteRtn, clienteId,
         vencimiento: vencimiento || undefined, metodoPago, descuentoPorcentaje,
+        pagoElectronico: pagoElectronicoDesde(metodoPago, autorizacionBancaria),
       };
       localStorage.setItem(pendingKey, JSON.stringify(pending));
       requestIdentity = pending.solicitudId;
@@ -313,7 +324,7 @@ export const POSPage: React.FC = () => {
       const { data } = await api.post('/ventas', {
         solicitudId: pending.solicitudId, clienteId: pending.clienteId, vencimiento: pending.vencimiento || undefined,
         clienteNombre: pending.clienteNombre, clienteRtn: pending.clienteRtn || undefined,
-        metodoPago: pending.metodoPago, descuento: descuentoPendiente,
+        metodoPago: pending.metodoPago, pagoElectronico: pending.pagoElectronico, descuento: descuentoPendiente,
         detalles: pending.cart.map(i => ({ productoId: i.productoId, cantidad: i.cantidad,
           precioUnitario: i.precioUnitario, sinInventario: i.sinInventario, proveedorId: i.proveedorId })),
       });
@@ -612,6 +623,21 @@ export const POSPage: React.FC = () => {
 
             {/* Método de Pago */}
             <div style={styles.paymentMethods}>{(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'] as const).map(m=><button key={m} type="button" disabled={edicionBloqueada} onClick={()=>setMetodoPago(m)} style={{...styles.payBtn,...(metodoPago===m?styles.payBtnActive:{})}}>{m}</button>)}</div>
+
+            {(metodoPago === 'TARJETA' || metodoPago === 'TRANSFERENCIA') && !ventaPendiente && (
+              <div style={styles.paymentMethods}>
+                <label>Autorización bancaria
+                  <input className="form-input" maxLength={40} value={autorizacionBancaria.referencia} disabled={edicionBloqueada}
+                    onChange={e => setAutorizacionBancaria({ ...autorizacionBancaria, referencia: e.target.value })} />
+                </label>
+                {metodoPago === 'TARJETA' && (
+                  <label>Terminal POS
+                    <input className="form-input" maxLength={40} value={autorizacionBancaria.terminal} disabled={edicionBloqueada}
+                      onChange={e => setAutorizacionBancaria({ ...autorizacionBancaria, terminal: e.target.value })} />
+                  </label>
+                )}
+              </div>
+            )}
 
             {/* Botón de Cobro o Solicitar Autorización */}
             {esDescuentoExcedido ? (

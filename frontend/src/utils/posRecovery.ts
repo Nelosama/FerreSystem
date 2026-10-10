@@ -16,6 +16,8 @@ export interface SaleDraft {
   vencimiento?: string;
   metodoPago: 'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA';
   descuentoPorcentaje: number;
+  // Autorización bancaria de tarjeta o transferencia; se conserva en la recuperación del pendiente.
+  pagoElectronico?: { referencia: string; terminal: string };
 }
 
 export interface PendingSale extends SaleDraft { solicitudId: string }
