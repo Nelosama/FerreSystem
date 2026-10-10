@@ -47,9 +47,9 @@ export class OperacionesController {
  @RequiredModule('inventario')
  @Post('productos/:id/ajuste') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') ajustar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:AjusteDto){return this.service.ajustar(t,u,id,dto);}
  @RequiredModule('pos')
- @Post('ventas/:id/entregar') @Roles('ADMIN','CAJERO','BODEGUERO') entregar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.entregar(t,u,id);}
+ @Post('ventas/:id/entregar') @Roles('ADMIN','BODEGUERO') entregar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.entregar(t,u,id);}
  @RequiredModule('pos')
- @Get('entregas') @UseInterceptors(SinCostosParaBodeguero()) @Roles('ADMIN','CAJERO','BODEGUERO') entregas(@TenantId() t:string){return this.service.entregas(t);}
+ @Get('entregas') @UseInterceptors(SinCostosParaBodeguero()) @Roles('ADMIN','CAJERO','BODEGUERO') entregas(@TenantId() t:string,@CurrentUser('sub') u:string){return this.service.entregas(t,u);}
  @RequiredModule('reportes')
  @Get('resumen') @RequiredPermission('reportes.ver') @Roles('ADMIN') resumen(@TenantId() t:string,@Query('desde') desde:string,@Query('hasta') hasta:string){return this.service.resumen(t,desde,hasta);}
  @RequiredModule('pos')

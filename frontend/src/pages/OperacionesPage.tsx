@@ -61,6 +61,8 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  const [metodoContado,setMetodoContado]=useState('EFECTIVO');
  const run=(path:string,body:any)=>pending?send(pending):send({path,body:{...body,solicitudId:crypto.randomUUID()}});
  const blocked=busy||!!pending||isReadOnly;
+ // La entrega física la registra solo ADMIN o BODEGUERO (el cajero solo consulta sus ventas pendientes).
+ const puedeEntregar=user?.rol==='ADMIN'||user?.rol==='BODEGUERO';
  const total=items.reduce((sum,i)=>sum+Math.round(Number(i.cantidad)*Number(i.costo)*100)/100,0)+Number(tax||0);
  const addItem=()=>{
   const p=products.find(p=>p.id===productId);
@@ -102,7 +104,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
     </form>
     {rows.filter(c=>!buscarCuenta.trim()||`${c.nombre} ${c.documento}`.toLowerCase().includes(buscarCuenta.trim().toLowerCase())).map(c=><section className="operation-card" key={c.id}><h3>{c.nombre} · Documento {c.documento} <span className={`balance-estado balance-estado-${c.estado}`}>{t(`balance.estado.${c.estado}`)}</span> {Number(c.saldo)===0&&<span className="form-hint">· {t('purchases.paid')}</span>}</h3><p>Original {amount(c.monto)} · Saldo <strong>{amount(c.saldo)}</strong> · Vencimiento {formatFechaCalendario(c.vencimiento)} {c.vencida&&<strong className="operation-error">VENCIDA</strong>}</p>{Number(c.saldo)>0&&<button disabled={blocked} className="btn btn-primary" onClick={()=>{setSelected(c);setPayAmount(String(c.saldo));}}>Registrar {tipo==='CXC'?'abono':'pago'}</button>}<ul>{c.pagos.map((p:any)=><li key={p.id}>{fecha(p.created_at)} · {p.metodo} · {amount(p.monto)}{p.referencia&&<> · Ref. {p.referencia}</>}{p.usuario_nombre&&<> · {p.usuario_nombre}</>}</li>)}</ul></section>)}
    </>}
-   {modo==='entregas'&&rows.map(v=><section className="operation-card" key={v.id}><h3>Venta {v.numero_venta} · {v.cliente_nombre||'Consumidor final'}</h3><p>{fecha(v.created_at)} · {amount(v.total)} · {v.metodo_pago}</p><ul>{v.items.map((i:any)=><li key={i.id}>{i.nombre} · {Number(i.cantidad)} {i.sin_inventario?'· Venta sin inventario':''}</li>)}</ul><button disabled={blocked} className="btn btn-primary" onClick={()=>void run(`/operaciones/ventas/${v.id}/entregar`,{})}>Confirmar entrega</button></section>)}
+   {modo==='entregas'&&rows.map(v=><section className="operation-card" key={v.id}><h3>Venta {v.numero_venta} · {v.cliente_nombre||'Consumidor final'}</h3><p>{fecha(v.created_at)} · {amount(v.total)} · {v.metodo_pago}</p><ul>{v.items.map((i:any)=><li key={i.id}>{i.nombre} · {Number(i.cantidad)} {i.sin_inventario?'· Venta sin inventario':''}</li>)}</ul>{puedeEntregar?<button disabled={blocked} className="btn btn-primary" onClick={()=>void run(`/operaciones/ventas/${v.id}/entregar`,{})}>Confirmar entrega</button>:<p>Solo bodega o administración puede confirmar la entrega.</p>}</section>)}
    {loading&&<p role="status">Cargando…</p>}{!loading&&rows.length===0&&<p>No hay registros.</p>}
   </main>
  </div>;

@@ -1,3 +1,4 @@
+import { idSolicitud } from './ledger';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtModule, JwtService } from '@nestjs/jwt';
@@ -30,6 +31,9 @@ import { OperacionesService } from './operaciones.service';
  * 9. Verificar aislamiento entre tenants.
  * 10. Verificar manejo de errores y operaciones repetidas (idempotencia con solicitudId/fingerprint).
  */
+
+// Los registros cuyo identificador es la solicitud usan un identificador derivado por empresa (D3 de CENTINELA).
+const orden = (solicitud: string, tenant = 'tenant-A') => idSolicitud(tenant, solicitud);
 
 describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
   let app: INestApplication;
@@ -78,7 +82,8 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
         return Object.values(dbSuppliers).filter((s: any) => s.tenant_id === tenantId);
       }
       if (sql.includes('SELECT p.*,a.datos FROM proveedores p')) {
-        const [provId, tenantId] = params;
+        const [scopedId, tenantId, rawId] = params;
+        const provId = dbSuppliers[scopedId] ? scopedId : rawId;
         const p = dbSuppliers[provId];
         if (p && p.tenant_id === tenantId) {
           const audit = (dbAuditLogs[tenantId] || []).find(a => a.entidad_id === provId && a.operacion === 'PROVEEDOR_CREAR');
@@ -100,7 +105,8 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
 
       // 3. Órdenes de compra / Facturas de proveedor
       if (sql.includes('SELECT o.*, a.datos FROM ordenes_compra o JOIN auditoria_operaciones a')) {
-        const [orderId, tenantId] = params;
+        const [scopedId, tenantId, rawId] = params;
+        const orderId = dbOrders[scopedId] ? scopedId : rawId;
         const o = dbOrders[orderId];
         if (o && o.tenant_id === tenantId) {
           const audit = (dbAuditLogs[tenantId] || []).find(a => a.entidad_id === orderId && a.operacion === 'COMPRA_CREAR');
@@ -433,7 +439,7 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       ],
     });
 
-    expect(order.id).toBe('sol-compra-1');
+    expect(order.id).toBe(orden('sol-compra-1'));
     expect(order.total).toBe(2000);
     expect(order.numero_factura).toBe('FACT-2026-001');
 
@@ -787,7 +793,7 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       expect(log).toBeDefined();
       expect(log.usuario_id).toBe('admin-1');
       expect(log.datos).toMatchObject({ tipo: 'CXP', monto: 450, metodo: 'TRANSFERENCIA', afectaCaja: false, cajaId: null, proveedorId: 'prov-1' });
-      expect(log.datos.documentoId).toBe('sol-fs09-aud');
+      expect(log.datos.documentoId).toBe(orden('sol-fs09-aud'));
       esperarSinMovimientosCxp();
     });
   });
@@ -804,9 +810,9 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       isv: 0,
       items: [{ productoId: 'prod-cement', cantidad: 5, costo: 220 }],
     });
-    const detailIdSube = dbOrderDetails['sol-sube'][0].id;
+    const detailIdSube = dbOrderDetails[orden('sol-sube')][0].id;
 
-    await service.recibir('tenant-A', 'bodeguero-1', 'sol-sube', {
+    await service.recibir('tenant-A', 'bodeguero-1', orden('sol-sube'), {
       solicitudId: 'rec-sube',
       items: [{ detalleId: detailIdSube, cantidad: 5 }],
     });
@@ -822,9 +828,9 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       isv: 0,
       items: [{ productoId: 'prod-cement', cantidad: 5, costo: 150 }],
     });
-    const detailIdBaja = dbOrderDetails['sol-baja'][0].id;
+    const detailIdBaja = dbOrderDetails[orden('sol-baja')][0].id;
 
-    await service.recibir('tenant-A', 'bodeguero-1', 'sol-baja', {
+    await service.recibir('tenant-A', 'bodeguero-1', orden('sol-baja'), {
       solicitudId: 'rec-baja',
       items: [{ detalleId: detailIdBaja, cantidad: 5 }],
     });
@@ -843,9 +849,9 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       isv: 0,
       items: [{ productoId: 'prod-cement', cantidad: 5, costo: 220 }],
     });
-    await service.recibir('tenant-A', 'bodeguero-1', 'sol-hist-1', {
+    await service.recibir('tenant-A', 'bodeguero-1', orden('sol-hist-1'), {
       solicitudId: 'rec-hist-1',
-      items: [{ detalleId: dbOrderDetails['sol-hist-1'][0].id, cantidad: 5 }],
+      items: [{ detalleId: dbOrderDetails[orden('sol-hist-1')][0].id, cantidad: 5 }],
     });
 
     // 2. Compra 2 con costo 150
@@ -856,9 +862,9 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       isv: 0,
       items: [{ productoId: 'prod-cement', cantidad: 5, costo: 150 }],
     });
-    await service.recibir('tenant-A', 'bodeguero-1', 'sol-hist-2', {
+    await service.recibir('tenant-A', 'bodeguero-1', orden('sol-hist-2'), {
       solicitudId: 'rec-hist-2',
-      items: [{ detalleId: dbOrderDetails['sol-hist-2'][0].id, cantidad: 5 }],
+      items: [{ detalleId: dbOrderDetails[orden('sol-hist-2')][0].id, cantidad: 5 }],
     });
 
     // Historial actual de prod-cement debe contener los registros de las recepciones anteriores
@@ -885,9 +891,9 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       items: [{ productoId: 'prod-cement', cantidad: 2.5, costo: 100 }],
     });
 
-    const detailIdDecimal = dbOrderDetails['sol-decimal'][0].id;
+    const detailIdDecimal = dbOrderDetails[orden('sol-decimal')][0].id;
 
-    await service.recibir('tenant-A', 'bodeguero-1', 'sol-decimal', {
+    await service.recibir('tenant-A', 'bodeguero-1', orden('sol-decimal'), {
       solicitudId: 'rec-decimal',
       items: [{ detalleId: detailIdDecimal, cantidad: 2.5 }],
     });
@@ -980,11 +986,11 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
       items: [{ productoId: 'prod-cement', cantidad: 10, costo: 100 }],
     });
 
-    const detailIdIdem = dbOrderDetails['sol-idem-rec'][0].id;
+    const detailIdIdem = dbOrderDetails[orden('sol-idem-rec')][0].id;
     const stockBefore = dbProducts['prod-cement'].stock_actual;
 
     // Recepción 1
-    const rec1 = await service.recibir('tenant-A', 'bodeguero-1', 'sol-idem-rec', {
+    const rec1 = await service.recibir('tenant-A', 'bodeguero-1', orden('sol-idem-rec'), {
       solicitudId: 'rec-idem-unique',
       items: [{ detalleId: detailIdIdem, cantidad: 10 }],
     });
@@ -993,7 +999,7 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
     expect(stockAfterFirst).toBe(stockBefore + 10);
 
     // Reintento con misma solicitudId (Simulando fallo de red / reconexión)
-    const rec1Repeat = await service.recibir('tenant-A', 'bodeguero-1', 'sol-idem-rec', {
+    const rec1Repeat = await service.recibir('tenant-A', 'bodeguero-1', orden('sol-idem-rec'), {
       solicitudId: 'rec-idem-unique',
       items: [{ detalleId: detailIdIdem, cantidad: 10 }],
     });

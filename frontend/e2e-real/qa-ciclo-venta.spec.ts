@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -41,6 +41,14 @@ const num = (consulta: string) => Number(sql(consulta));
 const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 
 type Sesion = { token: string; id: string };
+
+// Las ventas y otros registros idempotentes usan un identificador derivado por empresa (D3 de CENTINELA):
+// la solicitud del cliente ya no es el identificador de la fila. Mismo algoritmo que backend/src/operaciones/ledger.ts.
+const idVenta = (solicitudId: string, tenantId = 'e2e-empresa-a') => {
+  const h = createHash('sha256').update(`ferresystem:solicitud:v1:${tenantId}:${solicitudId}`).digest('hex');
+  const variante = ((parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16).padStart(2, '0');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variante}${h.slice(18, 20)}-${h.slice(20, 32)}`;
+};
 
 async function login(request: APIRequestContext, email: string): Promise<Sesion> {
   const res = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
@@ -161,9 +169,9 @@ test.describe('1. Venta de contado con efectivo', () => {
     ventaContado = body.id;
     est.ventaContado = body.id;
     guardarEstado();
-    expect(sql(`SELECT metodo_pago||'|'||tipo_pago||'|'||estado FROM ventas WHERE id='${sid}'`)).toBe('EFECTIVO|CONTADO|COMPLETADA');
+    expect(sql(`SELECT metodo_pago||'|'||tipo_pago||'|'||estado FROM ventas WHERE id='${idVenta(sid)}'`)).toBe('EFECTIVO|CONTADO|COMPLETADA');
     expect(num(`SELECT stock_reservado::float FROM productos WHERE id='${P1}'`)).toBe(2);
-    expect(sql(`SELECT tipo||'|'||metodo||'|'||monto::float FROM movimientos_caja WHERE referencia='${sid}'`)).toBe('VENTA_POS|EFECTIVO|230');
+    expect(sql(`SELECT tipo||'|'||metodo||'|'||monto::float FROM movimientos_caja WHERE referencia='${idVenta(sid)}'`)).toBe('VENTA_POS|EFECTIVO|230');
   });
 
   test.skip('1.2 cambio (vuelto): el cajero registra el efectivo recibido y el sistema calcula el cambio — PENDIENTE: no hay campo de efectivo recibido ni cálculo de cambio en POSPage', async () => {});
@@ -175,7 +183,7 @@ test.describe('2. Venta con tarjeta (POS bancario externo)', () => {
     const sid = randomUUID();
     const res = await venta(request, cajero1.token, { solicitudId: sid, metodoPago: 'TARJETA', pagoElectronico: { referencia: 'AUT-E2E-21', terminal: 'POS-E2E' }, detalles: [{ productoId: P1, cantidad: 1, precioUnitario: 100 }] });
     expect(res.status()).toBe(201);
-    expect(sql(`SELECT metodo||'|'||monto::float FROM movimientos_caja WHERE referencia='${sid}'`)).toBe('TARJETA|115');
+    expect(sql(`SELECT metodo||'|'||monto::float FROM movimientos_caja WHERE referencia='${idVenta(sid)}'`)).toBe('TARJETA|115');
     const despues = num(`SELECT COALESCE(SUM(monto),0)::float FROM movimientos_caja WHERE usuario_id='${cajero1.id}' AND metodo='EFECTIVO'`);
     expect(despues).toBe(antes);
   });
@@ -189,7 +197,7 @@ test.describe('3. Venta al crédito para cliente registrado', () => {
     const res = await venta(request, cajero1.token, { solicitudId: sid, clienteId: C1, metodoPago: 'CREDITO', tipoPago: 'CREDITO', vencimiento: '2026-12-31', detalles: [{ productoId: P3, cantidad: 1, precioUnitario: 100 }] });
     expect(res.status()).toBe(201);
     expect(num(`SELECT saldo_pendiente::float FROM clientes WHERE id='${C1}'`)).toBe(115);
-    cuentaC1 = sql(`SELECT id FROM cuentas_operativas WHERE documento_id='${sid}' AND tipo='CXC'`);
+    cuentaC1 = sql(`SELECT id FROM cuentas_operativas WHERE documento_id='${idVenta(sid)}' AND tipo='CXC'`);
     expect(cuentaC1).not.toBe('');
     est.cuentaC1 = cuentaC1;
     guardarEstado();
@@ -254,7 +262,7 @@ test.describe('4. Abonos parciales y totales de clientes', () => {
     const sid = randomUUID();
     const res = await venta(request, cajero1.token, { solicitudId: sid, clienteId: cliente, metodoPago: 'CREDITO', tipoPago: 'CREDITO', detalles: [{ productoId: P3, cantidad: 2, precioUnitario: 100 }] });
     expect(res.status()).toBe(201);
-    const cuenta = sql(`SELECT id FROM cuentas_operativas WHERE documento_id='${sid}' AND tipo='CXC'`);
+    const cuenta = sql(`SELECT id FROM cuentas_operativas WHERE documento_id='${idVenta(sid)}' AND tipo='CXC'`);
     page.on('dialog', (dialogo) => void dialogo.accept());
     await ingresar(page, EM.cajero1, '/cuentas');
     const seccion = page.locator('section.operation-card', { has: page.getByRole('heading', { name: new RegExp(`QA Cliente abono ${RUN}`) }) });
@@ -399,7 +407,7 @@ test.describe('11. Doble envío y pérdida de respuesta', () => {
     const [a, b] = await Promise.all([venta(request, cajero1.token, data), venta(request, cajero1.token, data)]);
     expect(a.status()).toBeLessThan(300);
     expect(b.status()).toBeLessThan(300);
-    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${sid}'`)).toBe(1);
+    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${idVenta(sid)}'`)).toBe(1);
     expect((await a.json()).numeroVenta).toBe((await b.json()).numeroVenta);
   });
 
@@ -423,8 +431,8 @@ test.describe('12. Entrega y reserva de stock', () => {
     const res = await venta(request, cajero1.token, { solicitudId: randomUUID(), metodoPago: 'EFECTIVO', detalles: [{ productoId: P6, cantidad: 4, precioUnitario: 100 }] });
     const id = (await res.json()).id as string;
     expect(num(`SELECT stock_reservado::float FROM productos WHERE id='${P6}'`)).toBe(4);
-    const primera = await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(cajero1.token) });
-    const segunda = await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(cajero1.token) });
+    const primera = await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(admin.token) });
+    const segunda = await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(admin.token) });
     expect([primera.status(), segunda.status()]).toEqual([201, 201]);
     expect(num(`SELECT stock_actual::float FROM productos WHERE id='${P6}'`)).toBe(16);
     expect(num(`SELECT stock_reservado::float FROM productos WHERE id='${P6}'`)).toBe(0);

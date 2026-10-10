@@ -124,7 +124,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
       expect(await stock(e.producto)).toBe(30);
       const lineaEnLinea = await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: enLinea.id } });
       expect(Number(lineaEnLinea.costoUnitario)).toBe(6);
-      await operaciones.entregar(e.tenantId, e.cajero, enLinea.id);
+      await operaciones.entregar(e.tenantId, e.admin, enLinea.id);
       expect(await reservado()).toBe(0);
       expect(await stock(e.producto)).toBe(28);
       expect(await prisma.movimientoInventario.count({ where: { documentoId: enLinea.id, tipo: 'ENTREGA' } })).toBe(1);
@@ -245,8 +245,8 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
     it('entregar dos veces la misma venta descuenta el stock una sola vez', async () => {
       const e = await empresa();
       const venta = await ventaEnLinea(e);
-      await operaciones.entregar(e.tenantId, e.cajero, venta.id);
-      await operaciones.entregar(e.tenantId, e.cajero, venta.id);
+      await operaciones.entregar(e.tenantId, e.admin, venta.id);
+      await operaciones.entregar(e.tenantId, e.admin, venta.id);
       expect(await stock(e.producto)).toBe(18);
       expect(await reservado(e.producto)).toBe(0);
       expect(await movimientosEntrega(e.tenantId, venta.id)).toBe(1);
@@ -255,7 +255,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
     it('confirmaciones de entrega simultáneas (varias pestañas o usuarios) descuentan una sola vez', async () => {
       const e = await empresa();
       const venta = await ventaEnLinea(e);
-      const resultados = await Promise.allSettled([1, 2, 3].map(() => operaciones.entregar(e.tenantId, e.cajero, venta.id)));
+      const resultados = await Promise.allSettled([1, 2, 3].map(() => operaciones.entregar(e.tenantId, e.admin, venta.id)));
       expect(resultados.every((r) => r.status === 'fulfilled')).toBe(true);
       expect(await stock(e.producto)).toBe(18);
       expect(await reservado(e.producto)).toBe(0);
@@ -267,7 +267,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
       const venta = await ventaEnLinea(e);
       expect(await reservado(e.producto)).toBe(2);
       expect(await stock(e.producto)).toBe(20);
-      const pendientes = await operaciones.entregas(e.tenantId);
+      const pendientes = await operaciones.entregas(e.tenantId, e.admin);
       expect(pendientes.map((v: any) => v.id)).toContain(venta.id);
     });
 
@@ -295,7 +295,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
         items: [{ detalleId: detalle.id, cantidad: 2, destino: 'NO_ENTREGADO' }],
       } as any);
       // Aun devuelta, la venta no vuelve a descontar stock al confirmar: ni doble descuento ni salida fantasma.
-      await expect(operaciones.entregar(e.tenantId, e.cajero, venta.id)).rejects.toThrow('fue devuelta; no hay entrega pendiente');
+      await expect(operaciones.entregar(e.tenantId, e.admin, venta.id)).rejects.toThrow('fue devuelta; no hay entrega pendiente');
       expect(await stock(e.producto)).toBe(20);
       expect(await movimientosEntrega(e.tenantId, venta.id)).toBe(0);
     });

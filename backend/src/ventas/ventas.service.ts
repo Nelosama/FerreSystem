@@ -1,4 +1,4 @@
-import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, idSolicitud, candidatosSolicitud, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { diaCalendario, sumarDias } from '../common/zona-horaria';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
@@ -12,9 +12,9 @@ export class VentasService {
     // Esperar a una escritura en curso; consultar nunca registra ni cobra una venta.
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx, tenantId);
-      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + solicitudId}, 0))`;
+      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + tenantId + ':' + solicitudId}, 0))`;
       const venta = await tx.venta.findFirst({
-        where: { id: solicitudId, tenantId, usuarioId },
+        where: { id: { in: candidatosSolicitud(tenantId, solicitudId) }, tenantId, usuarioId },
         include: { cliente: true, detalles: { include: { producto: true } } },
       });
       return venta
@@ -140,11 +140,15 @@ export class VentasService {
       const user = await authorizedActor(tx,tenantId,usuarioId,['ADMIN','CAJERO','VENDEDOR'],'pos.vender');
       // Un reintento conserva el ID de la venta; el bloqueo dura hasta commit/rollback.
       if (dto.solicitudId) {
-        await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + dto.solicitudId}, 0))`;
-        const anterior = await tx.venta.findUnique({
-          where: { id: dto.solicitudId },
-          include: { cliente: true, detalles: { include: { producto: true } } },
-        });
+        await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + tenantId + ':' + dto.solicitudId}, 0))`;
+        // Identificador derivado por empresa; el crudo solo cuenta si la venta es de esta empresa (ventas anteriores al cambio).
+        const incluir = { cliente: true, detalles: { include: { producto: true } } } as const;
+        const [derivado, crudo] = candidatosSolicitud(tenantId, dto.solicitudId);
+        let anterior = await tx.venta.findUnique({ where: { id: derivado }, include: incluir });
+        if (!anterior) {
+          const heredada = await tx.venta.findUnique({ where: { id: crudo }, include: incluir });
+          if (heredada && heredada.tenantId === tenantId) anterior = heredada;
+        }
         if (anterior) {
           const restantes = [...anterior.detalles];
           const mismosDetalles = anterior.detalles.length === dto.detalles.length &&
@@ -279,7 +283,7 @@ export class VentasService {
       // 4. Crear la venta en base de datos
       const venta = await tx.venta.create({
         data: {
-          ...(dto.solicitudId && { id: dto.solicitudId }),
+          ...(dto.solicitudId && { id: idSolicitud(tenantId, dto.solicitudId) }),
           tenantId,
           reservaPendiente:detallesParaCrear.some(d=>!d.sinInventario),
           numeroVenta,

@@ -1,3 +1,4 @@
+import { idSolicitud } from '../operaciones/ledger';
 import { Test } from '@nestjs/testing';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { VentasService } from './ventas.service';
@@ -68,7 +69,8 @@ describe('VentasService.create — contrato vigente para contingencia', () => {
   it('la venta nace COMPLETADA con número, hora y caja asignados por el SERVIDOR; el cliente no aporta fecha ni terminal', async () => {
     await service.create('T', 'U', dto({ solicitudId: '3f2b8c1e-9a4d-4e6b-8c7a-1d2e3f4a5b6c' }));
     const data = prisma.venta.create.mock.calls[0][0].data;
-    expect(data).toMatchObject({ id: '3f2b8c1e-9a4d-4e6b-8c7a-1d2e3f4a5b6c', numeroVenta: 7, estado: 'COMPLETADA', cajaId: 'caja-1', metodoPago: 'EFECTIVO' });
+    // D3 (CENTINELA): el identificador interno se deriva por empresa para que otra empresa no pueda inferir la solicitud.
+    expect(data).toMatchObject({ id: idSolicitud('T', '3f2b8c1e-9a4d-4e6b-8c7a-1d2e3f4a5b6c'), numeroVenta: 7, estado: 'COMPLETADA', cajaId: 'caja-1', metodoPago: 'EFECTIVO' });
     for (const campo of ['createdAt', 'efectivoRecibido', 'cambio', 'terminalId', 'creadaOffline', 'cai', 'numeroFiscal']) {
       expect(data).not.toHaveProperty(campo);
     }

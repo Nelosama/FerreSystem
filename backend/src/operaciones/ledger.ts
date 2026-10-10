@@ -5,6 +5,18 @@ import { createHash, randomUUID } from 'node:crypto';
 
 export type Tx = Prisma.TransactionClient;
 export const id = () => randomUUID();
+/**
+ * Identificador interno de una solicitud idempotente, derivado de la empresa y de la solicitud.
+ * Los registros cuyo identificador es la propia solicitud usan este valor, de modo que dos empresas puedan
+ * usar el mismo UUID sin chocar y sin que una respuesta delate que otra empresa ya lo usó.
+ */
+export function idSolicitud(tenantId: string, solicitudId: string): string {
+  const h = createHash('sha256').update(`ferresystem:solicitud:v1:${tenantId}:${solicitudId}`).digest('hex');
+  const variante = ((parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16).padStart(2, '0');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variante}${h.slice(18, 20)}-${h.slice(20, 32)}`;
+}
+/** Para buscar: el identificador derivado y el crudo (registros anteriores al cambio). Siempre con filtro de empresa. */
+export const candidatosSolicitud = (tenantId: string, solicitudId: string): [string, string] => [idSolicitud(tenantId, solicitudId), solicitudId];
 export const fingerprint = (data: unknown) => createHash('sha256').update(JSON.stringify(data)).digest('hex');
 export const money = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 export function decimal(value: unknown, label: string, positive = false) {
