@@ -457,6 +457,12 @@ export class CotizacionesService {
         throw new BadRequestException('Esta cotización ya fue convertida previamente a una venta');
       }
 
+      // fecha_validez es DATE: Prisma lo representa a medianoche UTC, sin zona horaria.
+      // El día actual sí corresponde a la zona de negocio. Vigencia inclusiva hasta ese día.
+      if (cotizacion.fechaValidez.toISOString().slice(0, 10) < diaCalendario(new Date())) {
+        throw new BadRequestException('La cotización está vencida. Renueve su vigencia antes de convertirla en venta');
+      }
+
       if (metodoPago === 'CREDITO' && !cotizacion.clienteId) throw new BadRequestException('Seleccione un cliente registrado para vender a crédito');
       // Crédito: mismas reglas que una venta directa (cliente activo, crédito habilitado y límite con el saldo actual).
       // lockTenant serializa esta conversión con las ventas de la empresa, así que el cupo no puede agotarse dos veces.
@@ -622,7 +628,7 @@ export class CotizacionesService {
 
   private formatCotizacion(c: any, hoy: Date) {
     // Vigencia por día calendario del negocio, no por la zona horaria del servidor.
-    const diferenciaDias = diasEntre(diaCalendario(hoy), diaCalendario(new Date(c.fechaValidez)));
+    const diferenciaDias = diasEntre(diaCalendario(hoy), new Date(c.fechaValidez).toISOString().slice(0, 10));
 
     return {
       ...c,

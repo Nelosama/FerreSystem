@@ -13,10 +13,10 @@ function visit(node) {
 }
 visit(ast);
 const code = ts.transpileModule(`exports.convert = ${handler}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-function setup(post, refresh = async () => {}) {
+function setup(post, refresh = async () => {}, metodoConversion = 'EFECTIVO') {
   const quotation = { id: 'cot-123', numero: 17, estado: 'APROBADA', clienteId: 'client-1', total: 69 };
   const state = { quotations: [quotation], modal: quotation, busy: false, notices: [] };
-  const context = { exports: {}, api: { post }, conversionEnCurso: { current: false },
+  const context = { exports: {}, api: { post }, metodoConversion, conversionEnCurso: { current: false },
     setConvirtiendo: value => { state.busy = value; },
     setCotizaciones: fn => { state.quotations = fn(state.quotations); },
     setModalConvertir: value => { state.modal = value; },
@@ -30,12 +30,19 @@ test('usa ID y ruta canónica; el backend obtiene cliente, líneas e importes gu
   const calls = [];
   const h = setup(async (...args) => { calls.push(args); });
   await h.convert();
-  assert.deepEqual(calls, [['/cotizaciones/cot-123/convertir']]);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['/cotizaciones/cot-123/convertir', { metodoPago: 'EFECTIVO' }]]);
   assert.equal(h.state.modal, null);
   assert.equal(h.state.quotations[0].estado, 'CONVERTIDA');
   assert.equal(h.state.busy, false);
   await h.convert();
   assert.equal(calls.length, 1);
+});
+
+test('la conversión envía el método elegido en vez de registrar siempre efectivo', async () => {
+  const calls = [];
+  const h = setup(async (...args) => { calls.push(args); }, undefined, 'TRANSFERENCIA');
+  await h.convert();
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['/cotizaciones/cot-123/convertir', { metodoPago: 'TRANSFERENCIA' }]]);
 });
 
 test('doble confirmación simultánea emite un solo POST', async () => {
