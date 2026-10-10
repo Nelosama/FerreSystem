@@ -124,19 +124,18 @@ describe('Auditoría independiente / reproducciones confirmadas', () => {
     expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).stockActual)).toBe(3);
     console.log('QA-INV-002: administrador vio 4, empleado corrigió a 12, conciliación obsoleta borró 12 y aplicó 3');
   });
-  it('QA-INV-003: identidad mixta separa conflictos; edición limpia ambos y bloquea conciliación',async()=>{
+  it('QA-INV-003: identidad mixta forma un solo conflicto conciliable; edición y conciliación lo conservan',async()=>{
     const a=(await add(item({productoId:productId,codigoBarras:'001234'})).expect(201)).body;
     const b=(await call('post',`/levantamientos/${lid}/items`,item({codigoBarras:'001234'}),'BODEGUERO').expect(201)).body;
     const groups=(await call('get',`/levantamientos/${lid}/conflictos`).expect(200)).body;
-    expect(groups).toHaveLength(2); expect(groups.every((g:any)=>g.items.length===1)).toBe(true);
+    expect(groups).toHaveLength(1); expect(groups[0].items.map((i:any)=>i.id).sort()).toEqual([a.id,b.id].sort());
     await call('patch',`/levantamientos/${lid}/items/${b.id}`,{version:b.version,cantidad:4},'BODEGUERO').expect(200);
     const rows=await prisma.levantamientoItem.findMany({where:{levantamientoId:lid}});
-    expect(rows.every(r=>!r.conflicto)).toBe(true);
-    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id}).expect(404);
-    const p=(await preview()).body; expect(p.rows.some((r:any)=>r.errores.some((e:string)=>e.includes('duplicado')))).toBe(true);
-    console.log('QA-INV-003: dos grupos individuales, banderas limpiadas, conciliación 404 y preview duplicado');
+    expect(rows.every(r=>r.conflicto)).toBe(true);
+    await call('post',`/levantamientos/${lid}/conciliar`,{mantenerItemId:a.id}).expect(201);
+    expect(await prisma.levantamientoItem.findUnique({where:{id:b.id}})).toBeNull();
+    const p=(await preview()).body; expect(p.rows.some((r:any)=>r.errores.some((e:string)=>e.includes('duplicado')))).toBe(false);
   });
-
   it('QA-INV-001B: recepción no invalida formulario de costo y deja costos inconsistentes',async()=>{
     const old=(await call('get',`/productos/${productId}`).expect(200)).body;
     const proveedor=await prisma.proveedor.create({data:{tenantId,nombre:'Proveedor QA'}});

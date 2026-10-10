@@ -109,13 +109,29 @@ function ConflictosPanel({
   );
 }
 
+/** Contador por nombre; el identificador original queda visible debajo para trazabilidad. */
+function Contador({ item }: { item: any }) {
+  const { t } = useI18n();
+  if (!item.contadorId) return <>—</>;
+  const nombre: string | null = item.contador?.nombre ?? null;
+  return (
+    <>
+      <div>
+        {nombre ?? t('stocktaking.counter_unavailable')}
+        {item.contador?.estado === 'DESACTIVADO' && <> {t('stocktaking.counter_inactive')}</>}
+      </div>
+      <small title={item.contadorId} style={{ color: '#64748b' }}>{t('stocktaking.counter_id')}: {item.contadorId}</small>
+    </>
+  );
+}
+
 /** Fila de conflicto: el valor manual es estado propio de cada fila (no se puede usar un hook dentro de un map). */
 function ConflictoFila({ item, disabled, onConciliar }: { item: any; disabled: boolean; onConciliar: (id: string, cantidad?: number) => void }) {
   const { t } = useI18n();
   const [manual, setManual] = useState<string>('');
   return (
     <tr style={{ background: '#fefce8' }}>
-      <td>{item.contadorId ?? '—'}</td>
+      <td><Contador item={item} /></td>
       <td>{item.descripcion}</td>
       <td>{Number(item.cantidad)} {item.unidad}</td>
       <td>{item.ubicacion || '—'}</td>
@@ -459,7 +475,7 @@ export const LevantamientoPage: React.FC = () => {
                       <td>{i.codigo || i.codigoBarras || t('stocktaking.no_code')}</td>
                       <td>{Number(i.cantidad)} {i.unidad}</td>
                       <td>{i.ubicacion}</td>
-                      <td style={{ fontSize: '0.85em', color: '#64748b' }}>{i.contadorId ?? '—'}</td>
+                      <td style={{ fontSize: '0.85em', color: '#64748b' }}><Contador item={i} /></td>
                       <td>{i.precioCosto ?? '—'} / {i.precioVenta ?? '—'}</td>
                       <td>
                         {!closed && (

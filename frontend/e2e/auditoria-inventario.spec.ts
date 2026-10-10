@@ -151,11 +151,22 @@ async function contar(page: Page, datos: { descripcion: string; cantidad?: strin
 }
 
 
-test('QA-INV-004: conciliación identifica al empleado por UUID sin nombre',async({page,sim})=>{
- const employeeId='ce4833d4-b09c-4eb3-a233-271a10211640';
- sim.levantamientos.push({id:'qa-lev',nombre:'Conflicto QA',estado:'EN_PROGRESO',aplicadoAt:null,items:[itemBase({id:'qa-item',descripcion:'Cable',cantidad:4,contadorId:employeeId,conflicto:true})]});
+test('QA-INV-004: conciliación muestra el nombre del contador y conserva su identificador',async({page,sim})=>{
+ // La respuesta simulada replica el contrato del backend: contador resuelto dentro de la empresa.
+ const ana='ce4833d4-b09c-4eb3-a233-271a10211640';
+ const luis='0b9c1f2e-7d1a-4f8e-9a3b-2c5d6e7f8a9b';
+ const retirado='5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d';
+ sim.levantamientos.push({id:'qa-lev',nombre:'Conflicto QA',estado:'EN_PROGRESO',aplicadoAt:null,items:[
+  itemBase({id:'qa-item',descripcion:'Cable',cantidad:4,contadorId:ana,contador:{id:ana,nombre:'Ana Pérez',estado:'ACTIVO'},conflicto:true}),
+  itemBase({id:'qa-item-2',descripcion:'Cable',cantidad:6,contadorId:luis,contador:{id:luis,nombre:'Luis Ortega',estado:'DESACTIVADO'},conflicto:true}),
+  itemBase({id:'qa-item-3',descripcion:'Cable',cantidad:7,contadorId:retirado,contador:{id:retirado,nombre:null,estado:'NO_DISPONIBLE'},conflicto:true}),
+ ]});
  await ingresar(page); await page.getByRole('button',{name:/Conflicto QA/}).click();
  const panel=page.locator('section').filter({has:page.getByRole('heading',{name:'Conflictos pendientes'})});
- await expect(panel.getByRole('cell',{name:employeeId,exact:true})).toBeVisible();
- await page.screenshot({path:'test-results/qa-conflictos-uuid.png',fullPage:true});
+ await expect(panel.getByRole('cell').filter({hasText:'Ana Pérez'})).toBeVisible();
+ await expect(panel.getByRole('cell').filter({hasText:'Luis Ortega (desactivado)'})).toBeVisible();
+ await expect(panel.getByRole('cell').filter({hasText:'Usuario no disponible'})).toBeVisible();
+ await expect(panel.getByText(ana)).toHaveCount(1);
+ await expect(panel.getByText(retirado)).toHaveCount(1);
+ await page.screenshot({path:'test-results/qa-conflictos-nombre.png',fullPage:true});
 });
