@@ -81,6 +81,28 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Inventario — estado vigente de las correcciones QA-INV (verificado en main, 2026-10-10 UTC)
+
+Esta sección describe el estado actual. Las secciones de auditoría y reproducción siguientes son históricas: registran defectos **antes** de la corrección y no describen el código vigente.
+
+- **PR #108 fusionado** en `main` (merge por `Nelosama`, 2026-10-10 03:57 UTC). Su rama `fix/qa-inv-estabilizacion-inventario` (head `87d7eaaf`) es ancestro de `main` `df3ae06b`; el commit `10f2590b` también está en `main`.
+- **Correcciones comprobadas en el código de `main`** (no solo en la descripción del PR):
+  - **QA-INV-001:** al aplicar un levantamiento, `productos.version` se incrementa (`levantamientos.service.ts`, `version:{increment:1}`). Un formulario con versión anterior recibe 409.
+  - **QA-INV-001B:** al recibir mercancía, `productos.version=version+1` (`operaciones.service.ts`, recepción de compra).
+  - **QA-INV-002 (P0):** la conciliación exige el `token` del grupo en conflicto (`tokenConflicto`). Si los conteos cambiaron, responde 409 `CONTEO_CONFLICTO_VERSION`. El frontend envía ese token (`LevantamientoPage.tsx`, `conciliar`).
+  - **QA-INV-003:** los conflictos se agrupan con una clave única (`claveGrupo`) y se limpian los huérfanos (`limpiarConflictosHuerfanos`).
+  - **QA-INV-004:** el nombre del contador se expone como `contador.nombre`, con estado `ACTIVO`, `DESACTIVADO` o `NO_DISPONIBLE`, dentro de la misma empresa. **No es `contadorNombre`**, como decía la descripción original del PR #108.
+- **Pruebas:** backend unitarias ejecutadas sobre `main` `df3ae06b`: **329/329** en 34 archivos (`TZ=UTC`). Las cifras de Codex (326 backend, 250 integración PostgreSQL, 163 frontend, 13 scripts, 100 Chromium) se citan como reportadas; no se han vuelto a ejecutar en esta sesión.
+- **Compatibilidad:** frontend y backend deben desplegarse juntos. Un frontend en caché que no envíe `token` no puede conciliar.
+- **No validado todavía:**
+  1. Hardware físico: Safari en iPhone, cámara trasera, códigos impresos reales, permiso denegado.
+  2. Sucursales reales: no existe modelo de sucursal; el stock es por empresa.
+  3. Aceptación del cliente.
+  4. Datos productivos: no se ha ejecutado ninguna comprobación contra producción.
+- **Conclusión:** las cuatro correcciones QA-INV están integradas en `main`. Eso no equivale a Inventario listo para producción.
+
+---
+
 ## Inventario — auditoría QA independiente (2026-10-10 UTC)
 
 - Base comprobada `origin/main` `b314ef0e` (PR #100/#101/#102/#105 fusionados); rama local `audit/inventario-independent-20261010`. Sin PR abiertos al consultar inicio/cierre; sin cambios en ramas de Claude, push, merge, despliegue ni producción.
