@@ -4,6 +4,7 @@ export type Permiso =
   | 'pos.vender'
   | 'pos.anular_venta'
   | 'pos.aplicar_descuento'
+  | 'caja.movimientos_manuales'
   | 'inventario.ver'
   | 'inventario.editar'
   | 'cotizaciones.crear'

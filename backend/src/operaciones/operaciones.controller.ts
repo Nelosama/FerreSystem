@@ -8,7 +8,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, PagoDto, ProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
+import { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 @Controller('operaciones')
 @UseGuards(JwtAuthGuard,TenantGuard,RolesGuard)
 @Roles('ADMIN','CAJERO','BODEGUERO','VENDEDOR')
@@ -27,6 +27,9 @@ export class OperacionesController {
  @Get('cuentas') @Roles('ADMIN','CAJERO') cuentas(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('tipo') tipo:string){return this.service.cuentas(t,u,tipo);}
  @Post('cuentas/:id/pagos') @Roles('ADMIN','CAJERO') pagar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:PagoDto){return this.service.pagar(t,u,id,dto);}
  @Get('caja') @Roles('ADMIN','CAJERO','VENDEDOR') caja(@TenantId() t:string,@CurrentUser('sub') u:string){return this.service.caja(t,u);}
+ @Get('caja/cierres') @Roles('ADMIN') cierresCaja(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('estado') estado?:string,@Query('usuarioId') usuarioId?:string,@Query('desde') desde?:string,@Query('hasta') hasta?:string){return this.service.cierresCaja(t,u,{estado,usuarioId,desde,hasta});}
+ @Get('caja/:id') @Roles('ADMIN','CAJERO','VENDEDOR') cajaDetalle(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.cajaDetalle(t,u,id);}
+ @Post('caja/:id/movimientos') @Roles('ADMIN','CAJERO','VENDEDOR') movimientoCaja(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:MovimientoCajaDto){return this.service.movimientoCaja(t,u,id,dto);}
  @Post('caja/abrir') @Roles('ADMIN','CAJERO','VENDEDOR') abrir(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:AbrirCajaDto){return this.service.abrir(t,u,dto);}
  @Post('caja/:id/cerrar') @Roles('ADMIN','CAJERO','VENDEDOR') cerrar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:CerrarCajaDto){return this.service.cerrar(t,u,id,dto);}
  @RequiredModule('inventario')

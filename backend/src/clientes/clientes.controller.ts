@@ -1,7 +1,7 @@
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
-import { Rol } from '@prisma/client';
+import { Rol } from '../types/prisma-enums';
 import { ClientesService } from './clientes.service';
 import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';

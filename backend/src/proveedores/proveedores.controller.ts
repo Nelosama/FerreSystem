@@ -1,6 +1,6 @@
 import { RequiredModule } from '../common/decorators/required-module.decorator';
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { Rol } from '@prisma/client';
+import { Rol } from '../types/prisma-enums';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';

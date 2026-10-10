@@ -1,6 +1,6 @@
 import { IsString, IsEmail, IsEnum, IsBoolean, IsOptional, MinLength, IsArray, IsNumber, Min, Max, ArrayMaxSize } from 'class-validator';
 import { IsAllowedPassword } from '../../common/password-policy';
-import { Rol } from '@prisma/client';
+import { Rol } from '../../types/prisma-enums';
 
 export class CreateUsuarioDto {
   @IsString()

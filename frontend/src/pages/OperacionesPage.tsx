@@ -9,7 +9,7 @@ import { useI18n } from '../context/I18nContext';
 import { Link } from 'react-router-dom';
 import './OperacionesPage.css';
 
-type Mode = 'compras' | 'caja' | 'cuentas' | 'entregas';
+type Mode = 'compras' | 'cuentas' | 'entregas';
 const errorMessage = (e: any) => { const m=e.response?.data?.message; return Array.isArray(m)?m.join(', '):m || 'No se pudo confirmar la operación. Revise la conexión y reintente.'; };
 const amount = (v:any) => formatLempiras(Number(v || 0));
 const fecha = (v:any) => v ? new Date(v).toLocaleString('es-HN',{timeZone:ZONA_HORARIA_NEGOCIO}) : '—';
@@ -27,7 +27,6 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  const [items,setItems]=useState<any[]>([]),[productId,setProductId]=useState(''),[qty,setQty]=useState('1'),[cost,setCost]=useState('');
  const [providerName,setProviderName]=useState(''),[phone,setPhone]=useState('');
  const [receipts,setReceipts]=useState<Record<string,string>>({});
- const [cashAmount,setCashAmount]=useState(''),[cashNotes,setCashNotes]=useState('');
  const [selected,setSelected]=useState<any>(null),[payAmount,setPayAmount]=useState(''),[method,setMethod]=useState('EFECTIVO');
  useEffect(()=>{try{setPending(JSON.parse(localStorage.getItem(pendingKey)||'null'));}catch{setPending(null);}setSelected(null);},[pendingKey]);
  const load=useCallback(async()=>{
@@ -36,8 +35,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
    if(modo==='compras'){
     const [o,p,s]=await Promise.all([api.get('/operaciones/compras'),api.get('/productos'),api.get('/operaciones/proveedores')]);
     setRows(o.data);setProducts(p.data);setProviders(s.data);
-   }else if(modo==='caja')setRows((await api.get('/operaciones/caja')).data);
-   else if(modo==='cuentas')setRows((await api.get('/operaciones/cuentas',{params:{tipo}})).data);
+   }else if(modo==='cuentas')setRows((await api.get('/operaciones/cuentas',{params:{tipo}})).data);
    else setRows((await api.get('/operaciones/entregas')).data);
   }catch(e){setError(errorMessage(e));}finally{setLoading(false);}
  },[modo,tipo,tenant.id]);
@@ -57,7 +55,6 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  };
  const run=(path:string,body:any)=>pending?send(pending):send({path,body:{...body,solicitudId:crypto.randomUUID()}});
  const blocked=busy||!!pending||isReadOnly;
- const open=rows.find(c=>c.estado==='ABIERTA');
  const total=items.reduce((sum,i)=>sum+Math.round(Number(i.cantidad)*Number(i.costo)*100)/100,0)+Number(tax||0);
  const addItem=()=>{
   const p=products.find(p=>p.id===productId);
@@ -68,7 +65,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
   if(items.some(i=>i.productoId===p.id)){setError('El producto ya está en la factura. Quite su línea para corregirla.');return;}
   setItems([...items,{productoId:p.id,nombre:p.nombre,cantidad:checked.linea.cantidad,costo:checked.linea.costo}]);setProductId('');setQty('1');setCost('');
  };
- return <div><TopBar title={{compras:'COMPRAS Y REPOSICIONES',caja:'CAJA Y CIERRE',cuentas:'CUENTAS Y ABONOS',entregas:'ENTREGA DE VENTAS'}[modo]} subtitle="Control operativo de la ferretería"/>
+ return <div><TopBar title={{compras:'COMPRAS Y REPOSICIONES',cuentas:'CUENTAS Y ABONOS',entregas:'ENTREGA DE VENTAS'}[modo]} subtitle="Control operativo de la ferretería"/>
   <main className="operation-page">
    <nav className="operation-actions" aria-label={t('navigation.OPERACION')}>{availableTasks(user, tenant).filter(item => ['pos', 'arqueo_caja', 'cuentas', 'entregas', 'ordenes_compra'].includes(item.key)).map(item => <Link key={item.key} to={item.route}>{t(item.labelKey)}</Link>)}</nav>
    {error&&<div role="alert" className="operation-error">{error}</div>}{success&&<div role="status" className="operation-success">{success}</div>}
@@ -85,11 +82,6 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
      {items.map(i=><p key={i.productoId}>{i.nombre} · {i.cantidad} × {amount(i.costo)} <button disabled={blocked} type="button" onClick={()=>setItems(items.filter(x=>x.productoId!==i.productoId))}>Quitar</button></p>)}<p><strong>Total: {amount(total)}</strong></p><button className="btn btn-primary" disabled={blocked||!items.length}>Registrar factura</button>
     </form>
     {!loading&&rows.map(o=><section className="operation-card" key={o.id}><h3>{o.numero_factura||o.codigo} · {o.proveedor_nombre}</h3><p>{o.estado} · {amount(o.total)} · {fecha(o.created_at)}</p><div className="operation-table"><table><thead><tr><th>Producto</th><th>Pedido</th><th>Recibido</th><th>Costo</th><th>Recibir ahora</th></tr></thead><tbody>{o.items.map((i:any)=>{const rest=Number(i.cantidad)-Number(i.cantidad_recibida);return <tr key={i.id}><td>{i.codigo} · {i.nombre}</td><td>{Number(i.cantidad)}</td><td>{Number(i.cantidad_recibida)}</td><td>{amount(i.precio_costo)}</td><td><input aria-label={`Recibir ${i.nombre}`} type="number" min="0" max={rest} step="0.01" value={receipts[i.id]??String(rest)} disabled={blocked||rest===0} onChange={e=>setReceipts({...receipts,[i.id]:e.target.value})}/></td></tr>;})}</tbody></table></div>{['SOLICITADA','APROBADA'].includes(o.estado)&&<button className="btn btn-primary" disabled={blocked} onClick={()=>{const items=o.items.map((i:any)=>({detalleId:i.id,cantidad:Number(receipts[i.id]??Number(i.cantidad)-Number(i.cantidad_recibida))})).filter((i:any)=>i.cantidad>0);if(!items.length||!window.confirm(t('purchases.confirm_reception',{lineas:items.length})))return;void run(`/operaciones/compras/${o.id}/recepciones`,{items});}}>Confirmar recepción</button>}</section>)}
-   </>}
-   {modo==='caja'&&<>
-    {!loading&&!open&&<form className="operation-card operation-form" onSubmit={async e=>{e.preventDefault();if(await run('/operaciones/caja/abrir',{monto:Number(cashAmount)}))setCashAmount('');}}><h2>Abrir mi caja</h2><label>Fondo de apertura<input className="form-input" required min="0" step="0.01" type="number" value={cashAmount} disabled={blocked} onChange={e=>setCashAmount(e.target.value)}/></label><button className="btn btn-primary" disabled={blocked}>Abrir caja</button></form>}
-    {open&&<section className="operation-card"><h2>Caja abierta · {fecha(open.fecha_apertura)}</h2><p>Apertura: {amount(open.monto_apertura)} · Efectivo esperado: <strong>{amount(open.efectivoEsperado)}</strong></p><div className="operation-actions">{Object.entries(open.totales).map(([m,v])=><span key={m}>{m}: {amount(v)}</span>)}</div><form className="operation-form" onSubmit={async e=>{e.preventDefault();if(!window.confirm('¿Cerrar el turno con el efectivo contado?'))return;if(await run(`/operaciones/caja/${open.id}/cerrar`,{monto:Number(cashAmount),notas:cashNotes})){setCashAmount('');setCashNotes('');}}}><label>Efectivo contado<input className="form-input" required type="number" min="0" step="0.01" value={cashAmount} disabled={blocked} onChange={e=>setCashAmount(e.target.value)}/></label><label>Observaciones<input className="form-input" value={cashNotes} disabled={blocked} onChange={e=>setCashNotes(e.target.value)}/></label><button className="btn btn-primary" disabled={blocked}>Cerrar turno</button></form><div className="operation-table"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Método</th><th>Monto</th></tr></thead><tbody>{open.movimientos.map((m:any)=><tr key={m.id}><td>{fecha(m.created_at)}</td><td>{m.concepto}</td><td>{m.metodo}</td><td>{amount(m.monto)}</td></tr>)}</tbody></table></div></section>}
-    <h2>Mis cierres</h2>{rows.filter(c=>c.estado==='CERRADA').map(c=><section className="operation-card" key={c.id}><p>{fecha(c.fecha_cierre)} · Esperado {amount(c.monto_esperado)} · Contado {amount(c.monto_cierre_fisico)} · Diferencia <strong>{amount(c.diferencia)}</strong></p>{c.notas&&<p>{c.notas}</p>}</section>)}
    </>}
    {modo==='cuentas'&&<>
     {user?.rol==='ADMIN'&&<div className="operation-actions"><button disabled={blocked} className="btn btn-secondary" onClick={()=>{setTipo('CXC');setSelected(null);}}>Clientes · Por cobrar</button><button disabled={blocked} className="btn btn-secondary" onClick={()=>{setTipo('CXP');setSelected(null);}}>Proveedores · Por pagar</button></div>}

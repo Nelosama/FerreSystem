@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-10 UTC** — inventario para entrega al cliente, PR [#105](https://github.com/Nelosama/FerreSystem/pull/105); resultados, alcance y pendientes en el bloque de inventario siguiente. Las bitácoras anteriores se conservan.
+Última revisión: **2026-10-10 UTC** — caja y arqueo (rama `claude/intelligent-cerf-b3ldo0`, sin merge ni despliegue; bloque siguiente) e inventario para entrega, PR [#105](https://github.com/Nelosama/FerreSystem/pull/105). Las bitácoras anteriores se conservan.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -19,6 +19,29 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 7. **No hacer merge automático** ni desplegar a producción sin autorización explícita del dueño del proyecto.
 
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
+
+---
+
+## Caja y arqueo — implementación para entrega (2026-10-10 UTC)
+
+- **Rama:** `claude/intelligent-cerf-b3ldo0` (designada para esta sesión; partió de `origin/main` `605cb941`, sin cambios de inventario). PR publicado hacia `main` sin merge ni despliegue. Sin producción ni datos reales en las pruebas.
+- **Reutilizado sin reescribir:** modelos `Caja`/`MovimientoCaja` (tablas `cajas`, `movimientos_caja`), `openCash`/`cashMovement` de `operaciones/ledger.ts`, ventas (`VENTA_POS`), abonos CxC (`ABONO_CXC` vía `pagar`), devoluciones con reembolso (`DEVOLUCION`), auditoría `auditoria_operaciones`. Pagos a proveedor siguen fuera de caja (FS-09).
+- **Implementado** (`backend/src/operaciones/operaciones.service.ts`, bloque `caja`): resumen del turno (fondo, ingresos/egresos en efectivo, efectivo esperado, totales por método con `EFECTIVO`/`TARJETA`/`TRANSFERENCIA`/`CREDITO` informativos); `GET /operaciones/caja` (propio); `GET /operaciones/caja/cierres` (solo ADMIN, filtro por estado); `GET /operaciones/caja/:id` (propio o ADMIN); `POST /operaciones/caja/:id/movimientos` para `INGRESO_MANUAL`/`EGRESO_MANUAL` con permiso `caja.movimientos_manuales` o rol ADMIN, idempotente por `solicitudId` (el id del movimiento), sin salida mayor al efectivo esperado, auditoría `CAJA_MOVIMIENTO_MANUAL` con `autorizacion` (`ROL_ADMIN`/`PERMISO_CAJA`); cierre que exige `notas` cuando hay diferencia, con reintento idéntico idempotente y segundo cierre distinto rechazado.
+- **Frontend:** `frontend/src/pages/ArqueoCajaPage.tsx` (+ `.css`), pantalla única: abrir caja, resumen, movimiento autorizado, cierre con diferencia en vivo, comprobante imprimible, historial propio (cajero) o de la empresa (ADMIN). Reintento explícito de la operación pendiente con la misma solicitud. Textos ES/EN en `cash_drawer.*`. Se retiró el modo `caja` de `OperacionesPage` (código muerto). Permiso nuevo `caja.movimientos_manuales` en `UsuariosPage` y `types/index.ts`.
+- **Pruebas ejecutadas (2026-10-10, entorno local):**
+  - Integración PostgreSQL 16 real, usuario no root (`runuser -u nobody`), cadena completa de migraciones: `backend/test/caja.postgres.integration.ts` **14/14** (apertura, venta efectivo/tarjeta/transferencia, abono de cliente, devolución, entrada/salida con permiso y sin permiso, diferencia, cierre con sobrante, doble cierre, concurrencia de cierres, venta vs. cierre simultáneos, movimientos concurrentes con la misma solicitud, idempotencia de venta, permisos, aislamiento). Suite completa de integración: **238/238 en 12 archivos**; `ventas.postgres.integration.ts` ajustado a la regla de explicación de diferencia.
+  - Backend unitarias: **326/326**. Compilación de fuentes sin errores de tipos.
+  - Frontend: unitarias **163/163**; `tsc -b` sin errores; `vite build` con `VITE_API_URL=/api`; lint sin errores (avisos de hooks en `ArqueoCajaPage.tsx`, mismo patrón que `OperacionesPage`).
+  - Playwright Chromium: **98/98** en suite completa, incluidas **4 E2E nuevas** `frontend/e2e/caja-simulado.spec.ts`. **Son E2E con backend simulado**: validan interfaz, bloqueo de diferencia, reintento con la misma solicitud y vista de administrador; no sustituyen la persistencia.
+- **Limitaciones reales:**
+  1. **Sucursal / punto de venta: NO IMPLEMENTADO.** No hay modelo de sucursal; la caja identifica empresa, código y cajero.
+  2. Cajero sin permiso configurado no puede registrar entradas/salidas (el permiso debe asignarse en Usuarios).
+  3. Entradas/salidas: autorizadas por permiso o rol ADMIN; no hay doble aprobación por segundo administrador.
+  4. No existe corrección posterior de un cierre confirmado; el cierre no se edita y tampoco hay anulación de movimientos.
+  5. Regla nueva: cerrar con diferencia exige explicación (`Explique la diferencia de caja antes de cerrar`).
+  6. Comprobante = vista imprimible del navegador; no hay ticket térmico ni PDF.
+  7. Pantalla no verificada en iPhone/Safari físico ni con backend real en navegador; la traducción EN no tiene prueba visual dedicada.
+- **Pendientes antes de aceptación del cliente:** decidir sucursal/punto de venta; definir si la salida de efectivo requiere segundo administrador y umbral; flujo de corrección auditada de cierres; revisión en dispositivo del cliente. Merge y aceptación del cliente son decisiones separadas.
 
 ---
 

@@ -96,6 +96,7 @@ export const UsuariosPage: React.FC = () => {
     { clave: 'pos.vender', labelKey: 'users.perm_pos_vender' },
     { clave: 'pos.anular_venta', labelKey: 'users.perm_pos_anular' },
     { clave: 'pos.aplicar_descuento', labelKey: 'users.perm_pos_descuento' },
+    { clave: 'caja.movimientos_manuales', labelKey: 'users.perm_caja_manual' },
     { clave: 'inventario.ver', labelKey: 'users.perm_inv_ver' },
     { clave: 'inventario.editar', labelKey: 'users.perm_inv_editar' },
     { clave: 'cotizaciones.crear', labelKey: 'users.perm_cot_crear' },

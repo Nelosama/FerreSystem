@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, ValidateIf, IsUUID, IsNumber, IsInt, Min, Max, IsEnum, IsBoolean, IsUrl, MaxLength } from 'class-validator';
 
-import { UnidadMedida as UnidadMedidaEnum } from '@prisma/client';
+import { UnidadMedida as UnidadMedidaEnum } from '../../types/prisma-enums';
 export { UnidadMedidaEnum };
 
 export class CreateProductoDto {

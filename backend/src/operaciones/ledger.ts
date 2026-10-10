@@ -25,7 +25,8 @@ export function paymentMethod(value: string) {
 }
 export async function query<T = any>(tx: Tx, sql: string, ...args: any[]): Promise<T[]> {
   // SQL is always a constant controlled by the application; all user values are bound parameters.
-  return tx.$queryRawUnsafe<T[]>(sql, ...args);
+  const result = await (tx as any).$queryRawUnsafe(sql, ...args);
+  return result as T[];
 }
 export async function lockTenant(tx: Tx, tenantId: string) {
   await query(tx, 'SELECT 1 FROM pg_advisory_xact_lock(hashtextextended($1, 0))', `OPERACION:${tenantId}`);
