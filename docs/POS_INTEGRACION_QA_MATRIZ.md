@@ -2,7 +2,7 @@
 
 **Estado: integración técnica verificada en rama temporal; NO aprobada para producción.**
 Rama: `claude/integracion-pos-offline-p1` (desde `origin/main` `7ccfad25`). Incluye:
-- `1deb3117` — #127 P1 operaciones (`origin/claude/p1-operaciones`), fusionado sin conflictos.
+- `1deb3117` — #127 P1 operaciones (`origin/claude/p1-operaciones`), fusionado sin conflictos. #127 avanzó a `caa5aa15` (`22388edc` mock de proveedores en FS-07, igual al corregido aquí; `caa5aa15` contexto). Integrado en `a4cda7e3`; duplicado retirado en `f2f4b44e`.
 - `f281be62` — #128 contingencia POS (`origin/claude/pos-offline-backend`), con conflictos resueltos en `2ab05cd0`.
 - `99df299c` — correcciones de costo, timeout y pruebas añadidas durante la integración.
 - `5c5df9bb` — asociación producto–proveedor en la prueba de contingencia y mock del panel de proveedores (#127) en la suite simulada de FS-07. Commit validado: contingencia 25/25, unitarias frontend 224/224, simulada 118/118, E2E real 29/29.
