@@ -20,13 +20,13 @@ const TENANT_B = 'e2e-empresa-b';
   }
 
   const usuarios = {};
-  const crear = async (tenantId, key, nombre, email, rol) => {
+  const crear = async (tenantId, key, nombre, email, rol, permisos = []) => {
     usuarios[key] = await prisma.usuario.create({
-      data: { tenantId, nombre, email, passwordHash, rol, permisosConfigurados: true, permisos: [] },
+      data: { tenantId, nombre, email, passwordHash, rol, permisosConfigurados: true, permisos },
     });
   };
   await crear(TENANT_A, 'adminA', 'Administrador E2E', 'admin.a@e2e.invalid', 'ADMIN');
-  await crear(TENANT_A, 'cajeroA', 'Cajero E2E', 'cajero.a@e2e.invalid', 'CAJERO');
+  await crear(TENANT_A, 'cajeroA', 'Cajero E2E', 'cajero.a@e2e.invalid', 'CAJERO', ['pos.vender']);
   await crear(TENANT_A, 'bodegueroA', 'Bodeguero E2E', 'bodeguero.a@e2e.invalid', 'BODEGUERO');
   await crear(TENANT_B, 'adminB', 'Administrador Norte E2E', 'admin.b@e2e.invalid', 'ADMIN');
 
@@ -38,6 +38,7 @@ const TENANT_B = 'e2e-empresa-b';
   };
   await producto(TENANT_A, 'taladroA', 'TAL-E2E-1', 'Taladro percutor 1/2" E2E', 2500);
   await producto(TENANT_A, 'inversorA', 'INV-E2E-2', 'Inversor soldadora 200A E2E', 8900);
+  await producto(TENANT_A, 'entregaA', 'ENT-E2E-1', 'Cemento gris bodega E2E', 200);
   await producto(TENANT_B, 'taladroB', 'TAL-E2E-1', 'Taladro norte E2E', 2400);
 
   // Facturas con fecha de negocio fija (2026-10-01 en Tegucigalpa): 18:00 UTC = 12:00 locales.

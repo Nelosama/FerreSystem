@@ -519,6 +519,38 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
   });
 
   // ───────────────────────── Aislamiento entre empresas ─────────────────────────
+  describe('validación final: precio revocado y devolución total', () => {
+    it('una venta ya facturada se puede entregar aunque después se revoque la aprobación del precio', async () => {
+      const e = await empresa();
+      const venta = await bodega(e, e.p1, 2);
+      await prisma.producto.update({ where: { id: e.p1 }, data: { precioVenta: 0 } });
+      const r = await entregar(e, venta.id, [{ detalleId: venta.detalles[0].id, cantidad: 2 }]);
+      expect(r).toBeTruthy();
+      expect(await stock(e.p1)).toBe(18);
+      expect(await reservado(e.p1)).toBe(0);
+      // El producto sigue sin poder venderse nuevamente.
+      await expect(bodega(e, e.p1, 1)).rejects.toThrow();
+      await verificarInvariantes(e);
+    });
+
+    it('devolución total de lo entregado: el stock vuelve al inicial y no se puede devolver más', async () => {
+      const e = await empresa();
+      const venta = await bodega(e, e.p1, 3);
+      const det = venta.detalles[0].id;
+      await entregar(e, venta.id, [{ detalleId: det, cantidad: 1 }]);
+      await entregar(e, venta.id, [{ detalleId: det, cantidad: 2 }]);
+      expect(await stock(e.p1)).toBe(17);
+      await devolver(e, venta.id, [{ detalleId: det, cantidad: 3, destino: 'INVENTARIO' }]);
+      expect(await stock(e.p1)).toBe(20);
+      expect(await reservado(e.p1)).toBe(0);
+      const l = await linea(det);
+      expect([Number(l.cantidad_entregada), Number(l.cantidad_devuelta_reingresada)]).toEqual([3, 3]);
+      await expect(devolver(e, venta.id, [{ detalleId: det, cantidad: 1, destino: 'INVENTARIO' }])).rejects.toThrow(/supera/);
+      expect(await stock(e.p1)).toBe(20);
+      await verificarInvariantes(e);
+    });
+  });
+
   describe('aislamiento entre empresas', () => {
     it('otra empresa no puede ver, preparar, entregar ni liberar una venta ajena', async () => {
       const a = await empresa();
