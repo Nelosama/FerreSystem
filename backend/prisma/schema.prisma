@@ -835,6 +835,7 @@ model PagoCuenta {
  usuarioId String @map("usuario_id")
  cajaId String? @map("caja_id")
  notas String?
+ referencia String?
  createdAt DateTime @default(now()) @map("created_at")
  @@unique([tenantId,solicitudId])
  @@index([cuentaId])
