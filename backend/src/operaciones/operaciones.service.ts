@@ -3,9 +3,11 @@ import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
 import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
-import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
+import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 import { eliminarVinculoProveedor, guardarVinculoProveedor, listarProveedoresProducto, registrarCostoProveedor } from './productos-proveedores';
 import { estadoCuentaCliente } from './estado-cuenta-cliente';
+import { normalizarAutorizacion, registrarAprobacion } from './aprobaciones-bancarias';
+import { listarConciliaciones, registrarConciliacion } from './conciliacion-bancaria';
 
 @Injectable()
 export class OperacionesService {
@@ -64,6 +66,8 @@ export class OperacionesService {
  }
  // Relación producto–proveedor (ver productos-proveedores.ts). Lectura: inventario.ver; cambios: inventario.editar.
  estadoCuentaCliente(tenantId:string,clienteId:string){return estadoCuentaCliente(this.prisma,tenantId,clienteId);}
+ registrarConciliacionBancaria(tenantId:string,userId:string,dto:ConciliacionBancariaDto){return registrarConciliacion(this.prisma,tenantId,userId,dto);}
+ conciliacionesBancarias(tenantId:string,userId:string,fecha?:string){return listarConciliaciones(this.prisma,tenantId,userId,fecha);}
  proveedoresProducto(tenantId:string,productoId:string){return listarProveedoresProducto(this.prisma,tenantId,productoId);}
  guardarProveedorProducto(tenantId:string,userId:string,productoId:string,proveedorId:string,dto:ProductoProveedorDto){return guardarVinculoProveedor(this.prisma,tenantId,userId,productoId,proveedorId,dto);}
  eliminarProveedorProducto(tenantId:string,userId:string,productoId:string,proveedorId:string){return eliminarVinculoProveedor(this.prisma,tenantId,userId,productoId,proveedorId);}
@@ -121,16 +125,19 @@ export class OperacionesService {
    // Ningún método —EFECTIVO incluido— exige caja abierta ni genera movimientos_caja: un pago a proveedor es una
    // salida de fondos administrativos, no del cajón del cajero. Solo los abonos de clientes (CXC) afectan el arqueo.
    const afectaCaja=c.tipo==='CXC';
+   // Abonos de cliente con tarjeta o transferencia exigen autorización bancaria. Las cuentas por pagar no la requieren.
+   const autorizacion=c.tipo==='CXC'?normalizarAutorizacion(metodo,dto.pagoElectronico):null;
    const caja=afectaCaja?await openCash(tx,tenantId,userId):null;
    const [p]=await query(tx,'INSERT INTO pagos_cuenta (id,tenant_id,cuenta_id,solicitud_id,solicitud_hash,monto,metodo,usuario_id,caja_id,notas) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',id(),tenantId,c.id,dto.solicitudId,hash,monto,metodo,userId,caja?.id ?? null,dto.notas || null);
    await query(tx,'UPDATE cuentas_operativas SET saldo=saldo-$1 WHERE id=$2 RETURNING id',monto,c.id);
+   if(autorizacion)await registrarAprobacion(tx,tenantId,userId,autorizacion,monto,'ABONO',p.id);
    if(c.tipo==='CXC'&&c.cliente_id){
     const [client]=await query(tx,'UPDATE clientes SET saldo_pendiente=saldo_pendiente-$1 WHERE id=$2 AND tenant_id=$3 AND saldo_pendiente >= $1 RETURNING id',monto,c.cliente_id,tenantId);
     if(!client)throw new ConflictException('El saldo del cliente no coincide con la cuenta por cobrar');
     await query(tx,'UPDATE ventas SET saldo_credito=GREATEST(COALESCE(saldo_credito,total)-$1,0) WHERE id=$2 AND tenant_id=$3 AND tipo_pago=\'CREDITO\' RETURNING id',monto,c.documento_id,tenantId);
    }
    if(caja)await cashMovement(tx,caja.id,userId,'ABONO_CXC',monto,metodo,p.id,'Abono de cliente');
-   await audit(tx,tenantId,userId,'CUENTA_PAGAR',p.id,{cuentaId,tipo:c.tipo,monto,metodo,afectaCaja,cajaId:caja?.id??null,proveedorId:c.proveedor_id??null,clienteId:c.cliente_id??null,documentoId:c.documento_id??null});return p;
+   await audit(tx,tenantId,userId,'CUENTA_PAGAR',p.id,{cuentaId,tipo:c.tipo,monto,metodo,afectaCaja,cajaId:caja?.id??null,proveedorId:c.proveedor_id??null,clienteId:c.cliente_id??null,documentoId:c.documento_id??null,aprobacion:autorizacion});return p;
   });
  }
  // Caja: el efectivo esperado solo suma movimientos EFECTIVO. Tarjeta, transferencia y crédito son totales informativos.

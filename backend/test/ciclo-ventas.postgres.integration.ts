@@ -37,6 +37,9 @@ import { Reflector } from '@nestjs/core';
 const bin = process.env.PG_BIN || '/usr/bin';
 const exe = (name: string) => join(bin, name);
 
+// Tarjeta y transferencia exigen autorización bancaria: cada cobro recibe una referencia única.
+const autorizacion = (metodo: string) => (metodo === 'EFECTIVO' || metodo === 'CREDITO') ? {} : { pagoElectronico: { referencia: `AUT-${randomUUID().slice(0, 12)}`, ...(metodo === 'TARJETA' ? { terminal: 'POS-01' } : {}) } };
+
 describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
   let directory = '';
   let started = false;
@@ -131,7 +134,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     const converted = await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'EFECTIVO' }).expect(201);
     sales.push(converted.body.ventaId);
     for (const metodoPago of ['TRANSFERENCIA', 'TARJETA']) {
-      const body = { solicitudId: randomUUID(), metodoPago, detalles: [{ productoId: p.id, cantidad: 1 }] };
+      const body = { solicitudId: randomUUID(), metodoPago, detalles: [{ productoId: p.id, cantidad: 1 }], ...autorizacion(metodoPago) };
       const sale = await http('post', '/ventas', body).expect(201);
       await http('post', '/ventas', body).expect(201);
       sales.push(sale.body.id);
@@ -182,7 +185,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     // Bruto 250, descuentos 20 + 10, base 220, ISV 33, total 253.
     expect(quote.body).toMatchObject({ subtotal: 230, descuento: 30, isv: 33, total: 253 });
     const path = `/cotizaciones/${quote.body.id}/convertir`;
-    const converted = await Promise.all([http('post', path, { metodoPago }), http('post', path, { metodoPago })]);
+    const converted = await Promise.all([http('post', path, { metodoPago, ...autorizacion(metodoPago) }), http('post', path, { metodoPago, ...autorizacion(metodoPago) })]);
     expect(converted.map(r => r.status).sort((a, b) => a - b)).toEqual([201, 400]);
     const ventaId = converted.find(r => r.status === 201)!.body.ventaId;
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
@@ -242,7 +245,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
       detalles: [{ productoId: a.id, cantidad: 2, descuento: 10, tipoDescuento: 'PORCENTAJE' }, { productoId: b.id, cantidad: 1, exento: true }],
     }).expect(201);
     expect(quote.body).toMatchObject({ descuento: 30, isv: 25.83, total: 245.83 });
-    const result = await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TRANSFERENCIA' }).expect(201);
+    const result = await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TRANSFERENCIA', ...autorizacion('TRANSFERENCIA') }).expect(201);
     const sale = await prisma.venta.findUniqueOrThrow({ where: { id: result.body.ventaId } });
     expect(Number(sale.subtotal)).toBe(250); expect(Number(sale.descuento)).toBe(30);
     expect(Number(sale.isv)).toBe(25.83); expect(Number(sale.total)).toBe(245.83);
@@ -250,7 +253,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
 
   it('venta sin inventario exige proveedor y no altera stock ni crea una entrega física', async () => {
     const p = await producto('PEDIDO', 100, 0);
-    const sale = { solicitudId: randomUUID(), metodoPago: 'TRANSFERENCIA', detalles: [{ productoId: p.id, cantidad: 2, sinInventario: true }] };
+    const sale = { solicitudId: randomUUID(), metodoPago: 'TRANSFERENCIA', detalles: [{ productoId: p.id, cantidad: 2, sinInventario: true }], ...autorizacion('TRANSFERENCIA') };
     await http('post', '/ventas', sale).expect(400);
     const provider = await http('post', '/operaciones/proveedores', { solicitudId: randomUUID(), nombre: 'Proveedor QA' }).expect(201);
     const valid = { ...sale, detalles: [{ ...sale.detalles[0], proveedorId: provider.body.id }] };
@@ -340,6 +343,15 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect(despues.body.nombre).toBe('Cliente nulidad QA');
   });
 
+  it('convertir una cotización a tarjeta sin autorización bancaria responde 400 y la cotización sigue abierta', async () => {
+    const p = await producto();
+    const quote = await http('post', '/cotizaciones', { detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(201);
+    await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TARJETA' }).expect(400);
+    await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TARJETA', pagoElectronico: { referencia: 'AUT-COT-1', terminal: 'POS-01' } }).expect(201);
+    const sinDuplicar = await prisma.$queryRawUnsafe<any[]>("SELECT COUNT(*)::int AS n FROM aprobaciones_bancarias WHERE referencia='AUT-COT-1'");
+    expect(sinDuplicar).toEqual([{ n: 1 }]);
+  });
+
   it('cotización vencida exige renovar vigencia antes de convertir, sin cobros ni reservas por rechazo', async () => {
     const p = await producto();
     const quote = await http('post', '/cotizaciones', { fechaValidez: '2000-01-01', detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(201);
@@ -361,7 +373,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect(stored.fechaValidez.toISOString()).toBe(`${hoy}T00:00:00.000Z`);
     const found = await http('get', `/cotizaciones/${quote.body.id}`).expect(200);
     expect(found.body).toMatchObject({ vencida: false, porVencerHoy: true });
-    await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TRANSFERENCIA' }).expect(201);
+    await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TRANSFERENCIA', ...autorizacion('TRANSFERENCIA') }).expect(201);
   });
 
   it.runIf(process.env.REAL_SETTINGS_BROWSER === '1')('Chromium real: conversión por transferencia y POS con tarjeta usan el método elegido', async () => {

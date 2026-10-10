@@ -82,8 +82,11 @@ describe('Caja y arqueo / PostgreSQL aislado', () => {
   });
 
   // Venta de 1 unidad a 100 + ISV 15 % = 115.
+  // Tarjeta y transferencia exigen autorización bancaria: cada venta recibe una referencia única.
   const venta = (userId: string, metodoPago = 'EFECTIVO', extra: any = {}, solicitudId = randomUUID()) => ventas.create(tenantId, userId, {
-    solicitudId, metodoPago, detalles: [{ productoId, cantidad: 1, precioUnitario: 100 }], ...extra,
+    solicitudId, metodoPago, detalles: [{ productoId, cantidad: 1, precioUnitario: 100 }],
+    ...(metodoPago === 'TARJETA' || metodoPago === 'TRANSFERENCIA' ? { pagoElectronico: { referencia: `AUT-${randomUUID().slice(0, 12)}`, terminal: 'POS-01' } } : {}),
+    ...extra,
   } as any);
   const ventaCredito = (userId: string) => venta(userId, 'CREDITO', { clienteId, tipoPago: 'CREDITO' });
   const abrir = (userId: string, monto: number) => ops.abrir(tenantId, userId, { solicitudId: randomUUID(), monto } as any);
@@ -125,7 +128,7 @@ describe('Caja y arqueo / PostgreSQL aislado', () => {
     const solicitud = randomUUID();
     await ops.pagar(tenantId, cajeroId, cuenta.id, { solicitudId: solicitud, monto: 50, metodo: 'EFECTIVO' } as any);
     expect(await esperado(cajeroId)).toBe(1050);
-    await ops.pagar(tenantId, cajeroId, cuenta.id, { solicitudId: randomUUID(), monto: 15, metodo: 'TARJETA' } as any);
+    await ops.pagar(tenantId, cajeroId, cuenta.id, { solicitudId: randomUUID(), monto: 15, metodo: 'TARJETA', pagoElectronico: { referencia: `ABN-${randomUUID().slice(0, 10)}`, terminal: 'POS-01' } } as any);
     const caja = await cajaDe(cajeroId);
     expect(caja.efectivoEsperado).toBe(1050);
     expect(caja.totales).toMatchObject({ EFECTIVO: 50, TARJETA: 15, CREDITO: 115 });
