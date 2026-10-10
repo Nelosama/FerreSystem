@@ -22,6 +22,16 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Dashboard — HTTP 500 del resumen (PROD-QA-20261007-01), diagnóstico (2026-10-10 UTC)
+
+- **Ramas/PR:** `fix/dashboard-resumen-500` (PR #111), desde `origin/main` `2398e45f`. Sin merge, despliegue ni acceso a producción.
+- **Reproducción:** `backend/test/dashboard.postgres.integration.ts` (2 casos) ejecuta `DashboardService.getDashboardData` contra PostgreSQL 16 aislado con todas las migraciones: negocio vacío, y negocio con ventas de hoy y de ayer, devolución, producto bajo stock y cotización que vence hoy. **Ambos pasan**: el 500 no se reproduce con el código de `main`.
+- **Hipótesis principal (no confirmada):** el resumen lee todas las columnas de `Venta`, `Producto`, `Devolucion`, `Cotizacion`, `Usuario` y `Cliente`. Si la base de producción no tiene alguna columna de las migraciones posteriores a la inicial, un `SELECT` falla y el resumen responde 500.
+- **Consulta de solo lectura preparada:** `backend/scripts/diagnostico-dashboard-lectura.sql`. Lista las columnas que Prisma selecciona (110) que faltan en `information_schema.columns`, las tablas ausentes y las migraciones de `_prisma_migrations` si existe. Termina con `ROLLBACK`. Validado en un clúster temporal con todas las migraciones: 0 faltantes; con `devoluciones.reembolso` eliminada, la detecta. No se ha ejecutado en producción.
+- **Pendiente:** ejecutarla en producción con un usuario de solo lectura y autorización del responsable. Si faltan columnas, la corrección es aplicar la migración que falta, no ocultar el error con un `try/catch`.
+
+---
+
 ## Auditoría y Devoluciones — instantes en zona de negocio (2026-10-10 UTC)
 
 - **Rama:** `fix/fechas-negocio-auditoria-devoluciones`, desde `origin/main` `2398e45f`. Independiente de PR #112. Sin merge ni despliegue.
@@ -30,16 +40,6 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Pruebas:** `frontend/test/auditoria-devoluciones-zona.test.mjs` (3 casos, varias zonas de navegador). Con la zona eliminada, la prueba falla (`TZ=UTC`). `devoluciones-recovery.test.mjs` mockea `../utils/format`; se añadió el nuevo helper al mock.
 - **Verificación:** `npm test` 166/166; `tsc -b` y `vite build` correctos; `oxlint` sin errores; Playwright 98/98 (con `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` del Chromium instalado).
 - **Limitaciones:** el backend de auditoría y de devoluciones no se cambió; no se verificó con PostgreSQL en este PR. Las pantallas que usan fechas de calendario (`YYYY-MM-DD`) no se tocan aquí.
-
----
-
-## Dashboard — HTTP 500 del resumen (PROD-QA-20261007-01), diagnóstico (2026-10-10 UTC)
-
-- **Ramas/PR:** `fix/dashboard-resumen-500` (PR #111), desde `origin/main` `2398e45f`. Sin merge, despliegue ni acceso a producción.
-- **Reproducción:** `backend/test/dashboard.postgres.integration.ts` (2 casos) ejecuta `DashboardService.getDashboardData` contra PostgreSQL 16 aislado con todas las migraciones: negocio vacío, y negocio con ventas de hoy y de ayer, devolución, producto bajo stock y cotización que vence hoy. **Ambos pasan**: el 500 no se reproduce con el código de `main`.
-- **Hipótesis principal (no confirmada):** el resumen lee todas las columnas de `Venta`, `Producto`, `Devolucion`, `Cotizacion`, `Usuario` y `Cliente`. Si la base de producción no tiene alguna columna de las migraciones posteriores a la inicial, un `SELECT` falla y el resumen responde 500.
-- **Consulta de solo lectura preparada:** `backend/scripts/diagnostico-dashboard-lectura.sql`. Lista las columnas que Prisma selecciona (110) que faltan en `information_schema.columns`, las tablas ausentes y las migraciones de `_prisma_migrations` si existe. Termina con `ROLLBACK`. Validado en un clúster temporal con todas las migraciones: 0 faltantes; con `devoluciones.reembolso` eliminada, la detecta. No se ha ejecutado en producción.
-- **Pendiente:** ejecutarla en producción con un usuario de solo lectura y autorización del responsable. Si faltan columnas, la corrección es aplicar la migración que falta, no ocultar el error con un `try/catch`.
 
 ---
 
