@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Emulación de iPhone (WebKit), evidencia separada de Chromium
+test-results-webkit/

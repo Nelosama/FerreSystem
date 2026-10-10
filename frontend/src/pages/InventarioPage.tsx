@@ -1,5 +1,5 @@
 import { ProductoGestion } from '../components/ProductoGestion';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Search, Plus, Upload, AlertTriangle, Check, X, Calendar, ShieldCheck, RefreshCw } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
@@ -8,11 +8,27 @@ import type { ProductItem } from '../types';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { ImportarProductosModal } from '../components/ImportarProductosModal';
+import { useTenant } from '../context/TenantContext';
+import { newRequestId } from '../utils/requestId';
+import { readStoredJson } from '../utils/storage';
+import { BarcodeScanner } from '../components/BarcodeScanner';
 import { normalizarUnidadMedida } from '../utils/unidadMedida';
 
 export const InventarioPage: React.FC = () => {
+  const { tenant, user } = useTenant();
+  return <InventarioContent key={`${tenant.id}:${user?.id}`} />;
+};
+
+const InventarioContent: React.FC = () => {
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
+  const { tenant, user, isReadOnly } = useTenant();
+  const pendingKey = `ferre_pending_product:${tenant.id}:${user?.id}`;
+  const [pendingProduct, setPendingProduct] = useState<any>(() => readStoredJson(pendingKey, null));
+  const [saving, setSaving] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const [savedMessage, setSavedMessage] = useState('');
+  const inFlight = useRef(false);
 
   const [productos, setProductos] = useState<ProductItem[]>([]);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -55,9 +71,9 @@ export const InventarioPage: React.FC = () => {
       setProductos(data);
     } catch (err: any) {
       console.error('Error al cargar productos desde la API:', err);
-      setErrorText('Error al cargar productos desde el servidor.');
+      setErrorText(t('inventory_create.load_error'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchProductos();
@@ -69,6 +85,8 @@ export const InventarioPage: React.FC = () => {
   const [formFabricante,setFormFabricante]=useState('');
   const [formMarca,setFormMarca]=useState('');
   const [formNombre, setFormNombre] = useState('');
+  const [formDescripcion, setFormDescripcion] = useState('');
+  const [formUsaMedida, setFormUsaMedida] = useState(false);
   const [formCategoria, setFormCategoria] = useState(rubroConfig.categoriasDefault[0] || 'General');
   const [formUnidadMedida, setFormUnidadMedida] = useState(rubroConfig.unidadesMedida[0] || 'unidad');
   const [formPrecioVenta, setFormPrecioVenta] = useState('');
@@ -76,60 +94,59 @@ export const InventarioPage: React.FC = () => {
   const [formStockActual, setFormStockActual] = useState('');
   const [formStockMinimo, setFormStockMinimo] = useState('');
 
-  // Rubro specific fields
-  const [formFechaVencimiento, setFormFechaVencimiento] = useState('');
-  const [formLote, setFormLote] = useState('');
-  const [formNumeroSerie, setFormNumeroSerie] = useState('');
-  const [formMesesGarantia, setFormMesesGarantia] = useState('');
-
-  const categorias = ['TODAS', ...rubroConfig.categoriasDefault];
+  const categorias = ['TODAS', ...new Set([...rubroConfig.categoriasDefault, ...productos.map(p => p.categoria)])];
 
   const productosFiltrados = productos.filter((p) => {
     const matchSearch =
-      p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      p.codigo.toLowerCase().includes(search.toLowerCase()) || p.codigoBarras?.includes(search) || p.codigoFabricante?.toLowerCase().includes(search.toLowerCase()) || p.descripcion?.toLowerCase().includes(search.toLowerCase());
+      p.nombre.toLowerCase().includes(search.trim().toLowerCase()) ||
+      p.codigo.toLowerCase().includes(search.trim().toLowerCase()) || p.codigoBarras?.toLowerCase().includes(search.trim().toLowerCase()) || p.codigoFabricante?.toLowerCase().includes(search.trim().toLowerCase()) || p.descripcion?.toLowerCase().includes(search.trim().toLowerCase()) || p.categoria.toLowerCase().includes(search.trim().toLowerCase());
     const matchCat = filtroCategoria === 'TODAS' || p.categoria === filtroCategoria;
     return matchSearch && matchCat;
   });
 
-  const handleCrearProducto = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formNombre || !formPrecioVenta) return;
+  const guardarAlta = async (command: any) => {
+    await api.post('/productos', command);
+    localStorage.removeItem(pendingKey); setPendingProduct(null);
+    setSavedMessage(t('inventory_create.saved', { nombre: command.nombre }));
+    setModalAbierto(false);
+    setFormCodigo(''); setFormBarcode(''); setFormFabricante(''); setFormMarca('');
+    setFormNombre(''); setFormDescripcion(''); setFormUsaMedida(false);
+    setFormPrecioVenta(''); setFormPrecioCosto(''); setFormStockActual(''); setFormStockMinimo('');
+    await fetchProductos();
+  };
 
-    try {
-      await api.post('/productos', {
-        codigo: formCodigo.toUpperCase().trim() || undefined,
-        codigoBarras: formBarcode.trim() || undefined,
-        codigoFabricante: formFabricante.trim() || undefined,
-        marca: formMarca.trim() || undefined,
-        nombre: formNombre.trim(),
-        categoria: formCategoria,
-        precioVenta: parseFloat(formPrecioVenta) || 0,
-        precioCosto: parseFloat(formPrecioCosto) || 0,
-        stockActual: formStockActual === '' ? 0 : Number(formStockActual),
-        stockMinimo: formStockMinimo === '' ? 5 : Number(formStockMinimo),
-        unidadMedida: normalizarUnidadMedida(formUnidadMedida),
-        usaMedida: false,
-      });
-
-      await fetchProductos();
-      setModalAbierto(false);
-
-      // Limpiar formulario
-      setFormCodigo('');setFormBarcode('');setFormFabricante('');setFormMarca('');
-      setFormNombre('');
-      setFormPrecioVenta('');
-      setFormPrecioCosto('');
-      setFormStockActual('');
-      setFormStockMinimo('');
-      setFormFechaVencimiento('');
-      setFormLote('');
-      setFormNumeroSerie('');
-      setFormMesesGarantia('');
-    } catch (err: any) {
-      console.error('Error al crear producto:', err);
-      alert(err.response?.data?.message || 'Error al guardar el producto en el servidor');
+  const handleCrearProducto = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (inFlight.current || isReadOnly) return;
+    const command = pendingProduct ?? {
+      solicitudId: newRequestId(),
+      codigo: formCodigo.toUpperCase().trim() || undefined,
+      codigoBarras: formBarcode.trim() || undefined,
+      codigoFabricante: formFabricante.trim() || undefined,
+      marca: formMarca.trim() || undefined,
+      nombre: formNombre.trim(), descripcion: formDescripcion.trim() || undefined,
+      categoria: formCategoria,
+      precioVenta: Number(formPrecioVenta), precioCosto: Number(formPrecioCosto || 0),
+      stockActual: Number(formStockActual || 0), stockMinimo: Number(formStockMinimo || 5),
+      unidadMedida: normalizarUnidadMedida(formUnidadMedida), usaMedida: formUsaMedida,
+    };
+    if (!pendingProduct && (!command.nombre || !formPrecioVenta.trim() ||
+      [command.precioVenta, command.precioCosto, command.stockActual, command.stockMinimo].some(n =>
+        !Number.isFinite(n) || n < 0 || n > 9999999999.99 || Math.abs(n * 100 - Math.round(n * 100)) > 0.00001))) {
+      setCreateError(t('inventory_create.validation')); return;
     }
+    inFlight.current = true; setSaving(true); setCreateError(''); setSavedMessage('');
+    try {
+      // Antes del envío: conserva clave y contenido incluso si se pierde la respuesta o se recarga.
+      localStorage.setItem(pendingKey, JSON.stringify(command)); setPendingProduct(command);
+      await guardarAlta(command);
+    } catch (err: any) {
+      if (err.response?.status >= 400 && err.response?.status < 500) {
+        localStorage.removeItem(pendingKey); setPendingProduct(null);
+      }
+      const message = err.response?.data?.message;
+      setCreateError(Array.isArray(message) ? message.join(' · ') : message || t('inventory_create.network'));
+    } finally { inFlight.current = false; setSaving(false); }
   };
 
   return (
@@ -137,6 +154,9 @@ export const InventarioPage: React.FC = () => {
       <TopBar title={rubroConfig.nombreCatalogo.toUpperCase()} subtitle={t('inventory.subtitle')} />
 
       <main style={styles.content}>
+        {savedMessage && <p role="status">{savedMessage}</p>}
+        {pendingProduct && !modalAbierto && <div role="alert" className="operation-card"><p>{t('inventory_create.pending', { nombre: pendingProduct.nombre })}</p><button type="button" className="btn btn-primary" disabled={saving || isReadOnly} onClick={() => void handleCrearProducto()}>{saving ? t('inventory_create.saving') : t('inventory_create.retry')}</button></div>}
+        {createError && !modalAbierto && <p role="alert">{createError}</p>}
         <ProductoGestion productos={productos} onSaved={fetchProductos}/>
         {/* Barra de Filtros y Acción */}
         <div style={styles.actionsBar}>
@@ -163,7 +183,7 @@ export const InventarioPage: React.FC = () => {
                   ...(filtroCategoria === cat ? styles.catButtonActive : {}),
                 }}
               >
-                {cat}
+                {cat === 'TODAS' ? t('common.all') : cat}
               </button>
             ))}
           </div>
@@ -181,7 +201,8 @@ export const InventarioPage: React.FC = () => {
             <button
               type="button"
               className="btn btn-primary"
-              onClick={() => setModalAbierto(true)}
+              disabled={saving || !!pendingProduct || isReadOnly}
+              onClick={() => { setCreateError(''); setModalAbierto(true); }}
             >
               <Plus size={18} strokeWidth={2.5} />
               <span>{t('inventory.new_product')}</span>
@@ -293,12 +314,14 @@ export const InventarioPage: React.FC = () => {
       {/* Modal de Creación */}
       {modalAbierto && (
         <div style={styles.modalOverlay}>
-          <div className="industrial-card" style={styles.modalContent}>
+          <div role="dialog" aria-modal="true" aria-label={t('inventory.add_article')} className="industrial-card inventory-create-modal" style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <h2 style={{ fontSize: '18px', textTransform: 'uppercase' }}>{t('inventory.add_article')}</h2>
               <button
                 type="button"
-                onClick={() => setModalAbierto(false)}
+                aria-label={t('navigation.close')}
+                disabled={saving}
+                  onClick={() => setModalAbierto(false)}
                 style={styles.closeBtn}
               >
                 <X size={20} />
@@ -306,180 +329,63 @@ export const InventarioPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleCrearProducto} style={{ marginTop: '16px' }}>
-              <div style={styles.formRow}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('inventory.sku')}</label>
-                  <input
-                    type="text"
-
-                    placeholder={t('operational.ej_art_005')}
-                    value={formCodigo}
-                    onChange={(e) => setFormCodigo(e.target.value)}
-                    className="form-input"
-                  />
+              {createError && <p role="alert">{createError}</p>}
+              {pendingProduct && <p role="status">{t('inventory_create.pending', { nombre: pendingProduct.nombre })}</p>}
+              <fieldset disabled={saving || !!pendingProduct} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+                <label className="form-label" htmlFor="create-name">{t('product_edit.field.nombre')} *</label>
+                <input id="create-name" className="form-input" required maxLength={500} value={formNombre} onChange={e => setFormNombre(e.target.value)} placeholder={t('inventory_create.name_example')} />
+                <p>{t('inventory_create.variant_help')}</p>
+                <label className="form-label" htmlFor="create-barcode">{t('product_edit.field.codigoBarras')}</label>
+                <input id="create-barcode" className="form-input" maxLength={100} value={formBarcode} onChange={e => setFormBarcode(e.target.value)} />
+                <details><summary>{t('inventory_create.scan')}</summary><BarcodeScanner disabled={saving || !!pendingProduct} onCode={setFormBarcode}/></details>
+                <div style={styles.formRow}>
+                  <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.category')}
+                    <select className="form-select" value={formCategoria} onChange={e => setFormCategoria(e.target.value)}>
+                      {categorias.filter(c => c !== 'TODAS').map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </label>
+                  <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.unit_measure')}
+                    <select className="form-select" value={formUnidadMedida} onChange={e => setFormUnidadMedida(e.target.value)}>
+                      {rubroConfig.unidadesMedida.map(u => <option key={u}>{u}</option>)}
+                    </select>
+                  </label>
                 </div>
-
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('inventory.category')}</label>
-                  <select
-                    value={formCategoria}
-                    onChange={(e) => setFormCategoria(e.target.value)}
-                    className="form-select"
-                  >
-                    {(rubroConfig.categoriasDefault.length > 0
-                      ? rubroConfig.categoriasDefault
-                      : ['General', 'Otros']
-                    ).map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                <div style={styles.formRow}>
+                  <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.sale_price')}
+                    <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" required value={formPrecioVenta} onChange={e => setFormPrecioVenta(e.target.value)} />
+                  </label>
+                  <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.cost_price')}
+                    <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={formPrecioCosto} onChange={e => setFormPrecioCosto(e.target.value)} />
+                  </label>
                 </div>
-              </div>
-
-              <div className="form-group"><label className="form-label">Código de barras (opcional)</label><input className="form-input" value={formBarcode} onChange={e=>setFormBarcode(e.target.value)}/></div><div className="form-group"><label className="form-label">Código del fabricante (opcional)</label><input className="form-input" value={formFabricante} onChange={e=>setFormFabricante(e.target.value)}/></div><div className="form-group"><label className="form-label">Marca (opcional)</label><input className="form-input" value={formMarca} onChange={e=>setFormMarca(e.target.value)}/></div><div className="form-group">
-                <label className="form-label">{t('inventory.article_description')}</label>
-                <input
-                  type="text"
-                  required
-                  placeholder={t('operational.ej_nombre_del_producto')}
-                  value={formNombre}
-                  onChange={(e) => setFormNombre(e.target.value)}
-                  className="form-input"
-                />
-              </div>
-
-              <div style={styles.formRow}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('inventory.unit_measure')}</label>
-                  <select
-                    value={formUnidadMedida}
-                    onChange={(e) => setFormUnidadMedida(e.target.value)}
-                    className="form-select"
-                  >
-                    {rubroConfig.unidadesMedida.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
+                <div style={styles.formRow}>
+                  <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.initial_stock')}
+                    <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0" value={formStockActual} onChange={e => setFormStockActual(e.target.value)} />
+                  </label>
+                  <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.minimum_alert')}
+                    <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" placeholder="5" value={formStockMinimo} onChange={e => setFormStockMinimo(e.target.value)} />
+                  </label>
                 </div>
-
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('inventory.sale_price')}</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    placeholder="0.00"
-                    value={formPrecioVenta}
-                    onChange={(e) => setFormPrecioVenta(e.target.value)}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('inventory.cost_price')}</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={formPrecioCosto}
-                    onChange={(e) => setFormPrecioCosto(e.target.value)}
-                    className="form-input"
-                  />
-                </div>
-              </div>
-
-              <div style={styles.formRow}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('inventory.initial_stock')}</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0"
-                    value={formStockActual}
-                    onChange={(e) => setFormStockActual(e.target.value)}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('inventory.minimum_alert')}</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="5"
-                    value={formStockMinimo}
-                    onChange={(e) => setFormStockMinimo(e.target.value)}
-                    className="form-input"
-                  />
-                </div>
-              </div>
-
-              {/* Campos dinámicos según RubroConfig */}
-              {rubroConfig.activarVencimientos && (
-                <div style={{ ...styles.formRow, marginTop: '10px', padding: '10px', backgroundColor: '#FEF3C7', borderRadius: '4px' }}>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label" style={{ color: '#B45309' }}>{t('operational.fecha_vencimiento_opcional')}</label>
-                    <input
-                      type="date"
-                      value={formFechaVencimiento}
-                      onChange={(e) => setFormFechaVencimiento(e.target.value)}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label" style={{ color: '#B45309' }}>{t('operational.numero_de_lote')}</label>
-                    <input
-                      type="text"
-                      placeholder={t('operational.ej_lot_2026_x')}
-                      value={formLote}
-                      onChange={(e) => setFormLote(e.target.value)}
-                      className="form-input"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {rubroConfig.activarGarantiaSerie && (
-                <div style={{ ...styles.formRow, marginTop: '10px', padding: '10px', backgroundColor: '#E0F2FE', borderRadius: '4px' }}>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label" style={{ color: '#0369A1' }}>{t('operational.numero_de_serie')}</label>
-                    <input
-                      type="text"
-                      placeholder={t('operational.ej_sn_987654321')}
-                      value={formNumeroSerie}
-                      onChange={(e) => setFormNumeroSerie(e.target.value)}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label className="form-label" style={{ color: '#0369A1' }}>{t('operational.garantia_meses')}</label>
-                    <input
-                      type="number"
-                      placeholder={t('operational.ej_12')}
-                      value={formMesesGarantia}
-                      onChange={(e) => setFormMesesGarantia(e.target.value)}
-                      className="form-input"
-                    />
-                  </div>
-                </div>
-              )}
-
+                <details>
+                  <summary>{t('inventory_create.details')}</summary>
+                  <label className="form-label">{t('inventory.sku')}<input className="form-input" placeholder={t('inventory_create.auto_code')} value={formCodigo} onChange={e => setFormCodigo(e.target.value)}/></label>
+                  <label className="form-label">{t('product_edit.field.codigoFabricante')}<input className="form-input" value={formFabricante} onChange={e => setFormFabricante(e.target.value)}/></label>
+                  <label className="form-label">{t('product_edit.field.marca')}<input className="form-input" maxLength={100} value={formMarca} onChange={e => setFormMarca(e.target.value)}/></label>
+                  <label className="form-label">{t('product_edit.field.descripcion')}<textarea className="form-input" value={formDescripcion} onChange={e => setFormDescripcion(e.target.value)}/></label>
+                  <label><input type="checkbox" checked={formUsaMedida} onChange={e => setFormUsaMedida(e.target.checked)}/>{t('product_edit.field.usaMedida')}</label>
+                </details>
+              </fieldset>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                 <button
                   type="button"
                   className="btn btn-secondary"
+                  disabled={saving}
                   onClick={() => setModalAbierto(false)}
                 >
                   {t('operational.cancelar')}
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  <Check size={16} strokeWidth={2.6} /> {t('inventory.save_product')}
+                <button type="submit" className="btn btn-primary" disabled={saving || isReadOnly}>
+                  <Check size={16} strokeWidth={2.6} /> {saving ? t('inventory_create.saving') : pendingProduct ? t('inventory_create.retry') : t('inventory.save_product')}
                 </button>
               </div>
             </form>
@@ -511,7 +417,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   searchWrapper: {
     position: 'relative',
-    minWidth: '320px',
+    minWidth: '0',
     flex: 1,
   },
   searchIcon: {
@@ -559,6 +465,8 @@ const styles: Record<string, React.CSSProperties> = {
   modalContent: {
     width: '100%',
     maxWidth: '580px',
+    maxHeight: 'calc(100dvh - 40px)',
+    overflowY: 'auto',
   },
   modalHeader: {
     display: 'flex',
@@ -576,6 +484,7 @@ const styles: Record<string, React.CSSProperties> = {
   formRow: {
     display: 'flex',
     gap: '14px',
+    flexWrap: 'wrap',
   },
 };
 

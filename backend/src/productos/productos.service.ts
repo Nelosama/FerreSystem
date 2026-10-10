@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { authorizedActor, audit, decimal, id, lockTenant, movement, query, text } from '../operaciones/ledger';
+import { authorizedActor, audit, fingerprint, decimal, id, lockTenant, movement, query, text } from '../operaciones/ledger';
 import type { CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
 import { publicProduct } from './producto-response';
 
@@ -10,7 +10,8 @@ export class ProductosService {
  private format(p:any){return {...p,precioVenta:Number(p.precioVenta),precioCosto:Number(p.precioCosto),stockActual:Number(p.stockActual),stockReservado:Number(p.stockReservado||0),stockDisponible:Number(p.stockActual)-Number(p.stockReservado||0),stockMinimo:Number(p.stockMinimo),stockBajo:Number(p.stockActual)-Number(p.stockReservado||0)<=Number(p.stockMinimo)};}
  async findAll(tenantId:string,search?:string,categoriaId?:string,incluirInactivos=false){
   const where:any={tenantId,...(incluirInactivos?{}:{activo:true}),...(categoriaId?{categoriaId}:{})};
-  if(search)where.OR=['nombre','descripcion','codigo','codigoBarras','codigoFabricante'].map(field=>({[field]:{contains:search,mode:'insensitive'}}));
+  const term=search?.trim();
+  if(term)where.OR=[...['nombre','descripcion','codigo','codigoBarras','codigoFabricante'].map(field=>({[field]:{contains:term,mode:'insensitive'}})),{categoria:{nombre:{contains:term,mode:'insensitive'}}}];
   return (await this.prisma.producto.findMany({where,include:{categoria:{select:{id:true,nombre:true}}},orderBy:{nombre:'asc'}})).map(p=>this.format(p));
  }
  async comercial(tenantId:string){
@@ -27,6 +28,17 @@ export class ProductosService {
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
    await authorizedActor(tx,tenantId,userId,['ADMIN','BODEGUERO'],'inventario.editar');
+   // Auditoría y alta comparten transacción y lock de empresa; no requiere otra tabla.
+   const solicitudHash=dto.solicitudId?fingerprint(Object.fromEntries(Object.entries(dto).filter(([key,value])=>key!=='solicitudId'&&value!==undefined).sort(([a],[b])=>a.localeCompare(b)))):null;
+   if(dto.solicitudId){
+    const [previous]=await query(tx, "SELECT entidad_id,usuario_id,datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='PRODUCTO_CREAR' AND datos->>'solicitudId'=$2",tenantId,dto.solicitudId);
+    if(previous){
+     if(previous.usuario_id!==userId||previous.datos.solicitudHash!==solicitudHash)throw new ConflictException('La solicitud de alta ya se utilizó con otros datos');
+     const saved=await tx.producto.findFirst({where:{id:previous.entidad_id,tenantId},include:{categoria:{select:{id:true,nombre:true}}}});
+     if(!saved)throw new ConflictException('El producto de esta solicitud ya no está disponible');
+     return this.format(saved);
+    }
+   }
    const nombre=text(dto.nombre,'Nombre');
    let codigo=dto.codigo?.trim().toUpperCase();
    if(!codigo){
@@ -37,7 +49,7 @@ export class ProductosService {
    const barcode=dto.codigoBarras?.trim()||null;
    if(barcode&&await tx.producto.findFirst({where:{tenantId,codigoBarras:barcode}}))throw new ConflictException('Código de barras ya registrado');
    const p=await tx.producto.create({data:{tenantId,codigo,nombre,codigoBarras:barcode,codigoFabricante:dto.codigoFabricante?.trim()||null,marca:dto.marca?.trim()||null,imagenUrl:dto.imagenUrl||null,descripcion:dto.descripcion,categoriaId:await this.category(tx,tenantId,dto),usaMedida:dto.usaMedida??false,precioVenta:decimal(dto.precioVenta,'Precio'),precioCosto:decimal(dto.precioCosto,'Costo'),margen:dto.margen,stockActual:decimal(dto.stockActual,'Stock'),stockMinimo:decimal(dto.stockMinimo,'Mínimo'),unidadMedida:dto.unidadMedida||'UNIDAD'},include:{categoria:{select:{id:true,nombre:true}}}});
-   await movement(tx,tenantId,userId,p.id,'INICIAL',0,Number(p.stockActual),p.id,'Alta inicial de producto');await audit(tx,tenantId,userId,'PRODUCTO_CREAR',p.id,{codigo,stock:Number(p.stockActual)});return this.format(p);
+   await movement(tx,tenantId,userId,p.id,'INICIAL',0,Number(p.stockActual),p.id,'Alta inicial de producto');await audit(tx,tenantId,userId,'PRODUCTO_CREAR',p.id,{codigo,stock:Number(p.stockActual),...(dto.solicitudId?{solicitudId:dto.solicitudId,solicitudHash}:{})});return this.format(p);
   });
  }
  async update(tenantId:string,productId:string,dto:UpdateProductoDto,userId:string){
@@ -52,6 +64,8 @@ export class ProductosService {
    if((reactivando||desactivando)&&usuario.rol!=='ADMIN')throw new ForbiddenException('Solo el administrador puede activar o desactivar productos');
    if(dto.stockActual!==undefined&&dto.stockActual<Number(old.stockReservado))throw new ConflictException('El conteo no cubre las ventas pendientes de entrega');
    const cambiaStock=dto.stockActual!==undefined&&Number(old.stockActual)!==dto.stockActual;
+   if(cambiaStock&&dto.stockAnterior===undefined)throw new BadRequestException('Recargue el producto antes de ajustar existencias: falta la cantidad anterior');
+   if(dto.stockActual!==undefined&&dto.stockAnterior!==undefined&&dto.stockAnterior!==Number(old.stockActual))throw new ConflictException({message:'Las existencias cambiaron después de abrir el formulario. Recargue el producto antes de ajustar.',code:'PRODUCTO_STOCK'});
    if(cambiaStock&&!dto.motivo?.trim())throw new BadRequestException('Indique un motivo para cambiar existencias');
    // La unidad interpreta las cantidades históricas: no puede cambiar si hay existencias o movimientos.
    if(dto.unidadMedida!==undefined&&dto.unidadMedida!==old.unidadMedida){
@@ -101,5 +115,5 @@ export class ProductosService {
   return cambios;
  }
 
- async delete(tenantId:string,productId:string,userId:string){return this.prisma.$transaction(async tx=>{await lockTenant(tx,tenantId);await authorizedActor(tx,tenantId,userId,['ADMIN'],'inventario.editar');const p=await tx.producto.findFirst({where:{id:productId,tenantId}});if(!p)throw new NotFoundException('Producto no encontrado');const result=await tx.producto.update({where:{id:productId},data:{activo:false}});await audit(tx,tenantId,userId,'PRODUCTO_DESACTIVAR',productId,{});return this.format(result);});}
+ async delete(tenantId:string,productId:string,userId:string){return this.prisma.$transaction(async tx=>{await lockTenant(tx,tenantId);await authorizedActor(tx,tenantId,userId,['ADMIN'],'inventario.editar');const p=await tx.producto.findFirst({where:{id:productId,tenantId}});if(!p)throw new NotFoundException('Producto no encontrado');const result=await tx.producto.update({where:{id:productId},data:{activo:false,version:{increment:1}}});await audit(tx,tenantId,userId,'PRODUCTO_DESACTIVAR',productId,{});return this.format(result);});}
 }

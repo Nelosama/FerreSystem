@@ -15,6 +15,7 @@ import { CashierResponseInterceptor } from '../src/common/interceptors/cashier-r
 import { PrismaService } from '../src/prisma/prisma.service';
 import { ProductosController } from '../src/productos/productos.controller';
 import { ProductosService } from '../src/productos/productos.service';
+import { OperacionesService } from '../src/operaciones/operaciones.service';
 
 // FS-07: edición de productos contra PostgreSQL real, por HTTP, con JWT y aislamiento de tenants.
 // Crea un clúster temporal exclusivo; nunca lee DATABASE_URL.
@@ -189,7 +190,7 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
 
   it('cambiar existencias con motivo genera AJUSTE y queda auditado con el valor anterior (FS-07)', async () => {
     const p = (await alta({ stockActual: 40 }).expect(201)).body;
-    await editar(p.id, { version: 1, stockActual: 35, motivo: 'Merma verificada' }).expect(200);
+    await editar(p.id, { version: 1, stockAnterior: 40, stockActual: 35, motivo: 'Merma verificada' }).expect(200);
     expect(Number((await fila(p.id)).stockActual)).toBe(35);
     const ajustes = await prisma.movimientoInventario.findMany({ where: { productoId: p.id, tipo: 'AJUSTE' } });
     expect(ajustes).toHaveLength(1);
@@ -213,7 +214,7 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
     const p = (await alta({ stockActual: 0, unidadMedida: 'METRO' }).expect(201)).body;
     const cambio = (await editar(p.id, { version: 1, unidadMedida: 'PIE' }).expect(200)).body;
     expect(await fila(p.id)).toMatchObject({ unidadMedida: 'PIE' });
-    await editar(p.id, { version: cambio.version, stockActual: 5, motivo: 'Entrada' }).expect(200);
+    await editar(p.id, { version: cambio.version, stockAnterior: 0, stockActual: 5, motivo: 'Entrada' }).expect(200);
     await editar(p.id, { version: cambio.version + 1, unidadMedida: 'LITRO' }).expect(409);
     expect((await fila(p.id)).unidadMedida).toBe('PIE');
   });
@@ -233,4 +234,156 @@ describe('FS-07 / edición de productos con PostgreSQL aislado', () => {
     await editar(p.id, { nombre: 'Sin versión' }).expect(400);
     expect((await fila(p.id)).nombre).toBe('Producto de prueba');
   });
+  it('alta sin código con reintento concurrente persiste un solo producto y movimiento inicial', async () => {
+    const solicitudId = randomUUID();
+    const body = { codigo: '', nombre: 'Canaleta blanca 4 pulgadas', stockActual: 12.75, solicitudId };
+    const [a, b] = await Promise.all([alta(body, 'BODEGUERO'), alta(body, 'BODEGUERO')]);
+    expect([a.status, b.status]).toEqual([201, 201]);
+    expect(a.body.id).toBe(b.body.id);
+    expect(await prisma.producto.count({ where: { tenantId } })).toBe(1);
+    expect(Number((await fila(a.body.id)).stockActual)).toBe(12.75);
+    const movimientos = await prisma.movimientoInventario.findMany({ where: { tenantId } });
+    expect(movimientos).toHaveLength(1);
+    expect(movimientos[0]).toMatchObject({ usuarioId: users.BODEGUERO.id, tipo: 'INICIAL', motivo: 'Alta inicial de producto' });
+    expect(movimientos[0].createdAt).toBeInstanceOf(Date);
+    expect(await prisma.auditoriaOperacion.count({ where: { tenantId, operacion: 'PRODUCTO_CREAR' } })).toBe(1);
+    await alta({ ...body, stockActual: 20 }, 'BODEGUERO').expect(409);
+    expect(Number((await fila(a.body.id)).stockActual)).toBe(12.75);
+    await alta(body, 'OTHER').expect(201);
+    expect(await prisma.producto.count({ where: { tenantId: otherTenantId } })).toBe(1);
+  });
+
+  it('busca por descripción, código y categoría real sin mezclar empresas', async () => {
+    const p = (await alta({ codigo: 'LAM-14', nombre: 'Lámina roja calibre 26', descripcion: 'Espesor 0.45 mm', categoria: 'Techos metálicos' }).expect(201)).body;
+    for (const search of ['LAM-14', '0.45', ' techos metálicos ']) {
+      const encontrados = (await call('get', '/productos?search=' + encodeURIComponent(search)).expect(200)).body;
+      expect(encontrados.map((x: any) => x.id)).toEqual([p.id]);
+      expect((await call('get', '/productos?search=' + encodeURIComponent(search), {}, 'OTHER').expect(200)).body).toEqual([]);
+    }
+  });
+
+  it('null en una edición no borra cantidades o precios ni provoca error interno', async () => {
+    const p = (await alta().expect(201)).body;
+    for (const field of ['stockActual', 'precioCosto', 'precioVenta', 'codigoBarras', 'nombre', 'unidadMedida']) {
+      await editar(p.id, { version: 1, [field]: null, motivo: 'Entrada inválida' }).expect(400);
+    }
+    expect((await fila(p.id)).version).toBe(1);
+    expect(Number((await fila(p.id)).stockActual)).toBe(40);
+  });
+
+  it('la baja lógica invalida formularios abiertos y no puede reactivarse con una versión vieja', async () => {
+    const p = (await alta().expect(201)).body;
+    await call('delete', '/productos/' + p.id).expect(200);
+    await editar(p.id, { version: 1, activo: true }).expect(409);
+    expect((await fila(p.id)).activo).toBe(false);
+  });
+
+  it('cantidades decimales en entradas y salidas auditadas, y reintento sin movimiento duplicado', async () => {
+    const p = (await alta({ stockActual: 12.75 }).expect(201)).body;
+    await editar(p.id, { version: 1, stockAnterior: 12.75, stockActual: 14.25, motivo: 'Conteo adicional' }, 'BODEGUERO').expect(200);
+    await editar(p.id, { version: 2, stockAnterior: 14.25, stockActual: 13.5, motivo: 'Merma verificada' }, 'BODEGUERO').expect(200);
+    await editar(p.id, { version: 2, stockAnterior: 14.25, stockActual: 13.5, motivo: 'Merma verificada' }, 'BODEGUERO').expect(409);
+    const movimientos = await prisma.movimientoInventario.findMany({ where: { productoId: p.id, tipo: 'AJUSTE' }, orderBy: { createdAt: 'asc' } });
+    expect(movimientos.map(m => Number(m.cantidad))).toEqual([1.5, -0.75]);
+    expect(Number((await fila(p.id)).stockActual)).toBe(13.5);
+    expect(movimientos.every(m => m.usuarioId === users.BODEGUERO.id && !!m.motivo)).toBe(true);
+  });
+
+  it('si falla la auditoría al final del alta revierte producto, categoría y movimiento', async () => {
+    // Fallo PostgreSQL posterior a las escrituras: comprueba rollback real, no un mock.
+    await prisma.$executeRawUnsafe(`CREATE FUNCTION entrega_fallo_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.tenant_id = '${tenantId}' THEN RAISE EXCEPTION 'fallo sintético de auditoría'; END IF; RETURN NEW; END $$`);
+    await prisma.$executeRawUnsafe('CREATE TRIGGER entrega_fallo BEFORE INSERT ON auditoria_operaciones FOR EACH ROW EXECUTE FUNCTION entrega_fallo_audit()');
+    const body = { codigo: '', categoria: 'Categoría transaccional', solicitudId: randomUUID() };
+    try {
+      await alta(body).expect(500);
+      expect(await prisma.producto.count({ where: { tenantId } })).toBe(0);
+      expect(await prisma.categoria.count({ where: { tenantId } })).toBe(0);
+      expect(await prisma.movimientoInventario.count({ where: { tenantId } })).toBe(0);
+    } finally {
+      await prisma.$executeRawUnsafe('DROP TRIGGER entrega_fallo ON auditoria_operaciones');
+      await prisma.$executeRawUnsafe('DROP FUNCTION entrega_fallo_audit()');
+    }
+    await alta(body).expect(201);
+    expect(await prisma.producto.count({ where: { tenantId } })).toBe(1);
+  });
+
+  it('una recepción ocurrida después de leer el formulario no se pierde en un ajuste', async () => {
+    const p = (await alta({ stockActual: 40 }).expect(201)).body;
+    // La recepción vigente usa SQL y no incrementa productos.version. Reproduce ese contrato
+    // sin modificar el servicio compartido con crédito/cancelaciones.
+    await prisma.$executeRawUnsafe('UPDATE productos SET stock_actual=stock_actual+5 WHERE id=$1', p.id);
+    await editar(p.id, { version: p.version, stockAnterior: 40, stockActual: 39, motivo: 'Formulario anterior a recepción' }).expect(409);
+    expect(Number((await fila(p.id)).stockActual)).toBe(45);
+    expect(await prisma.movimientoInventario.count({ where: { productoId: p.id, tipo: 'AJUSTE' } })).toBe(0);
+  });
+
+  it('ajustar sin cantidad anterior o con más de dos decimales no deja cambios parciales', async () => {
+    const p = (await alta().expect(201)).body;
+    await editar(p.id, { version: 1, stockActual: 39, motivo: 'Sin lectura anterior' }).expect(400);
+    await editar(p.id, { version: 1, stockAnterior: 40, stockActual: 39.123, motivo: 'Precisión no admitida' }).expect(400);
+    expect(Number((await fila(p.id)).stockActual)).toBe(40);
+    expect((await fila(p.id)).version).toBe(1);
+  });
+
+  it.each([
+    ['Canaleta blanca 4 pulgadas', 'PVC 2 mm', 'UNIDAD', 12],
+    ['Lámina roja calibre 26 de 14 pies', 'Espesor 0.45 mm', 'PIE', 126.5],
+    ['Varilla corrugada 3/8', 'Acero 6 m', 'UNIDAD', 20],
+    ['Tornillo galvanizado 2 pulgadas', 'Venta por peso', 'LIBRA', 8.75],
+    ['Aerosol rojo 400 ml', 'Pintura brillante', 'UNIDAD', 6],
+  ])('empleado registra %s con código interno generado y persistencia real', async (nombre, descripcion, unidadMedida, stockActual) => {
+    const response = await alta({ codigo: '', nombre, descripcion, unidadMedida, stockActual, solicitudId: randomUUID() }, 'BODEGUERO').expect(201);
+    const stored = await fila(response.body.id);
+    expect(stored).toMatchObject({ nombre, descripcion, unidadMedida });
+    expect(stored.codigo).toBeTruthy();
+    expect(Number(stored.stockActual)).toBe(stockActual);
+  });
+
+  it('dos empleados registrando el mismo código simultáneamente no duplican existencias', async () => {
+    const body = { codigo: 'TOR-2', codigoBarras: '770000000001', stockActual: 2.75 };
+    const responses = await Promise.all([alta({ ...body, solicitudId: randomUUID() }), alta({ ...body, solicitudId: randomUUID() }, 'BODEGUERO')]);
+    expect(responses.map(r => r.status).sort((a, b) => a - b)).toEqual([201, 409]);
+    expect(await prisma.producto.count({ where: { tenantId } })).toBe(1);
+    expect(await prisma.movimientoInventario.count({ where: { tenantId } })).toBe(1);
+  });
+
+  it('variantes de color y espesor mantienen productos y cantidades independientes', async () => {
+    const roja = (await alta({ codigo: '', nombre: 'Lámina roja calibre 26', stockActual: 12.5 }).expect(201)).body;
+    const verde = (await alta({ codigo: '', nombre: 'Lámina verde calibre 28', stockActual: 7.25 }).expect(201)).body;
+    expect(roja.codigo).not.toBe(verde.codigo);
+    expect(Number((await fila(roja.id)).stockActual)).toBe(12.5);
+    expect(Number((await fila(verde.id)).stockActual)).toBe(7.25);
+  });
+
+  it('recepción efectiva y ajuste simultáneos conservan las existencias y el costo de compra', async () => {
+    const p = (await alta({ stockActual: 40, precioCosto: 8 }).expect(201)).body;
+    const proveedor = await prisma.proveedor.create({ data: { tenantId, nombre: 'Proveedor sintético' } });
+    const ops = new OperacionesService(prisma); // Reutiliza el flujo de compras vigente sin modificarlo.
+    const orden = await ops.compra(tenantId, users.ADMIN.id, { solicitudId: randomUUID(), proveedorId: proveedor.id, numeroFactura: 'INV-1', isv: 0, fecha: '2026-10-09', vencimiento: '2026-11-09', items: [{ productoId: p.id, cantidad: 5, costo: 6 }] } as any);
+    const [linea] = await prisma.$queryRawUnsafe<{ id: string }[]>('SELECT id FROM detalles_orden_compra WHERE orden_id=$1', orden.id);
+    const [recepcion, ajuste] = await Promise.all([
+      ops.recibir(tenantId, users.BODEGUERO.id, orden.id, { solicitudId: randomUUID(), items: [{ detalleId: linea.id, cantidad: 5 }] } as any),
+      editar(p.id, { version: 1, stockAnterior: 40, stockActual: 39, motivo: 'Merma revisada' }),
+    ]);
+    expect(recepcion.id).toBeTruthy();
+    expect([200, 409]).toContain(ajuste.status);
+    const stored = await fila(p.id);
+    expect(Number(stored.stockActual)).toBe(ajuste.status === 200 ? 44 : 45);
+    expect(Number(stored.precioCosto)).toBe(6);
+    expect(Number(stored.costoVigente)).toBe(6);
+    expect(Number(stored.precioVenta)).toBe(12);
+    expect(await prisma.movimientoInventario.count({ where: { productoId: p.id, tipo: 'COMPRA' } })).toBe(1);
+    expect(await prisma.movimientoInventario.count({ where: { productoId: p.id, tipo: 'AJUSTE' } })).toBe(ajuste.status === 200 ? 1 : 0);
+  });
+
+  it('conserva el borrado explícito del margen opcional, sin modificar precios o existencias', async () => {
+    const p = (await alta({ margen: 20 }).expect(201)).body;
+    await editar(p.id, { version: 1, margen: null }).expect(200);
+    const stored = await fila(p.id);
+    expect(stored.margen).toBeNull();
+    expect(Number(stored.precioCosto)).toBe(8);
+    expect(Number(stored.precioVenta)).toBe(12);
+    expect(Number(stored.stockActual)).toBe(40);
+  });
+
 });

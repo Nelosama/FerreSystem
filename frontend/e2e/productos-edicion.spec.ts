@@ -11,6 +11,9 @@ type Producto = Record<string, any>;
 type Sim = {
   productos: Producto[];
   puts: { id: string; body: any }[];
+  posts: any[];
+  perderRespuestaAlta: boolean;
+  modoNavegacion: string;
   historial: string[];
   fallarSiguientePut: boolean;
   errores: string[];
@@ -28,7 +31,7 @@ const productoBase = (partial: Partial<Producto>): Producto => ({
 
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
-    const sim: Sim = { productos: [], puts: [], historial: [], fallarSiguientePut: false, errores: [], inesperados: [], listados: 0 };
+    const sim: Sim = { productos: [], puts: [], posts: [], perderRespuestaAlta: false, modoNavegacion: 'SIDEBAR', historial: [], fallarSiguientePut: false, errores: [], inesperados: [], listados: 0 };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
     page.on('pageerror', e => sim.errores.push(e.message));
@@ -42,9 +45,9 @@ const test = base.extend<{ sim: Sim }>({
         const method = request.method();
         const path = url.pathname.slice(4);
         if (method === 'OPTIONS') { await route.fulfill({ status: 204, headers: { ...cabeceras, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } }); return; }
-        if (method === 'GET' && path === '/tenant/settings') return responder(route, 200, tenant);
+        if (method === 'GET' && path === '/tenant/settings') return responder(route, 200, { ...tenant, modoNavegacion: sim.modoNavegacion });
         if (method === 'GET' && path === '/auth/me') return responder(route, 200, { user: { sub: admin.id, tenantId: tenant.id, rol: 'ADMIN', permisos: ['inventario.editar', 'inventario.ver'], descuentoMaximo: 0 } });
-        if (method === 'POST' && path === '/auth/login') return responder(route, 200, { type: 'tenant', accessToken: 'prod-e2e-token', user: admin, tenant });
+        if (method === 'POST' && path === '/auth/login') return responder(route, 200, { type: 'tenant', accessToken: 'prod-e2e-token', user: admin, tenant: { ...tenant, modoNavegacion: sim.modoNavegacion } });
         const lecturasVacias: Record<string, unknown> = {
           '/dashboard': { ventasDelDia: { total: 0 }, alertasStock: { items: [] }, cotizacionesPendientes: { cantidad: 0 } },
           '/maintenance/backup': { configured: false }, '/productos/comercial': [], '/clientes': [],
@@ -56,6 +59,17 @@ const test = base.extend<{ sim: Sim }>({
           sim.listados++;
           const incluir = url.searchParams.get('incluirInactivos') === 'true';
           return responder(route, 200, sim.productos.filter(p => incluir || p.activo));
+        }
+        if (method === 'POST' && path === '/productos') {
+          const body = request.postDataJSON(); sim.posts.push(body);
+          let actual = sim.productos.find(p => p.solicitudId === body.solicitudId);
+          if (!actual) {
+            if (body.codigoBarras && sim.productos.some(p => p.codigoBarras === body.codigoBarras)) return responder(route, 409, { message: 'Código de barras ya registrado' });
+            actual = productoBase({ ...body, codigo: body.codigo || 'INTERNO-001', categoria: { nombre: body.categoria } });
+            sim.productos.push(actual);
+          }
+          if (sim.perderRespuestaAlta) { sim.perderRespuestaAlta = false; await route.abort(); return; }
+          return responder(route, 201, actual);
         }
         const historial = path.match(/^\/operaciones\/productos\/([^/]+)\/historial$/);
         if (method === 'GET' && historial) { sim.historial.push(historial[1]); return responder(route, 200, { movimientos: [], costos: [] }); }
@@ -70,7 +84,8 @@ const test = base.extend<{ sim: Sim }>({
           if (body.version !== actual.version) {
             return responder(route, 409, { message: 'El producto fue modificado por otro usuario. Recargue la información antes de guardar.', code: 'PRODUCTO_VERSION', versionActual: actual.version });
           }
-          const { version, motivo, ...cambios } = body;
+          if (body.stockActual !== undefined && body.stockAnterior !== actual.stockActual) return responder(route, 409, { code: 'PRODUCTO_STOCK', message: 'Las existencias cambiaron' });
+          const { version, motivo, stockAnterior, ...cambios } = body;
           Object.assign(actual, cambios, { version: actual.version + 1 });
           return responder(route, 200, actual);
         }
@@ -196,7 +211,7 @@ test.describe('Edición de productos (FS-07)', () => {
     page.once('dialog', d => d.accept());
     await page.getByRole('button', { name: 'Guardar cambios' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Producto guardado' })).toBeVisible();
-    expect(sim.puts[0].body).toEqual({ stockActual: 35, motivo: 'Merma verificada', version: 1 });
+    expect(sim.puts[0].body).toEqual({ stockActual: 35, stockAnterior: 40, motivo: 'Merma verificada', version: 1 });
   });
 
   test('reactivar un producto inactivo: se muestra al activar la opción y se envía activo=true tras confirmar', async ({ page, sim }) => {
@@ -222,5 +237,123 @@ test.describe('Edición de productos (FS-07)', () => {
     const sinDesborde = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
     expect(sinDesborde).toBe(true);
     await expect(page.getByRole('button', { name: 'Guardar cambios' })).toBeVisible();
+  });
+});
+
+// Alta e inventario: backend simulado. Las garantías de persistencia se prueban en PostgreSQL.
+test.describe('Inventario para entrega al cliente / API simulada', () => {
+  for (const modo of ['SIDEBAR', 'TOPNAV']) {
+    test(`alta sencilla con decimales, variantes y doble clic en ${modo}`, async ({ page, sim }) => {
+      sim.modoNavegacion = modo;
+      await page.setViewportSize({ width: 390, height: 844 });
+      await ingresarAInventario(page);
+      await page.getByRole('button', { name: 'NUEVO PRODUCTO', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'AGREGAR NUEVO ARTÍCULO' });
+      await dialog.getByLabel('Nombre y variante').fill('Canaleta blanca 4 pulgadas');
+      await dialog.getByText('Más detalles (opcional)', { exact: true }).click();
+      await dialog.getByLabel('Descripción', { exact: true }).fill('Espesor 0.45 mm');
+      await dialog.getByLabel('PRECIO VENTA (L.)', { exact: true }).fill('25.50');
+      await dialog.getByLabel('STOCK INICIAL', { exact: true }).fill('12.75');
+      await expect(dialog.getByRole('button', { name: 'GUARDAR PRODUCTO' })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+      await dialog.getByRole('button', { name: 'GUARDAR PRODUCTO' }).dblclick();
+      await expect(page.getByRole('status').filter({ hasText: 'Producto guardado: Canaleta' })).toBeVisible();
+      expect(sim.posts).toHaveLength(1);
+      expect(sim.posts[0]).toMatchObject({ descripcion: 'Espesor 0.45 mm', stockActual: 12.75, precioVenta: 25.5 });
+      expect(sim.posts[0].solicitudId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(sim.productos).toHaveLength(1);
+    });
+  }
+
+  test('respuesta perdida y recarga: confirma la misma alta sin crear otro producto', async ({ page, sim }) => {
+    await ingresarAInventario(page);
+    await page.getByRole('button', { name: 'NUEVO PRODUCTO', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Nombre y variante').fill('Aerosol rojo 400 ml');
+    await dialog.getByLabel('PRECIO VENTA (L.)').fill('65');
+    sim.perderRespuestaAlta = true;
+    await dialog.getByRole('button', { name: 'GUARDAR PRODUCTO' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('No se pudo confirmar');
+    await page.reload();
+    await page.getByRole('button', { name: 'Confirmar alta pendiente' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Producto guardado: Aerosol' })).toBeVisible();
+    expect(sim.posts).toHaveLength(2);
+    expect(sim.posts[0]).toEqual(sim.posts[1]);
+    expect(sim.productos).toHaveLength(1);
+  });
+
+  test('código de barras duplicado muestra el error y conserva el formulario', async ({ page, sim }) => {
+    sim.productos.push(productoBase({ codigoBarras: '7701234' }));
+    await ingresarAInventario(page);
+    await page.getByRole('button', { name: 'NUEVO PRODUCTO', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Nombre y variante').fill('Otro artículo');
+    await dialog.getByLabel('Código de barras', { exact: true }).fill('7701234');
+    await dialog.getByLabel('PRECIO VENTA (L.)').fill('10');
+    await dialog.getByRole('button', { name: 'GUARDAR PRODUCTO' }).click();
+    await expect(dialog.getByRole('alert')).toHaveText('Código de barras ya registrado');
+    await expect(dialog.getByLabel('Nombre y variante')).toHaveValue('Otro artículo');
+    await expect(dialog.getByLabel('Código de barras', { exact: true })).toBeEnabled();
+    expect(sim.productos).toHaveLength(1);
+  });
+
+  test('buscar por categoría real y descripción filtra el catálogo', async ({ page, sim }) => {
+    sim.productos.push(productoBase({ nombre: 'Lámina roja', descripcion: 'Calibre 26', categoria: { nombre: 'Techos especiales' } }), productoBase({ nombre: 'Tornillo', codigo: 'TOR-1', categoria: { nombre: 'Fijaciones' } }));
+    await ingresarAInventario(page);
+    const search = page.locator('main input[type="text"]').first();
+    await search.fill('Techos especiales');
+    const table = page.locator('table.industrial-table');
+    await expect(table.getByText('Lámina roja')).toBeVisible();
+    await expect(table.getByText('Tornillo', { exact: true })).toHaveCount(0);
+    await search.fill('Calibre 26');
+    await expect(table.getByText('Lámina roja')).toBeVisible();
+    await search.fill('');
+    await page.getByRole('button', { name: 'Techos especiales', exact: true }).click();
+    await expect(table.getByText('Tornillo', { exact: true })).toHaveCount(0);
+  });
+
+  test('una recepción mientras el formulario está abierto impide un ajuste obsoleto', async ({ page, sim }) => {
+    const cable = productoBase({}); sim.productos.push(cable);
+    await ingresarAInventario(page); await elegirProducto(page, cable.id);
+    cable.stockActual = 45; // Recepción: mismo version, distinta cantidad física.
+    await page.getByLabel('Nuevas existencias', { exact: true }).fill('39');
+    await page.getByLabel(/^Motivo del cambio/).fill('Conteo antiguo');
+    page.once('dialog', d => d.accept());
+    await page.getByRole('button', { name: 'Guardar cambios' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Otro usuario modificó este producto' })).toBeVisible();
+    expect(cable.stockActual).toBe(45);
+    expect(sim.puts[0].body.stockAnterior).toBe(40);
+  });
+
+  test('cámara denegada conserva la captura manual, sin envío automático', async ({ page, sim }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(crypto, 'randomUUID', { configurable: true, value: undefined });
+      Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: async () => { throw new DOMException('Denied', 'NotAllowedError'); } } });
+    });
+    await ingresarAInventario(page);
+    await page.getByRole('button', { name: 'NUEVO PRODUCTO', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.locator('summary').first().click();
+    await dialog.getByRole('button', { name: 'Leer código con cámara' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('Permiso de cámara denegado');
+    await dialog.getByLabel('Código de barras', { exact: true }).fill('1234567890123');
+    expect(sim.posts).toHaveLength(0);
+    await dialog.getByLabel('Nombre y variante').fill('Aerosol manual');
+    await dialog.getByLabel('PRECIO VENTA (L.)').fill('65');
+    await dialog.getByRole('button', { name: 'GUARDAR PRODUCTO' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Producto guardado: Aerosol manual' })).toBeVisible();
+    expect(sim.posts).toHaveLength(1);
+    expect(sim.posts[0].solicitudId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  test('alta y cámara muestran textos en inglés', async ({ page }) => {
+    await ingresarAInventario(page);
+    await page.evaluate(() => localStorage.setItem('ferre_language', 'en'));
+    await page.reload();
+    await page.getByRole('button', { name: 'NEW PRODUCT', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByLabel('Name and variant')).toBeVisible();
+    await dialog.locator('summary').first().click();
+    await expect(dialog.getByRole('button', { name: 'Scan barcode with camera' })).toBeVisible();
   });
 });

@@ -93,7 +93,7 @@ describe('SEC-005 / HTTP and isolated PostgreSQL', () => {
       .send({ codigo: `NEW-${role}`, nombre: 'Producto nuevo', categoria: 'Herramientas', precioCosto: 4, precioVenta: 10, margen: 60, stockActual: 8, stockMinimo: 7 }).expect(201);
     expect(created.body).toMatchObject({ precioCosto: 4, precioVenta: 10, margen: '60', stockActual: 8 });
     const edited = await request(app.getHttpServer()).put(`/productos/${created.body.id}`).auth(users[role].token, { type: 'bearer' })
-      .send({ version: created.body.version, precioCosto: 6, precioVenta: 12, margen: 50, stockActual: 6, motivo: 'Conteo sintético SEC-005' }).expect(200);
+      .send({ version: created.body.version, precioCosto: 6, precioVenta: 12, margen: 50, stockAnterior: 8, stockActual: 6, motivo: 'Conteo sintético SEC-005' }).expect(200);
     expect(edited.body).toMatchObject({ precioCosto: 6, precioVenta: 12, margen: '50', stockActual: 6, stockBajo: true });
     const stored = await prisma.producto.findUniqueOrThrow({ where: { id: created.body.id } });
     expect(Number(stored.precioCosto)).toBe(6);

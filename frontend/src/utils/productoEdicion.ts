@@ -110,6 +110,7 @@ export function construirCambiosProducto(original: any, form: FormularioProducto
   // Existencias: solo se envían si cambiaron, para no reescribir un valor leído antes.
   if (esNumeroValido(form.stockActual) && numero(form.stockActual) !== Number(original.stockActual)) {
     payload.stockActual = numero(form.stockActual);
+    payload.stockAnterior = Number(original.stockActual);
     payload.motivo = String(form.motivo ?? '').trim();
     cambiados.push('stockActual');
   }
