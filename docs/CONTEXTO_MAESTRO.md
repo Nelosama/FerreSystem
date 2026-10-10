@@ -148,6 +148,16 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **No verificado:** producción (Render/Supabase), respaldos y configuración real de `NODE_ENV` y `JWT_SECRET` en Render (R-09, R-10).
 
 ---
+## Validación final de preproducción POS offline — PR #129 (2026-10-10)
+
+- **Estado:** candidato técnicamente validado para **piloto controlado interno**. **NO-GO** para clientes reales hasta D1 fiscal, decisiones comerciales y pruebas físicas. Sin merge, despliegue ni migración productiva. Detalle: `docs/POS_PILOTO_QA_FINAL.md`; checklist físico no ejecutado: `docs/POS_PILOTO_CHECKLIST_FISICO.md`.
+- **Procedencia:** #127 integrado hasta `caa5aa15` y #128 hasta `f281be62` (ancestros verificados en `HEAD`). Commit de esquema y prueba de flujo: ver `git log` de la rama tras esta sección.
+- **Migraciones:** 15/15 aplicadas en orden sobre PostgreSQL 16 limpio, 0 fallidas. Deriva de las tablas nuevas: solo nombres de restricciones, salvo una diferencia de comportamiento corregida (`onDelete: Restrict` en `operaciones_contingencia.venta`). La deriva de `main` (~170 líneas, preexistente) obliga a usar solo `migrate deploy` tras `migrate:inspect` y respaldo.
+- **Defecto corregido en esta validación:** FK `operaciones_contingencia.venta` con `SetNull` implícito frente a `RESTRICT` en la migración; detectado por `prisma migrate diff`, no por las pruebas.
+- **Pruebas nuevas:** `backend/test/piloto-flujo-completo.postgres.integration.ts` (6): flujo completo proveedor → compra → recepción → costo → venta en línea y entrega → contingencia → sincronización → conciliación de inventario y caja → consulta administrativa; y pruebas negativas (permisos, revisión, otro cajero, idempotencia, aislamiento).
+- **Resultados (sobre `bc0a0125` salvo indicación):** backend unitarias 345/345; integración PostgreSQL 372/372 (22 archivos, con `REAL_SETTINGS_BROWSER=1`); contingencia + piloto 31/31 tras el cambio de esquema; frontend unitarias 224/224; build con `VITE_API_URL=/api`; lint sin errores; E2E real 29/29 (14 de contingencia); simulada 118/118; respaldo worker 6/6.
+- **Riesgo de negocio abierto:** la venta en línea **reserva** stock y se descuenta al entregar (`/operaciones/ventas/:id/entregar`); la venta offline descuenta **de inmediato**. Decidir el procedimiento antes del piloto.
+- **No ejecutado:** Windows, Safari/iPhone, apagón real, cuota de disco real, latencia real de la tienda, restauración de respaldo con restic/pg_dump (`FS41_INTEGRATION`). No declarar aprobados.
 
 ## Continuidad POS y sincronización — auditoría y propuesta (2026-10-10)
 
