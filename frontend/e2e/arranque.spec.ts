@@ -27,6 +27,8 @@ const test = base.extend<{ runtime: Runtime }>({
           '/maintenance/backup': { configured: false },
           '/productos/comercial': [],
           '/clientes': [],
+          // POS y cotizaciones cargan clientes con la búsqueda comercial (solo datos necesarios para el cajero).
+          '/clientes/buscar': [],
           '/operaciones/proveedores': [],
           '/operaciones/caja': [],
           '/operaciones/solicitudes-devolucion': [],
@@ -107,7 +109,7 @@ for (const role of ['ADMIN', 'CAJERO'] as const) {
     // POS is lazy-loaded; wait for its mocked catalog before checking its controls.
     await Promise.all([
       page.waitForResponse(response => new URL(response.url()).pathname === '/api/productos/comercial' && response.status() === 200),
-      page.waitForResponse(response => new URL(response.url()).pathname === '/api/clientes' && response.status() === 200),
+      page.waitForResponse(response => new URL(response.url()).pathname === '/api/clientes/buscar' && response.status() === 200),
       page.goto('/pos'),
     ]);
     await expect(page.getByRole('link', { name: 'Abrir o revisar mi caja', exact: true })).toBeVisible();
