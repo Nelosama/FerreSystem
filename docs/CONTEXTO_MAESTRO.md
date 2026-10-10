@@ -22,6 +22,16 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## POS offline de contingencia (efectivo, cortes de hasta 24 h) — diseño y caracterización (2026-10-10)
+
+- **Rama/PR:** `claude/pos-offline-contingencia` desde `origin/main` `7ccfad25`. Solo documentación y pruebas de caracterización; **sin cambio de comportamiento, esquema, migraciones, dependencias, merge ni despliegue.** Infraestructura, respaldos y migración quedan fuera (otra sesión).
+- **Documento:** [POS_OFFLINE_CONTINGENCIA_DISENO.md](POS_OFFLINE_CONTINGENCIA_DISENO.md): diagnóstico (H1–H11), IndexedDB vs SQLite (recomendado IndexedDB `durability: 'strict'` + papel con secuencia; plan B agente local SQLite), diseño (ventana de contingencia con instantánea de precios, diario inmutable, cupos, sesión del cajero, comprobante), implicaciones fiscales, sincronización/conciliación sin rechazos, archivos, plan de 11 PR, pruebas y 12 decisiones (D1–D12). Complementa [ARQUITECTURA_CONTINUIDAD_POS_20261010.md](ARQUITECTURA_CONTINUIDAD_POS_20261010.md).
+- **Hallazgos clave comprobados en código:** sin service worker/IndexedDB; catálogo solo en estado React; un único hueco `localStorage` por usuario; la venta no guarda efectivo recibido/cambio/dispositivo/origen y `created_at` es hora del servidor; todo rechazo (precio, stock, caja) descartaría una venta ya entregada; `solicitudId` opcional; `crypto.randomUUID` directo en POS; axios sin timeout; no hay datos fiscales SAR (CAI/rango) en el modelo.
+- **Pruebas de caracterización:** `frontend/test/pos-offline-caracterizacion.test.mjs` (16) y `backend/src/ventas/ventas.contingencia-caracterizacion.spec.ts` (11). Mocks; no prueban PostgreSQL real, apagón físico ni fiscalidad.
+- **Pendiente:** aprobación del diseño; decisión fiscal (D1) antes de cualquier venta offline; D2–D12. Ninguna implementación financiera offline autorizada.
+
+---
+
 ## Continuidad POS y sincronización — auditoría y propuesta (2026-10-10)
 
 - **Base comprobada:** `main` y `origin/main` `5eae989dfab0ea04cc6861406ec30df459ae16c2`, checkout principal limpio; fetch realizado. Al iniciar, PR #122 abierto (`fix/qa-clientes-cajero`). Trabajo de Claude en Clientes/POS/permisos protegido; no se cambian esos archivos ni se abren PRs de implementación.
