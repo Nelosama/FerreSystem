@@ -19,7 +19,8 @@
     "accounts": "ACCOUNTS & PAYMENTS",
     "deliveries": "DELIVERIES",
     "returns": "RETURNS",
-    "audit": "AUDIT"
+    "audit": "AUDIT",
+    "mobile_admin": "Mobile summary"
   },
   "stock_taking": {
     "title": "STOCK TAKING",
@@ -1342,5 +1343,28 @@
       "margen": "Margin %",
       "notas": "Notes"
     }
+  },
+  "admin_mobile": {
+    "title": "Admin summary",
+    "day": "Day",
+    "sales_today": "Today's sales",
+    "sales_count": "{count} completed sale(s)",
+    "cash": "Open cash drawers",
+    "no_open_cash": "No open cash drawers.",
+    "stock_alerts": "Stock below minimum",
+    "no_stock_alerts": "No stock alerts.",
+    "customer_balances": "Customers with balance due",
+    "no_customer_balances": "No customer has a balance due.",
+    "supplier_bills_due": "Supplier bills due (7 days)",
+    "no_supplier_bills_due": "No supplier bills due.",
+    "overdue": "overdue",
+    "authorization_requests": "Authorization requests",
+    "no_pending_requests": "No pending requests.",
+    "return_for_sale": "Sale return",
+    "reports": "Basic reports",
+    "open_reports": "Open reports",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "load_error": "This section could not be loaded. Try again."
   }
 }

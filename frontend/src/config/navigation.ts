@@ -14,6 +14,7 @@ import {
   Tags,
   Percent,
   BarChart3,
+  Smartphone,
   Users,
 } from 'lucide-react';
 
@@ -213,6 +214,16 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     moduleKey: 'reportes',
     allowedRoles: ['ADMIN'],
     requiredPermiso: 'reportes.ver',
+    category: 'ANALISIS',
+  },
+  // Resumen administrativo para iPhone: solo lectura de datos ya operativos (ventas, caja, existencias, cobros).
+  {
+    key: 'admin_movil',
+    labelKey: 'menu.mobile_admin',
+    defaultLabel: 'RESUMEN MÓVIL',
+    route: '/admin-movil',
+    icon: Smartphone,
+    allowedRoles: ['ADMIN'],
     category: 'ANALISIS',
   },
 

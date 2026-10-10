@@ -19,7 +19,8 @@
     "accounts": "CUENTAS Y ABONOS",
     "deliveries": "ENTREGAS",
     "returns": "DEVOLUCIONES",
-    "audit": "AUDITORÍA"
+    "audit": "AUDITORÍA",
+    "mobile_admin": "Resumen móvil"
   },
   "stock_taking": {
     "title": "LEVANTAMIENTO DE INVENTARIO",
@@ -1342,5 +1343,28 @@
       "margen": "Margen %",
       "notas": "Notas"
     }
+  },
+  "admin_mobile": {
+    "title": "Resumen administrativo",
+    "day": "Día",
+    "sales_today": "Ventas de hoy",
+    "sales_count": "{count} venta(s) completadas",
+    "cash": "Cajas abiertas",
+    "no_open_cash": "No hay cajas abiertas.",
+    "stock_alerts": "Existencias bajo mínimo",
+    "no_stock_alerts": "Sin alertas de existencias.",
+    "customer_balances": "Clientes con saldo pendiente",
+    "no_customer_balances": "Ningún cliente tiene saldo pendiente.",
+    "supplier_bills_due": "Facturas de proveedores por vencer (7 días)",
+    "no_supplier_bills_due": "No hay facturas por vencer.",
+    "overdue": "vencida",
+    "authorization_requests": "Solicitudes de autorización",
+    "no_pending_requests": "No hay solicitudes pendientes.",
+    "return_for_sale": "Devolución de venta",
+    "reports": "Reportes básicos",
+    "open_reports": "Abrir reportes",
+    "refresh": "Actualizar",
+    "refreshing": "Actualizando…",
+    "load_error": "No se pudo cargar esta sección. Intente de nuevo."
   }
 }
