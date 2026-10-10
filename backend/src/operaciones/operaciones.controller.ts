@@ -35,7 +35,7 @@ export class OperacionesController {
  @RequiredModule('inventario')
  @Post('conciliaciones-bancarias') @Roles('ADMIN') registrarConciliacionBancaria(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:ConciliacionBancariaDto){return this.service.registrarConciliacionBancaria(t,u,dto);}
  @Get('conciliaciones-bancarias') @Roles('ADMIN') conciliacionesBancarias(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('fecha') fecha?:string){return this.service.conciliacionesBancarias(t,u,fecha);}
- @Get('clientes/:id/estado-cuenta') @Roles('ADMIN') estadoCuentaCliente(@TenantId() t:string,@Param('id') id:string){return this.service.estadoCuentaCliente(t,id);}
+ @Get('clientes/:id/estado-cuenta') @Roles('ADMIN','CAJERO') estadoCuentaCliente(@TenantId() t:string,@CurrentUser('rol') rol:string,@Param('id') id:string){return this.service.estadoCuentaCliente(t,id,rol);}
  @Get('productos/:id/proveedores') @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') proveedoresProducto(@TenantId() t:string,@Param('id') id:string){return this.service.proveedoresProducto(t,id);}
  @RequiredModule('inventario')
  @Put('productos/:id/proveedores/:proveedorId') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') guardarProveedorProducto(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Param('proveedorId') proveedorId:string,@Body() dto:ProductoProveedorDto){return this.service.guardarProveedorProducto(t,u,id,proveedorId,dto);}

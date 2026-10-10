@@ -147,9 +147,12 @@ describe('Estado de cuenta de cliente / PostgreSQL aislado', () => {
     expect(res.body.cliente.saldoPendiente).toBe(250);
   });
 
-  it('solo ADMIN ve el estado de cuenta; otra empresa recibe 404 y no ve el cliente', async () => {
-    const cliente = await prisma.cliente.create({ data: { tenantId, nombre: 'Cliente Restringido', creditoHabilitado: false, saldoPendiente: 0 } as any });
-    await http('get', `/clientes/${cliente.id}/estado-cuenta`, 'CAJERO').expect(403);
+  it('ADMIN y CAJERO consultan el estado de cuenta; el cajero no ve el límite de crédito; otra empresa recibe 404', async () => {
+    const cliente = await prisma.cliente.create({ data: { tenantId, nombre: 'Cliente Restringido', creditoHabilitado: true, limiteCredito: 900, saldoPendiente: 0 } as any });
+    const admin = await http('get', `/clientes/${cliente.id}/estado-cuenta`, 'ADMIN').expect(200);
+    expect(admin.body.cliente.limiteCredito).toBe(900);
+    const cajero = await http('get', `/clientes/${cliente.id}/estado-cuenta`, 'CAJERO').expect(200);
+    expect(cajero.body.cliente.limiteCredito).toBeNull();
     await http('get', `/clientes/${cliente.id}/estado-cuenta`, 'BODEGUERO').expect(403);
     await http('get', `/clientes/${cliente.id}/estado-cuenta`, 'OTRO_ADMIN').expect(404);
     await http('get', `/clientes/${randomUUID()}/estado-cuenta`, 'ADMIN').expect(404);

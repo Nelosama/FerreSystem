@@ -191,11 +191,12 @@ describe('Pagos bancarios, crédito y conciliación / PostgreSQL aislado', () =>
       await expect(venta(admin, { metodoPago: 'TARJETA', pagoElectronico: { referencia: 'ABN-DUP', terminal: 'POS-01' } })).rejects.toThrow('ya fue registrada');
     });
 
-    it('los pagos a proveedor (CXP) no exigen autorización bancaria', async () => {
+    it('un pago electrónico a proveedor exige referencia o comprobante verificable', async () => {
       const proveedor = await prisma.proveedor.create({ data: { tenantId: tenantA, nombre: 'Proveedor' } });
       const orden = await ops.compra(tenantA, admin, { solicitudId: randomUUID(), proveedorId: proveedor.id, numeroFactura: 'FAC-CXP', isv: 0, items: [{ productoId, cantidad: 2, costo: 60 }] } as any);
       const cuenta = (await sql("SELECT id FROM cuentas_operativas WHERE documento_id=$1 AND tipo='CXP'", orden.id))[0];
-      await expect(ops.pagar(tenantA, admin, cuenta.id, { solicitudId: randomUUID(), monto: 50, metodo: 'TARJETA' } as any)).resolves.toBeTruthy();
+      await expect(ops.pagar(tenantA, admin, cuenta.id, { solicitudId: randomUUID(), monto: 50, metodo: 'TARJETA' } as any)).rejects.toThrow('referencia o comprobante');
+      await expect(ops.pagar(tenantA, admin, cuenta.id, { solicitudId: randomUUID(), monto: 50, metodo: 'TARJETA', pagoElectronico: { referencia: 'POS-PROV-50', terminal: 'POS-01' } } as any)).resolves.toBeTruthy();
     });
   });
 

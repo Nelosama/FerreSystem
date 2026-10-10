@@ -5,7 +5,7 @@ import { ZONA_HORARIA_NEGOCIO } from '../common/zona-horaria';
 
 // Estado de cuenta de un cliente (solo lectura, solo ADMIN): cuentas por cobrar con sus abonos y la
 // conciliación contra el saldo que el cliente muestra. Fuente de verdad: cuentas_operativas (ver crédito).
-export async function estadoCuentaCliente(prisma: PrismaService, tenantId: string, clienteId: string) {
+export async function estadoCuentaCliente(prisma: PrismaService, tenantId: string, clienteId: string, verLimite = true) {
   return prisma.$transaction(async tx => {
     const db = tx as unknown as Tx;
     const [cliente] = await query(db,
@@ -22,7 +22,7 @@ export async function estadoCuentaCliente(prisma: PrismaService, tenantId: strin
     const abonos = await query(db,
       `SELECT p.id, p.cuenta_id, p.monto, p.metodo, p.created_at, p.notas, u.nombre AS usuario_nombre, ap.referencia, ap.terminal
          FROM pagos_cuenta p
-         LEFT JOIN usuarios u ON u.id=p.usuario_id
+         LEFT JOIN usuarios u ON u.id=p.usuario_id AND u.tenant_id=p.tenant_id
          LEFT JOIN aprobaciones_bancarias ap ON ap.tenant_id=p.tenant_id AND ap.origen='ABONO' AND ap.origen_id=p.id
         WHERE p.tenant_id=$1 AND p.cuenta_id IN (SELECT id FROM cuentas_operativas WHERE tenant_id=$1 AND cliente_id=$2 AND tipo='CXC')
         ORDER BY p.created_at DESC`,
@@ -44,7 +44,8 @@ export async function estadoCuentaCliente(prisma: PrismaService, tenantId: strin
       cliente: {
         id: cliente.id, codigo: cliente.codigo, numeroCliente: cliente.numero_cliente, nombre: cliente.nombre,
         creditoHabilitado: cliente.credito_habilitado,
-        limiteCredito: cliente.limite_credito === null ? null : Number(cliente.limite_credito),
+        // El límite es dato administrativo: el cajero consulta saldos y facturas, no el límite.
+        limiteCredito: verLimite && cliente.limite_credito !== null ? Number(cliente.limite_credito) : null,
         saldoPendiente: saldoCliente,
       },
       saldoCuentas: Math.round(saldoCuentas * 100) / 100,

@@ -6,7 +6,7 @@ import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerpr
 import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 import { eliminarVinculoProveedor, guardarVinculoProveedor, listarProveedoresProducto, registrarCostoProveedor } from './productos-proveedores';
 import { estadoCuentaCliente } from './estado-cuenta-cliente';
-import { normalizarAutorizacion, registrarAprobacion } from './aprobaciones-bancarias';
+import { esMetodoElectronico, normalizarAutorizacion, registrarAprobacion } from './aprobaciones-bancarias';
 import { listarConciliaciones, registrarConciliacion } from './conciliacion-bancaria';
 
 export interface FiltrosCuentas { clienteId?: string; proveedorId?: string; estado?: string; desde?: string; hasta?: string }
@@ -67,7 +67,7 @@ export class OperacionesService {
   },{timeout:60000});
  }
  // Relación producto–proveedor (ver productos-proveedores.ts). Lectura: inventario.ver; cambios: inventario.editar.
- estadoCuentaCliente(tenantId:string,clienteId:string){return estadoCuentaCliente(this.prisma,tenantId,clienteId);}
+ estadoCuentaCliente(tenantId:string,clienteId:string,rol?:string){return estadoCuentaCliente(this.prisma,tenantId,clienteId,rol==='ADMIN');}
  registrarConciliacionBancaria(tenantId:string,userId:string,dto:ConciliacionBancariaDto){return registrarConciliacion(this.prisma,tenantId,userId,dto);}
  conciliacionesBancarias(tenantId:string,userId:string,fecha?:string){return listarConciliaciones(this.prisma,tenantId,userId,fecha);}
  proveedoresProducto(tenantId:string,productoId:string){return listarProveedoresProducto(this.prisma,tenantId,productoId);}
@@ -127,8 +127,8 @@ export class OperacionesService {
       (c.saldo>0 AND c.vencimiento::date < $5::date) AS vencida,
       (c.saldo>0 AND c.vencimiento::date >= $5::date AND c.vencimiento::date <= ($5::date + 7)) AS por_vencer,
       CASE WHEN c.saldo<=0 THEN 'PAGADA' WHEN c.vencimiento::date < $5::date THEN 'VENCIDA' WHEN c.saldo<c.monto THEN 'PARCIAL' ELSE 'PENDIENTE' END AS estado
-    FROM cuentas_operativas c LEFT JOIN clientes cl ON cl.id=c.cliente_id LEFT JOIN proveedores p ON p.id=c.proveedor_id
-    LEFT JOIN ordenes_compra o ON o.id=c.documento_id LEFT JOIN ventas v ON v.id=c.documento_id
+    FROM cuentas_operativas c LEFT JOIN clientes cl ON cl.id=c.cliente_id AND cl.tenant_id=c.tenant_id LEFT JOIN proveedores p ON p.id=c.proveedor_id AND p.tenant_id=c.tenant_id
+    LEFT JOIN ordenes_compra o ON o.id=c.documento_id AND o.tenant_id=c.tenant_id LEFT JOIN ventas v ON v.id=c.documento_id AND v.tenant_id=c.tenant_id
     WHERE c.tenant_id=$1 AND c.tipo=$2) t
     ${where.length?'WHERE '+where.join(' AND '):''}
     ORDER BY t.created_at DESC`;
@@ -136,7 +136,7 @@ export class OperacionesService {
   // Historial de pagos con responsable y referencia (voucher de tarjeta/transferencia cuando existe).
   for(const c of accounts)c.pagos=await query(this.prisma,
     `SELECT p.*, u.nombre AS usuario_nombre, COALESCE(ap.referencia, p.referencia) AS referencia, ap.terminal
-       FROM pagos_cuenta p LEFT JOIN usuarios u ON u.id=p.usuario_id
+       FROM pagos_cuenta p LEFT JOIN usuarios u ON u.id=p.usuario_id AND u.tenant_id=p.tenant_id
        LEFT JOIN aprobaciones_bancarias ap ON ap.tenant_id=p.tenant_id AND ap.origen='ABONO' AND ap.origen_id=p.id
       WHERE p.cuenta_id=$1 AND p.tenant_id=$2 ORDER BY p.created_at DESC`,c.id,tenantId);
   return accounts;
@@ -159,6 +159,8 @@ export class OperacionesService {
    const autorizacion=c.tipo==='CXC'?normalizarAutorizacion(metodo,dto.pagoElectronico):null;
    // CxP: referencia opcional del comprobante (transferencia, cheque o recibo). No se repite en la misma factura.
    const referenciaCxp=c.tipo==='CXP'?((dto.referencia??dto.pagoElectronico?.referencia)?.trim().toUpperCase()||null):null;
+   // Decisión aprobada: un pago electrónico a proveedor conserva referencia o comprobante verificable.
+   if(c.tipo==='CXP'&&esMetodoElectronico(metodo)&&!referenciaCxp)throw new BadRequestException('Registre la referencia o comprobante del pago electrónico al proveedor');
    if(referenciaCxp){const [repetida]=await query(tx,'SELECT id FROM pagos_cuenta WHERE tenant_id=$1 AND cuenta_id=$2 AND referencia=$3',tenantId,c.id,referenciaCxp);if(repetida)throw new ConflictException('Esta referencia de pago ya fue registrada en esta factura');}
    const caja=afectaCaja?await openCash(tx,tenantId,userId):null;
    const [p]=await query(tx,'INSERT INTO pagos_cuenta (id,tenant_id,cuenta_id,solicitud_id,solicitud_hash,monto,metodo,usuario_id,caja_id,notas,referencia) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',id(),tenantId,c.id,dto.solicitudId,hash,monto,metodo,userId,caja?.id ?? null,dto.notas || null,referenciaCxp);

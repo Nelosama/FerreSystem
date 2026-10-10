@@ -251,6 +251,22 @@ describe('BALANCE: cuentas por cobrar y por pagar / PostgreSQL aislado', () => {
     expect(await saldoDe(cuenta.id)).toBe(20);
   });
 
+  it('P0: una cuenta de esta empresa que apunta a una venta de otra empresa no muestra su número ni datos ajenos', async () => {
+    const otraEmpresa = randomUUID();
+    await prisma.tenant.create({ data: { id: otraEmpresa, nombreComercial: 'Empresa ajena', estado: 'ACTIVO' } as any });
+    const usuarioAjeno = randomUUID();
+    await prisma.usuario.create({ data: { id: usuarioAjeno, tenantId: otraEmpresa, nombre: 'Ajeno', email: `${usuarioAjeno}@test.invalid`, passwordHash: 'x', rol: 'ADMIN' as any } as any });
+    const ventaAjena = await prisma.venta.create({ data: { tenantId: otraEmpresa, usuarioId: usuarioAjeno, numeroVenta: 987654, subtotal: 100, isv: 15, descuento: 0, total: 115, metodoPago: 'CREDITO' as any, tipoPago: 'CREDITO' as any, estado: 'COMPLETADA' as any } as any });
+    const c = await cliente('Cliente Cruzado');
+    const cuenta = await prisma.cuentaOperativa.create({ data: { tenantId, tipo: 'CXC', clienteId: c.id, documentoId: ventaAjena.id, monto: 50, saldo: 50, vencimiento: new Date('2099-01-01T00:00:00Z'), usuarioId: userIds.ADMIN } as any });
+    const lista = await listar('ADMIN', `tipo=CXC&clienteId=${c.id}`).expect(200);
+    const fila = lista.body.find((x: any) => x.id === cuenta.id);
+    // El documento ajeno no se resuelve: queda vacío y nunca muestra el número de otra empresa.
+    expect(fila.documento).toBeNull();
+    expect(JSON.stringify(fila)).not.toContain('987654');
+    expect(fila.nombre).toBe('Cliente Cruzado');
+  });
+
   it('separación entre empresas: otra empresa no ve ni paga las cuentas de esta', async () => {
     const c = await cliente('Cliente Aislado');
     const cuenta = await cuentaCxc(c.id, 90);
