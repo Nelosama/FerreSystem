@@ -331,11 +331,13 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect((await http('get', '/operaciones/caja').expect(200)).body[0].efectivoEsperado).toBe(100);
   });
 
-  // QA-CLI-001: defecto conocido P2. Se conserva la expectativa contractual
-  // 400; it.fails registra una falla esperada, no aprobación del módulo.
-  it.fails('QA-CLI-001: editar nombre de cliente con null debe responder 400, no 500', async () => {
+  // QA-CLI-001 (corregido): nombre null o en blanco en edición responde 400 y no escribe.
+  it('QA-CLI-001: editar nombre de cliente con null o en blanco responde 400 sin modificar el cliente', async () => {
     const client = await http('post', '/clientes', { nombre: 'Cliente nulidad QA' }).expect(201);
     await http('put', `/clientes/${client.body.id}`, { nombre: null }).expect(400);
+    await http('put', `/clientes/${client.body.id}`, { nombre: '   ' }).expect(400);
+    const despues = await http('get', `/clientes/${client.body.id}`).expect(200);
+    expect(despues.body.nombre).toBe('Cliente nulidad QA');
   });
 
   it('cotización vencida exige renovar vigencia antes de convertir, sin cobros ni reservas por rechazo', async () => {

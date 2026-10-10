@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEmail, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail, IsEnum, ValidateIf } from 'class-validator';
 import { TipoCliente } from '../../types/prisma-enums';
 
 export class CreateClienteDto {
@@ -28,8 +28,10 @@ export class CreateClienteDto {
 }
 
 export class UpdateClienteDto {
-  @IsString()
-  @IsOptional()
+  // Si se envía el campo (incluido null), debe ser texto no vacío: null responde 400, nunca 500.
+  @ValidateIf((_, valor) => valor !== undefined)
+  @IsString({ message: 'El nombre del cliente debe ser texto' })
+  @IsNotEmpty({ message: 'El nombre del cliente es obligatorio' })
   nombre?: string;
 
   @IsString()

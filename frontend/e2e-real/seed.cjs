@@ -51,6 +51,9 @@ const TENANT_B = 'e2e-empresa-b';
   await venta(TENANT_A, usuarios.adminA.id, 1043, '2026-10-01T18:00:00.000Z', [productos.taladroA]);
   await venta(TENANT_A, usuarios.adminA.id, 1044, '2026-10-01T18:00:00.000Z', [productos.taladroA, productos.inversorA]);
   await venta(TENANT_B, usuarios.adminB.id, 1043, '2026-10-01T18:00:00.000Z', [productos.taladroB]);
+  // Clientes para el POS: uno con crédito habilitado y otro sin crédito.
+  await prisma.cliente.create({ data: { tenantId: TENANT_A, nombre: 'Constructora del Norte E2E', rtn: '08019999123456', telefono: '9876-5432', creditoHabilitado: true, limiteCredito: 5000, saldoPendiente: 0 } });
+  await prisma.cliente.create({ data: { tenantId: TENANT_A, nombre: 'Taller San José E2E', telefono: '3311-2244', creditoHabilitado: false, saldoPendiente: 0 } });
   // Factura sin garantía para la prueba de escritura del cajero (debe fallar sin cambios).
   await venta(TENANT_A, usuarios.adminA.id, 1045, '2026-10-01T18:00:00.000Z', [productos.taladroA]);
 

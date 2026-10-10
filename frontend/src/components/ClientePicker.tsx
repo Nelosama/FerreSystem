@@ -30,7 +30,7 @@ export const ClientePicker: React.FC<{ onSelect: (cliente: ClienteSeleccionable)
     setClientes([]);
     const timer = setTimeout(async () => {
       try {
-        const response = await api.get('/clientes', { params: { search: search.trim(), limit: 12 } });
+        const response = await api.get('/clientes/buscar', { params: { q: search.trim() } });
         if (active) setClientes(response.data);
       } catch {
         if (active) setError(true);
