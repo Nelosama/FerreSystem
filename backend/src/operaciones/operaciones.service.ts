@@ -5,6 +5,7 @@ import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from 
 import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
 import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 import { eliminarVinculoProveedor, guardarVinculoProveedor, listarProveedoresProducto, registrarCostoProveedor } from './productos-proveedores';
+import { estadoCuentaCliente } from './estado-cuenta-cliente';
 
 @Injectable()
 export class OperacionesService {
@@ -62,6 +63,7 @@ export class OperacionesService {
   },{timeout:60000});
  }
  // Relación producto–proveedor (ver productos-proveedores.ts). Lectura: inventario.ver; cambios: inventario.editar.
+ estadoCuentaCliente(tenantId:string,clienteId:string){return estadoCuentaCliente(this.prisma,tenantId,clienteId);}
  proveedoresProducto(tenantId:string,productoId:string){return listarProveedoresProducto(this.prisma,tenantId,productoId);}
  guardarProveedorProducto(tenantId:string,userId:string,productoId:string,proveedorId:string,dto:ProductoProveedorDto){return guardarVinculoProveedor(this.prisma,tenantId,userId,productoId,proveedorId,dto);}
  eliminarProveedorProducto(tenantId:string,userId:string,productoId:string,proveedorId:string){return eliminarVinculoProveedor(this.prisma,tenantId,userId,productoId,proveedorId);}

@@ -33,6 +33,7 @@ export class OperacionesController {
  @Post('caja/abrir') @Roles('ADMIN','CAJERO','VENDEDOR') abrir(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:AbrirCajaDto){return this.service.abrir(t,u,dto);}
  @Post('caja/:id/cerrar') @Roles('ADMIN','CAJERO','VENDEDOR') cerrar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:CerrarCajaDto){return this.service.cerrar(t,u,id,dto);}
  @RequiredModule('inventario')
+ @Get('clientes/:id/estado-cuenta') @Roles('ADMIN') estadoCuentaCliente(@TenantId() t:string,@Param('id') id:string){return this.service.estadoCuentaCliente(t,id);}
  @Get('productos/:id/proveedores') @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') proveedoresProducto(@TenantId() t:string,@Param('id') id:string){return this.service.proveedoresProducto(t,id);}
  @RequiredModule('inventario')
  @Put('productos/:id/proveedores/:proveedorId') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') guardarProveedorProducto(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Param('proveedorId') proveedorId:string,@Body() dto:ProductoProveedorDto){return this.service.guardarProveedorProducto(t,u,id,proveedorId,dto);}
