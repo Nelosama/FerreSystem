@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-10, America/Tegucigalpa** — implementación P1 de operaciones en `claude/p1-operaciones` desde `main` `7ccfad25` (ver bloque siguiente). El bloque de continuidad POS se conserva debajo. Las bitácoras anteriores se conservan como fotografías fechadas y no sustituyen el estado de Git.
+Última revisión: **2026-10-10, America/Tegucigalpa** — auditoría QA independiente del ciclo de venta sobre `claude/integracion-pos-offline-p1` `58941e5d` (PR #129; ver bloque siguiente). Antes: implementación P1 de operaciones en `claude/p1-operaciones` desde `main` `7ccfad25` (ver bloque siguiente). El bloque de continuidad POS se conserva debajo. Las bitácoras anteriores se conservan como fotografías fechadas y no sustituyen el estado de Git.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -41,6 +41,19 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Bloqueado por decisión del dueño:** reclamos de garantía y comprobantes; comprobante de devolución; corrección auditada de cierres; precedencia de listas de precio; apartados; pedidos especiales; comisiones; idioma por empresa (diseño en la matriz).
 - **Bloqueado por dependencia:** transferencias y existencias por sucursal, sin modelo de sucursal.
 - **Detalle y decisiones:** `docs/FASE_FUNCIONAL_MODULOS_ADMIN_20261010.md`.
+## Auditoría QA independiente del ciclo de venta (2026-10-10)
+
+- **Base y rama:** `origin/claude/integracion-pos-offline-p1` `58941e5d` (head de PR #129). Trabajo en `claude/hopeful-franklin-hb3n48` creado desde esa base; PR independiente hacia la misma base. Sin merge, despliegue ni migraciones productivas.
+- **Informe completo:** [QA_CICLO_VENTA_20261010.md](QA_CICLO_VENTA_20261010.md), con matriz PASS/FAIL/PENDIENTE, defectos por severidad y evidencia.
+- **Suite:** `frontend/e2e-real/qa-ciclo-venta.spec.ts` sobre backend NestJS real y PostgreSQL 16 temporal (`e2e-real/run.sh`), sin mocks. 38 pruebas: 32 PASS, 1 defecto confirmado DEF-02 (`test.fail`, fallo esperado) y 5 PENDIENTE (`test.skip`).
+- **Resultados:** suite E2E real completa `62 PASS · 5 PENDIENTE · 0 FAIL no esperado`; línea base previa 29/29; `tsc --noEmit` del archivo nuevo sin errores.
+- **Defecto DEF-02 (media):** `POST /ventas` acepta venta sin `solicitudId` (`backend/src/ventas/dto/create-venta.dto.ts:31-34`, `@IsOptional`). Un reintento sin clave crea otra venta. La interfaz sí envía la clave. Corrección propuesta, no implementada: hacerla obligatoria tras verificar a los llamadores.
+- **Prueba inestable PR-01 (baja, de prueba):** `contingencia-real.spec.ts` prueba 11 falló una vez de cuatro (`PENDIENTE` esperado, `ENVIANDO` recibido); aislada pasa 14/14 dos veces. Se ejecuta antes que la auditoría. Corrección propuesta: `expect.poll`.
+- **Pendientes de producto (no son fallos):** cálculo de vuelto en POS de contado (anunciado en `modulesCatalog.ts`, no en los requisitos); referencia de autorización de datáfono; canal web para cliente final (alcance sin confirmar); semántica de entrega de ventas en línea, automática o manual (decisión abierta en `POS_PILOTO_QA_FINAL.md` §7); reporte por cajero; respuesta tardía del servidor en POS; venta offline de tarjeta o crédito (bloqueada por diseño).
+- **Verificado por prueba:** ISV 15 %; reserva y entrega de venta en línea; abonos idempotentes con tope de saldo; descuento con tope y permiso; precio, total e ISV del cliente rechazados o ignorados; aislamiento entre empresas por API; sesión vencida y revocada; dos cajeros por el último producto; doble clic y pérdida de respuesta en el POS; abono con doble clic; cierre de caja con sobrante, nota obligatoria e idempotencia; resumen por método y día solo para administrador.
+- **Parciales:** faltante de caja como caso independiente; rango de varios días en reportes; cobro a crédito, cotización convertida y tarjeta desde la interfaz.
+- **Límites:** sandbox con Node 22.22.0 (el frontend declara `>= 24`); sin CI de GitHub verificada; sin datáfono físico ni corte de red real; concurrencia con dos sesiones HTTP, no dos navegadores; descuento de stock offline no cubierto.
+- **Bitácora:** lectura de este documento y del protocolo; comprobación de rama y PR #129; rama creada desde la base; dependencias instaladas desde lockfile; línea base E2E real 29/29; suite creada y ajustada (preparación idempotente tras reinicio de worker, flujo código+Enter del POS, selector del abono, aserciones de pérdida de respuesta); ejecuciones aisladas y completa; informe y actualización de este documento.
 
 ---
 
