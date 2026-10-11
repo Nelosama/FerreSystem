@@ -41,6 +41,9 @@ const ETIQUETAS: Record<string, string> = {
   SECUENCIA_DUPLICADA: 'Número local repetido',
   OPERACION_ALTERADA: 'Mismo identificador con otro contenido',
   RECHAZADA_TECNICA: 'El servidor no aceptó la operación',
+  VENTANA_OBSOLETA: 'Ventana anterior a la validación de precios aprobados: rechazada, no se aplicó como venta',
+  VENTANA_DE_OTRO_CAJERO: 'La operación usó la ventana de otro cajero: rechazada, no se aplicó a ninguna caja',
+  CAJA_DE_VENTANA_NO_VALIDA: 'La caja de la ventana no corresponde al cajero: rechazada',
 };
 const etiqueta = (c: Conflicto) => ETIQUETAS[c.codigo] ?? c.codigo;
 
@@ -195,16 +198,16 @@ export default function ContingenciaAdminPage() {
                   {op.conflictos.map((k, i) => <li key={`${k.codigo}-${i}`}>{etiqueta(k)}</li>)}
                 </ul>
               )}
-              {op.estado === 'REVISION' && op.conflictos.some((k) => k.codigo === 'CAJA_CERRADA') && (
+              {(op.estado === 'REVISION' || op.estado === 'RECHAZADA') && (op.estado === 'RECHAZADA' || op.conflictos.some((k) => k.codigo === 'CAJA_CERRADA')) && (
                 <label style={{ display: 'grid', gap: 4, marginTop: 8 }}>
-                  Caja abierta donde se registrará el efectivo
+                  Caja abierta donde se registrará el efectivo (si no elige, se usa la caja abierta del cajero o la suya)
                   <select value={caja[op.operacionId] ?? ''} onChange={(e) => setCaja((x) => ({ ...x, [op.operacionId]: e.target.value }))}>
                     <option value="">Seleccione una caja abierta</option>
                     {cajasAbiertas.map((k) => <option key={k.id} value={k.id}>{k.codigo} · {k.usuario}</option>)}
                   </select>
                 </label>
               )}
-              {(op.estado === 'REVISION' || (op.estado === 'SINCRONIZADA' && op.requiereRevision)) && (
+              {(op.estado === 'REVISION' || op.estado === 'RECHAZADA' || (op.estado === 'SINCRONIZADA' && op.requiereRevision)) && (
                 <label style={{ display: 'grid', gap: 4, marginTop: 8 }}>
                   Nota de la decisión (mínimo 10 caracteres)
                   <textarea rows={2} value={notas[op.operacionId] ?? ''} onChange={(e) => setNotas((n) => ({ ...n, [op.operacionId]: e.target.value }))} />
@@ -214,8 +217,11 @@ export default function ContingenciaAdminPage() {
                 {op.estado === 'REVISION' && (
                   <>
                     <button className="pc-btn primario" style={{ fontSize: 15, minHeight: 44, width: 'auto' }} onClick={() => void resolver(op, 'ACEPTAR')}>Aceptar y aplicar</button>
-                    <button className="pc-btn" onClick={() => void resolver(op, 'CERRAR_MANUAL')}>Cerrar sin aplicar</button>
+                    <button className="pc-btn" onClick={() => void resolver(op, 'CERRAR_MANUAL')}>Cerrar sin venta y registrar el efectivo en caja</button>
                   </>
+                )}
+                {op.estado === 'RECHAZADA' && (
+                  <button className="pc-btn" onClick={() => void resolver(op, 'CERRAR_MANUAL')}>Cerrar sin venta y registrar el efectivo en caja</button>
                 )}
                 {op.estado === 'SINCRONIZADA' && op.requiereRevision && (
                   <button className="pc-btn" onClick={() => void resolver(op, 'MARCAR_REVISADA')}>Marcar como revisada</button>

@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext } from '@playwright/test';
+import { idDerivado } from './id-derivado';
 
 // FARO — auditoría integral de la rama integrada (NEXUS). Backend NestJS real + PostgreSQL temporal, sin mocks.
 // Cada operación crítica se comprueba además en base de datos. Los defectos se marcan con test.fail y su ID:
@@ -338,7 +339,7 @@ test.describe('4. Ventas, cotizaciones y POS', () => {
     expect(res.status()).toBe(201);
     expect((await res.json()).total).toBe(230);
     expect(num(`SELECT stock_reservado::float FROM productos WHERE id='${pAprob}'`) - antes).toBe(2);
-    expect(sql(`SELECT metodo||'|'||monto::float FROM movimientos_caja WHERE referencia='${sid}'`)).toBe('EFECTIVO|230');
+    expect(sql(`SELECT metodo||'|'||monto::float FROM movimientos_caja WHERE referencia='${idDerivado(TENANT_A, sid)}'`)).toBe('EFECTIVO|230');
   });
 
   test('un producto sin precio aprobado no se vende en línea', async ({ request }) => {
@@ -382,8 +383,12 @@ test.describe('4. Ventas, cotizaciones y POS', () => {
     const res = await venta(request, cajero, { solicitudId: randomUUID(), metodoPago: 'EFECTIVO', detalles: [{ productoId: pAprob, cantidad: 3, precioUnitario: 100 }] });
     const id = (await res.json()).id;
     const fisico = num(`SELECT stock_actual::float FROM productos WHERE id='${pAprob}'`);
-    expect((await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(cajero.token) })).status()).toBe(201);
-    expect((await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(cajero.token) })).status()).toBe(201);
+    // Solo ADMIN y BODEGUERO entregan (con receptor y solicitud); el reintento reenvía la misma solicitud.
+    const entrega = { solicitudId: randomUUID(), receptorNombre: 'Cliente QA FARO' };
+    expect((await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(cajero.token), data: entrega })).status()).toBe(403);
+    expect(num(`SELECT stock_actual::float FROM productos WHERE id='${pAprob}'`)).toBe(fisico);
+    expect((await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(admin.token), data: entrega })).status()).toBe(201);
+    expect((await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(admin.token), data: entrega })).status()).toBe(201);
     expect(num(`SELECT stock_actual::float FROM productos WHERE id='${pAprob}'`)).toBe(fisico - 3);
   });
 
@@ -478,9 +483,9 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
     const res = await request.post(`${API}/contingencia/operaciones`, { headers: auth(cajero.token), data: lote });
     expect([200, 201], await res.text()).toContain(res.status());
     // La operación debe quedar registrada y en revisión: una fila vacía no significa que esté bien.
-    expect(sql(`SELECT estado||'|'||requiere_revision FROM operaciones_contingencia WHERE id='${opId}'`)).toBe('REVISION|true');
+    expect(sql(`SELECT estado||'|'||requiere_revision FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, opId)}'`)).toBe('REVISION|true');
     expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${opId}' AND origen='CONTINGENCIA'`)).toBe(0);
-    expect(sql(`SELECT COUNT(*) FROM operaciones_contingencia WHERE id='${opId}' AND tenant_id='${TENANT_A}'`)).toBe('1');
+    expect(sql(`SELECT COUNT(*) FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, opId)}' AND tenant_id='${TENANT_A}'`)).toBe('1');
   });
 
   test('precio distinto al autorizado: la venta ya cobrada se aplica con revisión obligatoria y conflicto registrado', async ({ request }) => {
@@ -495,8 +500,8 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
     const res = await request.post(`${API}/contingencia/operaciones`, { headers: auth(cajero.token), data: { dispositivoId, pendientesRestantes: 0, operaciones: [operacion] } });
     expect(res.status(), await res.text()).toBeLessThan(300);
     // Diseño: la venta offline ya se cobró; se aplica y queda marcada. El conflicto debe quedar registrado.
-    expect(sql(`SELECT estado||'|'||requiere_revision FROM operaciones_contingencia WHERE id='${opId}'`)).toBe('APLICADA|true');
-    expect(num(`SELECT COUNT(*) FROM operaciones_contingencia WHERE id='${opId}' AND conflictos::text LIKE '%PRECIO_NO_AUTORIZADO%'`)).toBe(1);
+    expect(sql(`SELECT estado||'|'||requiere_revision FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, opId)}'`)).toBe('APLICADA|true');
+    expect(num(`SELECT COUNT(*) FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, opId)}' AND conflictos::text LIKE '%PRECIO_NO_AUTORIZADO%'`)).toBe(1);
   });
 
   // DEF-01 (consecuencia, FAIL): un producto sin precio aprobado llega a la venta offline y se aplica.
@@ -511,7 +516,7 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
     };
     const res = await request.post(`${API}/contingencia/operaciones`, { headers: auth(cajero.token), data: { dispositivoId, pendientesRestantes: 0, operaciones: [operacion] } });
     expect(res.status(), await res.text()).toBeLessThan(300);
-    expect(sql(`SELECT estado FROM operaciones_contingencia WHERE id='${opId}'`)).not.toBe('APLICADA');
+    expect(sql(`SELECT estado FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, opId)}'`)).not.toBe('APLICADA');
     expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${opId}' AND origen='CONTINGENCIA'`)).toBe(0);
   });
 
@@ -529,8 +534,8 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
     const reenvio = await request.post(`${API}/contingencia/operaciones`, { headers: auth(cajero.token), data: lote });
     expect(primera.status(), await primera.text()).toBeLessThan(300);
     expect(reenvio.status(), await reenvio.text()).toBeLessThan(500);
-    expect(sql(`SELECT estado FROM operaciones_contingencia WHERE id='${opId}'`)).toBe('APLICADA');
-    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${opId}'`)).toBe(1);
+    expect(sql(`SELECT estado FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, opId)}'`)).toBe('APLICADA');
+    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${idDerivado(TENANT_A, opId)}'`)).toBe(1);
     expect(num(`SELECT COUNT(*) FROM ventas WHERE correlativo_local='${operacion.correlativoLocal}'`)).toBe(1);
   });
 });

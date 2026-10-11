@@ -415,9 +415,8 @@ test.describe('11. Doble envío y pérdida de respuesta', () => {
     expect(otro.status()).toBe(409);
   });
 
-  // Defecto DEF-02: solicitudId es opcional en CreateVentaDto. Sin clave, un reintento crea otra venta.
-  // test.fail mantiene la suite verde mientras queda registrado; al corregirlo, este test pasará a FAIL y debe pasarse a test.
-  test.fail('11.3 DEF-02: venta sin solicitudId debe rechazarse; hoy un reintento crea otra venta', async ({ request }) => {
+  // DEF-02/DEF-03 (corregido): solicitudId es obligatorio en CreateVentaDto; sin clave no hay reintento seguro.
+  test('11.3 DEF-02: la venta sin solicitudId se rechaza con 400', async ({ request }) => {
     const res = await venta(request, cajero1.token, { metodoPago: 'EFECTIVO', detalles: [{ productoId: P1, cantidad: 1, precioUnitario: 100 }] });
     expect(res.status()).toBe(400);
   });

@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext } from '@playwright/test';
+import { idDerivado } from './id-derivado';
 
 // FARO — validación independiente de DEF-01 (PR #146). Backend NestJS real + PostgreSQL temporal, sin mocks.
 // Cada escenario compara la base antes y después: ventas, movimientos de caja, stock, numeración y auditoría.
@@ -118,10 +119,10 @@ async function enviar(request: APIRequestContext, cajero: Sesion, dispositivoId:
 }
 
 function estado(opId: string) {
-  return sql(`SELECT estado||'|'||requiere_revision FROM operaciones_contingencia WHERE id='${opId}'`);
+  return sql(`SELECT estado||'|'||requiere_revision FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, opId)}'`);
 }
 function conflictos(opId: string) {
-  return sql(`SELECT COALESCE(string_agg(c->>'codigo', ','),'') FROM operaciones_contingencia o, jsonb_array_elements(o.conflictos) c WHERE o.id='${opId}'`);
+  return sql(`SELECT COALESCE(string_agg(c->>'codigo', ','),'') FROM operaciones_contingencia o, jsonb_array_elements(o.conflictos) c WHERE o.id='${idDerivado(TENANT_A, opId)}'`);
 }
 
 function foto(tenant: string, cajaId: string, productoId: string) {
@@ -193,7 +194,7 @@ test.describe('1. Sin aprobación, precio cero o fuera de la ventana: ninguna ve
     const antes = foto(TENANT_A, cajaA, id);
     const op = operacion({ ventanaId: v.ventanaId, dispositivoId: dispositivoA, cajeroId: cajero.id, productoId: id });
     expect((await enviar(request, cajero, dispositivoA, [op])).status()).toBeLessThan(300);
-    expect(sql(`SELECT estado FROM operaciones_contingencia WHERE id='${op.operacionId}'`)).not.toBe('APLICADA');
+    expect(sql(`SELECT estado FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, op.operacionId)}'`)).not.toBe('APLICADA');
     expect(foto(TENANT_A, cajaA, id)).toEqual(antes);
   });
 });
@@ -216,7 +217,7 @@ test.describe('2. Aprobación posterior y ventanas antiguas', () => {
     expect([200, 201, 400, 409]).toContain(aceptar.status());
     expect([200, 201, 400, 409]).toContain(reintentar.status());
     expect(estado(op.operacionId)).not.toMatch(/^APLICADA/);
-    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${op.operacionId}'`)).toBe(0);
+    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${idDerivado(TENANT_A, op.operacionId)}'`)).toBe(0);
     expect(foto(TENANT_A, cajaA, id)).toEqual(antes);
     // Control: una ventana emitida después de la aprobación sí aplica la venta (el camino legítimo sigue funcionando).
     const w2 = await emitirVentana(request, cajero, dispositivoA);
@@ -226,7 +227,7 @@ test.describe('2. Aprobación posterior y ventanas antiguas', () => {
     expect(estado(ok.operacionId)).toBe('APLICADA|false');
   });
 
-  test('RIESGO-ACTIVACION R-01: ventana emitida antes del cambio (instantánea sin prueba) bloquea la venta sin salida automática', async ({ request }) => {
+  test('R-01 (corregido): ventana emitida antes del cambio (instantánea sin prueba) se rechaza de forma explícita, queda como evidencia y se cierra conciliando el efectivo', async ({ request }) => {
     const id = await crearProducto(request, admin, `FARO-D1-OLD-${RU}`, { precioVenta: 100, precioCosto: 60 });
     await aprobar(request, admin, id);
     await stock(request, admin, id, 5);
@@ -235,13 +236,23 @@ test.describe('2. Aprobación posterior y ventanas antiguas', () => {
     sql(`UPDATE catalogo_instantaneas SET datos = (SELECT jsonb_build_object('productos', jsonb_agg(p - 'precioAprobado')) FROM jsonb_array_elements(datos->'productos') p) WHERE tenant_id='${TENANT_A}' AND hash='${v.hash}'`);
     const antes = foto(TENANT_A, cajaA, id);
     const op = operacion({ ventanaId: v.ventanaId, dispositivoId: dispositivoA, cajeroId: cajero.id, productoId: id });
-    expect((await enviar(request, cajero, dispositivoA, [op])).status()).toBeLessThan(300);
-    expect(estado(op.operacionId)).toBe('REVISION|true');
-    expect(conflictos(op.operacionId)).toContain('PRECIO_SIN_APROBACION');
-    // El administrador no puede aplicarla (conflicto no superable): el efectivo cobrado no entra a caja ni a ventas.
-    await request.post(`${API}/contingencia/operaciones/${op.operacionId}/resolver`, { headers: auth(admin.token), data: { accion: 'ACEPTAR', nota: 'Intento de validación QA DEF-01' } });
-    expect(estado(op.operacionId)).toBe('REVISION|true');
+    const envio = await enviar(request, cajero, dispositivoA, [op]);
+    expect(envio.status()).toBeLessThan(300);
+    const resultado = (await envio.json()).resultados[0];
+    expect(resultado).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'VENTANA_OBSOLETA' });
+    expect(estado(op.operacionId)).toBe('RECHAZADA|true');
+    expect(conflictos(op.operacionId)).toContain('VENTANA_OBSOLETA');
+    expect(foto(TENANT_A, cajaA, id)).toEqual(antes); // sin venta, caja, stock ni numeración
+    // El administrador no puede aplicarla como venta (409) y no queda atrapada: se cierra conciliando el efectivo en caja.
+    const forzar = await request.post(`${API}/contingencia/operaciones/${op.operacionId}/resolver`, { headers: auth(admin.token), data: { accion: 'ACEPTAR', nota: 'Intento de validación QA DEF-01' } });
+    expect(forzar.status()).toBe(409);
     expect(foto(TENANT_A, cajaA, id)).toEqual(antes);
+    const cierre = await request.post(`${API}/contingencia/operaciones/${op.operacionId}/resolver`, { headers: auth(admin.token), data: { accion: 'CERRAR_MANUAL', nota: 'Venta física verificada; efectivo en caja', cajaId: cajaA } });
+    expect(cierre.status(), await cierre.text()).toBe(201);
+    expect(estado(op.operacionId)).toBe('RESUELTA_MANUAL|false');
+    const despues = foto(TENANT_A, cajaA, id);
+    expect(despues.ventas).toBe(antes.ventas); // no se inventa una venta
+    expect(despues.movCaja).toBe(antes.movCaja + 1); // ingreso de conciliación trazable
   });
 
   test('aprobación revocada después de emitir: se aplica con revisión (comportamiento de diseño, riesgo P2)', async ({ request }) => {
@@ -294,11 +305,11 @@ test.describe('3. Idempotencia, reintentos y concurrencia', () => {
     const v = await emitirVentana(request, cajero, dispositivoA);
     const op = operacion({ ventanaId: v.ventanaId, dispositivoId: dispositivoA, cajeroId: cajero.id, productoId: pAprob });
     await enviar(request, cajero, dispositivoA, [op]);
-    const ventasAntes = num(`SELECT COUNT(*) FROM ventas WHERE id='${op.operacionId}'`);
+    const ventasAntes = num(`SELECT COUNT(*) FROM ventas WHERE id='${idDerivado(TENANT_A, op.operacionId)}'`);
     const alterada = { ...op, lineas: [{ productoId: pAprob, cantidadCentesimas: 100, precioCentavos: 9000 }] };
     await enviar(request, cajero, dispositivoA, [alterada]);
     expect(conflictos(op.operacionId)).toContain('OPERACION_ALTERADA');
-    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${op.operacionId}'`)).toBe(ventasAntes);
+    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${idDerivado(TENANT_A, op.operacionId)}'`)).toBe(ventasAntes);
   });
 
   test('dos ventas offline por el último producto: una aplica y la otra queda en revisión sin dejar stock negativo', async ({ request }) => {
@@ -330,22 +341,26 @@ test.describe('3b. Override administrativo de stock', () => {
     expect(estado(op.operacionId)).toMatch(/^APLICADA/);
     // Diseño: el faltante no deja stock negativo; se registra un AJUSTE trazable y luego la ENTREGA (neto 0).
     expect(num(`SELECT stock_actual::float FROM productos WHERE id='${id}'`)).toBe(0);
-    expect(sql(`SELECT string_agg(tipo, ',' ORDER BY created_at) FROM movimientos_inventario WHERE producto_id='${id}' AND documento_id='${op.operacionId}'`)).toBe('AJUSTE,ENTREGA');
+    expect(sql(`SELECT string_agg(tipo, ',' ORDER BY created_at) FROM movimientos_inventario WHERE producto_id='${id}' AND documento_id='${idDerivado(TENANT_A, op.operacionId)}'`)).toBe('AJUSTE,ENTREGA');
   });
 });
 
 test.describe('4. Efectivo cobrado y trazabilidad de caja', () => {
-  test('RIESGO-ACTIVACION R-02: una operación cerrada manualmente no deja venta ni movimiento de caja', async ({ request }) => {
+  test('R-02 (corregido): cerrar manualmente una operación registra el efectivo en caja como ingreso de conciliación, sin crear venta ni tocar el inventario', async ({ request }) => {
     const id = await crearProducto(request, admin, `FARO-D1-CM-${RU}`, {});
     await stock(request, admin, id, 5);
     const v = await emitirVentana(request, cajero, dispositivoA);
     const antes = foto(TENANT_A, cajaA, id);
     const op = operacion({ ventanaId: v.ventanaId, dispositivoId: dispositivoA, cajeroId: cajero.id, productoId: id });
     await enviar(request, cajero, dispositivoA, [op]);
-    const cerrar = await request.post(`${API}/contingencia/operaciones/${op.operacionId}/resolver`, { headers: auth(admin.token), data: { accion: 'CERRAR_MANUAL', nota: 'Efectivo recibido sin venta registrada' } });
+    const cerrar = await request.post(`${API}/contingencia/operaciones/${op.operacionId}/resolver`, { headers: auth(admin.token), data: { accion: 'CERRAR_MANUAL', nota: 'Efectivo recibido sin venta registrada', cajaId: cajaA } });
     expect(cerrar.status()).toBe(201);
     expect(estado(op.operacionId)).toBe('RESUELTA_MANUAL|false');
-    expect(foto(TENANT_A, cajaA, id)).toEqual(antes);
+    const despues = foto(TENANT_A, cajaA, id);
+    expect(despues.ventas).toBe(antes.ventas);
+    expect(despues.stock).toBe(antes.stock);
+    expect(despues.movCaja).toBe(antes.movCaja + 1);
+    expect(sql(`SELECT tipo||'|'||metodo FROM movimientos_caja WHERE referencia='${idDerivado(TENANT_A, op.operacionId)}'`)).toBe('INGRESO_MANUAL|EFECTIVO');
   });
 
   test('numeración: el rechazo no consume número y la siguiente venta en línea es consecutiva', async ({ request }) => {
@@ -371,7 +386,7 @@ test.describe('6. Atribución de cobros entre cajeros', () => {
     const op = operacion({ ventanaId: ventanaA.ventanaId, dispositivoId: dispositivoA, cajeroId: cajero2.id, productoId: pAprob });
     await enviar(request, cajero2, dispositivoA, [op]);
     // Esperado: la venta no entra en la caja de A. Si se registra, debe ser en la caja de quien la cobró (B).
-    const cajaVenta = sql(`SELECT COALESCE(caja_id::text,'') FROM ventas WHERE id='${op.operacionId}'`);
+    const cajaVenta = sql(`SELECT COALESCE(caja_id::text,'') FROM ventas WHERE id='${idDerivado(TENANT_A, op.operacionId)}'`);
     expect(cajaVenta === '' || cajaVenta === cajaB).toBe(true);
     expect(num(`SELECT COUNT(*) FROM movimientos_caja WHERE caja_id='${cajaA}'`)).toBe(antesA);
     expect(num(`SELECT COUNT(*) FROM movimientos_caja WHERE caja_id='${cajaB}'`)).toBe(antesB);
@@ -388,21 +403,21 @@ test.describe('5. Aislamiento entre empresas', () => {
     const cruzada = operacion({ ventanaId: v.ventanaId, dispositivoId: dispositivoB, cajeroId: adminB.id, productoId: pAprob });
     const res = await enviar(request, adminB, dispositivoB, [cruzada]);
     expect(res.status()).toBeLessThan(500);
-    expect(num(`SELECT COUNT(*) FROM operaciones_contingencia WHERE id='${cruzada.operacionId}' AND tenant_id='${TENANT_B}'`)).toBeLessThanOrEqual(1);
-    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${cruzada.operacionId}' AND tenant_id='${TENANT_B}'`)).toBe(0);
+    expect(num(`SELECT COUNT(*) FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_B, cruzada.operacionId)}' AND tenant_id='${TENANT_B}'`)).toBeLessThanOrEqual(1);
+    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${idDerivado(TENANT_B, cruzada.operacionId)}' AND tenant_id='${TENANT_B}'`)).toBe(0);
     // La operación no aplicada en B no debe alterar el stock de A.
-    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${cruzada.operacionId}'`)).toBe(0);
+    expect(num(`SELECT COUNT(*) FROM ventas WHERE id IN ('${idDerivado(TENANT_A, cruzada.operacionId)}','${idDerivado(TENANT_B, cruzada.operacionId)}')`)).toBe(0);
     // Resolver una operación de A desde B debe fallar.
     const op = operacion({ ventanaId: v.ventanaId, dispositivoId: dispositivoA, cajeroId: cajero.id, productoId: pAprob });
     await enviar(request, cajero, dispositivoA, [op]);
     const ajena = await request.post(`${API}/contingencia/operaciones/${op.operacionId}/resolver`, { headers: auth(adminB.token), data: { accion: 'CERRAR_MANUAL', nota: 'Intento cruzado QA DEF-01' } });
     expect([403, 404]).toContain(ajena.status());
-    expect(sql(`SELECT estado FROM operaciones_contingencia WHERE id='${op.operacionId}'`)).not.toBe('RESUELTA_MANUAL');
+    expect(sql(`SELECT estado FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, op.operacionId)}'`)).not.toBe('RESUELTA_MANUAL');
   });
 });
 
-// Defecto DEF-03 (preexistente, no tocado por DEF-01): la venta sin solicitudId se acepta.
-test('DEF-03: POST /ventas sin solicitudId debe rechazarse (preexistente)', async ({ request }) => {
+// DEF-03 (corregido): la venta sin solicitudId se rechaza.
+test('DEF-03: POST /ventas sin solicitudId se rechaza', async ({ request }) => {
   const res = await request.post(`${API}/ventas`, { headers: auth(cajero.token), data: { metodoPago: 'EFECTIVO', detalles: [{ productoId: pAprob, cantidad: 1, precioUnitario: 100 }] } });
   expect(res.status()).toBe(400);
 });
