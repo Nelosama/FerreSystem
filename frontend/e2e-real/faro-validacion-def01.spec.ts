@@ -104,7 +104,7 @@ const EMITIDAS = new Map<string, string[]>();
 const PROXIMO = new Map<string, number>();
 function emitidaPara(ventanaId: string, operacionId?: string): { operacionId: string; indiceOperacion?: number } {
   const conjunto = EMITIDAS.get(ventanaId);
-  if (!conjunto) return { operacionId: randomUUID() }; // ventana no emitida por este helper: el servidor la rechazará
+  if (!conjunto) throw new Error(`H-5: la ventana ${ventanaId} no fue emitida por emitirVentana(); el helper no puede asignar operaciones`);
   if (operacionId) return { operacionId, indiceOperacion: conjunto.indexOf(operacionId) };
   const indice = PROXIMO.get(ventanaId) ?? 0;
   PROXIMO.set(ventanaId, indice + 1);

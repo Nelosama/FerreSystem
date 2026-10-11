@@ -11,6 +11,8 @@ const producto = { id: 'prod-1', codigo: 'TOR-1', nombre: 'Tornillo 2 pulgadas',
 const VIGENTE = new Date(Date.now() + 30 * 3_600_000).toISOString();
 
 type Sim = { operacionesRecibidas: string[]; colgarPrimera: boolean; errores: string[]; sinRed: boolean };
+// H-5: identificadores que el mock de la ventana emite, en orden.
+const EMITIDAS = Array.from({ length: 500 }, (_, i) => `00000000-0000-4000-8000-${(i + 1).toString(16).padStart(12, '0')}`);
 
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
@@ -36,7 +38,7 @@ const test = base.extend<{ sim: Sim }>({
       if (method === 'POST' && path === '/contingencia/ventanas') {
         return responder(route, 201, {
           // H-5: identificadores de operación emitidos por el servidor para la ventana (formato UUID v4).
-          ventana: { id: '00000000-0000-4000-8000-0000000000aa', dispositivoId: '00000000-0000-4000-8000-000000000001', cajaId: 'caja-1', usuarioId: usuario.id, vigenteHasta: VIGENTE, catalogoHash: 'h1', limites: {}, operacionesEmitidas: Array.from({ length: 500 }, (_, i) => `00000000-0000-4000-8000-${(i + 1).toString(16).padStart(12, '0')}`) },
+          ventana: { id: '00000000-0000-4000-8000-0000000000aa', dispositivoId: '00000000-0000-4000-8000-000000000001', cajaId: 'caja-1', usuarioId: usuario.id, vigenteHasta: VIGENTE, catalogoHash: 'h1', limites: {}, operacionesEmitidas: EMITIDAS },
           catalogo: { hash: 'h1', productos: [producto] },
         });
       }
@@ -106,6 +108,8 @@ test.describe('Contingencia POS — red y almacenamiento con backend simulado', 
     // El reintento usa el mismo identificador y termina aplicado: la misma operación llegó dos veces, con una sola venta.
     await expect.poll(async () => (await diario(page)).find((o) => o.correlativoLocal === 'CT-01-0001')?.estado, { timeout: 45_000 }).toBe('SINCRONIZADA');
     const [primera, segunda] = sim.operacionesRecibidas;
+    // H-5: los identificadores distintos enviados son el prefijo, en orden, de los emitidos por la ventana.
+    expect([...new Set(sim.operacionesRecibidas)]).toEqual(EMITIDAS.slice(0, new Set(sim.operacionesRecibidas).size));
     expect(sim.operacionesRecibidas.length).toBeGreaterThanOrEqual(2);
     expect(segunda).toBe(primera);
     expect(sim.errores).toEqual([]);

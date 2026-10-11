@@ -571,8 +571,8 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       expect(otra.resultados[0]).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'CAJERO_NO_AUTORIZADO' });
       expect(await prisma.operacionContingencia.count({ where: { tenantId: e.tenantId } })).toBe(0);
       // Sin fila no hay nada que forzar ni reintentar: el administrador recibe «no encontrada».
-      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', nota: 'Intento de forzar una operación rechazada' } as any)).rejects.toThrow();
-      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'REINTENTAR', nota: 'Intento de reintentar una operación rechazada' } as any)).rejects.toThrow();
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', nota: 'Intento de forzar una operación rechazada' } as any)).rejects.toThrow(/no encontrada/);
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'REINTENTAR', nota: 'Intento de reintentar una operación rechazada' } as any)).rejects.toThrow(/no encontrada/);
       expect(await ventas(e.tenantId)).toBe(0);
       // H-5: el cajero dueño de la ventana conserva la capacidad de cobrar esa misma operación.
       const duenio = (await svc.recibirLote(e.tenantId, e.cajero, 'CAJERO', { dispositivoId: e.dispositivoId, pendientesRestantes: 0, operaciones: [{ ...op, cajeroId: e.cajero }] } as any)).resultados[0];

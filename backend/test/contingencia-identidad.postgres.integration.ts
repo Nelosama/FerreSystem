@@ -149,6 +149,19 @@ describe('Contingencia identidad (H-5 / H-6): cajeros y tenants en PostgreSQL ai
     expect(await filaDe(e.tenantId, opDueno.operacionId)).toMatchObject({ usuarioId: e.cajero, cajaId: e.cajaId });
   });
 
+  it('H-5: intento ajeno, cobro del dueño y reintento del dueño: una sola venta y una sola fila, misma respuesta', async () => {
+    const e = await empresa();
+    const b = await segundoCajero(e);
+    const opDueno = operacion(e);
+    await recibir(e, [{ ...opDueno, cajeroId: b.id }], b.id);
+    const primero = (await recibir(e, [opDueno], e.cajero)).resultados[0];
+    const reintento = (await recibir(e, [opDueno], e.cajero)).resultados[0];
+    expect(primero).toMatchObject({ operacionId: opDueno.operacionId, estado: 'APLICADA' });
+    expect(reintento).toMatchObject({ operacionId: opDueno.operacionId, estado: 'APLICADA', ventaId: primero.ventaId });
+    expect(await ventasDe(e.tenantId)).toBe(1);
+    expect(await prisma.operacionContingencia.count({ where: { tenantId: e.tenantId, id: { in: [idSolicitud(e.tenantId, opDueno.operacionId), opDueno.operacionId] } } })).toBe(1);
+  });
+
   it('H-5: el segundo cajero conserva su propio cobro, emitido en su ventana, sin afectar al dueño', async () => {
     const e = await empresa();
     const b = await segundoCajero(e);
