@@ -384,12 +384,25 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       await sinEfectos(e, p.id);
     });
 
-    it('instantánea sin prueba de aprobación (formato anterior): PRECIO_SIN_APROBACION no superable', async () => {
+    it('instantánea sin prueba de aprobación (formato anterior): se rechaza de forma explícita (R-01), queda como evidencia y no se puede forzar', async () => {
       const e = await empresa();
       const v = await ventana(e);
       const datos = { productos: [{ id: e.p1, codigo: 'TOR-1', nombre: 'Tornillo', precioCentavos: 1000, libreCentesimas: 2000, cupoCentesimas: 1000, usaMedida: false, unidadMedida: 'UNIDAD', costoCentavos: 400 }] };
       await prisma.catalogoInstantanea.create({ data: { tenantId: e.tenantId, hash: 'legado', datos: datos as any } });
       await prisma.contingenciaVentana.update({ where: { id: v.id }, data: { catalogoHash: 'legado' } });
+      const op = operacion(e, v.id);
+      const [res] = (await enviar(e, [op])).resultados;
+      expect(res).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'VENTANA_OBSOLETA' });
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', nota: 'forzar' } as any)).rejects.toThrow(/rechazada nunca se aplica/);
+      await sinEfectos(e, e.p1);
+    });
+
+    it('instantánea con la marca de aprobación pero precio no positivo (alterada): PRECIO_SIN_APROBACION no superable', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      const datos = { productos: [{ id: e.p1, codigo: 'TOR-1', nombre: 'Tornillo', precioAprobado: true, precioCentavos: 0, libreCentesimas: 2000, cupoCentesimas: 1000, usaMedida: false, unidadMedida: 'UNIDAD', costoCentavos: 400 }] };
+      await prisma.catalogoInstantanea.create({ data: { tenantId: e.tenantId, hash: 'alterada', datos: datos as any } });
+      await prisma.contingenciaVentana.update({ where: { id: v.id }, data: { catalogoHash: 'alterada' } });
       const op = operacion(e, v.id);
       const [res] = (await enviar(e, [op])).resultados;
       expect(res.estado).toBe('REVISION');
@@ -419,7 +432,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       const v = await ventana(e);
       const op = opDe(e, v.id, p.id);
       await Promise.all([enviar(e, [op]), enviar(e, [op]), enviar(e, [op])]);
-      expect(await prisma.operacionContingencia.count({ where: { id: op.operacionId } })).toBe(1);
+      expect(await prisma.operacionContingencia.count({ where: { id: idSolicitud(e.tenantId, op.operacionId) } })).toBe(1);
       await sinEfectos(e, p.id);
     });
 
@@ -523,6 +536,196 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       expect(res.estado).toBe('APLICADA');
       const [linea] = await prisma.detalleVenta.findMany({ where: { ventaId: res.ventaId } });
       expect(Number(linea.costoUnitario)).toBe(6);
+    });
+  });
+
+  // ───────────── Correcciones finales: DEF-04 (propiedad de la ventana), R-01 (ventanas anteriores), R-02 (cierre manual) ─────────────
+  describe('DEF-04: la ventana pertenece al cajero que la pidió', () => {
+    async function conSegundoCajero() {
+      const e = await empresa();
+      const cajero2 = randomUUID();
+      await prisma.usuario.create({ data: { id: cajero2, tenantId: e.tenantId, nombre: 'Cajero 2', email: `${cajero2}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
+      const caja2 = await prisma.caja.create({ data: { tenantId: e.tenantId, codigo: 'CAJA-2', usuarioId: cajero2, montoApertura: 50, estado: 'ABIERTA' } as any });
+      return { ...e, cajero2, caja2: caja2.id };
+    }
+    const movimientos = (cajaId: string) => prisma.movimientoCaja.count({ where: { cajaId } });
+
+    it('un cajero con la ventana de otro: rechazo definitivo, sin venta, sin movimiento en ninguna caja y sin cambio de stock; queda evidencia', async () => {
+      const e = await conSegundoCajero();
+      const v = await ventana(e); // la pidió el cajero 1
+      const caja1 = (await prisma.caja.findFirstOrThrow({ where: { tenantId: e.tenantId, usuarioId: e.cajero } })).id;
+      const [a, b] = [await movimientos(caja1), await movimientos(e.caja2)];
+      const op = operacion(e, v.id, { cajeroId: e.cajero2 });
+      const res = await svc.recibirLote(e.tenantId, e.cajero2, 'CAJERO', { dispositivoId: e.dispositivoId, pendientesRestantes: 0, operaciones: [op] } as any);
+      expect(res.resultados[0]).toMatchObject({ operacionId: op.operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'VENTANA_DE_OTRO_CAJERO' });
+      expect(await ventas(e.tenantId)).toBe(0);
+      expect(await stock(e.p1)).toBe(20);
+      expect([await movimientos(caja1), await movimientos(e.caja2)]).toEqual([a, b]);
+      const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
+      expect([fila.estado, fila.requiereRevision, fila.ventaId]).toEqual(['RECHAZADA', true, null]);
+      // El reintento responde lo mismo y no duplica nada.
+      const otra = await svc.recibirLote(e.tenantId, e.cajero2, 'CAJERO', { dispositivoId: e.dispositivoId, pendientesRestantes: 0, operaciones: [op] } as any);
+      expect(otra.resultados[0]).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'VENTANA_DE_OTRO_CAJERO' });
+      expect(await prisma.operacionContingencia.count({ where: { tenantId: e.tenantId } })).toBe(1);
+      // El administrador no puede forzarla como venta; solo cerrarla con conciliación de efectivo.
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', nota: 'Intento de forzar una operación rechazada' } as any)).rejects.toThrow(/rechazada nunca se aplica/);
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'REINTENTAR', nota: 'Intento de reintentar una operación rechazada' } as any)).rejects.toThrow(/rechazada nunca se aplica/);
+      expect(await ventas(e.tenantId)).toBe(0);
+    });
+
+    it('el cajero dueño de la ventana sí cobra en su caja; un administrador puede enviar la operación del cajero dueño', async () => {
+      const e = await conSegundoCajero();
+      const v = await ventana(e);
+      const r1 = (await enviar(e, [operacion(e, v.id)])).resultados[0];
+      expect(r1.estado).toBe('APLICADA');
+      const r2 = (await svc.recibirLote(e.tenantId, e.admin, 'ADMIN', { dispositivoId: e.dispositivoId, pendientesRestantes: 0, operaciones: [operacion(e, v.id)] } as any)).resultados[0];
+      expect(r2.estado).toBe('APLICADA');
+      const caja1 = (await prisma.caja.findFirstOrThrow({ where: { tenantId: e.tenantId, usuarioId: e.cajero } })).id;
+      expect(await prisma.venta.count({ where: { tenantId: e.tenantId, cajaId: caja1 } })).toBe(2);
+      expect(await prisma.venta.count({ where: { tenantId: e.tenantId, cajaId: e.caja2 } })).toBe(0);
+    });
+
+    it('si la caja de la ventana no es del cajero (dato alterado), se rechaza igual sin efectos', async () => {
+      const e = await conSegundoCajero();
+      const v = await ventana(e);
+      await prisma.contingenciaVentana.update({ where: { id: v.id }, data: { cajaId: e.caja2 } });
+      const res = (await enviar(e, [operacion(e, v.id)])).resultados[0];
+      expect(res).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'CAJA_DE_VENTANA_NO_VALIDA' });
+      expect(await ventas(e.tenantId)).toBe(0);
+      expect(await movimientos(e.caja2)).toBe(0);
+    });
+
+    it('otra empresa no puede usar la ventana ni el dispositivo (404/ventana desconocida) y no deja rastro en la empresa dueña', async () => {
+      const a = await empresa(); const b = await empresa();
+      const v = await ventana(a);
+      const res = (await svc.recibirLote(b.tenantId, b.cajero, 'CAJERO', { dispositivoId: b.dispositivoId, pendientesRestantes: 0, operaciones: [operacion(b, v.id)] } as any)).resultados[0];
+      expect(res.estado).toBe('RECHAZADA_TECNICA');
+      expect(await ventas(a.tenantId)).toBe(0);
+      expect(await prisma.operacionContingencia.count({ where: { tenantId: a.tenantId } })).toBe(0);
+    });
+  });
+
+  describe('R-01: ventanas anteriores a DEF-01', () => {
+    /** Deja la instantánea de la ventana como la guardaba la versión anterior: sin la marca de precio aprobado. */
+    async function volverVentanaAnterior(tenantId: string, ventanaId: string) {
+      const v = await prisma.contingenciaVentana.findUniqueOrThrow({ where: { id: ventanaId } });
+      const snap = await prisma.catalogoInstantanea.findUniqueOrThrow({ where: { tenantId_hash: { tenantId, hash: v.catalogoHash } } });
+      const productos = ((snap.datos as any).productos as any[]).map(({ precioAprobado: _a, ...resto }) => resto);
+      const hash = `anterior-${randomUUID()}`;
+      await prisma.catalogoInstantanea.create({ data: { tenantId, hash, datos: { productos } as any } });
+      await prisma.contingenciaVentana.update({ where: { id: ventanaId }, data: { catalogoHash: hash } });
+    }
+
+    it('una operación de una ventana anterior se rechaza de forma explícita, se conserva como evidencia y no queda atrapada en revisión', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      await volverVentanaAnterior(e.tenantId, v.id);
+      const cajaId = (await prisma.caja.findFirstOrThrow({ where: { tenantId: e.tenantId, usuarioId: e.cajero } })).id;
+      const efectivoAntes = await prisma.movimientoCaja.count({ where: { cajaId } });
+      const op = operacion(e, v.id);
+      const res = (await enviar(e, [op])).resultados[0];
+      expect(res).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'VENTANA_OBSOLETA' });
+      expect(res.mensaje).toMatch(/Solicite una ventana nueva/);
+      expect(await ventas(e.tenantId)).toBe(0);
+      expect(await stock(e.p1)).toBe(20);
+      expect(await prisma.movimientoCaja.count({ where: { cajaId } })).toBe(efectivoAntes);
+      const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
+      expect(fila.estado).toBe('RECHAZADA');
+      expect((fila.payload as any).totalCentavos).toBe(2300); // evidencia completa para conciliar
+      // Salida explícita: el administrador la ve y la cierra conciliando el efectivo (R-02).
+      const lista = await svc.listar(e.tenantId, { soloRevision: true });
+      expect(lista.map((x: any) => [x.operacionId, x.estado])).toEqual([[idSolicitud(e.tenantId, op.operacionId), 'RECHAZADA']]);
+      const cierre: any = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Venta física verificada; efectivo en caja' } as any);
+      expect(cierre.estado).toBe('RESUELTA_MANUAL');
+      expect(cierre.conciliacionCaja.monto).toBe(23);
+    });
+
+    it('al pedir una ventana nueva se revocan las anteriores incompatibles, no las vigentes', async () => {
+      const e = await empresa();
+      const vieja = await ventana(e);
+      await volverVentanaAnterior(e.tenantId, vieja.id);
+      const nueva = await ventana(e);
+      expect((await prisma.contingenciaVentana.findUniqueOrThrow({ where: { id: vieja.id } })).revocadaAt).not.toBeNull();
+      expect((await prisma.contingenciaVentana.findUniqueOrThrow({ where: { id: nueva.id } })).revocadaAt).toBeNull();
+      const otra = await ventana(e);
+      expect((await prisma.contingenciaVentana.findUniqueOrThrow({ where: { id: nueva.id } })).revocadaAt).toBeNull();
+      expect(otra.id).not.toBe(nueva.id);
+      // La ventana nueva sigue vendiendo.
+      expect((await enviar(e, [operacion(e, nueva.id)])).resultados[0].estado).toBe('APLICADA');
+    });
+
+    it('una operación ya recibida antes (reintento) no se rechaza por haberse vuelto obsoleta la ventana: se responde lo ya registrado', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      const op = operacion(e, v.id);
+      expect((await enviar(e, [op])).resultados[0].estado).toBe('APLICADA');
+      await volverVentanaAnterior(e.tenantId, v.id);
+      const again = (await enviar(e, [op])).resultados[0];
+      expect(again.estado).toBe('APLICADA');
+      expect(await ventas(e.tenantId)).toBe(1);
+    });
+  });
+
+  describe('R-02: el cierre manual no oculta el efectivo cobrado', () => {
+    /** Operación no aplicable: pide más unidades que las existentes → REVISION por stock insuficiente. */
+    const operacionEnRevision = (e: any, ventanaId: string) => operacion(e, ventanaId, {
+      lineas: [{ productoId: e.p1, cantidadCentesimas: 5000, precioCentavos: 1000 }],
+      subtotalCentavos: 50000, isvCentavos: 7500, totalCentavos: 57500, efectivoRecibidoCentavos: 60000, cambioCentavos: 2500,
+    });
+    const efectivoEsperado = async (cajaId: string) => {
+      const c = await prisma.caja.findUniqueOrThrow({ where: { id: cajaId } });
+      const m = await prisma.movimientoCaja.findMany({ where: { cajaId, metodo: 'EFECTIVO' } });
+      return Number(c.montoApertura) + m.reduce((s, x) => s + Number(x.monto), 0);
+    };
+
+    it('cerrar sin vender registra un ingreso de conciliación en la caja del cajero, con referencia a la operación, sin crear venta ni tocar inventario', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      const op = operacionEnRevision(e, v.id);
+      const r = (await enviar(e, [op])).resultados[0];
+      expect(r.estado).toBe('REVISION');
+      const cajaId = (await prisma.caja.findFirstOrThrow({ where: { tenantId: e.tenantId, usuarioId: e.cajero } })).id;
+      const antes = await efectivoEsperado(cajaId);
+      const cierre: any = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Venta física verificada con el cliente' } as any);
+      expect(cierre.estado).toBe('RESUELTA_MANUAL');
+      expect(cierre.conciliacionCaja).toMatchObject({ cajaId, monto: 575, reutilizado: false });
+      expect(await efectivoEsperado(cajaId)).toBe(antes + 575);
+      const mov = await prisma.movimientoCaja.findMany({ where: { cajaId, tipo: 'INGRESO_MANUAL' } });
+      expect(mov).toHaveLength(1);
+      expect(mov[0]).toMatchObject({ referencia: idSolicitud(e.tenantId, op.operacionId), usuarioId: e.admin });
+      expect(mov[0].concepto).toMatch(/Conciliación contingencia .* efectivo cobrado sin venta aplicada/);
+      expect(await ventas(e.tenantId)).toBe(0);
+      expect(await stock(e.p1)).toBe(20);
+      expect(await prisma.auditoriaOperacion.count({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_CONCILIAR_EFECTIVO' } })).toBe(1);
+      // Un segundo cierre no duplica el ingreso.
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Segundo cierre accidental' } as any)).rejects.toThrow(/ya está resuelta/);
+      expect(await prisma.movimientoCaja.count({ where: { cajaId, tipo: 'INGRESO_MANUAL' } })).toBe(1);
+    });
+
+    it('sin caja abierta no se puede cerrar: la operación sigue en revisión y no se registra nada', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      const op = operacionEnRevision(e, v.id);
+      await enviar(e, [op]);
+      await prisma.caja.updateMany({ where: { tenantId: e.tenantId }, data: { estado: 'CERRADA' } });
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Intento sin caja abierta' } as any)).rejects.toThrow(/Abra una caja/);
+      const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
+      expect(fila.estado).toBe('REVISION');
+      expect(await prisma.movimientoCaja.count({ where: { tipo: 'INGRESO_MANUAL', referencia: fila.id } })).toBe(0);
+      // Con una caja abierta indicada explícitamente (otra del administrador) sí se concilia.
+      const cajaAdmin = await prisma.caja.create({ data: { tenantId: e.tenantId, codigo: 'CAJA-ADM', usuarioId: e.admin, montoApertura: 0, estado: 'ABIERTA' } as any });
+      const cierre: any = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Conciliado en la caja del administrador', cajaId: cajaAdmin.id } as any);
+      expect(cierre.conciliacionCaja.cajaId).toBe(cajaAdmin.id);
+    });
+
+    it('una caja de otra empresa o cerrada no sirve para conciliar', async () => {
+      const a = await empresa(); const b = await empresa();
+      const v = await ventana(a);
+      const op = operacionEnRevision(a, v.id);
+      await enviar(a, [op]);
+      const cajaB = (await prisma.caja.findFirstOrThrow({ where: { tenantId: b.tenantId } })).id;
+      await expect(svc.resolver(a.tenantId, a.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Caja de otra empresa', cajaId: cajaB } as any)).rejects.toThrow(/no existe o está cerrada/);
+      expect(await prisma.movimientoCaja.count({ where: { cajaId: cajaB } })).toBe(0);
     });
   });
 });

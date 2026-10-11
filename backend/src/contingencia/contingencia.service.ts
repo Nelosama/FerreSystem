@@ -211,6 +211,11 @@ export class ContingenciaService {
           },
         },
       });
+      // R-01: al emitir una ventana nueva se revocan las anteriores del equipo cuya instantánea no guarda la prueba de precio aprobado.
+      const anteriores = await tx.contingenciaVentana.findMany({ where: { tenantId, dispositivoId: dispositivo.id, revocadaAt: null, id: { not: ventana.id } } });
+      for (const anterior of anteriores) {
+        if (await this.ventanaObsoleta(tenantId, anterior)) await tx.contingenciaVentana.update({ where: { id: anterior.id }, data: { revocadaAt: ahora } });
+      }
       await tx.dispositivoPos.update({ where: { id: dispositivo.id }, data: { ultimoContactoAt: ahora } });
       const [{ maxima }] = await query<{ maxima: number }>(tx,
         `SELECT COALESCE(MAX(secuencia_local), 0) AS maxima FROM operaciones_contingencia WHERE tenant_id=$1 AND dispositivo_id=$2`, tenantId, dispositivo.id);
@@ -262,8 +267,14 @@ export class ContingenciaService {
     const porId = new Map(filas.map((f) => [f.id, f]));
     return candidatos.map(([id, derivado]) => {
       const f = porId.get(derivado) ?? porId.get(id);
-      return f ? this.resumenOperacion(f, id) : { operacionId: id, estado: 'NO_REGISTRADA' };
+      return f ? this.resumenCliente(f, id) : { operacionId: id, estado: 'NO_REGISTRADA' };
     });
+  }
+
+  /** Vista para el equipo: una operación rechazada se muestra como «en revisión» (el equipo conserva la venta local). */
+  private resumenCliente(f: any, idEquipo?: string) {
+    const r: any = this.resumenOperacion(f, idEquipo);
+    return f.estado === 'RECHAZADA' ? { ...r, estado: 'REVISION', requiereRevision: true } : r;
   }
 
   private resumenOperacion(f: any, idEquipo?: string) {
@@ -295,10 +306,16 @@ export class ContingenciaService {
     const buscar = () => this.prisma.operacionContingencia.findFirst({ where: { tenantId, id: { in: [idInterno, dto.operacionId] } } });
     const existente = await buscar();
     if (existente) {
+      if (existente.estado === 'RECHAZADA') return this.respuestaRechazo(existente, dto.operacionId);
       if (existente.payloadHash !== hash) return { ...(await this.registrarAlteracion(tenantId, usuarioId, existente, dto, hash)), operacionId: dto.operacionId };
       if (existente.estado === 'RECIBIDA') return this.aplicarYResumir(tenantId, existente.id, {}, dto.operacionId);
       return this.resumenOperacion(existente, dto.operacionId);
     }
+    // DEF-04: la ventana, y con ella la caja, pertenecen al cajero que la pidió. Un cobro de otro cajero nunca entra en esa caja.
+    // R-01: una ventana cuya instantánea no guarda la prueba de precio aprobado (formato anterior) no se acepta.
+    // Ambos son rechazos definitivos: se conserva la evidencia en el diario (estado RECHAZADA), sin venta, stock ni caja.
+    const rechazo = await this.motivoRechazoDeVentana(tenantId, ventana, dto);
+    if (rechazo) return this.registrarRechazo(tenantId, ventana, dto, hash, idInterno, rechazo);
     const estimado = this.estimarHora(dto.ocurridoAtLocal, ventana.limites as any);
     try {
       await this.prisma.operacionContingencia.create({
@@ -319,6 +336,57 @@ export class ContingenciaService {
     }
     // 2) Aplicación en transacción aparte.
     return this.aplicarYResumir(tenantId, idInterno, {}, dto.operacionId);
+  }
+
+  private async motivoRechazoDeVentana(tenantId: string, ventana: any, dto: OperacionContingenciaDto): Promise<{ codigo: string; mensaje: string } | null> {
+    if (ventana.usuarioId !== dto.cajeroId) {
+      return { codigo: 'VENTANA_DE_OTRO_CAJERO', mensaje: 'La ventana de contingencia pertenece a otro cajero; la operación no se aplica a su caja. La venta se conserva en el equipo para revisión del administrador' };
+    }
+    const [caja] = await query<any>(this.prisma as any, 'SELECT id FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3', ventana.cajaId, tenantId, ventana.usuarioId);
+    if (!caja) {
+      return { codigo: 'CAJA_DE_VENTANA_NO_VALIDA', mensaje: 'La caja de la ventana no corresponde al cajero de la operación; la venta se conserva en el equipo para revisión del administrador' };
+    }
+    if (await this.ventanaObsoleta(tenantId, ventana)) {
+      return { codigo: 'VENTANA_OBSOLETA', mensaje: 'La ventana de contingencia es anterior a la validación de precios aprobados y ya no es válida. Solicite una ventana nueva; la venta se conserva en el equipo y quedó registrada para conciliación' };
+    }
+    return null;
+  }
+
+  /** Una ventana es obsoleta si su instantánea no existe o algún producto no guarda la prueba `precioAprobado === true`. */
+  private async ventanaObsoleta(tenantId: string, ventana: { catalogoHash: string }) {
+    const instantanea = await this.prisma.catalogoInstantanea.findUnique({ where: { tenantId_hash: { tenantId, hash: ventana.catalogoHash } } });
+    const productos = ((instantanea?.datos as any)?.productos ?? null) as any[] | null;
+    return !productos || productos.some((p) => p?.precioAprobado !== true);
+  }
+
+  private respuestaRechazo(f: any, idEquipo: string) {
+    const c = (f.conflictos as any[])?.[0] ?? {};
+    return {
+      operacionId: idEquipo, estado: 'RECHAZADA_TECNICA', codigo: c.codigo ?? 'RECHAZADA', mensaje: c.detalle?.mensaje ?? 'La operación fue rechazada',
+      requiereRevision: true, conflictos: f.conflictos,
+    };
+  }
+
+  private async registrarRechazo(tenantId: string, ventana: any, dto: OperacionContingenciaDto, hash: string, idInterno: string, rechazo: { codigo: string; mensaje: string }) {
+    const conflictos = [{ codigo: rechazo.codigo, severidad: 'DURO', detalle: { mensaje: rechazo.mensaje, ventanaId: ventana.id, ventanaUsuarioId: ventana.usuarioId, cajeroOperacionId: dto.cajeroId } }];
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const fila = await tx.operacionContingencia.create({
+          data: {
+            id: idInterno, tenantId, dispositivoId: ventana.dispositivoId, ventanaId: ventana.id, usuarioId: dto.cajeroId, cajaId: ventana.cajaId,
+            secuenciaLocal: dto.secuenciaLocal, correlativoLocal: dto.correlativoLocal, ocurridoAtLocal: new Date(dto.ocurridoAtLocal),
+            ocurridoAtEstimado: this.estimarHora(dto.ocurridoAtLocal, ventana.limites as any), payload: dto as any, payloadHash: hash,
+            totalCentavos: dto.totalCentavos, efectivoRecibidoCentavos: dto.efectivoRecibidoCentavos,
+            referenciaFacturaExterna: dto.referenciaFacturaExterna?.trim() || null,
+            estado: 'RECHAZADA', requiereRevision: true, conflictos: conflictos as any,
+          },
+        });
+        await audit(tx, tenantId, dto.cajeroId, 'CONTINGENCIA_OPERACION_RECHAZADA', fila.id, { codigo: rechazo.codigo, ventanaId: ventana.id, correlativoLocal: dto.correlativoLocal, totalCentavos: dto.totalCentavos });
+      });
+    } catch (error: any) {
+      if (error?.code !== 'P2002') throw error; // carrera: otra petición ya registró la misma operación
+    }
+    return this.respuestaRechazo({ conflictos }, dto.operacionId);
   }
 
   private estimarHora(local: string, limites: { offsetRelojMs?: number | null }) {
@@ -354,6 +422,7 @@ export class ContingenciaService {
     const [bloqueada] = await query(tx, 'SELECT id FROM operaciones_contingencia WHERE id=$1 AND tenant_id=$2 FOR UPDATE', operacionId, tenantId);
     if (!bloqueada) throw new NotFoundException('Operación no encontrada');
     const op = await tx.operacionContingencia.findUniqueOrThrow({ where: { id: operacionId } });
+    if (op.estado === 'RECHAZADA') throw new ConflictException('Una operación rechazada nunca se aplica como venta; ciérrela con conciliación de efectivo');
     if (op.estado === 'APLICADA' || op.estado === 'RESUELTA_MANUAL') return op;
     if (op.estado === 'REVISION' && !opciones.forzar && !opciones.resueltoPor) return op;
 
@@ -555,11 +624,15 @@ export class ContingenciaService {
       }
       if (dto.accion === 'CERRAR_MANUAL') {
         if (op.estado === 'APLICADA' || op.estado === 'RESUELTA_MANUAL') throw new ConflictException('La operación ya está resuelta');
+        // R-02: cerrar sin vender no puede ocultar el efectivo cobrado. Se registra un ingreso de conciliación en una caja abierta,
+        // con referencia a la operación; no se crea ninguna venta ni se toca el inventario (eso se concilia aparte).
+        const conciliacionCaja = await this.conciliarEfectivo(tx, tenantId, adminId, op, dto.cajaId);
+        const resolucionConc = { ...resolucion, conciliacionCaja };
         const fila = await tx.operacionContingencia.update({
-          where: { id: op.id }, data: { estado: 'RESUELTA_MANUAL', requiereRevision: false, resolucion, resueltoPor: adminId, resueltoAt: new Date() },
+          where: { id: op.id }, data: { estado: 'RESUELTA_MANUAL', requiereRevision: false, resolucion: resolucionConc, resueltoPor: adminId, resueltoAt: new Date() },
         });
-        await audit(tx, tenantId, adminId, 'CONTINGENCIA_RESOLVER', op.id, resolucion);
-        return this.resumenOperacion(fila);
+        await audit(tx, tenantId, adminId, 'CONTINGENCIA_RESOLVER', op.id, resolucionConc);
+        return { ...this.resumenOperacion(fila), conciliacionCaja };
       }
       if (op.estado === 'APLICADA' || op.estado === 'RESUELTA_MANUAL') throw new ConflictException('La operación ya está resuelta');
       const fila = await this.aplicar(tx, tenantId, op.id, { forzar: dto.accion === 'ACEPTAR', cajaId: dto.cajaId, resueltoPor: adminId });
@@ -567,6 +640,28 @@ export class ContingenciaService {
       await audit(tx, tenantId, adminId, 'CONTINGENCIA_RESOLVER', op.id, { ...resolucion, resultado: final.estado });
       return this.resumenOperacion(final);
     }, { timeout: 30000 });
+  }
+
+  /** Ingreso de conciliación por el efectivo que se quedó en caja (total cobrado, sin el cambio). Idempotente por operación. */
+  private async conciliarEfectivo(tx: Tx, tenantId: string, adminId: string, op: any, cajaSolicitada?: string) {
+    const monto = op.totalCentavos / 100;
+    const [previo] = await query<any>(tx as any, `SELECT m.id, m.caja_id FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id
+       WHERE c.tenant_id=$1 AND m.referencia=$2 AND m.tipo='INGRESO_MANUAL' AND m.concepto LIKE 'Conciliación contingencia%'`, tenantId, op.id);
+    if (previo) return { movimientoId: previo.id, cajaId: previo.caja_id, monto, reutilizado: true };
+    let caja: any;
+    if (cajaSolicitada) {
+      [caja] = await query<any>(tx as any, `SELECT id FROM cajas WHERE id=$1 AND tenant_id=$2 AND estado='ABIERTA'`, cajaSolicitada, tenantId);
+      if (!caja) throw new ConflictException('La caja indicada no existe o está cerrada');
+    } else {
+      [caja] = await query<any>(tx as any, `SELECT id FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado='ABIERTA' ORDER BY fecha_apertura DESC LIMIT 1`, tenantId, op.usuarioId);
+      if (!caja) [caja] = await query<any>(tx as any, `SELECT id FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado='ABIERTA' ORDER BY fecha_apertura DESC LIMIT 1`, tenantId, adminId);
+    }
+    if (!caja) throw new ConflictException('Abra una caja (o indique cajaId) para registrar el efectivo cobrado antes de cerrar la operación sin venta');
+    const movimientoId = nuevoId();
+    await query(tx, 'INSERT INTO movimientos_caja (id,caja_id,usuario_id,tipo,monto,metodo,referencia,concepto) VALUES ($1,$2,$3,$4::"TipoMovimientoCaja",$5,$6,$7,$8) RETURNING id',
+      movimientoId, caja.id, adminId, 'INGRESO_MANUAL', monto, 'EFECTIVO', op.id, `Conciliación contingencia ${op.correlativoLocal}: efectivo cobrado sin venta aplicada`);
+    await audit(tx, tenantId, adminId, 'CONTINGENCIA_CONCILIAR_EFECTIVO', op.id, { cajaId: caja.id, monto, movimientoId });
+    return { movimientoId, cajaId: caja.id, monto, reutilizado: false };
   }
 
   async actualizarReferencia(tenantId: string, usuarioId: string, rol: string, operacionId: string, referencia: string) {
@@ -630,7 +725,8 @@ export class ContingenciaService {
       contingencia: {
         sincronizadas: suma((e) => e.estado === 'APLICADA' && !e.requiere_revision),
         sincronizadasConRevision: suma((e) => e.estado === 'APLICADA' && e.requiere_revision),
-        conflictos: suma((e) => e.estado === 'REVISION' || e.estado === 'RECIBIDA'),
+        conflictos: suma((e) => e.estado === 'REVISION' || e.estado === 'RECIBIDA' || e.estado === 'RECHAZADA'),
+        rechazadas: suma((e) => e.estado === 'RECHAZADA'),
         resueltasManual: suma((e) => e.estado === 'RESUELTA_MANUAL'),
         pendientesReportadosPorCajas: pendientesEnCajas,
       },
