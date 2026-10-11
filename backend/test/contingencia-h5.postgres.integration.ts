@@ -239,4 +239,47 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     const lote = plainToInstance(LoteOperacionesDto, { dispositivoId: e.equipoId, pendientesRestantes: 0, operaciones: [cero] });
     expect(await validate(lote)).toEqual([]);
   });
+
+  // Hallazgos F1-F4 de la auditoría CENTINELA sobre 37642787.
+  it('F1: el remitente de un rechazo de otro cajero consulta el mismo rechazo que recibió al enviarlo', async () => {
+    const e = await empresa();
+    const op = operacion(e, { cajeroId: e.admin });
+    const primera = (await recibir(e, [op])).resultados[0];
+    expect(primera).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'CAJERO_NO_AUTORIZADO' });
+    const consulta: any = (await svc.estados(e.tenantId, e.cajero, 'CAJERO', [op.operacionId]))[0];
+    expect(consulta).toMatchObject({ estado: primera.estado, codigo: primera.codigo, mensaje: primera.mensaje });
+  });
+
+  it('F2: un conflicto de secuencia duplicada no devuelve identificadores de otras operaciones', async () => {
+    const e = await empresa();
+    const a = operacion(e);
+    await recibir(e, [a]);
+    const b = operacion(e, { secuenciaLocal: a.secuenciaLocal, correlativoLocal: a.correlativoLocal });
+    const r = (await recibir(e, [b])).resultados[0];
+    expect(JSON.stringify(r)).not.toContain(idSolicitud(e.tenantId, a.operacionId));
+    expect(JSON.stringify(r)).not.toContain(a.operacionId);
+  });
+
+  it('F3: el propietario no recibe el payload de un reenvío alterado enviado por otro usuario', async () => {
+    const e = await empresa();
+    const op = operacion(e);
+    await recibir(e, [op]);
+    const alterada = { ...op, clienteNombre: 'CLIENTE AJENO' };
+    await recibir(e, [alterada], e.admin.toString(), 'ADMIN');
+    const consulta: any = (await svc.estados(e.tenantId, e.cajero, 'CAJERO', [op.operacionId]))[0];
+    expect(JSON.stringify(consulta)).not.toContain('CLIENTE AJENO');
+    expect(JSON.stringify(consulta)).not.toContain('payloadRecibido');
+  });
+
+  it('F4: un cajero no ve la evidencia de un rechazo sin fila de otro cajero', async () => {
+    const e = await empresa();
+    const op = operacion(e, { efectivoRecibidoCentavos: 2000, cambioCentavos: 0 });
+    await recibir(e, [op]);
+    const otro = randomUUID();
+    await prisma.usuario.create({ data: { id: otro, tenantId: e.tenantId, nombre: 'Cajero C', email: `${otro}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
+    const ajeno: any = (await svc.estados(e.tenantId, otro, 'CAJERO', [op.operacionId]))[0];
+    expect(ajeno).toEqual({ operacionId: op.operacionId, estado: 'NO_REGISTRADA' });
+    const propio: any = (await svc.estados(e.tenantId, e.cajero, 'CAJERO', [op.operacionId]))[0];
+    expect(propio.codigo).toBe('IMPORTE_INVALIDO');
+  });
 });
