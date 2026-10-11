@@ -1,35 +1,53 @@
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString,
-  IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateIf, ValidateNested,
+  IsUUID, Matches, Max, MaxLength, Min, ValidateBy, ValidateIf, ValidateNested,
 } from 'class-validator';
 import { OPERACIONES_POR_VENTANA } from '../operaciones-emitidas';
 
 /**
- * H-A (CENTINELA): PostgreSQL no admite el carácter nulo en texto (22021/22P05); si llegaba hasta la base, la operación quedaba como
- * error temporal y se reintentaba sin fin. Se rechaza en el DTO como formato inválido de esa operación.
+ * Texto que PostgreSQL y JSON aceptan (H-A y H-F de CENTINELA): sin el carácter nulo (22021/22P05) y sin pares sustitutos sueltos
+ * (un \ud800 aislado rompe Prisma: «lone leading surrogate»). Antes la operación se reintentaba sin fin como error temporal.
  */
-const SinNul = () => Matches(/^[^\u0000]*$/, { message: '$property no admite caracteres nulos' });
+const SUSTITUTO_SUELTO = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+export const esTextoSeguro = (valor: unknown) => typeof valor !== 'string' || (!valor.includes('\u0000') && !SUSTITUTO_SUELTO.test(valor));
+/** Quita el carácter nulo y los pares sustitutos sueltos (para guardar evidencia sin perderla). */
+export const sanearTexto = (valor: string) => valor.replace(/\u0000/g, '').replace(new RegExp(SUSTITUTO_SUELTO.source, 'g'), '');
+const TextoSeguro = () => ValidateBy({
+  name: 'textoSeguro',
+  validator: { validate: esTextoSeguro, defaultMessage: () => '$property no admite caracteres nulos ni pares sustitutos incompletos' },
+});
 
-/** H-C (CENTINELA): un texto libre se mide sin espacios de relleno ni caracteres de ancho cero (U+200B, U+200C, U+200D, U+2060, U+FEFF). */
-export const limpiarTexto = (valor: unknown) => (typeof valor === 'string' ? valor.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim() : valor);
+/**
+ * H-C y H-G (CENTINELA): una nota o un motivo vacío en la práctica no puede contar como texto. Los invisibles se descartan por categoría
+ * Unicode, no por lista: formato (Cf: ancho cero, marcas direccionales, guion blando, etiquetas), control (Cc), separadores (Zs, Zl, Zp),
+ * selectores de variación y los rellenos que no pertenecen a esas categorías (hangul, braille en blanco, mongol, combinación de gracia).
+ */
+const INVISIBLES = /[\p{Cf}\p{Cc}\p{Zs}\p{Zl}\p{Zp}\u3164\u2800\u115F\u1160\uFFA0\u180E\u034F\uFE00-\uFE0F]/gu;
+export const longitudSignificativa = (valor: unknown) => (typeof valor === 'string' ? [...valor.replace(INVISIBLES, '')].length : 0);
+/** Texto libre normalizado para guardar: sin invisibles de formato ni relleno en los extremos. */
+export const limpiarTexto = (valor: unknown) => (typeof valor === 'string' ? valor.replace(/[\p{Cf}\u3164\u2800\u115F\u1160\uFFA0\u180E\u034F]/gu, '').trim() : valor);
 const TextoLimpio = () => Transform(({ value }) => limpiarTexto(value));
+const MinimoSignificativo = (minimo: number) => ValidateBy({
+  name: 'minimoSignificativo', constraints: [minimo],
+  validator: { validate: (valor, args) => longitudSignificativa(valor) >= (args?.constraints?.[0] ?? 0), defaultMessage: (args) => `$property debe tener al menos ${args?.constraints?.[0]} caracteres visibles` },
+});
 
 export class RegistrarDispositivoDto {
   @IsUUID('4') dispositivoId: string;
-  @IsString() @IsNotEmpty() @MaxLength(80) nombre: string;
+  @TextoSeguro() @IsString() @IsNotEmpty() @MaxLength(80) nombre: string;
 }
 
 export class SolicitarVentanaDto {
   @IsUUID('4') dispositivoId: string;
   /** Hash de la instantánea que el dispositivo ya tiene; si coincide no se reenvía el catálogo. */
-  @IsOptional() @IsString() @MaxLength(100) catalogoHashActual?: string;
+  @IsOptional() @TextoSeguro() @IsString() @MaxLength(100) catalogoHashActual?: string;
   /** Hora local del dispositivo (ISO) para estimar el desfase de reloj. */
   @IsOptional() @IsDateString() relojLocal?: string;
 }
 
 export class LineaContingenciaDto {
-  @IsString() @IsNotEmpty() @MaxLength(100) @SinNul() productoId: string;
+  @IsString() @IsNotEmpty() @MaxLength(100) @TextoSeguro() productoId: string;
   @IsInt() @Min(1) @Max(99999999) cantidadCentesimas: number;
   @IsInt() @Min(0) @Max(9999999999) precioCentavos: number;
 }
@@ -49,7 +67,7 @@ export class OperacionContingenciaDto {
   @IsInt() @Min(1) @Max(99999999) secuenciaLocal: number;
   @Matches(/^CT-\d{2,3}-\d{4,8}$/) correlativoLocal: string;
   @IsDateString() ocurridoAtLocal: string;
-  @IsString() @IsNotEmpty() @SinNul() cajeroId: string;
+  @IsString() @IsNotEmpty() @TextoSeguro() cajeroId: string;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => LineaContingenciaDto)
   lineas: LineaContingenciaDto[];
   // CENTINELA D: sin mínimo 1; un importe 0 lo clasifica el servicio (IMPORTE_INVALIDO) sin rechazar el lote entero.
@@ -59,9 +77,9 @@ export class OperacionContingenciaDto {
   @IsInt() @Min(0) @Max(MAX_CENTAVOS) efectivoRecibidoCentavos: number;
   @IsInt() @Min(0) @Max(MAX_CENTAVOS) cambioCentavos: number;
   @IsOptional() @IsIn(['EFECTIVO']) metodoPago?: 'EFECTIVO';
-  @IsOptional() @IsString() @MaxLength(200) @SinNul() clienteNombre?: string;
-  @IsOptional() @IsString() @MaxLength(100) @SinNul() clienteRtn?: string;
-  @IsOptional() @IsString() @MaxLength(100) @SinNul() referenciaFacturaExterna?: string;
+  @IsOptional() @IsString() @MaxLength(200) @TextoSeguro() clienteNombre?: string;
+  @IsOptional() @IsString() @MaxLength(100) @TextoSeguro() clienteRtn?: string;
+  @IsOptional() @IsString() @MaxLength(100) @TextoSeguro() referenciaFacturaExterna?: string;
   @IsInt() @Min(1) esquemaVersion: number;
 }
 
@@ -75,18 +93,18 @@ export class LoteOperacionesDto {
 
 export class ResolverOperacionDto {
   @IsIn(['REINTENTAR', 'ACEPTAR', 'CERRAR_MANUAL', 'MARCAR_REVISADA']) accion: 'REINTENTAR' | 'ACEPTAR' | 'CERRAR_MANUAL' | 'MARCAR_REVISADA';
-  @TextoLimpio() @SinNul() @IsString() @MinLength(10) @MaxLength(500) nota: string;
+  @TextoLimpio() @TextoSeguro() @IsString() @MinimoSignificativo(10) @MaxLength(500) nota: string;
   /** Caja ABIERTA donde se aplica la venta al ACEPTAR. En CERRAR_MANUAL el efectivo va siempre a la caja del cajero que cobró. */
-  @IsOptional() @IsString() @SinNul() cajaId?: string;
+  @IsOptional() @IsString() @TextoSeguro() cajaId?: string;
   /** R-02: regularización excepcional para registrar el efectivo en la caja CERRADA del cajero que cobró. Exige motivo. */
   @IsOptional() @IsBoolean() regularizarCajaCerrada?: boolean;
   // H-3 (CENTINELA): el mínimo de 20 caracteres se cuenta sobre el texto recortado; espacios en blanco no son un motivo.
-  @ValidateIf((o) => o.regularizarCajaCerrada === true) @TextoLimpio() @SinNul() @IsString() @MinLength(20) @MaxLength(500) motivoRegularizacion?: string;
-  @IsOptional() @TextoLimpio() @SinNul() @IsString() @MaxLength(100) referenciaFacturaExterna?: string;
+  @ValidateIf((o) => o.regularizarCajaCerrada === true) @TextoLimpio() @TextoSeguro() @IsString() @MinimoSignificativo(20) @MaxLength(500) motivoRegularizacion?: string;
+  @IsOptional() @TextoLimpio() @TextoSeguro() @IsString() @MaxLength(100) referenciaFacturaExterna?: string;
 }
 
 export class ActualizarReferenciaDto {
-  @TextoLimpio() @SinNul() @IsString() @MaxLength(100) referenciaFacturaExterna: string;
+  @TextoLimpio() @TextoSeguro() @IsString() @MaxLength(100) referenciaFacturaExterna: string;
 }
 
 export class ConfigContingenciaDto {

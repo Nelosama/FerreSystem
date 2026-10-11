@@ -9,7 +9,7 @@ import { RequiredModule } from '../common/decorators/required-module.decorator';
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { ContingenciaService } from './contingencia.service';
 import {
-  ActualizarReferenciaDto, ConfigContingenciaDto, LoteOperacionesDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto,
+  ActualizarReferenciaDto, ConfigContingenciaDto, LoteOperacionesDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto, limpiarTexto, sanearTexto,
 } from './dto/contingencia.dto';
 
 // Contingencia offline del POS (efectivo). Apagada por defecto: sin POS_OFFLINE_ENABLED y configuración por empresa, todo responde 403.
@@ -46,7 +46,7 @@ export class ContingenciaController {
   @Post('dispositivos/:id/desactivar')
   @Roles('ADMIN')
   desactivarDispositivo(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Param('id') id: string, @Body() body: { motivo?: string }) {
-    return this.service.desactivarDispositivo(tenantId, usuarioId, id, String(body?.motivo ?? '').trim().slice(0, 300) || 'Sin motivo indicado');
+    return this.service.desactivarDispositivo(tenantId, usuarioId, id, (limpiarTexto(sanearTexto(String(body?.motivo ?? ''))) as string).slice(0, 300) || 'Sin motivo indicado');
   }
 
   @Post('dispositivos/:id/latido')

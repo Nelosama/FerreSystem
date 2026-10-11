@@ -9,7 +9,7 @@ import { calcularTotales, centavosADecimal } from '../common/dinero';
 import { operacionEmitida, operacionesEmitidas } from './operaciones-emitidas';
 import { diaCalendario, rangoDiasEnZona, ZONA_HORARIA_NEGOCIO } from '../common/zona-horaria';
 import {
-  ConfigContingenciaDto, LoteOperacionesDto, MAX_CENTAVOS, OperacionContingenciaDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto, limpiarTexto,
+  ConfigContingenciaDto, LoteOperacionesDto, MAX_CENTAVOS, OperacionContingenciaDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto, limpiarTexto, longitudSignificativa, sanearTexto,
 } from './dto/contingencia.dto';
 
 // POS offline de contingencia (solo EFECTIVO). Ver docs/POS_OFFLINE_CONTINGENCIA_DISENO.md.
@@ -42,6 +42,16 @@ export function claveAnteriorDeOperaciones(entorno: NodeJS.ProcessEnv): string |
 }
 /** Rechazos por identidad o por clave: un reenvío legítimo posterior se reevalúa, no queda bloqueado. */
 const CODIGOS_REEVALUABLES = new Set(['CAJERO_NO_AUTORIZADO', 'OPERACION_NO_EMITIDA', 'CAJERO_DESCONOCIDO']);
+/**
+ * H-H (CENTINELA): la evidencia se guarda en jsonb, que no admite el carácter nulo ni pares sustitutos sueltos. Se recorre el objeto y se
+ * limpia cada cadena y cada clave; el texto que contiene la secuencia literal «\\u0000» (barra y números) se conserva intacto.
+ */
+export function sanearParaJsonb(valor: unknown, profundidad = 0): unknown {
+  if (typeof valor === 'string') return sanearTexto(valor);
+  if (profundidad > 20 || valor === null || typeof valor !== 'object') return typeof valor === 'object' ? null : valor;
+  if (Array.isArray(valor)) return valor.map((x) => sanearParaJsonb(x, profundidad + 1));
+  return Object.fromEntries(Object.entries(valor as Record<string, unknown>).map(([k, v]) => [sanearTexto(k), sanearParaJsonb(v, profundidad + 1)]));
+}
 const DEFECTOS = {
   cupoPorcentaje: 50, margenUnidades: 1, montoMaxVentaCentavos: 500_000, montoMaxAcumuladoCentavos: 2_500_000,
   vigenciaHoras: 36, dispositivosMax: 1,
@@ -186,7 +196,7 @@ export class ContingenciaService {
     const dispositivo = await this.buscarDispositivo(this.prisma, tenantId, dispositivoId);
     if (!dispositivo) throw new NotFoundException('Dispositivo no registrado');
     if (!dispositivo.activo) throw new ForbiddenException('Este dispositivo fue desactivado por un administrador');
-    await this.prisma.dispositivoPos.update({ where: { id: dispositivo.id }, data: { ultimoContactoAt: new Date(), pendientesReportados: Math.max(0, Math.floor(pendientes)) } });
+    await this.prisma.dispositivoPos.update({ where: { id: dispositivo.id }, data: { ultimoContactoAt: new Date(), pendientesReportados: Number.isFinite(pendientes) ? Math.min(1_000_000, Math.max(0, Math.floor(pendientes))) : 0 } });
     return { ok: true, serverNow: new Date().toISOString() };
   }
 
@@ -356,6 +366,10 @@ export class ContingenciaService {
   /** Estado de varias operaciones sin efectos (consulta previa al reenvío, recuperación tras cierre inesperado). */
   async estados(tenantId: string, usuarioId: string, rol: string, ids: string[]) {
     // El equipo conoce su identificador; el registro puede estar guardado con el derivado por empresa o, si es anterior, con el crudo.
+    // H-I (CENTINELA): un identificador que no es un UUID (con carácter nulo, demasiado largo, etc.) no puede existir; se responde sin consultarlo.
+    const esUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const invalidos = new Set(ids.filter((id) => !esUuid(id)));
+    ids = ids.filter(esUuid);
     const candidatos = ids.map((id) => [id, idRecurso(tenantId, id)] as const);
     const filas = await this.prisma.operacionContingencia.findMany({ where: { tenantId, id: { in: candidatos.flat() as string[] } } });
     // CENTINELA F1/F4: un no administrador ve sus operaciones y los rechazos que él mismo envió; nunca los de otro.
@@ -369,11 +383,12 @@ export class ContingenciaService {
       visibles = filas.filter((f) => f.usuarioId === usuarioId || propias.has(f.id));
     }
     const porId = new Map(visibles.map((f) => [f.id, f]));
-    return Promise.all(candidatos.map(async ([id, derivado]) => {
+    const validos = await Promise.all(candidatos.map(async ([id, derivado]) => {
       const f = porId.get(derivado) ?? porId.get(id);
       if (f) return this.resumenCliente(f, id);
       return (await this.respuestaSinRegistro(this.prisma, tenantId, id, rol === 'ADMIN' ? undefined : usuarioId)) ?? { operacionId: id, estado: 'NO_REGISTRADA' };
     }));
+    return [...validos, ...[...invalidos].map((id) => ({ operacionId: sanearTexto(id).slice(0, 64), estado: 'NO_REGISTRADA' }))];
   }
 
   /** Rechazo definitivo sin fila en el diario (importe incoherente, ventana desconocida): se reconstruye desde su evidencia en auditoría. */
@@ -475,7 +490,7 @@ export class ContingenciaService {
         id: idInterno, tenantId, dispositivoId, ventanaId: ventana.id, usuarioId: dto.cajeroId, cajaId: ventana.cajaId,
         secuenciaLocal: dto.secuenciaLocal, correlativoLocal: dto.correlativoLocal, ocurridoAtLocal: new Date(dto.ocurridoAtLocal),
         ocurridoAtEstimado: estimado, payload: dto as any, payloadHash: hash, totalCentavos: dto.totalCentavos,
-        efectivoRecibidoCentavos: dto.efectivoRecibidoCentavos, referenciaFacturaExterna: dto.referenciaFacturaExterna?.trim() || null,
+        efectivoRecibidoCentavos: dto.efectivoRecibidoCentavos, referenciaFacturaExterna: (limpiarTexto(dto.referenciaFacturaExterna) as string | undefined) || null,
       }],
       skipDuplicates: true,
     });
@@ -505,7 +520,7 @@ export class ContingenciaService {
         const idInterno = idSolicitud(tenantId, uuid);
         const yaAuditada = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno, usuarioId } });
         if (!yaAuditada) {
-          const payload = JSON.parse(JSON.stringify(crudo).replace(/\\u0000/g, ''));
+          const payload = sanearParaJsonb(crudo);
           await this.prisma.auditoriaOperacion.create({
             data: { tenantId, usuarioId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno,
               datos: { codigo: 'FORMATO_INVALIDO', mensaje, campos, payload } as any },
@@ -640,7 +655,7 @@ export class ContingenciaService {
         secuenciaLocal: dto.secuenciaLocal, correlativoLocal: dto.correlativoLocal, ocurridoAtLocal: new Date(dto.ocurridoAtLocal),
         ocurridoAtEstimado: this.estimarHora(dto.ocurridoAtLocal, ventana.limites as any), payload: dto as any, payloadHash: hash,
         totalCentavos: dto.totalCentavos, efectivoRecibidoCentavos: dto.efectivoRecibidoCentavos,
-        referenciaFacturaExterna: dto.referenciaFacturaExterna?.trim() || null,
+        referenciaFacturaExterna: (limpiarTexto(dto.referenciaFacturaExterna) as string | undefined) || null,
         estado: 'RECHAZADA', requiereRevision: true, conflictos: conflictos as any,
       }],
       skipDuplicates: true,
@@ -895,7 +910,7 @@ export class ContingenciaService {
       if (!op) throw new NotFoundException('Operación no encontrada');
       const resolucion = { accion: dto.accion, nota: dto.nota, por: adminId, en: new Date().toISOString() };
       if (dto.referenciaFacturaExterna !== undefined) {
-        await tx.operacionContingencia.update({ where: { id: op.id }, data: { referenciaFacturaExterna: dto.referenciaFacturaExterna.trim() || null } });
+        await tx.operacionContingencia.update({ where: { id: op.id }, data: { referenciaFacturaExterna: (limpiarTexto(dto.referenciaFacturaExterna) as string) || null } });
       }
       if (dto.accion === 'MARCAR_REVISADA') {
         if (op.estado !== 'APLICADA') throw new ConflictException('Solo una venta aplicada puede marcarse como revisada');
@@ -962,8 +977,8 @@ export class ContingenciaService {
       op.cajaId, tenantId, op.usuarioId);
     if (!caja) throw new ConflictException({ message: 'La caja del cajero que cobró no existe; no se registra el efectivo en otra caja', code: 'CAJA_DEL_COBRO_NO_ENCONTRADA' });
     const cerrada = caja.estado !== 'ABIERTA';
-    if (cerrada && regularizacion && limpiarTexto(regularizacion.motivo).toString().length < 20) {
-      throw new BadRequestException({ message: 'El motivo de la regularización debe tener al menos 20 caracteres', code: 'MOTIVO_REGULARIZACION_INSUFICIENTE' });
+    if (cerrada && regularizacion && longitudSignificativa(regularizacion.motivo) < 20) {
+      throw new BadRequestException({ message: 'El motivo de la regularización debe tener al menos 20 caracteres visibles', code: 'MOTIVO_REGULARIZACION_INSUFICIENTE' });
     }
     if (cerrada && !regularizacion) {
       throw new ConflictException({
@@ -983,7 +998,7 @@ export class ContingenciaService {
       const diferenciaAnterior = Number(caja.diferencia ?? 0);
       const esperadoNuevo = money(esperadoAnterior + monto);
       const diferenciaNueva = money(Number(caja.monto_cierre_fisico ?? 0) - esperadoNuevo);
-      const nota = `${caja.notas ? `${caja.notas} | ` : ''}Regularización ${op.correlativoLocal}: +${monto} (${limpiarTexto(regularizacion!.motivo)})`;
+      const nota = `${caja.notas ? `${caja.notas} | ` : ''}Regularización ${op.correlativoLocal}: +${monto} (${limpiarTexto(sanearTexto(regularizacion!.motivo))})`;
       await query(tx, 'UPDATE cajas SET monto_esperado=$1, diferencia=$2, notas=$3 WHERE id=$4', esperadoNuevo, diferenciaNueva, nota, caja.id);
       await audit(tx, tenantId, adminId, 'CONTINGENCIA_REGULARIZAR_CAJA_CERRADA', op.id,
         { cajaId: caja.id, monto, movimientoId, motivo: regularizacion!.motivo, esperadoAnterior, esperadoNuevo, diferenciaAnterior, diferenciaNueva });
@@ -999,7 +1014,7 @@ export class ContingenciaService {
       if (!op) throw new NotFoundException('Operación no encontrada');
       // H-5 (CENTINELA F6): para quien no es el dueño la operación no existe; el mismo 404 evita un oráculo de identificadores.
       if (rol !== 'ADMIN' && op.usuarioId !== usuarioId) throw new NotFoundException('Operación no encontrada');
-      const valor = referencia.trim() || null;
+      const valor = (limpiarTexto(referencia) as string) || null;
       const fila = await tx.operacionContingencia.update({ where: { id: op.id }, data: { referenciaFacturaExterna: valor } });
       if (op.ventaId) await tx.venta.update({ where: { id: op.ventaId }, data: { referenciaFacturaExterna: valor } });
       await audit(tx, tenantId, usuarioId, 'CONTINGENCIA_REFERENCIA_FACTURA', op.id, { anterior: op.referenciaFacturaExterna, nueva: valor });
@@ -1007,7 +1022,20 @@ export class ContingenciaService {
     });
   }
 
+  /** Fecha de calendario AAAA-MM-DD existente; cualquier otra cosa es un 400. */
+  private exigirFecha(valor: string) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
+    const real = m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : null;
+    if (!m || !real || real.getUTCFullYear() !== Number(m[1]) || real.getUTCMonth() !== Number(m[2]) - 1 || real.getUTCDate() !== Number(m[3])) {
+      throw new BadRequestException('Fecha inválida: use AAAA-MM-DD');
+    }
+  }
+
   async listar(tenantId: string, filtros: { estado?: string; desde?: string; hasta?: string; dispositivoId?: string; soloRevision?: boolean; limit?: number; page?: number }) {
+    // H-I (CENTINELA): filtros y fechas inválidos son un 400 claro, no un error interno de la base.
+    if (filtros.estado && !['RECIBIDA', 'APLICADA', 'REVISION', 'RESUELTA_MANUAL', 'RECHAZADA'].includes(filtros.estado)) throw new BadRequestException('Estado de filtro inválido');
+    if (filtros.dispositivoId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filtros.dispositivoId)) throw new BadRequestException('Dispositivo de filtro inválido');
+    for (const fecha of [filtros.desde, filtros.hasta]) if (fecha !== undefined) this.exigirFecha(fecha);
     const where: any = { tenantId };
     if (filtros.estado) where.estado = filtros.estado;
     if (filtros.dispositivoId) where.dispositivoId = filtros.dispositivoId;
@@ -1037,6 +1065,7 @@ export class ContingenciaService {
 
   /** Resumen para el panel móvil. Todo proviene de lo recibido por el servidor: puede estar desactualizado si la caja está sin conexión. */
   async resumen(tenantId: string, fecha?: string) {
+    if (fecha !== undefined) this.exigirFecha(fecha);
     const dia = fecha ?? diaCalendario(new Date(), ZONA_HORARIA_NEGOCIO);
     const { inicio, fin } = rangoDiasEnZona(dia, dia);
     const ahora = new Date();
