@@ -1029,6 +1029,8 @@ export class ContingenciaService {
     if (!m || !real || real.getUTCFullYear() !== Number(m[1]) || real.getUTCMonth() !== Number(m[2]) - 1 || real.getUTCDate() !== Number(m[3])) {
       throw new BadRequestException('Fecha inválida: use AAAA-MM-DD');
     }
+    // H-O (CENTINELA): años fuera de rango harían fallar la zona horaria de PostgreSQL (22009).
+    if (Number(m[1]) < 1900 || Number(m[1]) > 2100) throw new BadRequestException('Fecha fuera de rango (1900-2100)');
   }
 
   async listar(tenantId: string, filtros: { estado?: string; desde?: string; hasta?: string; dispositivoId?: string; soloRevision?: boolean; limit?: number; page?: number }) {
@@ -1046,7 +1048,7 @@ export class ContingenciaService {
     }
     const take = Math.min(200, Math.max(1, filtros.limit ?? 50));
     const filas = await this.prisma.operacionContingencia.findMany({
-      where, orderBy: { recibidoAt: 'desc' }, take, skip: Math.max(0, filtros.page ?? 0) * take,
+      where, orderBy: { recibidoAt: 'desc' }, take, skip: Math.min(100000, Math.max(0, filtros.page ?? 0)) * take,
       include: { dispositivo: { select: { codigo: true, nombre: true } } },
     });
     const usuarios = await this.prisma.usuario.findMany({ where: { tenantId, id: { in: [...new Set(filas.map((f) => f.usuarioId))] } }, select: { id: true, nombre: true } });

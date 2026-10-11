@@ -1,6 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import {
-  ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString,
+  ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString,
   IsUUID, Matches, Max, MaxLength, Min, ValidateBy, ValidateIf, ValidateNested,
 } from 'class-validator';
 import { OPERACIONES_POR_VENTANA } from '../operaciones-emitidas';
@@ -23,11 +23,23 @@ const TextoSeguro = () => ValidateBy({
  * Unicode, no por lista: formato (Cf: ancho cero, marcas direccionales, guion blando, etiquetas), control (Cc), separadores (Zs, Zl, Zp),
  * selectores de variación y los rellenos que no pertenecen a esas categorías (hangul, braille en blanco, mongol, combinación de gracia).
  */
-const INVISIBLES = /[\p{Cf}\p{Cc}\p{Zs}\p{Zl}\p{Zp}\u3164\u2800\u115F\u1160\uFFA0\u180E\u034F\uFE00-\uFE0F]/gu;
+const INVISIBLES = /[\p{Cf}\p{Cc}\p{Zs}\p{Zl}\p{Zp}\u3164\u2800\u115F\u1160\uFFA0\u180E\u034F\uFE00-\uFE0F\p{M}\p{Default_Ignorable_Code_Point}]/gu;
 export const longitudSignificativa = (valor: unknown) => (typeof valor === 'string' ? [...valor.replace(INVISIBLES, '')].length : 0);
 /** Texto libre normalizado para guardar: sin invisibles de formato ni relleno en los extremos. */
 export const limpiarTexto = (valor: unknown) => (typeof valor === 'string' ? valor.replace(/[\p{Cf}\u3164\u2800\u115F\u1160\uFFA0\u180E\u034F]/gu, '').trim() : valor);
 const TextoLimpio = () => Transform(({ value }) => limpiarTexto(value));
+/** H-M (CENTINELA): solo ISO con fecha de calendario (AAAA-MM-DD…); rechaza las formas semanal y ordinal que `new Date()` no entiende. */
+export const esFechaHoraIso = (valor: unknown) => {
+  if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:?\d{2})?)?$/.test(valor)) return false;
+  const [a, m, d] = valor.slice(0, 10).split('-').map(Number);
+  const dia = new Date(Date.UTC(a, m - 1, d));
+  if (dia.getUTCFullYear() !== a || dia.getUTCMonth() !== m - 1 || dia.getUTCDate() !== d) return false;
+  const t = new Date(valor).getTime();
+  return Number.isFinite(t) && t >= Date.UTC(1970, 0, 1) && t <= Date.UTC(2100, 0, 1);
+};
+const FechaHoraIso = () => ValidateBy({
+  name: 'fechaHoraIso', validator: { validate: esFechaHoraIso, defaultMessage: () => '$property debe ser una fecha ISO 8601 válida (AAAA-MM-DDThh:mm:ssZ)' },
+});
 const MinimoSignificativo = (minimo: number) => ValidateBy({
   name: 'minimoSignificativo', constraints: [minimo],
   validator: { validate: (valor, args) => longitudSignificativa(valor) >= (args?.constraints?.[0] ?? 0), defaultMessage: (args) => `$property debe tener al menos ${args?.constraints?.[0]} caracteres visibles` },
@@ -43,7 +55,7 @@ export class SolicitarVentanaDto {
   /** Hash de la instantánea que el dispositivo ya tiene; si coincide no se reenvía el catálogo. */
   @IsOptional() @TextoSeguro() @IsString() @MaxLength(100) catalogoHashActual?: string;
   /** Hora local del dispositivo (ISO) para estimar el desfase de reloj. */
-  @IsOptional() @IsDateString() relojLocal?: string;
+  @IsOptional() @FechaHoraIso() relojLocal?: string;
 }
 
 export class LineaContingenciaDto {
@@ -66,7 +78,7 @@ export class OperacionContingenciaDto {
   @IsOptional() @IsInt() @Min(0) @Max(OPERACIONES_POR_VENTANA - 1) indiceOperacion?: number;
   @IsInt() @Min(1) @Max(99999999) secuenciaLocal: number;
   @Matches(/^CT-\d{2,3}-\d{4,8}$/) correlativoLocal: string;
-  @IsDateString() ocurridoAtLocal: string;
+  @FechaHoraIso() ocurridoAtLocal: string;
   @IsString() @IsNotEmpty() @TextoSeguro() cajeroId: string;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => LineaContingenciaDto)
   lineas: LineaContingenciaDto[];

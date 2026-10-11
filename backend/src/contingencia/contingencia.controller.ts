@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -9,8 +9,14 @@ import { RequiredModule } from '../common/decorators/required-module.decorator';
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { ContingenciaService } from './contingencia.service';
 import {
-  ActualizarReferenciaDto, ConfigContingenciaDto, LoteOperacionesDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto, limpiarTexto, sanearTexto,
+  ActualizarReferenciaDto, ConfigContingenciaDto, LoteOperacionesDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto, esTextoSeguro, limpiarTexto, sanearTexto,
 } from './dto/contingencia.dto';
+
+// H-K (CENTINELA): los identificadores de ruta llegan a la base; nulos, sustitutos sueltos o longitudes absurdas son un 400.
+const IdSeguro = new (class { transform(valor: string) {
+  if (typeof valor !== 'string' || !valor || valor.length > 100 || !esTextoSeguro(valor)) throw new BadRequestException('Identificador inválido');
+  return valor;
+} })();
 
 // Contingencia offline del POS (efectivo). Apagada por defecto: sin POS_OFFLINE_ENABLED y configuración por empresa, todo responde 403.
 @Controller('contingencia')
@@ -45,13 +51,13 @@ export class ContingenciaController {
 
   @Post('dispositivos/:id/desactivar')
   @Roles('ADMIN')
-  desactivarDispositivo(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Param('id') id: string, @Body() body: { motivo?: string }) {
-    return this.service.desactivarDispositivo(tenantId, usuarioId, id, (limpiarTexto(sanearTexto(String(body?.motivo ?? ''))) as string).slice(0, 300) || 'Sin motivo indicado');
+  desactivarDispositivo(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Param('id', IdSeguro) id: string, @Body() body: { motivo?: string }) {
+    return this.service.desactivarDispositivo(tenantId, usuarioId, id, [...(limpiarTexto(sanearTexto(String(body?.motivo ?? ''))) as string)].slice(0, 300).join('') || 'Sin motivo indicado');
   }
 
   @Post('dispositivos/:id/latido')
   @Roles('ADMIN', 'CAJERO', 'VENDEDOR')
-  latido(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Param('id') id: string, @Body() body: { pendientes?: number }) {
+  latido(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Param('id', IdSeguro) id: string, @Body() body: { pendientes?: number }) {
     return this.service.latido(tenantId, usuarioId, id, Number(body?.pendientes ?? 0));
   }
 
@@ -71,7 +77,9 @@ export class ContingenciaController {
 
   @Get('operaciones/estados')
   @Roles('ADMIN', 'CAJERO')
-  estados(@TenantId() tenantId: string, @CurrentUser() user: any, @Query('ids') ids = '') {
+  estados(@TenantId() tenantId: string, @CurrentUser() user: any, @Query('ids') idsCrudo: unknown = '') {
+    // H-N: un parámetro repetido llega como arreglo; se unen en una sola lista.
+    const ids = (Array.isArray(idsCrudo) ? idsCrudo.join(',') : String(idsCrudo ?? ''));
     const lista = ids.split(',').map((id) => id.trim()).filter(Boolean).slice(0, 100);
     return this.service.estados(tenantId, user.sub, user.rol, lista);
   }
@@ -102,13 +110,13 @@ export class ContingenciaController {
 
   @Post('operaciones/:id/resolver')
   @Roles('ADMIN')
-  resolver(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Param('id') id: string, @Body() dto: ResolverOperacionDto) {
+  resolver(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Param('id', IdSeguro) id: string, @Body() dto: ResolverOperacionDto) {
     return this.service.resolver(tenantId, usuarioId, id, dto);
   }
 
   @Patch('operaciones/:id/referencia-factura')
   @Roles('ADMIN', 'CAJERO')
-  referencia(@TenantId() tenantId: string, @CurrentUser() user: any, @Param('id') id: string, @Body() dto: ActualizarReferenciaDto) {
+  referencia(@TenantId() tenantId: string, @CurrentUser() user: any, @Param('id', IdSeguro) id: string, @Body() dto: ActualizarReferenciaDto) {
     return this.service.actualizarReferencia(tenantId, user.sub, user.rol, id, dto.referenciaFacturaExterna);
   }
 }
