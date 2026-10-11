@@ -112,9 +112,11 @@ export async function sincronizarPendientes(
 
 export interface EstadoServidor {
   operacionId: string;
-  estado: 'RECIBIDA' | 'APLICADA' | 'REVISION' | 'RESUELTA_MANUAL' | 'NO_REGISTRADA';
+  // RECHAZADA_TECNICA: rechazo definitivo (estado terminal RECHAZADA en servidor); el equipo lo muestra como REVISION con su motivo.
+  estado: 'RECIBIDA' | 'APLICADA' | 'REVISION' | 'RECHAZADA_TECNICA' | 'RESUELTA_MANUAL' | 'NO_REGISTRADA';
   requiereRevision?: boolean;
   conflictos?: Conflicto[];
+  mensaje?: string | null;
   numeroVenta?: number | null;
   correlativoDefinitivo?: string | null;
   ventaId?: string | null;
@@ -136,6 +138,9 @@ export function cambiosDesdeServidor(op: OperacionLocal, s: EstadoServidor, ahor
     case 'REVISION':
       if (op.estado === 'REVISION') return null;
       return { estado: 'REVISION', requiereRevision: true, conflictos: s.conflictos ?? [] };
+    case 'RECHAZADA_TECNICA':
+      if (op.estado === 'REVISION' && op.requiereRevision) return null;
+      return { estado: 'REVISION', requiereRevision: true, conflictos: s.conflictos ?? [], ultimoError: s.mensaje ?? undefined };
     default:
       return null;
   }

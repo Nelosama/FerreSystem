@@ -197,7 +197,7 @@ export default function ContingenciaAdminPage() {
                 <br />Total {formatearCentavos(op.totalCentavos)} · Recibido {formatearCentavos(op.efectivoRecibidoCentavos)} · Cambio {formatearCentavos(op.cambioCentavos)}
                 <br />Ocurrió {new Date(op.ocurridoAt).toLocaleString('es-HN')} · Recibida {new Date(op.recibidoAt).toLocaleString('es-HN')}
               </div>
-              {(op.estado === 'REVISION' || op.estado === 'RESUELTA_MANUAL') && (op.inventarioPendiente?.length ?? 0) > 0 && (
+              {(op.estado === 'REVISION' || op.estado === 'RECHAZADA' || op.estado === 'RESUELTA_MANUAL') && (op.inventarioPendiente?.length ?? 0) > 0 && (
                 <div role="alert" aria-label={`Inventario físico pendiente de ${op.correlativoLocal}`} style={{ border: '2px solid #b45309', background: '#fffbeb', color: '#78350f', borderRadius: 8, padding: 10, margin: '8px 0', fontSize: 14 }}>
                   <strong>Inventario físico pendiente de conciliar</strong>
                   <div>
@@ -216,7 +216,7 @@ export default function ContingenciaAdminPage() {
                   {op.conflictos.map((k, i) => <li key={`${k.codigo}-${i}`}>{etiqueta(k)}</li>)}
                 </ul>
               )}
-              {op.estado === 'REVISION' && (rechazada(op) || op.conflictos.some((k) => k.codigo === 'CAJA_CERRADA')) && (
+              {(op.estado === 'REVISION' || op.estado === 'RECHAZADA') && (rechazada(op) || op.conflictos.some((k) => k.codigo === 'CAJA_CERRADA')) && (
                 <label style={{ display: 'grid', gap: 4, marginTop: 8 }}>
                   Caja abierta donde se registrará el efectivo (si no elige, se usa la caja abierta del cajero o la suya)
                   <select value={caja[op.operacionId] ?? ''} onChange={(e) => setCaja((x) => ({ ...x, [op.operacionId]: e.target.value }))}>
@@ -225,14 +225,14 @@ export default function ContingenciaAdminPage() {
                   </select>
                 </label>
               )}
-              {(op.estado === 'REVISION' || (op.estado === 'SINCRONIZADA' && op.requiereRevision)) && (
+              {(op.estado === 'REVISION' || op.estado === 'RECHAZADA' || (op.estado === 'SINCRONIZADA' && op.requiereRevision)) && (
                 <label style={{ display: 'grid', gap: 4, marginTop: 8 }}>
                   Nota de la decisión (mínimo 10 caracteres)
                   <textarea rows={2} value={notas[op.operacionId] ?? ''} onChange={(e) => setNotas((n) => ({ ...n, [op.operacionId]: e.target.value }))} />
                 </label>
               )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                {op.estado === 'REVISION' && (
+                {(op.estado === 'REVISION' || op.estado === 'RECHAZADA') && (
                   <>
                     {!rechazada(op) && <button className="pc-btn primario" style={{ fontSize: 15, minHeight: 44, width: 'auto' }} onClick={() => void resolver(op, 'ACEPTAR')}>Aceptar y aplicar</button>}
                     <button className="pc-btn" onClick={() => void resolver(op, 'CERRAR_MANUAL')}>Cerrar sin venta y registrar el efectivo en caja</button>

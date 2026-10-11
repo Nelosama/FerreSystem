@@ -284,7 +284,7 @@ export class ContingenciaService {
   /** Vista para el equipo (una operación rechazada ya está en REVISION: el equipo conserva la venta local). */
   private resumenCliente(f: any, idEquipo?: string) {
     // O-02: un rechazo definitivo se describe igual que en la primera respuesta (estado, motivo e instrucción), no como REVISION genérica.
-    if (esRechazo(f) && f.estado === 'REVISION') return { ...this.resumenOperacion(f, idEquipo), ...this.respuestaRechazo(f, idEquipo ?? f.id) };
+    if (esRechazo(f) && (f.estado === 'RECHAZADA' || f.estado === 'REVISION')) return { ...this.resumenOperacion(f, idEquipo), ...this.respuestaRechazo(f, idEquipo ?? f.id) };
     return this.resumenOperacion(f, idEquipo);
   }
 
@@ -390,7 +390,7 @@ export class ContingenciaService {
             ocurridoAtEstimado: this.estimarHora(dto.ocurridoAtLocal, ventana.limites as any), payload: dto as any, payloadHash: hash,
             totalCentavos: dto.totalCentavos, efectivoRecibidoCentavos: dto.efectivoRecibidoCentavos,
             referenciaFacturaExterna: dto.referenciaFacturaExterna?.trim() || null,
-            estado: 'REVISION', requiereRevision: true, conflictos: conflictos as any,
+            estado: 'RECHAZADA', requiereRevision: true, conflictos: conflictos as any,
           },
         });
         await audit(tx, tenantId, dto.cajeroId, 'CONTINGENCIA_OPERACION_RECHAZADA', fila.id, { codigo: rechazo.codigo, ventanaId: ventana.id, correlativoLocal: dto.correlativoLocal, totalCentavos: dto.totalCentavos });
@@ -434,7 +434,7 @@ export class ContingenciaService {
     const [bloqueada] = await query(tx, 'SELECT id FROM operaciones_contingencia WHERE id=$1 AND tenant_id=$2 FOR UPDATE', operacionId, tenantId);
     if (!bloqueada) throw new NotFoundException('Operación no encontrada');
     const op = await tx.operacionContingencia.findUniqueOrThrow({ where: { id: operacionId } });
-    if (esRechazo(op)) throw new ConflictException('Una operación rechazada nunca se aplica como venta; ciérrela con conciliación de efectivo (cerrar sin venta)');
+    if (op.estado === 'RECHAZADA' || esRechazo(op)) throw new ConflictException('Una operación rechazada nunca se aplica como venta; ciérrela con conciliación de efectivo (cerrar sin venta)');
     if (op.estado === 'APLICADA' || op.estado === 'RESUELTA_MANUAL') return op;
     if (op.estado === 'REVISION' && !opciones.forzar && !opciones.resueltoPor) return op;
 
@@ -725,7 +725,7 @@ export class ContingenciaService {
     const usuarios = await this.prisma.usuario.findMany({ where: { tenantId, id: { in: [...new Set(filas.map((f) => f.usuarioId))] } }, select: { id: true, nombre: true } });
     const nombres = new Map(usuarios.map((u) => [u.id, u.nombre]));
     // F-01: una operación sin venta (en revisión o cerrada sin venta) con efectivo cobrado deja mercancía pendiente de conciliar físicamente.
-    const sinVenta = filas.filter((f) => f.estado === 'REVISION' || f.estado === 'RESUELTA_MANUAL');
+    const sinVenta = filas.filter((f) => f.estado === 'REVISION' || f.estado === 'RECHAZADA' || f.estado === 'RESUELTA_MANUAL');
     const pendientes = await this.inventarioPendiente(this.prisma as any, tenantId, sinVenta);
     return filas.map((f) => ({
       ...this.resumenOperacion(f), inventarioPendiente: pendientes.get(f.id) ?? [], cajero: nombres.get(f.usuarioId) ?? null, cajeroId: f.usuarioId, dispositivo: f.dispositivo.codigo,
@@ -758,7 +758,7 @@ export class ContingenciaService {
       contingencia: {
         sincronizadas: suma((e) => e.estado === 'APLICADA' && !e.requiere_revision),
         sincronizadasConRevision: suma((e) => e.estado === 'APLICADA' && e.requiere_revision),
-        conflictos: suma((e) => e.estado === 'REVISION' || e.estado === 'RECIBIDA'),
+        conflictos: suma((e) => e.estado === 'REVISION' || e.estado === 'RECHAZADA' || e.estado === 'RECIBIDA'),
         resueltasManual: suma((e) => e.estado === 'RESUELTA_MANUAL'),
         pendientesReportadosPorCajas: pendientesEnCajas,
       },
