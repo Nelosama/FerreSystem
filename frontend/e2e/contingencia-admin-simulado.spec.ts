@@ -80,7 +80,7 @@ async function ingresarYAbrirAdministracion(page: Page) {
   await expect(page.getByRole('button', { name: /Cerrar sin venta y registrar el efectivo en caja/ })).toBeVisible();
 }
 
-test('cierre sin venta: no envía caja, la regularización aparece solo tras el 409 y un motivo corto no se envía', async ({ page, sim }) => {
+test('cierre sin venta: no envía caja, la regularización aparece solo tras el 409 y un motivo que no cumple la regla no se envía', async ({ page, sim }) => {
   await ingresarYAbrirAdministracion(page);
   const cerrar = page.getByRole('button', { name: /Cerrar sin venta y registrar el efectivo en caja/ });
 
@@ -98,21 +98,19 @@ test('cierre sin venta: no envía caja, la regularización aparece solo tras el 
   await expect(motivo).toBeVisible();
   await expect(page.getByRole('alert').or(page.getByText(/está cerrada/)).first()).toBeVisible();
 
-  // 2) Motivo de menos de 20 caracteres: la pantalla no envía la regularización.
+  // 2) Motivo que no cumple la regla (misma que aplica el servidor): la pantalla lo dice y no envía nada.
   await motivo.fill('muy corto');
   await cerrar.click();
-  await expect.poll(() => sim.resoluciones.length).toBe(2);
-  expect(sim.resoluciones[1]).not.toHaveProperty('regularizarCajaCerrada');
-  expect(sim.resoluciones[1]).not.toHaveProperty('motivoRegularizacion');
-  expect(sim.resoluciones[1]).not.toHaveProperty('cajaId');
+  await expect(page.getByRole('alert')).toContainText('al menos 20 caracteres (los espacios cuentan) y al menos 3 letras, números o símbolos visibles');
+  expect(sim.resoluciones.length).toBe(1);
 
   // 3) Motivo suficiente: se envía la regularización con el motivo recortado y todavía sin caja.
   const texto = 'Cobro verificado; la caja cerró con el efectivo en el cajón';
   await motivo.fill(`  ${texto}  `);
   await cerrar.click();
-  await expect.poll(() => sim.resoluciones.length).toBe(3);
-  expect(sim.resoluciones[2]).toMatchObject({ accion: 'CERRAR_MANUAL', regularizarCajaCerrada: true, motivoRegularizacion: texto });
-  expect(sim.resoluciones[2]).not.toHaveProperty('cajaId');
+  await expect.poll(() => sim.resoluciones.length).toBe(2);
+  expect(sim.resoluciones[1]).toMatchObject({ accion: 'CERRAR_MANUAL', regularizarCajaCerrada: true, motivoRegularizacion: texto });
+  expect(sim.resoluciones[1]).not.toHaveProperty('cajaId');
   await expect(page.getByText('Decisión registrada y auditada.')).toBeVisible();
   expect(sim.errores).toEqual([]);
 });

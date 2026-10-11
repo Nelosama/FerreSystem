@@ -3,8 +3,9 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { BadRequestException } from '@nestjs/common';
 import { ContingenciaController } from '../src/contingencia/contingencia.controller';
+import { longitudDeNegocio, caracteresVisibles } from '../src/contingencia/texto-minimo';
 import { ContingenciaService } from '../src/contingencia/contingencia.service';
-import { ActualizarReferenciaDto, OperacionContingenciaDto, SolicitarVentanaDto, ResolverOperacionDto, longitudSignificativa, esFechaHoraIso } from '../src/contingencia/dto/contingencia.dto';
+import { ActualizarReferenciaDto, OperacionContingenciaDto, SolicitarVentanaDto, ResolverOperacionDto, esFechaHoraIso } from '../src/contingencia/dto/contingencia.dto';
 
 // CENTINELA sobre 71ec3a00 (H-J..H-O): entradas que no pasan por un DTO de texto. No requiere base de datos.
 describe('Contingencia: cierre de entradas fuera de los DTO (H-J..H-O)', () => {
@@ -33,10 +34,13 @@ describe('Contingencia: cierre de entradas fuera de los DTO (H-J..H-O)', () => {
     expect(pipe.transform('7d4f0a0e-6f1e-4c0e-9c0e-0a0b0c0d0e0f')).toBe('7d4f0a0e-6f1e-4c0e-9c0e-0a0b0c0d0e0f');
   });
 
-  it('H-L: marcas de combinación, selectores suplementarios y ignorables no cuentan como visibles', () => {
-    for (const falso of ['́', '\u{E0100}', '឴', '᠋', 'ฺ', '⁥', '￰']) expect(longitudSignificativa(falso.repeat(25))).toBe(0);
-    expect(longitudSignificativa('Cambio de caja')).toBe(12);
-    expect(longitudSignificativa('Señal ¿ok? ¡sí! Nº 5 😀')).toBeGreaterThanOrEqual(15);
+  it('H-L: marcas de combinación, selectores suplementarios e ignorables no cuentan como visibles ni como longitud', () => {
+    for (const falso of ['\u0301', '\u{E0100}', '\u17B4', '\u180B', '\u0E3A', '\u2065', '\uFFF0']) {
+      expect(caracteresVisibles(falso.repeat(25)), `visibles ${falso.codePointAt(0)!.toString(16)}`).toBe(0);
+    }
+    expect(longitudDeNegocio('Cambio de caja')).toBe(14);
+    expect(caracteresVisibles('Cambio de caja')).toBe(12);
+    expect(caracteresVisibles('Señal ¿ok? ¡sí! Nº 5 😀')).toBeGreaterThanOrEqual(15);
   });
 
   it('H-L: la nota y el motivo con solo marcas se rechazan por HTTP-DTO', async () => {

@@ -4,6 +4,7 @@ import {
   IsUUID, Matches, Max, MaxLength, Min, ValidateBy, ValidateIf, ValidateNested,
 } from 'class-validator';
 import { OPERACIONES_POR_VENTANA } from '../operaciones-emitidas';
+import { limpiarTextoLibre, mensajeTextoMinimo, validarTextoMinimo } from '../texto-minimo';
 
 /**
  * Texto que PostgreSQL y JSON aceptan (H-A y H-F de CENTINELA): sin el carácter nulo (22021/22P05) y sin pares sustitutos sueltos
@@ -19,14 +20,10 @@ const TextoSeguro = () => ValidateBy({
 });
 
 /**
- * H-C y H-G (CENTINELA): una nota o un motivo vacío en la práctica no puede contar como texto. Los invisibles se descartan por categoría
- * Unicode, no por lista: formato (Cf: ancho cero, marcas direccionales, guion blando, etiquetas), control (Cc), separadores (Zs, Zl, Zp),
- * selectores de variación y los rellenos que no pertenecen a esas categorías (hangul, braille en blanco, mongol, combinación de gracia).
+ * Texto libre normalizado para guardar: sin invisibles de formato ni relleno en los extremos. La regla de longitud mínima y de
+ * caracteres visibles está en `texto-minimo.ts`, idéntica a la que aplica la interfaz.
  */
-const INVISIBLES = /[\p{Cf}\p{Cc}\p{Zs}\p{Zl}\p{Zp}\u3164\u2800\u115F\u1160\uFFA0\u180E\u034F\uFE00-\uFE0F\p{M}\p{Default_Ignorable_Code_Point}]/gu;
-export const longitudSignificativa = (valor: unknown) => (typeof valor === 'string' ? [...valor.replace(INVISIBLES, '')].length : 0);
-/** Texto libre normalizado para guardar: sin invisibles de formato ni relleno en los extremos. */
-export const limpiarTexto = (valor: unknown) => (typeof valor === 'string' ? valor.replace(/[\p{Cf}\u3164\u2800\u115F\u1160\uFFA0\u180E\u034F]/gu, '').trim() : valor);
+export const limpiarTexto = (valor: unknown) => (typeof valor === 'string' ? limpiarTextoLibre(valor) : valor);
 const TextoLimpio = () => Transform(({ value }) => limpiarTexto(value));
 /** H-M (CENTINELA): solo ISO con fecha de calendario (AAAA-MM-DD…); rechaza las formas semanal y ordinal que `new Date()` no entiende. */
 export const esFechaHoraIso = (valor: unknown) => {
@@ -42,7 +39,7 @@ const FechaHoraIso = () => ValidateBy({
 });
 const MinimoSignificativo = (minimo: number) => ValidateBy({
   name: 'minimoSignificativo', constraints: [minimo],
-  validator: { validate: (valor, args) => longitudSignificativa(valor) >= (args?.constraints?.[0] ?? 0), defaultMessage: (args) => `$property debe tener al menos ${args?.constraints?.[0]} caracteres visibles` },
+  validator: { validate: (valor, args) => validarTextoMinimo(valor, args?.constraints?.[0] ?? 0).ok, defaultMessage: (args) => mensajeTextoMinimo(args?.constraints?.[0] ?? 0) },
 });
 
 export class RegistrarDispositivoDto {

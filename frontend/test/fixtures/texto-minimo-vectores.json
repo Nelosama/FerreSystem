@@ -1,0 +1,118 @@
+{
+ "casos": [
+  {
+   "descripcion": "Ya se cobró",
+   "texto": "Ya se cobró",
+   "minimo": 10,
+   "ok": true
+  },
+  {
+   "descripcion": "9 caracteres",
+   "texto": "Sin stock",
+   "minimo": 10,
+   "ok": false
+  },
+  {
+   "descripcion": "espacios cuentan",
+   "texto": "a b c d e f",
+   "minimo": 10,
+   "ok": true
+  },
+  {
+   "descripcion": "solo dos visibles",
+   "texto": "a        b",
+   "minimo": 10,
+   "ok": false
+  },
+  {
+   "descripcion": "extremos no cuentan",
+   "texto": "          abc",
+   "minimo": 10,
+   "ok": false
+  },
+  {
+   "descripcion": "solo espacios",
+   "texto": "        \n\t   ",
+   "minimo": 10,
+   "ok": false
+  },
+  {
+   "descripcion": "motivo 20",
+   "texto": "Caja cerrada por error del turno",
+   "minimo": 20,
+   "ok": true
+  },
+  {
+   "descripcion": "D-1 privado E000",
+   "texto": "",
+   "minimo": 10,
+   "ok": false
+  },
+  {
+   "descripcion": "D-1 sin asignar 0378",
+   "texto": "͸͸͸͸͸͸͸͸͸͸͸͸",
+   "minimo": 10,
+   "ok": false
+  },
+  {
+   "descripcion": "D-1 FFFC",
+   "texto": "￼￼￼￼￼￼￼￼￼￼￼￼",
+   "minimo": 10,
+   "ok": false
+  },
+  {
+   "descripcion": "D-1 3 visibles + privados",
+   "texto": "abc",
+   "minimo": 10,
+   "ok": false
+  },
+  {
+   "descripcion": "marcas sueltas",
+   "texto": "́́́́́́́́́́́́",
+   "minimo": 10,
+   "ok": false
+  },
+  {
+   "descripcion": "ZWSP",
+   "texto": "​​​​​​​​​​​​",
+   "minimo": 10,
+   "ok": false
+  },
+  {
+   "descripcion": "3 visibles + ZWSP",
+   "texto": "abc​​​​​​​",
+   "minimo": 10,
+   "ok": false
+  },
+  {
+   "descripcion": "hindi",
+   "texto": "मैंने सामान लौटाया है",
+   "minimo": 10,
+   "ok": true
+  },
+  {
+   "descripcion": "árabe",
+   "texto": "تم إلغاء العملية بالخطأ",
+   "minimo": 10,
+   "ok": true
+  },
+  {
+   "descripcion": "japonés",
+   "texto": "誤って取引を取り消しました",
+   "minimo": 10,
+   "ok": true
+  },
+  {
+   "descripcion": "español NFD",
+   "texto": "Devolución del niño",
+   "minimo": 10,
+   "ok": true
+  },
+  {
+   "descripcion": "emoji x10",
+   "texto": "😀😀😀😀😀😀😀😀😀😀",
+   "minimo": 10,
+   "ok": true
+  }
+ ]
+}

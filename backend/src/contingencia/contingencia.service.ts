@@ -9,8 +9,10 @@ import { calcularTotales, centavosADecimal } from '../common/dinero';
 import { operacionEmitida, operacionesEmitidas } from './operaciones-emitidas';
 import { diaCalendario, rangoDiasEnZona, ZONA_HORARIA_NEGOCIO } from '../common/zona-horaria';
 import {
-  ConfigContingenciaDto, LoteOperacionesDto, MAX_CENTAVOS, OperacionContingenciaDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto, limpiarTexto, longitudSignificativa, sanearTexto,
+  ConfigContingenciaDto, LoteOperacionesDto, MAX_CENTAVOS, OperacionContingenciaDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto, limpiarTexto, sanearTexto,
 } from './dto/contingencia.dto';
+import { claveAnteriorDeOperaciones, claveDeOperaciones } from './clave-operaciones';
+import { mensajeTextoMinimo, validarTextoMinimo } from './texto-minimo';
 
 // POS offline de contingencia (solo EFECTIVO). Ver docs/POS_OFFLINE_CONTINGENCIA_DISENO.md.
 // Principio: la operación recibida se registra PRIMERO (diario inmutable) y se aplica DESPUÉS en otra transacción.
@@ -26,20 +28,8 @@ export interface ConfigEfectiva {
   vigenciaHoras: number;
   dispositivosMax: number;
 }
-/** F4 (CENTINELA): la clave de derivación es dedicada y obligatoria. No hay valor por defecto ni fallback a otro secreto. */
-const LONGITUD_MINIMA_CLAVE = 32;
-export function claveDeOperaciones(entorno: NodeJS.ProcessEnv): string {
-  const clave = entorno.CONTINGENCIA_CLAVE_OPERACIONES ?? '';
-  if (clave.trim().length < LONGITUD_MINIMA_CLAVE) throw new Error(`CONTINGENCIA_CLAVE_OPERACIONES es obligatoria y debe tener al menos ${LONGITUD_MINIMA_CLAVE} caracteres`);
-  return clave;
-}
-/** Transición: clave anterior con la que se derivaron las ventanas emitidas antes del cambio. Se retira al vaciar pendientes. */
-export function claveAnteriorDeOperaciones(entorno: NodeJS.ProcessEnv): string | null {
-  const clave = entorno.CONTINGENCIA_CLAVE_OPERACIONES_ANTERIOR ?? '';
-  if (!clave) return null;
-  if (clave.length < LONGITUD_MINIMA_CLAVE) throw new Error(`CONTINGENCIA_CLAVE_OPERACIONES_ANTERIOR debe tener al menos ${LONGITUD_MINIMA_CLAVE} caracteres`);
-  return clave;
-}
+// F4 (CENTINELA): la clave de derivación es dedicada y obligatoria (ver clave-operaciones.ts). Se reexportan para los consumidores existentes.
+export { claveAnteriorDeOperaciones, claveDeOperaciones };
 /** Rechazos por identidad o por clave: un reenvío legítimo posterior se reevalúa, no queda bloqueado. */
 const CODIGOS_REEVALUABLES = new Set(['CAJERO_NO_AUTORIZADO', 'OPERACION_NO_EMITIDA', 'CAJERO_DESCONOCIDO']);
 /**
@@ -977,8 +967,8 @@ export class ContingenciaService {
       op.cajaId, tenantId, op.usuarioId);
     if (!caja) throw new ConflictException({ message: 'La caja del cajero que cobró no existe; no se registra el efectivo en otra caja', code: 'CAJA_DEL_COBRO_NO_ENCONTRADA' });
     const cerrada = caja.estado !== 'ABIERTA';
-    if (cerrada && regularizacion && longitudSignificativa(regularizacion.motivo) < 20) {
-      throw new BadRequestException({ message: 'El motivo de la regularización debe tener al menos 20 caracteres visibles', code: 'MOTIVO_REGULARIZACION_INSUFICIENTE' });
+    if (cerrada && regularizacion && !validarTextoMinimo(regularizacion.motivo, 20).ok) {
+      throw new BadRequestException({ message: mensajeTextoMinimo(20), code: 'MOTIVO_REGULARIZACION_INSUFICIENTE' });
     }
     if (cerrada && !regularizacion) {
       throw new ConflictException({

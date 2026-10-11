@@ -1,10 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../utils/api';
 import { formatearCentavos } from '../offline/money';
+import { limpiarTextoLibre, mensajeTextoMinimo, validarTextoMinimo } from '../utils/textoMinimo';
 import './PosContingenciaPage.css';
 
 // Panel del administrador (móvil). Muestra lo que recibió el servidor: si la caja no reporta, lo indica.
 // Las acciones exigen una nota y quedan auditadas en el servidor.
+
+/** Muestra, con la misma función que usa el servidor, cuánto falta para cumplir el mínimo. */
+function PistaTexto({ valor, minimo }: { valor: string; minimo: number }) {
+  const r = validarTextoMinimo(valor, minimo);
+  return (
+    <small role="status" style={{ color: r.ok ? '#166534' : '#7c2d12' }}>
+      {r.longitud} de {minimo} caracteres (los espacios cuentan) · {r.visibles} de 3 letras, números o símbolos visibles{r.ok ? ' ✓' : ''}
+    </small>
+  );
+}
 
 interface Conflicto { codigo: string; detalle?: Record<string, unknown> }
 interface Operacion {
@@ -94,15 +105,19 @@ export default function ContingenciaAdminPage() {
   useEffect(() => { void cargar(); }, [cargar]);
 
   const resolver = async (op: Operacion, accion: 'ACEPTAR' | 'CERRAR_MANUAL' | 'MARCAR_REVISADA' | 'REINTENTAR') => {
-    const nota = (notas[op.operacionId] ?? '').trim();
-    if (nota.length < 10) { setMensaje({ tipo: 'error', texto: 'Escriba una nota de al menos 10 caracteres explicando la decisión.' }); return; }
+    // Misma regla que aplica el servidor (texto-minimo.ts es el mismo archivo en backend y frontend).
+    const nota = limpiarTextoLibre(notas[op.operacionId] ?? '');
+    if (!validarTextoMinimo(nota, 10).ok) { setMensaje({ tipo: 'error', texto: `Nota de la decisión: ${mensajeTextoMinimo(10)}` }); return; }
+    const reg = regularizar[op.operacionId];
+    if (accion === 'CERRAR_MANUAL' && reg?.necesaria && !validarTextoMinimo(reg.motivo, 20).ok) {
+      setMensaje({ tipo: 'error', texto: `Motivo de la regularización: ${mensajeTextoMinimo(20)}` });
+      return;
+    }
     try {
-      const reg = regularizar[op.operacionId];
       await api.post(`/contingencia/operaciones/${op.operacionId}/resolver`, {
         // R-02: el efectivo de un cierre sin venta va siempre a la caja del cajero que cobró; nunca se elige otra.
         accion, nota, cajaId: accion === 'CERRAR_MANUAL' ? undefined : (caja[op.operacionId] || undefined),
-        ...(accion === 'CERRAR_MANUAL' && reg?.necesaria && reg.motivo.trim().length >= 20
-          ? { regularizarCajaCerrada: true, motivoRegularizacion: reg.motivo.trim() } : {}),
+        ...(accion === 'CERRAR_MANUAL' && reg?.necesaria ? { regularizarCajaCerrada: true, motivoRegularizacion: limpiarTextoLibre(reg.motivo) } : {}),
       });
       setNotas((n) => ({ ...n, [op.operacionId]: '' }));
       setMensaje({ tipo: 'ok', texto: 'Decisión registrada y auditada.' });
@@ -241,6 +256,7 @@ export default function ContingenciaAdminPage() {
                 <label style={{ display: 'grid', gap: 4, marginTop: 8 }}>
                   Nota de la decisión (mínimo 10 caracteres)
                   <textarea rows={2} value={notas[op.operacionId] ?? ''} onChange={(e) => setNotas((n) => ({ ...n, [op.operacionId]: e.target.value }))} />
+                  <PistaTexto valor={notas[op.operacionId] ?? ''} minimo={10} />
                 </label>
               )}
               {regularizar[op.operacionId]?.necesaria && (
@@ -249,6 +265,7 @@ export default function ContingenciaAdminPage() {
                   escriba el motivo de la regularización excepcional (mínimo 20 caracteres, queda auditado) y vuelva a pulsar «Cerrar sin venta».
                   <textarea rows={2} value={regularizar[op.operacionId]?.motivo ?? ''}
                     onChange={(e) => setRegularizar((r) => ({ ...r, [op.operacionId]: { necesaria: true, motivo: e.target.value } }))} />
+                  <PistaTexto valor={regularizar[op.operacionId]?.motivo ?? ''} minimo={20} />
                 </label>
               )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
