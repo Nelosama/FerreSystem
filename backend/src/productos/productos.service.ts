@@ -29,6 +29,15 @@ export class ProductosService {
   // Consulta comercial y POS: solo productos con precio aprobado por ADMIN y precio positivo.
   const rows=(await this.findAll(tenantId)).filter(p=>p.precioAprobado===true&&Number(p.precioVenta)>0);return rows.map(p=>publicProduct({...p,stockFisico:p.stockActual,stockActual:p.stockDisponible}));
  }
+ async estadoParaVenta(tenantId:string,codigo:string){
+  const c=codigo.trim().slice(0,100);
+  if(!c)return {estado:'NO_ENCONTRADO',mensaje:'Escriba o escanee un código.'};
+  const p=await this.prisma.producto.findFirst({where:{tenantId,OR:[{codigo:{equals:c,mode:'insensitive'}},{codigoBarras:{equals:c,mode:'insensitive'}},{codigoFabricante:{equals:c,mode:'insensitive'}}]},select:{nombre:true,activo:true,precioAprobado:true,precioVenta:true}});
+  if(!p)return {estado:'NO_ENCONTRADO',mensaje:'Código no encontrado. Revise el código o busque por descripción.'};
+  if(!p.activo)return {estado:'NO_AUTORIZADO',nombre:p.nombre,mensaje:`«${p.nombre}» está desactivado y no se puede vender. Consulte al administrador.`};
+  if(!p.precioAprobado||Number(p.precioVenta)<=0)return {estado:'NO_AUTORIZADO',nombre:p.nombre,mensaje:`«${p.nombre}» no tiene precio aprobado y no se puede vender. Consulte al administrador.`};
+  return {estado:'VENDIBLE',nombre:p.nombre,mensaje:null};
+ }
  async findById(tenantId:string,id:string){const p=await this.prisma.producto.findFirst({where:{id,tenantId},include:{categoria:true}});if(!p)throw new NotFoundException('Producto no encontrado');return this.format((await this.conAutores(tenantId,[p]))[0]);}
  async getLowStock(tenantId:string){return (await this.findAll(tenantId)).filter(p=>p.stockBajo);}
  private async category(tx:any,tenantId:string,dto:{categoriaId?:string;categoria?:string}){

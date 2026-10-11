@@ -1,5 +1,6 @@
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RespuestaSinProducto } from './producto-response.interceptor';
 import { Controller, ForbiddenException, Get, Patch, Post, Put, Delete, Body, Param, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ProductoResponseInterceptor } from './producto-response.interceptor';
 import { ProductosService } from './productos.service';
@@ -44,6 +45,14 @@ export class ProductosController {
   @RequiredModule('pos')
   @Roles('ADMIN','CAJERO','VENDEDOR')
   comercial(@TenantId() tenantId:string) { return this.productosService.comercial(tenantId); }
+
+  /** F-02: explica al cajero por qué un código no se puede vender. No devuelve costos ni precios internos. */
+  @Get('comercial/estado')
+  @RespuestaSinProducto()
+  @RequiredPermission('pos.vender')
+  @RequiredModule('pos')
+  @Roles('ADMIN','CAJERO','VENDEDOR')
+  estadoVenta(@TenantId() tenantId:string, @Query('codigo') codigo?:string) { return this.productosService.estadoParaVenta(tenantId, codigo ?? ''); }
 
   @Get(':id')
   async findById(@TenantId() tenantId: string, @Param('id') id: string) {

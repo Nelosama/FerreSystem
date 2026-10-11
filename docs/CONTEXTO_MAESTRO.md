@@ -314,6 +314,28 @@ Detalle en `docs/ATLAS_INTEGRACION_144_145.md`: 11 conflictos resueltos a mano, 
 
 ---
 
+## PR #150 — correcciones F-01, F-02, O-02 y O-04 sobre `8cc02a57` (2026-10-11, ATLAS)
+
+- **Rama de trabajo:** `claude/vigilant-feynman-6p6jt2`, creada desde `origin/claude/atlas-correcciones-finales-148` (`8cc02a57`). PR #150 sigue en borrador; sin merge, despliegue ni migraciones.
+- **Reproducción previa en HEAD `8cc02a57`:** F-01 presente (`ContingenciaAdminPage` no mostraba mercancía pendiente); F-02 presente (la búsqueda de un código no vendible no informaba); O-02 presente (la consulta posterior devolvía `REVISION` genérico); O-04 presente (la prueba asumía qué operación gana).
+- **Correcciones:**
+  - F-01: `contingencia.service.ts` (`inventarioPendiente`) devuelve código, nombre, unidad y cantidad en el cierre sin venta y en `listar`; audita `CONTINGENCIA_INVENTARIO_PENDIENTE` con `existenciasModificadas: false`. `ContingenciaAdminPage.tsx` muestra la advertencia. No crea ventas ni ajusta stock.
+  - F-02: `GET /productos/comercial/estado?codigo=` (`productos.service.ts` `estadoParaVenta`, sin costos; ruta marcada `@RespuestaSinProducto`). `POSPage.tsx` muestra «no existe» o «no tiene precio aprobado» al buscar o escanear.
+  - O-02: `resumenCliente` y `respuestaRechazo` devuelven el mismo estado, código, mensaje e `instruccion` en la primera respuesta y en `estados()`, mientras la operación siga en `REVISION`.
+  - O-04: `faro-validacion-def01.spec.ts` acepta cualquier orden de llegada; mantiene exactamente una `APLICADA` y una `REVISION` con `STOCK_INSUFICIENTE`.
+- **Pruebas (esta sesión, PostgreSQL 16 temporal como usuario no root, Chromium 1194):**
+  - Backend unitarias **377/377**; integración `contingencia` + `productos*` **93/93**; unitarias productos **28/28**.
+  - Frontend: `tsc -b` sin errores; `npm test` **245/245**.
+  - E2E real `faro-validacion-def01` + `contingencia-real`: **29/29**.
+  - Suite FARO (`origin/nexus/faro-qa-pr150`, copiada solo para ejecutar, no confirmada): **26 PASS, 2 FAIL**. F-01 y F-02 pasan; los dos fallos son R-01 (DEF-04 y ventana anterior) porque esperan `estado = RECHAZADA` y el HEAD guarda `REVISION` + conflicto `DURO` (ver pendiente 1).
+- **Pendientes reales:**
+  1. **Decisión sobre R-01:** `87c72fdb` cambió el rechazo a `REVISION` porque el CHECK de la migración publicada `20261011000000` no admite `RECHAZADA`. La descripción del PR #150 y las aserciones de FARO siguen diciendo `RECHAZADA`. Hay que elegir: mantener `REVISION` y actualizar PR y auditoría, o crear una migración aditiva que amplíe el CHECK. No se ha cambiado ninguna de las dos cosas.
+  2. FARO debe revalidar sobre el SHA final; no se afirma su aprobación.
+  3. La prueba de F-02 usa una regex amplia; conviene afinarla.
+  4. No probado: Safari/iPhone, corte de red real, pantalla de entregas en navegador.
+
+---
+
 ## Continuidad POS y sincronización — auditoría y propuesta (2026-10-10)
 
 - **Base comprobada:** `main` y `origin/main` `5eae989dfab0ea04cc6861406ec30df459ae16c2`, checkout principal limpio; fetch realizado. Al iniciar, PR #122 abierto (`fix/qa-clientes-cajero`). Trabajo de Claude en Clientes/POS/permisos protegido; no se cambian esos archivos ni se abren PRs de implementación.

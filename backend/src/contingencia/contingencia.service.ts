@@ -42,6 +42,12 @@ const sha = (texto: string) => createHash('sha256').update(texto).digest('hex');
 
 /** Rechazos definitivos de la recepción (DEF-04, R-01): se conservan en el diario como REVISION con uno de estos conflictos DUROS no superables. */
 const CODIGOS_RECHAZO = new Set(['VENTANA_OBSOLETA', 'VENTANA_DE_OTRO_CAJERO', 'CAJA_DE_VENTANA_NO_VALIDA']);
+/** Qué debe hacer quien usa el equipo ante cada rechazo definitivo. Es el mismo texto en la primera respuesta y en toda consulta posterior (O-02). */
+const INSTRUCCION_RECHAZO: Record<string, string> = {
+  VENTANA_OBSOLETA: 'Solicite una ventana nueva al administrador. La venta se conserva en el equipo y queda registrada para conciliación.',
+  VENTANA_DE_OTRO_CAJERO: 'No cobre con la ventana de otro cajero. Avise al administrador: la venta queda para conciliación.',
+  CAJA_DE_VENTANA_NO_VALIDA: 'Avise al administrador: la caja de la ventana no corresponde a su usuario. La venta queda para conciliación.',
+};
 const esRechazo = (f: { conflictos?: unknown }) => Array.isArray(f.conflictos) && (f.conflictos as any[]).some((c) => CODIGOS_RECHAZO.has(c?.codigo));
 
 @Injectable()
@@ -277,6 +283,8 @@ export class ContingenciaService {
 
   /** Vista para el equipo (una operación rechazada ya está en REVISION: el equipo conserva la venta local). */
   private resumenCliente(f: any, idEquipo?: string) {
+    // O-02: un rechazo definitivo se describe igual que en la primera respuesta (estado, motivo e instrucción), no como REVISION genérica.
+    if (esRechazo(f) && f.estado === 'REVISION') return { ...this.resumenOperacion(f, idEquipo), ...this.respuestaRechazo(f, idEquipo ?? f.id) };
     return this.resumenOperacion(f, idEquipo);
   }
 
@@ -312,7 +320,7 @@ export class ContingenciaService {
       if (esRechazo(existente)) return this.respuestaRechazo(existente, dto.operacionId);
       if (existente.payloadHash !== hash) return { ...(await this.registrarAlteracion(tenantId, usuarioId, existente, dto, hash)), operacionId: dto.operacionId };
       if (existente.estado === 'RECIBIDA') return this.aplicarYResumir(tenantId, existente.id, {}, dto.operacionId);
-      return this.resumenOperacion(existente, dto.operacionId);
+      return this.resumenCliente(existente, dto.operacionId);
     }
     // DEF-04: la ventana, y con ella la caja, pertenecen al cajero que la pidió. Un cobro de otro cajero nunca entra en esa caja.
     // R-01: una ventana cuya instantánea no guarda la prueba de precio aprobado (formato anterior) no se acepta.
@@ -335,7 +343,7 @@ export class ContingenciaService {
       const ya = await buscar();
       if (!ya) throw error;
       if (ya.payloadHash !== hash) return { ...(await this.registrarAlteracion(tenantId, usuarioId, ya, dto, hash)), operacionId: dto.operacionId };
-      return ya.estado === 'RECIBIDA' ? this.aplicarYResumir(tenantId, ya.id, {}, dto.operacionId) : this.resumenOperacion(ya, dto.operacionId);
+      return ya.estado === 'RECIBIDA' ? this.aplicarYResumir(tenantId, ya.id, {}, dto.operacionId) : this.resumenCliente(ya, dto.operacionId);
     }
     // 2) Aplicación en transacción aparte.
     return this.aplicarYResumir(tenantId, idInterno, {}, dto.operacionId);
@@ -366,6 +374,7 @@ export class ContingenciaService {
     const c = (f.conflictos as any[])?.find((x) => CODIGOS_RECHAZO.has(x?.codigo)) ?? {};
     return {
       operacionId: idEquipo, estado: 'RECHAZADA_TECNICA', codigo: c.codigo ?? 'RECHAZADA', mensaje: c.detalle?.mensaje ?? 'La operación fue rechazada',
+      instruccion: INSTRUCCION_RECHAZO[c.codigo] ?? 'Avise al administrador: la venta queda para conciliación.',
       requiereRevision: true, conflictos: f.conflictos,
     };
   }
@@ -630,12 +639,15 @@ export class ContingenciaService {
         // R-02: cerrar sin vender no puede ocultar el efectivo cobrado. Se registra un ingreso de conciliación en una caja abierta,
         // con referencia a la operación; no se crea ninguna venta ni se toca el inventario (eso se concilia aparte).
         const conciliacionCaja = await this.conciliarEfectivo(tx, tenantId, adminId, op, dto.cajaId);
-        const resolucionConc = { ...resolucion, conciliacionCaja };
+        // F-01: la conciliación física queda separada y trazable: se registra qué mercancía salió sin descuento, sin ajustar existencias.
+        const inventarioPendiente = (await this.inventarioPendiente(tx as any, tenantId, [op])).get(op.id) ?? [];
+        const resolucionConc = { ...resolucion, conciliacionCaja, inventarioPendiente };
+        await audit(tx, tenantId, adminId, 'CONTINGENCIA_INVENTARIO_PENDIENTE', op.id, { lineas: inventarioPendiente, nota: dto.nota, existenciasModificadas: false });
         const fila = await tx.operacionContingencia.update({
           where: { id: op.id }, data: { estado: 'RESUELTA_MANUAL', requiereRevision: false, resolucion: resolucionConc, resueltoPor: adminId, resueltoAt: new Date() },
         });
         await audit(tx, tenantId, adminId, 'CONTINGENCIA_RESOLVER', op.id, resolucionConc);
-        return { ...this.resumenOperacion(fila), conciliacionCaja };
+        return { ...this.resumenOperacion(fila), conciliacionCaja, inventarioPendiente };
       }
       if (op.estado === 'APLICADA' || op.estado === 'RESUELTA_MANUAL') throw new ConflictException('La operación ya está resuelta');
       const fila = await this.aplicar(tx, tenantId, op.id, { forzar: dto.accion === 'ACEPTAR', cajaId: dto.cajaId, resueltoPor: adminId });
@@ -643,6 +655,21 @@ export class ContingenciaService {
       await audit(tx, tenantId, adminId, 'CONTINGENCIA_RESOLVER', op.id, { ...resolucion, resultado: final.estado });
       return this.resumenOperacion(final);
     }, { timeout: 30000 });
+  }
+
+  /**
+   * F-01: mercancía de una operación que NO se aplicó como venta. El efectivo se concilia en caja (R-02); las existencias no se tocan:
+   * el administrador debe contar y ajustar el inventario físico como acción aparte. Solo código, nombre y cantidad (sin costos).
+   */
+  private async inventarioPendiente(db: { producto: { findMany: (a: any) => Promise<any[]> } }, tenantId: string, ops: any[]) {
+    const lineasDe = (op: any) => (Array.isArray(op.payload?.lineas) ? (op.payload.lineas as any[]) : []);
+    const ids = [...new Set(ops.flatMap((op) => lineasDe(op).map((l) => String(l.productoId))))];
+    const productos = ids.length ? await db.producto.findMany({ where: { tenantId, id: { in: ids } }, select: { id: true, codigo: true, nombre: true, unidadMedida: true } }) : [];
+    const porId = new Map(productos.map((p: any) => [p.id, p]));
+    return new Map(ops.map((op) => [op.id, lineasDe(op).map((l) => {
+      const p: any = porId.get(String(l.productoId));
+      return { productoId: String(l.productoId), codigo: p?.codigo ?? null, nombre: p?.nombre ?? 'Producto no encontrado', unidadMedida: p?.unidadMedida ?? null, cantidad: Number(l.cantidadCentesimas) / 100 };
+    })]));
   }
 
   /** Ingreso de conciliación por el efectivo que se quedó en caja (total cobrado, sin el cambio). Idempotente por operación. */
@@ -697,8 +724,11 @@ export class ContingenciaService {
     });
     const usuarios = await this.prisma.usuario.findMany({ where: { tenantId, id: { in: [...new Set(filas.map((f) => f.usuarioId))] } }, select: { id: true, nombre: true } });
     const nombres = new Map(usuarios.map((u) => [u.id, u.nombre]));
+    // F-01: una operación sin venta (en revisión o cerrada sin venta) con efectivo cobrado deja mercancía pendiente de conciliar físicamente.
+    const sinVenta = filas.filter((f) => f.estado === 'REVISION' || f.estado === 'RESUELTA_MANUAL');
+    const pendientes = await this.inventarioPendiente(this.prisma as any, tenantId, sinVenta);
     return filas.map((f) => ({
-      ...this.resumenOperacion(f), cajero: nombres.get(f.usuarioId) ?? null, cajeroId: f.usuarioId, dispositivo: f.dispositivo.codigo,
+      ...this.resumenOperacion(f), inventarioPendiente: pendientes.get(f.id) ?? [], cajero: nombres.get(f.usuarioId) ?? null, cajeroId: f.usuarioId, dispositivo: f.dispositivo.codigo,
       totalCentavos: f.totalCentavos, efectivoRecibidoCentavos: f.efectivoRecibidoCentavos,
       cambioCentavos: f.efectivoRecibidoCentavos - f.totalCentavos,
       ocurridoAt: f.ocurridoAtEstimado, recibidoAt: f.recibidoAt, resolucion: f.resolucion,

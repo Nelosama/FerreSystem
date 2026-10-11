@@ -138,6 +138,19 @@ export const POSPage: React.FC = () => {
     }
   }, [loadedKey, pendingKey, draftKey, cart, clienteNombre, clienteRtn, clienteId, vencimiento, metodoPago, descuentoPorcentaje, ventaPendiente, corrigiendoPendiente, modalTicket, storageError]);
 
+  // F-02: el catálogo del POS solo trae lo vendible; si el código no está, el servidor dice si no existe o si no está autorizado (sin costos).
+  const explicarCodigoNoVendible = useCallback(async (codigo: string) => {
+    const requestKey = activeKey.current;
+    try {
+      const { data } = await api.get('/productos/comercial/estado', { params: { codigo } });
+      if (requestKey !== activeKey.current) return;
+      setErrorText(data?.mensaje || 'Código no encontrado. Revise el código o busque por descripción.');
+    } catch {
+      if (requestKey !== activeKey.current) return;
+      setErrorText('Este código no está en el catálogo de venta. Busque por descripción o consulte al administrador.');
+    }
+  }, []);
+
   const fetchProductos = useCallback(async () => {
     const requestKey=activeKey.current;
     setErrorText(null);
@@ -432,7 +445,7 @@ export const POSPage: React.FC = () => {
                 type="text"
                 placeholder={t('pos.search_products')}
                 value={search}
-                onKeyDown={e=>{if(e.key==='Enter'){const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===search.trim().toUpperCase()));if(matches.length===1){e.preventDefault();agregarAlCarrito(matches[0]);setSearch('');}else if(matches.length>1)setErrorText('Código ambiguo; seleccione el producto');}}}
+                onKeyDown={e=>{if(e.key==='Enter'){const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===search.trim().toUpperCase()));if(matches.length===1){e.preventDefault();agregarAlCarrito(matches[0]);setSearch('');}else if(matches.length>1)setErrorText('Código ambiguo; seleccione el producto');else if(search.trim())void explicarCodigoNoVendible(search.trim());}}}
                 onChange={(e) => setSearch(e.target.value)}
                 className="form-input"
                 style={{ paddingLeft: '38px', height: '46px', fontSize: '15px' }}
@@ -440,7 +453,7 @@ export const POSPage: React.FC = () => {
               />
             </div>
 
-            <BarcodeScanner disabled={edicionBloqueada} onCode={code=>{const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===code.toUpperCase()));if(matches.length===1){agregarAlCarrito(matches[0]);setSearch('');}else{setSearch(code);setErrorText(matches.length?'Código ambiguo; seleccione el producto':'Código no encontrado; busque por descripción');}}}/>
+            <BarcodeScanner disabled={edicionBloqueada} onCode={code=>{const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===code.toUpperCase()));if(matches.length===1){agregarAlCarrito(matches[0]);setSearch('');}else{setSearch(code);if(matches.length)setErrorText('Código ambiguo; seleccione el producto');else void explicarCodigoNoVendible(code);}}}/>
             <div style={styles.catalogGrid} className="ferre-pos-catalog">
               {productos
                 .filter(

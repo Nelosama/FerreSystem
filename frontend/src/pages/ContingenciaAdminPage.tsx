@@ -12,6 +12,7 @@ interface Operacion {
   correlativoLocal: string; correlativoDefinitivo: string | null; numeroVenta: number | null;
   cajero: string | null; dispositivo: string; totalCentavos: number; efectivoRecibidoCentavos: number; cambioCentavos: number;
   ocurridoAt: string; recibidoAt: string; referenciaFacturaExterna: string | null; cajaId?: string;
+  inventarioPendiente?: { productoId: string; codigo: string | null; nombre: string; unidadMedida: string | null; cantidad: number }[];
 }
 interface Resumen {
   fecha: string; generadoAt: string; aviso: string | null;
@@ -196,6 +197,20 @@ export default function ContingenciaAdminPage() {
                 <br />Total {formatearCentavos(op.totalCentavos)} · Recibido {formatearCentavos(op.efectivoRecibidoCentavos)} · Cambio {formatearCentavos(op.cambioCentavos)}
                 <br />Ocurrió {new Date(op.ocurridoAt).toLocaleString('es-HN')} · Recibida {new Date(op.recibidoAt).toLocaleString('es-HN')}
               </div>
+              {(op.estado === 'REVISION' || op.estado === 'RESUELTA_MANUAL') && (op.inventarioPendiente?.length ?? 0) > 0 && (
+                <div role="alert" aria-label={`Inventario físico pendiente de ${op.correlativoLocal}`} style={{ border: '2px solid #b45309', background: '#fffbeb', color: '#78350f', borderRadius: 8, padding: 10, margin: '8px 0', fontSize: 14 }}>
+                  <strong>Inventario físico pendiente de conciliar</strong>
+                  <div>
+                    {op.estado === 'RESUELTA_MANUAL'
+                      ? 'El efectivo se registró en caja, pero no se creó venta ni se descontaron existencias. '
+                      : 'Si cierra esta operación sin venta, el efectivo se registrará en caja, pero las existencias NO se descontarán. '}
+                    Esta mercancía pudo salir de la tienda: cuéntela y, si corresponde, registre el ajuste de inventario por separado.
+                  </div>
+                  <ul>
+                    {op.inventarioPendiente!.map((l) => <li key={l.productoId}>{l.cantidad} {l.unidadMedida ?? ''} · {l.codigo ? `${l.codigo} · ` : ''}{l.nombre}</li>)}
+                  </ul>
+                </div>
+              )}
               {op.conflictos.length > 0 && (
                 <ul style={{ fontSize: 14, color: '#7c2d12' }}>
                   {op.conflictos.map((k, i) => <li key={`${k.codigo}-${i}`}>{etiqueta(k)}</li>)}

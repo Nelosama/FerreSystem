@@ -318,10 +318,13 @@ test.describe('3. Idempotencia, reintentos y concurrencia', () => {
     const a = operacion({ ventanaId: v.ventanaId, dispositivoId: dispositivoA, cajeroId: cajero.id, productoId: pTest });
     const b = operacion({ ventanaId: v.ventanaId, dispositivoId: dispositivoA, cajeroId: cajero.id, productoId: pTest });
     await Promise.all([enviar(request, cajero, dispositivoA, [a]), enviar(request, cajero, dispositivoA, [b])]);
-    const estados = [estado(a.operacionId), estado(b.operacionId)].sort();
-    // Una aplica (con conflicto blando de cupo) y la otra queda en revisión por STOCK_INSUFICIENTE: stock final 0, nunca negativo.
-    expect(estados).toEqual(['APLICADA|true', 'REVISION|true'].sort());
-    expect(conflictos(b.operacionId)).toContain('STOCK_INSUFICIENTE');
+    // O-04: no se presupone qué operación llega primero. Invariante: exactamente una se aplica y la otra queda en revisión por STOCK_INSUFICIENTE.
+    const [ganadora, perdedora] = estado(a.operacionId).startsWith('APLICADA') ? [a, b] : [b, a];
+    expect([estado(a.operacionId), estado(b.operacionId)].sort()).toEqual(['APLICADA|true', 'REVISION|true'].sort());
+    expect(estado(ganadora.operacionId)).toBe('APLICADA|true');
+    expect(estado(perdedora.operacionId)).toBe('REVISION|true');
+    expect(conflictos(perdedora.operacionId)).toContain('STOCK_INSUFICIENTE');
+    expect(conflictos(ganadora.operacionId)).not.toContain('STOCK_INSUFICIENTE');
     expect(foto(TENANT_A, cajaA, pTest).stock).toBe(0);
   });
 });

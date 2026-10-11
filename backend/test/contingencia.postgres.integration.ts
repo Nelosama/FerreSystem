@@ -640,6 +640,24 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       const cierre: any = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Venta física verificada; efectivo en caja' } as any);
       expect(cierre.estado).toBe('RESUELTA_MANUAL');
       expect(cierre.conciliacionCaja.monto).toBe(23);
+      // F-01: el cierre devuelve la mercancía pendiente de conciliar físicamente, sin tocar existencias ni crear venta.
+      expect(cierre.inventarioPendiente).toEqual([expect.objectContaining({ productoId: e.p1, codigo: 'TOR-1', cantidad: 2 })]);
+      expect(await stock(e.p1)).toBe(20);
+      expect(await ventas(e.tenantId)).toBe(0);
+      const auditoria = await prisma.auditoriaOperacion.findFirstOrThrow({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_INVENTARIO_PENDIENTE', entidadId: idSolicitud(e.tenantId, op.operacionId) } });
+      expect((auditoria.datos as any).existenciasModificadas).toBe(false);
+    });
+
+    it('O-02: la consulta posterior repite estado, código e instrucción de la primera respuesta mientras la operación siga rechazada', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      await volverVentanaAnterior(e.tenantId, v.id);
+      const op = operacion(e, v.id);
+      const primera = (await enviar(e, [op])).resultados[0];
+      const consulta = (await svc.estados(e.tenantId, e.cajero, 'CAJERO', [op.operacionId]))[0];
+      expect(primera).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'VENTANA_OBSOLETA' });
+      expect(consulta).toMatchObject({ estado: primera.estado, codigo: primera.codigo, mensaje: primera.mensaje, instruccion: primera.instruccion });
+      expect(primera.instruccion).toMatch(/Solicite una ventana nueva/);
     });
 
     it('al pedir una ventana nueva se revocan las anteriores incompatibles, no las vigentes', async () => {
