@@ -10,13 +10,13 @@ const producto = { id: 'prod-1', codigo: 'TOR-1', nombre: 'Tornillo 2 pulgadas',
   libreCentesimas: 4000, cupoCentesimas: 2000, usaMedida: false, unidadMedida: 'UNIDAD' };
 const VIGENTE = new Date(Date.now() + 30 * 3_600_000).toISOString();
 
-type Sim = { operacionesRecibidas: string[]; colgarPrimera: boolean; errores: string[]; sinRed: boolean };
+type Sim = { operacionesRecibidas: string[]; colgarPrimera: boolean; errores: string[]; sinRed: boolean; lotes: number[]; rechazarLotesDeVarias: boolean };
 // H-5: identificadores que el mock de la ventana emite, en orden.
 const EMITIDAS = Array.from({ length: 500 }, (_, i) => `00000000-0000-4000-8000-${(i + 1).toString(16).padStart(12, '0')}`);
 
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
-    const sim: Sim = { operacionesRecibidas: [], colgarPrimera: false, errores: [], sinRed: false };
+    const sim: Sim = { operacionesRecibidas: [], colgarPrimera: false, errores: [], sinRed: false, lotes: [], rechazarLotesDeVarias: false };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
     page.on('pageerror', (e) => sim.errores.push(e.message));
@@ -45,6 +45,9 @@ const test = base.extend<{ sim: Sim }>({
       if (method === 'POST' && path === '/contingencia/operaciones') {
         const cuerpo = request.postDataJSON() as { operaciones: { operacionId: string; indiceOperacion?: number }[] };
         sim.operacionesRecibidas.push(...cuerpo.operaciones.map((o) => o.operacionId));
+        sim.lotes.push(cuerpo.operaciones.length);
+        // Un 400 sobre un lote de varias operaciones: el servidor no sabe cuál es la mala; el equipo debe reenviar de una en una.
+        if (sim.rechazarLotesDeVarias && cuerpo.operaciones.length > 1) return responder(route, 400, { statusCode: 400, message: 'El lote contiene datos inválidos' });
         if (sim.colgarPrimera) { sim.colgarPrimera = false; return; } // la conexión se queda sin respuesta
         // H-5: como el servidor real, solo acepta una operación cuyo identificador es el emitido en la posición indiceOperacion.
         // Sin el índice (o con otro) la rechaza: así el equipo no puede ocultar que omite el campo.
@@ -304,6 +307,35 @@ test.describe('Contingencia POS — sin internet y existencias locales', () => {
     await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0002' })).toBeVisible();
     await expect.poll(async () => (await diario(page)).length, { timeout: 5_000 }).toBe(2);
     expect(sim.operacionesRecibidas).toEqual([]);
+    expect(sim.errores).toEqual([]);
+  });
+
+  test('lote rechazado con 400: el equipo reenvía las ventas de una en una, ninguna se pierde ni se duplica', async ({ page, sim }) => {
+    await ingresarYAbrirPos(page);
+    sim.sinRed = true;
+    await venderUnTornillo(page);
+    await page.getByRole('button', { name: 'Siguiente cliente' }).click();
+    await venderUnTornillo(page);
+    await expect.poll(async () => (await diario(page)).length, { timeout: 5_000 }).toBe(2);
+    expect(sim.operacionesRecibidas).toEqual([]);
+
+    // Cada venta intentó enviarse sin red y quedó con una espera de reintento (2 s). Se deja vencer para que ambas sean elegibles a la vez
+    // y el primer envío sea de verdad un lote de dos.
+    await page.waitForTimeout(5_000);
+    // Vuelve la conexión: el primer envío es un lote de dos y el servidor lo rechaza entero con 400.
+    sim.rechazarLotesDeVarias = true;
+    sim.sinRed = false;
+    await page.getByRole('button', { name: 'Enviar pendientes ahora' }).click();
+
+    // El equipo cae al reenvío individual: ambas quedan sincronizadas, cada una con su propio identificador emitido.
+    await expect.poll(async () => (await diario(page)).map((o) => o.estado).sort(), { timeout: 20_000 }).toEqual(['SINCRONIZADA', 'SINCRONIZADA']);
+    expect(sim.lotes[0]).toBe(2);
+    expect(sim.lotes.slice(1).filter((n) => n === 1).length).toBeGreaterThanOrEqual(2);
+    expect(sim.lotes.slice(1).every((n) => n === 1)).toBe(true);
+    const distintas = [...new Set(sim.operacionesRecibidas)];
+    expect(distintas).toEqual(EMITIDAS.slice(0, 2));
+    // Ninguna se rechazó ni quedó en revisión, y no hay errores de página.
+    expect((await diario(page)).some((o) => o.estado === 'REVISION' || o.estado === 'ERROR')).toBe(false);
     expect(sim.errores).toEqual([]);
   });
 
