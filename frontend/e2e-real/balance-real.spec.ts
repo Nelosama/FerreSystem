@@ -58,7 +58,8 @@ test.describe.serial('BALANCE: cuentas por cobrar y por pagar contra backend rea
     cuentaVentaId = sql(`SELECT id FROM cuentas_operativas WHERE documento_id='${v.id}' AND tipo='CXC'`);
     expect(cuentaVentaId).not.toBe('');
     // Vencimiento = día de venta + plazo del cliente (30), calculado por el servidor.
-    const plazo = sql(`SELECT (vencimiento::date - created_at::date) FROM cuentas_operativas WHERE id='${cuentaVentaId}'`);
+    // created_at se guarda en UTC; el día de negocio se compara en la zona del negocio (America/Tegucigalpa).
+    const plazo = sql(`SELECT (vencimiento::date - (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Tegucigalpa')::date) FROM cuentas_operativas WHERE id='${cuentaVentaId}'`);
     expect(plazo).toBe('30');
     // Producto propio de este spec (no el Taladro compartido por otros specs). ISV 15% sobre 8900 = 10235.
     saldoInicialVenta = Number(sql(`SELECT saldo::text FROM cuentas_operativas WHERE id='${cuentaVentaId}'`));
