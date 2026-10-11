@@ -210,6 +210,8 @@ INSERT INTO detalles_devolucion (id, devolucion_id, detalle_venta_id, cantidad, 
       desplegar(c, proyectoTemporal(c, 'antes'));
       psql(c, sembrar(true));
       migrarEntregas(c);
+      // Consulta de conciliación de reservas publicada en docs/ATLAS_CORRECCIONES_FINALES_148.md: sin filas tras migrar.
+      expect(consulta(c, "SELECT p.id FROM productos p LEFT JOIN detalles_venta d ON d.producto_id = p.id AND d.modo_entrega = 'BODEGA' AND EXISTS (SELECT 1 FROM ventas v WHERE v.id = d.venta_id AND v.estado = 'COMPLETADA' AND v.reserva_pendiente) GROUP BY p.id HAVING p.stock_reservado <> COALESCE(SUM(d.cantidad - d.cantidad_entregada - d.cantidad_cancelada),0);")).toBe('');
       const url = `postgresql://postgres@127.0.0.1:${c.port}/postgres`;
       const prisma = new PrismaService({ datasources: { db: { url } } });
       await prisma.$connect();
