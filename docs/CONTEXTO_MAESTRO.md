@@ -316,6 +316,13 @@ Detalle en `docs/ATLAS_INTEGRACION_144_145.md`: 11 conflictos resueltos a mano, 
 
 ## Estado vigente PR #152 (2026-10-11, actualiza el bloque siguiente)
 
+### Identidad de operaciones H-5 / H-6 (2026-10-11, base `af1d8230`, rama `claude/vigilant-feynman-6p6jt2`)
+
+- **Pruebas nuevas:** `backend/test/contingencia-identidad.postgres.integration.ts` (4/4, PostgreSQL temporal, ejecutadas como `nobody`). Suite `test/contingencia` completa: 5 archivos, 85/85.
+- **H-5 (vulnerabilidad conocida, NO corregida):** el UUID de la operación lo fija el cliente. Un segundo cajero del mismo equipo que envía primero el UUID del dueño, con su propia ventana y caja, crea la venta a su nombre; el dueño recibe `CAJERO_NO_AUTORIZADO` y su cobro no se aplica. La prueba fija ese comportamiento para que cualquier cambio sea deliberado. No se corrige en servidor: la ventana ajena es indistinguible de un rechazo legítimo (ver regla B revertida en el historial). Requiere decisión del propietario: **A** (UUID emitidos por el servidor y ligados a ventana/cajero/dispositivo; exige cambio en el cliente; recomendada), **B** (equipo ligado a un único cajero; provisional), **C** (aceptar el riesgo; no recomendada).
+- **H-6 (verificado, sin fuga):** el mismo UUID en dos empresas son dos operaciones independientes; una alteración de otra empresa no toca la fila original; `estados` no revela operaciones ajenas.
+- **Pendiente:** purchases en navegador (`/ordenes-compra`), prueba de cliente offline 400 en navegador, auditorías CENTINELA/FARO sobre el SHA final, colisión de migración `20261011150000`, decisiones F5 (`montos_check`), R-02 y la opción de H-5. **Sin GO:** H-5 sigue abierto y es crítico para la entrega.
+
 - **Código candidato:** `37642787` (rama `claude/vigilant-feynman-6p6jt2`). Después: prueba HTTP `backend/test/contingencia-http.postgres.integration.ts` (3/3) y este documento.
 - **R-01:** el rechazo definitivo es estado `RECHAZADA` (migración aditiva `20261016000000`, CHECK ampliado y `rechazada_sin_venta_check`). El texto de más abajo que dice `REVISION` por CHECK es histórico: se resolvió con esa migración.
 - **FARO (informe sobre `376427875b` = `37642787`):** 28/28 `faro-qa-pr150`; 31/31 grupo DEF-01/contingencia/cobro/precios; negocio 3/3; integración 118/118. Veredicto **PENDIENTE** hasta la prueba HTTP de 4xx (añadida aquí). Observación abierta: la regex de F-02 acepta el texto de respaldo «Código no encontrado» (propuesta: acotar a «no tiene precio aprobado»).
