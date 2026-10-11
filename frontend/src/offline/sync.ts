@@ -221,6 +221,8 @@ export async function refrescarRevisiones(api: AxiosInstance, usuario: { id: str
 export function aOperacionDto(op: OperacionLocal) {
   return {
     operacionId: op.operacionId,
+    // H-5: el servidor verifica que el identificador sea el emitido para la ventana en esta posición. Sin el índice, toda venta se rechaza.
+    indiceOperacion: op.indiceOperacion,
     dispositivoId: op.dispositivoId,
     ventanaId: op.ventanaId,
     secuenciaLocal: op.secuenciaLocal,

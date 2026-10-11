@@ -430,6 +430,14 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
   const base = (Date.now() % 90000000) + 1000;
   let dispositivoId = '';
   let ventanaId = '';
+  // H-5: identificadores de operación emitidos por el servidor para la ventana; las ventas offline usan esta lista en orden.
+  let emitidas: string[] = [];
+  let proximaEmitida = 0;
+  const siguienteEmitida = () => {
+    const indiceOperacion = proximaEmitida++;
+    if (!emitidas[indiceOperacion]) throw new Error('H-5: la ventana no devolvió identificadores de operación emitidos');
+    return { opId: emitidas[indiceOperacion], indiceOperacion };
+  };
   let productosVentana: { id: string }[] = [];
 
   // Dispositivo y ventana se preparan aquí para que sobrevivan a un reinicio de worker tras un fallo.
@@ -449,6 +457,7 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
     expect([200, 201], await ven.text()).toContain(ven.status());
     const cuerpo = await ven.json();
     ventanaId = cuerpo.ventana?.id ?? cuerpo.id;
+    emitidas = (cuerpo.ventana?.operacionesEmitidas ?? []) as string[];
     productosVentana = cuerpo.catalogo?.productos ?? cuerpo.productos ?? [];
   });
 
@@ -468,12 +477,12 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
   });
 
   test('operación offline con efectivo inconsistente (efectivo − cambio ≠ total) queda en revisión, no aplicada', async ({ request }) => {
-    const opId = randomUUID();
+    const { opId, indiceOperacion } = siguienteEmitida();
     const lote = {
       dispositivoId,
       pendientesRestantes: 0,
       operaciones: [{
-        operacionId: opId, dispositivoId, ventanaId, secuenciaLocal: base + 1, correlativoLocal: `CT-01-${String(base + 1).padStart(8, '0')}`,
+        operacionId: opId, indiceOperacion, dispositivoId, ventanaId, secuenciaLocal: base + 1, correlativoLocal: `CT-01-${String(base + 1).padStart(8, '0')}`,
         ocurridoAtLocal: new Date().toISOString(), cajeroId: cajero.id,
         lineas: [{ productoId: pAprob, cantidadCentesimas: 100, precioCentavos: 10000 }],
         totalCentavos: 11500, subtotalCentavos: 10000, isvCentavos: 1500,
@@ -489,9 +498,9 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
   });
 
   test('precio distinto al autorizado: la venta ya cobrada se aplica con revisión obligatoria y conflicto registrado', async ({ request }) => {
-    const opId = randomUUID();
+    const { opId, indiceOperacion } = siguienteEmitida();
     const operacion = {
-      operacionId: opId, dispositivoId, ventanaId, secuenciaLocal: base + 3, correlativoLocal: `CT-01-${String(base + 3).padStart(8, '0')}`,
+      operacionId: opId, indiceOperacion, dispositivoId, ventanaId, secuenciaLocal: base + 3, correlativoLocal: `CT-01-${String(base + 3).padStart(8, '0')}`,
       ocurridoAtLocal: new Date().toISOString(), cajeroId: cajero.id,
       lineas: [{ productoId: pAprob, cantidadCentesimas: 100, precioCentavos: 9000 }],
       totalCentavos: 10350, subtotalCentavos: 9000, isvCentavos: 1350,
@@ -506,9 +515,9 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
 
   // DEF-01 (consecuencia, FAIL): un producto sin precio aprobado llega a la venta offline y se aplica.
   test('DEF-01: una venta offline de producto sin precio aprobado no debe aplicarse', async ({ request }) => {
-    const opId = randomUUID();
+    const { opId, indiceOperacion } = siguienteEmitida();
     const operacion = {
-      operacionId: opId, dispositivoId, ventanaId, secuenciaLocal: base + 4, correlativoLocal: `CT-01-${String(base + 4).padStart(8, '0')}`,
+      operacionId: opId, indiceOperacion, dispositivoId, ventanaId, secuenciaLocal: base + 4, correlativoLocal: `CT-01-${String(base + 4).padStart(8, '0')}`,
       ocurridoAtLocal: new Date().toISOString(), cajeroId: cajero.id,
       lineas: [{ productoId: pPend, cantidadCentesimas: 100, precioCentavos: 10000 }],
       totalCentavos: 11500, subtotalCentavos: 10000, isvCentavos: 1500,
@@ -521,9 +530,9 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
   });
 
   test('operación offline consistente se aplica una sola vez; reenviarla no duplica la venta', async ({ request }) => {
-    const opId = randomUUID();
+    const { opId, indiceOperacion } = siguienteEmitida();
     const operacion = {
-      operacionId: opId, dispositivoId, ventanaId, secuenciaLocal: base + 2, correlativoLocal: `CT-01-${String(base + 2).padStart(8, '0')}`,
+      operacionId: opId, indiceOperacion, dispositivoId, ventanaId, secuenciaLocal: base + 2, correlativoLocal: `CT-01-${String(base + 2).padStart(8, '0')}`,
       ocurridoAtLocal: new Date().toISOString(), cajeroId: cajero.id,
       lineas: [{ productoId: pAprob, cantidadCentesimas: 100, precioCentavos: 10000 }],
       totalCentavos: 11500, subtotalCentavos: 10000, isvCentavos: 1500,

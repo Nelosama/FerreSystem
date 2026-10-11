@@ -43,10 +43,15 @@ const test = base.extend<{ sim: Sim }>({
         });
       }
       if (method === 'POST' && path === '/contingencia/operaciones') {
-        const cuerpo = request.postDataJSON() as { operaciones: { operacionId: string }[] };
+        const cuerpo = request.postDataJSON() as { operaciones: { operacionId: string; indiceOperacion?: number }[] };
         sim.operacionesRecibidas.push(...cuerpo.operaciones.map((o) => o.operacionId));
         if (sim.colgarPrimera) { sim.colgarPrimera = false; return; } // la conexión se queda sin respuesta
-        return responder(route, 200, { resultados: cuerpo.operaciones.map((o) => ({ operacionId: o.operacionId, estado: 'APLICADA', numeroVenta: 7, correlativoDefinitivo: 'V-00000007', ventaId: o.operacionId, requiereRevision: false, conflictos: [] })), serverNow: new Date().toISOString() });
+        // H-5: como el servidor real, solo acepta una operación cuyo identificador es el emitido en la posición indiceOperacion.
+        // Sin el índice (o con otro) la rechaza: así el equipo no puede ocultar que omite el campo.
+        const emitida = (o: { operacionId: string; indiceOperacion?: number }) => typeof o.indiceOperacion === 'number' && EMITIDAS[o.indiceOperacion] === o.operacionId;
+        return responder(route, 200, { resultados: cuerpo.operaciones.map((o) => emitida(o)
+          ? { operacionId: o.operacionId, estado: 'APLICADA', numeroVenta: 7, correlativoDefinitivo: 'V-00000007', ventaId: o.operacionId, requiereRevision: false, conflictos: [] }
+          : { operacionId: o.operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'OPERACION_NO_EMITIDA', mensaje: 'La operación no fue emitida por el servidor para esta ventana', requiereRevision: true, conflictos: [] }), serverNow: new Date().toISOString() });
       }
       if (method === 'GET' && path.startsWith('/contingencia/operaciones/estados')) return responder(route, 200, []);
       if (method === 'GET') return responder(route, 200, []);
