@@ -377,7 +377,9 @@ test.describe('POS offline de contingencia — backend real', () => {
     await page.evaluate(() => localStorage.setItem('ferre_token', 'token-vencido'));
     await context.setOffline(false);
     await page.waitForURL(/\/login/, { timeout: 30_000 });
-    expect((await diario(page)).find((o) => o.correlativoLocal === 'CT-01-0008')?.estado).toBe('PENDIENTE');
+    // Tras el 401 la operación puede seguir un instante en ENVIANDO hasta que el cliente la devuelve a PENDIENTE
+    // (recuperarEnvios). Se espera el estado, sin relajar la aserción.
+    await expect.poll(async () => (await diario(page)).find((o) => o.correlativoLocal === 'CT-01-0008')?.estado, { timeout: 15_000 }).toBe('PENDIENTE');
     expect(ventasCentral()).toBe(antesSesion);
     await ingresar(page, CAJERO, '/pos-contingencia');
     await esperarEstado(page, 'CT-01-0008', 'SINCRONIZADA');

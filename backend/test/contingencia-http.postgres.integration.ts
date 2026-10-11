@@ -130,7 +130,7 @@ describe('Contingencia H5 por HTTP: 4xx en recepción offline / PostgreSQL aisla
     expect(await conteos(e.tenantId)).toEqual(antes);
   });
 
-  it('4xx por formato inválido: 400 sin fila ni venta; un reenvío válido con el mismo lote se aplica una sola vez', async () => {
+  it('formato inválido de una operación: respuesta por operación sin venta ni fila; el reenvío válido se aplica una sola vez', async () => {
     const e = await empresa();
     const buena = operacion(e);
     const mala = { ...operacion(e), correlativoLocal: 'no-valido' };
@@ -169,5 +169,24 @@ describe('Contingencia H5 por HTTP: 4xx en recepción offline / PostgreSQL aisla
     expect(despues.ventas).toBe(antes.ventas);
     expect(despues.movimientosCaja).toBe(antes.movimientosCaja);
     expect(despues.filas).toBe(antes.filas + 1);
+  });
+
+  it('lote mixto por HTTP: las operaciones válidas se aplican, la mal formada deja evidencia y no genera venta', async () => {
+    const e = await empresa();
+    const b1 = { ...operacion(e), correlativoLocal: 'CT-01-0901', secuenciaLocal: 9101 };
+    const mala = { ...operacion(e), correlativoLocal: 'no-valido', secuenciaLocal: 9102 };
+    const b2 = { ...operacion(e), correlativoLocal: 'CT-01-0903', secuenciaLocal: 9103 };
+    const antes = await conteos(e.tenantId);
+    const r = await http('post', '/contingencia/operaciones', e.cajero.token, lote(e, [b1, mala, b2]));
+    expect(r.status).toBeLessThan(300);
+    expect(r.body.resultados).toHaveLength(3);
+    expect(r.body.resultados[0]).toMatchObject({ operacionId: b1.operacionId, estado: 'APLICADA' });
+    expect(r.body.resultados[1]).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'FORMATO_INVALIDO' });
+    expect(r.body.resultados[2]).toMatchObject({ operacionId: b2.operacionId, estado: 'APLICADA' });
+    const despues = await conteos(e.tenantId);
+    expect(despues.ventas).toBe(antes.ventas + 2);
+    expect(despues.filas).toBe(antes.filas + 2);
+    const evidencia = (t: string) => prisma.auditoriaOperacion.count({ where: { tenantId: t, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA' } });
+    expect(await evidencia(e.tenantId)).toBe(1);
   });
 });
