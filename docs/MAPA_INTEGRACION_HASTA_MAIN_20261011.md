@@ -42,3 +42,28 @@ Ver el comentario del Issue #151 de la misma fecha. Resumen: **NO-GO para entreg
 ## 6. Pendientes de infraestructura (no resueltos por código)
 
 Según `docs/agentes/BLOQUEOS_REALES_REQUIEREN_ACCESO.md`: verificación de TRUST_PROXY en Render, revisión de comandos de pre-deploy, secretos y `NODE_ENV`, claves demo en Supabase, protección de ramas con checks obligatorios, y prueba de restauración del respaldo.
+
+## 7. Resolución de la colisión `20261011150000_precio_aprobacion_producto`
+
+- Tres contenidos: candidato (`8885a35a`, 21 líneas) y `keen-goldberg`/`forja` (`d84f7934`, 20 líneas, idénticos entre sí).
+- Diferencia material: el candidato marca como legado aprobado solo productos **activos** con precio > 0; la versión de `keen-goldberg`/`forja` marca también a los **inactivos**. Un producto inactivo aprobado se vendería sin revisión al reactivarse.
+- **Resolución propuesta:** conservar la versión del candidato (la conservadora) como única migración. La versión de `keen`/`forja` **no se renombra**: se retira de sus ramas antes de integrarlas, porque ninguna rama está en `main`.
+- **Sin tocar datos:** la resolución es de código y de ramas. No se modifica ninguna base.
+- **Antes de retirarla:** confirmar que ningún entorno (staging, piloto) aplicó la versión de `keen`/`forja`. Si lo hizo, la base y el repositorio tienen checksums distintos y hay que reconciliarlos con decisión del propietario. **Pendiente de confirmación.**
+- **Regla de producto a confirmar:** ¿un producto inactivo legado debe quedar aprobado? Propuesta: no (criterio del candidato).
+
+## 8. Integración progresiva propuesta hacia `main`
+
+Cada paso se integra solo con su PR aprobado, su SHA final auditado y las pruebas de regresión indicadas. Ningún paso se fusiona sin autorización expresa.
+
+| Paso | Qué se integra | Conflicto medido | Resolución | Pruebas de regresión que deben pasar |
+|---|---|---|---|---|
+| 0 | Candidato `ac315715` (PR #152 y pila) | Ninguno textual con `main` | — | Suite PostgreSQL completa; guard de migraciones; FARO; CENTINELA sobre el SHA final |
+| 1 | `claude/balance-cxc-cxp` (#142) | 0 | Revisar nombres de migración | `cxc-cxp-balance.postgres.integration.ts`; `balance-cxc-cxp-simulado` |
+| 2 | `claude/keen-goldberg-62o7f1` (#140) **sin** su migración de precios | 8 | Retirar su migración; conservar su código de contingencia solo si no duplica el del candidato | `precios-real.spec.ts`; `contingencia-real`; `faro-validacion-def01` |
+| 3 | `claude/forja-compras-proveedores` (#143) | 13 | Resolver a mano `contingencia.service.ts`, `producto-response.ts` y el interceptor de cajero: el candidato es la referencia de seguridad | `compras.postgres.integration.ts`, `compras-contado`, `productos-proveedores`, `negocio-ciclo-real` (compras) |
+| 4 | `claude/kardex-consolidacion-134-140` | 1 (`compras-contado.postgres.integration.ts`) | Combinar las dos pruebas, sin perder aserciones | `compras-contado.postgres.integration.ts` completo |
+
+**Criterios de parada:** si un paso amplía el conflicto de contingencia o de costos, se detiene y se revisa con ATLAS y CENTINELA antes de seguir.
+
+**Recuperación:** cada paso es un commit de integración separado y revertible. Antes de cualquier migración en un entorno persistente: respaldo verificado y decisión del propietario.
