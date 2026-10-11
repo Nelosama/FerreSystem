@@ -121,7 +121,16 @@ UPDATE productos SET stock_reservado = ${incluirCasoRiesgoso ? 5 : 5}, stock_act
 `;
 }
 
+/** Normalización previa autorizada (D-01): prepara los datos históricos sin modificar la migración publicada. */
+const normalizar = (c: Clúster, autoriza = true) => execFileSync(exe('psql'), ['-X', '-q', '-A', '-t', '-h', '127.0.0.1', '-p', String(c.port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/propuestas/entregas-148/00_normalizar_historico_previo.sql')],
+  { ...c.options, encoding: 'utf8', env: { ...c.env, ...(autoriza ? { PGOPTIONS: '-c ferre.autoriza_normalizacion=SI' } : {}) } });
+
 describe('CENTINELA: migración de entregas sobre datos históricos (PR #148)', () => {
+  it('inmutabilidad: la migración publicada de entregas no cambió (SHA-256 fijado); las correcciones son aditivas', () => {
+    const hash = require('node:crypto').createHash('sha256').update(readFileSync(resolve('prisma/migrations/20261012000000_entrega_eventos_y_cantidades/migration.sql'))).digest('hex');
+    expect(hash).toBe('059137e8a3befe9ad9153bc0ec4662dc8d66e93d10574f133a2ae5662de4d315');
+  });
+
   it('datos históricos sanos: la migración se aplica, los contadores son correctos y la reserva cuadra', async () => {
     const c = await iniciar();
     try {
@@ -142,12 +151,46 @@ describe('CENTINELA: migración de entregas sobre datos históricos (PR #148)', 
     } finally { detener(c); }
   }, 240000);
 
-  it('D-01 corregido: devolución INVENTARIO sobre reserva no entregada (dato legado) migra, no deja pendiente fantasma y la reserva cuadra', async () => {
+  it('D-01: sin normalizar, la migración publicada aborta ante una devolución INVENTARIO sobre reserva no entregada, sin dejar nada a medias', async () => {
     const c = await iniciar();
     try {
       desplegar(c, proyectoTemporal(c, 'antes'));
       psql(c, sembrar(true));
-      migrarEntregas(c); // la migración publicada (ya corregida), por la ruta de producción: prisma migrate deploy
+      let error = '';
+      try { migrarEntregas(c); } catch (e: any) { error = `${e.stdout ?? ''}${e.stderr ?? ''}${e.message}`; }
+      expect(error).toContain('Backfill de entregas inconsistente');
+      expect(consulta(c, "SELECT count(*) FROM information_schema.tables WHERE table_name='entregas_eventos';")).toBe('0');
+      expect(consulta(c, "SELECT count(*) FROM information_schema.columns WHERE table_name='detalles_venta' AND column_name='modo_entrega';")).toBe('0');
+    } finally { detener(c); }
+  }, 240000);
+
+  it('D-01: la normalización previa se niega sin autorización o con la migración ya aplicada, y no cambia nada', async () => {
+    const c = await iniciar();
+    try {
+      desplegar(c, proyectoTemporal(c, 'antes'));
+      psql(c, sembrar(true));
+      let error = '';
+      try { normalizar(c, false); } catch (e: any) { error = `${e.stdout ?? ''}${e.stderr ?? ''}${e.message}`; }
+      expect(error).toContain('Falta la autorización');
+      expect(consulta(c, "SELECT destino FROM detalles_devolucion WHERE id='DD2';")).toBe('INVENTARIO');
+      expect(consulta(c, "SELECT count(*) FROM information_schema.schemata WHERE schema_name='respaldo_entregas_148_previo';")).toBe('0');
+      normalizar(c);
+      migrarEntregas(c);
+      error = '';
+      try { normalizar(c); } catch (e: any) { error = `${e.stdout ?? ''}${e.stderr ?? ''}${e.message}`; }
+      expect(error).toContain('ya está aplicada');
+    } finally { detener(c); }
+  }, 300000);
+
+  it('D-01: con la normalización previa y la migración publicada SIN modificar, el caso legado migra, no deja pendiente fantasma, la reserva cuadra y el original queda respaldado', async () => {
+    const c = await iniciar();
+    try {
+      desplegar(c, proyectoTemporal(c, 'antes'));
+      psql(c, sembrar(true));
+      normalizar(c);
+      // Evidencia: el destino original se conserva en el respaldo.
+      expect(consulta(c, "SELECT destino_original FROM respaldo_entregas_148_previo.detalles_devolucion_destino WHERE id='DD2';")).toBe('INVENTARIO');
+      migrarEntregas(c); // la migración publicada, por la ruta de producción: prisma migrate deploy
       const pendientes = consulta(c, "SELECT COALESCE(SUM(cantidad - cantidad_entregada - cantidad_cancelada), 0) FROM detalles_venta WHERE modo_entrega='BODEGA';");
       expect(Number(pendientes)).toBe(5);
       expect(consulta(c, "SELECT (cantidad - cantidad_entregada - cantidad_cancelada)::text FROM detalles_venta WHERE id='D_RIESGO';")).toBe('0.00');
@@ -178,6 +221,8 @@ INSERT INTO detalles_venta (id, venta_id, producto_id, cantidad, precio_unitario
 INSERT INTO devoluciones (id, tenant_id, venta_id, usuario_id, solicitud_hash, motivo, monto, credito_cancelado, reembolso, metodo) VALUES ('DEV4', 'T1', 'V_MIX', 'U1', 'h4', 'Mixta', 230, 0, 230, 'EFECTIVO');
 INSERT INTO detalles_devolucion (id, devolucion_id, detalle_venta_id, cantidad, destino) VALUES ('DD4', 'DEV4', 'D_MIX', 1, 'DAÑADO'), ('DD5', 'DEV4', 'D_MIX', 1, 'PROVEEDOR');
 UPDATE productos SET stock_reservado = 7 WHERE id = 'P1'; -- 5 + 2 pendientes de V_MIX`);
+      normalizar(c);
+      expect(consulta(c, "SELECT count(*) FROM respaldo_entregas_148_previo.ventas_entregado_at;")).toBe('1');
       migrarEntregas(c);
       expect(consulta(c, "SELECT cantidad_entregada || '/' || cantidad_devuelta_reingresada FROM detalles_venta WHERE id='D_ANT';")).toBe('3.00/1.00');
       expect(consulta(c, "SELECT (cantidad - cantidad_entregada - cantidad_cancelada)::text || '/' || cantidad_cancelada FROM detalles_venta WHERE id='D_MIX';")).toBe('2.00/2.00');
@@ -209,6 +254,7 @@ INSERT INTO detalles_devolucion (id, devolucion_id, detalle_venta_id, cantidad, 
     try {
       desplegar(c, proyectoTemporal(c, 'antes'));
       psql(c, sembrar(true));
+      normalizar(c);
       migrarEntregas(c);
       // Consulta de conciliación de reservas publicada en docs/ATLAS_CORRECCIONES_FINALES_148.md: sin filas tras migrar.
       expect(consulta(c, "SELECT p.id FROM productos p LEFT JOIN detalles_venta d ON d.producto_id = p.id AND d.modo_entrega = 'BODEGA' AND EXISTS (SELECT 1 FROM ventas v WHERE v.id = d.venta_id AND v.estado = 'COMPLETADA' AND v.reserva_pendiente) GROUP BY p.id HAVING p.stock_reservado <> COALESCE(SUM(d.cantidad - d.cantidad_entregada - d.cantidad_cancelada),0);")).toBe('');
@@ -260,6 +306,7 @@ INSERT INTO detalles_devolucion (id, devolucion_id, detalle_venta_id, cantidad, 
         desplegar(antes, proyectoTemporal(antes, 'antes'));
         desplegar(c, proyectoTemporal(c, 'antes'));
         psql(c, sembrar(true));
+        normalizar(c);
         desplegar(c, proyectoTemporal(c, 'hasta')); // hasta la migración de entregas, para comparar el esquema con el anterior
         const url = `postgresql://postgres@127.0.0.1:${c.port}/postgres`;
         const prisma = new PrismaService({ datasources: { db: { url } } });
@@ -275,10 +322,10 @@ INSERT INTO detalles_devolucion (id, devolucion_id, detalle_venta_id, cantidad, 
         try { ejecutarRollback(c, false); } catch (e: any) { error = `${e.stdout ?? ''}${e.stderr ?? ''}${e.message}`; }
         expect(error).toContain('pierde el detalle de entregas parciales');
         expect(consulta(c, "SELECT count(*) FROM entregas_eventos;")).toBe(String(eventos));
-        expect(consulta(c, "SELECT count(*) FROM information_schema.schemata WHERE schema_name LIKE 'respaldo_entregas_148_%';")).toBe('0');
+        expect(consulta(c, "SELECT count(*) FROM information_schema.schemata WHERE schema_name LIKE 'respaldo_entregas_148_%' AND schema_name <> 'respaldo_entregas_148_previo';")).toBe('0');
         // 2) Con autorización: respalda y revierte.
         ejecutarRollback(c, true);
-        const esquema = consulta(c, "SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'respaldo_entregas_148_%';");
+        const esquema = consulta(c, "SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'respaldo_entregas_148_%' AND schema_name <> 'respaldo_entregas_148_previo';");
         expect(esquema).toMatch(/^respaldo_entregas_148_\d{8}_\d{6}$/);
         expect(consulta(c, `SELECT count(*) FROM ${esquema}.entregas_eventos;`)).toBe(String(eventos));
         expect(Number(consulta(c, `SELECT count(*) FROM ${esquema}.entregas_eventos_lineas;`))).toBeGreaterThan(0);
@@ -300,7 +347,7 @@ INSERT INTO detalles_devolucion (id, devolucion_id, detalle_venta_id, cantidad, 
         migrarEntregas(c);
         expect(consulta(c, "SELECT count(*) FROM entregas_eventos WHERE tipo <> 'COBRO';")).toBe('0');
         ejecutarRollback(c, false);
-        const esquema = consulta(c, "SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'respaldo_entregas_148_%';");
+        const esquema = consulta(c, "SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'respaldo_entregas_148_%' AND schema_name <> 'respaldo_entregas_148_previo';");
         expect(esquema).toMatch(/^respaldo_entregas_148_\d{8}_\d{6}$/);
         expect(consulta(c, `SELECT count(*) FROM ${esquema}.detalles_venta_contadores;`)).toBe('5');
         expect(consulta(c, "SELECT to_regclass('public.entregas_eventos') IS NULL;")).toBe('t');

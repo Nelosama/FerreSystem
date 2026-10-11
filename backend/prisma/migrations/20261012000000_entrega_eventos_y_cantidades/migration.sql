@@ -50,29 +50,20 @@ UPDATE "detalles_venta" SET "modo_entrega" = 'SIN_INVENTARIO' WHERE "sin_inventa
 UPDATE "detalles_venta" d SET "cantidad_entregada" = d."cantidad", "modo_entrega" = 'MOSTRADOR'
   FROM "ventas" v
   WHERE v."id" = d."venta_id" AND v."origen" = 'CONTINGENCIA' AND d."sin_inventario" = false;
--- También se consideran entregadas las ventas sin reserva pendiente: la mercancía ya salió del inventario al vender (flujo anterior).
 UPDATE "detalles_venta" d SET "cantidad_entregada" = d."cantidad"
   FROM "ventas" v
-  WHERE v."id" = d."venta_id" AND (v."entregado_at" IS NOT NULL OR v."reserva_pendiente" = false) AND v."origen" <> 'CONTINGENCIA'
+  WHERE v."id" = d."venta_id" AND v."entregado_at" IS NOT NULL AND v."origen" <> 'CONTINGENCIA'
     AND d."sin_inventario" = false;
 
--- 6. Backfill: devoluciones anteriores. En ventas entregadas: INVENTARIO = reingreso; DAÑADO y PROVEEDOR = sin reingreso;
--- NO_ENTREGADO = cancelado. En ventas con reserva pendiente y SIN entrega, la lógica anterior solo reducía la reserva y no
--- tocaba existencias: esas unidades nunca salieron, así que cualquier devolución se cuenta como cancelada (no como reingreso).
--- Sin esta distinción la línea quedaría con un pendiente fantasma (C − E − N > 0) y la migración abortaría por R + S > E.
+-- 6. Backfill: devoluciones anteriores. INVENTARIO = reingreso; DAÑADO y PROVEEDOR = sin reingreso; NO_ENTREGADO = cancelado.
 UPDATE "detalles_venta" d SET
-  "cantidad_devuelta_reingresada" = CASE WHEN v."reserva_pendiente" AND v."entregado_at" IS NULL THEN 0
-      ELSE COALESCE((SELECT SUM(dd."cantidad") FROM "detalles_devolucion" dd
-        WHERE dd."detalle_venta_id" = d."id" AND dd."destino" = 'INVENTARIO'), 0) END,
-  "cantidad_devuelta_sin_reingreso" = CASE WHEN v."reserva_pendiente" AND v."entregado_at" IS NULL THEN 0
-      ELSE COALESCE((SELECT SUM(dd."cantidad") FROM "detalles_devolucion" dd
-        WHERE dd."detalle_venta_id" = d."id" AND dd."destino" IN ('DAÑADO','PROVEEDOR')), 0) END,
-  "cantidad_cancelada" = CASE WHEN v."reserva_pendiente" AND v."entregado_at" IS NULL
-      THEN COALESCE((SELECT SUM(dd."cantidad") FROM "detalles_devolucion" dd WHERE dd."detalle_venta_id" = d."id"), 0)
-      ELSE COALESCE((SELECT SUM(dd."cantidad") FROM "detalles_devolucion" dd
-        WHERE dd."detalle_venta_id" = d."id" AND dd."destino" = 'NO_ENTREGADO'), 0) END
-FROM "ventas" v
-WHERE v."id" = d."venta_id" AND d."sin_inventario" = false;
+  "cantidad_devuelta_reingresada" = COALESCE((SELECT SUM(dd."cantidad") FROM "detalles_devolucion" dd
+      WHERE dd."detalle_venta_id" = d."id" AND dd."destino" = 'INVENTARIO'), 0),
+  "cantidad_devuelta_sin_reingreso" = COALESCE((SELECT SUM(dd."cantidad") FROM "detalles_devolucion" dd
+      WHERE dd."detalle_venta_id" = d."id" AND dd."destino" IN ('DAÑADO','PROVEEDOR')), 0),
+  "cantidad_cancelada" = COALESCE((SELECT SUM(dd."cantidad") FROM "detalles_devolucion" dd
+      WHERE dd."detalle_venta_id" = d."id" AND dd."destino" = 'NO_ENTREGADO'), 0)
+  WHERE d."sin_inventario" = false;
 
 -- 7. Eventos de entrega, devolución y cobro (solo inserción)
 CREATE TABLE "entregas_eventos" (
@@ -143,14 +134,6 @@ BEGIN
      OR "cantidad_entregada" < 0 OR "cantidad_cancelada" < 0 OR "cantidad_preparada" < 0);
   IF malos > 0 THEN
     RAISE EXCEPTION 'Backfill de entregas inconsistente en % líneas; no se aplica la migración', malos;
-  END IF;
-  -- Informativo (no bloquea): productos cuya reserva legada no coincide con lo pendiente de las líneas en bodega.
-  SELECT COUNT(*) INTO malos FROM "productos" p
-   WHERE p."stock_reservado" <> COALESCE((SELECT SUM(d."cantidad" - d."cantidad_entregada" - d."cantidad_cancelada")
-       FROM "detalles_venta" d JOIN "ventas" v ON v."id" = d."venta_id"
-      WHERE d."producto_id" = p."id" AND d."modo_entrega" = 'BODEGA' AND v."estado" = 'COMPLETADA' AND v."reserva_pendiente"), 0);
-  IF malos > 0 THEN
-    RAISE NOTICE 'Entregas: % productos con reserva legada distinta de lo pendiente por líneas; revise con la consulta de conciliación de docs/ATLAS_CORRECCIONES_FINALES_148.md', malos;
   END IF;
   SELECT COUNT(*) INTO malos FROM "productos" WHERE "stock_reservado" < 0;
   IF malos > 0 THEN

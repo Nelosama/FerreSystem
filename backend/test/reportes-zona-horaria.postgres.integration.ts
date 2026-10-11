@@ -98,7 +98,7 @@ describe('Reportes FS-05 / PostgreSQL aislado', () => {
       '20261012000000_conciliacion_pagos_bancarios',
       '20261012000000_entrega_eventos_y_cantidades',
       '20261013000000_balance_referencia_pagos',
-      '20261014000000_cliente_plazo_credito', '20261015000000_contingencia_rechazo_y_conciliacion',
+      '20261014000000_cliente_plazo_credito', '20261015000000_contingencia_revocar_ventanas_anteriores',
     ]) {
       psqlFile(resolve(`prisma/migrations/${migration}/migration.sql`));
     }

@@ -240,7 +240,7 @@ test.describe('2. Aprobación posterior y ventanas antiguas', () => {
     expect(envio.status()).toBeLessThan(300);
     const resultado = (await envio.json()).resultados[0];
     expect(resultado).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'VENTANA_OBSOLETA' });
-    expect(estado(op.operacionId)).toBe('RECHAZADA|true');
+    expect(estado(op.operacionId)).toBe('REVISION|true');
     expect(conflictos(op.operacionId)).toContain('VENTANA_OBSOLETA');
     expect(foto(TENANT_A, cajaA, id)).toEqual(antes); // sin venta, caja, stock ni numeración
     // El administrador no puede aplicarla como venta (409) y no queda atrapada: se cierra conciliando el efectivo en caja.

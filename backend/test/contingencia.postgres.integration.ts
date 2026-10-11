@@ -562,7 +562,8 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       expect(await stock(e.p1)).toBe(20);
       expect([await movimientos(caja1), await movimientos(e.caja2)]).toEqual([a, b]);
       const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
-      expect([fila.estado, fila.requiereRevision, fila.ventaId]).toEqual(['RECHAZADA', true, null]);
+      expect([fila.estado, fila.requiereRevision, fila.ventaId]).toEqual(['REVISION', true, null]);
+      expect((fila.conflictos as any[]).map((c) => [c.codigo, c.severidad])).toEqual([['VENTANA_DE_OTRO_CAJERO', 'DURO']]);
       // El reintento responde lo mismo y no duplica nada.
       const otra = await svc.recibirLote(e.tenantId, e.cajero2, 'CAJERO', { dispositivoId: e.dispositivoId, pendientesRestantes: 0, operaciones: [op] } as any);
       expect(otra.resultados[0]).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'VENTANA_DE_OTRO_CAJERO' });
@@ -630,11 +631,12 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       expect(await stock(e.p1)).toBe(20);
       expect(await prisma.movimientoCaja.count({ where: { cajaId } })).toBe(efectivoAntes);
       const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
-      expect(fila.estado).toBe('RECHAZADA');
+      expect(fila.estado).toBe('REVISION');
+      expect((fila.conflictos as any[]).map((c) => c.codigo)).toEqual(['VENTANA_OBSOLETA']);
       expect((fila.payload as any).totalCentavos).toBe(2300); // evidencia completa para conciliar
       // Salida explícita: el administrador la ve y la cierra conciliando el efectivo (R-02).
       const lista = await svc.listar(e.tenantId, { soloRevision: true });
-      expect(lista.map((x: any) => [x.operacionId, x.estado])).toEqual([[idSolicitud(e.tenantId, op.operacionId), 'RECHAZADA']]);
+      expect(lista.map((x: any) => [x.operacionId, x.estado])).toEqual([[idSolicitud(e.tenantId, op.operacionId), 'REVISION']]);
       const cierre: any = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Venta física verificada; efectivo en caja' } as any);
       expect(cierre.estado).toBe('RESUELTA_MANUAL');
       expect(cierre.conciliacionCaja.monto).toBe(23);
