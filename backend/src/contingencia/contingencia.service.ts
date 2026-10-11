@@ -453,6 +453,10 @@ export class ContingenciaService {
     const hash = fingerprint(canonico({ ...dto }));
     const existente = await this.prisma.operacionContingencia.findFirst({ where: { tenantId, id: { in: [idInterno, dto.operacionId] } } });
     if (existente) {
+      // H-1/H-2 (CENTINELA, 2c62c597): quien no es el cajero de una operación ya existente no altera su fila ni recibe sus datos.
+      if (codigo === 'CAJERO_NO_AUTORIZADO' && existente.usuarioId !== usuarioId) {
+        return { operacionId: dto.operacionId, estado: 'RECHAZADA_TECNICA', codigo, mensaje, instruccion: INSTRUCCION_RECHAZO[codigo], requiereRevision: true, conflictos: [] };
+      }
       // H6: un payload distinto con el mismo UUID se registra como alteración también sobre un rechazo ya guardado.
       if (existente.payloadHash !== hash) {
         const alterada = await this.registrarAlteracion(tenantId, usuarioId, existente, dto, hash);

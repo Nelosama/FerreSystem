@@ -355,4 +355,22 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     expect(r.resultados[1]).toMatchObject({ operacionId: buena.operacionId, estado: 'APLICADA' });
     expect(await ventasDe(e.tenantId)).toBe(antes + 1);
   });
+
+  // H-1 y H-2 de la auditoría CENTINELA sobre 2c62c597: un cajero ajeno no altera la venta del dueño ni recibe sus datos.
+  it('H-1/H-2: un cajero ajeno con el UUID de una operación aplicada no altera su fila ni ve su venta', async () => {
+    const e = await empresa();
+    const op = operacion(e);
+    expect((await recibir(e, [op])).resultados[0].estado).toBe('APLICADA');
+    const otro = randomUUID();
+    await prisma.usuario.create({ data: { id: otro, tenantId: e.tenantId, nombre: 'Cajero F', email: `${otro}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
+    const antesFila = await filaDe(e.tenantId, op.operacionId);
+    const ajena = { ...op, clienteNombre: 'OTRO CLIENTE' };
+    const r = (await recibir(e, [ajena], otro, 'CAJERO')).resultados[0];
+    expect(JSON.stringify(r)).not.toMatch(/ventaId|numeroVenta|aplicadoAt|OTRO CLIENTE/);
+    const despuesFila = await filaDe(e.tenantId, op.operacionId);
+    expect([despuesFila!.requiereRevision, despuesFila!.estado]).toEqual([antesFila!.requiereRevision, antesFila!.estado]);
+    expect((despuesFila!.conflictos as any[]).some((c) => c.codigo === 'OPERACION_ALTERADA')).toBe(false);
+    expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_ALTERADA', idSolicitud(e.tenantId, op.operacionId))).toBe(0);
+    expect(await ventasDe(e.tenantId)).toBe(1);
+  });
 });
