@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { plainToInstance } from 'class-transformer';
 import { validate as validarDto } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
-import { audit, authorizedActor, cashMovement, esIdInterno, id as nuevoId, idRecurso, idSolicitud, lockTenant, movement, query, Tx, fingerprint } from '../operaciones/ledger';
+import { audit, authorizedActor, cashMovement, esIdInterno, id as nuevoId, idRecurso, idSolicitud, lockTenant, money, movement, query, Tx, fingerprint } from '../operaciones/ledger';
 import { huellaDeLineas, movimientoConEvento, registrarEvento } from '../entregas/entregas-core';
 import { calcularTotales, centavosADecimal } from '../common/dinero';
 import { operacionEmitida, operacionesEmitidas } from './operaciones-emitidas';
@@ -866,7 +866,7 @@ export class ContingenciaService {
         if (op.estado === 'APLICADA' || op.estado === 'RESUELTA_MANUAL') throw new ConflictException('La operación ya está resuelta');
         // R-02: cerrar sin vender no puede ocultar el efectivo cobrado. Se registra un ingreso de conciliación en una caja abierta,
         // con referencia a la operación; no se crea ninguna venta ni se toca el inventario (eso se concilia aparte).
-        const conciliacionCaja = await this.conciliarEfectivo(tx, tenantId, adminId, op, dto.cajaId);
+        const conciliacionCaja = await this.conciliarEfectivo(tx, tenantId, adminId, op, dto.cajaId, dto.regularizarCajaCerrada ? { motivo: dto.motivoRegularizacion! } : undefined);
         // F-01: la conciliación física queda separada y trazable: se registra qué mercancía salió sin descuento, sin ajustar existencias.
         const inventarioPendiente = (await this.inventarioPendiente(tx as any, tenantId, [op])).get(op.id) ?? [];
         const resolucionConc = { ...resolucion, conciliacionCaja, inventarioPendiente };
@@ -900,26 +900,48 @@ export class ContingenciaService {
     })]));
   }
 
-  /** Ingreso de conciliación por el efectivo que se quedó en caja (total cobrado, sin el cambio). Idempotente por operación. */
-  private async conciliarEfectivo(tx: Tx, tenantId: string, adminId: string, op: any, cajaSolicitada?: string) {
+  /**
+   * Ingreso de conciliación por el efectivo que se quedó en caja (total cobrado, sin el cambio). Idempotente por operación.
+   * R-02 (decisión del propietario, opción B): el ingreso se atribuye EXCLUSIVAMENTE a la caja del cajero que cobró. Nunca se
+   * traslada a otra caja. Si esa caja está cerrada solo procede una regularización excepcional, autorizada y auditada.
+   */
+  private async conciliarEfectivo(tx: Tx, tenantId: string, adminId: string, op: any, cajaSolicitada?: string, regularizacion?: { motivo: string }) {
     const monto = op.totalCentavos / 100;
     const [previo] = await query<any>(tx as any, `SELECT m.id, m.caja_id FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id
        WHERE c.tenant_id=$1 AND m.referencia=$2 AND m.tipo='INGRESO_MANUAL' AND m.concepto LIKE 'Conciliación contingencia%'`, tenantId, op.id);
     if (previo) return { movimientoId: previo.id, cajaId: previo.caja_id, monto, reutilizado: true };
-    let caja: any;
-    if (cajaSolicitada) {
-      [caja] = await query<any>(tx as any, `SELECT id FROM cajas WHERE id=$1 AND tenant_id=$2 AND estado='ABIERTA'`, cajaSolicitada, tenantId);
-      if (!caja) throw new ConflictException('La caja indicada no existe o está cerrada');
-    } else {
-      [caja] = await query<any>(tx as any, `SELECT id FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado='ABIERTA' ORDER BY fecha_apertura DESC LIMIT 1`, tenantId, op.usuarioId);
-      if (!caja) [caja] = await query<any>(tx as any, `SELECT id FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado='ABIERTA' ORDER BY fecha_apertura DESC LIMIT 1`, tenantId, adminId);
+    if (cajaSolicitada && cajaSolicitada !== op.cajaId) {
+      throw new BadRequestException({ message: 'El efectivo solo puede registrarse en la caja del cajero que cobró; no se traslada a otra caja', code: 'CAJA_NO_ES_DEL_COBRO' });
     }
-    if (!caja) throw new ConflictException('Abra una caja (o indique cajaId) para registrar el efectivo cobrado antes de cerrar la operación sin venta');
+    const [caja] = await query<any>(tx as any, 'SELECT id, estado, monto_cierre_fisico, monto_esperado, diferencia, notas FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3 FOR UPDATE',
+      op.cajaId, tenantId, op.usuarioId);
+    if (!caja) throw new ConflictException({ message: 'La caja del cajero que cobró no existe; no se registra el efectivo en otra caja', code: 'CAJA_DEL_COBRO_NO_ENCONTRADA' });
+    const cerrada = caja.estado !== 'ABIERTA';
+    if (cerrada && !regularizacion) {
+      throw new ConflictException({
+        message: 'La caja del cajero que cobró está cerrada. El efectivo no se traslada a otra caja: un administrador debe autorizar una regularización excepcional indicando su motivo',
+        code: 'CAJA_CERRADA_REQUIERE_REGULARIZACION',
+      });
+    }
     const movimientoId = nuevoId();
+    const concepto = cerrada
+      ? `Conciliación contingencia ${op.correlativoLocal}: efectivo cobrado sin venta aplicada (regularización excepcional de caja cerrada)`
+      : `Conciliación contingencia ${op.correlativoLocal}: efectivo cobrado sin venta aplicada`;
     await query(tx, 'INSERT INTO movimientos_caja (id,caja_id,usuario_id,tipo,monto,metodo,referencia,concepto) VALUES ($1,$2,$3,$4::"TipoMovimientoCaja",$5,$6,$7,$8) RETURNING id',
-      movimientoId, caja.id, adminId, 'INGRESO_MANUAL', monto, 'EFECTIVO', op.id, `Conciliación contingencia ${op.correlativoLocal}: efectivo cobrado sin venta aplicada`);
-    await audit(tx, tenantId, adminId, 'CONTINGENCIA_CONCILIAR_EFECTIVO', op.id, { cajaId: caja.id, monto, movimientoId });
-    return { movimientoId, cajaId: caja.id, monto, reutilizado: false };
+      movimientoId, caja.id, adminId, 'INGRESO_MANUAL', monto, 'EFECTIVO', op.id, concepto);
+    if (cerrada) {
+      // El arqueo guardado debe seguir explicándose: el esperado sube por el ingreso; el efectivo contado al cerrar no cambia.
+      const esperadoAnterior = Number(caja.monto_esperado ?? 0);
+      const diferenciaAnterior = Number(caja.diferencia ?? 0);
+      const esperadoNuevo = money(esperadoAnterior + monto);
+      const diferenciaNueva = money(Number(caja.monto_cierre_fisico ?? 0) - esperadoNuevo);
+      const nota = `${caja.notas ? `${caja.notas} | ` : ''}Regularización ${op.correlativoLocal}: +${monto} (${regularizacion!.motivo})`;
+      await query(tx, 'UPDATE cajas SET monto_esperado=$1, diferencia=$2, notas=$3 WHERE id=$4', esperadoNuevo, diferenciaNueva, nota, caja.id);
+      await audit(tx, tenantId, adminId, 'CONTINGENCIA_REGULARIZAR_CAJA_CERRADA', op.id,
+        { cajaId: caja.id, monto, movimientoId, motivo: regularizacion!.motivo, esperadoAnterior, esperadoNuevo, diferenciaAnterior, diferenciaNueva });
+    }
+    await audit(tx, tenantId, adminId, 'CONTINGENCIA_CONCILIAR_EFECTIVO', op.id, { cajaId: caja.id, monto, movimientoId, regularizacionExcepcional: cerrada });
+    return { movimientoId, cajaId: caja.id, monto, reutilizado: false, regularizacionExcepcional: cerrada };
   }
 
   async actualizarReferencia(tenantId: string, usuarioId: string, rol: string, operacionId: string, referencia: string) {

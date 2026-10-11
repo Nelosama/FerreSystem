@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString,
-  IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateNested,
+  IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateIf, ValidateNested,
 } from 'class-validator';
 import { OPERACIONES_POR_VENTANA } from '../operaciones-emitidas';
 
@@ -60,8 +60,11 @@ export class LoteOperacionesDto {
 export class ResolverOperacionDto {
   @IsIn(['REINTENTAR', 'ACEPTAR', 'CERRAR_MANUAL', 'MARCAR_REVISADA']) accion: 'REINTENTAR' | 'ACEPTAR' | 'CERRAR_MANUAL' | 'MARCAR_REVISADA';
   @IsString() @MinLength(10) @MaxLength(500) nota: string;
-  /** Caja ABIERTA que recibirá el efectivo si la caja original ya cerró. */
+  /** Caja ABIERTA donde se aplica la venta al ACEPTAR. En CERRAR_MANUAL el efectivo va siempre a la caja del cajero que cobró. */
   @IsOptional() @IsString() cajaId?: string;
+  /** R-02: regularización excepcional para registrar el efectivo en la caja CERRADA del cajero que cobró. Exige motivo. */
+  @IsOptional() @IsBoolean() regularizarCajaCerrada?: boolean;
+  @ValidateIf((o) => o.regularizarCajaCerrada === true) @IsString() @MinLength(20) @MaxLength(500) motivoRegularizacion?: string;
   @IsOptional() @IsString() @MaxLength(100) referenciaFacturaExterna?: string;
 }
 
