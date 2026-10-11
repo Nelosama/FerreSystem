@@ -47,6 +47,12 @@ jobs:
           name: frontend-browser-failure
           path: frontend/test-results/
           retention-days: 7
+      - name: Clave efímera de la contingencia (solo CI)
+        # Valor aleatorio generado en cada ejecución: no es un secreto del proyecto ni se reutiliza en ningún entorno.
+        run: |
+          clave=$(openssl rand -hex 32)
+          echo "::add-mask::$clave"
+          echo "CONTINGENCIA_CLAVE_OPERACIONES=$clave" >> "$GITHUB_ENV"
       - name: "Backend: compilación y pruebas"
         working-directory: backend
         run: |

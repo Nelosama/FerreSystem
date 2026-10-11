@@ -11,7 +11,7 @@ if(existsSync(root))throw new Error('El destino ya existe. No se reemplazan secr
 mkdirSync(dirname(root),{recursive:true,mode:0o700});
 mkdirSync(root,{mode:0o700});
 mkdirSync(join(root,'secrets'),{mode:0o700});mkdirSync(join(root,'backups'),{mode:0o700});
-for(const file of ['database_admin_password','database_password','jwt_secret','initial_admin_password'])writeFileSync(join(root,'secrets',file),randomBytes(36).toString('base64url'),{mode:0o600,flag:'wx'});
+for(const file of ['database_admin_password','database_password','jwt_secret','contingencia_clave_operaciones','initial_admin_password'])writeFileSync(join(root,'secrets',file),randomBytes(36).toString('base64url'),{mode:0o600,flag:'wx'});
 // Compose interpreta $$ como un dólar literal dentro de valores entre comillas.
 const quote=value=>JSON.stringify(value).replaceAll('$',()=> '$$');
 writeFileSync(join(root,'local.env'),[`LOCAL_UID=${process.getuid?.() ?? 0}`,`LOCAL_GID=${process.getgid?.() ?? 0}`,`FERRE_HOST=${quote(host)}`,`INITIAL_ADMIN_EMAIL=${quote(email)}`,`INITIAL_TENANT_NAME=${quote(name)}`,`SECRETS_DIRECTORY=${quote(join(root,'secrets'))}`,`BACKUP_DIRECTORY=${quote(join(root,'backups'))}`].join('\n')+'\n',{mode:0o600,flag:'wx'});

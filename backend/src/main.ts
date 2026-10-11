@@ -2,12 +2,19 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as cookieParserImport from 'cookie-parser';
 import { configurarPipesGlobales } from './common/pipes/profundidad-maxima.pipe';
+import { errorDeConfiguracionContingencia } from './contingencia/clave-operaciones';
 import { createFrontendCorsOptions } from './common/frontend-cors';
 import { leerTrustProxy, validarConfiguracionAuth } from './auth/auth-config';
 
 const cookieParser = (cookieParserImport as any).default || cookieParserImport;
 
 async function bootstrap() {
+  // Configuración obligatoria de la contingencia: se valida antes de crear la aplicación y el mensaje nunca incluye valores secretos.
+  const errorContingencia = errorDeConfiguracionContingencia(process.env);
+  if (errorContingencia) {
+    console.error(`[ARRANQUE] ${errorContingencia}`);
+    process.exit(1);
+  }
   const app = await NestFactory.create(AppModule);
 
   // Falla al arrancar si la configuración de autenticación es inválida.

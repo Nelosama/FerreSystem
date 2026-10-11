@@ -8,6 +8,9 @@ process.env.DATABASE_URL=`postgresql://ferresystem:${encodeURIComponent(password
 process.env.DIRECT_URL=process.env.DATABASE_URL;
 process.env.PGHOST=host;process.env.PGPORT='5432';process.env.PGDATABASE='ferresystem';process.env.PGUSER='ferresystem';process.env.PGPASSWORD=password;
 if(existsSync('/run/secrets/jwt_secret'))process.env.JWT_SECRET=readFileSync('/run/secrets/jwt_secret','utf8').trim();
+// Clave de la contingencia offline (dedicada, distinta de jwt_secret). La clave anterior es opcional y solo existe durante una transición.
+if(existsSync('/run/secrets/contingencia_clave_operaciones'))process.env.CONTINGENCIA_CLAVE_OPERACIONES=readFileSync('/run/secrets/contingencia_clave_operaciones','utf8').trim();
+if(existsSync('/run/secrets/contingencia_clave_operaciones_anterior'))process.env.CONTINGENCIA_CLAVE_OPERACIONES_ANTERIOR=readFileSync('/run/secrets/contingencia_clave_operaciones_anterior','utf8').trim();
 const [command,...args]=process.argv.slice(2);
 if(!command)throw new Error('Defina el comando del contenedor');
 const child=spawn(command,args,{stdio:'inherit',env:process.env});
