@@ -41,9 +41,13 @@ const canonico = (valor: unknown): string => JSON.stringify(valor, (_, v) =>
 const sha = (texto: string) => createHash('sha256').update(texto).digest('hex');
 
 /** Rechazos definitivos de la recepción (DEF-04, R-01): se conservan en el diario como REVISION con uno de estos conflictos DUROS no superables. */
-const CODIGOS_RECHAZO = new Set(['VENTANA_OBSOLETA', 'VENTANA_DE_OTRO_CAJERO', 'CAJA_DE_VENTANA_NO_VALIDA']);
+// H5: también son rechazos definitivos los errores de validación que ocurren antes de aplicar la operación.
+const CODIGOS_RECHAZO = new Set(['VENTANA_OBSOLETA', 'VENTANA_DE_OTRO_CAJERO', 'CAJA_DE_VENTANA_NO_VALIDA', 'IMPORTE_INVALIDO', 'CAJERO_NO_AUTORIZADO', 'OPERACION_OTRO_DISPOSITIVO']);
 /** Qué debe hacer quien usa el equipo ante cada rechazo definitivo. Es el mismo texto en la primera respuesta y en toda consulta posterior (O-02). */
 const INSTRUCCION_RECHAZO: Record<string, string> = {
+  IMPORTE_INVALIDO: 'El cobro no cubre el total. No se registró venta: avise al administrador para conciliar el efectivo.',
+  CAJERO_NO_AUTORIZADO: 'Esta operación pertenece a otro cajero. No se registró venta: avise al administrador.',
+  OPERACION_OTRO_DISPOSITIVO: 'La operación pertenece a otro equipo. No se registró venta: avise al administrador.',
   VENTANA_OBSOLETA: 'Solicite una ventana nueva al administrador. La venta se conserva en el equipo y queda registrada para conciliación.',
   VENTANA_DE_OTRO_CAJERO: 'No cobre con la ventana de otro cajero. Avise al administrador: la venta queda para conciliación.',
   CAJA_DE_VENTANA_NO_VALIDA: 'Avise al administrador: la caja de la ventana no corresponde a su usuario. La venta queda para conciliación.',
@@ -254,10 +258,15 @@ export class ContingenciaService {
       try {
         resultados.push(await this.procesarOperacion(tenantId, usuarioId, rol, dispositivo.id, dto.dispositivoId, op));
       } catch (error: any) {
-        // Error técnico (BD, bloqueo, tiempo): la operación (si llegó a registrarse) sigue en el diario; el cliente reintenta con el mismo UUID.
         this.logger.error(`Operación ${op.operacionId}: ${error?.message}`);
         const status = error?.status ?? 500;
-        resultados.push({ operacionId: op.operacionId, estado: status >= 500 ? 'ERROR_TEMPORAL' : 'RECHAZADA_TECNICA', codigo: error?.response?.code ?? null, mensaje: error?.message ?? 'Error' });
+        if (status >= 500) {
+          // Error técnico (BD, bloqueo, tiempo): nada definitivo; el cliente reintenta con el mismo UUID y no se pierde nada.
+          resultados.push({ operacionId: op.operacionId, estado: 'ERROR_TEMPORAL', codigo: null, mensaje: error?.message ?? 'Error' });
+        } else {
+          // H5: un 4xx es un rechazo definitivo. Debe quedar en el servidor para que el administrador lo vea; nunca es una venta.
+          resultados.push(await this.registrarRechazoDefinitivo(tenantId, usuarioId, op, error));
+        }
       }
     }
     await this.prisma.dispositivoPos.update({
@@ -298,9 +307,9 @@ export class ContingenciaService {
   }
 
   private async procesarOperacion(tenantId: string, usuarioId: string, rol: string, dispositivoId: string, dispositivoEquipo: string, dto: OperacionContingenciaDto) {
-    if (dto.dispositivoId !== dispositivoEquipo) throw new BadRequestException('La operación pertenece a otro dispositivo');
+    if (dto.dispositivoId !== dispositivoEquipo) throw new BadRequestException({ message: 'La operación pertenece a otro dispositivo', code: 'OPERACION_OTRO_DISPOSITIVO' });
     if (rol !== 'ADMIN' && dto.cajeroId !== usuarioId) {
-      throw new ForbiddenException('Solo el cajero de la operación o un administrador puede enviarla');
+      throw new ForbiddenException({ message: 'Solo el cajero de la operación o un administrador puede enviarla', code: 'CAJERO_NO_AUTORIZADO' });
     }
     // Un importe cero o un cobro menor al total nunca se registra como venta. Es un rechazo permanente (no un error de red):
     // el equipo conserva la venta local y la marca para revisión del administrador, sin reintentarla indefinidamente.
@@ -347,6 +356,34 @@ export class ContingenciaService {
     }
     // 2) Aplicación en transacción aparte.
     return this.aplicarYResumir(tenantId, idInterno, {}, dto.operacionId);
+  }
+
+  /**
+   * H5: registra un rechazo 4xx anterior a la aplicación. Idempotente por operación: si ya existe fila, responde su estado real.
+   * Con ventana válida se guarda en el diario (RECHAZADA, con motivo). Sin ventana válida no cabe en el diario (ventana_id es
+   * obligatoria): queda evidencia en auditoría y la respuesta de rechazo. En ningún caso se crea venta, caja ni movimiento de stock.
+   */
+  private async registrarRechazoDefinitivo(tenantId: string, usuarioId: string, dto: OperacionContingenciaDto, error: any) {
+    const codigo = error?.response?.code ?? 'RECHAZADA';
+    const mensaje = error?.response?.message ?? error?.message ?? 'La operación fue rechazada';
+    const idInterno = idSolicitud(tenantId, dto.operacionId);
+    const existente = await this.prisma.operacionContingencia.findFirst({ where: { tenantId, id: { in: [idInterno, dto.operacionId] } } });
+    if (existente) return this.resumenCliente(existente, dto.operacionId);
+    // El diario exige importes coherentes (montos_check: total > 0 y efectivo >= total). Un cobro insuficiente no cabe en él
+    // sin cambiar el esquema; esa decisión no está autorizada. Su evidencia completa queda en auditoría.
+    const montosCoherentes = dto.totalCentavos > 0 && dto.efectivoRecibidoCentavos >= dto.totalCentavos;
+    const ventana = montosCoherentes ? await this.prisma.contingenciaVentana.findFirst({ where: { id: dto.ventanaId, tenantId } }) : null;
+    if (ventana) {
+      return this.registrarRechazo(tenantId, ventana, dto, fingerprint(canonico({ ...dto })), idInterno, { codigo, mensaje });
+    }
+    const yaAuditada = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno } });
+    if (!yaAuditada) {
+      await this.prisma.auditoriaOperacion.create({
+        data: { tenantId, usuarioId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno,
+          datos: { codigo, mensaje, correlativoLocal: dto.correlativoLocal, totalCentavos: dto.totalCentavos, efectivoRecibidoCentavos: dto.efectivoRecibidoCentavos, ventanaId: dto.ventanaId, payload: dto } as any },
+      });
+    }
+    return { operacionId: dto.operacionId, estado: 'RECHAZADA_TECNICA', codigo, mensaje, requiereRevision: true, conflictos: [] };
   }
 
   private async motivoRechazoDeVentana(tenantId: string, ventana: any, dto: OperacionContingenciaDto): Promise<{ codigo: string; mensaje: string } | null> {

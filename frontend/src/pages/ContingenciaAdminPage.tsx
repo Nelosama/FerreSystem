@@ -45,9 +45,12 @@ const ETIQUETAS: Record<string, string> = {
   VENTANA_OBSOLETA: 'Ventana anterior a la validación de precios aprobados: rechazada, no se aplicó como venta',
   VENTANA_DE_OTRO_CAJERO: 'La operación usó la ventana de otro cajero: rechazada, no se aplicó a ninguna caja',
   CAJA_DE_VENTANA_NO_VALIDA: 'La caja de la ventana no corresponde al cajero: rechazada',
+  IMPORTE_INVALIDO: 'El cobro no cubre el total: rechazada, evidencia en auditoría; no se aplicó como venta',
+  CAJERO_NO_AUTORIZADO: 'Operación de otro cajero enviada por un cajero: rechazada',
+  OPERACION_OTRO_DISPOSITIVO: 'La operación pertenece a otro equipo: rechazada',
 };
 // Rechazos definitivos de la recepción (ventana de otro cajero, ventana anterior): nunca se aplican como venta.
-const CODIGOS_RECHAZO = ['VENTANA_OBSOLETA', 'VENTANA_DE_OTRO_CAJERO', 'CAJA_DE_VENTANA_NO_VALIDA'];
+const CODIGOS_RECHAZO = ['VENTANA_OBSOLETA', 'VENTANA_DE_OTRO_CAJERO', 'CAJA_DE_VENTANA_NO_VALIDA', 'IMPORTE_INVALIDO', 'CAJERO_NO_AUTORIZADO', 'OPERACION_OTRO_DISPOSITIVO'];
 const rechazada = (op: { conflictos: Conflicto[] }) => op.conflictos.some((k) => CODIGOS_RECHAZO.includes(k.codigo));
 const etiqueta = (c: Conflicto) => ETIQUETAS[c.codigo] ?? c.codigo;
 
