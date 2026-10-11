@@ -18,6 +18,7 @@ import { Reflector } from '@nestjs/core';
 import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 import { TenantModuleGuard } from '../src/common/guards/tenant-module.guard';
+import { emitirRegistrada, siguienteOperacion } from './helpers/operaciones-emitidas';
 
 // H5 por HTTP real (FARO): errores 4xx de POST /api/contingencia/operaciones con PostgreSQL temporal, login JWT real,
 // ValidationPipe y guardas como en producción. Cada prueba comprueba el estado de la base antes y después.
@@ -102,12 +103,12 @@ describe('Contingencia H5 por HTTP: 4xx en recepción offline / PostgreSQL aisla
     const p1 = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20 } as any });
     const equipoId = randomUUID();
     await svc.registrarDispositivo(tenantId, cajero.id, { dispositivoId: equipoId, nombre: 'Caja principal' });
-    const { ventana } = await svc.emitirVentana(tenantId, cajero.id, { dispositivoId: equipoId });
+    const { ventana } = await emitirRegistrada(svc, tenantId, cajero.id, { dispositivoId: equipoId });
     return { tenantId, admin, cajero, p1: p1.id, equipoId, ventanaId: ventana.id as string };
   }
 
   const operacion = (e: any, extra: Record<string, any> = {}) => ({
-    operacionId: randomUUID(), dispositivoId: e.equipoId, ventanaId: e.ventanaId, secuenciaLocal: 900 + Math.floor(Math.random() * 1000),
+    ...siguienteOperacion(e.ventanaId), dispositivoId: e.equipoId, ventanaId: e.ventanaId, secuenciaLocal: 900 + Math.floor(Math.random() * 1000),
     correlativoLocal: 'CT-01-0900', ocurridoAtLocal: new Date().toISOString(), cajeroId: e.cajero.id,
     lineas: [{ productoId: e.p1, cantidadCentesimas: 200, precioCentavos: 1000 }],
     subtotalCentavos: 2000, isvCentavos: 300, totalCentavos: 2300, efectivoRecibidoCentavos: 2500, cambioCentavos: 200,

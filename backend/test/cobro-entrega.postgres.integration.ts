@@ -10,6 +10,7 @@ import { VentasService } from '../src/ventas/ventas.service';
 import { EntregasService } from '../src/entregas/entregas.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
 import { ContingenciaService } from '../src/contingencia/contingencia.service';
+import { emitirRegistrada, siguienteOperacion } from './helpers/operaciones-emitidas';
 
 // Cobro y entrega contra PostgreSQL real: cadena completa de migraciones en un clúster temporal exclusivo.
 // Nunca lee DATABASE_URL. Ejecutar como usuario no root (initdb lo exige).
@@ -717,7 +718,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
     function operacion(e: Empresa, ventanaId: string, productoId: string, extra: Partial<Record<string, any>> = {}) {
       const n = ++contador;
       return {
-        operacionId: randomUUID(), dispositivoId: e.dispositivoId, ventanaId, secuenciaLocal: n,
+        ...siguienteOperacion(ventanaId), dispositivoId: e.dispositivoId, ventanaId, secuenciaLocal: n,
         correlativoLocal: `CT-01-${String(n).padStart(4, '0')}`, ocurridoAtLocal: new Date().toISOString(), cajeroId: e.cajero,
         lineas: [{ productoId, cantidadCentesimas: 200, precioCentavos: 1000 }],
         subtotalCentavos: 2000, isvCentavos: 300, totalCentavos: 2300, efectivoRecibidoCentavos: 2500, cambioCentavos: 200,
@@ -728,7 +729,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
 
     it('el catálogo offline no incluye productos sin precio aprobado', async () => {
       const e = await empresa();
-      const { catalogo } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { catalogo } = await emitirRegistrada(contingencia, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       const ids = catalogo.productos.map((p: any) => p.id);
       expect(ids).toContain(e.p1);
       expect(ids).not.toContain(e.sinPrecio);
@@ -737,7 +738,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
 
     it('la venta offline queda entregada en mostrador, con eventos y movimiento, y el reenvío no duplica nada', async () => {
       const e = await empresa();
-      const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { ventana } = await emitirRegistrada(contingencia, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       const op = operacion(e, ventana.id, e.p1);
       const [r] = (await enviar(e, [op])).resultados;
       expect(r.estado).toBe('APLICADA');
@@ -758,7 +759,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
 
     it('si el producto pierde su precio aprobado después de emitir la ventana, la operación va a revisión y no se vende', async () => {
       const e = await empresa();
-      const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { ventana } = await emitirRegistrada(contingencia, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       await prisma.producto.update({ where: { id: e.p1 }, data: { precioVenta: 0, precioAprobado: false } });
       const op = operacion(e, ventana.id, e.p1);
       const [r] = (await enviar(e, [op])).resultados;
@@ -783,7 +784,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
 
     it('una operación de importe cero se rechaza como técnica y permanente: no crea venta, caja ni movimientos', async () => {
       const e = await empresa();
-      const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { ventana } = await emitirRegistrada(contingencia, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       const cajaAntes = (await sql('SELECT COUNT(*)::int AS n FROM movimientos_caja'))[0].n;
       const op = operacion(e, ventana.id, e.p1, {
         lineas: [{ productoId: e.p1, cantidadCentesimas: 100, precioCentavos: 0 }],
@@ -800,7 +801,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
 
     it('un cobro menor al total también es un rechazo técnico permanente', async () => {
       const e = await empresa();
-      const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { ventana } = await emitirRegistrada(contingencia, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       const op = operacion(e, ventana.id, e.p1, { efectivoRecibidoCentavos: 1000, cambioCentavos: 0 });
       const [r] = (await enviar(e, [op])).resultados;
       expect([r.estado, r.codigo]).toEqual(['RECHAZADA_TECNICA', 'IMPORTE_INVALIDO']);
@@ -809,7 +810,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
 
     it('una línea con precio cero dentro de una operación con total positivo se guarda en revisión y no se puede forzar', async () => {
       const e = await empresa();
-      const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { ventana } = await emitirRegistrada(contingencia, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       const op = operacion(e, ventana.id, e.p1, {
         lineas: [{ productoId: e.p1, cantidadCentesimas: 200, precioCentavos: 1000 }, { productoId: e.p2, cantidadCentesimas: 100, precioCentavos: 0 }],
       });
@@ -823,7 +824,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
 
     it('un lote con una operación inválida no impide aplicar las válidas, y la inválida se rechaza sin registrar venta', async () => {
       const e = await empresa();
-      const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { ventana } = await emitirRegistrada(contingencia, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       const invalida = operacion(e, ventana.id, e.p1, { lineas: [{ productoId: e.p1, cantidadCentesimas: 100, precioCentavos: 0 }], subtotalCentavos: 0, isvCentavos: 0, totalCentavos: 0, efectivoRecibidoCentavos: 0, cambioCentavos: 0 });
       const valida = operacion(e, ventana.id, e.p1);
       const { resultados } = await enviar(e, [invalida, valida]);

@@ -17,6 +17,8 @@ export interface Conflicto { codigo: string; severidad?: string; detalle?: Recor
 
 export interface OperacionLocal {
   operacionId: string;
+  /** H-5: posición de `operacionId` dentro de las operaciones emitidas por la ventana. */
+  indiceOperacion?: number;
   dispositivoId: string;
   ventanaId: string;
   cajeroId: string;
@@ -49,21 +51,35 @@ export interface OperacionLocal {
   requiereRevision?: boolean;
 }
 
-export type NuevaOperacion = Omit<OperacionLocal, 'secuenciaLocal' | 'correlativoLocal' | 'estado' | 'intentos' | 'creadaAt' | 'conflictos'>;
+export type NuevaOperacion = Omit<OperacionLocal, 'operacionId' | 'indiceOperacion' | 'secuenciaLocal' | 'correlativoLocal' | 'estado' | 'intentos' | 'creadaAt' | 'conflictos'>;
 
 export const correlativoLocal = (codigoDispositivo: string, secuencia: number) =>
   `CT-${codigoDispositivo.padStart(2, '0')}-${String(secuencia).padStart(4, '0')}`;
 
-/** Registra la operación con su secuencia local en la misma transacción que el contador. Resuelve al quedar guardada. */
-export function registrarOperacion(nueva: NuevaOperacion, codigoDispositivo: string): Promise<OperacionLocal> {
+/**
+ * Registra la operación con su secuencia local en la misma transacción que el contador. Resuelve al quedar guardada.
+ * H-5: el identificador lo asigna el servidor (`emitidas`, en orden). El índice se calcula dentro de la transacción, así dos
+ * pestañas no reutilizan un identificador. Sin identificadores disponibles la transacción se aborta: no hay venta.
+ */
+export function registrarOperacion(nueva: NuevaOperacion, codigoDispositivo: string, emitidas: string[]): Promise<OperacionLocal> {
   return transaccion<OperacionLocal>(['operaciones', 'meta'], 'readwrite', (tx, salida) => {
     const meta = tx.objectStore('meta');
     const ops = tx.objectStore('operaciones');
+    const todas = ops.getAll();
     const contador = meta.get('secuencia');
+    todas.onsuccess = () => {
+      const usados = (todas.result as OperacionLocal[]).filter((o) => o.ventanaId === nueva.ventanaId && typeof o.indiceOperacion === 'number');
+      const indice = usados.reduce((maximo, o) => Math.max(maximo, o.indiceOperacion ?? -1), -1) + 1;
+      if (indice >= emitidas.length) tx.abort();
+    };
     contador.onsuccess = () => {
       const siguiente = (Number(contador.result) || 0) + 1;
+      const usados = (todas.result as OperacionLocal[]).filter((o) => o.ventanaId === nueva.ventanaId && typeof o.indiceOperacion === 'number');
+      const indice = usados.reduce((maximo, o) => Math.max(maximo, o.indiceOperacion ?? -1), -1) + 1;
       const operacion: OperacionLocal = {
         ...nueva,
+        operacionId: emitidas[indice],
+        indiceOperacion: indice,
         secuenciaLocal: siguiente,
         correlativoLocal: correlativoLocal(codigoDispositivo, siguiente),
         estado: 'PENDIENTE',

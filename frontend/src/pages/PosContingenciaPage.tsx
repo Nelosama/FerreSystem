@@ -253,6 +253,7 @@ export default function PosContingenciaPage() {
     }
     if (!esCajeroDeVentana) return 'La ventana de contingencia pertenece a otro cajero. Inicie sesión con ese usuario.';
     if (!vigente) return 'La ventana de contingencia venció. Conéctese a internet para renovarla.';
+    if (!ventana.operacionesEmitidas?.length) return 'Esta ventana es anterior a la protección de operaciones. Conéctese a internet para renovarla.';
     if (!lineas.length) return 'Agregue productos para cobrar.';
     if (efectivoCentavos === null) return 'Escriba el efectivo recibido.';
     if (efectivoCentavos < totales.total) return `Falta ${formatearCentavos(totales.total - efectivoCentavos)} para cubrir la venta.`;
@@ -287,7 +288,7 @@ export default function PosContingenciaPage() {
     guardandoRef.current = true;
     setGuardando(true);
     const nueva: NuevaOperacion = {
-      operacionId: crypto.randomUUID(), dispositivoId: dispositivo.id, ventanaId: ventana.ventanaId, cajeroId: user.id,
+      dispositivoId: dispositivo.id, ventanaId: ventana.ventanaId, cajeroId: user.id,
       cajeroNombre: user.nombre, cajaId: ventana.cajaId, ocurridoAtLocal: new Date().toISOString(), ferreteria: tenant?.nombreComercial ?? '',
       lineas: lineas.map(({ productoIdCatalogo: _ignorar, ...l }) => l),
       subtotalCentavos: totales.subtotal, isvCentavos: totales.isv, totalCentavos: totales.total,
@@ -295,7 +296,8 @@ export default function PosContingenciaPage() {
       clienteNombre: clienteNombre.trim(), clienteRtn: clienteRtn.trim(), esquemaVersion: 1,
     };
     try {
-      const guardada = await registrarOperacion(nueva, dispositivo.codigo);
+      // H-5: el identificador lo asigna el servidor en la ventana; el equipo no genera UUID de operación.
+      const guardada = await registrarOperacion(nueva, dispositivo.codigo, ventana.operacionesEmitidas ?? []);
       setConfirmacion(guardada);
       setLineas([]); setClienteNombre(''); setClienteRtn(''); setEfectivoTexto('');
       setMensaje({ tipo: 'ok', texto: `Venta guardada en este equipo: ${guardada.correlativoLocal}. Entregue el cambio y la mercancía.` });

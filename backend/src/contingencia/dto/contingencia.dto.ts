@@ -3,6 +3,7 @@ import {
   ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString,
   IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
+import { OPERACIONES_POR_VENTANA } from '../operaciones-emitidas';
 
 export class RegistrarDispositivoDto {
   @IsUUID('4') dispositivoId: string;
@@ -27,6 +28,8 @@ export class OperacionContingenciaDto {
   @IsUUID('4') operacionId: string;
   @IsUUID('4') dispositivoId: string;
   @IsUUID() ventanaId: string;
+  // H-5: índice dentro de las operaciones emitidas por la ventana. Ausente en equipos anteriores (se rechaza con OPERACION_NO_EMITIDA).
+  @IsOptional() @IsInt() @Min(0) @Max(OPERACIONES_POR_VENTANA - 1) indiceOperacion?: number;
   @IsInt() @Min(1) @Max(99999999) secuenciaLocal: number;
   @Matches(/^CT-\d{2,3}-\d{4,8}$/) correlativoLocal: string;
   @IsDateString() ocurridoAtLocal: string;

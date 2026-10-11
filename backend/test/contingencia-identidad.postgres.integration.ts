@@ -8,6 +8,7 @@ import { ConflictException } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { ContingenciaService } from '../src/contingencia/contingencia.service';
 import { idSolicitud } from '../src/operaciones/ledger';
+import { emitirRegistrada, siguienteOperacion } from './helpers/operaciones-emitidas';
 
 // H5 (CENTINELA): errores HTTP 4xx antes de registrar la operación no deben dejar operaciones sin rastro en el servidor.
 
@@ -67,7 +68,7 @@ describe('Contingencia identidad (H-5 / H-6): cajeros y tenants en PostgreSQL ai
     const caja = await prisma.caja.create({ data: { tenantId, codigo: 'CAJA-1', usuarioId: cajero, montoApertura: 100, estado: 'ABIERTA' } as any });
     const p1 = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20 } as any });
     await svc.registrarDispositivo(tenantId, cajero, { dispositivoId: equipoId, nombre: 'Caja principal' });
-    const { ventana } = await svc.emitirVentana(tenantId, cajero, { dispositivoId: equipoId });
+    const { ventana } = await emitirRegistrada(svc, tenantId, cajero, { dispositivoId: equipoId });
     // La FK de la operación apunta al id interno del dispositivo, no al identificador que envía el equipo.
     const interno = await prisma.dispositivoPos.findFirstOrThrow({ where: { tenantId } });
     return { tenantId, admin, cajero, cajaId: caja.id, p1: p1.id, equipoId, dispositivoId: interno.id, ventanaId: ventana.id as string };
@@ -97,7 +98,7 @@ describe('Contingencia identidad (H-5 / H-6): cajeros y tenants en PostgreSQL ai
   const operacion = (e: any, extra: Record<string, any> = {}) => {
     const n = ++contador;
     return {
-      operacionId: randomUUID(), dispositivoId: e.equipoId, ventanaId: e.ventanaId, secuenciaLocal: 900 + n,
+      ...siguienteOperacion(e.ventanaId), dispositivoId: e.equipoId, ventanaId: e.ventanaId, secuenciaLocal: 900 + n,
       correlativoLocal: `CT-01-${String(n).padStart(4, '0')}`, ocurridoAtLocal: new Date().toISOString(), cajeroId: e.cajero,
       lineas: [{ productoId: e.p1, cantidadCentesimas: 200, precioCentavos: 1000 }],
       subtotalCentavos: 2000, isvCentavos: 300, totalCentavos: 2300, efectivoRecibidoCentavos: 2500, cambioCentavos: 200,
@@ -114,57 +115,87 @@ describe('Contingencia identidad (H-5 / H-6): cajeros y tenants en PostgreSQL ai
     const id = randomUUID();
     await prisma.usuario.create({ data: { id, tenantId: e.tenantId, nombre: 'Cajero B', email: `${id}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
     const caja = await prisma.caja.create({ data: { tenantId: e.tenantId, codigo: `CAJA-B-${id.slice(0, 4)}`, usuarioId: id, montoApertura: 0, estado: 'ABIERTA' } as any });
-    const { ventana } = await svc.emitirVentana(e.tenantId, id, { dispositivoId: e.equipoId });
+    const { ventana } = await emitirRegistrada(svc, e.tenantId, id, { dispositivoId: e.equipoId });
     return { id, cajaId: caja.id, ventanaId: ventana.id as string };
   }
 
-  // H-5 (CENTINELA): el UUID de la operación lo fija el cliente. Sin un identificador emitido por el servidor, un segundo
-  // cajero del mismo equipo que envía primero el UUID del dueño con su propia ventana crea la operación a su nombre.
-  // Estas pruebas FIJAN EL COMPORTAMIENTO ACTUAL (vulnerable) hasta la decisión del propietario (opciones A/B/C en el informe).
-  it('H-5 (vulnerabilidad conocida): un segundo cajero que envía primero el UUID del dueño se queda con la operación y bloquea al dueño', async () => {
+  // H-5 (CENTINELA, opción A aprobada): el identificador de una operación lo emite el servidor para la ventana de su cajero.
+  // Un segundo cajero del mismo equipo que conoce el UUID del dueño no puede apropiarse de la operación ni bloquearla.
+  it('H-5: el UUID del dueño con la ventana del segundo cajero no coincide con su emisión: no crea nada y el dueño completa el cobro', async () => {
     const e = await empresa();
     const b = await segundoCajero(e);
-    const op = operacion(e); // operación del dueño, todavía no enviada
-    // El segundo cajero envía ese UUID con su ventana y su cajeroId: el servidor lo acepta como venta suya.
-    const primera = (await recibir(e, [{ ...op, ventanaId: b.ventanaId, cajeroId: b.id }], b.id)).resultados[0];
-    expect(primera).toMatchObject({ operacionId: op.operacionId, estado: 'APLICADA' });
-    expect((await filaDe(e.tenantId, op.operacionId))).toMatchObject({ usuarioId: b.id, cajaId: b.cajaId });
-    // El dueño, al enviar su venta real, queda bloqueado (CAJERO_NO_AUTORIZADO) y su cobro no se aplica.
-    const duenio = (await recibir(e, [op], e.cajero)).resultados[0];
-    expect(duenio).toMatchObject({ operacionId: op.operacionId, codigo: 'CAJERO_NO_AUTORIZADO' });
+    const opDueno = operacion(e); // operación del dueño, emitida en su ventana, todavía no enviada
+    const intento = (await recibir(e, [{ ...opDueno, ventanaId: b.ventanaId, cajeroId: b.id }], b.id)).resultados[0];
+    expect(intento).toMatchObject({ operacionId: opDueno.operacionId, codigo: 'OPERACION_NO_EMITIDA' });
+    expect(await filaDe(e.tenantId, opDueno.operacionId)).toBeNull();
+    expect(await ventasDe(e.tenantId)).toBe(0);
+    // El dueño completa su cobro con normalidad.
+    expect((await recibir(e, [opDueno], e.cajero)).resultados[0]).toMatchObject({ operacionId: opDueno.operacionId, estado: 'APLICADA' });
     expect(await ventasDe(e.tenantId)).toBe(1);
+    expect(await filaDe(e.tenantId, opDueno.operacionId)).toMatchObject({ usuarioId: e.cajero, cajaId: e.cajaId });
   });
 
-  // H-6 (CENTINELA): aislamiento entre empresas. El mismo UUID en dos tenants es dos operaciones independientes.
-  it('H-6: un UUID ya aplicado en otra empresa no se ve, no se altera y no bloquea la venta de esta empresa', async () => {
+  it('H-5: el UUID del dueño con su propia ventana y caja, enviado por el segundo cajero, no crea fila y el dueño completa el cobro', async () => {
+    const e = await empresa();
+    const b = await segundoCajero(e);
+    const opDueno = operacion(e);
+    const intento = (await recibir(e, [{ ...opDueno, cajeroId: b.id }], b.id)).resultados[0];
+    expect(intento).toMatchObject({ operacionId: opDueno.operacionId, codigo: 'CAJERO_NO_AUTORIZADO' });
+    expect(await filaDe(e.tenantId, opDueno.operacionId)).toBeNull();
+    expect(await ventasDe(e.tenantId)).toBe(0);
+    expect(await prisma.auditoriaOperacion.count({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', usuarioId: b.id } })).toBe(1);
+    expect((await recibir(e, [opDueno], e.cajero)).resultados[0]).toMatchObject({ operacionId: opDueno.operacionId, estado: 'APLICADA' });
+    expect(await ventasDe(e.tenantId)).toBe(1);
+    expect(await filaDe(e.tenantId, opDueno.operacionId)).toMatchObject({ usuarioId: e.cajero, cajaId: e.cajaId });
+  });
+
+  it('H-5: el segundo cajero conserva su propio cobro, emitido en su ventana, sin afectar al dueño', async () => {
+    const e = await empresa();
+    const b = await segundoCajero(e);
+    const propio = { ...siguienteOperacion(b.ventanaId), dispositivoId: e.equipoId, ventanaId: b.ventanaId, cajeroId: b.id, secuenciaLocal: 9001, correlativoLocal: 'CT-01-9001', ocurridoAtLocal: new Date().toISOString(), lineas: [{ productoId: e.p1, cantidadCentesimas: 200, precioCentavos: 1000 }], subtotalCentavos: 2000, isvCentavos: 300, totalCentavos: 2300, efectivoRecibidoCentavos: 2500, cambioCentavos: 200, esquemaVersion: 1 };
+    expect((await recibir(e, [propio], b.id)).resultados[0]).toMatchObject({ estado: 'APLICADA' });
+    expect(await filaDe(e.tenantId, propio.operacionId)).toMatchObject({ usuarioId: b.id, cajaId: b.cajaId });
+  });
+
+  it('H-5: un identificador que el servidor no emitió (equipo anterior sin índice) no crea fila', async () => {
+    const e = await empresa();
+    const sinEmision = { ...operacion(e), operacionId: randomUUID() };
+    delete (sinEmision as any).indiceOperacion;
+    expect((await recibir(e, [sinEmision])).resultados[0]).toMatchObject({ codigo: 'OPERACION_NO_EMITIDA' });
+    expect(await filaDe(e.tenantId, sinEmision.operacionId)).toBeNull();
+    expect(await ventasDe(e.tenantId)).toBe(0);
+  });
+
+  // H-6 (CENTINELA): aislamiento entre empresas. Un UUID de otra empresa no es válido aquí y no toca sus datos.
+  it('H-6: un UUID de otra empresa no se aplica, no altera su fila y no revela nada a esta empresa', async () => {
     const a = await empresa();
-    const op = operacion(a);
-    expect((await recibir(a, [op])).resultados[0]).toMatchObject({ estado: 'APLICADA' });
-    const antes = await filaDe(a.tenantId, op.operacionId);
+    const opA = operacion(a);
+    expect((await recibir(a, [opA])).resultados[0]).toMatchObject({ estado: 'APLICADA' });
+    const antes = await filaDe(a.tenantId, opA.operacionId);
 
     const b = await empresa();
-    const ajena = { ...operacion(b), operacionId: op.operacionId };
+    const ajena = { ...siguienteOperacion(b.ventanaId), operacionId: opA.operacionId, dispositivoId: b.equipoId, ventanaId: b.ventanaId, cajeroId: b.cajero, secuenciaLocal: 9002, correlativoLocal: 'CT-01-9002', ocurridoAtLocal: new Date().toISOString(), lineas: [{ productoId: b.p1, cantidadCentesimas: 200, precioCentavos: 1000 }], subtotalCentavos: 2000, isvCentavos: 300, totalCentavos: 2300, efectivoRecibidoCentavos: 2500, cambioCentavos: 200, esquemaVersion: 1 };
     const r = (await recibir(b, [ajena])).resultados[0];
-    expect(r).toMatchObject({ operacionId: op.operacionId, estado: 'APLICADA' });
-    expect(await ventasDe(b.tenantId)).toBe(1);
+    expect(r).toMatchObject({ operacionId: opA.operacionId, codigo: 'OPERACION_NO_EMITIDA' });
+    expect(await ventasDe(b.tenantId)).toBe(0);
+    expect(await filaDe(b.tenantId, opA.operacionId)).toBeNull();
 
     // La fila de la empresa A no cambió.
-    const despues = await filaDe(a.tenantId, op.operacionId);
+    const despues = await filaDe(a.tenantId, opA.operacionId);
     expect(despues).toMatchObject({ usuarioId: antes!.usuarioId, payloadHash: antes!.payloadHash, estado: 'APLICADA' });
     expect(despues!.id).toBe(antes!.id);
+    expect(await ventasDe(a.tenantId)).toBe(1);
   });
 
-  it('H-6: un payload distinto con el mismo UUID desde otra empresa no registra alteración en la empresa original', async () => {
+  it('H-6: cada empresa aplica sus propias operaciones emitidas; los identificadores no colisionan entre empresas', async () => {
     const a = await empresa();
-    const op = operacion(a);
-    await recibir(a, [op]);
     const b = await empresa();
-    const alterada = { ...operacion(b), operacionId: op.operacionId, totalCentavos: 9999, efectivoRecibidoCentavos: 9999 };
-    const r = (await recibir(b, [alterada])).resultados[0];
-    expect(r).toMatchObject({ operacionId: op.operacionId });
-    expect(await prisma.auditoriaOperacion.count({ where: { tenantId: a.tenantId, operacion: 'CONTINGENCIA_OPERACION_ALTERADA' } })).toBe(0);
-    expect(await ventasDe(a.tenantId)).toBe(1);
-    expect((await filaDe(a.tenantId, op.operacionId))!.totalCentavos).toBe(2300);
+    const opA = operacion(a);
+    const opB = operacion(b);
+    expect(opA.operacionId).not.toBe(opB.operacionId);
+    expect((await recibir(a, [opA])).resultados[0]).toMatchObject({ estado: 'APLICADA' });
+    expect((await recibir(b, [opB])).resultados[0]).toMatchObject({ estado: 'APLICADA' });
+    expect([await ventasDe(a.tenantId), await ventasDe(b.tenantId)]).toEqual([1, 1]);
   });
 
   it('H-6: estados no revela a una empresa una operación de otra', async () => {

@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { ContingenciaService } from '../src/contingencia/contingencia.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
 import { VentasService } from '../src/ventas/ventas.service';
+import { emitirRegistrada, siguienteOperacion } from './helpers/operaciones-emitidas';
 
 // Flujo completo del piloto contra PostgreSQL real: proveedor, compra, recepción, costo vigente,
 // venta en línea, venta en contingencia, sincronización, conciliación de inventario y caja, y consulta administrativa.
@@ -81,7 +82,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
     const total = subtotal + isv;
     const recibido = Math.ceil(total / 100) * 100;
     return {
-      operacionId: randomUUID(), dispositivoId: e.dispositivoId, ventanaId, secuenciaLocal: n,
+      ...siguienteOperacion(ventanaId), dispositivoId: e.dispositivoId, ventanaId, secuenciaLocal: n,
       correlativoLocal: `CT-01-${String(n).padStart(4, '0')}`, ocurridoAtLocal: new Date().toISOString(), cajeroId: e.cajero,
       lineas: [{ productoId: e.producto, cantidadCentesimas: cantidad * 100, precioCentavos }],
       subtotalCentavos: subtotal, isvCentavos: isv, totalCentavos: total, efectivoRecibidoCentavos: recibido, cambioCentavos: recibido - total,
@@ -130,7 +131,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
       expect(await prisma.movimientoInventario.count({ where: { documentoId: enLinea.id, tipo: 'ENTREGA' } })).toBe(1);
 
       // 6. Venta en contingencia: el equipo emite su ventana con la existencia actual (28) y cobra 2 tornillos.
-      const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { ventana } = await emitirRegistrada(contingencia, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       const offline = operacionOffline(e, ventana.id, 2, 1000);
 
       // 7. Recuperar conexión y 8. sincronizar: el lote llega, se aplica una vez.
@@ -190,7 +191,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
 
     it('un cajero no puede resolver operaciones en revisión', async () => {
       const e = await empresa();
-      const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { ventana } = await emitirRegistrada(contingencia, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       // Sin stock suficiente en la nube: queda en revisión.
       await prisma.producto.update({ where: { id: e.producto }, data: { stockActual: 0 } });
       const [res] = (await enviar(e, [operacionOffline(e, ventana.id, 2, 1000)])).resultados;
@@ -202,7 +203,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
       const e = await empresa();
       const otro = randomUUID();
       await prisma.usuario.create({ data: { id: otro, tenantId: e.tenantId, nombre: 'Otro', email: `${otro}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
-      const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { ventana } = await emitirRegistrada(contingencia, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       const ajena = { ...operacionOffline(e, ventana.id, 1, 1000), cajeroId: otro };
       const [res] = (await enviar(e, [ajena])).resultados;
       expect(res.estado).not.toBe('APLICADA');
@@ -211,7 +212,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
 
     it('la idempotencia: el mismo UUID con otro contenido no se aplica ni sobrescribe', async () => {
       const e = await empresa();
-      const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { ventana } = await emitirRegistrada(contingencia, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       const original = operacionOffline(e, ventana.id, 1, 1000);
       const [primera] = (await enviar(e, [original])).resultados;
       expect(primera.estado).toBe('APLICADA');
@@ -225,7 +226,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
     it('aislamiento: otra empresa no ve ni puede resolver las operaciones de esta', async () => {
       const a = await empresa();
       const b = await empresa();
-      const { ventana } = await contingencia.emitirVentana(a.tenantId, a.cajero, { dispositivoId: a.dispositivoId });
+      const { ventana } = await emitirRegistrada(contingencia, a.tenantId, a.cajero, { dispositivoId: a.dispositivoId });
       const [res] = (await enviar(a, [operacionOffline(a, ventana.id, 1, 1000)])).resultados;
       expect(await contingencia.listar(b.tenantId, {})).toEqual([]);
       await expect(contingencia.resolver(b.tenantId, b.admin, res.operacionId, { accion: 'ACEPTAR', nota: 'otra empresa intenta resolver' } as any)).rejects.toThrow();

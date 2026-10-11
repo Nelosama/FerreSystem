@@ -25,6 +25,8 @@ export interface VentanaLocal {
   vigenteHasta: string;
   catalogoHash: string;
   productos: ProductoVenta[];
+  /** H-5: identificadores emitidos por el servidor; cada venta usa el siguiente en orden. Ausente en ventanas anteriores. */
+  operacionesEmitidas?: string[];
   sincronizadaAt: string;
   limites: { montoMaxVentaCentavos?: number; montoMaxAcumuladoCentavos?: number; cupoPorcentaje?: number };
 }

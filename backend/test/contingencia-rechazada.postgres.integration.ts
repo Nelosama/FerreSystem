@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { ConflictException } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { ContingenciaService } from '../src/contingencia/contingencia.service';
+import { emitirRegistrada, siguienteOperacion } from './helpers/operaciones-emitidas';
 
 // Migración aditiva 20261016000000: RECHAZADA como estado terminal. Se prueba sobre una base con TODAS las migraciones
 // anteriores ya aplicadas y con filas legadas en REVISION (forma que dejó 87c72fdb), no solo sobre una base vacía.
@@ -68,7 +69,7 @@ describe('Contingencia: migración RECHAZADA sobre base con migraciones previas 
     const p1 = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20 } as any });
     const dispositivoId = randomUUID();
     await svc.registrarDispositivo(tenantId, cajero, { dispositivoId, nombre: 'Caja principal' });
-    const { ventana } = await svc.emitirVentana(tenantId, cajero, { dispositivoId });
+    const { ventana } = await emitirRegistrada(svc, tenantId, cajero, { dispositivoId });
     // La FK de la operación apunta al id interno del dispositivo, no al identificador que envía el equipo.
     const interno = await prisma.dispositivoPos.findFirstOrThrow({ where: { tenantId } });
     return { tenantId, admin, cajero, cajaId: caja.id, p1: p1.id, dispositivoId: interno.id, ventanaId: ventana.id as string };

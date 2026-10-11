@@ -257,7 +257,7 @@ export async function renovarVentana(api: AxiosInstance, dispositivo: Dispositiv
   const nueva: VentanaLocal = {
     ventanaId: v.id, tenantId: usuario.tenantId ?? previa?.tenantId ?? '', dispositivoId: dispositivo.id, cajaId: v.cajaId,
     cajeroId: v.usuarioId, vigenteHasta: v.vigenteHasta, catalogoHash: v.catalogoHash, productos,
-    sincronizadaAt: new Date().toISOString(), limites: v.limites ?? {},
+    sincronizadaAt: new Date().toISOString(), limites: v.limites ?? {}, operacionesEmitidas: v.operacionesEmitidas ?? [],
   };
   await guardarVentana(nueva);
   return nueva;

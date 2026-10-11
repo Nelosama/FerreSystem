@@ -35,7 +35,8 @@ const test = base.extend<{ sim: Sim }>({
       if (method === 'POST' && path === '/contingencia/dispositivos') return responder(route, 201, { id: '00000000-0000-4000-8000-000000000001', codigo: '01', nombre: 'Caja de contingencia', activo: true });
       if (method === 'POST' && path === '/contingencia/ventanas') {
         return responder(route, 201, {
-          ventana: { id: '00000000-0000-4000-8000-0000000000aa', dispositivoId: '00000000-0000-4000-8000-000000000001', cajaId: 'caja-1', usuarioId: usuario.id, vigenteHasta: VIGENTE, catalogoHash: 'h1', limites: {} },
+          // H-5: identificadores de operación emitidos por el servidor para la ventana (formato UUID v4).
+          ventana: { id: '00000000-0000-4000-8000-0000000000aa', dispositivoId: '00000000-0000-4000-8000-000000000001', cajaId: 'caja-1', usuarioId: usuario.id, vigenteHasta: VIGENTE, catalogoHash: 'h1', limites: {}, operacionesEmitidas: Array.from({ length: 500 }, (_, i) => `00000000-0000-4000-8000-${(i + 1).toString(16).padStart(12, '0')}`) },
           catalogo: { hash: 'h1', productos: [producto] },
         });
       }

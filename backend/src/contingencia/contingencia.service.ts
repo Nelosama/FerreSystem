@@ -1,11 +1,14 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
+import { getJwtSecret } from '../auth/jwt-secret';
 import { plainToInstance } from 'class-transformer';
 import { validate as validarDto } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { audit, authorizedActor, cashMovement, id as nuevoId, idRecurso, idSolicitud, lockTenant, movement, query, Tx, fingerprint } from '../operaciones/ledger';
 import { huellaDeLineas, movimientoConEvento, registrarEvento } from '../entregas/entregas-core';
 import { calcularTotales, centavosADecimal } from '../common/dinero';
+import { operacionEmitida, operacionesEmitidas } from './operaciones-emitidas';
 import { diaCalendario, rangoDiasEnZona, ZONA_HORARIA_NEGOCIO } from '../common/zona-horaria';
 import {
   ConfigContingenciaDto, LoteOperacionesDto, OperacionContingenciaDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto,
@@ -67,6 +70,8 @@ const esRechazo = (f: { conflictos?: unknown }) => Array.isArray(f.conflictos) &
 @Injectable()
 export class ContingenciaService {
   private readonly logger = new Logger(ContingenciaService.name);
+  /** H-5: clave del servidor para derivar operaciones. Nunca sale del backend. */
+  private readonly claveOperaciones = getJwtSecret(new ConfigService());
   constructor(private readonly prisma: PrismaService) {}
 
   // ───────────────────────── configuración (apagada por defecto) ─────────────────────────
@@ -252,6 +257,7 @@ export class ContingenciaService {
         id: ventana.id, dispositivoId: dto.dispositivoId, dispositivoCodigo: dispositivo.codigo, cajaId: ventana.cajaId, usuarioId,
         emitidaAt: ventana.emitidaAt, vigenteHasta: ventana.vigenteHasta, catalogoHash: hash, limites: ventana.limites,
         secuenciaServidor: maxima, serverNow: ahora.toISOString(),
+        operacionesEmitidas: operacionesEmitidas(this.claveOperaciones, ventana.id),
       },
       catalogo: dto.catalogoHashActual === hash ? null : { hash, generadoAt: ahora.toISOString(), productos: productos.map(({ costoCentavos: _costo, precioAprobado: _aprobado, ...publico }: any) => publico) },
     };
@@ -374,6 +380,16 @@ export class ContingenciaService {
     const hash = fingerprint(canonico({ ...dto }));
     const ventana = await this.prisma.contingenciaVentana.findFirst({ where: { id: dto.ventanaId, tenantId, dispositivoId } });
     if (!ventana) throw new BadRequestException({ message: 'Ventana de contingencia desconocida', code: 'VENTANA_DESCONOCIDA' });
+    // H-5: la propiedad la fija la ventana emitida al cajero autenticado, no el cajeroId que declara el equipo. Un envío de
+    // otro cajero no escribe nada: queda solo evidencia para su remitente (N-NUEVA), así nunca bloquea al dueño.
+    if (rol !== 'ADMIN' && ventana.usuarioId !== usuarioId) {
+      throw new ForbiddenException({ message: 'La ventana de contingencia pertenece a otro cajero', code: 'CAJERO_NO_AUTORIZADO' });
+    }
+    // H-5: el identificador tiene que ser una de las operaciones que el servidor emitió para esta ventana y este índice.
+    // Un UUID ajeno o inventado no coincide con la derivación de la ventana de quien lo envía y no crea fila.
+    if (dto.indiceOperacion === undefined || operacionEmitida(this.claveOperaciones, ventana.id, dto.indiceOperacion) !== dto.operacionId) {
+      throw new BadRequestException({ message: 'La operación no fue emitida por el servidor para esta ventana; no se registró venta', code: 'OPERACION_NO_EMITIDA' });
+    }
 
     // 1) Diario primero: idempotencia real por UUID (PK) y por (dispositivo, secuencia).
     // Identificador interno derivado por empresa (P2 de CENTINELA): el UUID de otra empresa se trata como libre.
@@ -439,14 +455,12 @@ export class ContingenciaService {
     return { operacionId: valido ? uuid : null, estado: 'RECHAZADA_TECNICA', codigo: 'FORMATO_INVALIDO', mensaje, instruccion: 'Avise al administrador: la operación no tiene un formato válido.', requiereRevision: true, conflictos: [] };
   }
 
-  /** H5: la evidencia de un rechazo sin fila la ve su remitente o el administrador; a otros se responde sin detalles. */
+  /**
+   * H-5: la evidencia de un rechazo sin fila es solo de quien lo envió (o del administrador). Un intento ajeno nunca
+   * bloquea a quien es dueño de la operación: no hay «ya rechazada» global cuando no existe fila.
+   */
   private async respuestaSinRegistroPara(tenantId: string, operacionId: string, usuarioId: string, rol: string) {
-    const base = await this.respuestaSinRegistro(tenantId, operacionId);
-    if (!base || rol === 'ADMIN') return base;
-    // N-NUEVA: un CAJERO_NO_AUTORIZADO no es un rechazo de la operación: solo bloquea a quien lo envió.
-    if (base.codigo === 'CAJERO_NO_AUTORIZADO') return this.respuestaSinRegistro(tenantId, operacionId, usuarioId);
-    if (await this.respuestaSinRegistro(tenantId, operacionId, usuarioId)) return base;
-    return { operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'RECHAZADA', mensaje: 'Esta operación ya fue rechazada y no puede enviarse de nuevo', instruccion: 'Avise al administrador.', requiereRevision: true, conflictos: [] };
+    return this.respuestaSinRegistro(tenantId, operacionId, rol === 'ADMIN' ? undefined : usuarioId);
   }
 
   /**
@@ -474,7 +488,7 @@ export class ContingenciaService {
     }
     // N-NUEVA (CENTINELA): un envío de quien no es el cajero de la operación no crea fila. Una fila RECHAZADA a nombre del dueño
     // bloquearía para siempre su sincronización legítima. Queda solo la evidencia por remitente, para que pueda consultarla.
-    if (codigo === 'CAJERO_NO_AUTORIZADO') {
+    if (codigo === 'CAJERO_NO_AUTORIZADO' || codigo === 'OPERACION_NO_EMITIDA') {
       const propia = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno, usuarioId } });
       if (!propia) {
         await this.prisma.auditoriaOperacion.create({

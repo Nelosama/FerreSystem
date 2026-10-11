@@ -80,6 +80,8 @@ async function emitirVentana(request: APIRequestContext, cajero: Sesion, disposi
   expect([200, 201], await res.text()).toContain(res.status());
   const cuerpo = await res.json();
   const ventanaId = (cuerpo.ventana?.id ?? cuerpo.id) as string;
+  // H-5: el servidor emite los identificadores de operación de la ventana; las ventas usan esa lista, como el equipo.
+  EMITIDAS.set(ventanaId, (cuerpo.ventana?.operacionesEmitidas ?? []) as string[]);
   const productos = ((cuerpo.catalogo?.productos ?? cuerpo.productos ?? []) as { id: string }[]).map((p) => p.id);
   const hash = sql(`SELECT catalogo_hash FROM contingencia_ventanas WHERE id='${ventanaId}'`);
   return { ventanaId, productos, hash };
@@ -97,6 +99,17 @@ async function dispositivoActivo(request: APIRequestContext, admin: Sesion, caje
 
 let secuencia = (Date.now() % 80000000) + 2000; // secuencias locales únicas por ejecución
 const siguiente = () => (secuencia += 1);
+// H-5: identificadores emitidos por el servidor por ventana y el índice de la siguiente operación de cada una.
+const EMITIDAS = new Map<string, string[]>();
+const PROXIMO = new Map<string, number>();
+function emitidaPara(ventanaId: string, operacionId?: string): { operacionId: string; indiceOperacion?: number } {
+  const conjunto = EMITIDAS.get(ventanaId);
+  if (!conjunto) return { operacionId: randomUUID() }; // ventana no emitida por este helper: el servidor la rechazará
+  if (operacionId) return { operacionId, indiceOperacion: conjunto.indexOf(operacionId) };
+  const indice = PROXIMO.get(ventanaId) ?? 0;
+  PROXIMO.set(ventanaId, indice + 1);
+  return { operacionId: conjunto[indice], indiceOperacion: indice };
+}
 
 function operacion(p: { ventanaId: string; dispositivoId: string; cajeroId: string; productoId: string; cantidad?: number; precio?: number; secuenciaLocal?: number; operacionId?: string }) {
   const cantidad = p.cantidad ?? 100;
@@ -106,7 +119,7 @@ function operacion(p: { ventanaId: string; dispositivoId: string; cajeroId: stri
   const total = subtotal + isv;
   const s = p.secuenciaLocal ?? siguiente();
   return {
-    operacionId: p.operacionId ?? randomUUID(), dispositivoId: p.dispositivoId, ventanaId: p.ventanaId,
+    ...emitidaPara(p.ventanaId, p.operacionId), dispositivoId: p.dispositivoId, ventanaId: p.ventanaId,
     secuenciaLocal: s, correlativoLocal: `CT-01-${String(s).padStart(8, '0')}`, ocurridoAtLocal: new Date().toISOString(), cajeroId: p.cajeroId,
     lineas: [{ productoId: p.productoId, cantidadCentesimas: cantidad, precioCentavos: precio }],
     totalCentavos: total, subtotalCentavos: subtotal, isvCentavos: isv, efectivoRecibidoCentavos: total, cambioCentavos: 0, esquemaVersion: 1,

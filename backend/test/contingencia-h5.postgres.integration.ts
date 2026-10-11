@@ -8,6 +8,7 @@ import { ConflictException } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { ContingenciaService } from '../src/contingencia/contingencia.service';
 import { idSolicitud } from '../src/operaciones/ledger';
+import { emitirRegistrada, siguienteOperacion } from './helpers/operaciones-emitidas';
 
 // H5 (CENTINELA): errores HTTP 4xx antes de registrar la operación no deben dejar operaciones sin rastro en el servidor.
 
@@ -67,7 +68,7 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     const caja = await prisma.caja.create({ data: { tenantId, codigo: 'CAJA-1', usuarioId: cajero, montoApertura: 100, estado: 'ABIERTA' } as any });
     const p1 = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20 } as any });
     await svc.registrarDispositivo(tenantId, cajero, { dispositivoId: equipoId, nombre: 'Caja principal' });
-    const { ventana } = await svc.emitirVentana(tenantId, cajero, { dispositivoId: equipoId });
+    const { ventana } = await emitirRegistrada(svc, tenantId, cajero, { dispositivoId: equipoId });
     // La FK de la operación apunta al id interno del dispositivo, no al identificador que envía el equipo.
     const interno = await prisma.dispositivoPos.findFirstOrThrow({ where: { tenantId } });
     return { tenantId, admin, cajero, cajaId: caja.id, p1: p1.id, equipoId, dispositivoId: interno.id, ventanaId: ventana.id as string };
@@ -97,7 +98,7 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
   const operacion = (e: any, extra: Record<string, any> = {}) => {
     const n = ++contador;
     return {
-      operacionId: randomUUID(), dispositivoId: e.equipoId, ventanaId: e.ventanaId, secuenciaLocal: 500 + n,
+      ...siguienteOperacion(e.ventanaId), dispositivoId: e.equipoId, ventanaId: e.ventanaId, secuenciaLocal: 500 + n,
       correlativoLocal: `CT-01-${String(n).padStart(4, '0')}`, ocurridoAtLocal: new Date().toISOString(), cajeroId: e.cajero,
       lineas: [{ productoId: e.p1, cantidadCentesimas: 200, precioCentavos: 1000 }],
       subtotalCentavos: 2000, isvCentavos: 300, totalCentavos: 2300, efectivoRecibidoCentavos: 2500, cambioCentavos: 200,
@@ -328,7 +329,8 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     const otro = randomUUID();
     await prisma.usuario.create({ data: { id: otro, tenantId: e.tenantId, nombre: 'Cajero D', email: `${otro}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
     const r = (await recibir(e, [op], otro, 'CAJERO')).resultados[0];
-    expect(r.codigo).toBe('RECHAZADA');
+    // H-5: quien no es dueño recibe solo «no es su operación», sin el motivo del rechazo ni bloqueo para el dueño.
+    expect(r.codigo).toBe('CAJERO_NO_AUTORIZADO');
     expect(r.mensaje).not.toMatch(/importe/i);
     expect(await ventasDe(e.tenantId)).toBe(0);
   });
@@ -340,10 +342,11 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     await prisma.usuario.create({ data: { id: otro, tenantId: e.tenantId, nombre: 'Cajero E', email: `${otro}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
     // Ventana emitida en el mismo equipo por otro cajero (con caja abierta). El remitente es e.cajero.
     await prisma.caja.create({ data: { tenantId: e.tenantId, codigo: 'CAJA-E', usuarioId: otro, montoApertura: 0, estado: 'ABIERTA' } as any });
-    const ventanaOtro = (await svc.emitirVentana(e.tenantId, otro, { dispositivoId: e.equipoId })).ventana;
+    const ventanaOtro = (await emitirRegistrada(svc, e.tenantId, otro, { dispositivoId: e.equipoId })).ventana;
     const op = operacion(e, { ventanaId: ventanaOtro.id, cajeroId: e.cajero });
     const r = (await recibir(e, [op])).resultados[0];
-    expect(r.codigo).toBe('VENTANA_DE_OTRO_CAJERO');
+    // H-5: la propiedad de la ventana se comprueba antes que nada; el remitente no es su cajero.
+    expect(r.codigo).toBe('CAJERO_NO_AUTORIZADO');
     expect(JSON.stringify(r)).not.toContain(ventanaOtro.id);
   });
 

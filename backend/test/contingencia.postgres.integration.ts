@@ -9,6 +9,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { ContingenciaService } from '../src/contingencia/contingencia.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
+import { emitirRegistrada, siguienteOperacion } from './helpers/operaciones-emitidas';
 
 // POS offline de contingencia contra PostgreSQL real: cadena completa de migraciones, clúster temporal exclusivo.
 // Nunca lee DATABASE_URL. Ejecutar como usuario no root (initdb lo exige).
@@ -77,7 +78,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
 
   /** Emite la ventana y devuelve la instantánea. */
   async function ventana(e: Awaited<ReturnType<typeof empresa>>) {
-    const r = await svc.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+    const r = await emitirRegistrada(svc, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
     return r.ventana;
   }
 
@@ -85,7 +86,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
   function operacion(e: Awaited<ReturnType<typeof empresa>>, ventanaId: string, extra: Partial<Record<string, any>> = {}) {
     const n = ++contador;
     return {
-      operacionId: randomUUID(), dispositivoId: e.dispositivoId, ventanaId, secuenciaLocal: n,
+      ...siguienteOperacion(ventanaId), dispositivoId: e.dispositivoId, ventanaId, secuenciaLocal: n,
       correlativoLocal: `CT-01-${String(n).padStart(4, '0')}`, ocurridoAtLocal: new Date().toISOString(), cajeroId: e.cajero,
       lineas: [{ productoId: e.p1, cantidadCentesimas: 200, precioCentavos: 1000 }],
       subtotalCentavos: 2000, isvCentavos: 300, totalCentavos: 2300, efectivoRecibidoCentavos: 2500, cambioCentavos: 200,
@@ -99,7 +100,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
   describe('activación', () => {
     it('apagada por defecto: sin bandera por empresa no se emite ventana ni se recibe nada', async () => {
       const e = await empresa({ habilitada: false });
-      await expect(svc.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId })).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(emitirRegistrada(svc, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId })).rejects.toBeInstanceOf(ForbiddenException);
       expect(await prisma.contingenciaVentana.count({ where: { tenantId: e.tenantId } })).toBe(0);
     });
 
@@ -116,7 +117,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
   describe('ventana y catálogo', () => {
     it('emite ventana con cupo conservador (50 % de lo libre) y catálogo con precios en centavos', async () => {
       const e = await empresa();
-      const r = await svc.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const r = await emitirRegistrada(svc, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       const tor = r.catalogo!.productos.find((p: any) => p.id === e.p1);
       expect(tor).toMatchObject({ precioCentavos: 1000, libreCentesimas: 2000, cupoCentesimas: 1000 });
       expect(r.ventana.vigenteHasta.getTime()).toBeGreaterThan(Date.now() + 35 * 3_600_000);
@@ -124,15 +125,15 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
 
     it('si el dispositivo ya tiene el catálogo, no se reenvía', async () => {
       const e = await empresa();
-      const primera = await svc.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
-      const segunda = await svc.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId, catalogoHashActual: primera.ventana.catalogoHash });
+      const primera = await emitirRegistrada(svc, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const segunda = await emitirRegistrada(svc, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId, catalogoHashActual: primera.ventana.catalogoHash });
       expect(segunda.catalogo).toBeNull();
     });
 
     it('sin caja abierta no hay ventana', async () => {
       const e = await empresa();
       await prisma.caja.updateMany({ where: { tenantId: e.tenantId }, data: { estado: 'CERRADA' } });
-      await expect(svc.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId })).rejects.toMatchObject({ status: 409 });
+      await expect(emitirRegistrada(svc, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId })).rejects.toMatchObject({ status: 409 });
     });
   });
 
@@ -343,7 +344,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       const pendiente = await producto(e, 'PEN-1');
       const cero = await producto(e, 'CER-1', { precioAprobado: true, precioVenta: 0 });
       const inactivo = await producto(e, 'INA-1', { precioAprobado: true, activo: false });
-      const r = await svc.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const r = await emitirRegistrada(svc, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       const ids = r.catalogo!.productos.map((p: any) => p.id);
       expect(ids).toEqual(expect.arrayContaining([e.p1, e.p2]));
       for (const id of [pendiente.id, cero.id, inactivo.id]) expect(ids).not.toContain(id);
@@ -524,7 +525,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       // La venta offline no modifica la asociación con el proveedor.
       expect(Number((await asociacion()).ultimoCosto)).toBe(6);
       // El equipo nunca recibe el costo.
-      const { catalogo } = await svc.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const { catalogo } = await emitirRegistrada(svc, e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
       expect(JSON.stringify(catalogo)).not.toMatch(/costoCentavos|precioCosto/);
     });
 
@@ -550,28 +551,33 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
     }
     const movimientos = (cajaId: string) => prisma.movimientoCaja.count({ where: { cajaId } });
 
-    it('un cajero con la ventana de otro: rechazo definitivo, sin venta, sin movimiento en ninguna caja y sin cambio de stock; queda evidencia', async () => {
+    // H-5: el rechazo por ventana ajena no crea fila (una fila RECHAZADA a nombre de quien envía bloquearía al dueño). Queda evidencia.
+    it('un cajero con la ventana de otro: rechazo definitivo, sin venta, sin movimiento en ninguna caja y sin cambio de stock; solo evidencia para el remitente', async () => {
       const e = await conSegundoCajero();
       const v = await ventana(e); // la pidió el cajero 1
       const caja1 = (await prisma.caja.findFirstOrThrow({ where: { tenantId: e.tenantId, usuarioId: e.cajero } })).id;
       const [a, b] = [await movimientos(caja1), await movimientos(e.caja2)];
       const op = operacion(e, v.id, { cajeroId: e.cajero2 });
       const res = await svc.recibirLote(e.tenantId, e.cajero2, 'CAJERO', { dispositivoId: e.dispositivoId, pendientesRestantes: 0, operaciones: [op] } as any);
-      expect(res.resultados[0]).toMatchObject({ operacionId: op.operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'VENTANA_DE_OTRO_CAJERO' });
+      expect(res.resultados[0]).toMatchObject({ operacionId: op.operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'CAJERO_NO_AUTORIZADO' });
       expect(await ventas(e.tenantId)).toBe(0);
       expect(await stock(e.p1)).toBe(20);
       expect([await movimientos(caja1), await movimientos(e.caja2)]).toEqual([a, b]);
-      const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
-      expect([fila.estado, fila.requiereRevision, fila.ventaId]).toEqual(['RECHAZADA', true, null]);
-      expect((fila.conflictos as any[]).map((c) => [c.codigo, c.severidad])).toEqual([['VENTANA_DE_OTRO_CAJERO', 'DURO']]);
+      // Sin fila: el UUID del cajero 1 no queda a nombre del cajero 2. La evidencia queda solo para el remitente.
+      expect(await prisma.operacionContingencia.findFirst({ where: { tenantId: e.tenantId, id: { in: [idSolicitud(e.tenantId, op.operacionId), op.operacionId] } } })).toBeNull();
+      expect(await prisma.auditoriaOperacion.count({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idSolicitud(e.tenantId, op.operacionId), usuarioId: e.cajero2 } })).toBe(1);
       // El reintento responde lo mismo y no duplica nada.
       const otra = await svc.recibirLote(e.tenantId, e.cajero2, 'CAJERO', { dispositivoId: e.dispositivoId, pendientesRestantes: 0, operaciones: [op] } as any);
-      expect(otra.resultados[0]).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'VENTANA_DE_OTRO_CAJERO' });
-      expect(await prisma.operacionContingencia.count({ where: { tenantId: e.tenantId } })).toBe(1);
-      // El administrador no puede forzarla como venta; solo cerrarla con conciliación de efectivo.
-      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', nota: 'Intento de forzar una operación rechazada' } as any)).rejects.toThrow(/rechazada nunca se aplica/);
-      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'REINTENTAR', nota: 'Intento de reintentar una operación rechazada' } as any)).rejects.toThrow(/rechazada nunca se aplica/);
+      expect(otra.resultados[0]).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'CAJERO_NO_AUTORIZADO' });
+      expect(await prisma.operacionContingencia.count({ where: { tenantId: e.tenantId } })).toBe(0);
+      // Sin fila no hay nada que forzar ni reintentar: el administrador recibe «no encontrada».
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', nota: 'Intento de forzar una operación rechazada' } as any)).rejects.toThrow();
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'REINTENTAR', nota: 'Intento de reintentar una operación rechazada' } as any)).rejects.toThrow();
       expect(await ventas(e.tenantId)).toBe(0);
+      // H-5: el cajero dueño de la ventana conserva la capacidad de cobrar esa misma operación.
+      const duenio = (await svc.recibirLote(e.tenantId, e.cajero, 'CAJERO', { dispositivoId: e.dispositivoId, pendientesRestantes: 0, operaciones: [{ ...op, cajeroId: e.cajero }] } as any)).resultados[0];
+      expect(duenio).toMatchObject({ operacionId: op.operacionId, estado: 'APLICADA' });
+      expect(await ventas(e.tenantId)).toBe(1);
     });
 
     it('el cajero dueño de la ventana sí cobra en su caja; un administrador puede enviar la operación del cajero dueño', async () => {
