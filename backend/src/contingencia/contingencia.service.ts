@@ -354,6 +354,14 @@ export class ContingenciaService {
     // A (CENTINELA): un UUID ya rechazado sin fila no puede aplicarse después con un importe corregido.
     const rechazadaSinFila = await this.respuestaSinRegistroPara(tenantId, dto.operacionId, usuarioId, rol);
     if (rechazadaSinFila) return rechazadaSinFila;
+    // H-1 (CENTINELA, 06f4d831): quien no es el dueño de una operación ya guardada no la altera ni recibe sus datos,
+    // aunque declare su propio cajeroId (no hay 403 en ese caso).
+    if (rol !== 'ADMIN') {
+      const guardada = await this.prisma.operacionContingencia.findFirst({ where: { tenantId, id: { in: [idSolicitud(tenantId, dto.operacionId), dto.operacionId] } } });
+      if (guardada && guardada.usuarioId !== usuarioId) {
+        return { operacionId: dto.operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'CAJERO_NO_AUTORIZADO', mensaje: 'Solo el cajero de la operación o un administrador puede enviarla', instruccion: INSTRUCCION_RECHAZO.CAJERO_NO_AUTORIZADO, requiereRevision: true, conflictos: [] };
+      }
+    }
     if (dto.dispositivoId !== dispositivoEquipo) throw new BadRequestException({ message: 'La operación pertenece a otro dispositivo', code: 'OPERACION_OTRO_DISPOSITIVO' });
     if (rol !== 'ADMIN' && dto.cajeroId !== usuarioId) {
       throw new ForbiddenException({ message: 'Solo el cajero de la operación o un administrador puede enviarla', code: 'CAJERO_NO_AUTORIZADO' });
@@ -435,8 +443,8 @@ export class ContingenciaService {
   private async respuestaSinRegistroPara(tenantId: string, operacionId: string, usuarioId: string, rol: string) {
     const base = await this.respuestaSinRegistro(tenantId, operacionId);
     if (!base || rol === 'ADMIN') return base;
-    // N-NUEVA: un CAJERO_NO_AUTORIZADO no es un rechazo de la operación: no impide que su cajero la envíe.
-    if (base.codigo === 'CAJERO_NO_AUTORIZADO') return null;
+    // N-NUEVA: un CAJERO_NO_AUTORIZADO no es un rechazo de la operación: solo bloquea a quien lo envió.
+    if (base.codigo === 'CAJERO_NO_AUTORIZADO') return this.respuestaSinRegistro(tenantId, operacionId, usuarioId);
     if (await this.respuestaSinRegistro(tenantId, operacionId, usuarioId)) return base;
     return { operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'RECHAZADA', mensaje: 'Esta operación ya fue rechazada y no puede enviarse de nuevo', instruccion: 'Avise al administrador.', requiereRevision: true, conflictos: [] };
   }

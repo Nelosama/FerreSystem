@@ -220,13 +220,15 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     expect(consulta).toMatchObject({ estado: primera.estado, codigo: primera.codigo, mensaje: primera.mensaje, instruccion: primera.instruccion });
   });
 
-  it('N-NUEVA: un envío de otro cajero no bloquea al cajero de la operación, que la aplica como venta', async () => {
+  it('N-NUEVA: un envío de un tercero no bloquea al cajero de la operación, que la aplica como venta', async () => {
     const e = await empresa();
-    const op = operacion(e, { cajeroId: e.admin });
-    expect((await recibir(e, [op])).resultados[0].codigo).toBe('CAJERO_NO_AUTORIZADO');
-    // El dueño de la operación la envía después: debe aplicarse, no quedar bloqueada.
-    const dueno = operacion(e, { operacionId: op.operacionId, cajeroId: e.cajero, secuenciaLocal: op.secuenciaLocal, correlativoLocal: op.correlativoLocal });
-    const r = (await recibir(e, [dueno], e.cajero, 'CAJERO')).resultados[0];
+    const tercero = randomUUID();
+    await prisma.usuario.create({ data: { id: tercero, tenantId: e.tenantId, nombre: 'Tercero', email: `${tercero}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
+    const op = operacion(e);
+    // El tercero envía una operación cuyo cajero es el dueño: queda rechazada para él, sin fila a nombre del dueño.
+    expect((await recibir(e, [op], tercero, 'CAJERO')).resultados[0].codigo).toBe('CAJERO_NO_AUTORIZADO');
+    // El dueño la envía después: debe aplicarse, no quedar bloqueada.
+    const r = (await recibir(e, [op], e.cajero, 'CAJERO')).resultados[0];
     expect(r).toMatchObject({ operacionId: op.operacionId, estado: 'APLICADA' });
     expect(await ventasDe(e.tenantId)).toBe(1);
   });
@@ -373,4 +375,21 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_ALTERADA', idSolicitud(e.tenantId, op.operacionId))).toBe(0);
     expect(await ventasDe(e.tenantId)).toBe(1);
   });
+
+  // H-1 (ruta de cajeroId propio) y H-5 (adelanto con ventana ajena) de la auditoría CENTINELA sobre 06f4d831.
+  it('H-1b: un cajero ajeno que declara su propio cajeroId no modifica la operación aplicada del dueño', async () => {
+    const e = await empresa();
+    const op = operacion(e);
+    expect((await recibir(e, [op])).resultados[0].estado).toBe('APLICADA');
+    const otro = randomUUID();
+    await prisma.usuario.create({ data: { id: otro, tenantId: e.tenantId, nombre: 'Cajero G', email: `${otro}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
+    const antes = await filaDe(e.tenantId, op.operacionId);
+    const r = (await recibir(e, [{ ...op, cajeroId: otro, clienteNombre: 'INTRUSO' }], otro, 'CAJERO')).resultados[0];
+    expect(JSON.stringify(r)).not.toMatch(/ventaId|numeroVenta|aplicadoAt|INTRUSO/);
+    const despues = await filaDe(e.tenantId, op.operacionId);
+    expect([despues!.estado, despues!.requiereRevision]).toEqual([antes!.estado, antes!.requiereRevision]);
+    expect((despues!.conflictos as any[]).some((c) => c.codigo === 'OPERACION_ALTERADA')).toBe(false);
+    expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_ALTERADA', idSolicitud(e.tenantId, op.operacionId))).toBe(0);
+  });
+
 });
