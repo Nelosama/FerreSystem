@@ -1,0 +1,1523 @@
+
+> frontend@0.0.0 test
+> node --test test/*.test.mjs
+
+TAP version 13
+# Subtest: created_at se muestra a la hora de negocio (20:30 del 9 oct), no a la del navegador
+ok 1 - created_at se muestra a la hora de negocio (20:30 del 9 oct), no a la del navegador
+  ---
+  duration_ms: 15.250954
+  type: 'test'
+  ...
+# Subtest: acepta Date además de cadena ISO
+ok 2 - acepta Date además de cadena ISO
+  ---
+  duration_ms: 0.531982
+  type: 'test'
+  ...
+# Subtest: valor vacío o inválido devuelve guion
+ok 3 - valor vacío o inválido devuelve guion
+  ---
+  duration_ms: 0.182714
+  type: 'test'
+  ...
+# Subtest: renovaciones simultáneas comparten una petición y reintentan con el token nuevo
+ok 4 - renovaciones simultáneas comparten una petición y reintentan con el token nuevo
+  ---
+  duration_ms: 80.482263
+  type: 'test'
+  ...
+# Subtest: una renovación antigua no reemplaza un login reciente ni lo cierra
+ok 5 - una renovación antigua no reemplaza un login reciente ni lo cierra
+  ---
+  duration_ms: 23.895246
+  type: 'test'
+  ...
+# Subtest: soporte renueva con el superadmin guardado y conserva ambas identidades
+ok 6 - soporte renueva con el superadmin guardado y conserva ambas identidades
+  ---
+  duration_ms: 22.895808
+  type: 'test'
+  ...
+# Subtest: no intenta renovar errores de login ni errores sin configuración
+ok 7 - no intenta renovar errores de login ni errores sin configuración
+  ---
+  duration_ms: 19.101867
+  type: 'test'
+  ...
+# MultiFormatReader: non-ReaderException from reader: NotFoundException
+#     at OneDReader.decode (/home/user/atlas-verify-wt/frontend/node_modules/@zxing/library/cjs/core/oned/OneDReader.js:72:23)
+#     at MultiFormatReader.decodeInternal (/home/user/atlas-verify-wt/frontend/node_modules/@zxing/library/cjs/core/MultiFormatReader.js:204:35)
+#     at MultiFormatReader.decode (/home/user/atlas-verify-wt/frontend/node_modules/@zxing/library/cjs/core/MultiFormatReader.js:84:21)
+#     at evalmachine.<anonymous>:19:27
+#     at TestContext.<anonymous> (file:///home/user/atlas-verify-wt/frontend/test/barcode-decoder-real.test.mjs:45:68)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+#     at Test.postRun (node:internal/test_runner/test:1173:19)
+#     at Test.run (node:internal/test_runner/test:1101:12)
+# Subtest: ZXing real lee EAN-13 de imagen sintética
+ok 8 - ZXing real lee EAN-13 de imagen sintética
+  ---
+  duration_ms: 14.131473
+  type: 'test'
+  ...
+# Subtest: ZXing real lee EAN-8 de imagen sintética
+ok 9 - ZXing real lee EAN-8 de imagen sintética
+  ---
+  duration_ms: 2.419785
+  type: 'test'
+  ...
+# Subtest: ZXing real lee UPC-A de imagen sintética
+ok 10 - ZXing real lee UPC-A de imagen sintética
+  ---
+  duration_ms: 2.018695
+  type: 'test'
+  ...
+# Subtest: ZXing real lee CODE-128 de imagen sintética
+ok 11 - ZXing real lee CODE-128 de imagen sintética
+  ---
+  duration_ms: 3.200263
+  type: 'test'
+  ...
+# Subtest: un checksum EAN incorrecto no se acepta
+ok 12 - un checksum EAN incorrecto no se acepta
+  ---
+  duration_ms: 62.666407
+  type: 'test'
+  ...
+# Subtest: cameraError()
+    # Subtest: NotAllowedError: ejecuta cameraError real, incluso entre realms
+    ok 1 - NotAllowedError: ejecuta cameraError real, incluso entre realms
+      ---
+      duration_ms: 1.101861
+      type: 'test'
+      ...
+    # Subtest: SecurityError: ejecuta cameraError real, incluso entre realms
+    ok 2 - SecurityError: ejecuta cameraError real, incluso entre realms
+      ---
+      duration_ms: 0.160122
+      type: 'test'
+      ...
+    # Subtest: NotReadableError: ejecuta cameraError real, incluso entre realms
+    ok 3 - NotReadableError: ejecuta cameraError real, incluso entre realms
+      ---
+      duration_ms: 0.207715
+      type: 'test'
+      ...
+    # Subtest: AbortError: ejecuta cameraError real, incluso entre realms
+    ok 4 - AbortError: ejecuta cameraError real, incluso entre realms
+      ---
+      duration_ms: 0.118451
+      type: 'test'
+      ...
+    # Subtest: NotFoundError: ejecuta cameraError real, incluso entre realms
+    ok 5 - NotFoundError: ejecuta cameraError real, incluso entre realms
+      ---
+      duration_ms: 0.110797
+      type: 'test'
+      ...
+    # Subtest: permiso denegado traducido al inglés
+    ok 6 - permiso denegado traducido al inglés
+      ---
+      duration_ms: 0.106799
+      type: 'test'
+      ...
+    # Subtest: cameraError() con string → mensaje genérico de escáner
+    ok 7 - cameraError() con string → mensaje genérico de escáner
+      ---
+      duration_ms: 0.216554
+      type: 'test'
+      ...
+    # Subtest: cameraError() con objeto no-Error → mensaje genérico
+    ok 8 - cameraError() con objeto no-Error → mensaje genérico
+      ---
+      duration_ms: 0.290787
+      type: 'test'
+      ...
+    1..8
+ok 13 - cameraError()
+  ---
+  duration_ms: 3.520329
+  type: 'suite'
+  ...
+# Subtest: startBarcodeCamera()
+    # Subtest: bloquea si isSecureContext es false
+    ok 1 - bloquea si isSecureContext es false
+      ---
+      duration_ms: 51.978473
+      type: 'test'
+      ...
+    # Subtest: bloquea si getUserMedia no existe
+    ok 2 - bloquea si getUserMedia no existe
+      ---
+      duration_ms: 50.632372
+      type: 'test'
+      ...
+    # Subtest: llama onError si getUserMedia rechaza con NotAllowedError
+    ok 3 - llama onError si getUserMedia rechaza con NotAllowedError
+      ---
+      duration_ms: 50.117478
+      type: 'test'
+      ...
+    # Subtest: flujo feliz: onReady se llama, luego onCode cuando decoder devuelve código
+    ok 4 - flujo feliz: onReady se llama, luego onCode cuando decoder devuelve código
+      ---
+      duration_ms: 401.573319
+      type: 'test'
+      ...
+    # Subtest: stop() antes del stream → no llama onCode ni onError
+    ok 5 - stop() antes del stream → no llama onCode ni onError
+      ---
+      duration_ms: 201.286682
+      type: 'test'
+      ...
+    # Subtest: error en decoder → llama onError y limpia stream
+    ok 6 - error en decoder → llama onError y limpia stream
+      ---
+      duration_ms: 401.314409
+      type: 'test'
+      ...
+    1..6
+ok 14 - startBarcodeCamera()
+  ---
+  duration_ms: 1157.752272
+  type: 'suite'
+  ...
+# Subtest: createImageDecoder() — luminancia
+    # Subtest: NotFoundException → devuelve null (no lanza)
+    ok 1 - NotFoundException → devuelve null (no lanza)
+      ---
+      duration_ms: 40.581799
+      type: 'test'
+      ...
+    # Subtest: ChecksumException → devuelve null (no lanza)
+    ok 2 - ChecksumException → devuelve null (no lanza)
+      ---
+      duration_ms: 30.300395
+      type: 'test'
+      ...
+    # Subtest: FormatException → devuelve null (no lanza)
+    ok 3 - FormatException → devuelve null (no lanza)
+      ---
+      duration_ms: 13.821505
+      type: 'test'
+      ...
+    # Subtest: decodificación exitosa → devuelve el texto del código
+    ok 4 - decodificación exitosa → devuelve el texto del código
+      ---
+      duration_ms: 27.589245
+      type: 'test'
+      ...
+    # Subtest: createZxingDecoder() devuelve null si video sin dimensiones
+    ok 5 - createZxingDecoder() devuelve null si video sin dimensiones
+      ---
+      duration_ms: 19.314277
+      type: 'test'
+      ...
+    1..5
+ok 15 - createImageDecoder() — luminancia
+  ---
+  duration_ms: 132.003114
+  type: 'suite'
+  ...
+# Subtest: LevantamientoProductLookup — lógica de mensajes
+    # Subtest: mensaje scanned=true cuando no hay producto → menciona escanear
+    ok 1 - mensaje scanned=true cuando no hay producto → menciona escanear
+      ---
+      duration_ms: 0.299427
+      type: 'test'
+      ...
+    # Subtest: mensaje scanned=false cuando no hay producto → no menciona escanear
+    ok 2 - mensaje scanned=false cuando no hay producto → no menciona escanear
+      ---
+      duration_ms: 0.204421
+      type: 'test'
+      ...
+    # Subtest: coincidencia exacta única → selección directa (sin mensaje)
+    ok 3 - coincidencia exacta única → selección directa (sin mensaje)
+      ---
+      duration_ms: 0.368261
+      type: 'test'
+      ...
+    # Subtest: código ambiguo (2 productos con mismo barras) → mensaje ambiguo
+    ok 4 - código ambiguo (2 productos con mismo barras) → mensaje ambiguo
+      ---
+      duration_ms: 0.255361
+      type: 'test'
+      ...
+    # Subtest: búsqueda retorna resultados pero sin exacto → pide selección
+    ok 5 - búsqueda retorna resultados pero sin exacto → pide selección
+      ---
+      duration_ms: 0.233961
+      type: 'test'
+      ...
+    1..5
+ok 16 - LevantamientoProductLookup — lógica de mensajes
+  ---
+  duration_ms: 5.770334
+  type: 'suite'
+  ...
+# Subtest: FS-02: Clientes administra el crédito mediante PATCH /clientes/:id/credito
+ok 17 - FS-02: Clientes administra el crédito mediante PATCH /clientes/:id/credito
+  ---
+  duration_ms: 0.69004
+  type: 'test'
+  ...
+# Subtest: FS-02: límite vacío significa sin límite (null) y se rechazan negativos
+ok 18 - FS-02: límite vacío significa sin límite (null) y se rechazan negativos
+  ---
+  duration_ms: 0.146116
+  type: 'test'
+  ...
+# Subtest: ClientesPage - formatApiError formats HTTP status codes via i18n helper
+ok 19 - ClientesPage - formatApiError formats HTTP status codes via i18n helper
+  ---
+  duration_ms: 1.603556
+  type: 'test'
+  ...
+# Subtest: UsuariosPage - formatUsuarioApiError formats HTTP status codes via i18n helper
+ok 20 - UsuariosPage - formatUsuarioApiError formats HTTP status codes via i18n helper
+  ---
+  duration_ms: 0.261524
+  type: 'test'
+  ...
+# Subtest: Validation - DTO field rules parity with backend DTOs
+ok 21 - Validation - DTO field rules parity with backend DTOs
+  ---
+  duration_ms: 0.173542
+  type: 'test'
+  ...
+# Subtest: FS-08: costo vacío se rechaza con mensaje (no se convierte en 0)
+ok 22 - FS-08: costo vacío se rechaza con mensaje (no se convierte en 0)
+  ---
+  duration_ms: 1.031889
+  type: 'test'
+  ...
+# Subtest: FS-08: costo 0 explícito, decimales y cantidades válidas
+ok 23 - FS-08: costo 0 explícito, decimales y cantidades válidas
+  ---
+  duration_ms: 1.587817
+  type: 'test'
+  ...
+# Subtest: FS-08: rechaza >2 decimales, negativos y cantidad no positiva
+ok 24 - FS-08: rechaza >2 decimales, negativos y cantidad no positiva
+  ---
+  duration_ms: 0.232607
+  type: 'test'
+  ...
+# Subtest: FS-08: costo sugerido se redondea a centavos y es vacío si no existe
+ok 25 - FS-08: costo sugerido se redondea a centavos y es vacío si no existe
+  ---
+  duration_ms: 0.251009
+  type: 'test'
+  ...
+# Subtest: el comprobante incluye ferretería, CT, fecha, cajero, código, descripción, cantidades, precios, subtotales, total, efectivo y cambio
+ok 26 - el comprobante incluye ferretería, CT, fecha, cajero, código, descripción, cantidades, precios, subtotales, total, efectivo y cambio
+  ---
+  duration_ms: 19.842242
+  type: 'test'
+  ...
+# Subtest: indica con claridad que es un comprobante interno de contingencia y no una factura fiscal
+ok 27 - indica con claridad que es un comprobante interno de contingencia y no una factura fiscal
+  ---
+  duration_ms: 0.742048
+  type: 'test'
+  ...
+# Subtest: la suma de los subtotales de línea coincide con el subtotal de la operación, sin descuentos
+ok 28 - la suma de los subtotales de línea coincide con el subtotal de la operación, sin descuentos
+  ---
+  duration_ms: 0.748234
+  type: 'test'
+  ...
+# Subtest: redondeo de línea mitad hacia arriba: 3.33 x L 3.33 = L 11.09
+ok 29 - redondeo de línea mitad hacia arriba: 3.33 x L 3.33 = L 11.09
+  ---
+  duration_ms: 0.557127
+  type: 'test'
+  ...
+# Subtest: reimprimir la misma operación produce exactamente el mismo comprobante
+ok 30 - reimprimir la misma operación produce exactamente el mismo comprobante
+  ---
+  duration_ms: 0.999819
+  type: 'test'
+  ...
+# Subtest: sin nombre de ferretería en la operación usa el del equipo; sin cliente indica consumidor final
+ok 31 - sin nombre de ferretería en la operación usa el del equipo; sin cliente indica consumidor final
+  ---
+  duration_ms: 0.548459
+  type: 'test'
+  ...
+# Subtest: una fecha inválida no rompe la impresión: se muestra el valor guardado
+ok 32 - una fecha inválida no rompe la impresión: se muestra el valor guardado
+  ---
+  duration_ms: 0.441937
+  type: 'test'
+  ...
+# Subtest: construir el comprobante no modifica la operación guardada
+ok 33 - construir el comprobante no modifica la operación guardada
+  ---
+  duration_ms: 0.698164
+  type: 'test'
+  ...
+# Subtest: usa ID y ruta canónica; el backend obtiene cliente, líneas e importes guardados
+ok 34 - usa ID y ruta canónica; el backend obtiene cliente, líneas e importes guardados
+  ---
+  duration_ms: 3.258909
+  type: 'test'
+  ...
+# Subtest: la conversión envía el método elegido en vez de registrar siempre efectivo
+ok 35 - la conversión envía el método elegido en vez de registrar siempre efectivo
+  ---
+  duration_ms: 0.966695
+  type: 'test'
+  ...
+# Subtest: doble confirmación simultánea emite un solo POST
+ok 36 - doble confirmación simultánea emite un solo POST
+  ---
+  duration_ms: 1.052014
+  type: 'test'
+  ...
+# Subtest: error visible conserva cotización, libera bloqueo y no reintenta automáticamente
+ok 37 - error visible conserva cotización, libera bloqueo y no reintenta automáticamente
+  ---
+  duration_ms: 1.057297
+  type: 'test'
+  ...
+# Subtest: éxito seguido de fallo de recarga conserva estado convertido y evita otro POST
+ok 38 - éxito seguido de fallo de recarga conserva estado convertido y evita otro POST
+  ---
+  duration_ms: 0.748252
+  type: 'test'
+  ...
+# Subtest: convertir con tarjeta envía la autorización bancaria y terminal
+ok 39 - convertir con tarjeta envía la autorización bancaria y terminal
+  ---
+  duration_ms: 0.841056
+  type: 'test'
+  ...
+# Subtest: Búsqueda por texto (cliente, RTN, número, vendedor)
+ok 40 - Búsqueda por texto (cliente, RTN, número, vendedor)
+  ---
+  duration_ms: 1.710307
+  type: 'test'
+  ...
+# Subtest: Aplicación de filtros por estado (incluyendo alias EMITIDA/ENVIADA)
+ok 41 - Aplicación de filtros por estado (incluyendo alias EMITIDA/ENVIADA)
+  ---
+  duration_ms: 0.257759
+  type: 'test'
+  ...
+# Subtest: Limpieza de la búsqueda y restablecimiento de filtros recupera todo el listado
+ok 42 - Limpieza de la búsqueda y restablecimiento de filtros recupera todo el listado
+  ---
+  duration_ms: 0.271148
+  type: 'test'
+  ...
+# Subtest: una decisión concurrente recupera al ganador y permite revisar otras solicitudes
+ok 43 - una decisión concurrente recupera al ganador y permite revisar otras solicitudes
+  ---
+  duration_ms: 251.405035
+  type: 'test'
+  ...
+# Subtest: una decisión inválida comprobada permite corregir el motivo con el mismo identificador
+ok 44 - una decisión inválida comprobada permite corregir el motivo con el mismo identificador
+  ---
+  duration_ms: 127.998464
+  type: 'test'
+  ...
+# Subtest: una ejecución rechazada conserva la solicitud durable y el siguiente intento usa su identidad
+ok 45 - una ejecución rechazada conserva la solicitud durable y el siguiente intento usa su identidad
+  ---
+  duration_ms: 56.479584
+  type: 'test'
+  ...
+# Subtest: un rechazo del reintento recupera la ejecución anterior antes de liberar el pendiente
+ok 46 - un rechazo del reintento recupera la ejecución anterior antes de liberar el pendiente
+  ---
+  duration_ms: 37.946015
+  type: 'test'
+  ...
+# Subtest: si la consulta posterior no permite comprobar el estado conserva el comando íntegro
+ok 47 - si la consulta posterior no permite comprobar el estado conserva el comando íntegro
+  ---
+  duration_ms: 110.056771
+  type: 'test'
+  ...
+# Subtest: errores de red o servidor mantienen identidad y no se tratan como rechazo definitivo
+ok 48 - errores de red o servidor mantienen identidad y no se tratan como rechazo definitivo
+  ---
+  duration_ms: 82.841072
+  type: 'test'
+  ...
+# Subtest: cerrar un comprobante histórico durante la corrección conserva el pendiente distinto
+ok 49 - cerrar un comprobante histórico durante la corrección conserva el pendiente distinto
+  ---
+  duration_ms: 23.458367
+  type: 'test'
+  ...
+# Subtest: cerrar un comprobante no borra el comando que otra pestaña guardó después
+ok 50 - cerrar un comprobante no borra el comando que otra pestaña guardó después
+  ---
+  duration_ms: 31.130223
+  type: 'test'
+  ...
+# Subtest: zona de referencia del negocio es America/Tegucigalpa
+ok 51 - zona de referencia del negocio es America/Tegucigalpa
+  ---
+  duration_ms: 0.845005
+  type: 'test'
+  ...
+# Subtest: instante 2026-10-10T02:30Z se muestra como día de negocio 2026-10-09 con cualquier zona del navegador
+ok 52 - instante 2026-10-10T02:30Z se muestra como día de negocio 2026-10-09 con cualquier zona del navegador
+  ---
+  duration_ms: 14.18343
+  type: 'test'
+  ...
+# Subtest: alta de apartado: fecha de creación = hoy de negocio y límite = hoy + 30 días de calendario
+ok 53 - alta de apartado: fecha de creación = hoy de negocio y límite = hoy + 30 días de calendario
+  ---
+  duration_ms: 1.419962
+  type: 'test'
+  ...
+# Subtest: suma de días cruza fin de mes, fin de año y febrero bisiesto
+ok 54 - suma de días cruza fin de mes, fin de año y febrero bisiesto
+  ---
+  duration_ms: 0.29241
+  type: 'test'
+  ...
+# Subtest: formato de fecha de negocio en español y en inglés, sin desplazar el día
+ok 55 - formato de fecha de negocio en español y en inglés, sin desplazar el día
+  ---
+  duration_ms: 2.743483
+  type: 'test'
+  ...
+# Subtest: formato cerca de medianoche UTC: un instante de las 23:59 UTC mantiene su día calendario
+ok 56 - formato cerca de medianoche UTC: un instante de las 23:59 UTC mantiene su día calendario
+  ---
+  duration_ms: 0.420786
+  type: 'test'
+  ...
+# Subtest: formato devuelve guion para entradas vacías o no válidas
+ok 57 - formato devuelve guion para entradas vacías o no válidas
+  ---
+  duration_ms: 0.277894
+  type: 'test'
+  ...
+# Subtest: fechas de entrada no válidas se rechazan
+ok 58 - fechas de entrada no válidas se rechazan
+  ---
+  duration_ms: 0.446311
+  type: 'test'
+  ...
+# Subtest: TZ de la prueba es America/Tegucigalpa
+ok 59 - TZ de la prueba es America/Tegucigalpa
+  ---
+  duration_ms: 1.150827
+  type: 'test'
+  ...
+# Subtest: medianoche UTC conserva el día capturado (sin desplazar a 08/10)
+ok 60 - medianoche UTC conserva el día capturado (sin desplazar a 08/10)
+  ---
+  duration_ms: 3.800229
+  type: 'test'
+  ...
+# Subtest: fecha pura y medianoche local en Tegucigalpa conservan el día
+ok 61 - fecha pura y medianoche local en Tegucigalpa conservan el día
+  ---
+  duration_ms: 0.194117
+  type: 'test'
+  ...
+# Subtest: fecha de calendario imposible devuelve guion
+ok 62 - fecha de calendario imposible devuelve guion
+  ---
+  duration_ms: 0.318268
+  type: 'test'
+  ...
+# Subtest: valores vacíos, inválidos o mal formados devuelven guion
+ok 63 - valores vacíos, inválidos o mal formados devuelven guion
+  ---
+  duration_ms: 0.20808
+  type: 'test'
+  ...
+# Subtest: Date inválido no lanza excepción y devuelve guion
+ok 64 - Date inválido no lanza excepción y devuelve guion
+  ---
+  duration_ms: 0.22968
+  type: 'test'
+  ...
+# Subtest: valida días: enteros positivos entre 1 y el límite técnico
+ok 65 - valida días: enteros positivos entre 1 y el límite técnico
+  ---
+  duration_ms: 1.16294
+  type: 'test'
+  ...
+# Subtest: rechaza cero, negativos, decimales, notación científica, texto y vacío
+ok 66 - rechaza cero, negativos, decimales, notación científica, texto y vacío
+  ---
+  duration_ms: 0.231221
+  type: 'test'
+  ...
+# Subtest: vencimiento = fecha de venta + días calendario (30, 90, 180, 365)
+ok 67 - vencimiento = fecha de venta + días calendario (30, 90, 180, 365)
+  ---
+  duration_ms: 0.458377
+  type: 'test'
+  ...
+# Subtest: cambio de mes: 31 ene + 30 días = 2 mar (no se usa el último día del mes)
+ok 68 - cambio de mes: 31 ene + 30 días = 2 mar (no se usa el último día del mes)
+  ---
+  duration_ms: 0.125385
+  type: 'test'
+  ...
+# Subtest: cambio de año: 31 dic + 1 día = 1 ene
+ok 69 - cambio de año: 31 dic + 1 día = 1 ene
+  ---
+  duration_ms: 0.170097
+  type: 'test'
+  ...
+# Subtest: año bisiesto: 28 feb 2028 + 1 = 29 feb; 28 feb 2027 + 1 = 1 mar
+ok 70 - año bisiesto: 28 feb 2028 + 1 = 29 feb; 28 feb 2027 + 1 = 1 mar
+  ---
+  duration_ms: 0.157295
+  type: 'test'
+  ...
+# Subtest: 365 días desde 9 oct 2027 cruza el 29 feb 2028 y vence el 8 oct 2028
+ok 71 - 365 días desde 9 oct 2027 cruza el 29 feb 2028 y vence el 8 oct 2028
+  ---
+  duration_ms: 0.0809
+  type: 'test'
+  ...
+# Subtest: la vista previa usa la fecha de la factura y no la del navegador
+ok 72 - la vista previa usa la fecha de la factura y no la del navegador
+  ---
+  duration_ms: 0.443928
+  type: 'test'
+  ...
+# Subtest: la fecha de inicio es el día de negocio, sin desplazarse por la zona del navegador
+ok 73 - la fecha de inicio es el día de negocio, sin desplazarse por la zona del navegador
+  ---
+  duration_ms: 14.326337
+  type: 'test'
+  ...
+# Subtest: generarSolicitudId produce UUID v4 distintos
+ok 74 - generarSolicitudId produce UUID v4 distintos
+  ---
+  duration_ms: 1.7041
+  type: 'test'
+  ...
+# Subtest: Dictionary key parity between ES and EN
+ok 75 - Dictionary key parity between ES and EN
+  ---
+  duration_ms: 2.798299
+  type: 'test'
+  ...
+# Subtest: No raw or missing translation placeholders in ES dictionary values
+ok 76 - No raw or missing translation placeholders in ES dictionary values
+  ---
+  duration_ms: 1.110143
+  type: 'test'
+  ...
+# Subtest: No raw or missing translation placeholders in EN dictionary values
+ok 77 - No raw or missing translation placeholders in EN dictionary values
+  ---
+  duration_ms: 2.432781
+  type: 'test'
+  ...
+# Subtest: Parameter interpolation placeholders consistency
+ok 78 - Parameter interpolation placeholders consistency
+  ---
+  duration_ms: 1.230619
+  type: 'test'
+  ...
+# Subtest: Navigation & Menu keys existence
+ok 79 - Navigation & Menu keys existence
+  ---
+  duration_ms: 0.195222
+  type: 'test'
+  ...
+# Subtest: technical controls absent from dashboard and role gated in maintenance
+ok 80 - technical controls absent from dashboard and role gated in maintenance
+  ---
+  duration_ms: 1.553486
+  type: 'test'
+  ...
+# Subtest: automatic polling retries failed GET, skips hidden/offline and does not overlap
+ok 81 - automatic polling retries failed GET, skips hidden/offline and does not overlap
+  ---
+  duration_ms: 80.387975
+  type: 'test'
+  ...
+# Subtest: unmount or role change cancels request and discards late technical state
+ok 82 - unmount or role change cancels request and discards late technical state
+  ---
+  duration_ms: 13.74169
+  type: 'test'
+  ...
+# Subtest: connection loss invalidates stale success until a fresh response
+ok 83 - connection loss invalidates stale success until a fresh response
+  ---
+  duration_ms: 10.376675
+  type: 'test'
+  ...
+# Subtest: las rutas de estos módulos muestran el marcador pendiente, no la página con localStorage
+ok 84 - las rutas de estos módulos muestran el marcador pendiente, no la página con localStorage
+  ---
+  duration_ms: 2.825658
+  type: 'test'
+  ...
+# Subtest: el POS no lee listas de precio: el precio vigente de venta sale solo del producto
+ok 85 - el POS no lee listas de precio: el precio vigente de venta sale solo del producto
+  ---
+  duration_ms: 0.574456
+  type: 'test'
+  ...
+# Subtest: los módulos pendientes siguen ocultos del menú
+ok 86 - los módulos pendientes siguen ocultos del menú
+  ---
+  duration_ms: 0.229128
+  type: 'test'
+  ...
+# Subtest: dinero: coincide con los vectores compartidos con el backend (mismos valores que backend/src/common/dinero.spec.ts)
+ok 87 - dinero: coincide con los vectores compartidos con el backend (mismos valores que backend/src/common/dinero.spec.ts)
+  ---
+  duration_ms: 3.453185
+  type: 'test'
+  ...
+# Subtest: dinero: convierte texto de efectivo y cantidades sin errores de coma flotante
+ok 88 - dinero: convierte texto de efectivo y cantidades sin errores de coma flotante
+  ---
+  duration_ms: 0.437431
+  type: 'test'
+  ...
+# Subtest: correlativo local: formato CT-NN-NNNN, secuencial y no confundible con V-NNNNNNNN
+ok 89 - correlativo local: formato CT-NN-NNNN, secuencial y no confundible con V-NNNNNNNN
+  ---
+  duration_ms: 0.480331
+  type: 'test'
+  ...
+# Subtest: respuesta APLICADA: la operación pasa a sincronizada con correlativo central y conserva observaciones
+ok 90 - respuesta APLICADA: la operación pasa a sincronizada con correlativo central y conserva observaciones
+  ---
+  duration_ms: 0.748608
+  type: 'test'
+  ...
+# Subtest: respuesta REVISION: nunca se descarta; queda con sus conflictos
+ok 91 - respuesta REVISION: nunca se descarta; queda con sus conflictos
+  ---
+  duration_ms: 0.268903
+  type: 'test'
+  ...
+# Subtest: rechazo técnico del servidor: pasa a revisión con el motivo visible, no desaparece
+ok 92 - rechazo técnico del servidor: pasa a revisión con el motivo visible, no desaparece
+  ---
+  duration_ms: 0.313651
+  type: 'test'
+  ...
+# Subtest: error temporal: vuelve a pendiente con reintento programado y contador de intentos
+ok 93 - error temporal: vuelve a pendiente con reintento programado y contador de intentos
+  ---
+  duration_ms: 0.370387
+  type: 'test'
+  ...
+# Subtest: esperas exponenciales con tope de 60 s
+ok 94 - esperas exponenciales con tope de 60 s
+  ---
+  duration_ms: 0.211608
+  type: 'test'
+  ...
+# Subtest: una operación solo se reenvía cuando es pendiente y su espera venció
+ok 95 - una operación solo se reenvía cuando es pendiente y su espera venció
+  ---
+  duration_ms: 0.634403
+  type: 'test'
+  ...
+# Subtest: solo el cajero de la operación o un administrador la envían
+ok 96 - solo el cajero de la operación o un administrador la envían
+  ---
+  duration_ms: 0.698
+  type: 'test'
+  ...
+# Subtest: el DTO enviado no incluye campos de sincronización ni datos internos del diario
+ok 97 - el DTO enviado no incluye campos de sincronización ni datos internos del diario
+  ---
+  duration_ms: 0.586114
+  type: 'test'
+  ...
+# Subtest: vendido por producto suma solo la ventana indicada y cuenta también las no sincronizadas
+ok 98 - vendido por producto suma solo la ventana indicada y cuenta también las no sincronizadas
+  ---
+  duration_ms: 0.213402
+  type: 'test'
+  ...
+# Subtest: cuenta por estado y total pendiente
+ok 99 - cuenta por estado y total pendiente
+  ---
+  duration_ms: 0.252741
+  type: 'test'
+  ...
+# Subtest: el diario no permite modificar la carga recibida; solo campos de sincronización
+ok 100 - el diario no permite modificar la carga recibida; solo campos de sincronización
+  ---
+  duration_ms: 0.766748
+  type: 'test'
+  ...
+# Subtest: revisión resuelta en el servidor: la caja recibe la decisión (aplicada, cerrada o sin cambio)
+ok 101 - revisión resuelta en el servidor: la caja recibe la decisión (aplicada, cerrada o sin cambio)
+  ---
+  duration_ms: 0.337924
+  type: 'test'
+  ...
+# Subtest: revisión: una operación ya aplicada en el servidor no se vuelve a escribir
+ok 102 - revisión: una operación ya aplicada en el servidor no se vuelve a escribir
+  ---
+  duration_ms: 0.213502
+  type: 'test'
+  ...
+# Subtest: soporte instala el token real, restaura superadmin y limpia el estado al iniciar otra cuenta
+ok 103 - soporte instala el token real, restaura superadmin y limpia el estado al iniciar otra cuenta
+  ---
+  duration_ms: 234.80728
+  type: 'test'
+  ...
+# Subtest: un inicio fallido de soporte conserva la sesión de superadmin
+ok 104 - un inicio fallido de soporte conserva la sesión de superadmin
+  ---
+  duration_ms: 60.752465
+  type: 'test'
+  ...
+# Subtest: configuración antigua del catálogo local no sobrescribe el servidor ni coincide por nombre
+ok 105 - configuración antigua del catálogo local no sobrescribe el servidor ni coincide por nombre
+  ---
+  duration_ms: 169.155748
+  type: 'test'
+  ...
+# Subtest: respuesta de configuración antigua no contamina el login de otra empresa
+ok 106 - respuesta de configuración antigua no contamina el login de otra empresa
+  ---
+  duration_ms: 157.647992
+  type: 'test'
+  ...
+# Subtest: lectura anterior del servidor no revierte una configuración recién guardada
+ok 107 - lectura anterior del servidor no revierte una configuración recién guardada
+  ---
+  duration_ms: 91.627516
+  type: 'test'
+  ...
+# Subtest: cambiar sesión en otra pestaña invalida usuario y empresa locales sin borrar la cuenta nueva
+ok 108 - cambiar sesión en otra pestaña invalida usuario y empresa locales sin borrar la cuenta nueva
+  ---
+  duration_ms: 88.329003
+  type: 'test'
+  ...
+# Subtest: POS conserva identidad tras respuesta perdida/reload y bloquea doble envío
+ok 109 - POS conserva identidad tras respuesta perdida/reload y bloquea doble envío
+  ---
+  duration_ms: 392.439381
+  type: 'test'
+  ...
+# Subtest: importación sobrescribe con PUT, salta duplicados si se solicita y cuenta errores reales
+ok 110 - importación sobrescribe con PUT, salta duplicados si se solicita y cuenta errores reales
+  ---
+  duration_ms: 93.706529
+  type: 'test'
+  ...
+# Subtest: unidades de español/inglés siempre producen enums de API
+ok 111 - unidades de español/inglés siempre producen enums de API
+  ---
+  duration_ms: 2.713219
+  type: 'test'
+  ...
+# Subtest: JSON corrupto de una sesión no bloquea el arranque
+ok 112 - JSON corrupto de una sesión no bloquea el arranque
+  ---
+  duration_ms: 3.432235
+  type: 'test'
+  ...
+# Subtest: el límite del cajero proviene del usuario y no de aprobaciones locales
+ok 113 - el límite del cajero proviene del usuario y no de aprobaciones locales
+  ---
+  duration_ms: 100.704707
+  type: 'test'
+  ...
+# Subtest: editar cotización recupera porcentajes desde los montos guardados
+ok 114 - editar cotización recupera porcentajes desde los montos guardados
+  ---
+  duration_ms: 126.002128
+  type: 'test'
+  ...
+# Subtest: selector busca por teléfono y descarta respuestas de búsquedas anteriores
+ok 115 - selector busca por teléfono y descarta respuestas de búsquedas anteriores
+  ---
+  duration_ms: 572.472986
+  type: 'test'
+  ...
+# Subtest: número de cliente se presenta sin exponer UUID y admite más de seis dígitos
+ok 116 - número de cliente se presenta sin exponer UUID y admite más de seis dígitos
+  ---
+  duration_ms: 3.13637
+  type: 'test'
+  ...
+# Subtest: seleccionar cliente completa datos y guarda su ID; ingreso manual desvincula
+ok 117 - seleccionar cliente completa datos y guarda su ID; ingreso manual desvincula
+  ---
+  duration_ms: 149.888315
+  type: 'test'
+  ...
+# Subtest: POS autoguarda carrito antes de cobrar y restaura cantidades, cliente y pago al regresar
+ok 118 - POS autoguarda carrito antes de cobrar y restaura cantidades, cliente y pago al regresar
+  ---
+  duration_ms: 142.818783
+  type: 'test'
+  ...
+# Subtest: POS recupera venta confirmada por consulta sin POST y conserva comprobante hasta cerrarlo
+ok 119 - POS recupera venta confirmada por consulta sin POST y conserva comprobante hasta cerrarlo
+  ---
+  duration_ms: 142.663721
+  type: 'test'
+  ...
+# Subtest: sin conexión o con sesión vencida, consultar no envía otra venta ni borra pendiente
+ok 120 - sin conexión o con sesión vencida, consultar no envía otra venta ni borra pendiente
+  ---
+  duration_ms: 133.236117
+  type: 'test'
+  ...
+# Subtest: POS no mezcla recuperación al cambiar de usuario o empresa con una consulta en vuelo
+ok 121 - POS no mezcla recuperación al cambiar de usuario o empresa con una consulta en vuelo
+  ---
+  duration_ms: 38.640581
+  type: 'test'
+  ...
+# Subtest: pendiente corrupto bloquea cobro y no se elimina ni se reemplaza con un borrador
+ok 122 - pendiente corrupto bloquea cobro y no se elimina ni se reemplaza con un borrador
+  ---
+  duration_ms: 48.716778
+  type: 'test'
+  ...
+# Subtest: si almacenamiento falla no se envía la venta; si falla el borrado tras confirmar sigue recuperable
+ok 123 - si almacenamiento falla no se envía la venta; si falla el borrado tras confirmar sigue recuperable
+  ---
+  duration_ms: 113.671375
+  type: 'test'
+  ...
+# Subtest: corregir precio pendiente conserva identidad y una confirmación tardía se recupera sin POST
+ok 124 - corregir precio pendiente conserva identidad y una confirmación tardía se recupera sin POST
+  ---
+  duration_ms: 51.903954
+  type: 'test'
+  ...
+# Subtest: un pendiente borrado por otra pestaña no genera un identificador nuevo al reintentar
+ok 125 - un pendiente borrado por otra pestaña no genera un identificador nuevo al reintentar
+  ---
+  duration_ms: 50.714251
+  type: 'test'
+  ...
+# Subtest: respuesta tardía del POST no reemplaza una venta pendiente posterior de la misma sesión
+ok 126 - respuesta tardía del POST no reemplaza una venta pendiente posterior de la misma sesión
+  ---
+  duration_ms: 97.64631
+  type: 'test'
+  ...
+# Subtest: consulta tardía no confirma ni reenvía una venta anterior cuando cambió su identidad
+ok 127 - consulta tardía no confirma ni reenvía una venta anterior cuando cambió su identidad
+  ---
+  duration_ms: 118.247755
+  type: 'test'
+  ...
+# Subtest: cerrar comprobante antiguo conserva y recupera un pendiente o borrador posterior
+ok 128 - cerrar comprobante antiguo conserva y recupera un pendiente o borrador posterior
+  ---
+  duration_ms: 216.618142
+  type: 'test'
+  ...
+# Subtest: devolución recupera respuesta confirmada sin POST y mantiene comprobante hasta cerrarlo
+ok 129 - devolución recupera respuesta confirmada sin POST y mantiene comprobante hasta cerrarlo
+  ---
+  duration_ms: 101.23141
+  type: 'test'
+  ...
+# Subtest: devolución sin conexión o sin autorización no envía ajustes y conserva identidad
+ok 130 - devolución sin conexión o sin autorización no envía ajustes y conserva identidad
+  ---
+  duration_ms: 109.134561
+  type: 'test'
+  ...
+# Subtest: devolución no se envía si falla el almacenamiento y bloquea doble clic mientras consulta
+ok 131 - devolución no se envía si falla el almacenamiento y bloquea doble clic mientras consulta
+  ---
+  duration_ms: 130.002493
+  type: 'test'
+  ...
+# Subtest: devolución descarta respuesta antigua al cambiar de usuario y no elimina su pendiente
+ok 132 - devolución descarta respuesta antigua al cambiar de usuario y no elimina su pendiente
+  ---
+  duration_ms: 53.182182
+  type: 'test'
+  ...
+# Subtest: devolución antigua y pendiente corrupto se conservan sin crear una solicitud nueva
+ok 133 - devolución antigua y pendiente corrupto se conservan sin crear una solicitud nueva
+  ---
+  duration_ms: 79.263852
+  type: 'test'
+  ...
+# Subtest: corregir solicitud no confirmada conserva UUID y una respuesta tardía se recupera sin otro POST
+ok 134 - corregir solicitud no confirmada conserva UUID y una respuesta tardía se recupera sin otro POST
+  ---
+  duration_ms: 30.919402
+  type: 'test'
+  ...
+# Subtest: respuesta tardía con datos originales distintos recupera la solicitud sin sobrescribirla
+ok 135 - respuesta tardía con datos originales distintos recupera la solicitud sin sobrescribirla
+  ---
+  duration_ms: 21.493866
+  type: 'test'
+  ...
+# Subtest: importación rechaza Excel y archivos mayores de 5 MB antes de analizar datos
+ok 136 - importación rechaza Excel y archivos mayores de 5 MB antes de analizar datos
+  ---
+  duration_ms: 16.385256
+  type: 'test'
+  ...
+# Subtest: importación bloquea CSV con errores de formato o más de 5000 filas
+ok 137 - importación bloquea CSV con errores de formato o más de 5000 filas
+  ---
+  duration_ms: 19.811901
+  type: 'test'
+  ...
+# Subtest: respuesta vacía del servidor elimina apariencia antigua sin perder sucursal local
+ok 138 - respuesta vacía del servidor elimina apariencia antigua sin perder sucursal local
+  ---
+  duration_ms: 16.046881
+  type: 'test'
+  ...
+# Subtest: lecturas fuera de orden y versiones antiguas no reemplazan el último servidor aceptado
+ok 139 - lecturas fuera de orden y versiones antiguas no reemplazan el último servidor aceptado
+  ---
+  duration_ms: 22.288687
+  type: 'test'
+  ...
+# Subtest: respuesta de la misma cuenta con otro token de sesión no se aplica
+ok 140 - respuesta de la misma cuenta con otro token de sesión no se aplica
+  ---
+  duration_ms: 17.416611
+  type: 'test'
+  ...
+# Subtest: SEC-005: CAJERO cobra con catálogo sin campos financieros
+ok 141 - SEC-005: CAJERO cobra con catálogo sin campos financieros
+  ---
+  duration_ms: 401.266252
+  type: 'test'
+  ...
+# Subtest: SEC-005: VENDEDOR cobra con catálogo sin campos financieros
+ok 142 - SEC-005: VENDEDOR cobra con catálogo sin campos financieros
+  ---
+  duration_ms: 196.18629
+  type: 'test'
+  ...
+# Subtest: Selección de cliente registrado en POS conserva clienteId y lo envía en la venta
+ok 143 - Selección de cliente registrado en POS conserva clienteId y lo envía en la venta
+  ---
+  duration_ms: 149.6517
+  type: 'test'
+  ...
+# Subtest: Venta a crédito sin cliente registrado es rechazada con mensaje de error
+ok 144 - Venta a crédito sin cliente registrado es rechazada con mensaje de error
+  ---
+  duration_ms: 210.323339
+  type: 'test'
+  ...
+# Subtest: Venta de contado sin cliente registrado se procesa sin clienteId
+ok 145 - Venta de contado sin cliente registrado se procesa sin clienteId
+  ---
+  duration_ms: 107.751939
+  type: 'test'
+  ...
+# Subtest: Desvincular cliente registrado restablece estado a Consumidor Final
+ok 146 - Desvincular cliente registrado restablece estado a Consumidor Final
+  ---
+  duration_ms: 99.725085
+  type: 'test'
+  ...
+# Subtest: pendiente válido se recupera con su solicitudId y tiene prioridad sobre el borrador
+ok 147 - pendiente válido se recupera con su solicitudId y tiene prioridad sobre el borrador
+  ---
+  duration_ms: 106.999749
+  type: 'test'
+  ...
+# Subtest: pendiente corrupto o sin UUID v4-formato válido NO se descarta ni se reemplaza: bloquea el cobro
+ok 148 - pendiente corrupto o sin UUID v4-formato válido NO se descarta ni se reemplaza: bloquea el cobro
+  ---
+  duration_ms: 99.449973
+  type: 'test'
+  ...
+# Subtest: borrador: versión desconocida o inválido produce error; vacío elimina la clave; inválido no se guarda
+ok 149 - borrador: versión desconocida o inválido produce error; vacío elimina la clave; inválido no se guarda
+  ---
+  duration_ms: 40.298503
+  type: 'test'
+  ...
+# Subtest: el borrador NO guarda catálogo ni libro de ventas: solo líneas, cliente, método y descuento
+ok 150 - el borrador NO guarda catálogo ni libro de ventas: solo líneas, cliente, método y descuento
+  ---
+  duration_ms: 26.37505
+  type: 'test'
+  ...
+# Subtest: cuota/almacenamiento lleno: saveDraft propaga el error (el POS bloquea el cobro) y readRecovery lo reporta
+ok 151 - cuota/almacenamiento lleno: saveDraft propaga el error (el POS bloquea el cobro) y readRecovery lo reporta
+  ---
+  duration_ms: 41.142244
+  type: 'test'
+  ...
+# Subtest: un solo hueco de recuperación por usuario/empresa: las claves incluyen tenant y usuario
+ok 152 - un solo hueco de recuperación por usuario/empresa: las claves incluyen tenant y usuario
+  ---
+  duration_ms: 0.398094
+  type: 'test'
+  ...
+# Subtest: newRequestId genera UUID v4 con y sin crypto.randomUUID (LAN sin HTTPS)
+ok 153 - newRequestId genera UUID v4 con y sin crypto.randomUUID (LAN sin HTTPS)
+  ---
+  duration_ms: 33.735634
+  type: 'test'
+  ...
+# Subtest: el POS genera la identidad de la venta con crypto.randomUUID directo (sin el fallback de requestId)
+ok 154 - el POS genera la identidad de la venta con crypto.randomUUID directo (sin el fallback de requestId)
+  ---
+  duration_ms: 1.530419
+  type: 'test'
+  ...
+# Subtest: el service worker existe, no cachea la API y el POS base sigue sin persistir catálogo (el de contingencia es otra página)
+ok 155 - el service worker existe, no cachea la API y el POS base sigue sin persistir catálogo (el de contingencia es otra página)
+  ---
+  duration_ms: 16.632891
+  type: 'test'
+  ...
+# Subtest: el catálogo del POS vive solo en estado React: no se persiste
+ok 156 - el catálogo del POS vive solo en estado React: no se persiste
+  ---
+  duration_ms: 0.895277
+  type: 'test'
+  ...
+# Subtest: el cliente HTTP no define timeout: una red caída puede dejar la petición colgada
+ok 157 - el cliente HTTP no define timeout: una red caída puede dejar la petición colgada
+  ---
+  duration_ms: 0.265203
+  type: 'test'
+  ...
+# Subtest: la actualización de precios del carrito es un botón manual que reemplaza precios sin desglose
+ok 158 - la actualización de precios del carrito es un botón manual que reemplaza precios sin desglose
+  ---
+  duration_ms: 0.274614
+  type: 'test'
+  ...
+# Subtest: sin conexión (error sin respuesta) el interceptor NO toca la sesión ni redirige
+ok 159 - sin conexión (error sin respuesta) el interceptor NO toca la sesión ni redirige
+  ---
+  duration_ms: 34.055438
+  type: 'test'
+  ...
+# Subtest: 401 con refresh que falla por red: conserva la sesión para reintentar al volver la conexión
+ok 160 - 401 con refresh que falla por red: conserva la sesión para reintentar al volver la conexión
+  ---
+  duration_ms: 29.337288
+  type: 'test'
+  ...
+# Subtest: 401 con refresh rechazado por la API (sesión vencida de verdad): elimina el token y redirige
+ok 161 - 401 con refresh rechazado por la API (sesión vencida de verdad): elimina el token y redirige
+  ---
+  duration_ms: 31.358466
+  type: 'test'
+  ...
+# Subtest: 401 con refresh correcto guarda el token nuevo y reintenta una sola vez
+ok 162 - 401 con refresh correcto guarda el token nuevo y reintenta una sola vez
+  ---
+  duration_ms: 28.10998
+  type: 'test'
+  ...
+# Subtest: la sesión vive en localStorage (token de acceso) y el refresh es cookie HttpOnly: no hay sesión offline
+ok 163 - la sesión vive en localStorage (token de acceso) y el refresh es cookie HttpOnly: no hay sesión offline
+  ---
+  duration_ms: 0.216818
+  type: 'test'
+  ...
+# Subtest: margen calculado sobre el precio de venta, con dos decimales
+ok 164 - margen calculado sobre el precio de venta, con dos decimales
+  ---
+  duration_ms: 0.873307
+  type: 'test'
+  ...
+# Subtest: sin precio de venta no hay margen (evita división entre cero)
+ok 165 - sin precio de venta no hay margen (evita división entre cero)
+  ---
+  duration_ms: 0.167339
+  type: 'test'
+  ...
+# Subtest: aprobar exige precio de venta mayor que cero
+ok 166 - aprobar exige precio de venta mayor que cero
+  ---
+  duration_ms: 0.183677
+  type: 'test'
+  ...
+# Subtest: validación de costo y precio: número y no negativo
+ok 167 - validación de costo y precio: número y no negativo
+  ---
+  duration_ms: 1.359054
+  type: 'test'
+  ...
+# Subtest: solo se envían los precios que cambiaron
+ok 168 - solo se envían los precios que cambiaron
+  ---
+  duration_ms: 0.377412
+  type: 'test'
+  ...
+# Subtest: un precio vacío o inválido no genera cambio
+ok 169 - un precio vacío o inválido no genera cambio
+  ---
+  duration_ms: 0.15653
+  type: 'test'
+  ...
+# Subtest: datos completos exigen descripción y categoría
+ok 170 - datos completos exigen descripción y categoría
+  ---
+  duration_ms: 0.208834
+  type: 'test'
+  ...
+# Subtest: pendiente de precio es lo contrario de aprobado
+ok 171 - pendiente de precio es lo contrario de aprobado
+  ---
+  duration_ms: 0.108694
+  type: 'test'
+  ...
+# Subtest: una edición de solo el nombre envía únicamente nombre y versión
+ok 172 - una edición de solo el nombre envía únicamente nombre y versión
+  ---
+  duration_ms: 2.428976
+  type: 'test'
+  ...
+# Subtest: sin cambios no se envían campos y no hay nada que guardar
+ok 173 - sin cambios no se envían campos y no hay nada que guardar
+  ---
+  duration_ms: 0.273201
+  type: 'test'
+  ...
+# Subtest: existencias sin cambio nunca se envían (evita revertir un valor leído antes)
+ok 174 - existencias sin cambio nunca se envían (evita revertir un valor leído antes)
+  ---
+  duration_ms: 0.192589
+  type: 'test'
+  ...
+# Subtest: la ficha nunca envía precio, costo ni margen aunque cambien (los fija el administrador)
+ok 175 - la ficha nunca envía precio, costo ni margen aunque cambien (los fija el administrador)
+  ---
+  duration_ms: 0.147684
+  type: 'test'
+  ...
+# Subtest: cambiar existencias exige motivo y lo envía junto con el nuevo valor
+ok 176 - cambiar existencias exige motivo y lo envía junto con el nuevo valor
+  ---
+  duration_ms: 0.160183
+  type: 'test'
+  ...
+# Subtest: cambiar el código de barras se marca como sensible
+ok 177 - cambiar el código de barras se marca como sensible
+  ---
+  duration_ms: 0.159787
+  type: 'test'
+  ...
+# Subtest: marca y categoría vacías no borran el dato existente
+ok 178 - marca y categoría vacías no borran el dato existente
+  ---
+  duration_ms: 0.177023
+  type: 'test'
+  ...
+# Subtest: cambiar marca y categoría se envía y no altera existencias
+ok 179 - cambiar marca y categoría se envía y no altera existencias
+  ---
+  duration_ms: 0.13633
+  type: 'test'
+  ...
+# Subtest: código interno y de barras cambiados: códigos en mayúsculas y barcode vacío como borrado explícito
+ok 180 - código interno y de barras cambiados: códigos en mayúsculas y barcode vacío como borrado explícito
+  ---
+  duration_ms: 0.348565
+  type: 'test'
+  ...
+# Subtest: código en minúsculas que equivale al actual no es un cambio
+ok 181 - código en minúsculas que equivale al actual no es un cambio
+  ---
+  duration_ms: 0.408991
+  type: 'test'
+  ...
+# Subtest: desactivar un producto requiere confirmación y se envía activo=false
+ok 182 - desactivar un producto requiere confirmación y se envía activo=false
+  ---
+  duration_ms: 0.179513
+  type: 'test'
+  ...
+# Subtest: cambiar la unidad de medida es sensible
+ok 183 - cambiar la unidad de medida es sensible
+  ---
+  duration_ms: 0.10591
+  type: 'test'
+  ...
+# Subtest: la versión leída siempre viaja en el payload para detectar ediciones concurrentes
+ok 184 - la versión leída siempre viaja en el payload para detectar ediciones concurrentes
+  ---
+  duration_ms: 0.078667
+  type: 'test'
+  ...
+# Subtest: validación: nombre, código y existencias (sin precio)
+ok 185 - validación: nombre, código y existencias (sin precio)
+  ---
+  duration_ms: 0.244747
+  type: 'test'
+  ...
+# Subtest: regresión: el listado de inventario conserva la versión y la categoría real; "General" no se guarda como categoría
+ok 186 - regresión: el listado de inventario conserva la versión y la categoría real; "General" no se guarda como categoría
+  ---
+  duration_ms: 0.13638
+  type: 'test'
+  ...
+# Subtest: comprobante de venta anterior conserva dinero e ISV al cambiar configuración visual fiscal antigua
+ok 187 - comprobante de venta anterior conserva dinero e ISV al cambiar configuración visual fiscal antigua
+  ---
+  duration_ms: 24.195167
+  type: 'test'
+  ...
+# Subtest: cotización con ISV transaccional mixto no se etiqueta con tasa global del tenant
+ok 188 - cotización con ISV transaccional mixto no se etiqueta con tasa global del tenant
+  ---
+  duration_ms: 2.817688
+  type: 'test'
+  ...
+# Subtest: usa tasa transaccional de cotización, incluido cero, cuando el contrato la proporciona
+ok 189 - usa tasa transaccional de cotización, incluido cero, cuando el contrato la proporciona
+  ---
+  duration_ms: 4.801904
+  type: 'test'
+  ...
+# Subtest: zona de referencia del negocio es America/Tegucigalpa
+ok 190 - zona de referencia del negocio es America/Tegucigalpa
+  ---
+  duration_ms: 0.771805
+  type: 'test'
+  ...
+# Subtest: a las 20:30 locales (02:30 UTC del día siguiente) el día es el local, no el UTC
+ok 191 - a las 20:30 locales (02:30 UTC del día siguiente) el día es el local, no el UTC
+  ---
+  duration_ms: 12.662882
+  type: 'test'
+  ...
+# Subtest: cambio de día exacto a medianoche local
+ok 192 - cambio de día exacto a medianoche local
+  ---
+  duration_ms: 0.403907
+  type: 'test'
+  ...
+# Subtest: cambio de mes en la zona del negocio (31 oct 19:00 local = 1 nov UTC)
+ok 193 - cambio de mes en la zona del negocio (31 oct 19:00 local = 1 nov UTC)
+  ---
+  duration_ms: 0.294829
+  type: 'test'
+  ...
+# Subtest: la zona se puede cambiar por empresa sin tocar la función
+ok 194 - la zona se puede cambiar por empresa sin tocar la función
+  ---
+  duration_ms: 0.449438
+  type: 'test'
+  ...
+# Subtest: ventas del día suma por método, ordena por importe y tolera un resumen vacío
+ok 195 - ventas del día suma por método, ordena por importe y tolera un resumen vacío
+  ---
+  duration_ms: 2.035118
+  type: 'test'
+  ...
+# Subtest: sumar días usa calendario real: cambio de mes, de año y bisiesto
+ok 196 - sumar días usa calendario real: cambio de mes, de año y bisiesto
+  ---
+  duration_ms: 0.449217
+  type: 'test'
+  ...
+# Subtest: cuentas por pagar: vencidas y las que vencen hasta hoy + 7 (inclusive), sin saldo cero
+ok 197 - cuentas por pagar: vencidas y las que vencen hasta hoy + 7 (inclusive), sin saldo cero
+  ---
+  duration_ms: 9.261705
+  type: 'test'
+  ...
+# Subtest: clientes con saldo: solo saldo positivo, mayor deuda primero, con límite
+ok 198 - clientes con saldo: solo saldo positivo, mayor deuda primero, con límite
+  ---
+  duration_ms: 0.312917
+  type: 'test'
+  ...
+# Subtest: existencias: incluye el mínimo exacto y ordena por mayor faltante
+ok 199 - existencias: incluye el mínimo exacto y ordena por mayor faltante
+  ---
+  duration_ms: 0.361227
+  type: 'test'
+  ...
+# Subtest: solicitudes de autorización: solo las pendientes
+ok 200 - solicitudes de autorización: solo las pendientes
+  ---
+  duration_ms: 3.684075
+  type: 'test'
+  ...
+# Subtest: sesión abierta actualiza rol, permisos y descuento sin cambiar identidad
+ok 201 - sesión abierta actualiza rol, permisos y descuento sin cambiar identidad
+  ---
+  duration_ms: 92.539759
+  type: 'test'
+  ...
+# Subtest: respuesta antigua no modifica un login o empresa nuevos
+ok 202 - respuesta antigua no modifica un login o empresa nuevos
+  ---
+  duration_ms: 19.547968
+  type: 'test'
+  ...
+# Subtest: focus y sondeo no duplican consultas; fallo de red conserva sesión y permite reintentar
+ok 203 - focus y sondeo no duplican consultas; fallo de red conserva sesión y permite reintentar
+  ---
+  duration_ms: 16.46833
+  type: 'test'
+  ...
+# Subtest: una sincronización detenida o una identidad ajena no actualizan permisos
+ok 204 - una sincronización detenida o una identidad ajena no actualizan permisos
+  ---
+  duration_ms: 40.562893
+  type: 'test'
+  ...
+# Subtest: otro login antes del siguiente refresh invalida solo la pantalla local y conserva sus credenciales
+ok 205 - otro login antes del siguiente refresh invalida solo la pantalla local y conserva sus credenciales
+  ---
+  duration_ms: 16.397283
+  type: 'test'
+  ...
+# Subtest: cambio de sesión por storage se detecta oculta y descarta una consulta en vuelo
+ok 206 - cambio de sesión por storage se detecta oculta y descarta una consulta en vuelo
+  ---
+  duration_ms: 14.487506
+  type: 'test'
+  ...
+# Subtest: cerrar sesión en otra pestaña invalida localmente; renovar el token de la misma cuenta mantiene contexto
+ok 207 - cerrar sesión en otra pestaña invalida localmente; renovar el token de la misma cuenta mantiene contexto
+  ---
+  duration_ms: 16.586608
+  type: 'test'
+  ...
+# Subtest: Superadmin conserva su flujo separado pero también invalida la pantalla ante otra identidad
+ok 208 - Superadmin conserva su flujo separado pero también invalida la pantalla ante otra identidad
+  ---
+  duration_ms: 25.945381
+  type: 'test'
+  ...
+# Subtest: ADMIN: Entregas/Devoluciones requieren POS y conservan sus roles
+ok 209 - ADMIN: Entregas/Devoluciones requieren POS y conservan sus roles
+  ---
+  duration_ms: 19.35974
+  type: 'test'
+  ...
+# Subtest: CAJERO: Entregas/Devoluciones requieren POS y conservan sus roles
+ok 210 - CAJERO: Entregas/Devoluciones requieren POS y conservan sus roles
+  ---
+  duration_ms: 13.423357
+  type: 'test'
+  ...
+# Subtest: VENDEDOR: Entregas/Devoluciones requieren POS y conservan sus roles
+ok 211 - VENDEDOR: Entregas/Devoluciones requieren POS y conservan sus roles
+  ---
+  duration_ms: 9.417788
+  type: 'test'
+  ...
+# Subtest: BODEGUERO: Entregas/Devoluciones requieren POS y conservan sus roles
+ok 212 - BODEGUERO: Entregas/Devoluciones requieren POS y conservan sus roles
+  ---
+  duration_ms: 9.30251
+  type: 'test'
+  ...
+# Subtest: SUPERADMIN: Entregas/Devoluciones requieren POS y conservan sus roles
+ok 213 - SUPERADMIN: Entregas/Devoluciones requieren POS y conservan sus roles
+  ---
+  duration_ms: 19.184522
+  type: 'test'
+  ...
+# Subtest: roles comparten categorías, excluyen pendientes y reciben hasta cuatro tareas
+ok 214 - roles comparten categorías, excluyen pendientes y reciben hasta cuatro tareas
+  ---
+  duration_ms: 2.145917
+  type: 'test'
+  ...
+# Subtest: permiso ausente se rechaza y Clientes y Caja son funciones base
+ok 215 - permiso ausente se rechaza y Clientes y Caja son funciones base
+  ---
+  duration_ms: 0.376735
+  type: 'test'
+  ...
+# Subtest: búsqueda encuentra títulos ingleses traducidos
+ok 216 - búsqueda encuentra títulos ingleses traducidos
+  ---
+  duration_ms: 2.121989
+  type: 'test'
+  ...
+# Subtest: admin encuentra compras, personal y reportes sin una lista de permisos explícita
+ok 217 - admin encuentra compras, personal y reportes sin una lista de permisos explícita
+  ---
+  duration_ms: 0.579317
+  type: 'test'
+  ...
+# Subtest: cajero no recibe accesos de administrador ni módulos deshabilitados
+ok 218 - cajero no recibe accesos de administrador ni módulos deshabilitados
+  ---
+  duration_ms: 0.458115
+  type: 'test'
+  ...
+# Subtest: buscador tolera acentos, mayúsculas, espacios y combina palabras
+ok 219 - buscador tolera acentos, mayúsculas, espacios y combina palabras
+  ---
+  duration_ms: 0.368838
+  type: 'test'
+  ...
+# Subtest: tareas pendientes y sesiones sin usuario no ofrecen operaciones
+ok 220 - tareas pendientes y sesiones sin usuario no ofrecen operaciones
+  ---
+  duration_ms: 0.137528
+  type: 'test'
+  ...
+# Subtest: inicio renderiza accesos por rol con React y enlaces reales del router
+ok 221 - inicio renderiza accesos por rol con React y enlaces reales del router
+  ---
+  duration_ms: 150.207021
+  type: 'test'
+  ...
+# Subtest: todas las rutas de App están dentro de Routes para evitar el fallo de arranque
+ok 222 - todas las rutas de App están dentro de Routes para evitar el fallo de arranque
+  ---
+  duration_ms: 13.312729
+  type: 'test'
+  ...
+# Subtest: configuracion vacía reconstruye defaults sin heredar la caché; conserva solo sucursal
+ok 223 - configuracion vacía reconstruye defaults sin heredar la caché; conserva solo sucursal
+  ---
+  duration_ms: 0.880921
+  type: 'test'
+  ...
+# Subtest: respuesta más antigua no revierte configuración por orden ni versión del servidor
+ok 224 - respuesta más antigua no revierte configuración por orden ni versión del servidor
+  ---
+  duration_ms: 0.282735
+  type: 'test'
+  ...
+# Subtest: guardar o cambiar sesión/tenant invalida todas las lecturas anteriores
+ok 225 - guardar o cambiar sesión/tenant invalida todas las lecturas anteriores
+  ---
+  duration_ms: 0.143257
+  type: 'test'
+  ...
+1..225
+# tests 245
+# suites 4
+# pass 245
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8814.510732

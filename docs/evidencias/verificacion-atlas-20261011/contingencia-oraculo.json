@@ -1,0 +1,90 @@
+{
+  "original": [
+    201,
+    {
+      "resultados": [
+        {
+          "operacionId": "1e4a31c1-f90a-4f0b-b9ca-b647743a44bd",
+          "estado": "REVISION",
+          "requiereRevision": true,
+          "conflictos": [
+            {
+              "codigo": "TOTAL_DIFERENTE",
+              "detalle": {
+                "cliente": {
+                  "isv": 0,
+                  "total": 10000,
+                  "subtotal": 10000
+                },
+                "servidor": {
+                  "isv": 1500,
+                  "total": 11500,
+                  "subtotal": 10000
+                }
+              },
+              "severidad": "DURO"
+            }
+          ],
+          "correlativoLocal": "CT-01-00000001",
+          "ventaId": null,
+          "numeroVenta": null,
+          "correlativoDefinitivo": null,
+          "aplicadoAt": null,
+          "referenciaFacturaExterna": null
+        }
+      ],
+      "serverNow": "2026-10-11T00:14:15.029Z"
+    }
+  ],
+  "ajena": [
+    201,
+    {
+      "resultados": [
+        {
+          "operacionId": "1e4a31c1-f90a-4f0b-b9ca-b647743a44bd",
+          "estado": "RECHAZADA_TECNICA",
+          "codigo": null,
+          "mensaje": "Identificador de operación no disponible"
+        }
+      ],
+      "serverNow": "2026-10-11T00:14:15.042Z"
+    }
+  ],
+  "libre": [
+    201,
+    {
+      "resultados": [
+        {
+          "operacionId": "1689476c-5e66-4035-9e80-4125a1062cf0",
+          "estado": "REVISION",
+          "requiereRevision": true,
+          "conflictos": [
+            {
+              "codigo": "TOTAL_DIFERENTE",
+              "detalle": {
+                "cliente": {
+                  "isv": 0,
+                  "total": 10000,
+                  "subtotal": 10000
+                },
+                "servidor": {
+                  "isv": 1500,
+                  "total": 11500,
+                  "subtotal": 10000
+                }
+              },
+              "severidad": "DURO"
+            }
+          ],
+          "correlativoLocal": "CT-01-00000001",
+          "ventaId": null,
+          "numeroVenta": null,
+          "correlativoDefinitivo": null,
+          "aplicadoAt": null,
+          "referenciaFacturaExterna": null
+        }
+      ],
+      "serverNow": "2026-10-11T00:14:15.066Z"
+    }
+  ]
+}

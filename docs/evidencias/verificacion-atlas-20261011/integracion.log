@@ -1,0 +1,148 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.integration.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.11 /home/user/atlas-verify-wt/backend
+
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:45: NOTICE:  relation "proveedores" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:46: NOTICE:  relation "proveedores_tenant_id_idx" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:47: NOTICE:  relation "proveedores_tenant_id_nombre_idx" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:65: NOTICE:  relation "ordenes_compra" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:66: NOTICE:  relation "ordenes_compra_tenant_id_codigo_key" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:67: NOTICE:  relation "ordenes_compra_tenant_id_idx" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:68: NOTICE:  relation "ordenes_compra_tenant_id_estado_idx" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:77: NOTICE:  relation "detalles_orden_compra" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:78: NOTICE:  relation "detalles_orden_compra_orden_id_idx" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:129: NOTICE:  relation "cajas" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:130: NOTICE:  relation "cajas_tenant_id_codigo_key" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:131: NOTICE:  relation "cajas_tenant_id_estado_idx" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:132: NOTICE:  relation "cajas_tenant_id_usuario_id_idx" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:143: NOTICE:  relation "movimientos_caja" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:144: NOTICE:  relation "movimientos_caja_caja_id_idx" already exists, skipping
+psql:/home/user/atlas-verify-wt/backend/prisma/migrations/20261011000000_pos_contingencia_offline/migration.sql:102: NOTICE:  identifier "operaciones_contingencia_tenant_id_dispositivo_id_secuencia_local_idx" will be truncated to "operaciones_contingencia_tenant_id_dispositivo_id_secuencia_loc"
+[31m[Nest] 376  - [39m10/11/2026, 12:06:21 AM [31m  ERROR[39m [38;5;3m[ClientesService] [39m[31mNumeración de clientes no disponible (P2002). Verificar la migración 20261002000000_add_customer_numbers y el trigger clientes_assign_number.[39m
+[31m[Nest] 1001  - [39m10/11/2026, 12:06:44 AM [31m  ERROR[39m [38;5;3m[ContingenciaService] [39m[31mOperación d38ae914-6d34-4340-aa45-cdd5d78e51ac: Solo el cajero de la operación o un administrador puede enviarla[39m
+[31m[Nest] 1199  - [39m10/11/2026, 12:06:54 AM [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39mPrismaClientKnownRequestError: 
+Invalid `prisma.$queryRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `P0001`. Message: `ERROR: fallo sintético de auditoría`
+    at Un.handleRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:7447[90m)[39m
+    at Un.handleAndLogRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6771[90m)[39m
+    at Un.request [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6478[90m)[39m
+    at l [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:130:9644[90m)[39m
+    at query [90m(/home/user/atlas-verify-wt/backend/[39msrc/operaciones/ledger.ts:40:18[90m)[39m
+    at audit [90m(/home/user/atlas-verify-wt/backend/[39msrc/operaciones/ledger.ts:47:3[90m)[39m
+    at [90m/home/user/atlas-verify-wt/backend/[39msrc/productos/productos.service.ts:71:110
+    at Proxy._transactionWithCallback [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:130:8005[90m)[39m {
+  code: [32m'P2010'[39m,
+  clientVersion: [32m'6.4.1'[39m,
+  meta: {
+    code: [32m'P0001'[39m,
+    message: [32m'ERROR: fallo sintético de auditoría'[39m
+  }
+}
+[31m[Nest] 1372  - [39m10/11/2026, 12:07:03 AM [31m  ERROR[39m [38;5;3m[ContingenciaService] [39m[31mOperación cb6b5f80-be82-4936-a995-3b356c388ada: Solo el cajero de la operación o un administrador puede enviarla[39m
+[31m[Nest] 1650  - [39m10/11/2026, 12:07:13 AM [31m  ERROR[39m [38;5;3m[ContingenciaService] [39m[31mOperación d8a0d5ca-6abd-4f25-8e43-3f473dc26851: Solo el cajero de la operación o un administrador puede enviarla[39m
+[31m[Nest] 1746  - [39m10/11/2026, 12:07:17 AM [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39mPrismaClientKnownRequestError: 
+Invalid `prisma.$queryRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `P0001`. Message: `ERROR: fallo QA`
+    at Un.handleRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:7447[90m)[39m
+    at Un.handleAndLogRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6771[90m)[39m
+    at Un.request [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6478[90m)[39m
+    at l [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:130:9644[90m)[39m
+    at query [90m(/home/user/atlas-verify-wt/backend/[39msrc/operaciones/ledger.ts:40:18[90m)[39m
+    at audit [90m(/home/user/atlas-verify-wt/backend/[39msrc/operaciones/ledger.ts:47:3[90m)[39m
+    at [90m/home/user/atlas-verify-wt/backend/[39msrc/levantamientos/levantamientos.service.ts:294:4
+    at Proxy._transactionWithCallback [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:130:8005[90m)[39m {
+  code: [32m'P2010'[39m,
+  clientVersion: [32m'6.4.1'[39m,
+  meta: {
+    code: [32m'P0001'[39m,
+    message: [32m'ERROR: fallo QA'[39m
+  }
+}
+[31m[Nest] 4898  - [39m10/11/2026, 12:08:28 AM [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39mPrismaClientKnownRequestError: 
+Invalid `prisma.$queryRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `P0001`. Message: `ERROR: Fallo sintético de auditoría`
+    at Un.handleRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:7447[90m)[39m
+    at Un.handleAndLogRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6771[90m)[39m
+    at Un.request [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6478[90m)[39m
+    at l [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:130:9644[90m)[39m
+    at query [90m(/home/user/atlas-verify-wt/backend/[39msrc/operaciones/ledger.ts:40:18[90m)[39m
+    at audit [90m(/home/user/atlas-verify-wt/backend/[39msrc/operaciones/ledger.ts:47:3[90m)[39m
+    at [90m/home/user/atlas-verify-wt/backend/[39msrc/operaciones/operaciones.service.ts:179:4
+    at Proxy._transactionWithCallback [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:130:8005[90m)[39m {
+  code: [32m'P2010'[39m,
+  clientVersion: [32m'6.4.1'[39m,
+  meta: {
+    code: [32m'P0001'[39m,
+    message: [32m'ERROR: Fallo sintético de auditoría'[39m
+  }
+}
+[31m[Nest] 4898  - [39m10/11/2026, 12:08:28 AM [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39mPrismaClientUnknownRequestError: 
+Invalid `this.prisma.auditoriaOperacion.create()` invocation in
+/home/user/atlas-verify-wt/backend/src/common/interceptors/support-audit.interceptor.ts:34:109
+
+  31 const ruta = request.route?.path ?? 'desconocida';
+  32 const entidadId = String(request.params?.id ?? request.params?.[Object.keys(request.params ?? {})[0]] ?? ruta);
+  33 const base = { metodo: request.method, ruta, params: request.params ?? {}, _soporte: { superAdminId: supportContext.impersonatedBy, soporteSesionId: supportContext.soporteSesionId, readOnly: false } };
+→ 34 const registrar = (operacion: string, extra: Record<string, unknown>) => this.prisma.auditoriaOperacion.create(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(PostgresError { code: "P0001", message: "Fallo sintético de auditoría", severity: "ERROR", detail: None, column: None, hint: None }), transient: false })
+    at Un.handleRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:7638[90m)[39m
+    at Un.handleAndLogRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6771[90m)[39m
+    at Un.request [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6478[90m)[39m
+    at l [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:130:9644[90m)[39m {
+  clientVersion: [32m'6.4.1'[39m
+}
+[31m[Nest] 4986  - [39m10/11/2026, 12:08:31 AM [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39mPrismaClientKnownRequestError: 
+Invalid `prisma.$queryRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `P0001`. Message: `ERROR: auditoria no disponible`
+    at Un.handleRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:7447[90m)[39m
+    at Un.handleAndLogRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6771[90m)[39m
+    at Un.request [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6478[90m)[39m
+    at l [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:130:9644[90m)[39m
+    at query [90m(/home/user/atlas-verify-wt/backend/[39msrc/operaciones/ledger.ts:40:18[90m)[39m
+    at audit [90m(/home/user/atlas-verify-wt/backend/[39msrc/operaciones/ledger.ts:47:3[90m)[39m
+    at [90m/home/user/atlas-verify-wt/backend/[39msrc/clientes/clientes.service.ts:175:7
+    at Proxy._transactionWithCallback [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:130:8005[90m)[39m {
+  code: [32m'P2010'[39m,
+  clientVersion: [32m'6.4.1'[39m,
+  meta: {
+    code: [32m'P0001'[39m,
+    message: [32m'ERROR: auditoria no disponible'[39m
+  }
+}
+[31m[Nest] 5068  - [39m10/11/2026, 12:08:34 AM [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39mPrismaClientUnknownRequestError: 
+Invalid `tx.cotizacion.update()` invocation in
+/home/user/atlas-verify-wt/backend/src/cotizaciones/cotizaciones.service.ts:549:27
+
+  546 await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',Number(venta.total),metodoPago,venta.id,'Venta desde cotización');
+  547 await audit(tx,tenantId,usuarioId,'COTIZACION_VENDER',venta.id,{cotizacionId,total:Number(venta.total),aprobacion:autorizacion});
+  548 // Actualizar estado de la cotización
+→ 549 await tx.cotizacion.update(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(PostgresError { code: "P0001", message: "Fallo sintético antes de commit", severity: "ERROR", detail: None, column: None, hint: None }), transient: false })
+    at Un.handleRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:7638[90m)[39m
+    at Un.handleAndLogRequestError [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6771[90m)[39m
+    at Un.request [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:121:6478[90m)[39m
+    at l [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:130:9644[90m)[39m
+    at [90m/home/user/atlas-verify-wt/backend/[39msrc/cotizaciones/cotizaciones.service.ts:549:7
+    at Proxy._transactionWithCallback [90m(/home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@prisma/client[24m/runtime/library.js:130:8005[90m)[39m {
+  clientVersion: [32m'6.4.1'[39m
+}
+
+ Test Files  35 passed (35)
+      Tests  536 passed | 1 skipped (537)
+   Start at  00:06:09
+   Duration  157.25s (transform 1.77s, setup 0ms, import 12.48s, tests 139.79s, environment 3ms)
+
+EXIT=0

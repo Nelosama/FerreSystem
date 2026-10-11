@@ -1,0 +1,39 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.integration.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.11 /home/user/atlas-verify-wt/backend
+
+ ❯ test/centinela-verificacion-atlas.postgres.integration.ts (32 tests | 1 failed) 6656ms
+       × CAJERO ve solo sus ventas pendientes; ADMIN y BODEGUERO ven las de todos 154ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/centinela-verificacion-atlas.postgres.integration.ts > Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQL aislado > 2. consulta de entregas pendientes: CAJERO solo lo suyo, VENDEDOR sin acceso > CAJERO ve solo sus ventas pendientes; ADMIN y BODEGUERO ven las de todos
+AssertionError: expected [ …(2) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  [
+    "ad2f0e29-2df7-4779-840d-89c499b65d89",
++   "a0ddc5da-933d-4084-b6e0-4c69045e3421",
+  ]
+
+ ❯ test/centinela-verificacion-atlas.postgres.integration.ts:187:41
+    185|       const ajena = await venta(e.cajero2, e.producto.id, 1);
+    186|       const ids = async (t: string) => (await http('get', '/operacione…
+    187|       expect(await ids(e.cajero.token)).toEqual([mia.id]);
+       |                                         ^
+    188|       expect(await ids(e.cajero2.token)).toEqual([ajena.id]);
+    189|       expect((await ids(e.admin.token)).sort()).toEqual([mia.id, ajena…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 30 passed | 1 expected fail (32)
+   Start at  00:14:50
+   Duration  7.87s (transform 554ms, setup 0ms, import 1.07s, tests 6.66s, environment 0ms)
+

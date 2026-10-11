@@ -1,0 +1,41 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.11 /home/user/atlas-verify-wt/backend
+
+[31m[Nest] 8630  - [39m10/11/2026, 12:15:06 AM [31m  ERROR[39m [38;5;3m[SupportAuditInterceptor] [39m[31mNo se pudo registrar el error de soporte: db caída[39m
+[31m[Nest] 8630  - [39m10/11/2026, 12:15:06 AM [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39mError: db caída
+    at [90m/home/user/atlas-verify-wt/backend/[39msrc/common/support-impersonation.http.spec.ts:97:56
+    at [90mfile:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at [90mfile:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at [90mfile:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10[90m)[39m
+    at [90mfile:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10[90m)[39m
+    at [90mfile:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2956:64
+[31m[Nest] 8630  - [39m10/11/2026, 12:15:06 AM [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39mError: x
+    at [90m/home/user/atlas-verify-wt/backend/[39msrc/common/support-impersonation.http.spec.ts:103:51
+    at [90mfile:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at [90mfile:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at [90mfile:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10[90m)[39m
+    at [90mfile:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10[90m)[39m
+    at [90mfile:///home/user/atlas-verify-wt/backend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2956:64 {
+  status: [33m409[39m
+}
+[31m[Nest] 8918  - [39m10/11/2026, 12:15:13 AM [31m  ERROR[39m [38;5;3m[ClientesService] [39m[31mNumeración de clientes no disponible (P2002). Verificar la migración 20261002000000_add_customer_numbers y el trigger clientes_assign_number.[39m
+[31m[Nest] 8918  - [39m10/11/2026, 12:15:14 AM [31m  ERROR[39m [38;5;3m[ClientesService] [39m[31mNumeración de clientes no disponible (P2022). Verificar la migración 20261002000000_add_customer_numbers y el trigger clientes_assign_number.[39m
+[31m[Nest] 8918  - [39m10/11/2026, 12:15:14 AM [31m  ERROR[39m [38;5;3m[ClientesService] [39m[31mNumeración de clientes no disponible (P2004). Verificar la migración 20261002000000_add_customer_numbers y el trigger clientes_assign_number.[39m
+
+ Test Files  39 passed (39)
+      Tests  366 passed (366)
+   Start at  00:15:04
+   Duration  10.48s (transform 1.79s, setup 0ms, import 12.97s, tests 12.16s, environment 4ms)
+
