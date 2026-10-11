@@ -63,8 +63,13 @@ async function ingresarYAbrirPos(page: Page) {
   await expect(page.getByRole('button', { name: /Tornillo 2 pulgadas/ })).toBeVisible();
 }
 
+/** Botón del catálogo (no los «Quitar/Agregar una unidad de …» de la línea del carrito, que contienen el mismo nombre). */
+function botonTornillo(page: Page) {
+  return page.getByRole('region', { name: 'Buscar productos' }).getByRole('button', { name: /^Tornillo 2 pulgadas/ });
+}
+
 async function venderUnTornillo(page: Page) {
-  await page.getByRole('button', { name: /Tornillo 2 pulgadas/ }).click();
+  await botonTornillo(page).click();
   await page.locator('#pc-efectivo').fill('20');
   await page.locator('#pc-cobrar').click();
 }
@@ -295,7 +300,7 @@ test.describe('Contingencia POS — sin internet y existencias locales', () => {
   test('la existencia local baja al instante con cada venta, sin esperar la sincronización', async ({ page, sim }) => {
     await ingresarYAbrirPos(page);
     sim.colgarPrimera = true;
-    const tornillo = page.getByRole('button', { name: /Tornillo 2 pulgadas/ });
+    const tornillo = botonTornillo(page);
     await expect(tornillo).toContainText('Disponible: 20');
     await venderUnTornillo(page);
     await expect(tornillo).toContainText('Disponible: 19');
