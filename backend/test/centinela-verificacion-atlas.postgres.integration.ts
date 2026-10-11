@@ -504,25 +504,26 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       const preDueno = await preparar(dueno); const preIntruso = await preparar(intruso);
       expect(preDueno.ventana.status, JSON.stringify(preDueno.ventana.body)).toBeLessThan(300);
       expect(preIntruso.ventana.status, JSON.stringify(preIntruso.ventana.body)).toBeLessThan(300);
-      const ocupada = randomUUID();
-      const lote = (e: any, pre: any, operacionId: string) => ({ dispositivoId: pre.dispositivo, pendientesRestantes: 0, operaciones: [cuerpo(e, pre, operacionId)] });
+      // H-5: el identificador del dueño es uno emitido por su ventana; el intruso no puede reutilizarlo en su empresa.
+      const ocupada = preDueno.ventana.body.operacionesEmitidas[0];
+      const lote = (e: any, pre: any, operacionId: string) => ({ dispositivoId: pre.dispositivo, pendientesRestantes: 0, operaciones: [{ ...cuerpo(e, pre, operacionId), indiceOperacion: 0 }] }); // el índice 0 lo conoce cualquiera: la emisión se comprueba igualmente
       const enviar = (e: any, pre: any, operacionId: string) => http('post', '/contingencia/operaciones', e.cajero.token, lote(e, pre, operacionId));
       const original = await enviar(dueno, preDueno, ocupada);
       expect(original.status, JSON.stringify(original.body)).toBeLessThan(300);
       const ajena = await enviar(intruso, preIntruso, ocupada);
       const libre = await enviar(intruso, preIntruso, randomUUID());
       const r0 = ajena.body.resultados[0], l0 = libre.body.resultados[0];
-      expect(r0.estado).toBe(l0.estado);
-      expect(r0.estado).not.toBe('RECHAZADA_TECNICA');
-      expect(r0.operacionId).toBe(ocupada); // el equipo reconoce su propio identificador
+      // Ambos rechazos son idénticos: no revelan si el identificador existe en otra empresa.
+      expect(r0).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'OPERACION_NO_EMITIDA' });
+      expect(l0).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'OPERACION_NO_EMITIDA' });
+      expect(r0.operacionId).toBe(ocupada);
       expect(Object.keys(r0).sort()).toEqual(Object.keys(l0).sort());
       expect(JSON.stringify(ajena.body)).not.toContain(dueno.tenantId);
       expect(JSON.stringify(ajena.body)).not.toContain(dueno.cajero.id);
-      // La operación de la empresa dueña queda intacta y la ajena es otro registro, en su propia empresa.
+      // La operación de la empresa dueña queda intacta; el intento ajeno no crea ninguna fila en la empresa del intruso.
       const intacta = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(dueno.tenantId, ocupada) } });
       expect(intacta.tenantId).toBe(dueno.tenantId);
-      const propia = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(intruso.tenantId, ocupada) } });
-      expect(propia.tenantId).toBe(intruso.tenantId);
+      expect(await prisma.operacionContingencia.findFirst({ where: { tenantId: intruso.tenantId, id: { in: [idSolicitud(intruso.tenantId, ocupada), ocupada] } } })).toBeNull();
       // Reintento del dueño: misma operación, sin duplicar.
       const repetido = await enviar(dueno, preDueno, ocupada);
       expect(repetido.body.resultados[0].operacionId).toBe(ocupada);
@@ -544,9 +545,10 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       expect(v.status, JSON.stringify(v.body)).toBeLessThan(300);
       const ventana = v.body.ventana ?? v.body;
       expect(ventana.dispositivoId).toBe(dispositivo);
-      const operacionId = randomUUID();
+      // H-5: identificador emitido por la ventana (índice 0).
+      const operacionId = ventana.operacionesEmitidas[0];
       const lote = { dispositivoId: dispositivo, pendientesRestantes: 0, operaciones: [{
-        operacionId, dispositivoId: dispositivo, ventanaId: ventana.id, secuenciaLocal: 1, correlativoLocal: 'CT-01-00000001',
+        operacionId, indiceOperacion: 0, dispositivoId: dispositivo, ventanaId: ventana.id, secuenciaLocal: 1, correlativoLocal: 'CT-01-00000001',
         ocurridoAtLocal: new Date().toISOString(), cajeroId: e.cajero.id,
         lineas: [{ productoId: e.producto.id, cantidadCentesimas: 100, precioCentavos: 10000 }],
         totalCentavos: 10000, subtotalCentavos: 10000, isvCentavos: 0, efectivoRecibidoCentavos: 10000, cambioCentavos: 0, esquemaVersion: 1,

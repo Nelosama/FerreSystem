@@ -335,11 +335,12 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     /** Un lote de una venta de 2 tornillos (20.00 + ISV 3.00), creado en el equipo mientras no había conexión. */
     async function ventanaYLote() {
       const ventanaRes = await contingencia.emitirVentana(tenantId, cajeroId, { dispositivoId } as any);
-      const operacionId = randomUUID();
+      // H-5: la operación usa un identificador emitido por la ventana (índice 0), como el equipo.
+      const operacionId = ventanaRes.ventana.operacionesEmitidas[0];
       const lote = {
         dispositivoId, pendientesRestantes: 0,
         operaciones: [{
-          operacionId, dispositivoId, ventanaId: ventanaRes.ventana.id, secuenciaLocal: 1, correlativoLocal: 'CT-01-0001',
+          operacionId, indiceOperacion: 0, dispositivoId, ventanaId: ventanaRes.ventana.id, secuenciaLocal: 1, correlativoLocal: 'CT-01-0001',
           ocurridoAtLocal: new Date().toISOString(), cajeroId,
           lineas: [{ productoId, cantidadCentesimas: 200, precioCentavos: 1000 }],
           subtotalCentavos: 2000, isvCentavos: 300, totalCentavos: 2300, efectivoRecibidoCentavos: 2500, cambioCentavos: 200, esquemaVersion: 1,
@@ -388,9 +389,10 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
   describe('validación final: sincronización, proxy, empresas y transición', () => {
     it('access token vencido: el refresh renueva la sesión y el lote pendiente se aplica una vez', async () => {
       const ventanaRes = await contingencia.emitirVentana(tenantId, cajeroId, { dispositivoId } as any);
-      const operacionId = randomUUID();
+      // H-5: la operación usa un identificador emitido por la ventana (índice 0), como el equipo.
+      const operacionId = ventanaRes.ventana.operacionesEmitidas[0];
       const lote = { dispositivoId, pendientesRestantes: 0, operaciones: [{
-        operacionId, dispositivoId, ventanaId: ventanaRes.ventana.id, secuenciaLocal: 9, correlativoLocal: 'CT-01-0009',
+        operacionId, indiceOperacion: 0, dispositivoId, ventanaId: ventanaRes.ventana.id, secuenciaLocal: 9, correlativoLocal: 'CT-01-0009',
         ocurridoAtLocal: new Date().toISOString(), cajeroId,
         lineas: [{ productoId, cantidadCentesimas: 100, precioCentavos: 1000 }],
         subtotalCentavos: 1000, isvCentavos: 150, totalCentavos: 1150, efectivoRecibidoCentavos: 1150, cambioCentavos: 0, esquemaVersion: 1,
