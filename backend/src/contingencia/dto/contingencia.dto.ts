@@ -33,10 +33,11 @@ export class OperacionContingenciaDto {
   @IsString() @IsNotEmpty() cajeroId: string;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => LineaContingenciaDto)
   lineas: LineaContingenciaDto[];
-  @IsInt() @Min(1) @Max(99999999999) totalCentavos: number;
+  // CENTINELA D: sin mínimo 1; un importe 0 lo clasifica el servicio (IMPORTE_INVALIDO) sin rechazar el lote entero.
+  @IsInt() @Min(0) @Max(99999999999) totalCentavos: number;
   @IsInt() @Min(0) @Max(99999999999) subtotalCentavos: number;
   @IsInt() @Min(0) @Max(99999999999) isvCentavos: number;
-  @IsInt() @Min(1) @Max(99999999999) efectivoRecibidoCentavos: number;
+  @IsInt() @Min(0) @Max(99999999999) efectivoRecibidoCentavos: number;
   @IsInt() @Min(0) @Max(99999999999) cambioCentavos: number;
   @IsOptional() @IsIn(['EFECTIVO']) metodoPago?: 'EFECTIVO';
   @IsOptional() @IsString() @MaxLength(200) clienteNombre?: string;

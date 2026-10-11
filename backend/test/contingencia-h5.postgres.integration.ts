@@ -199,4 +199,44 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     expect(r.codigo).toBe('VENTANA_DE_OTRO_CAJERO');
     expect(JSON.stringify(r)).not.toContain(e.cajero);
   });
+
+  // Hallazgos de la auditoría CENTINELA sobre ac315715.
+  it('A: un importe rechazado sin fila no puede aplicarse después reenviándolo con el mismo UUID y un importe corregido', async () => {
+    const e = await empresa();
+    const op = operacion(e, { efectivoRecibidoCentavos: 2000, cambioCentavos: 0 });
+    expect((await recibir(e, [op])).resultados[0]).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'IMPORTE_INVALIDO' });
+    const corregida = { ...op, efectivoRecibidoCentavos: 2500, cambioCentavos: 200 };
+    const r = (await recibir(e, [corregida])).resultados[0];
+    expect(r).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'IMPORTE_INVALIDO' });
+    expect(await ventasDe(e.tenantId)).toBe(0);
+  });
+
+  it('F: la consulta posterior de un rechazo sin fila repite estado, código e instrucción', async () => {
+    const e = await empresa();
+    const op = operacion(e, { efectivoRecibidoCentavos: 2000, cambioCentavos: 0 });
+    const primera = (await recibir(e, [op])).resultados[0];
+    const consulta: any = (await svc.estados(e.tenantId, e.cajero, 'CAJERO', [op.operacionId]))[0];
+    expect(consulta).toMatchObject({ estado: primera.estado, codigo: primera.codigo, mensaje: primera.mensaje, instruccion: primera.instruccion });
+  });
+
+  it('B (H6 en rechazo por cajero): un payload distinto con el mismo UUID se registra como alteración', async () => {
+    const e = await empresa();
+    const op = operacion(e, { cajeroId: e.admin });
+    await recibir(e, [op]);
+    const alterada = { ...op, efectivoRecibidoCentavos: 2600, cambioCentavos: 300 };
+    const r = (await recibir(e, [alterada])).resultados[0];
+    expect(r.conflictos.map((c: any) => c.codigo)).toContain('OPERACION_ALTERADA');
+    expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_ALTERADA', idSolicitud(e.tenantId, op.operacionId))).toBe(1);
+    expect(await ventasDe(e.tenantId)).toBe(0);
+  });
+
+  it('D: un importe 0 no hace que el DTO rechace el lote entero (la clasificación pasa al servicio)', async () => {
+    const { validate } = await import('class-validator');
+    const { plainToInstance } = await import('class-transformer');
+    const { LoteOperacionesDto } = await import('../src/contingencia/dto/contingencia.dto');
+    const e = await empresa();
+    const cero = operacion(e, { correlativoLocal: 'CT-01-0001', totalCentavos: 0, efectivoRecibidoCentavos: 0, cambioCentavos: 0, subtotalCentavos: 0, isvCentavos: 0 });
+    const lote = plainToInstance(LoteOperacionesDto, { dispositivoId: e.equipoId, pendientesRestantes: 0, operaciones: [cero] });
+    expect(await validate(lote)).toEqual([]);
+  });
 });
