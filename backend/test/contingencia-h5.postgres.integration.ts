@@ -147,4 +147,56 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_NO_REGISTRADA', idSolicitud(e.tenantId, op.operacionId))).toBe(1);
     expect(await ventasDe(e.tenantId)).toBe(0);
   });
+
+  // Hallazgos de la auditoría CENTINELA sobre 7dced6d9.
+  async function otroCajeroConCaja(tenantId: string) {
+    const id = randomUUID();
+    await prisma.usuario.create({ data: { id, tenantId, nombre: 'Cajero B', email: `${id}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
+    return (await prisma.caja.create({ data: { tenantId, codigo: `CAJA-B-${id.slice(0, 4)}`, usuarioId: id, montoApertura: 0, estado: 'ABIERTA' } as any })).id;
+  }
+
+  it('N1: el administrador no puede llevar la venta de un cajero a la caja abierta de otro cajero', async () => {
+    const e = await empresa();
+    const op = operacion(e);
+    // La caja se cierra antes del envío: la operación no debe aplicarse al recibirla.
+    await prisma.caja.update({ where: { id: e.cajaId }, data: { estado: 'CERRADA', montoCierreFisico: 100, fechaCierre: new Date() } });
+    await recibir(e, [op]);
+    // Caja original cerrada: la venta exige una caja de destino elegida por administración.
+    const cajaB = await otroCajeroConCaja(e.tenantId);
+    const antes = { caja: await prisma.movimientoCaja.count({ where: { cajaId: cajaB } }), ventas: await ventasDe(e.tenantId) };
+    await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', nota: 'intento cruzado', cajaId: cajaB } as any)).rejects.toBeInstanceOf(ConflictException);
+    expect({ caja: await prisma.movimientoCaja.count({ where: { cajaId: cajaB } }), ventas: await ventasDe(e.tenantId) }).toEqual(antes);
+  });
+
+  it('N2: aceptar con la caja original cerrada y sin caja alterna responde REVISION (no un error interno) y no crea venta', async () => {
+    const e = await empresa();
+    const op = operacion(e);
+    // La caja se cierra antes del envío: la operación no debe aplicarse al recibirla.
+    await prisma.caja.update({ where: { id: e.cajaId }, data: { estado: 'CERRADA', montoCierreFisico: 100, fechaCierre: new Date() } });
+    await recibir(e, [op]);
+    const r: any = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', nota: 'sin caja abierta' } as any);
+    expect(r.estado).toBe('REVISION');
+    expect(r.conflictos.map((c: any) => c.codigo)).toContain('CAJA_CERRADA');
+    expect(await ventasDe(e.tenantId)).toBe(0);
+  });
+
+  it('8c: un payload distinto con el mismo UUID sobre una operación ya rechazada se registra como alteración', async () => {
+    const e = await empresa();
+    // Rechazo definitivo por DEF-04: la operación pertenece a otro cajero (el administrador la envía en su nombre).
+    const op = operacion(e, { cajeroId: e.admin });
+    const primera = (await recibir(e, [op], e.admin, 'ADMIN')).resultados[0];
+    expect(primera).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'VENTANA_DE_OTRO_CAJERO' });
+    const alterada = { ...op, efectivoRecibidoCentavos: 2600, cambioCentavos: 300 };
+    const segunda = (await recibir(e, [alterada], e.admin, 'ADMIN')).resultados[0];
+    expect(segunda.conflictos.map((c: any) => c.codigo)).toContain('OPERACION_ALTERADA');
+    expect(await ventasDe(e.tenantId)).toBe(0);
+  });
+
+  it('8b: la respuesta de rechazo no revela el identificador del cajero de la ventana', async () => {
+    const e = await empresa();
+    const op = operacion(e, { cajeroId: e.admin });
+    const r = (await recibir(e, [op], e.admin, 'ADMIN')).resultados[0];
+    expect(r.codigo).toBe('VENTANA_DE_OTRO_CAJERO');
+    expect(JSON.stringify(r)).not.toContain(e.cajero);
+  });
 });

@@ -6,6 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequiredModule } from '../common/decorators/required-module.decorator';
+import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { ContingenciaService } from './contingencia.service';
 import {
   ActualizarReferenciaDto, ConfigContingenciaDto, LoteOperacionesDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto,
@@ -62,6 +63,8 @@ export class ContingenciaController {
 
   @Post('operaciones')
   @Roles('ADMIN', 'CAJERO')
+  // H5/CENTINELA: depositar operaciones offline exige el mismo permiso de venta que el POS.
+  @RequiredPermission('pos.vender')
   recibirLote(@TenantId() tenantId: string, @CurrentUser() user: any, @Body() dto: LoteOperacionesDto) {
     return this.service.recibirLote(tenantId, user.sub, user.rol, dto);
   }

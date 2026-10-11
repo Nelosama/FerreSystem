@@ -52,6 +52,8 @@ const INSTRUCCION_RECHAZO: Record<string, string> = {
   VENTANA_DE_OTRO_CAJERO: 'No cobre con la ventana de otro cajero. Avise al administrador: la venta queda para conciliación.',
   CAJA_DE_VENTANA_NO_VALIDA: 'Avise al administrador: la caja de la ventana no corresponde a su usuario. La venta queda para conciliación.',
 };
+/** CENTINELA 8b: la respuesta al equipo no revela el identificador del cajero de la ventana (puede ser de otro cajero). */
+const sinDatosDeOtroCajero = (c: any) => (c?.detalle && 'ventanaUsuarioId' in c.detalle ? { ...c, detalle: { ...c.detalle, ventanaUsuarioId: undefined } } : c);
 const esRechazo = (f: { conflictos?: unknown }) => Array.isArray(f.conflictos) && (f.conflictos as any[]).some((c) => CODIGOS_RECHAZO.has(c?.codigo));
 
 @Injectable()
@@ -326,8 +328,12 @@ export class ContingenciaService {
     const buscar = () => this.prisma.operacionContingencia.findFirst({ where: { tenantId, id: { in: [idInterno, dto.operacionId] } } });
     const existente = await buscar();
     if (existente) {
+      // CENTINELA 8c: un payload distinto con el mismo UUID se registra como alteración también sobre una operación ya rechazada.
+      if (existente.payloadHash !== hash) {
+        const alterada = await this.registrarAlteracion(tenantId, usuarioId, existente, dto, hash);
+        return esRechazo(alterada) ? this.respuestaRechazo(alterada, dto.operacionId) : { ...alterada, operacionId: dto.operacionId };
+      }
       if (esRechazo(existente)) return this.respuestaRechazo(existente, dto.operacionId);
-      if (existente.payloadHash !== hash) return { ...(await this.registrarAlteracion(tenantId, usuarioId, existente, dto, hash)), operacionId: dto.operacionId };
       if (existente.estado === 'RECIBIDA') return this.aplicarYResumir(tenantId, existente.id, {}, dto.operacionId);
       return this.resumenCliente(existente, dto.operacionId);
     }
@@ -412,7 +418,7 @@ export class ContingenciaService {
     return {
       operacionId: idEquipo, estado: 'RECHAZADA_TECNICA', codigo: c.codigo ?? 'RECHAZADA', mensaje: c.detalle?.mensaje ?? 'La operación fue rechazada',
       instruccion: INSTRUCCION_RECHAZO[c.codigo] ?? 'Avise al administrador: la venta queda para conciliación.',
-      requiereRevision: true, conflictos: f.conflictos,
+      requiereRevision: true, conflictos: (f.conflictos as any[]).map(sinDatosDeOtroCajero),
     };
   }
 
@@ -540,6 +546,10 @@ export class ContingenciaService {
     if (cajaDestino && cajaOriginal && cajaDestino.id === cajaOriginal.id && cajaOriginal.usuario_id !== op.usuarioId) {
       conflictos.push({ codigo: 'VENTANA_DE_OTRO_CAJERO', severidad: 'DURO', detalle: { cajaId: cajaOriginal.id, cajeroOperacionId: op.usuarioId } });
     }
+    // CENTINELA N1: una venta solo se registra en una caja abierta del cajero que la cobró. Otras cajas: conciliación de efectivo.
+    if (cajaDestino && cajaOriginal && cajaDestino.id !== cajaOriginal.id && cajaDestino.usuario_id !== op.usuarioId && cajaDestino.usuario_id !== opciones.resueltoPor) {
+      throw new ConflictException('La venta solo puede registrarse en una caja abierta del cajero que la cobró; para conciliar el efectivo de otra caja use el cierre sin venta');
+    }
     if (!cajaDestino) conflictos.push({ codigo: 'CAJA_CERRADA', severidad: 'DURO', detalle: { cajaId: op.cajaId } });
 
     // Productos, precios de la ventana, cupo e inventario.
@@ -589,7 +599,8 @@ export class ContingenciaService {
     // Decisión: ¿qué conflictos duros se pueden aceptar por decisión de un administrador?
     // PRECIO_SIN_APROBACION, PRODUCTO_FUERA_DE_VENTANA, PRODUCTO_NO_ENCONTRADO, EFECTIVO_INCONSISTENTE y OPERACION_ALTERADA
     // no son superables: ni ACEPTAR ni REINTENTAR los convierten en venta.
-    const superables = new Set(['USUARIO_NO_AUTORIZADO', 'CAJA_CERRADA', 'STOCK_INSUFICIENTE', 'TOTAL_DIFERENTE', 'SECUENCIA_DUPLICADA']);
+    // CAJA_CERRADA no es superable: sin caja abierta no hay dónde registrar la venta (CENTINELA N2).
+    const superables = new Set(['USUARIO_NO_AUTORIZADO', 'STOCK_INSUFICIENTE', 'TOTAL_DIFERENTE', 'SECUENCIA_DUPLICADA']);
     const bloqueantes = conflictos.filter((c) => c.severidad === 'DURO' && !(forzar && superables.has(c.codigo)));
     if (bloqueantes.length) {
       const actualizada = await tx.operacionContingencia.update({
