@@ -484,7 +484,7 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
     expect([200, 201], await res.text()).toContain(res.status());
     // La operación debe quedar registrada y en revisión: una fila vacía no significa que esté bien.
     expect(sql(`SELECT estado||'|'||requiere_revision FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, opId)}'`)).toBe('REVISION|true');
-    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${opId}' AND origen='CONTINGENCIA'`)).toBe(0);
+    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${idDerivado(TENANT_A, opId)}' AND origen='CONTINGENCIA'`)).toBe(0);
     expect(sql(`SELECT COUNT(*) FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, opId)}' AND tenant_id='${TENANT_A}'`)).toBe('1');
   });
 
@@ -517,7 +517,7 @@ test.describe('5. Contingencia offline: operación, reinicio, reconexión y conf
     const res = await request.post(`${API}/contingencia/operaciones`, { headers: auth(cajero.token), data: { dispositivoId, pendientesRestantes: 0, operaciones: [operacion] } });
     expect(res.status(), await res.text()).toBeLessThan(300);
     expect(sql(`SELECT estado FROM operaciones_contingencia WHERE id='${idDerivado(TENANT_A, opId)}'`)).not.toBe('APLICADA');
-    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${opId}' AND origen='CONTINGENCIA'`)).toBe(0);
+    expect(num(`SELECT COUNT(*) FROM ventas WHERE id='${idDerivado(TENANT_A, opId)}' AND origen='CONTINGENCIA'`)).toBe(0);
   });
 
   test('operación offline consistente se aplica una sola vez; reenviarla no duplica la venta', async ({ request }) => {

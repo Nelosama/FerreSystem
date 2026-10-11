@@ -66,6 +66,9 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 ## Correcciones CENTINELA D1/D3/R1 (ATLAS, 2026-10-10, rama `claude/atlas-correcciones-centinela`, base `nexus/integracion-temp` @ `e8b75ae6`)
 Detalle y pruebas en `docs/CENTINELA_CORRECCIONES_D1_D3_R1_ATLAS.md`. D1: entregar solo ADMIN/BODEGUERO (HTTP y servicio). R1: `GET /operaciones/entregas` filtra por rol (CAJERO solo lo suyo). D3: identificador interno de solicitudes derivado por empresa (`idSolicitud` en `operaciones/ledger.ts`); contingencia (`dispositivos_pos`, `operaciones_contingencia`) queda fuera a propósito (riesgo residual documentado). Sin merge, despliegue ni migración. Falla preexistente en la base: prueba «Chromium real: conversión por transferencia…» de `ciclo-ventas`.
 
+## Correcciones finales #148 (ATLAS, 2026-10-11, rama `claude/atlas-correcciones-finales-148`)
+Detalle en `docs/ATLAS_CORRECCIONES_FINALES_148.md`: D-01 (paso 6 de la migración de entregas), D-02 (reversión con respaldo `03_rollback_con_respaldo.sql`), DEF-04 (propiedad de la ventana offline), DEF-01 integrado (GUARDIAN), R-01 (migración `20261015000000`, estado `RECHAZADA`, ventanas anteriores), R-02 (conciliación de efectivo al cerrar), DEF-03 (`solicitudId` obligatorio), D-03 evaluado sin cambio. Pendiente: nueva validación independiente de FARO y CENTINELA; sin merge ni despliegue.
+
 ## Integración temporal #144 + #145 (ATLAS, 2026-10-11, rama `claude/atlas-integracion-144-145`)
 Detalle en `docs/ATLAS_INTEGRACION_144_145.md`: 11 conflictos resueltos a mano, reglas de entrega y consulta unificadas (ADMIN/BODEGUERO entregan; CAJERO solo ve lo suyo; VENDEDOR sin acceso; entrega inmediata del POS solo ADMIN/BODEGUERO), P3 (ids internos etiquetados) y P2 (contingencia por empresa) corregidos, claves compuestas modeladas en Prisma, parche de Chromium de CENTINELA. Pendiente: revalidación independiente de CENTINELA y revisión de NEXUS; sin merge ni despliegue.
 
