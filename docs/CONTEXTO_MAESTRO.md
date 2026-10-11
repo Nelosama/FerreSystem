@@ -1275,6 +1275,23 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - **Pendiente para NEXUS:** aplicar `20261013000000_balance_referencia_pagos` y `20261014000000_cliente_plazo_credito` tras `20261012000000_conciliacion_pagos_bancarios`; revisar restricciones compuestas por empresa. **Pendiente para ATLAS:** revisar la línea de vencimiento por plazo en `ventas.service.ts` y la conversión de cotizaciones (vencimiento null).
 - **Pendiente para CENTINELA:** revisión multi-tenant de `aprobaciones_bancarias`, `conciliaciones` y uniones de `pagos_cuenta`; sin migraciones de seguridad implementadas por BALANCE.
 
+## DEF-01 cerrado en rama (GUARDIAN, 2026-10-11)
+
+- **Rama:** `claude/guardian-def01-offline` desde `nexus/integracion-temp` `e8b75ae6`; PR en borrador hacia esa rama. Sin merge ni despliegue. Informe: [DEF01_CIERRE_GUARDIAN_20261011.md](DEF01_CIERRE_GUARDIAN_20261011.md).
+- **Codex:** su trabajo no existe en el repositorio (sin rama, commit ni `CORRECCION_DEF01_*`); se implementó desde la base.
+- **Corrección:** `contingencia.service.ts` (`construirCatalogo`, `aplicar`): catálogo solo aprobado y positivo; la instantánea guarda la aprobación; sin prueba en la instantánea, conflicto DURO no superable (`PRODUCTO_FUERA_DE_VENTANA`, `PRECIO_SIN_APROBACION`).
+- **Pruebas:** contingencia PG 34/34 (9 nuevas), integración PG 526 + 1 omitida, backend 366, frontend 245, E2E real 90 aprobadas; las dos pruebas FARO de DEF-01 pasan. Abiertos fuera de alcance: DEF-03 y `balance-real` (desfase horario, falla también en la base).
+- **Pendiente:** validación independiente de FARO; reemitir ventanas antes de activar la contingencia.
+
+## Validación independiente de DEF-01 — PR #146 (FARO, 2026-10-11)
+
+- **Rama:** `nexus/faro-validacion-def01` = PR #146 (`d62dd4a2`) + suite de validación + corrección de `balance-real`. Informe: [FARO_VALIDACION_DEF01_20261011.md](FARO_VALIDACION_DEF01_20261011.md). Sin merge, despliegue ni migraciones.
+- **Recomendación:** NO MERGE todavía. DEF-01 cumple: los escenarios de producto no aprobado, precio cero y aprobación posterior pasan de FAIL en la base a PASS en el PR.
+- **Pruebas:** `frontend/e2e-real/faro-validacion-def01.spec.ts` 13 PASS / 2 FAIL en el PR; 7 PASS / 8 FAIL en la base (los escenarios de DEF-01 fallan allí). Integración PG del PR 526 PASS, 1 omitida (34/34). E2E real del PR 108 PASS, 2 FAIL (DEF-03), 10 omitidas (antes de DEF-04 e I-01).
+- **Riesgos abiertos:** R-01 (P0 activación): ventanas emitidas antes del despliegue quedan bloqueadas sin salida (`PRECIO_SIN_APROBACION` no superable); R-02 (P1): cierre manual deja efectivo fuera de caja; **DEF-04 (P1, preexistente)**: un cajero cobra en la caja de otro con la ventana ajena (`contingencia.service.ts:275-290`); R-03 (P2): revocación offline se aplica con revisión.
+- **Preexistentes:** DEF-03 (falla en la base). `balance-real`: causa raíz en la prueba, no en producción (comparación de fechas UTC frente a día de negocio, desde las 18:00 de Tegucigalpa); corregida en la rama de validación (6/6).
+- **Pendiente:** mitigar R-01 y DEF-04 en código; decidir R-02, R-03 y la semántica de entrega offline; confirmar Vercel y Render.
+
 **FIN DEL CONTEXTO VIGENTE**
 
 
