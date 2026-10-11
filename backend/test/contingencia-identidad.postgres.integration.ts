@@ -179,6 +179,57 @@ describe('Contingencia identidad (H-5 / H-6): cajeros y tenants en PostgreSQL ai
     expect(await ventasDe(e.tenantId)).toBe(0);
   });
 
+  // H-5 (CENTINELA F1, crítico): el lote declara otro equipo para la operación del dueño. Antes del cambio, el rechazo
+  // por dispositivo creaba una fila RECHAZADA a nombre del intruso, con su ventana, y bloqueaba al dueño.
+  it('H-5 F1: un OPERACION_OTRO_DISPOSITIVO con el UUID del dueño y la ventana propia no crea fila y el dueño completa el cobro', async () => {
+    const e = await empresa();
+    const b = await segundoCajero(e);
+    // Dos equipos para el mismo tenant (el límite por defecto es 1).
+    await prisma.tenant.update({ where: { id: e.tenantId }, data: { configuracion: { contingenciaOffline: { habilitada: true, dispositivosMax: 2 } } as any } });
+    const equipo2 = randomUUID();
+    await svc.registrarDispositivo(e.tenantId, b.id, { dispositivoId: equipo2, nombre: 'Caja de B' });
+    const { ventana: ventana2 } = await emitirRegistrada(svc, e.tenantId, b.id, { dispositivoId: equipo2 });
+    const opDueno = operacion(e);
+    const intento = await svc.recibirLote(e.tenantId, b.id, 'CAJERO', { dispositivoId: equipo2, pendientesRestantes: 0, operaciones: [{ ...opDueno, cajeroId: b.id, ventanaId: ventana2.id }] } as any);
+    expect(intento.resultados[0]).toMatchObject({ operacionId: opDueno.operacionId, codigo: 'OPERACION_OTRO_DISPOSITIVO' });
+    expect(await filaDe(e.tenantId, opDueno.operacionId)).toBeNull();
+    expect(await ventasDe(e.tenantId)).toBe(0);
+    expect((await recibir(e, [opDueno], e.cajero)).resultados[0]).toMatchObject({ operacionId: opDueno.operacionId, estado: 'APLICADA' });
+    expect(await filaDe(e.tenantId, opDueno.operacionId)).toMatchObject({ usuarioId: e.cajero, cajaId: e.cajaId });
+  });
+
+  // H-5 (CENTINELA F2): la evidencia de formato inválido de un cajero no sustituye la del dueño.
+  it('H-5 F2: la evidencia de un formato inválido enviado por otro cajero no oculta la del dueño', async () => {
+    const e = await empresa();
+    const b = await segundoCajero(e);
+    const malformada = operacion(e, { correlativoLocal: 'MAL' });
+    await recibir(e, [{ ...malformada, cajeroId: b.id }], b.id);
+    await recibir(e, [malformada], e.cajero);
+    const [visto] = await svc.estados(e.tenantId, e.cajero, 'CAJERO', [malformada.operacionId]);
+    expect(visto).toMatchObject({ operacionId: malformada.operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'FORMATO_INVALIDO' });
+  });
+
+  // H-5 (CENTINELA F3): un identificador con formato interno del servidor no tumba el lote entero.
+  it('H-5 F3: un identificador interno del servidor en el lote se responde por operación y no impide procesar las demás', async () => {
+    const e = await empresa();
+    const interno = { ...operacion(e), operacionId: idSolicitud(e.tenantId, randomUUID()) };
+    const valida = operacion(e);
+    const r = (await recibir(e, [interno, valida])).resultados;
+    expect(r).toHaveLength(2);
+    expect(r[0]).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'FORMATO_INVALIDO' });
+    expect(r[1]).toMatchObject({ operacionId: valida.operacionId, estado: 'APLICADA' });
+  });
+
+  // H-5 (CENTINELA F6): el cajero que no es dueño de una operación recibe lo mismo que ante una inexistente.
+  it('H-5 F6: actualizar la referencia de una operación ajena responde como si no existiera', async () => {
+    const e = await empresa();
+    const b = await segundoCajero(e);
+    const opDueno = operacion(e);
+    await recibir(e, [opDueno], e.cajero);
+    await expect(svc.actualizarReferencia(e.tenantId, b.id, 'CAJERO', opDueno.operacionId, 'REF-AJENA')).rejects.toThrow(/no encontrada/);
+    await expect(svc.actualizarReferencia(e.tenantId, b.id, 'CAJERO', randomUUID(), 'REF')).rejects.toThrow(/no encontrada/);
+  });
+
   // H-6 (CENTINELA): aislamiento entre empresas. Un UUID de otra empresa no es válido aquí y no toca sus datos.
   it('H-6: un UUID de otra empresa no se aplica, no altera su fila y no revela nada a esta empresa', async () => {
     const a = await empresa();

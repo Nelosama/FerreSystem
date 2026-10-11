@@ -5,7 +5,7 @@ import { getJwtSecret } from '../auth/jwt-secret';
 import { plainToInstance } from 'class-transformer';
 import { validate as validarDto } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
-import { audit, authorizedActor, cashMovement, id as nuevoId, idRecurso, idSolicitud, lockTenant, movement, query, Tx, fingerprint } from '../operaciones/ledger';
+import { audit, authorizedActor, cashMovement, esIdInterno, id as nuevoId, idRecurso, idSolicitud, lockTenant, movement, query, Tx, fingerprint } from '../operaciones/ledger';
 import { huellaDeLineas, movimientoConEvento, registrarEvento } from '../entregas/entregas-core';
 import { calcularTotales, centavosADecimal } from '../common/dinero';
 import { operacionEmitida, operacionesEmitidas } from './operaciones-emitidas';
@@ -278,6 +278,12 @@ export class ContingenciaService {
         resultados.push({ operacionId: null, estado: 'RECHAZADA_TECNICA', codigo: 'FORMATO_INVALIDO', mensaje: 'La operación no tiene un formato válido; no se registró venta', instruccion: 'Avise al administrador: la operación no tiene un formato válido.', requiereRevision: true, conflictos: [] });
         continue;
       }
+      // H-5 (CENTINELA F3): un identificador con formato interno del servidor no es una solicitud del equipo. Se responde por
+      // operación, sin lanzar (lanzar tumbaría el lote entero) y sin evidencia asociada a ese identificador.
+      if (esIdInterno((crudo as any).operacionId)) {
+        resultados.push(await this.registrarFormatoInvalido(tenantId, usuarioId, null, crudo, [{ property: 'operacionId', constraints: { reservado: 'identificador interno del servidor' } }]));
+        continue;
+      }
       const op = plainToInstance(OperacionContingenciaDto, crudo as object);
       const errores = await validarDto(op, { whitelist: true });
       const uuid = (crudo as any)?.operacionId;
@@ -295,7 +301,7 @@ export class ContingenciaService {
           resultados.push({ operacionId: op.operacionId, estado: 'ERROR_TEMPORAL', codigo: null, mensaje: error?.message ?? 'Error' });
         } else {
           // H5: un 4xx es un rechazo definitivo. Debe quedar en el servidor para que el administrador lo vea; nunca es una venta.
-          resultados.push(await this.registrarRechazoDefinitivo(tenantId, usuarioId, dispositivo.id, op, error));
+          resultados.push(await this.registrarRechazoDefinitivo(tenantId, usuarioId, rol, dispositivo.id, op, error));
         }
       }
     }
@@ -331,6 +337,7 @@ export class ContingenciaService {
 
   /** Rechazo definitivo sin fila en el diario (importe incoherente, ventana desconocida): se reconstruye desde su evidencia en auditoría. */
   private async respuestaSinRegistro(tenantId: string, operacionId: string, remitente?: string) {
+    if (esIdInterno(operacionId)) return null;
     const idInterno = idSolicitud(tenantId, operacionId);
     const evidencia = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno, ...(remitente ? { usuarioId: remitente } : {}) } });
     if (!evidencia) return null;
@@ -444,7 +451,7 @@ export class ContingenciaService {
     const valido = typeof uuid === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuid);
     if (valido) {
       const idInterno = idSolicitud(tenantId, uuid);
-      const yaAuditada = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno } });
+      const yaAuditada = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno, usuarioId } });
       if (!yaAuditada) {
         await this.prisma.auditoriaOperacion.create({
           data: { tenantId, usuarioId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno,
@@ -468,7 +475,7 @@ export class ContingenciaService {
    * Con ventana válida se guarda en el diario (RECHAZADA, con motivo). Sin ventana válida no cabe en el diario (ventana_id es
    * obligatoria): queda evidencia en auditoría y la respuesta de rechazo. En ningún caso se crea venta, caja ni movimiento de stock.
    */
-  private async registrarRechazoDefinitivo(tenantId: string, usuarioId: string, dispositivoId: string, dto: OperacionContingenciaDto, error: any) {
+  private async registrarRechazoDefinitivo(tenantId: string, usuarioId: string, rol: string, dispositivoId: string, dto: OperacionContingenciaDto, error: any) {
     const codigo = error?.response?.code ?? 'RECHAZADA';
     const mensaje = error?.response?.message ?? error?.message ?? 'La operación fue rechazada';
     const idInterno = idSolicitud(tenantId, dto.operacionId);
@@ -498,17 +505,20 @@ export class ContingenciaService {
       }
       return { operacionId: dto.operacionId, estado: 'RECHAZADA_TECNICA', codigo, mensaje, instruccion: INSTRUCCION_RECHAZO[codigo], requiereRevision: true, conflictos: [] };
     }
-    const previa = await this.respuestaSinRegistro(tenantId, dto.operacionId);
+    // H-5 (CENTINELA F2): la evidencia previa que se devuelve es la de quien envía, nunca la de otro cajero.
+    const previa = await this.respuestaSinRegistro(tenantId, dto.operacionId, rol === 'ADMIN' ? undefined : usuarioId);
     if (previa) return previa;
     // El diario exige importes coherentes (montos_check: total > 0 y efectivo >= total). Un cobro insuficiente no cabe en él
     // sin cambiar el esquema; esa decisión no está autorizada. Su evidencia completa queda en auditoría.
     const montosCoherentes = dto.totalCentavos > 0 && dto.efectivoRecibidoCentavos >= dto.totalCentavos;
     // E (CENTINELA): la ventana debe ser de este equipo; una ventana de otro equipo no cuenta como registro.
-    const ventana = montosCoherentes ? await this.prisma.contingenciaVentana.findFirst({ where: { id: dto.ventanaId, tenantId, dispositivoId } }) : null;
+    // H-5 (CENTINELA F1): una fila RECHAZADA exige que la ventana sea de quien envía y que el identificador sea el emitido para
+    // ella. Sin esa comprobación, un OPERACION_OTRO_DISPOSITIVO enviado con la ventana propia creaba la fila a nombre del intruso.
+    const ventana = montosCoherentes ? await this.ventanaDelRemitente(tenantId, usuarioId, rol, dispositivoId, dto) : null;
     if (ventana) {
       return this.registrarRechazo(tenantId, ventana, dto, hash, idInterno, { codigo, mensaje }, usuarioId);
     }
-    const yaAuditada = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno } });
+    const yaAuditada = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno, usuarioId } });
     if (!yaAuditada) {
       await this.prisma.auditoriaOperacion.create({
         data: { tenantId, usuarioId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno,
@@ -516,6 +526,15 @@ export class ContingenciaService {
       });
     }
     return { operacionId: dto.operacionId, estado: 'RECHAZADA_TECNICA', codigo, mensaje, instruccion: INSTRUCCION_RECHAZO[codigo] ?? 'Avise al administrador: la venta queda para conciliación.', requiereRevision: true, conflictos: [] };
+  }
+
+  /** Ventana que puede respaldar un rechazo con fila: del remitente (o de un administrador) y con el identificador emitido para ella. */
+  private async ventanaDelRemitente(tenantId: string, usuarioId: string, rol: string, dispositivoId: string, dto: OperacionContingenciaDto) {
+    const ventana = await this.prisma.contingenciaVentana.findFirst({ where: { id: dto.ventanaId, tenantId, dispositivoId } });
+    if (!ventana) return null;
+    if (rol !== 'ADMIN' && ventana.usuarioId !== usuarioId) return null;
+    const emitida = dto.indiceOperacion !== undefined && operacionEmitida(this.claveOperaciones, ventana.id, dto.indiceOperacion) === dto.operacionId;
+    return emitida ? ventana : null;
   }
 
   private async motivoRechazoDeVentana(tenantId: string, ventana: any, dto: OperacionContingenciaDto): Promise<{ codigo: string; mensaje: string } | null> {
@@ -882,7 +901,8 @@ export class ContingenciaService {
       await lockTenant(tx, tenantId);
       const op = await tx.operacionContingencia.findFirst({ where: { id: { in: [idRecurso(tenantId, operacionId), operacionId] }, tenantId } });
       if (!op) throw new NotFoundException('Operación no encontrada');
-      if (rol !== 'ADMIN' && op.usuarioId !== usuarioId) throw new ForbiddenException('No puede modificar esta operación');
+      // H-5 (CENTINELA F6): para quien no es el dueño la operación no existe; el mismo 404 evita un oráculo de identificadores.
+      if (rol !== 'ADMIN' && op.usuarioId !== usuarioId) throw new NotFoundException('Operación no encontrada');
       const valor = referencia.trim() || null;
       const fila = await tx.operacionContingencia.update({ where: { id: op.id }, data: { referenciaFacturaExterna: valor } });
       if (op.ventaId) await tx.venta.update({ where: { id: op.ventaId }, data: { referenciaFacturaExterna: valor } });
