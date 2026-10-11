@@ -1,3 +1,4 @@
+import { idDerivado } from './id-derivado';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -178,7 +179,7 @@ test.describe('POS offline de contingencia — backend real', () => {
     expect(Number(numero)).toBeGreaterThan(0);
     const [op] = (await diario(page)).filter((o) => o.correlativoLocal === 'CT-01-0001');
     expect(op.correlativoDefinitivo).toBe(`V-${numero.padStart(8, '0')}`);
-    expect(sql(`SELECT COUNT(*) FROM movimientos_caja WHERE referencia='${op.operacionId}' AND tipo='VENTA_POS'`)).toBe('1');
+    expect(sql(`SELECT COUNT(*) FROM movimientos_caja WHERE referencia='${idDerivado(TENANT, op.operacionId)}' AND tipo='VENTA_POS'`)).toBe('1');
   });
 
   test('2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar', async () => {

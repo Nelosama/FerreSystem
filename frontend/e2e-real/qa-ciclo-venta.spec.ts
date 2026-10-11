@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { idDerivado } from './id-derivado';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 // QA independiente del ciclo de venta (backend NestJS real + PostgreSQL temporal, sin mocks).
@@ -44,11 +45,7 @@ type Sesion = { token: string; id: string };
 
 // Las ventas y otros registros idempotentes usan un identificador derivado por empresa (D3 de CENTINELA):
 // la solicitud del cliente ya no es el identificador de la fila. Mismo algoritmo que backend/src/operaciones/ledger.ts.
-const idVenta = (solicitudId: string, tenantId = 'e2e-empresa-a') => {
-  const h = createHash('sha256').update(`ferresystem:solicitud:v1:${tenantId}:${solicitudId}`).digest('hex');
-  const variante = ((parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16).padStart(2, '0');
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variante}${h.slice(18, 20)}-${h.slice(20, 32)}`;
-};
+const idVenta = (solicitudId: string, tenantId = 'e2e-empresa-a') => idDerivado(tenantId, solicitudId);
 
 async function login(request: APIRequestContext, email: string): Promise<Sesion> {
   const res = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
@@ -431,8 +428,13 @@ test.describe('12. Entrega y reserva de stock', () => {
     const res = await venta(request, cajero1.token, { solicitudId: randomUUID(), metodoPago: 'EFECTIVO', detalles: [{ productoId: P6, cantidad: 4, precioUnitario: 100 }] });
     const id = (await res.json()).id as string;
     expect(num(`SELECT stock_reservado::float FROM productos WHERE id='${P6}'`)).toBe(4);
-    const primera = await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(admin.token) });
-    const segunda = await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(admin.token) });
+    // Entrega con receptor y solicitud (#144); el reintento reenvía exactamente la misma solicitud.
+    const entrega = { solicitudId: randomUUID(), receptorNombre: 'Cliente E2E' };
+    const cajeroNo = await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(cajero1.token), data: entrega });
+    expect(cajeroNo.status()).toBe(403);
+    expect(num(`SELECT stock_actual::float FROM productos WHERE id='${P6}'`)).toBe(20);
+    const primera = await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(admin.token), data: entrega });
+    const segunda = await request.post(`${API}/operaciones/ventas/${id}/entregar`, { headers: auth(admin.token), data: entrega });
     expect([primera.status(), segunda.status()]).toEqual([201, 201]);
     expect(num(`SELECT stock_actual::float FROM productos WHERE id='${P6}'`)).toBe(16);
     expect(num(`SELECT stock_reservado::float FROM productos WHERE id='${P6}'`)).toBe(0);

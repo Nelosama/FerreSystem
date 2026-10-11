@@ -6,6 +6,8 @@ import { join, resolve, sep } from 'node:path';
 import { createServer } from 'node:net';
 import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { EntregasController } from '../src/entregas/entregas.controller';
+import { EntregasService } from '../src/entregas/entregas.service';
 import { ProductosService } from '../src/productos/productos.service';
 import { ProductosController } from '../src/productos/productos.controller';
 import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
@@ -77,8 +79,8 @@ describe('Correcciones CENTINELA D1/D3/R1 / HTTP y PostgreSQL aislado', () => {
     prisma = new PrismaService({ datasources: { db: { url } } });
     await prisma.$connect();
     const module = await Test.createTestingModule({
-      controllers: [ProductosController, CotizacionesController, VentasController, OperacionesController, AuthController, ClientesController, DashboardController],
-      providers: [ProductosService, CotizacionesService, VentasService, OperacionesService, JwtStrategy, AuthService, ClientesService, DashboardService,
+      controllers: [EntregasController, ProductosController, CotizacionesController, VentasController, OperacionesController, AuthController, ClientesController, DashboardController],
+      providers: [EntregasService, ProductosService, CotizacionesService, VentasService, OperacionesService, JwtStrategy, AuthService, ClientesService, DashboardService,
         { provide: PrismaService, useValue: prisma }, { provide: JwtService, useValue: jwt },
         { provide: ConfigService, useValue: { get: (key: string, fallback?: unknown) => key === 'JWT_SECRET' ? jwtSecret : fallback } },
       ],
@@ -356,5 +358,79 @@ describe('Correcciones CENTINELA D1/D3/R1 / HTTP y PostgreSQL aislado', () => {
       const consulta = await http('get', `/operaciones/solicitudes-devolucion/${solicitudId}`, e.cajero.token).expect(200);
       expect(consulta.body.resultado.id).toBe(x1.body.id);
     });
+  });
+
+  describe('Integración #144 + #145 — matriz de autorización y aislamiento por empresa', () => {
+    it('lectura y escritura de entregas: cada rol obtiene exactamente lo que le corresponde y la denegación no cambia nada', async () => {
+      const e = await escenario();
+      const conTodo = await persona(e.tenantId, 'CAJERO', { permisosConfigurados: true, permisos: ['pos.vender', 'inventario.editar', 'entregas.entregar', 'reportes.ver'] });
+      await abrirCaja(conTodo).expect(201);
+      const venta = await e.venta(e.cajero, 3);
+      const det = (await prisma.$queryRawUnsafe<any[]>('SELECT id FROM detalles_venta WHERE venta_id=$1', venta.id))[0].id;
+      const antes = await stockDe(e.producto.id);
+      const entrega = () => ({ solicitudId: randomUUID(), receptorNombre: 'Cliente', lineas: [{ detalleId: det, cantidad: 1 }] });
+      const lee = { 'ADMIN': [200, 200], 'BODEGUERO': [200, 200], 'cajeroDueño': [200, 200], 'cajeroAjeno': [200, 404], 'conTodo': [200, 404], 'VENDEDOR': [403, 403] } as Record<string, number[]>;
+      const quien: Record<string, Persona> = { ADMIN: e.admin, BODEGUERO: e.bodeguero, cajeroDueño: e.cajero, cajeroAjeno: e.cajero2, conTodo, VENDEDOR: e.vendedor };
+      for (const [nombre, [lista, detalle]] of Object.entries(lee)) {
+        expect((await http('get', '/entregas/pendientes', quien[nombre].token)).status, `pendientes ${nombre}`).toBe(lista);
+        expect((await http('get', `/entregas/ventas/${venta.id}`, quien[nombre].token)).status, `detalle ${nombre}`).toBe(detalle);
+        expect((await http('get', '/operaciones/entregas', quien[nombre].token)).status, `legado ${nombre}`).toBe(nombre === 'VENDEDOR' ? 403 : 200);
+      }
+      // El cajero ajeno y el cajero con todos los permisos ven listas vacías: solo existe la venta de otro cajero.
+      for (const n of ['cajeroAjeno', 'conTodo']) {
+        expect((await http('get', '/entregas/pendientes', quien[n].token)).body.pendientes).toEqual([]);
+        expect((await http('get', '/operaciones/entregas', quien[n].token)).body).toEqual([]);
+      }
+      // Escritura: solo ADMIN y BODEGUERO; las denegaciones no cambian inventario ni eventos.
+      for (const n of ['cajeroDueño', 'cajeroAjeno', 'conTodo', 'VENDEDOR']) {
+        for (const ruta of [`/entregas/ventas/${venta.id}/entregas`, `/entregas/ventas/${venta.id}/preparacion`, `/entregas/ventas/${venta.id}/liberaciones`]) {
+          expect((await http('post', ruta, quien[n].token, ruta.endsWith('liberaciones') ? { ...entrega(), motivo: 'Intento no autorizado de liberar' } : entrega())).status, `${n} ${ruta}`).toBe(403);
+        }
+        expect((await http('post', `/operaciones/ventas/${venta.id}/entregar`, quien[n].token, cuerpoEntrega())).status, `${n} entregar`).toBe(403);
+      }
+      expect(await stockDe(e.producto.id)).toEqual(antes);
+      expect(await prisma.$queryRawUnsafe<any[]>("SELECT id FROM entregas_eventos WHERE venta_id=$1 AND tipo<>'COBRO'", venta.id)).toHaveLength(0);
+      // Los autorizados entregan por partes; el descuento se aplica exactamente una vez por entrega.
+      await http('post', `/entregas/ventas/${venta.id}/entregas`, e.bodeguero.token, entrega()).expect(201);
+      await http('post', `/entregas/ventas/${venta.id}/entregas`, e.admin.token, entrega()).expect(201);
+      expect(await stockDe(e.producto.id)).toEqual({ actual: antes.actual - 2, reservado: antes.reservado - 2 });
+    });
+
+    it('aislamiento por empresa en todas las superficies de entrega: otra empresa no lee ni escribe', async () => {
+      const a = await escenario(); const b = await escenario();
+      const venta = await a.venta(a.cajero, 2);
+      const det = (await prisma.$queryRawUnsafe<any[]>('SELECT id FROM detalles_venta WHERE venta_id=$1', venta.id))[0].id;
+      const antes = await stockDe(a.producto.id);
+      for (const intruso of [b.admin, b.bodeguero]) {
+        expect((await http('get', `/entregas/ventas/${venta.id}`, intruso.token)).status).toBe(404);
+        expect((await http('get', '/entregas/pendientes', intruso.token)).body.pendientes).toEqual([]);
+        expect((await http('get', '/operaciones/entregas', intruso.token)).body).toEqual([]);
+        for (const ruta of ['entregas', 'preparacion']) {
+          expect((await http('post', `/entregas/ventas/${venta.id}/${ruta}`, intruso.token, { solicitudId: randomUUID(), receptorNombre: 'X', lineas: [{ detalleId: det, cantidad: 1 }] })).status, ruta).toBe(404);
+        }
+        expect((await http('post', `/operaciones/ventas/${venta.id}/entregar`, intruso.token, cuerpoEntrega())).status).toBe(404);
+        expect((await http('get', `/ventas/solicitudes/${randomUUID()}`, b.cajero.token)).body).toEqual({ estado: 'NO_REGISTRADA' });
+      }
+      // Mismo identificador de solicitud de entrega en dos empresas: independientes, sin chocar ni revelarse.
+      const venta2 = await b.venta(b.cajero, 2);
+      const det2 = (await prisma.$queryRawUnsafe<any[]>('SELECT id FROM detalles_venta WHERE venta_id=$1', venta2.id))[0].id;
+      const solicitudId = randomUUID();
+      await http('post', `/entregas/ventas/${venta.id}/entregas`, a.admin.token, { solicitudId, receptorNombre: 'A', lineas: [{ detalleId: det, cantidad: 1 }] }).expect(201);
+      await http('post', `/entregas/ventas/${venta2.id}/entregas`, b.admin.token, { solicitudId, receptorNombre: 'B', lineas: [{ detalleId: det2, cantidad: 1 }] }).expect(201);
+      expect(await stockDe(a.producto.id)).toEqual({ actual: antes.actual - 1, reservado: antes.reservado - 1 });
+      // Una línea de otra empresa dentro de la propia venta no se acepta.
+      const cruce = await http('post', `/entregas/ventas/${venta2.id}/entregas`, b.admin.token, { solicitudId: randomUUID(), receptorNombre: 'B', lineas: [{ detalleId: det, cantidad: 1 }] });
+      expect(cruce.status).toBeGreaterThanOrEqual(400);
+      expect(await stockDe(a.producto.id)).toEqual({ actual: antes.actual - 1, reservado: antes.reservado - 1 });
+    });
+
+    it('la base impide referencias cruzadas entre empresas en eventos de entrega y movimientos (claves compuestas)', async () => {
+      const a = await escenario(); const b = await escenario();
+      const venta = await a.venta(a.cajero, 1);
+      await expect(prisma.$executeRawUnsafe(
+        "INSERT INTO entregas_eventos (id,tenant_id,solicitud_id,huella,tipo,venta_id,usuario_id,origen) VALUES ($1,$2,$3,$4,'ENTREGA',$5,$6,'ONLINE')",
+        randomUUID(), b.tenantId, randomUUID(), 'a'.repeat(64), venta.id, b.admin.id)).rejects.toThrow(/foreign key|violates/i);
+    });
+
   });
 });

@@ -47,7 +47,9 @@ test.describe.serial('Cobro y entrega con backend real', () => {
     await page.getByText(PRODUCTO, { exact: true }).first().click();
     await page.getByLabel(`Cantidad ${PRODUCTO}`).fill('3');
     const venta = page.waitForResponse((r) => r.url().endsWith('/ventas') && r.request().method() === 'POST');
-    await page.getByRole('button', { name: /Cobrar y dejar en bodega/ }).click();
+    // El cajero no entrega: su botón principal cobra para bodega.
+    await expect(page.getByRole('button', { name: /Cobrar y dejar en bodega/ })).toHaveCount(0);
+    await page.getByRole('button', { name: /Procesar Venta/ }).click();
     const respuesta = await venta;
     expect(respuesta.status()).toBe(201);
     const creada = await respuesta.json();

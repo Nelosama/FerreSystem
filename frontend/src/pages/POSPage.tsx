@@ -33,6 +33,7 @@ const pagoElectronicoDesde = (metodo: string, aut: { referencia: string; termina
 
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
+  const puedeEntregar = user?.rol === 'ADMIN' || user?.rol === 'BODEGUERO';
   const { t, locale } = useI18n();
   const pendingKey = `ferre_pending_sale:${tenant.id}:${user?.id || ''}`;
   const activeKey = useRef(pendingKey);
@@ -279,7 +280,8 @@ export const POSPage: React.FC = () => {
 
   // onClick={handleCobrar} entrega un evento: solo el valor 'BODEGA' cambia el modo (por defecto, entrega en mostrador).
   const handleCobrar = async (modo?: unknown) => {
-    const modoEntrega: 'MOSTRADOR' | 'BODEGA' = modo === 'BODEGA' ? 'BODEGA' : 'MOSTRADOR';
+    // La entrega inmediata es una entrega física: solo ADMIN y BODEGUERO. Los demás roles cobran para bodega.
+    const modoEntrega: 'MOSTRADOR' | 'BODEGA' = modo === 'BODEGA' || !puedeEntregar ? 'BODEGA' : 'MOSTRADOR';
     if (!cart.length || cobrandoRef.current || comprobandoRef.current || modalTicket || storageError || draftError || loadedKey !== pendingKey ||
       (esDescuentoExcedido && !ventaPendiente) || (ventaPendiente && recoveryStatus !== 'NO_REGISTRADA')) return;
     if (!ventaPendiente && metodoPago === 'CREDITO' && !clienteId) {
@@ -660,18 +662,20 @@ export const POSPage: React.FC = () => {
                 {procesandoVenta && <Loader2 size={18} className="animate-spin" />}
                 <span>{t(procesandoVenta ? 'pos.processing' : 'pos.checkout')} {formatLempiras(total)}</span>
               </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => handleCobrar('BODEGA')}
-                disabled={cart.length === 0 || edicionBloqueada || !!draftError || !!ventaPendiente}
-                aria-busy={procesandoVenta}
-                style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1, marginTop: 8 }}
-              >
-                
-                
-                <span>Cobrar y dejar en bodega (entrega después)</span>
-              </button>
+              {puedeEntregar ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => handleCobrar('BODEGA')}
+                  disabled={cart.length === 0 || edicionBloqueada || !!draftError || !!ventaPendiente}
+                  aria-busy={procesandoVenta}
+                  style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1, marginTop: 8 }}
+                >
+                  <span>Cobrar y dejar en bodega (entrega después)</span>
+                </button>
+              ) : (
+                <p role="note" style={{ marginTop: 8, fontSize: 13 }}>La mercancía la entrega bodega o administración; consulte «Entregas» para ver el estado.</p>
+              )}
               </>
             )}
           </div>

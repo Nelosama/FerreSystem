@@ -49,7 +49,7 @@ export class EntregasService {
     return u;
   }
 
-  /** Ventas con mercancía pendiente de entrega. ADMIN y BODEGUERO ven todas; CAJERO y VENDEDOR, las suyas. */
+  /** Ventas con mercancía pendiente de entrega. ADMIN y BODEGUERO ven todas; CAJERO, las suyas; VENDEDOR no accede. */
   async pendientes(tenantId: string, usuarioId: string) {
     const u = await this.consultante(tenantId, usuarioId);
     const umbrales = await this.umbrales(tenantId);
@@ -58,7 +58,7 @@ export class EntregasService {
       `SELECT v.id, v.numero_venta, v.created_at, v.total, v.usuario_id, u.nombre AS cajero,
               COALESCE(c.nombre, v.cliente_nombre) AS cliente
          FROM ventas v JOIN usuarios u ON u.id = v.usuario_id AND u.tenant_id = v.tenant_id
-         LEFT JOIN clientes c ON c.id = v.cliente_id
+         LEFT JOIN clientes c ON c.id = v.cliente_id AND c.tenant_id = v.tenant_id
         WHERE v.tenant_id=$1 AND v.estado='COMPLETADA' AND v.reserva_pendiente=true AND ($2::boolean OR v.usuario_id=$3)
         ORDER BY v.created_at, v.id`,
       tenantId, veTodo, usuarioId);

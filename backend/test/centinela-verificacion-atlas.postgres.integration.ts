@@ -529,6 +529,39 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       expect(await prisma.operacionContingencia.count({ where: { tenantId: dueno.tenantId } })).toBe(1);
     });
 
+    it('dispositivo registrado antes del cambio (id crudo): sigue registrándose, con latido, ventana y envío de operaciones (compatibilidad offline)', async () => {
+      const e = await escenario();
+      await habilitar(e.admin);
+      const dispositivo = randomUUID();
+      // Registro anterior al cambio: el id del dispositivo es el que generó el equipo.
+      await prisma.dispositivoPos.create({ data: { id: dispositivo, tenantId: e.tenantId, codigo: '01', nombre: 'Caja anterior', registradoPor: e.admin.id } });
+      const otra = await registrarDispositivo(e.cajero, dispositivo);
+      expect(otra.status, JSON.stringify(otra.body)).toBe(201); // reconoce el dispositivo existente
+      expect(otra.body.id).toBe(dispositivo);
+      expect(await prisma.dispositivoPos.count({ where: { tenantId: e.tenantId } })).toBe(1);
+      await http('post', `/contingencia/dispositivos/${dispositivo}/latido`, e.cajero.token, { pendientes: 2 }).expect(201);
+      const v = await http('post', '/contingencia/ventanas', e.cajero.token, { dispositivoId: dispositivo });
+      expect(v.status, JSON.stringify(v.body)).toBeLessThan(300);
+      const ventana = v.body.ventana ?? v.body;
+      expect(ventana.dispositivoId).toBe(dispositivo);
+      const operacionId = randomUUID();
+      const lote = { dispositivoId: dispositivo, pendientesRestantes: 0, operaciones: [{
+        operacionId, dispositivoId: dispositivo, ventanaId: ventana.id, secuenciaLocal: 1, correlativoLocal: 'CT-01-00000001',
+        ocurridoAtLocal: new Date().toISOString(), cajeroId: e.cajero.id,
+        lineas: [{ productoId: e.producto.id, cantidadCentesimas: 100, precioCentavos: 10000 }],
+        totalCentavos: 10000, subtotalCentavos: 10000, isvCentavos: 0, efectivoRecibidoCentavos: 10000, cambioCentavos: 0, esquemaVersion: 1,
+      }] };
+      const primero = await http('post', '/contingencia/operaciones', e.cajero.token, lote);
+      const segundo = await http('post', '/contingencia/operaciones', e.cajero.token, lote);
+      expect(primero.body.resultados[0].operacionId).toBe(operacionId);
+      expect(segundo.body.resultados[0].operacionId).toBe(operacionId);
+      expect(segundo.body.resultados[0].estado).toBe(primero.body.resultados[0].estado);
+      expect(await prisma.operacionContingencia.count({ where: { tenantId: e.tenantId } })).toBe(1);
+      const estados = await http('get', `/contingencia/operaciones/estados?ids=${operacionId},${randomUUID()}`, e.cajero.token).expect(200);
+      expect(estados.body[0]).toMatchObject({ operacionId });
+      expect(estados.body[1].estado).toBe('NO_REGISTRADA');
+    });
+
     it('consulta de estados de una operación de contingencia ajena: no revela existencia ni datos', async () => {
       const intruso = await escenario();
       const r = await http('get', `/contingencia/operaciones/estados?ids=${randomUUID()}`, intruso.admin.token);
