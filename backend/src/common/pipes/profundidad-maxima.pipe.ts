@@ -1,4 +1,4 @@
-import { BadRequestException, INestApplication, PipeTransform, ValidationPipe } from '@nestjs/common';
+import { ArgumentMetadata, BadRequestException, INestApplication, PipeTransform, ValidationPipe } from '@nestjs/common';
 
 /**
  * H-P (CENTINELA): el ValidationPipe de Nest recorre el cuerpo de forma recursiva (`stripProtoKeys`); un JSON muy anidado
@@ -33,10 +33,25 @@ export class ProfundidadMaximaPipe implements PipeTransform {
   }
 }
 
-/** Pipes globales de la aplicación: primero el límite de profundidad, luego la validación. Compartido por main.ts y las pruebas. */
+/**
+ * D-3 (auditoría sobre 0ac3f741): un cuerpo JSON de tipo incorrecto (arreglo donde se espera un objeto) llegaba al ValidationPipe, que lo
+ * convertía en una instancia del DTO con claves absurdas y respondía 500. Si el parámetro del cuerpo es una clase DTO (no Array ni Object)
+ * y llega un arreglo, la respuesta es 400 y no se ejecuta el controlador, así que no se modifica ningún dato.
+ */
+const TIPOS_NO_DTO: unknown[] = [String, Boolean, Number, Array, Object];
+export class CuerpoDeTipoCorrectoPipe implements PipeTransform {
+  transform(valor: unknown, metadata: ArgumentMetadata) {
+    const esDto = typeof metadata.metatype === 'function' && !TIPOS_NO_DTO.includes(metadata.metatype);
+    if (metadata.type === 'body' && esDto && Array.isArray(valor)) throw new BadRequestException('El cuerpo de la solicitud debe ser un objeto JSON');
+    return valor;
+  }
+}
+
+/** Pipes globales de la aplicación: límite de profundidad, tipo del cuerpo y, al final, la validación. Compartido por main.ts y las pruebas. */
 export function configurarPipesGlobales(app: INestApplication) {
   app.useGlobalPipes(
     new ProfundidadMaximaPipe(),
+    new CuerpoDeTipoCorrectoPipe(),
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
   );
 }
