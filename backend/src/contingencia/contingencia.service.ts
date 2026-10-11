@@ -41,8 +41,10 @@ const canonico = (valor: unknown): string => JSON.stringify(valor, (_, v) =>
 const sha = (texto: string) => createHash('sha256').update(texto).digest('hex');
 
 /** Rechazos definitivos de la recepción (DEF-04, R-01): se conservan en el diario como REVISION con uno de estos conflictos DUROS no superables. */
-// H5: también son rechazos definitivos los errores de validación que ocurren antes de aplicar la operación.
-const CODIGOS_RECHAZO = new Set(['VENTANA_OBSOLETA', 'VENTANA_DE_OTRO_CAJERO', 'CAJA_DE_VENTANA_NO_VALIDA', 'IMPORTE_INVALIDO', 'CAJERO_NO_AUTORIZADO', 'OPERACION_OTRO_DISPOSITIVO']);
+// Rechazos definitivos de la aplicación: nunca se aplican como venta (la línea/importe inválido sigue en revisión del administrador).
+const CODIGOS_RECHAZO = new Set(['VENTANA_OBSOLETA', 'VENTANA_DE_OTRO_CAJERO', 'CAJA_DE_VENTANA_NO_VALIDA']);
+// H5: errores de recepción que también son rechazos definitivos y se registran como RECHAZADA; solo cambian la respuesta al equipo.
+const CODIGOS_RECHAZO_RECEPCION = new Set([...CODIGOS_RECHAZO, 'IMPORTE_INVALIDO', 'CAJERO_NO_AUTORIZADO', 'OPERACION_OTRO_DISPOSITIVO']);
 /** Qué debe hacer quien usa el equipo ante cada rechazo definitivo. Es el mismo texto en la primera respuesta y en toda consulta posterior (O-02). */
 const INSTRUCCION_RECHAZO: Record<string, string> = {
   IMPORTE_INVALIDO: 'El cobro no cubre el total. No se registró venta: avise al administrador para conciliar el efectivo.',
@@ -307,7 +309,7 @@ export class ContingenciaService {
   /** Vista para el equipo (una operación rechazada ya está en REVISION: el equipo conserva la venta local). */
   private resumenCliente(f: any, idEquipo?: string) {
     // O-02: un rechazo definitivo se describe igual que en la primera respuesta (estado, motivo e instrucción), no como REVISION genérica.
-    if (esRechazo(f) && (f.estado === 'RECHAZADA' || f.estado === 'REVISION')) return { ...this.resumenOperacion(f, idEquipo), ...this.respuestaRechazo(f, idEquipo ?? f.id) };
+    if (f.estado === 'RECHAZADA' || (esRechazo(f) && f.estado === 'REVISION')) return { ...this.resumenOperacion(f, idEquipo), ...this.respuestaRechazo(f, idEquipo ?? f.id) };
     return this.resumenOperacion(f, idEquipo);
   }
 
@@ -348,7 +350,7 @@ export class ContingenciaService {
         const alterada = await this.registrarAlteracion(tenantId, usuarioId, existente, dto, hash);
         return esRechazo(alterada) ? this.respuestaRechazo(alterada, dto.operacionId) : { ...alterada, operacionId: dto.operacionId };
       }
-      if (esRechazo(existente)) return this.respuestaRechazo(existente, dto.operacionId);
+      if (esRechazo(existente) || existente.estado === 'RECHAZADA') return this.respuestaRechazo(existente, dto.operacionId);
       if (existente.estado === 'RECIBIDA') return this.aplicarYResumir(tenantId, existente.id, {}, dto.operacionId);
       return this.resumenCliente(existente, dto.operacionId);
     }
@@ -440,7 +442,7 @@ export class ContingenciaService {
   }
 
   private respuestaRechazo(f: any, idEquipo: string) {
-    const c = (f.conflictos as any[])?.find((x) => CODIGOS_RECHAZO.has(x?.codigo)) ?? {};
+    const c = (f.conflictos as any[])?.find((x) => CODIGOS_RECHAZO_RECEPCION.has(x?.codigo)) ?? {};
     return {
       operacionId: idEquipo, estado: 'RECHAZADA_TECNICA', codigo: c.codigo ?? 'RECHAZADA', mensaje: c.detalle?.mensaje ?? 'La operación fue rechazada',
       instruccion: INSTRUCCION_RECHAZO[c.codigo] ?? 'Avise al administrador: la venta queda para conciliación.',
