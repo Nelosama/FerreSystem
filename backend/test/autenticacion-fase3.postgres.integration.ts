@@ -112,7 +112,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     }
     await prisma.superAdmin.create({ data: { id: superAdminId, nombre: 'Plataforma', email: 'plataforma@auth.test.invalid', passwordHash } });
     await prisma.caja.create({ data: { tenantId, codigo: 'CAJA-1', usuarioId: cajeroId, montoApertura: 100, estado: 'ABIERTA' } as any });
-    productoId = (await prisma.producto.create({ data: { tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20 } as any })).id;
+    productoId = (await prisma.producto.create({ data: { tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioAprobado: true, precioCosto: 4, stockActual: 20 } as any })).id;
     dispositivoId = randomUUID();
     await contingencia.registrarDispositivo(tenantId, cajeroId, { dispositivoId, nombre: 'Caja principal' } as any);
   }, 180000);
