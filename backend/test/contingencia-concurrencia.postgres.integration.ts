@@ -210,6 +210,18 @@ describe('Contingencia concurrencia: serialización por operación en PostgreSQL
     expect(await ventasDe(e.tenantId)).toBe(4);
   });
 
+  it('F5 con concurrencia: el mismo rechazo por importe enviado 10 veces en paralelo deja una sola fila y una sola auditoría', async () => {
+    const e = await empresa();
+    const op = operacion(e, { efectivoRecibidoCentavos: 2000, cambioCentavos: 0 });
+    const rs = await Promise.all(Array.from({ length: 10 }, () => lote(e, [op])));
+    expect(rs.map((r) => r.resultados[0].codigo)).toEqual(Array(10).fill('IMPORTE_INVALIDO'));
+    const fila = await filaDe(e.tenantId, op.operacionId);
+    expect(fila).toMatchObject({ estado: 'RECHAZADA', ventaId: null });
+    expect(await prisma.operacionContingencia.count({ where: { tenantId: e.tenantId } })).toBe(1);
+    expect(await prisma.auditoriaOperacion.count({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_OPERACION_RECHAZADA', entidadId: fila!.id } })).toBe(1);
+    expect(await ventasDe(e.tenantId)).toBe(0);
+  });
+
   it('H-5 con concurrencia: el dueño y un cajero ajeno envían el mismo UUID a la vez; la fila es del dueño y hay una venta', async () => {
     const e = await empresa();
     const b = await segundoCajero(e);
