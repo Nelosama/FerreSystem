@@ -314,6 +314,15 @@ Detalle en `docs/ATLAS_INTEGRACION_144_145.md`: 11 conflictos resueltos a mano, 
 
 ---
 
+## Estado vigente PR #152 (2026-10-11, actualiza el bloque siguiente)
+
+- **Código candidato:** `37642787` (rama `claude/vigilant-feynman-6p6jt2`). Después: prueba HTTP `backend/test/contingencia-http.postgres.integration.ts` (3/3) y este documento.
+- **R-01:** el rechazo definitivo es estado `RECHAZADA` (migración aditiva `20261016000000`, CHECK ampliado y `rechazada_sin_venta_check`). El texto de más abajo que dice `REVISION` por CHECK es histórico: se resolvió con esa migración.
+- **FARO (informe sobre `376427875b` = `37642787`):** 28/28 `faro-qa-pr150`; 31/31 grupo DEF-01/contingencia/cobro/precios; negocio 3/3; integración 118/118. Veredicto **PENDIENTE** hasta la prueba HTTP de 4xx (añadida aquí). Observación abierta: la regex de F-02 acepta el texto de respaldo «Código no encontrado» (propuesta: acotar a «no tiene precio aprobado»).
+- **Suite PostgreSQL completa** sobre `37642787`: 42 archivos, 715 pruebas aprobadas, 1 omitida, EXIT=0.
+- **CENTINELA:** auditoría de `37642787` en curso (sin veredicto). Auditorías de SHA anteriores no certifican este código.
+- **Limitaciones sin resolver:** importes incoherentes sin fila en el diario (`montos_check`, decisión del propietario); cierre sin venta de rechazos con movimiento de caja (R-02, pendiente de confirmar como regla de negocio).
+
 ## PR #150 — correcciones F-01, F-02, O-02 y O-04 sobre `8cc02a57` (2026-10-11, ATLAS)
 
 - **Rama de trabajo:** `claude/vigilant-feynman-6p6jt2`, creada desde `origin/claude/atlas-correcciones-finales-148` (`8cc02a57`). PR #150 sigue en borrador; sin merge, despliegue ni migraciones.
