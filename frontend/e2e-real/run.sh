@@ -69,4 +69,4 @@ echo "== 6. Frontend real (build con /api; la vista previa reenvía a $E2E_API_T
 
 echo "== 7. Playwright contra backend real"
 cd "$ROOT/frontend"
-npx playwright test -c playwright.real.config.ts "$@"
+npx playwright test -c "${PW_CONFIG:-playwright.real.config.ts}" "$@"
