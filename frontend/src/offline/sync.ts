@@ -92,12 +92,19 @@ export async function sincronizarPendientes(
         if (cambios.estado === 'REVISION') resultado.enRevision++;
       }
     } catch (error: any) {
-      // Red caída o timeout: no sabemos si el servidor guardó. Volver a pendiente es seguro: el UUID evita duplicados.
       const status = error?.response?.status;
+      if (esRechazoDeLote(status) && lote.length > 1) {
+        // Una operación mal formada no puede bloquear la cola: se reenvían una por una para aislarla.
+        for (const op of lote) await enviarUnaPorUna(api, dispositivoId, todas, op, resultado);
+        continue;
+      }
+      // Red caída o timeout: no sabemos si el servidor guardó. Volver a pendiente es seguro: el UUID evita duplicados.
       for (const op of lote) {
-        const cambios: Partial<OperacionLocal> = status === 401 || status === 403
+        const cambios: Partial<OperacionLocal> = status === 401
           ? { estado: 'PENDIENTE', ultimoError: 'Inicie sesión para enviar las ventas pendientes' }
-          : { ...cambiosSegunRespuesta(op, { operacionId: op.operacionId, estado: 'ERROR_TEMPORAL', mensaje: error?.message ?? 'Sin conexión' }) };
+          : status === 403
+            ? { estado: 'PENDIENTE', ultimoError: 'Su usuario no tiene permiso para enviar estas ventas' }
+            : { ...cambiosSegunRespuesta(op, { operacionId: op.operacionId, estado: 'ERROR_TEMPORAL', mensaje: error?.message ?? 'Sin conexión' }) };
         await actualizarSincronizacion(op.operacionId, cambios);
       }
       resultado.error = status === 401 || status === 403 ? 'Sesión no válida para enviar' : 'Sin conexión con el servidor';
@@ -108,6 +115,55 @@ export async function sincronizarPendientes(
   const restantes = await listarOperaciones();
   resultado.pendientes = restantes.filter((o) => o.estado === 'PENDIENTE' || o.estado === 'ENVIANDO').length;
   return resultado;
+}
+
+/** Un 4xx que no es de autenticación ni de permisos: el servidor rechazó la solicitud (no se reintenta igual). */
+function esRechazoDeLote(status: number | undefined): boolean {
+  return typeof status === 'number' && status >= 400 && status < 500 && status !== 401 && status !== 403;
+}
+
+/** Reenvío aislado de una operación. Un rechazo definitivo queda en revisión con el motivo; un fallo de red o 5xx se reintenta. */
+async function enviarUnaPorUna(
+  api: AxiosInstance,
+  dispositivoId: string,
+  todas: OperacionLocal[],
+  op: OperacionLocal,
+  resultado: ResultadoSync,
+): Promise<void> {
+  try {
+    await actualizarSincronizacion(op.operacionId, { estado: 'ENVIANDO' });
+    const { data } = await api.post('/contingencia/operaciones', {
+      dispositivoId,
+      pendientesRestantes: todas.filter((o) => o.estado === 'PENDIENTE' && o.operacionId !== op.operacionId).length,
+      operaciones: [aOperacionDto(op)],
+    }, { timeout: TIMEOUT_CONTINGENCIA_MS });
+    const r = (data.resultados as RespuestaOperacion[]).find((x) => x.operacionId === op.operacionId)
+      ?? { operacionId: op.operacionId, estado: 'ERROR_TEMPORAL' as const, mensaje: 'Sin respuesta para esta operación' };
+    const cambios = cambiosSegunRespuesta(op, r);
+    await actualizarSincronizacion(op.operacionId, cambios);
+    resultado.enviadas++;
+    if (cambios.estado === 'SINCRONIZADA') resultado.aplicadas++;
+    if (cambios.estado === 'REVISION') resultado.enRevision++;
+  } catch (error: any) {
+    const status = error?.response?.status;
+    if (esRechazoDeLote(status)) {
+      const datos = error?.response?.data?.message;
+      const mensaje = Array.isArray(datos) ? datos.join('; ') : (datos ?? 'El servidor no aceptó la operación');
+      await actualizarSincronizacion(op.operacionId, {
+        estado: 'REVISION', requiereRevision: true, ultimoError: mensaje,
+        conflictos: [{ codigo: 'RECHAZADA_TECNICA', severidad: 'DURO', detalle: { mensaje } }],
+      });
+      resultado.enviadas++;
+      resultado.enRevision++;
+      return;
+    }
+    const cambios: Partial<OperacionLocal> = status === 401
+      ? { estado: 'PENDIENTE', ultimoError: 'Inicie sesión para enviar las ventas pendientes' }
+      : status === 403
+        ? { estado: 'PENDIENTE', ultimoError: 'Su usuario no tiene permiso para enviar estas ventas' }
+        : { ...cambiosSegunRespuesta(op, { operacionId: op.operacionId, estado: 'ERROR_TEMPORAL', mensaje: error?.message ?? 'Sin conexión' }) };
+    await actualizarSincronizacion(op.operacionId, cambios);
+  }
 }
 
 export interface EstadoServidor {

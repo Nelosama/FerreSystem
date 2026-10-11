@@ -1,5 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import { plainToInstance } from 'class-transformer';
+import { validate as validarDto } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { audit, authorizedActor, cashMovement, id as nuevoId, idRecurso, idSolicitud, lockTenant, movement, query, Tx, fingerprint } from '../operaciones/ledger';
 import { huellaDeLineas, movimientoConEvento, registrarEvento } from '../entregas/entregas-core';
@@ -262,7 +264,16 @@ export class ContingenciaService {
     const dispositivo = await this.buscarDispositivo(this.prisma, tenantId, dto.dispositivoId);
     if (!dispositivo) throw new NotFoundException('Dispositivo no registrado');
     const resultados: any[] = [];
-    for (const op of dto.operaciones) {
+    for (const crudo of dto.operaciones as unknown[]) {
+      // H3 (CENTINELA): una operación mal formada no rechaza el lote entero. Se valida sola: las válidas se procesan y la
+      // inválida deja evidencia (auditoría) y una respuesta propia, para que el equipo no reenvíe el lote indefinidamente.
+      const op = plainToInstance(OperacionContingenciaDto, crudo as object);
+      const errores = await validarDto(op, { whitelist: true });
+      const uuid = (crudo as any)?.operacionId;
+      if (errores.length) {
+        resultados.push(await this.registrarFormatoInvalido(tenantId, usuarioId, uuid, crudo, errores));
+        continue;
+      }
       try {
         resultados.push(await this.procesarOperacion(tenantId, usuarioId, rol, dispositivo.id, dto.dispositivoId, op));
       } catch (error: any) {
@@ -336,7 +347,7 @@ export class ContingenciaService {
 
   private async procesarOperacion(tenantId: string, usuarioId: string, rol: string, dispositivoId: string, dispositivoEquipo: string, dto: OperacionContingenciaDto) {
     // A (CENTINELA): un UUID ya rechazado sin fila no puede aplicarse después con un importe corregido.
-    const rechazadaSinFila = await this.respuestaSinRegistro(tenantId, dto.operacionId);
+    const rechazadaSinFila = await this.respuestaSinRegistroPara(tenantId, dto.operacionId, usuarioId, rol);
     if (rechazadaSinFila) return rechazadaSinFila;
     if (dto.dispositivoId !== dispositivoEquipo) throw new BadRequestException({ message: 'La operación pertenece a otro dispositivo', code: 'OPERACION_OTRO_DISPOSITIVO' });
     if (rol !== 'ADMIN' && dto.cajeroId !== usuarioId) {
@@ -360,7 +371,7 @@ export class ContingenciaService {
       // CENTINELA 8c: un payload distinto con el mismo UUID se registra como alteración también sobre una operación ya rechazada.
       if (existente.payloadHash !== hash) {
         const alterada = await this.registrarAlteracion(tenantId, usuarioId, existente, dto, hash);
-        return esRechazo(alterada) ? this.respuestaRechazo(alterada, dto.operacionId) : { ...alterada, operacionId: dto.operacionId };
+        return esRechazo(alterada) ? this.respuestaRechazo(alterada, dto.operacionId) : this.resumenCliente(alterada, dto.operacionId);
       }
       if (esRechazo(existente) || existente.estado === 'RECHAZADA') return this.respuestaRechazo(existente, dto.operacionId);
       if (existente.estado === 'RECIBIDA') return this.aplicarYResumir(tenantId, existente.id, {}, dto.operacionId);
@@ -391,6 +402,32 @@ export class ContingenciaService {
     }
     // 2) Aplicación en transacción aparte.
     return this.aplicarYResumir(tenantId, idInterno, {}, dto.operacionId);
+  }
+
+  /** H3: operación con formato inválido. Con UUID válido queda evidencia en auditoría; sin UUID solo se responde. */
+  private async registrarFormatoInvalido(tenantId: string, usuarioId: string, uuid: unknown, crudo: unknown, errores: any[]) {
+    const mensaje = 'La operación tiene datos con formato inválido; no se registró venta';
+    const campos = errores.map((e) => ({ campo: e.property, reglas: Object.keys(e.constraints ?? {}) }));
+    const valido = typeof uuid === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuid);
+    if (valido) {
+      const idInterno = idSolicitud(tenantId, uuid);
+      const yaAuditada = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno } });
+      if (!yaAuditada) {
+        await this.prisma.auditoriaOperacion.create({
+          data: { tenantId, usuarioId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno,
+            datos: { codigo: 'FORMATO_INVALIDO', mensaje, campos, payload: crudo } as any },
+        });
+      }
+    }
+    return { operacionId: valido ? uuid : null, estado: 'RECHAZADA_TECNICA', codigo: 'FORMATO_INVALIDO', mensaje, instruccion: 'Avise al administrador: la operación no tiene un formato válido.', requiereRevision: true, conflictos: [] };
+  }
+
+  /** H5: la evidencia de un rechazo sin fila la ve su remitente o el administrador; a otros se responde sin detalles. */
+  private async respuestaSinRegistroPara(tenantId: string, operacionId: string, usuarioId: string, rol: string) {
+    const base = await this.respuestaSinRegistro(tenantId, operacionId);
+    if (!base || rol === 'ADMIN') return base;
+    if (await this.respuestaSinRegistro(tenantId, operacionId, usuarioId)) return base;
+    return { operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'RECHAZADA', mensaje: 'Esta operación ya fue rechazada y no puede enviarse de nuevo', instruccion: 'Avise al administrador.', requiereRevision: true, conflictos: [] };
   }
 
   /**
@@ -491,6 +528,9 @@ export class ContingenciaService {
   }
 
   private async registrarAlteracion(tenantId: string, usuarioId: string, existente: any, dto: OperacionContingenciaDto, hash: string) {
+    // H2 (CENTINELA): el mismo payload alterado no añade otro conflicto ni otra auditoría.
+    const ya = (existente.conflictos as any[]).some((c) => c?.codigo === 'OPERACION_ALTERADA' && c?.detalle?.payloadHashRecibido === hash);
+    if (ya) return this.resumenOperacion(existente);
     const conflictos = [...(existente.conflictos as any[]), {
       codigo: 'OPERACION_ALTERADA', severidad: 'DURO',
       detalle: { payloadHashRecibido: hash, recibidoAt: new Date().toISOString(), payloadRecibido: dto },

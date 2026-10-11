@@ -115,6 +115,12 @@ test.describe('Negocio — módulos esenciales con PostgreSQL real', () => {
     expect(alta.status).toBeLessThan(300);
     const productoId = alta.body.id as string;
 
+    // Otras pruebas de la misma suite pueden dejar cajas abiertas de este cajero: se cierran por API con el efectivo esperado.
+    const abiertas = await call(request, cajero.token, 'get', '/operaciones/caja');
+    for (const c of (abiertas.body as any[]).filter((x) => x.estado === 'ABIERTA')) {
+      const cierrePrevio = await call(request, cajero.token, 'post', `/operaciones/caja/${c.id}/cerrar`, { monto: Number(c.efectivoEsperado) });
+      expect(cierrePrevio.status, JSON.stringify(cierrePrevio.body)).toBeLessThan(300);
+    }
     const abrir = await call(request, cajero.token, 'post', '/operaciones/caja/abrir', { solicitudId: randomUUID(), monto: 500 });
     expect(abrir.status, JSON.stringify(abrir.body)).toBeLessThan(300);
     const cajaId = abrir.body.id as string;

@@ -49,7 +49,8 @@ export class OperacionContingenciaDto {
 export class LoteOperacionesDto {
   @IsUUID('4') dispositivoId: string;
   @IsInt() @Min(0) @Max(100000) pendientesRestantes: number;
-  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(20) @ValidateNested({ each: true }) @Type(() => OperacionContingenciaDto)
+  // H3 (CENTINELA): las operaciones se validan una a una en el servicio; una inválida no rechaza el lote entero.
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(20)
   operaciones: OperacionContingenciaDto[];
 }
 

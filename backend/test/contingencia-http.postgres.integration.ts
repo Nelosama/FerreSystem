@@ -135,9 +135,14 @@ describe('Contingencia H5 por HTTP: 4xx en recepción offline / PostgreSQL aisla
     const buena = operacion(e);
     const mala = { ...operacion(e), correlativoLocal: 'no-valido' };
     const antes = await conteos(e.tenantId);
+    // H3: el lote responde 2xx con una respuesta por operación; la mal formada no registra venta ni fila, deja evidencia en auditoría.
     const r400 = await http('post', '/contingencia/operaciones', e.cajero.token, lote(e, [mala]));
-    expect(r400.status).toBe(400);
-    expect(await conteos(e.tenantId)).toEqual(antes);
+    expect(r400.status).toBeLessThan(300);
+    expect(r400.body.resultados[0]).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'FORMATO_INVALIDO' });
+    const despues = await conteos(e.tenantId);
+    expect(despues.ventas).toBe(antes.ventas);
+    expect(despues.filas).toBe(antes.filas);
+    expect(despues.auditorias).toBe(antes.auditorias + 1);
     const ok = await http('post', '/contingencia/operaciones', e.cajero.token, lote(e, [buena]));
     expect(ok.status).toBeLessThan(300);
     expect(ok.body.resultados[0]).toMatchObject({ operacionId: buena.operacionId, estado: 'APLICADA' });

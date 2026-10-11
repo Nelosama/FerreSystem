@@ -98,7 +98,7 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     const n = ++contador;
     return {
       operacionId: randomUUID(), dispositivoId: e.equipoId, ventanaId: e.ventanaId, secuenciaLocal: 500 + n,
-      correlativoLocal: `CT-01-H5-${String(n).padStart(4, '0')}`, ocurridoAtLocal: new Date().toISOString(), cajeroId: e.cajero,
+      correlativoLocal: `CT-01-${String(n).padStart(4, '0')}`, ocurridoAtLocal: new Date().toISOString(), cajeroId: e.cajero,
       lineas: [{ productoId: e.p1, cantidadCentesimas: 200, precioCentavos: 1000 }],
       subtotalCentavos: 2000, isvCentavos: 300, totalCentavos: 2300, efectivoRecibidoCentavos: 2500, cambioCentavos: 200,
       esquemaVersion: 1, ...extra,
@@ -281,5 +281,52 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     expect(ajeno).toEqual({ operacionId: op.operacionId, estado: 'NO_REGISTRADA' });
     const propio: any = (await svc.estados(e.tenantId, e.cajero, 'CAJERO', [op.operacionId]))[0];
     expect(propio.codigo).toBe('IMPORTE_INVALIDO');
+  });
+
+  // Hallazgos H1, H2, H3 y H5 de la auditoría CENTINELA sobre 02427b39.
+  it('H1: la respuesta a un reenvío alterado no incluye el payload de otro usuario', async () => {
+    const e = await empresa();
+    const op = operacion(e);
+    await recibir(e, [op]);
+    const alterada = { ...op, clienteNombre: 'CLIENTE AJENO' };
+    const r = (await recibir(e, [alterada], e.admin, 'ADMIN')).resultados[0];
+    expect(JSON.stringify(r)).not.toContain('CLIENTE AJENO');
+    expect(JSON.stringify(r)).not.toContain('payloadRecibido');
+  });
+
+  it('H2: el mismo payload alterado enviado varias veces se registra una sola vez', async () => {
+    const e = await empresa();
+    const op = operacion(e);
+    await recibir(e, [op]);
+    const alterada = { ...op, clienteNombre: 'CAMBIO' };
+    for (let i = 0; i < 3; i++) await recibir(e, [alterada], e.admin, 'ADMIN');
+    expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_ALTERADA', idSolicitud(e.tenantId, op.operacionId))).toBe(1);
+    const fila = await filaDe(e.tenantId, op.operacionId);
+    expect((fila!.conflictos as any[]).filter((c) => c.codigo === 'OPERACION_ALTERADA')).toHaveLength(1);
+  });
+
+  it('H3: una operación mal formada no rechaza el lote: las válidas se aplican y la inválida deja evidencia', async () => {
+    const e = await empresa();
+    const buena = operacion(e);
+    const mala = { ...operacion(e), correlativoLocal: 'no-valido' };
+    const antes = await ventasDe(e.tenantId);
+    const r = await recibir(e, [mala, buena]);
+    expect(r.resultados).toHaveLength(2);
+    expect(r.resultados[0]).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'FORMATO_INVALIDO' });
+    expect(r.resultados[1]).toMatchObject({ operacionId: buena.operacionId, estado: 'APLICADA' });
+    expect(await ventasDe(e.tenantId)).toBe(antes + 1);
+    expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_NO_REGISTRADA', idSolicitud(e.tenantId, mala.operacionId))).toBe(1);
+  });
+
+  it('H5: otro cajero que reenvía un UUID rechazado sin fila no recibe el motivo del rechazo', async () => {
+    const e = await empresa();
+    const op = operacion(e, { efectivoRecibidoCentavos: 2000, cambioCentavos: 0 });
+    await recibir(e, [op]);
+    const otro = randomUUID();
+    await prisma.usuario.create({ data: { id: otro, tenantId: e.tenantId, nombre: 'Cajero D', email: `${otro}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
+    const r = (await recibir(e, [op], otro, 'CAJERO')).resultados[0];
+    expect(r.codigo).toBe('RECHAZADA');
+    expect(r.mensaje).not.toMatch(/importe/i);
+    expect(await ventasDe(e.tenantId)).toBe(0);
   });
 });
