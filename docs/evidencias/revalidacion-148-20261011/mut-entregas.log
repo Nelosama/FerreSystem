@@ -1,0 +1,32 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.integration.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.11 /home/user/s148-wt/backend
+
+ ❯ test/centinela-entregas-148.postgres.integration.ts (24 tests | 1 failed) 5809ms
+       × entrega inmediata del POS: CAJERO no puede vender con MOSTRADOR y no cambia stock 127ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/centinela-entregas-148.postgres.integration.ts > CENTINELA: entregas, entregas parciales y permisos (PR #148) / PostgreSQL aislado > P1 seguridad de entregas > entrega inmediata del POS: CAJERO no puede vender con MOSTRADOR y no cambia stock
+AssertionError: expected 201 to be 403 // Object.is equality
+
+- Expected
++ Received
+
+- 403
++ 201
+
+ ❯ test/centinela-entregas-148.postgres.integration.ts:223:24
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 21 passed | 2 expected fail (24)
+   Start at  02:55:02
+   Duration  7.14s (transform 597ms, setup 0ms, import 1.16s, tests 5.81s, environment 0ms)
+

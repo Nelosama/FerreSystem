@@ -1,0 +1,123 @@
+== 1. PostgreSQL temporal (usuario nobody, puerto 55433)
+== 2. Migraciones con Prisma (migrate deploy, la ruta de producción)
+All migrations have been successfully applied.
+== 3. Deriva de esquema: solo la tabla nueva
+sin deriva en coberturas_garantia
+== 4. Datos de prueba
+{"tenantA":"e2e-empresa-a","tenantB":"e2e-empresa-b","usuarios":{"adminA":{"id":"39522b44-8b3b-4548-a946-15f342891702","rol":"ADMIN","email":"admin.a@e2e.invalid"},"cajeroA":{"id":"9d55cd32-d45c-4c05-8730-093902fe4e08","rol":"CAJERO","email":"cajero.a@e2e.invalid"},"bodegueroA":{"id":"e7d604ab-850f-424a-a88f-2aa5294280d7","rol":"BODEGUERO","email":"bodeguero.a@e2e.invalid"},"adminB":{"id":"fc67875
+== 5. Backend NestJS compilado (dist/main)
+API arriba en http://127.0.0.1:3100/api
+== 6. Frontend real (build con /api; la vista previa reenvía a http://127.0.0.1:3100)
+== 7. Playwright contra backend real
+
+Running 75 tests using 1 worker
+
+  ✘   1 [chromium] › e2e-real/balance-real.spec.ts:74:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › el administrador ve la deuda del cliente y registra un abono; el saldo se actualiza en pantalla y en la base (0ms)
+  -   2 [chromium] › e2e-real/balance-real.spec.ts:88:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › el administrador registra un pago a proveedor con referencia; el historial la muestra con el responsable
+  -   3 [chromium] › e2e-real/balance-real.spec.ts:103:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › una referencia repetida en la misma factura se rechaza y no cambia el saldo (API real)
+  -   4 [chromium] › e2e-real/balance-real.spec.ts:109:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › el cajero ve las cuentas por cobrar pero no las de proveedores
+  -   5 [chromium] › e2e-real/balance-real.spec.ts:118:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › el bodeguero no accede a información financiera
+  -   6 [chromium] › e2e-real/balance-real.spec.ts:125:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › otra empresa no ve ni paga las cuentas de esta (separación entre empresas en backend real)
+  ✓   7 [chromium] › e2e-real/clientes-pos-cajero.spec.ts:19:3 › POS — cajero selecciona clientes (backend real) › el cajero busca por nombre y selecciona el cliente registrado (2.6s)
+  ✓   8 [chromium] › e2e-real/clientes-pos-cajero.spec.ts:28:3 › POS — cajero selecciona clientes (backend real) › el cajero encuentra un cliente por teléfono (1.9s)
+  ✓   9 [chromium] › e2e-real/cobro-entrega-real.spec.ts:39:3 › Cobro y entrega con backend real › cobrar y dejar en bodega → pendiente visible → entrega parcial y final → existencias correctas (4.9s)
+  ✓  10 [chromium] › e2e-real/contingencia-real.spec.ts:163:3 › POS offline de contingencia — backend real › 1. en línea: el equipo se registra, descarga la ventana, cobra y envía; la venta queda con correlativo central (1.8s)
+  ✓  11 [chromium] › e2e-real/contingencia-real.spec.ts:185:3 › POS offline de contingencia — backend real › 2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar (1.3s)
+  ✓  12 [chromium] › e2e-real/contingencia-real.spec.ts:207:3 › POS offline de contingencia — backend real › 3. reconexión: envía la venta pendiente una vez y el reenvío manual no la duplica (2.7s)
+  ✓  13 [chromium] › e2e-real/contingencia-real.spec.ts:224:3 › POS offline de contingencia — backend real › 4. reinicio del navegador con ventas pendientes: el diario sobrevive y se envía al reabrir (1.8s)
+  ✓  14 [chromium] › e2e-real/contingencia-real.spec.ts:245:3 › POS offline de contingencia — backend real › 5. dos pestañas: solo la pestaña operadora puede cobrar (1.2s)
+  ✓  15 [chromium] › e2e-real/contingencia-real.spec.ts:256:3 › POS offline de contingencia — backend real › 6. recuperación tras cierre inesperado: una operación que quedó "enviando" vuelve a pendiente y se envía una sola vez (1.3s)
+  ✓  16 [chromium] › e2e-real/contingencia-real.spec.ts:272:3 › POS offline de contingencia — backend real › 7. pérdida de respuesta: volver a enviar la misma operación no crea otra venta (1.2s)
+  ✓  17 [chromium] › e2e-real/contingencia-real.spec.ts:282:3 › POS offline de contingencia — backend real › 8. cambio de precio durante la desconexión: la venta conserva el precio autorizado y no genera conflicto (1.4s)
+  ✓  18 [chromium] › e2e-real/contingencia-real.spec.ts:302:3 › POS offline de contingencia — backend real › 9. conflicto de stock: la venta se conserva en revisión y el administrador la acepta con nota auditada (1.8s)
+  ✓  19 [chromium] › e2e-real/contingencia-real.spec.ts:333:3 › POS offline de contingencia — backend real › 10. caja cerrada durante la contingencia: el cierre no se toca; el efectivo va a una caja abierta por el administrador (1.7s)
+  ✓  20 [chromium] › e2e-real/contingencia-real.spec.ts:364:3 › POS offline de contingencia — backend real › 11. sesión vencida: el diario conserva la venta, no se borra y se envía al volver a iniciar sesión (2.3s)
+  ✓  21 [chromium] › e2e-real/contingencia-real.spec.ts:387:3 › POS offline de contingencia — backend real › 12. el administrador ve el resumen y resuelve desde el panel móvil (1.0s)
+  ✓  22 [chromium] › e2e-real/contingencia-real.spec.ts:398:3 › POS offline de contingencia — backend real › 14. actualización del service worker: una versión nueva espera y no se activa mientras la caja trabaja (7.2s)
+  ✓  23 [chromium] › e2e-real/contingencia-real.spec.ts:428:3 › POS offline de contingencia — backend real › 13. el diario exportado no contiene tokens ni credenciales (899ms)
+  ✓  24 [chromium] › e2e-real/garantias-real.spec.ts:45:3 › Garantías — backend real y PostgreSQL › administrador: busca factura, guarda 90 días, ve vencimiento, recarga y queda persistido y auditado (1.8s)
+  ✓  25 [chromium] › e2e-real/garantias-real.spec.ts:71:3 › Garantías — backend real y PostgreSQL › factura inexistente: mensaje claro y ningún envío (1.4s)
+  ✓  26 [chromium] › e2e-real/garantias-real.spec.ts:80:3 › Garantías — backend real y PostgreSQL › días no válidos: no se puede guardar y la base no cambia (1.5s)
+  ✓  27 [chromium] › e2e-real/garantias-real.spec.ts:92:3 › Garantías — backend real y PostgreSQL › vencimiento de 30 días desde la factura del 1 oct: 31 oct 2026 (1.6s)
+  ✓  28 [chromium] › e2e-real/garantias-real.spec.ts:103:3 › Garantías — backend real y PostgreSQL › duplicado: la misma línea ya garantizada queda bloqueada en la interfaz y responde 409 en la API (1.4s)
+  ✓  29 [chromium] › e2e-real/garantias-real.spec.ts:120:3 › Garantías — backend real y PostgreSQL › solicitudes simultáneas por API: exactamente una garantía para la línea (183ms)
+  ✓  30 [chromium] › e2e-real/garantias-real.spec.ts:134:3 › Garantías — backend real y PostgreSQL › cajero: consulta sin alta ni edición y no puede escribir por API (1.4s)
+  ✓  31 [chromium] › e2e-real/garantias-real.spec.ts:156:3 › Garantías — backend real y PostgreSQL › bodeguero no accede a garantías por API (97ms)
+  ✓  32 [chromium] › e2e-real/garantias-real.spec.ts:162:3 › Garantías — backend real y PostgreSQL › aislamiento: la empresa B no ve ni garantiza facturas de la empresa A (225ms)
+  ✓  33 [chromium] › e2e-real/garantias-real.spec.ts:178:3 › Garantías — backend real y PostgreSQL › administrador cambia días desde la lista: el vencimiento se recalcula desde la factura y queda auditado (1.5s)
+  ✓  34 [chromium] › e2e-real/garantias-real.spec.ts:191:3 › Garantías — backend real y PostgreSQL › móvil 390 px: sin desbordamiento horizontal (1.2s)
+  ✓  35 [chromium] › e2e-real/inicio-roles.spec.ts:17:3 › Inicio según rol (backend real) › el cajero no solicita /dashboard y no ve errores de permisos (2.5s)
+  ✓  36 [chromium] › e2e-real/inicio-roles.spec.ts:28:3 › Inicio según rol (backend real) › el administrador recibe el resumen del negocio (1.2s)
+  ✓  37 [chromium] › e2e-real/precios-real.spec.ts:39:1 › el personal captura sin precio; el dueño fija margen, aprueba y queda registrado (2.9s)
+  ✓  38 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:160:3 › 1. Venta de contado con efectivo › 1.1 contado efectivo: total con ISV 15 %, stock reservado y cobro en efectivo en caja (73ms)
+  -  39 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:174:8 › 1. Venta de contado con efectivo › 1.2 cambio (vuelto): el cajero registra el efectivo recibido y el sistema calcula el cambio — PENDIENTE: no hay campo de efectivo recibido ni cálculo de cambio en POSPage
+  ✓  40 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:178:3 › 2. Venta con tarjeta (POS bancario externo) › 2.1 tarjeta: se registra como tarjeta y no suma al efectivo esperado de la caja (88ms)
+  -  41 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:188:8 › 2. Venta con tarjeta (POS bancario externo) › 2.2 datáfono: la venta guarda la referencia de autorización del POS bancario — PENDIENTE: no hay integración ni campo de autorización
+  ✓  42 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:192:3 › 3. Venta al crédito para cliente registrado › 3.1 crédito: suma saldo del cliente y crea la cuenta por cobrar (84ms)
+  ✓  43 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:204:3 › 3. Venta al crédito para cliente registrado › 3.2 crédito rechazado: sin cliente, cliente sin crédito y sobre el límite no crean venta (83ms)
+  ✓  44 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:215:3 › 4. Abonos parciales y totales de clientes › 4.1 abono parcial reduce el saldo de la cuenta, del cliente y del crédito de la venta (54ms)
+  ✓  45 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:223:3 › 4. Abonos parciales y totales de clientes › 4.2 mismo abono reenviado (mismo solicitudId) no registra un segundo pago (53ms)
+  ✓  46 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:234:3 › 4. Abonos parciales y totales de clientes › 4.3 mismo solicitudId con otro importe se rechaza con 409 (41ms)
+  ✓  47 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:242:3 › 4. Abonos parciales y totales de clientes › 4.4 abono mayor al saldo o con más de dos decimales se rechaza (32ms)
+  ✓  48 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:249:3 › 4. Abonos parciales y totales de clientes › 4.5 abono total deja el saldo en cero y un abono adicional se rechaza (50ms)
+  ✓  49 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:257:3 › 4. Abonos parciales y totales de clientes › 4.6 abono por doble clic en la interfaz: se registra un solo pago (3.1s)
+  ✓  50 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:278:3 › 5. Cotización convertida a venta › 5.1 cotización se convierte una sola vez; la segunda conversión se rechaza (110ms)
+  ✓  51 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:296:3 › 6. Descuentos sujetos a autorización › 6.1 cajero sin permiso de descuento no puede aplicarlo y no se crea venta (52ms)
+  ✓  52 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:303:3 › 6. Descuentos sujetos a autorización › 6.2 cajero con permiso aplica descuento hasta su límite; por encima exige administrador (65ms)
+  ✓  53 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:311:3 › 6. Descuentos sujetos a autorización › 6.3 administrador aplica descuento sin tope de cajero (31ms)
+  ✓  54 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:319:3 › 7. Manipulación de importes desde el cliente › 7.1 precio alterado por el cajero se rechaza (22ms)
+  ✓  55 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:324:3 › 7. Manipulación de importes desde el cliente › 7.2 total, subtotal e ISV enviados por el cliente se ignoran; el servidor recalcula (31ms)
+  ✓  56 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:330:3 › 7. Manipulación de importes desde el cliente › 7.3 cantidades negativas, fraccionarias excesivas o inventadas se rechazan (38ms)
+  ✓  57 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:337:3 › 7. Manipulación de importes desde el cliente › 7.4 descuento negativo, método inventado o tipo de pago que no coincide se rechazan (32ms)
+  ✓  58 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:346:3 › 8. Aislamiento entre empresas › 8.1 la empresa B no ve ni opera datos de la empresa A (79ms)
+  ✓  59 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:362:3 › 9. Sesiones vencidas y revocadas › 9.1 token vencido no registra venta (36ms)
+  ✓  60 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:373:3 › 9. Sesiones vencidas y revocadas › 9.2 token alterado no registra venta (7ms)
+  ✓  61 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:378:3 › 9. Sesiones vencidas y revocadas › 9.3 usuario desactivado pierde el acceso aunque conserve un token vigente (47ms)
+  ✓  62 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:389:3 › 10. Concurrencia: dos cajeros, mismo producto › 10.1 último producto vendido por dos cajeros a la vez: solo una venta (68ms)
+  ✓  63 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:401:3 › 11. Doble envío y pérdida de respuesta › 11.1 mismo solicitudId enviado dos veces a la vez: una sola venta y mismo número (57ms)
+  ✓  64 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:411:3 › 11. Doble envío y pérdida de respuesta › 11.2 mismo solicitudId con líneas distintas se rechaza (50ms)
+  ✘  65 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:420:8 › 11. Doble envío y pérdida de respuesta › 11.3 DEF-02: venta sin solicitudId debe rechazarse; hoy un reintento crea otra venta (30ms)
+  ✓  66 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:427:3 › 12. Entrega y reserva de stock › 12.1 entrega descuenta existencia física una sola vez; repetir la entrega no la descuenta de nuevo (147ms)
+  -  67 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:443:8 › 12. Entrega y reserva de stock › 12.2 canal web para cliente final (compra desde tienda) — PENDIENTE: no existe en el código y su alcance no está confirmado; la venta en línea con reserva y entrega está en 12.1
+  ✓  68 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:447:3 › 13. Reportes de ventas › 13.1 resumen del día por método coincide con la base de datos (solo administrador) (55ms)
+  ✓  69 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:460:3 › 13. Reportes de ventas › 13.2 cajero no accede al resumen administrativo (15ms)
+  -  70 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:465:8 › 13. Reportes de ventas › 13.3 reporte por cajero: ventas agrupadas por cajero, método y fecha — PENDIENTE: /operaciones/resumen no tiene dimensión por cajero
+  ✓  71 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:469:3 › 14. Operación de la interfaz POS › 14.1 contado en el POS: cobra en efectivo y la venta queda en base de datos (1.8s)
+  ✓  72 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:481:3 › 14. Operación de la interfaz POS › 14.2 doble clic en Procesar Venta registra una sola venta (3.4s)
+  ✓  73 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:495:3 › 14. Operación de la interfaz POS › 14.3 pérdida de respuesta tras enviar: la UI pide revisar, no reenvía y no duplica la venta (3.4s)
+  -  74 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:523:8 › 14. Operación de la interfaz POS › 14.4 respuesta tardía del servidor: el POS no reintenta mientras la venta sigue en curso — PENDIENTE: no automatizado (requiere inyección de latencia controlada)
+  ✓  75 [chromium] › e2e-real/qa-ciclo-venta.spec.ts:527:3 › 15. Cierre de caja › 15.1 cierre: el efectivo esperado solo suma efectivo; diferencias exigen explicación (98ms)
+
+
+  1) [chromium] › e2e-real/balance-real.spec.ts:74:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › el administrador ve la deuda del cliente y registra un abono; el saldo se actualiza en pantalla y en la base 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "30"
+    Received: "29"
+
+      60 |     // Vencimiento = día de venta + plazo del cliente (30), calculado por el servidor.
+      61 |     const plazo = sql(`SELECT (vencimiento::date - created_at::date) FROM cuentas_operativas WHERE id='${cuentaVentaId}'`);
+    > 62 |     expect(plazo).toBe('30');
+         |                   ^
+      63 |     // Producto propio de este spec (no el Taladro compartido por otros specs). ISV 15% sobre 8900 = 10235.
+      64 |     saldoInicialVenta = Number(sql(`SELECT saldo::text FROM cuentas_operativas WHERE id='${cuentaVentaId}'`));
+      65 |     expect(saldoInicialVenta).toBe(10235);
+        at /home/user/s148-wt/frontend/e2e-real/balance-real.spec.ts:62:19
+
+    Error Context: test-results/balance-real-BALANCE-cuent-0a06b-za-en-pantalla-y-en-la-base-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/balance-real-BALANCE-cuent-0a06b-za-en-pantalla-y-en-la-base-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/balance-real-BALANCE-cuent-0a06b-za-en-pantalla-y-en-la-base-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e-real/balance-real.spec.ts:74:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › el administrador ve la deuda del cliente y registra un abono; el saldo se actualiza en pantalla y en la base 
+  5 skipped
+  5 did not run
+  64 passed (1.3m)
+EXIT=1
