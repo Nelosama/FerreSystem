@@ -20,6 +20,8 @@ import './PosContingenciaPage.css';
 // y el borrador viven en IndexedDB. Con conexión, renueva la ventana y envía las ventas pendientes.
 
 const INTERVALO_SYNC_MS = 30_000;
+/** Debe coincidir con MAX_CENTAVOS del servidor (backend/src/contingencia/dto/contingencia.dto.ts). */
+const MAX_CENTAVOS_SERVIDOR = 2_000_000_000;
 const UMBRAL_RENOVAR_MS = 2 * 3_600_000;
 const LIMITE_LINEAS = 60;
 const CLAVE_PAPEL = 'pos-contingencia-papel';
@@ -257,6 +259,8 @@ export default function PosContingenciaPage() {
     if (!lineas.length) return 'Agregue productos para cobrar.';
     if (efectivoCentavos === null) return 'Escriba el efectivo recibido.';
     if (efectivoCentavos < totales.total) return `Falta ${formatearCentavos(totales.total - efectivoCentavos)} para cubrir la venta.`;
+    // H-E (CENTINELA): el servidor no admite importes mayores a este máximo; mejor avisar aquí que dejar la venta en revisión.
+    if (efectivoCentavos > MAX_CENTAVOS_SERVIDOR) return `El efectivo supera el máximo permitido (${formatearCentavos(MAX_CENTAVOS_SERVIDOR)}). Revise el importe escrito.`;
     if (ventana.limites.montoMaxVentaCentavos && totales.total > ventana.limites.montoMaxVentaCentavos) {
       return `La venta supera el límite de contingencia de ${formatearCentavos(ventana.limites.montoMaxVentaCentavos)}.`;
     }

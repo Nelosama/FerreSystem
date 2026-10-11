@@ -9,7 +9,7 @@ import { calcularTotales, centavosADecimal } from '../common/dinero';
 import { operacionEmitida, operacionesEmitidas } from './operaciones-emitidas';
 import { diaCalendario, rangoDiasEnZona, ZONA_HORARIA_NEGOCIO } from '../common/zona-horaria';
 import {
-  ConfigContingenciaDto, LoteOperacionesDto, OperacionContingenciaDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto,
+  ConfigContingenciaDto, LoteOperacionesDto, MAX_CENTAVOS, OperacionContingenciaDto, RegistrarDispositivoDto, ResolverOperacionDto, SolicitarVentanaDto, limpiarTexto,
 } from './dto/contingencia.dto';
 
 // POS offline de contingencia (solo EFECTIVO). Ver docs/POS_OFFLINE_CONTINGENCIA_DISENO.md.
@@ -316,7 +316,8 @@ export class ContingenciaService {
         const status = error?.status ?? 500;
         if (status >= 500) {
           // Error técnico (BD, bloqueo, tiempo): nada definitivo; el cliente reintenta con el mismo UUID y no se pierde nada.
-          resultados.push({ operacionId: op.operacionId, estado: 'ERROR_TEMPORAL', codigo: null, mensaje: error?.message ?? 'Error' });
+          // H-A (CENTINELA): el texto del error (rutas y código fuente de Prisma) se queda en el registro del servidor; al equipo no se le devuelve.
+          resultados.push({ operacionId: op.operacionId, estado: 'ERROR_TEMPORAL', codigo: null, mensaje: 'Error temporal del servidor; se reintentará' });
         } else {
           // H5: un 4xx es un rechazo definitivo. Debe quedar en el servidor para que el administrador lo vea; nunca es una venta.
           try {
@@ -428,6 +429,10 @@ export class ContingenciaService {
     if (!(dto.totalCentavos > 0) || dto.efectivoRecibidoCentavos < dto.totalCentavos) {
       throw new BadRequestException({ message: 'La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador', code: 'IMPORTE_INVALIDO' });
     }
+    // H-D (CENTINELA): una línea cuyo importe supera el máximo no se puede convertir a decimal (RangeError al aceptar). Se rechaza aquí.
+    if (dto.lineas.some((l) => (l.precioCentavos * l.cantidadCentesimas) / 100 > MAX_CENTAVOS)) {
+      throw new BadRequestException({ message: 'Una línea supera el importe máximo permitido; se conserva en el equipo para revisión del administrador', code: 'IMPORTE_INVALIDO' });
+    }
     const hash = fingerprint(canonico({ ...dto }));
     const ventana = await db.contingenciaVentana.findFirst({ where: { id: dto.ventanaId, tenantId, dispositivoId } });
     if (!ventana) throw new BadRequestException({ message: 'Ventana de contingencia desconocida', code: 'VENTANA_DESCONOCIDA' });
@@ -494,13 +499,20 @@ export class ContingenciaService {
     const campos = errores.map((e) => ({ campo: e.property, reglas: Object.keys(e.constraints ?? {}) }));
     const valido = typeof uuid === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuid);
     if (valido) {
-      const idInterno = idSolicitud(tenantId, uuid);
-      const yaAuditada = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno, usuarioId } });
-      if (!yaAuditada) {
-        await this.prisma.auditoriaOperacion.create({
-          data: { tenantId, usuarioId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno,
-            datos: { codigo: 'FORMATO_INVALIDO', mensaje, campos, payload: crudo } as any },
-        });
+      // H-A (CENTINELA): el payload original puede traer caracteres nulos (justo la causa del formato inválido) y jsonb no los admite.
+      // Se guardan sin ellos. Y un fallo al guardar esta evidencia nunca debe tumbar el lote: la respuesta por operación se da igual.
+      try {
+        const idInterno = idSolicitud(tenantId, uuid);
+        const yaAuditada = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno, usuarioId } });
+        if (!yaAuditada) {
+          const payload = JSON.parse(JSON.stringify(crudo).replace(/\\u0000/g, ''));
+          await this.prisma.auditoriaOperacion.create({
+            data: { tenantId, usuarioId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno,
+              datos: { codigo: 'FORMATO_INVALIDO', mensaje, campos, payload } as any },
+          });
+        }
+      } catch (falloEvidencia: any) {
+        this.logger.error(`Evidencia de formato inválido de ${uuid} no registrada: ${falloEvidencia?.message}`);
       }
     }
     return { operacionId: valido ? uuid : null, estado: 'RECHAZADA_TECNICA', codigo: 'FORMATO_INVALIDO', mensaje, instruccion: 'Avise al administrador: la operación no tiene un formato válido.', requiereRevision: true, conflictos: [] };
@@ -950,7 +962,7 @@ export class ContingenciaService {
       op.cajaId, tenantId, op.usuarioId);
     if (!caja) throw new ConflictException({ message: 'La caja del cajero que cobró no existe; no se registra el efectivo en otra caja', code: 'CAJA_DEL_COBRO_NO_ENCONTRADA' });
     const cerrada = caja.estado !== 'ABIERTA';
-    if (cerrada && regularizacion && regularizacion.motivo.trim().length < 20) {
+    if (cerrada && regularizacion && limpiarTexto(regularizacion.motivo).toString().length < 20) {
       throw new BadRequestException({ message: 'El motivo de la regularización debe tener al menos 20 caracteres', code: 'MOTIVO_REGULARIZACION_INSUFICIENTE' });
     }
     if (cerrada && !regularizacion) {
@@ -971,7 +983,7 @@ export class ContingenciaService {
       const diferenciaAnterior = Number(caja.diferencia ?? 0);
       const esperadoNuevo = money(esperadoAnterior + monto);
       const diferenciaNueva = money(Number(caja.monto_cierre_fisico ?? 0) - esperadoNuevo);
-      const nota = `${caja.notas ? `${caja.notas} | ` : ''}Regularización ${op.correlativoLocal}: +${monto} (${regularizacion!.motivo.trim()})`;
+      const nota = `${caja.notas ? `${caja.notas} | ` : ''}Regularización ${op.correlativoLocal}: +${monto} (${limpiarTexto(regularizacion!.motivo)})`;
       await query(tx, 'UPDATE cajas SET monto_esperado=$1, diferencia=$2, notas=$3 WHERE id=$4', esperadoNuevo, diferenciaNueva, nota, caja.id);
       await audit(tx, tenantId, adminId, 'CONTINGENCIA_REGULARIZAR_CAJA_CERRADA', op.id,
         { cajaId: caja.id, monto, movimientoId, motivo: regularizacion!.motivo, esperadoAnterior, esperadoNuevo, diferenciaAnterior, diferenciaNueva });

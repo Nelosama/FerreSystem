@@ -5,6 +5,16 @@ import {
 } from 'class-validator';
 import { OPERACIONES_POR_VENTANA } from '../operaciones-emitidas';
 
+/**
+ * H-A (CENTINELA): PostgreSQL no admite el carácter nulo en texto (22021/22P05); si llegaba hasta la base, la operación quedaba como
+ * error temporal y se reintentaba sin fin. Se rechaza en el DTO como formato inválido de esa operación.
+ */
+const SinNul = () => Matches(/^[^\u0000]*$/, { message: '$property no admite caracteres nulos' });
+
+/** H-C (CENTINELA): un texto libre se mide sin espacios de relleno ni caracteres de ancho cero (U+200B, U+200C, U+200D, U+2060, U+FEFF). */
+export const limpiarTexto = (valor: unknown) => (typeof valor === 'string' ? valor.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim() : valor);
+const TextoLimpio = () => Transform(({ value }) => limpiarTexto(value));
+
 export class RegistrarDispositivoDto {
   @IsUUID('4') dispositivoId: string;
   @IsString() @IsNotEmpty() @MaxLength(80) nombre: string;
@@ -19,7 +29,7 @@ export class SolicitarVentanaDto {
 }
 
 export class LineaContingenciaDto {
-  @IsString() @IsNotEmpty() @MaxLength(100) productoId: string;
+  @IsString() @IsNotEmpty() @MaxLength(100) @SinNul() productoId: string;
   @IsInt() @Min(1) @Max(99999999) cantidadCentesimas: number;
   @IsInt() @Min(0) @Max(9999999999) precioCentavos: number;
 }
@@ -39,7 +49,7 @@ export class OperacionContingenciaDto {
   @IsInt() @Min(1) @Max(99999999) secuenciaLocal: number;
   @Matches(/^CT-\d{2,3}-\d{4,8}$/) correlativoLocal: string;
   @IsDateString() ocurridoAtLocal: string;
-  @IsString() @IsNotEmpty() cajeroId: string;
+  @IsString() @IsNotEmpty() @SinNul() cajeroId: string;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => LineaContingenciaDto)
   lineas: LineaContingenciaDto[];
   // CENTINELA D: sin mínimo 1; un importe 0 lo clasifica el servicio (IMPORTE_INVALIDO) sin rechazar el lote entero.
@@ -49,9 +59,9 @@ export class OperacionContingenciaDto {
   @IsInt() @Min(0) @Max(MAX_CENTAVOS) efectivoRecibidoCentavos: number;
   @IsInt() @Min(0) @Max(MAX_CENTAVOS) cambioCentavos: number;
   @IsOptional() @IsIn(['EFECTIVO']) metodoPago?: 'EFECTIVO';
-  @IsOptional() @IsString() @MaxLength(200) clienteNombre?: string;
-  @IsOptional() @IsString() @MaxLength(100) clienteRtn?: string;
-  @IsOptional() @IsString() @MaxLength(100) referenciaFacturaExterna?: string;
+  @IsOptional() @IsString() @MaxLength(200) @SinNul() clienteNombre?: string;
+  @IsOptional() @IsString() @MaxLength(100) @SinNul() clienteRtn?: string;
+  @IsOptional() @IsString() @MaxLength(100) @SinNul() referenciaFacturaExterna?: string;
   @IsInt() @Min(1) esquemaVersion: number;
 }
 
@@ -65,18 +75,18 @@ export class LoteOperacionesDto {
 
 export class ResolverOperacionDto {
   @IsIn(['REINTENTAR', 'ACEPTAR', 'CERRAR_MANUAL', 'MARCAR_REVISADA']) accion: 'REINTENTAR' | 'ACEPTAR' | 'CERRAR_MANUAL' | 'MARCAR_REVISADA';
-  @IsString() @MinLength(10) @MaxLength(500) nota: string;
+  @TextoLimpio() @SinNul() @IsString() @MinLength(10) @MaxLength(500) nota: string;
   /** Caja ABIERTA donde se aplica la venta al ACEPTAR. En CERRAR_MANUAL el efectivo va siempre a la caja del cajero que cobró. */
-  @IsOptional() @IsString() cajaId?: string;
+  @IsOptional() @IsString() @SinNul() cajaId?: string;
   /** R-02: regularización excepcional para registrar el efectivo en la caja CERRADA del cajero que cobró. Exige motivo. */
   @IsOptional() @IsBoolean() regularizarCajaCerrada?: boolean;
   // H-3 (CENTINELA): el mínimo de 20 caracteres se cuenta sobre el texto recortado; espacios en blanco no son un motivo.
-  @ValidateIf((o) => o.regularizarCajaCerrada === true) @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value)) @IsString() @MinLength(20) @MaxLength(500) motivoRegularizacion?: string;
-  @IsOptional() @IsString() @MaxLength(100) referenciaFacturaExterna?: string;
+  @ValidateIf((o) => o.regularizarCajaCerrada === true) @TextoLimpio() @SinNul() @IsString() @MinLength(20) @MaxLength(500) motivoRegularizacion?: string;
+  @IsOptional() @TextoLimpio() @SinNul() @IsString() @MaxLength(100) referenciaFacturaExterna?: string;
 }
 
 export class ActualizarReferenciaDto {
-  @IsString() @MaxLength(100) referenciaFacturaExterna: string;
+  @TextoLimpio() @SinNul() @IsString() @MaxLength(100) referenciaFacturaExterna: string;
 }
 
 export class ConfigContingenciaDto {

@@ -30,6 +30,10 @@ export function cambiosSegunRespuesta(op: OperacionLocal, r: RespuestaOperacion,
       };
     case 'REVISION':
       return { estado: 'REVISION', conflictos: r.conflictos ?? [], requiereRevision: true, ultimoError: undefined };
+    case 'RESUELTA_MANUAL':
+      // H-B (CENTINELA): si la respuesta original se perdió y la administración cerró la operación sin aplicarla, el reenvío devuelve
+      // este estado. Es definitivo: sin tratarlo, la operación quedaba PENDIENTE en bucle y el contador de pendientes nunca bajaba.
+      return { estado: 'SINCRONIZADA', requiereRevision: false, conflictos: r.conflictos ?? op.conflictos, ultimoError: 'Cerrada por administración sin aplicar' };
     case 'RECHAZADA_TECNICA':
       // Un rechazo técnico no descarta la venta: queda en revisión con el motivo visible.
       return {
@@ -119,8 +123,9 @@ export async function sincronizarPendientes(
 
 /** Un 4xx que no es de autenticación ni de permisos: el servidor rechazó la solicitud (no se reintenta igual). */
 function esRechazoDeLote(status: number | undefined): boolean {
-  // Solo 400 es un rechazo definitivo de la operación. 404, 408, 409 o 429 no dicen nada de la venta: se reintentan.
-  return status === 400;
+  // 400 es un rechazo definitivo de la operación. 413 (cuerpo demasiado grande) tampoco se resuelve reenviando el mismo lote: se
+  // envía de una en una (H-E de CENTINELA). 404, 408, 409 o 429 no dicen nada de la venta: se reintentan.
+  return status === 400 || status === 413;
 }
 
 /** Reenvío aislado de una operación. Un rechazo definitivo queda en revisión con el motivo; un fallo de red o 5xx se reintenta. */

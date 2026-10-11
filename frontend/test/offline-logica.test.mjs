@@ -79,6 +79,15 @@ test('rechazo técnico del servidor: pasa a revisión con el motivo visible, no 
   assert.equal(c.conflictos[0].detalle.mensaje, 'Ventana de contingencia desconocida');
 });
 
+test('RESUELTA_MANUAL en la respuesta del lote: la operación queda sincronizada, sin revisión y sin reintentos', () => {
+  const c = sync.cambiosSegunRespuesta(op({ intentos: 3 }), { operacionId: 'a', estado: 'RESUELTA_MANUAL', conflictos: [{ codigo: 'IMPORTE_INVALIDO' }] });
+  assert.equal(c.estado, 'SINCRONIZADA');
+  assert.equal(c.requiereRevision, false);
+  assert.equal(c.proximoIntentoAt, undefined);
+  assert.equal(c.intentos, undefined);
+  assert.deepEqual(c.conflictos, [{ codigo: 'IMPORTE_INVALIDO' }]);
+});
+
 test('error temporal: vuelve a pendiente con reintento programado y contador de intentos', () => {
   const ahora = new Date('2026-10-10T13:00:00Z');
   const c = sync.cambiosSegunRespuesta(op({ intentos: 2 }), { operacionId: 'a', estado: 'ERROR_TEMPORAL', mensaje: 'Servidor ocupado' }, ahora);
