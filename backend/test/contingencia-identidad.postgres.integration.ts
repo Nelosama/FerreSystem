@@ -6,7 +6,8 @@ import { createServer } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { ConflictException } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { ContingenciaService } from '../src/contingencia/contingencia.service';
+import { ContingenciaService, claveAnteriorDeOperaciones, claveDeOperaciones } from '../src/contingencia/contingencia.service';
+import { operacionEmitida } from '../src/contingencia/operaciones-emitidas';
 import { idSolicitud } from '../src/operaciones/ledger';
 import { emitirRegistrada, siguienteOperacion } from './helpers/operaciones-emitidas';
 
@@ -228,6 +229,36 @@ describe('Contingencia identidad (H-5 / H-6): cajeros y tenants en PostgreSQL ai
     await recibir(e, [opDueno], e.cajero);
     await expect(svc.actualizarReferencia(e.tenantId, b.id, 'CAJERO', opDueno.operacionId, 'REF-AJENA')).rejects.toThrow(/no encontrada/);
     await expect(svc.actualizarReferencia(e.tenantId, b.id, 'CAJERO', randomUUID(), 'REF')).rejects.toThrow(/no encontrada/);
+  });
+
+  // F4 (CENTINELA): la clave de derivación es dedicada y obligatoria; no hay valor por defecto.
+  it('F4: sin clave dedicada, o con una demasiado corta, el servicio no se configura', () => {
+    expect(() => claveDeOperaciones({})).toThrow(/obligatoria/);
+    expect(() => claveDeOperaciones({ CONTINGENCIA_CLAVE_OPERACIONES: 'corta' })).toThrow(/obligatoria/);
+    expect(claveDeOperaciones({ CONTINGENCIA_CLAVE_OPERACIONES: 'x'.repeat(32) })).toHaveLength(32);
+    expect(claveAnteriorDeOperaciones({})).toBeNull();
+    expect(() => claveAnteriorDeOperaciones({ CONTINGENCIA_CLAVE_OPERACIONES_ANTERIOR: 'corta' })).toThrow();
+  });
+
+  // F4 transición: las ventanas derivadas con la clave anterior se verifican solo si esa clave está configurada.
+  it('F4 transición: un identificador derivado con la clave anterior se acepta solo durante la transición', async () => {
+    const e = await empresa();
+    const claveAnterior = 'clave-anterior-de-transicion-0000000000000001';
+    const pendiente = { ...operacion(e), operacionId: operacionEmitida(claveAnterior, e.ventanaId, 0), indiceOperacion: 0 };
+    // Sin transición: la clave actual no reconoce ese identificador.
+    expect((await recibir(e, [pendiente])).resultados[0]).toMatchObject({ codigo: 'OPERACION_NO_EMITIDA' });
+    expect(await filaDe(e.tenantId, pendiente.operacionId)).toBeNull();
+    // Con la clave anterior configurada, la operación pendiente se aplica.
+    const previo = process.env.CONTINGENCIA_CLAVE_OPERACIONES_ANTERIOR;
+    process.env.CONTINGENCIA_CLAVE_OPERACIONES_ANTERIOR = claveAnterior;
+    try {
+      const enTransicion = new ContingenciaService(prisma);
+      const r = (await enTransicion.recibirLote(e.tenantId, e.cajero, 'CAJERO', { dispositivoId: e.equipoId, pendientesRestantes: 0, operaciones: [pendiente] } as any)).resultados[0];
+      expect(r).toMatchObject({ operacionId: pendiente.operacionId, estado: 'APLICADA' });
+    } finally {
+      if (previo === undefined) delete process.env.CONTINGENCIA_CLAVE_OPERACIONES_ANTERIOR; else process.env.CONTINGENCIA_CLAVE_OPERACIONES_ANTERIOR = previo;
+    }
+    expect(await ventasDe(e.tenantId)).toBe(1);
   });
 
   // H-6 (CENTINELA): aislamiento entre empresas. Un UUID de otra empresa no es válido aquí y no toca sus datos.

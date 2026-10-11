@@ -1,7 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { ConfigService } from '@nestjs/config';
-import { getJwtSecret } from '../auth/jwt-secret';
 import { plainToInstance } from 'class-transformer';
 import { validate as validarDto } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,6 +26,22 @@ export interface ConfigEfectiva {
   vigenciaHoras: number;
   dispositivosMax: number;
 }
+/** F4 (CENTINELA): la clave de derivación es dedicada y obligatoria. No hay valor por defecto ni fallback a otro secreto. */
+const LONGITUD_MINIMA_CLAVE = 32;
+export function claveDeOperaciones(entorno: NodeJS.ProcessEnv): string {
+  const clave = entorno.CONTINGENCIA_CLAVE_OPERACIONES ?? '';
+  if (clave.length < LONGITUD_MINIMA_CLAVE) throw new Error(`CONTINGENCIA_CLAVE_OPERACIONES es obligatoria y debe tener al menos ${LONGITUD_MINIMA_CLAVE} caracteres`);
+  return clave;
+}
+/** Transición: clave anterior con la que se derivaron las ventanas emitidas antes del cambio. Se retira al vaciar pendientes. */
+export function claveAnteriorDeOperaciones(entorno: NodeJS.ProcessEnv): string | null {
+  const clave = entorno.CONTINGENCIA_CLAVE_OPERACIONES_ANTERIOR ?? '';
+  if (!clave) return null;
+  if (clave.length < LONGITUD_MINIMA_CLAVE) throw new Error(`CONTINGENCIA_CLAVE_OPERACIONES_ANTERIOR debe tener al menos ${LONGITUD_MINIMA_CLAVE} caracteres`);
+  return clave;
+}
+/** Rechazos por identidad o por clave: un reenvío legítimo posterior se reevalúa, no queda bloqueado. */
+const CODIGOS_REEVALUABLES = new Set(['CAJERO_NO_AUTORIZADO', 'OPERACION_NO_EMITIDA']);
 const DEFECTOS = {
   cupoPorcentaje: 50, margenUnidades: 1, montoMaxVentaCentavos: 500_000, montoMaxAcumuladoCentavos: 2_500_000,
   vigenciaHoras: 36, dispositivosMax: 1,
@@ -70,8 +84,10 @@ const esRechazo = (f: { conflictos?: unknown }) => Array.isArray(f.conflictos) &
 @Injectable()
 export class ContingenciaService {
   private readonly logger = new Logger(ContingenciaService.name);
-  /** H-5: clave del servidor para derivar operaciones. Nunca sale del backend. */
-  private readonly claveOperaciones = getJwtSecret(new ConfigService());
+  /** F4 (CENTINELA): clave dedicada y obligatoria para derivar los identificadores de operación. Nunca sale del backend. */
+  private readonly claveOperaciones = claveDeOperaciones(process.env);
+  /** Transición: clave que derivó las ventanas emitidas antes del cambio. Solo verifica; nunca emite. */
+  private readonly claveAnteriorOperaciones = claveAnteriorDeOperaciones(process.env);
   constructor(private readonly prisma: PrismaService) {}
 
   // ───────────────────────── configuración (apagada por defecto) ─────────────────────────
@@ -394,7 +410,7 @@ export class ContingenciaService {
     }
     // H-5: el identificador tiene que ser una de las operaciones que el servidor emitió para esta ventana y este índice.
     // Un UUID ajeno o inventado no coincide con la derivación de la ventana de quien lo envía y no crea fila.
-    if (dto.indiceOperacion === undefined || operacionEmitida(this.claveOperaciones, ventana.id, dto.indiceOperacion) !== dto.operacionId) {
+    if (dto.indiceOperacion === undefined || !this.emitidaValida(ventana.id, dto.indiceOperacion, dto.operacionId)) {
       throw new BadRequestException({ message: 'La operación no fue emitida por el servidor para esta ventana; no se registró venta', code: 'OPERACION_NO_EMITIDA' });
     }
 
@@ -467,7 +483,11 @@ export class ContingenciaService {
    * bloquea a quien es dueño de la operación: no hay «ya rechazada» global cuando no existe fila.
    */
   private async respuestaSinRegistroPara(tenantId: string, operacionId: string, usuarioId: string, rol: string) {
-    return this.respuestaSinRegistro(tenantId, operacionId, rol === 'ADMIN' ? undefined : usuarioId);
+    const base = await this.respuestaSinRegistro(tenantId, operacionId, rol === 'ADMIN' ? undefined : usuarioId);
+    // F4 (transición): un rechazo por identidad o por clave no bloquea un reenvío legítimo; se reevalúa con las reglas actuales.
+    // Un rechazo por contenido (importe, ventana) sí bloquea, para que una corrección no se aplique después.
+    if (base && CODIGOS_REEVALUABLES.has(base.codigo)) return null;
+    return base;
   }
 
   /**
@@ -528,12 +548,18 @@ export class ContingenciaService {
     return { operacionId: dto.operacionId, estado: 'RECHAZADA_TECNICA', codigo, mensaje, instruccion: INSTRUCCION_RECHAZO[codigo] ?? 'Avise al administrador: la venta queda para conciliación.', requiereRevision: true, conflictos: [] };
   }
 
+  /** Verifica un identificador contra la emisión de la ventana: con la clave actual y, solo durante la transición, con la anterior. */
+  private emitidaValida(ventanaId: string, indice: number, operacionId: string): boolean {
+    if (operacionEmitida(this.claveOperaciones, ventanaId, indice) === operacionId) return true;
+    return this.claveAnteriorOperaciones !== null && operacionEmitida(this.claveAnteriorOperaciones, ventanaId, indice) === operacionId;
+  }
+
   /** Ventana que puede respaldar un rechazo con fila: del remitente (o de un administrador) y con el identificador emitido para ella. */
   private async ventanaDelRemitente(tenantId: string, usuarioId: string, rol: string, dispositivoId: string, dto: OperacionContingenciaDto) {
     const ventana = await this.prisma.contingenciaVentana.findFirst({ where: { id: dto.ventanaId, tenantId, dispositivoId } });
     if (!ventana) return null;
     if (rol !== 'ADMIN' && ventana.usuarioId !== usuarioId) return null;
-    const emitida = dto.indiceOperacion !== undefined && operacionEmitida(this.claveOperaciones, ventana.id, dto.indiceOperacion) === dto.operacionId;
+    const emitida = dto.indiceOperacion !== undefined && this.emitidaValida(ventana.id, dto.indiceOperacion, dto.operacionId);
     return emitida ? ventana : null;
   }
 
