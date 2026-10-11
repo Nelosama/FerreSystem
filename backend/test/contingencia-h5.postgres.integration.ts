@@ -329,4 +329,29 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     expect(r.mensaje).not.toMatch(/importe/i);
     expect(await ventasDe(e.tenantId)).toBe(0);
   });
+
+  // Hallazgos H4 y H3-N de la auditoría CENTINELA sobre 978e0b10.
+  it('H4: el remitente de un rechazo por ventana de otro cajero no recibe el identificador de esa ventana', async () => {
+    const e = await empresa();
+    const otro = randomUUID();
+    await prisma.usuario.create({ data: { id: otro, tenantId: e.tenantId, nombre: 'Cajero E', email: `${otro}@test.invalid`, passwordHash: 'x', rol: 'CAJERO', permisosConfigurados: false, permisos: [] } as any });
+    // Ventana emitida en el mismo equipo por otro cajero (con caja abierta). El remitente es e.cajero.
+    await prisma.caja.create({ data: { tenantId: e.tenantId, codigo: 'CAJA-E', usuarioId: otro, montoApertura: 0, estado: 'ABIERTA' } as any });
+    const ventanaOtro = (await svc.emitirVentana(e.tenantId, otro, { dispositivoId: e.equipoId })).ventana;
+    const op = operacion(e, { ventanaId: ventanaOtro.id, cajeroId: e.cajero });
+    const r = (await recibir(e, [op])).resultados[0];
+    expect(r.codigo).toBe('VENTANA_DE_OTRO_CAJERO');
+    expect(JSON.stringify(r)).not.toContain(ventanaOtro.id);
+  });
+
+  it('H3-N: un elemento nulo en el lote no aborta las operaciones válidas', async () => {
+    const e = await empresa();
+    const buena = operacion(e);
+    const antes = await ventasDe(e.tenantId);
+    const r = await recibir(e, [null, buena] as any[]);
+    expect(r.resultados).toHaveLength(2);
+    expect(r.resultados[0]).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'FORMATO_INVALIDO' });
+    expect(r.resultados[1]).toMatchObject({ operacionId: buena.operacionId, estado: 'APLICADA' });
+    expect(await ventasDe(e.tenantId)).toBe(antes + 1);
+  });
 });

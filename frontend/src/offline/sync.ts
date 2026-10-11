@@ -93,7 +93,7 @@ export async function sincronizarPendientes(
       }
     } catch (error: any) {
       const status = error?.response?.status;
-      if (esRechazoDeLote(status) && lote.length > 1) {
+      if (esRechazoDeLote(status)) {
         // Una operación mal formada no puede bloquear la cola: se reenvían una por una para aislarla.
         for (const op of lote) await enviarUnaPorUna(api, dispositivoId, todas, op, resultado);
         continue;
@@ -119,7 +119,8 @@ export async function sincronizarPendientes(
 
 /** Un 4xx que no es de autenticación ni de permisos: el servidor rechazó la solicitud (no se reintenta igual). */
 function esRechazoDeLote(status: number | undefined): boolean {
-  return typeof status === 'number' && status >= 400 && status < 500 && status !== 401 && status !== 403;
+  // Solo 400 es un rechazo definitivo de la operación. 404, 408, 409 o 429 no dicen nada de la venta: se reintentan.
+  return status === 400;
 }
 
 /** Reenvío aislado de una operación. Un rechazo definitivo queda en revisión con el motivo; un fallo de red o 5xx se reintenta. */

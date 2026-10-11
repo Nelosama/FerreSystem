@@ -59,7 +59,7 @@ const INSTRUCCION_RECHAZO: Record<string, string> = {
 /** CENTINELA 8b/F2/F3: la respuesta al equipo no revela datos de otros cajeros, otras operaciones ni el payload de un reenvío alterado. */
 const sinDatosDeOtroCajero = (c: any) => {
   if (!c?.detalle) return c;
-  const { ventanaUsuarioId: _v, payloadRecibido: _p, otras: _o, ...resto } = c.detalle;
+  const { ventanaUsuarioId: _v, ventanaId: _w, payloadRecibido: _p, otras: _o, ...resto } = c.detalle;
   return { ...c, detalle: resto };
 };
 const esRechazo = (f: { conflictos?: unknown }) => Array.isArray(f.conflictos) && (f.conflictos as any[]).some((c) => CODIGOS_RECHAZO.has(c?.codigo));
@@ -267,6 +267,11 @@ export class ContingenciaService {
     for (const crudo of dto.operaciones as unknown[]) {
       // H3 (CENTINELA): una operación mal formada no rechaza el lote entero. Se valida sola: las válidas se procesan y la
       // inválida deja evidencia (auditoría) y una respuesta propia, para que el equipo no reenvíe el lote indefinidamente.
+      if (typeof crudo !== 'object' || crudo === null || Array.isArray(crudo)) {
+        // CENTINELA H3-N: un elemento que no es un objeto no se puede validar ni identificar: se responde sin aplicar nada.
+        resultados.push({ operacionId: null, estado: 'RECHAZADA_TECNICA', codigo: 'FORMATO_INVALIDO', mensaje: 'La operación no tiene un formato válido; no se registró venta', instruccion: 'Avise al administrador: la operación no tiene un formato válido.', requiereRevision: true, conflictos: [] });
+        continue;
+      }
       const op = plainToInstance(OperacionContingenciaDto, crudo as object);
       const errores = await validarDto(op, { whitelist: true });
       const uuid = (crudo as any)?.operacionId;
@@ -397,7 +402,11 @@ export class ContingenciaService {
       // Carrera: otra petición con el mismo UUID ya lo registró.
       const ya = await buscar();
       if (!ya) throw error;
-      if (ya.payloadHash !== hash) return { ...(await this.registrarAlteracion(tenantId, usuarioId, ya, dto, hash)), operacionId: dto.operacionId };
+      if (ya.payloadHash !== hash) {
+        // CENTINELA H1-R: la ruta de carrera responde con la misma vista saneada que el resto.
+        const alterada = await this.registrarAlteracion(tenantId, usuarioId, ya, dto, hash);
+        return esRechazo(alterada) ? this.respuestaRechazo(alterada, dto.operacionId) : this.resumenCliente(alterada, dto.operacionId);
+      }
       return ya.estado === 'RECIBIDA' ? this.aplicarYResumir(tenantId, ya.id, {}, dto.operacionId) : this.resumenCliente(ya, dto.operacionId);
     }
     // 2) Aplicación en transacción aparte.
