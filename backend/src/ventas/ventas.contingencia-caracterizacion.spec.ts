@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { idSolicitud } from '../operaciones/ledger';
 import { Test } from '@nestjs/testing';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
@@ -43,7 +44,7 @@ describe('VentasService.create — contrato vigente para contingencia', () => {
     service = module.get(VentasService);
   });
 
-  const dto = (extra: any = {}) => ({ detalles: [{ productoId: 'p1', cantidad: 2, precioUnitario: 10 }], ...extra });
+  const dto = (extra: any = {}) => ({ solicitudId: randomUUID(), detalles: [{ productoId: 'p1', cantidad: 2, precioUnitario: 10 }], ...extra });
 
   it('CAJERO con un precio distinto al vigente recibe 409 y no se crea venta (precio offline obsoleto sería rechazado)', async () => {
     await expect(service.create('T', 'U', dto({ detalles: [{ productoId: 'p1', cantidad: 2, precioUnitario: 9 }] })))
@@ -101,10 +102,9 @@ describe('VentasService.create — contrato vigente para contingencia', () => {
     expect(prisma.venta.create).not.toHaveBeenCalled();
   });
 
-  it('SIN solicitudId no hay idempotencia: dos envíos idénticos crean dos ventas (solicitudId es opcional en el DTO)', async () => {
-    await service.create('T', 'U', dto());
-    await service.create('T', 'U', dto());
-    expect(prisma.venta.create).toHaveBeenCalledTimes(2);
+  it('DEF-03: SIN solicitudId la venta se rechaza con 400 antes de tocar nada (sin idempotencia no hay reintento seguro)', async () => {
+    await expect(service.create('T', 'U', { detalles: [{ productoId: 'p1', cantidad: 2, precioUnitario: 10 }] } as any)).rejects.toMatchObject({ status: 400 });
+    expect(prisma.venta.create).not.toHaveBeenCalled();
     expect(prisma.venta.findUnique).not.toHaveBeenCalled();
   });
 
@@ -127,7 +127,7 @@ describe('VentasService.create — contrato vigente para contingencia', () => {
       if (sql.includes('FROM proveedores')) return [{ id: 'prov-1' }];
       return [];
     });
-    await service.create('T', 'U', { detalles: [{ productoId: 'p1', cantidad: 50, precioUnitario: 10, sinInventario: true, proveedorId: 'prov-1' }] });
+    await service.create('T', 'U', { solicitudId: randomUUID(), detalles: [{ productoId: 'p1', cantidad: 50, precioUnitario: 10, sinInventario: true, proveedorId: 'prov-1' }] });
     expect(prisma.producto.updateMany).not.toHaveBeenCalled();
   });
 });

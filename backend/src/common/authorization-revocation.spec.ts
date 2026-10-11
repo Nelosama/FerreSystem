@@ -12,7 +12,7 @@ import { VentasService } from '../ventas/ventas.service';
 const tenantId = 'tenant-A';
 const actorId = 'user-A';
 const productId = 'product-A';
-const saleDto = { detalles: [{ productoId: productId, cantidad: 1 }] };
+const saleDto = { solicitudId: 'solicitud-base', detalles: [{ productoId: productId, cantidad: 1 }] };
 
 function deferred() {
   let resolve!: () => void;

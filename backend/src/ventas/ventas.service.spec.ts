@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { VentasService } from './ventas.service';
@@ -25,6 +26,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
     },
     venta: {
       create: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue(null),
     },
   };
 
@@ -82,7 +84,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
       ],
     });
 
-    const resultado = await service.create(tenantId, usuarioId, {
+    const resultado = await service.create(tenantId, usuarioId, { solicitudId: randomUUID(), 
       detalles: [
         {
           productoId: 'prod-123',
@@ -105,7 +107,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
       id: 'prod-123', nombre: 'Cable', stockActual: 10, precioVenta: 25.5, precioAprobado: true,
     });
     mockPrisma.producto.updateMany.mockResolvedValue({ count: 0 });
-    await expect(service.create('tenant-A', 'user-A', {
+    await expect(service.create('tenant-A', 'user-A', { solicitudId: randomUUID(), 
       detalles: [{ productoId: 'prod-123', cantidad: 2.75 }],
     })).rejects.toThrow('Stock insuficiente');
     expect(mockPrisma.venta.create).not.toHaveBeenCalled();
@@ -113,7 +115,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
 
   it('rechaza productos que no pertenecen al tenant', async () => {
     mockPrisma.producto.findFirst.mockResolvedValue(null);
-    await expect(service.create('tenant-A', 'user-A', {
+    await expect(service.create('tenant-A', 'user-A', { solicitudId: randomUUID(), 
       detalles: [{ productoId: 'producto-tenant-B', cantidad: 0.5 }],
     })).rejects.toThrow('no encontrado');
     expect(mockPrisma.producto.updateMany).not.toHaveBeenCalled();
@@ -125,7 +127,7 @@ describe('VentasService - Descuento Stock Decimal', () => {
       id: 'cliente-1', tenantId: 'tenant-A', activo: true,
       creditoHabilitado: false, saldoPendiente: 0, limiteCredito: 100,
     });
-    await expect(service.create('tenant-A', 'user-A', {
+    await expect(service.create('tenant-A', 'user-A', { solicitudId: randomUUID(), 
       clienteId: 'cliente-1', metodoPago: 'CREDITO',
       detalles: [{ productoId: 'prod-123', cantidad: 1 }],
     })).rejects.toMatchObject({ status: 400 });
@@ -148,8 +150,8 @@ describe('VentasService - Descuento Stock Decimal', () => {
       subtotal: 27.5, isv: 4.13, descuento: 0, total: 31.63, detalles: [],
     });
     const results = await Promise.allSettled([
-      service.create('tenant-A', 'user-A', { detalles: [{ productoId: 'prod-123', cantidad: 2.75 }] }),
-      service.create('tenant-A', 'user-A', { detalles: [{ productoId: 'prod-123', cantidad: 2.75 }] }),
+      service.create('tenant-A', 'user-A', { solicitudId: randomUUID(),  detalles: [{ productoId: 'prod-123', cantidad: 2.75 }] }),
+      service.create('tenant-A', 'user-A', { solicitudId: randomUUID(),  detalles: [{ productoId: 'prod-123', cantidad: 2.75 }] }),
     ]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);

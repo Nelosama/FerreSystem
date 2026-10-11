@@ -32,9 +32,9 @@ export class DetalleVentaItemDto {
 }
 
 export class CreateVentaDto {
-  @IsUUID('4')
-  @IsOptional()
-  solicitudId?: string;
+  /** Obligatoria (DEF-03): sin ella un reintento por pérdida de respuesta crearía otra venta. UUID v4 generado por el cliente. */
+  @IsUUID('4', { message: 'solicitudId es obligatorio y debe ser un UUID v4 generado por el cliente' })
+  solicitudId!: string;
 
   @IsString()
   @IsOptional()

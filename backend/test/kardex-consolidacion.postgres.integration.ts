@@ -79,7 +79,7 @@ describe('KARDEX · consolidación de precios y aprobación / PostgreSQL real', 
     expect([creado.activo, creado.precioAprobado, creado.pendienteConfiguracion, Number(creado.precioVenta)]).toEqual([true, false, true, 0]);
     const cajaId = randomUUID();
     await prisma.caja.create({ data: { id: cajaId, tenantId, codigo: `CAJA-${cajaId}`, usuarioId: adminId, montoApertura: 0 } as any });
-    await expect(ventas.create(tenantId, adminId, { metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles: [{ productoId: creado.id, cantidad: 1 }] } as any))
+    await expect(ventas.create(tenantId, adminId, { solicitudId: randomUUID(),  metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles: [{ productoId: creado.id, cantidad: 1 }] } as any))
       .rejects.toBeInstanceOf(BadRequestException);
     expect(await ajusteStock(creado.id)).toBe(5);
   });
@@ -94,10 +94,10 @@ describe('KARDEX · consolidación de precios y aprobación / PostgreSQL real', 
     const cajaId = randomUUID();
     await prisma.caja.create({ data: { id: cajaId, tenantId, codigo: `CAJA-${cajaId}`, usuarioId: adminId, montoApertura: 0 } as any });
     const detalles = [{ productoId, cantidad: 1 }];
-    await expect(ventas.create(tenantId, adminId, { metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles } as any)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(ventas.create(tenantId, adminId, { solicitudId: randomUUID(),  metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles } as any)).rejects.toBeInstanceOf(BadRequestException);
     const aprobado = await productos.cambiarPrecios(tenantId, productoId, { version: 1, precioCosto: 2, precioVenta: 4, aprobar: true, motivo: 'Lista del dueño' } as any, adminId);
     expect(aprobado).toMatchObject({ precioAprobado: true, pendienteConfiguracion: false });
-    const venta = await ventas.create(tenantId, adminId, { metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles } as any);
+    const venta = await ventas.create(tenantId, adminId, { solicitudId: randomUUID(),  metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles } as any);
     expect(venta.total).toBe(4.6);
     const audit = await prisma.auditoriaOperacion.findFirstOrThrow({ where: { tenantId, operacion: 'PRECIO_APROBAR', entidadId: productoId } });
     expect(audit.usuarioId).toBe(adminId);
@@ -109,7 +109,7 @@ describe('KARDEX · consolidación de precios y aprobación / PostgreSQL real', 
     expect(revocado.precioAprobado).toBe(false);
     const cajaId = randomUUID();
     await prisma.caja.create({ data: { id: cajaId, tenantId, codigo: `CAJA-${cajaId}`, usuarioId: adminId, montoApertura: 0 } as any });
-    await expect(ventas.create(tenantId, adminId, { metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles: [{ productoId, cantidad: 1 }] } as any)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(ventas.create(tenantId, adminId, { solicitudId: randomUUID(),  metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles: [{ productoId, cantidad: 1 }] } as any)).rejects.toBeInstanceOf(BadRequestException);
     const reaprobado = await productos.cambiarPrecios(tenantId, productoId, { version: revocado.version, aprobar: true } as any, adminId);
     expect([reaprobado.precioAprobado, Number(reaprobado.precioVenta)]).toEqual([true, 5]);
   });
@@ -204,7 +204,7 @@ describe('KARDEX · consolidación de precios y aprobación / PostgreSQL real', 
     const productoId = await crearProducto({ stockActual: 5, precioVenta: 4, precioCosto: 2, precioAprobado: true });
     const cajaId = randomUUID();
     await prisma.caja.create({ data: { id: cajaId, tenantId, codigo: `CAJA-${cajaId}`, usuarioId: adminId, montoApertura: 0 } as any });
-    const venta = await ventas.create(tenantId, adminId, { metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles: [{ productoId, cantidad: 2 }] } as any);
+    const venta = await ventas.create(tenantId, adminId, { solicitudId: randomUUID(),  metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles: [{ productoId, cantidad: 2 }] } as any);
     await productos.cambiarPrecios(tenantId, productoId, { version: 1, precioVenta: 6 } as any, adminId);
     expect((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).precioAprobado).toBe(false);
     await operaciones.entregar(tenantId, adminId, venta.id, { solicitudId: randomUUID(), receptorNombre: "Cliente de prueba" } as any);

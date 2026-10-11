@@ -124,6 +124,8 @@ export class VentasService {
       }[];
     },
   ) {
+    // DEF-03: toda venta nueva exige solicitudId (reintentos seguros). Las ventas anteriores sin él siguen consultables.
+    if (!dto.solicitudId) throw new BadRequestException('solicitudId es obligatorio: genere un UUID v4 al abrir la venta y reutilícelo en los reintentos');
     if (!dto.detalles || dto.detalles.length === 0) {
       throw new BadRequestException('La venta debe incluir al menos un producto');
     }

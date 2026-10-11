@@ -186,7 +186,8 @@ describe('Instalación y adopción / PostgreSQL aislado', () => {
     psql(`INSERT INTO usuarios (id, tenant_id, email, password_hash, nombre, rol, updated_at) VALUES ('${u}', '${t}', 'legado@example.test', 'x', 'Legado', 'ADMIN', now())`);
     psql(`INSERT INTO productos (id, tenant_id, codigo, nombre, stock_actual, precio_venta, precio_costo, updated_at) VALUES ('${p1}', '${t}', 'L1', 'Legado 1', 10, 10, 5, now()), ('${p2}', '${t}', 'L2', 'Legado 2', 10, 10, 5, now())`);
     let numero = 0;
-    const venta = (id: string, origen: string, entregado: boolean) => psql(`INSERT INTO ventas (id, tenant_id, numero_venta, usuario_id, subtotal, isv, total, origen${entregado ? ', entregado_at' : ''}) VALUES ('${id}', '${t}', ${++numero}, '${u}', 20, 0, 20, '${origen}'${entregado ? ', now()' : ''})`);
+    // Una venta pendiente del flujo anterior tiene la reserva activa; una entregada, no.
+    const venta = (id: string, origen: string, entregado: boolean) => psql(`INSERT INTO ventas (id, tenant_id, numero_venta, usuario_id, subtotal, isv, total, origen, reserva_pendiente${entregado ? ', entregado_at' : ''}) VALUES ('${id}', '${t}', ${++numero}, '${u}', 20, 0, 20, '${origen}', ${entregado ? 'false' : 'true'}${entregado ? ', now()' : ''})`);
     const linea = (id: string, v: string, p: string, sinInv: boolean) => psql(`INSERT INTO detalles_venta (id, venta_id, producto_id, cantidad, precio_unitario, subtotal, sin_inventario) VALUES ('${id}', '${v}', '${p}', 2, 10, 20, ${sinInv})`);
     const [vEntregada, vPendiente, vContingencia, vSinInv] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
     const [dEntregada, dPendiente, dContingencia, dSinInv] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];

@@ -433,4 +433,37 @@ describe('Correcciones CENTINELA D1/D3/R1 / HTTP y PostgreSQL aislado', () => {
     });
 
   });
+
+  describe('DEF-03 — solicitudId obligatorio en ventas nuevas', () => {
+    it('sin solicitudId o con uno que no es UUID v4: 400 sin efectos; con uno válido: 201, y los reintentos y la concurrencia no duplican', async () => {
+      const e = await escenario();
+      const cuerpo = (extra: any = {}) => ({ detalles: [{ productoId: e.producto.id, cantidad: 1 }], ...extra });
+      for (const malo of [undefined, '', 'no-es-uuid', 'f47ac10b-58cc-1372-a567-0e02b2c3d479', 123]) {
+        const r = await http('post', '/ventas', e.cajero.token, cuerpo(malo === undefined ? {} : { solicitudId: malo }));
+        expect(r.status, String(malo)).toBe(400);
+      }
+      expect(await prisma.venta.count({ where: { tenantId: e.tenantId } })).toBe(0);
+      expect(await stockDe(e.producto.id)).toEqual({ actual: 10, reservado: 0 });
+      const solicitudId = randomUUID();
+      const resp = await Promise.all(Array.from({ length: 5 }, () => http('post', '/ventas', e.cajero.token, cuerpo({ solicitudId }))));
+      expect(resp.every((r) => r.status === 201)).toBe(true);
+      expect(new Set(resp.map((r) => r.body.id)).size).toBe(1);
+      expect(await prisma.venta.count({ where: { tenantId: e.tenantId } })).toBe(1);
+      expect(await stockDe(e.producto.id)).toEqual({ actual: 10, reservado: 1 });
+      // Otra empresa con la misma solicitud: venta propia, sin interferir.
+      const otra = await escenario();
+      const o = await http('post', '/ventas', otra.cajero.token, { solicitudId, detalles: [{ productoId: otra.producto.id, cantidad: 1 }] });
+      expect(o.status).toBe(201);
+      expect(o.body.id).not.toBe(resp[0].body.id);
+    });
+
+    it('las ventas anteriores (sin solicitud) siguen consultables y la venta de contingencia no se ve afectada por la exigencia', async () => {
+      const e = await escenario();
+      const v = await e.venta(e.cajero, 1);
+      expect((await http('get', `/ventas/${v.id}`, e.cajero.token)).status).toBe(200);
+      // Una venta anterior sin solicitud (simulada con SQL) sigue listándose.
+      await prisma.$executeRawUnsafe("UPDATE ventas SET solicitud_hash=NULL WHERE id=$1", v.id);
+      expect((await http('get', '/ventas', e.cajero.token)).status).toBe(200);
+    });
+  });
 });

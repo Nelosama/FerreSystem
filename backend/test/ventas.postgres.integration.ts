@@ -92,7 +92,7 @@ describe('Ventas / PostgreSQL aislado', () => {
   });
 
   const available = async()=>{const p=await prisma.producto.findUniqueOrThrow({where:{id:productoId}});return Number(p.stockActual)-Number(p.stockReservado);};
-  const request = (cantidad = 2.75) => ({ detalles: [{ productoId, cantidad, precioUnitario: 10 }] });
+  const request = (cantidad = 2.75) => ({ solicitudId: randomUUID(), detalles: [{ productoId, cantidad, precioUnitario: 10 }] });
 
   // Hold the same lock used by user edits until the mutation is actually queued
   // in PostgreSQL, then revoke and commit before the mutation acquires it.
@@ -358,7 +358,7 @@ describe('Ventas / PostgreSQL aislado', () => {
       expect((await fetch(`${base}/operaciones/cuentas?tipo=CXP`,{headers:cashierHeaders})).status).toBe(403);
       const commercial=await fetch(`${base}/productos/comercial`,{headers:cashierHeaders});expect(commercial.status).toBe(200);
       const catalog=await commercial.json() as any[];expect(catalog[0].precioVenta).toBe(10);expect(catalog[0].precioCosto).toBeUndefined();
-      expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify({detalles:[{productoId,cantidad:1,precioUnitario:1}]})})).status).toBe(409);
+      expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify({solicitudId:randomUUID(),detalles:[{productoId,cantidad:1,precioUnitario:1}]})})).status).toBe(409);
 
       const recoveryId = randomUUID();
       expect((await fetch(`${base}/ventas/solicitudes/${recoveryId}`, { headers: cashierHeaders })).status).toBe(200);
@@ -440,7 +440,7 @@ describe('Ventas / PostgreSQL aislado', () => {
 
   it('una falla en la segunda línea revierte stock y correlativo completos', async () => {
     const second=await prisma.producto.create({data:{precioAprobado:true,tenantId,codigo:'SIN-STOCK',nombre:'Agotado',precioVenta:10,precioCosto:1,stockActual:0,stockMinimo:0}});
-    await expect(ventas.create(tenantId, usuarioId, { detalles: [...request(0.5).detalles,{productoId:second.id,cantidad:1,precioUnitario:10}] })).rejects.toThrow('Stock insuficiente');
+    await expect(ventas.create(tenantId, usuarioId, { solicitudId: randomUUID(), detalles: [...request(0.5).detalles,{productoId:second.id,cantidad:1,precioUnitario:10}] })).rejects.toThrow('Stock insuficiente');
     expect(await available()).toBe(2.75);
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
     expect(await prisma.secuenciaTenant.count({ where: { tenantId, tipo: 'VENTA' } })).toBe(0);
@@ -563,7 +563,7 @@ describe('Ventas / PostgreSQL aislado', () => {
 
   it('el cajero usa el precio vigente y el backend rechaza precios o descuentos manipulados',async()=>{
     await prisma.usuario.update({where:{id:usuarioId},data:{rol:'CAJERO',descuentoMaximo:5}});
-    await expect(ventas.create(tenantId,usuarioId,{detalles:[{productoId,cantidad:1,precioUnitario:1}]})).rejects.toThrow('precio cambió');
+    await expect(ventas.create(tenantId,usuarioId,{solicitudId:randomUUID(),detalles:[{productoId,cantidad:1,precioUnitario:1}]})).rejects.toThrow('precio cambió');
     await expect(ventas.create(tenantId,usuarioId,{...request(1),descuento:1})).rejects.toThrow('autorización');
     expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual)).toBe(2.75);
     await expect(new OperacionesService(prisma).cuentas(tenantId,usuarioId,'CXP')).rejects.toThrow('administrador');
@@ -571,7 +571,7 @@ describe('Ventas / PostgreSQL aislado', () => {
 
   it('la venta sin inventario conserva proveedor sin descontar existencias físicas',async()=>{
     const ops=new OperacionesService(prisma),provider=await ops.proveedor(tenantId,usuarioId,{solicitudId:randomUUID(),nombre:'Proveedor directo'});
-    const sale=await ventas.create(tenantId,usuarioId,{detalles:[{productoId,cantidad:5,precioUnitario:10,sinInventario:true,proveedorId:provider.id}]});
+    const sale=await ventas.create(tenantId,usuarioId,{solicitudId:randomUUID(),detalles:[{productoId,cantidad:5,precioUnitario:10,sinInventario:true,proveedorId:provider.id}]});
     expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual)).toBe(2.75);
     const detail=await prisma.detalleVenta.findFirstOrThrow({where:{ventaId:sale.id}});
     expect(detail.sinInventario).toBe(true);expect(detail.proveedorId).toBe(provider.id);

@@ -418,10 +418,13 @@ describe('CENTINELA: entregas, entregas parciales y permisos (PR #148) / Postgre
       expect(numeros[2]).toBe(numeros[1] + 1);
     });
 
-    it('DEF-03 (dependencia FARO, abierto): POST /ventas sin solicitudId sigue aceptándose', async () => {
+    it('DEF-03 (cerrado): POST /ventas sin solicitudId se rechaza con 400 y no deja efectos', async () => {
       const e = await escenario();
+      const antes = await prisma.venta.count({ where: { tenantId: e.tenantId } });
       const r = await http('post', '/api/ventas', e.cajero.token, { metodoPago: 'EFECTIVO', detalles: [{ productoId: e.producto.id, cantidad: 1 }] });
-      expect(r.status).toBe(201);
+      expect(r.status).toBe(400);
+      expect(await prisma.venta.count({ where: { tenantId: e.tenantId } })).toBe(antes);
+      expect(await prisma.producto.findUniqueOrThrow({ where: { id: e.producto.id } }).then((p) => Number(p.stockReservado))).toBe(0);
     });
 
     it('caja: entregar no altera el efectivo esperado del arqueo; la entrega deja auditoría VENTA_ENTREGAR', async () => {
@@ -436,7 +439,7 @@ describe('CENTINELA: entregas, entregas parciales y permisos (PR #148) / Postgre
       expect(aud[0].n).toBe(1);
     });
 
-    it.fails('DEF-01 (dependencia FARO, abierto): el catálogo offline no debe incluir productos sin precio aprobado', async () => {
+    it('DEF-01 (cerrado): el catálogo offline no incluye productos sin precio aprobado', async () => {
       const previo = process.env.POS_OFFLINE_ENABLED;
       process.env.POS_OFFLINE_ENABLED = 'true';
       try {
@@ -450,8 +453,7 @@ describe('CENTINELA: entregas, entregas parciales y permisos (PR #148) / Postgre
       } finally { if (previo === undefined) delete process.env.POS_OFFLINE_ENABLED; else process.env.POS_OFFLINE_ENABLED = previo; }
     });
 
-    it.fails('DEF-04 (dependencia FARO, abierto): cajero B no debe cobrar en la caja de A con la ventana de A', async () => {
-      // it.fails: la prueba pasa mientras el defecto existe (la operación se aplica). Se corrige en ATLAS (contingencia).
+    it('DEF-04 (cerrado): cajero B no cobra en la caja de A con la ventana de A', async () => {
       const previo = process.env.POS_OFFLINE_ENABLED;
       process.env.POS_OFFLINE_ENABLED = 'true';
       try {
