@@ -4,4 +4,4 @@ ALTER TABLE "productos_proveedores" DROP CONSTRAINT IF EXISTS "productos_proveed
 ALTER TABLE "productos_proveedores" DROP CONSTRAINT IF EXISTS "productos_proveedores_tenant_producto_fkey";
 ALTER TABLE "clientes"    DROP CONSTRAINT IF EXISTS "clientes_tenant_id_id_key";
 ALTER TABLE "proveedores" DROP CONSTRAINT IF EXISTS "proveedores_tenant_id_id_key";
-ALTER TABLE "productos"   DROP CONSTRAINT IF EXISTS "productos_tenant_id_id_key";
+-- "productos_tenant_id_id_key" NO se elimina: pertenece a la migración de cobro y entrega, cuyas claves compuestas dependen de ella.

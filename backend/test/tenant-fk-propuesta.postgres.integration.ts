@@ -113,10 +113,10 @@ describe('Propuesta FK compuestas con tenant / PostgreSQL aislado', () => {
     expect(cuenta(`SELECT count(*) FROM pg_constraint WHERE conname LIKE '%_tenant_%fkey' AND conname IN ('productos_proveedores_tenant_producto_fkey','productos_proveedores_tenant_proveedor_fkey','ventas_tenant_cliente_fkey') AND convalidated`)).toBe(3);
   });
 
-  it('ROLLBACK elimina solo las restricciones nuevas y conserva filas y FK originales', () => {
+  it('ROLLBACK elimina solo las restricciones nuevas y conserva filas y FK originales (productos_tenant_id_id_key pertenece a la migración de entregas y se conserva)', () => {
     const filas = cuenta('SELECT count(*) FROM productos_proveedores');
     ok(archivo(propuesta('03_rollback_piloto.sql')));
-    expect(cuenta(`SELECT count(*) FROM pg_constraint WHERE conname IN ('productos_proveedores_tenant_producto_fkey','productos_proveedores_tenant_proveedor_fkey','ventas_tenant_cliente_fkey','productos_tenant_id_id_key','proveedores_tenant_id_id_key','clientes_tenant_id_id_key')`)).toBe(0);
+    expect(cuenta(`SELECT count(*) FROM pg_constraint WHERE conname IN ('productos_proveedores_tenant_producto_fkey','productos_proveedores_tenant_proveedor_fkey','ventas_tenant_cliente_fkey','proveedores_tenant_id_id_key','clientes_tenant_id_id_key')`)).toBe(0);
     expect(cuenta('SELECT count(*) FROM productos_proveedores')).toBe(filas);
     expect(cuenta(`SELECT count(*) FROM pg_constraint WHERE conname IN ('productos_proveedores_producto_fkey','productos_proveedores_proveedor_fkey')`)).toBe(2);
   });

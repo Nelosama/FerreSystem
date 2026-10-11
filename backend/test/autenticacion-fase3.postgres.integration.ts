@@ -1,3 +1,4 @@
+import { idSolicitud } from '../src/operaciones/ledger';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -357,19 +358,19 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
 
       // 2) El equipo intenta sincronizar con la sesión cerrada: 401, sin efectos.
       await request(app.getHttpServer()).post('/api/contingencia/operaciones').auth(sesion.body.accessToken, { type: 'bearer' }).send(lote).expect(401);
-      expect(await prisma.venta.count({ where: { id: operacionId } })).toBe(0);
+      expect(await prisma.venta.count({ where: { id: idSolicitud(tenantId, operacionId) } })).toBe(0);
       expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(stockAntes);
 
       // 3) Nueva sesión: el mismo UUID se aplica una vez.
       const nueva = await login('cajero@auth.test.invalid').expect(200);
       const primera = await request(app.getHttpServer()).post('/api/contingencia/operaciones').auth(nueva.body.accessToken, { type: 'bearer' }).send(lote).expect(201);
       expect(primera.body.resultados[0]).toMatchObject({ operacionId, estado: 'APLICADA' });
-      expect(await prisma.venta.count({ where: { id: operacionId } })).toBe(1);
+      expect(await prisma.venta.count({ where: { id: idSolicitud(tenantId, operacionId) } })).toBe(1);
 
       // 4) Reintento tras otro inicio de sesión: no duplica venta, caja ni stock.
       const otra = await login('cajero@auth.test.invalid').expect(200);
       await request(app.getHttpServer()).post('/api/contingencia/operaciones').auth(otra.body.accessToken, { type: 'bearer' }).send(lote).expect(201);
-      expect(await prisma.venta.count({ where: { id: operacionId } })).toBe(1);
+      expect(await prisma.venta.count({ where: { id: idSolicitud(tenantId, operacionId) } })).toBe(1);
       expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockActual)).toBe(stockAntes - 2);
     });
 
@@ -380,7 +381,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
       const res = await request(app.getHttpServer()).post('/api/contingencia/operaciones').auth(ajena.body.accessToken, { type: 'bearer' }).send(lote).expect(201);
       // El lote responde 201 con el resultado de cada operación: el rechazo viaja en el cuerpo, no como error HTTP.
       expect(res.body.resultados[0]).toMatchObject({ operacionId, estado: 'RECHAZADA_TECNICA' });
-      expect(await prisma.venta.count({ where: { id: operacionId } })).toBe(0);
+      expect(await prisma.venta.count({ where: { id: idSolicitud(tenantId, operacionId) } })).toBe(0);
     });
   });
 
@@ -401,7 +402,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
       const renovado = await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', refreshCookie(sesion)).expect(200);
       const res = await request(app.getHttpServer()).post('/api/contingencia/operaciones').auth(renovado.body.accessToken, { type: 'bearer' }).send(lote).expect(201);
       expect(res.body.resultados[0]).toMatchObject({ operacionId, estado: 'APLICADA' });
-      expect(await prisma.venta.count({ where: { id: operacionId } })).toBe(1);
+      expect(await prisma.venta.count({ where: { id: idSolicitud(tenantId, operacionId) } })).toBe(1);
     });
 
     it('con TRUST_PROXY=1, un X-Forwarded-For falsificado por el cliente no cambia el cubo: se usa la IP que añade el proxy', async () => {

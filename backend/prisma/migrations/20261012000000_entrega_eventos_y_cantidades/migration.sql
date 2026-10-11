@@ -7,7 +7,8 @@
 ALTER TABLE "detalles_venta" ADD COLUMN "tenant_id" TEXT;
 UPDATE "detalles_venta" d SET "tenant_id" = v."tenant_id" FROM "ventas" v
   WHERE v."id" = d."venta_id" AND d."tenant_id" IS NULL;
-ALTER TABLE "detalles_venta" ALTER COLUMN "tenant_id" SET NOT NULL;
+-- La columna queda nullable para el cliente Prisma (el disparador la completa al insertar); la obligatoriedad la garantiza el CHECK.
+ALTER TABLE "detalles_venta" ADD CONSTRAINT "detalles_venta_tenant_id_chk" CHECK ("tenant_id" IS NOT NULL);
 ALTER TABLE "detalles_venta" ADD CONSTRAINT "detalles_venta_tenant_id_fkey"
   FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

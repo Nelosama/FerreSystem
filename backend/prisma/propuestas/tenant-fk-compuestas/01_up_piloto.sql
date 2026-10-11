@@ -4,7 +4,12 @@
 -- Esta secuencia NO elimina las FK de una columna existentes ni modifica filas.
 
 -- Paso 1. Unicidad auxiliar que exige PostgreSQL para referenciar (tenant_id, id). Es redundante con la PK (id ya es único).
-ALTER TABLE "productos"   ADD CONSTRAINT "productos_tenant_id_id_key"   UNIQUE ("tenant_id", "id");
+-- La unicidad de "productos" ya la crea la migración 20261012000000_entrega_eventos_y_cantidades (cobro y entrega): se reutiliza si existe.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'productos_tenant_id_id_key') THEN
+    ALTER TABLE "productos" ADD CONSTRAINT "productos_tenant_id_id_key" UNIQUE ("tenant_id", "id");
+  END IF;
+END $$;
 ALTER TABLE "proveedores" ADD CONSTRAINT "proveedores_tenant_id_id_key" UNIQUE ("tenant_id", "id");
 ALTER TABLE "clientes"    ADD CONSTRAINT "clientes_tenant_id_id_key"    UNIQUE ("tenant_id", "id");
 

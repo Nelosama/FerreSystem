@@ -40,6 +40,9 @@ const exe = (name: string) => join(bin, name);
 // Tarjeta y transferencia exigen autorización bancaria: cada cobro recibe una referencia única.
 const autorizacion = (metodo: string) => (metodo === 'EFECTIVO' || metodo === 'CREDITO') ? {} : { pagoElectronico: { referencia: `AUT-${randomUUID().slice(0, 12)}`, ...(metodo === 'TARJETA' ? { terminal: 'POS-01' } : {}) } };
 
+// Cuerpo de entrega vigente (#144): solicitud idempotente y receptor obligatorio.
+const cuerpoEntrega = () => ({ solicitudId: randomUUID(), receptorNombre: 'Cliente de prueba' });
+
 describe('Correcciones CENTINELA D1/D3/R1 / HTTP y PostgreSQL aislado', () => {
   let directory = '';
   let started = false;
@@ -141,7 +144,7 @@ describe('Correcciones CENTINELA D1/D3/R1 / HTTP y PostgreSQL aislado', () => {
       const antes = await stockDe(e.producto.id);
       expect(antes).toEqual({ actual: 10, reservado: 2 });
       for (const quien of [e.cajero, e.cajero2, e.vendedor]) {
-        const r = await http('post', `/operaciones/ventas/${venta.id}/entregar`, quien.token, {});
+        const r = await http('post', `/operaciones/ventas/${venta.id}/entregar`, quien.token, cuerpoEntrega());
         expect(r.status, quien.rol).toBe(403);
       }
       expect(await stockDe(e.producto.id)).toEqual(antes);
@@ -155,7 +158,7 @@ describe('Correcciones CENTINELA D1/D3/R1 / HTTP y PostgreSQL aislado', () => {
       const e = await escenario();
       const conPermisos = await persona(e.tenantId, 'CAJERO', { permisosConfigurados: true, permisos: ['pos.vender', 'inventario.editar'] });
       const venta = await e.venta(e.cajero);
-      await http('post', `/operaciones/ventas/${venta.id}/entregar`, conPermisos.token, {}).expect(403);
+      await http('post', `/operaciones/ventas/${venta.id}/entregar`, conPermisos.token, cuerpoEntrega()).expect(403);
       expect(await stockDe(e.producto.id)).toEqual({ actual: 10, reservado: 2 });
     });
 
@@ -171,14 +174,14 @@ describe('Correcciones CENTINELA D1/D3/R1 / HTTP y PostgreSQL aislado', () => {
       const e = await escenario();
       const venta = await e.venta(e.cajero);
       await Promise.all([
-        http('post', `/operaciones/ventas/${venta.id}/entregar`, e.bodeguero.token, {}).expect(201),
-        http('post', `/operaciones/ventas/${venta.id}/entregar`, e.admin.token, {}).expect(201),
-        http('post', `/operaciones/ventas/${venta.id}/entregar`, e.bodeguero.token, {}).expect(201),
+        http('post', `/operaciones/ventas/${venta.id}/entregar`, e.bodeguero.token, cuerpoEntrega()).expect(201),
+        http('post', `/operaciones/ventas/${venta.id}/entregar`, e.admin.token, cuerpoEntrega()).expect(201),
+        http('post', `/operaciones/ventas/${venta.id}/entregar`, e.bodeguero.token, cuerpoEntrega()).expect(201),
       ]);
       expect(await stockDe(e.producto.id)).toEqual({ actual: 8, reservado: 0 });
       expect(await eventosEntrega(venta.id)).toHaveLength(1);
       const segunda = await e.venta(e.cajero, 3);
-      await http('post', `/operaciones/ventas/${segunda.id}/entregar`, e.admin.token, {}).expect(201);
+      await http('post', `/operaciones/ventas/${segunda.id}/entregar`, e.admin.token, cuerpoEntrega()).expect(201);
       expect(await stockDe(e.producto.id)).toEqual({ actual: 5, reservado: 0 });
     });
 
@@ -187,7 +190,7 @@ describe('Correcciones CENTINELA D1/D3/R1 / HTTP y PostgreSQL aislado', () => {
       const venta = await e.venta(e.cajero);
       const otraEmpresa = await crearEmpresa();
       const otroAdmin = await persona(otraEmpresa, 'ADMIN');
-      const r = await http('post', `/operaciones/ventas/${venta.id}/entregar`, otroAdmin.token, {});
+      const r = await http('post', `/operaciones/ventas/${venta.id}/entregar`, otroAdmin.token, cuerpoEntrega());
       expect(r.status).toBe(404);
       expect(await stockDe(e.producto.id)).toEqual({ actual: 10, reservado: 2 });
     });
@@ -220,7 +223,7 @@ describe('Correcciones CENTINELA D1/D3/R1 / HTTP y PostgreSQL aislado', () => {
       const lista = await http('get', '/operaciones/entregas', e.bodeguero.token).expect(200);
       const texto = JSON.stringify(lista.body);
       expect(texto).not.toMatch(/costo_unitario|precio_costo/);
-      await http('post', `/operaciones/ventas/${venta.id}/entregar`, e.bodeguero.token, {}).expect(201);
+      await http('post', `/operaciones/ventas/${venta.id}/entregar`, e.bodeguero.token, cuerpoEntrega()).expect(201);
       for (const quien of [e.cajero, e.admin, e.bodeguero]) expect((await http('get', '/operaciones/entregas', quien.token).expect(200)).body).toEqual([]);
     });
   });
@@ -336,7 +339,7 @@ describe('Correcciones CENTINELA D1/D3/R1 / HTTP y PostgreSQL aislado', () => {
       const e = await escenario();
       await abrirCaja(e.admin).expect(201);
       const venta = await e.venta(e.cajero);
-      await http('post', `/operaciones/ventas/${venta.id}/entregar`, e.bodeguero.token, {}).expect(201);
+      await http('post', `/operaciones/ventas/${venta.id}/entregar`, e.bodeguero.token, cuerpoEntrega()).expect(201);
       const det = await prisma.$queryRawUnsafe<any[]>('SELECT id FROM detalles_venta WHERE venta_id=$1', venta.id);
       const solicitudId = randomUUID();
       const cuerpo = { solicitudId, motivo: 'Cliente devolvió una unidad', metodo: 'EFECTIVO', items: [{ detalleId: det[0].id, cantidad: 1, destino: 'INVENTARIO' }] };

@@ -1,4 +1,4 @@
-import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, id as nuevoId, idSolicitud, candidatosSolicitud, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, id as nuevoId, esIdInterno, idSolicitud, candidatosSolicitud, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { diaCalendario, sumarDias } from '../common/zona-horaria';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 import { aCentesimas, huellaCanonica, normalizarTexto } from '../common/huella-solicitud';
@@ -12,6 +12,8 @@ export class VentasService {
 
   async findSolicitud(tenantId: string, usuarioId: string, solicitudId: string) {
     // Esperar a una escritura en curso; consultar nunca registra ni cobra una venta.
+    // Un identificador interno no es una solicitud: no se reconoce como venta registrada (P3).
+    if (esIdInterno(solicitudId)) return { estado: 'NO_REGISTRADA' as const };
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx, tenantId);
       await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + tenantId + ':' + solicitudId}, 0))`;

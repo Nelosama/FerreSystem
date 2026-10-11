@@ -7,16 +7,45 @@ export type Tx = Prisma.TransactionClient;
 export const id = () => randomUUID();
 /**
  * Identificador interno de una solicitud idempotente, derivado de la empresa y de la solicitud.
- * Los registros cuyo identificador es la propia solicitud usan este valor, de modo que dos empresas puedan
+ * Los registros cuyo identificador era la propia solicitud usan este valor, de modo que dos empresas puedan
  * usar el mismo UUID sin chocar y sin que una respuesta delate que otra empresa ya lo usó.
+ *
+ * Los 12 últimos dígitos son una etiqueta de los 20 primeros: así un identificador interno se reconoce
+ * (`esIdInterno`) y no puede presentarse como solicitud nueva. Un UUID v4 aleatorio de un cliente coincide
+ * por azar con probabilidad 2^-48.
  */
-export function idSolicitud(tenantId: string, solicitudId: string): string {
+const etiquetaInterna = (cuerpo20: string) => createHash('sha256').update(`ferresystem:id-interno:v1:${cuerpo20}`).digest('hex').slice(0, 12);
+function derivar(tenantId: string, solicitudId: string): string {
   const h = createHash('sha256').update(`ferresystem:solicitud:v1:${tenantId}:${solicitudId}`).digest('hex');
   const variante = ((parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16).padStart(2, '0');
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variante}${h.slice(18, 20)}-${h.slice(20, 32)}`;
+  const cuerpo = `${h.slice(0, 8)}${h.slice(8, 12)}4${h.slice(13, 16)}${variante}${h.slice(18, 20)}`;
+  const crudo = `${cuerpo}${etiquetaInterna(cuerpo)}`;
+  return `${crudo.slice(0, 8)}-${crudo.slice(8, 12)}-${crudo.slice(12, 16)}-${crudo.slice(16, 20)}-${crudo.slice(20, 32)}`;
 }
-/** Para buscar: el identificador derivado y el crudo (registros anteriores al cambio). Siempre con filtro de empresa. */
+export function esIdInterno(valor: unknown): boolean {
+  if (typeof valor !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(valor)) return false;
+  const plano = valor.replaceAll('-', '');
+  return etiquetaInterna(plano.slice(0, 20)) === plano.slice(20);
+}
+/** Una solicitud nueva nunca puede ser un identificador interno (P3 de CENTINELA). */
+export function validarSolicitud(solicitudId: string): string {
+  if (esIdInterno(solicitudId)) throw new BadRequestException('Identificador de solicitud no válido: genere uno nuevo');
+  return solicitudId;
+}
+/** Identificador interno para crear o reconocer el registro de una solicitud de esta empresa. */
+export function idSolicitud(tenantId: string, solicitudId: string): string {
+  return derivar(tenantId, validarSolicitud(solicitudId));
+}
+/**
+ * Para buscar por solicitud: el identificador derivado y el crudo. El crudo solo corresponde a registros
+ * anteriores al cambio. Siempre con filtro de empresa.
+ */
 export const candidatosSolicitud = (tenantId: string, solicitudId: string): [string, string] => [idSolicitud(tenantId, solicitudId), solicitudId];
+/**
+ * Para rutas de recurso (`/solicitudes-devolucion/:id`): acepta la solicitud original o el identificador
+ * del recurso que devolvió la lista. El resultado se usa con `IN ($derivado, $crudo)` y filtro de empresa.
+ */
+export const idRecurso = (tenantId: string, valor: string): string => (esIdInterno(valor) ? valor : derivar(tenantId, valor));
 export const fingerprint = (data: unknown) => createHash('sha256').update(JSON.stringify(data)).digest('hex');
 export const money = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 export function decimal(value: unknown, label: string, positive = false) {

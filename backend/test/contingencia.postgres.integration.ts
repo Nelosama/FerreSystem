@@ -1,3 +1,4 @@
+import { idSolicitud } from '../src/operaciones/ledger';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -143,17 +144,17 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       const [res] = (await enviar(e, [op])).resultados;
       expect(res).toMatchObject({ estado: 'APLICADA', correlativoLocal: op.correlativoLocal, correlativoDefinitivo: expect.stringMatching(/^V-\d{8}$/) });
       expect(res.requiereRevision).toBe(false);
-      const venta = await prisma.venta.findUniqueOrThrow({ where: { id: op.operacionId } });
+      const venta = await prisma.venta.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
       expect(venta).toMatchObject({ origen: 'CONTINGENCIA', estado: 'COMPLETADA', metodoPago: 'EFECTIVO', correlativoLocal: op.correlativoLocal });
       expect(Number(venta.total)).toBe(23);
       expect(Number(venta.efectivoRecibido)).toBe(25);
       expect(Number(venta.cambio)).toBe(2);
       expect(await stock(e.p1)).toBe(18);
-      const mov = await prisma.movimientoCaja.findMany({ where: { referencia: op.operacionId } });
+      const mov = await prisma.movimientoCaja.findMany({ where: { referencia: idSolicitud(e.tenantId, op.operacionId) } });
       expect(mov).toHaveLength(1);
       expect(mov[0]).toMatchObject({ tipo: 'VENTA_POS', metodo: 'EFECTIVO' });
       expect(Number(mov[0].monto)).toBe(23);
-      expect(await prisma.auditoriaOperacion.count({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_APLICAR', entidadId: op.operacionId } })).toBe(1);
+      expect(await prisma.auditoriaOperacion.count({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_APLICAR', entidadId: idSolicitud(e.tenantId, op.operacionId) } })).toBe(1);
     });
 
     it('numeración definitiva secuencial: dos ventas consecutivas reciben números correlativos sin saltos', async () => {
@@ -173,7 +174,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       expect(segunda).toEqual(primera);
       expect(await ventas(e.tenantId)).toBe(1);
       expect(await stock(e.p1)).toBe(18);
-      expect(await prisma.movimientoCaja.count({ where: { referencia: op.operacionId } })).toBe(1);
+      expect(await prisma.movimientoCaja.count({ where: { referencia: idSolicitud(e.tenantId, op.operacionId) } })).toBe(1);
     });
 
     it('el mismo UUID con otro contenido NO se aplica ni sobrescribe: queda en revisión con conflicto OPERACION_ALTERADA', async () => {
@@ -185,7 +186,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       expect(alterada.requiereRevision).toBe(true);
       expect(alterada.conflictos.map((c: any) => c.codigo)).toContain('OPERACION_ALTERADA');
       expect(await ventas(e.tenantId)).toBe(1);
-      const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: op.operacionId } });
+      const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
       expect(Number(fila.efectivoRecibidoCentavos)).toBe(2500);
     });
 
@@ -268,11 +269,11 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       const otra = await prisma.caja.create({ data: { tenantId: e.tenantId, codigo: 'CAJA-2', usuarioId: e.admin, montoApertura: 0, estado: 'ABIERTA' } as any });
       const resuelta = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', nota: 'Caja cerrada; efectivo se asigna a caja de conciliación', cajaId: otra.id } as any);
       expect(resuelta.estado).toBe('APLICADA');
-      const movs = await prisma.movimientoCaja.findMany({ where: { referencia: op.operacionId } });
+      const movs = await prisma.movimientoCaja.findMany({ where: { referencia: idSolicitud(e.tenantId, op.operacionId) } });
       expect(movs[0].cajaId).toBe(otra.id);
       const cierreDespues = await prisma.caja.findUniqueOrThrow({ where: { id: cajaCerrada.id } });
       expect(cierreDespues.montoCierreFisico?.toString()).toBe(cierreAntes.montoCierreFisico?.toString());
-      expect(await prisma.movimientoCaja.count({ where: { cajaId: cajaCerrada.id, referencia: op.operacionId } })).toBe(0);
+      expect(await prisma.movimientoCaja.count({ where: { cajaId: cajaCerrada.id, referencia: idSolicitud(e.tenantId, op.operacionId) } })).toBe(0);
     });
 
     it('cajero desactivado durante la contingencia: se registra y queda en revisión; un administrador la acepta con auditoría', async () => {
@@ -286,7 +287,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       expect(await ventas(e.tenantId)).toBe(0);
       const final = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', nota: 'Cajero desactivado; venta confirmada por administrador' } as any);
       expect(final.estado).toBe('APLICADA');
-      expect(await prisma.auditoriaOperacion.count({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_RESOLVER', entidadId: op.operacionId } })).toBe(1);
+      expect(await prisma.auditoriaOperacion.count({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_RESOLVER', entidadId: idSolicitud(e.tenantId, op.operacionId) } })).toBe(1);
     });
 
     it('un cajero no puede enviar operaciones de otro cajero', async () => {
@@ -327,9 +328,9 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       const v = await ventana(e);
       const op = operacion(e, v.id);
       await enviar(e, [op]);
-      await expect(prisma.$executeRawUnsafe(`UPDATE operaciones_contingencia SET total_centavos=1 WHERE id=$1`, op.operacionId)).rejects.toThrow(/inmutable/);
-      await expect(prisma.$executeRawUnsafe(`DELETE FROM operaciones_contingencia WHERE id=$1`, op.operacionId)).rejects.toThrow(/no admite borrados/);
-      const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: op.operacionId } });
+      await expect(prisma.$executeRawUnsafe(`UPDATE operaciones_contingencia SET total_centavos=1 WHERE id=$1`, idSolicitud(e.tenantId, op.operacionId))).rejects.toThrow(/inmutable/);
+      await expect(prisma.$executeRawUnsafe(`DELETE FROM operaciones_contingencia WHERE id=$1`, idSolicitud(e.tenantId, op.operacionId))).rejects.toThrow(/no admite borrados/);
+      const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
       expect(fila.totalCentavos).toBe(2300);
     });
 
@@ -346,7 +347,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
 
     it('el resumen indica que la información puede estar desactualizada si la caja no reporta', async () => {
       const e = await empresa();
-      await prisma.dispositivoPos.update({ where: { id: e.dispositivoId }, data: { ultimoContactoAt: new Date(Date.now() - 3600_000) } });
+      await prisma.dispositivoPos.update({ where: { id: idSolicitud(e.tenantId, e.dispositivoId) }, data: { ultimoContactoAt: new Date(Date.now() - 3600_000) } });
       const r = await svc.resumen(e.tenantId);
       expect(r.aviso).toMatch(/desactualizad/);
     });

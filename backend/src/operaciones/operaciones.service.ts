@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, ConflictException, ForbiddenException,
 import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
-import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, idSolicitud, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
+import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, idRecurso, idSolicitud, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
 import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, EntregarVentaDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 import { eliminarVinculoProveedor, guardarVinculoProveedor, listarProveedoresProducto, registrarCostoProveedor } from './productos-proveedores';
 import { estadoCuentaCliente } from './estado-cuenta-cliente';
@@ -411,14 +411,14 @@ export class OperacionesService {
  }
  async consultarDevolucionDirecta(tenantId:string,userId:string,requestId:string){
   await actor(this.prisma,tenantId,userId);
-  const [result]=await query(this.prisma,'SELECT * FROM devoluciones WHERE id IN ($1,$4) AND tenant_id=$2 AND usuario_id=$3',idSolicitud(tenantId,requestId),tenantId,userId,requestId);
+  const [result]=await query(this.prisma,'SELECT * FROM devoluciones WHERE id IN ($1,$4) AND tenant_id=$2 AND usuario_id=$3',idRecurso(tenantId,requestId),tenantId,userId,requestId);
   if(!result)throw new NotFoundException('Devolución no encontrada');return result;
  }
  async consultarDevolucion(tenantId:string,userId:string,requestId:string){
   const user=await actor(this.prisma,tenantId,userId);
-  const [request]=await query(this.prisma,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$3) AND tenant_id=$2',idSolicitud(tenantId,requestId),tenantId,requestId);
+  const [request]=await query(this.prisma,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$3) AND tenant_id=$2',idRecurso(tenantId,requestId),tenantId,requestId);
   if(!request||(user.rol!=='ADMIN'&&request.solicitante_id!==userId))throw new NotFoundException('Solicitud no encontrada');
-  const [result]=await query(this.prisma,'SELECT * FROM devoluciones WHERE id IN ($1,$3) AND tenant_id=$2',request.id,tenantId,idSolicitud(tenantId,String(request.comando?.solicitudId??requestId)));
+  const [result]=await query(this.prisma,'SELECT * FROM devoluciones WHERE id IN ($1,$3) AND tenant_id=$2',request.id,tenantId,idRecurso(tenantId,String(request.comando?.solicitudId??requestId)));
   return {...request,resultado:result||null};
  }
  async decidirDevolucion(tenantId:string,userId:string,requestId:string,dto:DecisionDevolucionDto){
@@ -428,7 +428,7 @@ export class OperacionesService {
    if(user.rol!=='ADMIN')throw new ForbiddenException('La autorización requiere administrador');
    const motivo=text(dto.motivo,'Motivo de la decisión');
    if(!['AUTORIZADA','RECHAZADA'].includes(dto.decision))throw new BadRequestException('Decisión inválida');
-   const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$3) AND tenant_id=$2 FOR UPDATE',idSolicitud(tenantId,requestId),tenantId,requestId);
+   const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$3) AND tenant_id=$2 FOR UPDATE',idRecurso(tenantId,requestId),tenantId,requestId);
    if(!request)throw new NotFoundException('Solicitud no encontrada');
    if(request.estado!=='PENDIENTE'){
     if(request.administrador_id===userId&&request.motivo_decision===motivo&&(request.estado===dto.decision||(request.estado==='EJECUTADA'&&dto.decision==='AUTORIZADA')))return request;
@@ -444,7 +444,7 @@ export class OperacionesService {
    await lockTenant(tx,tenantId);
    const executor=await actor(tx,tenantId,userId);
    if(!['ADMIN','CAJERO','VENDEDOR'].includes(executor.rol))throw new ForbiddenException('No puede ejecutar devoluciones');
-   const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$4) AND tenant_id=$2 AND solicitante_id=$3 FOR UPDATE',idSolicitud(tenantId,requestId),tenantId,userId,requestId);
+   const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$4) AND tenant_id=$2 AND solicitante_id=$3 FOR UPDATE',idRecurso(tenantId,requestId),tenantId,userId,requestId);
    if(!request)throw new NotFoundException('Solicitud no encontrada');
    if(!['AUTORIZADA','EJECUTADA'].includes(request.estado))throw new ForbiddenException('La solicitud debe estar autorizada antes de ejecutar');
    if(request.estado!=='EJECUTADA'){

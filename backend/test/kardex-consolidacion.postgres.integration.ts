@@ -207,7 +207,7 @@ describe('KARDEX · consolidación de precios y aprobación / PostgreSQL real', 
     const venta = await ventas.create(tenantId, adminId, { metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles: [{ productoId, cantidad: 2 }] } as any);
     await productos.cambiarPrecios(tenantId, productoId, { version: 1, precioVenta: 6 } as any, adminId);
     expect((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).precioAprobado).toBe(false);
-    await operaciones.entregar(tenantId, adminId, venta.id);
+    await operaciones.entregar(tenantId, adminId, venta.id, { solicitudId: randomUUID(), receptorNombre: "Cliente de prueba" } as any);
     const fila = await prisma.venta.findUniqueOrThrow({ where: { id: venta.id }, include: { detalles: true } });
     expect(fila.entregadoAt).not.toBeNull();
     expect([Number(fila.total), Number(fila.detalles[0].precioUnitario)]).toEqual([venta.total, 4]);

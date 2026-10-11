@@ -135,8 +135,10 @@ describe('Devoluciones con crédito, saldo y reembolsos / PostgreSQL aislado', (
     it('reintentar la misma devolución (misma solicitud) no reembolsa dos veces', async () => {
       const v = await venta(admin, { metodoPago: 'EFECTIVO' });
       const solicitudId = randomUUID();
-      const primera = await devolver(v.id, 1, solicitudId);
-      const reintento = await devolver(v.id, 1, solicitudId);
+      // Un reintento reenvía exactamente el mismo comando: el destino se fija una vez (tras devolver todo lo pendiente la venta deja de estar reservada).
+      const comando = { solicitudId, metodo: 'EFECTIVO', motivo: 'Devolución de prueba', items: [{ detalleId: (await lineasDe(v.id))[0].id, cantidad: 1, destino: await destinoDe(v.id) }] } as any;
+      const primera = await ops.devolver(tenantA, admin, v.id, comando);
+      const reintento = await ops.devolver(tenantA, admin, v.id, { ...comando });
       expect(reintento.id).toBe(primera.id);
       expect((await reembolsosCaja(v.id))[0].n).toBe(1);
       expect(await sql('SELECT COUNT(*)::int AS n FROM devoluciones WHERE venta_id=$1', v.id)).toEqual([{ n: 1 }]);

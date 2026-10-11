@@ -527,6 +527,7 @@ export class CotizacionesService {
           notas: `Convertida de Cotización #COT-${cotizacion.numeroCotizacion.toString().padStart(4, '0')}`,
           detalles: {
             create: cotizacion.detalles.map((d) => ({
+              tenantId,
               productoId: d.productoId,
               cantidad: d.totalMedida,
               precioUnitario: d.precioUnitario,

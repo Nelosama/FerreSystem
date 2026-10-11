@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { audit, authorizedActor, cashMovement, id as nuevoId, lockTenant, movement, query, Tx, fingerprint } from '../operaciones/ledger';
+import { audit, authorizedActor, cashMovement, id as nuevoId, idRecurso, idSolicitud, lockTenant, movement, query, Tx, fingerprint } from '../operaciones/ledger';
 import { huellaDeLineas, movimientoConEvento, registrarEvento } from '../entregas/entregas-core';
 import { calcularTotales, centavosADecimal } from '../common/dinero';
 import { diaCalendario, rangoDiasEnZona, ZONA_HORARIA_NEGOCIO } from '../common/zona-horaria';
@@ -93,11 +93,12 @@ export class ContingenciaService {
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx, tenantId);
       await authorizedActor(tx, tenantId, usuarioId, ['ADMIN', 'CAJERO'], 'pos.vender');
-      const existente = await tx.dispositivoPos.findUnique({ where: { id: dto.dispositivoId } });
+      // El identificador interno se deriva por empresa: un UUID usado por otra empresa responde igual que uno libre (P2 de CENTINELA).
+      const idInterno = idSolicitud(tenantId, dto.dispositivoId);
+      const existente = await this.buscarDispositivo(tx, tenantId, dto.dispositivoId);
       if (existente) {
-        if (existente.tenantId !== tenantId) throw new ConflictException('Identificador de dispositivo no disponible');
         if (!existente.activo) throw new ForbiddenException('Este dispositivo fue desactivado por un administrador');
-        return this.dispositivoPublico(existente);
+        return this.dispositivoPublico(existente, dto.dispositivoId);
       }
       const activos = await tx.dispositivoPos.count({ where: { tenantId, activo: true } });
       if (activos >= config.dispositivosMax) {
@@ -106,16 +107,21 @@ export class ContingenciaService {
       const [{ siguiente }] = await query<{ siguiente: number }>(tx,
         `SELECT COALESCE(MAX(codigo::int), 0) + 1 AS siguiente FROM dispositivos_pos WHERE tenant_id=$1`, tenantId);
       const dispositivo = await tx.dispositivoPos.create({
-        data: { id: dto.dispositivoId, tenantId, codigo: pad(Number(siguiente), 2), nombre: dto.nombre.trim(), registradoPor: usuarioId, ultimoContactoAt: new Date() },
+        data: { id: idInterno, tenantId, codigo: pad(Number(siguiente), 2), nombre: dto.nombre.trim(), registradoPor: usuarioId, ultimoContactoAt: new Date() },
       });
       await audit(tx, tenantId, usuarioId, 'CONTINGENCIA_DISPOSITIVO_REGISTRAR', dispositivo.id, { codigo: dispositivo.codigo, nombre: dispositivo.nombre });
-      return this.dispositivoPublico(dispositivo);
+      return this.dispositivoPublico(dispositivo, dto.dispositivoId);
     });
   }
 
-  private dispositivoPublico(d: any) {
+  /** Busca el dispositivo de ESTA empresa por el identificador del equipo (derivado o, en registros anteriores, el crudo) o por el interno de la lista. */
+  private buscarDispositivo(db: { dispositivoPos: any }, tenantId: string, valor: string) {
+    return db.dispositivoPos.findFirst({ where: { tenantId, id: { in: [idRecurso(tenantId, valor), valor] } } });
+  }
+
+  private dispositivoPublico(d: any, idEquipo?: string) {
     return {
-      id: d.id, codigo: d.codigo, nombre: d.nombre, activo: d.activo, registradoAt: d.registradoAt,
+      id: idEquipo ?? d.id, codigo: d.codigo, nombre: d.nombre, activo: d.activo, registradoAt: d.registradoAt,
       ultimoContactoAt: d.ultimoContactoAt, ultimaSyncAt: d.ultimaSyncAt, pendientesReportados: d.pendientesReportados,
     };
   }
@@ -131,10 +137,10 @@ export class ContingenciaService {
 
   async latido(tenantId: string, usuarioId: string, dispositivoId: string, pendientes: number) {
     await this.exigirHabilitada(tenantId);
-    const dispositivo = await this.prisma.dispositivoPos.findFirst({ where: { id: dispositivoId, tenantId } });
+    const dispositivo = await this.buscarDispositivo(this.prisma, tenantId, dispositivoId);
     if (!dispositivo) throw new NotFoundException('Dispositivo no registrado');
     if (!dispositivo.activo) throw new ForbiddenException('Este dispositivo fue desactivado por un administrador');
-    await this.prisma.dispositivoPos.update({ where: { id: dispositivoId }, data: { ultimoContactoAt: new Date(), pendientesReportados: Math.max(0, Math.floor(pendientes)) } });
+    await this.prisma.dispositivoPos.update({ where: { id: dispositivo.id }, data: { ultimoContactoAt: new Date(), pendientesReportados: Math.max(0, Math.floor(pendientes)) } });
     return { ok: true, serverNow: new Date().toISOString() };
   }
 
@@ -142,7 +148,7 @@ export class ContingenciaService {
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx, tenantId);
       await authorizedActor(tx, tenantId, usuarioId, ['ADMIN']);
-      const d = await tx.dispositivoPos.findFirst({ where: { id: dispositivoId, tenantId } });
+      const d = await this.buscarDispositivo(tx, tenantId, dispositivoId);
       if (!d) throw new NotFoundException('Dispositivo no encontrado');
       await tx.dispositivoPos.update({ where: { id: d.id }, data: { activo: false } });
       // Se revocan las ventanas para nuevas ventas; las operaciones ya hechas offline se siguen recibiendo y conciliando.
@@ -182,7 +188,7 @@ export class ContingenciaService {
     const resultado = await this.prisma.$transaction(async (tx) => {
       await lockTenant(tx, tenantId);
       await authorizedActor(tx, tenantId, usuarioId, ['ADMIN', 'CAJERO'], 'pos.vender');
-      const dispositivo = await tx.dispositivoPos.findFirst({ where: { id: dto.dispositivoId, tenantId } });
+      const dispositivo = await this.buscarDispositivo(tx, tenantId, dto.dispositivoId);
       if (!dispositivo) throw new NotFoundException('Registre este dispositivo antes de pedir una ventana de contingencia');
       if (!dispositivo.activo) throw new ForbiddenException('Este dispositivo fue desactivado por un administrador');
       const [caja] = await query(tx, `SELECT id FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado='ABIERTA'`, tenantId, usuarioId);
@@ -211,7 +217,7 @@ export class ContingenciaService {
     const { ventana, dispositivo, productos, hash, maxima } = resultado;
     return {
       ventana: {
-        id: ventana.id, dispositivoId: dispositivo.id, dispositivoCodigo: dispositivo.codigo, cajaId: ventana.cajaId, usuarioId,
+        id: ventana.id, dispositivoId: dto.dispositivoId, dispositivoCodigo: dispositivo.codigo, cajaId: ventana.cajaId, usuarioId,
         emitidaAt: ventana.emitidaAt, vigenteHasta: ventana.vigenteHasta, catalogoHash: hash, limites: ventana.limites,
         secuenciaServidor: maxima, serverNow: ahora.toISOString(),
       },
@@ -223,12 +229,12 @@ export class ContingenciaService {
 
   async recibirLote(tenantId: string, usuarioId: string, rol: string, dto: LoteOperacionesDto) {
     await this.exigirHabilitada(tenantId);
-    const dispositivo = await this.prisma.dispositivoPos.findFirst({ where: { id: dto.dispositivoId, tenantId } });
+    const dispositivo = await this.buscarDispositivo(this.prisma, tenantId, dto.dispositivoId);
     if (!dispositivo) throw new NotFoundException('Dispositivo no registrado');
     const resultados: any[] = [];
     for (const op of dto.operaciones) {
       try {
-        resultados.push(await this.procesarOperacion(tenantId, usuarioId, rol, dispositivo.id, op));
+        resultados.push(await this.procesarOperacion(tenantId, usuarioId, rol, dispositivo.id, dto.dispositivoId, op));
       } catch (error: any) {
         // Error técnico (BD, bloqueo, tiempo): la operación (si llegó a registrarse) sigue en el diario; el cliente reintenta con el mismo UUID.
         this.logger.error(`Operación ${op.operacionId}: ${error?.message}`);
@@ -245,27 +251,29 @@ export class ContingenciaService {
 
   /** Estado de varias operaciones sin efectos (consulta previa al reenvío, recuperación tras cierre inesperado). */
   async estados(tenantId: string, usuarioId: string, rol: string, ids: string[]) {
+    // El equipo conoce su identificador; el registro puede estar guardado con el derivado por empresa o, si es anterior, con el crudo.
+    const candidatos = ids.map((id) => [id, idRecurso(tenantId, id)] as const);
     const filas = await this.prisma.operacionContingencia.findMany({
-      where: { tenantId, id: { in: ids }, ...(rol === 'ADMIN' ? {} : { usuarioId }) },
+      where: { tenantId, id: { in: candidatos.flat() as string[] }, ...(rol === 'ADMIN' ? {} : { usuarioId }) },
     });
     const porId = new Map(filas.map((f) => [f.id, f]));
-    return ids.map((id) => {
-      const f = porId.get(id);
-      return f ? this.resumenOperacion(f) : { operacionId: id, estado: 'NO_REGISTRADA' };
+    return candidatos.map(([id, derivado]) => {
+      const f = porId.get(derivado) ?? porId.get(id);
+      return f ? this.resumenOperacion(f, id) : { operacionId: id, estado: 'NO_REGISTRADA' };
     });
   }
 
-  private resumenOperacion(f: any) {
+  private resumenOperacion(f: any, idEquipo?: string) {
     return {
-      operacionId: f.id, estado: f.estado, requiereRevision: f.requiereRevision, conflictos: f.conflictos,
+      operacionId: idEquipo ?? f.id, estado: f.estado, requiereRevision: f.requiereRevision, conflictos: f.conflictos,
       correlativoLocal: f.correlativoLocal, ventaId: f.ventaId, numeroVenta: f.numeroVenta,
       correlativoDefinitivo: f.numeroVenta ? correlativoDefinitivo(f.numeroVenta) : null,
       aplicadoAt: f.aplicadoAt, referenciaFacturaExterna: f.referenciaFacturaExterna,
     };
   }
 
-  private async procesarOperacion(tenantId: string, usuarioId: string, rol: string, dispositivoId: string, dto: OperacionContingenciaDto) {
-    if (dto.dispositivoId !== dispositivoId) throw new BadRequestException('La operación pertenece a otro dispositivo');
+  private async procesarOperacion(tenantId: string, usuarioId: string, rol: string, dispositivoId: string, dispositivoEquipo: string, dto: OperacionContingenciaDto) {
+    if (dto.dispositivoId !== dispositivoEquipo) throw new BadRequestException('La operación pertenece a otro dispositivo');
     if (rol !== 'ADMIN' && dto.cajeroId !== usuarioId) {
       throw new ForbiddenException('Solo el cajero de la operación o un administrador puede enviarla');
     }
@@ -279,18 +287,20 @@ export class ContingenciaService {
     if (!ventana) throw new BadRequestException({ message: 'Ventana de contingencia desconocida', code: 'VENTANA_DESCONOCIDA' });
 
     // 1) Diario primero: idempotencia real por UUID (PK) y por (dispositivo, secuencia).
-    const existente = await this.prisma.operacionContingencia.findUnique({ where: { id: dto.operacionId } });
+    // Identificador interno derivado por empresa (P2 de CENTINELA): el UUID de otra empresa se trata como libre.
+    const idInterno = idSolicitud(tenantId, dto.operacionId);
+    const buscar = () => this.prisma.operacionContingencia.findFirst({ where: { tenantId, id: { in: [idInterno, dto.operacionId] } } });
+    const existente = await buscar();
     if (existente) {
-      if (existente.tenantId !== tenantId) throw new ConflictException('Identificador de operación no disponible');
-      if (existente.payloadHash !== hash) return this.registrarAlteracion(tenantId, usuarioId, existente, dto, hash);
-      if (existente.estado === 'RECIBIDA') return this.aplicarYResumir(tenantId, existente.id, {});
-      return this.resumenOperacion(existente);
+      if (existente.payloadHash !== hash) return { ...(await this.registrarAlteracion(tenantId, usuarioId, existente, dto, hash)), operacionId: dto.operacionId };
+      if (existente.estado === 'RECIBIDA') return this.aplicarYResumir(tenantId, existente.id, {}, dto.operacionId);
+      return this.resumenOperacion(existente, dto.operacionId);
     }
     const estimado = this.estimarHora(dto.ocurridoAtLocal, ventana.limites as any);
     try {
       await this.prisma.operacionContingencia.create({
         data: {
-          id: dto.operacionId, tenantId, dispositivoId, ventanaId: ventana.id, usuarioId: dto.cajeroId, cajaId: ventana.cajaId,
+          id: idInterno, tenantId, dispositivoId, ventanaId: ventana.id, usuarioId: dto.cajeroId, cajaId: ventana.cajaId,
           secuenciaLocal: dto.secuenciaLocal, correlativoLocal: dto.correlativoLocal, ocurridoAtLocal: new Date(dto.ocurridoAtLocal),
           ocurridoAtEstimado: estimado, payload: dto as any, payloadHash: hash, totalCentavos: dto.totalCentavos,
           efectivoRecibidoCentavos: dto.efectivoRecibidoCentavos, referenciaFacturaExterna: dto.referenciaFacturaExterna?.trim() || null,
@@ -299,13 +309,13 @@ export class ContingenciaService {
     } catch (error: any) {
       if (error?.code !== 'P2002') throw error;
       // Carrera: otra petición con el mismo UUID ya lo registró.
-      const ya = await this.prisma.operacionContingencia.findUnique({ where: { id: dto.operacionId } });
-      if (!ya || ya.tenantId !== tenantId) throw error;
-      if (ya.payloadHash !== hash) return this.registrarAlteracion(tenantId, usuarioId, ya, dto, hash);
-      return ya.estado === 'RECIBIDA' ? this.aplicarYResumir(tenantId, ya.id, {}) : this.resumenOperacion(ya);
+      const ya = await buscar();
+      if (!ya) throw error;
+      if (ya.payloadHash !== hash) return { ...(await this.registrarAlteracion(tenantId, usuarioId, ya, dto, hash)), operacionId: dto.operacionId };
+      return ya.estado === 'RECIBIDA' ? this.aplicarYResumir(tenantId, ya.id, {}, dto.operacionId) : this.resumenOperacion(ya, dto.operacionId);
     }
     // 2) Aplicación en transacción aparte.
-    return this.aplicarYResumir(tenantId, dto.operacionId, {});
+    return this.aplicarYResumir(tenantId, idInterno, {}, dto.operacionId);
   }
 
   private estimarHora(local: string, limites: { offsetRelojMs?: number | null }) {
@@ -328,9 +338,9 @@ export class ContingenciaService {
     return this.resumenOperacion(actualizada);
   }
 
-  private async aplicarYResumir(tenantId: string, operacionId: string, opciones: OpcionesAplicar) {
+  private async aplicarYResumir(tenantId: string, operacionId: string, opciones: OpcionesAplicar, idEquipo?: string) {
     const fila = await this.prisma.$transaction((tx) => this.aplicar(tx, tenantId, operacionId, opciones), { timeout: 30000 });
-    return this.resumenOperacion(fila);
+    return this.resumenOperacion(fila, idEquipo);
   }
 
   // ───────────────────────── aplicación / conciliación ─────────────────────────
@@ -520,7 +530,7 @@ export class ContingenciaService {
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx, tenantId);
       await authorizedActor(tx, tenantId, adminId, ['ADMIN']);
-      const op = await tx.operacionContingencia.findFirst({ where: { id: operacionId, tenantId } });
+      const op = await tx.operacionContingencia.findFirst({ where: { id: { in: [idRecurso(tenantId, operacionId), operacionId] }, tenantId } });
       if (!op) throw new NotFoundException('Operación no encontrada');
       const resolucion = { accion: dto.accion, nota: dto.nota, por: adminId, en: new Date().toISOString() };
       if (dto.referenciaFacturaExterna !== undefined) {
@@ -551,7 +561,7 @@ export class ContingenciaService {
   async actualizarReferencia(tenantId: string, usuarioId: string, rol: string, operacionId: string, referencia: string) {
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx, tenantId);
-      const op = await tx.operacionContingencia.findFirst({ where: { id: operacionId, tenantId } });
+      const op = await tx.operacionContingencia.findFirst({ where: { id: { in: [idRecurso(tenantId, operacionId), operacionId] }, tenantId } });
       if (!op) throw new NotFoundException('Operación no encontrada');
       if (rol !== 'ADMIN' && op.usuarioId !== usuarioId) throw new ForbiddenException('No puede modificar esta operación');
       const valor = referencia.trim() || null;

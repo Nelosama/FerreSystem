@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { createServer } from 'node:net';
 import { randomUUID } from 'node:crypto';
+import { idSolicitud } from '../src/operaciones/ledger';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { VentasService } from '../src/ventas/ventas.service';
 import { VentasController } from '../src/ventas/ventas.controller';
@@ -33,6 +34,9 @@ import { TenantModuleGuard } from '../src/common/guards/tenant-module.guard';
 const bin = process.env.PG_BIN || '/usr/bin';
 const exe = (name: string) => join(bin, name);
 
+
+// Cuerpo de entrega vigente (#144): solicitud idempotente y receptor obligatorio.
+const cuerpoEntrega = () => ({ solicitudId: randomUUID(), receptorNombre: 'Cliente de prueba' });
 
 describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQL aislado', () => {
   let directory = '';
@@ -104,6 +108,18 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
     const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email: `${id}@example.test`, password, tenantId: tenant }).expect(200);
     return { id, token: login.body.accessToken, tenantId: tenant, rol };
   };
+// Simula un registro anterior al cambio (id = solicitud). Los eventos de entrega son de solo inserción y las ventas
+// anteriores no los tienen: se retiran con los disparadores de inmutabilidad desactivados solo durante la preparación.
+  async function volverAnterior(solicitud: string, ventaId: string) {
+  for (const t of ['entregas_eventos_lineas', 'entregas_eventos']) await prisma.$executeRawUnsafe(`ALTER TABLE ${t} DISABLE TRIGGER USER`);
+  try {
+    await prisma.$executeRawUnsafe('DELETE FROM entregas_eventos_lineas WHERE evento_id IN (SELECT id FROM entregas_eventos WHERE venta_id=$1)', ventaId);
+    await prisma.$executeRawUnsafe('DELETE FROM entregas_eventos WHERE venta_id=$1', ventaId);
+    await prisma.$executeRawUnsafe('UPDATE ventas SET id=$1 WHERE id=$2', solicitud, ventaId);
+  } finally {
+    for (const t of ['entregas_eventos_lineas', 'entregas_eventos']) await prisma.$executeRawUnsafe(`ALTER TABLE ${t} ENABLE TRIGGER USER`);
+  }
+}
   const abrirCaja = (p: Persona, solicitudId = randomUUID()) => http('post', '/operaciones/caja/abrir', p.token, { solicitudId, monto: 100 });
   const producto = (tenant: string, stock = 10) => prisma.producto.create({ data: { tenantId: tenant, codigo: `P-${randomUUID().slice(0, 6)}`, nombre: 'Producto verificación', precioVenta: 100, precioCosto: 40, stockActual: stock, precioAprobado: true } as any });
   const stockDe = async (id: string) => { const p = await prisma.producto.findUniqueOrThrow({ where: { id } }); return { actual: Number(p.stockActual), reservado: Number(p.stockReservado) }; };
@@ -136,8 +152,8 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       const e = await escenario();
       const v1 = await venta(e.cajero, e.producto.id, 1);
       const v2 = await venta(e.cajero, e.producto.id, 1);
-      expect((await http('post', `/operaciones/ventas/${v1.id}/entregar`, e.admin.token, {})).status).toBeLessThan(300);
-      expect((await http('post', `/operaciones/ventas/${v2.id}/entregar`, e.bodeguero.token, {})).status).toBeLessThan(300);
+      expect((await http('post', `/operaciones/ventas/${v1.id}/entregar`, e.admin.token, cuerpoEntrega())).status).toBeLessThan(300);
+      expect((await http('post', `/operaciones/ventas/${v2.id}/entregar`, e.bodeguero.token, cuerpoEntrega())).status).toBeLessThan(300);
       expect(await stockDe(e.producto.id)).toEqual({ actual: 8, reservado: 0 });
     });
 
@@ -146,7 +162,7 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       const cajeroConTodo = await persona(e.tenantId, 'CAJERO', { permisos: todosLosPermisos, permisosConfigurados: true });
       const v = await venta(e.cajero, e.producto.id, 2);
       const antes = await stockDe(e.producto.id);
-      const r = await http('post', `/operaciones/ventas/${v.id}/entregar`, cajeroConTodo.token, {});
+      const r = await http('post', `/operaciones/ventas/${v.id}/entregar`, cajeroConTodo.token, cuerpoEntrega());
       expect(r.status).toBe(403);
       const [fila] = await prisma.$queryRawUnsafe<any[]>('SELECT entregado_at, reserva_pendiente FROM ventas WHERE id=$1', v.id);
       expect(fila.entregado_at).toBeNull();
@@ -158,7 +174,7 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       const e = await escenario();
       const vendedorConTodo = await persona(e.tenantId, 'VENDEDOR', { permisos: todosLosPermisos, permisosConfigurados: true });
       const v = await venta(e.cajero, e.producto.id, 1);
-      expect((await http('post', `/operaciones/ventas/${v.id}/entregar`, vendedorConTodo.token, {})).status).toBe(403);
+      expect((await http('post', `/operaciones/ventas/${v.id}/entregar`, vendedorConTodo.token, cuerpoEntrega())).status).toBe(403);
     });
 
     it('el servicio rechaza la entrega de un CAJERO aunque se invoque sin pasar por HTTP', async () => {
@@ -167,13 +183,29 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       await expect(operaciones.entregar(e.tenantId, e.cajero.id, v.id)).rejects.toMatchObject({ status: 403 });
     });
 
-    it('la única escritura que marca una entrega está en el servicio de operaciones (sin otra vía)', async () => {
-      // Comprobación de estado del código: ninguna otra ruta actualiza entregado_at ni reserva_pendiente.
+    it('toda escritura de estado de entrega está en el núcleo de entregas o en rutas con el mismo control de rol', async () => {
+      // Código: solo entregas-core.ts actualiza entregado_at/reserva_pendiente con SQL; ventas.service (entrega inmediata del POS)
+      // y contingencia (hecho ya ocurrido en un equipo sin conexión) crean filas, y la primera exige un rol que pueda entregar.
       const { execFileSync: run } = require('node:child_process');
-      const salida = run('grep', ['-rln', 'entregado_at', resolve('src')], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-      const escrituras = run('grep', ['-rn', 'entregado_at=NOW\\|entregado_at = NOW\\|reserva_pendiente=false', resolve('src')], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-      expect(salida.length).toBeGreaterThan(0);
-      expect(escrituras.map((l: string) => l.split(':')[0].replace(resolve('src') + '/', ''))).toEqual(['operaciones/operaciones.service.ts']);
+      const sql = run('grep', ['-rn', 'entregado_at *= *\\|reserva_pendiente *= *\\$', resolve('src'), '--include=*.ts'], { encoding: 'utf8' }).trim().split('\n').filter((l: string) => l && !/\.spec\.ts/.test(l));
+      expect([...new Set(sql.map((l: string) => l.split(':')[0].replace(resolve('src') + '/', '')))]).toEqual(['entregas/entregas-core.ts']);
+      const nucleo = readFileSync(resolve('src/entregas/entregas-core.ts'), 'utf8');
+      expect(nucleo).toMatch(/authorizedActor\(tx, p\.tenantId, p\.usuarioId, ROLES_ENTREGA\)/);
+      expect(readFileSync(resolve('src/ventas/ventas.service.ts'), 'utf8')).toMatch(/ROLES_ENTREGA as readonly string\[\]\)\.includes\(user\.rol\)/);
+    });
+
+    it('entrega inmediata del POS: el CAJERO no puede registrarla (403, sin venta ni cambios); ADMIN sí; para bodega, el cajero cobra normalmente', async () => {
+      const e = await escenario();
+      const cuerpo = (modo: string) => ({ solicitudId: randomUUID(), detalles: [{ productoId: e.producto.id, cantidad: 2, modoEntrega: modo }] });
+      const r = await http('post', '/ventas', e.cajero.token, cuerpo('MOSTRADOR'));
+      expect(r.status, JSON.stringify(r.body)).toBe(403);
+      expect(await prisma.venta.count({ where: { tenantId: e.tenantId } })).toBe(0);
+      expect(await stockDe(e.producto.id)).toEqual({ actual: 10, reservado: 0 });
+      await http('post', '/ventas', e.cajero.token, cuerpo('BODEGA')).expect(201);
+      expect(await stockDe(e.producto.id)).toEqual({ actual: 10, reservado: 2 });
+      await abrirCaja(e.admin).expect(201);
+      await http('post', '/ventas', e.admin.token, cuerpo('MOSTRADOR')).expect(201);
+      expect(await stockDe(e.producto.id)).toEqual({ actual: 8, reservado: 2 });
     });
   });
 
@@ -201,7 +233,7 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
     it('la venta sale del listado de todos al entregarse; la del cajero sigue visible solo para él hasta entonces', async () => {
       const e = await escenario();
       const v = await venta(e.cajero, e.producto.id, 1);
-      await http('post', `/operaciones/ventas/${v.id}/entregar`, e.bodeguero.token, {}).expect(201);
+      await http('post', `/operaciones/ventas/${v.id}/entregar`, e.bodeguero.token, cuerpoEntrega()).expect(201);
       expect((await http('get', '/operaciones/entregas', e.cajero.token)).body).toEqual([]);
       expect((await http('get', '/operaciones/entregas', e.admin.token)).body).toEqual([]);
     });
@@ -331,7 +363,7 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       const solicitud = randomUUID();
       const original = await venta(e.cajero, e.producto.id, 2, solicitud);
       // Simula un registro anterior al cambio: el id de la venta es la propia solicitud.
-      await prisma.$executeRawUnsafe('UPDATE ventas SET id=$1 WHERE id=$2', solicitud, original.id);
+      await volverAnterior(solicitud, original.id);
       expect(await stockDe(e.producto.id)).toEqual({ actual: 10, reservado: 2 });
       const reintento = await http('post', '/ventas', e.cajero.token, ventaBody(e.producto.id, 2, solicitud));
       expect(reintento.status).toBe(201);
@@ -344,7 +376,7 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       const e = await escenario();
       const solicitud = randomUUID();
       const original = await venta(e.cajero, e.producto.id, 2, solicitud);
-      await prisma.$executeRawUnsafe('UPDATE ventas SET id=$1 WHERE id=$2', solicitud, original.id);
+      await volverAnterior(solicitud, original.id);
       const distinto = await http('post', '/ventas', e.cajero.token, ventaBody(e.producto.id, 5, solicitud));
       expect(distinto.status).toBe(409);
     });
@@ -364,7 +396,7 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       const dueno = await escenario(); const intruso = await escenario();
       const solicitud = randomUUID();
       const original = await venta(dueno.cajero, dueno.producto.id, 1, solicitud);
-      await prisma.$executeRawUnsafe('UPDATE ventas SET id=$1 WHERE id=$2', solicitud, original.id);
+      await volverAnterior(solicitud, original.id);
       const ajena = await http('post', '/ventas', intruso.cajero.token, ventaBody(intruso.producto.id, 1, solicitud));
       expect(ajena.status).toBe(201);
       expect(ajena.body.id).not.toBe(solicitud);
@@ -374,10 +406,10 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
     it('reintento de entrega en paralelo: una sola entrega y un solo descuento', async () => {
       const e = await escenario();
       const v = await venta(e.cajero, e.producto.id, 2);
-      const respuestas = await Promise.all(Array.from({ length: 4 }, () => http('post', `/operaciones/ventas/${v.id}/entregar`, e.bodeguero.token, {})));
+      const respuestas = await Promise.all(Array.from({ length: 4 }, () => http('post', `/operaciones/ventas/${v.id}/entregar`, e.bodeguero.token, cuerpoEntrega())));
       expect(respuestas.every(r => r.status < 300)).toBe(true);
       expect(await stockDe(e.producto.id)).toEqual({ actual: 8, reservado: 0 });
-      expect(await prisma.$queryRawUnsafe<any[]>("SELECT id FROM auditoria_operaciones WHERE entidad_id=$1 AND operacion='VENTA_ENTREGAR'", v.id)).toHaveLength(1);
+      expect(await prisma.$queryRawUnsafe<any[]>("SELECT id FROM entregas_eventos WHERE venta_id=$1 AND tipo='ENTREGA'", v.id)).toHaveLength(1);
     });
   });
 
@@ -392,7 +424,7 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       expect(porSolicitud.body).toMatchObject({ estado: 'REGISTRADA' });
     });
 
-    it.fails('HALLAZGO P3: el id interno no debe servir como solicitud en la consulta (hoy responde REGISTRADA para la misma empresa y usuario)', async () => {
+    it('P3 corregido: el id interno no sirve como solicitud en la consulta (responde NO_REGISTRADA)', async () => {
       const e = await escenario();
       const solicitud = randomUUID();
       const v = await venta(e.cajero, e.producto.id, 1, solicitud);
@@ -407,11 +439,11 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       expect((await http('get', `/ventas/${v.id}`, intruso.cajero.token)).status).toBe(404);
     });
 
-    it('OBSERVACIÓN: usar el id interno como solicitudId responde 409 (no duplica ni devuelve otra venta)', async () => {
+    it('P3 corregido: usar el id interno como solicitudId se rechaza con 400 (no duplica ni devuelve otra venta)', async () => {
       const e = await escenario();
       const v = await venta(e.cajero, e.producto.id, 1);
       const r = await http('post', '/ventas', e.cajero.token, ventaBody(e.producto.id, 1, v.id));
-      expect(r.status).toBe(409);
+      expect(r.status).toBe(400);
       expect(await prisma.venta.count({ where: { tenantId: e.tenantId } })).toBe(1);
     });
   });
@@ -427,28 +459,34 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       const dueno = await escenario(); const intruso = await escenario();
       const dispositivo = randomUUID();
       await habilitar(dueno.admin); await registrarDispositivo(dueno.admin, dispositivo).expect(201);
-      const antes = await prisma.dispositivoPos.findUniqueOrThrow({ where: { id: dispositivo } });
+      const antes = await prisma.dispositivoPos.findUniqueOrThrow({ where: { id: idSolicitud(dueno.tenantId, dispositivo) } });
       await habilitar(intruso.admin);
       await http('post', `/contingencia/dispositivos/${dispositivo}/latido`, intruso.admin.token, { pendientes: 9 }).expect(404);
       await http('post', `/contingencia/dispositivos/${dispositivo}/desactivar`, intruso.admin.token, { motivo: 'Intento ajeno de verificación' }).expect(404);
-      const despues = await prisma.dispositivoPos.findUniqueOrThrow({ where: { id: dispositivo } });
+      const despues = await prisma.dispositivoPos.findUniqueOrThrow({ where: { id: idSolicitud(dueno.tenantId, dispositivo) } });
       expect(despues.activo).toBe(antes.activo);
       expect(despues.tenantId).toBe(dueno.tenantId);
     });
 
-    it('registrar un dispositivo con id de otra empresa responde igual que con id libre (oráculo residual)', async () => {
+    it('registrar un dispositivo con id de otra empresa responde igual que con id libre (P2 corregido)', async () => {
       const dueno = await escenario(); const intruso = await escenario();
       const ocupado = randomUUID();
       await habilitar(dueno.admin); await registrarDispositivo(dueno.admin, ocupado).expect(201);
       await habilitar(intruso.admin);
+      // Cada empresa admite una caja de contingencia: el control (identificador libre) se hace en otra empresa equivalente.
+      const control = await escenario(); await habilitar(control.admin);
       const ajeno = await registrarDispositivo(intruso.admin, ocupado);
-      const libre = await registrarDispositivo(intruso.admin, randomUUID());
-      // Residual: el 409 confirma que el identificador existe en otra empresa. Documentado (P2 bajo).
-      expect(ajeno.status).toBe(409);
+      const libre = await registrarDispositivo(control.admin, randomUUID());
       expect(libre.status).toBe(201);
+      expect(ajeno.status).toBe(201);
+      expect(Object.keys(ajeno.body).sort()).toEqual(Object.keys(libre.body).sort());
+      // El equipo recibe su propio identificador y la empresa dueña conserva el suyo intacto.
+      expect(ajeno.body.id).toBe(ocupado);
+      const filas = await prisma.dispositivoPos.findMany({ where: { id: { in: [idSolicitud(dueno.tenantId, ocupado), idSolicitud(intruso.tenantId, ocupado)] } } });
+      expect(filas.map((f) => f.tenantId).sort()).toEqual([dueno.tenantId, intruso.tenantId].sort());
     });
 
-    it('operación de contingencia: un operacionId de otra empresa responde distinto a uno libre (oráculo residual, medido)', async () => {
+    it('operación de contingencia: un operacionId de otra empresa responde igual que uno libre (P2 corregido)', async () => {
       const dueno = await escenario(); const intruso = await escenario();
       const preparar = async (e: any) => {
         await habilitar(e.admin);
@@ -473,15 +511,22 @@ describe('Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQ
       expect(original.status, JSON.stringify(original.body)).toBeLessThan(300);
       const ajena = await enviar(intruso, preIntruso, ocupada);
       const libre = await enviar(intruso, preIntruso, randomUUID());
-      // Residual medido: la respuesta de la empresa ajena difiere de la libre (RECHAZADA_TECNICA frente a un registro).
-      // No revela datos ni cambia la operación de la otra empresa.
-      expect(ajena.body.resultados[0].estado).toBe('RECHAZADA_TECNICA');
-      expect(ajena.body.resultados[0].mensaje).toBe('Identificador de operación no disponible');
-      expect(libre.body.resultados[0].estado).not.toBe('RECHAZADA_TECNICA');
+      const r0 = ajena.body.resultados[0], l0 = libre.body.resultados[0];
+      expect(r0.estado).toBe(l0.estado);
+      expect(r0.estado).not.toBe('RECHAZADA_TECNICA');
+      expect(r0.operacionId).toBe(ocupada); // el equipo reconoce su propio identificador
+      expect(Object.keys(r0).sort()).toEqual(Object.keys(l0).sort());
       expect(JSON.stringify(ajena.body)).not.toContain(dueno.tenantId);
       expect(JSON.stringify(ajena.body)).not.toContain(dueno.cajero.id);
-      const intacta = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: ocupada } });
+      // La operación de la empresa dueña queda intacta y la ajena es otro registro, en su propia empresa.
+      const intacta = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(dueno.tenantId, ocupada) } });
       expect(intacta.tenantId).toBe(dueno.tenantId);
+      const propia = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(intruso.tenantId, ocupada) } });
+      expect(propia.tenantId).toBe(intruso.tenantId);
+      // Reintento del dueño: misma operación, sin duplicar.
+      const repetido = await enviar(dueno, preDueno, ocupada);
+      expect(repetido.body.resultados[0].operacionId).toBe(ocupada);
+      expect(await prisma.operacionContingencia.count({ where: { tenantId: dueno.tenantId } })).toBe(1);
     });
 
     it('consulta de estados de una operación de contingencia ajena: no revela existencia ni datos', async () => {

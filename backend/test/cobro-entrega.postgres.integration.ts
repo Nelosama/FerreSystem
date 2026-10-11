@@ -1,3 +1,4 @@
+import { idSolicitud } from '../src/operaciones/ledger';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -74,8 +75,8 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
     }
     await operaciones.abrir(tenantId, ids.cajero, { solicitudId: randomUUID(), monto: 100 } as any);
     await operaciones.abrir(tenantId, ids.admin, { solicitudId: randomUUID(), monto: 100000 } as any);
-    const p1 = await prisma.producto.create({ data: { tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20 } as any });
-    const p2 = await prisma.producto.create({ data: { tenantId, codigo: 'BIS-1', nombre: 'Bisagra', precioVenta: 25, precioCosto: 10, stockActual: 8 } as any });
+    const p1 = await prisma.producto.create({ data: { tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioVenta: 10, precioCosto: 4, stockActual: 20, precioAprobado: true } as any });
+    const p2 = await prisma.producto.create({ data: { tenantId, codigo: 'BIS-1', nombre: 'Bisagra', precioVenta: 25, precioCosto: 10, stockActual: 8, precioAprobado: true } as any });
     const sinPrecio = await prisma.producto.create({ data: { tenantId, codigo: 'NEW-1', nombre: 'Pendiente de precio', precioVenta: 0, precioCosto: 0, stockActual: 10 } as any });
     const dispositivoId = randomUUID();
     await contingencia.registrarDispositivo(tenantId, ids.cajero, { dispositivoId, nombre: 'Caja principal' });
@@ -93,7 +94,8 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
 
   const vender = (e: Empresa, detalles: any[], extra: any = {}) =>
     ventas.create(e.tenantId, e.cajero, { solicitudId: randomUUID(), detalles, ...extra } as any);
-  const mostrador = (e: Empresa, productoId: string, cantidad: number) => vender(e, [{ productoId, cantidad, modoEntrega: 'MOSTRADOR' }]);
+  // La entrega inmediata es una entrega física: solo la registra un rol que puede entregar (ADMIN); el cajero cobra para bodega.
+  const mostrador = (e: Empresa, productoId: string, cantidad: number) => ventas.create(e.tenantId, e.admin, { solicitudId: randomUUID(), detalles: [{ productoId, cantidad, modoEntrega: 'MOSTRADOR' }] } as any);
   const bodega = (e: Empresa, productoId: string, cantidad: number) => vender(e, [{ productoId, cantidad, modoEntrega: 'BODEGA' }]);
   const entregar = (e: Empresa, ventaId: string, lineas: { detalleId: string; cantidad: number }[], extra: { solicitudId?: string; receptor?: string; usuario?: string } = {}) =>
     entregas.entregar(e.tenantId, extra.usuario ?? e.bodeguero, ventaId, { solicitudId: extra.solicitudId ?? randomUUID(), receptorNombre: extra.receptor ?? 'María Pérez', lineas } as any);
@@ -336,8 +338,8 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
       const e = await empresa();
       const solicitudId = randomUUID();
       const detalles = [{ productoId: e.p1, cantidad: 2, modoEntrega: 'MOSTRADOR' }];
-      const a = await ventas.create(e.tenantId, e.cajero, { solicitudId, detalles } as any);
-      const b = await ventas.create(e.tenantId, e.cajero, { solicitudId, detalles: [...detalles] } as any);
+      const a = await ventas.create(e.tenantId, e.admin, { solicitudId, detalles } as any);
+      const b = await ventas.create(e.tenantId, e.admin, { solicitudId, detalles: [...detalles] } as any);
       expect(b.id).toBe(a.id);
       expect(await stock(e.p1)).toBe(18);
       expect(await sql('SELECT id FROM ventas WHERE tenant_id=$1', e.tenantId)).toHaveLength(1);
@@ -347,9 +349,9 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
     it('la misma solicitud con otro contenido (cantidad o modo de entrega) es un conflicto y no cambia nada', async () => {
       const e = await empresa();
       const solicitudId = randomUUID();
-      await ventas.create(e.tenantId, e.cajero, { solicitudId, detalles: [{ productoId: e.p1, cantidad: 2, modoEntrega: 'MOSTRADOR' }] } as any);
-      await expect(ventas.create(e.tenantId, e.cajero, { solicitudId, detalles: [{ productoId: e.p1, cantidad: 3, modoEntrega: 'MOSTRADOR' }] } as any)).rejects.toThrow(/ya fue utilizada/);
-      await expect(ventas.create(e.tenantId, e.cajero, { solicitudId, detalles: [{ productoId: e.p1, cantidad: 2, modoEntrega: 'BODEGA' }] } as any)).rejects.toThrow(/ya fue utilizada/);
+      await ventas.create(e.tenantId, e.admin, { solicitudId, detalles: [{ productoId: e.p1, cantidad: 2, modoEntrega: 'MOSTRADOR' }] } as any);
+      await expect(ventas.create(e.tenantId, e.admin, { solicitudId, detalles: [{ productoId: e.p1, cantidad: 3, modoEntrega: 'MOSTRADOR' }] } as any)).rejects.toThrow(/ya fue utilizada/);
+      await expect(ventas.create(e.tenantId, e.admin, { solicitudId, detalles: [{ productoId: e.p1, cantidad: 2, modoEntrega: 'BODEGA' }] } as any)).rejects.toThrow(/ya fue utilizada/);
       expect(await stock(e.p1)).toBe(18);
       expect(await reservado(e.p1)).toBe(0);
     });
@@ -357,8 +359,8 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
     it('un producto sin precio de venta aprobado no se vende: sin venta, sin caja y sin movimientos', async () => {
       const e = await empresa();
       const antes = (await sql('SELECT COUNT(*)::int AS n FROM movimientos_caja'))[0].n;
-      await expect(mostrador(e, e.sinPrecio, 1)).rejects.toThrow(/precio de venta aprobado/);
-      await expect(bodega(e, e.sinPrecio, 1)).rejects.toThrow(/precio de venta aprobado/);
+      await expect(mostrador(e, e.sinPrecio, 1)).rejects.toThrow(/precio aprobado/);
+      await expect(bodega(e, e.sinPrecio, 1)).rejects.toThrow(/precio aprobado/);
       expect(await sql('SELECT id FROM ventas WHERE tenant_id=$1', e.tenantId)).toEqual([]);
       expect((await sql('SELECT COUNT(*)::int AS n FROM movimientos_caja'))[0].n).toBe(antes);
       expect(await stock(e.sinPrecio)).toBe(10);
@@ -366,7 +368,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
 
     it('un precio unitario cero o un importe cero se rechaza', async () => {
       const e = await empresa();
-      await expect(vender(e, [{ productoId: e.p1, cantidad: 1, precioUnitario: 0, modoEntrega: 'MOSTRADOR' }])).rejects.toThrow(/mayor que cero/);
+      await expect(ventas.create(e.tenantId, e.admin, { solicitudId: randomUUID(), detalles: [{ productoId: e.p1, cantidad: 1, precioUnitario: 0, modoEntrega: 'MOSTRADOR' }] } as any)).rejects.toThrow(/mayor que cero/);
       expect(await sql('SELECT id FROM ventas WHERE tenant_id=$1', e.tenantId)).toEqual([]);
     });
   });
@@ -523,7 +525,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
     it('una venta ya facturada se puede entregar aunque después se revoque la aprobación del precio', async () => {
       const e = await empresa();
       const venta = await bodega(e, e.p1, 2);
-      await prisma.producto.update({ where: { id: e.p1 }, data: { precioVenta: 0 } });
+      await prisma.producto.update({ where: { id: e.p1 }, data: { precioVenta: 0, precioAprobado: false } });
       const r = await entregar(e, venta.id, [{ detalleId: venta.detalles[0].id, cantidad: 2 }]);
       expect(r).toBeTruthy();
       expect(await stock(e.p1)).toBe(18);
@@ -638,7 +640,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
       const [l] = bodeguero.pendientes[0].lineas;
       expect([l.cantidad, l.entregada, l.pendiente, l.estado]).toEqual([3, 1, 2, 'PARCIAL']);
       expect((await entregas.pendientes(e.tenantId, e.cajero)).pendientes).toHaveLength(1);
-      expect((await entregas.pendientes(e.tenantId, e.vendedor)).pendientes).toHaveLength(0); // no es su venta
+      await expect(entregas.pendientes(e.tenantId, e.vendedor)).rejects.toThrow(/No puede consultar entregas/); // VENDEDOR no accede a pendientes
       expect((await entregas.pendientes(e.tenantId, e.admin)).pendientes).toHaveLength(1);
     });
 
@@ -757,7 +759,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
     it('si el producto pierde su precio aprobado después de emitir la ventana, la operación va a revisión y no se vende', async () => {
       const e = await empresa();
       const { ventana } = await contingencia.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
-      await prisma.producto.update({ where: { id: e.p1 }, data: { precioVenta: 0 } });
+      await prisma.producto.update({ where: { id: e.p1 }, data: { precioVenta: 0, precioAprobado: false } });
       const op = operacion(e, ventana.id, e.p1);
       const [r] = (await enviar(e, [op])).resultados;
       expect(r.estado).toBe('REVISION');
@@ -768,12 +770,12 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
       // La operación local queda registrada y un administrador no puede forzarla mientras el precio no esté aprobado.
       await contingencia.resolver(e.tenantId, e.admin, r.operacionId, { accion: 'ACEPTAR', nota: 'Intento de aceptar un producto sin precio' } as any).catch(() => undefined);
       expect(await sql('SELECT id FROM ventas WHERE tenant_id=$1', e.tenantId)).toEqual([]);
-      const [op1] = await sql('SELECT estado FROM operaciones_contingencia WHERE id=$1', r.operacionId);
+      const [op1] = await sql('SELECT estado FROM operaciones_contingencia WHERE id=$1', idSolicitud(e.tenantId, r.operacionId));
       expect(op1.estado).toBe('REVISION');
       // Con el precio aprobado de nuevo, el administrador puede reintentarla y se aplica una sola vez.
-      await prisma.producto.update({ where: { id: e.p1 }, data: { precioVenta: 10 } });
+      await prisma.producto.update({ where: { id: e.p1 }, data: { precioVenta: 10, precioAprobado: true } });
       await contingencia.resolver(e.tenantId, e.admin, r.operacionId, { accion: 'REINTENTAR', nota: 'Precio aprobado nuevamente por administración' } as any);
-      const [op2] = await sql('SELECT estado, venta_id FROM operaciones_contingencia WHERE id=$1', r.operacionId);
+      const [op2] = await sql('SELECT estado, venta_id FROM operaciones_contingencia WHERE id=$1', idSolicitud(e.tenantId, r.operacionId));
       expect(op2.estado).toBe('APLICADA');
       expect(await stock(e.p1)).toBe(18);
       expect(await sql('SELECT id FROM ventas WHERE tenant_id=$1', e.tenantId)).toHaveLength(1);
