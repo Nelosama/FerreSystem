@@ -1,6 +1,7 @@
 -- PROPUESTA CENTINELA. NO es una migración: no está en prisma/migrations y no se aplica con `migrate deploy`.
 -- Reversión de 20261012000000_entrega_eventos_y_cantidades. Deshace exactamente los objetos que la migración crea.
 --
+-- ATENCIÓN: use 03_rollback_con_respaldo.sql (no elimina eventos en silencio). Este script se conserva solo como referencia de los objetos.
 -- ADVERTENCIA: es DESTRUCTIVA para los datos de entrega. Borra entregas_eventos, entregas_eventos_lineas, los
 -- contadores de cantidades y las columnas evento_id/detalle_venta_id de movimientos_inventario. Solo es segura
 -- antes de que el código nuevo registre el primer evento de entrega, o con respaldo y autorización explícita.
