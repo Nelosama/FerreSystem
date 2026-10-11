@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString,
   IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateIf, ValidateNested,
@@ -24,6 +24,12 @@ export class LineaContingenciaDto {
   @IsInt() @Min(0) @Max(9999999999) precioCentavos: number;
 }
 
+/**
+ * H-1 (CENTINELA): las columnas total_centavos y efectivo_recibido_centavos son enteros de 32 bits. Un importe mayor no cabe en el
+ * diario; se rechaza como formato inválido de esa operación, sin tumbar el lote. 2 000 000 000 centavos son 20 millones de lempiras.
+ */
+export const MAX_CENTAVOS = 2_000_000_000;
+
 export class OperacionContingenciaDto {
   @IsUUID('4') operacionId: string;
   @IsUUID('4') dispositivoId: string;
@@ -37,11 +43,11 @@ export class OperacionContingenciaDto {
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => LineaContingenciaDto)
   lineas: LineaContingenciaDto[];
   // CENTINELA D: sin mínimo 1; un importe 0 lo clasifica el servicio (IMPORTE_INVALIDO) sin rechazar el lote entero.
-  @IsInt() @Min(0) @Max(99999999999) totalCentavos: number;
-  @IsInt() @Min(0) @Max(99999999999) subtotalCentavos: number;
-  @IsInt() @Min(0) @Max(99999999999) isvCentavos: number;
-  @IsInt() @Min(0) @Max(99999999999) efectivoRecibidoCentavos: number;
-  @IsInt() @Min(0) @Max(99999999999) cambioCentavos: number;
+  @IsInt() @Min(0) @Max(MAX_CENTAVOS) totalCentavos: number;
+  @IsInt() @Min(0) @Max(MAX_CENTAVOS) subtotalCentavos: number;
+  @IsInt() @Min(0) @Max(MAX_CENTAVOS) isvCentavos: number;
+  @IsInt() @Min(0) @Max(MAX_CENTAVOS) efectivoRecibidoCentavos: number;
+  @IsInt() @Min(0) @Max(MAX_CENTAVOS) cambioCentavos: number;
   @IsOptional() @IsIn(['EFECTIVO']) metodoPago?: 'EFECTIVO';
   @IsOptional() @IsString() @MaxLength(200) clienteNombre?: string;
   @IsOptional() @IsString() @MaxLength(100) clienteRtn?: string;
@@ -64,7 +70,8 @@ export class ResolverOperacionDto {
   @IsOptional() @IsString() cajaId?: string;
   /** R-02: regularización excepcional para registrar el efectivo en la caja CERRADA del cajero que cobró. Exige motivo. */
   @IsOptional() @IsBoolean() regularizarCajaCerrada?: boolean;
-  @ValidateIf((o) => o.regularizarCajaCerrada === true) @IsString() @MinLength(20) @MaxLength(500) motivoRegularizacion?: string;
+  // H-3 (CENTINELA): el mínimo de 20 caracteres se cuenta sobre el texto recortado; espacios en blanco no son un motivo.
+  @ValidateIf((o) => o.regularizarCajaCerrada === true) @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value)) @IsString() @MinLength(20) @MaxLength(500) motivoRegularizacion?: string;
   @IsOptional() @IsString() @MaxLength(100) referenciaFacturaExterna?: string;
 }
 

@@ -30,7 +30,7 @@ export interface ConfigEfectiva {
 const LONGITUD_MINIMA_CLAVE = 32;
 export function claveDeOperaciones(entorno: NodeJS.ProcessEnv): string {
   const clave = entorno.CONTINGENCIA_CLAVE_OPERACIONES ?? '';
-  if (clave.length < LONGITUD_MINIMA_CLAVE) throw new Error(`CONTINGENCIA_CLAVE_OPERACIONES es obligatoria y debe tener al menos ${LONGITUD_MINIMA_CLAVE} caracteres`);
+  if (clave.trim().length < LONGITUD_MINIMA_CLAVE) throw new Error(`CONTINGENCIA_CLAVE_OPERACIONES es obligatoria y debe tener al menos ${LONGITUD_MINIMA_CLAVE} caracteres`);
   return clave;
 }
 /** Transición: clave anterior con la que se derivaron las ventanas emitidas antes del cambio. Se retira al vaciar pendientes. */
@@ -41,7 +41,7 @@ export function claveAnteriorDeOperaciones(entorno: NodeJS.ProcessEnv): string |
   return clave;
 }
 /** Rechazos por identidad o por clave: un reenvío legítimo posterior se reevalúa, no queda bloqueado. */
-const CODIGOS_REEVALUABLES = new Set(['CAJERO_NO_AUTORIZADO', 'OPERACION_NO_EMITIDA']);
+const CODIGOS_REEVALUABLES = new Set(['CAJERO_NO_AUTORIZADO', 'OPERACION_NO_EMITIDA', 'CAJERO_DESCONOCIDO']);
 const DEFECTOS = {
   cupoPorcentaje: 50, margenUnidades: 1, montoMaxVentaCentavos: 500_000, montoMaxAcumuladoCentavos: 2_500_000,
   vigenciaHoras: 36, dispositivosMax: 1,
@@ -68,6 +68,7 @@ const CODIGOS_RECHAZO_RECEPCION = new Set([...CODIGOS_RECHAZO, 'IMPORTE_INVALIDO
 const INSTRUCCION_RECHAZO: Record<string, string> = {
   IMPORTE_INVALIDO: 'El cobro no cubre el total. No se registró venta: avise al administrador para conciliar el efectivo.',
   CAJERO_NO_AUTORIZADO: 'Esta operación pertenece a otro cajero. No se registró venta: avise al administrador.',
+  CAJERO_DESCONOCIDO: 'El cajero de la operación no es un usuario de esta empresa. No se registró venta: avise al administrador.',
   OPERACION_OTRO_DISPOSITIVO: 'La operación pertenece a otro equipo. No se registró venta: avise al administrador.',
   VENTANA_OBSOLETA: 'Solicite una ventana nueva al administrador. La venta se conserva en el equipo y queda registrada para conciliación.',
   VENTANA_DE_OTRO_CAJERO: 'No cobre con la ventana de otro cajero. Avise al administrador: la venta queda para conciliación.',
@@ -318,7 +319,14 @@ export class ContingenciaService {
           resultados.push({ operacionId: op.operacionId, estado: 'ERROR_TEMPORAL', codigo: null, mensaje: error?.message ?? 'Error' });
         } else {
           // H5: un 4xx es un rechazo definitivo. Debe quedar en el servidor para que el administrador lo vea; nunca es una venta.
-          resultados.push(await this.serializada(tenantId, op.operacionId, (tx) => this.registrarRechazoDefinitivo(tx, tenantId, usuarioId, rol, dispositivo.id, op, error)));
+          try {
+            resultados.push(await this.serializada(tenantId, op.operacionId, (tx) => this.registrarRechazoDefinitivo(tx, tenantId, usuarioId, rol, dispositivo.id, op, error)));
+          } catch (falloRegistro: any) {
+            // H-1 (CENTINELA): un fallo al REGISTRAR el rechazo no puede tumbar el lote ni dejar sin respuesta a las demás operaciones.
+            // Nada definitivo quedó escrito (la transacción se revirtió): el equipo reintenta con el mismo UUID.
+            this.logger.error(`Rechazo de ${op.operacionId} no registrado: ${falloRegistro?.message}`);
+            resultados.push({ operacionId: op.operacionId, estado: 'ERROR_TEMPORAL', codigo: null, mensaje: 'No se pudo registrar el rechazo; se reintentará' });
+          }
         }
       }
     }
@@ -410,6 +418,10 @@ export class ContingenciaService {
     if (dto.dispositivoId !== dispositivoEquipo) throw new BadRequestException({ message: 'La operación pertenece a otro dispositivo', code: 'OPERACION_OTRO_DISPOSITIVO' });
     if (rol !== 'ADMIN' && dto.cajeroId !== usuarioId) {
       throw new ForbiddenException({ message: 'Solo el cajero de la operación o un administrador puede enviarla', code: 'CAJERO_NO_AUTORIZADO' });
+    }
+    // H-4 (CENTINELA): un administrador puede enviar la operación de un cajero, pero ese cajero debe ser un usuario de esta empresa.
+    if (rol === 'ADMIN' && dto.cajeroId !== usuarioId && !(await db.usuario.findFirst({ where: { id: dto.cajeroId, tenantId }, select: { id: true } }))) {
+      throw new BadRequestException({ message: 'El cajero de la operación no es un usuario de esta empresa', code: 'CAJERO_DESCONOCIDO' });
     }
     // Un importe cero o un cobro menor al total nunca se registra como venta. Es un rechazo permanente (no un error de red):
     // el equipo conserva la venta local y la marca para revisión del administrador, sin reintentarla indefinidamente.
@@ -531,7 +543,7 @@ export class ContingenciaService {
     }
     // N-NUEVA (CENTINELA): un envío de quien no es el cajero de la operación no crea fila. Una fila RECHAZADA a nombre del dueño
     // bloquearía para siempre su sincronización legítima. Queda solo la evidencia por remitente, para que pueda consultarla.
-    if (codigo === 'CAJERO_NO_AUTORIZADO' || codigo === 'OPERACION_NO_EMITIDA') {
+    if (codigo === 'CAJERO_NO_AUTORIZADO' || codigo === 'OPERACION_NO_EMITIDA' || codigo === 'CAJERO_DESCONOCIDO') {
       const propia = await db.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno, usuarioId } });
       if (!propia) {
         await db.auditoriaOperacion.create({
@@ -714,7 +726,7 @@ export class ContingenciaService {
     }
     if (limites?.montoMaxAcumuladoCentavos) {
       const [{ suma }] = await query<{ suma: string }>(tx,
-        `SELECT COALESCE(SUM(total_centavos),0) AS suma FROM operaciones_contingencia WHERE tenant_id=$1 AND ventana_id=$2 AND secuencia_local<=$3`, tenantId, op.ventanaId, op.secuenciaLocal);
+        `SELECT COALESCE(SUM(total_centavos),0) AS suma FROM operaciones_contingencia WHERE tenant_id=$1 AND ventana_id=$2 AND secuencia_local<=$3 AND estado<>'RECHAZADA'`, tenantId, op.ventanaId, op.secuenciaLocal);
       if (Number(suma) > limites.montoMaxAcumuladoCentavos) conflictos.push({ codigo: 'LIMITE_ACUMULADO_EXCEDIDO', severidad: 'BLANDO', detalle: { maximo: limites.montoMaxAcumuladoCentavos, acumulado: Number(suma) } });
     }
 
@@ -756,7 +768,7 @@ export class ContingenciaService {
     const vendidoAntes = await query<{ producto_id: string; cantidad: string }>(tx,
       `SELECT l->>'productoId' AS producto_id, SUM((l->>'cantidadCentesimas')::bigint) AS cantidad
          FROM operaciones_contingencia o, jsonb_array_elements(o.payload->'lineas') l
-        WHERE o.tenant_id=$1 AND o.ventana_id=$2 AND o.secuencia_local<$3 GROUP BY 1`, tenantId, op.ventanaId, op.secuenciaLocal);
+        WHERE o.tenant_id=$1 AND o.ventana_id=$2 AND o.secuencia_local<$3 AND o.estado<>'RECHAZADA' GROUP BY 1`, tenantId, op.ventanaId, op.secuenciaLocal);
     const vendido = new Map(vendidoAntes.map((r) => [r.producto_id, Number(r.cantidad)]));
     const faltantes: { productoId: string; cantidad: number }[] = [];
     for (const linea of dto.lineas) {
@@ -938,6 +950,9 @@ export class ContingenciaService {
       op.cajaId, tenantId, op.usuarioId);
     if (!caja) throw new ConflictException({ message: 'La caja del cajero que cobró no existe; no se registra el efectivo en otra caja', code: 'CAJA_DEL_COBRO_NO_ENCONTRADA' });
     const cerrada = caja.estado !== 'ABIERTA';
+    if (cerrada && regularizacion && regularizacion.motivo.trim().length < 20) {
+      throw new BadRequestException({ message: 'El motivo de la regularización debe tener al menos 20 caracteres', code: 'MOTIVO_REGULARIZACION_INSUFICIENTE' });
+    }
     if (cerrada && !regularizacion) {
       throw new ConflictException({
         message: 'La caja del cajero que cobró está cerrada. El efectivo no se traslada a otra caja: un administrador debe autorizar una regularización excepcional indicando su motivo',
@@ -956,7 +971,7 @@ export class ContingenciaService {
       const diferenciaAnterior = Number(caja.diferencia ?? 0);
       const esperadoNuevo = money(esperadoAnterior + monto);
       const diferenciaNueva = money(Number(caja.monto_cierre_fisico ?? 0) - esperadoNuevo);
-      const nota = `${caja.notas ? `${caja.notas} | ` : ''}Regularización ${op.correlativoLocal}: +${monto} (${regularizacion!.motivo})`;
+      const nota = `${caja.notas ? `${caja.notas} | ` : ''}Regularización ${op.correlativoLocal}: +${monto} (${regularizacion!.motivo.trim()})`;
       await query(tx, 'UPDATE cajas SET monto_esperado=$1, diferencia=$2, notas=$3 WHERE id=$4', esperadoNuevo, diferenciaNueva, nota, caja.id);
       await audit(tx, tenantId, adminId, 'CONTINGENCIA_REGULARIZAR_CAJA_CERRADA', op.id,
         { cajaId: caja.id, monto, movimientoId, motivo: regularizacion!.motivo, esperadoAnterior, esperadoNuevo, diferenciaAnterior, diferenciaNueva });
