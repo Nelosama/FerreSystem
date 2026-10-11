@@ -127,13 +127,14 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     expect(await ventasDe(e.tenantId)).toBe(0);
   });
 
-  it('H5-2: operación de otro cajero enviada por un cajero (403) queda registrada como rechazo, sin venta ni caja ajena', async () => {
+  it('H5-2: operación de otro cajero enviada por un cajero (403): evidencia por remitente, sin fila ni venta', async () => {
     const e = await empresa();
     const op = operacion(e, { cajeroId: e.admin });
     const r = (await recibir(e, [op])).resultados[0];
     expect(r).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'CAJERO_NO_AUTORIZADO' });
-    const fila = await filaDe(e.tenantId, op.operacionId);
-    expect(fila?.estado).toBe('RECHAZADA');
+    // N-NUEVA: no se crea fila RECHAZADA a nombre del cajero de la operación.
+    expect(await filaDe(e.tenantId, op.operacionId)).toBeNull();
+    expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_NO_REGISTRADA', idSolicitud(e.tenantId, op.operacionId))).toBe(1);
     expect(await ventasDe(e.tenantId)).toBe(0);
   });
 
@@ -219,15 +220,15 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
     expect(consulta).toMatchObject({ estado: primera.estado, codigo: primera.codigo, mensaje: primera.mensaje, instruccion: primera.instruccion });
   });
 
-  it('B (H6 en rechazo por cajero): un payload distinto con el mismo UUID se registra como alteración', async () => {
+  it('N-NUEVA: un envío de otro cajero no bloquea al cajero de la operación, que la aplica como venta', async () => {
     const e = await empresa();
     const op = operacion(e, { cajeroId: e.admin });
-    await recibir(e, [op]);
-    const alterada = { ...op, efectivoRecibidoCentavos: 2600, cambioCentavos: 300 };
-    const r = (await recibir(e, [alterada])).resultados[0];
-    expect(r.conflictos.map((c: any) => c.codigo)).toContain('OPERACION_ALTERADA');
-    expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_ALTERADA', idSolicitud(e.tenantId, op.operacionId))).toBe(1);
-    expect(await ventasDe(e.tenantId)).toBe(0);
+    expect((await recibir(e, [op])).resultados[0].codigo).toBe('CAJERO_NO_AUTORIZADO');
+    // El dueño de la operación la envía después: debe aplicarse, no quedar bloqueada.
+    const dueno = operacion(e, { operacionId: op.operacionId, cajeroId: e.cajero, secuenciaLocal: op.secuenciaLocal, correlativoLocal: op.correlativoLocal });
+    const r = (await recibir(e, [dueno], e.cajero, 'CAJERO')).resultados[0];
+    expect(r).toMatchObject({ operacionId: op.operacionId, estado: 'APLICADA' });
+    expect(await ventasDe(e.tenantId)).toBe(1);
   });
 
   it('D: un importe 0 no hace que el DTO rechace el lote entero (la clasificación pasa al servicio)', async () => {

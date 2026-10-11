@@ -21,7 +21,7 @@ import { TenantModuleGuard } from '../src/common/guards/tenant-module.guard';
 
 // H5 por HTTP real (FARO): errores 4xx de POST /api/contingencia/operaciones con PostgreSQL temporal, login JWT real,
 // ValidationPipe y guardas como en producción. Cada prueba comprueba el estado de la base antes y después.
-const bin = process.env.PG_BIN || '/usr/bin';
+const bin = process.env.PG_BIN || (existsSync('/usr/lib/postgresql/16/bin') ? '/usr/lib/postgresql/16/bin' : '/usr/bin');
 const exe = (name: string) => join(bin, name);
 
 describe('Contingencia H5 por HTTP: 4xx en recepción offline / PostgreSQL aislado', () => {
@@ -168,7 +168,9 @@ describe('Contingencia H5 por HTTP: 4xx en recepción offline / PostgreSQL aisla
     const despues = await conteos(e.tenantId);
     expect(despues.ventas).toBe(antes.ventas);
     expect(despues.movimientosCaja).toBe(antes.movimientosCaja);
-    expect(despues.filas).toBe(antes.filas + 1);
+    // N-NUEVA: el envío de otro cajero no crea fila; queda como evidencia por remitente.
+    expect(despues.filas).toBe(antes.filas);
+    expect(await prisma.auditoriaOperacion.count({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA' } })).toBe(1);
   });
 
   it('lote mixto por HTTP: las operaciones válidas se aplican, la mal formada deja evidencia y no genera venta', async () => {

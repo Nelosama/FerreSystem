@@ -435,6 +435,8 @@ export class ContingenciaService {
   private async respuestaSinRegistroPara(tenantId: string, operacionId: string, usuarioId: string, rol: string) {
     const base = await this.respuestaSinRegistro(tenantId, operacionId);
     if (!base || rol === 'ADMIN') return base;
+    // N-NUEVA: un CAJERO_NO_AUTORIZADO no es un rechazo de la operación: no impide que su cajero la envíe.
+    if (base.codigo === 'CAJERO_NO_AUTORIZADO') return null;
     if (await this.respuestaSinRegistro(tenantId, operacionId, usuarioId)) return base;
     return { operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'RECHAZADA', mensaje: 'Esta operación ya fue rechazada y no puede enviarse de nuevo', instruccion: 'Avise al administrador.', requiereRevision: true, conflictos: [] };
   }
@@ -457,6 +459,18 @@ export class ContingenciaService {
         return this.respuestaRechazo(alterada, dto.operacionId);
       }
       return this.resumenCliente(existente, dto.operacionId);
+    }
+    // N-NUEVA (CENTINELA): un envío de quien no es el cajero de la operación no crea fila. Una fila RECHAZADA a nombre del dueño
+    // bloquearía para siempre su sincronización legítima. Queda solo la evidencia por remitente, para que pueda consultarla.
+    if (codigo === 'CAJERO_NO_AUTORIZADO') {
+      const propia = await this.prisma.auditoriaOperacion.findFirst({ where: { tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno, usuarioId } });
+      if (!propia) {
+        await this.prisma.auditoriaOperacion.create({
+          data: { tenantId, usuarioId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idInterno,
+            datos: { codigo, mensaje, correlativoLocal: dto.correlativoLocal, totalCentavos: dto.totalCentavos, ventanaId: dto.ventanaId, payload: dto } as any },
+        });
+      }
+      return { operacionId: dto.operacionId, estado: 'RECHAZADA_TECNICA', codigo, mensaje, instruccion: INSTRUCCION_RECHAZO[codigo], requiereRevision: true, conflictos: [] };
     }
     const previa = await this.respuestaSinRegistro(tenantId, dto.operacionId);
     if (previa) return previa;
