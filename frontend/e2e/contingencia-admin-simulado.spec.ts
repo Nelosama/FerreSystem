@@ -101,7 +101,7 @@ test('cierre sin venta: no envía caja, la regularización aparece solo tras el 
   // 2) Motivo que no cumple la regla (misma que aplica el servidor): la pantalla lo dice y no envía nada.
   await motivo.fill('muy corto');
   await cerrar.click();
-  await expect(page.getByRole('alert')).toContainText('al menos 20 caracteres (los espacios cuentan) y al menos 3 letras, números o símbolos visibles');
+  await expect(page.getByText('Motivo de la regularización: Escriba al menos 20 caracteres (los espacios cuentan) y al menos 3 letras, números o símbolos visibles.')).toBeVisible();
   expect(sim.resoluciones.length).toBe(1);
 
   // 3) Motivo suficiente: se envía la regularización con el motivo recortado y todavía sin caja.
