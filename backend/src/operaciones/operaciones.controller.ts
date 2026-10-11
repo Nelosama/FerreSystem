@@ -9,7 +9,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { SinCostosParaBodeguero } from '../common/interceptors/sin-costos-bodeguero.interceptor';
-import { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
+import { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, EntregarVentaDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 @Controller('operaciones')
 @UseGuards(JwtAuthGuard,TenantGuard,RolesGuard)
 @Roles('ADMIN','CAJERO','BODEGUERO','VENDEDOR')
@@ -47,7 +47,7 @@ export class OperacionesController {
  @RequiredModule('inventario')
  @Post('productos/:id/ajuste') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') ajustar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:AjusteDto){return this.service.ajustar(t,u,id,dto);}
  @RequiredModule('pos')
- @Post('ventas/:id/entregar') @Roles('ADMIN','BODEGUERO') entregar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.entregar(t,u,id);}
+ @Post('ventas/:id/entregar') @Roles('ADMIN','BODEGUERO') entregar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:EntregarVentaDto){return this.service.entregar(t,u,id,dto);}
  @RequiredModule('pos')
  @Get('entregas') @UseInterceptors(SinCostosParaBodeguero()) @Roles('ADMIN','CAJERO','BODEGUERO') entregas(@TenantId() t:string,@CurrentUser('sub') u:string){return this.service.entregas(t,u);}
  @RequiredModule('reportes')

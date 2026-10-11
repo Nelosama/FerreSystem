@@ -277,7 +277,9 @@ export const POSPage: React.FC = () => {
     }
   };
 
-  const handleCobrar = async () => {
+  // onClick={handleCobrar} entrega un evento: solo el valor 'BODEGA' cambia el modo (por defecto, entrega en mostrador).
+  const handleCobrar = async (modo?: unknown) => {
+    const modoEntrega: 'MOSTRADOR' | 'BODEGA' = modo === 'BODEGA' ? 'BODEGA' : 'MOSTRADOR';
     if (!cart.length || cobrandoRef.current || comprobandoRef.current || modalTicket || storageError || draftError || loadedKey !== pendingKey ||
       (esDescuentoExcedido && !ventaPendiente) || (ventaPendiente && recoveryStatus !== 'NO_REGISTRADA')) return;
     if (!ventaPendiente && metodoPago === 'CREDITO' && !clienteId) {
@@ -311,7 +313,7 @@ export const POSPage: React.FC = () => {
       }
       const pending = stored.pending || {
         solicitudId: pendingIdentity || crypto.randomUUID(), cart, clienteNombre, clienteRtn, clienteId,
-        vencimiento: vencimiento || undefined, metodoPago, descuentoPorcentaje,
+        vencimiento: vencimiento || undefined, metodoPago, descuentoPorcentaje, modoEntrega,
         pagoElectronico: pagoElectronicoDesde(metodoPago, autorizacionBancaria),
       };
       localStorage.setItem(pendingKey, JSON.stringify(pending));
@@ -326,7 +328,8 @@ export const POSPage: React.FC = () => {
         clienteNombre: pending.clienteNombre, clienteRtn: pending.clienteRtn || undefined,
         metodoPago: pending.metodoPago, pagoElectronico: pending.pagoElectronico, descuento: descuentoPendiente,
         detalles: pending.cart.map(i => ({ productoId: i.productoId, cantidad: i.cantidad,
-          precioUnitario: i.precioUnitario, sinInventario: i.sinInventario, proveedorId: i.proveedorId })),
+          precioUnitario: i.precioUnitario, sinInventario: i.sinInventario, proveedorId: i.proveedorId,
+          modoEntrega: i.sinInventario ? undefined : (pending.modoEntrega ?? 'MOSTRADOR') })),
       });
       // Conservar el pendiente hasta que el cajero cierre el comprobante.
       if (!isCurrentPending(requestKey, pending.solicitudId)) return;
@@ -644,6 +647,7 @@ export const POSPage: React.FC = () => {
               <p role="alert">El descuento supera su límite. Un administrador debe registrar esta venta.</p>
 
             ) : (
+              <>
               <button
                 type="button"
                 className="btn btn-primary"
@@ -656,6 +660,19 @@ export const POSPage: React.FC = () => {
                 {procesandoVenta && <Loader2 size={18} className="animate-spin" />}
                 <span>{t(procesandoVenta ? 'pos.processing' : 'pos.checkout')} {formatLempiras(total)}</span>
               </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleCobrar('BODEGA')}
+                disabled={cart.length === 0 || edicionBloqueada || !!draftError || !!ventaPendiente}
+                aria-busy={procesandoVenta}
+                style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1, marginTop: 8 }}
+              >
+                
+                
+                <span>Cobrar y dejar en bodega (entrega después)</span>
+              </button>
+              </>
             )}
           </div>
         </div>

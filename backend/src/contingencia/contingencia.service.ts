@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { audit, authorizedActor, cashMovement, lockTenant, movement, query, Tx, fingerprint } from '../operaciones/ledger';
+import { audit, authorizedActor, cashMovement, id as nuevoId, lockTenant, movement, query, Tx, fingerprint } from '../operaciones/ledger';
+import { huellaDeLineas, movimientoConEvento, registrarEvento } from '../entregas/entregas-core';
 import { calcularTotales, centavosADecimal } from '../common/dinero';
 import { diaCalendario, rangoDiasEnZona, ZONA_HORARIA_NEGOCIO } from '../common/zona-horaria';
 import {
@@ -155,7 +156,8 @@ export class ContingenciaService {
 
   private async construirCatalogo(tx: Tx | PrismaService, tenantId: string, config: ConfigEfectiva) {
     const productos = await (tx as any).producto.findMany({
-      where: { tenantId, activo: true },
+      // Contrato de precio aprobado (KARDEX): solo productos activos con precio de venta mayor que cero llegan al equipo.
+      where: { tenantId, activo: true, precioVenta: { gt: 0 } },
       select: { id: true, codigo: true, codigoBarras: true, nombre: true, precioVenta: true, precioCosto: true, stockActual: true, stockReservado: true, usaMedida: true, unidadMedida: true },
       orderBy: { id: 'asc' },
     });
@@ -267,6 +269,11 @@ export class ContingenciaService {
     if (rol !== 'ADMIN' && dto.cajeroId !== usuarioId) {
       throw new ForbiddenException('Solo el cajero de la operación o un administrador puede enviarla');
     }
+    // Un importe cero o un cobro menor al total nunca se registra como venta. Es un rechazo permanente (no un error de red):
+    // el equipo conserva la venta local y la marca para revisión del administrador, sin reintentarla indefinidamente.
+    if (!(dto.totalCentavos > 0) || dto.efectivoRecibidoCentavos < dto.totalCentavos) {
+      throw new BadRequestException({ message: 'La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador', code: 'IMPORTE_INVALIDO' });
+    }
     const hash = fingerprint(canonico({ ...dto }));
     const ventana = await this.prisma.contingenciaVentana.findFirst({ where: { id: dto.ventanaId, tenantId, dispositivoId } });
     if (!ventana) throw new BadRequestException({ message: 'Ventana de contingencia desconocida', code: 'VENTANA_DESCONOCIDA' });
@@ -354,6 +361,11 @@ export class ContingenciaService {
       conflictos.push({ codigo: 'TOTAL_DIFERENTE', severidad: 'DURO', detalle: { cliente: { subtotal: dto.subtotalCentavos, isv: dto.isvCentavos, total: dto.totalCentavos }, servidor: { subtotal: calculo.subtotal, isv: calculo.isv, total: calculo.total } } });
     }
 
+    // Nunca se crea una venta de importe cero o con líneas sin precio o sin cantidad. La operación se conserva en revisión.
+    if (dto.totalCentavos <= 0 || dto.lineas.length === 0 || dto.lineas.some((l) => l.precioCentavos <= 0 || l.cantidadCentesimas <= 0)) {
+      conflictos.push({ codigo: 'IMPORTE_INVALIDO', severidad: 'DURO', detalle: { total: dto.totalCentavos } });
+    }
+
     // Usuario y empresa vigentes ahora.
     try {
       await authorizedActor(tx, tenantId, op.usuarioId, ['ADMIN', 'CAJERO', 'VENDEDOR'], 'pos.vender');
@@ -413,6 +425,8 @@ export class ContingenciaService {
       const p = productos.get(linea.productoId);
       if (!p) { conflictos.push({ codigo: 'PRODUCTO_NO_ENCONTRADO', severidad: 'DURO', detalle: { productoId: linea.productoId } }); continue; }
       if (!p.activo) conflictos.push({ codigo: 'PRODUCTO_INACTIVO', severidad: 'BLANDO', detalle: { productoId: p.id, codigo: p.codigo } });
+      // El precio se vuelve a validar al sincronizar: un producto sin precio de venta aprobado no se vende ni se fuerza.
+      if (!(Number(p.precio_venta) > 0)) conflictos.push({ codigo: 'PRODUCTO_SIN_PRECIO_APROBADO', severidad: 'DURO', detalle: { productoId: p.id, codigo: p.codigo } });
       const snap = enVentana.get(linea.productoId);
       if (!snap) conflictos.push({ codigo: 'PRODUCTO_FUERA_DE_VENTANA', severidad: 'BLANDO', detalle: { productoId: p.id, codigo: p.codigo } });
       else {
@@ -447,6 +461,7 @@ export class ContingenciaService {
        ON CONFLICT (tenant_id,tipo) DO UPDATE SET ultimo_numero=secuencias_tenant.ultimo_numero+1 RETURNING ultimo_numero`, tenantId);
     const numeroVenta = Number(sec.ultimo_numero);
     const actorFinal = opciones.resueltoPor ?? op.usuarioId;
+    const idsLinea = dto.lineas.map(() => nuevoId());
     const venta = await tx.venta.create({
       data: {
         id: op.id, tenantId, numeroVenta, usuarioId: op.usuarioId, cajaId: cajaDestino.id,
@@ -459,13 +474,18 @@ export class ContingenciaService {
         notas: `Venta de contingencia ${op.correlativoLocal}`,
         detalles: {
           create: dto.lineas.map((l, i) => ({
+            id: idsLinea[i], tenantId, modoEntrega: 'MOSTRADOR', cantidadEntregada: l.cantidadCentesimas / 100,
             productoId: l.productoId, cantidad: l.cantidadCentesimas / 100, precioUnitario: centavosADecimal(l.precioCentavos),
             subtotal: centavosADecimal(calculo.lineas[i]), costoUnitario: centavosADecimal(enVentana.get(l.productoId)?.costoCentavos ?? 0), sinInventario: false,
           })),
         },
       },
     });
-    for (const linea of dto.lineas) {
+    // Eventos de cobro y de entrega inmediata (origen OFFLINE). La solicitud del cobro es la propia operación.
+    const lineasEvento = dto.lineas.map((l, i) => ({ detalleId: idsLinea[i], cantidadCentesimas: l.cantidadCentesimas }));
+    await registrarEvento(tx, { tenantId, solicitud: op.id, huella: huellaDeLineas('COBRO', venta.id, op.usuarioId, 'OFFLINE', lineasEvento, null, null), tipo: 'COBRO', ventaId: venta.id, usuarioId: op.usuarioId, origen: 'OFFLINE', lineas: lineasEvento });
+    const eventoEntrega = await registrarEvento(tx, { tenantId, solicitud: nuevoId(), huella: huellaDeLineas('ENTREGA', venta.id, op.usuarioId, 'OFFLINE', lineasEvento, null, null), tipo: 'ENTREGA', ventaId: venta.id, usuarioId: op.usuarioId, origen: 'OFFLINE', lineas: lineasEvento });
+    for (const [indice, linea] of dto.lineas.entries()) {
       const p = productos.get(linea.productoId);
       let stock = Number(p.stock_actual);
       const falta = faltantes.find((f) => f.productoId === linea.productoId);
@@ -478,7 +498,7 @@ export class ContingenciaService {
       }
       const nuevo = Math.round((stock - linea.cantidadCentesimas / 100) * 100) / 100;
       await query(tx, 'UPDATE productos SET stock_actual=$1, updated_at=NOW() WHERE id=$2 RETURNING id', nuevo, p.id);
-      await movement(tx, tenantId, op.usuarioId, p.id, 'ENTREGA', stock, nuevo, venta.id, `Venta de contingencia ${op.correlativoLocal} (entrega inmediata)`);
+      await movimientoConEvento(tx, { tenantId, usuarioId: op.usuarioId, productoId: p.id, tipo: 'ENTREGA', anterior: Math.round(stock * 100), nuevo: Math.round(nuevo * 100), documentoId: venta.id, motivo: `Venta de contingencia ${op.correlativoLocal} (entrega inmediata)`, eventoId: eventoEntrega, detalleId: idsLinea[indice] });
     }
     await cashMovement(tx, cajaDestino.id, op.usuarioId, 'VENTA_POS', centavosADecimal(dto.totalCentavos), 'EFECTIVO', venta.id, `Venta ${correlativoDefinitivo(numeroVenta)} (${op.correlativoLocal})`);
     await audit(tx, tenantId, op.usuarioId, 'VENTA_CREAR', venta.id, { total: centavosADecimal(dto.totalCentavos), metodo: 'EFECTIVO', cajaId: cajaDestino.id, origen: 'CONTINGENCIA' });
