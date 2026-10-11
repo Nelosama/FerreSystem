@@ -1,7 +1,7 @@
 -- APROBACION-DESTRUCTIVA: CONT-1016 @Nelosama
 -- Contingencia offline: estado terminal RECHAZADA para rechazos definitivos (VENTANA_OBSOLETA, VENTANA_DE_OTRO_CAJERO, CAJA_DE_VENTANA_NO_VALIDA).
--- Migración ADITIVA: no modifica migraciones publicadas. La restricción anterior no admite RECHAZADA, por eso se reemplaza por una
--- versión ampliada. El único DROP es el de la restricción de estado; no se borran filas ni columnas.
+-- No modifica migraciones publicadas. Reemplaza la restricción de estado (DROP CONSTRAINT) por una versión que admite RECHAZADA;
+-- es el único DROP, y no se borran filas ni columnas. La marca de arriba es la aprobación exigida por el guard de CI.
 -- Backfill acotado: solo operaciones en REVISION sin venta, sin resolución y con un código de rechazo en sus conflictos.
 -- Sus conflictos, payload, auditoría y trazabilidad se conservan intactos.
 
