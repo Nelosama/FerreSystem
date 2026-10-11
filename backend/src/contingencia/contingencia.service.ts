@@ -528,13 +528,10 @@ export class ContingenciaService {
     // H-5 (CENTINELA F2): la evidencia previa que se devuelve es la de quien envía, nunca la de otro cajero.
     const previa = await this.respuestaSinRegistro(tenantId, dto.operacionId, rol === 'ADMIN' ? undefined : usuarioId);
     if (previa) return previa;
-    // El diario exige importes coherentes (montos_check: total > 0 y efectivo >= total). Un cobro insuficiente no cabe en él
-    // sin cambiar el esquema; esa decisión no está autorizada. Su evidencia completa queda en auditoría.
-    const montosCoherentes = dto.totalCentavos > 0 && dto.efectivoRecibidoCentavos >= dto.totalCentavos;
-    // E (CENTINELA): la ventana debe ser de este equipo; una ventana de otro equipo no cuenta como registro.
-    // H-5 (CENTINELA F1): una fila RECHAZADA exige que la ventana sea de quien envía y que el identificador sea el emitido para
-    // ella. Sin esa comprobación, un OPERACION_OTRO_DISPOSITIVO enviado con la ventana propia creaba la fila a nombre del intruso.
-    const ventana = montosCoherentes ? await this.ventanaDelRemitente(tenantId, usuarioId, rol, dispositivoId, dto) : null;
+    // F5 (opción B aprobada): un rechazo por importes incoherentes (total cero o cobro menor al total) también se registra en el
+    // diario como RECHAZADA, sin venta ni movimiento de caja (migración 20261017000000). Solo si la ventana es del remitente y el
+    // identificador es el emitido para ella; sin ventana válida (VENTANA_DESCONOCIDA, etc.) no cabe en el diario y queda su evidencia.
+    const ventana = await this.ventanaDelRemitente(tenantId, usuarioId, rol, dispositivoId, dto);
     if (ventana) {
       return this.registrarRechazo(tenantId, ventana, dto, hash, idInterno, { codigo, mensaje }, usuarioId);
     }
@@ -902,10 +899,14 @@ export class ContingenciaService {
 
   /** Ingreso de conciliación por el efectivo que se quedó en caja (total cobrado, sin el cambio). Idempotente por operación. */
   private async conciliarEfectivo(tx: Tx, tenantId: string, adminId: string, op: any, cajaSolicitada?: string) {
-    const monto = op.totalCentavos / 100;
+    // F5: el efectivo que queda en caja es el total cobrado (sin el cambio). Si el cobro fue menor al total, o el total es cero,
+    // es lo realmente recibido: nunca se ingresa a caja más efectivo del que entró.
+    const monto = Math.max(0, Math.min(op.totalCentavos, op.efectivoRecibidoCentavos)) / 100;
     const [previo] = await query<any>(tx as any, `SELECT m.id, m.caja_id FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id
        WHERE c.tenant_id=$1 AND m.referencia=$2 AND m.tipo='INGRESO_MANUAL' AND m.concepto LIKE 'Conciliación contingencia%'`, tenantId, op.id);
     if (previo) return { movimientoId: previo.id, cajaId: previo.caja_id, monto, reutilizado: true };
+    // Sin efectivo recibido no hay ingreso que conciliar: se cierra sin movimiento de caja.
+    if (monto <= 0) return { movimientoId: null, cajaId: op.cajaId, monto: 0, reutilizado: false, sinEfectivo: true };
     let caja: any;
     if (cajaSolicitada) {
       [caja] = await query<any>(tx as any, `SELECT id FROM cajas WHERE id=$1 AND tenant_id=$2 AND estado='ABIERTA'`, cajaSolicitada, tenantId);
@@ -959,7 +960,8 @@ export class ContingenciaService {
     return filas.map((f) => ({
       ...this.resumenOperacion(f), inventarioPendiente: pendientes.get(f.id) ?? [], cajero: nombres.get(f.usuarioId) ?? null, cajeroId: f.usuarioId, dispositivo: f.dispositivo.codigo,
       totalCentavos: f.totalCentavos, efectivoRecibidoCentavos: f.efectivoRecibidoCentavos,
-      cambioCentavos: f.efectivoRecibidoCentavos - f.totalCentavos,
+      // F5: un rechazo por cobro menor al total no tiene cambio; se informa el faltante aparte.
+      cambioCentavos: Math.max(0, f.efectivoRecibidoCentavos - f.totalCentavos), faltanteCentavos: Math.max(0, f.totalCentavos - f.efectivoRecibidoCentavos),
       ocurridoAt: f.ocurridoAtEstimado, recibidoAt: f.recibidoAt, resolucion: f.resolucion,
     }));
   }
@@ -979,7 +981,7 @@ export class ContingenciaService {
            FROM operaciones_contingencia WHERE tenant_id=$1 GROUP BY estado, requiere_revision`, tenantId),
       this.listarDispositivos(tenantId),
     ]);
-    const suma = (filtro: (e: any) => boolean) => estados.filter(filtro).reduce((a, e) => ({ cantidad: a.cantidad + e.cantidad, totalCentavos: a.totalCentavos + Number(e.total_centavos) }), { cantidad: 0, totalCentavos: 0 });
+    const suma = (filtro: (e: any) => boolean) => estados.filter(filtro).reduce((a, e) => ({ cantidad: a.cantidad + e.cantidad, totalCentavos: a.totalCentavos + Number(e.total_centavos), efectivoCentavos: a.efectivoCentavos + Number(e.efectivo_centavos) }), { cantidad: 0, totalCentavos: 0, efectivoCentavos: 0 });
     const pendientesEnCajas = dispositivos.reduce((a, d) => a + (d.pendientesReportados ?? 0), 0);
     return {
       fecha: dia, generadoAt: ahora.toISOString(),

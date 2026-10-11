@@ -111,20 +111,22 @@ describe('Contingencia H5: errores 4xx en recepción offline / PostgreSQL aislad
   const filaDe = (tenantId: string, operacionId: string) => prisma.operacionContingencia.findFirst({ where: { tenantId, id: { in: [idSolicitud(tenantId, operacionId), operacionId] } } });
   const auditorias = (tenantId: string, operacion: string, entidadId: string) => prisma.auditoriaOperacion.count({ where: { tenantId, operacion, entidadId } });
 
-  it('H5-1: importe insuficiente (cobro menor al total): respuesta de rechazo, evidencia completa en auditoría, sin venta, reenvío sin duplicar', async () => {
+  it('H5-1: importe insuficiente (cobro menor al total): rechazo registrado en el diario, sin venta ni movimiento, reenvío sin duplicar', async () => {
     const e = await empresa();
     const op = operacion(e, { efectivoRecibidoCentavos: 2000, cambioCentavos: 0 });
     const primera = (await recibir(e, [op])).resultados[0];
     expect(primera).toMatchObject({ operacionId: op.operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'IMPORTE_INVALIDO' });
-    // El diario no admite importes incoherentes (montos_check): la evidencia queda en auditoría con el payload completo.
-    expect(await filaDe(e.tenantId, op.operacionId)).toBeNull();
-    const evidencia = await prisma.auditoriaOperacion.findFirstOrThrow({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_OPERACION_NO_REGISTRADA', entidadId: idSolicitud(e.tenantId, op.operacionId) } });
-    expect((evidencia.datos as any).payload.operacionId).toBe(op.operacionId);
-    expect((evidencia.datos as any).codigo).toBe('IMPORTE_INVALIDO');
+    // F5 (opción B): el rechazo por importes incoherentes queda en el diario como RECHAZADA, sin venta, con el payload completo.
+    const fila = await filaDe(e.tenantId, op.operacionId);
+    expect(fila).toMatchObject({ estado: 'RECHAZADA', requiereRevision: true, ventaId: null, usuarioId: e.cajero, totalCentavos: 2300, efectivoRecibidoCentavos: 2000 });
+    expect((fila!.conflictos as any[]).map((c) => c.codigo)).toEqual(['IMPORTE_INVALIDO']);
+    expect((fila!.payload as any).operacionId).toBe(op.operacionId);
+    expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_RECHAZADA', fila!.id)).toBe(1);
     expect(await ventasDe(e.tenantId)).toBe(0);
     const reenvio = (await recibir(e, [op])).resultados[0];
     expect(reenvio).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'IMPORTE_INVALIDO' });
-    expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_NO_REGISTRADA', idSolicitud(e.tenantId, op.operacionId))).toBe(1);
+    expect(await auditorias(e.tenantId, 'CONTINGENCIA_OPERACION_RECHAZADA', fila!.id)).toBe(1);
+    expect(await prisma.operacionContingencia.count({ where: { tenantId: e.tenantId } })).toBe(1);
     expect(await ventasDe(e.tenantId)).toBe(0);
   });
 
