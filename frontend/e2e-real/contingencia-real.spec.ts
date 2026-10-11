@@ -362,6 +362,9 @@ test.describe('POS offline de contingencia — backend real', () => {
   });
 
   test('11. sesión vencida: el diario conserva la venta, no se borra y se envía al volver a iniciar sesión', async () => {
+    const CORRELATIVO = 'CT-01-0008';
+    const operacionDe = async (p: Page) => (await diario(p)).find((o) => o.correlativoLocal === CORRELATIVO);
+    const identidadDe = (o: any) => ({ operacionId: o.operacionId, indiceOperacion: o.indiceOperacion, ventanaId: o.ventanaId, dispositivoId: o.dispositivoId, secuenciaLocal: o.secuenciaLocal, correlativoLocal: o.correlativoLocal });
     const { page, context } = await abrir();
     await ingresar(page, CAJERO, '/pos-contingencia');
     const antesSesion = ventasCentral();
@@ -371,19 +374,50 @@ test.describe('POS offline de contingencia — backend real', () => {
     await page.getByRole('button', { name: new RegExp(TALADRO) }).click();
     await page.locator('#pc-efectivo').fill('3000');
     await page.locator('#pc-cobrar').click();
-    await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0008' })).toBeVisible();
+    await expect(page.locator('strong', { hasText: `Venta guardada en este equipo: ${CORRELATIVO}` })).toBeVisible();
+    // Estado local antes de que venza la sesión: persistida, con su identificador de idempotencia emitido por el servidor.
+    const antes = await operacionDe(page);
+    expect(antes, 'la venta quedó persistida localmente').toBeTruthy();
+    expect(['PENDIENTE', 'ENVIANDO']).toContain(antes.estado);
+    expect(antes.operacionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(Number.isInteger(antes.indiceOperacion)).toBe(true);
+    const identidadAntes = identidadDe(antes);
     // La sesión del navegador vence: sin refresh válido, la API responde 401.
     await context.clearCookies();
     await page.evaluate(() => localStorage.setItem('ferre_token', 'token-vencido'));
     await context.setOffline(false);
     await page.waitForURL(/\/login/, { timeout: 30_000 });
-    // Tras el 401 la operación puede seguir un instante en ENVIANDO hasta que el cliente la devuelve a PENDIENTE
-    // (recuperarEnvios). Se espera el estado, sin relajar la aserción.
-    await expect.poll(async () => (await diario(page)).find((o) => o.correlativoLocal === 'CT-01-0008')?.estado, { timeout: 15_000 }).toBe('PENDIENTE');
+    // Opción A (decisión del propietario). Al fallar el refresco, el interceptor redirige a /login y descarga la página; la escritura
+    // local que devuelve la venta de ENVIANDO a PENDIENTE puede no completarse. Ambos estados son válidos aquí, siempre que la venta
+    // siga en el diario con la misma identidad y se recupere y envíe una sola vez después de volver a iniciar sesión.
+    const trasVencer = await operacionDe(page);
+    expect(trasVencer, 'la venta sigue en el diario local tras vencer la sesión').toBeTruthy();
+    expect(['ENVIANDO', 'PENDIENTE'], `estado local tras el 401: ${trasVencer.estado}`).toContain(trasVencer.estado);
+    test.info().annotations.push({ type: 'estado-tras-401', description: trasVencer.estado });
+    expect(identidadDe(trasVencer), 'misma identidad de idempotencia tras vencer la sesión').toEqual(identidadAntes);
+    expect(trasVencer.totalCentavos).toBe(antes.totalCentavos);
+    expect(trasVencer.lineas).toEqual(antes.lineas);
+    // Nada llegó al servidor con la sesión vencida.
     expect(ventasCentral()).toBe(antesSesion);
+    expect(Number(sql(`SELECT COUNT(*) FROM operaciones_contingencia WHERE tenant_id='${TENANT}' AND correlativo_local='${CORRELATIVO}'`))).toBe(0);
     await ingresar(page, CAJERO, '/pos-contingencia');
-    await esperarEstado(page, 'CT-01-0008', 'SINCRONIZADA');
-    expect(Number(sql(`SELECT COUNT(*) FROM ventas WHERE tenant_id='${TENANT}' AND correlativo_local='CT-01-0008'`))).toBe(1);
+    // Persistencia tras reiniciar sesión: la venta sigue en el diario con la misma identidad (en cualquier punto de su recuperación).
+    const trasLogin = await operacionDe(page);
+    expect(trasLogin, 'la venta sigue en el diario local tras volver a iniciar sesión').toBeTruthy();
+    expect(['ENVIANDO', 'PENDIENTE', 'SINCRONIZADA']).toContain(trasLogin.estado);
+    expect(identidadDe(trasLogin)).toEqual(identidadAntes);
+    // Recuperación efectiva y estado final correcto.
+    await esperarEstado(page, CORRELATIVO, 'SINCRONIZADA');
+    const final = await operacionDe(page);
+    expect(identidadDe(final), 'el identificador de idempotencia se conserva hasta el final').toEqual(identidadAntes);
+    expect(final.sincronizadaAt, 'queda registrada la sincronización').toBeTruthy();
+    expect(final.correlativoDefinitivo, 'recibe correlativo definitivo del servidor').toBeTruthy();
+    // Sin duplicados: una sola operación en el diario central, una sola venta, un solo movimiento de caja.
+    expect(Number(sql(`SELECT COUNT(*) FROM operaciones_contingencia WHERE tenant_id='${TENANT}' AND correlativo_local='${CORRELATIVO}' AND estado='APLICADA'`))).toBe(1);
+    expect(Number(sql(`SELECT COUNT(*) FROM ventas WHERE tenant_id='${TENANT}' AND correlativo_local='${CORRELATIVO}'`))).toBe(1);
+    expect(Number(sql(`SELECT COUNT(*) FROM movimientos_caja WHERE tipo='VENTA_POS' AND concepto LIKE '%${CORRELATIVO}%'`))).toBe(1);
+    expect(ventasCentral()).toBe(antesSesion + 1);
+    expect((await diario(page)).filter((o) => o.correlativoLocal === CORRELATIVO)).toHaveLength(1);
   });
 
   test('12. el administrador ve el resumen y resuelve desde el panel móvil', async ({ request }) => {
