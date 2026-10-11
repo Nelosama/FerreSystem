@@ -1113,7 +1113,7 @@ model OperacionContingencia {
   payloadHash        String    @map("payload_hash")
   totalCentavos      Int       @map("total_centavos")
   efectivoRecibidoCentavos Int @map("efectivo_recibido_centavos")
-  // RECIBIDA | APLICADA | REVISION (no aplicada, requiere decisión) | RESUELTA_MANUAL
+  // RECIBIDA | APLICADA | REVISION (no aplicada, requiere decisión) | RESUELTA_MANUAL | RECHAZADA (rechazo definitivo, nunca se aplica; migración 20261016000000)
   estado             String    @default("RECIBIDA")
   requiereRevision   Boolean   @default(false) @map("requiere_revision")
   conflictos         Json      @default("[]")

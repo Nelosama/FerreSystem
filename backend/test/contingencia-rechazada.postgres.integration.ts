@@ -76,14 +76,14 @@ describe('Contingencia: migración RECHAZADA sobre base con migraciones previas 
 
   let secuencia = 0;
   /** Fila legada tal como la dejó la forma anterior: estado y conflictos explícitos, sin venta. */
-  async function filaLegada(e: Awaited<ReturnType<typeof empresa>>, estado: string, conflictos: unknown[], resolucion: unknown = null) {
+  async function filaLegada(e: Awaited<ReturnType<typeof empresa>>, estado: string, conflictos: unknown[], resolucion: unknown = null, usuarioId: string = e.cajero) {
     const id = randomUUID();
     secuencia += 1;
     await prisma.$executeRawUnsafe(
       `INSERT INTO operaciones_contingencia (id,tenant_id,dispositivo_id,ventana_id,usuario_id,caja_id,secuencia_local,correlativo_local,
         ocurrido_at_local,ocurrido_at_estimado,payload,payload_hash,total_centavos,efectivo_recibido_centavos,estado,requiere_revision,conflictos,resolucion)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW(),$9::jsonb,$10,2300,2500,$11,true,$12::jsonb,$13::jsonb)`,
-      id, e.tenantId, e.dispositivoId, e.ventanaId, e.cajero, e.cajaId, 1000 + secuencia, `CT-01-L${secuencia}`,
+      id, e.tenantId, e.dispositivoId, e.ventanaId, usuarioId, e.cajaId, 1000 + secuencia, `CT-01-L${secuencia}`,
       JSON.stringify({ totalCentavos: 2300, efectivoRecibidoCentavos: 2500, lineas: [{ productoId: e.p1, cantidadCentesimas: 200, precioCentavos: 1000 }] }),
       `hash-${id}`, estado, JSON.stringify(conflictos), resolucion === null ? null : JSON.stringify(resolucion),
     );
@@ -164,6 +164,20 @@ describe('Contingencia: migración RECHAZADA sobre base con migraciones previas 
       expect(cierre.inventarioPendiente).toEqual([expect.objectContaining({ productoId: e.p1, cantidad: 2 })]);
       const [s] = await prisma.$queryRawUnsafe<any[]>(`SELECT stock_actual::float AS stock FROM productos WHERE id='${e.p1}'`);
       expect(s.stock).toBe(20);
+    });
+
+    it('H1 (CENTINELA): ACEPTAR no aplica una operación de otro usuario en la caja del cajero de la ventana', async () => {
+      // Fila legada (forma previa a DEF-04): usuario A con la ventana y la caja del cajero B.
+      const id = await filaLegada(e, 'REVISION', stock, null, e.admin);
+      const contar = async () => ({
+        caja: await prisma.movimientoCaja.count({ where: { cajaId: e.cajaId } }),
+        ventas: (await prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int AS n FROM ventas WHERE tenant_id='${e.tenantId}'`))[0].n,
+      });
+      const antes = await contar();
+      const r: any = await svc.resolver(e.tenantId, e.admin, id, { accion: 'ACEPTAR', nota: 'intento cruzado entre cajeros' } as any);
+      expect(r.estado).toBe('RECHAZADA');
+      expect(r.conflictos.map((c: any) => c.codigo)).toContain('VENTANA_DE_OTRO_CAJERO');
+      expect(await contar()).toEqual(antes);
     });
 
     it('O-02: una consulta posterior a la migración devuelve RECHAZADA_TECNICA con motivo e instrucción', async () => {

@@ -498,6 +498,11 @@ export class ContingenciaService {
       if (!alterna) throw new BadRequestException('La caja indicada no está abierta');
       cajaDestino = alterna;
     }
+    // H1 (CENTINELA): una operación nunca entra en la caja de otro cajero por la ventana. Rechazo definitivo no superable.
+    // Una caja distinta elegida por administración (opciones.cajaId) sigue siendo decisión explícita y auditada.
+    if (cajaDestino && cajaOriginal && cajaDestino.id === cajaOriginal.id && cajaOriginal.usuario_id !== op.usuarioId) {
+      conflictos.push({ codigo: 'VENTANA_DE_OTRO_CAJERO', severidad: 'DURO', detalle: { cajaId: cajaOriginal.id, cajeroOperacionId: op.usuarioId } });
+    }
     if (!cajaDestino) conflictos.push({ codigo: 'CAJA_CERRADA', severidad: 'DURO', detalle: { cajaId: op.cajaId } });
 
     // Productos, precios de la ventana, cupo e inventario.
@@ -551,7 +556,7 @@ export class ContingenciaService {
     const bloqueantes = conflictos.filter((c) => c.severidad === 'DURO' && !(forzar && superables.has(c.codigo)));
     if (bloqueantes.length) {
       const actualizada = await tx.operacionContingencia.update({
-        where: { id: op.id }, data: { estado: 'REVISION', requiereRevision: true, conflictos: conflictos as any },
+        where: { id: op.id }, data: { estado: conflictos.some((c) => CODIGOS_RECHAZO.has(c.codigo)) ? 'RECHAZADA' : 'REVISION', requiereRevision: true, conflictos: conflictos as any },
       });
       await audit(tx, tenantId, op.usuarioId, 'CONTINGENCIA_REVISION', op.id, { correlativoLocal: op.correlativoLocal, conflictos: conflictos.map((c) => c.codigo) });
       return actualizada;
