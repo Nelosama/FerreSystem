@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as cookieParserImport from 'cookie-parser';
-import { ValidationPipe } from '@nestjs/common';
+import { configurarPipesGlobales } from './common/pipes/profundidad-maxima.pipe';
 import { createFrontendCorsOptions } from './common/frontend-cors';
 import { leerTrustProxy, validarConfiguracionAuth } from './auth/auth-config';
 
@@ -22,14 +22,8 @@ async function bootstrap() {
   // Enable CORS with credentials for frontend applications (Vercel, local dev, custom domain)
   app.enableCors(createFrontendCorsOptions());
 
-  // Global validation pipe with whitelist stripping
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: false,
-    }),
-  );
+  // Límite de profundidad del JSON y validación global con whitelist (ver profundidad-maxima.pipe.ts, H-P)
+  configurarPipesGlobales(app);
 
   // Global prefix for API
   app.setGlobalPrefix('api');
