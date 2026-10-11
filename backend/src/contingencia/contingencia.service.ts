@@ -155,7 +155,8 @@ export class ContingenciaService {
 
   private async construirCatalogo(tx: Tx | PrismaService, tenantId: string, config: ConfigEfectiva) {
     const productos = await (tx as any).producto.findMany({
-      where: { tenantId, activo: true },
+      // DEF-01: solo se ofrece lo que el administrador aprobó (precio aprobado y positivo), igual que la venta en línea.
+      where: { tenantId, activo: true, precioAprobado: true, precioVenta: { gt: 0 } },
       select: { id: true, codigo: true, codigoBarras: true, nombre: true, precioVenta: true, precioCosto: true, stockActual: true, stockReservado: true, usaMedida: true, unidadMedida: true },
       orderBy: { id: 'asc' },
     });
@@ -166,7 +167,10 @@ export class ContingenciaService {
       const cupo = Math.max(0, p.usaMedida ? base : Math.floor(base / 100) * 100);
       return {
         id: p.id, codigo: p.codigo, codigoBarras: p.codigoBarras ?? null, nombre: p.nombre,
-        precioCentavos: Math.round(Number(p.precioVenta) * 100), libreCentesimas: libre, cupoCentesimas: cupo,
+        precioCentavos: Math.round(Number(p.precioVenta) * 100),
+        // Prueba firmada en la instantánea del servidor: la aprobación vigente al emitir la ventana. Es la única evidencia
+        // válida al sincronizar; una aprobación posterior del producto no la sustituye.
+        precioAprobado: true, libreCentesimas: libre, cupoCentesimas: cupo,
         usaMedida: Boolean(p.usaMedida), unidadMedida: String(p.unidadMedida ?? 'UNIDAD'),
         // Costo vigente al emitir la ventana: se guarda solo en la instantánea del servidor, nunca se envía al equipo.
         costoCentavos: Math.round(Number(p.precioCosto ?? 0) * 100),
@@ -213,7 +217,7 @@ export class ContingenciaService {
         emitidaAt: ventana.emitidaAt, vigenteHasta: ventana.vigenteHasta, catalogoHash: hash, limites: ventana.limites,
         secuenciaServidor: maxima, serverNow: ahora.toISOString(),
       },
-      catalogo: dto.catalogoHashActual === hash ? null : { hash, generadoAt: ahora.toISOString(), productos: productos.map(({ costoCentavos: _costo, ...publico }: any) => publico) },
+      catalogo: dto.catalogoHashActual === hash ? null : { hash, generadoAt: ahora.toISOString(), productos: productos.map(({ costoCentavos: _costo, precioAprobado: _aprobado, ...publico }: any) => publico) },
     };
   }
 
@@ -414,8 +418,14 @@ export class ContingenciaService {
       if (!p) { conflictos.push({ codigo: 'PRODUCTO_NO_ENCONTRADO', severidad: 'DURO', detalle: { productoId: linea.productoId } }); continue; }
       if (!p.activo) conflictos.push({ codigo: 'PRODUCTO_INACTIVO', severidad: 'BLANDO', detalle: { productoId: p.id, codigo: p.codigo } });
       const snap = enVentana.get(linea.productoId);
-      if (!snap) conflictos.push({ codigo: 'PRODUCTO_FUERA_DE_VENTANA', severidad: 'BLANDO', detalle: { productoId: p.id, codigo: p.codigo } });
-      else {
+      // DEF-01: sin prueba de aprobación en la instantánea de la ventana la venta no se aplica (conflicto DURO, no superable).
+      // Un producto fuera de la ventana (p. ej. no aprobado al emitirla) o con instantánea sin la marca de aprobación no tiene
+      // prueba; se descarta mirar el estado actual del producto para que una aprobación posterior no legitime la venta.
+      if (!snap) conflictos.push({ codigo: 'PRODUCTO_FUERA_DE_VENTANA', severidad: 'DURO', detalle: { productoId: p.id, codigo: p.codigo } });
+      else if (snap.precioAprobado !== true || !(Number(snap.precioCentavos) > 0)) {
+        conflictos.push({ codigo: 'PRECIO_SIN_APROBACION', severidad: 'DURO', detalle: { productoId: p.id, codigo: p.codigo, evidencia: 'instantanea_de_ventana' } });
+      } else {
+        if (!p.precio_aprobado) conflictos.push({ codigo: 'APROBACION_REVOCADA_POSTERIOR', severidad: 'BLANDO', detalle: { productoId: p.id, codigo: p.codigo } });
         if (snap.precioCentavos !== linea.precioCentavos) {
           conflictos.push({ codigo: 'PRECIO_NO_AUTORIZADO', severidad: 'BLANDO', detalle: { productoId: p.id, codigo: p.codigo, autorizado: snap.precioCentavos, cobrado: linea.precioCentavos } });
         }
@@ -431,6 +441,8 @@ export class ContingenciaService {
     }
 
     // Decisión: ¿qué conflictos duros se pueden aceptar por decisión de un administrador?
+    // PRECIO_SIN_APROBACION, PRODUCTO_FUERA_DE_VENTANA, PRODUCTO_NO_ENCONTRADO, EFECTIVO_INCONSISTENTE y OPERACION_ALTERADA
+    // no son superables: ni ACEPTAR ni REINTENTAR los convierten en venta.
     const superables = new Set(['USUARIO_NO_AUTORIZADO', 'CAJA_CERRADA', 'STOCK_INSUFICIENTE', 'TOTAL_DIFERENTE', 'SECUENCIA_DUPLICADA']);
     const bloqueantes = conflictos.filter((c) => c.severidad === 'DURO' && !(forzar && superables.has(c.codigo)));
     if (bloqueantes.length) {

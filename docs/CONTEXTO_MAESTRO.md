@@ -1254,6 +1254,14 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - **Pendiente para NEXUS:** aplicar `20261013000000_balance_referencia_pagos` y `20261014000000_cliente_plazo_credito` tras `20261012000000_conciliacion_pagos_bancarios`; revisar restricciones compuestas por empresa. **Pendiente para ATLAS:** revisar la línea de vencimiento por plazo en `ventas.service.ts` y la conversión de cotizaciones (vencimiento null).
 - **Pendiente para CENTINELA:** revisión multi-tenant de `aprobaciones_bancarias`, `conciliaciones` y uniones de `pagos_cuenta`; sin migraciones de seguridad implementadas por BALANCE.
 
+## DEF-01 cerrado en rama (GUARDIAN, 2026-10-11)
+
+- **Rama:** `claude/guardian-def01-offline` desde `nexus/integracion-temp` `e8b75ae6`; PR en borrador hacia esa rama. Sin merge ni despliegue. Informe: [DEF01_CIERRE_GUARDIAN_20261011.md](DEF01_CIERRE_GUARDIAN_20261011.md).
+- **Codex:** su trabajo no existe en el repositorio (sin rama, commit ni `CORRECCION_DEF01_*`); se implementó desde la base.
+- **Corrección:** `contingencia.service.ts` (`construirCatalogo`, `aplicar`): catálogo solo aprobado y positivo; la instantánea guarda la aprobación; sin prueba en la instantánea, conflicto DURO no superable (`PRODUCTO_FUERA_DE_VENTANA`, `PRECIO_SIN_APROBACION`).
+- **Pruebas:** contingencia PG 34/34 (9 nuevas), integración PG 526 + 1 omitida, backend 366, frontend 245, E2E real 90 aprobadas; las dos pruebas FARO de DEF-01 pasan. Abiertos fuera de alcance: DEF-03 y `balance-real` (desfase horario, falla también en la base).
+- **Pendiente:** validación independiente de FARO; reemitir ventanas antes de activar la contingencia.
+
 **FIN DEL CONTEXTO VIGENTE**
 
 

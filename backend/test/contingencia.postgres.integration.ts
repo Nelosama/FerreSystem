@@ -321,6 +321,137 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
     });
   });
 
+  describe('DEF-01: precio aprobado como condición de la venta offline', () => {
+    /** Producto adicional de la empresa con el estado de aprobación indicado. */
+    const producto = (e: Awaited<ReturnType<typeof empresa>>, codigo: string, extra: Record<string, any> = {}) =>
+      prisma.producto.create({ data: { tenantId: e.tenantId, codigo, nombre: codigo, precioVenta: 10, precioCosto: 4, stockActual: 20, precioAprobado: false, ...extra } as any });
+    const opDe = (e: Awaited<ReturnType<typeof empresa>>, ventanaId: string, productoId: string) =>
+      operacion(e, ventanaId, { lineas: [{ productoId, cantidadCentesimas: 200, precioCentavos: 1000 }] });
+    /** Nada financiero ni de inventario cambió para la empresa. */
+    async function sinEfectos(e: Awaited<ReturnType<typeof empresa>>, productoId: string, stockInicial = 20) {
+      expect(await ventas(e.tenantId)).toBe(0);
+      expect(await prisma.detalleVenta.count({ where: { productoId } })).toBe(0);
+      expect(await stock(productoId)).toBe(stockInicial);
+      expect(await prisma.movimientoInventario.count({ where: { tenantId: e.tenantId, productoId } })).toBe(0);
+      const caja = await prisma.caja.findFirstOrThrow({ where: { tenantId: e.tenantId } });
+      expect(await prisma.movimientoCaja.count({ where: { cajaId: caja.id, tipo: 'VENTA_POS' } })).toBe(0);
+    }
+
+    it('el catálogo solo incluye productos activos, aprobados y con precio positivo', async () => {
+      const e = await empresa();
+      const pendiente = await producto(e, 'PEN-1');
+      const cero = await producto(e, 'CER-1', { precioAprobado: true, precioVenta: 0 });
+      const inactivo = await producto(e, 'INA-1', { precioAprobado: true, activo: false });
+      const r = await svc.emitirVentana(e.tenantId, e.cajero, { dispositivoId: e.dispositivoId });
+      const ids = r.catalogo!.productos.map((p: any) => p.id);
+      expect(ids).toEqual(expect.arrayContaining([e.p1, e.p2]));
+      for (const id of [pendiente.id, cero.id, inactivo.id]) expect(ids).not.toContain(id);
+      // El equipo no recibe la marca interna de aprobación ni el costo.
+      expect(r.catalogo!.productos[0]).not.toHaveProperty('precioAprobado');
+      expect(r.catalogo!.productos[0]).not.toHaveProperty('costoCentavos');
+    });
+
+    it('venta de un producto no aprobado al emitir la ventana: revisión DURA, sin venta, stock, caja ni documentos', async () => {
+      const e = await empresa();
+      const p = await producto(e, 'PEN-2');
+      const v = await ventana(e);
+      const [res] = (await enviar(e, [opDe(e, v.id, p.id)])).resultados;
+      expect(res.estado).toBe('REVISION');
+      expect(res.requiereRevision).toBe(true);
+      expect(res.conflictos.map((c: any) => c.codigo)).toContain('PRODUCTO_FUERA_DE_VENTANA');
+      await sinEfectos(e, p.id);
+    });
+
+    it('una aprobación posterior NO legitima la venta: reenvío, REINTENTAR y ACEPTAR siguen sin aplicarla', async () => {
+      const e = await empresa();
+      const p = await producto(e, 'PEN-3');
+      const v = await ventana(e);
+      const op = opDe(e, v.id, p.id);
+      await enviar(e, [op]);
+      await prisma.producto.update({ where: { id: p.id }, data: { precioAprobado: true, precioAprobadoAt: new Date() } });
+      const [reenvio] = (await enviar(e, [op])).resultados;
+      expect(reenvio.estado).toBe('REVISION');
+      for (const accion of ['REINTENTAR', 'ACEPTAR'] as const) {
+        const r = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion, nota: `intento ${accion} tras aprobar` } as any);
+        expect(r.estado).toBe('REVISION');
+        expect(r.conflictos.map((c: any) => c.codigo)).toContain('PRODUCTO_FUERA_DE_VENTANA');
+      }
+      await sinEfectos(e, p.id);
+      // Cerrar manualmente solo cierra el caso: tampoco crea venta.
+      const cerrada = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'descartada' } as any);
+      expect(cerrada.estado).toBe('RESUELTA_MANUAL');
+      await sinEfectos(e, p.id);
+    });
+
+    it('instantánea sin prueba de aprobación (formato anterior): PRECIO_SIN_APROBACION no superable', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      const datos = { productos: [{ id: e.p1, codigo: 'TOR-1', nombre: 'Tornillo', precioCentavos: 1000, libreCentesimas: 2000, cupoCentesimas: 1000, usaMedida: false, unidadMedida: 'UNIDAD', costoCentavos: 400 }] };
+      await prisma.catalogoInstantanea.create({ data: { tenantId: e.tenantId, hash: 'legado', datos: datos as any } });
+      await prisma.contingenciaVentana.update({ where: { id: v.id }, data: { catalogoHash: 'legado' } });
+      const op = operacion(e, v.id);
+      const [res] = (await enviar(e, [op])).resultados;
+      expect(res.estado).toBe('REVISION');
+      expect(res.conflictos.map((c: any) => c.codigo)).toContain('PRECIO_SIN_APROBACION');
+      const forzada = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', nota: 'forzar' } as any);
+      expect(forzada.estado).toBe('REVISION');
+      await sinEfectos(e, e.p1);
+    });
+
+    it('una línea no aprobada rechaza toda la operación: la línea aprobada tampoco descuenta stock', async () => {
+      const e = await empresa();
+      const p = await producto(e, 'PEN-4');
+      const v = await ventana(e);
+      const op = operacion(e, v.id, {
+        lineas: [{ productoId: e.p1, cantidadCentesimas: 100, precioCentavos: 1000 }, { productoId: p.id, cantidadCentesimas: 100, precioCentavos: 1000 }],
+        subtotalCentavos: 2000, isvCentavos: 300, totalCentavos: 2300,
+      });
+      const [res] = (await enviar(e, [op])).resultados;
+      expect(res.estado).toBe('REVISION');
+      await sinEfectos(e, p.id);
+      await sinEfectos(e, e.p1);
+    });
+
+    it('envíos simultáneos de una venta rechazada: una sola fila de diario y ningún efecto', async () => {
+      const e = await empresa();
+      const p = await producto(e, 'PEN-5');
+      const v = await ventana(e);
+      const op = opDe(e, v.id, p.id);
+      await Promise.all([enviar(e, [op]), enviar(e, [op]), enviar(e, [op])]);
+      expect(await prisma.operacionContingencia.count({ where: { id: op.operacionId } })).toBe(1);
+      await sinEfectos(e, p.id);
+    });
+
+    it('aprobación vigente al emitir y precio cambiado después: conserva el tratamiento acordado (se aplica sin conflicto)', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      await prisma.producto.update({ where: { id: e.p1 }, data: { precioVenta: 12, version: { increment: 1 } } });
+      const [res] = (await enviar(e, [operacion(e, v.id)])).resultados;
+      expect(res).toMatchObject({ estado: 'APLICADA', requiereRevision: false });
+    });
+
+    it('aprobación revocada después de emitir la ventana: se aplica con revisión APROBACION_REVOCADA_POSTERIOR', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      await prisma.producto.update({ where: { id: e.p1 }, data: { precioAprobado: false } });
+      const [res] = (await enviar(e, [operacion(e, v.id)])).resultados;
+      expect(res.estado).toBe('APLICADA');
+      expect(res.requiereRevision).toBe(true);
+      expect(res.conflictos.map((c: any) => c.codigo)).toContain('APROBACION_REVOCADA_POSTERIOR');
+    });
+
+    it('aislamiento: un producto aprobado de otra empresa no se vende por la ventana de esta', async () => {
+      const a = await empresa();
+      const b = await empresa();
+      const va = await ventana(a);
+      const [res] = (await enviar(a, [opDe(a, va.id, b.p1)])).resultados;
+      expect(res.estado).toBe('REVISION');
+      expect(res.conflictos.map((c: any) => c.codigo)).toContain('PRODUCTO_NO_ENCONTRADO');
+      expect(await stock(b.p1)).toBe(20);
+      expect(await ventas(b.tenantId)).toBe(0);
+    });
+  });
+
   describe('diario inmutable y aislamiento', () => {
     it('la carga recibida no puede modificarse ni borrarse en PostgreSQL', async () => {
       const e = await empresa();
