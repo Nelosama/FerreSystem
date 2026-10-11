@@ -728,20 +728,66 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       expect(await prisma.movimientoCaja.count({ where: { cajaId, tipo: 'INGRESO_MANUAL' } })).toBe(1);
     });
 
-    it('sin caja abierta no se puede cerrar: la operación sigue en revisión y no se registra nada', async () => {
+    // R-02 (opción B aprobada): el efectivo va solo a la caja del cajero que cobró. Si está cerrada, no se traslada a otra caja.
+    it('con la caja del cajero cerrada no se puede cerrar sin venta: no se traslada a otra caja y la operación sigue en revisión', async () => {
       const e = await empresa();
       const v = await ventana(e);
       const op = operacionEnRevision(e, v.id);
       await enviar(e, [op]);
       await prisma.caja.updateMany({ where: { tenantId: e.tenantId }, data: { estado: 'CERRADA' } });
-      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Intento sin caja abierta' } as any)).rejects.toThrow(/Abra una caja/);
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Intento con la caja del cajero cerrada' } as any)).rejects.toThrow(/está cerrada\. El efectivo no se traslada a otra caja/);
       const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
       expect(fila.estado).toBe('REVISION');
       expect(await prisma.movimientoCaja.count({ where: { tipo: 'INGRESO_MANUAL', referencia: fila.id } })).toBe(0);
-      // Con una caja abierta indicada explícitamente (otra del administrador) sí se concilia.
+      // Una caja abierta del administrador NO recibe el efectivo, ni siquiera si la indica.
       const cajaAdmin = await prisma.caja.create({ data: { tenantId: e.tenantId, codigo: 'CAJA-ADM', usuarioId: e.admin, montoApertura: 0, estado: 'ABIERTA' } as any });
-      const cierre: any = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Conciliado en la caja del administrador', cajaId: cajaAdmin.id } as any);
-      expect(cierre.conciliacionCaja.cajaId).toBe(cajaAdmin.id);
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Intento de trasladar a la caja del administrador', cajaId: cajaAdmin.id } as any)).rejects.toThrow(/solo puede registrarse en la caja del cajero que cobró/);
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Sin indicar caja, con la del cajero cerrada' } as any)).rejects.toThrow(/está cerrada/);
+      expect(await prisma.movimientoCaja.count({ where: { cajaId: cajaAdmin.id } })).toBe(0);
+      expect((await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: fila.id } })).estado).toBe('REVISION');
+    });
+
+    it('regularización excepcional: el efectivo se registra en la caja CERRADA del cajero, con el arqueo coherente, el motivo y la auditoría', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      const op = operacionEnRevision(e, v.id);
+      await enviar(e, [op]);
+      const caja = await prisma.caja.findFirstOrThrow({ where: { tenantId: e.tenantId, usuarioId: e.cajero } });
+      // La caja se cerró contando 675 de efectivo físico cuando esperaba 100 (el cobro sin aplicar sobraba en el cajón).
+      await prisma.caja.update({ where: { id: caja.id }, data: { estado: 'CERRADA', montoCierreFisico: 675, montoEsperado: 100, diferencia: 575, notas: 'Sobrante por cobro offline pendiente' } });
+      const cajaAdmin = await prisma.caja.create({ data: { tenantId: e.tenantId, codigo: 'CAJA-ADM-2', usuarioId: e.admin, montoApertura: 0, estado: 'ABIERTA' } as any });
+      const motivo = 'Cobro offline verificado con el cliente; la caja cerró con el efectivo en el cajón';
+      const cierre: any = await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Regularización autorizada por el administrador', regularizarCajaCerrada: true, motivoRegularizacion: motivo } as any);
+      expect(cierre.estado).toBe('RESUELTA_MANUAL');
+      expect(cierre.conciliacionCaja).toMatchObject({ cajaId: caja.id, monto: 575, reutilizado: false, regularizacionExcepcional: true });
+      // Solo la caja del cajero recibe el ingreso; la del administrador, nada.
+      expect(await prisma.movimientoCaja.count({ where: { cajaId: caja.id, tipo: 'INGRESO_MANUAL' } })).toBe(1);
+      expect(await prisma.movimientoCaja.count({ where: { cajaId: cajaAdmin.id } })).toBe(0);
+      // El arqueo guardado sigue explicándose: esperado = 100 + 575; diferencia = 675 - 675.
+      const despues = await prisma.caja.findUniqueOrThrow({ where: { id: caja.id } });
+      expect([Number(despues.montoEsperado), Number(despues.diferencia), Number(despues.montoCierreFisico), despues.estado]).toEqual([675, 0, 675, 'CERRADA']);
+      expect(despues.notas).toContain('Sobrante por cobro offline pendiente');
+      expect(despues.notas).toContain(motivo);
+      const aud = await prisma.auditoriaOperacion.findFirstOrThrow({ where: { tenantId: e.tenantId, operacion: 'CONTINGENCIA_REGULARIZAR_CAJA_CERRADA' } });
+      expect(aud.usuarioId).toBe(e.admin);
+      expect(aud.datos).toMatchObject({ cajaId: caja.id, monto: 575, motivo, esperadoAnterior: 100, esperadoNuevo: 675, diferenciaAnterior: 575, diferenciaNueva: 0 });
+      expect(await ventas(e.tenantId)).toBe(0);
+      expect(await stock(e.p1)).toBe(20);
+      // Idempotente: un segundo cierre no duplica el ingreso.
+      await expect(svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Segundo cierre accidental', regularizarCajaCerrada: true, motivoRegularizacion: motivo } as any)).rejects.toThrow(/ya está resuelta/);
+      expect(await prisma.movimientoCaja.count({ where: { cajaId: caja.id, tipo: 'INGRESO_MANUAL' } })).toBe(1);
+    });
+
+    it('la regularización exige un motivo de al menos 20 caracteres', async () => {
+      const { validate } = await import('class-validator');
+      const { plainToInstance } = await import('class-transformer');
+      const { ResolverOperacionDto } = await import('../src/contingencia/dto/contingencia.dto');
+      const corto = plainToInstance(ResolverOperacionDto, { accion: 'CERRAR_MANUAL', nota: 'Regularización sin motivo suficiente', regularizarCajaCerrada: true, motivoRegularizacion: 'corto' });
+      expect((await validate(corto)).length).toBeGreaterThan(0);
+      const sinMotivo = plainToInstance(ResolverOperacionDto, { accion: 'CERRAR_MANUAL', nota: 'Regularización sin motivo alguno', regularizarCajaCerrada: true });
+      expect((await validate(sinMotivo)).length).toBeGreaterThan(0);
+      const bien = plainToInstance(ResolverOperacionDto, { accion: 'CERRAR_MANUAL', nota: 'Regularización con motivo suficiente', regularizarCajaCerrada: true, motivoRegularizacion: 'Motivo claro y suficiente para auditar' });
+      expect(await validate(bien)).toHaveLength(0);
     });
 
     it('una caja de otra empresa o cerrada no sirve para conciliar', async () => {
@@ -750,7 +796,7 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
       const op = operacionEnRevision(a, v.id);
       await enviar(a, [op]);
       const cajaB = (await prisma.caja.findFirstOrThrow({ where: { tenantId: b.tenantId } })).id;
-      await expect(svc.resolver(a.tenantId, a.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Caja de otra empresa', cajaId: cajaB } as any)).rejects.toThrow(/no existe o está cerrada/);
+      await expect(svc.resolver(a.tenantId, a.admin, op.operacionId, { accion: 'CERRAR_MANUAL', nota: 'Caja de otra empresa', cajaId: cajaB } as any)).rejects.toThrow(/solo puede registrarse en la caja del cajero que cobró/);
       expect(await prisma.movimientoCaja.count({ where: { cajaId: cajaB } })).toBe(0);
     });
   });

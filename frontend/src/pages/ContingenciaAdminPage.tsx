@@ -64,6 +64,8 @@ export default function ContingenciaAdminPage() {
   const [referencias, setReferencias] = useState<Record<string, string>>({});
   const [cajasAbiertas, setCajasAbiertas] = useState<{ id: string; codigo: string; usuario: string }[]>([]);
   const [caja, setCaja] = useState<Record<string, string>>({});
+  // R-02: si la caja del cajero que cobró está cerrada, el efectivo no se traslada. Solo una regularización excepcional con motivo.
+  const [regularizar, setRegularizar] = useState<Record<string, { necesaria: boolean; motivo: string }>>({});
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
   const [cargando, setCargando] = useState(false);
 
@@ -95,13 +97,20 @@ export default function ContingenciaAdminPage() {
     const nota = (notas[op.operacionId] ?? '').trim();
     if (nota.length < 10) { setMensaje({ tipo: 'error', texto: 'Escriba una nota de al menos 10 caracteres explicando la decisión.' }); return; }
     try {
+      const reg = regularizar[op.operacionId];
       await api.post(`/contingencia/operaciones/${op.operacionId}/resolver`, {
-        accion, nota, cajaId: caja[op.operacionId] || undefined,
+        // R-02: el efectivo de un cierre sin venta va siempre a la caja del cajero que cobró; nunca se elige otra.
+        accion, nota, cajaId: accion === 'CERRAR_MANUAL' ? undefined : (caja[op.operacionId] || undefined),
+        ...(accion === 'CERRAR_MANUAL' && reg?.necesaria && reg.motivo.trim().length >= 20
+          ? { regularizarCajaCerrada: true, motivoRegularizacion: reg.motivo.trim() } : {}),
       });
       setNotas((n) => ({ ...n, [op.operacionId]: '' }));
       setMensaje({ tipo: 'ok', texto: 'Decisión registrada y auditada.' });
       await cargar();
     } catch (error: any) {
+      if (error?.response?.data?.code === 'CAJA_CERRADA_REQUIERE_REGULARIZACION') {
+        setRegularizar((r) => ({ ...r, [op.operacionId]: { necesaria: true, motivo: r[op.operacionId]?.motivo ?? '' } }));
+      }
       setMensaje({ tipo: 'error', texto: error?.response?.data?.message ?? 'No se pudo registrar la decisión.' });
     }
   };
@@ -221,7 +230,7 @@ export default function ContingenciaAdminPage() {
               )}
               {(op.estado === 'REVISION' || op.estado === 'RECHAZADA') && (rechazada(op) || op.conflictos.some((k) => k.codigo === 'CAJA_CERRADA')) && (
                 <label style={{ display: 'grid', gap: 4, marginTop: 8 }}>
-                  Caja abierta donde se registrará el efectivo (si no elige, se usa la caja abierta del cajero o la suya)
+                  Caja abierta donde se aplicará la venta al aceptar. Solo vale para «Aceptar y aplicar»: el efectivo de un cierre sin venta siempre va a la caja del cajero que cobró
                   <select value={caja[op.operacionId] ?? ''} onChange={(e) => setCaja((x) => ({ ...x, [op.operacionId]: e.target.value }))}>
                     <option value="">Seleccione una caja abierta</option>
                     {cajasAbiertas.map((k) => <option key={k.id} value={k.id}>{k.codigo} · {k.usuario}</option>)}
@@ -232,6 +241,14 @@ export default function ContingenciaAdminPage() {
                 <label style={{ display: 'grid', gap: 4, marginTop: 8 }}>
                   Nota de la decisión (mínimo 10 caracteres)
                   <textarea rows={2} value={notas[op.operacionId] ?? ''} onChange={(e) => setNotas((n) => ({ ...n, [op.operacionId]: e.target.value }))} />
+                </label>
+              )}
+              {regularizar[op.operacionId]?.necesaria && (
+                <label style={{ display: 'grid', gap: 4, marginTop: 8 }}>
+                  La caja del cajero que cobró está cerrada. El efectivo no se traslada a otra caja. Para registrarlo en esa caja cerrada
+                  escriba el motivo de la regularización excepcional (mínimo 20 caracteres, queda auditado) y vuelva a pulsar «Cerrar sin venta».
+                  <textarea rows={2} value={regularizar[op.operacionId]?.motivo ?? ''}
+                    onChange={(e) => setRegularizar((r) => ({ ...r, [op.operacionId]: { necesaria: true, motivo: e.target.value } }))} />
                 </label>
               )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
