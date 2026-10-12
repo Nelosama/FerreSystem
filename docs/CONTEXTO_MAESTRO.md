@@ -875,6 +875,22 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - **Pendientes / riesgos:** (1) `cotizaciones.service.ts` (≈7 bloques `setHours`) sigue usando la zona del servidor para vencimientos; mismo patrón, fuera de alcance de FS-05, decidir si se corrige. (2) `ApartadosPage`, `TransferenciasPage`, `GarantiasPage` y `PedidosEspecialesPage` corregidos en la rama `fix/fechas-zona-negocio-modulos` (bloque siguiente); `AuditoriaPage`/`DevolucionesPage` siguen pendientes. (3) El supuesto de que la sesión de PostgreSQL y `NOW()` usan UTC para columnas `TIMESTAMP` no está verificado en producción (`SHOW timezone`). (4) Los datos históricos no se tocaron, pero los reportes de días pasados **cambiarán** al desplegar: ventas de 18:00–23:59 locales se moverán al día correcto. Avisar al cliente antes de desplegar. (5) Sin validación en navegador ni en producción.
 - PR [#99](https://github.com/Nelosama/FerreSystem/pull/99), rama `fix/fs-05-reportes-zona-horaria`: **fusionado en `main`** (`ef6b9fa1`). Se fusionó **antes** de registrar la aprobación funcional del cambio histórico, que sigue **PENDIENTE**: registrarla o evaluar su reversión/comunicación. Sin despliegue.
 
+## Preparación operativa del cliente — documentación (2026-10-12)
+
+- **Rama:** `docs/preparacion-operativa-cliente`, desde `origin/main` `7ccfad25`. Independiente de `claude/modest-archimedes-ae64x0`. PR en borrador, sin merge ni despliegue. Sin cambios de código, esquema, migraciones ni configuración.
+- **Materiales:** `docs/operacion-cliente/` con índice y límites (`README.md`), inventario (`01-inventario.md`), manual de cajero (`02-manual-cajero.md`), manual de administrador (`03-manual-administrador.md`), capacitación de 60 min con datos ficticios (`04-plan-capacitacion.md`) y lista del primer día (`05-lista-verificacion-primer-dia.md`). Plantillas CSV en `plantillas/`.
+- **Verificado en código:**
+  - Importador CSV (`ImportarProductosModal.tsx`): solo 5 unidades (`unidad`, `caja`, `metro`, `kg`, `galón`); vacíos en precios o existencias pasan a 0 sin aviso, mínimo a 5, categoría a «Herramientas Manuales» y unidad a `unidad`; «Sobrescribir» reemplaza existencias. El botón «DESCARGAR PLANTILLA CSV» incluye 3 filas de ejemplo.
+  - Alta (`productos.service.ts`): no escribe `costoVigente`, que queda para la recepción de compras; la existencia inicial genera movimiento `INICIAL`.
+  - Venta (`ventas.service.ts`, `openCash`): exige caja abierta para cualquier método. El POS no tiene campo de efectivo recibido: el vuelto es manual. Métodos: EFECTIVO, TARJETA, TRANSFERENCIA, CREDITO.
+  - Entregas (`/entregas`; ADMIN, CAJERO, BODEGUERO): confirmar entrega baja la existencia física y libera la reserva.
+  - Cierre: diferencia obliga a explicación; cierre confirmado no se edita; historial completo de cierres solo ADMIN.
+  - El cajero no tiene listado general de ventas; solo busca por número en Devoluciones.
+- **Pruebas:** no hubo cambios de código, así que no se ejecutaron suites. Verificación documental: rutas y archivos citados existen; las plantillas tienen columnas consistentes; el ejemplo tiene códigos únicos `EJ-*`, unidades válidas y precios no nulos.
+- **Límites:** sin validación en navegador con datos reales, en iPhone (cámara), con datáfono, ni de respaldo y restauración en producción. Roles de órdenes de compra sin confirmar.
+- **Pendientes:** decisiones del dueño listadas en `03-manual-administrador.md` §13 (costo manual D1, importación que sobrescribe D4, marca/categoría D5, reembolso de devoluciones con abonos, sucursal, aprobación del cambio de fechas en reportes, salida de efectivo con segundo administrador, procedimiento fiscal). Nombres y contactos del responsable de soporte y canal de incidentes. Respaldo y restauración verificados. Capacitación realizada con evidencia. Validación en equipo del cliente. Aceptación del cliente: no concedida.
+- **Bitácora:** lectura de este contexto y de Git; revisión de importador, alta, modelo, caja, POS, entregas, rutas y roles; rama creada desde `origin/main`; redacción de materiales y plantillas; verificación documental y de CSV; actualización de este documento.
+
 **FIN DEL CONTEXTO VIGENTE**
 
 
