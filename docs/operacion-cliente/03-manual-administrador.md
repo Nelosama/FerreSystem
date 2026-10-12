@@ -103,7 +103,36 @@ Tres vías, descritas en `01-inventario.md`:
 
 ## 13. Decisiones que debe tomar el dueño
 
-Estas decisiones no las toma el sistema ni este manual. Están pendientes en `CONTEXTO_MAESTRO.md`:
+Estas decisiones no las toma el sistema ni este manual. Están agrupadas en el orden en que se necesitan.
+
+**Antes de la carga del catálogo** (`01-inventario.md`, `06-control-previo-importacion.md`)
+
+| # | Decisión | Qué depende de ella |
+|---|---|---|
+| I1 | ¿El catálogo se agrupa en las 9 familias propuestas o en otras? | Códigos, categorías y reparto del conteo (`01` §4.1) |
+| I2 | ¿Se aprueban las abreviaturas y el formato de código? ¿El código interno siempre es el nuestro y el del fabricante va aparte? | Búsqueda, escáner y colisiones (`01` §4) |
+| I3 | ¿La categoría de cada producto será su familia? | Filtros de inventario y de conteo |
+| I4 | ¿Cómo se vende cada familia: canaletas, láminas, varillas, ángulos y tornillos por metro, pieza o caja? | Unidad de medida de cada producto, que después no se puede cambiar (`01` §3) |
+| I5 | ¿De dónde sale el costo de referencia (factura o lista del proveedor)? ¿Qué se hace con los artículos sin costo conocido? | Qué filas entran al importador (`01` §8.2) |
+| I6 | ¿Quién aprueba cada precio de venta y con qué margen? | Precio de venta de todo el catálogo |
+
+**Antes del conteo** (`07-levantamiento-conciliacion-jornada.md`)
+
+| # | Decisión | Qué depende de ella |
+|---|---|---|
+| I7 | ¿Qué diferencias (en cantidad o en valor) exigen revisión del dueño antes de aplicar? | Umbral de parada de la conciliación |
+| I8 | ¿Cuál es la hora de corte y qué pasa con las ventas durante el conteo? ¿Se cierra la tienda o se sigue vendiendo? | Exactitud de la existencia aplicada (`07` §6.1) |
+| I9 | ¿Quién cuenta cada familia, quién reconcilia y qué tamaño tendrá la muestra de reconteo (propuesta: 20 %, y todos los de mayor valor)? | Confiabilidad del conteo (`07` §2 y §5) |
+| I10 | ¿El conteo se registra en levantamiento (recomendado) o se importa con existencias contadas? | Trazabilidad por contador y conflictos (`01` §1) |
+
+**Después del conteo**
+
+| # | Decisión | Qué depende de ella |
+|---|---|---|
+| I11 | ¿Quién aplica el levantamiento? El sistema lo permite solo al ADMIN. ¿Quién autoriza las correcciones de conflictos? | Responsabilidad de la existencia final (`07` §1 y §6.3) |
+| I12 | **Impedimento de costo vigente inicial:** ¿se acepta que el costo vigente quede vacío hasta la primera compra recibida, o se autoriza una función específica? El PM decide. | Política «costo vigente = última compra» desde el arranque (`01` §8.3) |
+
+**Decisiones permanentes** (ya pendientes en `CONTEXTO_MAESTRO.md`)
 
 | # | Decisión | Por qué importa |
 |---|---|---|

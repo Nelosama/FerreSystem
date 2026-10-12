@@ -891,6 +891,21 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - **Pendientes:** decisiones del dueño listadas en `03-manual-administrador.md` §13 (costo manual D1, importación que sobrescribe D4, marca/categoría D5, reembolso de devoluciones con abonos, sucursal, aprobación del cambio de fechas en reportes, salida de efectivo con segundo administrador, procedimiento fiscal). Nombres y contactos del responsable de soporte y canal de incidentes. Respaldo y restauración verificados. Capacitación realizada con evidencia. Validación en equipo del cliente. Aceptación del cliente: no concedida.
 - **Bitácora:** lectura de este contexto y de Git; revisión de importador, alta, modelo, caja, POS, entregas, rutas y roles; rama creada desde `origin/main`; redacción de materiales y plantillas; verificación documental y de CSV; actualización de este documento.
 
+### Preparación del inventario real (2026-10-12, rama `docs/preparacion-operativa-cliente`, PR #156)
+
+- **Alcance:** fases 1–6 de la misión de inventario real. Solo documentación, plantillas y una herramienta que lee archivos. Sin cambios en código, backend, frontend, migraciones ni infraestructura. Codex no tiene archivos tocados en esta fase.
+- **Entregables:** `docs/operacion-cliente/01-inventario.md` (reescrito: vías de carga, codificación, costos y precios); `03-manual-administrador.md` §13 (decisiones I1–I12 y permanentes); `05-lista-verificacion-primer-dia.md` (sección C ampliada); `06-control-previo-importacion.md` (nuevo); `07-levantamiento-conciliacion-jornada.md` (nuevo: conteo, dos personas, conciliación, plan de jornada); `plantillas/inventario_registro_maestro.csv` (ampliado con familia, códigos, costo de referencia, conteo, reconteo, diferencia); `herramientas/validar_plantilla.py` (nuevo).
+- **Verificado en código:**
+  - `costo_vigente` solo lo escribe la recepción de compra (`operaciones.service.ts`, línea 77), que además suma existencias y crea la cuenta por pagar. La cantidad de la recepción debe ser positiva (`ledger.ts`, `decimal`).
+  - El alta, el importador y el aplicar del levantamiento escriben `precioCosto`, pero no `costoVigente`.
+  - Levantamiento: el aplicar exige estado `FINALIZADO` y sin conflictos; valida la unidad contra los 12 valores del enum y no convierte cantidades; exige costo y precio para productos nuevos; bloquea si el conteo es menor que lo reservado; solo cambia las filas del levantamiento.
+  - Código automático: prefijo del nombre en mayúsculas, máximo 18 caracteres, sufijo `-001`.
+- **Impedimento para el PM (no implementado):** no existe un mecanismo seguro para fijar `costoVigente` del inventario inicial. Una compra de apertura duplicaría existencias y crearía deuda con el proveedor. Al arranque el costo vigente quedará vacío hasta la primera recepción. Decisión I12.
+- **Pruebas:** el validador se probó con 11 casos fuera del repositorio: archivo correcto (pasa), duplicados, precios vacíos, coma decimal, unidades incorrectas incluido `galon`, filas de ejemplo, encabezados faltantes, UTF-8 inválido, código existente en catálogo, existencia distinta de 0, y archivo sin filas. No hubo cambios de código, así que no se ejecutaron suites.
+- **Límites:** no validado en navegador con datos reales, lector de códigos ni cámara; el sistema no genera etiquetas; abreviaturas de codificación y familias pendientes de aprobación; no hay confirmación de si la pantalla de inventario lista productos inactivos (el control previo no los conoce sin esa lista).
+- **Pendientes:** decisiones I1–I12, D1, D4 y D5; umbral de diferencia (I7); corte y ventas durante el conteo (I8); responsable de soporte y respaldo verificado (sin cambio); aceptación del cliente (no concedida).
+- **Bitácora:** lectura del contexto y del estado de la rama; verificación de costos, codificación, conteo y aplicación en código; redacción de los entregables; prueba del validador; actualización de este documento.
+
 **FIN DEL CONTEXTO VIGENTE**
 
 

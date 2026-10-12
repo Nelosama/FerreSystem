@@ -39,14 +39,21 @@ Checklist para decidir si la tienda puede vender en el sistema el primer día. L
 | ☐ | Ítem | Crit. | Responsable | Evidencia |
 |---|---|---|---|---|
 | ☐ | Lista base de artículos entregada por el cliente (no inventada) | Crítico | | |
-| ☐ | Plantilla llena con `inventario_registro_maestro.csv` y revisada (códigos únicos, precios no en 0, categorías, unidades de las 5 permitidas) | Crítico | | |
+| ☐ | Registro maestro llenado (`inventario_registro_maestro.csv`) y archivo importable generado con existencia 0 (`06` §4) | Crítico | | |
+| ☐ | Validador sin errores (`herramientas/validar_plantilla.py`, con `--catalogo`). Salida guardada como evidencia (`06` §1) | Crítico | | |
+| ☐ | Nomenclatura de códigos aprobada por el dueño (`01` §4; decisiones I1–I3) | Crítico | | |
+| ☐ | Costo de referencia con fuente registrada (factura o lista) para cada fila importada (`01` §8.2) | Crítico | | |
 | ☐ | Importación de prueba hecha en preproducción o copia, con resumen revisado | Crítico | | |
 | ☐ | Importación real **sin** «Sobrescribir», con resumen guardado (importados, omitidos, errores) | Crítico | | |
 | ☐ | Precios de venta revisados: ninguno en 0 sin intención | Crítico | | |
 | ☐ | Códigos de barras y marcas cargados desde el formulario donde corresponda | Importante | | |
 | ☐ | Artículos con unidad no permitida en CSV (pie, libra, litro, paquete, otro, metro cuadrado, metro cúbico) cargados desde el formulario | Importante | | |
 | ☐ | Decisión por artículo: canaleta, lámina, varilla y tornillo (metro, pieza o caja) | Crítico | | |
-| ☐ | Conteo físico inicial con levantamiento; ADMIN revisa diferencias y aplica | Importante | | |
+| ☐ | Hora de corte definida y comunicada; decisión sobre ventas durante el conteo (decisión I8) | Crítico | | |
+| ☐ | Conteo físico en levantamiento por familias, con reconteo de muestra por una segunda persona o en papel (`07` §2 y §5) | Crítico | | |
+| ☐ | Conciliación: sin conflictos pendientes, diferencias revisadas con el dueño y evidencia exportada (`07` §6) | Crítico | | |
+| ☐ | Levantamiento aplicado solo por el ADMIN, después de la aprobación escrita del dueño. Cinco fichas verificadas | Crítico | | |
+| ☐ | Costo vigente inicial: el dueño y el PM conocen el impedimento y aceptan que quede vacío hasta la primera compra (decisión I12; `01` §8.3) | Crítico | | |
 
 ## D. Métodos de cobro y caja
 

@@ -51,7 +51,8 @@ Si el grupo es mixto, todos siguen toda la sesión. Un solo equipo puede alterna
 - Mostrar el botón «DESCARGAR PLANTILLA CSV» del importador: trae 3 filas de ejemplo (`COD-001` a `COD-003`). **Bórrelas antes de importar.**
 - Mostrar el archivo `ejemplo_ficticio_capacitacion.csv` y explicar las columnas.
 
-**Ejercicio A · Importación (6 min)** — con el ADMIN, en la base de práctica:
+**Ejercicio A · Importación (6 min)** — con el ADMIN, en la base de práctica.
+- Si el instructor pasa `ejemplo_ficticio_capacitacion.csv` por `herramientas/validar_plantilla.py`, **debe marcar error**: las filas `EJ-*` son de ejemplo y el control previo las rechaza. Es intencional. El ejercicio importa el archivo solo en la base de práctica, nunca en la real.
 1. Importar `ejemplo_ficticio_capacitacion.csv **sin** confirmar «Sobrescribir».
 2. Resultado esperado: **importados 8, actualizados 0, omitidos 0, errores 0.**
 3. Importar el mismo archivo otra vez. Resultado esperado: **omitidos 8.** Explicar por qué (los códigos ya existen).
