@@ -1,0 +1,24 @@
+-- FIXTURE DE PRUEBA. NO es una migración y no se aplica con migrate deploy.
+-- Es la variante alterna de 20261011150000_precio_aprobacion_producto (SHA-256 d84f7934cb433c7b…, ramas keen-goldberg y forja)
+-- conservada solo para demostrar que un entorno que la aplicó queda BLOQUEADO (CHECKSUM_DISTINTO) frente al código del candidato.
+-- Diferencia material con la candidata (8885a35a928bbd2d…): esta variante también marca como aprobados los productos INACTIVOS con precio > 0.
+-- Aprobación de precio para venta (levantamiento inicial y administración de precios).
+-- Solo agrega columnas e índice. Productos existentes con precio de venta > 0 quedan aprobados con marca LEGADO_MIGRACION;
+-- los de precio 0 o inválido quedan pendientes. No modifica existencias, costos ni precios.
+-- Reversión manual: DROP INDEX productos_tenant_id_precio_aprobado_idx; y DROP COLUMN de las cinco columnas nuevas.
+
+ALTER TABLE "productos"
+  ADD COLUMN "precio_aprobado" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "precio_aprobado_por" TEXT,
+  ADD COLUMN "precio_aprobado_at" TIMESTAMP(3),
+  ADD COLUMN "precio_modificado_por" TEXT,
+  ADD COLUMN "precio_modificado_at" TIMESTAMP(3);
+
+-- Solo productos con precio de venta válido (> 0) quedan aprobados. Los demás requieren revisión del administrador.
+UPDATE "productos"
+SET "precio_aprobado" = true,
+    "precio_aprobado_por" = 'LEGADO_MIGRACION',
+    "precio_aprobado_at" = CURRENT_TIMESTAMP
+WHERE "precio_venta" > 0;
+
+CREATE INDEX "productos_tenant_id_precio_aprobado_idx" ON "productos"("tenant_id", "precio_aprobado");

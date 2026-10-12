@@ -123,7 +123,7 @@ node dist/main.js
 
 Do not include `prisma db push --accept-data-loss` in production builds: it can change the live schema destructively before the new application has even compiled. These build/start commands do not apply schema changes; a release that changes the schema needs a separately reviewed migration plan.
 
-`npm run start:prod` applies pending Prisma migrations with `prisma migrate deploy` and then starts the API; it never runs the seed. Use this command only after checking that the existing production database has a compatible migration history or has been properly baselined. A database previously synchronized with `db push` must not be switched blindly to `migrate deploy`.
+`npm run start:prod` **does not migrate by default**: it runs `migration-safe startup`, which only *verifies* (read-only) that the database matches this code version and refuses to start (exit code 1, no writes) if migrations are pending, the history is inconsistent or a checksum differs. Migrations are applied only by an explicit, authorized step: take a verified backup, then `npm run migrate:deploy` (see `docs/RUNBOOK_PREPRODUCCION_Y_PRODUCCION.md`). Local installs set `FERRE_MIGRAR_AL_ARRANCAR=SI` (see `deploy/local/compose.yaml`) to keep applying pending migrations at start. It never runs the seed.
 
 Set Render's Health Check Path to `/api/health`. This endpoint checks the database connection and returns `503` when it is unavailable.
 

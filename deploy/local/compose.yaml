@@ -29,6 +29,8 @@ services:
       database: {condition: service_healthy}
     environment:
       NODE_ENV: production
+      # Instalación local operada por el propietario: aplica migraciones pendientes al arrancar. En producción NO se define (el arranque solo verifica).
+      FERRE_MIGRAR_AL_ARRANCAR: 'SI'
       FERRE_BACKUP_STATUS_FILE: /backups/latest-status.json
       DATABASE_HOST: database
       FRONTEND_URL: https://${FERRE_HOST:?Configure FERRE_HOST}
