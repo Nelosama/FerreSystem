@@ -216,6 +216,7 @@
   .admin-home__metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .admin-home__metrica { padding: 14px; }
   .admin-home__metrica-cifra { font-size: 22px; }
+  .admin-home__metrica-cifra--pendiente { font-size: 14px; white-space: normal; }
   .admin-home__rejilla { grid-template-columns: minmax(0, 1fr); }
   .admin-home__acciones { display: none; }
   .admin-home__flotante { display: inline-flex; }

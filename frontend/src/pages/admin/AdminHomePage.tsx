@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, ArrowUpRight, Clock, Coins, FileText, Plus, TrendingUp } from 'lucide-react';
 import { TopBar } from '../../components/TopBar';
 import { SyncStatus } from '../../components/SyncStatus';
+import { TaskShortcuts } from '../../components/TaskFinder';
 import { useTenant } from '../../context/TenantContext';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { availableTasks } from '../../utils/taskNavigation';
@@ -28,13 +29,22 @@ const ACCESOS_RAPIDOS = ['pos', 'cotizaciones', 'inventario', 'clientes', 'cuent
 // Indicadores que el backend todavía no calcula. Se muestran como «Próximamente», nunca con cifras.
 const PROXIMAMENTE = ['Ganancia estimada', 'Ticket promedio', 'Por cobrar', 'Entregas pendientes', 'Estado del inventario', 'Apertura de caja'];
 
+// Completa una respuesta parcial o malformada con valores neutros: nunca se pintan cifras inventadas.
+const normalizarResumen = (raw: Partial<DashboardResponse> | null | undefined): DashboardResponse => ({
+  ventasDelDia: { total: Number(raw?.ventasDelDia?.total) || 0, cantidad: Number(raw?.ventasDelDia?.cantidad) || 0, variacionPorcentaje: raw?.ventasDelDia?.variacionPorcentaje ?? null },
+  tendenciaSemanal: Array.isArray(raw?.tendenciaSemanal) ? raw.tendenciaSemanal : [],
+  ultimasVentas: Array.isArray(raw?.ultimasVentas) ? raw.ultimasVentas : [],
+  alertasStock: { cantidad: Number(raw?.alertasStock?.cantidad) || 0, items: Array.isArray(raw?.alertasStock?.items) ? raw.alertasStock.items : [] },
+  cotizacionesPendientes: { cantidad: Number(raw?.cotizacionesPendientes?.cantidad) || 0, porVencerHoy: Number(raw?.cotizacionesPendientes?.porVencerHoy) || 0 },
+});
+
 const etiquetaMetodo: Record<string, string> = { EFECTIVO: 'Efectivo', TARJETA: 'Tarjeta', TRANSFERENCIA: 'Transferencia', CREDITO: 'Crédito' };
 
 export const AdminHomePage: React.FC = () => {
   const { user, tenant } = useTenant();
   const [datos, setDatos] = useState<DashboardResponse | null>(null);
 
-  const cargar = useCallback((signal: AbortSignal) => api.get<DashboardResponse>('/dashboard', { signal }).then(res => res.data), []);
+  const cargar = useCallback((signal: AbortSignal) => api.get<Partial<DashboardResponse>>('/dashboard', { signal }).then(res => normalizarResumen(res.data)), []);
   const aplicar = useCallback((value: DashboardResponse) => { setDatos(value); }, []);
   const { sync } = useAutoRefresh<DashboardResponse>({
     load: cargar,
@@ -65,6 +75,9 @@ export const AdminHomePage: React.FC = () => {
             ))}
           </nav>
         </header>
+
+        {/* Accesos por tarea del negocio: se conservan del resumen anterior (funcionalidad existente). */}
+        <TaskShortcuts />
 
         {errorVisible && (
           <div role="alert" className="admin-home__aviso">
