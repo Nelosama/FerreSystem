@@ -1,6 +1,6 @@
 # Candidato integrado para operar con el cliente
 
-**2026-10-12, America/Tegucigalpa.** Rama `nexus/candidato-cliente-integrado`. Código integrado y verificado: **`89a70ccf`**. Incorpora por ascendencia #153 `95144a17`, #155 `85e4ff88`, #156 `406c57e2` y #157 `21b1eea5`. Se conservaron esas ramas y `main`; la limpieza de ramas no forma parte de este trabajo. Sin merge en GitHub ni escrituras, migraciones o despliegue en producción.
+**2026-10-12, America/Tegucigalpa.** [PR #158 en borrador](https://github.com/Nelosama/FerreSystem/pull/158). Rama `nexus/candidato-cliente-integrado`. Código integrado y verificado: **`89a70ccf`**. Incorpora por ascendencia #153 `95144a17`, #155 `85e4ff88`, #156 `406c57e2` y #157 `21b1eea5`. Se conservaron esas ramas y `main`; la limpieza de ramas no forma parte de este trabajo. Sin merge en GitHub ni escrituras, migraciones o despliegue en producción.
 
 ## Lo que funciona
 
