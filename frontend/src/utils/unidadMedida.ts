@@ -10,3 +10,12 @@ export const normalizarUnidadMedida = (value: string): string => {
   };
   return aliases[key] || key;
 };
+
+// El CSV y el inventario usan las mismas doce unidades de la API; no se convierten cantidades.
+export const UNIDADES_INVENTARIO = [
+  'UNIDAD', 'PIE', 'METRO', 'METRO_CUADRADO', 'METRO_CUBICO', 'LIBRA',
+  'KG', 'GALON', 'LITRO', 'CAJA', 'PAQUETE', 'OTRO',
+] as const;
+
+export const unidadCsvValida = (value: string): boolean =>
+  (UNIDADES_INVENTARIO as readonly string[]).includes(normalizarUnidadMedida(value));

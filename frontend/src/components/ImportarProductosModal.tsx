@@ -4,7 +4,7 @@ import { Upload, Download, AlertTriangle, Check, X, FileSpreadsheet, CheckCircle
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
-import { normalizarUnidadMedida } from '../utils/unidadMedida';
+import { normalizarUnidadMedida, unidadCsvValida } from '../utils/unidadMedida';
 
 interface ImportarProductosModalProps {
   isOpen: boolean;
@@ -60,24 +60,8 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
 
   const handleDownloadTemplate = () => {
     const headers = ['nombre', 'codigo', 'categoria', 'stockActual', 'stockMinimo', 'unidadMedida'];
-    const cats = rubroConfig.categoriasDefault.length > 0 ? rubroConfig.categoriasDefault : ['General', 'Otros'];
-    const units = rubroConfig.unidadesMedida.length > 0 ? rubroConfig.unidadesMedida : ['unidad', 'metro'];
+    const csvContent = headers.join(',') + '\n';
 
-    const cat1 = cats[0] || 'General';
-    const cat2 = cats[1] || cat1;
-    const unit1 = units[0] || 'unidad';
-    const unit2 = units[1] || unit1;
-
-    const sampleRows = [
-      ['Producto Ejemplo 1', 'COD-001', cat1, '50.00', '75.00', '100', '10', unit1],
-      ['Producto Ejemplo 2', 'COD-002', cat2, '120.00', '180.00', '50', '5', unit2],
-      ['Producto Ejemplo 3', 'COD-003', cat1, '15.50', '25.00', '200', '20', unit1],
-    ];
-
-    const csvContent = [
-      headers.join(','),
-      ...sampleRows.map((r) => r.map((field) => `"${field.replace(/"/g, '""')}"`).join(',')),
-    ].join('\n');
 
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -100,7 +84,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
   };
 
   const validateAndParseRawData = (rawObjects: Record<string, any>[]): ParsedRow[] => {
-    const allowedUnits = rubroConfig.unidadesMedida.map((u) => u.toLowerCase().trim());
     const defaultCategory = rubroConfig.categoriasDefault[0] || 'General';
     const defaultUnit = rubroConfig.unidadesMedida[0] || 'unidad';
 
@@ -135,10 +118,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
 
       if (!unidadMedida) {
         unidadMedida = defaultUnit;
-      } else if (
-        allowedUnits.length > 0 &&
-        !allowedUnits.includes(unidadMedida.toLowerCase().trim())
-      ) {
+      } else if (!unidadCsvValida(unidadMedida)) {
         errores.push(t('inventory.invalid_unit') + `: "${unidadMedida}"`);
       }
 
@@ -366,7 +346,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                   type="button"
                   className="btn btn-secondary"
                   onClick={handleDownloadTemplate}
-                  title="Descargar plantilla de ejemplo CSV para este rubro"
+                  title="Descargar plantilla CSV vacía para este rubro"
                 >
                   <Download size={16} />
                   <span>{t('inventory.download_template')}</span>
