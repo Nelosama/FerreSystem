@@ -11,6 +11,8 @@ Fecha: **2026-10-12, America/Tegucigalpa**. Implementación independiente desde 
 | PR #155, candidato de preproducción | `85e4ff88b4da8c1fda1c8a0e74e6fcd075de5fc3` | Contiene #153. `backend/src` y `frontend/src` son idénticos a #153. Su arranque verifica migraciones y no las aplica por defecto. |
 | Integración local aislada | `ebc9fdeb` | #155 + `8b47eb80`, con la resolución de plantilla descrita más abajo. No publicada ni aplicada sobre las ramas congeladas. |
 
+**Cambio externo durante la sesión:** al verificar las referencias antes de publicar, #156 avanzó de `59de0589` a `406c57e299f57061992617e88f542e8694186ec9` (sin escrituras nuestras a su rama). El diff documental añade materiales y un CSV v2 de seis columnas; su validador elimina las columnas de precio, pero conserva cinco unidades y el aviso informativo de stock. La revisión solicitada y las discrepancias históricas siguientes se refieren a `59de0589`; la v2 resuelve la plantilla de precios, pero no aporta el modo estricto ni la inicialización implementados aquí. No se certifican íntegramente los manuales nuevos. #153/#155 no cambiaron sus SHA.
+
 ### Discrepancias que afectan el primer día
 
 1. **Costo inicial:** #156 acierta para `main`, donde solo la recepción escribe `costoVigente`. En el candidato el alta ya lo rellena, incluso con cero cuando se importa sin precios. La ruta de precios lo actualiza solo si cambia `precioCosto`; no repara un costo vigente ausente cuando el costo comercial enviado es igual al actual. Los productos legados o creados por levantamiento requieren una vía explícita de inicialización.
