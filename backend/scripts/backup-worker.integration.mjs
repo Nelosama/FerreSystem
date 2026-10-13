@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { command, backupAttempt, pgBinary } from './backup-worker.mjs';
 import { isolatedEnvironment } from './backup-verify-isolated.mjs';
+import { snapshotDump } from './backup-consistent.mjs';
 
 if (process.env.FS41_INTEGRATION !== '1') throw new Error('Set FS41_INTEGRATION=1 for isolated integration only.');
 const root = await mkdtemp(join(tmpdir(), 'fs41-integration-'));
@@ -39,11 +40,48 @@ try {
   }
   const snapshots = JSON.parse(await command(restic, ['snapshots', '--json'], { env }));
   assert.equal(snapshots.length, 2, 'retention keeps exactly two snapshots');
+  const recoveryPoints = snapshots.map(snapshot => snapshot.id);
+  // Two failed restores upload snapshots. A later success must retain another
+  // verified recovery point rather than counting either failed attempt.
+  for (let i = 0; i < 2; i++) {
+    const failed = await backupAttempt(config, env, { verify: async () => { throw new Error('deliberate restore failure'); } });
+    assert.equal(failed.errorCode, 'RESTORE');
+  }
+  const successful = await backupAttempt(config, env);
+  assert.equal(successful.success, true);
+  const afterFailures = JSON.parse(await command(restic, ['snapshots', '--json'], { env }));
+  assert.equal(afterFailures.filter(snapshot => snapshot.tags.includes('fs41-verified')).length, 2);
+  assert.equal(afterFailures.filter(snapshot => !snapshot.tags.includes('fs41-verified')).length, 2);
+  assert.ok(afterFailures.some(snapshot => recoveryPoints.includes(snapshot.id)), 'an older verified copy survives');
+  assert.ok(afterFailures.some(snapshot => snapshot.id === successful.snapshot), 'reported tagged ID exists');
   await command(restic, ['check', '--read-data'], { env });
   await assert.rejects(command(restic, ['snapshots'], { env: { ...env, RESTIC_PASSWORD_FILE: undefined, RESTIC_PASSWORD: 'wrong-key' } }));
   const rows = (await command(pg('psql'), ['-X', '-At', '-c', 'SELECT tenant_id,total FROM ventas ORDER BY tenant_id'], { env: source.local })).trim();
   assert.equal(rows.replaceAll('\r', ''), 'tenant-a|125\ntenant-b|300');
-  console.log('PASS: 3 real encrypted backups, readback checksum, 3 isolated PostgreSQL restores, retention 2, full restic integrity, wrong-key rejection, source tenant rows unchanged. Local test destination only.');
+  console.log('PASS: 4 real encrypted backups/restores, 2 deliberate restore failures, retention preserves 2 verified copies and does not count failed copies; full integrity, wrong-key rejection, source rows unchanged. Local test destination only.');
+
+  // pg_dump executes after a new sale commits; its imported snapshot must still
+  // agree with the manifest captured BEFORE that sale (source remains online).
+  await command(pg('psql'), ['-X', '-v', 'ON_ERROR_STOP=1', '-c', 'CREATE TABLE _prisma_migrations(id text); CREATE TABLE extra(id text);'], { env: source.local });
+  const consistent = join(root, 'consistent'); await mkdir(consistent);
+  const manifest = await snapshotDump(consistent, env, async (name, args, options) => {
+    if (name.endsWith('pg_dump')) await command(pg('psql'), ['-X', '-v', 'ON_ERROR_STOP=1', '-c', "INSERT INTO ventas VALUES ('concurrent','tenant-a',50)"], { env: source.local });
+    return command(name, args, options);
+  });
+  assert.equal(manifest.conteos.ventas, 2);
+  const restored = await isolatedEnvironment(root, process.env);
+  let restoredStarted = false;
+  try {
+    await command(pg('initdb'), ['-D', restored.data, '-U', 'ferre_verify', '--pwfile', restored.passwordFile, '--auth=scram-sha-256', '--encoding=UTF8', '--no-locale'], { env: restored.local });
+    await command(pg('pg_ctl'), ['-D', restored.data, '-l', join(restored.cluster, 'log'), '-o', `-h 127.0.0.1 -p ${restored.port} -k ${restored.cluster}`, '-w', 'start'], { env: restored.local }); restoredStarted = true;
+    await command(pg('psql'), ['-X', '-v', 'ON_ERROR_STOP=1', '-c', 'DROP SCHEMA public CASCADE'], { env: restored.local });
+    await command(pg('pg_restore'), ['--exit-on-error', '--no-owner', '--no-acl', '--dbname', 'postgres', join(consistent, 'database.dump')], { env: restored.local });
+    assert.equal((await command(pg('psql'), ['-X', '-At', '-c', 'SELECT count(*) FROM ventas'], { env: restored.local })).trim(), '2');
+    assert.equal((await command(pg('psql'), ['-X', '-At', '-c', 'SELECT count(*) FROM ventas'], { env: source.local })).trim(), '3');
+    console.log('PASS: consistent snapshot includes 2 original sales; concurrent sale remains in source (3) and is absent from restored dump (2), matching manifest.');
+  } finally {
+    if (restoredStarted) await command(pg('pg_ctl'), ['-D', restored.data, '-m', 'fast', '-w', 'stop'], { env: restored.local });
+  }
 } finally {
   if (started || await readFile(join(source.data, 'postmaster.pid'), 'utf8').catch(() => '')) await command(pg('pg_ctl'), ['-D', source.data, '-m', 'fast', '-w', 'stop'], { env: source.local });
   if (dirname(root) === tmpdir() && root.includes('fs41-integration-')) await rm(root, { recursive: true, force: true });
