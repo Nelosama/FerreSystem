@@ -77,7 +77,7 @@ Running 24 tests using 2 workers
   ✘  24 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:325:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático (5ms)
 
 
-  1) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:154:3 › Levantamiento de inventario (FS-06 fase 2) › crear levantamiento: un fallo de red conserva la clave y el reintento no duplica el levantamiento 
+  1) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:154:3 › Levantamiento de inventario (FS-06 fase 2) › crear levantamiento: un fallo de red conserva la clave y el reintento no duplica el levantamiento
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -99,7 +99,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  2) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:168:3 › Levantamiento de inventario (FS-06 fase 2) › contar: un envío perdido queda pendiente, se confirma sin duplicar y el guardado es visible 
+  2) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:168:3 › Levantamiento de inventario (FS-06 fase 2) › contar: un envío perdido queda pendiente, se confirma sin duplicar y el guardado es visible
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -121,7 +121,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  3) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:182:3 › Levantamiento de inventario (FS-06 fase 2) › advierte antes de guardar un artículo ya contado por el mismo empleado y permite editar el conteo anterior 
+  3) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:182:3 › Levantamiento de inventario (FS-06 fase 2) › advierte antes de guardar un artículo ya contado por el mismo empleado y permite editar el conteo anterior
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -143,7 +143,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  4) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:197:3 › Levantamiento de inventario (FS-06 fase 2) › avisa, sin bloquear, cuando otro empleado ya contó el artículo y registra el conflicto 
+  4) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:197:3 › Levantamiento de inventario (FS-06 fase 2) › avisa, sin bloquear, cuando otro empleado ya contó el artículo y registra el conflicto
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -165,7 +165,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  5) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:210:3 › Levantamiento de inventario (FS-06 fase 2) › si otro dispositivo registró el artículo después de cargar la pantalla, el servidor rechaza el duplicado y muestra el motivo 
+  5) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:210:3 › Levantamiento de inventario (FS-06 fase 2) › si otro dispositivo registró el artículo después de cargar la pantalla, el servidor rechaza el duplicado y muestra el motivo
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -187,7 +187,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  6) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:222:3 › Levantamiento de inventario (FS-06 fase 2) › flujo completo: crear, contar con marca, finalizar, revisar impacto y aplicar 
+  6) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:222:3 › Levantamiento de inventario (FS-06 fase 2) › flujo completo: crear, contar con marca, finalizar, revisar impacto y aplicar
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -209,7 +209,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  7) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:249:3 › Levantamiento de inventario (FS-06 fase 2) › conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token 
+  7) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:249:3 › Levantamiento de inventario (FS-06 fase 2) › conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -231,7 +231,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  8) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:296:3 › Levantamiento en teléfono › la captura cabe en el ancho del teléfono y registra un producto sin fotografía 
+  8) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:296:3 › Levantamiento en teléfono › la captura cabe en el ancho del teléfono y registra un producto sin fotografía
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -253,7 +253,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  9) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:128:3 › Edición de productos (FS-07) › una edición parcial envía solo el nombre y la versión, sin tocar existencias ni precios 
+  9) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:128:3 › Edición de productos (FS-07) › una edición parcial envía solo el nombre y la versión, sin tocar existencias ni precios
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -275,7 +275,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  10) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:142:3 › Edición de productos (FS-07) › la ficha no ofrece cambiar costo ni precio: se fijan en Precios y aprobación 
+  10) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:142:3 › Edición de productos (FS-07) › la ficha no ofrece cambiar costo ni precio: se fijan en Precios y aprobación
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -297,7 +297,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  11) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:155:3 › Edición de productos (FS-07) › si otro usuario cambió el producto, el servidor rechaza la edición, no sobrescribe y recarga la lista 
+  11) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:155:3 › Edición de productos (FS-07) › si otro usuario cambió el producto, el servidor rechaza la edición, no sobrescribe y recarga la lista
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -319,7 +319,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  12) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:170:3 › Edición de productos (FS-07) › un doble clic en Guardar envía una sola edición 
+  12) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:170:3 › Edición de productos (FS-07) › un doble clic en Guardar envía una sola edición
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -341,7 +341,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  13) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:182:3 › Edición de productos (FS-07) › un fallo de red no pierde el formulario y el reintento usa la misma versión 
+  13) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:182:3 › Edición de productos (FS-07) › un fallo de red no pierde el formulario y el reintento usa la misma versión
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -363,7 +363,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  14) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:198:3 › Edición de productos (FS-07) › cambiar existencias exige motivo antes de enviar 
+  14) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:198:3 › Edición de productos (FS-07) › cambiar existencias exige motivo antes de enviar
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -385,7 +385,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  15) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:214:3 › Edición de productos (FS-07) › reactivar un producto inactivo: se muestra al activar la opción y se envía activo=true tras confirmar 
+  15) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:214:3 › Edición de productos (FS-07) › reactivar un producto inactivo: se muestra al activar la opción y se envía activo=true tras confirmar
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -407,7 +407,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  16) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:228:3 › Edición de productos (FS-07) › la edición cabe en un teléfono sin desbordamiento horizontal 
+  16) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:228:3 › Edición de productos (FS-07) › la edición cabe en un teléfono sin desbordamiento horizontal
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -429,7 +429,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  17) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en SIDEBAR 
+  17) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en SIDEBAR
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -451,7 +451,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  18) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en TOPNAV 
+  18) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en TOPNAV
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -473,7 +473,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  19) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:265:3 › Inventario para entrega al cliente / API simulada › respuesta perdida y recarga: confirma la misma alta sin crear otro producto 
+  19) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:265:3 › Inventario para entrega al cliente / API simulada › respuesta perdida y recarga: confirma la misma alta sin crear otro producto
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -495,7 +495,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  20) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:282:3 › Inventario para entrega al cliente / API simulada › código de barras duplicado muestra el error y conserva el formulario 
+  20) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:282:3 › Inventario para entrega al cliente / API simulada › código de barras duplicado muestra el error y conserva el formulario
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -517,7 +517,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  21) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:297:3 › Inventario para entrega al cliente / API simulada › buscar por categoría real y descripción filtra el catálogo 
+  21) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:297:3 › Inventario para entrega al cliente / API simulada › buscar por categoría real y descripción filtra el catálogo
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -539,7 +539,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  22) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:312:3 › Inventario para entrega al cliente / API simulada › una recepción mientras el formulario está abierto impide un ajuste obsoleto 
+  22) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:312:3 › Inventario para entrega al cliente / API simulada › una recepción mientras el formulario está abierto impide un ajuste obsoleto
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -561,7 +561,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  23) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:325:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático 
+  23) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:325:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -583,7 +583,7 @@ Running 24 tests using 2 workers
 
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-  24) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:346:3 › Inventario para entrega al cliente / API simulada › alta y cámara muestran textos en inglés 
+  24) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:346:3 › Inventario para entrega al cliente / API simulada › alta y cámara muestran textos en inglés
 
     Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
     ╔════════════════════════════════════════════════════════════╗
@@ -606,27 +606,27 @@ Running 24 tests using 2 workers
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
   24 failed
-    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:154:3 › Levantamiento de inventario (FS-06 fase 2) › crear levantamiento: un fallo de red conserva la clave y el reintento no duplica el levantamiento 
-    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:168:3 › Levantamiento de inventario (FS-06 fase 2) › contar: un envío perdido queda pendiente, se confirma sin duplicar y el guardado es visible 
-    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:182:3 › Levantamiento de inventario (FS-06 fase 2) › advierte antes de guardar un artículo ya contado por el mismo empleado y permite editar el conteo anterior 
-    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:197:3 › Levantamiento de inventario (FS-06 fase 2) › avisa, sin bloquear, cuando otro empleado ya contó el artículo y registra el conflicto 
-    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:210:3 › Levantamiento de inventario (FS-06 fase 2) › si otro dispositivo registró el artículo después de cargar la pantalla, el servidor rechaza el duplicado y muestra el motivo 
-    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:222:3 › Levantamiento de inventario (FS-06 fase 2) › flujo completo: crear, contar con marca, finalizar, revisar impacto y aplicar 
-    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:249:3 › Levantamiento de inventario (FS-06 fase 2) › conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token 
-    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:296:3 › Levantamiento en teléfono › la captura cabe en el ancho del teléfono y registra un producto sin fotografía 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:128:3 › Edición de productos (FS-07) › una edición parcial envía solo el nombre y la versión, sin tocar existencias ni precios 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:142:3 › Edición de productos (FS-07) › la ficha no ofrece cambiar costo ni precio: se fijan en Precios y aprobación 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:155:3 › Edición de productos (FS-07) › si otro usuario cambió el producto, el servidor rechaza la edición, no sobrescribe y recarga la lista 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:170:3 › Edición de productos (FS-07) › un doble clic en Guardar envía una sola edición 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:182:3 › Edición de productos (FS-07) › un fallo de red no pierde el formulario y el reintento usa la misma versión 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:198:3 › Edición de productos (FS-07) › cambiar existencias exige motivo antes de enviar 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:214:3 › Edición de productos (FS-07) › reactivar un producto inactivo: se muestra al activar la opción y se envía activo=true tras confirmar 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:228:3 › Edición de productos (FS-07) › la edición cabe en un teléfono sin desbordamiento horizontal 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en SIDEBAR 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en TOPNAV 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:265:3 › Inventario para entrega al cliente / API simulada › respuesta perdida y recarga: confirma la misma alta sin crear otro producto 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:282:3 › Inventario para entrega al cliente / API simulada › código de barras duplicado muestra el error y conserva el formulario 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:297:3 › Inventario para entrega al cliente / API simulada › buscar por categoría real y descripción filtra el catálogo 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:312:3 › Inventario para entrega al cliente / API simulada › una recepción mientras el formulario está abierto impide un ajuste obsoleto 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:325:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático 
-    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:346:3 › Inventario para entrega al cliente / API simulada › alta y cámara muestran textos en inglés 
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:154:3 › Levantamiento de inventario (FS-06 fase 2) › crear levantamiento: un fallo de red conserva la clave y el reintento no duplica el levantamiento
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:168:3 › Levantamiento de inventario (FS-06 fase 2) › contar: un envío perdido queda pendiente, se confirma sin duplicar y el guardado es visible
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:182:3 › Levantamiento de inventario (FS-06 fase 2) › advierte antes de guardar un artículo ya contado por el mismo empleado y permite editar el conteo anterior
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:197:3 › Levantamiento de inventario (FS-06 fase 2) › avisa, sin bloquear, cuando otro empleado ya contó el artículo y registra el conflicto
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:210:3 › Levantamiento de inventario (FS-06 fase 2) › si otro dispositivo registró el artículo después de cargar la pantalla, el servidor rechaza el duplicado y muestra el motivo
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:222:3 › Levantamiento de inventario (FS-06 fase 2) › flujo completo: crear, contar con marca, finalizar, revisar impacto y aplicar
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:249:3 › Levantamiento de inventario (FS-06 fase 2) › conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:296:3 › Levantamiento en teléfono › la captura cabe en el ancho del teléfono y registra un producto sin fotografía
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:128:3 › Edición de productos (FS-07) › una edición parcial envía solo el nombre y la versión, sin tocar existencias ni precios
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:142:3 › Edición de productos (FS-07) › la ficha no ofrece cambiar costo ni precio: se fijan en Precios y aprobación
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:155:3 › Edición de productos (FS-07) › si otro usuario cambió el producto, el servidor rechaza la edición, no sobrescribe y recarga la lista
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:170:3 › Edición de productos (FS-07) › un doble clic en Guardar envía una sola edición
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:182:3 › Edición de productos (FS-07) › un fallo de red no pierde el formulario y el reintento usa la misma versión
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:198:3 › Edición de productos (FS-07) › cambiar existencias exige motivo antes de enviar
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:214:3 › Edición de productos (FS-07) › reactivar un producto inactivo: se muestra al activar la opción y se envía activo=true tras confirmar
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:228:3 › Edición de productos (FS-07) › la edición cabe en un teléfono sin desbordamiento horizontal
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en SIDEBAR
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en TOPNAV
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:265:3 › Inventario para entrega al cliente / API simulada › respuesta perdida y recarga: confirma la misma alta sin crear otro producto
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:282:3 › Inventario para entrega al cliente / API simulada › código de barras duplicado muestra el error y conserva el formulario
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:297:3 › Inventario para entrega al cliente / API simulada › buscar por categoría real y descripción filtra el catálogo
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:312:3 › Inventario para entrega al cliente / API simulada › una recepción mientras el formulario está abierto impide un ajuste obsoleto
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:325:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:346:3 › Inventario para entrega al cliente / API simulada › alta y cámara muestran textos en inglés

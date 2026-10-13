@@ -23,9 +23,9 @@
 test at scripts/backup-worker.test.mjs:90:1
 ✖ retention only expires restored snapshots, never counts failed uploads as recovery points (5.540098ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
-  
+
   false !== true
-  
+
       at TestContext.<anonymous> (file:///workspace/FerreSystem/backend/scripts/backup-worker.test.mjs:107:10)
       at async Test.run (node:internal/test_runner/test:1389:7)
       at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {

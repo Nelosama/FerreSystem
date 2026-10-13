@@ -62,7 +62,7 @@ dist/assets/index-C7uWwmqE.js                       325.26 kB │ gzip:  98.16 k
 dist/assets/zxingDecoder-D-YVjW1c.js                452.26 kB │ gzip: 119.55 kB
 dist/assets/ClientePicker-nPMlR-VB.js             1,209.40 kB │ gzip: 446.75 kB
 
-[plugin builtin:vite-reporter] 
+[plugin builtin:vite-reporter]
 (!) Some chunks are larger than 500 kB after minification. Consider:
 - Using dynamic import() to code-split the application
 - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting

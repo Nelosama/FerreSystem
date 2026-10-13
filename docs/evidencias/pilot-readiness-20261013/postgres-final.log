@@ -10,7 +10,7 @@ The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths r
  RUN  v4.1.11 /workspace/FerreSystem/backend
 
 [Nest] 11858  - 10/13/2026, 6:45:17 AM   ERROR [ContingenciaService] Operación 22bcab40-6ffe-4d64-8437-82e9825afeee: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 11970  - 10/13/2026, 6:45:36 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError: 
+[Nest] 11970  - 10/13/2026, 6:45:36 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
 Invalid `prisma.$queryRawUnsafe()` invocation:
 
 
@@ -87,7 +87,7 @@ Navegador + API + PostgreSQL reales: guardar, recargar y nuevo contexto/login AP
 [Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
 [Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
 [Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 200c4a3f-fd6c-433f-ac69-1972de201eab: La ventana de contingencia pertenece a otro cajero
-[Nest] 19854  - 10/13/2026, 6:48:10 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError: 
+[Nest] 19854  - 10/13/2026, 6:48:10 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
 Invalid `prisma.$queryRawUnsafe()` invocation:
 
 
@@ -115,7 +115,7 @@ Raw query failed. Code: `P0001`. Message: `ERROR: fallo QA`
 [Nest] 20579  - 10/13/2026, 6:48:22 AM   ERROR [ContingenciaService] Operación 07ec107c-dd33-4e62-9bf5-f5b2262648e0: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
 [Nest] 20579  - 10/13/2026, 6:48:22 AM   ERROR [ContingenciaService] Operación 9926b7c1-42ab-4ba5-a016-3733f5b81754: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
 [Nest] 20579  - 10/13/2026, 6:48:23 AM   ERROR [ContingenciaService] Operación 44f9ab32-5044-4ed0-96be-11c87b470154: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 20670  - 10/13/2026, 6:48:25 AM   ERROR [ExceptionsHandler] PrismaClientUnknownRequestError: 
+[Nest] 20670  - 10/13/2026, 6:48:25 AM   ERROR [ExceptionsHandler] PrismaClientUnknownRequestError:
 Invalid `tx.cotizacion.update()` invocation in
 /workspace/FerreSystem/backend/src/cotizaciones/cotizaciones.service.ts:550:27
 
@@ -133,7 +133,7 @@ ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(Postgr
     at Proxy._transactionWithCallback (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:8005) {
   clientVersion: '6.4.1'
 }
-[Nest] 20924  - 10/13/2026, 6:48:30 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError: 
+[Nest] 20924  - 10/13/2026, 6:48:30 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
 Invalid `prisma.$queryRawUnsafe()` invocation:
 
 
@@ -153,7 +153,7 @@ Raw query failed. Code: `P0001`. Message: `ERROR: Fallo sintético de auditoría
     message: 'ERROR: Fallo sintético de auditoría'
   }
 }
-[Nest] 20924  - 10/13/2026, 6:48:30 AM   ERROR [ExceptionsHandler] PrismaClientUnknownRequestError: 
+[Nest] 20924  - 10/13/2026, 6:48:30 AM   ERROR [ExceptionsHandler] PrismaClientUnknownRequestError:
 Invalid `this.prisma.auditoriaOperacion.create()` invocation in
 /workspace/FerreSystem/backend/src/common/interceptors/support-audit.interceptor.ts:34:109
 
@@ -178,7 +178,7 @@ ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(Postgr
 [Nest] 21815  - 10/13/2026, 6:48:47 AM   ERROR [ContingenciaService] Operación b8fc4d23-f700-42fb-b767-d4a32fc21460: Invalid `prisma.operacionContingencia.createMany()` invocation in /home/user/FerreSystem/backend/src/contingencia/contingencia.service.ts:468
 [Nest] 21815  - 10/13/2026, 6:48:47 AM   ERROR [ContingenciaService] Operación 4bb9fcb6-a964-4993-9f81-0a21f47c5e8d: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
 [Nest] 21815  - 10/13/2026, 6:48:47 AM   ERROR [ContingenciaService] Operación dc6d401e-b5e8-47fd-bd25-d923a60a92be: Una línea supera el importe máximo permitido; se conserva en el equipo para revisión del administrador
-[Nest] 22084  - 10/13/2026, 6:48:52 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError: 
+[Nest] 22084  - 10/13/2026, 6:48:52 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
 Invalid `prisma.$queryRawUnsafe()` invocation:
 
 
@@ -203,4 +203,3 @@ Raw query failed. Code: `P0001`. Message: `ERROR: auditoria no disponible`
       Tests  905 passed (905)
    Start at  06:45:16
    Duration  222.59s (transform 1.76s, setup 0ms, import 17.20s, tests 198.94s, environment 5ms)
-

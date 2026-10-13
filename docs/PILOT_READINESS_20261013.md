@@ -1,6 +1,6 @@
 # Preparación del piloto — cuarta rama autorizada
 
-**NEXUS · 2026-10-13 UTC.** Base: `origin/main` `4b650445b35fcd8dc2878b5c94ee60462493d8c1`. Rama exclusiva: `fix/pilot-readiness`. Código probado: `d1d19fea`. El estado y los siguientes pendientes se mantienen en [CONTEXTO_MAESTRO.md](CONTEXTO_MAESTRO.md).
+**NEXUS · 2026-10-13 UTC.** Base: `origin/main` `4b650445b35fcd8dc2878b5c94ee60462493d8c1`. Rama exclusiva: `fix/pilot-readiness`; [PR #162 en borrador](https://github.com/Nelosama/FerreSystem/pull/162). Código probado: `d1d19fea`. El estado y los siguientes pendientes se mantienen en [CONTEXTO_MAESTRO.md](CONTEXTO_MAESTRO.md).
 
 La verificación local del alcance está aprobada, con límites de entorno y de cobertura explícitos. Esto no certifica producción, no habilita la contingencia del cliente ni autoriza merge, despliegue o migraciones productivas.
 
@@ -20,7 +20,7 @@ La verificación local del alcance está aprobada, con límites de entorno y de 
 
 ## Resultados locales reproducibles
 
-Todas las cifras siguientes son de esta sesión, no de informes anteriores. [Logs y SHA-256](evidencias/pilot-readiness-20261013/SHA256SUMS).
+Todas las cifras siguientes son de esta sesión, no de informes anteriores. Los logs versionados solo normalizan espacios finales y líneas vacías al final del archivo. [Logs y SHA-256](evidencias/pilot-readiness-20261013/SHA256SUMS).
 
 | Suite | Resultado | Registro |
 |---|---|---|
