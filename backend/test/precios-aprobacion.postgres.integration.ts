@@ -178,7 +178,7 @@ describe('Precios y aprobación para venta — HTTP y PostgreSQL aislado', () =>
   it('aprobación registra quién y cuándo, deja auditoría con antes y después, y habilita la venta',async()=>{
     await prisma.producto.update({where:{id:productId},data:{precioAprobado:false}});
     const r=(await priceCall(productId,{version:1,precioCosto:20,precioVenta:25,aprobar:true,motivo:'Lista de precios de octubre'}).expect(200)).body;
-    expect(r).toMatchObject({precioAprobado:true,precioAprobadoPorNombre:'Dueña sintética',margenCalculado:20,version:2});
+    expect(r).toMatchObject({precioAprobado:true,precioAprobadoPorNombre:'Dueña sintética',margenCalculado:20,version:3});
     const stored=await prisma.producto.findUniqueOrThrow({where:{id:productId}});
     expect(stored).toMatchObject({precioAprobado:true,precioAprobadoPor:users.ADMIN.id,precioModificadoPor:users.ADMIN.id});
     const audit=await prisma.auditoriaOperacion.findFirstOrThrow({where:{tenantId,operacion:'PRECIO_APROBAR',entidadId:productId}});
@@ -190,6 +190,33 @@ describe('Precios y aprobación para venta — HTTP y PostgreSQL aislado', () =>
   });
 
   // Revocación (decisión del dueño, cierre KARDEX): cambiar el precio de venta de un producto aprobado exige nueva aprobación.
+  it('importación sin precios: ADMIN inicializa costo y aprueba sin stock/CxP, aunque el costo comercial no cambie',async()=>{
+    const p=(await call('post','/productos',{codigo:'INICIAL-SIN-PRECIO',nombre:'Producto importado',stockActual:5,stockMinimo:0}).expect(201)).body;
+    await prisma.producto.update({where:{id:p.id},data:{precioCosto:8,costoVigente:null}});
+    const movimientos=await prisma.movimientoInventario.count({where:{tenantId}});
+    const cuentas=await prisma.cuentaOperativa.count({where:{tenantId}});
+    const r=(await priceCall(p.id,{version:p.version,precioVenta:12,aprobar:true,motivo:'Hoja inicial contrastada'}).expect(200)).body;
+    expect(r.precioAprobado).toBe(true);
+    const actual=await prisma.producto.findUniqueOrThrow({where:{id:p.id}});
+    expect(Number(actual.costoVigente)).toBe(8);
+    expect(Number(actual.stockActual)).toBe(5);
+    expect(actual.ultimaCompraAt).toBeNull();
+    expect(await prisma.movimientoInventario.count({where:{tenantId}})).toBe(movimientos);
+    expect(await prisma.cuentaOperativa.count({where:{tenantId}})).toBe(cuentas);
+    expect(await prisma.auditoriaOperacion.count({where:{tenantId,entidadId:p.id,operacion:'COSTO_INICIALIZAR'}})).toBe(1);
+    expect(await prisma.auditoriaOperacion.count({where:{tenantId,entidadId:p.id,operacion:'PRECIO_APROBAR'}})).toBe(1);
+    await sale(p.id);
+  });
+
+  it('aprobación inicial con costo cero se rechaza y no autoriza venta',async()=>{
+    const p=(await call('post','/productos',{nombre:'Sin costo revisado',stockActual:5,stockMinimo:0}).expect(201)).body;
+    await priceCall(p.id,{version:p.version,precioVenta:12,aprobar:true}).expect(400);
+    const actual=await prisma.producto.findUniqueOrThrow({where:{id:p.id}});
+    expect(actual.precioAprobado).toBe(false);
+    expect(Number(actual.precioVenta)).toBe(0);
+    expect(actual.version).toBe(p.version);
+  });
+
   // Un cambio solo de costo conserva la aprobación.
   it('un cambio solo de costo conserva la aprobación; cambiar el precio de venta la revoca y reaprobar exige aprobar',async()=>{
     const soloCosto=(await priceCall(productId,{version:1,precioCosto:3}).expect(200)).body;

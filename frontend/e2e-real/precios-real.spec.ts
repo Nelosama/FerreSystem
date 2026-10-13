@@ -77,6 +77,7 @@ test('el personal captura sin precio; el dueño fija margen, aprueba y queda reg
   // 4. Base de datos: precio, aprobación y responsable persistidos.
   const fila = sql(`SELECT precio_costo, precio_venta, precio_aprobado, precio_aprobado_por FROM productos WHERE id='${producto.id}'`);
   expect(fila).toBe(`8.00|12.00|t|${admin.id}`);
+  expect(sql(`SELECT COUNT(*) FROM auditoria_operaciones WHERE entidad_id='${producto.id}' AND operacion='COSTO_INICIALIZAR'`)).toBe('1');
   expect(sql(`SELECT COUNT(*) FROM auditoria_operaciones WHERE entidad_id='${producto.id}' AND operacion='PRECIO_APROBAR' AND usuario_id='${admin.id}'`)).toBe('1');
 
   // 5. Personal: ya no puede cambiar precio, ni siquiera de un producto aprobado.

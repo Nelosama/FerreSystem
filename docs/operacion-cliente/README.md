@@ -1,3 +1,5 @@
+> **Candidato integrado:** usar la plantilla de seis columnas y el validador estricto único. ADMIN fija costo y precio en «Precios y aprobación»; la aprobación inicial completa el vigente sin movimientos ni CxP. Se admiten doce unidades. Procedimiento y estado de liberación: [CANDIDATO_CLIENTE_INTEGRADO.md](../CANDIDATO_CLIENTE_INTEGRADO.md). Los bloques históricos siguientes describen las bases anteriores.
+
 # Preparación operativa del cliente · FerreSystem
 
 Materiales para que la ferretería pueda empezar a operar en FerreSystem y registrar su inventario real. **Solo documentación, plantillas y una herramienta de control que lee archivos.** No cambia código, esquema, migraciones, configuración ni datos.

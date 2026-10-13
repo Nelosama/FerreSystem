@@ -36,7 +36,7 @@ mkdir -p "$WORK/proy/prisma/migrations" && cp prisma/schema.prisma "$WORK/proy/p
 for m in $(ls prisma/migrations | grep -E '^[0-9]{14}_' | sort); do [[ "${m%%_*}" -le "$CORTE" ]] && cp -r "prisma/migrations/$m" "$WORK/proy/prisma/migrations/"; done
 N_MAIN="$(ls "$WORK/proy/prisma/migrations" | grep -cE '^[0-9]{14}_')"
 (DATABASE_URL="$PRODURL" DIRECT_URL="$PRODURL" node node_modules/prisma/build/index.js migrate deploy --schema "$WORK/proy/prisma/schema.prisma" > "$WORK/main.log" 2>&1) && ok "Base simulada con el esquema de main" "$N_MAIN migraciones" || { ko "Base simulada" "$(tail -3 "$WORK/main.log")"; exit 1; }
-HASH="$(node -e 'require("/home/user/FerreSystem/backend/node_modules/bcrypt").hash(process.argv[1],10).then(h=>console.log(h))' "$PW")"
+HASH="$(node -e 'require("bcrypt").hash(process.argv[1],10).then(h=>console.log(h))' "$PW")" || { echo "No se pudo generar la contraseña de prueba" >&2; exit 2; }
 q "$PP" "
 INSERT INTO tenants (id, nombre_comercial, estado, updated_at) VALUES ('T1','Ferretería histórica','ACTIVO',NOW());
 INSERT INTO usuarios (id, tenant_id, nombre, email, password_hash, rol, permisos, permisos_configurados, updated_at) VALUES

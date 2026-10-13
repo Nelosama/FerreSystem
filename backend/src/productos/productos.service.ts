@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException, 
 import { PrismaService } from '../prisma/prisma.service';
 import { authorizedActor, audit, fingerprint, decimal, id, lockTenant, movement, query, text } from '../operaciones/ledger';
 import type { CambiarPreciosProductoDto, CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
+import { inicializarCostoEnTx } from './costo-inicial.service';
 import { publicProduct } from './producto-response';
 
 /** Marca de la migración para productos que ya se vendían antes de la aprobación de precios. */
@@ -169,6 +170,12 @@ export class ProductosService {
    const aprobadoFinal=ventaNueva>0&&(aprueba||(old.precioAprobado&&!cambiaVenta));
    const revoca=old.precioAprobado&&!aprobadoFinal;
    if(!hayCambios&&!aprueba)throw new BadRequestException('No hay cambios de precio que guardar');
+   // Una aprobación inicial desde la pantalla existente inicializa el costo en la MISMA transacción.
+   // Nunca reparar un costo originado por recepción; el helper comprueba también el historial de compra.
+   if(aprueba && old.ultimaCompraAt==null && (old.costoVigente==null || Number(old.costoVigente)===0)) {
+    await inicializarCostoEnTx(tx,tenantId,productId,{solicitudId:id(),version:old.version,costo:costoNuevo,
+      motivo:dto.motivo?.trim() || 'Costo inicial revisado por ADMIN al aprobar el precio'},userId);
+   }
    const data:any={precioCosto:costoNuevo,precioVenta:ventaNueva};
    // Costo vigente y costo comercial son el mismo dato: un cambio de costo se refleja en ambos.
    if(costoNuevo!==Number(old.precioCosto))data.costoVigente=costoNuevo;

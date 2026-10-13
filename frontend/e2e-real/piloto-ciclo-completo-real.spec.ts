@@ -45,7 +45,7 @@ const PLAN = [
 const STOCK_INICIAL = 50;
 const venta = (token: string, data: unknown) => ({ post: (request: APIRequestContext) => request.post(`${API}/ventas`, { headers: auth(token), data }) });
 
-test('1. el administrador inicia sesión y registra un producto con código, descripción, costo, precio e inventario inicial', async ({ request }) => {
+test('1. el administrador inicia sesión y registra un producto con código, descripción, costo, precio e inventario inicial', async ({ request, page }) => {
   admin = await login(request, ADMIN);
   adminB = await login(request, ADMIN_B);
   expect(admin.rol).toBe('ADMIN');
@@ -55,9 +55,27 @@ test('1. el administrador inicia sesión y registra un producto con código, des
   cajero = await login(request, CAJERO);
   expect(cajero.rol).toBe('CAJERO');
 
-  const p = await request.post(`${API}/productos`, { headers: auth(admin.token), data: { codigo: CODIGO, nombre: `Taladro de piloto ${RUN}`, descripcion: 'Producto del recorrido del piloto', precioVenta: 100, precioCosto: 60, stockActual: STOCK_INICIAL, stockMinimo: 5 } });
+  const p = await request.post(`${API}/productos`, { headers: auth(admin.token), data: { codigo: CODIGO, nombre: `Taladro de piloto ${RUN}`, categoria: 'Herramientas Manuales', unidadMedida: 'UNIDAD', stockActual: STOCK_INICIAL, stockMinimo: 5 } });
   expect([200, 201], await p.text()).toContain(p.status());
   productoId = (await p.json()).id;
+  expect(sql(`SELECT precio_aprobado FROM productos WHERE id='${productoId}'`)).toBe('f');
+  const movimientosAntes = sql(`SELECT COUNT(*) FROM movimientos_inventario WHERE producto_id='${productoId}'`);
+  await page.goto('/login');
+  await page.locator('input[type="email"]').fill(ADMIN);
+  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
+  await page.waitForURL(url => !url.pathname.startsWith('/login'));
+  await page.goto('/precios');
+  await page.getByRole('searchbox').fill(CODIGO);
+  await page.getByRole('button', { name: new RegExp(CODIGO) }).click();
+  await page.getByLabel('Costo', { exact: true }).fill('60');
+  await page.getByLabel('Precio de venta', { exact: true }).fill('100');
+  await page.getByRole('button', { name: 'Aprobar para venta' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Producto aprobado para venta.' })).toBeVisible();
+  expect(sql(`SELECT costo_vigente::float FROM productos WHERE id='${productoId}'`)).toBe('60');
+  expect(sql(`SELECT COUNT(*) FROM auditoria_operaciones WHERE entidad_id='${productoId}' AND operacion='COSTO_INICIALIZAR'`)).toBe('1');
+  expect(sql(`SELECT COUNT(*) FROM movimientos_inventario WHERE producto_id='${productoId}'`)).toBe(movimientosAntes);
+
   expect(sql(`SELECT codigo||'|'||precio_venta::float||'|'||precio_costo::float||'|'||stock_actual::float||'|'||stock_reservado::float FROM productos WHERE id='${productoId}'`)).toBe(`${CODIGO}|100|60|${STOCK_INICIAL}|0`);
 });
 

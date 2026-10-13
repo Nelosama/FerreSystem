@@ -28,8 +28,8 @@ Documentos anteriores (`01`–`07`, `plantillas/*` v1) se conservan como referen
 Verificados en el candidato `85e4ff88` (PR #155, base PR #153), no en el enunciado anterior:
 
 1. **El importador no lee precios.** Crea productos con `nombre`, `codigo`, `categoria`, `stockActual`, `stockMinimo` y `unidadMedida`. Un producto creado sin precio queda **pendiente de aprobación** y **no se puede vender**.
-2. **No hay carga masiva de precios.** Se fija producto por producto (`PATCH /productos/:id/precios`, solo ADMIN). Para una tienda con muchos artículos, esto es el cuello de botella del día de inicio: debe hacerse **antes** del día de apertura.
-3. **Unidades de importación:** solo `unidad`, `caja`, `metro`, `kg` y `galón` (con tilde). `galon` sin tilde se rechaza.
+2. **Precios iniciales:** ADMIN usa la pantalla existente «Precios y aprobación», producto por producto, con la hoja de revisión. «Aprobar para venta» registra también el costo inicial ausente/cero en la misma transacción, con ambas auditorías y sin mover stock ni CxP. Costo y venta deben ser positivos para esa aprobación inicial; preparar los productos que se venderán antes de abrir caja. No se importa la hoja de precios ni se habilita aprobación masiva.
+3. **Unidades de importación del candidato integrado:** las 12 unidades del inventario. `galón` y `galon` se normalizan a `GALON`; no se convierten cantidades. Ver §2 de `11-captura-inventario-simple.md`.
 4. **Las categorías se crean con cualquier texto.** Un error de tecleo crea una categoría nueva. Por eso la plantilla exige los 7 nombres existentes.
 5. **Entrega:** solo ADMIN y BODEGUERO registran entrega física. El cajero debe usar «Cobrar y dejar en bodega (entrega después)». Esta regla está en el backend, no solo en pantalla.
 6. **Caja:** toda venta o pago exige caja abierta del propio usuario.
