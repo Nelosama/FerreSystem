@@ -840,6 +840,9 @@ export const POSPage: React.FC = () => {
                       descuento: Number(ventaRegistrada?.descuento ?? montoDescuento),
                       isv: Number(ventaRegistrada?.isv ?? isv),
                       total: Number(ventaRegistrada?.total ?? total),
+                      // Crédito: el total queda como saldo pendiente. Otros métodos: pagado al emitir.
+                      pagado: metodoPago === 'CREDITO' ? 0 : Number(ventaRegistrada?.total ?? total),
+                      saldoPendiente: metodoPago === 'CREDITO' ? Number(ventaRegistrada?.total ?? total) : 0,
                       tenant,
                     },
                     `Venta-${numeroVentaGenerado}.pdf`

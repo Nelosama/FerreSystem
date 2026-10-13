@@ -5,6 +5,7 @@ import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { Rubro, type TenantInfo } from '../types';
 import { Button } from '../components/Button';
+import { errorColorHex } from '../utils/colorHex';
 import { Palette, Building2, Check, RefreshCw, Store, Layout, Type, Eye, Languages, Coins, Receipt } from 'lucide-react';
 
 const PRESET_COLORS = [
@@ -26,6 +27,7 @@ export const ConfiguracionPage: React.FC = () => {
   const [sucursal, setSucursal] = useState(tenant.sucursal || '');
   const [logoUrl, setLogoUrl] = useState(tenant.logoUrl || '');
   const [color, setColor] = useState(tenant.colorPrimario || '#EA580C');
+  const errorColor = errorColorHex(color);
   const [rubro, setRubro] = useState<Rubro>((tenant.rubro || Rubro.FERRETERIA) as Rubro);
   const [estiloUI, setEstiloUI] = useState<'INDUSTRIAL' | 'MINIMALISTA' | 'MODERNO'>(
     (tenant.estiloUI || 'INDUSTRIAL') as any,
@@ -82,6 +84,7 @@ export const ConfiguracionPage: React.FC = () => {
     const updatedImpuesto = { nombre: impuestoNombre, tasa: Number(impuestoTasa) };
 
     if (saving) return;
+    if (errorColor) { setSaveError(errorColor); return; }
     setSaving(true); setSaveError(''); setGuardadoExitoso(false);
     try {
       const { data } = await api.put('/tenant/settings', {
@@ -405,7 +408,10 @@ export const ConfiguracionPage: React.FC = () => {
                   onChange={(e) => setColor(e.target.value)}
                   className="form-input"
                   style={{ fontFamily: 'monospace', fontWeight: 700 }}
+                  aria-invalid={errorColor !== null}
+                  aria-describedby="color-hex-error"
                 />
+                {errorColor && <small id="color-hex-error" role="alert" style={{ color: 'var(--color-danger, #B91C1C)', display: 'block', marginTop: '4px' }}>{errorColor}</small>}
               </div>
             </div>
 
@@ -464,7 +470,7 @@ export const ConfiguracionPage: React.FC = () => {
                 onClick={handleRestablecerDefault}
               >
                 <RefreshCw size={14} />{t('uxAudit.reset')} </button>
-              <Button type="submit" disabled={saving} style={{ flex: 1 }}>
+              <Button type="submit" disabled={saving || errorColor !== null} style={{ flex: 1 }}>
                 <Check size={16} strokeWidth={2.6} />{t('uxAudit.apply_changes')} </Button>
             </div>
           </div>

@@ -41,6 +41,9 @@ export interface ReciboPDFProps {
   /** Historical general rate supplied by the quotation contract, never tenant branding. */
   porcentajeIsv?: number;
   total: number;
+  /** Total facturado (igual que total). Se muestra «Pagado» y «Saldo pendiente» solo si se indican ambos. */
+  pagado?: number;
+  saldoPendiente?: number;
   tenant: TenantInfo;
 }
 
@@ -70,6 +73,8 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
   isv,
   porcentajeIsv,
   total,
+  pagado,
+  saldoPendiente,
   tenant,
 }) => {
   const primaryColor = tenant.colorPrimario || '#1E3A8A';
@@ -410,11 +415,24 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
             </View>
 
             <View style={styles.grandTotalLine}>
-              <Text style={styles.grandTotalLabel}>TOTAL:</Text>
+              <Text style={styles.grandTotalLabel}>{pagado !== undefined && saldoPendiente !== undefined ? 'TOTAL FACTURADO:' : 'TOTAL:'}</Text>
               <Text style={styles.grandTotalValue}>
                 {formatMoney(total, currencySymbol)}
               </Text>
             </View>
+
+            {pagado !== undefined && saldoPendiente !== undefined ? (
+              <>
+                <View style={styles.totalLine}>
+                  <Text style={{ color: '#78716C' }}>Pagado:</Text>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>{formatMoney(pagado, currencySymbol)}</Text>
+                </View>
+                <View style={styles.totalLine}>
+                  <Text style={{ color: saldoPendiente > 0 ? '#B45309' : '#78716C' }}>Saldo pendiente:</Text>
+                  <Text style={{ fontFamily: 'Helvetica-Bold', color: saldoPendiente > 0 ? '#B45309' : undefined }}>{formatMoney(saldoPendiente, currencySymbol)}</Text>
+                </View>
+              </>
+            ) : null}
           </View>
         </View>
 
