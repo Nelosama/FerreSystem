@@ -486,7 +486,11 @@ test.describe('POS offline de contingencia — backend real', () => {
       nombre: 'Otro cajero offline', email, password: PASSWORD, rol: 'CAJERO', permisos: ['pos.vender'],
     } });
     expect(created.status()).toBe(201);
-    await ingresar(page, CAJERO, '/pos-contingencia');
+    // Arqueo is a lazy chunk. Cache the logout route online before queueing the
+    // sale; an unvisited lazy route is not part of the service worker shell.
+    await ingresar(page, CAJERO, '/arqueo-caja');
+    await expect(page.getByRole('button', { name: 'SALIR', exact: true })).toBeVisible();
+    await page.goto('/pos-contingencia');
     await expect(page.getByRole('button', { name: new RegExp(TALADRO) })).toBeVisible();
     await controlada(page);
     const previo = new Set((await diario(page)).map(op => op.operacionId));
