@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-12, America/Tegucigalpa** — candidato integrado del cliente en `nexus/candidato-cliente-integrado`, código `89a70ccf`, con pruebas focalizadas y ensayo de restauración; pendiente acceso real y autorización de merge/migraciones.
+Última revisión: **2026-10-13, America/Tegucigalpa** — administración (soporte remoto, usuarios, sucursales): rama `fix/auditoria-admin`, [PR #160](https://github.com/Nelosama/FerreSystem/pull/160) hacia `main`, sin merge ni despliegue. Candidato del cliente de 2026-10-12 sin cambios.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -19,6 +19,20 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 7. **No hacer merge automático** ni desplegar a producción sin autorización explícita del dueño del proyecto.
 
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
+
+---
+
+## Administración — soporte remoto, usuarios y sucursales (2026-10-13, rama `fix/auditoria-admin`, [PR #160](https://github.com/Nelosama/FerreSystem/pull/160), sin merge)
+
+- **Informe completo:** [ADMIN_AUDITORIA_CORRECCIONES_20261013.md](ADMIN_AUDITORIA_CORRECCIONES_20261013.md) (hallazgos, causas raíz, matriz de permisos, riesgos).
+- **Soporte remoto:** la ruta `POST /api/admin/support/token` sí existía. El 404 venía de IDs ficticios enviados por el modal, con usuarios hardcodeados. Corregido: `GET /admin/tenants/:id/usuarios` (solo SUPER_ADMIN, solo activos); `POST /admin/support/finalizar` revoca el `sid` y audita `SOPORTE_FINALIZAR`; `GET /admin/soporte/trazas` da trazabilidad por empresa. `JwtStrategy` expone `sid` (antes no llegaba, así que la revocación no funcionaba). Historial y fin de sesión ya no usan `localStorage`. Código: `super-admin/super-admin.service.ts`, `super-admin.controller.ts`, `common/decorators/soporte-solo-lectura.decorator.ts`, `common/interceptors/support-audit.interceptor.ts`, `frontend/src/pages/SuperAdminPage.tsx`, `frontend/src/context/TenantContext.tsx`.
+- **Usuarios:** sin borrado físico. `DELETE /usuarios/:id` desactiva (idempotente); reactivar con `PUT {activo:true}`. Auditoría `USUARIO_DESACTIVAR`/`USUARIO_REACTIVAR` con responsable. Un administrador no puede desactivarse a sí mismo. Último administrador protegido (probado con concurrencia en PostgreSQL). Código: `usuarios/usuarios.service.ts`, `frontend/src/pages/UsuariosPage.tsx`.
+- **Sucursales:** **no existe modelo de sucursal** en `schema.prisma`. No se implementó activación, desactivación ni eliminación (bloqueado por producto y por migración NEXUS). Se retiraron datos inventados: selector fijo en Usuarios, "sucursales conectadas" (`sucursalesCount || 1`) y badges por empresa. Pendiente: `TopBar.tsx` muestra "Sucursal Centro (Principal)" como respaldo y `TransferenciasPage.tsx` tiene sucursales fijas (módulo oculto); ambos fuera del alcance permitido.
+- **Migraciones:** ninguna. No se tocó `schema.prisma`.
+- **Pruebas (ejecutadas):** backend unitarias **407/407** (43 archivos); integración PostgreSQL 16 temporal como usuario sin privilegios: `admin-usuarios-soporte.postgres.integration.ts` **8/8** (tres ejecuciones), `ventas` 46/46 tras ajustar una aserción (la autoprotección se evalúa antes que el último administrador; ambas rechazan); frontend **273/273**; `tsc -b` y lint sin errores (avisos previos). Nuevas: `super-admin/soporte-sesiones.http.spec.ts` (12), `usuarios/usuarios.service.spec.ts` (9), `usuarios/usuarios.http.spec.ts` (matriz de roles, 9).
+- **Límites:** sin pruebas E2E de navegador para estas pantallas; sin despliegue ni verificación de Render/Vercel/Supabase; el riesgo de token de soporte es de ≤15 min si falla la red al finalizar.
+- **Pendientes de decisión:** modelo de sucursales (producto + NEXUS); eliminación lógica distinta de la desactivación (`eliminado_en`, migración aditiva, NEXUS); revisión humana del PR antes de cualquier merge.
+- **Bitácora:** revisión del informe y de las instrucciones; hallazgo del 404 y de los datos hardcodeados; cambios de backend y frontend en tres commits; pruebas HTTP y PostgreSQL; una aserción existente ajustada con evidencia; PR #160 abierto sin merge.
 
 ---
 
