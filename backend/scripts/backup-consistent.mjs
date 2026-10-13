@@ -10,13 +10,18 @@ export function sourceEnvironment(url, inherited) {
   const source = new URL(url);
   if (!['postgres:', 'postgresql:'].includes(source.protocol) || !source.hostname || !source.username || source.pathname.length < 2) throw new Error('SOURCE_CONFIGURATION');
   const env = Object.fromEntries(Object.entries(inherited).filter(([key]) => !key.startsWith('PG') && key !== 'FERRE_ORIGEN_URL'));
+  // Preserve an operator's stricter TLS policy/CA. Removing PG service and
+  // credentials must not silently turn verify-full into libpq's prefer default.
+  for (const key of ['PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCRL', 'PGSSLCRLDIR', 'PGSSLMINPROTOCOLVERSION', 'PGSSLMAXPROTOCOLVERSION', 'PGCHANNELBINDING']) {
+    if (inherited[key]) env[key] = inherited[key];
+  }
   const options = { sslmode: 'PGSSLMODE', sslrootcert: 'PGSSLROOTCERT', sslcert: 'PGSSLCERT', sslkey: 'PGSSLKEY', connect_timeout: 'PGCONNECT_TIMEOUT' };
   for (const [key, value] of source.searchParams) {
     if (key === 'schema' && value === 'public') continue;
     if (!options[key]) throw new Error('SOURCE_CONFIGURATION');
     env[options[key]] = value;
   }
-  Object.assign(env, { PG_BIN: inherited.PG_BIN, PGHOST: source.hostname, PGPORT: source.port || '5432',
+  Object.assign(env, { PG_BIN: inherited.PG_BIN, PGHOST: source.hostname.replace(/^\[|\]$/g, ''), PGPORT: source.port || '5432',
     PGUSER: decodeURIComponent(source.username), PGPASSWORD: decodeURIComponent(source.password),
     PGDATABASE: decodeURIComponent(source.pathname.slice(1)), PGCONNECT_TIMEOUT: env.PGCONNECT_TIMEOUT || '15',
     PGOPTIONS: '-c default_transaction_read_only=on' });

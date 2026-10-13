@@ -25,6 +25,16 @@ test('explicit source replaces inherited services, options and passwords without
   }
 });
 
+test('manual backup preserves inherited TLS verification and CA; URL overrides remain explicit', () => {
+  const policy = { PGSSLMODE: 'verify-full', PGSSLROOTCERT: '/private/source-ca.pem', PGCHANNELBINDING: 'require' };
+  const env = sourceEnvironment('postgresql://reader@source.invalid/catalog', policy);
+  assert.equal(env.PGSSLMODE, 'verify-full');
+  assert.equal(env.PGSSLROOTCERT, '/private/source-ca.pem');
+  assert.equal(env.PGCHANNELBINDING, 'require');
+  assert.equal(sourceEnvironment('postgresql://reader@[::1]/catalog', {}).PGHOST, '::1');
+  assert.equal(sourceEnvironment('postgresql://reader@source.invalid/catalog?sslmode=require', policy).PGSSLMODE, 'require');
+});
+
 test('checksum mismatch stops before invoking any PostgreSQL tool or issuing a verified manifest', { skip: process.platform === 'win32' }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'pilot-corrupt-backup-'));
   t.after(() => rm(root, { recursive: true, force: true }));
