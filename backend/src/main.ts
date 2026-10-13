@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import * as express from 'express';
 import { AppModule } from './app.module';
 import * as cookieParserImport from 'cookie-parser';
 import { configurarPipesGlobales } from './common/pipes/profundidad-maxima.pipe';
@@ -15,7 +16,11 @@ async function bootstrap() {
     console.error(`[ARRANQUE] ${errorContingencia}`);
     process.exit(1);
   }
-  const app = await NestFactory.create(AppModule);
+  // Analizador de cuerpo explícito: JSON admite hasta 2 MB para la importación masiva (5000 filas ≈ 1 MB);
+  // el resto de rutas sigue igual que con el valor por defecto de Nest.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.use(express.json({ limit: '2mb' }));
+  app.use(express.urlencoded({ extended: true }));
 
   // Falla al arrancar si la configuración de autenticación es inválida.
   validarConfiguracionAuth(process.env);
