@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Control previo a importación de inventario para FerreSystem.
 
-Revisa un CSV con el mismo formato que acepta ImportarProductosModal.tsx y
-reporta errores que impedirían una carga limpia. No se conecta al sistema,
+Revisa la hoja de control con precios (perfil maestro) o el CSV de seis
+columnas del candidato #153/#155 (perfil preproduccion). Reporta errores
+que impedirían una carga limpia. No se conecta al sistema,
 no escribe datos y no importa nada.
 
 Uso:
@@ -219,8 +220,9 @@ def main(argv):
     for a in avisos:
         print(f'  AVISO  {a}')
     listo = not errores and total > 0
-    print('RESULTADO: ' + ('listo para importar en preproducción (revisar advertencias)' if listo
-                           else 'NO importar. Corrija los errores y vuelva a validar.'))
+    correcto = ('maestro válido para revisión (el candidato no importa sus precios; revisar advertencias)'
+                if args.perfil == 'maestro' else 'CSV listo para importar en preproducción (revisar advertencias)')
+    print('RESULTADO: ' + (correcto if listo else 'NO importar. Corrija los errores y vuelva a validar.'))
     return 0 if not errores and total > 0 else 1
 
 

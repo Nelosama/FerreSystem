@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-10, America/Tegucigalpa** — arquitectura de continuidad POS, fase exclusivamente documental desde `main` `5eae989d`; ver bloque siguiente. Las bitácoras anteriores se conservan como fotografías fechadas y no sustituyen el estado de Git.
+Última revisión: **2026-10-12, America/Tegucigalpa** — inicialización segura del costo y revisión de compatibilidad de #156 `59de0589` con #153 `95144a17` / #155 `85e4ff88`, en rama independiente. Ver el bloque siguiente; el candidato conserva sus bloqueos de liberación.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -19,6 +19,20 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 7. **No hacer merge automático** ni desplegar a producción sin autorización explícita del dueño del proyecto.
 
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
+
+---
+
+## Inventario inicial seguro — implementación y compatibilidad del candidato (2026-10-12)
+
+- **Base/rama:** `origin/main` `7ccfad25`, `fix/inventario-inicial-seguro`, código `8b47eb80`; PR independiente en borrador. #153 `95144a17`, #155 `85e4ff88` y #156 `59de0589` conservados sin modificaciones. Sin merge, despliegue, migraciones productivas ni carga real. Informe y procedimiento: [INVENTARIO_INICIAL_SEGURO.md](INVENTARIO_INICIAL_SEGURO.md).
+- **Implementado:** `POST /api/productos/:id/costo-inicial`, solo ADMIN por guard y servicio; costo positivo, motivo, UUID de reintento y versión obligatorios; solo vigente nulo/cero y sin recepción/historial de compra. Escribe costo comercial/vigente y versión, con auditoría atómica `COSTO_INICIALIZAR`; no mueve inventario ni crea CxP. No altera precio de venta/aprobación. La compra posterior vuelve a fijar el costo.
+- **CSV:** importador alineado con las doce unidades del inventario, sin conversiones; plantilla descargable vacía. Validador `backend/scripts/validar-inventario.py --estricto` bloquea existencias no cero y precios cero salvo excepciones independientes con motivo declarado de ADMIN. Perfil `maestro` (ocho columnas) y `preproduccion` (seis, rechaza precios que el candidato ignoraría); la herramienta offline no autentica a ADMIN. No usar el validador original de #156 para certificar el candidato.
+- **Revisión de #156:** el candidato ya inicializa el vigente en el alta y lo cambia en Precios y aprobación antes de recibir; sus CSV no importan precios. #156 describe otra base y sus instrucciones requieren el complemento del informe. La orden crea CxP y la recepción suma stock; no simular ninguna de ellas para fijar costo.
+- **Pruebas nuevas:** costo inicial HTTP/JWT + PostgreSQL real 23/23, con permisos, aislamiento, auditoría/rollback, reintentos, concurrencia y recepción posterior; Python 10/10; frontend cinco casos nuevos, con handlers del modal y transporte simulado.
+- **Regresión de esta sesión (PostgreSQL 17.11 local):** independiente 5 archivos, 140 aprobadas/1 omitida/0 fallos; integración local #155 + código en `ebc9fdeb`, 12 archivos, 243 aprobadas/1 omitida/0 fallos. La omitida es Chromium condicionado en ciclo-ventas. No se ejecutó navegador. Backend unitarias 329/329 (independiente), 377/377 (integración), scripts de integración 42/42; frontend 190/190 (independiente), 272/272 (integración); compilaciones correctas. Guard de integración: 0 migraciones nuevas. Sin cambios en operaciones/ventas/entregas/POS/esquema.
+- **Integración:** una rama nueva desde #155; conflicto de plantilla resuelto conservando los seis encabezados del candidato y solo `headers.join(',') + '\n'`. #156 permanece documental e independiente. Repetir pruebas sobre el SHA final; reconciliar este contexto sin eliminar otras bitácoras.
+- **Pendientes reales:** revisiones y bloqueos de liberación de #153/#155, respaldo y estado de bases reales, claves por entorno, validación en equipo físico y aceptación del cliente. API de inicialización por producto sin UI ni carga masiva nueva; revisión previa de costos/unidades por ADMIN. No hay autorización de producción ni certificación de CI remota.
+- **Bitácora:** fetch y revisión de los SHA por Git/connector; comparación de importadores, costo y aprobación; implementación en rama desde main; PostgreSQL local sin privilegios; pruebas de la rama y copia aislada de #155; conflicto de plantilla resuelto solo en esa copia; documentación, riesgos y procedimiento de integración. Fallos de preparación Prisma/API URL y harness documentados y corregidos.
 
 ---
 

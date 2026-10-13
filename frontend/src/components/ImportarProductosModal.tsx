@@ -363,7 +363,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                   type="button"
                   className="btn btn-secondary"
                   onClick={handleDownloadTemplate}
-                  title="Descargar plantilla de ejemplo CSV para este rubro"
+                  title="Descargar plantilla CSV vacía para este rubro"
                 >
                   <Download size={16} />
                   <span>{t('inventory.download_template')}</span>
