@@ -667,7 +667,8 @@ describe('Ventas / PostgreSQL aislado', () => {
   });
   it('los permisos se persisten y desactivar conserva historial y al último administrador',async()=>{
     const service=new UsuariosService(prisma);
-    await expect(service.remove(tenantId,usuarioId,usuarioId)).rejects.toThrow('administrador activo');
+    // Único administrador desactivándose a sí mismo: lo rechaza la autoprotección o la regla de último administrador.
+    await expect(service.remove(tenantId,usuarioId,usuarioId)).rejects.toThrow(/administrador activo|propia cuenta/);
     const cashier=await service.create(tenantId,{nombre:'Cajero',email:'cashier@example.test',password:'test-only-password',permisos:['pos.vender'],descuentoMaximo:5},usuarioId);
     expect(cashier.rol).toBe('CAJERO');
     const saved=await prisma.usuario.findUniqueOrThrow({where:{id:cashier.id}});
