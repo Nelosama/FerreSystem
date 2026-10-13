@@ -1,0 +1,18 @@
+2026-10-13T07:17:22.4421141Z
+2026-10-13T07:17:22.4421721Z     Error: expect(locator).toBeVisible() failed
+2026-10-13T07:17:22.4421897Z
+2026-10-13T07:17:22.4422073Z     Locator: getByRole('button', { name: 'SALIR', exact: true })
+2026-10-13T07:17:22.4422428Z     Expected: visible
+2026-10-13T07:17:22.4422666Z     Timeout: 5000ms
+2026-10-13T07:17:22.4424432Z
+2026-10-13T07:17:22.4424629Z       501 |     // the UI, so the server actually revokes the session before any send.
+2026-10-13T07:17:22.4424979Z       502 |     await page.goto('/arqueo-caja');
+2026-10-13T07:17:22.4425383Z     > 503 |     await expect(page.getByRole('button', { name: 'SALIR', exact: true })).toBeVisible();
+2026-10-13T07:17:22.4425813Z           |                                                                            ^
+2026-10-13T07:17:22.4426120Z       504 |     await context.setOffline(false);
+2026-10-13T07:17:22.4438218Z     [chromium] › e2e-real/contingencia-real.spec.ts:481:3 › POS offline de contingencia — backend real › 15. logout real con cola pendiente: otro cajero no la envía; el dueño vuelve y reconcilia exactamente una vez
+2026-10-13T07:17:22.4438834Z   10 skipped
+2026-10-13T07:17:22.4439003Z   139 passed (1.5m)
+2026-10-13T07:17:22.7909007Z ##[error]Process completed with exit code 1.
+2026-10-13T07:17:22.7985216Z ##[group]Run actions/upload-artifact@v4
+2026-10-13T07:17:22.7985441Z with:

@@ -1,6 +1,6 @@
 # Preparación del piloto — cuarta rama autorizada
 
-**NEXUS · 2026-10-13 UTC.** Base: `origin/main` `4b650445b35fcd8dc2878b5c94ee60462493d8c1`. Rama exclusiva: `fix/pilot-readiness`; [PR #162 en borrador](https://github.com/Nelosama/FerreSystem/pull/162). Código de preparación: `d1d19fea`; revisión final de TLS/IPv6: `89b7fe3b`. Las suites del negocio se ejecutaron con el primer SHA y sus módulos no cambiaron después; las verificaciones de scripts, Restic y ensayo de actualización se repitieron tras la revisión TLS. El estado y los siguientes pendientes se mantienen en [CONTEXTO_MAESTRO.md](CONTEXTO_MAESTRO.md).
+**NEXUS · 2026-10-13 UTC.** Base: `origin/main` `4b650445b35fcd8dc2878b5c94ee60462493d8c1`. Rama exclusiva: `fix/pilot-readiness`; [PR #162 en borrador](https://github.com/Nelosama/FerreSystem/pull/162). Código de preparación: `d1d19fea`; TLS/IPv6: `89b7fe3b`; correcciones de pruebas/CI: `81c8fb88`. PostgreSQL y E2E de escritorio se repitieron tras corregir las pruebas; scripts, Restic y ensayo de actualización se repitieron tras revisar TLS. El estado y los siguientes pendientes se mantienen en [CONTEXTO_MAESTRO.md](CONTEXTO_MAESTRO.md).
 
 La verificación local del alcance está aprobada, con límites de entorno y de cobertura explícitos. Esto no certifica producción, no habilita la contingencia del cliente ni autoriza merge, despliegue o migraciones productivas.
 
@@ -53,6 +53,16 @@ Entorno: Node 24.19.0, Python 3.12.14, PostgreSQL 17.11, Restic 0.18.0/0.16.4, C
 - La primera integración utilizó un cliente Prisma anterior al esquema actual; tras `prisma generate` se repitió toda la suite y pasó 905/905. El test backend “Hello World” también se reprodujo como fallo antes de sustituirlo.
 - Una ejecución concurrente de Playwright compartió `test-results` y falló al cerrar traces borrados por la otra suite. Las carpetas ahora son independientes; la repetición final pasa 143/143.
 - La prueba nueva de logout falló inicialmente por consultar el UUID local en vez del ID derivado por tenant. Se corrigió la prueba; la ejecución final verifica el registro central y los efectos reales.
+
+### CI remota y entrega a la sesión de interfaz/PWA
+
+La primera CI sobre `d85bd0ec` detectó tres promesas sin esperar en `contingencia-cierre-entradas.postgres.integration.ts` y la ausencia del botón de salida tras navegar offline a `/arqueo-caja`. Evidencia: `ci-before-115176216225.log`, `ci-before-115176216871.log`; [ejecución de operación](https://github.com/Nelosama/FerreSystem/actions/runs/38361405337), [ejecución de piloto](https://github.com/Nelosama/FerreSystem/actions/runs/38361405378), artefacto `piloto-real-evidence` ID `11794803288`. No se ocultan esos fallos ni se atribuyen a producción.
+
+Se corrigieron solo las pruebas: tres `await` conservan las aserciones y el escenario de logout visita previamente su ruta en línea. `App.tsx` carga Arqueo mediante `React.lazy`; `public/sw.js` precarga el shell y sus referencias directas, sin garantizar chunks de rutas que no se han abierto. Una ruta no cargada puede quedar sin su interfaz al navegar offline. **Entrega para la sesión responsable de UI/PWA (superficie compartida con `claude/modest-galileo-693672`):** decidir qué rutas debe garantizar la operación offline y validar sus chunks. No se modificaron `App.tsx`, `ArqueoCajaPage`, el service worker ni sus módulos funcionales. La prueba nueva certifica logout con la ruta preparada, no navegación offline a cualquier ruta nueva.
+
+**CI del código `81c8fb88`: ambos workflows aprobados.** [Operación de ferretería](https://github.com/Nelosama/FerreSystem/actions/runs/38362292287) pasó validate y guard; [Piloto con API/PostgreSQL reales](https://github.com/Nelosama/FerreSystem/actions/runs/38362292728) pasó respaldos, 140 E2E reales con 10 omitidas, simulacro y ensayo de actualización. Extractos con identificación de job/SHA: `ci-operation-81c8fb88.log`, `ci-pilot-81c8fb88.log`. Los commits de documentación posteriores no cambian el código verificado y sus checks se consultan en el PR.
+
+Los workflows cancelan verificaciones de versiones anteriores del mismo PR al llegar una actualización. El estado de la ejecución del HEAD vigente se consulta en el [PR #162](https://github.com/Nelosama/FerreSystem/pull/162). Las cifras locales siguen distinguiéndose de sus checks remotos.
 
 ## Repetición y operación segura
 

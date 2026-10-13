@@ -1,0 +1,83 @@
+Workflow 38362292728; job 115179095242; commit 81c8fb88c9d183ab156371edf304e8d8a03b740c; conclusion success.
+2026-10-13T07:24:15.6392613Z PASS: 4 real encrypted backups/restores, 2 deliberate restore failures, retention preserves 2 verified copies and does not count failed copies; full integrity, wrong-key rejection, source rows unchanged. Local test destination only.
+2026-10-13T07:24:16.4459719Z PASS: consistent snapshot includes 2 original sales; concurrent sale remains in source (3) and is absent from restored dump (2), matching manifest.
+2026-10-13T07:26:04.4122507Z   10 skipped
+2026-10-13T07:26:04.4123020Z   140 passed (1.6m)
+2026-10-13T07:26:11.8405778Z PASS: Migración desde base vacía (migration-safe deploy) - 24 migraciones aplicadas, 0 pendientes
+2026-10-13T07:26:12.7118552Z PASS: Segunda ejecución de la migración (reinicio): idempotente - sin cambios
+2026-10-13T07:26:13.9278055Z PASS: Backend arranca con la clave de contingencia y la base migrada - puerto 45911
+2026-10-13T07:26:14.3306298Z PASS: Operación: caja, producto, venta de contado y entrega - venta 1ccadd6e-2f50-4d8c-bb15-2100517a4d75, total ventaTotal":345
+2026-10-13T07:26:14.3389782Z PASS: Inventario tras venta+entrega - stock físico 17, reservado 0
+2026-10-13T07:26:16.3760826Z PASS: Backend vuelve a arrancar tras reiniciar - sin intervención
+2026-10-13T07:26:16.5536061Z PASS: Inicio de sesión tras reiniciar - administrador 200
+2026-10-13T07:26:16.5635237Z PASS: Datos intactos tras reiniciar - ventas, caja, stock y auditoría idénticos
+2026-10-13T07:26:16.6482967Z PASS: Respaldo con pg_dump - 195451 bytes
+2026-10-13T07:26:16.6555896Z PASS: pg_restore --list lee el respaldo - legible
+2026-10-13T07:26:17.6117122Z PASS: Restauración en base vacía - sin errores
+2026-10-13T07:26:17.6222406Z PASS: Datos restaurados idénticos al origen - 5|805|1|57|4|4
+2026-10-13T07:26:18.4858826Z PASS: migration-safe deploy sobre la base restaurada - historial consistente, sin migraciones pendientes
+2026-10-13T07:26:19.6850514Z PASS: Backend sobre la base restaurada: inicio de sesión - administrador 200
+2026-10-13T07:26:19.6915239Z Migración desde base vacía (migration-safe deploy) | PASS | 24 migraciones aplicadas, 0 pendientes
+2026-10-13T07:26:19.6921435Z Segunda ejecución de la migración (reinicio): idempotente | PASS | sin cambios
+2026-10-13T07:26:19.6944950Z Backend arranca con la clave de contingencia y la base migrada | PASS | puerto 45911
+2026-10-13T07:26:19.6946847Z Operación: caja, producto, venta de contado y entrega | PASS | venta 1ccadd6e-2f50-4d8c-bb15-2100517a4d75, total ventaTotal":345
+2026-10-13T07:26:19.6948782Z Inventario tras venta+entrega | PASS | stock físico 17, reservado 0
+2026-10-13T07:26:19.6949909Z Backend vuelve a arrancar tras reiniciar | PASS | sin intervención
+2026-10-13T07:26:19.6950908Z Inicio de sesión tras reiniciar | PASS | administrador 200
+2026-10-13T07:26:19.6952187Z Datos intactos tras reiniciar | PASS | ventas, caja, stock y auditoría idénticos
+2026-10-13T07:26:19.6953107Z Respaldo con pg_dump | PASS | 195451 bytes
+2026-10-13T07:26:19.6954175Z pg_restore --list lee el respaldo | PASS | legible
+2026-10-13T07:26:19.6955133Z Restauración en base vacía | PASS | sin errores
+2026-10-13T07:26:19.6958473Z Datos restaurados idénticos al origen | PASS | 5|805|1|57|4|4
+2026-10-13T07:26:19.6960462Z migration-safe deploy sobre la base restaurada | PASS | historial consistente, sin migraciones pendientes
+2026-10-13T07:26:19.6962114Z Backend sobre la base restaurada: inicio de sesión | PASS | administrador 200
+2026-10-13T07:26:19.6962971Z FALLOS=0
+2026-10-13T07:26:26.7441596Z PASS  Base simulada con el esquema de main — 13 migraciones
+2026-10-13T07:26:26.8578232Z PASS  Datos históricos sembrados — 2 usuarios, 3 productos, 2 ventas (una con entrega pendiente)
+2026-10-13T07:26:27.0441506Z PASS  Respaldo creado — 139740 bytes
+2026-10-13T07:26:30.6301056Z PASS  Verificación del respaldo + ensayo de migración en la copia — 11 comprobaciones PASS
+2026-10-13T07:26:30.6397937Z PASS  El origen no cambió durante el respaldo ni el ensayo — foto idéntica
+2026-10-13T07:26:36.6450669Z PASS  El backend NO arranca con migraciones pendientes — faltan 11 migraciones
+2026-10-13T07:26:36.6573918Z PASS  El arranque no modificó el esquema de producción simulada — columna precio_aprobado ausente
+2026-10-13T07:26:37.6139855Z PASS  Migración aplicada — base LISTA, 24 migraciones
+2026-10-13T07:26:37.6238914Z PASS  Ninguna venta perdida ni creada por la migración — ventas 2
+2026-10-13T07:26:37.6329056Z PASS  Aprobación de precios heredados — solo el producto activo con precio queda aprobado
+2026-10-13T07:26:37.6491864Z PASS  Reparto histórico de entregas — venta entregada = 3 de 3; venta pendiente = 0 de 5
+2026-10-13T07:26:38.6751411Z PASS  El backend arranca en modo producción sobre la base migrada — puerto 3391
+2026-10-13T07:26:39.0968760Z PASS  Humo de API con escritura — 20 PASS / 0 FAIL (modo escritura)
+2026-10-13T07:26:39.4176802Z PASS  Entrega de la venta histórica pendiente — 201
+2026-10-13T07:26:39.4265296Z PASS  Inventario correcto: lo histórico se entregó (100 - 5 = 95 físicas, reserva 5 -> 0) y la venta nueva reserva 1 hasta entregarse — 95/1
+2026-10-13T07:26:39.4282722Z PASS  Se vende el producto heredado con precio — 201
+2026-10-13T07:26:39.4300092Z PASS  NO se vende el producto heredado sin precio aprobado — rechazado 4xx
+2026-10-13T07:26:43.4668369Z PASS  El backend reinicia solo con el procedimiento de producción — sin migrar
+2026-10-13T07:26:43.4769410Z PASS  Datos idénticos tras el reinicio — 4|1265|4|130|1|2
+2026-10-13T07:26:43.7807010Z PASS  Humo de solo lectura tras el reinicio — 9 PASS / 0 FAIL (modo solo lectura)
+2026-10-13T07:26:43.8135150Z PASS  Ningún secreto en registros ni salidas — ni la clave de contingencia, ni JWT_SECRET, ni las contraseñas aparecen en los registros del backend, el humo, el respaldo o la verificación
+2026-10-13T07:26:44.6683512Z PASS  Restauración del respaldo previo en una base nueva — sin errores
+2026-10-13T07:26:44.6785597Z PASS  La base restaurada es idéntica a la de antes de migrar — 2|920|2|127|5|2
+2026-10-13T07:26:44.8019870Z PASS  El código nuevo NO arranca sobre el esquema viejo restaurado — faltan 11 migraciones
+2026-10-13T07:26:44.8022980Z PASS | Base simulada con el esquema de main | 13 migraciones
+2026-10-13T07:26:44.8024343Z PASS | Datos históricos sembrados | 2 usuarios, 3 productos, 2 ventas (una con entrega pendiente)
+2026-10-13T07:26:44.8024882Z PASS | Respaldo creado | 139740 bytes
+2026-10-13T07:26:44.8025499Z PASS | Verificación del respaldo + ensayo de migración en la copia | 11 comprobaciones PASS
+2026-10-13T07:26:44.8026207Z PASS | El origen no cambió durante el respaldo ni el ensayo | foto idéntica
+2026-10-13T07:26:44.8026797Z PASS | El backend NO arranca con migraciones pendientes | faltan 11 migraciones
+2026-10-13T07:26:44.8027550Z PASS | El arranque no modificó el esquema de producción simulada | columna precio_aprobado ausente
+2026-10-13T07:26:44.8028173Z PASS | Migración aplicada | base LISTA, 24 migraciones
+2026-10-13T07:26:44.8028706Z PASS | Ninguna venta perdida ni creada por la migración | ventas 2
+2026-10-13T07:26:44.8029373Z PASS | Aprobación de precios heredados | solo el producto activo con precio queda aprobado
+2026-10-13T07:26:44.8030113Z PASS | Reparto histórico de entregas | venta entregada = 3 de 3; venta pendiente = 0 de 5
+2026-10-13T07:26:44.8030811Z PASS | El backend arranca en modo producción sobre la base migrada | puerto 3391
+2026-10-13T07:26:44.8031359Z PASS | Humo de API con escritura | 20 PASS / 0 FAIL (modo escritura)
+2026-10-13T07:26:44.8031854Z PASS | Entrega de la venta histórica pendiente | 201
+2026-10-13T07:26:44.8032721Z PASS | Inventario correcto: lo histórico se entregó (100 - 5 = 95 físicas, reserva 5 -> 0) y la venta nueva reserva 1 hasta entregarse | 95/1
+2026-10-13T07:26:44.8033390Z PASS | Se vende el producto heredado con precio | 201
+2026-10-13T07:26:44.8034244Z PASS | NO se vende el producto heredado sin precio aprobado | rechazado 4xx
+2026-10-13T07:26:44.8034933Z PASS | El backend reinicia solo con el procedimiento de producción | sin migrar
+2026-10-13T07:26:44.8035512Z PASS | Datos idénticos tras el reinicio | 4|1265|4|130|1|2
+2026-10-13T07:26:44.8036123Z PASS | Humo de solo lectura tras el reinicio | 9 PASS / 0 FAIL (modo solo lectura)
+2026-10-13T07:26:44.8038323Z PASS | Ningún secreto en registros ni salidas | ni la clave de contingencia, ni JWT_SECRET, ni las contraseñas aparecen en los registros del backend, el humo, el respaldo o la verificación
+2026-10-13T07:26:44.8040253Z PASS | Restauración del respaldo previo en una base nueva | sin errores
+2026-10-13T07:26:44.8041419Z PASS | La base restaurada es idéntica a la de antes de migrar | 2|920|2|127|5|2
+2026-10-13T07:26:44.8042679Z PASS | El código nuevo NO arranca sobre el esquema viejo restaurado | faltan 11 migraciones
+2026-10-13T07:26:44.8043430Z FALLOS=0

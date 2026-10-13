@@ -2,28 +2,15 @@
 > backend@0.0.1 lint
 > oxlint --type-aware src/ test/
 
+test/migrations.postgres.integration.ts:2:49: warning eslint(no-unused-vars): Identifier 'writeFileSync' is imported but never used. help: Consider removing this import.
 src/usuarios/dto/update-usuario.dto.ts:1:60: warning eslint(no-unused-vars): Identifier 'MinLength' is imported but never used. help: Consider removing this import.
 src/usuarios/dto/create-usuario.dto.ts:1:60: warning eslint(no-unused-vars): Identifier 'MinLength' is imported but never used. help: Consider removing this import.
-test/productos-proveedores.postgres.integration.ts:173:25: warning eslint(no-unused-vars): Parameter 'updated_at' is declared but never used. Unused parameters should start with a '_'. help: Consider removing this parameter.
-test/productos-edicion.postgres.integration.ts:34:13: warning eslint(no-unused-vars): Variable 'margen' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/precios-aprobacion.postgres.integration.ts:35:9: warning eslint(no-unused-vars): Variable 'item' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/precios-aprobacion.postgres.integration.ts:36:9: warning eslint(no-unused-vars): Variable 'add' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/precios-aprobacion.postgres.integration.ts:37:9: warning eslint(no-unused-vars): Variable 'finish' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/precios-aprobacion.postgres.integration.ts:38:9: warning eslint(no-unused-vars): Variable 'preview' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/precios-aprobacion.postgres.integration.ts:39:9: warning eslint(no-unused-vars): Variable 'conflictToken' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/precios-aprobacion.postgres.integration.ts:40:9: warning eslint(no-unused-vars): Variable 'apply' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/migrations.postgres.integration.ts:2:49: warning eslint(no-unused-vars): Identifier 'writeFileSync' is imported but never used. help: Consider removing this import.
 test/migraciones-control-arranque.postgres.integration.ts:2:18: warning eslint(no-unused-vars): Identifier 'existsSync' is imported but never used. help: Consider removing this import.
 test/migracion-autenticacion.postgres.integration.ts:29:65: warning unicorn(no-useless-spread): Using a spread operator here creates a new object unnecessarily. help: `Object.fromEntries` returns a new object. Spreading it into an object expression to create a new object is redundant.
 test/kardex-consolidacion.postgres.integration.ts:7:10: warning eslint(no-unused-vars): Identifier 'readFileSync' is imported but never used. help: Consider removing this import.
 test/kardex-consolidacion.postgres.integration.ts:8:31: warning eslint(no-unused-vars): Identifier 'ConflictException' is imported but never used. help: Consider removing this import.
-src/levantamientos/levantamientos.service.ts:1:81: warning eslint(no-unused-vars): Identifier 'ForbiddenException' is imported but never used. help: Consider removing this import.
-src/levantamientos/levantamientos.service.ts:201:11: warning eslint(no-unused-vars): Variable 'version' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
 test/inventario-ciclo.postgres.integration.ts:8:50: warning eslint(no-unused-vars): Identifier 'ForbiddenException' is imported but never used. help: Consider removing this import.
 test/inventario-ciclo.postgres.integration.ts:21:79: warning eslint(no-unused-vars): Variable 'productos' is assigned a value but never used. Unused variables should start with a '_'. help: Did you mean to use this variable?
-src/levantamientos/levantamientos.service.spec.ts:350:8: warning eslint(no-unused-vars): Variable 'lev' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-src/levantamientos/dto/create-levantamiento-item.dto.ts:1:59: warning eslint(no-unused-vars): Identifier 'Max' is imported but never used. help: Consider removing this import.
-src/levantamientos/dto/create-levantamiento-item.dto.ts:1:90: warning eslint(no-unused-vars): Identifier 'IsBoolean' is imported but never used. help: Consider removing this import.
 test/estado-cuenta-cliente.postgres.integration.ts:36:7: warning eslint(no-unused-vars): Variable 'proveedorA' is assigned a value but never used. Unused variables should start with a '_'. help: Did you mean to use this variable?
 test/estado-cuenta-cliente.postgres.integration.ts:37:7: warning eslint(no-unused-vars): Variable 'proveedorB' is assigned a value but never used. Unused variables should start with a '_'. help: Did you mean to use this variable?
 test/estado-cuenta-cliente.postgres.integration.ts:42:9: warning eslint(no-unused-vars): Variable 'vinculos' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
@@ -54,16 +41,12 @@ test/contingencia-texto-seguro.postgres.integration.ts:96:9: warning eslint(no-u
 test/contingencia-texto-seguro.postgres.integration.ts:97:9: warning eslint(no-unused-vars): Variable 'stock' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
 test/contingencia-texto-seguro.postgres.integration.ts:110:9: warning eslint(no-unused-vars): Variable 'recibir' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
 test/contingencia-texto-seguro.postgres.integration.ts:116:18: warning eslint(no-unused-vars): Function 'segundoCajero' is declared but never used. help: Consider removing this declaration.
+src/levantamientos/levantamientos.service.ts:1:81: warning eslint(no-unused-vars): Identifier 'ForbiddenException' is imported but never used. help: Consider removing this import.
+src/levantamientos/levantamientos.service.ts:201:11: warning eslint(no-unused-vars): Variable 'version' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+src/levantamientos/levantamientos.service.spec.ts:350:8: warning eslint(no-unused-vars): Variable 'lev' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
 test/contingencia-rechazada.postgres.integration.ts:10:28: warning eslint(no-unused-vars): Identifier 'siguienteOperacion' is imported but never used. help: Consider removing this import.
-test/centinela-correcciones.postgres.integration.ts:1:10: warning eslint(no-unused-vars): Identifier 'execFile' is imported but never used. help: Consider removing this import.
-test/centinela-correcciones.postgres.integration.ts:2:10: warning eslint(no-unused-vars): Identifier 'promisify' is imported but never used. help: Consider removing this import.
-test/centinela-correcciones.postgres.integration.ts:30:10: warning eslint(no-unused-vars): Identifier 'diaCalendario' is imported but never used. help: Consider removing this import.
-test/centinela-correcciones.postgres.integration.ts:43:7: warning eslint(no-unused-vars): Variable 'autorizacion' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/centinela-correcciones.postgres.integration.ts:55:7: warning eslint(no-unused-vars): Variable 'token' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/centinela-correcciones.postgres.integration.ts:56:7: warning eslint(no-unused-vars): Variable 'usuarioId' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/centinela-correcciones.postgres.integration.ts:57:7: warning eslint(no-unused-vars): Variable 'cajaId' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/centinela-correcciones.postgres.integration.ts:58:7: warning eslint(no-unused-vars): Variable 'tenantId' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-test/centinela-correcciones.postgres.integration.ts:241:33: warning eslint(no-unused-vars): Parameter 'ctx' is declared but never used. Unused parameters should start with a '_'. help: Consider removing this parameter.
+src/levantamientos/dto/create-levantamiento-item.dto.ts:1:59: warning eslint(no-unused-vars): Identifier 'Max' is imported but never used. help: Consider removing this import.
+src/levantamientos/dto/create-levantamiento-item.dto.ts:1:90: warning eslint(no-unused-vars): Identifier 'IsBoolean' is imported but never used. help: Consider removing this import.
 test/contingencia-identidad.postgres.integration.ts:7:10: warning eslint(no-unused-vars): Identifier 'ConflictException' is imported but never used. help: Consider removing this import.
 test/contingencia-identidad.postgres.integration.ts:80:18: warning eslint(no-unused-vars): Function 'filaLegada' is declared but never used. help: Consider removing this declaration.
 test/contingencia-identidad.postgres.integration.ts:94:9: warning eslint(no-unused-vars): Variable 'obsoleta' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
@@ -112,23 +95,40 @@ test/compras-contado.postgres.integration.ts:23:7: warning eslint(no-unused-vars
 test/compras-contado.postgres.integration.ts:27:9: warning eslint(no-unused-vars): Variable 'vinculos' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
 test/compras-contado.postgres.integration.ts:29:9: warning eslint(no-unused-vars): Variable 'comprar' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
 test/compras-contado.postgres.integration.ts:35:9: warning eslint(no-unused-vars): Variable 'recibir' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
-src/cotizaciones/cotizaciones.service.spec.ts:7:7: warning eslint(no-unused-vars): Variable 'prisma' is assigned a value but never used. Unused variables should start with a '_'. help: Did you mean to use this variable?
-src/contingencia/texto-minimo.ts:17:40: warning eslint(no-misleading-character-class): Unexpected combining class in character class. help: Replace the character with its normalized form (NFC) or use Unicode code point escapes instead of combining sequences.
 test/compras-cierre.postgres.integration.ts:2:35: warning eslint(no-unused-vars): Identifier 'readFileSync' is imported but never used. help: Consider removing this import.
 test/compras-cierre.postgres.integration.ts:9:10: warning eslint(no-unused-vars): Identifier 'diaCalendario' is imported but never used. help: Consider removing this import.
-src/contingencia/dto/contingencia.dto.ts:16:62: warning eslint(no-control-regex): Unexpected control character help: Avoid matching control characters in regular expressions. If intentional, disable this rule for the expression.
 test/clientes-credito-auditoria.postgres.integration.ts:34:9: warning eslint(no-unused-vars): Variable 'call' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/productos-proveedores.postgres.integration.ts:173:25: warning eslint(no-unused-vars): Parameter 'updated_at' is declared but never used. Unused parameters should start with a '_'. help: Consider removing this parameter.
+test/productos-edicion.postgres.integration.ts:34:13: warning eslint(no-unused-vars): Variable 'margen' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
 test/centinela-migracion-148.postgres.integration.ts:41:7: warning eslint(no-unused-vars): Variable 'migrarHasta' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/precios-aprobacion.postgres.integration.ts:35:9: warning eslint(no-unused-vars): Variable 'item' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/precios-aprobacion.postgres.integration.ts:36:9: warning eslint(no-unused-vars): Variable 'add' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/precios-aprobacion.postgres.integration.ts:37:9: warning eslint(no-unused-vars): Variable 'finish' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/precios-aprobacion.postgres.integration.ts:38:9: warning eslint(no-unused-vars): Variable 'preview' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/precios-aprobacion.postgres.integration.ts:39:9: warning eslint(no-unused-vars): Variable 'conflictToken' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/precios-aprobacion.postgres.integration.ts:40:9: warning eslint(no-unused-vars): Variable 'apply' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+src/contingencia/dto/contingencia.dto.ts:16:62: warning eslint(no-control-regex): Unexpected control character help: Avoid matching control characters in regular expressions. If intentional, disable this rule for the expression.
+test/centinela-correcciones.postgres.integration.ts:1:10: warning eslint(no-unused-vars): Identifier 'execFile' is imported but never used. help: Consider removing this import.
+test/centinela-correcciones.postgres.integration.ts:2:10: warning eslint(no-unused-vars): Identifier 'promisify' is imported but never used. help: Consider removing this import.
+test/centinela-correcciones.postgres.integration.ts:30:10: warning eslint(no-unused-vars): Identifier 'diaCalendario' is imported but never used. help: Consider removing this import.
+test/centinela-correcciones.postgres.integration.ts:43:7: warning eslint(no-unused-vars): Variable 'autorizacion' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/centinela-correcciones.postgres.integration.ts:55:7: warning eslint(no-unused-vars): Variable 'token' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/centinela-correcciones.postgres.integration.ts:56:7: warning eslint(no-unused-vars): Variable 'usuarioId' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/centinela-correcciones.postgres.integration.ts:57:7: warning eslint(no-unused-vars): Variable 'cajaId' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/centinela-correcciones.postgres.integration.ts:58:7: warning eslint(no-unused-vars): Variable 'tenantId' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+test/centinela-correcciones.postgres.integration.ts:241:33: warning eslint(no-unused-vars): Parameter 'ctx' is declared but never used. Unused parameters should start with a '_'. help: Consider removing this parameter.
+src/cotizaciones/cotizaciones.service.spec.ts:7:7: warning eslint(no-unused-vars): Variable 'prisma' is assigned a value but never used. Unused variables should start with a '_'. help: Did you mean to use this variable?
+src/contingencia/texto-minimo.ts:17:40: warning eslint(no-misleading-character-class): Unexpected combining class in character class. help: Replace the character with its normalized form (NFC) or use Unicode code point escapes instead of combining sequences.
 src/prisma/prisma.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/app.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/app.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/app.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/app.controller.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/guards/jwt-auth.guard.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/guards/super-admin.guard.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/backup-worker-status.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/common/backup-status.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/backup-worker-status.ts:8:34: warning typescript(no-base-to-string): 'value.snapshot' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
 src/common/backup-worker-status.ts:8:83: warning typescript(no-base-to-string): 'value.sha256' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
+src/common/backup-status.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/backup-worker-status.ts:10:33: warning typescript(no-base-to-string): 'value.errorCode' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
 src/common/backup-worker-status.ts:10:60: warning typescript(no-base-to-string): 'value.errorCode' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
 src/common/backup-worker-status.ts:12:90: warning typescript(no-base-to-string): 'value.alertDelivery' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
@@ -142,8 +142,8 @@ src/common/pago-electronico.dto.ts:1:1: warning typescript(no-useless-default-as
 src/operaciones/operaciones.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/operaciones/productos-proveedores.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/operaciones/estado-cuenta-cliente.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/operaciones/aprobaciones-bancarias.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/operaciones/conciliacion-bancaria.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/operaciones/aprobaciones-bancarias.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/huella-solicitud.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/entregas/entregas-core.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/operaciones/operaciones.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
@@ -160,22 +160,22 @@ src/operaciones/operaciones.module.ts:1:1: warning typescript(no-useless-default
 src/entregas/dto/entregas.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/entregas/entregas.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/entregas/entregas.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/auth/jwt-secret.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/entregas/entregas.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/auth/jwt-secret.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/auth/auth-config.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/auth/auth-config.ts:26:48: warning typescript(no-base-to-string): 'valor ?? ''' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
-src/auth/sesiones-auth.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/auth/auth-config.ts:29:24: warning typescript(no-base-to-string): 'valor ?? ''' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
+src/auth/sesiones-auth.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/auth/jwt.strategy.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/productos/producto-response.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/interceptors/cashier-response.interceptor.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/prisma/prisma.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/tenant-modules.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/guards/tenant-module.guard.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/tenants/tenant-configuration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/auth/dto/login.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/auth/login-rate-limit.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/auth/auth.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/common/guards/tenant-module.guard.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/auth/auth.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/auth/auth.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/password-policy.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
@@ -228,8 +228,8 @@ src/proveedores/dto/proveedor.dto.ts:1:1: warning typescript(no-useless-default-
 src/proveedores/proveedores.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/proveedores/proveedores.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/proveedores/proveedores.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/garantias/dto/garantias.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/garantias/garantias.service.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/garantias/dto/garantias.dto.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/garantias/garantias.controller.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/garantias/garantias.module.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/dinero.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
@@ -250,17 +250,17 @@ src/main.ts:1:1: warning typescript(no-useless-default-assignment): This rule re
 src/auth/auth-config.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/auth/auth.security.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/auth/auth.service.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/auth/jwt-secret.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/clientes/clientes.service.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/common/authorization-revocation.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/common/backup-maintenance.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/contingencia/contingencia.service.ts:441:41: warning typescript(no-misused-spread): Using the spread operator on class instances will lose their class prototype.
 src/contingencia/contingencia.service.ts:547:41: warning typescript(no-misused-spread): Using the spread operator on class instances will lose their class prototype.
+src/auth/jwt-secret.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/clientes/clientes.service.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/contingencia/contingencia.service.ts:991:113: warning typescript(no-base-to-string): 'limpiarTexto(sanearTexto(regularizacion!.motivo))' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
+src/contingencia/contingencia.service.ts:991:113: warning typescript(restrict-template-expressions): Invalid type used in template literal expression.
+src/common/authorization-revocation.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/backup-maintenance.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/backup-status.controller.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/dinero.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/frontend-cors.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/contingencia/contingencia.service.ts:991:113: warning typescript(no-base-to-string): 'limpiarTexto(sanearTexto(regularizacion!.motivo))' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
-src/contingencia/contingencia.service.ts:991:113: warning typescript(restrict-template-expressions): Invalid type used in template literal expression.
 src/common/frontend-cors.spec.ts:41:21: warning typescript(no-base-to-string): 'error' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
 src/common/frontend-cors.spec.ts:42:21: warning typescript(no-base-to-string): 'error' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
 src/common/frontend-cors.spec.ts:43:21: warning typescript(no-base-to-string): 'error' will use Object's default stringification format ('[object Object]') when stringified. help: Consider picking a property (e.g. `user.name`), using a formatter (or `JSON.stringify`), or implementing a custom `toString()`/`toLocaleString()` on the type.
@@ -270,8 +270,8 @@ src/common/operation-modules.http.spec.ts:1:1: warning typescript(no-useless-def
 src/common/password-policy.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/roles-access.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/support-impersonation.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-src/common/zona-horaria.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/tenant-modules.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+src/common/zona-horaria.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/guards/auth-kind-guards.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/guards/tenant-module.guard.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 src/common/guards/tenant-module.http.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
@@ -299,14 +299,14 @@ test/autenticacion-fase3.postgres.integration.ts:1:1: warning typescript(no-usel
 test/backup-scheduler.spec.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/caja.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/auditoria-inventario.postgres.integration.ts:137:95: warning typescript(require-array-sort-compare): Require 'compare' argument.
-test/centinela-correcciones.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-test/centinela-entregas-148.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/caja.postgres.integration.ts:265:12: warning typescript(require-array-sort-compare): Require 'compare' argument.
 test/caja.postgres.integration.ts:265:58: warning typescript(require-array-sort-compare): Require 'compare' argument.
+test/centinela-correcciones.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/centinela-entregas-148.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/centinela-fk-148.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/centinela-migracion-148.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/centinela-correcciones.postgres.integration.ts:215:98: warning typescript(require-array-sort-compare): Require 'compare' argument.
 test/centinela-correcciones.postgres.integration.ts:216:102: warning typescript(require-array-sort-compare): Require 'compare' argument.
-test/centinela-migracion-148.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/centinela-verificacion-atlas.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/ciclo-ventas.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/centinela-verificacion-atlas.postgres.integration.ts:221:57: warning typescript(require-array-sort-compare): Require 'compare' argument.
@@ -316,20 +316,17 @@ test/clientes-credito-auditoria.postgres.integration.ts:1:1: warning typescript(
 test/helpers/operaciones-emitidas.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/cobro-entrega.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/compras-cierre.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-test/cobro-entrega.postgres.integration.ts:133:14: warning typescript(require-array-sort-compare): Require 'compare' argument.
 test/compras-contado.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/cobro-entrega.postgres.integration.ts:133:14: warning typescript(require-array-sort-compare): Require 'compare' argument.
 test/compras.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/contingencia-cierre-entradas.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-test/contingencia-cierre-entradas.postgres.integration.ts:25:5: error typescript(no-floating-promises): Promises must be awaited, add void operator to ignore. help: The promise must end with a call to .catch, or end with a call to .then with a rejection handler, or be explicitly marked as ignored with the `void` operator.
 test/contingencia-cierre-entradas.postgres.integration.ts:27:13: warning typescript(no-misused-spread): Using the spread operator on a string can mishandle special characters, because it produces Unicode code points, which will break complex characters (like emojis) into multiple parts. help: Consider using `Intl.Segmenter` for locale-aware string decomposition. Otherwise, if you don't need to preserve emojis or other non-ASCII characters, disable this lint rule on this line or configure the 'allow' rule option.
-test/contingencia-cierre-entradas.postgres.integration.ts:62:5: error typescript(no-floating-promises): Promises must be awaited, add void operator to ignore. help: The promise must end with a call to .catch, or end with a call to .then with a rejection handler, or be explicitly marked as ignored with the `void` operator.
-test/contingencia-cierre-entradas.postgres.integration.ts:64:5: error typescript(no-floating-promises): Promises must be awaited, add void operator to ignore. help: The promise must end with a call to .catch, or end with a call to .then with a rejection handler, or be explicitly marked as ignored with the `void` operator.
 test/contingencia-clave-config.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/contingencia-concurrencia.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/contingencia-f5-importes.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/contingencia-h5.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
-test/cobro-entrega.postgres.integration.ts:748:14: warning typescript(require-array-sort-compare): Require 'compare' argument.
 test/contingencia-hallazgos-632daed0.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/cobro-entrega.postgres.integration.ts:748:14: warning typescript(require-array-sort-compare): Require 'compare' argument.
 test/contingencia-hallazgos-h1-h4.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/contingencia-http.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/contingencia-identidad.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
@@ -355,11 +352,11 @@ test/migracion-autenticacion.postgres.integration.ts:1:1: warning typescript(no-
 test/migraciones-control-arranque.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/migrations.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/levantamientos.postgres.integration.ts:228:12: warning typescript(require-array-sort-compare): Require 'compare' argument.
-test/pagos-bancarios.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/levantamientos.postgres.integration.ts:351:12: warning typescript(require-array-sort-compare): Require 'compare' argument.
-test/piloto-flujo-completo.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/levantamientos.postgres.integration.ts:414:63: warning typescript(require-array-sort-compare): Require 'compare' argument.
 test/levantamientos.postgres.integration.ts:420:31: warning typescript(require-array-sort-compare): Require 'compare' argument.
+test/pagos-bancarios.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+test/piloto-flujo-completo.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/precios-aprobacion.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/productos-edicion.postgres.integration.ts:1:1: warning typescript(no-useless-default-assignment): This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
 test/productos-edicion.postgres.integration.ts:126:12: warning typescript(require-array-sort-compare): Require 'compare' argument.

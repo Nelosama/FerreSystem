@@ -9,8 +9,26 @@ The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths r
 
  RUN  v4.1.11 /workspace/FerreSystem/backend
 
-[Nest] 11858  - 10/13/2026, 6:45:17 AM   ERROR [ContingenciaService] Operación 22bcab40-6ffe-4d64-8437-82e9825afeee: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 11970  - 10/13/2026, 6:45:36 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:45: NOTICE:  relation "proveedores" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:46: NOTICE:  relation "proveedores_tenant_id_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:47: NOTICE:  relation "proveedores_tenant_id_nombre_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:65: NOTICE:  relation "ordenes_compra" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:66: NOTICE:  relation "ordenes_compra_tenant_id_codigo_key" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:67: NOTICE:  relation "ordenes_compra_tenant_id_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:68: NOTICE:  relation "ordenes_compra_tenant_id_estado_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:77: NOTICE:  relation "detalles_orden_compra" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:78: NOTICE:  relation "detalles_orden_compra_orden_id_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:129: NOTICE:  relation "cajas" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:130: NOTICE:  relation "cajas_tenant_id_codigo_key" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:131: NOTICE:  relation "cajas_tenant_id_estado_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:132: NOTICE:  relation "cajas_tenant_id_usuario_id_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:143: NOTICE:  relation "movimientos_caja" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:144: NOTICE:  relation "movimientos_caja_caja_id_idx" already exists, skipping
+psql:/workspace/FerreSystem/backend/prisma/migrations/20261011000000_pos_contingencia_offline/migration.sql:102: NOTICE:  identifier "operaciones_contingencia_tenant_id_dispositivo_id_secuencia_local_idx" will be truncated to "operaciones_contingencia_tenant_id_dispositivo_id_secuencia_loc"
+Navegador + API + PostgreSQL reales: guardar, recargar y nuevo contexto/login APROBADOS
+[Nest] 52394  - 10/13/2026, 7:23:41 AM   ERROR [ClientesService] Numeración de clientes no disponible (P2002). Verificar la migración 20261002000000_add_customer_numbers y el trigger clientes_assign_number.
+[Nest] 52847  - 10/13/2026, 7:23:44 AM   ERROR [ContingenciaService] Operación 30fb0761-cb5a-47ba-b13b-c0881484a0fa: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 53426  - 10/13/2026, 7:24:13 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
 Invalid `prisma.$queryRawUnsafe()` invocation:
 
 
@@ -30,64 +48,38 @@ Raw query failed. Code: `P0001`. Message: `ERROR: fallo sintético de auditoría
     message: 'ERROR: fallo sintético de auditoría'
   }
 }
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:45: NOTICE:  relation "proveedores" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:46: NOTICE:  relation "proveedores_tenant_id_idx" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:47: NOTICE:  relation "proveedores_tenant_id_nombre_idx" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:65: NOTICE:  relation "ordenes_compra" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:66: NOTICE:  relation "ordenes_compra_tenant_id_codigo_key" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:67: NOTICE:  relation "ordenes_compra_tenant_id_idx" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:68: NOTICE:  relation "ordenes_compra_tenant_id_estado_idx" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:77: NOTICE:  relation "detalles_orden_compra" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:78: NOTICE:  relation "detalles_orden_compra_orden_id_idx" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:129: NOTICE:  relation "cajas" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:130: NOTICE:  relation "cajas_tenant_id_codigo_key" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:131: NOTICE:  relation "cajas_tenant_id_estado_idx" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:132: NOTICE:  relation "cajas_tenant_id_usuario_id_idx" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:143: NOTICE:  relation "movimientos_caja" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261004000000_operacion_ferreteria/migration.sql:144: NOTICE:  relation "movimientos_caja_caja_id_idx" already exists, skipping
-psql:/workspace/FerreSystem/backend/prisma/migrations/20261011000000_pos_contingencia_offline/migration.sql:102: NOTICE:  identifier "operaciones_contingencia_tenant_id_dispositivo_id_secuencia_local_idx" will be truncated to "operaciones_contingencia_tenant_id_dispositivo_id_secuencia_loc"
-Navegador + API + PostgreSQL reales: guardar, recargar y nuevo contexto/login APROBADOS
-[Nest] 12082  - 10/13/2026, 6:45:54 AM   ERROR [ClientesService] Numeración de clientes no disponible (P2002). Verificar la migración 20261002000000_add_customer_numbers y el trigger clientes_assign_number.
-[Nest] 12663  - 10/13/2026, 6:46:08 AM   ERROR [ContingenciaService] Operación affeb46a-4fe5-40be-a8b2-0288187d53c0: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 12663  - 10/13/2026, 6:46:09 AM   ERROR [ContingenciaService] Operación cdffe646-0e28-4f31-9594-6a3d9ae1d12a: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 12663  - 10/13/2026, 6:46:09 AM   ERROR [ContingenciaService] Operación dd0bc834-4173-4b3e-a035-2d33bfc602c7: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 13253  - 10/13/2026, 6:46:32 AM   ERROR [ContingenciaService] Operación 12824b9d-d2c9-41f2-bc50-eef60553e777: La operación no fue emitida por el servidor para esta ventana; no se registró venta
-[Nest] 13253  - 10/13/2026, 6:46:32 AM   ERROR [ContingenciaService] Operación 490352a1-de70-4dae-95e0-782aa5b291a2: La ventana de contingencia pertenece a otro cajero
-[Nest] 13253  - 10/13/2026, 6:46:32 AM   ERROR [ContingenciaService] Operación e3e5bfc5-80cd-41ba-b495-530080936b2d: La ventana de contingencia pertenece a otro cajero
-[Nest] 13253  - 10/13/2026, 6:46:32 AM   ERROR [ContingenciaService] Operación e72b74ef-9491-4af2-9b29-82a8e36daf57: La operación no fue emitida por el servidor para esta ventana; no se registró venta
-[Nest] 13253  - 10/13/2026, 6:46:32 AM   ERROR [ContingenciaService] Operación 3022beb4-1ef5-4b8e-a972-ebbbe232f8a7: La operación pertenece a otro dispositivo
-[Nest] 13253  - 10/13/2026, 6:46:32 AM   ERROR [ContingenciaService] Operación 18cab83c-9e82-46fc-af6e-39c90937a6f9: La operación no fue emitida por el servidor para esta ventana; no se registró venta
-[Nest] 13253  - 10/13/2026, 6:46:32 AM   ERROR [ContingenciaService] Operación 1d6285c1-bfb3-4932-9e16-38c2bd515366: La operación no fue emitida por el servidor para esta ventana; no se registró venta
-[Nest] 13342  - 10/13/2026, 6:46:34 AM   ERROR [ContingenciaService] Operación 3fea93d7-9981-4b0b-a2cc-04651096d058: Solo el cajero de la operación o un administrador puede enviarla
-[Nest] 13342  - 10/13/2026, 6:46:35 AM   ERROR [ContingenciaService] Operación f31c2c12-5fcc-4479-a7e3-01fe2e50116a: La ventana de contingencia pertenece a otro cajero
-[Nest] 13342  - 10/13/2026, 6:46:35 AM   ERROR [ContingenciaService] Operación f31c2c12-5fcc-4479-a7e3-01fe2e50116a: La ventana de contingencia pertenece a otro cajero
-[Nest] 13342  - 10/13/2026, 6:46:35 AM   ERROR [ContingenciaService] Operación f61bb452-3aa9-45e8-ac1c-c7d868bb12a7: Ventana de contingencia desconocida
-[Nest] 13748  - 10/13/2026, 6:46:43 AM   ERROR [ContingenciaService] Operación 23767273-8354-447a-b60a-8d80dd98a9e4: Solo el cajero de la operación o un administrador puede enviarla
-[Nest] 13952  - 10/13/2026, 6:46:47 AM   ERROR [ContingenciaService] Operación edd93e71-9a56-496b-b429-c782aaef4851: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 13952  - 10/13/2026, 6:46:47 AM   ERROR [ContingenciaService] Operación edd93e71-9a56-496b-b429-c782aaef4851: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 13952  - 10/13/2026, 6:46:47 AM   ERROR [ContingenciaService] Operación 3741ea70-708d-44aa-a1d8-46c5a94ce62e: Solo el cajero de la operación o un administrador puede enviarla
-[Nest] 13952  - 10/13/2026, 6:46:47 AM   ERROR [ContingenciaService] Operación fe35da98-743c-477e-80a7-62055798341e: Ventana de contingencia desconocida
-[Nest] 13952  - 10/13/2026, 6:46:47 AM   ERROR [ContingenciaService] Operación 76630b31-882b-4a5e-909c-b224fbeb6623: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 13952  - 10/13/2026, 6:46:47 AM   ERROR [ContingenciaService] Operación a2a9298c-7e3d-4311-89a4-e4bb7dd221b1: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 13952  - 10/13/2026, 6:46:47 AM   ERROR [ContingenciaService] Operación c2ff8f0a-b12e-4299-971e-bbb80600a234: Solo el cajero de la operación o un administrador puede enviarla
-[Nest] 13952  - 10/13/2026, 6:46:47 AM   ERROR [ContingenciaService] Operación 368baca7-bc0d-415e-89b2-e4c38b333441: Solo el cajero de la operación o un administrador puede enviarla
-[Nest] 13952  - 10/13/2026, 6:46:47 AM   ERROR [ContingenciaService] Operación bf6a44df-d74c-4d29-b771-f4b6574eb23d: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 13952  - 10/13/2026, 6:46:48 AM   ERROR [ContingenciaService] Operación 406776e5-5575-47a9-865d-749678658913: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 13952  - 10/13/2026, 6:46:48 AM   ERROR [ContingenciaService] Operación d5c44097-61c6-4a6b-909b-f8f7c516199a: La ventana de contingencia pertenece a otro cajero
-[Nest] 14105  - 10/13/2026, 6:46:49 AM   ERROR [ContingenciaService] Operación 99198392-3c30-4e35-a660-2e68e7992a59: Solo el cajero de la operación o un administrador puede enviarla
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 85242543-c477-4416-b77d-4385b7826357: fallo técnico simulado
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 9856ba37-7b16-4d78-84a4-257b14950726: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 19525  - 10/13/2026, 6:48:02 AM   ERROR [ContingenciaService] Operación 200c4a3f-fd6c-433f-ac69-1972de201eab: La ventana de contingencia pertenece a otro cajero
-[Nest] 19854  - 10/13/2026, 6:48:10 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
+[Nest] 53603  - 10/13/2026, 7:24:23 AM   ERROR [ContingenciaService] Operación cf4a8282-d83a-434c-88c0-58018a49028f: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 53603  - 10/13/2026, 7:24:23 AM   ERROR [ContingenciaService] Operación 5ff56ad3-7254-4b7a-8b17-6ab2620f43ad: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 53603  - 10/13/2026, 7:24:23 AM   ERROR [ContingenciaService] Operación 85c2e490-0fc5-4d05-a04c-538b2001c849: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 53695  - 10/13/2026, 7:24:25 AM   ERROR [ContingenciaService] Operación d333f294-6d7c-4a65-a93c-d405304929d1: Solo el cajero de la operación o un administrador puede enviarla
+[Nest] 53974  - 10/13/2026, 7:24:38 AM   ERROR [ContingenciaService] Operación 30f6a8a3-5e01-4c6d-af36-d2cac4802349: Solo el cajero de la operación o un administrador puede enviarla
+[Nest] 53974  - 10/13/2026, 7:24:39 AM   ERROR [ContingenciaService] Operación 86ce37f3-76e5-427c-8b7d-88dd9de9669f: La ventana de contingencia pertenece a otro cajero
+[Nest] 53974  - 10/13/2026, 7:24:39 AM   ERROR [ContingenciaService] Operación 86ce37f3-76e5-427c-8b7d-88dd9de9669f: La ventana de contingencia pertenece a otro cajero
+[Nest] 53974  - 10/13/2026, 7:24:39 AM   ERROR [ContingenciaService] Operación f6ba5f87-9909-44b0-ad3b-b6ebea61edc2: Ventana de contingencia desconocida
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 729cab93-567c-4ec4-bd84-ec8a9f51dd3c: fallo técnico simulado
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 93633831-884a-4d69-bd81-6e2d37bc188f: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 93633831-884a-4d69-bd81-6e2d37bc188f: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 93633831-884a-4d69-bd81-6e2d37bc188f: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 93633831-884a-4d69-bd81-6e2d37bc188f: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 93633831-884a-4d69-bd81-6e2d37bc188f: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 93633831-884a-4d69-bd81-6e2d37bc188f: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 93633831-884a-4d69-bd81-6e2d37bc188f: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 93633831-884a-4d69-bd81-6e2d37bc188f: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 93633831-884a-4d69-bd81-6e2d37bc188f: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 93633831-884a-4d69-bd81-6e2d37bc188f: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54065  - 10/13/2026, 7:24:42 AM   ERROR [ContingenciaService] Operación 603c0bc5-1fd6-4b06-9715-e3f2e3b96550: La ventana de contingencia pertenece a otro cajero
+[Nest] 54483  - 10/13/2026, 7:24:51 AM   ERROR [ContingenciaService] Operación e0386e91-28c1-4582-bef8-37cbf1b8fc52: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54483  - 10/13/2026, 7:24:51 AM   ERROR [ContingenciaService] Operación e0386e91-28c1-4582-bef8-37cbf1b8fc52: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54483  - 10/13/2026, 7:24:51 AM   ERROR [ContingenciaService] Operación abb7f739-97e3-499c-bad1-fb537cd8ae0e: Solo el cajero de la operación o un administrador puede enviarla
+[Nest] 54483  - 10/13/2026, 7:24:51 AM   ERROR [ContingenciaService] Operación 3a3518ee-2642-4bf0-9b51-50ffec750b1a: Ventana de contingencia desconocida
+[Nest] 54483  - 10/13/2026, 7:24:51 AM   ERROR [ContingenciaService] Operación bff887f9-8e3c-4755-a760-d9255f8cc24a: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54483  - 10/13/2026, 7:24:51 AM   ERROR [ContingenciaService] Operación e09363d8-c22a-4953-9992-a1be48a4de9a: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54483  - 10/13/2026, 7:24:51 AM   ERROR [ContingenciaService] Operación d6ff6a00-33fa-4a3d-af0d-240ec67e0e5f: Solo el cajero de la operación o un administrador puede enviarla
+[Nest] 54483  - 10/13/2026, 7:24:51 AM   ERROR [ContingenciaService] Operación baa64500-7360-48fa-b49a-91db198c40d3: Solo el cajero de la operación o un administrador puede enviarla
+[Nest] 54483  - 10/13/2026, 7:24:52 AM   ERROR [ContingenciaService] Operación 1aea3127-1ba1-4dc1-8b8f-bcaf2851aff7: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54483  - 10/13/2026, 7:24:52 AM   ERROR [ContingenciaService] Operación 37f68944-2413-4533-b551-414ae43cbc7b: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 54483  - 10/13/2026, 7:24:52 AM   ERROR [ContingenciaService] Operación 5fc803bf-15e0-46a2-aaac-c41ea0aad0be: La ventana de contingencia pertenece a otro cajero
+[Nest] 54714  - 10/13/2026, 7:24:57 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
 Invalid `prisma.$queryRawUnsafe()` invocation:
 
 
@@ -107,15 +99,15 @@ Raw query failed. Code: `P0001`. Message: `ERROR: fallo QA`
     message: 'ERROR: fallo QA'
   }
 }
-[Nest] 20579  - 10/13/2026, 6:48:22 AM   ERROR [ContingenciaService] Operación c6b586eb-c669-4899-9fad-b4de64c3bef0: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 20579  - 10/13/2026, 6:48:22 AM   ERROR [ContingenciaService] Operación 06e3b3b6-f36b-4c16-b80f-97e56de2d230: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 20579  - 10/13/2026, 6:48:22 AM   ERROR [ContingenciaService] Operación 7a32d254-df3e-47e2-b124-71d3ee22a40e: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 20579  - 10/13/2026, 6:48:22 AM   ERROR [ContingenciaService] Operación 4b924e4c-8273-48d4-8433-542e2936b3b8: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 20579  - 10/13/2026, 6:48:22 AM   ERROR [ContingenciaService] Operación 7811f76c-7140-43ec-ad8f-ddf38070ec71: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 20579  - 10/13/2026, 6:48:22 AM   ERROR [ContingenciaService] Operación 07ec107c-dd33-4e62-9bf5-f5b2262648e0: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 20579  - 10/13/2026, 6:48:22 AM   ERROR [ContingenciaService] Operación 9926b7c1-42ab-4ba5-a016-3733f5b81754: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 20579  - 10/13/2026, 6:48:23 AM   ERROR [ContingenciaService] Operación 44f9ab32-5044-4ed0-96be-11c87b470154: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 20670  - 10/13/2026, 6:48:25 AM   ERROR [ExceptionsHandler] PrismaClientUnknownRequestError:
+[Nest] 55310  - 10/13/2026, 7:25:09 AM   ERROR [ContingenciaService] Operación b9ddda00-0678-4795-bd99-c9e3f27e9f8f: La operación no fue emitida por el servidor para esta ventana; no se registró venta
+[Nest] 55310  - 10/13/2026, 7:25:09 AM   ERROR [ContingenciaService] Operación dbae9aff-8314-4a49-a1af-c3cce80d57cc: La ventana de contingencia pertenece a otro cajero
+[Nest] 55310  - 10/13/2026, 7:25:09 AM   ERROR [ContingenciaService] Operación e1386e8b-f71c-47e9-92af-e9c945b8e01e: La ventana de contingencia pertenece a otro cajero
+[Nest] 55310  - 10/13/2026, 7:25:09 AM   ERROR [ContingenciaService] Operación 0c834995-a7d7-4e85-890d-ef7137604791: La operación no fue emitida por el servidor para esta ventana; no se registró venta
+[Nest] 55310  - 10/13/2026, 7:25:09 AM   ERROR [ContingenciaService] Operación 706ad6fa-d5b9-4721-a01c-5ff4b01acd66: La operación pertenece a otro dispositivo
+[Nest] 55310  - 10/13/2026, 7:25:09 AM   ERROR [ContingenciaService] Operación 81c46435-79f9-4176-bb70-d60033e1616d: La operación no fue emitida por el servidor para esta ventana; no se registró venta
+[Nest] 55310  - 10/13/2026, 7:25:09 AM   ERROR [ContingenciaService] Operación 36a8d02a-ae4b-471e-9686-e7d5f81b020d: La operación no fue emitida por el servidor para esta ventana; no se registró venta
+[Nest] 55740  - 10/13/2026, 7:25:17 AM   ERROR [ContingenciaService] Operación da2a1d50-4e4f-4be9-bf22-70b07fae39d1: Solo el cajero de la operación o un administrador puede enviarla
+[Nest] 55913  - 10/13/2026, 7:25:21 AM   ERROR [ExceptionsHandler] PrismaClientUnknownRequestError:
 Invalid `tx.cotizacion.update()` invocation in
 /workspace/FerreSystem/backend/src/cotizaciones/cotizaciones.service.ts:550:27
 
@@ -133,7 +125,7 @@ ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(Postgr
     at Proxy._transactionWithCallback (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:8005) {
   clientVersion: '6.4.1'
 }
-[Nest] 20924  - 10/13/2026, 6:48:30 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
+[Nest] 56258  - 10/13/2026, 7:25:28 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
 Invalid `prisma.$queryRawUnsafe()` invocation:
 
 
@@ -153,7 +145,7 @@ Raw query failed. Code: `P0001`. Message: `ERROR: Fallo sintético de auditoría
     message: 'ERROR: Fallo sintético de auditoría'
   }
 }
-[Nest] 20924  - 10/13/2026, 6:48:30 AM   ERROR [ExceptionsHandler] PrismaClientUnknownRequestError:
+[Nest] 56258  - 10/13/2026, 7:25:28 AM   ERROR [ExceptionsHandler] PrismaClientUnknownRequestError:
 Invalid `this.prisma.auditoriaOperacion.create()` invocation in
 /workspace/FerreSystem/backend/src/common/interceptors/support-audit.interceptor.ts:34:109
 
@@ -169,16 +161,24 @@ ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(Postgr
     at l (/workspace/FerreSystem/backend/node_modules/@prisma/client/runtime/library.js:130:9644) {
   clientVersion: '6.4.1'
 }
-[Nest] 21190  - 10/13/2026, 6:48:35 AM   ERROR [ContingenciaService] Operación 9b0f2ca9-a6cd-46fb-afec-8e760bd75193: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 21190  - 10/13/2026, 6:48:35 AM   ERROR [ContingenciaService] Rechazo de 9b0f2ca9-a6cd-46fb-afec-8e760bd75193 no registrado: fallo al registrar el rechazo
-[Nest] 21190  - 10/13/2026, 6:48:35 AM   ERROR [ContingenciaService] Operación 9b0f2ca9-a6cd-46fb-afec-8e760bd75193: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 21190  - 10/13/2026, 6:48:35 AM   ERROR [ContingenciaService] Operación 7058da02-6195-4c1e-a19d-34013276bb78: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 21190  - 10/13/2026, 6:48:35 AM   ERROR [ContingenciaService] Operación b153bfcb-34ea-476b-9b44-7555d852081c: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 21190  - 10/13/2026, 6:48:35 AM   ERROR [ContingenciaService] Operación 945fee5f-5f74-48ee-8897-c3a6b22ea7fd: El cajero de la operación no es un usuario de esta empresa
-[Nest] 21815  - 10/13/2026, 6:48:47 AM   ERROR [ContingenciaService] Operación b8fc4d23-f700-42fb-b767-d4a32fc21460: Invalid `prisma.operacionContingencia.createMany()` invocation in /home/user/FerreSystem/backend/src/contingencia/contingencia.service.ts:468
-[Nest] 21815  - 10/13/2026, 6:48:47 AM   ERROR [ContingenciaService] Operación 4bb9fcb6-a964-4993-9f81-0a21f47c5e8d: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
-[Nest] 21815  - 10/13/2026, 6:48:47 AM   ERROR [ContingenciaService] Operación dc6d401e-b5e8-47fd-bd25-d923a60a92be: Una línea supera el importe máximo permitido; se conserva en el equipo para revisión del administrador
-[Nest] 22084  - 10/13/2026, 6:48:52 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
+[Nest] 56340  - 10/13/2026, 7:25:30 AM   ERROR [ContingenciaService] Operación 0d69c065-1946-4661-963a-932b6e91473e: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56340  - 10/13/2026, 7:25:30 AM   ERROR [ContingenciaService] Operación 28bb7d6e-a56f-407e-b57d-37e35f95d407: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56340  - 10/13/2026, 7:25:30 AM   ERROR [ContingenciaService] Operación 71a4da26-8992-44ab-96d1-079cd3fd3ee7: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56340  - 10/13/2026, 7:25:30 AM   ERROR [ContingenciaService] Operación d1329260-ac8b-4ea8-872b-c5fc41c9873a: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56340  - 10/13/2026, 7:25:30 AM   ERROR [ContingenciaService] Operación c1d33e7a-b69b-4300-b1fb-e3205779383a: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56340  - 10/13/2026, 7:25:30 AM   ERROR [ContingenciaService] Operación 8e542d61-8a9a-4859-b991-b064a1ca0978: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56340  - 10/13/2026, 7:25:30 AM   ERROR [ContingenciaService] Operación 33311c39-57cd-4ad1-a17f-5aa158a7160d: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56340  - 10/13/2026, 7:25:30 AM   ERROR [ContingenciaService] Operación c97e3099-38bc-493d-b8fa-bac35f4fd373: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56595  - 10/13/2026, 7:25:35 AM   ERROR [ContingenciaService] Operación c2402c97-f146-44c9-8d48-a54e17f72918: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56595  - 10/13/2026, 7:25:35 AM   ERROR [ContingenciaService] Rechazo de c2402c97-f146-44c9-8d48-a54e17f72918 no registrado: fallo al registrar el rechazo
+[Nest] 56595  - 10/13/2026, 7:25:35 AM   ERROR [ContingenciaService] Operación c2402c97-f146-44c9-8d48-a54e17f72918: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56595  - 10/13/2026, 7:25:35 AM   ERROR [ContingenciaService] Operación a73aaabd-c21b-4c34-9410-36a3d3bd2152: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56595  - 10/13/2026, 7:25:35 AM   ERROR [ContingenciaService] Operación dc084c41-06cb-438f-a995-b6f56d784f45: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56595  - 10/13/2026, 7:25:35 AM   ERROR [ContingenciaService] Operación 25668076-6ccc-4d75-843b-78ae1e2eeb55: El cajero de la operación no es un usuario de esta empresa
+[Nest] 56864  - 10/13/2026, 7:25:40 AM   ERROR [ContingenciaService] Operación 30ccf481-8a97-4f21-bc13-8941a7f965c7: Invalid `prisma.operacionContingencia.createMany()` invocation in /home/user/FerreSystem/backend/src/contingencia/contingencia.service.ts:468
+[Nest] 56864  - 10/13/2026, 7:25:40 AM   ERROR [ContingenciaService] Operación 6284607a-d1b1-4466-a11e-60e2d2a26866: La operación tiene un importe inválido; se conserva en el equipo para revisión del administrador
+[Nest] 56864  - 10/13/2026, 7:25:40 AM   ERROR [ContingenciaService] Operación 3b5730d1-cf29-4e97-a5a4-44fcce5ab82a: Una línea supera el importe máximo permitido; se conserva en el equipo para revisión del administrador
+[Nest] 57226  - 10/13/2026, 7:25:46 AM   ERROR [ExceptionsHandler] PrismaClientKnownRequestError:
 Invalid `prisma.$queryRawUnsafe()` invocation:
 
 
@@ -201,5 +201,5 @@ Raw query failed. Code: `P0001`. Message: `ERROR: auditoria no disponible`
 
  Test Files  55 passed (55)
       Tests  905 passed (905)
-   Start at  06:45:16
-   Duration  222.59s (transform 1.76s, setup 0ms, import 17.20s, tests 198.94s, environment 5ms)
+   Start at  07:21:57
+   Duration  236.27s (transform 1.50s, setup 0ms, import 16.01s, tests 214.06s, environment 4ms)
