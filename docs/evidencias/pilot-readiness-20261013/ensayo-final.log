@@ -1,0 +1,60 @@
+== 1. Producción simulada: esquema de main (13 migraciones) + datos históricos
+PASS  Base simulada con el esquema de main — 13 migraciones
+PASS  Datos históricos sembrados — 2 usuarios, 3 productos, 2 ventas (una con entrega pendiente)
+   foto previa (ventas|total|líneas|stock|reservado|usuarios): 2|920|2|127|5|2
+== 2. Respaldo previo y verificación (restauración + ensayo de migración sobre la COPIA)
+PASS  Respaldo creado — 141405 bytes
+PASS  Verificación del respaldo + ensayo de migración en la copia — 11 comprobaciones PASS
+PASS  El origen no cambió durante el respaldo ni el ensayo — foto idéntica
+== 3. El arranque por defecto se NIEGA con migraciones pendientes y no escribe
+PASS  El backend NO arranca con migraciones pendientes — faltan 11 migraciones
+PASS  El arranque no modificó el esquema de producción simulada — columna precio_aprobado ausente
+== 4. Migración explícita y autorizada (npm run migrate:deploy)
+PASS  Migración aplicada — base LISTA, 24 migraciones
+PASS  Ninguna venta perdida ni creada por la migración — ventas 2
+PASS  Aprobación de precios heredados — solo el producto activo con precio queda aprobado
+PASS  Reparto histórico de entregas — venta entregada = 3 de 3; venta pendiente = 0 de 5
+== 5. Arranque con el procedimiento de producción (NODE_ENV=production, sin migrar)
+PASS  El backend arranca en modo producción sobre la base migrada — puerto 3391
+PASS  Humo de API con escritura — 20 PASS / 0 FAIL (modo escritura)
+   históricos: {"entregaHistorica":201,"ventaProductoHeredado":201,"ventaProductoSinPrecio":400}
+PASS  Entrega de la venta histórica pendiente — 201
+PASS  Inventario correcto: lo histórico se entregó (100 - 5 = 95 físicas, reserva 5 -> 0) y la venta nueva reserva 1 hasta entregarse — 95/1
+PASS  Se vende el producto heredado con precio — 201
+PASS  NO se vende el producto heredado sin precio aprobado — rechazado 4xx
+== 6. Reinicio del backend y persistencia
+PASS  El backend reinicia solo con el procedimiento de producción — sin migrar
+PASS  Datos idénticos tras el reinicio — 4|1265|4|130|1|2
+PASS  Humo de solo lectura tras el reinicio — 9 PASS / 0 FAIL (modo solo lectura)
+PASS  Ningún secreto en registros ni salidas — ni la clave de contingencia, ni JWT_SECRET, ni las contraseñas aparecen en los registros del backend, el humo, el respaldo o la verificación
+== 7. Reversión simulada: restaurar el respaldo y proteger contra el código nuevo sobre el esquema viejo
+PASS  Restauración del respaldo previo en una base nueva — sin errores
+PASS  La base restaurada es idéntica a la de antes de migrar — 2|920|2|127|5|2
+PASS  El código nuevo NO arranca sobre el esquema viejo restaurado — faltan 11 migraciones
+
+===== RESUMEN DEL ENSAYO =====
+PASS | Base simulada con el esquema de main | 13 migraciones
+PASS | Datos históricos sembrados | 2 usuarios, 3 productos, 2 ventas (una con entrega pendiente)
+PASS | Respaldo creado | 141405 bytes
+PASS | Verificación del respaldo + ensayo de migración en la copia | 11 comprobaciones PASS
+PASS | El origen no cambió durante el respaldo ni el ensayo | foto idéntica
+PASS | El backend NO arranca con migraciones pendientes | faltan 11 migraciones
+PASS | El arranque no modificó el esquema de producción simulada | columna precio_aprobado ausente
+PASS | Migración aplicada | base LISTA, 24 migraciones
+PASS | Ninguna venta perdida ni creada por la migración | ventas 2
+PASS | Aprobación de precios heredados | solo el producto activo con precio queda aprobado
+PASS | Reparto histórico de entregas | venta entregada = 3 de 3; venta pendiente = 0 de 5
+PASS | El backend arranca en modo producción sobre la base migrada | puerto 3391
+PASS | Humo de API con escritura | 20 PASS / 0 FAIL (modo escritura)
+PASS | Entrega de la venta histórica pendiente | 201
+PASS | Inventario correcto: lo histórico se entregó (100 - 5 = 95 físicas, reserva 5 -> 0) y la venta nueva reserva 1 hasta entregarse | 95/1
+PASS | Se vende el producto heredado con precio | 201
+PASS | NO se vende el producto heredado sin precio aprobado | rechazado 4xx
+PASS | El backend reinicia solo con el procedimiento de producción | sin migrar
+PASS | Datos idénticos tras el reinicio | 4|1265|4|130|1|2
+PASS | Humo de solo lectura tras el reinicio | 9 PASS / 0 FAIL (modo solo lectura)
+PASS | Ningún secreto en registros ni salidas | ni la clave de contingencia, ni JWT_SECRET, ni las contraseñas aparecen en los registros del backend, el humo, el respaldo o la verificación
+PASS | Restauración del respaldo previo en una base nueva | sin errores
+PASS | La base restaurada es idéntica a la de antes de migrar | 2|920|2|127|5|2
+PASS | El código nuevo NO arranca sobre el esquema viejo restaurado | faltan 11 migraciones
+FALLOS=0

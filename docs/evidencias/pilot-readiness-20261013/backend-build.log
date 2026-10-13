@@ -1,0 +1,4 @@
+
+> backend@0.0.1 build
+> node node_modules/@nestjs/cli/bin/nest.js build
+

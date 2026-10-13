@@ -1,0 +1,122 @@
+
+Running 6 tests using 1 worker
+
+(node:37031) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › tests/example.spec.ts:3:5 › has title (1.2s)
+(node:37174) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › tests/example.spec.ts:10:5 › get started link (1.3s)
+(node:37364) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  3 [firefox] › tests/example.spec.ts:3:5 › has title (2ms)
+(node:37397) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  4 [firefox] › tests/example.spec.ts:10:5 › get started link (3ms)
+(node:37439) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  5 [webkit] › tests/example.spec.ts:3:5 › has title (5ms)
+(node:37465) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  6 [webkit] › tests/example.spec.ts:10:5 › get started link (10ms)
+
+
+  1) [chromium] › tests/example.spec.ts:3:5 › has title ────────────────────────────────────────────
+
+    Error: page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://playwright.dev/
+    Call log:
+      - navigating to "https://playwright.dev/", waiting until "load"
+
+
+      2 |
+      3 | test('has title', async ({ page }) => {
+    > 4 |   await page.goto('https://playwright.dev/');
+        |              ^
+      5 |
+      6 |   // Expect a title "to contain" a substring.
+      7 |   await expect(page).toHaveTitle(/Playwright/);
+        at /workspace/FerreSystem/tests/example.spec.ts:4:14
+
+    Error Context: ../../tmp/pilot-root-test-results/example-has-title-chromium/error-context.md
+
+  2) [chromium] › tests/example.spec.ts:10:5 › get started link ────────────────────────────────────
+
+    Error: page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://playwright.dev/
+    Call log:
+      - navigating to "https://playwright.dev/", waiting until "load"
+
+
+       9 |
+      10 | test('get started link', async ({ page }) => {
+    > 11 |   await page.goto('https://playwright.dev/');
+         |              ^
+      12 |
+      13 |   // Click the get started link.
+      14 |   await page.getByRole('link', { name: 'Get started' }).click();
+        at /workspace/FerreSystem/tests/example.spec.ts:11:14
+
+    Error Context: ../../tmp/pilot-root-test-results/example-get-started-link-chromium/error-context.md
+
+  3) [firefox] › tests/example.spec.ts:3:5 › has title ─────────────────────────────────────────────
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/firefox-1543/firefox/firefox
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: ../../tmp/pilot-root-test-results/example-has-title-firefox/error-context.md
+
+  4) [firefox] › tests/example.spec.ts:10:5 › get started link ─────────────────────────────────────
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/firefox-1543/firefox/firefox
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: ../../tmp/pilot-root-test-results/example-get-started-link-firefox/error-context.md
+
+  5) [webkit] › tests/example.spec.ts:3:5 › has title ──────────────────────────────────────────────
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: ../../tmp/pilot-root-test-results/example-has-title-webkit/error-context.md
+
+  6) [webkit] › tests/example.spec.ts:10:5 › get started link ──────────────────────────────────────
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: ../../tmp/pilot-root-test-results/example-get-started-link-webkit/error-context.md
+
+  6 failed
+    [chromium] › tests/example.spec.ts:3:5 › has title ─────────────────────────────────────────────
+    [chromium] › tests/example.spec.ts:10:5 › get started link ─────────────────────────────────────
+    [firefox] › tests/example.spec.ts:3:5 › has title ──────────────────────────────────────────────
+    [firefox] › tests/example.spec.ts:10:5 › get started link ──────────────────────────────────────
+    [webkit] › tests/example.spec.ts:3:5 › has title ───────────────────────────────────────────────
+    [webkit] › tests/example.spec.ts:10:5 › get started link ───────────────────────────────────────

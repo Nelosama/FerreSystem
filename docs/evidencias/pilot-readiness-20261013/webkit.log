@@ -1,0 +1,632 @@
+[WebServer] (node:35398) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 24 tests using 2 workers
+
+(node:35422) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35421) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:168:3 › Levantamiento de inventario (FS-06 fase 2) › contar: un envío perdido queda pendiente, se confirma sin duplicar y el guardado es visible (2ms)
+  ✘   2 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:154:3 › Levantamiento de inventario (FS-06 fase 2) › crear levantamiento: un fallo de red conserva la clave y el reintento no duplica el levantamiento (2ms)
+(node:35463) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35482) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:182:3 › Levantamiento de inventario (FS-06 fase 2) › advierte antes de guardar un artículo ya contado por el mismo empleado y permite editar el conteo anterior (2ms)
+  ✘   4 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:197:3 › Levantamiento de inventario (FS-06 fase 2) › avisa, sin bloquear, cuando otro empleado ya contó el artículo y registra el conflicto (4ms)
+(node:35502) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35513) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:210:3 › Levantamiento de inventario (FS-06 fase 2) › si otro dispositivo registró el artículo después de cargar la pantalla, el servidor rechaza el duplicado y muestra el motivo (2ms)
+  ✘   6 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:222:3 › Levantamiento de inventario (FS-06 fase 2) › flujo completo: crear, contar con marca, finalizar, revisar impacto y aplicar (5ms)
+(node:35549) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:249:3 › Levantamiento de inventario (FS-06 fase 2) › conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token (2ms)
+(node:35563) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:296:3 › Levantamiento en teléfono › la captura cabe en el ancho del teléfono y registra un producto sin fotografía (2ms)
+(node:35575) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35591) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:128:3 › Edición de productos (FS-07) › una edición parcial envía solo el nombre y la versión, sin tocar existencias ni precios (3ms)
+  ✘  10 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:142:3 › Edición de productos (FS-07) › la ficha no ofrece cambiar costo ni precio: se fijan en Precios y aprobación (38ms)
+(node:35642) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35624) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:155:3 › Edición de productos (FS-07) › si otro usuario cambió el producto, el servidor rechaza la edición, no sobrescribe y recarga la lista (5ms)
+  ✘  12 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:170:3 › Edición de productos (FS-07) › un doble clic en Guardar envía una sola edición (13ms)
+(node:35666) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  13 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:182:3 › Edición de productos (FS-07) › un fallo de red no pierde el formulario y el reintento usa la misma versión (2ms)
+(node:35673) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  14 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:198:3 › Edición de productos (FS-07) › cambiar existencias exige motivo antes de enviar (41ms)
+(node:35689) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35753) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  15 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:214:3 › Edición de productos (FS-07) › reactivar un producto inactivo: se muestra al activar la opción y se envía activo=true tras confirmar (4ms)
+  ✘  16 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:228:3 › Edición de productos (FS-07) › la edición cabe en un teléfono sin desbordamiento horizontal (7ms)
+(node:35778) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35790) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  17 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en SIDEBAR (6ms)
+  ✘  18 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en TOPNAV (2ms)
+(node:35840) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35823) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  19 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:282:3 › Inventario para entrega al cliente / API simulada › código de barras duplicado muestra el error y conserva el formulario (2ms)
+  ✘  20 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:265:3 › Inventario para entrega al cliente / API simulada › respuesta perdida y recarga: confirma la misma alta sin crear otro producto (3ms)
+(node:35857) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35872) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  21 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:297:3 › Inventario para entrega al cliente / API simulada › buscar por categoría real y descripción filtra el catálogo (5ms)
+  ✘  22 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:312:3 › Inventario para entrega al cliente / API simulada › una recepción mientras el formulario está abierto impide un ajuste obsoleto (6ms)
+(node:35921) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35914) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  23 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:346:3 › Inventario para entrega al cliente / API simulada › alta y cámara muestran textos en inglés (6ms)
+  ✘  24 [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:325:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático (5ms)
+
+
+  1) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:154:3 › Levantamiento de inventario (FS-06 fase 2) › crear levantamiento: un fallo de red conserva la clave y el reintento no duplica el levantamiento 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/levantamiento-Levantamient-5bf97-no-duplica-el-levantamiento-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/levantamiento-Levantamient-5bf97-no-duplica-el-levantamiento-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/levantamiento-Levantamient-5bf97-no-duplica-el-levantamiento-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:168:3 › Levantamiento de inventario (FS-06 fase 2) › contar: un envío perdido queda pendiente, se confirma sin duplicar y el guardado es visible 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/levantamiento-Levantamient-1247c-ar-y-el-guardado-es-visible-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/levantamiento-Levantamient-1247c-ar-y-el-guardado-es-visible-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/levantamiento-Levantamient-1247c-ar-y-el-guardado-es-visible-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:182:3 › Levantamiento de inventario (FS-06 fase 2) › advierte antes de guardar un artículo ya contado por el mismo empleado y permite editar el conteo anterior 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/levantamiento-Levantamient-b0ae0-e-editar-el-conteo-anterior-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/levantamiento-Levantamient-b0ae0-e-editar-el-conteo-anterior-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/levantamiento-Levantamient-b0ae0-e-editar-el-conteo-anterior-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:197:3 › Levantamiento de inventario (FS-06 fase 2) › avisa, sin bloquear, cuando otro empleado ya contó el artículo y registra el conflicto 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/levantamiento-Levantamient-b711b-ulo-y-registra-el-conflicto-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/levantamiento-Levantamient-b711b-ulo-y-registra-el-conflicto-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/levantamiento-Levantamient-b711b-ulo-y-registra-el-conflicto-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:210:3 › Levantamiento de inventario (FS-06 fase 2) › si otro dispositivo registró el artículo después de cargar la pantalla, el servidor rechaza el duplicado y muestra el motivo 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/levantamiento-Levantamient-a03fe-plicado-y-muestra-el-motivo-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/levantamiento-Levantamient-a03fe-plicado-y-muestra-el-motivo-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/levantamiento-Levantamient-a03fe-plicado-y-muestra-el-motivo-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:222:3 › Levantamiento de inventario (FS-06 fase 2) › flujo completo: crear, contar con marca, finalizar, revisar impacto y aplicar 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/levantamiento-Levantamient-9d83f-r-revisar-impacto-y-aplicar-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/levantamiento-Levantamient-9d83f-r-revisar-impacto-y-aplicar-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/levantamiento-Levantamient-9d83f-r-revisar-impacto-y-aplicar-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:249:3 › Levantamiento de inventario (FS-06 fase 2) › conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/levantamiento-Levantamient-6f01e-plicación-solo-con-el-token-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/levantamiento-Levantamient-6f01e-plicación-solo-con-el-token-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/levantamiento-Levantamient-6f01e-plicación-solo-con-el-token-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:296:3 › Levantamiento en teléfono › la captura cabe en el ancho del teléfono y registra un producto sin fotografía 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/levantamiento-Levantamient-8726a--un-producto-sin-fotografía-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/levantamiento-Levantamient-8726a--un-producto-sin-fotografía-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/levantamiento-Levantamient-8726a--un-producto-sin-fotografía-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:128:3 › Edición de productos (FS-07) › una edición parcial envía solo el nombre y la versión, sin tocar existencias ni precios 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Edición--c7254-ocar-existencias-ni-precios-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Edición--c7254-ocar-existencias-ni-precios-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Edición--c7254-ocar-existencias-ni-precios-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:142:3 › Edición de productos (FS-07) › la ficha no ofrece cambiar costo ni precio: se fijan en Precios y aprobación 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Edición--cb105-jan-en-Precios-y-aprobación-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Edición--cb105-jan-en-Precios-y-aprobación-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Edición--cb105-jan-en-Precios-y-aprobación-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:155:3 › Edición de productos (FS-07) › si otro usuario cambió el producto, el servidor rechaza la edición, no sobrescribe y recarga la lista 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Edición--ece52-rescribe-y-recarga-la-lista-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Edición--ece52-rescribe-y-recarga-la-lista-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Edición--ece52-rescribe-y-recarga-la-lista-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:170:3 › Edición de productos (FS-07) › un doble clic en Guardar envía una sola edición 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Edición--8a818-rdar-envía-una-sola-edición-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Edición--8a818-rdar-envía-una-sola-edición-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Edición--8a818-rdar-envía-una-sola-edición-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:182:3 › Edición de productos (FS-07) › un fallo de red no pierde el formulario y el reintento usa la misma versión 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Edición--37f45-ntento-usa-la-misma-versión-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Edición--37f45-ntento-usa-la-misma-versión-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Edición--37f45-ntento-usa-la-misma-versión-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:198:3 › Edición de productos (FS-07) › cambiar existencias exige motivo antes de enviar 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Edición--3af6e-xige-motivo-antes-de-enviar-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Edición--3af6e-xige-motivo-antes-de-enviar-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Edición--3af6e-xige-motivo-antes-de-enviar-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:214:3 › Edición de productos (FS-07) › reactivar un producto inactivo: se muestra al activar la opción y se envía activo=true tras confirmar 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Edición--6741c--activo-true-tras-confirmar-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Edición--6741c--activo-true-tras-confirmar-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Edición--6741c--activo-true-tras-confirmar-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:228:3 › Edición de productos (FS-07) › la edición cabe en un teléfono sin desbordamiento horizontal 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Edición--0ec13-n-desbordamiento-horizontal-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Edición--0ec13-n-desbordamiento-horizontal-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Edición--0ec13-n-desbordamiento-horizontal-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en SIDEBAR 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Inventar-c5355-tes-y-doble-clic-en-SIDEBAR-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Inventar-c5355-tes-y-doble-clic-en-SIDEBAR-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Inventar-c5355-tes-y-doble-clic-en-SIDEBAR-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en TOPNAV 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Inventar-9092f-ntes-y-doble-clic-en-TOPNAV-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Inventar-9092f-ntes-y-doble-clic-en-TOPNAV-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Inventar-9092f-ntes-y-doble-clic-en-TOPNAV-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:265:3 › Inventario para entrega al cliente / API simulada › respuesta perdida y recarga: confirma la misma alta sin crear otro producto 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Inventar-d5787-lta-sin-crear-otro-producto-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Inventar-d5787-lta-sin-crear-otro-producto-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Inventar-d5787-lta-sin-crear-otro-producto-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  20) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:282:3 › Inventario para entrega al cliente / API simulada › código de barras duplicado muestra el error y conserva el formulario 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Inventar-47a55-or-y-conserva-el-formulario-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Inventar-47a55-or-y-conserva-el-formulario-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Inventar-47a55-or-y-conserva-el-formulario-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  21) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:297:3 › Inventario para entrega al cliente / API simulada › buscar por categoría real y descripción filtra el catálogo 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Inventar-056df-cripción-filtra-el-catálogo-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Inventar-056df-cripción-filtra-el-catálogo-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Inventar-056df-cripción-filtra-el-catálogo-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  22) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:312:3 › Inventario para entrega al cliente / API simulada › una recepción mientras el formulario está abierto impide un ajuste obsoleto 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Inventar-b7b5c-o-impide-un-ajuste-obsoleto-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Inventar-b7b5c-o-impide-un-ajuste-obsoleto-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Inventar-b7b5c-o-impide-un-ajuste-obsoleto-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  23) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:325:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Inventar-ffe07-manual-sin-envío-automático-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Inventar-ffe07-manual-sin-envío-automático-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Inventar-ffe07-manual-sin-envío-automático-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24) [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:346:3 › Inventario para entrega al cliente / API simulada › alta y cámara muestran textos en inglés 
+
+    Error: browserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/webkit-2359/pw_run.sh
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results-webkit/productos-edicion-Inventar-99b26-a-muestran-textos-en-inglés-webkit-iphone-emulado/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-webkit/productos-edicion-Inventar-99b26-a-muestran-textos-en-inglés-webkit-iphone-emulado/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-webkit/productos-edicion-Inventar-99b26-a-muestran-textos-en-inglés-webkit-iphone-emulado/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24 failed
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:154:3 › Levantamiento de inventario (FS-06 fase 2) › crear levantamiento: un fallo de red conserva la clave y el reintento no duplica el levantamiento 
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:168:3 › Levantamiento de inventario (FS-06 fase 2) › contar: un envío perdido queda pendiente, se confirma sin duplicar y el guardado es visible 
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:182:3 › Levantamiento de inventario (FS-06 fase 2) › advierte antes de guardar un artículo ya contado por el mismo empleado y permite editar el conteo anterior 
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:197:3 › Levantamiento de inventario (FS-06 fase 2) › avisa, sin bloquear, cuando otro empleado ya contó el artículo y registra el conflicto 
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:210:3 › Levantamiento de inventario (FS-06 fase 2) › si otro dispositivo registró el artículo después de cargar la pantalla, el servidor rechaza el duplicado y muestra el motivo 
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:222:3 › Levantamiento de inventario (FS-06 fase 2) › flujo completo: crear, contar con marca, finalizar, revisar impacto y aplicar 
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:249:3 › Levantamiento de inventario (FS-06 fase 2) › conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token 
+    [webkit-iphone-emulado] › e2e/levantamiento.spec.ts:296:3 › Levantamiento en teléfono › la captura cabe en el ancho del teléfono y registra un producto sin fotografía 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:128:3 › Edición de productos (FS-07) › una edición parcial envía solo el nombre y la versión, sin tocar existencias ni precios 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:142:3 › Edición de productos (FS-07) › la ficha no ofrece cambiar costo ni precio: se fijan en Precios y aprobación 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:155:3 › Edición de productos (FS-07) › si otro usuario cambió el producto, el servidor rechaza la edición, no sobrescribe y recarga la lista 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:170:3 › Edición de productos (FS-07) › un doble clic en Guardar envía una sola edición 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:182:3 › Edición de productos (FS-07) › un fallo de red no pierde el formulario y el reintento usa la misma versión 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:198:3 › Edición de productos (FS-07) › cambiar existencias exige motivo antes de enviar 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:214:3 › Edición de productos (FS-07) › reactivar un producto inactivo: se muestra al activar la opción y se envía activo=true tras confirmar 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:228:3 › Edición de productos (FS-07) › la edición cabe en un teléfono sin desbordamiento horizontal 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en SIDEBAR 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:243:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en TOPNAV 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:265:3 › Inventario para entrega al cliente / API simulada › respuesta perdida y recarga: confirma la misma alta sin crear otro producto 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:282:3 › Inventario para entrega al cliente / API simulada › código de barras duplicado muestra el error y conserva el formulario 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:297:3 › Inventario para entrega al cliente / API simulada › buscar por categoría real y descripción filtra el catálogo 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:312:3 › Inventario para entrega al cliente / API simulada › una recepción mientras el formulario está abierto impide un ajuste obsoleto 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:325:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático 
+    [webkit-iphone-emulado] › e2e/productos-edicion.spec.ts:346:3 › Inventario para entrega al cliente / API simulada › alta y cámara muestran textos en inglés 

@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-12, America/Tegucigalpa** — candidato integrado del cliente en `nexus/candidato-cliente-integrado`, código `89a70ccf`, con pruebas focalizadas y ensayo de restauración; pendiente acceso real y autorización de merge/migraciones.
+Última revisión: **2026-10-13 UTC** — cuarta rama `fix/pilot-readiness`, desde main `4b650445`; respaldos consistentes y retención verificada, recuperación, roles/offline y CI real; pruebas locales aprobadas con límites de entorno documentados. Sin merge, despliegue ni migraciones productivas.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -19,6 +19,18 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 7. **No hacer merge automático** ni desplegar a producción sin autorización explícita del dueño del proyecto.
 
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
+
+---
+
+## Cuarta rama autorizada — preparación del piloto (NEXUS, 2026-10-13 UTC)
+
+- **Base comprobada:** main actualizado `4b650445` (incluye merge #159); rama exclusiva `fix/pilot-readiness`. Código `d1d19fea`; PR único en borrador hacia main por publicar. Informe verificable: [PILOT_READINESS_20261013.md](PILOT_READINESS_20261013.md), [evidencia con SHA-256](evidencias/pilot-readiness-20261013/SHA256SUMS).
+- **Implementado:** retención Restic limitada a copias restauradas y etiquetadas, comprobación de metadata compatible con 0.16/0.18; respaldo manual con conteos/dump del mismo snapshot; verificador bloquea checksum inválido y aísla entorno/puertos; simulacro sin root y con salida de fallo; prueba de caída/recuperación PostgreSQL; sesiones reales de cuatro roles; logout con cola offline, otro cajero y reconciliación única. CI ejecuta el ciclo real, respaldos y ensayos; se excluye esta rama de previews Vercel.
+- **Resultados de esta sesión:** backend 377/377; frontend 279/279; scripts 47/47; Python 10/10; PostgreSQL real 905/905 (55 archivos, navegador opt-in, ninguna omitida); readiness/recuperación HTTP 3/3; interfaz simulada 143/143; E2E reales escritorio y móvil: 140 aprobadas/10 omitidas/0 fallos **en cada ejecución**. Ensayo de actualización/reversión 24/24; simulacro 14/14. Restic 0.18.0 y 0.16.4: cuatro respaldos/restauraciones y dos fallos deliberados, retención segura y venta concurrente preservada fuera del snapshot. Compilaciones y lint correctos (advertencias existentes); guard sin migraciones nuevas.
+- **Límites comprobados:** WebKit 24 casos bloqueados por binario ausente; scaffold externo Playwright 6 casos bloqueados por red/binarios. No son pruebas del negocio aprobadas. Chromium del sistema 151 pierde el corte tras recarga SW; la evidencia final usa Chromium 138 compatible. Diez skip de E2E se conservan; ver detalle en informe. Sin dispositivo físico, apagón eléctrico, destino Restic externo ni base productiva. CI remota por comprobar.
+- **Coordinación:** no se modificaron módulos de las otras sesiones ni archivos `backend/src`, `frontend/src`, esquema o migraciones. Se revisaron solo por lectura las ramas `fix/auditoria-admin` y `claude/modest-galileo-693672`. Hallazgos CSV/soporte/UX de `auditoria_ferresystem.md` requieren revisión de sus PR finales; no se duplicaron correcciones.
+- **Pendientes vigentes:** publicar/actualizar este único PR y comprobar CI sobre su HEAD; integrar las tres ramas funcionales por el responsable y repetir validación sobre el candidato conjunto; configurar/verificar respaldo externo y alertas; validar apagón/UPS, Safari/cámara y aceptación del cliente; obtener autorización separada para merge, despliegue y cualquier migración productiva. Contingencia del piloto continúa apagada hasta sus decisiones y pruebas físicas.
+- **Bitácora:** fetch y base limpia; rama autorizada desde main; regresión de retención que falla antes y pasa después; respaldos cifrados y snapshot concurrente reales; recuperación/ensayos completos; sesiones por rol y IndexedDB real; repetición de suites tras regenerar Prisma y separar artefactos. Dos commits de implementación y evidencia final versionada. Ningún merge, despliegue ni acceso productivo.
 
 ---
 
