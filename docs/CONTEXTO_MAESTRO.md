@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-10, America/Tegucigalpa** — auditoría QA independiente del ciclo de venta sobre `claude/integracion-pos-offline-p1` `58941e5d` (PR #129; ver bloque siguiente). Antes: implementación P1 de operaciones en `claude/p1-operaciones` desde `main` `7ccfad25` (ver bloque siguiente). El bloque de continuidad POS se conserva debajo. Las bitácoras anteriores se conservan como fotografías fechadas y no sustituyen el estado de Git.
+Última revisión: **2026-10-12, America/Tegucigalpa** — candidato integrado del cliente en `nexus/candidato-cliente-integrado`, código `89a70ccf`, con pruebas focalizadas y ensayo de restauración; pendiente acceso real y autorización de merge/migraciones.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -19,6 +19,16 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 7. **No hacer merge automático** ni desplegar a producción sin autorización explícita del dueño del proyecto.
 
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
+
+---
+
+## Candidato del cliente — integración autorizada de #153/#155/#156/#157 (2026-10-12)
+
+- **Rama:** `nexus/candidato-cliente-integrado`; código `89a70ccf`. Integra por ascendencia #153 `95144a17`, #155 `85e4ff88`, #156 `406c57e2` y #157 `21b1eea5`. Esas ramas y `main` no fueron modificadas. Limpieza de ramas fuera de alcance. Informe vigente: [CANDIDATO_CLIENTE_INTEGRADO.md](CANDIDATO_CLIENTE_INTEGRADO.md).
+- **Funcionando:** importador y plantillas de seis columnas, doce unidades sin convertir cantidades, validador estricto único (entrada documental reutiliza el del backend), protecciones Vercel combinadas. ADMIN fija costo y venta en la pantalla existente; la primera aprobación inicializa vigente ausente/cero con el mismo núcleo seguro y auditoría, en una transacción, sin stock/CxP. Costo inicial positivo obligatorio; no se añade módulo ni carga masiva de precios.
+- **Pruebas de esta sesión:** PostgreSQL real 12 archivos: 245 aprobadas/1 omitida/0 fallos; E2E piloto y precios con backend/PostgreSQL/Chromium reales 12/12; backend 377/377, frontend 272/272, scripts 42/42, Python 10/10, entrada documental 3/3, Vercel 5/5; compilaciones correctas; guard 0 migraciones nuevas. Ensayo de liberación/restauración 24/24 y respaldo simulado conservado. Una prueba PostgreSQL de navegador condicionada se omitió; el E2E real del piloto sí se ejecutó.
+- **Pendientes concretos de producción:** acceso/configuración de Render/Supabase/Vercel ausente en este ejecutor; comprobación de base real solo lectura y respaldo nuevo verificado preservando los anteriores; autorización del dueño para merge del candidato a main y migraciones pendientes. Publicación del candidato no autoriza esas acciones. Contingencia apagada en el piloto; no se afirma restauración de un respaldo real ni aceptación en equipos del cliente.
+- **Bitácora:** integración local de ramas en rama nueva; conflictos de contexto, plantilla CSV y protecciones resueltos conservando aportes; inicialización conectada a la aprobación ADMIN existente; dos regresiones nuevas de precios; wrapper de validación único; comprobaciones focalizadas; E2E real; ensayo con histórico, copia/restauración y reversión. Ruta absoluta de bcrypt y soporte de usuario sin root corregidos en herramientas de ensayo; scripts repetidos tras una compilación concurrente que limpiaba dist. No hubo auditoría general, eliminación de ramas, merge de GitHub, despliegue ni migraciones productivas.
 
 ---
 
