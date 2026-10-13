@@ -1,6 +1,6 @@
 # Inventario inicial seguro y compatibilidad del piloto
 
-Fecha: **2026-10-12, America/Tegucigalpa**. Implementación independiente desde `main` `7ccfad25`, rama `fix/inventario-inicial-seguro`, código `8b47eb80`. Sin merge, despliegue, importación de datos reales ni migraciones productivas. No añade ni cambia esquema o migraciones. `frontend/vercel.json` excluye solo la rama nueva de los despliegues Git automáticos (incluido `ignoreCommand`), para publicar el borrador sin preview de Vercel.
+Fecha: **2026-10-12, America/Tegucigalpa**. Implementación independiente desde `main` `7ccfad25`, rama `fix/inventario-inicial-seguro`, código `8b47eb80`. [PR #157](https://github.com/Nelosama/FerreSystem/pull/157) en borrador. Sin merge, despliegue, importación de datos reales ni migraciones productivas. No añade ni cambia esquema o migraciones. `frontend/vercel.json` excluye solo la rama nueva de los despliegues Git automáticos (incluido `ignoreCommand`), para publicar el borrador sin preview de Vercel.
 
 ## Revisión de las bases
 
@@ -121,7 +121,7 @@ Los ensayos que usan contingencia requieren una clave efímera de prueba de al m
    const csvContent = headers.join(',') + '\n';
    ```
 
-   Eliminar `cats`, `units`, `sampleRows` y demás variables exclusivas de ejemplos. Conservar también `unidadCsvValida` en la validación de unidades. No restaurar el envío de precios en el importador. Esta es la resolución aplicada y probada en `ebc9fdeb`.
+   Eliminar `cats`, `units`, `sampleRows` y demás variables exclusivas de ejemplos. Conservar también `unidadCsvValida` en la validación de unidades. No restaurar el envío de precios en el importador. Esta es la resolución aplicada y probada en `ebc9fdeb`. Los cambios posteriores de presentación/documentación se incorporaron también en la copia local (`f816443b`), conservando todos los bloques del contexto del candidato; Python 10/10 y modal 5/5 se repitieron allí.
 4. El commit de protección de publicación añade una exclusión de Vercel solo para `fix/inventario-inicial-seguro`. Al combinar `frontend/vercel.json` con #155 conservar **ambas** entradas de `git.deploymentEnabled` (`nexus/*` y la rama nueva, ambas `false`) y combinar `ignoreCommand`:
 
    ```sh
