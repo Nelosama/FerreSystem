@@ -11,7 +11,6 @@ import {
   Edit2,
   Check,
   UserCheck,
-  GitBranch,
   ExternalLink,
   Search,
   X,
@@ -46,7 +45,6 @@ interface TenantItem {
   plan: string;
   estado: 'ACTIVO' | 'SUSPENDIDO';
   usuariosCount: number;
-  sucursalesCount: number;
   colorPrimario: string;
   logoUrl?: string | null;
   modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
@@ -153,7 +151,6 @@ function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
     plan: record.plan,
     estado: record.estado,
     usuariosCount: record.cantidadUsuarios,
-    sucursalesCount: 1,
     colorPrimario: record.colorPrimario || '#EA580C',
     logoUrl: record.logoUrl,
     modoNavegacion: record.modoNavegacion,
@@ -485,7 +482,6 @@ export const SuperAdminPage: React.FC = () => {
         plan: data.tenant.plan,
         estado: data.tenant.estado,
         usuariosCount: 1,
-        sucursalesCount: 1,
         colorPrimario: data.tenant.colorPrimario,
         modoNavegacion: data.tenant.modoNavegacion,
         modulosHabilitados: data.modulosHabilitados,
@@ -611,10 +607,9 @@ export const SuperAdminPage: React.FC = () => {
 
           <div className="industrial-card" style={styles.metricCard}>
             <Server size={24} strokeWidth={2.4} color="var(--color-primary)" />
-            <div style={styles.metricValue}>
-              {tenants.reduce((acc, tItem) => acc + (tItem.sucursalesCount || 1), 0)}
-            </div>
-            <div style={styles.metricLabel}>{t('superadmin.total_branches') || "TOTAL SUCURSALES CONECTADAS"}</div>
+            {/* El sistema todavía no modela sucursales: no se muestra un conteo ni un estado de conexión inventados. */}
+            <div style={styles.metricValue} title="Sin modelo de sucursales en el sistema">—</div>
+            <div style={styles.metricLabel}>{t('superadmin.total_branches') || "SUCURSALES (NO DISPONIBLE)"}</div>
           </div>
         </div>
 
@@ -731,9 +726,6 @@ export const SuperAdminPage: React.FC = () => {
                       <tr key={tItem.id}>
                         <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
                           <div>{tItem.nombreComercial}</div>
-                          <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                            <GitBranch size={11} /> <span>{tItem.sucursalesCount || 1}{t('uxAudit.connected_branch_es')} </span>
-                          </div>
                         </td>
                         <td style={{ fontWeight: 600 }}>
                           <div>{tItem.contacto}</div>
