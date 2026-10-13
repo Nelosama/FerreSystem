@@ -1,6 +1,6 @@
 # Inventario inicial seguro y compatibilidad del piloto
 
-Fecha: **2026-10-12, America/Tegucigalpa**. Implementación independiente desde `main` `7ccfad25`, rama `fix/inventario-inicial-seguro`, código `8b47eb80`. Sin merge, despliegue, importación de datos reales ni migraciones productivas. No añade ni cambia esquema o migraciones.
+Fecha: **2026-10-12, America/Tegucigalpa**. Implementación independiente desde `main` `7ccfad25`, rama `fix/inventario-inicial-seguro`, código `8b47eb80`. Sin merge, despliegue, importación de datos reales ni migraciones productivas. No añade ni cambia esquema o migraciones. `frontend/vercel.json` excluye solo la rama nueva de los despliegues Git automáticos (incluido `ignoreCommand`), para publicar el borrador sin preview de Vercel.
 
 ## Revisión de las bases
 
@@ -120,9 +120,16 @@ Los ensayos que usan contingencia requieren una clave efímera de prueba de al m
    ```
 
    Eliminar `cats`, `units`, `sampleRows` y demás variables exclusivas de ejemplos. Conservar también `unidadCsvValida` en la validación de unidades. No restaurar el envío de precios en el importador. Esta es la resolución aplicada y probada en `ebc9fdeb`.
-4. Integrar la documentación #156 por separado cuando se autorice. El informe presente tiene precedencia para el procedimiento del candidato; reconciliar el bloque de estado de `CONTEXTO_MAESTRO.md` preservando la bitácora de las tres ramas. Mantener la separación entre maestro de ocho columnas y CSV importable de seis. No usar la frase histórica «solo recepción escribe costo vigente» como descripción del candidato integrado.
-5. Regenerar Prisma, compilar y repetir la selección de pruebas anterior sobre el SHA final integrado; añadir la evidencia a su PR de integración. No extrapolar estos resultados a otro SHA ni a PostgreSQL de producción. El guard de #155 y su arranque sin migración deben permanecer intactos.
-6. Las decisiones de merge, despliegue, migraciones existentes y carga real quedan para la ventana autorizada y el runbook de #155. Este PR no requiere una migración nueva ni autoriza las existentes.
+4. El commit de protección de publicación añade una exclusión de Vercel solo para `fix/inventario-inicial-seguro`. Al combinar `frontend/vercel.json` con #155 conservar **ambas** entradas de `git.deploymentEnabled` (`nexus/*` y la rama nueva, ambas `false`) y combinar `ignoreCommand`:
+
+   ```sh
+   case "$VERCEL_GIT_COMMIT_REF" in nexus/*|fix/inventario-inicial-seguro) exit 0;; *) exit 1;; esac
+   ```
+
+   Esta configuración no habilita ni cambia despliegues de otras ramas. El contexto maestro también produce conflicto documental al incorporar los commits: conservar todos los bloques del candidato y añadir el nuevo bloque, actualizando solo la cabecera de última revisión.
+5. Integrar la documentación #156 por separado cuando se autorice. El informe presente tiene precedencia para el procedimiento del candidato; reconciliar el bloque de estado de `CONTEXTO_MAESTRO.md` preservando la bitácora de las tres ramas. Mantener la separación entre maestro de ocho columnas y CSV importable de seis. No usar la frase histórica «solo recepción escribe costo vigente» como descripción del candidato integrado.
+6. Regenerar Prisma, compilar y repetir la selección de pruebas anterior sobre el SHA final integrado; añadir la evidencia a su PR de integración. No extrapolar estos resultados a otro SHA ni a PostgreSQL de producción. El guard de #155 y su arranque sin migración deben permanecer intactos.
+7. Las decisiones de merge, despliegue, migraciones existentes y carga real quedan para la ventana autorizada y el runbook de #155. Este PR no requiere una migración nueva ni autoriza las existentes.
 
 ## Riesgos y condiciones pendientes
 
