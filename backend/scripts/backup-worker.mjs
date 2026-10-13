@@ -89,11 +89,14 @@ export async function backupAttempt(config, env, dependencies = {}) {
     // Failed attempts can upload valid archives that never restore. They must not
     // displace older verified recovery points when --keep-last is applied.
     // Restic rewrites the snapshot when adding tags, so retain its new identity.
-    const tagged = await run(restic, ['tag', '--add', 'fs41-verified', '--json', '--quiet', snapshot], { env });
-    const changed = tagged.trim().split('\n').map(line => JSON.parse(line))
-      .find(row => row.message_type === 'changed' && row.old_snapshot_id === snapshot);
-    if (!/^[a-f0-9]{64}$/.test(changed?.new_snapshot_id || '')) throw new Error('NO_VERIFIED_SNAPSHOT');
-    snapshot = changed.new_snapshot_id;
+    await run(restic, ['tag', '--add', 'fs41-verified', snapshot], { env });
+    // Restic 0.16 has no JSON tag output and can exit 0 after a tag failure.
+    // Read the repository metadata back, matching the original uploaded ID.
+    const verified = JSON.parse(await run(restic, ['snapshots', '--host', config.instance, '--tag', 'fs41,fs41-verified', '--json', '--quiet'], { env }))
+      .find(row => row.original === snapshot && row.hostname === config.instance &&
+        row.tags?.includes('fs41') && row.tags?.includes('fs41-verified'));
+    if (!/^[a-f0-9]{64}$/.test(verified?.id || '')) throw new Error('NO_VERIFIED_SNAPSHOT');
+    snapshot = verified.id;
     stage = 'RETENTION';
     // Never expire an older recovery point before the NEW copy restores successfully.
     await run(restic, ['forget', '--host', config.instance, '--tag', 'fs41,fs41-verified', '--group-by', 'host,tags', '--keep-last', String(config.keep), '--prune'], { env });

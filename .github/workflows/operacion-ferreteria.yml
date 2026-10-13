@@ -33,6 +33,7 @@ jobs:
         working-directory: frontend
         run: |
           npm run build
+          npm run lint
           npm test
       - name: "Frontend: arranque y navegación en Chromium"
         id: browser
@@ -57,8 +58,10 @@ jobs:
         working-directory: backend
         run: |
           npm run build
+          npm run lint
           npm test
           npm run test:scripts
+          python3 scripts/validar-inventario.test.py
       - name: Preparar PostgreSQL temporal
         run: |
           sudo apt-get update
@@ -69,7 +72,9 @@ jobs:
         working-directory: backend
         env:
           REAL_SETTINGS_BROWSER: '1'
-        run: npm run test:integration
+        run: |
+          npm run test:integration
+          npm run test:e2e
   guard-base-datos:
     # CENTINELA: bloquea comandos destructivos (db push, migrate dev/reset, seed) y cambios en migraciones publicadas.
     runs-on: ubuntu-latest

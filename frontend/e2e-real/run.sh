@@ -41,10 +41,11 @@ echo "== 2. Migraciones con Prisma (migrate deploy, la ruta de producción)"
 (cd "$ROOT/backend" && npx prisma migrate deploy >"$WORK/migrate.log" 2>&1) || { cat "$WORK/migrate.log"; exit 1; }
 grep -E "migrations? (have|applied)|All migrations" "$WORK/migrate.log" | head -2 || true
 
-echo "== 3. Deriva de esquema: solo la tabla nueva"
-(cd "$ROOT/backend" && npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script >"$WORK/drift.sql" 2>/dev/null) || true
-if grep -q "coberturas_garantia" "$WORK/drift.sql"; then echo "DERIVA en coberturas_garantia:"; grep "coberturas_garantia" "$WORK/drift.sql" | head -5; exit 1; fi
-echo "sin deriva en coberturas_garantia"
+echo "== 3. Deriva completa de esquema (una falla del comando también bloquea)"
+(cd "$ROOT/backend" && npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script --exit-code >"$WORK/drift.sql" 2>"$WORK/drift.err") || {
+  echo "No se pudo certificar el esquema completo: revise Prisma y las migraciones en la base temporal."; cat "$WORK/drift.sql"; exit 1;
+}
+echo "sin deriva en el esquema completo"
 
 echo "== 4. Datos de prueba"
 (cd "$ROOT/frontend/e2e-real" && node seed.cjs > "$WORK/seed.json")

@@ -6,17 +6,27 @@
 # Requisitos: PostgreSQL 16 (initdb, pg_ctl, pg_restore, psql), Node, backend compilado (npm run build) para la prueba de arranque.
 # Si se ejecuta como root usa el usuario `nobody` para el clúster temporal (PostgreSQL no arranca como root).
 set -uo pipefail
+umask 077
 # No heredar servicios, opciones o SSL del origen en las conexiones locales.
 while IFS= read -r variable; do [[ "$variable" == PG_BIN ]] || unset "$variable"; done < <(compgen -v PG)
 DIR="${1:?Uso: bash $0 DIRECTORIO_DEL_RESPALDO [--ensayo-migracion]}"; ENSAYO="${2:-}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; PG_BIN="${PG_BIN:-$(dirname "$(command -v initdb 2>/dev/null || echo /usr/lib/postgresql/16/bin/initdb)")}"
 DIR="$(cd "$DIR" && pwd)"
-WORK="$(mktemp -d /tmp/ferre-verifica-XXXXXX)"; chmod 777 "$WORK"
-if [[ "$(id -u)" == 0 ]]; then AS=(runuser -u nobody --); else AS=(); fi
+WORK="$(mktemp -d /tmp/ferre-verifica-XXXXXX)"
+if [[ "$(id -u)" == 0 ]]; then AS=(runuser -u nobody --); chown nobody "$WORK"; else AS=(); fi
 PORT="$(node -e 'const s=require("net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')"
 URL="postgresql://postgres@127.0.0.1:$PORT/postgres"
 API_PID=""; RES=(); FALLOS=0
-fin() { [[ -n "$API_PID" ]] && kill "$API_PID" 2>/dev/null; if [[ -f "$WORK/data/postmaster.pid" ]]; then "${AS[@]}" "$PG_BIN/pg_ctl" -D "$WORK/data" -m immediate stop >/dev/null 2>&1; fi; rm -rf "$WORK"; }
+fin() {
+  [[ -n "$API_PID" ]] && kill "$API_PID" 2>/dev/null
+  if [[ -f "$WORK/data/postmaster.pid" ]]; then
+    if ! "${AS[@]}" "$PG_BIN/pg_ctl" -D "$WORK/data" -m fast -w stop >/dev/null 2>&1; then
+      echo "ISOLATED_STOP_FAILED: el clúster temporal se conserva para revisión del operador." >&2
+      exit 1
+    fi
+  fi
+  rm -rf "$WORK"
+}
 trap fin EXIT
 ok() { RES+=("PASS  $1"); echo "PASS  $1"; }
 ko() { RES+=("FAIL  $1 — $2"); echo "FAIL  $1 — $2"; FALLOS=$((FALLOS+1)); }
@@ -31,7 +41,7 @@ ESPERADO="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.a
 "${AS[@]}" "$PG_BIN/pg_ctl" -D "$WORK/data" -l "$WORK/pg.log" -o "-h 127.0.0.1 -p $PORT -k $WORK" -w start >/dev/null 2>&1 || { ko "Clúster temporal" "no pudo iniciarse"; exit 1; }
 # El volcado trae CREATE SCHEMA public; la base TEMPORAL ya lo tiene, así que se vacía el esquema de ESTA base aislada antes de restaurar.
 "$PG_BIN/psql" -X -q -h 127.0.0.1 -p "$PORT" -U postgres -d postgres -c "DROP SCHEMA public CASCADE" >/dev/null 2>&1
-if "$PG_BIN/pg_restore" -h 127.0.0.1 -p "$PORT" -U postgres -d postgres --no-owner --no-privileges --exit-on-error "$DIR/database.dump" > "$WORK/restore.log" 2>&1; then ok "Restauración en base aislada vacía, sin errores"; else ko "Restauración" "$(tail -2 "$WORK/restore.log" | tr '\n' ' ')"; exit 1; fi
+if "$PG_BIN/pg_restore" -h 127.0.0.1 -p "$PORT" -U postgres -d postgres --no-owner --no-privileges --exit-on-error "$DIR/database.dump" > "$WORK/restore.log" 2>&1; then ok "Restauración en base aislada vacía, sin errores"; else ko "Restauración" "pg_restore falló; no se publican datos del volcado"; exit 1; fi
 
 conteos > "$WORK/restaurado.txt"
 node -e '
