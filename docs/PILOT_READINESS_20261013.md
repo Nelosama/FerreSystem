@@ -1,6 +1,6 @@
 # Preparación del piloto — cuarta rama autorizada
 
-**NEXUS · 2026-10-13 UTC.** Base: `origin/main` `4b650445b35fcd8dc2878b5c94ee60462493d8c1`. Rama exclusiva: `fix/pilot-readiness`; [PR #162 en borrador](https://github.com/Nelosama/FerreSystem/pull/162). Código probado: `d1d19fea`. El estado y los siguientes pendientes se mantienen en [CONTEXTO_MAESTRO.md](CONTEXTO_MAESTRO.md).
+**NEXUS · 2026-10-13 UTC.** Base: `origin/main` `4b650445b35fcd8dc2878b5c94ee60462493d8c1`. Rama exclusiva: `fix/pilot-readiness`; [PR #162 en borrador](https://github.com/Nelosama/FerreSystem/pull/162). Código de preparación: `d1d19fea`; revisión final de TLS/IPv6: `89b7fe3b`. Las suites del negocio se ejecutaron con el primer SHA y sus módulos no cambiaron después; las verificaciones de scripts, Restic y ensayo de actualización se repitieron tras la revisión TLS. El estado y los siguientes pendientes se mantienen en [CONTEXTO_MAESTRO.md](CONTEXTO_MAESTRO.md).
 
 La verificación local del alcance está aprobada, con límites de entorno y de cobertura explícitos. Esto no certifica producción, no habilita la contingencia del cliente ni autoriza merge, despliegue o migraciones productivas.
 
@@ -9,7 +9,7 @@ La verificación local del alcance está aprobada, con límites de entorno y de 
 | Problema | Corrección | Evidencia |
 |---|---|---|
 | Los intentos de respaldo que subían una copia pero fallaban al restaurarla podían consumir la retención y desplazar copias antiguas verificadas. | `backup-worker.mjs` marca `fs41-verified` después de restaurar; lee la metadata del repositorio y conserva el nuevo ID de Restic. La retención exige **ambas** etiquetas `fs41,fs41-verified`. Una marca ausente bloquea la poda. | Regresión falla antes del cambio (`retention-before.log`). Restic real conserva dos copias verificadas tras dos restauraciones fallidas y otro éxito. Se ejecutó con Restic **0.18.0 y 0.16.4**; esta última versión no entrega JSON al etiquetar y puede retornar 0 pese a fallar, por lo que se comprueba la metadata real. |
-| Conteos y volcado manual leían momentos distintos si había operaciones concurrentes. | `backup-consistent.mjs` mantiene una transacción `REPEATABLE READ READ ONLY`, exporta su snapshot y lo importa en `pg_dump`. El manifiesto y el volcado corresponden a ese mismo snapshot. El wrapper existente conserva su interfaz. | Una venta concurrente deja 3 ventas en el origen, mientras el manifiesto y la copia restaurada conservan las 2 del snapshot. |
+| Conteos y volcado manual leían momentos distintos si había operaciones concurrentes. | `backup-consistent.mjs` mantiene una transacción `REPEATABLE READ READ ONLY`, exporta su snapshot y lo importa en `pg_dump`. El manifiesto y el volcado corresponden a ese mismo snapshot. El wrapper existente conserva su interfaz, la política TLS/CA heredada del operador y el soporte de hosts IPv6. | Una venta concurrente deja 3 ventas en el origen, mientras el manifiesto y la copia restaurada conservan las 2 del snapshot. |
 | El verificador continuaba después de detectar un SHA-256 incorrecto. | Sale antes de invocar PostgreSQL o restaurar. Limpia variables PG heredadas, usa los binarios de `PG_BIN`, un puerto libre para la API y scratch privado. Si no puede detener el clúster, lo conserva y termina con error. | Prueba de corrupción comprueba que ninguna herramienta PostgreSQL se ejecuta y que no se genera un manifiesto verificado. Ensayo completo de restauración/actualización 24/24. |
 | El simulacro exigía root y no propagaba todas las comprobaciones fallidas. | Admite usuario sin root; usa puertos libres, scratch privado, salida no cero ante fallos y limpieza del clúster propio. | Prueba de fallo de `initdb`: termina inmediatamente con error. Simulacro real: 14/14; venta y entrega dejan físico 17/reservado 0, reinicio conserva los datos y la copia restaurada arranca correctamente. |
 | Faltaba una prueba de logout con cola pendiente y otro cajero en el mismo navegador. | Nuevo escenario en `contingencia-real.spec.ts`, sin respuestas simuladas: guarda offline, sale desde la UI con revocación real, entra otro cajero, vuelve el dueño y reconcilia. | Misma identidad/contenido en IndexedDB; ninguna operación enviada por el otro cajero; exactamente una operación aplicada, una venta y un movimiento de caja al volver el dueño. |
@@ -26,7 +26,7 @@ Todas las cifras siguientes son de esta sesión, no de informes anteriores. Los 
 |---|---|---|
 | Backend unitarias | 377/377 | `backend-unit.log` |
 | Frontend unitarias | 279/279 | `frontend-unit-final.log` |
-| Scripts Node | 47/47 | `scripts-final.log` |
+| Scripts Node | 48/48 | `scripts-final.log` |
 | Validador Python | 10/10 | `python.log` |
 | Integración PostgreSQL, con navegador opt-in | **905/905, 55 archivos, 0 omitidas** | `postgres-final.log` |
 | Readiness/caída/recuperación HTTP backend | 3/3 | `backend-e2e-final.log` |

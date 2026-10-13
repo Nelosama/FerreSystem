@@ -3,7 +3,7 @@ PASS  Base simulada con el esquema de main — 13 migraciones
 PASS  Datos históricos sembrados — 2 usuarios, 3 productos, 2 ventas (una con entrega pendiente)
    foto previa (ventas|total|líneas|stock|reservado|usuarios): 2|920|2|127|5|2
 == 2. Respaldo previo y verificación (restauración + ensayo de migración sobre la COPIA)
-PASS  Respaldo creado — 141405 bytes
+PASS  Respaldo creado — 141402 bytes
 PASS  Verificación del respaldo + ensayo de migración en la copia — 11 comprobaciones PASS
 PASS  El origen no cambió durante el respaldo ni el ensayo — foto idéntica
 == 3. El arranque por defecto se NIEGA con migraciones pendientes y no escribe
@@ -35,7 +35,7 @@ PASS  El código nuevo NO arranca sobre el esquema viejo restaurado — faltan 1
 ===== RESUMEN DEL ENSAYO =====
 PASS | Base simulada con el esquema de main | 13 migraciones
 PASS | Datos históricos sembrados | 2 usuarios, 3 productos, 2 ventas (una con entrega pendiente)
-PASS | Respaldo creado | 141405 bytes
+PASS | Respaldo creado | 141402 bytes
 PASS | Verificación del respaldo + ensayo de migración en la copia | 11 comprobaciones PASS
 PASS | El origen no cambió durante el respaldo ni el ensayo | foto idéntica
 PASS | El backend NO arranca con migraciones pendientes | faltan 11 migraciones
