@@ -906,6 +906,18 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - **Pendientes:** decisiones I1–I12, D1, D4 y D5; umbral de diferencia (I7); corte y ventas durante el conteo (I8); responsable de soporte y respaldo verificado (sin cambio); aceptación del cliente (no concedida).
 - **Bitácora:** lectura del contexto y del estado de la rama; verificación de costos, codificación, conteo y aplicación en código; redacción de los entregables; prueba del validador; actualización de este documento.
 
+## Preparación operativa para el cliente (2026-10-13 UTC)
+
+- **Rama/PR:** `docs/preparacion-operativa-cliente` (PR #156), avanzada sobre `59de0589`. Solo documentación y plantillas. Sin cambios en backend, frontend ni migraciones; sin merge, despliegue ni operaciones en producción.
+- **Materiales:** `docs/operacion-cliente/00-ENTREGA-PREPARACION.md` (estado, decisiones del dueño, dependencias de Codex), `08-primer-dia.md`, `09-equipos-y-accesos.md`, `10-capacitacion-30-min.md`, `11-captura-inventario-simple.md`.
+- **Hallazgos verificados en código (candidato `85e4ff88`):** el importador ignora precios; un producto sin precio aprobado no se vende; no hay carga masiva de precios; el cajero no entrega (solo ADMIN y BODEGUERO); toda venta exige caja abierta; crear productos es ADMIN y BODEGUERO; las categorías se crean con cualquier texto; el importador acepta solo `unidad`, `caja`, `metro`, `kg` y `galón`.
+- **Corrección de herramienta:** `herramientas/validar_plantilla.py` ya no exige columnas de precio. Plantillas v2: `inventario_importable_v2.csv` (vacía), `ejemplo_ficticio_v2.csv`, `precios_para_aprobar_administrador.csv` (no se importa). Las v1 quedan marcadas como superadas.
+- **Pruebas:** validador verificado (plantilla vacía bloquea; ejemplo ficticio bloqueado; «galon» rechazado; «galón» aceptado). No se probó ningún dispositivo físico ni la interfaz real.
+- **Pendientes:** decisiones D-A a D-P del dueño (precios, costo de referencia, costo vigente inicial, unidades, entrega, devoluciones, corte de inventario, soporte); dependencias C1 a C8 de Codex (candidato desplegado, preproducción, URL, variables, respaldo, CODEOWNER, funciones para verificación final).
+- **Bitácora:** lectura de refs y PR; revisión de permisos y reglas en código; creación de documentos y plantillas; ajuste del validador; commit y push a la rama del PR #156; resumen en Issue #151.
+
+---
+
 **FIN DEL CONTEXTO VIGENTE**
 
 

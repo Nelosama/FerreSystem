@@ -1,3 +1,5 @@
+> **Superado para carga de inventario (2026-10-13).** Use `11-captura-inventario-simple.md` y la plantilla `inventario_importable_v2.csv`. Este documento describe la plantilla anterior con columnas de precio, que el importador ignora.
+
 # 06 · Control previo a importación
 
 Lista que debe cumplirse **antes de cualquier importación real** del catálogo. Se usa junto con la herramienta `herramientas/validar_plantilla.py`, que revisa el archivo sin conectarse al sistema y sin escribir datos. Este documento no autoriza ninguna importación: la autoriza el dueño por escrito.

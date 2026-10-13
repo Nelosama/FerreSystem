@@ -1,0 +1,7 @@
+nombre,codigo,categoria,stockActual,stockMinimo,unidadMedida
+Martillo de uña 16 oz (EJEMPLO),EJ-MAR-016,Herramientas Manuales,0,2,unidad
+Cable THHN 12 AWG (EJEMPLO),EJ-CAB-012,Electricidad,0,5,metro
+Tornillo drywall 1 pulg (EJEMPLO),EJ-TOR-100,Tornillería,0,10,caja
+Pintura látex blanca (EJEMPLO),EJ-PIN-GAL,Pintura,0,3,galón
+Tubo PVC 1/2 pulg (EJEMPLO),EJ-TUB-050,Plomería,0,5,unidad
+Cemento gris 42.5 kg (EJEMPLO),EJ-CEM-425,Construcción,0,10,kg

@@ -21,8 +21,9 @@ import os
 import re
 import sys
 
-ENCABEZADOS = ['nombre', 'codigo', 'categoria', 'precioCosto', 'precioVenta',
-               'stockActual', 'stockMinimo', 'unidadMedida']
+# Columnas que lee ImportarProductosModal.tsx. Los precios NO se importan: el importador los ignora
+# y el alta sin precio deja el producto pendiente hasta que el administrador lo apruebe (PATCH /productos/:id/precios).
+ENCABEZADOS = ['nombre', 'codigo', 'categoria', 'stockActual', 'stockMinimo', 'unidadMedida']
 UNIDADES_CSV = ['unidad', 'caja', 'metro', 'kg', 'galón']  # mismas que el importador
 MAX_BYTES = 5 * 1024 * 1024
 MAX_FILAS = 5000
@@ -126,7 +127,7 @@ def validar(filas, catalogo=None):
             else:
                 vistos_nombre[clave_n] = linea
 
-        for campo in ('precioCosto', 'precioVenta', 'stockActual', 'stockMinimo'):
+        for campo in ('stockActual', 'stockMinimo'):
             valor = celda(fila, campo)
             if not valor:
                 continue
@@ -134,8 +135,6 @@ def validar(filas, catalogo=None):
                 errores.append(f'{ref}: "{campo}" usa coma ("{valor}"). Use punto decimal; el importador leería solo la parte entera.')
             elif not NUMERO.match(valor):
                 errores.append(f'{ref}: "{campo}" no es un número válido ("{valor}"), máximo dos decimales.')
-            elif campo in ('precioCosto', 'precioVenta') and float(valor) == 0:
-                avisos.append(f'{ref}: "{campo}" en 0. Confirme que es intencional.')
             elif campo == 'stockActual' and float(valor) != 0:
                 avisos.append(f'{ref}: existencia {valor} distinta de 0. Si el conteo se hará en levantamiento, cargue 0 aquí para no duplicar existencias.')
 

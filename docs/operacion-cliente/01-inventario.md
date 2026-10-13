@@ -1,3 +1,5 @@
+> **Superado para carga de inventario (2026-10-13).** Use `11-captura-inventario-simple.md` y la plantilla `inventario_importable_v2.csv`. Este documento describe la plantilla anterior con columnas de precio, que el importador ignora.
+
 # 01 · Inventario inicial
 
 Referencia de datos, unidades, codificación, reglas del importador y costos para cargar el catálogo y las existencias iniciales. El procedimiento de jornada está en `07-levantamiento-conciliacion-jornada.md` y el control previo a importar en `06-control-previo-importacion.md`.
