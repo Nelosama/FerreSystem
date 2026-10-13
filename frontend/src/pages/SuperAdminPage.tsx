@@ -418,7 +418,7 @@ export const SuperAdminPage: React.FC = () => {
         {
           id: modalSuplantarUser.id,
           nombreComercial: modalSuplantarUser.nombreComercial,
-          sucursal: '',
+          sucursal: 'Sin sucursales registradas',
           colorPrimario: modalSuplantarUser.colorPrimario,
           logoUrl: modalSuplantarUser.logoUrl,
           modoNavegacion: modalSuplantarUser.modoNavegacion || 'SIDEBAR',
