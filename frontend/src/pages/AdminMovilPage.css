@@ -2,8 +2,6 @@
 .admin-movil-encabezado{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
 .admin-movil-encabezado h1{font-size:1.4rem;margin:0}
 .admin-movil-encabezado p{margin:4px 0 0;color:var(--color-muted,#57534e)}
-.admin-movil-refrescar{min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--color-border,#d6d3d1);background:var(--color-card,#fff);cursor:pointer}
-.admin-movil-refrescar:disabled{opacity:.6;cursor:wait}
 .admin-movil-tarjeta{background:var(--color-card,#fff);border:1px solid var(--color-border,#d6d3d1);border-radius:10px;padding:16px}
 .admin-movil-tarjeta h2{font-size:1rem;margin:0 0 10px}
 .admin-movil-tarjeta p{margin:6px 0}

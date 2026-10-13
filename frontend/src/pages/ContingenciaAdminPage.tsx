@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { SyncStatus } from '../components/SyncStatus';
 import { api } from '../utils/api';
 import { formatearCentavos } from '../offline/money';
 import { limpiarTextoLibre, mensajeTextoMinimo, validarTextoMinimo } from '../utils/textoMinimo';
@@ -78,16 +80,18 @@ export default function ContingenciaAdminPage() {
   // R-02: si la caja del cajero que cobró está cerrada, el efectivo no se traslada. Solo una regularización excepcional con motivo.
   const [regularizar, setRegularizar] = useState<Record<string, { necesaria: boolean; motivo: string }>>({});
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
-  const [cargando, setCargando] = useState(false);
+  const cargaSeq = useRef(0);
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
+  // Devuelve false si la lectura falló. Las respuestas obsoletas (otra carga más reciente) no se aplican.
+  const cargar = useCallback(async (): Promise<boolean> => {
+    const seq = ++cargaSeq.current;
     try {
       const [r, o, c] = await Promise.all([
         api.get('/contingencia/resumen'),
         api.get('/contingencia/operaciones', { params: { soloRevision: soloRevision ? 'true' : undefined, limit: 100 } }),
         api.get('/contingencia/configuracion'),
       ]);
+      if (seq !== cargaSeq.current) return true;
       setResumen(r.data);
       setOps(o.data);
       setHabilitada(Boolean(c.data.habilitada));
@@ -95,14 +99,21 @@ export default function ContingenciaAdminPage() {
       const abiertas = await api.get('/operaciones/caja/cierres', { params: { estado: 'ABIERTA' } }).then((x) => x.data).catch(() => []);
       setCajasAbiertas((abiertas ?? []).map((k: any) => ({ id: k.id, codigo: k.codigo, usuario: k.usuario?.nombre ?? '' })));
       setMensaje(null);
+      return true;
     } catch (error: any) {
-      setMensaje({ tipo: 'error', texto: error?.response?.data?.message ?? 'No se pudo cargar el panel. Revise la conexión.' });
+      if (seq === cargaSeq.current) setMensaje({ tipo: 'error', texto: error?.response?.data?.message ?? 'No se pudo cargar el panel. Revise la conexión.' });
+      return false;
     } finally {
-      setCargando(false);
     }
   }, [soloRevision]);
 
-  useEffect(() => { void cargar(); }, [cargar]);
+  // Se actualiza sola: al entrar, cada 30 s, al volver a la pestaña y al recuperar la red.
+  const { sync } = useAutoRefresh<void>({
+    load: async () => { if (!(await cargar())) throw new Error('lectura fallida'); },
+    apply: () => {},
+    intervalMs: 30_000,
+    deps: [cargar],
+  });
 
   const resolver = async (op: Operacion, accion: 'ACEPTAR' | 'CERRAR_MANUAL' | 'MARCAR_REVISADA' | 'REINTENTAR') => {
     // Misma regla que aplica el servidor (texto-minimo.ts es el mismo archivo en backend y frontend).
@@ -164,7 +175,7 @@ export default function ContingenciaAdminPage() {
     <div className="pc-root" style={{ padding: 0 }}>
       <header className="pc-header">
         <h1>Contingencia offline · administración</h1>
-        <button className="pc-btn" onClick={() => void cargar()} disabled={cargando}>{cargando ? 'Actualizando…' : 'Actualizar'}</button>
+        <SyncStatus sync={sync} />
       </header>
 
       {resumen?.aviso && <div className="pc-aviso error" role="alert">{resumen.aviso} Lo que se muestra puede estar desactualizado.</div>}

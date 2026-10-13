@@ -7,6 +7,8 @@ import { ZONA_HORARIA_NEGOCIO, formatLempiras, formatFechaCalendario } from '../
 import { availableTasks } from '../utils/taskNavigation';
 import { useI18n } from '../context/I18nContext';
 import { Link } from 'react-router-dom';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { SyncStatus } from '../components/SyncStatus';
 import './OperacionesPage.css';
 
 type Mode = 'compras' | 'cuentas' | 'entregas';
@@ -30,17 +32,35 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  const [selected,setSelected]=useState<any>(null),[payAmount,setPayAmount]=useState(''),[method,setMethod]=useState('EFECTIVO');
  useEffect(()=>{try{setPending(JSON.parse(localStorage.getItem(pendingKey)||'null'));}catch{setPending(null);}setSelected(null);},[pendingKey]);
  const [filtroEstado,setFiltroEstado]=useState('');const [filtroDesde,setFiltroDesde]=useState('');const [filtroHasta,setFiltroHasta]=useState('');const [buscarCuenta,setBuscarCuenta]=useState('');
- const load=useCallback(async()=>{
-  setLoading(true);setError('');
+ // Lectura de la pantalla. Devuelve false si falló. No se ejecuta mientras una operación escribe (evita
+ // respuestas viejas que pisen datos recién confirmados) y descarta respuestas superadas por otra carga.
+ const loadSeq=useRef(0);const loaded=useRef(false);
+ const load=useCallback(async(force=false):Promise<boolean>=>{
+  if(running.current&&!force)return true;
+  const seq=++loadSeq.current;
+  if(!loaded.current)setLoading(true);
+  setError('');
   try{
    if(modo==='compras'){
     const [o,p,s]=await Promise.all([api.get('/operaciones/compras'),api.get('/productos'),api.get('/operaciones/proveedores')]);
+    if(seq!==loadSeq.current)return true;
     setRows(o.data);setProducts(p.data);setProviders(s.data);
-   }else if(modo==='cuentas')setRows((await api.get('/operaciones/cuentas',{params:{tipo,estado:filtroEstado||undefined,desde:filtroDesde||undefined,hasta:filtroHasta||undefined}})).data);
-   else setRows((await api.get('/operaciones/entregas')).data);
-  }catch(e){setError(errorMessage(e));}finally{setLoading(false);}
+   }else{
+    const res=modo==='cuentas'?await api.get('/operaciones/cuentas',{params:{tipo,estado:filtroEstado||undefined,desde:filtroDesde||undefined,hasta:filtroHasta||undefined}}):await api.get('/operaciones/entregas');
+    if(seq!==loadSeq.current)return true;
+    setRows(res.data);
+   }
+   loaded.current=true;return true;
+  }catch(e){if(seq===loadSeq.current)setError(errorMessage(e));return false;}
+  finally{if(seq===loadSeq.current)setLoading(false);}
  },[modo,tipo,tenant.id,filtroEstado,filtroDesde,filtroHasta]);
- useEffect(()=>{void load();},[load]);
+ // Se actualiza sola: al entrar, cada 60 s en compras y 30 s en cuentas/entregas, y al volver o recuperar la red.
+ const { sync } = useAutoRefresh<void>({
+  load: async () => { if (!(await load())) throw new Error('lectura fallida'); },
+  apply: () => {},
+  intervalMs: modo === 'compras' ? 60_000 : 30_000,
+  deps: [load],
+ });
  const send=async(command:any)=>{
   if(running.current||isReadOnly)return false;
   running.current=true;setBusy(true);setError('');setSuccess('');
@@ -48,7 +68,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
    localStorage.setItem(pendingKey,JSON.stringify(command));setPending(command);
    await api.post(command.path,command.body);
    localStorage.removeItem(pendingKey);setPending(null);setSuccess('Operación registrada.');
-   await load();return true;
+   await load(true);return true;
   }catch(e:any){
    if([400,403,404,409,422].includes(e.response?.status)){localStorage.removeItem(pendingKey);setPending(null);}
    setError(errorMessage(e));return false;
@@ -78,7 +98,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
    <nav className="operation-actions" aria-label={t('navigation.OPERACION')}>{availableTasks(user, tenant).filter(item => ['pos', 'arqueo_caja', 'cuentas', 'entregas', 'ordenes_compra'].includes(item.key)).map(item => <Link key={item.key} to={item.route}>{t(item.labelKey)}</Link>)}</nav>
    {error&&<div role="alert" className="operation-error">{error}</div>}{success&&<div role="status" className="operation-success">{success}</div>}
    {pending&&<div role="status" className="operation-card"><p>Hay una operación pendiente de confirmar. Reintente antes de registrar otra.</p><button className="btn btn-primary" disabled={busy||isReadOnly} onClick={()=>void send(pending)}>Confirmar operación pendiente</button></div>}
-   <button className="btn btn-secondary" type="button" disabled={busy} onClick={()=>void load()}>Actualizar</button>
+   <SyncStatus sync={sync}/>
    {modo==='compras'&&<>
     {user?.rol==='ADMIN'&&<form className="operation-card operation-form" onSubmit={async e=>{e.preventDefault();if(await run('/operaciones/proveedores',{nombre:providerName,telefono:phone})){setProviderName('');setPhone('');}}}>
      <h2>Registrar proveedor</h2><label>Nombre<input className="form-input" required value={providerName} disabled={blocked} onChange={e=>setProviderName(e.target.value)}/></label><label>Teléfono<input className="form-input" value={phone} disabled={blocked} onChange={e=>setPhone(e.target.value)}/></label><button className="btn btn-primary" disabled={blocked}>Guardar proveedor</button>

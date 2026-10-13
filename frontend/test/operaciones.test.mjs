@@ -5,6 +5,18 @@ import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import ts from 'typescript';
 
+// Simula useAutoRefresh: lee una vez por dependencias (como el hook real) y `refresh` vuelve a leer.
+const autoRefreshStub = () => {
+  const started = new Set(); // por instancia del arnés, no compartido entre pruebas
+  return { useAutoRefresh: (options) => {
+    const signal = new AbortController().signal;
+    const pull = () => Promise.resolve(options.load(signal)).then(options.apply, () => {});
+    const key = JSON.stringify(options.deps);
+    if (!started.has(key)) { started.add(key); void pull(); }
+    return { refresh: pull, sync: { phase: 'ok', lastSync: null } };
+  } };
+};
+
 // Ejecuta los handlers actuales con hooks y transporte controlados, sin dependencias nuevas.
 const storage = () => {
   const values = new Map();
@@ -49,6 +61,8 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     '../context/TenantContext': { useTenant: () => ({ tenant: { id: 'tenant-A', nombreComercial: 'Test' }, user: { id: 'user-A', rol: 'ADMIN', descuentoMaximo: 10 } }) },
     '../context/I18nContext': { useI18n: () => ({ t, locale: 'en' }) },
     '../context/NotificationContext': { useNotification: () => ({ solicitudes: [], solicitarDescuento() {} }) },
+    '../hooks/useAutoRefresh': autoRefreshStub(),
+    '../components/SyncStatus': { SyncStatus: 'SyncStatus' },
     '../hooks/useRubroConfig': { useRubroConfig: () => ({ categoriasDefault: ['General'], unidadesMedida: ['unidad', 'galón'], activarVencimientos: false, activarGarantiaSerie: false }) },
     '../utils/format': { formatLempiras: String },
     '../utils/api': { api: { get: async () => ({ data: {} }) } },

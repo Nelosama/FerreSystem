@@ -5,6 +5,18 @@ import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import ts from 'typescript';
 
+// Simula useAutoRefresh: lee una vez por dependencias (como el hook real) y `refresh` vuelve a leer.
+const autoRefreshStub = () => {
+  const started = new Set(); // por instancia del arnés, no compartido entre pruebas
+  return { useAutoRefresh: (options) => {
+    const signal = new AbortController().signal;
+    const pull = () => Promise.resolve(options.load(signal)).then(options.apply, () => {});
+    const key = JSON.stringify(options.deps);
+    if (!started.has(key)) { started.add(key); void pull(); }
+    return { refresh: pull, sync: { phase: 'ok', lastSync: null } };
+  } };
+};
+
 const key = 'ferre_pending_return:tenant-A:user-A';
 const storage = () => {
   const values = new Map();
@@ -39,6 +51,8 @@ const harness = (saved, api, role = 'ADMIN') => {
   const mocks = {
     react: { ...react, default: react, __esModule: true },
     '../components/TopBar': { TopBar: 'TopBar' },
+    '../hooks/useAutoRefresh': autoRefreshStub(),
+    '../components/SyncStatus': { SyncStatus: 'SyncStatus' },
     '../context/TenantContext': { useTenant: () => ({ tenant: { id: 'tenant-A' }, user: { id: 'user-A', rol: role }, isReadOnly: false }) },
     '../utils/api': { api }, '../utils/format': { formatLempiras: String, formatInstanteNegocio: String }, './OperacionesPage.css': {},
   };

@@ -1,0 +1,5 @@
+.sync-status{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:12px;color:var(--color-text-muted,#78716C);font-family:var(--font-body,inherit)}
+.sync-status__punto{width:7px;height:7px;border-radius:50%;background:#A8A29E}
+.sync-status--ok .sync-status__punto{background:#16A34A}
+.sync-status--alerta{color:#B45309}
+.sync-status--alerta .sync-status__punto{background:#D97706}
