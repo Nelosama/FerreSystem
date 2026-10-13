@@ -2,7 +2,7 @@
 
 **Para:** cajero, bodeguero y administrador. Se hace por rol: el administrador ve el bloque de administración y el cajero el de caja.
 **Dónde:** en el **entorno de preproducción** o en el sistema con datos de ejemplo, **nunca con clientes reales**. Usar los productos marcados «(EJEMPLO)».
-**Material:** la computadora de la caja, `08-primer-dia.md` impreso, tarjeta con los 5 pasos de la §4.
+**Material:** la computadora de la caja, `08-primer-dia.md` impreso, tarjeta con los 5 pasos de la §4 y `plantillas/ejemplo_ficticio_v2.csv` para practicar.
 
 ---
 

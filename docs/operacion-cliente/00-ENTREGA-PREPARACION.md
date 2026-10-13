@@ -14,12 +14,13 @@
 | `09-equipos-y-accesos.md` | Dueño y administrador | Equipos, navegador, lector, impresora, internet, accesos, lista de verificación en tienda. |
 | `10-capacitacion-30-min.md` | Todo el personal | Agenda de 30 minutos con operaciones reales, tarjeta de 5 pasos y criterio de aprobación. |
 | `11-captura-inventario-simple.md` | Administrador y bodega | Captura de inventario en seis columnas, 7 categorías existentes, unidades admitidas, carga y precios. |
-| `plantillas/inventario_importable_v2.csv` | Administrador | Plantilla definitiva para importar. Vacía. |
+| `plantillas/inventario_importable_ferresystem.csv` | Administrador | Plantilla canónica de seis columnas. Vacía. |
 | `plantillas/ejemplo_ficticio_v2.csv` | Capacitación | Productos ficticios para practicar. El validador los bloquea para importar. |
 | `plantillas/precios_para_aprobar_administrador.csv` | Administrador | Hoja de precios. **No se importa.** |
-| `herramientas/validar_plantilla.py` | Administrador | Valida la plantilla antes de importar. Actualizado a las columnas reales (ver §5). |
+| `herramientas/validar_plantilla.py` | Administrador | Entrada del validador estricto del candidato #158 (`backend/scripts/validar-inventario.py`). Requiere #158 en el repositorio. |
+| `12-datos-cliente.md` | Dueño | Datos que hay que pedir al cliente antes de instalar. |
 
-Documentos anteriores (`01`–`07`, `plantillas/*` v1) se conservan como referencia técnica. **No usar la plantilla v1 para carga:** tiene columnas de precio que el importador ignora.
+Documentos anteriores (`01`–`07`) se conservan como referencia técnica. **No usar `ejemplo_ficticio_capacitacion.csv` (8 columnas con precios) para importar:** el formato vigente es el de seis columnas.
 
 ---
 
@@ -86,9 +87,10 @@ Ver detalle en `09-equipos-y-accesos.md` §5. Resumen:
 
 ## 5. Cambios realizados en este PR
 
-- `herramientas/validar_plantilla.py`: encabezados reales de importación; ya no exige ni valida columnas de precio; el resto de reglas (unidades con tilde, códigos, coma decimal, filas de ejemplo) se mantiene.
+- Adoptados desde #158 sin modificarlo: plantilla canónica `inventario_importable_ferresystem.csv` (seis columnas), validador `herramientas/validar_plantilla.py` y documentos `00`, `06`, `11` y `README` actualizados allí.
 - Nuevos: `08-primer-dia.md`, `09-equipos-y-accesos.md`, `10-capacitacion-30-min.md`, `11-captura-inventario-simple.md`, `00-ENTREGA-PREPARACION.md`.
-- Nuevas plantillas v2: `inventario_importable_v2.csv`, `ejemplo_ficticio_v2.csv`, `precios_para_aprobar_administrador.csv`.
+- Nuevos en este PR: `12-datos-cliente.md`; `plantillas/ejemplo_ficticio_v2.csv` (ejemplo de práctica de seis columnas); `plantillas/precios_para_aprobar_administrador.csv` (hoja de trabajo, no se importa).
+- Eliminado: `plantillas/inventario_importable_v2.csv`, duplicado de la plantilla canónica.
 - No se modificó ningún archivo de backend, frontend, migraciones ni de otras ramas.
 
 ---

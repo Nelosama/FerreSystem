@@ -1,4 +1,6 @@
-# 04 · Plan de capacitación (60 minutos)
+# 04 · Plan de capacitación (60 minutos) — **superado**
+
+> Usar `10-capacitacion-30-min.md` (30 minutos). Este plan se conserva como referencia; su ejemplo de 8 columnas con precios no debe usarse para importar.
 
 Capacitación práctica para administrador, bodega y cajeros. Se hace en **preproducción o en una copia de práctica**, con datos ficticios. Nunca con datos reales de la ferretería.
 

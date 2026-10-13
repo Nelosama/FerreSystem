@@ -15,8 +15,19 @@ Materiales para que la ferretería pueda empezar a operar en FerreSystem y regis
 | [01-inventario.md](01-inventario.md) | Administrador, bodega | Vías de carga, datos y campos, unidades, **codificación**, reglas del importador, **costos y precios** y el impedimento de costo vigente inicial |
 | [02-manual-cajero.md](02-manual-cajero.md) | Cajeros | Venta, cobro, entrega y cierre, con restricciones reales |
 | [03-manual-administrador.md](03-manual-administrador.md) | Administrador | Usuarios, productos, precios, existencias, ventas, entregas, cierres y **lista de decisiones del dueño** (§13) |
-| [04-plan-capacitacion.md](04-plan-capacitacion.md) | Instructor | Agenda de 60 minutos y ejercicios con datos ficticios |
+| [04-plan-capacitacion.md](04-plan-capacitacion.md) | — | **Superado** por 10 (versión de 60 minutos) |
 | [05-lista-verificacion-primer-dia.md](05-lista-verificacion-primer-dia.md) | Dueño, soporte | Checklist de arranque con criterio Go / No-Go |
+
+### Entrega e instalación (orden de uso)
+
+| Archivo | Para quién | Uso |
+|---|---|---|
+| [12-datos-cliente.md](12-datos-cliente.md) | Dueño | Datos que pedir al cliente antes de instalar: inventario, usuarios, sucursal, métodos de pago y responsables |
+| [09-equipos-y-accesos.md](09-equipos-y-accesos.md) | Administrador, soporte | Configuración de la computadora principal y del cajero, navegador, lector, impresora, internet y acceso |
+| [11-captura-inventario-simple.md](11-captura-inventario-simple.md) | Administrador, bodega | Captura de inventario en seis columnas, categorías, unidades y precios |
+| [08-primer-dia.md](08-primer-dia.md) | Todo el personal | Procedimiento del primer día: sesión, caja, venta, cobro, entrega y cierre |
+| [10-capacitacion-30-min.md](10-capacitacion-30-min.md) | Administrador y cajero | Capacitación práctica de 30 minutos |
+
 
 ### Inventario real
 
@@ -31,7 +42,9 @@ Materiales para que la ferretería pueda empezar a operar en FerreSystem y regis
 |---|---|---|
 | `inventario_registro_maestro.csv` | **Hoja maestra**: familia, códigos, costos, precios, existencia contada, reconteo, diferencia y decisión del admin | No es el archivo que se importa. Sus columnas de conteo no las lee el importador |
 | `inventario_importable_ferresystem.csv` | Encabezados exactos del importador | Llenar solo con datos reales y **existencia 0** (`06` §4) |
-| `ejemplo_ficticio_capacitacion.csv` | 8 productos ficticios `[EJEMPLO]` para la capacitación | **Solo preproducción o copia de práctica.** El validador lo rechaza a propósito |
+| `ejemplo_ficticio_capacitacion.csv` | Formato anterior de 8 columnas con precios | **No usar.** Usar `ejemplo_ficticio_v2.csv` |
+| `ejemplo_ficticio_v2.csv` | 6 productos ficticios `[EJEMPLO]` de seis columnas para practicar | **Solo preproducción o copia de práctica.** El validador lo rechaza a propósito |
+| `precios_para_aprobar_administrador.csv` | Hoja de trabajo para el administrador | **No se importa** |
 
 ### Herramienta (`herramientas/`)
 
