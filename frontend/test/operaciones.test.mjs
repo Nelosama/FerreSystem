@@ -80,14 +80,17 @@ test('soporte instala el token real, restaura superadmin y limpia el estado al i
   saved.setItem('ferre_token', 'admin-token');
   saved.setItem('ferre_user', JSON.stringify(admin));
   saved.setItem('ferre_tenant', JSON.stringify(tenant));
-  const api = { post: async () => ({ data: { accessToken: 'tenant-support-token', user: { id: 'u1', nombre: 'Cajero real', rol: 'CAJERO' } } }) };
+  const llamadas = [];
+  const api = { post: async (url, body, cfg) => { llamadas.push({ url, auth: cfg?.headers?.Authorization }); return { data: { accessToken: 'tenant-support-token', user: { id: 'u1', nombre: 'Cajero real', rol: 'CAJERO' } } }; } };
   const page = harness('src/context/TenantContext.tsx', 'TenantProvider', { '../utils/api': { api } }, saved);
   const value = () => { page.render(); return page.find((node) => node.type === 'ContextProvider').props.value; };
   await value().impersonateTenantAdmin({ id: 't1', nombreComercial: 'Empresa' }, { id: 'u1', rol: 'ADMIN' }, 'support1');
   assert.equal(saved.getItem('ferre_token'), 'tenant-support-token');
   assert.equal(value().user.rol, 'CAJERO');
   assert.equal(value().isReadOnly, true);
-  value().stopImpersonating();
+  await value().stopImpersonating();
+  // La sesión de soporte se revoca en el servidor con su propio token antes de recuperar la identidad.
+  assert.deepEqual(llamadas.at(-1), { url: '/admin/support/finalizar', auth: 'Bearer tenant-support-token' });
   assert.equal(saved.getItem('ferre_token'), 'admin-token');
   assert.equal(value().user.id, 'sa1');
   assert.equal(value().isImpersonating, false);
@@ -96,6 +99,21 @@ test('soporte instala el token real, restaura superadmin y limpia el estado al i
   value().login({ id: 'u2', rol: 'ADMIN' }, { id: 't2' });
   assert.equal(value().isImpersonating, false);
   assert.equal(saved.getItem('ferre_original_superadmin_token'), null);
+});
+
+test('si el servidor no confirma el fin de soporte, la identidad de superadmin se recupera igual', async () => {
+  const saved = storage();
+  saved.setItem('ferre_token', 'admin-token');
+  saved.setItem('ferre_user', JSON.stringify({ id: 'sa1', rol: 'SUPERADMIN' }));
+  saved.setItem('ferre_tenant', JSON.stringify({ id: 'platform', nombreComercial: 'Portal' }));
+  const api = { post: async (url) => { if (url === '/admin/support/finalizar') throw new Error('red caída'); return { data: { accessToken: 'tenant-support-token', user: { id: 'u1', nombre: 'Cajero real', rol: 'CAJERO' } } }; } };
+  const page = harness('src/context/TenantContext.tsx', 'TenantProvider', { '../utils/api': { api } }, saved);
+  const value = () => { page.render(); return page.find((node) => node.type === 'ContextProvider').props.value; };
+  await value().impersonateTenantAdmin({ id: 't1', nombreComercial: 'Empresa' }, { id: 'u1', rol: 'ADMIN' }, 'support1');
+  await value().stopImpersonating();
+  assert.equal(saved.getItem('ferre_token'), 'admin-token');
+  assert.equal(value().user.id, 'sa1');
+  assert.equal(value().isImpersonating, false);
 });
 
 test('un inicio fallido de soporte conserva la sesión de superadmin', async () => {

@@ -87,6 +87,47 @@ export interface SupportHistoryItem {
   modoEdicionActivado: boolean;
 }
 
+interface TrazaSoporteApi {
+  id: string;
+  fecha: string;
+  operacion: string;
+  tenantId: string;
+  usuarioId: string;
+  superAdminEmail: string | null;
+  soporteSesionId: string | null;
+  modo: 'ESCRITURA' | 'SOLO_LECTURA';
+  motivo: string | null;
+  resultado: string | null;
+}
+
+const CATEGORIAS_SOPORTE = ['Reporte de error', 'Solicitud del cliente', 'Verificación de pago', 'Otro'] as const;
+
+/** Convierte eventos de auditoría de soporte en sesiones: inicio, fin (si hubo finalización) y modo. */
+function sesionesSoporteDesdeTrazas(trazas: TrazaSoporteApi[], tenants: { id: string; nombreComercial: string }[]): SupportHistoryItem[] {
+  const finales = new Map<string, string>();
+  for (const traza of trazas) {
+    if (traza.operacion === 'SOPORTE_FINALIZAR' && traza.soporteSesionId) finales.set(traza.soporteSesionId, traza.fecha);
+  }
+  return trazas
+    .filter((traza) => traza.operacion === 'SOPORTE_IMPERSONAR')
+    .map((traza) => {
+      const motivo = traza.motivo ?? '';
+      const coincidencia = motivo.match(/^\[([^\]]+)\]\s*/);
+      const categoriaLeida = coincidencia?.[1] as (typeof CATEGORIAS_SOPORTE)[number] | undefined;
+      return {
+        id: traza.soporteSesionId ?? traza.id,
+        superAdminNombre: traza.superAdminEmail ?? 'Super Admin',
+        tenantId: traza.tenantId,
+        tenantNombre: tenants.find((t) => t.id === traza.tenantId)?.nombreComercial ?? traza.tenantId,
+        categoria: categoriaLeida && (CATEGORIAS_SOPORTE as readonly string[]).includes(categoriaLeida) ? categoriaLeida : 'Otro',
+        descripcion: coincidencia ? motivo.slice(coincidencia[0].length) : motivo,
+        fechaInicio: traza.fecha,
+        fechaFin: (traza.soporteSesionId && finales.get(traza.soporteSesionId)) || null,
+        modoEdicionActivado: traza.modo === 'ESCRITURA',
+      };
+    });
+}
+
 interface AdminTenantApiRecord {
   id: string;
   nombreComercial: string;
@@ -169,10 +210,9 @@ export const SuperAdminPage: React.FC = () => {
     return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
   });
 
-  const [supportLogs, setSupportLogs] = useState<SupportHistoryItem[]>(() => {
-    const saved = localStorage.getItem('ferre_mock_auditoria_soporte');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [supportLogs, setSupportLogs] = useState<SupportHistoryItem[]>([]);
+  const [cargandoTrazas, setCargandoTrazas] = useState(false);
+  const [errorTrazas, setErrorTrazas] = useState<string | null>(null);
 
   const [errorText, setErrorText] = useState<string | null>(null);
   const [creatingTenant, setCreatingTenant] = useState(false);
@@ -204,6 +244,9 @@ export const SuperAdminPage: React.FC = () => {
   const [modalResetPassAdmin, setModalResetPassAdmin] = useState<AdminUserItem | null>(null);
   const [modalSuplantarUser, setModalSuplantarUser] = useState<TenantItem | null>(null);
   const [busquedaSuplantar, setBusquedaSuplantar] = useState('');
+  const [usuariosSoporte, setUsuariosSoporte] = useState<{ id: string; nombre: string; email: string; rol: string }[]>([]);
+  const [cargandoUsuariosSoporte, setCargandoUsuariosSoporte] = useState(false);
+  const [errorUsuariosSoporte, setErrorUsuariosSoporte] = useState<string | null>(null);
 
   // Modal obligatorio de motivo de soporte
   const [usuarioASuplantar, setUsuarioASuplantar] = useState<{ id: string; nombre: string; email: string; rol: any } | null>(null);
@@ -332,7 +375,30 @@ export const SuperAdminPage: React.FC = () => {
   const abrirModalSuplantar = (tenantItem: TenantItem) => {
     setModalSuplantarUser(tenantItem);
     setBusquedaSuplantar('');
+    setUsuariosSoporte([]);
+    setErrorUsuariosSoporte(null);
+    setCargandoUsuariosSoporte(true);
+    api
+      .get<{ usuarios: { id: string; nombre: string; email: string; rol: string }[] }>(`/admin/tenants/${tenantItem.id}/usuarios`)
+      .then(({ data }) => setUsuariosSoporte(Array.isArray(data?.usuarios) ? data.usuarios : []))
+      .catch((err) => setErrorUsuariosSoporte(err.response?.data?.message || 'No se pudieron cargar los usuarios de esta empresa.'))
+      .finally(() => setCargandoUsuariosSoporte(false));
   };
+
+  const cargarTrazasSoporte = () => {
+    setCargandoTrazas(true);
+    setErrorTrazas(null);
+    api
+      .get<TrazaSoporteApi[]>('/admin/soporte/trazas', { params: { limite: 100 } })
+      .then(({ data }) => setSupportLogs(sesionesSoporteDesdeTrazas(Array.isArray(data) ? data : [], tenants)))
+      .catch((err) => setErrorTrazas(err.response?.data?.message || 'No se pudo cargar la trazabilidad de soporte.'))
+      .finally(() => setCargandoTrazas(false));
+  };
+
+  useEffect(() => {
+    if (tabActiva === 'soporte_historial') cargarTrazasSoporte();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabActiva]);
 
   const abrirFormularioMotivoSuplantar = (usrObj: { id: string; nombre: string; email: string; rol: any }) => {
     setUsuarioASuplantar(usrObj);
@@ -346,26 +412,13 @@ export const SuperAdminPage: React.FC = () => {
     if (soporteDescripcion.trim().length < 10) return;
 
     const sessionId = `sup-${Date.now()}`;
-    const nowFormatted = new Date().toISOString().replace('T', ' ').slice(0, 16);
-
-    const nuevoRegistroSoporte: SupportHistoryItem = {
-      id: sessionId,
-      superAdminNombre: 'Super Admin',
-      tenantId: modalSuplantarUser.id,
-      tenantNombre: modalSuplantarUser.nombreComercial,
-      categoria: soporteCategoria,
-      descripcion: soporteDescripcion.trim(),
-      fechaInicio: nowFormatted,
-      fechaFin: null,
-      modoEdicionActivado: false,
-    };
 
     try {
       await impersonateTenantAdmin(
         {
           id: modalSuplantarUser.id,
           nombreComercial: modalSuplantarUser.nombreComercial,
-          sucursal: 'Sucursal Centro (Principal)',
+          sucursal: '',
           colorPrimario: modalSuplantarUser.colorPrimario,
           logoUrl: modalSuplantarUser.logoUrl,
           modoNavegacion: modalSuplantarUser.modoNavegacion || 'SIDEBAR',
@@ -383,9 +436,8 @@ export const SuperAdminPage: React.FC = () => {
         `[${soporteCategoria}] ${soporteDescripcion.trim()}`.slice(0, 500)
       );
 
-      const updatedSupportLogs = [nuevoRegistroSoporte, ...supportLogs];
-      setSupportLogs(updatedSupportLogs);
-      localStorage.setItem('ferre_mock_auditoria_soporte', JSON.stringify(updatedSupportLogs));
+      // La sesión real queda registrada en el servidor; el historial se vuelve a leer desde ahí.
+      cargarTrazasSoporte();
 
       registrarAuditoria(
         'IMPERSONACION_INICIADA',
@@ -782,6 +834,12 @@ export const SuperAdminPage: React.FC = () => {
               </div>
             </div>
 
+            {errorTrazas && (
+              <div role="alert" style={{ marginTop: '16px', color: '#B91C1C', fontWeight: 600 }}>
+                {errorTrazas} <button type="button" className="btn btn-sm btn-secondary" onClick={cargarTrazasSoporte}>Reintentar</button>
+              </div>
+            )}
+            {cargandoTrazas && <div role="status" style={{ marginTop: '16px', color: 'var(--color-text-muted)' }}>Cargando trazabilidad…</div>}
             <div className="table-container" style={{ marginTop: '20px' }}>
               <table className="industrial-table">
                 <thead>
@@ -796,7 +854,7 @@ export const SuperAdminPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {supportLogs.length === 0 ? (
+                  {!cargandoTrazas && !errorTrazas && supportLogs.length === 0 ? (
                     <tr>
                       <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>{t('uxAudit.no_remote_support_sessions_recorded')} </td>
                     </tr>
@@ -1450,41 +1508,21 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1.5px solid var(--color-sidebar-text)', borderRadius: '4px', marginTop: '12px' }}>
-                {[
-                  {
-                    id: 'usr-admin-1',
-                    nombre: `Carlos Ramos (Administrador General)`,
-                    email: modalSuplantarUser.contacto,
-                    rol: 'ADMIN',
-                    cargo: 'Dueño / Gerente de Sucursal',
-                  },
-                  {
-                    id: 'usr-cajero-1',
-                    nombre: 'Carlos Ramos (Cajero Principal)',
-                    email: 'cajero@lamundial.hn',
-                    rol: 'CAJERO',
-                    cargo: 'Cajero POS / Facturación',
-                  },
-                  {
-                    id: 'usr-bodega-1',
-                    nombre: 'Jorge Mendoza (Bodeguero)',
-                    email: 'bodega@lamundial.hn',
-                    rol: 'BODEGUERO',
-                    cargo: 'Encargado de Inventario & Stock',
-                  },
-                  {
-                    id: 'usr-vendedor-1',
-                    nombre: 'Ana Martínez (Vendedora)',
-                    email: 'vendedor@lamundial.hn',
-                    rol: 'VENDEDOR',
-                    cargo: 'Ventas de Mostrador & Cotizaciones',
-                  },
-                ]
+                {cargandoUsuariosSoporte && (
+                  <div role="status" style={{ padding: '16px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Cargando usuarios de la empresa…</div>
+                )}
+                {!cargandoUsuariosSoporte && errorUsuariosSoporte && (
+                  <div role="alert" style={{ padding: '16px', color: '#B91C1C', fontWeight: 600 }}>{errorUsuariosSoporte}</div>
+                )}
+                {!cargandoUsuariosSoporte && !errorUsuariosSoporte && usuariosSoporte.length === 0 && (
+                  <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Esta empresa no tiene usuarios activos disponibles para soporte.</div>
+                )}
+                {usuariosSoporte
                   .filter(
                     (u) =>
                       u.nombre.toLowerCase().includes(busquedaSuplantar.toLowerCase().trim()) ||
                       u.email.toLowerCase().includes(busquedaSuplantar.toLowerCase().trim()) ||
-                      u.cargo.toLowerCase().includes(busquedaSuplantar.toLowerCase().trim()),
+                      u.rol.toLowerCase().includes(busquedaSuplantar.toLowerCase().trim()),
                   )
                   .map((u) => (
                     <div
@@ -1503,13 +1541,13 @@ export const SuperAdminPage: React.FC = () => {
                           {u.nombre}
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                          {u.email} • <span style={{ fontWeight: 600 }}>{u.cargo}</span>
+                          {u.email} • <span style={{ fontWeight: 600 }}>{u.rol}</span>
                         </div>
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => abrirFormularioMotivoSuplantar(u)}
+                        onClick={() => abrirFormularioMotivoSuplantar({ id: u.id, nombre: u.nombre, email: u.email, rol: u.rol })}
                         className="btn btn-sm btn-primary"
                         style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800, padding: '6px 12px' }}
                       >

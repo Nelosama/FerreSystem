@@ -205,6 +205,66 @@ export class SuperAdminService {
     };
   }
 
+  /** Usuarios reales y activos de una empresa, elegibles para soporte. Nunca devuelve hashes ni permisos internos. */
+  async listSoporteUsuarios(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true, estado: true } });
+    if (!tenant) throw new NotFoundException('Ferretería no encontrada');
+    const usuarios = await this.prisma.usuario.findMany({
+      where: { tenantId, activo: true },
+      select: { id: true, nombre: true, email: true, rol: true },
+      orderBy: [{ rol: 'asc' }, { nombre: 'asc' }],
+    });
+    return { tenantId, estado: tenant.estado, usuarios };
+  }
+
+  /**
+   * Finaliza la sesión de soporte del token presentado: revoca su `sid` (el token deja de autorizar aunque no haya vencido)
+   * y deja constancia de quién la inició y cuándo terminó. Solo lo puede llamar la propia sesión de soporte.
+   */
+  async finalizarSoporte(usuario: { sub: string; tenantId?: string; impersonatedBy?: string; soporteSesionId?: string; sid?: string; readOnly?: boolean }) {
+    if (!usuario.impersonatedBy || !usuario.soporteSesionId || !usuario.tenantId) {
+      throw new ForbiddenException('Esta acción solo aplica a una sesión de soporte activa');
+    }
+    if (usuario.sid) await revocarSesion(this.prisma, usuario.sid, 'SOPORTE_FINALIZADO');
+    await this.prisma.auditoriaOperacion.create({
+      data: {
+        tenantId: usuario.tenantId, usuarioId: usuario.sub, operacion: 'SOPORTE_FINALIZAR', entidadId: usuario.sub,
+        datos: { superAdminId: usuario.impersonatedBy, soporteSesionId: usuario.soporteSesionId, readOnly: usuario.readOnly !== false, finalizadoEn: new Date().toISOString(), resultado: 'FINALIZADA' },
+      },
+    });
+    return { success: true, message: 'Sesión de soporte finalizada' };
+  }
+
+  /** Trazabilidad de sesiones de soporte: inicio, fin, modo, motivo, identidad original y escrituras auditadas. */
+  async trazaSoporte(tenantId?: string, limite = 100) {
+    const operaciones = ['SOPORTE_IMPERSONAR', 'SOPORTE_FINALIZAR', 'SOPORTE_ESCRITURA_INICIO', 'SOPORTE_ESCRITURA_RESULTADO', 'SOPORTE_ESCRITURA_DENEGADA'];
+    const filas = await this.prisma.auditoriaOperacion.findMany({
+      where: { operacion: { in: operaciones }, ...(tenantId ? { tenantId } : {}) },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(limite, 1), 200),
+    });
+    return filas.map((f) => {
+      const datos = (f.datos ?? {}) as Record<string, any>;
+      const soporte = datos._soporte ?? {};
+      return {
+        id: f.id,
+        fecha: f.createdAt,
+        operacion: f.operacion,
+        tenantId: f.tenantId,
+        usuarioId: f.usuarioId,
+        usuarioEmail: datos.usuarioEmail ?? null,
+        superAdminId: datos.superAdminId ?? soporte.superAdminId ?? null,
+        superAdminEmail: datos.superAdminEmail ?? null,
+        soporteSesionId: datos.soporteSesionId ?? soporte.soporteSesionId ?? null,
+        modo: (datos.readOnly ?? soporte.readOnly) === false ? 'ESCRITURA' : 'SOLO_LECTURA',
+        motivo: datos.motivo ?? null,
+        resultado: datos.resultado ?? soporte.resultado ?? null,
+        metodo: datos.metodo ?? null,
+        ruta: datos.ruta ?? null,
+      };
+    });
+  }
+
   async getTenantModules(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
