@@ -1,0 +1,9 @@
+nombre,codigo,categoria,precioCosto,precioVenta,stockActual,stockMinimo,unidadMedida
+[EJEMPLO] Canaleta galvanizada 3 m,EJ-CAN-3M,Construcción,95.00,150.00,40,10,unidad
+[EJEMPLO] Varilla corrugada 3/8 por metro,EJ-VAR-38,Construcción,22.00,35.00,120.5,20,metro
+[EJEMPLO] Lámina zinc calibre 28 de 3.66 m,EJ-LAM-ZN28,Construcción,310.00,420.00,25,5,unidad
+[EJEMPLO] Tornillo punta broca 3x1 caja 100,EJ-TOR-3X1,Tornillería,85.00,125.00,30,5,caja
+[EJEMPLO] Alambre de amarre por kilo,EJ-ALA-KG,Construcción,60.00,85.00,50.75,10,kg
+[EJEMPLO] Pintura látex blanca galón,EJ-PIN-GAL,Pintura,420.00,575.00,8.5,2,galón
+[EJEMPLO] Aerosol pintura negra 400 ml,EJ-AER-NEG,Pintura,90.00,135.00,12,3,unidad
+[EJEMPLO] Martillo de uña 16 oz,EJ-MAR-16,Herramientas Manuales,110.00,165.00,6,2,unidad

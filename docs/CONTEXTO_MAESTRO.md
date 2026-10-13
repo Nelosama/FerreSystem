@@ -1388,6 +1388,49 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - **Preexistentes:** DEF-03 (falla en la base). `balance-real`: causa raíz en la prueba, no en producción (comparación de fechas UTC frente a día de negocio, desde las 18:00 de Tegucigalpa); corregida en la rama de validación (6/6).
 - **Pendiente:** mitigar R-01 y DEF-04 en código; decidir R-02, R-03 y la semántica de entrega offline; confirmar Vercel y Render.
 
+## Preparación operativa del cliente — documentación (2026-10-12)
+
+- **Rama:** `docs/preparacion-operativa-cliente`, desde `origin/main` `7ccfad25`. Independiente de `claude/modest-archimedes-ae64x0`. PR en borrador, sin merge ni despliegue. Sin cambios de código, esquema, migraciones ni configuración.
+- **Materiales:** `docs/operacion-cliente/` con índice y límites (`README.md`), inventario (`01-inventario.md`), manual de cajero (`02-manual-cajero.md`), manual de administrador (`03-manual-administrador.md`), capacitación de 60 min con datos ficticios (`04-plan-capacitacion.md`) y lista del primer día (`05-lista-verificacion-primer-dia.md`). Plantillas CSV en `plantillas/`.
+- **Verificado en código:**
+  - Importador CSV (`ImportarProductosModal.tsx`): solo 5 unidades (`unidad`, `caja`, `metro`, `kg`, `galón`); vacíos en precios o existencias pasan a 0 sin aviso, mínimo a 5, categoría a «Herramientas Manuales» y unidad a `unidad`; «Sobrescribir» reemplaza existencias. El botón «DESCARGAR PLANTILLA CSV» incluye 3 filas de ejemplo.
+  - Alta (`productos.service.ts`): no escribe `costoVigente`, que queda para la recepción de compras; la existencia inicial genera movimiento `INICIAL`.
+  - Venta (`ventas.service.ts`, `openCash`): exige caja abierta para cualquier método. El POS no tiene campo de efectivo recibido: el vuelto es manual. Métodos: EFECTIVO, TARJETA, TRANSFERENCIA, CREDITO.
+  - Entregas (`/entregas`; ADMIN, CAJERO, BODEGUERO): confirmar entrega baja la existencia física y libera la reserva.
+  - Cierre: diferencia obliga a explicación; cierre confirmado no se edita; historial completo de cierres solo ADMIN.
+  - El cajero no tiene listado general de ventas; solo busca por número en Devoluciones.
+- **Pruebas:** no hubo cambios de código, así que no se ejecutaron suites. Verificación documental: rutas y archivos citados existen; las plantillas tienen columnas consistentes; el ejemplo tiene códigos únicos `EJ-*`, unidades válidas y precios no nulos.
+- **Límites:** sin validación en navegador con datos reales, en iPhone (cámara), con datáfono, ni de respaldo y restauración en producción. Roles de órdenes de compra sin confirmar.
+- **Pendientes:** decisiones del dueño listadas en `03-manual-administrador.md` §13 (costo manual D1, importación que sobrescribe D4, marca/categoría D5, reembolso de devoluciones con abonos, sucursal, aprobación del cambio de fechas en reportes, salida de efectivo con segundo administrador, procedimiento fiscal). Nombres y contactos del responsable de soporte y canal de incidentes. Respaldo y restauración verificados. Capacitación realizada con evidencia. Validación en equipo del cliente. Aceptación del cliente: no concedida.
+- **Bitácora:** lectura de este contexto y de Git; revisión de importador, alta, modelo, caja, POS, entregas, rutas y roles; rama creada desde `origin/main`; redacción de materiales y plantillas; verificación documental y de CSV; actualización de este documento.
+
+### Preparación del inventario real (2026-10-12, rama `docs/preparacion-operativa-cliente`, PR #156)
+
+- **Alcance:** fases 1–6 de la misión de inventario real. Solo documentación, plantillas y una herramienta que lee archivos. Sin cambios en código, backend, frontend, migraciones ni infraestructura. Codex no tiene archivos tocados en esta fase.
+- **Entregables:** `docs/operacion-cliente/01-inventario.md` (reescrito: vías de carga, codificación, costos y precios); `03-manual-administrador.md` §13 (decisiones I1–I12 y permanentes); `05-lista-verificacion-primer-dia.md` (sección C ampliada); `06-control-previo-importacion.md` (nuevo); `07-levantamiento-conciliacion-jornada.md` (nuevo: conteo, dos personas, conciliación, plan de jornada); `plantillas/inventario_registro_maestro.csv` (ampliado con familia, códigos, costo de referencia, conteo, reconteo, diferencia); `herramientas/validar_plantilla.py` (nuevo).
+- **Verificado en código:**
+  - `costo_vigente` solo lo escribe la recepción de compra (`operaciones.service.ts`, línea 77), que además suma existencias y crea la cuenta por pagar. La cantidad de la recepción debe ser positiva (`ledger.ts`, `decimal`).
+  - El alta, el importador y el aplicar del levantamiento escriben `precioCosto`, pero no `costoVigente`.
+  - Levantamiento: el aplicar exige estado `FINALIZADO` y sin conflictos; valida la unidad contra los 12 valores del enum y no convierte cantidades; exige costo y precio para productos nuevos; bloquea si el conteo es menor que lo reservado; solo cambia las filas del levantamiento.
+  - Código automático: prefijo del nombre en mayúsculas, máximo 18 caracteres, sufijo `-001`.
+- **Impedimento para el PM (no implementado):** no existe un mecanismo seguro para fijar `costoVigente` del inventario inicial. Una compra de apertura duplicaría existencias y crearía deuda con el proveedor. Al arranque el costo vigente quedará vacío hasta la primera recepción. Decisión I12.
+- **Pruebas:** el validador se probó con 11 casos fuera del repositorio: archivo correcto (pasa), duplicados, precios vacíos, coma decimal, unidades incorrectas incluido `galon`, filas de ejemplo, encabezados faltantes, UTF-8 inválido, código existente en catálogo, existencia distinta de 0, y archivo sin filas. No hubo cambios de código, así que no se ejecutaron suites.
+- **Límites:** no validado en navegador con datos reales, lector de códigos ni cámara; el sistema no genera etiquetas; abreviaturas de codificación y familias pendientes de aprobación; no hay confirmación de si la pantalla de inventario lista productos inactivos (el control previo no los conoce sin esa lista).
+- **Pendientes:** decisiones I1–I12, D1, D4 y D5; umbral de diferencia (I7); corte y ventas durante el conteo (I8); responsable de soporte y respaldo verificado (sin cambio); aceptación del cliente (no concedida).
+- **Bitácora:** lectura del contexto y del estado de la rama; verificación de costos, codificación, conteo y aplicación en código; redacción de los entregables; prueba del validador; actualización de este documento.
+
+## Preparación operativa para el cliente (2026-10-13 UTC)
+
+- **Rama/PR:** `docs/preparacion-operativa-cliente` (PR #156), avanzada sobre `59de0589`. Solo documentación y plantillas. Sin cambios en backend, frontend ni migraciones; sin merge, despliegue ni operaciones en producción.
+- **Materiales:** `docs/operacion-cliente/00-ENTREGA-PREPARACION.md` (estado, decisiones del dueño, dependencias de Codex), `08-primer-dia.md`, `09-equipos-y-accesos.md`, `10-capacitacion-30-min.md`, `11-captura-inventario-simple.md`.
+- **Hallazgos verificados en código (candidato `85e4ff88`):** el importador ignora precios; un producto sin precio aprobado no se vende; no hay carga masiva de precios; el cajero no entrega (solo ADMIN y BODEGUERO); toda venta exige caja abierta; crear productos es ADMIN y BODEGUERO; las categorías se crean con cualquier texto; el importador acepta solo `unidad`, `caja`, `metro`, `kg` y `galón`.
+- **Corrección de herramienta:** `herramientas/validar_plantilla.py` ya no exige columnas de precio. Plantillas v2: `inventario_importable_v2.csv` (vacía), `ejemplo_ficticio_v2.csv`, `precios_para_aprobar_administrador.csv` (no se importa). Las v1 quedan marcadas como superadas.
+- **Pruebas:** validador verificado (plantilla vacía bloquea; ejemplo ficticio bloqueado; «galon» rechazado; «galón» aceptado). No se probó ningún dispositivo físico ni la interfaz real.
+- **Pendientes:** decisiones D-A a D-P del dueño (precios, costo de referencia, costo vigente inicial, unidades, entrega, devoluciones, corte de inventario, soporte); dependencias C1 a C8 de Codex (candidato desplegado, preproducción, URL, variables, respaldo, CODEOWNER, funciones para verificación final).
+- **Bitácora:** lectura de refs y PR; revisión de permisos y reglas en código; creación de documentos y plantillas; ajuste del validador; commit y push a la rama del PR #156; resumen en Issue #151.
+
+---
+
 **FIN DEL CONTEXTO VIGENTE**
 
 
