@@ -4,6 +4,7 @@ import { TopBar } from '../components/TopBar';
 import { Search, Plus, Upload, AlertTriangle, Check, X, Calendar, ShieldCheck, RefreshCw } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { api } from '../utils/api';
+import { posiblesDuplicados } from '../utils/productoDuplicados';
 import type { ProductItem } from '../types';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
@@ -106,6 +107,9 @@ const InventarioContent: React.FC = () => {
     const matchCat = filtroCategoria === 'TODAS' || p.categoria === filtroCategoria;
     return matchSearch && matchCat;
   });
+
+  // Advertencia (no bloquea): nombres iguales a productos ya cargados.
+  const duplicadosPosibles = posiblesDuplicados(formNombre, productos);
 
   const guardarAlta = async (command: any) => {
     await api.post('/productos', command);
@@ -338,6 +342,7 @@ const InventarioContent: React.FC = () => {
               <fieldset disabled={saving || !!pendingProduct} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
                 <label className="form-label" htmlFor="create-name">{t('product_edit.field.nombre')} *</label>
                 <input id="create-name" className="form-input" required maxLength={500} value={formNombre} onChange={e => setFormNombre(e.target.value)} placeholder={t('inventory_create.name_example')} />
+                {duplicadosPosibles.length > 0 && <p role="status" className="operation-note">Ya existe un producto con este nombre ({duplicadosPosibles.map(p => p.codigo).join(', ')}). Revise antes de guardar para evitar duplicados; si es una variante, puede continuar.</p>}
                 <p>{t('inventory_create.variant_help')}</p>
                 <label className="form-label" htmlFor="create-barcode">{t('product_edit.field.codigoBarras')}</label>
                 <input id="create-barcode" className="form-input" maxLength={100} value={formBarcode} onChange={e => setFormBarcode(e.target.value)} />

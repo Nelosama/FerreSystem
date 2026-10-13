@@ -34,6 +34,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name.endsWith('/storage')) return evaluate('src/utils/storage.ts', {}, globals);
     if (name.endsWith('/posRecovery')) return evaluate('src/utils/posRecovery.ts', {}, globals);
     if (name.endsWith('/cotizacionesFilters')) return evaluate('src/utils/cotizacionesFilters.ts', {});
+    if (name.endsWith('/numeroVenta')) return evaluate('src/utils/numeroVenta.ts', {});
     return new Proxy({}, { get: (_, key) => String(key) });
   } };
   const source = fs.readFileSync(filePath, 'utf8');

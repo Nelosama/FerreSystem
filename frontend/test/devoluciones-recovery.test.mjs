@@ -53,6 +53,8 @@ const harness = (saved, api, role = 'ADMIN') => {
     '../components/TopBar': { TopBar: 'TopBar' },
     '../hooks/useAutoRefresh': autoRefreshStub(),
     '../components/SyncStatus': { SyncStatus: 'SyncStatus' },
+    // Esta prueba usa números de venta ya normalizados: la conversión «V-3» tiene su propia prueba.
+    '../utils/numeroVenta': { numeroVentaDesdeIdentificador: texto => texto },
     '../context/TenantContext': { useTenant: () => ({ tenant: { id: 'tenant-A' }, user: { id: 'user-A', rol: role }, isReadOnly: false }) },
     '../utils/api': { api }, '../utils/format': { formatLempiras: String, formatInstanteNegocio: String }, './OperacionesPage.css': {},
   };

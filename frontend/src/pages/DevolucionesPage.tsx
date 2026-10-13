@@ -5,6 +5,7 @@ import { api } from '../utils/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { SyncStatus } from '../components/SyncStatus';
 import { formatInstanteNegocio, formatLempiras } from '../utils/format';
+import { numeroVentaDesdeIdentificador } from '../utils/numeroVenta';
 import './OperacionesPage.css';
 
 type Command = { kind: 'SOLICITAR' | 'EJECUTAR' | 'DECIDIR' | 'DIRECTA'; requestId: string; saleId?: string; dto?: any };
@@ -68,7 +69,7 @@ export const DevolucionesPage: React.FC = () => {
     if (sending.current || (pending && !correctionId) || corrupt) return;
     const startedKey = key; sending.current = true; setBusy(true); setError(''); setSale(null);
     try {
-      const response = await api.get('/operaciones/ventas/buscar', { params: { numero } });
+      const response = await api.get('/operaciones/ventas/buscar', { params: { numero: numeroVentaDesdeIdentificador(numero) } });
       if (scope.current !== startedKey) return;
       setSale(response.data); setQuantities({}); setTargets({});
     } catch (e) { if (scope.current === startedKey) setError(errorMessage(e)); }
@@ -206,7 +207,7 @@ export const DevolucionesPage: React.FC = () => {
         {pending.kind === 'SOLICITAR' && <button disabled={busy || isReadOnly} className="btn btn-secondary" onClick={() => void clearUnregistered()}>Corregir solo si no está registrada</button>}
       </section>}
       <form className="operation-card operation-form" onSubmit={e => { e.preventDefault(); void load(); }}>
-        <label>Número del comprobante de venta<input className="form-input" type="number" min="1" step="1" required disabled={busy || (!!pending && !correctionId) || corrupt} value={numero} onChange={e => setNumero(e.target.value)} /></label>
+        <label>Número del comprobante de venta<input className="form-input" type="text" inputMode="numeric" autoComplete="off" placeholder="Ej. 3 o V-3" required disabled={busy || (!!pending && !correctionId) || corrupt} value={numero} onChange={e => setNumero(e.target.value)} /></label>
         <button className="btn btn-primary" disabled={busy || (!!pending && !correctionId) || corrupt}>Buscar venta</button>
       </form>
       {sale && <form className="operation-card" onSubmit={e => {
