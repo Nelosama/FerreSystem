@@ -43,6 +43,8 @@ Todas las cifras siguientes son de esta sesión, no de informes anteriores. Los 
 
 Los diez `skip` de cada E2E corresponden a casos ya pendientes en las suites: vuelto del POS en línea, canal web, reporte por cajero, latencia controlada y una prueba histórica de entrega parcial. **La entrega parcial sí se ejecuta en `cobro-entrega-real.spec.ts`**; ese skip histórico no describe ausencia actual de la función. No se eliminan ni cambian expectativas de pruebas ajenas para convertir pendientes en aprobadas.
 
+La configuración móvil emula Pixel 7 en las páginas que utilizan las fixtures de Playwright. El spec de contingencia crea su propio perfil persistente de escritorio: esa parte se repite en la ejecución móvil, pero no acredita su interfaz en un teléfono.
+
 Entorno: Node 24.19.0, Python 3.12.14, PostgreSQL 17.11, Restic 0.18.0/0.16.4, Chromium 138.0.7204.0. PostgreSQL y Restic se extrajeron a `/tmp/pilot-tools` sin instalar servicios del sistema. Chromium compatible se obtuvo de `@sparticuz/chromium@138.0.2` en un prefijo temporal; no se añadió al proyecto. El SHA-256 de Restic 0.16.4 se comprobó contra el manifiesto de su release.
 
 ### Ejecuciones bloqueadas e incidencias del entorno
@@ -71,7 +73,7 @@ Instalar las dependencias con los lockfiles y generar Prisma antes de probar. Co
 ```bash
 npm ci --prefix backend
 npm ci --prefix frontend
-# Generar Prisma con URLs de una base local de prueba, nunca con conexión productiva.
+(cd backend && DATABASE_URL=postgresql://postgres@127.0.0.1:1/isolated DIRECT_URL=postgresql://postgres@127.0.0.1:1/isolated npx prisma generate)
 npm --prefix backend run build
 npm --prefix backend test
 npm --prefix backend run test:scripts
