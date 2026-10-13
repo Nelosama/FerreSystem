@@ -23,9 +23,9 @@ La plantilla anterior con columnas de precio (`inventario_importable_ferresystem
 | `categoria` | Sí | **Exactamente** uno de los 7 nombres de la lista de §3. Cualquier otro texto crea una categoría nueva. |
 | `stockActual` | Sí | Existencia real contada. Si la tienda hará conteo físico después, cargue **0** y registre el conteo en el levantamiento. Use punto decimal, máximo dos decimales. |
 | `stockMinimo` | Sí | Mínimo para alerta de reposición. Si no lo conoce, pregunte al dueño; el importador usa 5 si la celda está vacía. |
-| `unidadMedida` | Sí | Exactamente una de: `unidad`, `caja`, `metro`, `kg`, `galón` (con tilde). |
+| `unidadMedida` | Sí | Una de: `UNIDAD`, `PIE`, `METRO`, `METRO_CUADRADO`, `METRO_CUBICO`, `LIBRA`, `KG`, `GALON`, `LITRO`, `CAJA`, `PAQUETE`, `OTRO`. `galón`/`galon` también se aceptan. No se convierten cantidades. |
 
-**Errores que el validador detecta:** código repetido, coma decimal, unidad no admitida (por ejemplo `galon` sin tilde), filas de ejemplo sin borrar, archivo vacío.
+**Errores que el validador detecta:** código repetido, coma decimal, unidad no admitida (por ejemplo `tonelada`), filas de ejemplo sin borrar, archivo vacío.
 
 ## 3. Familias y categorías (las 7 que ya existen en el sistema)
 
@@ -58,7 +58,7 @@ Otras unidades (pie, litro, libra, paquete, etc.) **no entran por importación**
 ## 5. Procedimiento de carga
 
 1. Llenar la plantilla con productos de **una familia a la vez**.
-2. Ejecutar el validador: `python3 herramientas/validar_plantilla.py <archivo.csv>`. No importar si dice «NO importar».
+2. Ejecutar el validador estricto (stock inicial 0 si habrá levantamiento; para conteo directo autorizar con `--permitir-existencias-iniciales "ADMIN: responsable, corte y motivo"`): `python3 herramientas/validar_plantilla.py <archivo.csv>`. No importar si dice «NO importar».
 3. En el sistema, en la pantalla de Inventario, abrir la opción de importar (el nombre exacto del botón puede variar en su versión), elegir el archivo y revisar el resumen.
 4. Si un código ya existe, el importador lo **omite** salvo que marque «Sobrescribir». **Sobrescribir reemplaza las existencias** del producto existente. Use «Sobrescribir» solo si el archivo es la fuente correcta (decisión D4).
 5. Anotar cuántos se importaron, omitieron y fallaron.
@@ -85,3 +85,8 @@ Ver `07-levantamiento-conciliacion-jornada.md`. Resumen:
 - Sucursales: no existe modelo de sucursal; todo el inventario es de una sola tienda.
 - Fotografías de productos: no hay servicio de fotos; el campo `imagenUrl` existe pero no se carga por este archivo.
 - Etiquetas: el sistema no genera etiquetas de código de barras.
+
+
+## Aprobación inicial en el candidato integrado
+
+ADMIN abre «Precios y aprobación», busca el código, captura el costo de referencia revisado y el precio de venta positivo y pulsa «Aprobar para venta». Ese paso inicializa el costo vigente si está vacío/cero, conserva existencias y registra ambas auditorías en una transacción. Si ya hay recepción, el costo de compra no se reemplaza. Ante conflicto de versión, recargar y contrastar la hoja; no forzar datos antiguos. La hoja `precios_para_aprobar_administrador.csv` es de revisión y no se importa.

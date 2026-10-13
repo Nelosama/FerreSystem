@@ -47,13 +47,13 @@ Checklist para decidir si la tienda puede vender en el sistema el primer día. L
 | ☐ | Importación real **sin** «Sobrescribir», con resumen guardado (importados, omitidos, errores) | Crítico | | |
 | ☐ | Precios de venta revisados: ninguno en 0 sin intención | Crítico | | |
 | ☐ | Códigos de barras y marcas cargados desde el formulario donde corresponda | Importante | | |
-| ☐ | Artículos con unidad no permitida en CSV (pie, libra, litro, paquete, otro, metro cuadrado, metro cúbico) cargados desde el formulario | Importante | | |
+| ☐ | Unidad de venta de cada familia confirmada entre las doce unidades del inventario (`11` §4) | Importante | | |
 | ☐ | Decisión por artículo: canaleta, lámina, varilla y tornillo (metro, pieza o caja) | Crítico | | |
 | ☐ | Hora de corte definida y comunicada; decisión sobre ventas durante el conteo (decisión I8) | Crítico | | |
 | ☐ | Conteo físico en levantamiento por familias, con reconteo de muestra por una segunda persona o en papel (`07` §2 y §5) | Crítico | | |
 | ☐ | Conciliación: sin conflictos pendientes, diferencias revisadas con el dueño y evidencia exportada (`07` §6) | Crítico | | |
 | ☐ | Levantamiento aplicado solo por el ADMIN, después de la aprobación escrita del dueño. Cinco fichas verificadas | Crítico | | |
-| ☐ | Costo vigente inicial: el dueño y el PM conocen el impedimento y aceptan que quede vacío hasta la primera compra (decisión I12; `01` §8.3) | Crítico | | |
+| ☐ | Costo vigente inicial: el dueño confirma el costo capturado al aprobar cada precio (decisión I12; `08` §0.4) | Crítico | | |
 
 ## D. Métodos de cobro y caja
 
@@ -92,7 +92,7 @@ Checklist para decidir si la tienda puede vender en el sistema el primer día. L
 
 | ☐ | Ítem | Crit. | Responsable | Evidencia |
 |---|---|---|---|---|
-| ☐ | Capacitación de 60 minutos completada por ADMIN, bodega y cada cajero | Crítico | | Lista de asistencia |
+| ☐ | Capacitación de 30 minutos completada por ADMIN, bodega y cada cajero (`10`) | Crítico | | Lista de asistencia |
 | ☐ | Cada cajero hizo al menos una venta de práctica y un cierre de práctica | Crítico | | |
 | ☐ | Manuales (`02-manual-cajero.md`, `03-manual-administrador.md`) entregados en papel o en el equipo | Importante | | |
 | ☐ | El dueño aprobó el cambio de fechas en reportes de días pasados (ventas de 18:00 a 23:59 cambian de día) | Importante | | |

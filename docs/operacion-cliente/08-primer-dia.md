@@ -11,9 +11,9 @@ Este documento usa solo permisos verificados en el código del candidato `85e4ff
 | Paso | Qué hacer | Quién | Por qué |
 |---|---|---|---|
 | 0.1 | Crear cuentas de usuario y entregar contraseña temporal. Cada persona cambia la suya al entrar. | Administrador | Solo ADMIN gestiona usuarios. |
-| 0.2 | Importar el inventario con la plantilla `inventario_importable_v2.csv` (ver `11-captura-inventario-simple.md`). | Administrador o bodeguero | El importador crea productos con sus existencias. |
-| 0.3 | **Fijar y aprobar el precio de venta de cada producto** que se venderá, en Precios y aprobación. Usar `plantillas/precios_para_aprobar_administrador.csv` como hoja de trabajo. | **Solo administrador** | El importador no lee precios. Un producto sin precio aprobado **no se puede vender** (el POS responde «no tiene precio aprobado»). |
-| 0.4 | Confirmar el costo de referencia de cada producto (decisión I5/I12 del dueño). | Administrador | El costo vigente arranca vacío hasta la primera compra recibida (I12). |
+| 0.2 | Importar el inventario con `plantillas/inventario_importable_ferresystem.csv` (seis columnas; ver `11-captura-inventario-simple.md`). | Administrador o bodeguero | El importador crea productos con sus existencias. |
+| 0.3 | **Capturar costo de referencia y precio de venta de cada producto** en «Precios y aprobación» y pulsar «Aprobar para venta». La hoja `precios_para_aprobar_administrador.csv` sirve de trabajo previo. | **Solo administrador** | El importador no lee precios. Un producto sin precio aprobado **no se puede vender** (el POS responde «no tiene precio aprobado»). |
+| 0.4 | Confirmar que el costo capturado al aprobar es el de referencia revisado (decisiones I5 e I12). Al aprobar con costo y precio positivos, el costo vigente inicial queda registrado con motivo y auditoría. | Administrador | Sin costo vigente, las utilidades de esos productos no se calculan. |
 | 0.5 | Verificar en Productos con filtro de pendientes que no quedan productos sin precio que deban venderse. | Administrador | Evita que el cliente encuentre artículos bloqueados en el mostrador. |
 
 ---
