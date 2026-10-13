@@ -165,11 +165,20 @@ try {
     if (!['--through', '--backup-manifest'].includes(args[i]) || flags.has(args[i])) throw new SafeError('Opción desconocida o repetida.');
     flags.set(args[i], args[i + 1]);
   }
-  if (!['inspect', 'deploy', 'adopt'].includes(command) || (command !== 'adopt' && args.length)) throw new SafeError('Uso: migration-safe.mjs inspect|deploy|adopt [--through MIGRACION --backup-manifest ARCHIVO]');
+  if (!['inspect', 'verify', 'startup', 'deploy', 'adopt'].includes(command) || (command !== 'adopt' && args.length)) throw new SafeError('Uso: migration-safe.mjs inspect|verify|startup|deploy|adopt [--through MIGRACION --backup-manifest ARCHIVO]');
   const url = selectedUrl(process.env.DIRECT_URL || process.env.DATABASE_URL);
   let plan = await inspect(url);
   if (command === 'adopt') plan = await adopt(url, plan, flags.get('--through'), flags.get('--backup-manifest'), process.env.FERRE_REFERENCE_DATABASE_URL);
-  if (command === 'deploy') {
+  // Arranque del servicio: por defecto SOLO VERIFICA (lectura). Migrar al arrancar exige FERRE_MIGRAR_AL_ARRANCAR=SI, pensado para instalaciones
+  // locales operadas por el propietario. En producción las migraciones se aplican con `npm run migrate:deploy`, tras respaldo y aprobación.
+  const migrarAlArrancar = command === 'startup' && process.env.FERRE_MIGRAR_AL_ARRANCAR === 'SI';
+  if (command === 'verify' || (command === 'startup' && !migrarAlArrancar)) {
+    if (plan.state !== 'LISTA' || plan.pending.length) {
+      const detalle = plan.state === 'LISTA' ? `faltan ${plan.pending.length} migraciones: ${plan.pending.join(', ')}` : `estado ${plan.state}${plan.errors.length ? ` (${plan.errors.join(', ')})` : ''}`;
+      throw new SafeError(`El servicio NO arranca: la base no coincide con esta versión del código (${detalle}). Este arranque no modifica la base. Aplique las migraciones con el procedimiento autorizado (respaldo verificado + npm run migrate:deploy) o despliegue la versión que corresponde a la base.`);
+    }
+  }
+  if (command === 'deploy' || migrarAlArrancar) {
     if (!['VACIA', 'LISTA'].includes(plan.state)) throw new SafeError(`Despliegue bloqueado: ${plan.state}. Revise historial y respaldo antes de continuar.`);
     prismaCommand(['migrate', 'deploy'], url);
     plan = await inspect(url);

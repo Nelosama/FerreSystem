@@ -8,6 +8,8 @@ import { Sidebar } from './components/Sidebar';
 import { TopNavigation } from './components/TopNavigation';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import PosContingenciaPage from './pages/PosContingenciaPage';
+import ContingenciaAdminPage from './pages/ContingenciaAdminPage';
 
 import './App.css';
 import './v2-theme.css';
@@ -19,6 +21,8 @@ import { useTenant } from './context/TenantContext';
 
 const AuditoriaPage=React.lazy(()=>import('./pages/AuditoriaPage').then(m=>({default:m.AuditoriaPage})));
 const DevolucionesPage=React.lazy(()=>import('./pages/DevolucionesPage').then(m=>({default:m.DevolucionesPage})));
+const PreciosPage=React.lazy(()=>import('./pages/PreciosPage').then(m=>({default:m.PreciosPage})));
+const EntregasPage=React.lazy(()=>import('./pages/EntregasPage').then(m=>({default:m.EntregasPage})));
 const OperacionesPage=React.lazy(()=>import('./pages/OperacionesPage').then(m=>({default:m.OperacionesPage})));
 
 // Dynamic page imports with React.lazy
@@ -66,6 +70,15 @@ const ComisionesPage = React.lazy(() =>
 );
 const ReportesPage = React.lazy(() =>
   import('./pages/ReportesPage').then(m => ({ default: m.ReportesPage }))
+);
+const ConciliacionBancariaPage = React.lazy(() =>
+  import('./pages/ConciliacionBancariaPage').then(m => ({ default: m.ConciliacionBancariaPage }))
+);
+const EstadoCuentaClientesPage = React.lazy(() =>
+  import('./pages/EstadoCuentaClientesPage').then(m => ({ default: m.EstadoCuentaClientesPage }))
+);
+const AdminMovilPage = React.lazy(() =>
+  import('./pages/AdminMovilPage').then(m => ({ default: m.AdminMovilPage }))
 );
 const LevantamientoPage = React.lazy(() =>
   import('./pages/LevantamientoPage').then(m => ({ default: m.LevantamientoPage }))
@@ -144,8 +157,11 @@ export const App: React.FC = () => {
             <BrowserRouter>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
+                <Route path="/pos-contingencia" element={<ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="pos"><PosContingenciaPage /></ProtectedRoute>} />
+                <Route path="/contingencia-admin" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="pos"><AppLayout><ContingenciaAdminPage /></AppLayout></ProtectedRoute>} />
                 <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','VENDEDOR']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
                   <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><AuditoriaPage/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/precios" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><PreciosPage/></AppLayout></ProtectedRoute>}/>
                   {/* Rutas públicas de login */}
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/admin/login" element={<Navigate to="/login" replace />} />
@@ -164,7 +180,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/clientes"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']}>
+                      <ProtectedRoute allowedRoles={['ADMIN']}>
                         <AppLayout>
                           <ClientesPage />
                         </AppLayout>
@@ -187,6 +203,36 @@ export const App: React.FC = () => {
                       <ProtectedRoute allowedRoles={['ADMIN']} requiredPermiso="reportes.ver" requiredModule="reportes">
                         <AppLayout>
                           <ReportesPage />
+                        </AppLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/conciliacion-bancaria"
+                    element={
+                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                        <AppLayout>
+                          <ConciliacionBancariaPage />
+                        </AppLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/estado-cuenta-clientes"
+                    element={
+                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                        <AppLayout>
+                          <EstadoCuentaClientesPage />
+                        </AppLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin-movil"
+                    element={
+                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                        <AppLayout>
+                          <AdminMovilPage />
                         </AppLayout>
                       </ProtectedRoute>
                     }
@@ -276,7 +322,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/garantias"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="garantias">
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO']} requiredModule="garantias">
                         <AppLayout>
                           <GarantiasPage />
                         </AppLayout>
@@ -336,7 +382,7 @@ export const App: React.FC = () => {
                   />
 
                   <Route path="/cuentas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO']}><AppLayout><OperacionesPage modo="cuentas"/></AppLayout></ProtectedRoute>}/>
-                  <Route path="/entregas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','BODEGUERO']}><AppLayout><OperacionesPage modo="entregas"/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/entregas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','BODEGUERO']}><AppLayout><EntregasPage/></AppLayout></ProtectedRoute>}/>
                   {/* Fallback */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

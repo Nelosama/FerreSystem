@@ -2,6 +2,7 @@ import { BackupStatusController } from './common/backup-status.controller';
 import { SupportAuditInterceptor } from './common/interceptors/support-audit.interceptor';
 import { HealthController } from './common/health.controller';
 import { OperacionesModule } from './operaciones/operaciones.module';
+import { EntregasModule } from './entregas/entregas.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -20,6 +21,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
 import { LevantamientosModule } from './levantamientos/levantamientos.module';
 import { ProveedoresModule } from './proveedores/proveedores.module';
 import { GarantiasModule } from './garantias/garantias.module';
+import { ContingenciaModule } from './contingencia/contingencia.module';
 
 @Module({
   imports: [
@@ -39,8 +41,10 @@ import { GarantiasModule } from './garantias/garantias.module';
     UsuariosModule,
     LevantamientosModule,
     OperacionesModule,
+    EntregasModule,
     ProveedoresModule,
     GarantiasModule,
+    ContingenciaModule,
   ],
   controllers: [HealthController, BackupStatusController],
   providers: [

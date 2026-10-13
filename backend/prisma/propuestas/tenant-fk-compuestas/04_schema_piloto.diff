@@ -1,0 +1,48 @@
+diff --git a/backend/prisma/schema.prisma b/backend/prisma/schema.prisma
+index ba5e46d3..ac5b4e2c 100644
+--- a/backend/prisma/schema.prisma
++++ b/backend/prisma/schema.prisma
+@@ -308,6 +308,8 @@ model Producto {
+   @@index([tenantId, precioAprobado])
+   proveedoresProducto ProductoProveedor[]
+   @@map("productos")
++  @@unique([tenantId, id], map: "productos_tenant_id_id_key")
++  ppTenant ProductoProveedor[] @relation("PPProductoTenant")
+ }
+ 
+ // ============================================================
+@@ -349,6 +351,8 @@ model Cliente {
+   @@index([tenantId, nombre])
+   @@unique([tenantId, numeroCliente])
+   @@map("clientes")
++  @@unique([tenantId, id], map: "clientes_tenant_id_id_key")
++  ventasTenant Venta[] @relation("VentaClienteTenant")
+ }
+ 
+ model SecuenciaCliente {
+@@ -428,6 +432,7 @@ model Venta {
+   @@index([tenantId, estado])
+   @@index([tenantId, createdAt])
+   @@map("ventas")
++  clienteTenant Cliente? @relation("VentaClienteTenant", fields: [tenantId, clienteId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction, map: "ventas_tenant_cliente_fkey")
+ }
+ 
+ model AbonoCliente {
+@@ -689,6 +694,8 @@ model Proveedor {
+  @@map("proveedores")
+   tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+   ordenesCompra   OrdenCompra[]
++  @@unique([tenantId, id], map: "proveedores_tenant_id_id_key")
++  ppTenant ProductoProveedor[] @relation("PPProveedorTenant")
+ }
+ model CompraProveedor {
+  id String @id @default(dbgenerated("(gen_random_uuid())::text"))
+@@ -1009,6 +1016,8 @@ model ProductoProveedor {
+   @@unique([tenantId, productoId, proveedorId], map: "productos_proveedores_tenant_producto_proveedor_key")
+   @@index([tenantId, proveedorId], map: "productos_proveedores_tenant_proveedor_idx")
+   @@map("productos_proveedores")
++  productoTenant Producto @relation("PPProductoTenant", fields: [tenantId, productoId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction, map: "productos_proveedores_tenant_producto_fkey")
++  proveedorTenant Proveedor @relation("PPProveedorTenant", fields: [tenantId, proveedorId], references: [tenantId, id], onDelete: NoAction, onUpdate: NoAction, map: "productos_proveedores_tenant_proveedor_fkey")
+ }
+ 
+ // ============================================================

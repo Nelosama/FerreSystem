@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { enabledTenantModules } from '../common/tenant-modules';
 import { normalizeTenantConfiguration, validateTenantConfiguration } from './tenant-configuration';
 import { PrismaService } from '../prisma/prisma.service';
@@ -41,7 +41,16 @@ export class TenantsService {
   ) {
     if (data.modoNavegacion && !['SIDEBAR', 'TOPNAV'].includes(data.modoNavegacion)) throw new BadRequestException('Navegación inválida');
     const configuracion = data.configuracion;
-    if (configuracion !== undefined) validateTenantConfiguration(configuracion);
+    if (configuracion !== undefined) {
+      validateTenantConfiguration(configuracion);
+      // FS-10: el rubro del negocio define plantillas y catálogo; solo lo cambia el Super Admin (ruta de soporte).
+      // Reenviar el valor vigente sigue permitido, así un guardado de apariencia no falla.
+      if (configuracion.rubro !== undefined) {
+        const actual = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+        const rubroActual = (actual?.configuracion as Record<string, unknown> | null)?.rubro ?? 'FERRETERIA';
+        if (configuracion.rubro !== rubroActual) throw new ForbiddenException('El rubro del negocio solo lo configura el Super Admin');
+      }
+    }
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {

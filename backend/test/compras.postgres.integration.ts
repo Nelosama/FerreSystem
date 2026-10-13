@@ -71,7 +71,7 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
     await prisma.usuario.create({ data: { id: otro, tenantId: otherTenantId, nombre: 'Ajeno', email: `${otro}@test.invalid`, passwordHash: 'not-a-password', rol: 'ADMIN' } });
     users.OTHER = otro;
     proveedorId = (await prisma.proveedor.create({ data: { tenantId, nombre: 'Distribuidora Central' } })).id;
-    productoId = (await prisma.producto.create({ data: { tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioCosto: 50, precioVenta: 70, stockActual: 100, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
+    productoId = (await prisma.producto.create({ data: {precioAprobado:true, tenantId, codigo: 'TOR-1', nombre: 'Tornillo', precioCosto: 50, precioVenta: 70, stockActual: 100, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
   });
 
   // ─── Compra y CxP ────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
     const otroProveedor = (await prisma.proveedor.create({ data: { tenantId, nombre: 'Otro proveedor' } })).id;
     await ops.compra(tenantId, users.ADMIN, { ...compraDe('FAC-300', 45, 10), proveedorId: otroProveedor });
     const otroTenantProveedor = (await prisma.proveedor.create({ data: { tenantId: otherTenantId, nombre: 'Ajeno' } })).id;
-    const otroProducto = (await prisma.producto.create({ data: { tenantId: otherTenantId, codigo: 'TOR-1', nombre: 'Ajeno', precioCosto: 1, precioVenta: 2, stockActual: 0, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
+    const otroProducto = (await prisma.producto.create({ data: {precioAprobado:true, tenantId: otherTenantId, codigo: 'TOR-1', nombre: 'Ajeno', precioCosto: 1, precioVenta: 2, stockActual: 0, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
     await ops.compra(otherTenantId, users.OTHER, { ...compraDe('FAC-300', 1, 1), proveedorId: otroTenantProveedor, items: [{ productoId: otroProducto, cantidad: 1, costo: 1 }] });
   });
 
@@ -201,10 +201,10 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
   it('pagos parciales reducen el saldo; no se acepta un pago mayor al saldo', async () => {
     const orden = await ops.compra(tenantId, users.ADMIN, compraDe('FAC-1200', 45, 200));
     const cuenta = await cuentaDe(orden.id);
-    await ops.pagar(tenantId, users.ADMIN, cuenta.id, { solicitudId: randomUUID(), monto: 4000, metodo: 'TRANSFERENCIA' } as any);
+    await ops.pagar(tenantId, users.ADMIN, cuenta.id, { solicitudId: randomUUID(), monto: 4000, metodo: 'TRANSFERENCIA', referencia: 'TRF-PAR-1' } as any);
     expect(Number((await prisma.cuentaOperativa.findUniqueOrThrow({ where: { id: cuenta.id } })).saldo)).toBe(5000);
     await expect(ops.pagar(tenantId, users.ADMIN, cuenta.id, { solicitudId: randomUUID(), monto: 5001, metodo: 'EFECTIVO' } as any)).rejects.toThrow('mayor al saldo');
-    await ops.pagar(tenantId, users.ADMIN, cuenta.id, { solicitudId: randomUUID(), monto: 5000, metodo: 'TARJETA' } as any);
+    await ops.pagar(tenantId, users.ADMIN, cuenta.id, { solicitudId: randomUUID(), monto: 5000, metodo: 'TARJETA', referencia: 'TAR-PAR-2' } as any);
     expect(Number((await prisma.cuentaOperativa.findUniqueOrThrow({ where: { id: cuenta.id } })).saldo)).toBe(0);
   });
 
@@ -223,7 +223,7 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
   it('reintentar un pago con la misma solicitud no descuenta dos veces', async () => {
     const orden = await ops.compra(tenantId, users.ADMIN, compraDe('FAC-1400', 45, 200));
     const cuenta = await cuentaDe(orden.id);
-    const body = { solicitudId: randomUUID(), monto: 2000, metodo: 'TRANSFERENCIA' } as any;
+    const body = { solicitudId: randomUUID(), monto: 2000, metodo: 'TRANSFERENCIA', referencia: 'TRF-REINT-3' } as any;
     await ops.pagar(tenantId, users.ADMIN, cuenta.id, body);
     await ops.pagar(tenantId, users.ADMIN, cuenta.id, body);
     expect(Number((await prisma.cuentaOperativa.findUniqueOrThrow({ where: { id: cuenta.id } })).saldo)).toBe(7000);
@@ -236,7 +236,7 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
     const cajaAntes = await prisma.caja.findFirstOrThrow({ where: { tenantId } });
     const movimientosAntes = (await sql('SELECT COUNT(*)::int AS n FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id WHERE c.tenant_id=$1', tenantId))[0].n;
     for (const metodo of ['EFECTIVO', 'TARJETA', 'TRANSFERENCIA']) {
-      await ops.pagar(tenantId, users.ADMIN, cuenta.id, { solicitudId: randomUUID(), monto: 1000, metodo } as any);
+      await ops.pagar(tenantId, users.ADMIN, cuenta.id, { solicitudId: randomUUID(), monto: 1000, metodo, ...(metodo==='EFECTIVO'?{}:{referencia:`${metodo}-CAJA-${randomUUID().slice(0,8)}`}) } as any);
     }
     const pagos = await prisma.pagoCuenta.findMany({ where: { cuentaId: cuenta.id } });
     expect(pagos.map(p => p.cajaId)).toEqual([null, null, null]);
@@ -254,7 +254,7 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
   it('los pagos a proveedor quedan auditados con proveedor, factura, método, monto y responsable', async () => {
     const orden = await ops.compra(tenantId, users.ADMIN, compraDe('FAC-1700', 45, 200));
     const cuenta = await cuentaDe(orden.id);
-    const pago = await ops.pagar(tenantId, users.ADMIN, cuenta.id, { solicitudId: randomUUID(), monto: 1234.5, metodo: 'TRANSFERENCIA' } as any);
+    const pago = await ops.pagar(tenantId, users.ADMIN, cuenta.id, { solicitudId: randomUUID(), monto: 1234.5, metodo: 'TRANSFERENCIA', referencia: 'TRF-AUD-4' } as any);
     const [registro] = await sql("SELECT usuario_id, datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='CUENTA_PAGAR' AND entidad_id=$2", tenantId, pago.id);
     expect(registro.usuario_id).toBe(users.ADMIN);
     expect(registro.datos).toMatchObject({ tipo: 'CXP', monto: 1234.5, metodo: 'TRANSFERENCIA', afectaCaja: false, proveedorId });
@@ -304,7 +304,7 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
   });
 
   it('una compra con un producto de otra empresa se rechaza sin crear orden ni cuenta (rollback)', async () => {
-    const ajeno = (await prisma.producto.create({ data: { tenantId: otherTenantId, codigo: 'AJ-1', nombre: 'Ajeno', precioCosto: 1, precioVenta: 2, stockActual: 0, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
+    const ajeno = (await prisma.producto.create({ data: {precioAprobado:true, tenantId: otherTenantId, codigo: 'AJ-1', nombre: 'Ajeno', precioCosto: 1, precioVenta: 2, stockActual: 0, stockMinimo: 0, unidadMedida: 'UNIDAD' } })).id;
     await expect(ops.compra(tenantId, users.ADMIN, { ...compraDe('FAC-2300', 45, 10), items: [{ productoId, cantidad: 10, costo: 45 }, { productoId: ajeno, cantidad: 1, costo: 1 }] })).rejects.toThrow('no encontrado');
     expect(await prisma.ordenCompra.count({ where: { tenantId } })).toBe(0);
     expect(await prisma.cuentaOperativa.count({ where: { tenantId } })).toBe(0);

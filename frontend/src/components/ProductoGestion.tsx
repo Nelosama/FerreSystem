@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { ProveedoresProductoPanel } from './ProveedoresProductoPanel';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
@@ -22,11 +23,6 @@ const GRUPOS: { titulo: string; campos: { k: string; tipo?: 'texto' | 'numero' |
     { k: 'categoria', ayuda: 'categoria' },
     { k: 'unidadMedida', tipo: 'select', ayuda: 'unidad' },
     { k: 'usaMedida', tipo: 'check' },
-  ] },
-  { titulo: 'group_prices', campos: [
-    { k: 'precioVenta', tipo: 'numero', requerido: true },
-    { k: 'precioCosto', tipo: 'numero', ayuda: 'costo' },
-    { k: 'margen', tipo: 'numero' },
   ] },
   { titulo: 'group_stock', campos: [
     { k: 'stockMinimo', tipo: 'numero' },
@@ -126,6 +122,9 @@ export const ProductoGestion: React.FC<{ productos: any[]; onSaved: () => Promis
   };
 
   const renderCampo = (campo: { k: string; tipo?: string; requerido?: boolean; ayuda?: string }) => {
+    // Decisión 3: costo, precio y margen los cambia solo ADMIN; el campo se muestra, no se edita.
+    const soloAdmin = ['precioVenta', 'precioCosto', 'margen'].includes(campo.k) && user?.rol !== 'ADMIN';
+    if (soloAdmin) return null;
     const deshabilitado = busy || isReadOnly;
     const ayuda = campo.ayuda ? <small className="form-hint">{t(`product_edit.hint.${campo.ayuda}`)}</small> : null;
     if (campo.tipo === 'check') {
@@ -207,6 +206,7 @@ export const ProductoGestion: React.FC<{ productos: any[]; onSaved: () => Promis
         </>
       )}
 
+      {selected && <ProveedoresProductoPanel productoId={selected.id} productoNombre={selected.nombre} soloLectura={isReadOnly} />}
       {history && (
         <>
           <h3>{t('product_edit.history_title')}</h3>

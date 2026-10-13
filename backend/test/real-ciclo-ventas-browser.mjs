@@ -24,12 +24,17 @@ try {
   await page.getByTitle('Convertir a Factura/Venta POS').first().click();
   await expect(page.getByLabel(/Método de pago/i)).toBeVisible({ timeout: 5000 });
   await page.getByLabel(/Método de pago/i).selectOption('TRANSFERENCIA');
+  // Autorización bancaria obligatoria para transferencia (el formulario deshabilita Confirmar sin ella).
+  await page.getByLabel(/Autorización bancaria/i).fill('AUT-CHROMIUM-0001');
   const conversion = page.waitForResponse(r => r.url().endsWith('/convertir') && r.request().method() === 'POST');
   await page.getByRole('button', { name: /Confirmar.*Convertir/i }).click();
   expect((await conversion).status()).toBe(201);
   await page.goto(`${origin}/pos`);
   await page.getByText('QA NAVEGADOR', { exact: true }).click();
   await page.getByRole('button', { name: 'TARJETA', exact: true }).click();
+  // Tarjeta exige autorización bancaria y terminal del POS.
+  await page.getByLabel(/Autorización bancaria/i).fill('AUT-CHROMIUM-0002');
+  await page.getByLabel(/Terminal POS/i).fill('POS-01');
   const sale = page.waitForResponse(r => r.url().endsWith('/ventas') && r.request().method() === 'POST');
   await page.getByRole('button', { name: /Procesar Venta/i }).click();
   expect((await sale).status()).toBe(201);

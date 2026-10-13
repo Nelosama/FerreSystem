@@ -1,5 +1,9 @@
-import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
-import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, id as nuevoId, esIdInterno, idSolicitud, candidatosSolicitud, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { diaCalendario, sumarDias } from '../common/zona-horaria';
+import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
+import { aCentesimas, huellaCanonica, normalizarTexto } from '../common/huella-solicitud';
+import { cent, registrarEventosCobro, ROLES_ENTREGA } from '../entregas/entregas-core';
+import { Injectable, BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -8,11 +12,13 @@ export class VentasService {
 
   async findSolicitud(tenantId: string, usuarioId: string, solicitudId: string) {
     // Esperar a una escritura en curso; consultar nunca registra ni cobra una venta.
+    // Un identificador interno no es una solicitud: no se reconoce como venta registrada (P3).
+    if (esIdInterno(solicitudId)) return { estado: 'NO_REGISTRADA' as const };
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx, tenantId);
-      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + solicitudId}, 0))`;
+      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + tenantId + ':' + solicitudId}, 0))`;
       const venta = await tx.venta.findFirst({
-        where: { id: solicitudId, tenantId, usuarioId },
+        where: { id: { in: candidatosSolicitud(tenantId, solicitudId) }, tenantId, usuarioId },
         include: { cliente: true, detalles: { include: { producto: true } } },
       });
       return venta
@@ -103,6 +109,7 @@ export class VentasService {
       clienteRtn?: string;
       vencimiento?: string;
       metodoPago?: any;
+      pagoElectronico?: { referencia?: string | null; terminal?: string | null };
       tipoPago?: 'CONTADO' | 'CREDITO';
       descuento?: number;
       notas?: string;
@@ -113,9 +120,12 @@ export class VentasService {
         sinInventario?: boolean;
         proveedorId?: string;
         ordenCompraId?: string;
+        modoEntrega?: 'MOSTRADOR' | 'BODEGA';
       }[];
     },
   ) {
+    // DEF-03: toda venta nueva exige solicitudId (reintentos seguros). Las ventas anteriores sin él siguen consultables.
+    if (!dto.solicitudId) throw new BadRequestException('solicitudId es obligatorio: genere un UUID v4 al abrir la venta y reutilícelo en los reintentos');
     if (!dto.detalles || dto.detalles.length === 0) {
       throw new BadRequestException('La venta debe incluir al menos un producto');
     }
@@ -126,8 +136,36 @@ export class VentasService {
       throw new BadRequestException('El tipo de pago y el método de pago no coinciden');
     }
     const metodo = dto.metodoPago || (tipoPago === 'CREDITO' ? 'CREDITO' : 'EFECTIVO');
+    // Tarjeta y transferencia exigen la autorización bancaria antes de confirmar la venta (sin integración bancaria).
+    const autorizacion = normalizarAutorizacion(metodo, dto.pagoElectronico);
     const descuento = decimal(dto.descuento || 0, 'Descuento');
-    const requestHash = fingerprint({usuarioId,dto});
+    // Huella canónica (v2): mismo contenido, misma huella, sin importar orden de claves o líneas. Las ventas
+    // anteriores conservan su huella heredada y se comparan con ella.
+    const huellaHeredada = fingerprint({usuarioId,dto});
+    let requestHash: string;
+    try {
+      requestHash = 'v2:' + huellaCanonica({
+        v: 2, usuarioId,
+        clienteId: dto.clienteId ?? null,
+        clienteNombre: normalizarTexto(dto.clienteNombre),
+        clienteRtn: normalizarTexto(dto.clienteRtn),
+        vencimiento: dto.vencimiento ?? null,
+        metodo, tipoPago,
+        descuentoCentesimas: aCentesimas(descuento, 'El descuento'),
+        notas: normalizarTexto(dto.notas),
+        detalles: dto.detalles.map((d) => ({
+          productoId: d.productoId,
+          cantidadCentesimas: aCentesimas(d.cantidad, 'La cantidad', true),
+          precioCentesimas: d.precioUnitario === undefined ? null : aCentesimas(d.precioUnitario, 'El precio'),
+          sinInventario: !!d.sinInventario,
+          proveedorId: d.proveedorId ?? null,
+          ordenCompraId: d.ordenCompraId ?? null,
+          modoEntrega: d.sinInventario ? 'SIN_INVENTARIO' : (d.modoEntrega ?? 'BODEGA'),
+        })).sort((a, b) => (a.productoId < b.productoId ? -1 : a.productoId > b.productoId ? 1 : 0)),
+      });
+    } catch (error) {
+      throw new BadRequestException((error as Error).message);
+    }
 
     // Transacción atómica completa: número correlativo, descuento de inventario y guardado
     return this.prisma.$transaction(async (tx) => {
@@ -135,11 +173,15 @@ export class VentasService {
       const user = await authorizedActor(tx,tenantId,usuarioId,['ADMIN','CAJERO','VENDEDOR'],'pos.vender');
       // Un reintento conserva el ID de la venta; el bloqueo dura hasta commit/rollback.
       if (dto.solicitudId) {
-        await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + dto.solicitudId}, 0))`;
-        const anterior = await tx.venta.findUnique({
-          where: { id: dto.solicitudId },
-          include: { cliente: true, detalles: { include: { producto: true } } },
-        });
+        await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + tenantId + ':' + dto.solicitudId}, 0))`;
+        // Identificador derivado por empresa; el crudo solo cuenta si la venta es de esta empresa (ventas anteriores al cambio).
+        const incluir = { cliente: true, detalles: { include: { producto: true } } } as const;
+        const [derivado, crudo] = candidatosSolicitud(tenantId, dto.solicitudId);
+        let anterior = await tx.venta.findUnique({ where: { id: derivado }, include: incluir });
+        if (!anterior) {
+          const heredada = await tx.venta.findUnique({ where: { id: crudo }, include: incluir });
+          if (heredada && heredada.tenantId === tenantId) anterior = heredada;
+        }
         if (anterior) {
           const restantes = [...anterior.detalles];
           const mismosDetalles = anterior.detalles.length === dto.detalles.length &&
@@ -152,7 +194,7 @@ export class VentasService {
               return true;
             });
           if (anterior.tenantId !== tenantId || anterior.usuarioId !== usuarioId ||
-              (anterior.solicitudHash && anterior.solicitudHash !== requestHash) ||
+              (anterior.solicitudHash && anterior.solicitudHash !== (anterior.solicitudHash.startsWith('v2:') ? requestHash : huellaHeredada)) ||
               anterior.clienteId !== (dto.clienteId || null) ||
               anterior.metodoPago !== metodo || anterior.tipoPago !== tipoPago ||
               Number(anterior.descuento) !== descuento || anterior.notas !== (dto.notas || null) ||
@@ -197,6 +239,8 @@ export class VentasService {
         sinInventario: boolean;
         proveedorId: string | null;
         ordenCompraId: string | null;
+        modo: 'MOSTRADOR' | 'BODEGA' | 'SIN_INVENTARIO';
+        stockAntes: number;
       }[] = [];
 
       for (const item of dto.detalles) {
@@ -209,17 +253,30 @@ export class VentasService {
         if (!prod) {
           throw new NotFoundException(`Producto con ID ${item.productoId} no encontrado o inactivo`);
         }
+        // Defensa en profundidad: aprobación y precio positivo, ambos obligatorios para vender (contrato precioAprobado con KARDEX).
+        if (!prod.precioAprobado || Number(prod.precioVenta) <= 0) {
+          throw new BadRequestException(`"${prod.nombre}" no tiene precio aprobado por el administrador; no se puede vender`);
+        }
+        if (item.sinInventario && item.modoEntrega) throw new BadRequestException('La venta sin inventario no admite modo de entrega');
+        const modo: 'MOSTRADOR' | 'BODEGA' | 'SIN_INVENTARIO' = item.sinInventario ? 'SIN_INVENTARIO' : (item.modoEntrega ?? 'BODEGA');
+        // La entrega inmediata en el POS es una entrega física: mismas reglas que /entregas (solo ADMIN y BODEGUERO).
+        if (modo === 'MOSTRADOR' && !(ROLES_ENTREGA as readonly string[]).includes(user.rol)) {
+          throw new ForbiddenException('Su rol no registra entregas físicas. Use «Cobrar y dejar en bodega»: bodega o administración entregará la mercancía.');
+        }
 
         const reservado=Number(prod.stockReservado||0);
         const stockDisponible = money(Number(prod.stockActual)-reservado);
         if (!item.sinInventario && stockDisponible < item.cantidad) {
           throw new BadRequestException(
-            `Stock insuficiente para "${prod.nombre}". Disponible: ${stockDisponible}, Solicitado: ${item.cantidad}`,
+            modo === 'MOSTRADOR'
+              ? `No hay existencias disponibles de "${prod.nombre}" para entregar ahora (disponible: ${stockDisponible}). Si la mercancía está pendiente de entregar, use Cobrar y dejar en bodega.`
+              : `Stock insuficiente para "${prod.nombre}". Disponible: ${stockDisponible}, Solicitado: ${item.cantidad}`,
           );
         }
 
         const precioUnitario = item.precioUnitario !== undefined ? item.precioUnitario : Number(prod.precioVenta);
         decimal(precioUnitario,'Precio unitario');
+        if (!(precioUnitario > 0)) throw new BadRequestException('El precio unitario debe ser mayor que cero');
         if (user.rol !== 'ADMIN' && precioUnitario !== Number(prod.precioVenta)) throw new ConflictException('El precio cambió; actualice el catálogo o solicite al administrador');
         if (item.sinInventario) {
           const [provider] = await query(tx,'SELECT id FROM proveedores WHERE id=$1 AND tenant_id=$2',item.proveedorId || '',tenantId);
@@ -231,9 +288,10 @@ export class VentasService {
 
         // Descontar inventario con precisión decimal exacta
         if (!item.sinInventario) {
+        // MOSTRADOR descuenta existencias al cobrar (entrega inmediata); BODEGA las reserva para entrega posterior.
         const descontado = await tx.producto.updateMany({
           where: { id: prod.id, tenantId, activo: true, stockActual: { gte: money(item.cantidad+reservado) }, stockReservado:reservado },
-          data: { stockReservado: { increment: item.cantidad } },
+          data: modo === 'MOSTRADOR' ? { stockActual: { decrement: item.cantidad } } : { stockReservado: { increment: item.cantidad } },
         });
         if (descontado.count !== 1) {
           throw new BadRequestException(`Stock insuficiente para "${prod.nombre}" o producto inactivo`);
@@ -250,6 +308,8 @@ export class VentasService {
           sinInventario: !!item.sinInventario,
           proveedorId: item.proveedorId || null,
           ordenCompraId: item.ordenCompraId || null,
+          modo,
+          stockAntes: cent(prod.stockActual),
         });
       }
 
@@ -259,6 +319,7 @@ export class VentasService {
       const baseGravable = money(subtotalTotal - descuento);
       const isv = Math.round(baseGravable * 0.15 * 100) / 100;
       const total = Math.round((baseGravable + isv) * 100) / 100;
+      if (!(total > 0)) throw new BadRequestException('La venta debe tener un importe mayor que cero');
 
       if (tipoPago === 'CREDITO' && clienteCredito.limiteCredito !== null) {
         const nuevoSaldo = money(Number(clienteCredito.saldoPendiente) + total);
@@ -270,9 +331,9 @@ export class VentasService {
       // 4. Crear la venta en base de datos
       const venta = await tx.venta.create({
         data: {
-          ...(dto.solicitudId && { id: dto.solicitudId }),
+          ...(dto.solicitudId && { id: idSolicitud(tenantId, dto.solicitudId) }),
           tenantId,
-          reservaPendiente:detallesParaCrear.some(d=>!d.sinInventario),
+          reservaPendiente:detallesParaCrear.some(d=>d.modo==='BODEGA'),
           numeroVenta,
           clienteId: dto.clienteId || null,
           usuarioId,
@@ -299,6 +360,9 @@ export class VentasService {
               sinInventario: d.sinInventario,
               proveedorId: d.proveedorId,
               ordenCompraId: d.ordenCompraId,
+              tenantId,
+              modoEntrega: d.modo,
+              cantidadEntregada: d.modo === 'MOSTRADOR' ? d.cantidad : 0,
             })),
           },
         },
@@ -316,10 +380,23 @@ export class VentasService {
           data: { saldoPendiente: { increment: total } },
         });
         if (updated.count !== 1) throw new BadRequestException('El cliente no tiene habilitado el crédito');
-        await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,dto.vencimiento);
+        // Decisión aprobada: el vencimiento de una factura nueva sale del plazo de crédito del cliente y se conserva
+        // aunque después cambie el plazo. Sin plazo configurado se mantiene el vencimiento indicado (compatibilidad).
+        const vencimiento = clienteCredito?.plazoCreditoDias ? sumarDias(diaCalendario(new Date()), clienteCredito.plazoCreditoDias) : dto.vencimiento;
+        await account(tx,tenantId,usuarioId,'CXC',venta.id,dto.clienteId!,total,vencimiento);
       }
+      if (autorizacion) await registrarAprobacion(tx,tenantId,usuarioId,autorizacion,Number(total),'VENTA',venta.id);
+      // Eventos de cobro y, si hubo entrega inmediata, de entrega con su movimiento de inventario.
+      const porProducto = new Map(detallesParaCrear.map((d) => [d.productoId, d]));
+      await registrarEventosCobro(tx, {
+        tenantId, usuarioId, ventaId: venta.id, origen: 'ONLINE', solicitud: dto.solicitudId ?? nuevoId(),
+        lineas: venta.detalles.map((d) => ({
+          detalleId: d.id, productoId: d.productoId, cantidadCentesimas: cent(d.cantidad),
+          modo: d.modoEntrega as 'MOSTRADOR' | 'BODEGA' | 'SIN_INVENTARIO', stockAntes: porProducto.get(d.productoId)!.stockAntes,
+        })),
+      });
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',total,metodo,venta.id,`Venta ${numeroVenta}`);
-      await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id});
+      await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id,aprobacion:autorizacion});
       return this.formatVentaCreada(venta);
     },{timeout:30000});
   }
@@ -339,6 +416,8 @@ export class VentasService {
         cantidad: Number(d.cantidad),
         precioUnitario: Number(d.precioUnitario),
         subtotal: Number(d.subtotal),
+        modoEntrega: d.modoEntrega,
+        cantidadEntregada: Number(d.cantidadEntregada),
       })),
     };
   }

@@ -1,13 +1,27 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as cookieParserImport from 'cookie-parser';
-import { ValidationPipe } from '@nestjs/common';
+import { configurarPipesGlobales } from './common/pipes/profundidad-maxima.pipe';
+import { errorDeConfiguracionContingencia } from './contingencia/clave-operaciones';
 import { createFrontendCorsOptions } from './common/frontend-cors';
+import { leerTrustProxy, validarConfiguracionAuth } from './auth/auth-config';
 
 const cookieParser = (cookieParserImport as any).default || cookieParserImport;
 
 async function bootstrap() {
+  // Configuración obligatoria de la contingencia: se valida antes de crear la aplicación y el mensaje nunca incluye valores secretos.
+  const errorContingencia = errorDeConfiguracionContingencia(process.env);
+  if (errorContingencia) {
+    console.error(`[ARRANQUE] ${errorContingencia}`);
+    process.exit(1);
+  }
   const app = await NestFactory.create(AppModule);
+
+  // Falla al arrancar si la configuración de autenticación es inválida.
+  validarConfiguracionAuth(process.env);
+  // Detrás de un proxy (Render), req.ip solo es el cliente real si el número de proxies confiables está configurado.
+  const trustProxy = leerTrustProxy(process.env.TRUST_PROXY);
+  if (trustProxy) app.getHttpAdapter().getInstance().set('trust proxy', trustProxy);
 
   // Parse cookies for httpOnly refresh tokens
   app.use(cookieParser());
@@ -15,14 +29,8 @@ async function bootstrap() {
   // Enable CORS with credentials for frontend applications (Vercel, local dev, custom domain)
   app.enableCors(createFrontendCorsOptions());
 
-  // Global validation pipe with whitelist stripping
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: false,
-    }),
-  );
+  // Límite de profundidad del JSON y validación global con whitelist (ver profundidad-maxima.pipe.ts, H-P)
+  configurarPipesGlobales(app);
 
   // Global prefix for API
   app.setGlobalPrefix('api');

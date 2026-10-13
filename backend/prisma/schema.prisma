@@ -147,7 +147,30 @@ model Tenant {
   levantamientoSesiones LevantamientoSesion[]
 
   coberturasGarantia CoberturaGarantia[]
+  dispositivosPos DispositivoPos[]
+  contingenciaVentanas ContingenciaVentana[]
+  catalogoInstantaneas CatalogoInstantanea[]
+  operacionesContingencia OperacionContingencia[]
+  productosProveedores ProductoProveedor[]
+
+  // Tablas operativas históricas sin modelo previo (ver docs/agentes/NEXUS.md)
+  apartados          Apartado[]
+  garantias          Garantia[]
+  pedidosEspeciales  PedidoEspecial[]
+  transferencias     Transferencia[]
+  listasPrecio       ListaPrecio[]
+  auditoriasSoporte  AuditoriaSoporte[]
+  cierresComisiones  CierreComision[]
+  proveedores        Proveedor[]
+  ordenesCompra      OrdenCompra[]
+  cajas              Caja[]
+
+  aprobacionesBancarias AprobacionBancaria[]
+  conciliacionesBancarias ConciliacionBancaria[]
   @@map("tenants")
+  // Cobro y entrega
+  detallesVentaTenant DetalleVenta[]   @relation("DetalleVentaTenant")
+  entregasEventos     EntregaEvento[]
 }
 
 // ============================================================
@@ -195,9 +218,19 @@ model Usuario {
 
   coberturasCreadas CoberturaGarantia[] @relation("GarantiaCreadaPor")
   coberturasActualizadas CoberturaGarantia[] @relation("GarantiaActualizadaPor")
+  transferencias   Transferencia[]
+  cierresComisiones CierreComision[]
+  ordenesCompra OrdenCompra[]
+  cajas         Caja[]
   @@unique([tenantId, email])
   @@index([tenantId])
+  aprobacionesBancarias AprobacionBancaria[]
+  conciliacionesBancarias ConciliacionBancaria[]
   @@map("usuarios")
+  productosProveedoresCreados     ProductoProveedor[] @relation("ProductoProveedorCreado")
+  productosProveedoresActualizados ProductoProveedor[] @relation("ProductoProveedorActualizado")
+  @@unique([tenantId, id], map: "usuarios_tenant_id_id_key")
+  eventosEntrega EntregaEvento[] @relation("EventoUsuario")
 }
 
 // ============================================================
@@ -235,6 +268,12 @@ model Producto {
   marca String?
   // FS-07: control de concurrencia optimista; cada edición exitosa incrementa la versión.
   version Int @default(1)
+  // Precio para venta: solo un ADMIN fija precios y aprueba. Sin aprobación no se puede vender.
+  precioAprobado Boolean @default(false) @map("precio_aprobado")
+  precioAprobadoPor String? @map("precio_aprobado_por")
+  precioAprobadoAt DateTime? @map("precio_aprobado_at")
+  precioModificadoPor String? @map("precio_modificado_por")
+  precioModificadoAt DateTime? @map("precio_modificado_at")
   margen Decimal? @db.Decimal(5,2)
   ultimaCompraAt DateTime? @map("ultima_compra_at")
   nombre        String
@@ -260,14 +299,23 @@ model Producto {
   detallesCompra DetalleCompra[]
   costosCompra CostoCompra[]
   movimientosInventario MovimientoInventario[]
+  apartados     Apartado[]
+  garantias     Garantia[]
+  detallesTransferencia DetalleTransferencia[]
 
   coberturasGarantia CoberturaGarantia[]
+  detallesOrdenCompra DetalleOrdenCompra[]
   @@unique([tenantId, codigo])
   @@index([tenantId])
   @@index([tenantId, activo])
   @@index([tenantId, nombre])
   @@index([tenantId, codigoBarras])
+  @@index([tenantId, precioAprobado])
+  proveedoresProducto ProductoProveedor[]
   @@map("productos")
+  @@unique([tenantId, id], map: "productos_tenant_id_id_key")
+  detallesTenant   DetalleVenta[]         @relation("DetalleProductoTenant")
+  movimientosTenant MovimientoInventario[] @relation("MovimientoProductoTenant")
 }
 
 // ============================================================
@@ -286,18 +334,22 @@ model Cliente {
   direccion   String?
   tipo        TipoCliente @default(CONSUMIDOR_FINAL)
   creditoHabilitado Boolean @default(false) @map("credito_habilitado")
+  plazoCreditoDias Int? @map("plazo_credito_dias")
   limiteCredito Decimal?  @map("limite_credito") @db.Decimal(12, 2)
   saldoPendiente Decimal  @default(0) @map("saldo_pendiente") @db.Decimal(12, 2)
   activo      Boolean     @default(true)
+  listaPrecioId String?   @map("lista_precio_id")
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
   // Relaciones
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  listaPrecio ListaPrecio? @relation(fields: [listaPrecioId], references: [id], onDelete: SetNull)
   ventas      Venta[]
   cotizaciones Cotizacion[]
   abonos      AbonoCliente[]
   cuentas     CuentaOperativa[]
+  apartados   Apartado[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId])
@@ -357,6 +409,13 @@ model Venta {
   clienteNombre String? @map("cliente_nombre")
   clienteRtn String? @map("cliente_rtn")
   solicitudHash String? @map("solicitud_hash")
+  // Contingencia offline: origen ONLINE|CONTINGENCIA. El correlativo local (CT-01-0001) convive con numeroVenta (definitivo).
+  origen      String      @default("ONLINE")
+  efectivoRecibido Decimal? @map("efectivo_recibido") @db.Decimal(12, 2)
+  cambio      Decimal?    @db.Decimal(12, 2)
+  correlativoLocal String? @map("correlativo_local")
+  ocurridoAt  DateTime?   @map("ocurrido_at")
+  referenciaFacturaExterna String? @map("referencia_factura_externa")
   estado      EstadoVenta @default(COMPLETADA)
   notas       String?
   createdAt   DateTime    @default(now()) @map("created_at")
@@ -369,12 +428,17 @@ model Venta {
   abonos      AbonoCliente[]
   cotizacion  Cotizacion?    // Si fue generada desde una cotización
 
+  garantias   Garantia[]
   coberturasGarantia CoberturaGarantia[]
+  operacionContingencia OperacionContingencia?
   @@unique([tenantId, numeroVenta])
   @@index([tenantId])
   @@index([tenantId, estado])
   @@index([tenantId, createdAt])
   @@map("ventas")
+  @@unique([tenantId, id], map: "ventas_tenant_id_id_key")
+  detallesTenant DetalleVenta[]  @relation("DetalleVentaTenantVenta")
+  eventosEntrega EntregaEvento[] @relation("EventoVenta")
 }
 
 model AbonoCliente {
@@ -412,12 +476,26 @@ model DetalleVenta {
   sinInventario Boolean @default(false) @map("sin_inventario")
   proveedorId String? @map("proveedor_id")
   ordenCompraId String? @map("orden_compra_id")
+  // Cobro y entrega (docs/POS_ENTREGA_DISENO_TECNICO.md). Claves compuestas (tenant_id, …) para impedir referencias entre empresas.
+  tenantId                     String?  @map("tenant_id")
+  modoEntrega                  String   @default("BODEGA") @map("modo_entrega")
+  cantidadPreparada            Decimal  @default(0) @map("cantidad_preparada") @db.Decimal(12, 2)
+  cantidadEntregada            Decimal  @default(0) @map("cantidad_entregada") @db.Decimal(12, 2)
+  cantidadDevueltaReingresada  Decimal  @default(0) @map("cantidad_devuelta_reingresada") @db.Decimal(12, 2)
+  cantidadDevueltaSinReingreso Decimal  @default(0) @map("cantidad_devuelta_sin_reingreso") @db.Decimal(12, 2)
+  cantidadCancelada            Decimal  @default(0) @map("cantidad_cancelada") @db.Decimal(12, 2)
 
   // Relaciones
   venta          Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
   producto       Producto @relation(fields: [productoId], references: [id])
 
   coberturasGarantia CoberturaGarantia[]
+  tenant         Tenant?  @relation("DetalleVentaTenant", fields: [tenantId], references: [id], onDelete: Cascade, map: "detalles_venta_tenant_id_fkey")
+  ventaTenant    Venta?   @relation("DetalleVentaTenantVenta", fields: [tenantId, ventaId], references: [tenantId, id], onDelete: Cascade, map: "detalles_venta_tenant_venta_fkey")
+  productoTenant Producto? @relation("DetalleProductoTenant", fields: [tenantId, productoId], references: [tenantId, id], onDelete: NoAction, map: "detalles_venta_tenant_producto_fkey")
+  lineasEvento   EntregaEventoLinea[]
+  movimientos    MovimientoInventario[]
+  @@unique([tenantId, id], map: "detalles_venta_tenant_id_id_key")
   @@index([ventaId])
   @@map("detalles_venta")
 }
@@ -632,10 +710,13 @@ model Proveedor {
  comprasRegistradas CompraProveedor[]
  costos CostoCompra[]
  cuentas CuentaOperativa[]
+ proveedoresProducto ProductoProveedor[]
  @@map("proveedores")
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ordenesCompra   OrdenCompra[]
 }
 model CompraProveedor {
- id String @id @default(uuid())
+ id String @id @default(dbgenerated("(gen_random_uuid())::text"))
  tenantId String @map("tenant_id")
  proveedorId String @map("proveedor_id")
  numeroFactura String? @map("numero_factura")
@@ -653,7 +734,7 @@ model CompraProveedor {
  @@map("compras_proveedor")
 }
 model DetalleCompra {
- id String @id @default(uuid())
+ id String @id @default(dbgenerated("(gen_random_uuid())::text"))
  compraId String @map("compra_id")
  productoId String @map("producto_id")
  cantidad Decimal @db.Decimal(12,2)
@@ -666,7 +747,7 @@ model DetalleCompra {
  @@map("detalles_compra_proveedor")
 }
 model PagoProveedor {
- id String @id @default(uuid())
+ id String @id @default(dbgenerated("(gen_random_uuid())::text"))
  compraId String @map("compra_id")
  monto Decimal @db.Decimal(12,2)
  fecha DateTime
@@ -698,6 +779,10 @@ model OrdenCompra {
  @@index([tenantId,estado])
  recepciones RecepcionCompra[]
  @@map("ordenes_compra")
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  proveedor   Proveedor   @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  detalles    DetalleOrdenCompra[]
 }
 model DetalleOrdenCompra {
  id String @id @default(uuid())
@@ -709,9 +794,11 @@ model DetalleOrdenCompra {
  subtotal Decimal @db.Decimal(12,2)
  @@index([ordenId])
  @@map("detalles_orden_compra")
+  orden    OrdenCompra @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  producto Producto    @relation(fields: [productoId], references: [id], onDelete: Restrict)
 }
 model RecepcionCompra {
- id String @id @default(uuid())
+ id String @id @default(dbgenerated("(gen_random_uuid())::text"))
  tenantId String @map("tenant_id")
  ordenId String @map("orden_id")
  solicitudId String @map("solicitud_id")
@@ -721,11 +808,11 @@ model RecepcionCompra {
  @@unique([tenantId,solicitudId])
  @@index([ordenId])
  @@map("recepciones_compra")
- orden OrdenCompra @relation(fields:[ordenId],references:[id],onDelete:Restrict)
+ orden OrdenCompra @relation(fields:[ordenId],references:[id],onDelete: Restrict, onUpdate: NoAction)
  costos CostoCompra[]
 }
 model CostoCompra {
- id String @id @default(uuid())
+ id String @id @default(dbgenerated("(gen_random_uuid())::text"))
  tenantId String @map("tenant_id")
  productoId String @map("producto_id")
  proveedorId String @map("proveedor_id")
@@ -736,12 +823,12 @@ model CostoCompra {
  fecha DateTime
  @@index([tenantId,productoId,fecha])
  @@map("costos_compra")
- producto Producto @relation(fields:[productoId],references:[id],onDelete:Restrict)
- recepcion RecepcionCompra @relation(fields:[recepcionId],references:[id],onDelete:Restrict)
- proveedor Proveedor @relation(fields:[proveedorId],references:[id],onDelete:Restrict)
+ producto Producto @relation(fields:[productoId],references:[id],onDelete: Restrict, onUpdate: NoAction)
+ recepcion RecepcionCompra @relation(fields:[recepcionId],references:[id],onDelete: Restrict, onUpdate: NoAction)
+ proveedor Proveedor @relation(fields:[proveedorId],references:[id],onDelete: Restrict, onUpdate: NoAction)
 }
 model MovimientoInventario {
- id String @id @default(uuid())
+ id String @id @default(dbgenerated("(gen_random_uuid())::text"))
  tenantId String @map("tenant_id")
  productoId String @map("producto_id")
  usuarioId String @map("usuario_id")
@@ -751,10 +838,15 @@ model MovimientoInventario {
  nuevo Decimal @db.Decimal(12,2)
  documentoId String @map("documento_id")
  motivo String
+ eventoId String? @map("evento_id")
+ detalleVentaId String? @map("detalle_venta_id")
  createdAt DateTime @default(now()) @map("created_at")
  @@index([tenantId,productoId,createdAt])
  @@map("movimientos_inventario")
- producto Producto @relation(fields:[productoId],references:[id],onDelete:Restrict)
+ producto Producto @relation(fields:[productoId],references:[id],onDelete: Restrict, onUpdate: NoAction)
+ productoTenant Producto @relation("MovimientoProductoTenant", fields:[tenantId,productoId], references:[tenantId,id], onDelete: NoAction, map: "movimientos_producto_tenant_fkey")
+ evento EntregaEvento? @relation(fields:[tenantId,eventoId], references:[tenantId,id], onDelete: Restrict, map: "movimientos_evento_fkey")
+ detalleVenta DetalleVenta? @relation(fields:[tenantId,detalleVentaId], references:[tenantId,id], onDelete: Restrict, map: "movimientos_detalle_fkey")
 }
 model Caja {
  id String @id @default(uuid())
@@ -773,6 +865,9 @@ model Caja {
  @@index([tenantId,estado])
  @@index([tenantId,usuarioId])
  @@map("cajas")
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuario     Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  movimientos MovimientoCaja[]
 }
 model MovimientoCaja {
  id String @id @default(uuid())
@@ -786,9 +881,10 @@ model MovimientoCaja {
  createdAt DateTime @default(now()) @map("created_at")
  @@index([cajaId])
  @@map("movimientos_caja")
+  caja Caja @relation(fields: [cajaId], references: [id], onDelete: Cascade)
 }
 model CuentaOperativa {
- id String @id @default(uuid())
+ id String @id @default(dbgenerated("(gen_random_uuid())::text"))
  tenantId String @map("tenant_id")
  tipo String
  clienteId String? @map("cliente_id")
@@ -802,12 +898,12 @@ model CuentaOperativa {
  @@unique([tenantId,tipo,documentoId])
  @@index([tenantId,tipo,vencimiento])
  @@map("cuentas_operativas")
- cliente Cliente? @relation(fields:[clienteId],references:[id],onDelete:Restrict)
- proveedor Proveedor? @relation(fields:[proveedorId],references:[id],onDelete:Restrict)
+ cliente Cliente? @relation(fields:[clienteId],references:[id],onDelete: Restrict, onUpdate: NoAction)
+ proveedor Proveedor? @relation(fields:[proveedorId],references:[id],onDelete: Restrict, onUpdate: NoAction)
  pagos PagoCuenta[]
 }
 model PagoCuenta {
- id String @id @default(uuid())
+ id String @id @default(dbgenerated("(gen_random_uuid())::text"))
  tenantId String @map("tenant_id")
  cuentaId String @map("cuenta_id")
  solicitudId String @map("solicitud_id")
@@ -817,14 +913,15 @@ model PagoCuenta {
  usuarioId String @map("usuario_id")
  cajaId String? @map("caja_id")
  notas String?
+ referencia String?
  createdAt DateTime @default(now()) @map("created_at")
  @@unique([tenantId,solicitudId])
  @@index([cuentaId])
  @@map("pagos_cuenta")
- cuenta CuentaOperativa @relation(fields:[cuentaId],references:[id],onDelete:Restrict)
+ cuenta CuentaOperativa @relation(fields:[cuentaId],references:[id],onDelete: Restrict, onUpdate: NoAction)
 }
 model AuditoriaOperacion {
- id String @id @default(uuid())
+ id String @id @default(dbgenerated("(gen_random_uuid())::text"))
  tenantId String @map("tenant_id")
  usuarioId String @map("usuario_id")
  operacion String
@@ -848,7 +945,7 @@ model Devolucion {
  metodo String
  cajaId String? @map("caja_id")
  createdAt DateTime @default(now()) @map("created_at")
- venta Venta @relation(fields:[ventaId],references:[id],onDelete:Restrict)
+ venta Venta @relation(fields:[ventaId],references:[id],onDelete: Restrict, onUpdate: NoAction)
  items DetalleDevolucion[]
  @@index([tenantId,ventaId])
  @@map("devoluciones")
@@ -859,8 +956,8 @@ model DetalleDevolucion {
  detalleVentaId String @map("detalle_venta_id")
  cantidad Decimal @db.Decimal(12,2)
  destino String
- devolucion Devolucion @relation(fields:[devolucionId],references:[id],onDelete:Restrict)
- detalleVenta DetalleVenta @relation(fields:[detalleVentaId],references:[id],onDelete:Restrict)
+ devolucion Devolucion @relation(fields:[devolucionId],references:[id],onDelete: Restrict, onUpdate: NoAction)
+ detalleVenta DetalleVenta @relation(fields:[detalleVentaId],references:[id],onDelete: Restrict, onUpdate: NoAction)
  @@index([detalleVentaId])
  @@map("detalles_devolucion")
 }
@@ -919,4 +1016,459 @@ model CoberturaGarantia {
   @@index([tenantId, ventaId], map: "coberturas_garantia_tenant_venta_idx")
   @@index([tenantId, fechaVencimiento], map: "coberturas_garantia_tenant_vencimiento_idx")
   @@map("coberturas_garantia")
+}
+
+model ProductoProveedor {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  productoId      String    @map("producto_id")
+  proveedorId     String    @map("proveedor_id")
+  codigoProveedor String?   @map("codigo_proveedor")
+  esPreferido     Boolean   @default(false) @map("es_preferido")
+  ultimoCosto     Decimal?  @map("ultimo_costo") @db.Decimal(12, 2)
+  ultimaCompraAt  DateTime? @map("ultima_compra_at")
+  creadoPor       String?   @map("creado_por")
+  actualizadoPor  String?   @map("actualizado_por")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "productos_proveedores_tenant_fkey")
+  creadoPorUsuario     Usuario? @relation("ProductoProveedorCreado", fields: [creadoPor], references: [id], onDelete: Restrict, map: "productos_proveedores_creado_fkey")
+  actualizadoPorUsuario Usuario? @relation("ProductoProveedorActualizado", fields: [actualizadoPor], references: [id], onDelete: Restrict, map: "productos_proveedores_actualizado_fkey")
+  producto        Producto  @relation(fields: [productoId], references: [id], onDelete: Restrict, map: "productos_proveedores_producto_fkey")
+  proveedor       Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Restrict, map: "productos_proveedores_proveedor_fkey")
+  @@unique([tenantId, productoId, proveedorId], map: "productos_proveedores_tenant_producto_proveedor_key")
+  @@index([tenantId, proveedorId], map: "productos_proveedores_tenant_proveedor_idx")
+  @@map("productos_proveedores")
+}
+
+// ============================================================
+// POS offline de contingencia (efectivo). Apagado por defecto: ver docs/POS_OFFLINE_CONTINGENCIA_DISENO.md
+// ============================================================
+model DispositivoPos {
+  id                  String    @id
+  tenantId            String    @map("tenant_id")
+  codigo              String
+  nombre              String
+  activo              Boolean   @default(true)
+  registradoPor       String    @map("registrado_por")
+  registradoAt        DateTime  @default(now()) @map("registrado_at")
+  ultimoContactoAt    DateTime? @map("ultimo_contacto_at")
+  ultimaSyncAt        DateTime? @map("ultima_sync_at")
+  pendientesReportados Int      @default(0) @map("pendientes_reportados")
+
+  tenant   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "dispositivos_pos_tenant_fkey")
+  ventanas ContingenciaVentana[]
+  operaciones OperacionContingencia[]
+
+  @@unique([tenantId, codigo])
+  @@map("dispositivos_pos")
+}
+
+model CatalogoInstantanea {
+  tenantId String   @map("tenant_id")
+  hash     String
+  datos    Json
+  creadaAt DateTime @default(now()) @map("creada_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "catalogo_instantaneas_tenant_fkey")
+
+  @@id([tenantId, hash])
+  @@map("catalogo_instantaneas")
+}
+
+model ContingenciaVentana {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id")
+  dispositivoId String    @map("dispositivo_id")
+  usuarioId     String    @map("usuario_id")
+  cajaId        String    @map("caja_id")
+  emitidaAt     DateTime  @default(now()) @map("emitida_at")
+  vigenteHasta  DateTime  @map("vigente_hasta")
+  catalogoHash  String    @map("catalogo_hash")
+  limites       Json
+  revocadaAt    DateTime? @map("revocada_at")
+
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "contingencia_ventanas_tenant_fkey")
+  dispositivo DispositivoPos @relation(fields: [dispositivoId], references: [id], map: "contingencia_ventanas_dispositivo_fkey")
+  operaciones OperacionContingencia[]
+
+  @@index([tenantId, dispositivoId, emitidaAt])
+  @@map("contingencia_ventanas")
+}
+
+// Diario recibido: carga cruda inmutable. Nunca se borra ni se reescribe; el resultado de aplicarla vive en las demás columnas.
+model OperacionContingencia {
+  id                 String    @id // operacionId (UUID v4 del dispositivo) = ventas.id cuando se aplica
+  tenantId           String    @map("tenant_id")
+  dispositivoId      String    @map("dispositivo_id")
+  ventanaId          String    @map("ventana_id")
+  usuarioId          String    @map("usuario_id")
+  cajaId             String    @map("caja_id")
+  secuenciaLocal     Int       @map("secuencia_local")
+  correlativoLocal   String    @map("correlativo_local")
+  ocurridoAtLocal    DateTime  @map("ocurrido_at_local")
+  ocurridoAtEstimado DateTime  @map("ocurrido_at_estimado")
+  recibidoAt         DateTime  @default(now()) @map("recibido_at")
+  payload            Json
+  payloadHash        String    @map("payload_hash")
+  totalCentavos      Int       @map("total_centavos")
+  efectivoRecibidoCentavos Int @map("efectivo_recibido_centavos")
+  // RECIBIDA | APLICADA | REVISION (no aplicada, requiere decisión) | RESUELTA_MANUAL | RECHAZADA (rechazo definitivo, nunca se aplica; migración 20261016000000)
+  estado             String    @default("RECIBIDA")
+  requiereRevision   Boolean   @default(false) @map("requiere_revision")
+  conflictos         Json      @default("[]")
+  ventaId            String?   @unique @map("venta_id")
+  numeroVenta        Int?      @map("numero_venta")
+  aplicadoAt         DateTime? @map("aplicado_at")
+  resolucion         Json?
+  resueltoPor        String?   @map("resuelto_por")
+  resueltoAt         DateTime? @map("resuelto_at")
+  referenciaFacturaExterna String? @map("referencia_factura_externa")
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "operaciones_contingencia_tenant_fkey")
+  dispositivo DispositivoPos      @relation(fields: [dispositivoId], references: [id], map: "operaciones_contingencia_dispositivo_fkey")
+  ventana     ContingenciaVentana @relation(fields: [ventanaId], references: [id], map: "operaciones_contingencia_ventana_fkey")
+  venta       Venta?              @relation(fields: [ventaId], references: [id], onDelete: Restrict, map: "operaciones_contingencia_venta_fkey")
+
+  // Sin unicidad: un duplicado de secuencia o correlativo (dos UUID distintos) se conserva y queda en revisión, nunca se rechaza.
+  @@index([tenantId, dispositivoId, secuenciaLocal], map: "operaciones_contingencia_tenant_id_dispositivo_id_secuencia_loc")
+  @@index([tenantId, correlativoLocal])
+  @@index([tenantId, estado])
+  @@index([tenantId, recibidoAt])
+  @@map("operaciones_contingencia")
+}
+
+// ============================================================
+// AUTENTICACIÓN (fase 3): contadores de intentos y sesiones revocables
+// ============================================================
+
+// Clave hasheada (cuenta o IP). Sin datos personales en claro.
+model IntentoLogin {
+  clave          String    @id
+  fallos         Int       @default(0)
+  ventanaInicio  DateTime  @default(now()) @map("ventana_inicio") @db.Timestamptz
+  bloqueadoHasta DateTime? @map("bloqueado_hasta") @db.Timestamptz
+  actualizadoAt  DateTime  @default(now()) @map("actualizado_at") @db.Timestamptz
+
+  @@index([actualizadoAt])
+  @@map("intentos_login")
+}
+
+// Una fila por inicio de sesión. El id viaja en el claim `sid` de access y refresh tokens.
+model SesionAuth {
+  id               String    @id @default(uuid())
+  tipo             String
+  sujetoId         String    @map("sujeto_id")
+  tenantId         String?   @map("tenant_id")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz
+  revocationMotivo String?   @map("revocation_motivo")
+
+  @@index([sujetoId])
+  @@index([expiresAt])
+  @@map("sesiones_auth")
+}
+
+// ============================================================
+// TABLAS OPERATIVAS HISTÓRICAS — existen en PostgreSQL desde
+// 20260930000000 y contienen datos. Se modelan para que Prisma
+// no proponga eliminarlas. No se usan desde la API actual.
+// Ver docs/agentes/NEXUS.md (PR de conciliación de esquema).
+// ============================================================
+
+enum EstadoApartado {
+  ACTIVO
+  COMPLETADO
+  CANCELADO
+}
+
+enum EstadoGarantia {
+  RECIBIDO
+  EN_REVISION
+  APROBADO_REPARACION
+  REEMPLAZADO
+  RECHAZADO
+}
+
+enum EstadoPedidoEspecial {
+  PENDIENTE
+  EN_ORDEN_COMPRA
+  RECIBIDO_EN_TIENDA
+  ENTREGADO
+  CANCELADO
+}
+
+enum EstadoTransferencia {
+  SOLICITADA
+  EN_TRANSITO
+  ACEPTADA
+  RECHAZADA
+}
+
+model ListaPrecio {
+  id                  String    @id
+  tenantId            String    @map("tenant_id")
+  nombreSegmento      String    @map("nombre_segmento")
+  descuentoPorcentaje Decimal   @map("descuento_porcentaje") @db.Decimal(5, 2)
+  descripcion         String?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientes Cliente[]
+
+  @@unique([tenantId, nombreSegmento])
+  @@index([tenantId])
+  @@map("listas_precio")
+}
+
+model Apartado {
+  id              String           @id
+  tenantId        String           @map("tenant_id")
+  codigo          String
+  clienteId       String?          @map("cliente_id")
+  clienteNombre   String           @map("cliente_nombre")
+  clienteTelefono String           @map("cliente_telefono")
+  productoId      String           @map("producto_id")
+  cantidad        Decimal          @db.Decimal(12, 2)
+  precioTotal     Decimal          @map("precio_total") @db.Decimal(12, 2)
+  montoAbonado    Decimal          @map("monto_abonado") @db.Decimal(12, 2)
+  saldoPendiente  Decimal          @map("saldo_pendiente") @db.Decimal(12, 2)
+  fechaLimite     DateTime         @map("fecha_limite")
+  estado          EstadoApartado   @default(ACTIVO)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cliente   Cliente?        @relation(fields: [clienteId], references: [id])
+  producto  Producto        @relation(fields: [productoId], references: [id])
+  abonos    AbonoApartado[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, estado])
+  @@index([tenantId])
+  @@map("apartados")
+}
+
+model AbonoApartado {
+  id          String   @id
+  apartadoId  String   @map("apartado_id")
+  monto       Decimal  @db.Decimal(12, 2)
+  nota        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  apartado Apartado @relation(fields: [apartadoId], references: [id], onDelete: Cascade)
+
+  @@index([apartadoId])
+  @@map("abonos_apartado")
+}
+
+model Garantia {
+  id            String          @id
+  tenantId      String          @map("tenant_id")
+  codigo        String
+  ventaId       String?         @map("venta_id")
+  clienteNombre String          @map("cliente_nombre")
+  productoId    String          @map("producto_id")
+  serie         String?
+  motivoFalla   String          @map("motivo_falla")
+  estado        EstadoGarantia  @default(RECIBIDO)
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  producto  Producto            @relation(fields: [productoId], references: [id])
+  venta     Venta?              @relation(fields: [ventaId], references: [id])
+  historial HistorialGarantia[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, estado])
+  @@index([tenantId])
+  @@map("garantias")
+}
+
+model HistorialGarantia {
+  id          String         @id
+  garantiaId  String         @map("garantia_id")
+  estado      EstadoGarantia
+  comentario  String?
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  garantia Garantia @relation(fields: [garantiaId], references: [id], onDelete: Cascade)
+
+  @@index([garantiaId])
+  @@map("historial_garantias")
+}
+
+model PedidoEspecial {
+  id              String               @id
+  tenantId        String               @map("tenant_id")
+  codigo          String
+  clienteNombre   String               @map("cliente_nombre")
+  clienteTelefono String               @map("cliente_telefono")
+  descripcion     String
+  cantidad        Decimal              @db.Decimal(12, 2)
+  anticipo        Decimal              @db.Decimal(12, 2)
+  precioEstimado  Decimal              @map("precio_estimado") @db.Decimal(12, 2)
+  estado          EstadoPedidoEspecial @default(PENDIENTE)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, estado])
+  @@index([tenantId])
+  @@map("pedidos_especiales")
+}
+
+model Transferencia {
+  id               String              @id
+  tenantId         String              @map("tenant_id")
+  codigo           String
+  sucursalOrigen   String              @map("sucursal_origen")
+  sucursalDestino  String              @map("sucursal_destino")
+  usuarioId        String              @map("usuario_id")
+  estado           EstadoTransferencia @default(SOLICITADA)
+  notas            String?
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  tenant   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuario  Usuario               @relation(fields: [usuarioId], references: [id])
+  detalles DetalleTransferencia[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, estado])
+  @@index([tenantId])
+  @@map("transferencias")
+}
+
+model DetalleTransferencia {
+  id               String        @id
+  transferenciaId  String        @map("transferencia_id")
+  productoId       String        @map("producto_id")
+  cantidad         Decimal       @db.Decimal(12, 2)
+
+  producto       Producto      @relation(fields: [productoId], references: [id])
+  transferencia  Transferencia @relation(fields: [transferenciaId], references: [id], onDelete: Cascade)
+
+  @@index([transferenciaId])
+  @@map("detalles_transferencia")
+}
+
+model AuditoriaSoporte {
+  id                   String   @id
+  tenantId             String   @map("tenant_id")
+  superAdminEmail      String   @map("super_admin_email")
+  motivo               String
+  duracionMinutos      Int      @default(30) @map("duracion_minutos")
+  modoEdicionActivado  Boolean  @default(false) @map("modo_edicion_activado")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("auditoria_soporte")
+}
+
+model CierreComision {
+  id              String   @id
+  tenantId        String   @map("tenant_id")
+  vendedorId      String   @map("vendedor_id")
+  fechaInicio     DateTime @map("fecha_inicio")
+  fechaFin        DateTime @map("fecha_fin")
+  totalVendido    Decimal  @map("total_vendido") @db.Decimal(12, 2)
+  comisionGanada  Decimal  @map("comision_ganada") @db.Decimal(12, 2)
+  pagado          Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vendedor Usuario @relation(fields: [vendedorId], references: [id])
+
+  @@index([tenantId, vendedorId])
+  @@map("cierres_comisiones")
+}
+
+model AprobacionBancaria {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  metodo      String
+  terminal    String   @default("")
+  referencia  String
+  monto       Decimal  @db.Decimal(12, 2)
+  origen      String
+  origenId    String   @map("origen_id")
+  usuarioId   String   @map("usuario_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "aprobaciones_bancarias_tenant_fkey")
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Restrict, map: "aprobaciones_bancarias_usuario_fkey")
+  @@unique([tenantId, metodo, terminal, referencia], map: "aprobaciones_bancarias_tenant_metodo_terminal_referencia_key")
+  @@index([tenantId, terminal, createdAt], map: "aprobaciones_bancarias_tenant_terminal_created_idx")
+  @@index([tenantId, origen, origenId], map: "aprobaciones_bancarias_origen_idx")
+  @@map("aprobaciones_bancarias")
+}
+
+model ConciliacionBancaria {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  terminal        String
+  fecha           DateTime @db.Date
+  totalBanco      Decimal  @map("total_banco") @db.Decimal(12, 2)
+  cantidadBanco   Int      @map("cantidad_banco")
+  totalSistema    Decimal  @map("total_sistema") @db.Decimal(12, 2)
+  cantidadSistema Int      @map("cantidad_sistema")
+  diferencia      Decimal  @db.Decimal(12, 2)
+  motivo          String?
+  solicitudId     String   @map("solicitud_id")
+  usuarioId       String   @map("usuario_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "conciliaciones_bancarias_tenant_fkey")
+  usuario         Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Restrict, map: "conciliaciones_bancarias_usuario_fkey")
+  @@unique([tenantId, terminal, fecha], map: "conciliaciones_bancarias_tenant_terminal_fecha_key")
+  @@unique([tenantId, solicitudId], map: "conciliaciones_bancarias_tenant_solicitud_key")
+  @@index([tenantId, fecha], map: "conciliaciones_bancarias_tenant_fecha_idx")
+  @@map("conciliaciones_bancarias")
+}
+
+// Cobro y entrega: eventos de solo inserción. Ver docs/POS_ENTREGA_DISENO_TECNICO.md §3.3.
+model EntregaEvento {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  solicitudId    String   @map("solicitud_id")
+  huella         String   @db.Char(64)
+  tipo           String
+  ventaId        String   @map("venta_id")
+  usuarioId      String   @map("usuario_id")
+  receptorNombre String?  @map("receptor_nombre")
+  motivo         String?
+  origen         String
+  dispositivoId  String?  @map("dispositivo_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "entregas_eventos_tenant_fkey")
+  venta   Venta   @relation("EventoVenta", fields: [tenantId, ventaId], references: [tenantId, id], onDelete: Restrict, map: "entregas_eventos_tenant_venta_fkey")
+  usuario Usuario @relation("EventoUsuario", fields: [tenantId, usuarioId], references: [tenantId, id], onDelete: Restrict, map: "entregas_eventos_tenant_usuario_fkey")
+  lineas  EntregaEventoLinea[]
+  movimientos MovimientoInventario[]
+
+  @@unique([tenantId, id], map: "entregas_eventos_tenant_id_id_key")
+  @@unique([tenantId, solicitudId], map: "entregas_eventos_tenant_solicitud_key")
+  @@index([tenantId, ventaId, createdAt], map: "entregas_eventos_tenant_venta_idx")
+  @@index([tenantId, createdAt], map: "entregas_eventos_tenant_fecha_idx")
+  @@map("entregas_eventos")
+}
+
+model EntregaEventoLinea {
+  tenantId       String  @map("tenant_id")
+  eventoId       String  @map("evento_id")
+  detalleVentaId String  @map("detalle_venta_id")
+  cantidad       Decimal @db.Decimal(12, 2)
+
+  evento  EntregaEvento @relation(fields: [tenantId, eventoId], references: [tenantId, id], onDelete: Restrict, map: "entregas_eventos_lineas_evento_fkey")
+  detalle DetalleVenta  @relation(fields: [tenantId, detalleVentaId], references: [tenantId, id], onDelete: Restrict, map: "entregas_eventos_lineas_detalle_fkey")
+
+  @@id([tenantId, eventoId, detalleVentaId])
+  @@map("entregas_eventos_lineas")
 }

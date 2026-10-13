@@ -152,11 +152,19 @@ export class GarantiasService {
     });
     const venta = new Map(ventas.map((v) => [v.id, v]));
     const producto = new Map(productos.map((p) => [p.id, p]));
+    // Responsables por nombre (trazabilidad): solo usuarios de la misma empresa.
+    const idsUsuario = [...new Set(filas.flatMap((f) => [f.creadoPor, f.actualizadoPor]).filter((x): x is string => !!x))];
+    const usuarios = idsUsuario.length
+      ? await this.prisma.usuario.findMany({ where: { tenantId, id: { in: idsUsuario } }, select: { id: true, nombre: true } })
+      : [];
+    const nombreDe = new Map(usuarios.map((u) => [u.id, u.nombre]));
     return filas.map((f) => ({
       ...this.formato(f, hoy),
       numeroVenta: venta.get(f.ventaId)?.numeroVenta ?? null,
       cliente: venta.get(f.ventaId)?.clienteNombre ?? null,
       producto: producto.get(f.productoId) ?? null,
+      creadoPorNombre: nombreDe.get(f.creadoPor) ?? null,
+      actualizadoPorNombre: f.actualizadoPor ? nombreDe.get(f.actualizadoPor) ?? null : null,
     }));
   }
 

@@ -42,7 +42,9 @@ export function installAuthInterceptors(api: AxiosInstance) {
       if (localStorage.getItem(slot) !== token) return Promise.reject(error);
       request.headers.Authorization = `Bearer ${token}`;
       return api(request);
-    } catch (refreshError) {
+    } catch (refreshError: any) {
+      // Sin respuesta de la API (red caída) no sabemos si la sesión venció: se conserva para reintentar al volver la conexión.
+      if (!refreshError?.response && !(refreshError instanceof Error && /sesión cambió/.test(refreshError.message))) return Promise.reject(error);
       if (localStorage.getItem(slot) === sentToken) {
         localStorage.removeItem(slot);
         const loginPath = admin || localStorage.getItem('ferre_support_target') ? '/admin/login' : '/login';

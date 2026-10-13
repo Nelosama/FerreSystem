@@ -9,6 +9,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { JwtStrategy } from '../auth/jwt.strategy';
+import { idSolicitud } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { OperacionesController } from './operaciones.controller';
 import { OperacionesService } from './operaciones.service';
@@ -42,6 +43,9 @@ import { OperacionesService } from './operaciones.service';
  * - Physical PostgreSQL trigger execution (e.g. database-level triggers if any).
  * - Live Prisma database migrations and Render deployment execution (`prisma migrate deploy`).
  */
+
+// Los registros cuyo identificador es la solicitud usan un identificador derivado por empresa (D3 de CENTINELA).
+const sol = (solicitud: string, tenant = 'tenant-A') => idSolicitud(tenant, solicitud);
 
 describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite)', () => {
   let app: INestApplication;
@@ -77,26 +81,26 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
         if (u && u.tenant_id === tenantId) return [u];
         return [];
       }
-      if (sql.includes('SELECT * FROM solicitudes_devolucion WHERE id=$1')) {
-        const reqId = params[0];
+      if (sql.includes('SELECT * FROM solicitudes_devolucion WHERE id IN (')) {
+        const reqId = params.find((x: any) => typeof x === 'string' && dbRequests[x]);
         const r = dbRequests[reqId];
         if (r) return [r];
         return [];
       }
-      if (sql.includes('SELECT id FROM solicitudes_devolucion WHERE id=$1')) {
-        const reqId = params[0];
+      if (sql.includes('SELECT id FROM solicitudes_devolucion WHERE id IN (')) {
+        const reqId = params.find((x: any) => typeof x === 'string' && dbRequests[x]);
         const r = dbRequests[reqId];
         if (r) return [{ id: r.id }];
         return [];
       }
-      if (sql.includes('SELECT id FROM devoluciones WHERE id=$1')) {
-        const retId = params[0];
+      if (sql.includes('SELECT id FROM devoluciones WHERE id IN (')) {
+        const retId = params.find((x: any) => typeof x === 'string' && dbReturns[x]);
         const ret = dbReturns[retId];
         if (ret) return [{ id: ret.id }];
         return [];
       }
-      if (sql.includes('SELECT * FROM devoluciones WHERE id=$1')) {
-        const retId = params[0];
+      if (sql.includes('SELECT * FROM devoluciones WHERE id IN (')) {
+        const retId = params.find((x: any) => typeof x === 'string' && dbReturns[x]);
         const ret = dbReturns[retId];
         if (ret) return [ret];
         return [];
@@ -211,6 +215,51 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
         }
         return [{ id }];
       }
+      // ── Núcleo de entregas: líneas con contadores, eventos y actualizaciones con límite ──
+      const detalleDe = (detalleId: string) => Object.values(dbSaleDetails).flat().find((d: any) => d.id === detalleId) as any;
+      if (sql.includes('FROM detalles_venta d JOIN productos p')) {
+        const ventaId = params[1];
+        return (dbSaleDetails[ventaId] || []).map((d: any) => {
+          const prod = dbProducts[d.producto_id] || {};
+          return { ...d, nombre: prod.nombre, codigo: prod.codigo ?? d.producto_id, stock_actual: prod.stock_actual, stock_reservado: prod.stock_reservado };
+        });
+      }
+      if (sql.includes('UPDATE detalles_venta SET cantidad_devuelta_reingresada') || sql.includes('UPDATE detalles_venta SET cantidad_devuelta_sin_reingreso')) {
+        const [tenantId, detalleId, cantidad] = params;
+        const d = detalleDe(detalleId);
+        const q = Number(cantidad);
+        if (!d || d.tenant_id !== tenantId || Number(d.cantidad_devuelta_reingresada) + Number(d.cantidad_devuelta_sin_reingreso) + q > Number(d.cantidad_entregada)) return [];
+        const campo = sql.includes('cantidad_devuelta_reingresada =') ? 'cantidad_devuelta_reingresada' : 'cantidad_devuelta_sin_reingreso';
+        d[campo] = Number(d[campo]) + q;
+        return [{ id: detalleId }];
+      }
+      if (sql.includes('UPDATE detalles_venta SET cantidad_cancelada')) {
+        const [tenantId, detalleId, cantidad] = params;
+        const d = detalleDe(detalleId);
+        const q = Number(cantidad);
+        if (!d || d.tenant_id !== tenantId || d.modo_entrega !== 'BODEGA' || Number(d.cantidad_entregada) + Number(d.cantidad_cancelada) + q > Number(d.cantidad)) return [];
+        d.cantidad_cancelada = Number(d.cantidad_cancelada) + q;
+        d.cantidad_preparada = Math.min(Number(d.cantidad_preparada), Number(d.cantidad) - Number(d.cantidad_entregada) - Number(d.cantidad_cancelada));
+        return [{ id: detalleId }];
+      }
+      if (sql.includes('UPDATE productos SET stock_actual = stock_actual + $3::numeric')) {
+        const [tenantId, prodId, cantidad] = params;
+        const prod = dbProducts[prodId];
+        if (!prod || prod.tenant_id !== tenantId) return [];
+        prod.stock_actual = Number(prod.stock_actual) + Number(cantidad);
+        return [{ id: prodId }];
+      }
+      if (sql.includes('UPDATE productos SET stock_reservado = stock_reservado - $3::numeric')) {
+        const [tenantId, prodId, cantidad] = params;
+        const prod = dbProducts[prodId];
+        if (!prod || prod.tenant_id !== tenantId || Number(prod.stock_reservado) < Number(cantidad)) return [];
+        prod.stock_reservado = Number(prod.stock_reservado) - Number(cantidad);
+        return [{ id: prodId }];
+      }
+      if (sql.includes('INSERT INTO entregas_eventos_lineas')) return [{ detalle_venta_id: params[2] }];
+      if (sql.includes('INSERT INTO entregas_eventos')) return [{ id: params[0] }];
+      if (sql.includes('COUNT(*) FILTER (WHERE modo_entrega')) return [{ pendientes: 0, entregado: 0 }];
+      if (sql.includes('UPDATE ventas SET reserva_pendiente=$3')) return [{ id: params[0] }];
       if (sql.includes('SELECT * FROM productos WHERE id=$1 AND tenant_id=$2')) {
         const [prodId, tenantId] = params;
         const p = dbProducts[prodId];
@@ -305,13 +354,13 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
 
     dbSaleDetails = {
       'venta-1': [
-        { id: 'det-1', venta_id: 'venta-1', producto_id: 'prod-1', cantidad: 2, precio_unitario: 100, sin_inventario: false },
+        { id: 'det-1', tenant_id: 'tenant-A', venta_id: 'venta-1', producto_id: 'prod-1', cantidad: 2, precio_unitario: 100, sin_inventario: false, modo_entrega: 'MOSTRADOR', cantidad_preparada: 0, cantidad_entregada: 2, cantidad_devuelta_reingresada: 0, cantidad_devuelta_sin_reingreso: 0, cantidad_cancelada: 0 },
       ],
       'venta-credito-1': [
-        { id: 'det-2', venta_id: 'venta-credito-1', producto_id: 'prod-2', cantidad: 3, precio_unitario: 100, sin_inventario: false },
+        { id: 'det-2', tenant_id: 'tenant-A', venta_id: 'venta-credito-1', producto_id: 'prod-2', cantidad: 3, precio_unitario: 100, sin_inventario: false, modo_entrega: 'MOSTRADOR', cantidad_preparada: 0, cantidad_entregada: 3, cantidad_devuelta_reingresada: 0, cantidad_devuelta_sin_reingreso: 0, cantidad_cancelada: 0 },
       ],
       'venta-tenant-B': [
-        { id: 'det-B', venta_id: 'venta-tenant-B', producto_id: 'prod-B', cantidad: 1, precio_unitario: 150, sin_inventario: false },
+        { id: 'det-B', tenant_id: 'tenant-B', venta_id: 'venta-tenant-B', producto_id: 'prod-B', cantidad: 1, precio_unitario: 150, sin_inventario: false, modo_entrega: 'MOSTRADOR', cantidad_preparada: 0, cantidad_entregada: 1, cantidad_devuelta_reingresada: 0, cantidad_devuelta_sin_reingreso: 0, cantidad_cancelada: 0 },
       ],
     };
 
@@ -438,8 +487,8 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
         })
         .expect(201);
 
-      expect(dbReturns['sol-admin-directa-1']).toBeDefined();
-      expect(dbReturns['sol-admin-directa-1'].monto).toBe(100);
+      expect(dbReturns[sol('sol-admin-directa-1')]).toBeDefined();
+      expect(dbReturns[sol('sol-admin-directa-1')].monto).toBe(100);
       expect(dbProducts['prod-1'].stock_actual).toBe(51); // Stock updated
     });
   });
@@ -462,7 +511,7 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
         })
         .expect(403);
 
-      expect(dbReturns['sol-tamper-1']).toBeUndefined();
+      expect(dbReturns[sol('sol-tamper-1')]).toBeUndefined();
     });
   });
 
@@ -482,7 +531,7 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
         })
         .expect(404);
 
-      expect(dbReturns['sol-cross-tenant-1']).toBeUndefined();
+      expect(dbReturns[sol('sol-cross-tenant-1')]).toBeUndefined();
     });
   });
 
@@ -502,7 +551,7 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
         })
         .expect(201);
 
-      expect(res.body.id).toBe('sol-req-1');
+      expect(res.body.id).toBe(sol('sol-req-1'));
       expect(res.body.estado).toBe('PENDIENTE');
       expect(res.body.solicitante_id).toBe('cajero-1');
 
@@ -562,12 +611,12 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
         .send({})
         .expect(201);
 
-      expect(execRes.body.id).toBe('sol-req-3');
-      expect(dbRequests['sol-req-3'].estado).toBe('EJECUTADA');
+      expect(execRes.body.id).toBe(sol('sol-req-3'));
+      expect(dbRequests[sol('sol-req-3')].estado).toBe('EJECUTADA');
 
       // Verify financial & inventory impact
       expect(dbProducts['prod-1'].stock_actual).toBe(51); // Stock restored
-      expect(dbReturns['sol-req-3']).toBeDefined(); // Return registered
+      expect(dbReturns[sol('sol-req-3')]).toBeDefined(); // Return registered
       expect(dbCashMovements['caja-cajero-1'].some(m => m.tipo === 'DEVOLUCION' && Number(m.monto) === -100)).toBe(true);
     });
   });
@@ -595,7 +644,7 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
 
       // Stock was NOT incremented twice
       expect(dbProducts['prod-1'].stock_actual).toEqual(stockAfterFirst);
-      expect(secondExec.id).toBe('sol-idem-1');
+      expect(secondExec.id).toBe(sol('sol-idem-1'));
     });
   });
 
@@ -636,9 +685,9 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
         })
         .expect(201);
 
-      expect(dbRequests['sol-reject-1'].estado).toBe('RECHAZADA');
+      expect(dbRequests[sol('sol-reject-1')].estado).toBe('RECHAZADA');
       expect(dbProducts['prod-1'].stock_actual).toBe(50); // Intact stock
-      expect(dbReturns['sol-reject-1']).toBeUndefined(); // No return registered
+      expect(dbReturns[sol('sol-reject-1')]).toBeUndefined(); // No return registered
     });
   });
 
@@ -662,8 +711,8 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
       // Credit account balance should be reduced from 300 to 200
       expect(dbAccounts['cxc-1'].saldo).toBe(200);
       expect(dbClients['cliente-1'].saldo_pendiente).toBe(200); // la deuda del cliente se cancela con la CxC
-      expect(dbReturns['sol-credito-1'].credito_cancelado).toBe(100);
-      expect(dbReturns['sol-credito-1'].reembolso).toBe(0); // No cash refund for credit return
+      expect(dbReturns[sol('sol-credito-1')].credito_cancelado).toBe(100);
+      expect(dbReturns[sol('sol-credito-1')].reembolso).toBe(0); // No cash refund for credit return
     });
 
     it('Registra la evidencia de auditoría de quién solicitó, quién autorizó y quién ejecutó', async () => {
@@ -681,14 +730,14 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
 
       await service.ejecutarAutorizada('tenant-A', 'cajero-1', 'sol-audit-trace-1');
 
-      const req = dbRequests['sol-audit-trace-1'];
+      const req = dbRequests[sol('sol-audit-trace-1')];
       expect(req.solicitante_id).toBe('cajero-1');
       expect(req.administrador_id).toBe('admin-1');
 
       const auditLogs = dbAuditLogs['tenant-A'] || [];
-      const solLog = auditLogs.find(l => l.operacion === 'DEVOLUCION_SOLICITAR' && l.entidad_id === 'sol-audit-trace-1');
-      const decLog = auditLogs.find(l => l.operacion === 'DEVOLUCION_DECIDIR' && l.entidad_id === 'sol-audit-trace-1');
-      const execLog = auditLogs.find(l => l.operacion === 'DEVOLUCION_EJECUTAR_AUTORIZADA' && l.entidad_id === 'sol-audit-trace-1');
+      const solLog = auditLogs.find(l => l.operacion === 'DEVOLUCION_SOLICITAR' && l.entidad_id === sol('sol-audit-trace-1'));
+      const decLog = auditLogs.find(l => l.operacion === 'DEVOLUCION_DECIDIR' && l.entidad_id === sol('sol-audit-trace-1'));
+      const execLog = auditLogs.find(l => l.operacion === 'DEVOLUCION_EJECUTAR_AUTORIZADA' && l.entidad_id === sol('sol-audit-trace-1'));
 
       expect(solLog).toBeDefined();
       expect(solLog.usuario_id).toBe('cajero-1');

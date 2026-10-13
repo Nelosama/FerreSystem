@@ -84,7 +84,7 @@ describe('Dashboard / PostgreSQL aislado', () => {
 
   it('responde sin error con ventas, devoluciones, stock bajo y cotizaciones', async () => {
     const usuario = await prisma.usuario.create({ data: { tenantId, nombre: 'Cajero', email: `c-${tenantId}@prueba.test`, passwordHash: 'x', rol: 'ADMIN' } as any });
-    const producto = await prisma.producto.create({ data: { tenantId, codigo: 'P-1', nombre: 'Clavo', precioVenta: 10, precioCosto: 5, stockActual: 1, stockMinimo: 5 } as any });
+    const producto = await prisma.producto.create({ data: {precioAprobado:true, tenantId, codigo: 'P-1', nombre: 'Clavo', precioVenta: 10, precioCosto: 5, stockActual: 1, stockMinimo: 5 } as any });
     const hace = (h: number) => new Date(Date.now() - h * 3600 * 1000);
     for (const [i, createdAt] of [[1, hace(1)], [2, hace(30)]] as const) {
       await prisma.venta.create({ data: { tenantId, numeroVenta: i, usuarioId: usuario.id, subtotal: 100, isv: 15, total: 115, estado: 'COMPLETADA', createdAt, detalles: { create: [{ productoId: producto.id, cantidad: 1, precioUnitario: 100, subtotal: 100 }] } } as any });
@@ -107,7 +107,7 @@ describe('Dashboard / PostgreSQL aislado', () => {
   ])('no depende de %s.%s que el resumen no utiliza', async (tabla, columna) => {
     const usuario = await prisma.usuario.create({ data: { tenantId, nombre: 'Cajero real', email: `${tenantId}@example.test`, passwordHash: 'x' } });
     await prisma.venta.create({ data: { tenantId, usuarioId: usuario.id, numeroVenta: 1, subtotal: 125, isv: 0, total: 125 } });
-    await prisma.producto.create({ data: { tenantId, codigo: 'P', nombre: 'Producto real', precioVenta: 10, precioCosto: 5, stockActual: 3, stockReservado: 2, stockMinimo: 1 } });
+    await prisma.producto.create({ data: {precioAprobado:true, tenantId, codigo: 'P', nombre: 'Producto real', precioVenta: 10, precioCosto: 5, stockActual: 3, stockReservado: 2, stockMinimo: 1 } });
     await prisma.cotizacion.create({ data: { tenantId, usuarioId: usuario.id, numeroCotizacion: 1, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date() } });
     // DDL exclusivamente en el clúster temporal. Renombrar conserva datos, índices y defaults.
     await prisma.$executeRawUnsafe(`ALTER TABLE "${tabla}" RENAME COLUMN "${columna}" TO "${columna}_prueba"`);
@@ -160,7 +160,7 @@ describe('Dashboard / PostgreSQL aislado', () => {
     const otroTenant = await prisma.tenant.create({ data: { nombreComercial: 'Otro negocio' } });
     const usuario = await prisma.usuario.create({ data: { tenantId: otroTenant.id, nombre: 'Otro cajero', email: `${otroTenant.id}@example.test`, passwordHash: 'x' } });
     await prisma.venta.create({ data: { tenantId: otroTenant.id, usuarioId: usuario.id, numeroVenta: 1, subtotal: 900, isv: 0, total: 900 } });
-    await prisma.producto.create({ data: { tenantId: otroTenant.id, codigo: 'OTRO', nombre: 'Otro producto', precioVenta: 10, precioCosto: 5, stockActual: 0, stockMinimo: 5 } });
+    await prisma.producto.create({ data: {precioAprobado:true, tenantId: otroTenant.id, codigo: 'OTRO', nombre: 'Otro producto', precioVenta: 10, precioCosto: 5, stockActual: 0, stockMinimo: 5 } });
     await prisma.cotizacion.create({ data: { tenantId: otroTenant.id, usuarioId: usuario.id, numeroCotizacion: 1, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date() } });
     const { body } = await request(app.getHttpServer()).get('/dashboard').expect(200);
     expect(body.ultimasVentas).toEqual([]);

@@ -14,7 +14,7 @@ import { readStoredJson } from '../utils/storage';
 const blank = () => ({
   descripcion: '', cantidad: '1', unidad: 'UNIDAD',
   codigo: '', codigoBarras: '', marca: '', categoria: '',
-  ubicacion: '', precioCosto: '', precioVenta: '', margen: '', notas: '', productoId: '',
+  ubicacion: '', notas: '', productoId: '',
 });
 /** Misma identidad que el servidor: producto, código interno o código de barras (sin distinguir mayúsculas). */
 const identidadCoincide = (item: any, f: { productoId?: string; codigo?: string; codigoBarras?: string }) => {
@@ -254,7 +254,6 @@ export const LevantamientoPage: React.FC = () => {
   const exportRows = () => active.items.map((i: any) => ({
     codigo: i.codigo || '', codigoBarras: i.codigoBarras || '', descripcion: i.descripcion,
     cantidad: Number(i.cantidad), unidad: i.unidad, categoria: i.categoria || '',
-    costo: i.precioCosto ?? '', precio: i.precioVenta ?? '', margen: i.margen ?? '',
     ubicacion: i.ubicacion || '', marca: i.marca || '', notas: i.notas || '',
     contador: i.contadorId || '', conflicto: i.conflicto ? 'Sí' : '',
   }));
@@ -395,8 +394,6 @@ export const LevantamientoPage: React.FC = () => {
                     codigoBarras: form.codigoBarras || undefined,
                     productoId: form.productoId || undefined,
                   };
-                  for (const key of ['precioCosto', 'precioVenta', 'margen'] as const)
-                    dto[key] = form[key] === '' ? undefined : Number(form[key]);
                   if (editing) {
                     await api.patch(`/levantamientos/${activeId}/items/${editing.id}`, { ...dto, version: editing.version });
                   } else {
@@ -444,18 +441,17 @@ export const LevantamientoPage: React.FC = () => {
                       {['UNIDAD', 'PIE', 'METRO', 'METRO_CUADRADO', 'METRO_CUBICO', 'LIBRA', 'KG', 'GALON', 'LITRO', 'CAJA', 'PAQUETE', 'OTRO'].map(u => <option key={u}>{u}</option>)}
                     </select>
                   </label>
-                  {(['codigo', 'codigoBarras', 'marca', 'categoria', 'ubicacion', 'precioCosto', 'precioVenta', 'margen', 'notas'] as const).map(key => (
+                  {(['codigo', 'codigoBarras', 'marca', 'categoria', 'ubicacion', 'notas'] as const).map(key => (
                     <label key={key}>
                       {t(`stocktaking.fields.${key}`)}
-                      <input className="form-input" type={['precioCosto', 'precioVenta', 'margen'].includes(key) ? 'number' : 'text'}
-                        min="0" step="0.01" max={key === 'margen' ? 100 : undefined}
+                      <input className="form-input" type="text"
                         list={key === 'categoria' ? 'count-categories' : undefined}
                         value={form[key]} onChange={e => set(key, e.target.value)} />
                     </label>
                   ))}
                   <datalist id="count-categories">{[...new Set([...rubroConfig.categoriasDefault, ...(active.items ?? []).map((i: any) => i.categoria).filter(Boolean)])].map((c: any) => <option key={c} value={c} />)}</datalist>
                 </fieldset>
-                <p>{t('stocktaking.price_help')}</p>
+                <p>{t('stocktaking.price_admin_note')}</p>
                 <button className="btn btn-primary" disabled={busy || isReadOnly || !!pendingCount || !!propia}>{t('stocktaking.save_next')}</button>
                 {editing && <button className="btn btn-secondary" type="button" onClick={() => { setEditing(null); setForm(blank()); }}>{t('stocktaking.cancel_edit')}</button>}
               </form>
@@ -467,7 +463,7 @@ export const LevantamientoPage: React.FC = () => {
                 <thead>
                   <tr>
                     <th>{t('stocktaking.product')}</th><th>{t('stocktaking.code')}</th><th>{t('stocktaking.quantity')}</th><th>{t('stocktaking.zone')}</th>
-                    <th>{t('stocktaking.counter')}</th><th>{t('stocktaking.cost_price')}</th><th>{t('stocktaking.actions')}</th>
+                    <th>{t('stocktaking.counter')}</th><th>{t('stocktaking.data_status')}</th><th>{t('stocktaking.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -481,7 +477,11 @@ export const LevantamientoPage: React.FC = () => {
                       <td>{Number(i.cantidad)} {i.unidad}</td>
                       <td>{i.ubicacion}</td>
                       <td style={{ fontSize: '0.85em', color: '#64748b' }}><Contador item={i} /></td>
-                      <td>{i.precioCosto ?? '—'} / {i.precioVenta ?? '—'}</td>
+                      <td>
+                        <span className={`badge ${i.descripcion && (i.categoria || i.productoId) ? 'badge-success' : 'badge-warning'}`}>
+                          {i.descripcion && (i.categoria || i.productoId) ? t('stocktaking.status_complete') : t('stocktaking.status_incomplete')}
+                        </span>
+                      </td>
                       <td>
                         {!closed && (
                           <>

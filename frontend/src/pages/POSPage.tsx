@@ -27,8 +27,13 @@ import {
 import { ZONA_HORARIA_NEGOCIO, formatLempiras } from '../utils/format';
 import { descargarReciboPDF } from '../components/ReciboPDF';
 
+// Autorización bancaria de tarjeta/transferencia: la registra el cajero tras la aprobación del POS físico.
+const pagoElectronicoDesde = (metodo: string, aut: { referencia: string; terminal: string }) =>
+  (metodo === 'TARJETA' || metodo === 'TRANSFERENCIA') ? { referencia: aut.referencia.trim(), terminal: aut.terminal.trim() } : undefined;
+
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
+  const puedeEntregar = user?.rol === 'ADMIN' || user?.rol === 'BODEGUERO';
   const { t, locale } = useI18n();
   const pendingKey = `ferre_pending_sale:${tenant.id}:${user?.id || ''}`;
   const activeKey = useRef(pendingKey);
@@ -63,6 +68,7 @@ export const POSPage: React.FC = () => {
   const [cajaAbierta,setCajaAbierta]=useState(false);
   useEffect(()=>{let alive=true;setProviders([]);setCajaAbierta(false);api.get('/operaciones/proveedores').then(r=>{if(alive)setProviders(r.data);}).catch(()=>{});api.get('/operaciones/caja').then(r=>{if(alive)setCajaAbierta(r.data.some((c:any)=>c.estado==='ABIERTA'));}).catch(()=>{if(alive)setCajaAbierta(false);});return()=>{alive=false;};},[tenant.id,user?.id]);
   const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA'>(initialSale?.metodoPago || 'EFECTIVO');
+  const [autorizacionBancaria, setAutorizacionBancaria] = useState({ referencia: '', terminal: '' });
   const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(initialSale?.descuentoPorcentaje || 0);
   const cobrandoRef = useRef(false);
   const [procesandoVenta, setProcesandoVenta] = useState(false);
@@ -131,6 +137,19 @@ export const POSPage: React.FC = () => {
       setDraftError('No se pudo guardar el borrador en este equipo. No cierre la pantalla; pida ayuda antes de continuar.');
     }
   }, [loadedKey, pendingKey, draftKey, cart, clienteNombre, clienteRtn, clienteId, vencimiento, metodoPago, descuentoPorcentaje, ventaPendiente, corrigiendoPendiente, modalTicket, storageError]);
+
+  // F-02: el catálogo del POS solo trae lo vendible; si el código no está, el servidor dice si no existe o si no está autorizado (sin costos).
+  const explicarCodigoNoVendible = useCallback(async (codigo: string) => {
+    const requestKey = activeKey.current;
+    try {
+      const { data } = await api.get('/productos/comercial/estado', { params: { codigo } });
+      if (requestKey !== activeKey.current) return;
+      setErrorText(data?.mensaje || 'Código no encontrado. Revise el código o busque por descripción.');
+    } catch {
+      if (requestKey !== activeKey.current) return;
+      setErrorText('Este código no está en el catálogo de venta. Busque por descripción o consulte al administrador.');
+    }
+  }, []);
 
   const fetchProductos = useCallback(async () => {
     const requestKey=activeKey.current;
@@ -234,6 +253,7 @@ export const POSPage: React.FC = () => {
 
   const mostrarVenta = (venta: any, solicitudId: string) => {
     receiptRecoveryRef.current = { pendingKey, draftKey, solicitudId, draft: localStorage.getItem(draftKey) };
+    setAutorizacionBancaria({ referencia: '', terminal: '' });
     setCorrigiendoPendiente(false);
     setVentaRegistrada(venta);
     setCart(venta.detalles.map((d: any) => ({
@@ -271,11 +291,18 @@ export const POSPage: React.FC = () => {
     }
   };
 
-  const handleCobrar = async () => {
+  // onClick={handleCobrar} entrega un evento: solo el valor 'BODEGA' cambia el modo (por defecto, entrega en mostrador).
+  const handleCobrar = async (modo?: unknown) => {
+    // La entrega inmediata es una entrega física: solo ADMIN y BODEGUERO. Los demás roles cobran para bodega.
+    const modoEntrega: 'MOSTRADOR' | 'BODEGA' = modo === 'BODEGA' || !puedeEntregar ? 'BODEGA' : 'MOSTRADOR';
     if (!cart.length || cobrandoRef.current || comprobandoRef.current || modalTicket || storageError || draftError || loadedKey !== pendingKey ||
       (esDescuentoExcedido && !ventaPendiente) || (ventaPendiente && recoveryStatus !== 'NO_REGISTRADA')) return;
     if (!ventaPendiente && metodoPago === 'CREDITO' && !clienteId) {
       setErrorText('Seleccione un cliente registrado para vender a crédito'); return;
+    }
+    if (!ventaPendiente && (metodoPago === 'TARJETA' || metodoPago === 'TRANSFERENCIA')) {
+      if (autorizacionBancaria.referencia.trim().length < 3) { setErrorText('Registre la autorización bancaria antes de confirmar la venta'); return; }
+      if (metodoPago === 'TARJETA' && !autorizacionBancaria.terminal.trim()) { setErrorText('Indique la terminal del POS bancario'); return; }
     }
     const requestKey = pendingKey;
     cobrandoRef.current = true;
@@ -301,7 +328,8 @@ export const POSPage: React.FC = () => {
       }
       const pending = stored.pending || {
         solicitudId: pendingIdentity || crypto.randomUUID(), cart, clienteNombre, clienteRtn, clienteId,
-        vencimiento: vencimiento || undefined, metodoPago, descuentoPorcentaje,
+        vencimiento: vencimiento || undefined, metodoPago, descuentoPorcentaje, modoEntrega,
+        pagoElectronico: pagoElectronicoDesde(metodoPago, autorizacionBancaria),
       };
       localStorage.setItem(pendingKey, JSON.stringify(pending));
       requestIdentity = pending.solicitudId;
@@ -313,9 +341,10 @@ export const POSPage: React.FC = () => {
       const { data } = await api.post('/ventas', {
         solicitudId: pending.solicitudId, clienteId: pending.clienteId, vencimiento: pending.vencimiento || undefined,
         clienteNombre: pending.clienteNombre, clienteRtn: pending.clienteRtn || undefined,
-        metodoPago: pending.metodoPago, descuento: descuentoPendiente,
+        metodoPago: pending.metodoPago, pagoElectronico: pending.pagoElectronico, descuento: descuentoPendiente,
         detalles: pending.cart.map(i => ({ productoId: i.productoId, cantidad: i.cantidad,
-          precioUnitario: i.precioUnitario, sinInventario: i.sinInventario, proveedorId: i.proveedorId })),
+          precioUnitario: i.precioUnitario, sinInventario: i.sinInventario, proveedorId: i.proveedorId,
+          modoEntrega: i.sinInventario ? undefined : (pending.modoEntrega ?? 'MOSTRADOR') })),
       });
       // Conservar el pendiente hasta que el cajero cierre el comprobante.
       if (!isCurrentPending(requestKey, pending.solicitudId)) return;
@@ -416,7 +445,7 @@ export const POSPage: React.FC = () => {
                 type="text"
                 placeholder={t('pos.search_products')}
                 value={search}
-                onKeyDown={e=>{if(e.key==='Enter'){const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===search.trim().toUpperCase()));if(matches.length===1){e.preventDefault();agregarAlCarrito(matches[0]);setSearch('');}else if(matches.length>1)setErrorText('Código ambiguo; seleccione el producto');}}}
+                onKeyDown={e=>{if(e.key==='Enter'){const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===search.trim().toUpperCase()));if(matches.length===1){e.preventDefault();agregarAlCarrito(matches[0]);setSearch('');}else if(matches.length>1)setErrorText('Código ambiguo; seleccione el producto');else if(search.trim())void explicarCodigoNoVendible(search.trim());}}}
                 onChange={(e) => setSearch(e.target.value)}
                 className="form-input"
                 style={{ paddingLeft: '38px', height: '46px', fontSize: '15px' }}
@@ -424,7 +453,7 @@ export const POSPage: React.FC = () => {
               />
             </div>
 
-            <BarcodeScanner disabled={edicionBloqueada} onCode={code=>{const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===code.toUpperCase()));if(matches.length===1){agregarAlCarrito(matches[0]);setSearch('');}else{setSearch(code);setErrorText(matches.length?'Código ambiguo; seleccione el producto':'Código no encontrado; busque por descripción');}}}/>
+            <BarcodeScanner disabled={edicionBloqueada} onCode={code=>{const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===code.toUpperCase()));if(matches.length===1){agregarAlCarrito(matches[0]);setSearch('');}else{setSearch(code);if(matches.length)setErrorText('Código ambiguo; seleccione el producto');else void explicarCodigoNoVendible(code);}}}/>
             <div style={styles.catalogGrid} className="ferre-pos-catalog">
               {productos
                 .filter(
@@ -613,11 +642,27 @@ export const POSPage: React.FC = () => {
             {/* Método de Pago */}
             <div style={styles.paymentMethods}>{(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'] as const).map(m=><button key={m} type="button" disabled={edicionBloqueada} onClick={()=>setMetodoPago(m)} style={{...styles.payBtn,...(metodoPago===m?styles.payBtnActive:{})}}>{m}</button>)}</div>
 
+            {(metodoPago === 'TARJETA' || metodoPago === 'TRANSFERENCIA') && !ventaPendiente && (
+              <div style={styles.paymentMethods}>
+                <label>Autorización bancaria
+                  <input className="form-input" maxLength={40} value={autorizacionBancaria.referencia} disabled={edicionBloqueada}
+                    onChange={e => setAutorizacionBancaria({ ...autorizacionBancaria, referencia: e.target.value })} />
+                </label>
+                {metodoPago === 'TARJETA' && (
+                  <label>Terminal POS
+                    <input className="form-input" maxLength={40} value={autorizacionBancaria.terminal} disabled={edicionBloqueada}
+                      onChange={e => setAutorizacionBancaria({ ...autorizacionBancaria, terminal: e.target.value })} />
+                  </label>
+                )}
+              </div>
+            )}
+
             {/* Botón de Cobro o Solicitar Autorización */}
             {esDescuentoExcedido ? (
               <p role="alert">El descuento supera su límite. Un administrador debe registrar esta venta.</p>
 
             ) : (
+              <>
               <button
                 type="button"
                 className="btn btn-primary"
@@ -630,6 +675,21 @@ export const POSPage: React.FC = () => {
                 {procesandoVenta && <Loader2 size={18} className="animate-spin" />}
                 <span>{t(procesandoVenta ? 'pos.processing' : 'pos.checkout')} {formatLempiras(total)}</span>
               </button>
+              {puedeEntregar ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => handleCobrar('BODEGA')}
+                  disabled={cart.length === 0 || edicionBloqueada || !!draftError || !!ventaPendiente}
+                  aria-busy={procesandoVenta}
+                  style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1, marginTop: 8 }}
+                >
+                  <span>Cobrar y dejar en bodega (entrega después)</span>
+                </button>
+              ) : (
+                <p role="note" style={{ marginTop: 8, fontSize: 13 }}>La mercancía la entrega bodega o administración; consulte «Entregas» para ver el estado.</p>
+              )}
+              </>
             )}
           </div>
         </div>

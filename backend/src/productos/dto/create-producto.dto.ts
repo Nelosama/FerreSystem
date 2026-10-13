@@ -41,13 +41,14 @@ export class CreateProductoDto {
   @ValidateIf((_object, value) => value !== undefined)
   usaMedida?: boolean;
 
-  @IsNumber({maxDecimalPlaces:2}, { message: 'El precio de venta debe ser un número' })
+  /** Solo ADMIN puede fijar precios en el alta. Sin precio, el producto queda pendiente de aprobación. */
+  @ValidateIf((_object, value) => value !== undefined) @IsNumber({maxDecimalPlaces:2}, { message: 'El precio de venta debe ser un número' })
   @Min(0, { message: 'El precio de venta no puede ser negativo' })
-  precioVenta: number;
+  precioVenta?: number;
 
-  @IsNumber({maxDecimalPlaces:2}, { message: 'El precio de costo debe ser un número' })
+  @ValidateIf((_object, value) => value !== undefined) @IsNumber({maxDecimalPlaces:2}, { message: 'El precio de costo debe ser un número' })
   @Min(0, { message: 'El precio de costo no puede ser negativo' })
-  precioCosto: number;
+  precioCosto?: number;
 
   @IsNumber({maxDecimalPlaces:2})
   @Min(0)
@@ -130,3 +131,22 @@ export class UpdateProductoDto {
   unidadMedida?: UnidadMedidaEnum;
 }
 
+
+/** Administración de precios: solo ADMIN. Versión leída por el cliente para no sobrescribir cambios ajenos. */
+export class CambiarPreciosProductoDto {
+  @IsInt({ message: 'Falta la versión del producto; recargue la pantalla' }) @Min(1)
+  version!: number;
+
+  @ValidateIf((_object, value) => value !== undefined) @IsNumber({maxDecimalPlaces:2}, { message: 'El costo debe ser un número' }) @Min(0)
+  precioCosto?: number;
+
+  @ValidateIf((_object, value) => value !== undefined) @IsNumber({maxDecimalPlaces:2}, { message: 'El precio de venta debe ser un número' }) @Min(0)
+  precioVenta?: number;
+
+  /** true aprueba el precio para venta; requiere precio de venta mayor que cero. */
+  @ValidateIf((_object, value) => value !== undefined) @IsBoolean()
+  aprobar?: boolean;
+
+  @ValidateIf((_object, value) => value !== undefined) @IsString() @MaxLength(300)
+  motivo?: string;
+}

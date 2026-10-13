@@ -16,7 +16,8 @@ const code = ts.transpileModule(`exports.convert = ${handler}`, { compilerOption
 function setup(post, refresh = async () => {}, metodoConversion = 'EFECTIVO') {
   const quotation = { id: 'cot-123', numero: 17, estado: 'APROBADA', clienteId: 'client-1', total: 69 };
   const state = { quotations: [quotation], modal: quotation, busy: false, notices: [] };
-  const context = { exports: {}, api: { post }, metodoConversion, conversionEnCurso: { current: false },
+  const conversionElectronica = metodoConversion === 'TARJETA' || metodoConversion === 'TRANSFERENCIA';
+  const context = { exports: {}, api: { post }, metodoConversion, conversionElectronica, autConversion: { referencia: 'AUT-PRUEBA', terminal: 'POS-01' }, conversionEnCurso: { current: false },
     setConvirtiendo: value => { state.busy = value; },
     setCotizaciones: fn => { state.quotations = fn(state.quotations); },
     setModalConvertir: value => { state.modal = value; },
@@ -42,7 +43,8 @@ test('la conversión envía el método elegido en vez de registrar siempre efect
   const calls = [];
   const h = setup(async (...args) => { calls.push(args); }, undefined, 'TRANSFERENCIA');
   await h.convert();
-  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['/cotizaciones/cot-123/convertir', { metodoPago: 'TRANSFERENCIA' }]]);
+  // Transferencia envía su autorización bancaria (sin terminal).
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['/cotizaciones/cot-123/convertir', { metodoPago: 'TRANSFERENCIA', pagoElectronico: { referencia: 'AUT-PRUEBA' } }]]);
 });
 
 test('doble confirmación simultánea emite un solo POST', async () => {
@@ -52,7 +54,7 @@ test('doble confirmación simultánea emite un solo POST', async () => {
   assert.equal(h.state.busy, true);
   await h.convert();
   assert.equal(calls, 1);
-  assert.match(source, /onClick=\{\(\) => handleConfirmarConvertir\(modalConvertir\)\}[\s\n]*disabled=\{convirtiendo\}/);
+  assert.match(source, /onClick=\{\(\) => handleConfirmarConvertir\(modalConvertir\)\}[\s\n]*disabled=\{convirtiendo \|\| !autorizacionConversionValida\}/);
   finish(); await pending;
   assert.equal(h.state.busy, false);
 });
@@ -77,4 +79,11 @@ test('éxito seguido de fallo de recarga conserva estado convertido y evita otro
   assert.equal(calls, 1);
   assert.equal(h.state.quotations[0].estado, 'CONVERTIDA');
   assert.equal(h.state.modal, null);
+});
+
+test('convertir con tarjeta envía la autorización bancaria y terminal', async () => {
+  const llamadas = [];
+  const { convert } = setup(async (url, body) => { llamadas.push({ url, body }); return { data: {} }; }, async () => {}, 'TARJETA');
+  await convert();
+  assert.deepEqual(JSON.parse(JSON.stringify(llamadas[0].body)), { metodoPago: 'TARJETA', pagoElectronico: { referencia: 'AUT-PRUEBA', terminal: 'POS-01' } });
 });

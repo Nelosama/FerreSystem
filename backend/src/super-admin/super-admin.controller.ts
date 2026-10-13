@@ -14,9 +14,10 @@ export class SuperAdminController {
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: { email: string; password: string },
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.superAdminService.login(loginDto, res);
+    return this.superAdminService.login(loginDto, res, req);
   }
 
   @Post('auth/refresh')
@@ -27,8 +28,8 @@ export class SuperAdminController {
 
   @Post('auth/logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Res({ passthrough: true }) res: Response) {
-    return this.superAdminService.logout(res);
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.superAdminService.logout(res, req);
   }
 
 

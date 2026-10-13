@@ -1,0 +1,21 @@
+### A. Directo (sin proxy), TRUST_PROXY=1  [esperado: EVASION]
+EVASION: ningún intento quedó bloqueado aunque cambió X-Forwarded-For. Respuestas: [401, 401, 401, 401]
+Acción: revisar TRUST_PROXY (debe ser exactamente el número de proxies delante de la API) y que el proxy añada la IP real.
+   exit=1
+### B. Con proxy (1 salto), TRUST_PROXY=1  [esperado: CORRECTO]
+CORRECTO: el intento 4 con X-Forwarded-For distinto responde 429. Respuestas: [401, 401, 401, 429]
+   exit=0
+   desde 127.0.0.2 (otra IP) tras el bloqueo de 127.0.0.1  [esperado 401]
+   status=401
+   desde 127.0.0.1 de nuevo  [esperado 429]
+   status=429
+### C. Con proxy (1 salto), TRUST_PROXY=2  [esperado: EVASION]
+EVASION: ningún intento quedó bloqueado aunque cambió X-Forwarded-For. Respuestas: [401, 401, 401, 401]
+Acción: revisar TRUST_PROXY (debe ser exactamente el número de proxies delante de la API) y que el proxy añada la IP real.
+   exit=1
+### D. Con proxy (1 salto), TRUST_PROXY sin definir  [esperado: CORRECTO en evasión; cubo compartido]
+CORRECTO: el intento 4 con X-Forwarded-For distinto responde 429. Respuestas: [401, 401, 401, 429]
+   exit=0
+   desde 127.0.0.2 tras el bloqueo  [esperado 429: cubo compartido]
+   status=429
+FIN

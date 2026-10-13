@@ -88,7 +88,7 @@ describe('Crédito de clientes / PostgreSQL aislado', () => {
     clienteId = await crear('Cliente crédito', true, 250);
     clienteLimiteBajo = await crear('Cliente límite bajo', true, 100);
     clienteSinCredito = await crear('Cliente sin crédito', false, null);
-    productoId = (await prisma.producto.create({ data: { tenantId, codigo: 'CR-1', nombre: 'Producto crédito', precioVenta: 100, precioCosto: 50, stockActual: 1000, stockMinimo: 0 } })).id;
+    productoId = (await prisma.producto.create({ data: {precioAprobado:true, tenantId, codigo: 'CR-1', nombre: 'Producto crédito', precioVenta: 100, precioCosto: 50, stockActual: 1000, stockMinimo: 0 } })).id;
   });
 
   // Venta de 1 unidad a 100 + ISV 15 % = 115 de total.

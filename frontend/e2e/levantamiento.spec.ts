@@ -243,6 +243,51 @@ test.describe('Levantamiento de inventario (FS-06 fase 2)', () => {
     expect(sim.aplicarTokens).toHaveLength(1);
     expect(sim.aplicarTokens[0]).toBe(`tok-2-2-5`);
   });
+
+  // P2 (consolidación KARDEX): el conteo no captura, lee ni muestra costos, precios o márgenes; registra existencias
+  // y responsable; y la aplicación envía solo el token de la vista previa, nunca datos comerciales.
+  test('conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token', async ({ page, sim }) => {
+    await ingresar(page);
+    await crearLevantamiento(page, 'Conteo sin precios');
+    for (const etiqueta of ['Costo', 'Precio de venta', 'Margen %']) {
+      await expect(page.getByLabel(etiqueta, { exact: true })).toHaveCount(0);
+    }
+    // Vista previa como la devuelve el servidor de #140: solo identidad, existencias y token; sin precios ni advertencias.
+    await page.route('**/api/levantamientos/*/preview', async route => {
+      const item = sim.levantamientos[0].items[0];
+      await route.fulfill({
+        status: 200,
+        json: {
+          estado: 'FINALIZADO', aplicadoAt: null, token: 'tok-p2',
+          rows: [{ item, productoId: 'prod-cable', codigo: 'CABLE', nombre: 'Cable metro', anterior: 8, nuevo: 9, errores: [], conflicto: false, contadorId: admin.id }],
+        },
+        headers: { 'access-control-allow-origin': new URL(page.url()).origin, 'access-control-allow-credentials': 'true' },
+      });
+    });
+
+    const itemEnviado = page.waitForRequest(r => r.method() === 'POST' && /\/levantamientos\/[^/]+\/items$/.test(new URL(r.url()).pathname));
+    await contar(page, { descripcion: 'Cable metro', cantidad: '9', codigo: 'CABLE' });
+    await page.getByRole('button', { name: 'Guardar y siguiente' }).click();
+    const cuerpo = (await itemEnviado).postDataJSON();
+    expect(cuerpo).toMatchObject({ descripcion: 'Cable metro', cantidad: 9 });
+    for (const campo of ['precioCosto', 'precioVenta', 'margen']) expect(cuerpo).not.toHaveProperty(campo);
+    await expect(page.getByRole('status').filter({ hasText: 'Guardado: Cable metro' })).toBeVisible();
+    const registrado = sim.levantamientos[0].items.find(i => i.descripcion === 'Cable metro');
+    expect([Number(registrado.cantidad), registrado.contadorId]).toEqual([9, admin.id]);
+
+    page.once('dialog', d => d.accept());
+    await page.getByRole('button', { name: 'Finalizar conteo' }).click();
+    await expect(page.getByRole('heading', { name: /FINALIZADO/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Revisar impacto en inventario' }).click();
+    await expect(page.getByRole('cell', { name: 'CABLE · Cable metro', exact: true })).toBeVisible();
+    await expect(page.getByText(/no se aplica|Costo contado|Precio contado|Margen contado/)).toHaveCount(0);
+
+    const aplicacion = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/aplicar'));
+    page.once('dialog', d => d.accept());
+    await page.getByRole('button', { name: 'Aplicar al inventario' }).click();
+    expect((await aplicacion).postDataJSON()).toEqual({ token: 'tok-p2' });
+    await expect(page.getByText('Aplicado al inventario el')).toBeVisible();
+  });
 });
 
 test.describe('Levantamiento en teléfono', () => {

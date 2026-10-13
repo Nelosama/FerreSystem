@@ -12,9 +12,6 @@ export class CreateLevantamientoItemDto {
  @IsOptional() @IsString() ubicacion?:string;
  @IsOptional() @IsString() notas?:string;
  @IsOptional() @IsString() productoId?:string;
- @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) precioCosto?:number;
- @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) precioVenta?:number;
- @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?:number;
 }
 
 export class UpdateLevantamientoItemDto {
@@ -28,9 +25,6 @@ export class UpdateLevantamientoItemDto {
  @IsOptional() @IsString() @MaxLength(100) categoria?:string;
  @IsOptional() @IsString() ubicacion?:string;
  @IsOptional() @IsString() notas?:string;
- @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) precioCosto?:number;
- @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) precioVenta?:number;
- @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) margen?:number;
 }
 
 export class AplicarLevantamientoDto {

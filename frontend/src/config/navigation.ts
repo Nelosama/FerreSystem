@@ -14,6 +14,7 @@ import {
   Tags,
   Percent,
   BarChart3,
+  Smartphone,
   Users,
 } from 'lucide-react';
 
@@ -111,6 +112,15 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     category: 'INVENTARIO',
   },
   {
+    key: 'precios',
+    labelKey: 'menu.prices',
+    defaultLabel: 'PRECIOS Y APROBACIÓN',
+    route: '/precios',
+    icon: Tags,
+    allowedRoles: ['ADMIN'],
+    category: 'INVENTARIO',
+  },
+  {
     key: 'levantamiento',
     labelKey: 'menu.stock_taking',
     defaultLabel: 'LEVANTAMIENTO',
@@ -147,18 +157,38 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     route: '/garantias',
     icon: Shield,
     moduleKey: 'garantias',
-    allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+    // Igual que GET/POST /garantias en el backend: el vendedor no consulta coberturas (FS-14 en garantías).
+    allowedRoles: ['ADMIN', 'CAJERO'],
     category: 'INVENTARIO',
   },
 
+  // Conciliación del POS bancario: solo ADMIN (las tarjetas las registra el cajero en la venta).
+  {
+    key: 'conciliacion_bancaria',
+    labelKey: 'menu.bank_reconciliation',
+    defaultLabel: 'CONCILIACIÓN BANCARIA',
+    route: '/conciliacion-bancaria',
+    icon: Smartphone,
+    allowedRoles: ['ADMIN'],
+    category: 'ANALISIS',
+  },
   // CLIENTES
+  {
+    key: 'estado_cuenta_clientes',
+    labelKey: 'menu.customer_statement',
+    defaultLabel: 'ESTADO DE CUENTA',
+    route: '/estado-cuenta-clientes',
+    icon: Users,
+    allowedRoles: ['ADMIN'],
+    category: 'CLIENTES',
+  },
   {
     key: 'clientes',
     labelKey: 'menu.clients',
     defaultLabel: 'CLIENTES',
     route: '/clientes',
     icon: Users,
-    allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
+    allowedRoles: ['ADMIN'],
     category: 'CLIENTES',
   },
   {
@@ -215,6 +245,16 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     requiredPermiso: 'reportes.ver',
     category: 'ANALISIS',
   },
+  // Resumen administrativo para iPhone: solo lectura de datos ya operativos (ventas, caja, existencias, cobros).
+  {
+    key: 'admin_movil',
+    labelKey: 'menu.mobile_admin',
+    defaultLabel: 'RESUMEN MÓVIL',
+    route: '/admin-movil',
+    icon: Smartphone,
+    allowedRoles: ['ADMIN'],
+    category: 'ANALISIS',
+  },
 
   // CONFIGURACION
   {
@@ -233,7 +273,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
 export const NAVIGATION_CATEGORIES = ['SYSTEM', 'OPERACION', 'INVENTARIO', 'CLIENTES', 'GESTION', 'ANALISIS', 'CONFIGURACION'] as const;
 export const ROLE_PRIORITIES: Record<string, string[]> = {
   SUPERADMIN: ['superadmin'], ADMIN: ['ordenes_compra', 'inventario', 'usuarios', 'reportes'],
-  CAJERO: ['arqueo_caja', 'pos', 'cuentas', 'clientes'],
-  VENDEDOR: ['pos', 'cotizaciones', 'clientes', 'arqueo_caja'],
+  CAJERO: ['arqueo_caja', 'pos', 'cuentas'],
+  VENDEDOR: ['pos', 'cotizaciones', 'arqueo_caja'],
   BODEGUERO: ['entregas', 'inventario', 'ordenes_compra', 'levantamiento'],
 };

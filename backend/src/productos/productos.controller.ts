@@ -1,6 +1,7 @@
 import { RequiredPermission } from '../common/decorators/required-permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Controller, ForbiddenException, Get, Post, Put, Delete, Body, Param, Query, UseGuards, UseInterceptors } from '@nestjs/common';
+import { RespuestaSinProducto } from './producto-response.interceptor';
+import { Controller, ForbiddenException, Get, Patch, Post, Put, Delete, Body, Param, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ProductoResponseInterceptor } from './producto-response.interceptor';
 import { ProductosService } from './productos.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -9,7 +10,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { RequiredModule } from '../common/decorators/required-module.decorator';
-import { CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
+import { CambiarPreciosProductoDto, CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
 
 @Controller('productos')
 @RequiredModule('inventario')
@@ -25,12 +26,13 @@ export class ProductosController {
     @Query('search') search?: string,
     @Query('categoriaId') categoriaId?: string,
     @Query('incluirInactivos') incluirInactivos?: string,
+    @Query('pendientes') pendientes?: string,
   ) {
     // Ver inactivos es parte de la reactivación, que solo puede hacer el administrador.
-    if (incluirInactivos === 'true' && usuario?.rol !== 'ADMIN') {
-      throw new ForbiddenException('Solo el administrador puede ver productos inactivos');
+    if ((incluirInactivos === 'true' || pendientes === 'true') && usuario?.rol !== 'ADMIN') {
+      throw new ForbiddenException('Solo el administrador puede ver productos inactivos o pendientes');
     }
-    return this.productosService.findAll(tenantId, search, categoriaId, incluirInactivos === 'true');
+    return this.productosService.findAll(tenantId, search, categoriaId, incluirInactivos === 'true', pendientes === 'true');
   }
 
   @Get('alertas/stock-bajo')
@@ -43,6 +45,14 @@ export class ProductosController {
   @RequiredModule('pos')
   @Roles('ADMIN','CAJERO','VENDEDOR')
   comercial(@TenantId() tenantId:string) { return this.productosService.comercial(tenantId); }
+
+  /** F-02: explica al cajero por qué un código no se puede vender. No devuelve costos ni precios internos. */
+  @Get('comercial/estado')
+  @RespuestaSinProducto()
+  @RequiredPermission('pos.vender')
+  @RequiredModule('pos')
+  @Roles('ADMIN','CAJERO','VENDEDOR')
+  estadoVenta(@TenantId() tenantId:string, @Query('codigo') codigo?:string) { return this.productosService.estadoParaVenta(tenantId, codigo ?? ''); }
 
   @Get(':id')
   async findById(@TenantId() tenantId: string, @Param('id') id: string) {
@@ -70,6 +80,19 @@ export class ProductosController {
     @CurrentUser('sub') userId: string,
   ) {
     return this.productosService.update(tenantId, id, dto, userId);
+  }
+
+  /** Precios y aprobación para venta: solo el administrador. */
+  @Patch(':id/precios')
+  @RequiredPermission('inventario.editar')
+  @Roles('ADMIN')
+  async cambiarPrecios(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: CambiarPreciosProductoDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.productosService.cambiarPrecios(tenantId, id, dto, userId);
   }
 
   @Delete(':id')

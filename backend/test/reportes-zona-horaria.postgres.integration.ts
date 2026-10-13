@@ -87,7 +87,18 @@ describe('Reportes FS-05 / PostgreSQL aislado', () => {
       '20261005000000_compras_proveedor_y_costo_vigente',
       '20261006000000_clientes_credito',
       '20261006000100_tenant_configuration',
-      '20261009000000_levantamiento_multiusuario', '20261009120000_fs06_marca_idempotencia_levantamiento', '20261009130000_fs07_version_producto',
+      '20261009000000_levantamiento_multiusuario',
+      '20261009120000_fs06_marca_idempotencia_levantamiento',
+      '20261009130000_fs07_version_producto',
+      '20261010120000_coberturas_garantia',
+      '20261010140000_productos_proveedores',
+      '20261011000000_pos_contingencia_offline',
+      '20261011150000_precio_aprobacion_producto',
+      '20261012000000_autenticacion_sesiones_intentos',
+      '20261012000000_conciliacion_pagos_bancarios',
+      '20261012000000_entrega_eventos_y_cantidades',
+      '20261013000000_balance_referencia_pagos',
+      '20261014000000_cliente_plazo_credito', '20261015000000_contingencia_revocar_ventanas_anteriores',
     ]) {
       psqlFile(resolve(`prisma/migrations/${migration}/migration.sql`));
     }
@@ -109,7 +120,7 @@ describe('Reportes FS-05 / PostgreSQL aislado', () => {
     const productoId = randomUUID();
     await prisma.tenant.create({ data: { id: tenantId, nombreComercial: 'Ferretería prueba' } });
     await prisma.usuario.create({ data: { id: usuarioId, tenantId, nombre: 'Cajero prueba', email: `${usuarioId}@example.test`, passwordHash: 'test-only' } });
-    await prisma.producto.create({ data: { id: productoId, tenantId, codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 1000, stockMinimo: 0 } });
+    await prisma.producto.create({ data: {precioAprobado:true, id: productoId, tenantId, codigo: 'P1', nombre: 'Cable', precioVenta: 10, precioCosto: 5, stockActual: 1000, stockMinimo: 0 } });
     let numero = 0;
     const ventaIds: Record<string, string> = {};
     for (const [clave, v] of Object.entries(FIXTURE)) {
@@ -143,6 +154,8 @@ describe('Reportes FS-05 / PostgreSQL aislado', () => {
       const r = await ops().resumen(tenantId, '2026-10-09', '2026-10-09');
       // EFECTIVO: primerMs (10) + ultimoMs (30); TARJETA: noche (20). Excluidos: anterior 23:59:59.999, siguiente 00:00, anulada.
       expect(porMetodo(r.metodos)).toEqual({ EFECTIVO: { cantidad: 2, total: 40 }, TARJETA: { cantidad: 1, total: 20 } });
+      // Base + ISV = total por método: el reporte separa la base y el impuesto sin inventar cifras.
+      for (const m of r.metodos) expect(Number(m.base) + Number(m.isv)).toBeCloseTo(Number(m.total), 2);
       expect(r.rotacion).toHaveLength(1);
       expect(Number(r.rotacion[0].cantidad)).toBe(FIXTURE.primerMs.cantidad + FIXTURE.noche.cantidad + FIXTURE.ultimoMs.cantidad);
       expect(r.devoluciones[0]).toMatchObject({ cantidad: 1 });

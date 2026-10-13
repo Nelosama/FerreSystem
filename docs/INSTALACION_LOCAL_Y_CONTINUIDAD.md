@@ -29,6 +29,8 @@ node deploy/local/prepare.mjs /ruta/privada/ferresystem ferresystem.lan correo-a
 
 El destino debe ser nuevo y estar fuera del repositorio. Se generan contraseñas aleatorias, JWT y `local.env`; no se imprimen secretos ni se sobrescriben archivos existentes. Guardar la contraseña inicial de `secrets/initial_admin_password` en un gestor de contraseñas por un canal privado. En Windows usar una ruta externa privada y configurar sus ACL: los permisos POSIX no sustituyen los permisos de Windows.
 
+**Clave de la contingencia offline.** `prepare.mjs` también crea el secreto `contingencia_clave_operaciones`, que el backend exige al arrancar. En una instalación existente que se actualiza, ejecutar una vez `node deploy/local/agregar-clave-contingencia.mjs /ruta/privada/ferresystem` antes de levantar la nueva versión. Detalle, rotación y transición: [CONTINGENCIA_CLAVE_OPERACIONES.md](CONTINGENCIA_CLAVE_OPERACIONES.md).
+
 Configurar resolución del nombre `ferresystem.lan` a la IP fija del servidor en el router o archivos hosts de cada equipo. El nombre debe coincidir con FERRE_HOST. Confirmar reglas de firewall solo para la red del local; no reenviar esos puertos desde Internet.
 
 ## Arranque e instalación inicial

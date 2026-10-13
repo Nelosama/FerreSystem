@@ -1,0 +1,35 @@
+/* Precios y aprobación: una columna en teléfono, lista y editor lado a lado en computadora. */
+.precios-page { padding: 0 16px 24px; }
+.precios-resumen { margin: 8px 0 12px; font-weight: 700; }
+.precios-layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.precios-lista, .precios-editor { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.precios-filtros { display: flex; flex-wrap: wrap; gap: 8px; }
+.precios-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.precios-item {
+  width: 100%; text-align: left; display: grid; gap: 2px; padding: 10px 12px;
+  border: 1px solid var(--color-border, #d4d4d8); border-radius: 8px; background: var(--color-surface, #fff); cursor: pointer;
+}
+.precios-item.is-active { border-color: var(--color-primary, #1d4ed8); box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.15); }
+.precios-item-nombre { font-weight: 700; overflow-wrap: anywhere; }
+.precios-item-codigo, .precios-item-cifras, .precios-meta { font-size: 13px; color: var(--color-text-muted, #52525b); }
+.precios-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.precios-form { display: flex; flex-direction: column; gap: 12px; }
+.precios-titulo { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
+.precios-estado { margin: 0; font-weight: 600; }
+.precios-estado--pendiente { color: #b45309; }
+.precios-campos { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.precios-campos label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.precios-margen { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 8px; background: var(--color-surface-muted, #f4f4f5); }
+.precios-margen strong { font-size: 22px; }
+.precios-margen small { color: var(--color-text-muted, #52525b); }
+.precios-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.precios-error { color: #b91c1c; font-weight: 600; margin: 0; }
+.precios-ok { color: #166534; font-weight: 600; margin: 0; }
+.precios-vacio { color: var(--color-text-muted, #52525b); }
+
+@media (min-width: 900px) {
+  .precios-layout { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
+  .precios-campos { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .precios-margen { grid-column: 1 / -1; }
+  .precios-editor { position: sticky; top: 16px; }
+}

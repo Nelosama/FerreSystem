@@ -12,7 +12,7 @@ import { VentasService } from '../ventas/ventas.service';
 const tenantId = 'tenant-A';
 const actorId = 'user-A';
 const productId = 'product-A';
-const saleDto = { detalles: [{ productoId: productId, cantidad: 1 }] };
+const saleDto = { solicitudId: 'solicitud-base', detalles: [{ productoId: productId, cantidad: 1 }] };
 
 function deferred() {
   let resolve!: () => void;
@@ -46,6 +46,7 @@ function fixture() {
     nombre: 'Cable',
     codigo: 'CABLE',
     precioVenta: 10,
+    precioAprobado: true,
     precioCosto: 5,
     stockActual: 10,
     stockReservado: 0,

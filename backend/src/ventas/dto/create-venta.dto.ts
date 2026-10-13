@@ -1,7 +1,8 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum, IsUUID, IsBoolean, IsDateString, ArrayMinSize, ArrayMaxSize, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum, IsIn, IsUUID, IsBoolean, IsDateString, ArrayMinSize, ArrayMaxSize, MaxLength } from 'class-validator';
 import { EmptyToUndefined } from '../../common/empty-to-undefined';
 import { Type } from 'class-transformer';
 import { TipoPago } from '../../types/prisma-enums';
+import { PagoElectronicoDto } from '../../common/pago-electronico.dto';
 
 export enum MetodoPagoEnum {
   EFECTIVO = 'EFECTIVO',
@@ -24,14 +25,16 @@ export class DetalleVentaItemDto {
   @IsOptional()
   precioUnitario?: number;
   @IsOptional() @IsBoolean() sinInventario?: boolean;
+  /** MOSTRADOR: se entrega al cobrar. BODEGA: queda reservada para entrega posterior (valor por defecto). */
+  @IsOptional() @IsIn(['MOSTRADOR', 'BODEGA']) modoEntrega?: 'MOSTRADOR' | 'BODEGA';
   @IsOptional() @IsString() proveedorId?: string;
   @IsOptional() @IsString() ordenCompraId?: string;
 }
 
 export class CreateVentaDto {
-  @IsUUID('4')
-  @IsOptional()
-  solicitudId?: string;
+  /** Obligatoria (DEF-03): sin ella un reintento por pérdida de respuesta crearía otra venta. UUID v4 generado por el cliente. */
+  @IsUUID('4', { message: 'solicitudId es obligatorio y debe ser un UUID v4 generado por el cliente' })
+  solicitudId!: string;
 
   @IsString()
   @IsOptional()
@@ -44,6 +47,7 @@ export class CreateVentaDto {
   @IsOptional()
   metodoPago?: MetodoPagoEnum;
 
+  @IsOptional() @ValidateNested() @Type(() => PagoElectronicoDto) pagoElectronico?: PagoElectronicoDto;
   @IsEnum(TipoPago)
   @IsOptional()
   tipoPago?: TipoPago;

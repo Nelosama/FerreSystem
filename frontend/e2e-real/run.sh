@@ -13,17 +13,20 @@ export DATABASE_URL="postgresql://postgres@127.0.0.1:${PG_PORT}/postgres"
 export DIRECT_URL="$DATABASE_URL"
 export E2E_PASSWORD="E2E-$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
 export JWT_SECRET="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 48)"
+export CONTINGENCIA_CLAVE_OPERACIONES="$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 48)"
 export FRONTEND_URL="http://127.0.0.1:${WEB_PORT}"
 export PORT="$API_PORT"
 export E2E_API_URL="http://127.0.0.1:${API_PORT}/api"
 export E2E_DIST="$WORK/dist"
 export E2E_API_TARGET="http://127.0.0.1:${API_PORT}"
 export PG_BIN
+export POS_OFFLINE_ENABLED=true
 export E2E_PG_PORT="$PG_PORT"
+if [[ "$(id -u)" == 0 ]]; then AS=(runuser -u nobody --); else AS=(); fi
 API_PID=""
 cleanup() {
   [[ -n "$API_PID" ]] && kill "$API_PID" 2>/dev/null || true
-  runuser -u nobody -- "$PG_BIN/pg_ctl" -D "$WORK/data" -m immediate stop >/dev/null 2>&1 || true
+  "${AS[@]}" "$PG_BIN/pg_ctl" -D "$WORK/data" -m immediate stop >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -31,8 +34,8 @@ trap cleanup EXIT
 echo "== 1. PostgreSQL temporal (usuario nobody, puerto $PG_PORT)"
 mkdir -p "$WORK"
 chmod 777 "$WORK"
-runuser -u nobody -- "$PG_BIN/initdb" -D "$WORK/data" -U postgres -A trust --locale=C -E UTF8 --no-sync >/dev/null
-runuser -u nobody -- "$PG_BIN/pg_ctl" -D "$WORK/data" -l "$WORK/pg.log" -o "-h 127.0.0.1 -p $PG_PORT -k $WORK" -w start >/dev/null
+"${AS[@]}" "$PG_BIN/initdb" -D "$WORK/data" -U postgres -A trust --locale=C -E UTF8 --no-sync >/dev/null
+"${AS[@]}" "$PG_BIN/pg_ctl" -D "$WORK/data" -l "$WORK/pg.log" -o "-h 127.0.0.1 -p $PG_PORT -k $WORK" -w start >/dev/null
 
 echo "== 2. Migraciones con Prisma (migrate deploy, la ruta de producción)"
 (cd "$ROOT/backend" && npx prisma migrate deploy >"$WORK/migrate.log" 2>&1) || { cat "$WORK/migrate.log"; exit 1; }
@@ -67,4 +70,4 @@ echo "== 6. Frontend real (build con /api; la vista previa reenvía a $E2E_API_T
 
 echo "== 7. Playwright contra backend real"
 cd "$ROOT/frontend"
-npx playwright test -c playwright.real.config.ts "$@"
+npx playwright test -c "${PW_CONFIG:-playwright.real.config.ts}" "$@"

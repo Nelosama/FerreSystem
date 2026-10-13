@@ -1,0 +1,212 @@
+TAP version 13
+# Subtest: detecta cuentas con clave demo y omite las demás
+ok 1 - detecta cuentas con clave demo y omite las demás
+  ---
+  duration_ms: 1.668741
+  type: 'test'
+  ...
+# Subtest: sin cuentas con clave demo no hay coincidencias
+ok 2 - sin cuentas con clave demo no hay coincidencias
+  ---
+  duration_ms: 0.199089
+  type: 'test'
+  ...
+# Subtest: requires remote encrypted repository, explicit source, bounded retention/frequency
+ok 3 - requires remote encrypted repository, explicit source, bounded retention/frequency
+  ---
+  duration_ms: 1.273526
+  type: 'test'
+  ...
+# Subtest: upload/readback/restore precede retention; corruption and restore errors never prune
+ok 4 - upload/readback/restore precede retention; corruption and restore errors never prune
+  ---
+  duration_ms: 33.432389
+  type: 'test'
+  ...
+# {"at":"2026-10-11T00:15:15.268Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+# {"at":"2026-10-11T00:15:15.270Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+# {"at":"2026-10-11T00:15:15.271Z","success":true,"alertDelivery":"failed"}
+# {"at":"2026-10-11T00:15:15.274Z","success":false,"errorCode":"DUMP","alertDelivery":"failed"}
+# Subtest: bounded exponential retry records every run, last success survives failure and restart
+ok 5 - bounded exponential retry records every run, last success survives failure and restart
+  ---
+  duration_ms: 10.642342
+  type: 'test'
+  ...
+# Subtest: webhook failures remain visible and payload contains no database details
+ok 6 - webhook failures remain visible and payload contains no database details
+  ---
+  duration_ms: 0.509125
+  type: 'test'
+  ...
+# Subtest: restore environment cannot inherit source service, URL, credentials or cloud secrets
+ok 7 - restore environment cannot inherit source service, URL, credentials or cloud secrets
+  ---
+  duration_ms: 15.234562
+  type: 'test'
+  ...
+# Subtest: scheduler runs independently, waits configured interval and never overlaps cycles
+ok 8 - scheduler runs independently, waits configured interval and never overlaps cycles
+  ---
+  duration_ms: 0.610487
+  type: 'test'
+  ...
+# Subtest: acepta una marca de staging registrada y con confirmación exacta
+ok 9 - acepta una marca de staging registrada y con confirmación exacta
+  ---
+  duration_ms: 3.039389
+  type: 'test'
+  ...
+# Subtest: rechaza PRODUCCION aunque el identificador esté en la lista
+ok 10 - rechaza PRODUCCION aunque el identificador esté en la lista
+  ---
+  duration_ms: 0.621119
+  type: 'test'
+  ...
+# Subtest: rechaza una base sin marca o con más de una
+ok 11 - rechaza una base sin marca o con más de una
+  ---
+  duration_ms: 0.237638
+  type: 'test'
+  ...
+# Subtest: rechaza un identificador que no está en la lista aprobada
+ok 12 - rechaza un identificador que no está en la lista aprobada
+  ---
+  duration_ms: 1.857409
+  type: 'test'
+  ...
+# Subtest: exige confirmar el identificador exacto, no el host
+ok 13 - exige confirmar el identificador exacto, no el host
+  ---
+  duration_ms: 0.345756
+  type: 'test'
+  ...
+# Subtest: NODE_ENV=production se rechaza antes de consultar la base
+ok 14 - NODE_ENV=production se rechaza antes de consultar la base
+  ---
+  duration_ms: 0.499658
+  type: 'test'
+  ...
+# Subtest: base inaccesible o sin tabla de marca: se rechaza
+ok 15 - base inaccesible o sin tabla de marca: se rechaza
+  ---
+  duration_ms: 0.415156
+  type: 'test'
+  ...
+# Subtest: camino completo con marca válida
+ok 16 - camino completo con marca válida
+  ---
+  duration_ms: 0.217538
+  type: 'test'
+  ...
+# Subtest: rechaza destinos nuevos dentro del proyecto mediante un enlace externo
+ok 17 - rechaza destinos nuevos dentro del proyecto mediante un enlace externo
+  ---
+  duration_ms: 3.588812
+  type: 'test'
+  ...
+# Subtest: canonicaliza destinos externos y distingue el proyecto de un directorio hermano
+ok 18 - canonicaliza destinos externos y distingue el proyecto de un directorio hermano
+  ---
+  duration_ms: 2.082917
+  type: 'test'
+  ...
+# Subtest: no trata un enlace roto como un ancestro pendiente de crear
+ok 19 - no trata un enlace roto como un ancestro pendiente de crear
+  ---
+  duration_ms: 1.194171
+  type: 'test'
+  ...
+# Subtest: prepare y preflight rechazan enlaces al repositorio antes de crear archivos
+ok 20 - prepare y preflight rechazan enlaces al repositorio antes de crear archivos
+  ---
+  duration_ms: 86.181135
+  type: 'test'
+  ...
+# Subtest: prepare conserva barras POSIX y dólares literales en la configuración Compose
+ok 21 - prepare conserva barras POSIX y dólares literales en la configuración Compose
+  ---
+  duration_ms: 318.861411
+  type: 'test'
+  ...
+# Subtest: preflight informa por IPC el respaldo verificado después de escribir su manifiesto
+ok 22 - preflight informa por IPC el respaldo verificado después de escribir su manifiesto
+  ---
+  duration_ms: 161.818755
+  type: 'test'
+  ...
+# Subtest: preflight no anuncia un respaldo cuya validación de archivo falla
+ok 23 - preflight no anuncia un respaldo cuya validación de archivo falla
+  ---
+  duration_ms: 115.429488
+  type: 'test'
+  ...
+# Subtest: detecta comandos destructivos de Prisma en archivos ejecutables
+ok 24 - detecta comandos destructivos de Prisma en archivos ejecutables
+  ---
+  duration_ms: 2.858567
+  type: 'test'
+  ...
+# Subtest: no bloquea los comandos legítimos de migración y generación
+ok 25 - no bloquea los comandos legítimos de migración y generación
+  ---
+  duration_ms: 0.470825
+  type: 'test'
+  ...
+# Subtest: una migración aditiva pasa sin marca
+ok 26 - una migración aditiva pasa sin marca
+  ---
+  duration_ms: 2.328362
+  type: 'test'
+  ...
+# Subtest: el SQL destructivo sin marca de aprobación se bloquea
+ok 27 - el SQL destructivo sin marca de aprobación se bloquea
+  ---
+  duration_ms: 0.715099
+  type: 'test'
+  ...
+# Subtest: con marca de aprobación explícita, el SQL destructivo se permite y queda registrado
+ok 28 - con marca de aprobación explícita, el SQL destructivo se permite y queda registrado
+  ---
+  duration_ms: 0.241457
+  type: 'test'
+  ...
+# Subtest: los DROP dentro de comentarios no cuentan
+ok 29 - los DROP dentro de comentarios no cuentan
+  ---
+  duration_ms: 0.197228
+  type: 'test'
+  ...
+# Subtest: un cambio de tipo o un RENAME exigen aprobación
+ok 30 - un cambio de tipo o un RENAME exigen aprobación
+  ---
+  duration_ms: 0.152941
+  type: 'test'
+  ...
+# Subtest: las migraciones publicadas son inmutables: solo se permiten archivos nuevos
+ok 31 - las migraciones publicadas son inmutables: solo se permiten archivos nuevos
+  ---
+  duration_ms: 0.270237
+  type: 'test'
+  ...
+# Subtest: la marca de aprobación exige ticket y responsable con handle
+ok 32 - la marca de aprobación exige ticket y responsable con handle
+  ---
+  duration_ms: 0.486251
+  type: 'test'
+  ...
+# Subtest: una migración no puede crear la tabla de marca de entorno
+ok 33 - una migración no puede crear la tabla de marca de entorno
+  ---
+  duration_ms: 0.668981
+  type: 'test'
+  ...
+1..33
+# tests 33
+# suites 0
+# pass 33
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 896.259334

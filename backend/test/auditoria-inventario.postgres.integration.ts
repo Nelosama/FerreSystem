@@ -93,21 +93,22 @@ describe('Auditoría independiente / reproducciones confirmadas', () => {
     const id=randomUUID();
     await prisma.usuario.create({data:{id,tenantId:otherTenantId,nombre:'Ajeno',email:`${id}@test.invalid`,passwordHash:'not-a-password',rol:'ADMIN'}});
     users.OTHER={id,token:jwt.sign({sub:id,tenantId:otherTenantId,type:'tenant'})};
-    productId=(await prisma.producto.create({data:{tenantId,codigo:'CABLE',codigoBarras:'001234',nombre:'Cable metro',unidadMedida:'METRO',precioCosto:2,precioVenta:4,stockActual:8,stockReservado:1}})).id;
+    productId=(await prisma.producto.create({data:{precioAprobado:true,tenantId,codigo:'CABLE',codigoBarras:'001234',nombre:'Cable metro',unidadMedida:'METRO',precioCosto:2,precioVenta:4,stockActual:8,stockReservado:1}})).id;
     lid=(await call('post','/levantamientos',{nombre:'Conteo inicial'}).expect(201)).body.id;
   });
 
 
   // Regresiones del contrato seguro: las solicitudes obsoletas nunca sobrescriben datos recientes.
-  it('QA-INV-001: aplicar invalida el formulario antiguo y conserva el precio revisado', async()=>{
+  it('QA-INV-001: aplicar invalida el formulario antiguo y no cambia el precio aprobado', async()=>{
     const old=(await call('get',`/productos/${productId}`).expect(200)).body;
     await add(item({productoId:productId,cantidad:8,precioVenta:9})).expect(201);
     await finish(); const p=(await preview()).body; await apply(p.token).expect(201);
     const applied=await prisma.producto.findUniqueOrThrow({where:{id:productId}});
-    expect(Number(applied.precioVenta)).toBe(9);
+    // Ajuste de cantidades: el precio que capturó el conteo se ignora; el precio aprobado no cambia.
+    expect(Number(applied.precioVenta)).toBe(Number(old.precioVenta));
     expect(applied.version).toBe(old.version+1);
-    await call('put',`/productos/${productId}`,{version:old.version,precioVenta:5}).expect(409);
-    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).precioVenta)).toBe(9);
+    await call('put',`/productos/${productId}`,{version:old.version,nombre:'Formulario antiguo'}).expect(409);
+    expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productId}})).precioVenta)).toBe(Number(old.precioVenta));
 
   });
   it('QA-INV-002: conciliación obsoleta conserva 12; tras recargar permite una decisión explícita',async()=>{

@@ -9,6 +9,7 @@ export interface CartItem {
 }
 
 export interface SaleDraft {
+  modoEntrega?: 'MOSTRADOR' | 'BODEGA';
   cart: CartItem[];
   clienteNombre: string;
   clienteRtn: string;
@@ -16,6 +17,8 @@ export interface SaleDraft {
   vencimiento?: string;
   metodoPago: 'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA';
   descuentoPorcentaje: number;
+  // Autorización bancaria de tarjeta o transferencia; se conserva en la recuperación del pendiente.
+  pagoElectronico?: { referencia: string; terminal: string };
 }
 
 export interface PendingSale extends SaleDraft { solicitudId: string }
@@ -29,6 +32,7 @@ const validDraft = (sale: SaleDraft) => sale && Array.isArray(sale.cart) && sale
     optionalString(item.proveedorId) && (!item.sinInventario || !!item.proveedorId)) &&
   typeof sale.clienteNombre === 'string' && typeof sale.clienteRtn === 'string' &&
   optionalString(sale.clienteId) && optionalString(sale.vencimiento) &&
+  (sale.modoEntrega === undefined || sale.modoEntrega === 'MOSTRADOR' || sale.modoEntrega === 'BODEGA') &&
   ['EFECTIVO', 'TARJETA', 'CREDITO', 'TRANSFERENCIA'].includes(sale.metodoPago) &&
   Number.isFinite(sale.descuentoPorcentaje) && sale.descuentoPorcentaje >= 0 && sale.descuentoPorcentaje <= 100;
 

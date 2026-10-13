@@ -80,7 +80,7 @@ describe('FUNC-001 / HTTP and isolated PostgreSQL', () => {
     const cliente = await prisma.cliente.create({ data: { tenantId, nombre: 'Cliente sintético', rtn: '08019999999999' } });
     const details = [];
     for (const [codigo, cantidad, medida, precioUnitario] of [['A', 2, 3, 10.25], ['B', 1.5, 1, 7.5]] as const) {
-      const product = await prisma.producto.create({ data: { tenantId, codigo, nombre: codigo, precioVenta: precioUnitario, precioCosto: 2, stockActual: 100, usaMedida: codigo === 'A' } });
+      const product = await prisma.producto.create({ data: {precioAprobado:true, tenantId, codigo, nombre: codigo, precioVenta: precioUnitario, precioCosto: 2, stockActual: 100, usaMedida: codigo === 'A' } });
       details.push({ productoId: product.id, cantidad, medida, precioUnitario });
     }
     cotizacionId = (await new CotizacionesService(prisma).create(tenantId, usuarioId, { clienteId: cliente.id, detalles: details })).id;

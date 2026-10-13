@@ -37,6 +37,9 @@ import { Reflector } from '@nestjs/core';
 const bin = process.env.PG_BIN || '/usr/bin';
 const exe = (name: string) => join(bin, name);
 
+// Tarjeta y transferencia exigen autorización bancaria: cada cobro recibe una referencia única.
+const autorizacion = (metodo: string) => (metodo === 'EFECTIVO' || metodo === 'CREDITO') ? {} : { pagoElectronico: { referencia: `AUT-${randomUUID().slice(0, 12)}`, ...(metodo === 'TARJETA' ? { terminal: 'POS-01' } : {}) } };
+
 describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
   let directory = '';
   let started = false;
@@ -131,7 +134,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     const converted = await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'EFECTIVO' }).expect(201);
     sales.push(converted.body.ventaId);
     for (const metodoPago of ['TRANSFERENCIA', 'TARJETA']) {
-      const body = { solicitudId: randomUUID(), metodoPago, detalles: [{ productoId: p.id, cantidad: 1 }] };
+      const body = { solicitudId: randomUUID(), metodoPago, detalles: [{ productoId: p.id, cantidad: 1 }], ...autorizacion(metodoPago) };
       const sale = await http('post', '/ventas', body).expect(201);
       await http('post', '/ventas', body).expect(201);
       sales.push(sale.body.id);
@@ -144,8 +147,9 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     const payment = { solicitudId: randomUUID(), monto: 30, metodo: 'EFECTIVO' };
     await Promise.all([http('post', `/operaciones/cuentas/${account.id}/pagos`, payment).expect(201), http('post', `/operaciones/cuentas/${account.id}/pagos`, payment).expect(201)]);
     for (const id of sales) {
-      await http('post', `/operaciones/ventas/${id}/entregar`).expect(201);
-      await http('post', `/operaciones/ventas/${id}/entregar`).expect(201);
+      const entrega = { solicitudId: randomUUID(), receptorNombre: 'Cliente QA' };
+      await http('post', `/operaciones/ventas/${id}/entregar`, entrega).expect(201);
+      await http('post', `/operaciones/ventas/${id}/entregar`, entrega).expect(201);
     }
     const ingreso = { solicitudId: randomUUID(), tipo: 'INGRESO_MANUAL', monto: 20, concepto: 'Fondo adicional QA' };
     await http('post', `/operaciones/caja/${cajaId}/movimientos`, ingreso).expect(201);
@@ -182,13 +186,14 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     // Bruto 250, descuentos 20 + 10, base 220, ISV 33, total 253.
     expect(quote.body).toMatchObject({ subtotal: 230, descuento: 30, isv: 33, total: 253 });
     const path = `/cotizaciones/${quote.body.id}/convertir`;
-    const converted = await Promise.all([http('post', path, { metodoPago }), http('post', path, { metodoPago })]);
+    const converted = await Promise.all([http('post', path, { metodoPago, ...autorizacion(metodoPago) }), http('post', path, { metodoPago, ...autorizacion(metodoPago) })]);
     expect(converted.map(r => r.status).sort((a, b) => a - b)).toEqual([201, 400]);
     const ventaId = converted.find(r => r.status === 201)!.body.ventaId;
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
     expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: a.id } })).stockActual)).toBe(10);
     expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: a.id } })).stockReservado)).toBe(2);
-    await Promise.all([http('post', `/operaciones/ventas/${ventaId}/entregar`).expect(201), http('post', `/operaciones/ventas/${ventaId}/entregar`).expect(201)]);
+    const entregaDoble = { solicitudId: randomUUID(), receptorNombre: 'Cliente QA' };
+    await Promise.all([http('post', `/operaciones/ventas/${ventaId}/entregar`, entregaDoble).expect(201), http('post', `/operaciones/ventas/${ventaId}/entregar`, entregaDoble).expect(201)]);
     const stock = await prisma.producto.findUniqueOrThrow({ where: { id: a.id } });
     expect(Number(stock.stockActual)).toBe(8); expect(Number(stock.stockReservado)).toBe(0);
     expect(await prisma.movimientoInventario.count({ where: { tenantId, tipo: 'ENTREGA' } })).toBe(2);
@@ -226,7 +231,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     await http('put', `/productos/${p.id}`, { version: p.version, activo: false }).expect(200);
     await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(404);
     const otro = await prisma.tenant.create({ data: { nombreComercial: 'Otro tenant QA' } });
-    const ajeno = await prisma.producto.create({ data: { tenantId: otro.id, codigo: 'AJENO', nombre: 'Ajeno', precioVenta: 100, precioCosto: 40, stockActual: 10 } });
+    const ajeno = await prisma.producto.create({ data: {precioAprobado:true, tenantId: otro.id, codigo: 'AJENO', nombre: 'Ajeno', precioVenta: 100, precioCosto: 40, stockActual: 10 } });
     await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: ajeno.id, cantidad: 1 }] }).expect(404);
     const activo = await producto('ACTIVO', 100, 1);
     await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: activo.id, cantidad: 2 }] }).expect(400);
@@ -242,7 +247,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
       detalles: [{ productoId: a.id, cantidad: 2, descuento: 10, tipoDescuento: 'PORCENTAJE' }, { productoId: b.id, cantidad: 1, exento: true }],
     }).expect(201);
     expect(quote.body).toMatchObject({ descuento: 30, isv: 25.83, total: 245.83 });
-    const result = await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TRANSFERENCIA' }).expect(201);
+    const result = await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TRANSFERENCIA', ...autorizacion('TRANSFERENCIA') }).expect(201);
     const sale = await prisma.venta.findUniqueOrThrow({ where: { id: result.body.ventaId } });
     expect(Number(sale.subtotal)).toBe(250); expect(Number(sale.descuento)).toBe(30);
     expect(Number(sale.isv)).toBe(25.83); expect(Number(sale.total)).toBe(245.83);
@@ -250,13 +255,13 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
 
   it('venta sin inventario exige proveedor y no altera stock ni crea una entrega física', async () => {
     const p = await producto('PEDIDO', 100, 0);
-    const sale = { solicitudId: randomUUID(), metodoPago: 'TRANSFERENCIA', detalles: [{ productoId: p.id, cantidad: 2, sinInventario: true }] };
+    const sale = { solicitudId: randomUUID(), metodoPago: 'TRANSFERENCIA', detalles: [{ productoId: p.id, cantidad: 2, sinInventario: true }], ...autorizacion('TRANSFERENCIA') };
     await http('post', '/ventas', sale).expect(400);
     const provider = await http('post', '/operaciones/proveedores', { solicitudId: randomUUID(), nombre: 'Proveedor QA' }).expect(201);
     const valid = { ...sale, detalles: [{ ...sale.detalles[0], proveedorId: provider.body.id }] };
     const results = await Promise.all([http('post', '/ventas', valid).expect(201), http('post', '/ventas', valid).expect(201)]);
     expect(results[0].body.id).toBe(results[1].body.id);
-    await http('post', `/operaciones/ventas/${results[0].body.id}/entregar`).expect(201);
+    await http('post', `/operaciones/ventas/${results[0].body.id}/entregar`, { solicitudId: randomUUID(), receptorNombre: 'Cliente QA' }).expect(409);
     const stock = await prisma.producto.findUniqueOrThrow({ where: { id: p.id } });
     expect(Number(stock.stockActual)).toBe(0); expect(Number(stock.stockReservado)).toBe(0);
     expect(await prisma.movimientoInventario.count({ where: { tenantId, tipo: 'ENTREGA' } })).toBe(0);
@@ -340,6 +345,15 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect(despues.body.nombre).toBe('Cliente nulidad QA');
   });
 
+  it('convertir una cotización a tarjeta sin autorización bancaria responde 400 y la cotización sigue abierta', async () => {
+    const p = await producto();
+    const quote = await http('post', '/cotizaciones', { detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(201);
+    await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TARJETA' }).expect(400);
+    await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TARJETA', pagoElectronico: { referencia: 'AUT-COT-1', terminal: 'POS-01' } }).expect(201);
+    const sinDuplicar = await prisma.$queryRawUnsafe<any[]>("SELECT COUNT(*)::int AS n FROM aprobaciones_bancarias WHERE referencia='AUT-COT-1'");
+    expect(sinDuplicar).toEqual([{ n: 1 }]);
+  });
+
   it('cotización vencida exige renovar vigencia antes de convertir, sin cobros ni reservas por rechazo', async () => {
     const p = await producto();
     const quote = await http('post', '/cotizaciones', { fechaValidez: '2000-01-01', detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(201);
@@ -361,7 +375,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect(stored.fechaValidez.toISOString()).toBe(`${hoy}T00:00:00.000Z`);
     const found = await http('get', `/cotizaciones/${quote.body.id}`).expect(200);
     expect(found.body).toMatchObject({ vencida: false, porVencerHoy: true });
-    await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TRANSFERENCIA' }).expect(201);
+    await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TRANSFERENCIA', ...autorizacion('TRANSFERENCIA') }).expect(201);
   });
 
   it.runIf(process.env.REAL_SETTINGS_BROWSER === '1')('Chromium real: conversión por transferencia y POS con tarjeta usan el método elegido', async () => {
@@ -376,7 +390,10 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect(sales.map(v => v.metodoPago)).toEqual(['TRANSFERENCIA', 'TARJETA', 'EFECTIVO']);
     expect(sales.map(v => Number(v.total))).toEqual([115, 115, 115]);
     expect((await http('get', '/operaciones/caja').expect(200)).body[0].efectivoEsperado).toBe(215);
-    expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: p.id } })).stockReservado)).toBe(3);
+    // La conversión de cotización deja la mercadería en bodega (reserva); las dos ventas del POS se cobran y entregan en mostrador.
+    const stock = await prisma.producto.findUniqueOrThrow({ where: { id: p.id } });
+    expect(Number(stock.stockReservado)).toBe(1);
+    expect(Number(stock.stockActual)).toBe(8);
   }, 70000);
 });
 

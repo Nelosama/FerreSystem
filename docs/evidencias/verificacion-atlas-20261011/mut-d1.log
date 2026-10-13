@@ -1,0 +1,87 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.integration.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.11 /home/user/atlas-verify-wt/backend
+
+ ❯ test/centinela-verificacion-atlas.postgres.integration.ts (32 tests | 2 failed) 6238ms
+       × CAJERO con TODOS los permisos personalizados recibe 403 y nada cambia 131ms
+       × el servicio rechaza la entrega de un CAJERO aunque se invoque sin pasar por HTTP 101ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/centinela-verificacion-atlas.postgres.integration.ts > Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQL aislado > 1. entrega: solo ADMIN y BODEGUERO, incluso con permisos personalizados > CAJERO con TODOS los permisos personalizados recibe 403 y nada cambia
+AssertionError: expected 201 to be 403 // Object.is equality
+
+- Expected
++ Received
+
+- 403
++ 201
+
+ ❯ test/centinela-verificacion-atlas.postgres.integration.ts:150:24
+    148|       const antes = await stockDe(e.producto.id);
+    149|       const r = await http('post', `/operaciones/ventas/${v.id}/entreg…
+    150|       expect(r.status).toBe(403);
+       |                        ^
+    151|       const [fila] = await prisma.$queryRawUnsafe<any[]>('SELECT entre…
+    152|       expect(fila.entregado_at).toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/centinela-verificacion-atlas.postgres.integration.ts > Verificación CENTINELA de correcciones ATLAS (D1, R1, D3) / PostgreSQL aislado > 1. entrega: solo ADMIN y BODEGUERO, incluso con permisos personalizados > el servicio rechaza la entrega de un CAJERO aunque se invoque sin pasar por HTTP
+AssertionError: promise resolved "{ …(28) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "caja_id": "c9fd83b8-a98b-4ff1-a6c2-c900cecc9cd3",
++   "cambio": null,
++   "cliente_id": null,
++   "cliente_nombre": null,
++   "cliente_rtn": null,
++   "correlativo_local": null,
++   "created_at": 2026-10-11T00:14:41.930Z,
++   "descuento": "0",
++   "efectivo_recibido": null,
++   "entregado_at": 2026-10-11T00:14:41.935Z,
++   "entregado_por": "08868940-5aa8-44de-8476-aea676a181e6",
++   "estado": "COMPLETADA",
++   "id": "a1ad449a-dd06-4517-9bca-a6e6709f2367",
++   "isv": "15",
++   "metodo_pago": "EFECTIVO",
++   "notas": null,
++   "numero_venta": 1,
++   "ocurrido_at": null,
++   "origen": "ONLINE",
++   "referencia_factura_externa": null,
++   "reserva_pendiente": false,
++   "saldo_credito": null,
++   "solicitud_hash": "a1ea69f09a5afa63c52a41c3b3eba3af6d82e9403547fba0b432bf7846b9e58f",
++   "subtotal": "100",
++   "tenant_id": "83dd888d-ac54-4660-a3d1-59a038a92a45",
++   "tipo_pago": "CONTADO",
++   "total": "115",
++   "usuario_id": "08868940-5aa8-44de-8476-aea676a181e6",
+  }
+
+ ❯ test/centinela-verificacion-atlas.postgres.integration.ts:167:72
+    165|       const e = await escenario();
+    166|       const v = await venta(e.cajero, e.producto.id, 1);
+    167|       await expect(operaciones.entregar(e.tenantId, e.cajero.id, v.id)…
+       |                                                                        ^
+    168|     });
+    169|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 29 passed | 1 expected fail (32)
+   Start at  00:14:38
+   Duration  7.47s (transform 578ms, setup 0ms, import 1.09s, tests 6.24s, environment 0ms)
+

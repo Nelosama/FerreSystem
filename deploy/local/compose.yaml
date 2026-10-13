@@ -29,12 +29,14 @@ services:
       database: {condition: service_healthy}
     environment:
       NODE_ENV: production
+      # Instalación local operada por el propietario: aplica migraciones pendientes al arrancar. En producción NO se define (el arranque solo verifica).
+      FERRE_MIGRAR_AL_ARRANCAR: 'SI'
       FERRE_BACKUP_STATUS_FILE: /backups/latest-status.json
       DATABASE_HOST: database
       FRONTEND_URL: https://${FERRE_HOST:?Configure FERRE_HOST}
       INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:?Configure INITIAL_ADMIN_EMAIL}
       INITIAL_TENANT_NAME: ${INITIAL_TENANT_NAME:?Configure INITIAL_TENANT_NAME}
-    secrets: [database_password, jwt_secret, initial_admin_password]
+    secrets: [database_password, jwt_secret, contingencia_clave_operaciones, initial_admin_password]
     volumes:
       - type: bind
         source: ${BACKUP_DIRECTORY}
@@ -79,6 +81,7 @@ secrets:
   database_admin_password: {file: '${SECRETS_DIRECTORY}/database_admin_password'}
   database_password: {file: '${SECRETS_DIRECTORY:?Configure SECRETS_DIRECTORY}/database_password'}
   jwt_secret: {file: '${SECRETS_DIRECTORY}/jwt_secret'}
+  contingencia_clave_operaciones: {file: '${SECRETS_DIRECTORY}/contingencia_clave_operaciones'}
   initial_admin_password: {file: '${SECRETS_DIRECTORY}/initial_admin_password'}
 volumes:
   database:

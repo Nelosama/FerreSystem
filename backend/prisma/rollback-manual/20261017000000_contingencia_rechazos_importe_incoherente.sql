@@ -1,0 +1,8 @@
+-- Reversión MANUAL de 20261017000000_contingencia_rechazos_importe_incoherente. No es una migración: no se ejecuta sola.
+-- Procedimiento (con respaldo previo y autorización):
+-- 1. Respaldar la tabla: CREATE TABLE operaciones_contingencia_respaldo_f5 AS SELECT * FROM operaciones_contingencia WHERE estado IN ('RECHAZADA','RESUELTA_MANUAL') AND NOT (total_centavos > 0 AND efectivo_recibido_centavos >= total_centavos);
+-- 2. Las filas RECHAZADA o RESUELTA_MANUAL con importes incoherentes no caben en la restricción anterior. Decidir con el propietario si se conservan en la tabla de respaldo y se eliminan del diario (su evidencia sigue en auditoria_operaciones).
+-- 3. Restaurar la restricción original solo cuando no quede ninguna fila incoherente:
+--    ALTER TABLE "operaciones_contingencia" DROP CONSTRAINT "operaciones_contingencia_montos_check";
+--    ALTER TABLE "operaciones_contingencia" ADD CONSTRAINT "operaciones_contingencia_montos_check" CHECK ("total_centavos" > 0 AND "efectivo_recibido_centavos" >= "total_centavos");
+-- Este archivo no contiene sentencias activas a propósito.

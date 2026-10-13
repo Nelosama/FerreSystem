@@ -6,8 +6,8 @@
 
 export type FormularioProducto = Record<string, string | boolean>;
 
-/** Campos que cambian precios, identidad del producto, estado o existencias: requieren confirmación. */
-export const CAMPOS_SENSIBLES = ['codigo', 'codigoBarras', 'unidadMedida', 'precioVenta', 'precioCosto', 'stockActual', 'activo'] as const;
+/** Campos que cambian identidad del producto, estado o existencias: requieren confirmación. Los precios se fijan en Precios y aprobación. */
+export const CAMPOS_SENSIBLES = ['codigo', 'codigoBarras', 'unidadMedida', 'stockActual', 'activo'] as const;
 
 const texto = (valor: unknown) => (valor == null ? '' : String(valor));
 
@@ -26,9 +26,6 @@ export function formularioDesde(producto: any): FormularioProducto {
     categoria: nombreCategoria(producto),
     unidadMedida: texto(producto.unidadMedida),
     usaMedida: producto.usaMedida === true,
-    precioVenta: texto(producto.precioVenta),
-    precioCosto: texto(producto.precioCosto),
-    margen: texto(producto.margen),
     stockActual: texto(producto.stockActual),
     stockMinimo: texto(producto.stockMinimo),
     activo: producto.activo !== false,
@@ -48,13 +45,6 @@ export function validarFormularioProducto(form: FormularioProducto, original: an
   if (String(form.codigoBarras ?? '').trim().length > 100) errores.push({ campo: 'codigoBarras', motivo: 'largo' });
   if (String(form.marca ?? '').trim().length > 100) errores.push({ campo: 'marca', motivo: 'largo' });
   if (String(form.categoria ?? '').trim().length > 100) errores.push({ campo: 'categoria', motivo: 'largo' });
-  for (const campo of ['precioVenta', 'precioCosto'] as const) {
-    if (!esNumeroValido(form[campo])) errores.push({ campo, motivo: 'numero' });
-    else if (numero(form[campo]) < 0) errores.push({ campo, motivo: 'negativo' });
-  }
-  if (String(form.margen ?? '').trim() !== '' && (!esNumeroValido(form.margen) || numero(form.margen) < 0 || numero(form.margen) > 100)) {
-    errores.push({ campo: 'margen', motivo: 'rango' });
-  }
   for (const campo of ['stockActual', 'stockMinimo'] as const) {
     if (!esNumeroValido(form[campo])) errores.push({ campo, motivo: 'numero' });
     else if (numero(form[campo]) < 0) errores.push({ campo, motivo: 'negativo' });
@@ -95,12 +85,8 @@ export function construirCambiosProducto(original: any, form: FormularioProducto
   if (unidad && unidad !== texto(original.unidadMedida)) { payload.unidadMedida = unidad; cambiados.push('unidadMedida'); }
   if (form.usaMedida !== Boolean(original.usaMedida)) { payload.usaMedida = form.usaMedida === true; cambiados.push('usaMedida'); }
 
-  for (const campo of ['precioVenta', 'precioCosto', 'stockMinimo'] as const) {
-    if (esNumeroValido(form[campo]) && numero(form[campo]) !== Number(original[campo])) { payload[campo] = numero(form[campo]); cambiados.push(campo); }
-  }
-  if (String(form.margen ?? '').trim() !== '' && numero(form.margen) !== Number(original.margen ?? NaN)) {
-    payload.margen = numero(form.margen); cambiados.push('margen');
-  }
+  // Precio, costo y margen no se editan aquí: el API responde 403 y los fija el administrador en Precios y aprobación.
+  if (esNumeroValido(form.stockMinimo) && numero(form.stockMinimo) !== Number(original.stockMinimo)) { payload.stockMinimo = numero(form.stockMinimo); cambiados.push('stockMinimo'); }
 
   const imagen = String(form.imagenUrl ?? '').trim();
   if (imagen !== texto(original.imagenUrl).trim()) { payload.imagenUrl = imagen || null; cambiados.push('imagenUrl'); }

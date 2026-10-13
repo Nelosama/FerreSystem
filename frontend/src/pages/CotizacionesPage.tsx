@@ -132,6 +132,10 @@ export const CotizacionesPage: React.FC = () => {
   const [modalPdf, setModalPdf] = useState<QuotationItem | null>(null);
   const [modalConvertir, setModalConvertir] = useState<QuotationItem | null>(null);
   const [metodoConversion, setMetodoConversion] = useState<'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'CREDITO'>('EFECTIVO');
+  // Autorización bancaria para convertir con tarjeta o transferencia (la registra el cajero tras la aprobación del POS).
+  const [autConversion, setAutConversion] = useState({ referencia: '', terminal: '' });
+  const conversionElectronica = metodoConversion === 'TARJETA' || metodoConversion === 'TRANSFERENCIA';
+  const autorizacionConversionValida = !conversionElectronica || (autConversion.referencia.trim().length >= 3 && (metodoConversion === 'TRANSFERENCIA' || autConversion.terminal.trim().length > 0));
   const conversionEnCurso = useRef(false);
   const [convirtiendo, setConvirtiendo] = useState(false);
   const [modalProductoPicker, setModalProductoPicker] = useState<boolean>(false);
@@ -249,7 +253,10 @@ export const CotizacionesPage: React.FC = () => {
     conversionEnCurso.current = true;
     setConvirtiendo(true);
     try {
-      await api.post(`/cotizaciones/${cot.id}/convertir`, { metodoPago: metodoConversion });
+      await api.post(`/cotizaciones/${cot.id}/convertir`, {
+        metodoPago: metodoConversion,
+        ...(conversionElectronica ? { pagoElectronico: { referencia: autConversion.referencia.trim(), terminal: metodoConversion === 'TARJETA' ? autConversion.terminal.trim() : undefined } } : {}),
+      });
       setCotizaciones(actuales => actuales.map(actual => actual.id === cot.id ? { ...actual, estado: 'CONVERTIDA' } : actual));
       setModalConvertir(null);
       await fetchCotizacionesYProductos();
@@ -809,7 +816,7 @@ export const CotizacionesPage: React.FC = () => {
                             type="button"
                             className="btn btn-primary btn-sm"
                             disabled={isReadOnly}
-                            onClick={() => { setMetodoConversion('EFECTIVO'); setModalConvertir(c); }}
+                            onClick={() => { setMetodoConversion('EFECTIVO'); setAutConversion({ referencia: '', terminal: '' }); setModalConvertir(c); }}
                             title={isReadOnly ? 'Modo solo lectura — soporte activo' : 'Convertir a Factura/Venta POS'}
                           >
                             <ArrowRightCircle size={13} /> {t('operational.a_venta')}
@@ -1358,6 +1365,12 @@ export const CotizacionesPage: React.FC = () => {
                 <option value="TRANSFERENCIA">{t('pos.transfer')}</option>
                 <option value="CREDITO" disabled={!modalConvertir.clienteId}>{t('pos.credit')}</option>
               </select>
+              {conversionElectronica && (
+                <>
+                  <label>Autorización bancaria<input className="form-input" maxLength={40} value={autConversion.referencia} disabled={convirtiendo} onChange={event => setAutConversion({ ...autConversion, referencia: event.target.value })} /></label>
+                  {metodoConversion === 'TARJETA' && <label>Terminal POS<input className="form-input" maxLength={40} value={autConversion.terminal} disabled={convirtiendo} onChange={event => setAutConversion({ ...autConversion, terminal: event.target.value })} /></label>}
+                </>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
@@ -1372,7 +1385,7 @@ export const CotizacionesPage: React.FC = () => {
                 type="button"
                 className="btn btn-primary"
                 onClick={() => handleConfirmarConvertir(modalConvertir)}
-                disabled={convirtiendo}
+                disabled={convirtiendo || !autorizacionConversionValida}
               >
                 {t('operational.confirmar_y_convertir_a_venta')}
               </button>

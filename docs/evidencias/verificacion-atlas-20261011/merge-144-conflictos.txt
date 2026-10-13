@@ -1,0 +1,42 @@
+bd222fd28fe9bc152b4959be95a9bf558af46d96
+backend/prisma/schema.prisma
+backend/src/operaciones/operaciones.controller.ts
+backend/src/operaciones/operaciones.service.ts
+backend/src/ventas/ventas.service.ts
+backend/test/migrations.postgres.integration.ts
+backend/test/piloto-flujo-completo.postgres.integration.ts
+backend/test/reportes-zona-horaria.postgres.integration.ts
+backend/test/ventas.postgres.integration.ts
+docs/CONTEXTO_MAESTRO.md
+frontend/src/App.tsx
+frontend/src/pages/POSPage.tsx
+
+Auto-merging backend/prisma/schema.prisma
+CONFLICT (content): Merge conflict in backend/prisma/schema.prisma
+Auto-merging backend/src/operaciones/operaciones.controller.ts
+CONFLICT (content): Merge conflict in backend/src/operaciones/operaciones.controller.ts
+Auto-merging backend/src/operaciones/operaciones.dto.ts
+Auto-merging backend/src/operaciones/operaciones.service.ts
+CONFLICT (content): Merge conflict in backend/src/operaciones/operaciones.service.ts
+Auto-merging backend/src/operaciones/sec-003-devoluciones.spec.ts
+Auto-merging backend/src/ventas/dto/create-venta.dto.ts
+Auto-merging backend/src/ventas/ventas.service.ts
+CONFLICT (content): Merge conflict in backend/src/ventas/ventas.service.ts
+Auto-merging backend/test/caja.postgres.integration.ts
+Auto-merging backend/test/ciclo-ventas.postgres.integration.ts
+Auto-merging backend/test/migrations.postgres.integration.ts
+CONFLICT (content): Merge conflict in backend/test/migrations.postgres.integration.ts
+Auto-merging backend/test/piloto-flujo-completo.postgres.integration.ts
+CONFLICT (content): Merge conflict in backend/test/piloto-flujo-completo.postgres.integration.ts
+Auto-merging backend/test/reportes-zona-horaria.postgres.integration.ts
+CONFLICT (content): Merge conflict in backend/test/reportes-zona-horaria.postgres.integration.ts
+Auto-merging backend/test/ventas.postgres.integration.ts
+CONFLICT (content): Merge conflict in backend/test/ventas.postgres.integration.ts
+Auto-merging docs/CONTEXTO_MAESTRO.md
+CONFLICT (content): Merge conflict in docs/CONTEXTO_MAESTRO.md
+Auto-merging frontend/e2e-real/seed.cjs
+Auto-merging frontend/src/App.tsx
+CONFLICT (content): Merge conflict in frontend/src/App.tsx
+Auto-merging frontend/src/pages/POSPage.tsx
+CONFLICT (content): Merge conflict in frontend/src/pages/POSPage.tsx
+Auto-merging frontend/src/utils/posRecovery.ts

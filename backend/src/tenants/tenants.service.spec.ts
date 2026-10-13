@@ -40,4 +40,10 @@ describe('Persistencia de configuración por empresa', () => {
     await expect(service.updateTenantBranding('A', { modoNavegacion: 'unknown' as any })).rejects.toThrow();
     expect(prisma.tenant.update).not.toHaveBeenCalled();
   });
+  it('FS-10: un administrador no cambia el rubro, pero reenviar el rubro vigente sí se acepta', async () => {
+    records.set('A', { ...records.get('A'), configuracion: { rubro: 'FERRETERIA' } });
+    await expect(service.updateTenantBranding('A', { configuracion: { rubro: 'PAPELERIA' } })).rejects.toThrow('solo lo configura el Super Admin');
+    expect(records.get('A').configuracion.rubro).toBe('FERRETERIA');
+    await expect(service.updateTenantBranding('A', { configuracion: { rubro: 'FERRETERIA', estiloUI: 'INDUSTRIAL' } })).resolves.toBeTruthy();
+  });
 });

@@ -4,7 +4,7 @@ import { Upload, Download, AlertTriangle, Check, X, FileSpreadsheet, CheckCircle
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
-import { normalizarUnidadMedida } from '../utils/unidadMedida';
+import { normalizarUnidadMedida, unidadCsvValida } from '../utils/unidadMedida';
 
 interface ImportarProductosModalProps {
   isOpen: boolean;
@@ -16,8 +16,6 @@ interface ParsedRow {
   codigo: string;
   nombre: string;
   categoria: string;
-  precioCosto: number;
-  precioVenta: number;
   stockActual: number;
   stockMinimo: number;
   unidadMedida: string;
@@ -61,25 +59,9 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadTemplate = () => {
-    const headers = ['nombre', 'codigo', 'categoria', 'precioCosto', 'precioVenta', 'stockActual', 'stockMinimo', 'unidadMedida'];
-    const cats = rubroConfig.categoriasDefault.length > 0 ? rubroConfig.categoriasDefault : ['General', 'Otros'];
-    const units = rubroConfig.unidadesMedida.length > 0 ? rubroConfig.unidadesMedida : ['unidad', 'metro'];
+    const headers = ['nombre', 'codigo', 'categoria', 'stockActual', 'stockMinimo', 'unidadMedida'];
+    const csvContent = headers.join(',') + '\n';
 
-    const cat1 = cats[0] || 'General';
-    const cat2 = cats[1] || cat1;
-    const unit1 = units[0] || 'unidad';
-    const unit2 = units[1] || unit1;
-
-    const sampleRows = [
-      ['Producto Ejemplo 1', 'COD-001', cat1, '50.00', '75.00', '100', '10', unit1],
-      ['Producto Ejemplo 2', 'COD-002', cat2, '120.00', '180.00', '50', '5', unit2],
-      ['Producto Ejemplo 3', 'COD-003', cat1, '15.50', '25.00', '200', '20', unit1],
-    ];
-
-    const csvContent = [
-      headers.join(','),
-      ...sampleRows.map((r) => r.map((field) => `"${field.replace(/"/g, '""')}"`).join(',')),
-    ].join('\n');
 
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -102,7 +84,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
   };
 
   const validateAndParseRawData = (rawObjects: Record<string, any>[]): ParsedRow[] => {
-    const allowedUnits = rubroConfig.unidadesMedida.map((u) => u.toLowerCase().trim());
     const defaultCategory = rubroConfig.categoriasDefault[0] || 'General';
     const defaultUnit = rubroConfig.unidadesMedida[0] || 'unidad';
 
@@ -110,8 +91,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
       const codigo = getFieldValue(raw, ['codigo', 'code', 'sku', 'codigoproducto', 'cod']);
       const nombre = getFieldValue(raw, ['nombre', 'name', 'producto', 'articulo', 'descripcion']);
       let categoria = getFieldValue(raw, ['categoria', 'category', 'cat']);
-      const precioCostoStr = getFieldValue(raw, ['preciocosto', 'costo', 'cost', 'costprice']);
-      const precioVentaStr = getFieldValue(raw, ['precioventa', 'precio', 'price', 'sellingprice']);
       const stockActualStr = getFieldValue(raw, ['stockactual', 'stock', 'cantidad', 'qty', 'quantity']);
       const stockMinimoStr = getFieldValue(raw, ['stockminimo', 'minimo', 'minstock']);
       let unidadMedida = getFieldValue(raw, ['unidadmedida', 'unidad', 'medida', 'unit']);
@@ -126,15 +105,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
         errores.push(t('inventory.invalid_name'));
       }
 
-      const numCosto = parseFloat(precioCostoStr || '0');
-      if (isNaN(numCosto) || numCosto < 0) {
-        errores.push(t('inventory.invalid_prices'));
-      }
-
-      const numVenta = parseFloat(precioVentaStr || '0');
-      if (isNaN(numVenta) || numVenta < 0) {
-        errores.push(t('inventory.invalid_prices'));
-      }
 
       const numStock = Number(stockActualStr || '0');
       if (isNaN(numStock) || numStock < 0) {
@@ -148,10 +118,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
 
       if (!unidadMedida) {
         unidadMedida = defaultUnit;
-      } else if (
-        allowedUnits.length > 0 &&
-        !allowedUnits.includes(unidadMedida.toLowerCase().trim())
-      ) {
+      } else if (!unidadCsvValida(unidadMedida)) {
         errores.push(t('inventory.invalid_unit') + `: "${unidadMedida}"`);
       }
 
@@ -164,8 +131,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
         codigo,
         nombre,
         categoria,
-        precioCosto: isNaN(numCosto) ? 0 : numCosto,
-        precioVenta: isNaN(numVenta) ? 0 : numVenta,
         stockActual: isNaN(numStock) ? 0 : numStock,
         stockMinimo: isNaN(numStockMin) ? 5 : numStockMin,
         unidadMedida,
@@ -255,8 +220,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
           motivo: 'Importación de inventario revisada',
           nombre: r.nombre.trim(),
           categoria: r.categoria,
-          precioVenta: r.precioVenta,
-          precioCosto: r.precioCosto,
           stockActual: r.stockActual,
           stockMinimo: r.stockMinimo,
           unidadMedida: normalizarUnidadMedida(r.unidadMedida),
@@ -369,7 +332,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                   className="btn btn-primary"
                   onClick={() => ejecutarImportacion(true)}
                 >
-                  <Check size={16} /> Sobrescribir stock y precio
+                  <Check size={16} /> Sobrescribir existencias
                 </button>
               </div>
             </div>
@@ -383,7 +346,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                   type="button"
                   className="btn btn-secondary"
                   onClick={handleDownloadTemplate}
-                  title="Descargar plantilla de ejemplo CSV para este rubro"
+                  title="Descargar plantilla CSV vacía para este rubro"
                 >
                   <Download size={16} />
                   <span>{t('inventory.download_template')}</span>
@@ -448,8 +411,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                           <th>NOMBRE</th>
                           <th>CATEGORÍA</th>
                           <th>UNIDAD</th>
-                          <th style={{ textAlign: 'right' }}>COSTO</th>
-                          <th style={{ textAlign: 'right' }}>VENTA</th>
                           <th style={{ textAlign: 'center' }}>STOCK</th>
                           <th>ESTADO</th>
                         </tr>
@@ -467,8 +428,6 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                             <td>{r.nombre || <em style={{ color: '#DC2626' }}>[Vacío]</em>}</td>
                             <td>{r.categoria}</td>
                             <td style={{ textTransform: 'lowercase' }}>{r.unidadMedida}</td>
-                            <td style={{ textAlign: 'right' }}>L. {r.precioCosto.toFixed(2)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 700 }}>L. {r.precioVenta.toFixed(2)}</td>
                             <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.stockActual}</td>
                             <td>
                               {r.esValido ? (
