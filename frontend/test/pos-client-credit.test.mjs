@@ -47,6 +47,8 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     '../context/I18nContext': { useI18n: () => ({ t, locale: 'es' }) },
     '../utils/format': { formatLempiras: String },
     '../utils/api': { api: { get: async () => ({ data: [] }), post: async () => ({ data: {} }) } },
+    // Sondeo de fondo (caja y catálogo): estas pruebas no dependen de él; sus lecturas siguen en el propio POS.
+    '../hooks/useAutoRefresh': { useAutoRefresh: () => ({ refresh: async () => {}, sync: { phase: 'idle', lastSync: null } }) },
     ...overrides,
   };
   const component = evaluate(file, mocks, { localStorage: sharedStorage, crypto: webcrypto, alert() {},

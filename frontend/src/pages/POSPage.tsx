@@ -7,6 +7,7 @@ import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import type { ProductItem } from '../types';
 import { api } from '../utils/api';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { readRecovery, saveDraft, type PendingSale, type CartItem } from '../utils/posRecovery';
 import { useI18n } from '../context/I18nContext';
 import {
@@ -30,6 +31,26 @@ import { descargarReciboPDF } from '../components/ReciboPDF';
 // Autorización bancaria de tarjeta/transferencia: la registra el cajero tras la aprobación del POS físico.
 const pagoElectronicoDesde = (metodo: string, aut: { referencia: string; terminal: string }) =>
   (metodo === 'TARJETA' || metodo === 'TRANSFERENCIA') ? { referencia: aut.referencia.trim(), terminal: aut.terminal.trim() } : undefined;
+
+// Adapta un producto del catálogo comercial al formato del POS.
+const mapearProductoPOS = (p: any): ProductItem => ({
+  id: p.id,
+  codigo: p.codigo,
+  codigoBarras:p.codigoBarras,
+  codigoFabricante:p.codigoFabricante,
+  nombre: p.nombre,
+  descripcion: p.descripcion,
+  categoria: p.categoria?.nombre || p.categoria || 'General',
+  precioVenta: Number(p.precioVenta),
+  precioCosto: Number(p.precioCosto||0),
+  imagenUrl:p.imagenUrl,
+  stockActual: Number(p.stockActual),
+  stockMinimo: Number(p.stockMinimo),
+  unidadMedida: p.unidadMedida || 'UNIDAD',
+  usaMedida: Boolean(p.usaMedida),
+  activo: Boolean(p.activo),
+  stockBajo: p.stockBajo ?? (Number(p.stockActual) <= Number(p.stockMinimo)),
+});
 
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
@@ -55,6 +76,8 @@ export const POSPage: React.FC = () => {
 
   const [productos, setProductos] = useState<ProductItem[]>([]);
   const [errorText, setErrorText] = useState<string | null>(null);
+  // Advertencia de existencia: visible, pero no bloquea el pedido especial autorizado.
+  const [avisoExistencia, setAvisoExistencia] = useState<string | null>(null);
 
   const [cart, setCart] = useState<CartItem[]>(initialSale?.cart || []);
   const [search, setSearch] = useState('');
@@ -65,8 +88,25 @@ export const POSPage: React.FC = () => {
   const [providers,setProviders]=useState<any[]>([]);
   const [special,setSpecial]=useState(!!initialSale?.cart[0]?.sinInventario);
   const [specialProvider,setSpecialProvider]=useState(initialSale?.cart[0]?.proveedorId || '');
-  const [cajaAbierta,setCajaAbierta]=useState(false);
-  useEffect(()=>{let alive=true;setProviders([]);setCajaAbierta(false);api.get('/operaciones/proveedores').then(r=>{if(alive)setProviders(r.data);}).catch(()=>{});api.get('/operaciones/caja').then(r=>{if(alive)setCajaAbierta(r.data.some((c:any)=>c.estado==='ABIERTA'));}).catch(()=>{if(alive)setCajaAbierta(false);});return()=>{alive=false;};},[tenant.id,user?.id]);
+  // Catálogo: se refresca solo cada 60 s. Solo reemplaza la lista de productos; no cambia precios del carrito
+  // (eso sigue siendo una acción explícita del cajero) ni muestra errores sobre una venta en curso.
+  useAutoRefresh<ProductItem[]>({
+    load: signal => api.get('/productos/comercial', { signal }).then(r => r.data.map(mapearProductoPOS)),
+    apply: data => setProductos(data),
+    intervalMs: 60_000,
+    immediate: false,
+    deps: [tenant.id, user?.id],
+  });
+  // Estado real de la caja: si no se puede comprobar (red o servidor) NO se afirma que esté cerrada.
+  const [cajaEstado,setCajaEstado]=useState<'abierta'|'cerrada'|'desconocida'>('desconocida');
+  const syncCaja=useAutoRefresh<any[]>({
+    load:signal=>api.get('/operaciones/caja',{signal}).then(r=>r.data),
+    apply:datos=>setCajaEstado(datos.some((c:any)=>c.estado==='ABIERTA')?'abierta':'cerrada'),
+    intervalMs:30_000,
+    deps:[tenant.id,user?.id],
+  }).sync;
+  const estadoCajaVisible=syncCaja.phase==='error'||syncCaja.phase==='offline'?'desconocida':cajaEstado;
+  useEffect(()=>{let alive=true;setProviders([]);api.get('/operaciones/proveedores').then(r=>{if(alive)setProviders(r.data);}).catch(()=>{});return()=>{alive=false;};},[tenant.id,user?.id]);
   const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA'>(initialSale?.metodoPago || 'EFECTIVO');
   const [autorizacionBancaria, setAutorizacionBancaria] = useState({ referencia: '', terminal: '' });
   const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(initialSale?.descuentoPorcentaje || 0);
@@ -157,24 +197,7 @@ export const POSPage: React.FC = () => {
     try {
       const response = await api.get('/productos/comercial');
       if(requestKey!==activeKey.current)return;
-      const data = response.data.map((p: any) => ({
-        id: p.id,
-        codigo: p.codigo,
-        codigoBarras:p.codigoBarras,
-        codigoFabricante:p.codigoFabricante,
-        nombre: p.nombre,
-        descripcion: p.descripcion,
-        categoria: p.categoria?.nombre || p.categoria || 'General',
-        precioVenta: Number(p.precioVenta),
-        precioCosto: Number(p.precioCosto||0),
-        imagenUrl:p.imagenUrl,
-        stockActual: Number(p.stockActual),
-        stockMinimo: Number(p.stockMinimo),
-        unidadMedida: p.unidadMedida || 'UNIDAD',
-        usaMedida: Boolean(p.usaMedida),
-        activo: Boolean(p.activo),
-        stockBajo: p.stockBajo ?? (Number(p.stockActual) <= Number(p.stockMinimo)),
-      }));
+      const data = response.data.map(mapearProductoPOS);
       setProductos(data);
       return data;
     } catch (err: any) {
@@ -209,6 +232,12 @@ export const POSPage: React.FC = () => {
     if (edicionBloqueada || cobrandoRef.current) return;
     if(special&&!specialProvider){setErrorText('Seleccione proveedor para venta sin inventario');return;}
     const existe = cart.find((i) => i.productoId === prod.id);
+    const cantidadEnCarrito = existe?.cantidad ?? 0;
+    if (!special && Number(prod.stockActual) < cantidadEnCarrito + 1) {
+      setAvisoExistencia(`Sin existencia suficiente de ${prod.nombre}: disponibles ${prod.stockActual}. Revise la cantidad o registre un pedido especial autorizado.`);
+    } else {
+      setAvisoExistencia(null);
+    }
     if (existe) {
       setCart(
         cart.map((i) =>
@@ -395,7 +424,7 @@ export const POSPage: React.FC = () => {
       <TopBar title={t('pos.title')} subtitle={t('pos.subtitle')} />
 
       <main style={styles.content} className="ferre-pos-main">
-        <div className="ferre-pos-notice"><Link to="/arqueo-caja">Abrir o revisar mi caja</Link> · <Link to="/cuentas">Cuentas y abonos</Link> · <Link to="/entregas">Entregas</Link>{!cajaAbierta&&<p>Abra su caja antes de cobrar.</p>}</div>
+        <div className="ferre-pos-notice"><Link to="/arqueo-caja">Abrir o revisar mi caja</Link> · <Link to="/cuentas">Cuentas y abonos</Link> · <Link to="/entregas">Entregas</Link>{estadoCajaVisible==='cerrada'&&<p>Abra su caja antes de cobrar.</p>}{estadoCajaVisible==='desconocida'&&<p role="alert">{syncCaja.phase==='offline'?'Sin conexión: no se pudo comprobar la caja. Se volverá a comprobar al recuperar la red.':'No se pudo comprobar el estado de la caja por un error de conexión o del servidor. Se reintentará automáticamente; no significa que la caja esté cerrada.'}</p>}</div>
         <button className="btn btn-secondary" disabled={edicionBloqueada} onClick={async()=>{const data=await fetchProductos();if(data)setCart(current=>current.map(i=>{const p=data.find((p:ProductItem)=>p.id===i.productoId);return p?{...i,precioUnitario:p.precioVenta}:i;}));}}>Actualizar catálogo y precios del carrito</button>
         <div className="ferre-pos-notice"><label><input type="checkbox" checked={special} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecial(e.target.checked)}/> Venta sin inventario: mercancía que no entra al local</label>{special&&<select aria-label="Proveedor de venta sin inventario" className="form-input" value={specialProvider} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecialProvider(e.target.value)}><option value="">Seleccione proveedor</option>{providers.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}</select>}</div>
         {(storageError || draftError) && <div role="alert" className="ferre-pos-recovery">{storageError || draftError}</div>}
@@ -408,6 +437,12 @@ export const POSPage: React.FC = () => {
             <button type="button" className="btn btn-primary" onClick={comprobarVenta} disabled={comprobando || procesandoVenta}>{comprobando ? 'Revisando…' : 'Revisar venta y continuar'}</button>
             {recoveryStatus === 'NO_REGISTRADA' && !corrigiendoPendiente && <button type="button" className="btn btn-secondary" disabled={procesandoVenta || comprobando} onClick={() => setCorrigiendoPendiente(true)}>Corregir datos de esta venta</button>}
             {recoveryStatus === 'NO_REGISTRADA' && <button type="button" className="btn btn-secondary" onClick={handleCobrar} disabled={procesandoVenta || comprobando || !!storageError || !!draftError}>Ya revisé el pago: continuar registro</button>}
+          </div>
+        )}
+        {avisoExistencia && (
+          <div role="status" style={{ marginBottom: '16px', padding: '10px 14px', backgroundColor: '#FFFBEB', border: '1px solid #F59E0B', borderRadius: '4px', color: '#92400E', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+            <span>{avisoExistencia}</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAvisoExistencia(null)}>Entendido</button>
           </div>
         )}
         {errorText && (
@@ -473,7 +508,7 @@ export const POSPage: React.FC = () => {
                     <div style={styles.productName}>{prod.nombre}</div>
                     <div style={styles.priceRow}>
                       <span style={styles.priceText}>{formatLempiras(prod.precioVenta)}</span>
-                      {prod.imagenUrl&&<img src={prod.imagenUrl} alt={prod.nombre} loading="lazy" referrerPolicy="no-referrer" style={{width:80,height:60,objectFit:'contain'}}/>}<span style={styles.stockText}>{prod.stockActual} {t('pos.available')}</span>
+                      {prod.imagenUrl&&<img src={prod.imagenUrl} alt={prod.nombre} loading="lazy" referrerPolicy="no-referrer" style={{width:80,height:60,objectFit:'contain'}}/>}<span style={{ ...styles.stockText, ...(Number(prod.stockActual) <= 0 ? { color: '#B45309', fontWeight: 700 } : {}) }}>{prod.stockActual} {t('pos.available')}{Number(prod.stockActual) <= 0 ? ' · sin existencia' : ''}</span>
                     </div>
                   </div>
                 ))}

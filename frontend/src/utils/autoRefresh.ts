@@ -26,6 +26,8 @@ export interface AutoRefreshOptions<T> {
   load: (signal: AbortSignal) => Promise<T>;
   apply: (value: T) => void;
   intervalMs: number;
+  // Por defecto carga al iniciar; false cuando la pantalla ya cargó sus datos por otro camino.
+  immediate?: boolean;
   onSnapshot?: (snapshot: SyncSnapshot) => void;
   env?: AutoRefreshEnv;
   now?: () => Date;
@@ -113,7 +115,7 @@ export function startAutoRefresh<T>(options: AutoRefreshOptions<T>): AutoRefresh
     }),
   ];
 
-  void refresh();
+  if (options.immediate !== false) void refresh();
 
   return {
     refresh,
