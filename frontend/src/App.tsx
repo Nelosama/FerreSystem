@@ -165,7 +165,7 @@ export const App: React.FC = () => {
                 <Route path="/pos-contingencia" element={<ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="pos"><PosContingenciaPage /></ProtectedRoute>} />
                 <Route path="/contingencia-admin" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="pos"><AppLayout><ContingenciaAdminPage /></AppLayout></ProtectedRoute>} />
                 <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','VENDEDOR']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
-                  <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><AuditoriaPage/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><AuditoriaPage/></AppLayout></ProtectedRoute>}/>
                   <Route path="/precios" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><PreciosPage/></AppLayout></ProtectedRoute>}/>
                   {/* Rutas públicas de login */}
                   <Route path="/login" element={<LoginPage />} />
@@ -368,7 +368,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/configuracion"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN']} requiredModule="configuracion">
+                      <ProtectedRoute allowedRoles={['SUPERADMIN']} requiredModule="configuracion">
                         <AppLayout>
                           <ConfiguracionPage />
                         </AppLayout>
