@@ -29,6 +29,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name in mocks) return mocks[name];
     if (name.endsWith('/compraCosto')) return evaluate('src/utils/compraCosto.ts', {});
     if (name.endsWith('/unidadMedida')) return evaluate('src/utils/unidadMedida.ts', {});
+    if (name.endsWith('/importacionProductos')) return evaluate('src/utils/importacionProductos.ts', {}, { crypto: globalThis.crypto });
     if (name.endsWith('/numeroCliente')) return evaluate('src/utils/numeroCliente.ts', {});
     if (name.endsWith('/tenantSettings')) return evaluate('src/utils/tenantSettings.ts', {}, globals);
     if (name.endsWith('/storage')) return evaluate('src/utils/storage.ts', {}, globals);
@@ -246,32 +247,39 @@ test('POS conserva identidad tras respuesta perdida/reload y bloquea doble enví
   assert.equal(saved.getItem('ferre_pending_sale:tenant-A:user-A'), null);
 });
 
-test('importación sobrescribe con PUT, salta duplicados si se solicita y cuenta errores reales', async () => {
+test('importación envía el archivo completo en un POST y omite o sobrescribe según la casilla', async () => {
+  const textoDe = (n) => (typeof n === 'string' ? n : (n?.children || []).map(textoDe).join(''));
   for (const overwrite of [true, false]) {
     const requests = [];
     const api = {
-      get: async () => ({ data: [{ id: 'old-id', codigo: 'OLD' }] }),
-      put: async (url, body) => { requests.push(['PUT', url, body]); return { data: {} }; },
-      post: async (url, body) => { requests.push(['POST', url, body]); if (body.codigo === 'FAIL') throw new Error('No guardado'); return { data: { id: 'new-id' } }; },
+      get: async () => ({ data: [{ id: 'old-id', codigo: 'OLD', nombre: 'Viejo', precioVenta: 10, precioAprobado: true, estadoPrecio: 'APROBADO' }] }),
+      post: async (url, body) => {
+        requests.push({ url, body });
+        return { data: { resultado: 'APLICADA', creados: 2, actualizados: overwrite ? 1 : 0, sinCambios: 0, omitidos: overwrite ? 0 : 1, reintento: false, filas: [], advertencias: [] } };
+      },
     };
-    const raw = ['OLD', 'NEW', 'FAIL'].map((codigo) => ({ codigo, nombre: codigo, categoria: 'General', precioVenta: '10', precioCosto: '5', stockActual: '2.75', stockMinimo: '0.5', unidadMedida: 'galón' }));
+    const raw = ['OLD', 'NEW', 'NEW2'].map((codigo) => ({ codigo, nombre: codigo, categoria: 'General', precioVenta: '10', precioCosto: '5', stockActual: '2.75', stockMinimo: '0.5', unidadMedida: 'galón' }));
     const papa = { parse: (_, options) => options.complete({ data: raw }) };
     const page = harness('src/components/ImportarProductosModal.tsx', 'ImportarProductosModal', { '../utils/api': { api }, papaparse: papa });
-    const props = { isOpen: true, onClose() {} };
+    const props = { isOpen: true, onClose() {}, esAdmin: true };
     page.render(props); await page.effects(); page.render(props);
-    page.find((n) => n.type === 'input' && n.props.type === 'file').props.onChange({ target: { files: [{ name: 'data.csv' }] } });
+    page.find((n) => n.type === 'input' && n.props.type === 'file').props.onChange({ target: { files: [{ name: 'data.csv', size: 100 }] } });
     page.render(props);
-    page.find((n) => n.props.onClick?.name === 'handleIniciarImportacion').props.onClick();
+    if (overwrite) { page.find((n) => n.type === 'input' && n.props.type === 'checkbox').props.onChange({ target: { checked: true } }); page.render(props); }
+    page.find((n) => n.type === 'button' && textoDe(n).includes('Revisar y confirmar')).props.onClick();
     page.render(props);
-    const action = page.find((n) => n.props.onClick?.toString().includes(`ejecutarImportacion(${overwrite})`));
-    assert.ok(action);
-    await action.props.onClick(); page.render(props);
-    assert.equal(requests.filter((r) => r[0] === 'PUT').length, overwrite ? 1 : 0);
-    assert.equal(requests.filter((r) => r[0] === 'POST').length, 2);
-    assert.equal(requests[0][2].unidadMedida, 'GALON');
-    const summary = page.find((n) => n.type === 'p' && n.children.some((c) => typeof c === 'string' && c.startsWith('inventory.import_summary_counts')));
-    assert.ok(summary);
-    assert.ok(summary.children.join('').endsWith(overwrite ? '1,1,1,0' : '1,0,1,1'));
+    page.find((n) => n.type === 'button' && textoDe(n).includes('Confirmar importación')).props.onClick();
+    await new Promise((resolve) => setImmediate(resolve));
+    page.render(props);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, '/productos/importacion');
+    assert.equal(requests[0].body.filas.length, 3);
+    assert.equal(requests[0].body.sobrescribir, overwrite);
+    assert.equal(requests[0].body.filas[0].unidadMedida, 'GALON');
+    assert.equal(requests[0].body.filas[0].stockActual, '2.75');
+    assert.equal(requests[0].body.aprobarPrecios, false);
+    assert.match(requests[0].body.solicitudId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    assert.ok(page.find((n) => n.type === 'p' && n.props.role === 'status' && textoDe(n).includes('2 creados')));
   }
 });
 

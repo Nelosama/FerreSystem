@@ -315,6 +315,7 @@ const InventarioContent: React.FC = () => {
 
       {/* Modal de Importación Masiva */}
       <ImportarProductosModal
+        esAdmin={esAdmin}
         isOpen={importModalAbierto}
         onClose={() => { setImportModalAbierto(false); void fetchProductos(); }}
       />
