@@ -1,0 +1,64 @@
+
+> backend@0.0.1 test:scripts
+> node --test scripts/*.test.mjs
+
+✔ arranque: sin clave termina con error controlado y remite a la documentación (402.88811ms)
+✔ arranque: una clave corta se rechaza y su valor no aparece en la salida (415.532013ms)
+✔ arranque: la clave igual a JWT_SECRET se rechaza sin mostrar el valor (467.540472ms)
+✔ arranque: una clave anterior inválida se rechaza sin mostrar su valor (413.775187ms)
+✔ detecta cuentas con clave demo y omite las demás (1.46363ms)
+✔ sin cuentas con clave demo no hay coincidencias (0.136506ms)
+✔ explicit source replaces inherited services, options and passwords without shell evaluation (1.862773ms)
+✔ manual backup preserves inherited TLS verification and CA; URL overrides remain explicit (0.258511ms)
+✔ checksum mismatch stops before invoking any PostgreSQL tool or issuing a verified manifest (85.843802ms)
+✔ requires remote encrypted repository, explicit source, bounded retention/frequency (1.076636ms)
+✔ upload/readback/restore precede retention; corruption and restore errors never prune (22.484377ms)
+{"at":"2026-10-13T07:15:39.181Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+{"at":"2026-10-13T07:15:39.182Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+{"at":"2026-10-13T07:15:39.183Z","success":true,"alertDelivery":"failed"}
+{"at":"2026-10-13T07:15:39.185Z","success":false,"errorCode":"DUMP","alertDelivery":"failed"}
+✔ bounded exponential retry records every run, last success survives failure and restart (8.940803ms)
+✔ webhook failures remain visible and payload contains no database details (0.424481ms)
+✔ restore environment cannot inherit source service, URL, credentials or cloud secrets (6.855273ms)
+✔ scheduler runs independently, waits configured interval and never overlaps cycles (0.369247ms)
+✔ retention only expires restored snapshots, never counts failed uploads as recovery points (3.69522ms)
+✔ tag command success alone cannot authorize retention (including Restic 0.16 silent failures) (2.383881ms)
+✔ prepare crea el secreto de la contingencia, privado, de al menos 32 caracteres, y compose lo entrega al backend (36.88147ms)
+✔ instalación existente: agregar-clave-contingencia crea el secreto sin imprimirlo y no lo reemplaza (63.660263ms)
+✔ agregar-clave-contingencia rechaza destinos dentro del repositorio o sin directorio de secretos (64.831632ms)
+✔ estado-base-solo-lectura.sql lista exactamente las migraciones del repositorio con sus SHA-256 (no se desactualiza) (3.549811ms)
+✔ estado-base-solo-lectura.sql es de solo lectura: transacción READ ONLY, termina en ROLLBACK y no contiene sentencias de escritura (0.61568ms)
+✔ acepta una marca de staging registrada y con confirmación exacta (1.29121ms)
+✔ rechaza PRODUCCION aunque el identificador esté en la lista (0.32447ms)
+✔ rechaza una base sin marca o con más de una (0.147063ms)
+✔ rechaza un identificador que no está en la lista aprobada (3.841787ms)
+✔ exige confirmar el identificador exacto, no el host (0.300825ms)
+✔ NODE_ENV=production se rechaza antes de consultar la base (0.290208ms)
+✔ base inaccesible o sin tabla de marca: se rechaza (0.214474ms)
+✔ camino completo con marca válida (0.232942ms)
+✔ rechaza destinos nuevos dentro del proyecto mediante un enlace externo (1.914351ms)
+✔ canonicaliza destinos externos y distingue el proyecto de un directorio hermano (0.577502ms)
+✔ no trata un enlace roto como un ancestro pendiente de crear (0.461267ms)
+✔ prepare y preflight rechazan enlaces al repositorio antes de crear archivos (77.735846ms)
+✔ prepare conserva barras POSIX y dólares literales en la configuración Compose (152.223226ms)
+✔ preflight informa por IPC el respaldo verificado después de escribir su manifiesto (163.534245ms)
+✔ preflight no anuncia un respaldo cuya validación de archivo falla (121.064178ms)
+✔ recovery rehearsal fails immediately if its isolated database cannot initialize (146.233335ms)
+✔ detecta comandos destructivos de Prisma en archivos ejecutables (1.784635ms)
+✔ no bloquea los comandos legítimos de migración y generación (0.231049ms)
+✔ una migración aditiva pasa sin marca (0.858216ms)
+✔ el SQL destructivo sin marca de aprobación se bloquea (0.353103ms)
+✔ con marca de aprobación explícita, el SQL destructivo se permite y queda registrado (0.160993ms)
+✔ los DROP dentro de comentarios no cuentan (0.111889ms)
+✔ un cambio de tipo o un RENAME exigen aprobación (0.094252ms)
+✔ las migraciones publicadas son inmutables: solo se permiten archivos nuevos (0.133962ms)
+✔ la marca de aprobación exige ticket y responsable con handle (0.190017ms)
+✔ una migración no puede crear la tabla de marca de entorno (0.269177ms)
+ℹ tests 48
+ℹ suites 0
+ℹ pass 48
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3191.257003

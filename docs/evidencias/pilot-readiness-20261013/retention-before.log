@@ -1,0 +1,38 @@
+✔ requires remote encrypted repository, explicit source, bounded retention/frequency (1.762312ms)
+✔ upload/readback/restore precede retention; corruption and restore errors never prune (24.345612ms)
+{"at":"2026-10-13T06:42:36.618Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+{"at":"2026-10-13T06:42:36.620Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+{"at":"2026-10-13T06:42:36.621Z","success":true,"alertDelivery":"failed"}
+{"at":"2026-10-13T06:42:36.624Z","success":false,"errorCode":"DUMP","alertDelivery":"failed"}
+✔ bounded exponential retry records every run, last success survives failure and restart (12.727343ms)
+✔ webhook failures remain visible and payload contains no database details (0.740438ms)
+✔ restore environment cannot inherit source service, URL, credentials or cloud secrets (9.333778ms)
+✔ scheduler runs independently, waits configured interval and never overlaps cycles (0.508488ms)
+✖ retention only expires restored snapshots, never counts failed uploads as recovery points (5.540098ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 6
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 136.191297
+
+✖ failing tests:
+
+test at scripts/backup-worker.test.mjs:90:1
+✖ retention only expires restored snapshots, never counts failed uploads as recovery points (5.540098ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file:///workspace/FerreSystem/backend/scripts/backup-worker.test.mjs:107:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -21,8 +21,8 @@ describe('Contingencia: cierre de entradas fuera de los DTO (H-J..H-O)', () => {
     return param.pipes[0] as { transform: (v: string) => string };
   };
 
-  it('H-J: truncar el motivo a 300 no parte un emoji ni deja un sustituto suelto', () => {
-    controlador.desactivarDispositivo('t', 'u', 'id', { motivo: 'a'.repeat(299) + '😀' });
+  it('H-J: truncar el motivo a 300 no parte un emoji ni deja un sustituto suelto', async () => {
+    await controlador.desactivarDispositivo('t', 'u', 'id', { motivo: 'a'.repeat(299) + '😀' });
     const motivo = llamadas.at(-1)[4] as string;
     expect([...motivo].length).toBe(300);
     expect(motivo.isWellFormed()).toBe(true);
@@ -58,10 +58,10 @@ describe('Contingencia: cierre de entradas fuera de los DTO (H-J..H-O)', () => {
     expect((await validate(o)).some((e) => e.property === 'ocurridoAtLocal')).toBe(true);
   });
 
-  it('H-N: ids repetidos (arreglo) no tumban el endpoint de estados', () => {
-    controlador.estados('t', { sub: 'u', rol: 'CAJERO' }, ['a', 'b'] as any);
+  it('H-N: ids repetidos (arreglo) no tumban el endpoint de estados', async () => {
+    await controlador.estados('t', { sub: 'u', rol: 'CAJERO' }, ['a', 'b'] as any);
     expect(llamadas.at(-1).slice(-1)[0]).toEqual(['a', 'b']);
-    controlador.estados('t', { sub: 'u', rol: 'CAJERO' }, undefined as any);
+    await controlador.estados('t', { sub: 'u', rol: 'CAJERO' }, undefined as any);
     expect(llamadas.at(-1).slice(-1)[0]).toEqual([]);
   });
 

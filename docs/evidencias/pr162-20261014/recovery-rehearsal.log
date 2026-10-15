@@ -1,0 +1,39 @@
+[1] PostgreSQL A + migración con el comando de producción (migration-safe deploy)
+PASS: Migración desde base vacía (migration-safe deploy) - 24 migraciones aplicadas, 0 pendientes
+PASS: Segunda ejecución de la migración (reinicio): idempotente - sin cambios
+[2] Datos de prueba y backend A
+PASS: Backend arranca con la clave de contingencia y la base migrada - puerto 44783
+operar: {"loginAdmin":200,"loginCajero":200,"cajaAbrir":201,"productoCrear":201,"venta":201,"ventaTotal":345,"entrega":201,"ventaId":"d01fa594-0740-4411-a1a0-1b5c646a591b","productoId":"d9d0254f-8922-4415-9d32-42b69fb1d3a6","cookie":true}
+PASS: Operación: caja, producto, venta de contado y entrega - venta d01fa594-0740-4411-a1a0-1b5c646a591b, total ventaTotal":345
+PASS: Inventario tras venta+entrega - stock físico 17, reservado 0
+foto A (ventas|total|mov_caja|stock|auditoria|usuarios): 5|805|1|57|4|4
+[3] Reinicio del backend A (misma base y mismas claves)
+PASS: Backend vuelve a arrancar tras reiniciar - sin intervención
+PASS: Inicio de sesión tras reiniciar - administrador 200
+PASS: Datos intactos tras reiniciar - ventas, caja, stock y auditoría idénticos
+[4] Respaldo (pg_dump -Fc), restauración en base vacía B y arranque sobre B
+PASS: Respaldo con pg_dump - 197601 bytes
+PASS: pg_restore --list lee el respaldo - legible
+PASS: Restauración en base vacía - sin errores
+foto B: 5|805|1|57|4|4
+PASS: Datos restaurados idénticos al origen - 5|805|1|57|4|4
+PASS: migration-safe deploy sobre la base restaurada - historial consistente, sin migraciones pendientes
+PASS: Backend sobre la base restaurada: inicio de sesión - administrador 200
+
+===== RESUMEN =====
+
+Migración desde base vacía (migration-safe deploy) | PASS | 24 migraciones aplicadas, 0 pendientes
+Segunda ejecución de la migración (reinicio): idempotente | PASS | sin cambios
+Backend arranca con la clave de contingencia y la base migrada | PASS | puerto 44783
+Operación: caja, producto, venta de contado y entrega | PASS | venta d01fa594-0740-4411-a1a0-1b5c646a591b, total ventaTotal":345
+Inventario tras venta+entrega | PASS | stock físico 17, reservado 0
+Backend vuelve a arrancar tras reiniciar | PASS | sin intervención
+Inicio de sesión tras reiniciar | PASS | administrador 200
+Datos intactos tras reiniciar | PASS | ventas, caja, stock y auditoría idénticos
+Respaldo con pg_dump | PASS | 197601 bytes
+pg_restore --list lee el respaldo | PASS | legible
+Restauración en base vacía | PASS | sin errores
+Datos restaurados idénticos al origen | PASS | 5|805|1|57|4|4
+migration-safe deploy sobre la base restaurada | PASS | historial consistente, sin migraciones pendientes
+Backend sobre la base restaurada: inicio de sesión | PASS | administrador 200
+FALLOS=0

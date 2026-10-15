@@ -1,0 +1,13 @@
+2026-10-13T07:17:20.3610698Z ##[warning]test/contingencia-cierre-entradas.postgres.integration.ts:1:1: This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+2026-10-13T07:17:20.3613954Z ##[error]test/contingencia-cierre-entradas.postgres.integration.ts:25:5: Promises must be awaited, add void operator to ignore.
+2026-10-13T07:17:20.3617044Z ##[warning]test/contingencia-cierre-entradas.postgres.integration.ts:27:13: Using the spread operator on a string can mishandle special characters, because it produces Unicode code points, which will break complex characters (like emojis) into multiple parts.
+2026-10-13T07:17:20.3619402Z ##[error]test/contingencia-cierre-entradas.postgres.integration.ts:62:5: Promises must be awaited, add void operator to ignore.
+2026-10-13T07:17:20.3621281Z ##[error]test/contingencia-cierre-entradas.postgres.integration.ts:64:5: Promises must be awaited, add void operator to ignore.
+2026-10-13T07:17:20.3623567Z ##[warning]test/contingencia-clave-config.postgres.integration.ts:1:1: This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+2026-10-13T07:17:20.3625843Z ##[warning]test/contingencia-concurrencia.postgres.integration.ts:1:1: This rule requires the `strictNullChecks` compiler option to be turned on to function correctly.
+2026-10-13T07:17:20.3722458Z
+2026-10-13T07:17:20.3722659Z Found 367 warnings and 3 errors.
+2026-10-13T07:17:20.3723085Z Finished in 1.4s on 218 files with 111 rules using 4 threads.
+2026-10-13T07:17:20.3724976Z ##[error]Process completed with exit code 1.
+2026-10-13T07:17:20.3853837Z Post job cleanup.
+2026-10-13T07:17:20.4740742Z [command]/usr/bin/git version
