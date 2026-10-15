@@ -131,8 +131,8 @@ export default function ContingenciaAdminPage() {
         ...(accion === 'CERRAR_MANUAL' && reg?.necesaria ? { regularizarCajaCerrada: true, motivoRegularizacion: limpiarTextoLibre(reg.motivo) } : {}),
       });
       setNotas((n) => ({ ...n, [op.operacionId]: '' }));
-      setMensaje({ tipo: 'ok', texto: 'Decisión registrada y auditada.' });
-      await cargar();
+      // cargar limpia los mensajes: confirmar después de la lectura evita borrar el éxito antes del render.
+      if (await cargar()) setMensaje({ tipo: 'ok', texto: 'Decisión registrada y auditada.' });
     } catch (error: any) {
       if (error?.response?.data?.code === 'CAJA_CERRADA_REQUIERE_REGULARIZACION') {
         setRegularizar((r) => ({ ...r, [op.operacionId]: { necesaria: true, motivo: r[op.operacionId]?.motivo ?? '' } }));

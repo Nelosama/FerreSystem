@@ -58,3 +58,23 @@ pr166-offline-baseline.log
   1 passed (12.6s)
 
 Builds backend/frontend, lint de archivos modificados, diff y control de migraciones: aprobados; advertencias previas. Cero migraciones nuevas.
+
+GitHub sobre 4979d8a7:
+- guard-base-datos: success.
+- Piloto real 38786509175: success; 141 passed, 10 skipped; respaldo/recuperación/ensayo de actualización aprobados. La secuencia offline sí pasa en CI.
+- validate 38786512200: failure; navegador simulado 145 passed / 1 failed (contingencia-admin-simulado:114, aviso borrado por recarga); backend posterior sin ejecutar en ese workflow.
+Corrección posterior: confirmar el cierre después de recargar el panel, sin cambios de importes.
+
+pr166-toast-red.log
+  ✘  1 [chromium] › e2e/contingencia-admin-simulado.spec.ts:83:1 › cierre sin venta: no envía caja, la regularización aparece solo tras el 409 y un motivo que no cumple la regla no se envía (18.8s)
+    Error: expect(locator).toBeVisible() failed
+  1 failed
+
+pr166-toast-green.log
+  ✓  1 [chromium] › e2e/contingencia-admin-simulado.spec.ts:83:1 › cierre sin venta: no envía caja, la regularización aparece solo tras el 409 y un motivo que no cumple la regla no se envía (4.3s)
+  1 passed (10.0s)
+
+pr166-toast-unit.log
+ℹ tests 21
+ℹ pass 21
+ℹ fail 0

@@ -63,11 +63,19 @@ El harness de navegador crea su propio clúster, aplica las migraciones reales c
 
 Incidencias de preparación resueltas: el cliente Prisma instalado no incluía `precioAprobado`; se regeneró desde el esquema sin cambiarlo. PostgreSQL no estaba instalado y se preparó localmente sin privilegios. La prueba nueva de navegador intentó aprobar de nuevo un producto creado ya aprobado por ADMIN y esperaba `L ` donde el formateador usa `L. `; se corrigió la prueba sin relajar sus comprobaciones de importes.
 
+## Cierre de CI y corrección de confirmación
+
+Sobre `4979d8a7`, GitHub aprobó `guard-base-datos` y el workflow completo [Piloto con API y PostgreSQL reales](https://github.com/Nelosama/FerreSystem/actions/runs/38786509175): **141 aprobadas, 10 omitidas**, más respaldo, recuperación y actualización/reversión. La secuencia offline sí pasó allí; el fallo local queda como discrepancia del entorno Chromium, no como fallo monetario confirmado en CI.
+
+[validate](https://github.com/Nelosama/FerreSystem/actions/runs/38786512200) pasó tipos/build/unitarias frontend pero falló en navegador simulado: **145 aprobadas/1 fallida**, `contingencia-admin-simulado.spec.ts:114`. Las etapas posteriores de backend de ese workflow no se ejecutaron. La causa preexistente era `resolver`: mostraba «Decisión registrada y auditada.» y luego `cargar()` lo borraba; el test original solo veía un mensaje transitorio y podía pasar localmente.
+
+Se corrige únicamente el orden: la confirmación se muestra después de terminar la recarga satisfactoria. El test ahora espera la respuesta final de caja y dos frames de render antes de comprobar que el aviso permanece. **Rojo sobre `463efae8` con el test reforzado; verde sobre el código corregido (1/1)**. Build y lint correctos; pruebas de texto/validación **21/21** (solapadas con la suite completa). Sin cambio de importes ni de la regla de regularización. Las fuentes monetarias de `4979d8a7` no cambian en esta corrección posterior. Los checks del nuevo HEAD se consultan en el PR; los resultados de `4979d8a7` no se presentan como checks del HEAD posterior.
+
 ## Pendientes y límites
 
 - #165 sigue sin integrar: actualización con su `main` y regresión conjunta pendientes. No se declara listo para producción.
 - Recarga offline de contingencia falla también en el commit original; 13 pruebas posteriores de esa secuencia no se ejecutaron. Falta resolver/validar ese flujo con el navegador objetivo. No se encontró una diferencia monetaria restante en los casos válidos ejecutados; esto no acredita el resto de la secuencia offline.
-- Checks de GitHub correspondientes al HEAD publicado: se informan en el PR al finalizar; ningún resultado local sustituye esos checks.
+- Checks de GitHub correspondientes al HEAD posterior a la corrección del mensaje: se informan en el PR al finalizar; ningún resultado local ni workflow de un HEAD anterior sustituye esos checks.
 - No se probó impresión física, iPhone/Safari físico, datáfono real, apagón/UPS ni datos históricos de producción. Las pruebas locales no acreditan esas condiciones.
 - Las devoluciones históricas ya calculadas con el algoritmo anterior se conservan; la siguiente devolución descuenta exactamente lo ya registrado del derecho acumulado, sin reescribir el historial.
 

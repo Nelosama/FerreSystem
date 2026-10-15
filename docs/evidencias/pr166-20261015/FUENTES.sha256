@@ -4,3 +4,5 @@
 c1bbaec6a04d872cc875cf1a30b75eb9cbbdcf85145dc6ffaf513d6e6f36de19  frontend/src/utils/posMoney.ts
 44cacf2aa3f92a5249ebec979922211536eea683e050f009671aebdb764ff62d  frontend/test/pos-money.test.mjs
 e9b8a796535cee41c5b32d35209855870b1935eec5f978ce7f1741fa9eeab44a  frontend/e2e-real/precision-monetaria-real.spec.ts
+4b62ca93e8823d0aa898c1bbe4ab5694983172227b84643deb28d47eab90f4b1  frontend/src/pages/ContingenciaAdminPage.tsx
+9d3faa2dc94231b97b71773b1990eb5a5c9fe84fb48288e45174a53b07da7842  frontend/e2e/contingencia-admin-simulado.spec.ts
