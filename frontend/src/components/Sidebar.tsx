@@ -29,7 +29,7 @@ export const Sidebar: React.FC = () => {
     <aside className="desktop-sidebar-nav v2-sidebar" style={styles.sidebar}>
       {/* Brand Header */}
       <div style={styles.brandHeader}>
-        <div style={styles.logoRow}>
+        <NavLink to="/" aria-label="Jowa System: ir a Inicio" style={styles.logoRow}>
           {tenant.templateVersion === 'v2' ? <TenantBrand /> : tenant.logoUrl ? (
             <img
               src={tenant.logoUrl}
@@ -43,11 +43,11 @@ export const Sidebar: React.FC = () => {
           )}
           {tenant.templateVersion !== 'v2' && !tenant.logoUrl && (
             <div style={styles.brandName}>
-              <span style={styles.brandFerre}>Ferre</span>
+              <span style={styles.brandFerre}>Jowa </span>
               <span style={styles.brandSystem}>System</span>
             </div>
           )}
-        </div>
+        </NavLink>
         <div style={styles.tenantName}>
           {tenant.nombreComercial || 'LA MUNDIAL - SUCURSAL CENTRO'}
         </div>
@@ -103,6 +103,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
+    color: 'inherit',
+    textDecoration: 'none',
   },
   logoIcon: {
     display: 'flex',

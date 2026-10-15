@@ -82,6 +82,7 @@ export const TopNavigation: React.FC = () => {
   return (
     <header className="desktop-sidebar-nav v2-top-navigation" style={styles.topNavContainer}>
       <div style={styles.brandContainer}>
+        <NavLink to="/" aria-label="Jowa System: ir a Inicio" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
         {tenant.templateVersion === 'v2' ? <TenantBrand /> : tenant.logoUrl ? (
           <img
             src={tenant.logoUrl}
@@ -92,10 +93,11 @@ export const TopNavigation: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Box size={22} strokeWidth={2.5} color="var(--color-primary)" />
             <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '18px', color: '#FFFFFF' }}>
-              Ferre<span style={{ color: 'var(--color-primary)' }}>System</span>
+              Jowa <span style={{ color: 'var(--color-primary)' }}>System</span>
             </span>
           </div>
         )}
+        </NavLink>
         {tenant.templateVersion !== 'v2' && <span style={styles.tenantTag}>{tenant.nombreComercial}</span>}
       </div>
 
