@@ -3,7 +3,6 @@ import {
   PackageSearch,
   Calculator,
   ClipboardList,
-  Sliders,
   ShieldCheck,
   Bookmark,
   DollarSign,
@@ -95,8 +94,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     category: 'OPERACION',
   },
 
-  {key:'auditoria',labelKey:'menu.audit',defaultLabel:'AUDITORÍA',route:'/auditoria',icon:ClipboardList,allowedRoles:['SUPERADMIN'],category:'ANALISIS'},
-  {key:'devoluciones',labelKey:'menu.returns',defaultLabel:'DEVOLUCIONES',route:'/devoluciones',moduleKey:'pos',icon:PackageSearch,allowedRoles:['ADMIN','CAJERO','VENDEDOR'],category:'OPERACION'},
+    {key:'devoluciones',labelKey:'menu.returns',defaultLabel:'DEVOLUCIONES',route:'/devoluciones',moduleKey:'pos',icon:PackageSearch,allowedRoles:['ADMIN','CAJERO','VENDEDOR'],category:'OPERACION'},
   {key:'cuentas',labelKey:'menu.accounts',defaultLabel:'CUENTAS Y ABONOS',route:'/cuentas',icon:DollarSign,allowedRoles:['ADMIN','CAJERO'],category:'CLIENTES'},
   {key:'entregas',labelKey:'menu.deliveries',defaultLabel:'ENTREGAS',route:'/entregas',moduleKey:'pos',icon:Truck,allowedRoles:['ADMIN','CAJERO','BODEGUERO'],category:'OPERACION'},
 
@@ -256,17 +254,6 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     category: 'ANALISIS',
   },
 
-  // CONFIGURACION
-  {
-    key: 'configuracion',
-    labelKey: 'menu.configuration',
-    defaultLabel: 'CONFIGURACIÓN',
-    route: '/configuracion',
-    icon: Sliders,
-    allowedRoles: ['SUPERADMIN'],
-    moduleKey: 'configuracion',
-    category: 'CONFIGURACION',
-  },
 ];
 
 

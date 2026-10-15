@@ -60,22 +60,17 @@ test('roles comparten categorías, excluyen pendientes y reciben hasta cuatro ta
     assert.ok(priorityTasks({ rol }, tenant).length <= 4);
     assert.deepEqual(groupNavigation(tasks).flatMap(group => group.items.map(item => item.key)), tasks.map(item => item.key));
     assert.ok(tasks.every(item => !['apartados', 'transferencias', 'garantias', 'pedidos_especiales', 'listas_precio'].includes(item.key)));
-    if (rol === 'SUPERADMIN') assert.deepEqual(Array.from(tasks, item => item.key), ['superadmin', 'auditoria', 'configuracion']);
+    if (rol === 'SUPERADMIN') assert.deepEqual(Array.from(tasks, item => item.key), ['superadmin']);
   }
   assert.deepEqual(Array.from(priorityTasks({ rol: 'CAJERO' }, tenant), item => item.key), ['arqueo_caja', 'pos', 'cuentas']);
   assert.ok(availableTasks({ rol: 'BODEGUERO' }, tenant).every(item => !['pos', 'clientes', 'usuarios'].includes(item.key)));
 });
 
-test('Auditoría y Configuración del negocio son exclusivas del SUPERADMIN', () => {
+test('Auditoría y Configuración del negocio no están en el menú: se abren por negocio desde el panel del SUPERADMIN', () => {
   const items = load('src/config/navigation.ts').NAVIGATION_ITEMS;
-  for (const key of ['auditoria', 'configuracion']) {
-    const entry = items.find(item => item.key === key);
-    assert.equal(JSON.stringify(entry.allowedRoles), '["SUPERADMIN"]', key);
-    for (const rol of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) {
-      assert.equal(canNavigate(entry, { rol }, tenant), false, `${key} no debe abrirse para ${rol}`);
-      assert.equal(availableTasks({ rol }, tenant).some(item => item.key === key), false, `${key} oculto para ${rol}`);
-    }
-    assert.equal(canNavigate(entry, { rol: 'SUPERADMIN' }, tenant), true, `${key} visible para SUPERADMIN`);
+  for (const key of ['auditoria', 'configuracion']) assert.equal(items.some(item => item.key === key), false, key);
+  for (const rol of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO', 'SUPERADMIN']) {
+    assert.equal(availableTasks({ rol }, tenant).some(item => ['auditoria', 'configuracion'].includes(item.key)), false, rol);
   }
 });
 

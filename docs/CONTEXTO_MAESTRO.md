@@ -22,6 +22,40 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Jowa System — PR #165: validación final y cierre (2026-10-15, rama `claude/festive-thompson-25nx9m`, sin merge ni despliegue)
+
+- **Alcance:** solo verificación y correcciones de defectos del propio PR. Sin funcionalidades nuevas. `main` (`74ba4dcc`) integrado; sin conflictos.
+- **Migraciones (Fase 1):**
+  - `20261017000000` ya está en `main` (introducida en `8fa7582e`, fusionada con #159 el 2026-10-13). #159 lo fusionó su propio responsable (`merged_by: Nelosama`) **sin revisiones registradas**. La marca `APROBACION-DESTRUCTIVA: CONT-1017 @Nelosama` es texto del archivo: no sustituye una revisión de CODEOWNERS. Pendiente de confirmación explícita del responsable.
+  - `20261018000000_tenant_logotipo_privado` (aditiva): se aplicó a PostgreSQL 16 temporal **vacía** y **con datos** (3 negocios, dos con `logo_url` legado). Columnas previas idénticas (md5), nuevas nulas, restricciones CHECK verificadas (4 inválidos rechazados, 1 válido aceptado), reaplicar falla, reversión manual probada en base temporal con datos previos intactos.
+  - `prisma migrate deploy` + comprobación de deriva completa del esquema: sin deriva (arnés `e2e-real/run.sh`).
+  - Respaldo `pg_dump -Fc` + `pg_restore` con datos y logotipos: datos idénticos y restricciones presentes.
+  - Guard de CI `verificar-migraciones.mjs`: correcto. Scripts de backend: 48/48.
+  - Reversión manual documentada en `backend/prisma/rollback-manual/20261018000000_tenant_logotipo_privado.sql` (sin sentencias activas, según la convención del repositorio).
+- **Supabase Storage (Fase 2): BLOQUEADO.** No hay credenciales, URL ni proyecto autorizado en el entorno; no se creó infraestructura alternativa. Verificado solo el contrato HTTP con un servidor local (no demuestra el servicio real). Pendiente: crear el bucket **privado** (`public = false`), definir `LOGOTIPO_ALMACEN=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (solo backend, nunca en frontend), `SUPABASE_LOGOTIPO_BUCKET`, y repetir las pruebas de carga, lectura, reemplazo, eliminación, persistencia y aislamiento contra el proyecto real.
+- **Flujo real de logotipo (Fase 3):** `e2e-real/logotipo-real.spec.ts` con backend NestJS compilado, PostgreSQL temporal y almacenamiento local persistente, sin mocks: **4/4**. Cubre carga por SUPERADMIN, persistencia tras recargar, visualización en SIDEBAR y TOPNAV del negocio, reemplazo WEBP, eliminación y vuelta al ícono predeterminado, y autorización directa por API (403 para ADMIN/CAJERO/otro negocio; 404 de lectura cruzada; 415 y 413 con el logotipo intacto).
+- **Formato de impresión (Fase 4):** PDF de recibo generados con `@react-pdf/renderer` en los tres formatos. Tamaño de página leído del archivo: A4 595.28×841.89 pt; rollo 80 mm 226.77 pt de ancho; rollo 58 mm 164.41 pt. Persistencia por negocio verificada en integración y en navegador. **Pendiente:** impresión física en impresora térmica y hoja (no bloquea el merge; continúa pendiente para el piloto).
+- **Defectos encontrados y corregidos en esta fase:**
+  1. Subida del logotipo fallaba en el navegador: el cliente HTTP compartido fija `Content-Type: application/json` y el archivo nunca llegaba al servidor (detectado por la prueba real; la de integración usaba `fetch` nativo y no lo reproducía). Corregido en `LogotipoNegocioEditor.tsx`.
+  2. El menú del Super Admin mostraba «Configuración del negocio» y «Auditoría» como entradas globales que solo redirigían. Retiradas del catálogo; se accede por negocio desde el panel.
+  3. Pruebas reales que codificaban la regla anterior (ADMIN leía la auditoría): actualizadas para verificar 403 explícito y la auditoría por negocio con el SUPERADMIN, sin relajar aserciones.
+  4. Ruta de API en Playwright (`baseURL` descartaba `/api`): corregida en la prueba nueva.
+- **Pruebas (evidencia de esta fase):**
+  - Playwright **real** (backend + PostgreSQL temporal, sin mocks): **144 OK, 0 fallidas, 10 omitidas**. Las 10 son `test.skip` preexistentes en `main` con motivo «PENDIENTE» (funcionalidad no implementada).
+  - Playwright **simulado**: **149/149**.
+  - Frontend unitarias **321/321**; `tsc -b`, lint y build de producción correctos.
+  - Backend: sin cambios de código desde `2fc4907c`. Evidencia de integración PostgreSQL (958 OK, 1 omitida preexistente) y unitarias (474/474) de ese commit siguen vigentes.
+  - Aislamiento multi-tenant: cubierto por la integración (23/24 de autorización y aislamiento) y por la prueba real de API.
+- **Limpieza:** eliminado un script temporal de verificación de PDF; capturas regeneradas por Playwright restauradas.
+- **Riesgos pendientes:**
+  - Supabase no verificado contra servicio real.
+  - `20261017000000`: confirmar la aprobación del responsable como revisión formal.
+  - Migración `20261018000000` no aplicada a producción.
+  - Impresión física pendiente.
+  - UX: revisión visual en 390 px y dispositivo físico no realizada.
+  - Sin protección general de cambios sin guardar en configuración.
+- **Recomendación:** integrar código a `main` **cuando** el responsable apruebe el PR (CODEOWNERS de `backend/prisma/`). **No activar en producción** hasta verificar el almacenamiento elegido y aplicar la migración con su respaldo previo.
+
 ## Jowa System — PR #165: permisos reales, logotipo privado y formato de impresión (2026-10-15, rama `claude/festive-thompson-25nx9m`, PR [#165](https://github.com/Nelosama/FerreSystem/pull/165), sin merge)
 
 - **Sincronización:** `main` `74ba4dcc` integrado en la rama con merge normal (sin reescritura). Único cambio de `main` desde la base: una línea de `CONTEXTO_MAESTRO.md`.

@@ -57,7 +57,9 @@ export const LogotipoNegocioEditor: React.FC<LogotipoNegocioEditorProps> = ({ ne
     try {
       const formulario = new FormData();
       formulario.append('archivo', archivo, archivo.name);
-      const { data } = await api.post<LogotipoMeta>(endpoint, formulario);
+      // El cliente compartido envía application/json por defecto; sin ese encabezado el navegador añade el
+      // multipart con su límite y el archivo llega al servidor.
+      const { data } = await api.post<LogotipoMeta>(endpoint, formulario, { headers: { 'Content-Type': undefined } as any });
       invalidarLogotipo(endpoint);
       setArchivo(null);
       setEstado('Logotipo guardado. Ya se muestra en el negocio.');

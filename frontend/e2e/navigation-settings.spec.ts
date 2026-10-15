@@ -63,7 +63,8 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
     await expect(navigation).toBeVisible();
     await expect(navigation.locator('a[href="/pos"]')).toHaveCount(0);
     await expect(navigation.locator('a[href="/apartados"]')).toHaveCount(0);
-    if (role !== 'SUPERADMIN') await expect(navigation.locator('a[href="/configuracion"]')).toHaveCount(0);
+    // La configuración se abre por negocio desde el panel del SUPERADMIN; no hay entrada global en el menú.
+    await expect(navigation.locator('a[href="/configuracion"]')).toHaveCount(0);
     if (role !== 'SUPERADMIN') {
       expect(await page.locator('.daily-tasks .task-link').count()).toBeLessThanOrEqual(4);
       if (['CAJERO', 'VENDEDOR'].includes(role)) {
@@ -71,7 +72,7 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
         await expect(navigation.locator('a[href="/arqueo-caja"]')).toBeVisible();
       }
       if (role !== 'ADMIN') await expect(navigation.locator('a[href="/usuarios"]')).toHaveCount(0);
-    } else await expect(navigation.locator('a[href="/configuracion"]')).toBeVisible();
+    }
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator('.mobile-bottom-nav')).toBeVisible();
     const more = page.locator('.mobile-bottom-nav button');
