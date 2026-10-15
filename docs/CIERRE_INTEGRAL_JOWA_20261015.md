@@ -26,9 +26,16 @@ Ventas/POS (servicio, controlador, cobro y entrega), cotizaciones (creación, ed
 
 Estado por módulo: ventas, cotizaciones, clientes/crédito, caja, compras, CxC/CxP, inventario, entregas, garantías, devoluciones, levantamiento, usuarios y reportes **operativos** con las salvedades de la matriz. Transferencias y existencias por sucursal **pendientes** (no existe modelo de sucursal; módulo oculto). Apartados, pedidos especiales, listas de precio y comisiones **pendientes de decisión** (ver `FASE_FUNCIONAL_MODULOS_ADMIN_20261010.md`). Contingencia offline implementada y **apagada** para el piloto.
 
-## Pruebas ejecutadas
+## Pruebas ejecutadas (código en `80c58ec5`)
 
-Ver la sección «Evidencia» al final (se completa con el SHA final).
+Entorno: Node 22.22.0 (CI usa 24), npm 11 para `npm ci`, PostgreSQL 16 temporal ejecutado con un usuario sin privilegios (envoltorio externo `PG_BIN`, no versionado), Chromium 1194 del entorno.
+
+- Línea base en `main` `74ba4dcc`: backend unitarias 446/446; frontend unitarias 312/312; integración PostgreSQL 934 aprobadas y 1 omitida (las 2 rojas eran regresiones nuevas JW-02/JW-03 antes de corregir).
+- Final: backend build correcto; unitarias **446/446**; `test:scripts` **48/48**; integración PostgreSQL **58 archivos, 938 aprobadas, 1 omitida** (prueba de navegador condicionada, ya existente).
+- Frontend (`d221d32f`, sin cambios posteriores en `frontend/`): `tsc -b` + `vite build` con `VITE_API_URL=/api` correctos; unitarias **314/314**; oxlint 0 errores (112 avisos previos); Playwright simulado **146/146**.
+- E2E real (backend NestJS + PostgreSQL + Chromium, `e2e-real/run.sh`): **140 aprobadas, 10 omitidas, 0 fallos**. Las omitidas son pendientes ya documentados (vuelto en POS en línea, canal web, reporte por cajero, latencia controlada, entrega parcial, datáfono).
+- Flujos completos cubiertos por esas suites: apertura de caja → venta → cobro → entrega → cierre; compra → recepción → inventario → venta; cliente → crédito → factura → abono → saldo cero; cotización → conversión (contado/crédito).
+- Durante la validación, una prueba vigente (FS-05) falló con JW-03. JW-03 se revirtió en lugar de modificar la prueba. Una fixture unitaria incompleta (producto sin `precioAprobado`) se completó sin cambiar su aserción.
 
 ## Pendientes externos
 
