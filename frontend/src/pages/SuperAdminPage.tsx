@@ -255,7 +255,6 @@ export const SuperAdminPage: React.FC = () => {
   const [editTelefono, setEditTelefono] = useState('');
   const [editPlan, setEditPlan] = useState('');
   const [editColorPrimario, setEditColorPrimario] = useState('#EA580C');
-  const [editLogoUrl, setEditLogoUrl] = useState('');
   const [editModoNavegacion, setEditModoNavegacion] = useState<'SIDEBAR' | 'TOPNAV'>('SIDEBAR');
 
   // Formulario nuevo tenant
@@ -780,6 +779,8 @@ export const SuperAdminPage: React.FC = () => {
                               title={t('uxAudit.manage_subscribed_services')}
                             >{t('uxAudit.services')} </button>
                             <p>{t('pending.branches')}</p>
+                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}/configuracion`)}>Configurar negocio</button>
+                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}/auditoria`)}>Auditoría</button>
                             <button
                               type="button"
                               className="btn btn-sm btn-secondary"
@@ -789,7 +790,6 @@ export const SuperAdminPage: React.FC = () => {
                                 setEditTelefono(tItem.telefono);
                                 setEditPlan(tItem.plan);
                                 setEditColorPrimario(tItem.colorPrimario);
-                                setEditLogoUrl(tItem.logoUrl || '');
                                 setEditModoNavegacion(tItem.modoNavegacion || 'SIDEBAR');
                               }}
                               title={t('uxAudit.edit_branding_and_company_details')}
@@ -1239,7 +1239,7 @@ export const SuperAdminPage: React.FC = () => {
                   const { data } = await api.patch(`/admin/tenants/${modalEditarTenant.id}`, {
                     nombreComercial: editNombreComercial.trim(), telefono: editTelefono,
                     plan: editPlan, colorPrimario: editColorPrimario,
-                    logoUrl: editLogoUrl.trim() || null, modoNavegacion: editModoNavegacion,
+                    modoNavegacion: editModoNavegacion,
                   });
                   setTenants(current => current.map(item => item.id === modalEditarTenant.id ? { ...item, ...data } : item));
                   setModalEditarTenant(null);
@@ -1262,16 +1262,7 @@ export const SuperAdminPage: React.FC = () => {
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">{t('uxAudit.custom_logo_url_company_image')} </label>
-                <input
-                  type="url"
-                  placeholder="https://ejemplo.com/logo.png"
-                  value={editLogoUrl}
-                  onChange={(e) => setEditLogoUrl(e.target.value)}
-                  className="form-input"
-                />
-              </div>
+              <p style={{ fontSize: 13, margin: '0 0 12px' }}>El logotipo se carga como archivo en <strong>Configurar negocio</strong>.</p>
 
               <div className="form-group">
                 <label className="form-label">{t('uxAudit.navigation_mode')} </label>

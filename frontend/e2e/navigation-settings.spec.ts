@@ -22,6 +22,15 @@ async function setup(page: Page, role: string, mode: string, language = 'es', en
       if (url.origin === 'http://127.0.0.1:4173') await route.continue(); else await route.abort();
       return;
     }
+    if (/^\/api\/admin\/tenants\/[^/]+\/settings$/.test(url.pathname)) {
+      if (request.method() === 'PUT') {
+        const body = request.postDataJSON(); writes.push(body);
+        if (failSave) { await route.fulfill({ status: 500, json: { message: 'Error de prueba al guardar' } }); return; }
+        settings = { ...settings, ...body, ...body.configuracion };
+      }
+      await route.fulfill({ json: settings }); return;
+    }
+    if (/^\/api\/admin\/tenants\/[^/]+\/logo$/.test(url.pathname)) { await route.fulfill({ status: 404, json: { message: 'El negocio no tiene logotipo' } }); return; }
     if (url.pathname === '/api/tenant/settings') {
       if (request.method() === 'PUT') {
         const body = request.postDataJSON(); writes.push(body);
@@ -123,12 +132,9 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
   });
 }
 
-// BLOQUEADO (2026-10-15): la configuración del negocio ahora es solo del SUPERADMIN, pero ese rol no tiene
-// flujo funcional aquí: TenantContext no carga /tenant/settings para SUPERADMIN y el backend
-// (PUT /tenant/settings, @Roles('ADMIN')) rechaza su guardado. Ver docs/CONTEXTO_MAESTRO.md.
-test.fixme('settings: valores fiscales soportados, guardado, reload, errores y capturas', async ({ page }) => {
-  const api = await setup(page, 'ADMIN', 'TOPNAV');
-  await page.goto('/configuracion');
+test('settings: valores fiscales soportados, guardado, reload, errores y capturas', async ({ page }) => {
+  const api = await setup(page, 'SUPERADMIN', 'TOPNAV');
+  await page.goto('/admin/negocios/ux-company/configuracion');
   await expect(page.locator('.v2-top-navigation')).toBeVisible();
   await expect(page.locator('#task-search')).toHaveCount(0);
   await expect(page.locator('#tax-rate')).toHaveValue('15');
@@ -155,8 +161,8 @@ test.fixme('settings: valores fiscales soportados, guardado, reload, errores y c
   await page.locator('input[type="email"]').fill('test@example.invalid');
   await page.locator('input[type="password"]').fill('test-only-password');
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
-  await expect(page).toHaveURL(/\/$/);
-  await page.goto('/configuracion');
+  await expect(page).toHaveURL(/\/(admin)?$/);
+  await page.goto('/admin/negocios/ux-company/configuracion');
   await expect(page.locator('input[type="number"]')).toHaveValue('15');
 });
 
@@ -205,12 +211,9 @@ for (const language of ['es', 'en']) test(`inicio ADMIN: pendientes traducidos y
   await expect(page.locator('a[href="/apartados"]')).toHaveCount(0);
 });
 
-// BLOQUEADO (2026-10-15): la configuración del negocio ahora es solo del SUPERADMIN, pero ese rol no tiene
-// flujo funcional aquí: TenantContext no carga /tenant/settings para SUPERADMIN y el backend
-// (PUT /tenant/settings, @Roles('ADMIN')) rechaza su guardado. Ver docs/CONTEXTO_MAESTRO.md.
-for (const language of ['es', 'en']) test.fixme(`buscador Escape restaura foco; configuración y pendientes traducidos ${language}`, async ({ page }) => {
-  await setup(page, 'ADMIN', 'TOPNAV', language);
-  await page.goto('/configuracion');
+for (const language of ['es', 'en']) test(`configuración del negocio traducida ${language}`, async ({ page }) => {
+  await setup(page, 'SUPERADMIN', 'TOPNAV', language);
+  await page.goto('/admin/negocios/ux-company/configuracion');
   // The accessible label comes from the shared translation, not its icon.
   const toggle=page.locator('.task-finder-toggle');
   await toggle.click(); await expect(page.locator('#task-search')).toBeFocused();
@@ -221,16 +224,26 @@ for (const language of ['es', 'en']) test.fixme(`buscador Escape restaura foco; 
   await expect(page.locator('#fiscal-limit')).toContainText(language==='es'?'solo lectura':'read-only');
 });
 
-// BLOQUEADO (2026-10-15): la configuración del negocio ahora es solo del SUPERADMIN, pero ese rol no tiene
-// flujo funcional aquí: TenantContext no carga /tenant/settings para SUPERADMIN y el backend
-// (PUT /tenant/settings, @Roles('ADMIN')) rechaza su guardado. Ver docs/CONTEXTO_MAESTRO.md.
-test.fixme('configuración vacía del servidor sustituye apariencia vieja de la caché', async ({ page }) => {
-  await setup(page,'ADMIN','TOPNAV');
-  await page.route('**/api/tenant/settings',route=>route.fulfill({ json:{ id:'ux-company',nombreComercial:'Servidor',colorPrimario:'#0284C7',modoNavegacion:'SIDEBAR',configuracion:{},modulosHabilitados:[] } }));
-  await page.goto('/configuracion');
+test('configuración vacía del servidor sustituye apariencia vieja de la caché', async ({ page }) => {
+  await setup(page,'SUPERADMIN','TOPNAV');
+  await page.route('**/api/admin/tenants/ux-company/settings',route=>route.fulfill({ json:{ id:'ux-company',nombreComercial:'Servidor',colorPrimario:'#0284C7',modoNavegacion:'SIDEBAR',configuracion:{},modulosHabilitados:[] } }));
+  await page.goto('/admin/negocios/ux-company/configuracion');
   await expect(page.locator('#template-version')).toHaveValue('v1');
   await expect(page.locator('#classic-style')).toHaveValue('INDUSTRIAL');
-  await expect(page.locator('aside.desktop-sidebar-nav')).toBeVisible();
+  // La navegación de la plataforma del Super Admin no depende del negocio editado; el formulario sí refleja el servidor.
+
   await expect(page.locator('#currency-code')).toHaveValue('HNL');
   await expect(page.locator('#tax-rate')).toHaveValue('15');
+});
+
+test('formato de impresión: el Super Admin elige rollo de 80 mm, se guarda y se conserva al recargar', async ({ page }) => {
+  const api = await setup(page, 'SUPERADMIN', 'TOPNAV');
+  await page.goto('/admin/negocios/ux-company/configuracion');
+  await expect(page.getByLabel('Formato de impresión de facturas y recibos')).toHaveValue('A4');
+  await page.getByLabel('Formato de impresión de facturas y recibos').selectOption('ROLLO_80MM');
+  await page.getByRole('button', { name: 'APLICAR CAMBIOS', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'guardada correctamente' })).toBeVisible();
+  expect(api.writes.at(-1)).toMatchObject({ configuracion: { formatoImpresion: 'ROLLO_80MM' } });
+  await page.reload();
+  await expect(page.getByLabel('Formato de impresión de facturas y recibos')).toHaveValue('ROLLO_80MM');
 });

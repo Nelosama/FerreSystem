@@ -1,8 +1,7 @@
-import { TenantBrand } from './TenantBrand';
+import { LogotipoNegocio } from './LogotipoNegocio';
 import { availableTasks, groupNavigation } from '../utils/taskNavigation';
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Box } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
@@ -27,29 +26,14 @@ export const Sidebar: React.FC = () => {
 
   return (
     <aside className="desktop-sidebar-nav v2-sidebar" style={styles.sidebar}>
-      {/* Brand Header */}
+      {/* Identidad del negocio: su logotipo y nombre. Jowa System es el proveedor y enlaza a Inicio. */}
       <div style={styles.brandHeader}>
-        <NavLink to="/" aria-label="Jowa System: ir a Inicio" style={styles.logoRow}>
-          {tenant.templateVersion === 'v2' ? <TenantBrand /> : tenant.logoUrl ? (
-            <img
-              src={tenant.logoUrl}
-              alt="Tenant Logo"
-              style={{ height: '36px', width: 'auto', maxHeight: '42px', objectFit: 'contain' }}
-            />
-          ) : (
-            <div style={styles.logoIcon}>
-              <Box size={28} strokeWidth={2.5} color="var(--color-primary)" />
-            </div>
-          )}
-          {tenant.templateVersion !== 'v2' && !tenant.logoUrl && (
-            <div style={styles.brandName}>
-              <span style={styles.brandFerre}>Jowa </span>
-              <span style={styles.brandSystem}>System</span>
-            </div>
-          )}
-        </NavLink>
-        <div style={styles.tenantName}>
-          {tenant.nombreComercial || 'LA MUNDIAL - SUCURSAL CENTRO'}
+        <div style={styles.logoRow}>
+          <LogotipoNegocio size={40} />
+          <div style={styles.identidad}>
+            <div style={styles.tenantName}>{tenant.nombreComercial || 'Negocio'}</div>
+            <NavLink to="/" aria-label="Jowa System: ir a Inicio" style={styles.plataforma}>Jowa System</NavLink>
+          </div>
         </div>
       </div>
 
@@ -106,35 +90,29 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'inherit',
     textDecoration: 'none',
   },
-  logoIcon: {
+  identidad: {
+    minWidth: 0,
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandName: {
-    fontFamily: 'var(--font-display)',
-    fontSize: '22px',
-    fontWeight: 800,
-    letterSpacing: '-0.02em',
-  },
-  brandFerre: {
-    color: 'var(--color-sidebar-text)',
-  },
-  brandSystem: {
-    color: 'var(--color-primary)',
+    flexDirection: 'column',
+    gap: '2px',
   },
   tenantName: {
     fontFamily: 'var(--font-display)',
-    fontSize: '10px',
-    fontWeight: 700,
+    fontSize: '15px',
+    fontWeight: 800,
     color: 'var(--color-sidebar-text)',
-    opacity: 0.75,
-    marginTop: '6px',
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
+  },
+  plataforma: {
+    fontFamily: 'var(--font-display)',
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    color: 'var(--color-primary)',
+    textDecoration: 'none',
   },
   navContainer: {
     padding: '16px 12px',

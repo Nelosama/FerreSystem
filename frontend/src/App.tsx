@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { TenantProvider } from './context/TenantContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -108,6 +108,16 @@ const PageLoader: React.FC = () => (
   </div>
 );
 
+// Páginas del panel del SUPERADMIN para un negocio concreto (identificador en la ruta).
+const NegocioConfiguracionRoute: React.FC = () => {
+  const { tenantId = '' } = useParams();
+  return <ConfiguracionPage negocioId={tenantId} />;
+};
+const NegocioAuditoriaRoute: React.FC = () => {
+  const { tenantId = '' } = useParams();
+  return <AuditoriaPage negocioId={tenantId} />;
+};
+
 // Componente para manejar redirección raíz según rol
 const HomeRoute: React.FC = () => {
   const { user } = useTenant();
@@ -165,7 +175,7 @@ export const App: React.FC = () => {
                 <Route path="/pos-contingencia" element={<ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="pos"><PosContingenciaPage /></ProtectedRoute>} />
                 <Route path="/contingencia-admin" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="pos"><AppLayout><ContingenciaAdminPage /></AppLayout></ProtectedRoute>} />
                 <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','VENDEDOR']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
-                  <Route path="/auditoria" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><AuditoriaPage/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/auditoria" element={<Navigate to="/admin" replace />} />
                   <Route path="/precios" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><PreciosPage/></AppLayout></ProtectedRoute>}/>
                   {/* Rutas públicas de login */}
                   <Route path="/login" element={<LoginPage />} />
@@ -365,12 +375,24 @@ export const App: React.FC = () => {
                     }
                   />
 
+                  {/* La configuración del negocio se gestiona por negocio desde el panel del SUPERADMIN. */}
+                  <Route path="/configuracion" element={<Navigate to="/admin" replace />} />
                   <Route
-                    path="/configuracion"
+                    path="/admin/negocios/:tenantId/configuracion"
                     element={
-                      <ProtectedRoute allowedRoles={['SUPERADMIN']} requiredModule="configuracion">
+                      <ProtectedRoute allowedRoles={['SUPERADMIN']}>
                         <AppLayout>
-                          <ConfiguracionPage />
+                          <NegocioConfiguracionRoute />
+                        </AppLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin/negocios/:tenantId/auditoria"
+                    element={
+                      <ProtectedRoute allowedRoles={['SUPERADMIN']}>
+                        <AppLayout>
+                          <NegocioAuditoriaRoute />
                         </AppLayout>
                       </ProtectedRoute>
                     }

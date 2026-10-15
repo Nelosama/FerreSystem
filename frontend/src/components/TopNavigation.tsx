@@ -1,4 +1,4 @@
-import { TenantBrand } from './TenantBrand';
+import { LogotipoNegocio } from './LogotipoNegocio';
 import { availableTasks } from '../utils/taskNavigation';
 import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -82,23 +82,11 @@ export const TopNavigation: React.FC = () => {
   return (
     <header className="desktop-sidebar-nav v2-top-navigation" style={styles.topNavContainer}>
       <div style={styles.brandContainer}>
-        <NavLink to="/" aria-label="Jowa System: ir a Inicio" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
-        {tenant.templateVersion === 'v2' ? <TenantBrand /> : tenant.logoUrl ? (
-          <img
-            src={tenant.logoUrl}
-            alt="Logo"
-            style={{ height: '32px', width: 'auto', maxHeight: '36px', objectFit: 'contain' }}
-          />
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Box size={22} strokeWidth={2.5} color="var(--color-primary)" />
-            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '18px', color: '#FFFFFF' }}>
-              Jowa <span style={{ color: 'var(--color-primary)' }}>System</span>
-            </span>
-          </div>
-        )}
-        </NavLink>
-        {tenant.templateVersion !== 'v2' && <span style={styles.tenantTag}>{tenant.nombreComercial}</span>}
+        <LogotipoNegocio size={28} />
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <span style={styles.tenantTag}>{tenant.nombreComercial || 'Negocio'}</span>
+          <NavLink to="/" aria-label="Jowa System: ir a Inicio" style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-primary)', textDecoration: 'none' }}>Jowa System</NavLink>
+        </div>
       </div>
 
       <nav ref={navRef} style={styles.navWrapper} onKeyDown={event => {

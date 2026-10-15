@@ -14,6 +14,7 @@ import {
 } from '../offline/ventana';
 import { registrarDispositivoEnServidor, renovarVentana, sincronizarPendientes } from '../offline/sync';
 import { construirComprobante, type ComprobanteContingencia } from '../offline/comprobante';
+import { tamanoPaginaImpresion } from '../utils/formatoImpresion';
 import './PosContingenciaPage.css';
 
 // POS de contingencia en efectivo. Funciona con la página cargada aunque no haya red: el catálogo, el diario
@@ -57,7 +58,8 @@ export default function PosContingenciaPage() {
   const [guardando, setGuardando] = useState(false);
   const [confirmacion, setConfirmacion] = useState<OperacionLocal | null>(null);
   const [aImprimir, setAImprimir] = useState<OperacionLocal | null>(null);
-  const [papel, setPapel] = useState<'58' | '80'>(leerPapel);
+  // El formato del negocio (si es rollo) decide el papel; sin rollo se usa la preferencia guardada en este equipo.
+  const [papel, setPapel] = useState<'58' | '80'>(() => (tenant?.formatoImpresion === 'ROLLO_58MM' ? '58' : tenant?.formatoImpresion === 'ROLLO_80MM' ? '80' : leerPapel()));
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'ok' | 'aviso'; texto: string } | null>(null);
   const [ultimaSync, setUltimaSync] = useState<string | undefined>(undefined);
   const [habilitada, setHabilitada] = useState<boolean | null>(null);
@@ -492,6 +494,7 @@ export default function PosContingenciaPage() {
         {operador === false && <p role="status">Esta pestaña no cobra porque otra pestaña del POS ya está activa.</p>}
       </section>
 
+      {aImprimir && <style>{`@page { size: ${tamanoPaginaImpresion(tenant?.formatoImpresion ?? (papel === '58' ? 'ROLLO_58MM' : 'ROLLO_80MM'))}; }`}</style>}
       {aImprimir && (() => {
         const c: ComprobanteContingencia = construirComprobante(aImprimir, tenant?.nombreComercial ?? '');
         return (
