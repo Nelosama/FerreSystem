@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
 // E2E CON BACKEND SIMULADO del panel administrativo (AdminHomePage). Verifica: cifras que llegan de
-// /dashboard, indicadores sin datos marcados «Próximamente», ausencia de botones «Actualizar», botón
+// /dashboard, indicadores sin datos y sin secciones «En preparación», ausencia de botones «Actualizar», botón
 // flotante en móvil sin desbordamiento horizontal, y que un fallo del resumen no muestra cifras falsas.
 // Datos de simulación; no sustituye la prueba con datos reales ni la comparación visual con Figma.
 
@@ -47,7 +47,7 @@ async function ingresar(page: Page) {
 }
 
 test.describe('Panel administrativo (simulado)', () => {
-  test('escritorio: muestra cifras reales, indicadores pendientes y ninguna acción «Actualizar»', async ({ page, baseURL }) => {
+  test('escritorio: muestra cifras reales, sin secciones pendientes y ninguna acción «Actualizar»', async ({ page, baseURL }) => {
     await simular(page, baseURL, { dashboardFalla: false });
     await ingresar(page);
     await expect(page.getByRole('heading', { name: /Hola, / })).toBeVisible();
@@ -56,7 +56,8 @@ test.describe('Panel administrativo (simulado)', () => {
     await expect(page.getByText('Tubo PVC')).toBeVisible();
     await expect(page.getByText('Tendencia semanal')).toBeVisible();
     await expect(page.getByRole('img', { name: 'Ventas de los últimos 7 días' })).toBeVisible();
-    await expect(page.getByText('Próximamente').first()).toBeVisible();
+    await expect(page.getByText('En preparación')).toHaveCount(0);
+    await expect(page.getByText('Próximamente')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Actualizar/ })).toHaveCount(0);
     await page.screenshot({ path: 'test-results/admin-home-escritorio.png', fullPage: true });
   });

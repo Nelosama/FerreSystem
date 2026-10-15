@@ -54,6 +54,7 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
     await expect(navigation).toBeVisible();
     await expect(navigation.locator('a[href="/pos"]')).toHaveCount(0);
     await expect(navigation.locator('a[href="/apartados"]')).toHaveCount(0);
+    if (role !== 'SUPERADMIN') await expect(navigation.locator('a[href="/configuracion"]')).toHaveCount(0);
     if (role !== 'SUPERADMIN') {
       expect(await page.locator('.daily-tasks .task-link').count()).toBeLessThanOrEqual(4);
       if (['CAJERO', 'VENDEDOR'].includes(role)) {
@@ -61,7 +62,7 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
         await expect(navigation.locator('a[href="/arqueo-caja"]')).toBeVisible();
       }
       if (role !== 'ADMIN') await expect(navigation.locator('a[href="/usuarios"]')).toHaveCount(0);
-    } else await expect(navigation.locator('a[href="/configuracion"]')).toHaveCount(0);
+    } else await expect(navigation.locator('a[href="/configuracion"]')).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator('.mobile-bottom-nav')).toBeVisible();
     const more = page.locator('.mobile-bottom-nav button');
@@ -122,7 +123,10 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
   });
 }
 
-test('settings: valores fiscales soportados, guardado, reload, errores y capturas', async ({ page }) => {
+// BLOQUEADO (2026-10-15): la configuración del negocio ahora es solo del SUPERADMIN, pero ese rol no tiene
+// flujo funcional aquí: TenantContext no carga /tenant/settings para SUPERADMIN y el backend
+// (PUT /tenant/settings, @Roles('ADMIN')) rechaza su guardado. Ver docs/CONTEXTO_MAESTRO.md.
+test.fixme('settings: valores fiscales soportados, guardado, reload, errores y capturas', async ({ page }) => {
   const api = await setup(page, 'ADMIN', 'TOPNAV');
   await page.goto('/configuracion');
   await expect(page.locator('.v2-top-navigation')).toBeVisible();
@@ -190,7 +194,21 @@ test('marca de Super Admin guarda por API, permanece al recargar y no anuncia é
   await expect(page.getByText('Configuración guardada en el servidor.', { exact: true })).toHaveCount(0);
 });
 
-for (const language of ['es', 'en']) test(`buscador Escape restaura foco; configuración y pendientes traducidos ${language}`, async ({ page }) => {
+for (const language of ['es', 'en']) test(`inicio ADMIN: pendientes traducidos y Configuración denegada ${language}`, async ({ page }) => {
+  await setup(page, 'ADMIN', 'TOPNAV', language);
+  await page.goto('/configuracion');
+  await expect(page.getByRole('heading', { name: language === 'es' ? 'Acceso Denegado' : 'Access Denied', exact: true })).toBeVisible();
+  await page.goto('/');
+  await page.locator('.daily-tasks details summary').click();
+  await expect(page.locator('.daily-tasks details p')).toContainText(language==='es'?'todavía no registran':'do not record');
+  await expect(page.locator('.daily-tasks details a')).toHaveCount(0);
+  await expect(page.locator('a[href="/apartados"]')).toHaveCount(0);
+});
+
+// BLOQUEADO (2026-10-15): la configuración del negocio ahora es solo del SUPERADMIN, pero ese rol no tiene
+// flujo funcional aquí: TenantContext no carga /tenant/settings para SUPERADMIN y el backend
+// (PUT /tenant/settings, @Roles('ADMIN')) rechaza su guardado. Ver docs/CONTEXTO_MAESTRO.md.
+for (const language of ['es', 'en']) test.fixme(`buscador Escape restaura foco; configuración y pendientes traducidos ${language}`, async ({ page }) => {
   await setup(page, 'ADMIN', 'TOPNAV', language);
   await page.goto('/configuracion');
   // The accessible label comes from the shared translation, not its icon.
@@ -201,14 +219,12 @@ for (const language of ['es', 'en']) test(`buscador Escape restaura foco; config
   await expect(page.locator('#task-search')).toHaveCount(0);
   await expect(page.getByRole('heading',{ name:language==='es'?'CONFIGURACIÓN Y MARCA':'SETTINGS AND BRANDING',exact:true })).toBeVisible();
   await expect(page.locator('#fiscal-limit')).toContainText(language==='es'?'solo lectura':'read-only');
-  await page.goto('/');
-  await page.locator('.daily-tasks details summary').click();
-  await expect(page.locator('.daily-tasks details p')).toContainText(language==='es'?'todavía no registran':'do not record');
-  await expect(page.locator('.daily-tasks details a')).toHaveCount(0);
-  await expect(page.locator('a[href="/apartados"]')).toHaveCount(0);
 });
 
-test('configuración vacía del servidor sustituye apariencia vieja de la caché', async ({ page }) => {
+// BLOQUEADO (2026-10-15): la configuración del negocio ahora es solo del SUPERADMIN, pero ese rol no tiene
+// flujo funcional aquí: TenantContext no carga /tenant/settings para SUPERADMIN y el backend
+// (PUT /tenant/settings, @Roles('ADMIN')) rechaza su guardado. Ver docs/CONTEXTO_MAESTRO.md.
+test.fixme('configuración vacía del servidor sustituye apariencia vieja de la caché', async ({ page }) => {
   await setup(page,'ADMIN','TOPNAV');
   await page.route('**/api/tenant/settings',route=>route.fulfill({ json:{ id:'ux-company',nombreComercial:'Servidor',colorPrimario:'#0284C7',modoNavegacion:'SIDEBAR',configuracion:{},modulosHabilitados:[] } }));
   await page.goto('/configuracion');

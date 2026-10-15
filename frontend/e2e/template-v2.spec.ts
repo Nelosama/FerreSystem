@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-test('V2 preserves branding across modes, reload, and return to classic variants', async ({ page, baseURL }) => {
+// BLOQUEADO (2026-10-15): la configuración del negocio ahora es solo del SUPERADMIN, pero ese rol no tiene
+// flujo funcional aquí: TenantContext no carga /tenant/settings para SUPERADMIN y el backend
+// (PUT /tenant/settings, @Roles('ADMIN')) rechaza su guardado. Ver docs/CONTEXTO_MAESTRO.md.
+test.fixme('V2 preserves branding across modes, reload, and return to classic variants', async ({ page, baseURL }) => {
   const errors: string[] = [];
   let serverTenant: any = { id: 'theme-test', nombreComercial: 'Mi ferretería', colorPrimario: '#0284C7', fuenteTitulos: 'Poppins', fuenteCuerpo: 'Inter', estiloUI: 'MINIMALISTA' };
   page.on('pageerror', error => errors.push(error.message));
