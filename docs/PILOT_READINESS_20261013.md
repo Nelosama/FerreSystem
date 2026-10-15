@@ -1,5 +1,7 @@
 # Preparación del piloto — cuarta rama autorizada
 
+> Evidencia histórica. Cierre actualizado del PR #162 con main/#160/#163: [PILOT_READINESS_PR162_20261014.md](PILOT_READINESS_PR162_20261014.md).
+
 **NEXUS · 2026-10-13 UTC.** Base: `origin/main` `4b650445b35fcd8dc2878b5c94ee60462493d8c1`. Rama exclusiva: `fix/pilot-readiness`; [PR #162 en borrador](https://github.com/Nelosama/FerreSystem/pull/162). Código de preparación: `d1d19fea`; TLS/IPv6: `89b7fe3b`; correcciones de pruebas/CI: `81c8fb88`. PostgreSQL y E2E de escritorio se repitieron tras corregir las pruebas; scripts, Restic y ensayo de actualización se repitieron tras revisar TLS. El estado y los siguientes pendientes se mantienen en [CONTEXTO_MAESTRO.md](CONTEXTO_MAESTRO.md).
 
 La verificación local del alcance está aprobada, con límites de entorno y de cobertura explícitos. Esto no certifica producción, no habilita la contingencia del cliente ni autoriza merge, despliegue o migraciones productivas.
