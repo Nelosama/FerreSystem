@@ -470,6 +470,10 @@ export class CotizacionesService {
       if (cotizacion.estado === 'CONVERTIDA') {
         throw new BadRequestException('Esta cotización ya fue convertida previamente a una venta');
       }
+      // El cliente la rechazó: venderla exige reabrirla antes (cambiar su estado), igual que ofrece la interfaz.
+      if (cotizacion.estado === 'RECHAZADA') {
+        throw new BadRequestException('La cotización fue rechazada. Cambie su estado a Enviada o Aprobada antes de convertirla en venta');
+      }
 
       // fecha_validez es DATE: Prisma lo representa a medianoche UTC, sin zona horaria.
       // El día actual sí corresponde a la zona de negocio. Vigencia inclusiva hasta ese día.
