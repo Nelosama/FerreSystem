@@ -22,6 +22,45 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Jowa System — PR #165: permisos reales, logotipo privado y formato de impresión (2026-10-15, rama `claude/festive-thompson-25nx9m`, PR [#165](https://github.com/Nelosama/FerreSystem/pull/165), sin merge)
+
+- **Sincronización:** `main` `74ba4dcc` integrado en la rama con merge normal (sin reescritura). Único cambio de `main` desde la base: una línea de `CONTEXTO_MAESTRO.md`.
+- **Permisos en backend (no solo interfaz):**
+  - `PUT /tenant/settings` → `@Roles('SUPERADMIN')`: ADMIN, CAJERO, VENDEDOR y BODEGUERO reciben 403.
+  - `GET /operaciones/auditoria` → `@Roles('SUPERADMIN')`: ADMIN recibe 403 (verificado en HTTP real).
+  - Nuevos endpoints del SUPERADMIN, con `SuperAdminGuard` y reutilizando servicios existentes: `GET/PUT /admin/tenants/:id/settings` (usa `TenantsService`), `GET /admin/tenants/:id/auditoria` (misma consulta que el tenant, extraída a `operaciones/auditoria-consulta.ts`), y `GET/POST/DELETE /admin/tenants/:id/logo`.
+  - Un token de negocio recibe 403 en todas las rutas `/admin/...`, incluso con su propio identificador.
+  - `PATCH /admin/tenants/:id` ya no acepta `logoUrl` externo (400). El cambio de rubro solo lo permite la ruta del SUPERADMIN.
+  - Auditoría: cada cambio de configuración, de marca y de logotipo registra `CONFIGURACION_NEGOCIO_ACTUALIZAR`, `NEGOCIO_ACTUALIZAR`, `LOGOTIPO_GUARDAR` o `LOGOTIPO_ELIMINAR` con la identidad real del SUPERADMIN.
+- **Logotipo privado:**
+  - Validación por contenido real: firma binaria PNG/JPEG/WEBP, MIME declarado coherente, tamaño máximo 2 MB, dimensiones ≤ 4096 px. SVG, HTML y archivos dañados se rechazan (415/413/422).
+  - Almacenamiento detrás de una interfaz: driver `local` (volumen persistente, p. ej. disco de Render) y driver `supabase` (Storage con bucket privado, solo en el servidor). Sin configuración los endpoints responden 503: no hay simulación.
+  - PostgreSQL guarda solo `logo_storage_key`, `logo_mime`, `logo_bytes` y `logo_actualizado_at` (migración aditiva `20261018000000_tenant_logotipo_privado`, con restricciones CHECK). No hay binarios en la base.
+  - Lectura autenticada para el negocio: `GET /tenant/logo` solo devuelve el logotipo del negocio del token.
+  - El frontend pide los bytes con el token y los muestra como data URL (las URL firmadas o externas no se usan).
+  - Sin logotipo se muestra el ícono predeterminado.
+- **Formato de impresión (solicitado en esta sesión):** `configuracion.formatoImpresion` ∈ {`A4`, `ROLLO_80MM`, `ROLLO_58MM`}, por defecto `A4` (los negocios existentes pasan a A4; antes el PDF usaba carta). Lo configura el SUPERADMIN desde «Configurar negocio». Aplica a recibos y cotizaciones en PDF (tamaño de página de react-pdf: A4 o ancho de rollo con alto según contenido), al ticket de POS (ancho CSS y `@page`) y al comprobante de contingencia (`@page`; si el negocio es de rollo, ese formato sustituye la preferencia local del equipo).
+- **Navegación y marca:** Sidebar y TopNav muestran el logotipo y el nombre comercial del negocio como protagonista; «Jowa System» es el enlace a Inicio según el rol. `TenantBrand` y `TopBar` (v2) usan el mismo componente.
+- **Pantallas del SUPERADMIN:** `/admin/negocios/:id/configuracion` (formulario completo + editor de logotipo) y `/admin/negocios/:id/auditoria`. Las rutas `/configuracion` y `/auditoria` redirigen a `/admin`. Desde cada negocio del panel: «Configurar negocio» y «Auditoría».
+- **Pruebas recuperadas:** las pruebas bloqueadas de Configuración y V2 (`test.fixme`) quedaron **activas** y verifican el flujo nuevo. Cero pruebas omitidas en el diff. Dos ajustes son intencionales y se explican aquí: (1) la navegación de la plataforma del Super Admin no cambia con la configuración del negocio editado, así que la prueba de caché verifica el formulario y no la barra lateral; (2) la prueba V2 verifica lo guardado en el servidor y el logotipo en el editor, no el tema de la plataforma.
+- **Evidencia (verificada en este entorno):**
+  - Backend unitarias **474/474**; lint sin errores; build (`nest build`) y `tsc -p tsconfig.build.json` correctos.
+  - Backend integración PostgreSQL 16 real con migraciones del repositorio, HTTP real y servicios reales: `configuracion-logotipo.postgres.integration.ts` **24/24** (autorización 403, aislamiento entre negocios, auditoría por negocio, carga/reemplazo/eliminación, persistencia tras nueva sesión, rechazos de formato y tamaño, formato de impresión). Subconjunto afectado (ventas, reportes, autenticación fase 3, control de migraciones y la nueva): **133/133**. Suite completa: ver resultado en el informe del PR.
+  - Frontend unitarias **321/321**; lint sin errores; `tsc -b` y build de producción (`VITE_API_URL=/api`) correctos.
+  - Playwright (Chromium del entorno) suite completa **149/149**, sin omitidas. Nota: las pruebas Playwright usan backend **simulado**; la autorización real se verifica en la integración con PostgreSQL.
+- **Configuración externa requerida (no verificada contra servicios reales):**
+  - Migración: aplicar `20261018000000_tenant_logotipo_privado` con `npm run migrate:deploy` solo tras revisión; no se ejecutó contra producción. Depende de que `20261017000000` siga pendiente de aprobación CODEOWNERS según la bitácora previa.
+  - Almacenamiento `local` (recomendado en Render con disco persistente): `LOGOTIPO_ALMACEN=local` y `LOGOTIPO_DIRECTORIO=/ruta/absoluta/en/el/disco/persistente`.
+  - Almacenamiento `supabase`: `LOGOTIPO_ALMACEN=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (solo en el backend, nunca en el frontend) y `SUPABASE_LOGOTIPO_BUCKET` (por defecto `logotipos-privados`). **Crear el bucket como privado** (`public = false`). No se ha comprobado la conexión real con Supabase: el driver está probado contra un servidor HTTP local que replica el contrato.
+  - Vercel solo sirve el frontend; no almacena logotipos.
+- **Riesgos y pendientes:**
+  - Sin verificación en impresoras térmicas ni en hoja física; el alto del rollo es una estimación por contenido.
+  - La validación de imagen comprueba firma y cabeceras; no decodifica píxeles (no hay librería de imagen en el backend). Los metadatos EXIF no se eliminan.
+  - Sin protección general de cambios sin guardar en la configuración (no existía mecanismo previo).
+  - Revisión visual en 390 px y en dispositivo físico pendiente; la UX se revisó solo por pruebas automatizadas.
+  - La prueba `inicio-roles` de `e2e-real` (backend real) no se ejecutó en esta sesión.
+  - Sin merge ni despliegue a producción.
+
 ## Jowa System — marca, Inicio, panel del negocio y permisos (2026-10-15, rama `claude/festive-thompson-25nx9m` desde `main` `94d052e2`, sin PR ni merge)
 
 - **Estado Git verificado:** `main` = `94d052e2`. La rama de frontend `claude/modest-galileo-693672` (#161, cabeza `a97f9792`) ya es ascendente de `main`; #160, #161, #162 y #163 aparecen cerrados sin merge en GitHub, aunque los merges de #161 y #162 están en el historial de `main`. La rama designada `claude/festive-thompson-25nx9m` ya no existía en origen: se recreó desde `main` con el mismo nombre. No hay PR abierto para esta rama; no se creó ninguno.
