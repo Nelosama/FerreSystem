@@ -504,7 +504,7 @@ export class CotizacionesService {
       for (const d of cotizacion.detalles) {
         await query(tx,'SELECT id FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.productoId,tenantId);
         // Mismas reglas que la venta directa: un precio revocado o un producto inactivo después de cotizar no se vende.
-        if (!d.producto.activo) throw new BadRequestException(`"${d.producto.nombre}" está inactivo; no se puede vender`);
+        if (d.producto.activo === false) throw new BadRequestException(`"${d.producto.nombre}" está inactivo; no se puede vender`);
         if (!d.producto.precioAprobado || Number(d.producto.precioVenta) <= 0) {
           throw new BadRequestException(`"${d.producto.nombre}" no tiene precio aprobado por el administrador; no se puede vender`);
         }
