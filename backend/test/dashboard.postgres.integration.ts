@@ -100,6 +100,18 @@ describe('Dashboard / PostgreSQL aislado', () => {
     expect(data.ultimasVentas.length).toBeGreaterThan(0);
   });
 
+  it('JW-03 la barra HOY de la tendencia descuenta devoluciones igual que «ventas del día»', async () => {
+    const usuario = await prisma.usuario.create({ data: { tenantId, nombre: 'Admin', email: `t-${tenantId}@prueba.test`, passwordHash: 'x', rol: 'ADMIN' } as any });
+    const producto = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'T-1', nombre: 'Tubo', precioVenta: 100, precioCosto: 50, stockActual: 10 } as any });
+    const venta = await prisma.venta.create({ data: { tenantId, numeroVenta: 1, usuarioId: usuario.id, subtotal: 100, isv: 15, total: 115, estado: 'COMPLETADA', detalles: { create: [{ productoId: producto.id, cantidad: 1, precioUnitario: 100, subtotal: 100 }] } } as any });
+    await prisma.devolucion.create({ data: { tenantId, ventaId: venta.id, usuarioId: usuario.id, solicitudHash: 'h-tendencia', motivo: 'Prueba', monto: 15, creditoCancelado: 0, reembolso: 15, metodo: 'EFECTIVO' } as any });
+
+    const data = await dashboard.getDashboardData(tenantId);
+
+    expect(data.ventasDelDia.total).toBe(100);
+    expect(data.tendenciaSemanal.at(-1)).toMatchObject({ esHoy: true, total: 100 });
+  });
+
   it.each([
     ['productos', 'version'],
     ['ventas', 'reserva_pendiente'],

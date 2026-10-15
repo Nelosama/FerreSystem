@@ -100,7 +100,9 @@ export class DashboardService {
         },
       });
 
-      const totalDia = ventasDia.reduce((acc, v) => acc + Number(v.total), 0);
+      // Mismo criterio que «ventas del día»: ventas netas de devoluciones, para que la barra HOY coincida con la tarjeta.
+      const devolucionesDia = await this.prisma.devolucion.aggregate({ where: { tenantId, createdAt: { gte: inicio, lt: fin } }, _sum: { monto: true } });
+      const totalDia = ventasDia.reduce((acc, v) => acc + Number(v.total), 0) - Number(devolucionesDia._sum.monto || 0);
       const diaSemana = new Date(`${dia}T00:00:00.000Z`).getUTCDay();
       const diaTexto = i === 0 ? 'HOY' : diasSemana[diaSemana];
 
