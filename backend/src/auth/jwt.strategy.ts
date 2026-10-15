@@ -16,6 +16,7 @@ export interface JwtValidatedPayload {
   impersonatedBy?: string;
   soporteSesionId?: string;
   readOnly?: boolean;
+  sid?: string;
   permisos?:string[];
   permisosConfigurados?:boolean;
   descuentoMaximo?:number;
@@ -71,6 +72,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         descuentoMaximo:Number(user.descuentoMaximo),
         type: 'tenant',
         tenantId: payload.tenantId,
+        sid: typeof payload.sid === 'string' ? payload.sid : undefined,
         ...(payload.impersonatedBy ? { impersonatedBy: payload.impersonatedBy, soporteSesionId: payload.soporteSesionId, readOnly: payload.readOnly !== false } : {}),
       };
     }

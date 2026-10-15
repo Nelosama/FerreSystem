@@ -40,6 +40,8 @@ export class TenantsService {
     },
   ) {
     if (data.modoNavegacion && !['SIDEBAR', 'TOPNAV'].includes(data.modoNavegacion)) throw new BadRequestException('Navegación inválida');
+    // Auditoría 12/10 (P3): un color inválido no se guarda; antes la vista previa caía a negro sin aviso.
+    if (data.colorPrimario !== undefined && !/^#[0-9A-Fa-f]{6}$/.test(data.colorPrimario)) throw new BadRequestException('Color de marca inválido: use el formato #RRGGBB');
     const configuracion = data.configuracion;
     if (configuracion !== undefined) {
       validateTenantConfiguration(configuracion);

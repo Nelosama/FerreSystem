@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { withSupportIdentity } from '../common/support-context';
 import type { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
+import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
 
 export type Tx = Prisma.TransactionClient;
 export const id = () => randomUUID();
@@ -94,10 +95,14 @@ export async function authorizedActor(tx: Tx, tenantId: string, usuarioId: strin
 }
 export function validateDiscount(user: any, subtotal: number, descuento: number) {
   decimal(descuento, 'Descuento');
-  if (descuento > subtotal) throw new BadRequestException('Descuento mayor al subtotal');
-  if(descuento>0 && user.rol!=='ADMIN' && user.permisos_configurados && !user.permisos?.includes('pos.aplicar_descuento'))throw new ForbiddenException('No tiene permiso para aplicar descuentos');
+  // Comparación exacta en centavos: el máximo permitido es el porcentaje (en centésimas de punto) aplicado al subtotal.
+  const subtotalCentavos = aCentavos(subtotal, 'Subtotal');
+  const descuentoCentavos = aCentavos(descuento, 'Descuento');
+  if (descuentoCentavos > subtotalCentavos) throw new BadRequestException('Descuento mayor al subtotal');
+  if(descuentoCentavos>0 && user.rol!=='ADMIN' && user.permisos_configurados && !user.permisos?.includes('pos.aplicar_descuento'))throw new ForbiddenException('No tiene permiso para aplicar descuentos');
   const limit = user.rol === 'ADMIN' ? 100 : Number(user.descuento_maximo || 0);
-  if (descuento > money(subtotal * limit / 100)) throw new ForbiddenException('Descuento requiere autorización administrativa');
+  const maximoCentavos = divisionMitadArriba(subtotalCentavos * Math.round(limit * 100), 10000);
+  if (descuentoCentavos > maximoCentavos) throw new ForbiddenException('Descuento requiere autorización administrativa');
 }
 export async function openCash(tx: Tx, tenantId: string, usuarioId: string) {
   const [caja] = await query(tx, 'SELECT * FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado=\'ABIERTA\' FOR UPDATE', tenantId, usuarioId);

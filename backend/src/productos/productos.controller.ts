@@ -11,6 +11,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { RequiredModule } from '../common/decorators/required-module.decorator';
 import { CambiarPreciosProductoDto, CreateProductoDto, UpdateProductoDto } from './dto/create-producto.dto';
+import { ImportarProductosDto } from './dto/importacion-productos.dto';
 
 @Controller('productos')
 @RequiredModule('inventario')
@@ -68,6 +69,22 @@ export class ProductosController {
     @CurrentUser('sub') userId: string,
   ) {
     return this.productosService.create(tenantId, dto, userId);
+  }
+
+  /**
+   * Importación masiva todo o nada. La respuesta es un resumen, no un producto: por eso no pasa por el filtro público
+   * de productos (que vaciaría el resumen). Solo ADMIN puede enviar precios. Ver importacion-productos.ts.
+   */
+  @Post('importacion')
+  @RespuestaSinProducto()
+  @RequiredPermission('inventario.editar')
+  @Roles('ADMIN', 'BODEGUERO')
+  async importar(
+    @TenantId() tenantId: string,
+    @Body() dto: ImportarProductosDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.productosService.importar(tenantId, dto, userId);
   }
 
   @Put(':id')

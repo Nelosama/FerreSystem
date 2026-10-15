@@ -3,6 +3,8 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
 import { diaCalendario, inicioDiaEnZona } from '../common/zona-horaria';
+import { centavosADecimal, subtotalLinea } from '../common/dinero';
+import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 
 /** Fecha de solo día (YYYY-MM-DD) se guarda como inicio del día en la zona del negocio. */
@@ -107,8 +109,9 @@ export class CotizacionesService {
       const porcentajeIsv = dto.porcentajeIsv !== undefined ? dto.porcentajeIsv : 15.0;
       const parsedDetails = await this.processLineItems(tx, tenantId, dto.detalles, porcentajeIsv);
 
-      const subtotalTotal = parsedDetails.reduce((sum, item) => sum + item.subtotal, 0);
-      const descuentoLineas = parsedDetails.reduce((sum, item) => sum + item.descuentoMonto, 0);
+      const subtotalCentavos = parsedDetails.reduce((sum, item) => sum + aCentavos(item.subtotal, 'Subtotal'), 0);
+      const subtotalTotal = centavosADecimal(subtotalCentavos);
+      const descuentoLineas = centavosADecimal(parsedDetails.reduce((sum, item) => sum + aCentavos(item.descuentoMonto, 'Descuento'), 0));
 
       // Descuento General
       const descGenVal = dto.descuentoGeneral || 0;
@@ -117,14 +120,17 @@ export class CotizacionesService {
 
       if (tipoDescGen === 'PORCENTAJE') {
         if (descGenVal > 100) throw new BadRequestException('El descuento porcentual no puede superar 100%');
-        descuentoGeneralMonto = Math.round(subtotalTotal * (descGenVal / 100) * 100) / 100;
+        descuentoGeneralMonto = centavosADecimal(divisionMitadArriba(subtotalCentavos * Math.round(descGenVal * 100), 10000));
       } else {
-        descuentoGeneralMonto = Math.min(subtotalTotal, descGenVal);
+        descuentoGeneralMonto = centavosADecimal(Math.min(subtotalCentavos, aCentavos(descGenVal, 'Descuento general')));
       }
 
       const descuentoTotal = descuentoLineas + descuentoGeneralMonto;
-      const isvTotal = money(parsedDetails.reduce((sum, item) => sum + item.isv, 0) * (subtotalTotal > 0 ? 1 - descuentoGeneralMonto/subtotalTotal : 0));
-      const total = Math.round((subtotalTotal - descuentoGeneralMonto + isvTotal) * 100) / 100;
+      // ISV prorrateado tras el descuento general, en centavos enteros (mitad hacia arriba).
+      const descGeneralCentavos = aCentavos(descuentoGeneralMonto, 'Descuento general');
+      const isvLineasCentavos = parsedDetails.reduce((sum, item) => sum + aCentavos(item.isv, 'ISV'), 0);
+      const isvTotal = centavosADecimal(subtotalCentavos > 0 ? divisionMitadArriba(isvLineasCentavos * (subtotalCentavos - descGeneralCentavos), subtotalCentavos) : 0);
+      const total = centavosADecimal(subtotalCentavos - descGeneralCentavos + aCentavos(isvTotal, 'ISV total'));
 
       const diasVal = dto.diasValidez || 15;
       const fechaValidez = dto.fechaValidez
@@ -232,8 +238,9 @@ export class CotizacionesService {
       const porcentajeIsv = dto.porcentajeIsv !== undefined ? dto.porcentajeIsv : Number(existing.porcentajeIsv);
       const parsedDetails = await this.processLineItems(tx, tenantId, dto.detalles, porcentajeIsv);
 
-      const subtotalTotal = parsedDetails.reduce((sum, item) => sum + item.subtotal, 0);
-      const descuentoLineas = parsedDetails.reduce((sum, item) => sum + item.descuentoMonto, 0);
+      const subtotalCentavos = parsedDetails.reduce((sum, item) => sum + aCentavos(item.subtotal, 'Subtotal'), 0);
+      const subtotalTotal = centavosADecimal(subtotalCentavos);
+      const descuentoLineas = centavosADecimal(parsedDetails.reduce((sum, item) => sum + aCentavos(item.descuentoMonto, 'Descuento'), 0));
 
       const descGenVal = dto.descuentoGeneral !== undefined ? dto.descuentoGeneral
         : existing.tipoDescuentoGeneral === 'PORCENTAJE'
@@ -244,14 +251,17 @@ export class CotizacionesService {
 
       if (tipoDescGen === 'PORCENTAJE') {
         if (descGenVal > 100) throw new BadRequestException('El descuento porcentual no puede superar 100%');
-        descuentoGeneralMonto = Math.round(subtotalTotal * (descGenVal / 100) * 100) / 100;
+        descuentoGeneralMonto = centavosADecimal(divisionMitadArriba(subtotalCentavos * Math.round(descGenVal * 100), 10000));
       } else {
-        descuentoGeneralMonto = Math.min(subtotalTotal, descGenVal);
+        descuentoGeneralMonto = centavosADecimal(Math.min(subtotalCentavos, aCentavos(descGenVal, 'Descuento general')));
       }
 
       const descuentoTotal = descuentoLineas + descuentoGeneralMonto;
-      const isvTotal = money(parsedDetails.reduce((sum, item) => sum + item.isv, 0) * (subtotalTotal > 0 ? 1 - descuentoGeneralMonto/subtotalTotal : 0));
-      const total = Math.round((subtotalTotal - descuentoGeneralMonto + isvTotal) * 100) / 100;
+      // ISV prorrateado tras el descuento general, en centavos enteros (mitad hacia arriba).
+      const descGeneralCentavos = aCentavos(descuentoGeneralMonto, 'Descuento general');
+      const isvLineasCentavos = parsedDetails.reduce((sum, item) => sum + aCentavos(item.isv, 'ISV'), 0);
+      const isvTotal = centavosADecimal(subtotalCentavos > 0 ? divisionMitadArriba(isvLineasCentavos * (subtotalCentavos - descGeneralCentavos), subtotalCentavos) : 0);
+      const total = centavosADecimal(subtotalCentavos - descGeneralCentavos + aCentavos(isvTotal, 'ISV total'));
 
       const diasVal = dto.diasValidez || existing.diasValidez;
       const fechaValidez = dto.fechaValidez
@@ -595,22 +605,26 @@ export class CotizacionesService {
       const precioLista = Number(prod.precioVenta);
       const precioUnitario = item.precioUnitario !== undefined ? Number(item.precioUnitario) : precioLista;
 
-      const baseLineTotal = Math.round(totalMedida * precioUnitario * 100) / 100;
+      // Centavos enteros: cantidad en centésimas × precio en centavos, mitad hacia arriba (misma regla que ventas).
+      const baseLineTotalC = subtotalLinea(aCentavos(precioUnitario, 'Precio unitario'), Math.round(totalMedida * 100));
 
       const tipoDescuento = item.tipoDescuento || 'MONTO';
-      let descuentoMonto = 0;
+      let descuentoC = 0;
 
       if (tipoDescuento === 'PORCENTAJE') {
         if (Number(item.descuento || 0) > 100) throw new BadRequestException('El descuento porcentual no puede superar 100%');
-        descuentoMonto = Math.round(baseLineTotal * (Number(item.descuento || 0) / 100) * 100) / 100;
+        descuentoC = divisionMitadArriba(baseLineTotalC * Math.round(Number(item.descuento || 0) * 100), 10000);
       } else {
-        descuentoMonto = Math.min(baseLineTotal, Number(item.descuento || 0));
+        descuentoC = Math.min(baseLineTotalC, aCentavos(Number(item.descuento || 0), 'Descuento'));
       }
+      const descuentoMonto = centavosADecimal(descuentoC);
 
-      const subtotal = Math.max(0, baseLineTotal - descuentoMonto);
+      const subtotalC = Math.max(0, baseLineTotalC - descuentoC);
+      const subtotal = centavosADecimal(subtotalC);
       const exento = Boolean(item.exento);
-      const isv = exento ? 0 : Math.round(subtotal * (porcentajeIsv / 100) * 100) / 100;
-      const totalLinea = Math.round((subtotal + isv) * 100) / 100;
+      const isvC = exento ? 0 : divisionMitadArriba(subtotalC * Math.round(porcentajeIsv * 100), 10000);
+      const isv = centavosADecimal(isvC);
+      const totalLinea = centavosADecimal(subtotalC + isvC);
 
       result.push({
         productoId: prod.id,

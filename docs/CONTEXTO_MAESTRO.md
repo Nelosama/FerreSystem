@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-13 UTC** — cuarta rama `fix/pilot-readiness`, desde main `4b650445`; respaldos consistentes y retención verificada, recuperación, roles/offline y CI real; pruebas locales aprobadas con límites de entorno documentados. Sin merge, despliegue ni migraciones productivas.
+Última revisión: **2026-10-14, America/Tegucigalpa** — actualización exclusiva del PR #162 en `fix/pilot-readiness`; integración de main `be1a7fe7` con #160 y #163. Validación en curso, sin merge del PR ni despliegue ni migraciones productivas.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -31,6 +31,19 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Coordinación:** no se modificaron módulos de las otras sesiones ni archivos `backend/src`, `frontend/src`, esquema o migraciones. Se revisaron solo por lectura las ramas `fix/auditoria-admin` y `claude/modest-galileo-693672`. Hallazgos CSV/soporte/UX de `auditoria_ferresystem.md` requieren revisión de sus PR finales; no se duplicaron correcciones.
 - **Pendientes vigentes:** revisión del PR y comprobación de vigencia de sus checks antes de cualquier integración; integrar las tres ramas funcionales por el responsable y repetir validación sobre el candidato conjunto; configurar/verificar respaldo externo y alertas; validar apagón/UPS, Safari/cámara y aceptación del cliente; obtener autorización separada para merge, despliegue y cualquier migración productiva. Contingencia del piloto continúa apagada hasta sus decisiones y pruebas físicas.
 - **Bitácora:** fetch y base limpia; rama autorizada desde main; regresión de retención que falla antes y pasa después; respaldos cifrados y snapshot concurrente reales; recuperación/ensayos completos; sesiones por rol y IndexedDB real; repetición de suites tras regenerar Prisma y separar artefactos. Commits de implementación, revisión final de TLS/IPv6, correcciones derivadas de CI y evidencia versionada; verificaciones de scripts/Restic/actualización repetidas tras TLS; PostgreSQL 905/905 y E2E de escritorio 140/10/0 repetidos tras corregir las pruebas. Ningún merge, despliegue ni acceso productivo.
+---
+
+## Administración — soporte remoto, usuarios y sucursales (2026-10-13, rama `fix/auditoria-admin`, [PR #160](https://github.com/Nelosama/FerreSystem/pull/160), sin merge)
+
+- **Informe completo:** [ADMIN_AUDITORIA_CORRECCIONES_20261013.md](ADMIN_AUDITORIA_CORRECCIONES_20261013.md) (hallazgos, causas raíz, matriz de permisos, riesgos).
+- **Soporte remoto:** la ruta `POST /api/admin/support/token` sí existía. El 404 venía de IDs ficticios enviados por el modal, con usuarios hardcodeados. Corregido: `GET /admin/tenants/:id/usuarios` (solo SUPER_ADMIN, solo activos); `POST /admin/support/finalizar` revoca el `sid` y audita `SOPORTE_FINALIZAR`; `GET /admin/soporte/trazas` da trazabilidad por empresa. `JwtStrategy` expone `sid` (antes no llegaba, así que la revocación no funcionaba). Historial y fin de sesión ya no usan `localStorage`. Código: `super-admin/super-admin.service.ts`, `super-admin.controller.ts`, `common/decorators/soporte-solo-lectura.decorator.ts`, `common/interceptors/support-audit.interceptor.ts`, `frontend/src/pages/SuperAdminPage.tsx`, `frontend/src/context/TenantContext.tsx`.
+- **Usuarios:** sin borrado físico. `DELETE /usuarios/:id` desactiva (idempotente); reactivar con `PUT {activo:true}`. Auditoría `USUARIO_DESACTIVAR`/`USUARIO_REACTIVAR` con responsable. Un administrador no puede desactivarse a sí mismo. Último administrador protegido (probado con concurrencia en PostgreSQL). Código: `usuarios/usuarios.service.ts`, `frontend/src/pages/UsuariosPage.tsx`.
+- **Sucursales:** **no existe modelo de sucursal** en `schema.prisma`. No se implementó activación, desactivación ni eliminación (bloqueado por producto y por migración NEXUS). Se retiraron datos inventados: selector fijo en Usuarios, "sucursales conectadas" (`sucursalesCount || 1`) y badges por empresa. Pendiente: `TopBar.tsx` muestra "Sucursal Centro (Principal)" como respaldo y `TransferenciasPage.tsx` tiene sucursales fijas (módulo oculto); ambos fuera del alcance permitido.
+- **Migraciones:** ninguna. No se tocó `schema.prisma`.
+- **Pruebas (ejecutadas):** backend unitarias **407/407** (43 archivos); integración PostgreSQL 16 temporal como usuario sin privilegios: `admin-usuarios-soporte.postgres.integration.ts` **8/8** (tres ejecuciones), `suite completa de integración PostgreSQL 56 archivos, **912 aprobadas, 1 omitida** (prueba de navegador condicionada ya existente), tras la última corrección; `ventas` 46/46 tras ajustar una aserción (la autoprotección se evalúa antes que el último administrador; ambas rechazan); frontend **273/273**; `tsc -b` y lint sin errores (avisos previos). Nuevas: `super-admin/soporte-sesiones.http.spec.ts` (12), `usuarios/usuarios.service.spec.ts` (9), `usuarios/usuarios.http.spec.ts` (matriz de roles, 9).
+- **Límites:** sin pruebas E2E de navegador para estas pantallas; sin despliegue ni verificación de Render/Vercel/Supabase; el riesgo de token de soporte es de ≤15 min si falla la red al finalizar.
+- **Pendientes de decisión:** modelo de sucursales (producto + NEXUS); eliminación lógica distinta de la desactivación (`eliminado_en`, migración aditiva, NEXUS); revisión humana del PR antes de cualquier merge.
+- **Bitácora:** revisión del informe y de las instrucciones; hallazgo del 404 y de los datos hardcodeados; cambios de backend y frontend en tres commits; pruebas HTTP y PostgreSQL; una aserción existente ajustada con evidencia; PR #160 abierto sin merge.
 
 ---
 
@@ -1450,6 +1463,19 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - **Pruebas:** validador verificado (plantilla vacía bloquea; ejemplo ficticio bloqueado; «galon» rechazado; «galón» aceptado). No se probó ningún dispositivo físico ni la interfaz real.
 - **Pendientes:** decisiones D-A a D-P del dueño (precios, costo de referencia, costo vigente inicial, unidades, entrega, devoluciones, corte de inventario, soporte); dependencias C1 a C8 de Codex (candidato desplegado, preproducción, URL, variables, respaldo, CODEOWNER, funciones para verificación final).
 - **Bitácora:** lectura de refs y PR; revisión de permisos y reglas en código; creación de documentos y plantillas; ajuste del validador; commit y push a la rama del PR #156; resumen en Issue #151.
+
+---
+
+## Auditoría 12/10 — correcciones backend (2026-10-13, rama `claude/dazzling-bell-xxx0pn`, sin merge ni despliegue)
+
+- **Estado:** backend corregido para P0/P1 de importación CSV, P1 de crédito (cobrado y saldo), P3 de redondeo en ventas y cotizaciones, y color de marca. **Pendiente en frontend** (Claude): el importador aún no envía precios; ver contrato en el informe. Decisiones pendientes del dueño: semántica de `aprobarPrecios` y vencimiento de crédito.
+- **Commits:** `af13c754` (importación `POST /productos/importacion`), `beb317b6` (centavos en ventas y cotizaciones; `totalFacturado`, `totalCobrado`, `saldoPendiente`), `649ccb91` (color `#RRGGBB`).
+- **Informe completo, contratos API y riesgos:** [AUDITORIA_BACKEND_CORRECCIONES_20261013.md](AUDITORIA_BACKEND_CORRECCIONES_20261013.md).
+- **Pruebas (evidencia de ejecución local):** unitarias 43 archivos / 416 pasan; integración con PostgreSQL 16 desechable 57 archivos / 926 pasan (1 omitida, previa). Build, `test:scripts` (42/42) y control de migraciones correctos. Antes: 377 unitarias y 904 integración.
+- **Esquema y migraciones:** sin cambios. No aplica informe NEXUS en esta entrega.
+- **Bitácora:** lectura de AGENTS.md y del contexto; verificación de rama y commit base `4b650445`; línea base de pruebas; diagnóstico de P0 en `ImportarProductosModal.tsx` y `productos.service.ts`; implementación y pruebas de importación; redondeo en centavos con prueba de regresión contra la fórmula anterior; color de marca; informe y actualización de este documento.
+- **Pendientes reales:** (1) adaptar importador frontend a `POST /productos/importacion`; (2) decidir `aprobarPrecios` y vencimiento de crédito; (3) redondeo en compras, devoluciones, abonos, dashboard y estado de cuenta; (4) medir importación de 5000 filas; (5) aprobar precios de productos ya importados con L.0.00 desde Precios y aprobación.
+- **Entorno de pruebas:** `initdb` no corre como root. Para ejecutar las pruebas de integración se usó un envoltorio externo al repositorio que lo ejecuta como `ubuntu` (`PG_BIN`). No cambia el código ni las pruebas.
 
 ---
 

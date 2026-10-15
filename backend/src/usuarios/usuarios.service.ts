@@ -28,6 +28,8 @@ export class UsuariosService {
    await lockTenant(tx,tenantId);
    await authorizedActor(tx,tenantId,actorId,['ADMIN'],'usuarios.gestionar');
    const old=await tx.usuario.findFirst({where:{tenantId,id},select});if(!old)throw new NotFoundException('Usuario no encontrado');
+   // Nadie se deja fuera de su propia empresa: la desactivación de la cuenta propia se rechaza.
+   if(dto.activo===false&&id===actorId)throw new ConflictException('No puede desactivar su propia cuenta');
    if(old.rol==='ADMIN'&&old.activo&&(dto.activo===false||dto.rol!==undefined&&dto.rol!=='ADMIN')){
     if(await tx.usuario.count({where:{tenantId,rol:'ADMIN',activo:true}})<=1)throw new ConflictException('Conserve al menos un administrador activo');
    }
@@ -40,8 +42,17 @@ export class UsuariosService {
    const user=await tx.usuario.update({where:{id},data,select});
    // Cambio de contraseña o desactivación: se cierran todas las sesiones abiertas del usuario.
    if(passwordHash||dto.activo===false)await revocarSesionesDeSujeto(tx,id,passwordHash?'CAMBIO_CONTRASEÑA':'USUARIO_DESACTIVADO');
-   await audit(tx,tenantId,actorId,'USUARIO_EDITAR',id,{anterior:old,nuevo:user,cambioPassword:!!passwordHash});return user;
+   // Operación explícita para desactivar/reactivar: queda en la auditoría con quién lo hizo y el estado anterior.
+   const operacion=dto.activo===false&&old.activo?'USUARIO_DESACTIVAR':dto.activo===true&&!old.activo?'USUARIO_REACTIVAR':'USUARIO_EDITAR';
+   await audit(tx,tenantId,actorId,operacion,id,{anterior:old,nuevo:user,cambioPassword:!!passwordHash});return user;
   });
  }
- remove(tenantId:string,id:string,actorId:string){return this.update(tenantId,id,{activo:false},actorId);}
+ /** Eliminación lógica: no se borra ninguna fila (el historial de ventas, caja y auditoría la referencia). Desactiva y revoca sesiones. */
+ async remove(tenantId:string,id:string,actorId:string){
+  const actual=await this.prisma.usuario.findFirst({where:{tenantId,id},select});
+  if(!actual)throw new NotFoundException('Usuario no encontrado');
+  // Ya desactivado: no hay nada que cambiar ni que auditar.
+  if(!actual.activo)return actual;
+  return this.update(tenantId,id,{activo:false},actorId);
+ }
 }

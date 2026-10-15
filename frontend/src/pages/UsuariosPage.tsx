@@ -7,7 +7,6 @@ export interface Usuario {
   nombre: string;
   email: string;
   rolBase: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR';
-  sucursalActual?: string;
   permisos: string[];
   descuentoMaximo: number;
   activo: boolean;
@@ -54,11 +53,11 @@ import {
   ShieldCheck,
   CheckCircle2,
   XCircle,
-  GitBranch,
   AlertCircle,
   Loader2,
 } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
+import { useTenant } from '../context/TenantContext';
 
 /** Traduce un error de la API de usuarios a un mensaje para el usuario. */
 export function formatUsuarioApiError(err: any, defaultMsg: string, t: (key: string, options?: any) => string): string {
@@ -91,6 +90,11 @@ export function formatUsuarioApiError(err: any, defaultMsg: string, t: (key: str
 
 export const UsuariosPage: React.FC = () => {
   const { t } = useI18n();
+  const { user: sesionActual } = useTenant();
+  // Desactivar/reactivar: confirmación explícita; la cuenta propia no se puede desactivar.
+  const [usuarioPorCambiarEstado, setUsuarioPorCambiarEstado] = useState<Usuario | null>(null);
+  const [cambiandoEstado, setCambiandoEstado] = useState(false);
+  const [errorCambioEstado, setErrorCambioEstado] = useState<string | null>(null);
 
   const TODOS_LOS_PERMISOS = [
     { clave: 'pos.vender', labelKey: 'users.perm_pos_vender' },
@@ -123,18 +127,12 @@ export const UsuariosPage: React.FC = () => {
   const [formPassword, setFormPassword] = useState('');
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [formRolBase, setFormRolBase] = useState<'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR'>('CAJERO');
-  const [formSucursalActual, setFormSucursalActual] = useState('Sucursal Centro (Principal)');
   const [formPermisos, setFormPermisos] = useState<string[]>([]);
   const [formDescuentoMaximo, setFormDescuentoMaximo] = useState<number>(10);
   const [formActivo, setFormActivo] = useState(true);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const SUCURSALES_OPCIONES = [
-    'Sucursal Centro (Principal)',
-    'Sucursal San Pedro (Norte)',
-    'Sucursal Choluteca (Sur)',
-  ];
 
   // Fetch real users on mount
   useEffect(() => {
@@ -152,8 +150,7 @@ export const UsuariosPage: React.FC = () => {
             permisos: u.permisosConfigurados ? u.permisos : PERMISOS_DEFAULT_POR_ROL[u.rol as keyof typeof PERMISOS_DEFAULT_POR_ROL]?.permisos || [],
             descuentoMaximo: Number(u.descuentoMaximo || 0),
             activo: u.activo,
-            sucursalActual: 'Sucursal Centro (Principal)',
-          }));
+            }));
           setListaUsuarios(apiUsers);
         }
       } catch (err: any) {
@@ -179,7 +176,6 @@ export const UsuariosPage: React.FC = () => {
     setFormPassword('');
     setMostrarPassword(false);
     setFormRolBase('CAJERO');
-    setFormSucursalActual('Sucursal Centro (Principal)');
     setFormPermisos(PERMISOS_DEFAULT_POR_ROL.CAJERO.permisos);
     setFormDescuentoMaximo(PERMISOS_DEFAULT_POR_ROL.CAJERO.descuentoMaximo);
     setFormActivo(true);
@@ -194,7 +190,6 @@ export const UsuariosPage: React.FC = () => {
     setFormEmail(usr.email);
     setFormPassword('');
     setFormRolBase(usr.rolBase);
-    setFormSucursalActual(usr.sucursalActual || 'Sucursal Centro (Principal)');
     setFormPermisos(usr.permisos);
     setFormDescuentoMaximo(usr.descuentoMaximo);
     setFormActivo(usr.activo);
@@ -286,7 +281,6 @@ export const UsuariosPage: React.FC = () => {
           nombre: updatedData.nombre || formNombre.trim(),
           email: updatedData.email || formEmail.trim(),
           rolBase: formRolBase,
-          sucursalActual: formSucursalActual,
           permisos: formPermisos,
           descuentoMaximo: formDescuentoMaximo,
           activo: formActivo,
@@ -306,7 +300,6 @@ export const UsuariosPage: React.FC = () => {
           nombre: newData.nombre || formNombre.trim(),
           email: newData.email || formEmail.trim(),
           rolBase: formRolBase,
-          sucursalActual: formSucursalActual,
           permisos: formPermisos,
           descuentoMaximo: formDescuentoMaximo,
           activo: formActivo,
@@ -325,9 +318,50 @@ export const UsuariosPage: React.FC = () => {
     }
   };
 
+  const cambiarEstadoUsuario = async () => {
+    const objetivo = usuarioPorCambiarEstado;
+    if (!objetivo) return;
+    setCambiandoEstado(true);
+    setErrorCambioEstado(null);
+    try {
+      const { data } = await api.put(`/usuarios/${objetivo.id}`, { activo: !objetivo.activo });
+      setListaUsuarios((prev) => prev.map((u) => (u.id === objetivo.id ? { ...u, activo: data?.activo ?? !objetivo.activo } : u)));
+      showSuccess(`${objetivo.nombre}: ${objetivo.activo ? 'desactivado' : 'reactivado'}`);
+      setUsuarioPorCambiarEstado(null);
+    } catch (err: any) {
+      // Motivos del servidor (último administrador, cuenta propia, otra empresa) se muestran tal cual.
+      setErrorCambioEstado(err.response?.data?.message || 'No se pudo cambiar el estado del usuario.');
+    } finally {
+      setCambiandoEstado(false);
+    }
+  };
+
   return (
     <div style={styles.container}>
       <TopBar title={t('users.title')} subtitle={t('users.subtitle')} />
+      {usuarioPorCambiarEstado && (
+        <div style={styles.modalOverlay}>
+          <div className="industrial-card" role="dialog" aria-modal="true" aria-labelledby="confirmar-estado-usuario" style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h2 id="confirmar-estado-usuario" style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                {usuarioPorCambiarEstado.activo ? 'Desactivar usuario' : 'Reactivar usuario'}
+              </h2>
+            </div>
+            <p style={{ marginTop: 12 }}>
+              {usuarioPorCambiarEstado.activo
+                ? `${usuarioPorCambiarEstado.nombre} dejará de poder iniciar sesión y se cerrarán sus sesiones abiertas. Sus ventas, cajas y registros se conservan.`
+                : `${usuarioPorCambiarEstado.nombre} volverá a poder iniciar sesión con sus permisos actuales.`}
+            </p>
+            {errorCambioEstado && <div role="alert" style={{ color: '#B91C1C', fontWeight: 600, marginTop: 8 }}>{errorCambioEstado}</div>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button type="button" className="btn btn-secondary" disabled={cambiandoEstado} onClick={() => setUsuarioPorCambiarEstado(null)}>Cancelar</button>
+              <button type="button" className={`btn ${usuarioPorCambiarEstado.activo ? 'btn-danger' : 'btn-primary'}`} disabled={cambiandoEstado} onClick={cambiarEstadoUsuario}>
+                {cambiandoEstado ? 'Guardando…' : usuarioPorCambiarEstado.activo ? 'Sí, desactivar' : 'Sí, reactivar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main style={styles.content}>
         {errorBanner && (
@@ -371,7 +405,6 @@ export const UsuariosPage: React.FC = () => {
                 <tr>
                   <th>{t('users.user_name')}</th>
                   <th>{t('users.email')}</th>
-                  <th>{t('users.assigned_branch')}</th>
                   <th style={{ textAlign: 'center' }}>{t('users.base_role')}</th>
                   <th style={{ textAlign: 'center' }}>{t('users.max_discount')}</th>
                   <th style={{ textAlign: 'center' }}>{t('users.active_permissions')}</th>
@@ -384,11 +417,6 @@ export const UsuariosPage: React.FC = () => {
                   <tr key={u.id}>
                     <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{u.nombre}</td>
                     <td style={{ fontWeight: 600, color: '#444' }}>{u.email}</td>
-                    <td>
-                      <span className="badge badge-neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <GitBranch size={11} /> {u.sucursalActual || 'Sucursal Centro (Principal)'}
-                      </span>
-                    </td>
                     <td style={{ textAlign: 'center' }}>
                       <span className="badge badge-dark">{u.rolBase}</span>
                     </td>
@@ -409,7 +437,7 @@ export const UsuariosPage: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
@@ -417,6 +445,16 @@ export const UsuariosPage: React.FC = () => {
                       >
                         <Edit2 size={13} /> {t('users.edit')}
                       </button>
+                      {u.id !== sesionActual?.id && (
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${u.activo ? 'btn-secondary' : 'btn-primary'}`}
+                          style={{ marginLeft: 6 }}
+                          onClick={() => { setErrorCambioEstado(null); setUsuarioPorCambiarEstado(u); }}
+                        >
+                          {u.activo ? 'Desactivar' : 'Reactivar'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -520,21 +558,6 @@ export const UsuariosPage: React.FC = () => {
               )}
 
               <div style={styles.formRow}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.work_branch')}</label>
-                  <select
-                    value={formSucursalActual}
-                    disabled={submitting}
-                    onChange={(e) => setFormSucursalActual(e.target.value)}
-                    className="form-select"
-                  >
-                    {SUCURSALES_OPCIONES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
                   <label className="form-label">{t('users.base_role')}</label>
