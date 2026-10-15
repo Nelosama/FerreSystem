@@ -253,6 +253,24 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect(Number(sale.isv)).toBe(25.83); expect(Number(sale.total)).toBe(245.83);
   });
 
+  it('JW-04 un cajero no convierte cotizaciones con ISV distinto de 15 % o líneas exentas; el administrador sí', async () => {
+    const a = await producto(); const b = await producto('EXENTO-C', 50);
+    const cajero = await prisma.usuario.create({ data: { tenantId, rol: 'CAJERO', nombre: 'Cajero ISV', email: `${randomUUID()}@example.test`, passwordHash: await bcrypt.hash(password, 4) } });
+    await prisma.caja.create({ data: { tenantId, usuarioId: cajero.id, codigo: 'CAJA-ISV', montoApertura: 0 } });
+    const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email: cajero.email, password, tenantId }).expect(200);
+    const tokenCajero = login.body.accessToken;
+    const exenta = await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }, { productoId: b.id, cantidad: 1, exento: true }] }).expect(201);
+    const sinIsv = await http('post', '/cotizaciones', { porcentajeIsv: 0, detalles: [{ productoId: a.id, cantidad: 1 }] }).expect(201);
+    for (const q of [exenta, sinIsv]) {
+      const r = await http('post', `/cotizaciones/${q.body.id}/convertir`, { metodoPago: 'EFECTIVO' }, tokenCajero).expect(400);
+      expect(r.body.message).toMatch(/administrador/);
+    }
+    expect(await prisma.venta.count({ where: { tenantId, usuarioId: cajero.id } })).toBe(0);
+    const normal = await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }] }).expect(201);
+    await http('post', `/cotizaciones/${normal.body.id}/convertir`, { metodoPago: 'EFECTIVO' }, tokenCajero).expect(201);
+    await http('post', `/cotizaciones/${sinIsv.body.id}/convertir`, { metodoPago: 'EFECTIVO' }).expect(201);
+  });
+
   it('venta sin inventario exige proveedor y no altera stock ni crea una entrega física', async () => {
     const p = await producto('PEDIDO', 100, 0);
     const sale = { solicitudId: randomUUID(), metodoPago: 'TRANSFERENCIA', detalles: [{ productoId: p.id, cantidad: 2, sinInventario: true }], ...autorizacion('TRANSFERENCIA') };

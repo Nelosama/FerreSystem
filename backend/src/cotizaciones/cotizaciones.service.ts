@@ -495,6 +495,9 @@ export class CotizacionesService {
       const bruto=money(cotizacion.detalles.reduce((sum,d)=>sum+Number(d.totalMedida)*Number(d.precioUnitario),0));
       validateDiscount(user,bruto,Number(cotizacion.descuento));
       if(user.rol !== 'ADMIN' && cotizacion.detalles.some(d=>Number(d.precioUnitario)!==Number(d.producto.precioVenta))) throw new BadRequestException('La cotización requiere validación del precio por administrador');
+      // La venta directa siempre aplica ISV 15 % sin exenciones. Igual que un precio modificado, una tasa distinta o una
+      // línea exenta en la cotización cambia el impuesto facturado: solo el administrador la convierte.
+      if(user.rol !== 'ADMIN' && (Number(cotizacion.porcentajeIsv)!==15 || cotizacion.detalles.some(d=>d.exento))) throw new BadRequestException('La cotización tiene ISV distinto de 15 % o líneas exentas: requiere validación del administrador');
       // Verificar y descontar stock por la cantidad solicitada con precisión decimal
       for (const d of cotizacion.detalles) {
         await query(tx,'SELECT id FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.productoId,tenantId);
