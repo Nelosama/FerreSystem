@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-13, America/Tegucigalpa** — administración (soporte remoto, usuarios, sucursales): rama `fix/auditoria-admin`, [PR #160](https://github.com/Nelosama/FerreSystem/pull/160) hacia `main`, sin merge ni despliegue. Candidato del cliente de 2026-10-12 sin cambios.
+Última revisión: **2026-10-14, America/Tegucigalpa** — actualización exclusiva del PR #162 en `fix/pilot-readiness`; integración de main `be1a7fe7` con #160 y #163. Pruebas locales completas; checks del HEAD y recomendación final en #162, sin merge del PR ni despliegue ni migraciones productivas.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -22,7 +22,18 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
-## Administración — soporte remoto, usuarios y sucursales (2026-10-13, rama `fix/auditoria-admin`, [PR #160](https://github.com/Nelosama/FerreSystem/pull/160), sin merge)
+## Preparación del piloto — actualización exclusiva de PR #162 (NEXUS, 2026-10-14, America/Tegucigalpa)
+
+- **Base y rama:** `fix/pilot-readiness` integra main `be1a7fe7` en `a3119f57`; conserva por ascendencia los merges #160 y #163. [PR único #162](https://github.com/Nelosama/FerreSystem/pull/162). No se cambian main, PR #161, esquema ni migraciones. Diferencial funcional de `backend/src`/`frontend/src` frente a main vacío.
+- **Implementado/conservado:** retención Restic solo de copias restauradas/verificadas, confirmación de metadata al etiquetar, snapshot común para conteos y dump, TLS/CA, rechazo de checksum inválido y limpieza de clústeres aislados. `54805260` y `fea16272` amplían recuperación HTTP real con sesión anterior a la caída, aislamiento de empresa, escritura auditada, permisos y revocación de usuario, soporte real de solo lectura/finalización/auditoría después de recuperar PostgreSQL.
+- **Resultados de esta actualización:** backend 446/446; frontend 280/280; scripts 48/48; Python 10/10; PostgreSQL 935/935 (58 archivos, navegador opt-in, 0 omitidas); HTTP recuperación 6/6; Playwright simulado 143/143; reales escritorio y configuración móvil 140 aprobadas/10 omitidas/0 fallos cada uno. Restic 0.18: cuatro respaldos/restauraciones y dos fallos deliberados, dos copias verificadas retenidas, snapshot consistente. Simulacro 14/14 y actualización/reversión 24/24; builds/lint/guard aprobados.
+- **Evidencia vigente:** [PILOT_READINESS_PR162_20261014.md](PILOT_READINESS_PR162_20261014.md), [logs completos con SHA-256](evidencias/pr162-20261014/SHA256SUMS). La evidencia de 2026-10-13 se conserva como histórica. SHA final, checks del HEAD y recomendación definitiva se publican en #162 tras el commit documental; marcar listo solo con ambos workflows aprobados, sin fusionarlo.
+- **Pendientes concretos:** destino Restic externo/custodia/alertas; importador CSV y contrato de crédito para Claude (#161), rutas lazy garantizadas offline en App/service worker; auditoría real y FK compuestas propuestas (la prueba reproduce referencias SQL cruzadas en productos_proveedores); aceptación física/Safari/UPS/impresión y respaldo de datos reales. Contingencia operativa sigue apagada. Ver evidencias y contratos exactos en el informe; no se certifica producción ni el candidato conjunto con #161.
+- **Bitácora:** integración con único conflicto documental, conservando ambas bitácoras; dependencias por lockfiles y Prisma regenerado; suites completas, restauraciones y recuperaciones reales en bases temporales; ampliación de pruebas de autenticación/soporte con AppModule; frontend funcional e imágenes de #161 intactos. Sin merge del PR, despliegue, datos reales ni migraciones productivas.
+
+---
+
+## Administración — soporte remoto, usuarios y sucursales (2026-10-13, rama `fix/auditoria-admin`, [PR #160](https://github.com/Nelosama/FerreSystem/pull/160), integrado en main el 2026-10-14)
 
 - **Informe completo:** [ADMIN_AUDITORIA_CORRECCIONES_20261013.md](ADMIN_AUDITORIA_CORRECCIONES_20261013.md) (hallazgos, causas raíz, matriz de permisos, riesgos).
 - **Soporte remoto:** la ruta `POST /api/admin/support/token` sí existía. El 404 venía de IDs ficticios enviados por el modal, con usuarios hardcodeados. Corregido: `GET /admin/tenants/:id/usuarios` (solo SUPER_ADMIN, solo activos); `POST /admin/support/finalizar` revoca el `sid` y audita `SOPORTE_FINALIZAR`; `GET /admin/soporte/trazas` da trazabilidad por empresa. `JwtStrategy` expone `sid` (antes no llegaba, así que la revocación no funcionaba). Historial y fin de sesión ya no usan `localStorage`. Código: `super-admin/super-admin.service.ts`, `super-admin.controller.ts`, `common/decorators/soporte-solo-lectura.decorator.ts`, `common/interceptors/support-audit.interceptor.ts`, `frontend/src/pages/SuperAdminPage.tsx`, `frontend/src/context/TenantContext.tsx`.
@@ -32,6 +43,7 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Pruebas (ejecutadas):** backend unitarias **407/407** (43 archivos); integración PostgreSQL 16 temporal como usuario sin privilegios: `admin-usuarios-soporte.postgres.integration.ts` **8/8** (tres ejecuciones), `suite completa de integración PostgreSQL 56 archivos, **912 aprobadas, 1 omitida** (prueba de navegador condicionada ya existente), tras la última corrección; `ventas` 46/46 tras ajustar una aserción (la autoprotección se evalúa antes que el último administrador; ambas rechazan); frontend **273/273**; `tsc -b` y lint sin errores (avisos previos). Nuevas: `super-admin/soporte-sesiones.http.spec.ts` (12), `usuarios/usuarios.service.spec.ts` (9), `usuarios/usuarios.http.spec.ts` (matriz de roles, 9).
 - **Límites:** sin pruebas E2E de navegador para estas pantallas; sin despliegue ni verificación de Render/Vercel/Supabase; el riesgo de token de soporte es de ≤15 min si falla la red al finalizar.
 - **Pendientes de decisión:** modelo de sucursales (producto + NEXUS); eliminación lógica distinta de la desactivación (`eliminado_en`, migración aditiva, NEXUS); revisión humana del PR antes de cualquier merge.
+- **Estado actual:** #160 fusionado en main `be1a7fe7` y conservado en #162; las cifras siguientes son la evidencia de su sesión original.
 - **Bitácora:** revisión del informe y de las instrucciones; hallazgo del 404 y de los datos hardcodeados; cambios de backend y frontend en tres commits; pruebas HTTP y PostgreSQL; una aserción existente ajustada con evidencia; PR #160 abierto sin merge.
 
 ---
@@ -1455,9 +1467,10 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 
 ---
 
-## Auditoría 12/10 — correcciones backend (2026-10-13, rama `claude/dazzling-bell-xxx0pn`, sin merge ni despliegue)
+## Auditoría 12/10 — correcciones backend (2026-10-13; PR #163 integrado en main el 2026-10-14, sin despliegue)
 
 - **Estado:** backend corregido para P0/P1 de importación CSV, P1 de crédito (cobrado y saldo), P3 de redondeo en ventas y cotizaciones, y color de marca. **Pendiente en frontend** (Claude): el importador aún no envía precios; ver contrato en el informe. Decisiones pendientes del dueño: semántica de `aprobarPrecios` y vencimiento de crédito.
+- **Integración comprobada:** merge #163 `6f16df94`, conservado en #162 y probado junto a #160; las cifras originales siguientes se conservan como evidencia de aquella sesión.
 - **Commits:** `af13c754` (importación `POST /productos/importacion`), `beb317b6` (centavos en ventas y cotizaciones; `totalFacturado`, `totalCobrado`, `saldoPendiente`), `649ccb91` (color `#RRGGBB`).
 - **Informe completo, contratos API y riesgos:** [AUDITORIA_BACKEND_CORRECCIONES_20261013.md](AUDITORIA_BACKEND_CORRECCIONES_20261013.md).
 - **Pruebas (evidencia de ejecución local):** unitarias 43 archivos / 416 pasan; integración con PostgreSQL 16 desechable 57 archivos / 926 pasan (1 omitida, previa). Build, `test:scripts` (42/42) y control de migraciones correctos. Antes: 377 unitarias y 904 integración.

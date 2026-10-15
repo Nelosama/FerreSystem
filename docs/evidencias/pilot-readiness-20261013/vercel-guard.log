@@ -1,0 +1,15 @@
+✔ pilot branch is excluded from Git previews in Vercel configuration (2.10614ms)
+✔ Vercel ignoreCommand: fix/pilot-readiness exits 0 (3.378561ms)
+✔ Vercel ignoreCommand: nexus/review exits 0 (7.029144ms)
+✔ Vercel ignoreCommand: fix/inventario-inicial-seguro exits 0 (1.838236ms)
+✔ Vercel ignoreCommand: main exits 1 (26.762002ms)
+✔ Vercel ignoreCommand: fix/auditoria-admin exits 1 (1.84778ms)
+✔ Vercel ignoreCommand: fix/pilot-readiness-extra exits 1 (1.220533ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 155.646236

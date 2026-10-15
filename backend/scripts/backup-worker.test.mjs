@@ -35,6 +35,8 @@ test('upload/readback/restore precede retention; corruption and restore errors n
         return JSON.stringify({ message_type: 'summary', snapshot_id: 'a'.repeat(64) });
       }
       if (args[0] === 'dump') { await writeFile(options.outputFile, failure === 'corrupt' ? 'broken' : 'archive fixture'); return ''; }
+      if (args[0] === 'tag') return JSON.stringify({ message_type: 'changed', old_snapshot_id: 'a'.repeat(64), new_snapshot_id: 'b'.repeat(64) });
+      if (args[0] === 'snapshots') return JSON.stringify([{ original: 'a'.repeat(64), id: 'b'.repeat(64), hostname: config.instance, tags: ['fs41', 'fs41-verified'] }]);
       if (args[0] === 'forget') {
         assert.ok(calls.includes('verified'));
         assert.ok(args.includes('fixture')); assert.ok(args.includes('14'));
@@ -85,4 +87,45 @@ test('scheduler runs independently, waits configured interval and never overlaps
     sleep: async ms => { assert.equal(running, false); waits.push(ms); }, stopped: () => runs === 3,
   });
   assert.equal(runs, 3); assert.deepEqual(waits, [600000, 600000]);
+});
+
+test('retention only expires restored snapshots, never counts failed uploads as recovery points', async t => {
+  const config = await fixture(t), calls = [];
+  const original = 'a'.repeat(64), verified = 'b'.repeat(64);
+  const result = await backupAttempt(config, env, {
+    command: async (name, args, options) => {
+      if (name.endsWith('pg_dump')) { await writeFile(args.at(-1), 'archive'); return ''; }
+      calls.push(args);
+      if (args[0] === 'backup') return JSON.stringify({ message_type: 'summary', snapshot_id: original });
+      if (args[0] === 'dump') { await writeFile(options.outputFile, 'archive'); return ''; }
+      if (args[0] === 'tag') return JSON.stringify({ message_type: 'changed', old_snapshot_id: original, new_snapshot_id: verified });
+      if (args[0] === 'snapshots') return JSON.stringify([{ original, id: verified, hostname: config.instance, tags: ['fs41', 'fs41-verified'] }]);
+      if (args[0] === 'forget') {
+        assert.ok(calls.some(call => call[0] === 'tag'), 'restored snapshot must be marked before retention');
+        assert.equal(args[args.indexOf('--tag') + 1], 'fs41,fs41-verified');
+      }
+      return '';
+    }, verify: async () => {},
+  });
+  assert.equal(result.success, true);
+  assert.equal(result.snapshot, verified, 'status points to the snapshot ID after tagging');
+});
+
+test('tag command success alone cannot authorize retention (including Restic 0.16 silent failures)', async t => {
+  const config = await fixture(t);
+  let pruned = false;
+  const result = await backupAttempt(config, env, {
+    command: async (name, args, options) => {
+      if (name.endsWith('pg_dump')) { await writeFile(args.at(-1), 'archive'); return ''; }
+      if (args[0] === 'backup') return JSON.stringify({ message_type: 'summary', snapshot_id: 'a'.repeat(64) });
+      if (args[0] === 'dump') { await writeFile(options.outputFile, 'archive'); return ''; }
+      if (args[0] === 'tag') return 'modified tags on 0 snapshots\n';
+      if (args[0] === 'snapshots') return '[]';
+      if (args[0] === 'forget') pruned = true;
+      return '';
+    }, verify: async () => {},
+  });
+  assert.equal(result.success, false);
+  assert.equal(result.errorCode, 'VERIFIED_TAG');
+  assert.equal(pruned, false);
 });

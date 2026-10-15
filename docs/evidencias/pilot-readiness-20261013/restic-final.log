@@ -1,0 +1,2 @@
+PASS: 4 real encrypted backups/restores, 2 deliberate restore failures, retention preserves 2 verified copies and does not count failed copies; full integrity, wrong-key rejection, source rows unchanged. Local test destination only.
+PASS: consistent snapshot includes 2 original sales; concurrent sale remains in source (3) and is absent from restored dump (2), matching manifest.

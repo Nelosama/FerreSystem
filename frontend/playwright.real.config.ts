@@ -8,7 +8,9 @@ const dist = process.env.E2E_DIST;
 export default defineConfig({
   testDir: './e2e-real',
   testMatch: /.*\.spec\.ts/,
+  outputDir: './test-results-real',
   fullyParallel: false,
+  forbidOnly: !!process.env.CI,
   workers: 1,
   retries: 0,
   reporter: 'list',

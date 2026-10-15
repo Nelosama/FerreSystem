@@ -1,23 +1,37 @@
 #!/usr/bin/env bash
 # Simulacro de recuperación AISLADO (nunca toca producción: crea dos clústeres PostgreSQL temporales y los elimina).
 # Migrar (comando de producción) -> operar -> reiniciar backend -> pg_dump -> restaurar en base vacía -> arrancar sobre la restaurada.
-# Requiere ejecutarse como root (usa runuser -u nobody para PostgreSQL), PostgreSQL 16 instalado y el backend compilable. Uso: bash backend/scripts/simulacro-recuperacion.sh
-set -uo pipefail
+# Requiere PostgreSQL instalado y el backend compilable; como root usa nobody y sin root usa el usuario actual. Uso: bash backend/scripts/simulacro-recuperacion.sh
+set -euo pipefail
+umask 077
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; PG_BIN="${PG_BIN:-/usr/lib/postgresql/16/bin}"
-WORK=$(mktemp -d /tmp/ferre-simulacro-XXXXXX); chmod 777 $WORK
-PA=55601; PB=55602; API_A=3301; API_B=3302
+WORK=$(mktemp -d /tmp/ferre-simulacro-XXXXXX)
+if [[ "$(id -u)" == 0 ]]; then AS=(runuser -u nobody --); chown nobody "$WORK"; else AS=(); fi
+puerto(){ node -e 'const s=require("net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})'; }
+PA=$(puerto); PB=$(puerto); API_A=$(puerto); API_B=$(puerto)
 export JWT_SECRET="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 48)"
 export CONTINGENCIA_CLAVE_OPERACIONES="$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 48)"
 export E2E_PASSWORD="E2E-$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
 export POS_OFFLINE_ENABLED=true FRONTEND_URL=http://127.0.0.1:4173
 PIDS=""
-limpiar(){ for p in $PIDS; do kill $p 2>/dev/null; done; for d in a b; do runuser -u nobody -- $PG_BIN/pg_ctl -D $WORK/$d -m immediate stop >/dev/null 2>&1; done; rm -rf $WORK; }
+limpiar(){
+  for p in $PIDS; do kill "$p" 2>/dev/null || true; done
+  for d in a b; do
+    if [[ -f "$WORK/$d/postmaster.pid" ]]; then
+      if ! "${AS[@]}" "$PG_BIN/pg_ctl" -D "$WORK/$d" -m fast -w stop >/dev/null 2>&1; then
+        echo "ISOLATED_STOP_FAILED: se conserva el clúster temporal para revisión." >&2
+        exit 1
+      fi
+    fi
+  done
+  rm -rf "$WORK"
+}
 trap limpiar EXIT
-arrancar_pg(){ runuser -u nobody -- $PG_BIN/initdb -D $WORK/$1 -U postgres -A trust --locale=C -E UTF8 --no-sync >/dev/null && runuser -u nobody -- $PG_BIN/pg_ctl -D $WORK/$1 -l $WORK/$1.log -o "-h 127.0.0.1 -p $2 -k $WORK" -w start >/dev/null; }
+arrancar_pg(){ "${AS[@]}" "$PG_BIN/initdb" -D $WORK/$1 -U postgres -A trust --locale=C -E UTF8 --no-sync >/dev/null && "${AS[@]}" "$PG_BIN/pg_ctl" -D $WORK/$1 -l $WORK/$1.log -o "-h 127.0.0.1 -p $2 -k $WORK" -w start >/dev/null; }
 esperar_api(){ for _ in $(seq 1 60); do [[ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:$1/api/auth/me)" == 401 ]] && return 0; sleep 1; done; return 1; }
 paso(){ echo "[$1] $2"; }
 psqlq(){ $PG_BIN/psql -X -At -h 127.0.0.1 -p $1 -U postgres -d postgres -c "$2"; }
-RES=""; ok(){ RES="$RES\n$1 | PASS | $2"; echo "PASS: $1 - $2"; }; ko(){ RES="$RES\n$1 | FAIL | $2"; echo "FAIL: $1 - $2"; }
+FALLOS=0; RES=""; ok(){ RES="$RES\n$1 | PASS | $2"; echo "PASS: $1 - $2"; }; ko(){ FALLOS=$((FALLOS+1)); RES="$RES\n$1 | FAIL | $2"; echo "FAIL: $1 - $2"; }
 cd $ROOT/backend && npm run build >/dev/null 2>&1
 
 paso 1 "PostgreSQL A + migración con el comando de producción (migration-safe deploy)"
@@ -42,6 +56,8 @@ if (fase === 'operar') {
   // El cajero de la semilla necesita permiso de venta: lo da el administrador por API de usuarios si existe; si no, la venta la hace el administrador.
   const cajaAdm = await j('POST', '/operaciones/caja/abrir', adm.b.accessToken, { solicitudId: rid(), monto: 500 }); out.cajaAbrir = cajaAdm.s;
   const prod = await j('POST', '/productos', adm.b.accessToken, { codigo: 'SIM-' + rid().slice(0, 6), nombre: 'Producto simulacro', precioVenta: 100, precioCosto: 60, stockActual: 20, stockMinimo: 1 }); out.productoCrear = prod.s;
+  if (prod.s !== 201) throw new Error('No se pudo crear el producto de prueba');
+  if (!prod.b.precioAprobado) throw new Error('El producto de prueba no tiene precio aprobado');
   const venta = await j('POST', '/ventas', adm.b.accessToken, { solicitudId: rid(), metodoPago: 'EFECTIVO', detalles: [{ productoId: prod.b.id, cantidad: 3, precioUnitario: 100 }] }); out.venta = venta.s; out.ventaTotal = venta.b?.total;
   const ent = await j('POST', `/operaciones/ventas/${venta.b.id}/entregar`, adm.b.accessToken, { solicitudId: rid(), receptorNombre: 'Cliente simulacro' }); out.entrega = ent.s;
   out.ventaId = venta.b.id; out.productoId = prod.b.id; out.cookie = !!adm.c;
@@ -75,3 +91,6 @@ node scripts/migration-safe.mjs deploy > $WORK/mig3.log 2>&1 && ok "migration-sa
 PORT=$API_B node dist/main.js > $WORK/api-b.log 2>&1 & PIDS="$PIDS $!"
 esperar_api $API_B && O3=$(node $WORK/operar.mjs http://127.0.0.1:$API_B/api verificar) && echo "$O3" | grep -q '"loginAdmin":200' && ok "Backend sobre la base restaurada: inicio de sesión" "administrador 200" || ko "Backend sobre la restaurada" "$(tail -3 $WORK/api-b.log)"
 echo; echo "===== RESUMEN ====="; echo -e "$RES"
+
+echo "FALLOS=$FALLOS"
+[[ "$FALLOS" == 0 ]]

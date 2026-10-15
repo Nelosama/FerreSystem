@@ -5,5 +5,6 @@ import base from './playwright.real.config';
 // WebKit/Safari y dispositivos físicos se prueban aparte. Uso: PW_CONFIG=playwright.real.mobile.config.ts bash e2e-real/run.sh <archivos>
 export default defineConfig({
   ...base,
+  outputDir: './test-results-real-mobile',
   projects: [{ name: 'movil-chromium', use: { ...devices['Pixel 7'] } }],
 });

@@ -4,6 +4,9 @@ dist/
 .env*
 !.env.example
 test-results/
+test-results-real/
+test-results-real-mobile/
+test-results-webkit/
 playwright-report/
 
 # Playwright

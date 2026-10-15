@@ -76,7 +76,7 @@ export async function backupAttempt(config, env, dependencies = {}) {
     const report = await run(restic, ['backup', '--stdin', '--stdin-filename', 'database.dump', '--host', config.instance, '--tag', 'fs41', '--json'], { env, inputFile: dump });
     const summary = report.trim().split('\n').map(line => JSON.parse(line)).find(row => row.message_type === 'summary');
     if (!/^[a-f0-9]{64}$/.test(summary?.snapshot_id || '')) throw new Error('NO_SNAPSHOT');
-    const snapshot = summary.snapshot_id;
+    let snapshot = summary.snapshot_id;
     stage = 'INTEGRITY';
     const recovered = join(work, 'recovered.dump');
     // Reading every byte back verifies transport, decryption and the exact archive.
@@ -85,9 +85,21 @@ export async function backupAttempt(config, env, dependencies = {}) {
     stage = 'RESTORE';
     await verify(recovered, work, env, run);
     const verifiedAt = new Date().toISOString();
+    stage = 'VERIFIED_TAG';
+    // Failed attempts can upload valid archives that never restore. They must not
+    // displace older verified recovery points when --keep-last is applied.
+    // Restic rewrites the snapshot when adding tags, so retain its new identity.
+    await run(restic, ['tag', '--add', 'fs41-verified', snapshot], { env });
+    // Restic 0.16 has no JSON tag output and can exit 0 after a tag failure.
+    // Read the repository metadata back, matching the original uploaded ID.
+    const verified = JSON.parse(await run(restic, ['snapshots', '--host', config.instance, '--tag', 'fs41,fs41-verified', '--json', '--quiet'], { env }))
+      .find(row => row.original === snapshot && row.hostname === config.instance &&
+        row.tags?.includes('fs41') && row.tags?.includes('fs41-verified'));
+    if (!/^[a-f0-9]{64}$/.test(verified?.id || '')) throw new Error('NO_VERIFIED_SNAPSHOT');
+    snapshot = verified.id;
     stage = 'RETENTION';
     // Never expire an older recovery point before the NEW copy restores successfully.
-    await run(restic, ['forget', '--host', config.instance, '--tag', 'fs41', '--group-by', 'host,tags', '--keep-last', String(config.keep), '--prune'], { env });
+    await run(restic, ['forget', '--host', config.instance, '--tag', 'fs41,fs41-verified', '--group-by', 'host,tags', '--keep-last', String(config.keep), '--prune'], { env });
     return { success: true, encrypted: true, destinationVerified: true, restoreTested: true, verifiedAt, snapshot, sha256 };
   } catch (error) { cleanup = error?.message !== 'ISOLATED_STOP_FAILED'; return { success: false, errorCode: stage }; }
   finally {

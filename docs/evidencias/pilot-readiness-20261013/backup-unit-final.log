@@ -1,0 +1,23 @@
+✔ explicit source replaces inherited services, options and passwords without shell evaluation (1.993762ms)
+✔ manual backup preserves inherited TLS verification and CA; URL overrides remain explicit (0.212801ms)
+✔ checksum mismatch stops before invoking any PostgreSQL tool or issuing a verified manifest (75.641798ms)
+✔ requires remote encrypted repository, explicit source, bounded retention/frequency (1.335247ms)
+✔ upload/readback/restore precede retention; corruption and restore errors never prune (17.236992ms)
+{"at":"2026-10-13T07:15:40.553Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+{"at":"2026-10-13T07:15:40.555Z","success":false,"errorCode":"UPLOAD","alertDelivery":"failed"}
+{"at":"2026-10-13T07:15:40.556Z","success":true,"alertDelivery":"failed"}
+{"at":"2026-10-13T07:15:40.558Z","success":false,"errorCode":"DUMP","alertDelivery":"failed"}
+✔ bounded exponential retry records every run, last success survives failure and restart (9.576858ms)
+✔ webhook failures remain visible and payload contains no database details (0.465423ms)
+✔ restore environment cannot inherit source service, URL, credentials or cloud secrets (6.785858ms)
+✔ scheduler runs independently, waits configured interval and never overlaps cycles (0.379213ms)
+✔ retention only expires restored snapshots, never counts failed uploads as recovery points (2.428137ms)
+✔ tag command success alone cannot authorize retention (including Restic 0.16 silent failures) (1.818065ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 218.544108

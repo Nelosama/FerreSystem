@@ -477,4 +477,59 @@ test.describe('POS offline de contingencia — backend real', () => {
     });
     expect(texto).not.toMatch(/accessToken|ferre_token|Bearer|passwordHash/);
   });
+
+  test('15. logout real con cola pendiente: otro cajero no la envía; el dueño vuelve y reconcilia exactamente una vez', async ({ request }) => {
+    const { page, context } = await abrir();
+    const admin = await tokenDe(request, ADMIN);
+    const email = `offline.other.${randomUUID()}@e2e.invalid`;
+    const created = await request.post(`${API}/usuarios`, { headers: { Authorization: `Bearer ${admin.token}` }, data: {
+      nombre: 'Otro cajero offline', email, password: PASSWORD, rol: 'CAJERO', permisos: ['pos.vender'],
+    } });
+    expect(created.status()).toBe(201);
+    // Arqueo is a lazy chunk. Cache the logout route online before queueing the
+    // sale; an unvisited lazy route is not part of the service worker shell.
+    await ingresar(page, CAJERO, '/arqueo-caja');
+    await expect(page.getByRole('button', { name: 'SALIR', exact: true })).toBeVisible();
+    await page.goto('/pos-contingencia');
+    await expect(page.getByRole('button', { name: new RegExp(TALADRO) })).toBeVisible();
+    await controlada(page);
+    const previo = new Set((await diario(page)).map(op => op.operacionId));
+    await context.setOffline(true);
+    await venderUnTaladro(page);
+    const pending = (await diario(page)).find(op => !previo.has(op.operacionId));
+    expect(pending, 'se guardó una nueva venta offline').toBeTruthy();
+    const centralId = idDerivado(TENANT, pending.operacionId);
+    const identity = { operacionId: pending.operacionId, ventanaId: pending.ventanaId, cajeroId: pending.cajeroId,
+      correlativoLocal: pending.correlativoLocal, totalCentavos: pending.totalCentavos, lineas: pending.lineas };
+    // Leave the sync component while still offline, then logout online through
+    // the UI, so the server actually revokes the session before any send.
+    await page.goto('/arqueo-caja');
+    await expect(page.getByRole('button', { name: 'SALIR', exact: true })).toBeVisible();
+    await context.setOffline(false);
+    const revoked = page.waitForResponse(response => response.url().endsWith('/auth/logout') && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'SALIR', exact: true }).click();
+    expect((await revoked).status()).toBe(200);
+    await page.waitForURL(/\/login/);
+    expect((await diario(page)).find(op => op.operacionId === pending.operacionId)?.lineas).toEqual(identity.lineas);
+    expect(sql(`SELECT count(*) FROM operaciones_contingencia WHERE id='${centralId}'`)).toBe('0');
+
+    await ingresar(page, email, '/pos-contingencia');
+    await expect(page.getByRole('heading', { name: 'Caja · modo contingencia (efectivo)' })).toBeVisible();
+    // Observe an explicit sync attempt if allowed; a foreign cashier must not
+    // turn this owner's operation into either a sale or a rejection.
+    const sync = page.getByRole('button', { name: 'Enviar pendientes ahora' });
+    if (await sync.isEnabled()) await sync.click();
+    expect(sql(`SELECT count(*) FROM operaciones_contingencia WHERE id='${centralId}'`)).toBe('0');
+    expect((await diario(page)).find(op => op.operacionId === pending.operacionId)?.estado).toBe('PENDIENTE');
+    await page.goto('/arqueo-caja');
+    await page.getByRole('button', { name: 'SALIR', exact: true }).click();
+    await page.waitForURL(/\/login/);
+    await ingresar(page, CAJERO, '/pos-contingencia');
+    await esperarEstado(page, pending.correlativoLocal, 'SINCRONIZADA');
+    const final = (await diario(page)).find(op => op.operacionId === pending.operacionId);
+    for (const [key, value] of Object.entries(identity)) expect(final[key], key).toEqual(value);
+    expect(sql(`SELECT count(*) FROM operaciones_contingencia WHERE id='${centralId}' AND estado='APLICADA'`)).toBe('1');
+    expect(sql(`SELECT count(*) FROM ventas WHERE tenant_id='${TENANT}' AND correlativo_local='${pending.correlativoLocal}'`)).toBe('1');
+    expect(sql(`SELECT count(*) FROM movimientos_caja WHERE referencia=(SELECT venta_id FROM operaciones_contingencia WHERE id='${centralId}')`)).toBe('1');
+  });
 });
