@@ -24,7 +24,7 @@ interface TenantContextType {
 
 const DEFAULT_TENANT: TenantInfo = {
   id: '',
-  nombreComercial: 'FerreSystem',
+  nombreComercial: 'Jowa System',
   sucursal: 'Sucursal Principal',
   colorPrimario: '#EA580C',
   logoUrl: null,

@@ -38,7 +38,7 @@ export const LoginPage: React.FC = () => {
           },
           {
             id: 'saas-global',
-            nombreComercial: 'FerreSystem Admin Portal',
+            nombreComercial: 'Jowa System Admin Portal',
             sucursal: 'Global',
             colorPrimario: '#1C1917',
           },
@@ -91,10 +91,10 @@ export const LoginPage: React.FC = () => {
             <Box size={38} strokeWidth={2.6} color="var(--color-primary)" />
           </div>
           <div style={styles.brandTitle}>
-            <span style={{ color: 'var(--color-sidebar-bg)' }}>Ferre</span>
-            <span style={{ color: 'var(--color-primary)' }}>System</span>
+            <span style={{ color: 'var(--color-sidebar-bg)' }}>Jowa</span>
+            <span style={{ color: 'var(--color-primary)' }}> System</span>
           </div>
-          <div style={styles.subtitle}>SISTEMA DE GESTIÓN PARA FERRETERÍAS</div>
+          <div style={styles.subtitle}>SISTEMA DE GESTIÓN PARA NEGOCIOS</div>
         </div>
 
         {error && (

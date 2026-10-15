@@ -9,7 +9,7 @@ const defaults = {
 export function normalizeTenantSettings(data: any, local?: Pick<TenantInfo, 'sucursal'>): TenantInfo {
   const configuration = data.configuracion ?? data;
   return {
-    id: data.id, nombreComercial: data.nombreComercial ?? 'FerreSystem',
+    id: data.id, nombreComercial: data.nombreComercial ?? 'Jowa System',
     colorPrimario: data.colorPrimario ?? '#EA580C', logoUrl: data.logoUrl ?? null,
     direccion: data.direccion ?? '', telefono: data.telefono ?? '', email: data.email ?? '',
     modoNavegacion: data.modoNavegacion ?? 'SIDEBAR',

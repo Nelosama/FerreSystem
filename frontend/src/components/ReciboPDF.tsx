@@ -444,7 +444,7 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
               : `Cotización válida por ${diasValidez} días`}
           </Text>
           <Text style={styles.footerSubtext}>
-            Documento generado por FerreSystem Multi-tenant SaaS
+            Documento generado por Jowa System
           </Text>
         </View>
       </Page>

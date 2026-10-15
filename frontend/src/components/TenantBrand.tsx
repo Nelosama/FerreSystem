@@ -5,6 +5,6 @@ export function TenantBrand() {
   return <div className="v2-tenant-brand">
     {tenant.logoUrl
       ? <img src={tenant.logoUrl} alt={tenant.nombreComercial} />
-      : <span>{tenant.nombreComercial || 'FerreSystem'}</span>}
+      : <span>{tenant.nombreComercial || 'Jowa System'}</span>}
   </div>;
 }

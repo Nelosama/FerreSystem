@@ -750,7 +750,7 @@ export const POSPage: React.FC = () => {
             <div style={styles.printableTicket}>
               <div style={styles.ticketBrandHeader}>
                 <div style={{ ...styles.ticketLogo, color: 'var(--color-primary)' }}>
-                  FERRESYSTEM POS
+                  JOWA SYSTEM POS
                 </div>
                 <div style={styles.ticketTenantName}>{tenant.nombreComercial}</div>
                 {tenant.telefono && <div style={styles.ticketMeta}>{tenant.telefono}</div>}
@@ -809,7 +809,7 @@ export const POSPage: React.FC = () => {
               <div style={styles.ticketDashed} />
 
               <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '10px' }}>
-                {t('pos.thanks')} • FerreSystem
+                {t('pos.thanks')} • Jowa System
               </div>
             </div>
 
