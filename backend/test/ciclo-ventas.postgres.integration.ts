@@ -318,6 +318,21 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect(await prisma.venta.count({ where: { tenantId, cajaId: caja.body.id, usuarioId: cajero.id } })).toBe(1);
   });
 
+  it('JW-09 el permiso «pos.anular_venta» no habilita devoluciones directas: un cajero que lo tiene recibe 403 y la venta queda intacta', async () => {
+    const p = await producto('ANULA', 100, 5);
+    const venta = await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(201);
+    const cajero = await prisma.usuario.create({ data: { tenantId, rol: 'CAJERO', nombre: 'Cajero anula', email: `${randomUUID()}@example.test`, passwordHash: await bcrypt.hash(password, 4), permisos: ['pos.vender', 'pos.anular_venta'], permisosConfigurados: true } });
+    const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email: cajero.email, password, tenantId }).expect(200);
+    const linea = (await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: venta.body.id } })).id;
+    const devolucion = { solicitudId: randomUUID(), motivo: 'Anulación solicitada por el cliente', metodo: 'EFECTIVO', items: [{ detalleId: linea, cantidad: 1, destino: 'NO_ENTREGADO' }] };
+    await http('post', `/operaciones/ventas/${venta.body.id}/devoluciones`, devolucion, login.body.accessToken).expect(403);
+    expect(await prisma.devolucion.count({ where: { tenantId } })).toBe(0);
+    expect((await prisma.venta.findUniqueOrThrow({ where: { id: venta.body.id } })).estado).toBe('COMPLETADA');
+    // El mismo cuerpo es válido: el administrador sí registra la devolución.
+    await http('post', `/operaciones/ventas/${venta.body.id}/devoluciones`, { ...devolucion, solicitudId: randomUUID() }).expect(201);
+    expect(await prisma.devolucion.count({ where: { tenantId } })).toBe(1);
+  });
+
   it('dos ventas HTTP simultáneas compiten por la última unidad sin sobreventa', async () => {
     const p = await producto('ULTIMO', 100, 1);
     const responses = await Promise.all([1, 2].map(() => http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: 1 }] })));
