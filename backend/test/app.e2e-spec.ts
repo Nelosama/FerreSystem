@@ -6,8 +6,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import * as bcrypt from 'bcrypt';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 // Replaces Nest's obsolete Hello World scaffold. Starts the complete application
 // on its own migrated PostgreSQL cluster and verifies outage/recovery via HTTP.
@@ -18,6 +20,10 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
   const keys = ['DATABASE_URL', 'DIRECT_URL', 'JWT_SECRET', 'CONTINGENCIA_CLAVE_OPERACIONES', 'CONTINGENCIA_CLAVE_ANTERIOR', 'CONTINGENCIA_TRANSICION_HASTA'];
   const previous = new Map(keys.map(key => [key, process.env[key]]));
   let app: INestApplication | undefined;
+  let prisma: PrismaService, token: string;
+  const tenantId = randomUUID(), otherTenantId = randomUUID();
+  const userId = randomUUID(), otherUserId = randomUUID();
+  const password = `Recovery-${randomBytes(16).toString('hex')}!`;
   let directory = '', port = 0, started = false;
   const pg = (name: string, args: string[]) => execFileSync(join(bin, name), args, { stdio: 'pipe', timeout: 60000 });
   const start = () => {
@@ -43,6 +49,21 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
     app = module.createNestApplication();
     app.setGlobalPrefix('api');
     await app.init();
+    prisma = app.get(PrismaService);
+    const passwordHash = await bcrypt.hash(password, 4);
+    await prisma.tenant.createMany({ data: [
+      { id: tenantId, nombreComercial: 'Recuperación A' },
+      { id: otherTenantId, nombreComercial: 'Recuperación B' },
+    ] });
+    await prisma.usuario.createMany({ data: [
+      { id: userId, tenantId, nombre: 'Administrador A', email: 'admin.a@recovery.invalid', passwordHash, rol: 'ADMIN' },
+      { id: otherUserId, tenantId: otherTenantId, nombre: 'Administrador B', email: 'admin.b@recovery.invalid', passwordHash, rol: 'ADMIN' },
+    ] });
+    const login = await request(app.getHttpServer()).post('/api/auth/login')
+      .send({ tenantId, email: 'admin.a@recovery.invalid', password }).expect(200);
+    token = login.body.accessToken;
+    expect(token).toEqual(expect.any(String));
+    await request(app.getHttpServer()).get('/api/usuarios').auth(token, { type: 'bearer' }).expect(200);
   }, 180000);
 
   afterAll(async () => {
@@ -71,5 +92,30 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
 
   it('recupera readiness tras reiniciar PostgreSQL sin reiniciar la aplicación', async () => {
     await request(app!.getHttpServer()).get('/api/health').expect(200).expect({ status: 'ok' });
+  });
+
+  it('la sesión anterior a la caída recupera lecturas sin cruzar empresas', async () => {
+    const me = await request(app!.getHttpServer()).get('/api/auth/me').auth(token, { type: 'bearer' }).expect(200);
+    expect(me.body.user.sub).toBe(userId);
+    const users = await request(app!.getHttpServer()).get('/api/usuarios')
+      .auth(token, { type: 'bearer' }).set('x-tenant-id', otherTenantId).expect(200);
+    expect(users.body.map((user: { id: string }) => user.id)).toEqual([userId]);
+    await request(app!.getHttpServer()).get(`/api/usuarios/${otherUserId}`)
+      .auth(token, { type: 'bearer' }).expect(404);
+  });
+
+  it('recupera escrituras auditadas y la desactivación sigue revocando sesiones', async () => {
+    const created = await request(app!.getHttpServer()).post('/api/usuarios').auth(token, { type: 'bearer' })
+      .send({ nombre: 'Cajero recuperado', email: 'cajero@recovery.invalid', password, rol: 'CAJERO' }).expect(201);
+    const login = await request(app!.getHttpServer()).post('/api/auth/login')
+      .send({ tenantId, email: 'cajero@recovery.invalid', password }).expect(200);
+    await request(app!.getHttpServer()).get('/api/auth/me').auth(login.body.accessToken, { type: 'bearer' }).expect(200);
+    await request(app!.getHttpServer()).get('/api/usuarios').auth(login.body.accessToken, { type: 'bearer' }).expect(403);
+    await request(app!.getHttpServer()).delete(`/api/usuarios/${created.body.id}`).auth(token, { type: 'bearer' }).expect(200);
+    expect(await prisma.usuario.findUniqueOrThrow({ where: { id: created.body.id } })).toMatchObject({ tenantId, activo: false });
+    expect(await prisma.auditoriaOperacion.count({ where: {
+      tenantId, usuarioId: userId, entidadId: created.body.id, operacion: 'USUARIO_DESACTIVAR',
+    } })).toBe(1);
+    await request(app!.getHttpServer()).get('/api/auth/me').auth(login.body.accessToken, { type: 'bearer' }).expect(401);
   });
 });
