@@ -74,8 +74,8 @@ Se corrige únicamente el orden: la confirmación se muestra después de termina
 ## Pendientes y límites
 
 - #165 sigue sin integrar: actualización con su `main` y regresión conjunta pendientes. No se declara listo para producción.
-- Recarga offline de contingencia falla también en el commit original; 13 pruebas posteriores de esa secuencia no se ejecutaron. Falta resolver/validar ese flujo con el navegador objetivo. No se encontró una diferencia monetaria restante en los casos válidos ejecutados; esto no acredita el resto de la secuencia offline.
-- Checks de GitHub correspondientes al HEAD posterior a la corrección del mensaje: se informan en el PR al finalizar; ningún resultado local ni workflow de un HEAD anterior sustituye esos checks.
+- La discrepancia offline local quedó reproducida sin código de Jowa: incompatibilidad observada de emulación Playwright 1.63/Chromium del sistema 151. La API sigue bloqueada pero `navigator.onLine` pasa a true tras recargar por SW. CI usa Chromium 153 compatible y aprobó la secuencia real. Evidencia, prueba de diagnóstico y estado de integración: [investigación offline](PR166_RECARGA_OFFLINE_20261015.md). No se alteraron las reglas ni las fuentes monetarias.
+- `afd14930`: validate, guard y piloto real aprobados; validate incluyó 146 pruebas Chromium, 458 unitarias backend y 940 pruebas PostgreSQL más otro comando de seis pruebas. Los checks de la nueva prueba diagnóstica se informan en #166 sin atribuirle aprobaciones de HEAD anteriores.
 - No se probó impresión física, iPhone/Safari físico, datáfono real, apagón/UPS ni datos históricos de producción. Las pruebas locales no acreditan esas condiciones.
 - Las devoluciones históricas ya calculadas con el algoritmo anterior se conservan; la siguiente devolución descuenta exactamente lo ya registrado del derecho acumulado, sin reescribir el historial.
 
