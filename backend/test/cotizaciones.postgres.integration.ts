@@ -142,6 +142,16 @@ describe('FUNC-001 / HTTP and isolated PostgreSQL', () => {
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
   });
 
+  it('JW-06 la venta convertida conserva los subtotales en centavos de la cotización (2.5 × 25.99 = 64.98)', async () => {
+    const product = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'C2599', nombre: 'Cable', precioVenta: 25.99, precioCosto: 10, stockActual: 100 } });
+    const cot = await new CotizacionesService(prisma).create(tenantId, usuarioId, { detalles: [{ productoId: product.id, cantidad: 2.5 }] } as any);
+    expect(cot).toMatchObject({ subtotal: 64.98, isv: 9.75, total: 74.73 });
+    const response = await post(cot.id).expect(201);
+    const sale = await prisma.venta.findUniqueOrThrow({ where: { id: response.body.ventaId }, include: { detalles: true } });
+    expect(Number(sale.detalles[0].subtotal)).toBe(64.98);
+    expect([Number(sale.subtotal), Number(sale.isv), Number(sale.total)]).toEqual([64.98, 9.75, 74.73]);
+  });
+
   it('ID inexistente o de otro tenant y método inválido no crean ventas', async () => {
     await post(randomUUID()).expect(404);
     const otherTenantId = randomUUID();

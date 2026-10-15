@@ -492,7 +492,9 @@ export class CotizacionesService {
         plazoCreditoDias = clienteCredito.plazoCreditoDias ?? null;
       }
       if(new Set(cotizacion.detalles.map(d=>d.productoId)).size!==cotizacion.detalles.length) throw new BadRequestException('Agrupe las líneas del mismo producto antes de convertir la cotización');
-      const bruto=money(cotizacion.detalles.reduce((sum,d)=>sum+Number(d.totalMedida)*Number(d.precioUnitario),0));
+      // Importe bruto por línea en centavos enteros, misma regla que la cotización y la venta directa (common/dinero).
+      const brutoLinea=(d:{totalMedida:unknown;precioUnitario:unknown})=>subtotalLinea(aCentavos(Number(d.precioUnitario),'Precio unitario'),Math.round(Number(d.totalMedida)*100));
+      const bruto=centavosADecimal(cotizacion.detalles.reduce((sum,d)=>sum+brutoLinea(d),0));
       validateDiscount(user,bruto,Number(cotizacion.descuento));
       if(user.rol !== 'ADMIN' && cotizacion.detalles.some(d=>Number(d.precioUnitario)!==Number(d.producto.precioVenta))) throw new BadRequestException('La cotización requiere validación del precio por administrador');
       // La venta directa siempre aplica ISV 15 % sin exenciones. Igual que un precio modificado, una tasa distinta o una
@@ -551,7 +553,7 @@ export class CotizacionesService {
               productoId: d.productoId,
               cantidad: d.totalMedida,
               precioUnitario: d.precioUnitario,
-              subtotal: money(Number(d.totalMedida)*Number(d.precioUnitario)),
+              subtotal: centavosADecimal(brutoLinea(d)),
               costoUnitario:d.producto.precioCosto,
             })),
           },
