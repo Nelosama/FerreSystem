@@ -2,7 +2,7 @@ import { account, authorizedActor, audit, cashMovement, id, lockTenant, money, o
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
-import { diaCalendario, inicioDiaEnZona } from '../common/zona-horaria';
+import { diaCalendario, inicioDiaEnZona, sumarDias } from '../common/zona-horaria';
 import { centavosADecimal, subtotalLinea } from '../common/dinero';
 import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
@@ -481,6 +481,7 @@ export class CotizacionesService {
       // Crédito: mismas reglas que una venta directa (cliente activo, crédito habilitado y límite con el saldo actual).
       // lockTenant serializa esta conversión con las ventas de la empresa, así que el cupo no puede agotarse dos veces.
       const totalVenta = Number(cotizacion.total);
+      let plazoCreditoDias: number | null = null;
       if (metodoPago === 'CREDITO') {
         const clienteCredito = await tx.cliente.findFirst({ where: { id: cotizacion.clienteId!, tenantId } });
         if (!clienteCredito || !clienteCredito.activo) throw new NotFoundException('Cliente seleccionado no existe o está inactivo');
@@ -488,6 +489,7 @@ export class CotizacionesService {
         if (clienteCredito.limiteCredito !== null && money(Number(clienteCredito.saldoPendiente) + totalVenta) > Number(clienteCredito.limiteCredito)) {
           throw new BadRequestException('La venta supera el límite de crédito disponible del cliente');
         }
+        plazoCreditoDias = clienteCredito.plazoCreditoDias ?? null;
       }
       if(new Set(cotizacion.detalles.map(d=>d.productoId)).size!==cotizacion.detalles.length) throw new BadRequestException('Agrupe las líneas del mismo producto antes de convertir la cotización');
       const bruto=money(cotizacion.detalles.reduce((sum,d)=>sum+Number(d.totalMedida)*Number(d.precioUnitario),0));
@@ -551,7 +553,9 @@ export class CotizacionesService {
       if(metodoPago==='CREDITO'){
         const saldoCliente=await tx.cliente.updateMany({where:{id:cotizacion.clienteId!,tenantId,activo:true,creditoHabilitado:true},data:{saldoPendiente:{increment:totalVenta}}});
         if(saldoCliente.count!==1)throw new BadRequestException('El cliente no tiene habilitado el crédito');
-        await account(tx,tenantId,usuarioId,'CXC',venta.id,cotizacion.clienteId!,Number(venta.total));
+        // Mismo vencimiento que una venta directa a crédito: el plazo del cliente al facturar (ventas.service).
+        const vencimiento = plazoCreditoDias ? sumarDias(diaCalendario(new Date()), plazoCreditoDias) : undefined;
+        await account(tx,tenantId,usuarioId,'CXC',venta.id,cotizacion.clienteId!,Number(venta.total),vencimiento);
       }
       if (autorizacion) await registrarAprobacion(tx,tenantId,usuarioId,autorizacion,Number(venta.total),'VENTA',venta.id);
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',Number(venta.total),metodoPago,venta.id,'Venta desde cotización');
