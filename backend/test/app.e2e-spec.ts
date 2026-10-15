@@ -20,7 +20,7 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
   const keys = ['DATABASE_URL', 'DIRECT_URL', 'JWT_SECRET', 'CONTINGENCIA_CLAVE_OPERACIONES', 'CONTINGENCIA_CLAVE_ANTERIOR', 'CONTINGENCIA_TRANSICION_HASTA'];
   const previous = new Map(keys.map(key => [key, process.env[key]]));
   let app: INestApplication | undefined;
-  let prisma: PrismaService, token: string;
+  let prisma: PrismaService, token: string, supportToken: string, superToken: string;
   const tenantId = randomUUID(), otherTenantId = randomUUID();
   const userId = randomUUID(), otherUserId = randomUUID();
   const password = `Recovery-${randomBytes(16).toString('hex')}!`;
@@ -64,6 +64,22 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
     token = login.body.accessToken;
     expect(token).toEqual(expect.any(String));
     await request(app.getHttpServer()).get('/api/usuarios').auth(token, { type: 'bearer' }).expect(200);
+    await prisma.superAdmin.create({ data: {
+      nombre: 'Soporte de recuperación', email: 'support@recovery.invalid', passwordHash,
+    } });
+    const superLogin = await request(app.getHttpServer()).post('/api/admin/auth/login')
+      .send({ email: 'support@recovery.invalid', password }).expect(200);
+    superToken = superLogin.body.accessToken;
+    const eligible = await request(app.getHttpServer()).get(`/api/admin/tenants/${tenantId}/usuarios`)
+      .auth(superToken, { type: 'bearer' }).expect(200);
+    expect(eligible.body.usuarios).toEqual([
+      { id: userId, nombre: 'Administrador A', email: 'admin.a@recovery.invalid', rol: 'ADMIN' },
+    ]);
+    const support = await request(app.getHttpServer()).post('/api/admin/support/token')
+      .auth(superToken, { type: 'bearer' })
+      .send({ tenantId, usuarioId: userId, readOnly: true, motivo: 'Verificar recuperación aislada' }).expect(201);
+    supportToken = support.body.accessToken;
+    await request(app.getHttpServer()).get('/api/usuarios').auth(supportToken, { type: 'bearer' }).expect(200);
   }, 180000);
 
   afterAll(async () => {
@@ -117,5 +133,28 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
       tenantId, usuarioId: userId, entidadId: created.body.id, operacion: 'USUARIO_DESACTIVAR',
     } })).toBe(1);
     await request(app!.getHttpServer()).get('/api/auth/me').auth(login.body.accessToken, { type: 'bearer' }).expect(401);
+  });
+
+  it('el soporte anterior a la caída conserva solo lectura y puede revocarse con trazabilidad real', async () => {
+    await request(app!.getHttpServer()).get('/api/usuarios').auth(supportToken, { type: 'bearer' }).expect(200);
+    await request(app!.getHttpServer()).get(`/api/usuarios/${otherUserId}`)
+      .auth(supportToken, { type: 'bearer' }).expect(404);
+    await request(app!.getHttpServer()).post('/api/usuarios').auth(supportToken, { type: 'bearer' })
+      .send({ nombre: 'Escritura prohibida', email: 'blocked@recovery.invalid', password, rol: 'CAJERO' }).expect(403);
+    expect(await prisma.usuario.count({ where: { email: 'blocked@recovery.invalid' } })).toBe(0);
+    await request(app!.getHttpServer()).post('/api/admin/support/finalizar')
+      .auth(supportToken, { type: 'bearer' }).expect(200);
+    const session = await prisma.sesionAuth.findFirstOrThrow({ where: { tenantId, sujetoId: userId, tipo: 'SOPORTE' } });
+    expect(session.revokedAt).toBeInstanceOf(Date);
+    expect(session.revocationMotivo).toBe('SOPORTE_FINALIZADO');
+    await request(app!.getHttpServer()).get('/api/usuarios').auth(supportToken, { type: 'bearer' }).expect(401);
+    await request(app!.getHttpServer()).post('/api/admin/support/finalizar')
+      .auth(supportToken, { type: 'bearer' }).expect(401);
+    const traces = await request(app!.getHttpServer()).get('/api/admin/soporte/trazas')
+      .query({ tenantId }).auth(superToken, { type: 'bearer' }).expect(200);
+    const supportAudit = await prisma.auditoriaOperacion.findMany({ where: { tenantId, operacion: 'SOPORTE_FINALIZAR' } });
+    expect(supportAudit).toHaveLength(1);
+    expect(JSON.stringify(traces.body)).toContain(supportAudit[0].id);
+    await request(app!.getHttpServer()).get('/api/auth/me').auth(token, { type: 'bearer' }).expect(200);
   });
 });
