@@ -17,10 +17,27 @@ describe('Persistencia de configuración por empresa', () => {
   });
   it('persiste navegación, apariencia, moneda e impuesto soportados y los recupera sin modificar otra empresa', async () => {
     const configuracion = { templateVersion: 'v2', v2Mode: 'dark', estiloUI: 'MODERNO', fuenteTitulos: 'Poppins', fuenteCuerpo: 'Inter', rubro: 'FERRETERIA', moneda: { simbolo: 'L.', codigo: 'HNL' }, impuesto: { nombre: 'ISV', tasa: 15 } };
-    await service.updateTenantBranding('A', { modoNavegacion: 'TOPNAV', logoUrl: null, configuracion });
-    expect(await service.getTenantSettings('A')).toMatchObject({ modoNavegacion: 'TOPNAV', ...configuracion, logoUrl: null });
+    await service.updateTenantBranding('A', { modoNavegacion: 'TOPNAV', configuracion });
+    expect(await service.getTenantSettings('A')).toMatchObject({ modoNavegacion: 'TOPNAV', ...configuracion });
     expect(await service.getTenantSettings('B')).toMatchObject({ modoNavegacion: 'SIDEBAR', configuracion: {} });
     expect(prisma.tenant.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'A' } }));
+  });
+  it('rechaza logoUrl externo: el logotipo solo se guarda como archivo privado', async () => {
+    await expect(service.updateTenantBranding('A', { logoUrl: 'https://ejemplo.com/logo.png' })).rejects.toThrow('El logotipo se carga como archivo');
+    expect(prisma.tenant.update).not.toHaveBeenCalled();
+  });
+  it('el rubro solo cambia con la ruta del SUPERADMIN', async () => {
+    prisma.tenant.findUnique.mockResolvedValueOnce({ id: 'A', configuracion: { rubro: 'FERRETERIA' } });
+    await expect(service.updateTenantBranding('A', { configuracion: { rubro: 'PULPERIA' } })).rejects.toThrow('solo lo configura el Super Admin');
+    prisma.tenant.findUnique.mockResolvedValueOnce({ id: 'A', configuracion: { rubro: 'FERRETERIA' } });
+    await service.updateTenantBranding('A', { configuracion: { rubro: 'PULPERIA' } }, { esSuperAdmin: true });
+    expect(prisma.tenant.update).toHaveBeenCalledTimes(1);
+  });
+  it('no expone la clave interna del almacenamiento', async () => {
+    records.set('A', { ...records.get('A'), logoStorageKey: 'tenants/A/logo', logoMime: 'image/png', logoBytes: 10, logoActualizadoAt: new Date('2026-10-15T00:00:00Z') });
+    const settings = await service.getTenantSettings('A');
+    expect(settings).not.toHaveProperty('logoStorageKey');
+    expect(settings.logotipo).toMatchObject({ mime: 'image/png', bytes: 10 });
   });
   it.each([
     { moneda: { simbolo: '$', codigo: 'USD' } }, { impuesto: { nombre: 'ISV', tasa: 0 } }, { impuesto: { nombre: 'ISV', tasa: -1 } }, { impuesto: { nombre: 'ISV', tasa: 101 } },

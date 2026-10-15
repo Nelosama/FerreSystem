@@ -1,4 +1,7 @@
-import { Controller, Post, Get, Put, Patch, Body, Param, UseGuards, Req, Res, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Put, Patch, Delete, Body, Param, UseGuards, Req, Res, HttpCode, HttpStatus, UploadedFile, UseInterceptors, BadRequestException, StreamableFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { LIMITE_LOGOTIPO_BYTES } from '../tenants/logotipo-validacion';
 import { SuperAdminService } from './super-admin.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../common/guards/super-admin.guard';
@@ -6,7 +9,7 @@ import type { Request, Response } from 'express';
 import { CreateTenantAdminDto, UpdateTenantAdminDto } from './tenant-admin.dto';
 import { SupportTokenDto } from './support-token.dto';
 import { PermiteSoporteSoloLectura } from '../common/decorators/soporte-solo-lectura.decorator';
-import { Query } from '@nestjs/common';
+import { Query, NotFoundException } from '@nestjs/common';
 
 @Controller('admin')
 export class SuperAdminController {
@@ -121,10 +124,67 @@ export class SuperAdminController {
     return this.superAdminService.updateTenantAdmin(tenantId, userId, dto);
   }
 
+  /** Configuración del negocio seleccionado. Solo SUPERADMIN; el negocio no tiene acceso a esta ruta. */
+  @Get('tenants/:id/settings')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async getTenantSettingsAdmin(@Param('id') id: string) {
+    return this.superAdminService.configuracionNegocio(id);
+  }
+
+  @Put('tenants/:id/settings')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async updateTenantSettingsAdmin(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { sub: string } },
+    @Body()
+    body: {
+      nombreComercial?: string;
+      direccion?: string;
+      telefono?: string;
+      email?: string;
+      colorPrimario?: string;
+      modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
+      configuracion?: Record<string, any>;
+    },
+  ) {
+    return this.superAdminService.actualizarConfiguracionNegocio(id, req.user.sub, body);
+  }
+
+  @Get('tenants/:id/auditoria')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async auditoriaNegocio(@Param('id') id: string, @Query('page') page?: string) {
+    return this.superAdminService.auditoriaNegocio(id, Number(page));
+  }
+
+  @Get('tenants/:id/logo')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async getTenantLogoAdmin(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+    const logotipo = await this.superAdminService.logotipoNegocio(id);
+    if (!logotipo) throw new NotFoundException('El negocio no tiene logotipo');
+    res.setHeader('Cache-Control', 'private, no-cache');
+    return new StreamableFile(logotipo.datos, { type: logotipo.mime });
+  }
+
+  @Post('tenants/:id/logo')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseInterceptors(FileInterceptor('archivo', { storage: memoryStorage(), limits: { fileSize: LIMITE_LOGOTIPO_BYTES, files: 1 } }))
+  async uploadTenantLogo(@Param('id') id: string, @Req() req: Request & { user: { sub: string } }, @UploadedFile() archivo?: { buffer: Buffer; mimetype?: string }) {
+    if (!archivo?.buffer) throw new BadRequestException('Seleccione un archivo de logotipo (PNG, JPG o WEBP)');
+    return this.superAdminService.guardarLogotipoNegocio(id, req.user.sub, archivo.buffer, archivo.mimetype);
+  }
+
+  @Delete('tenants/:id/logo')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async deleteTenantLogo(@Param('id') id: string, @Req() req: Request & { user: { sub: string } }) {
+    await this.superAdminService.eliminarLogotipoNegocio(id, req.user.sub);
+    return { eliminado: true };
+  }
+
   @Patch('tenants/:id')
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   async updateTenantConfig(
     @Param('id') id: string,
+    @Req() req: Request & { user: { sub: string } },
     @Body()
     body: {
       nombreComercial?: string;
@@ -137,6 +197,6 @@ export class SuperAdminController {
       plan?: string;
     },
   ) {
-    return this.superAdminService.updateTenantConfig(id, body);
+    return this.superAdminService.updateTenantConfig(id, req.user.sub, body);
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
+import { consultarAuditoria } from './auditoria-consulta';
 import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
 import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, idRecurso, idSolicitud, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
 import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, EntregarVentaDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
@@ -494,6 +495,6 @@ export class OperacionesService {
    await audit(tx,tenantId,userId,'VENTA_DEVOLVER',result.id,{ventaId,monto,credito,refund,metodo,items:dto.items});return result;
  }
 
- async auditoria(tenantId:string,page:number){return query(this.prisma,'SELECT a.*,u.nombre AS usuario_nombre FROM auditoria_operaciones a LEFT JOIN usuarios u ON u.id=a.usuario_id WHERE a.tenant_id=$1 ORDER BY a.created_at DESC,a.id DESC LIMIT 100 OFFSET $2',tenantId,Math.max(0,Math.floor(Number.isFinite(page)?page:0))*100);}
+ async auditoria(tenantId:string,page:number){return consultarAuditoria(this.prisma,tenantId,page);}
 
 }
