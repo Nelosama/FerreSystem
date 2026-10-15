@@ -498,6 +498,11 @@ export class CotizacionesService {
       // Verificar y descontar stock por la cantidad solicitada con precisión decimal
       for (const d of cotizacion.detalles) {
         await query(tx,'SELECT id FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.productoId,tenantId);
+        // Mismas reglas que la venta directa: un precio revocado o un producto inactivo después de cotizar no se vende.
+        if (!d.producto.activo) throw new BadRequestException(`"${d.producto.nombre}" está inactivo; no se puede vender`);
+        if (!d.producto.precioAprobado || Number(d.producto.precioVenta) <= 0) {
+          throw new BadRequestException(`"${d.producto.nombre}" no tiene precio aprobado por el administrador; no se puede vender`);
+        }
         const reservado=Number(d.producto.stockReservado||0);
         const stockDisponible = money(Number(d.producto.stockActual)-reservado);
         const cantidadRequerida = Number(d.totalMedida);

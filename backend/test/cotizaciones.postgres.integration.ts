@@ -129,6 +129,19 @@ describe('FUNC-001 / HTTP and isolated PostgreSQL', () => {
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
   });
 
+  it('JW-02 producto con precio revocado o inactivo después de cotizar: la conversión se rechaza sin venta ni reservas', async () => {
+    const [primero] = await prisma.producto.findMany({ where: { tenantId }, orderBy: { codigo: 'asc' } });
+    await prisma.producto.update({ where: { id: primero.id }, data: { precioAprobado: false } });
+    const rechazo = await post().expect(400);
+    expect(rechazo.body.message).toMatch(/precio aprobado/);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
+    for (const p of await prisma.producto.findMany({ where: { tenantId } })) expect(Number(p.stockReservado)).toBe(0);
+    expect((await prisma.cotizacion.findUniqueOrThrow({ where: { id: cotizacionId } })).estado).toBe('BORRADOR');
+    await prisma.producto.update({ where: { id: primero.id }, data: { precioAprobado: true, activo: false } });
+    await post().expect(400);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
+  });
+
   it('ID inexistente o de otro tenant y método inválido no crean ventas', async () => {
     await post(randomUUID()).expect(404);
     const otherTenantId = randomUUID();
