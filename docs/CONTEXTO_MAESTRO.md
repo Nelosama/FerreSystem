@@ -22,6 +22,17 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Precisión monetaria — continuación de PR #166 (2026-10-15 UTC)
+
+- **Estado:** [PR único #166](https://github.com/Nelosama/FerreSystem/pull/166), rama `codex/auditoria-precision-monetaria`, sigue en borrador. Conserva `463efae8` y sus cuatro correcciones. #165 comprobado antes de tocar archivos compartidos y al cierre: abierto, no integrado (`cc29135a`); `main` sigue en `74ba4dcc`, ya incluido. Sin nuevas ramas/PR, merge, despliegue ni cambios de esquema/migraciones.
+- **Corregido:** POS reutiliza cálculo monetario offline para líneas, subtotal, ISV, descuento mostrado/enviado y total; descuento con cociente entero y porcentaje sin redondeo previo. Comprobante/PDF usan líneas redondeadas y subtotal bruto coherente con API. Devoluciones conservan el reparto proporcional acumulado, calculado con `BigInt`: 9 de 12 unidades a L 0.21 devuelve L 2.18 (antes 2.17), remanente L 0.72; con abono L 1.01 cancela crédito L 1.89 y reembolsa L 0.29 + L 0.72. Sin cambios comerciales.
+- **Evidencia:** backend 458/458; frontend 321/321, selección final POS/recuperación/dinero 51/51 solapada; diferencial de 10.000 carritos frontend/backend/offline; PostgreSQL real 241/241 en nueve suites; builds, lint sin errores, diff y guard (0 migraciones nuevas) correctos. Navegador contra API/PostgreSQL reales: 10 aprobadas, 1 fallida, 13 no ejecutadas. Pasan los cinco casos monetarios de POS, crédito/abonos, caja y cobro/entrega.
+- **Pendiente de navegador:** `contingencia-real.spec.ts:192`, recarga offline no muestra «● Sin conexión»; reproducido también sobre `463efae8` con Chromium 151 (base: 1 pasa/1 falla). No se cambió ni debilitó la prueba. No se certifica la secuencia offline restante.
+- **Siguiente paso:** cuando el responsable integre #165, actualizar esta misma rama desde `main` y repetir validación conjunta; checks del HEAD publicado se consultan y reportan en #166. **NO listo para producción** mientras siga pendiente esa integración y la validación offline. Sin aceptación física ni revisión de datos productivos.
+- **Bitácora/informe reproducible:** [AUDITORIA_PRECISION_MONETARIA_20261015.md](AUDITORIA_PRECISION_MONETARIA_20261015.md), pruebas rojas/verdes y evidencia de PostgreSQL/navegador. Cliente Prisma regenerado desde el esquema existente. PostgreSQL 17.11 temporal sin privilegios. NEXUS firma la validación de integridad monetaria.
+
+---
+
 ## Frontend UX/UI — sincronización automática y panel administrativo (2026-10-13, rama `claude/modest-galileo-693672`, sin merge)
 
 - **Alcance real:** la misión pedía `feat/frontend-uxui`; esa rama no existe y la directiva prohíbe crear ramas, así que el trabajo está en `claude/modest-galileo-693672`. Referencias obligatorias **no disponibles en el repositorio**: `docs/figma-make-admin-reference/` y `docs/PLAN_REDISENO_FRONTEND_UXUI_20261012.md` no existen en ninguna rama ni en disco. Sin ellas no hay comparación pixel a pixel con Figma: **no se declara pixel-perfect**.

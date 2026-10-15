@@ -1,72 +1,76 @@
-# Auditoría de precisión monetaria — Jowa System
+# Auditoría de precisión monetaria — PR #166
 
-Fecha: 15 de octubre de 2026, America/Tegucigalpa. Base: `main` actualizado, `74ba4dcc0ade29cd4800f95f9348d31d238444f0`. Rama única: `codex/auditoria-precision-monetaria`.
+Fecha: 2026-10-15 UTC. Repositorio: `Nelosama/FerreSystem`. Única rama publicada: `codex/auditoria-precision-monetaria`. Base: `main` `74ba4dcc`; conserva como ancestro el commit original `463efae8` y sus cuatro correcciones.
 
-**Recomendación: NO MERGE.** Las correcciones verificadas están listas para revisión, pero persisten diferencias monetarias reproducibles en `POSPage.tsx`, protegido por la instrucción de no modificar archivos del PR #165. No se hizo merge ni despliegue.
+**Estado: borrador, NO MERGE por ahora.** #165 fue comprobado antes de modificar archivos compartidos y sigue abierto en `cc29135a`, sin integrar. `origin/main` continúa en `74ba4dcc`. No se fusionó #165 ni se incorporó anticipadamente su rama. Cuando el responsable lo integre, falta actualizar esta misma rama desde `main`, resolver cualquier conflicto conservando ambas funcionalidades y repetir la validación conjunta. No se han creado ramas ni PR adicionales, hecho merge de PR, desplegado ni conectado a datos productivos.
 
-Se leyó el contexto vigente y se consultaron Git y los PR abiertos. Los 28 archivos de #165 se excluyeron de las modificaciones, incluido `CONTEXTO_MAESTRO.md`; por eso la bitácora de esta auditoría queda en este informe separado. No hay cambios de interfaz, estilos, navegación, marca, permisos, contratos API, esquema ni migraciones.
+## Correcciones
 
-**Regla existente conservada.** HNL; cantidades con hasta dos decimales; subtotal redondeado por línea; mitad hacia arriba para valores no negativos; ISV 15 % sobre subtotal menos descuento; total = base + ISV. Está explícita en `backend/src/common/dinero.ts`, `redondeo-monetario.ts` y los vectores compartidos con `frontend/src/offline/money.ts`. No se creó una regla fiscal. El POS en línea no recibe efectivo entregado ni calcula cambio; el modo de contingencia sí tiene esos campos. CXC rechaza un abono superior al saldo.
+Las cuatro correcciones originales permanecen:
 
-**Defectos corregidos y evidencia.**
+| Defecto original | Corrección conservada |
+| --- | --- |
+| Importes válidos altos rechazados por residuo binario (L 16,777,216.01 y L 1,234,567,890.12) | Conversión desde representación decimal de dos posiciones y validación en unidades. |
+| Límite 99.99 % sobre L 9,900,000,050.01 aceptaba un centavo extra | Producto y división del límite con `BigInt`. |
+| 1000 pares +L 1,000,000,000.01 / −L 1,000,000,000.00 inventaban faltante de caja | Acumulación y neto en centavos con `BigInt`. |
+| Venta offline de precio 0.01 × cantidad 0.01 se confirmaba con total cero | Rechazo en el diario antes de abrir IndexedDB. |
 
-| Defecto | Reproducción anterior | Corrección y regresión |
+La continuación corrige las diferencias del POS que mantenían abierto el bloqueo monetario:
+
+| Caso | Antes | Resultado corregido |
 | --- | --- | --- |
-| Falsos rechazos de importes válidos altos | `aCentavos(16777216.01)` y `aCentesimas(16777216.01, 'Precio')` fallaban. `decimal(1234567890.12, 'Pago', true)` también: multiplicar por 100 amplificaba el residuo binario. Ambos valores caben en `DECIMAL(12,2)`. | Validación en unidades y conversión desde la representación de dos decimales; tolerancias nominales anteriores conservadas. Cinco regresiones fallaron antes y pasaron después. Prueba HTTP/PG de venta y abono por L 1,234,567,890.12 verifica los valores persistidos. |
-| Límite porcentual permite un centavo extra | Subtotal L 9,900,000,050.01 y límite 99.99 %: el máximo exacto redondeado es L 9,899,010,050.00; el servidor aceptaba L 9,899,010,050.01 por un producto intermedio inseguro. | Producto y división del límite en `BigInt`, con la misma fórmula de mitad hacia arriba. Regresión roja/verde del límite exacto y del centavo adicional. |
-| Diferencia ficticia en arqueo | 1000 pares de movimientos EFECTIVO +L 1,000,000,000.01 / −L 1,000,000,000.00: resumen mostraba L 10.01 esperados y L 10.00 por método. Cerrar con L 10 sin nota era rechazado. | Acumulación de centavos con `BigInt`; cuatro pruebas de resumen/cierre, incluida suma bruta superior a `MAX_SAFE_INTEGER`. HTTP/PG inserta 2000 movimientos NUMERIC: con apertura L 100, cierre L 110 y diferencia cero. |
-| Confirmación local de venta con total cero | Precio L 0.01 × cantidad 0.01 redondea a total cero. La pantalla offline permitía llegar al diario y confirmar, aunque el backend rechaza `IMPORTE_INVALIDO`. | El diario rechaza antes de abrir IndexedDB. Usa el error y el manejo asíncrono existentes; no se cambió la pantalla. Regresión roja/verde en `offline-logica.test.mjs`. |
+| L 4.02 × 0.25 | Subtotal 1.00, total 1.15 | Subtotal 1.01, ISV 0.15, total 1.16. |
+| L 1.50 | ISV 0.22, total 1.72 | ISV 0.23, total 1.73. |
+| L 0.05 con 70 % | Descuento mostrado 0.03 frente a 0.04 enviado; total mostrado 0.02 | Descuento mostrado/enviado 0.04; total 0.01. |
+| L 0.29 con 50 % | Descuento enviado 0.14 y total 0.17 | Descuento 0.15 y total 0.16. |
+| L 4.02 × 0.25 + L 1.50 | Total mostrado 2.88 | Subtotal 2.51, ISV 0.38, total 2.89. |
 
-La conversión sigue rechazando milésimas reales, no finitos y valores fuera del rango seguro. El resumen conserva números en la API: si una suma bruta final supera la precisión representable por `Number`, ese contrato limita su representación; el neto se calcula exactamente antes de convertir y los importes persistibles de `DECIMAL(12,2)` caben en el rango seguro.
+`POSPage.tsx` usa `utils/posMoney.ts` tanto para la pantalla como para el payload de cobro/reintento. Este adaptador reutiliza `offline/money.ts`; el backend ya usa las mismas reglas en `common/dinero.ts`. El descuento se calcula sobre el subtotal redondeado por línea con un cociente entero; se conservan todos los decimales del porcentaje, incluida notación exponencial. Las líneas del carrito, comprobante y datos enviados al PDF usan el subtotal fiscal redondeado. El comprobante identifica el descuento y su subtotal de respaldo conserva el significado bruto de la API.
 
-**Defectos pendientes en archivos protegidos.** Confirmados sobre el componente real transpiliado, sus handlers y el formateador real, con React/API simulados en VM; los resultados esperados proceden del módulo monetario real del backend. No se presentan como pruebas de navegador.
+La auditoría de devoluciones detectó otro defecto real: 12 unidades a L 0.21 facturan L 2.90; devolver 9 producía L 2.17 por el cociente binario, frente a L 2.18 con mitad hacia arriba. `planDevolucion` ahora mantiene pesos exactos en diezmilésimas y el reparto acumulado en `BigInt`; resta en centavos lo ya devuelto. La segunda devolución devuelve L 0.72 y completa L 2.90. Con un abono previo de L 1.01, la primera cancela L 1.89 de crédito y reembolsa L 0.29; la segunda reembolsa L 0.72. El saldo de cuenta y cliente queda en cero y los reembolsos suman exactamente lo pagado.
 
-| Caso en `frontend/src/pages/POSPage.tsx` | Resultado actual | Resultado según regla existente |
-| --- | --- | --- |
-| L 4.02 × 0.25 | Subtotal L 1.00; pantalla total L 1.15 | Backend subtotal L 1.01; total L 1.16 |
-| L 1.50 sin descuento | Pantalla ISV L 0.22; total L 1.72 | Backend ISV L 0.23; total L 1.73 |
-| L 0.05 con descuento 70 % | Pantalla total L 0.02; se envía descuento L 0.04 | Backend factura L 0.01 con el descuento recibido |
-| L 0.29 con descuento 50 % | Se envía L 0.14 de descuento; se factura L 0.17 | Descuento exacto L 0.15; total L 0.16 |
-| L 4.02 × 0.25 más L 1.50 | Pantalla total L 2.88 | Backend total L 2.89 |
+**Reglas comerciales y esquema:** se conservan HNL, ISV 15 % sobre subtotal menos descuento, redondeo por línea y mitad hacia arriba; devoluciones proporcionales acumuladas que cancelan primero la deuda y reembolsan el excedente pagado. Sin cambios de contratos, permisos, esquema ni migraciones. No se corrigen datos históricos automáticamente. La exclusión Vercel de esta rama se conserva.
 
-Las expresiones actuales se pueden reproducir con Node sin depender del arnés:
+## Pruebas y reproducibilidad
 
-```js
-Math.round(4.02 * 0.25 * 100) / 100; // 1.00
-Math.round(1.50 * 0.15 * 100) / 100; // 0.22
-Math.round(0.05 * (70 / 100) * 100) / 100; // 0.03: descuento mostrado
-Math.round(0.05 * 70) / 100; // 0.04: descuento enviado
-Math.round(0.29 * 50) / 100; // 0.14
+Entorno: Node 24.19.0, Prisma 6.4.1 regenerado y PostgreSQL 17.11 extraído en una carpeta temporal, ejecutado como usuario no privilegiado. Solo bases aisladas y datos sintéticos. Chromium del entorno (`/usr/bin/chromium`).
+
+- Backend unitarias completas: **458/458**, 47 archivos; conserva las regresiones de las cuatro correcciones originales.
+- Frontend completo: **321/321**. Ejecución posterior de los tres archivos POS/recuperación/dinero: **51/51** (solapadas con la completa).
+- Prueba diferencial: **10.000 carritos** con varios productos, cantidades decimales y descuentos; coincidencia de líneas, subtotal, ISV y total entre frontend, backend y offline. Casos adicionales de porcentaje con tres decimales, notación exponencial e importe alto.
+- Regresiones rojas antes de corregir: cuatro casos del componente POS y devolución HTTP/servicios con PostgreSQL (2.17 frente a 2.18); verdes tras corregir. La devolución con abono previo también pasa en PostgreSQL real.
+- Integración final PostgreSQL real: **241/241 en 9 archivos**, con las suites listadas en el comando siguiente (ventas, crédito, pagos bancarios, caja, CxC/CxP, cobro/entrega, devoluciones, contingencia y redondeo/cobro).
+- Navegador real, 5 archivos: **10 aprobadas, 1 fallida, 13 no ejecutadas** por la secuencia serial de contingencia. Pasan crédito/abonos (6), caja (1), cobro/entrega (1), contingencia en línea (1) y la nueva prueba POS con sus cinco casos (1).
+- **Fallo pendiente reproducido también en la base `463efae8`:** `contingencia-real.spec.ts:192`, tras `setOffline(true)` y recarga, la aplicación muestra «En línea» y no aparece «● Sin conexión». Base aislada: 1 aprobada/1 fallida; mismo Chromium 151.0.7922.173. No se atribuye a las nuevas correcciones ni se presenta la suite offline como aprobada. No se debilitó ni omitió la prueba.
+- Builds backend y frontend correctos; frontend con `VITE_API_URL=/api`. Lint de archivos modificados sin errores (avisos previos de React, variables preexistentes del test y configuración `strictNullChecks`). `git diff --check` y guard de migraciones correctos: **0 migraciones nuevas**.
+
+Comandos (desde cada paquete):
+
+```sh
+# backend
+npx prisma generate
+npm test
+npm run build
+PG_BIN=<ruta-postgresql>/bin npm run test:integration -- test/redondeo-cobro.postgres.integration.ts test/ventas.postgres.integration.ts test/credito.postgres.integration.ts test/pagos-bancarios.postgres.integration.ts test/caja.postgres.integration.ts test/cxc-cxp-balance.postgres.integration.ts test/cobro-entrega.postgres.integration.ts test/devoluciones-cxc.postgres.integration.ts test/contingencia.postgres.integration.ts
+
+# frontend
+npm test
+VITE_API_URL=/api npm run build
+PG_BIN=<ruta-postgresql>/bin PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e-real -- precision-monetaria-real balance-real caja-interfaz-real cobro-entrega-real contingencia-real
 ```
 
-Corresponden a los cálculos de `POSPage.tsx` alrededor de las líneas 224–237 y al descuento del payload alrededor de la 369. No se cambió el backend para imitar esos errores. Requieren corrección coordinada posterior en ese archivo y nuevas regresiones de interfaz.
+El harness de navegador crea su propio clúster, aplica las migraciones reales con `migrate deploy`, comprueba deriva completa, siembra dos empresas y arranca API NestJS y frontend construidos. La nueva prueba `precision-monetaria-real.spec.ts` comprueba los cinco casos en pantalla, descuento del POST, respuesta de factura y filas NUMERIC de venta/caja. Las suites existentes cubren crédito y abonos, caja, cobro/entrega y desconexión/sincronización de contingencia.
 
-**Casos obligatorios comprobados.**
+Incidencias de preparación resueltas: el cliente Prisma instalado no incluía `precioAprobado`; se regeneró desde el esquema sin cambiarlo. PostgreSQL no estaba instalado y se preparó localmente sin privilegios. La prueba nueva de navegador intentó aprobar de nuevo un producto creado ya aprobado por ADMIN y esperaba `L ` donde el formateador usa `L. `; se corrigió la prueba sin relajar sus comprobaciones de importes.
 
-| Caso | Evidencia |
-| --- | --- |
-| L 0.10 + L 0.20 y múltiples productos | HTTP/PG: subtotal 0.30, ISV 0.05, total 0.35; VM del POS coincide en este caso. |
-| Cantidades decimales | Regresión existente HTTP/PG: 2.5 × 25.99 → subtotal 64.98, ISV 9.75, total 74.73. Diferencia de 4.02 × 0.25 documentada arriba. |
-| Descuentos porcentuales | Pruebas del límite exacto/centavo adicional y evidencia de porcentajes 50/70 del POS. |
-| Impuestos y redondeo | Vectores compartidos, mitad hacia arriba y regresión 64.975; diferencia de ISV sobre 1.50 documentada arriba. |
-| Pagos exactos y parciales | HTTP/PG: abonos 0.10 y 0.25 saldan 0.35, sin residuo en venta, cliente ni cuenta. |
-| Pago superior al total y cambio | Contingencia, lógica real: total 0.35 / recibido 1.00 → cambio 0.65; recibido 0.35 → cambio 0; recibido 0.34 bloqueado por faltante 0.01. CXC: sobrepago 0.36 sobre saldo 0.35 rechazado sin pago ni movimiento adicional. |
-| Valores elevados | Venta/abono alto HTTP/PG y arqueo de 2000 movimientos; VM: 1,234,567.89 × 2.75 → subtotal 3,395,061.70 y total 3,904,320.96. |
+## Pendientes y límites
 
-**Validación ejecutada.** Node 24.19.0, Prisma 6.4.1 regenerado desde el esquema existente y PostgreSQL 17.11 temporal como usuario sin privilegios. Datos sintéticos, sin leer ni conectar bases productivas.
+- #165 sigue sin integrar: actualización con su `main` y regresión conjunta pendientes. No se declara listo para producción.
+- Recarga offline de contingencia falla también en el commit original; 13 pruebas posteriores de esa secuencia no se ejecutaron. Falta resolver/validar ese flujo con el navegador objetivo. No se encontró una diferencia monetaria restante en los casos válidos ejecutados; esto no acredita el resto de la secuencia offline.
+- Checks de GitHub correspondientes al HEAD publicado: se informan en el PR al finalizar; ningún resultado local sustituye esos checks.
+- No se probó impresión física, iPhone/Safari físico, datáfono real, apagón/UPS ni datos históricos de producción. Las pruebas locales no acreditan esas condiciones.
+- Las devoluciones históricas ya calculadas con el algoritmo anterior se conservan; la siguiente devolución descuenta exactamente lo ya registrado del derecho acumulado, sin reescribir el historial.
 
-- Backend unitarias completas finales: 458/458 en 47 archivos; selección final de ventas/operaciones/dinero: 107/107 en 12 archivos, incluida en la completa.
-- Frontend `npm test`: 37/37 archivos aprobados; ejecución directa final de lógica offline: 18/18; protección Vercel: 9/9. No se suman estos conteos solapados.
-- HTTP/PostgreSQL: 187/187 en siete archivos: `ventas`, `credito`, `pagos-bancarios`, `caja`, `cxc-cxp-balance`, `cobro-entrega` y `redondeo-cobro`.
-- Builds backend y frontend aprobados. Lint de archivos modificados sin errores; backend informa avisos de `strictNullChecks` desactivado. `git diff --check` y control de migraciones aprobados, cero migraciones nuevas.
-- Los primeros intentos de pruebas HTTP y del control de migraciones fallaron por restricciones de sockets/procesos del sandbox; se repitieron con el permiso de ejecución requerido y pasaron. No motivaron cambios de aplicación.
-- No se ejecutó aceptación física ni navegador real en esta auditoría. La evidencia VM es complementaria a HTTP/PG, no los sustituye.
+Resumenes y hashes de fuentes/pruebas: [evidencia de esta continuación](evidencias/pr166-20261015/RESULTADOS.txt).
 
-**Archivos modificados.**
-
-- Código: `backend/src/common/{huella-solicitud,redondeo-monetario}.ts`, `backend/src/operaciones/{ledger,operaciones.service}.ts`, `frontend/src/offline/journal.ts`.
-- Regresiones: los dos `.spec.ts` monetarios de `common`, `backend/src/operaciones/resumen-caja-precision.spec.ts`, `backend/test/redondeo-cobro.postgres.integration.ts`, `frontend/test/offline-logica.test.mjs`.
-- Publicación sin preview: `frontend/vercel.json` excluye exclusivamente esta rama; `frontend/test/vercel-pilot-guard.test.mjs` verifica la exclusión. Es necesario para respetar «sin despliegue» al publicar el PR.
-- Este informe. No se modificó ningún archivo de #165; lista contrastada nuevamente antes de publicar.
-
-**Bitácora.** Lectura de contexto, fetch y comprobación de main/PR actuales; auditoría paralela de ventas/POS/pagos/caja; reproducciones sobre implementación real; regresiones rojas; correcciones mínimas; pruebas verdes unitarias y HTTP/PG; compilación, lint y revisión independiente del diff. Publicación de un solo PR en borrador, pendiente de resolver las discrepancias protegidas y de revisar sus checks. Ninguna fusión ni operación productiva.
+NEXUS — validación de integridad monetaria en PostgreSQL aislado. Estado y bitácora vigentes también en `CONTEXTO_MAESTRO.md`, sección PR #166.

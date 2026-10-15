@@ -1,3 +1,4 @@
+import { aCentavos } from '../common/redondeo-monetario';
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
@@ -353,8 +354,10 @@ export class OperacionesService {
    const [v]=await query(tx,"SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado='COMPLETADA' FOR UPDATE",ventaId,tenantId);if(!v)throw new NotFoundException('Venta no encontrada');
    if(!dto.items?.length||new Set(dto.items.map(i=>i.detalleId)).size!==dto.items.length)throw new BadRequestException('Seleccione líneas distintas');
    const details=await query(tx,'SELECT d.*,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d WHERE d.venta_id=$1',v.id);
-   let gross=0,before=0,added=0;
-   for(const d of details){gross+=Number(d.cantidad)*Number(d.precio_unitario);before+=Number(d.devuelto)*Number(d.precio_unitario);}
+   const entero=(valor:unknown)=>BigInt(aCentavos(Number(valor)));
+   // Conservar el reparto proporcional acumulado existente, con pesos exactos en diezmilésimas.
+   let gross=0n,before=0n,added=0n;
+   for(const d of details){gross+=entero(d.cantidad)*entero(d.precio_unitario);before+=entero(d.devuelto)*entero(d.precio_unitario);}
    for(const item of dto.items){
     const d=details.find(d=>d.id===item.detalleId),quantity=decimal(item.cantidad,'Cantidad',true);if(!d)throw new NotFoundException('Línea de venta no encontrada');
     if(d.sin_inventario){
@@ -368,10 +371,12 @@ export class OperacionesService {
       if(q>C-E-N)throw new BadRequestException(`Cantidad supera lo pendiente de entrega (pendiente: ${((C-E-N)/100).toFixed(2)}); la mercancía entregada requiere un destino físico`);
      }else if(q>E-R-S)throw new BadRequestException(`Cantidad supera lo vendido pendiente de devolver (disponible para devolver: ${((E-R-S)/100).toFixed(2)})`);
     }
-    added+=quantity*Number(d.precio_unitario);
+    added+=entero(quantity)*entero(d.precio_unitario);
    }
    const [old]=await query(tx,'SELECT COALESCE(SUM(monto),0) AS monto FROM devoluciones WHERE venta_id=$1',v.id);
-   const monto=money(Math.max(0,(gross>0?money(Number(v.total)*(before+added)/gross):0)-Number(old.monto)));
+   const acumulado=gross>0n?(entero(v.total)*(before+added)*2n+gross)/(gross*2n):0n;
+   const pendiente=acumulado-entero(old.monto);
+   const monto=Number(pendiente>0n?pendiente:0n)/100;
    return {v,details,monto};
  }
  async devolver(tenantId:string,userId:string,ventaId:string,dto:DevolucionDto){
@@ -481,7 +486,7 @@ export class OperacionesService {
      await query(tx,"UPDATE ventas SET saldo_credito=GREATEST(COALESCE(saldo_credito,total)-$1,0) WHERE id=$2 AND tenant_id=$3 AND tipo_pago='CREDITO' RETURNING id",credito,v.id,tenantId);
     }
    }
-   const refund=money(monto-credito),metodo=paymentMethod(dto.metodo);let caja:any=null;
+   const refund=(aCentavos(monto)-aCentavos(credito))/100,metodo=paymentMethod(dto.metodo);let caja:any=null;
    if(refund>0){caja=await openCash(tx,tenantId,userId);if(metodo==='EFECTIVO'){
     const [cash]=await query(tx,"SELECT COALESCE(SUM(monto),0) AS monto FROM movimientos_caja WHERE caja_id=$1 AND metodo='EFECTIVO'",caja.id);
     if(refund>money(Number(caja.monto_apertura)+Number(cash.monto)))throw new ConflictException('Efectivo insuficiente para reembolsar');

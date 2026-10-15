@@ -1,0 +1,6 @@
+74540cdcbc6c772966716d0010ff285a80de5e7b0a92572e8f6bb12e5c0146a3  backend/src/operaciones/operaciones.service.ts
+3c2b4391b1b831eb84d8afdd752ff20846f808b0458bf388e67a0f967832ca5c  backend/test/devoluciones-cxc.postgres.integration.ts
+8c501dbaa1de6905634e1b86ee95768d2794b21e1fa81f7bfc7016431ca234df  frontend/src/pages/POSPage.tsx
+c1bbaec6a04d872cc875cf1a30b75eb9cbbdcf85145dc6ffaf513d6e6f36de19  frontend/src/utils/posMoney.ts
+44cacf2aa3f92a5249ebec979922211536eea683e050f009671aebdb764ff62d  frontend/test/pos-money.test.mjs
+e9b8a796535cee41c5b32d35209855870b1935eec5f978ce7f1741fa9eeab44a  frontend/e2e-real/precision-monetaria-real.spec.ts

@@ -1,0 +1,60 @@
+PR #166 — continuación 2026-10-15 UTC
+Base: main 74ba4dcc; preservado 463efae8. Node 24.19.0 / PostgreSQL 17.11 / Chromium 151.0.7922.173
+Solo entornos aislados y datos sintéticos.
+
+pr166-backend-unit.log
+ Test Files  47 passed (47)
+      Tests  458 passed (458)
+   Duration  102.37s (transform 3.28s, setup 0ms, import 44.53s, tests 31.90s, environment 10ms)
+
+pr166-frontend-tests.log
+✔ automatic polling retries failed GET, skips hidden/offline and does not overlap (213.880069ms)
+ℹ tests 321
+ℹ pass 321
+ℹ fail 0
+
+pr166-pos-green.log
+ℹ tests 51
+ℹ pass 51
+ℹ fail 0
+
+pr166-differential.log
+ℹ tests 2
+ℹ pass 2
+ℹ fail 0
+
+pr166-pg-final.log
+ Test Files  9 passed (9)
+      Tests  241 passed (241)
+   Duration  71.58s (transform 1.46s, setup 0ms, import 4.69s, tests 65.18s, environment 1ms)
+
+pr166-refund-green.log
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Duration  3.85s (transform 521ms, setup 0ms, import 997ms, tests 2.64s, environment 0ms)
+
+pr166-browser-real.log
+  ✓   1 [chromium] › e2e-real/balance-real.spec.ts:75:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › el administrador ve la deuda del cliente y registra un abono; el saldo se actualiza en pantalla y en la base (3.5s)
+  ✓   2 [chromium] › e2e-real/balance-real.spec.ts:89:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › el administrador registra un pago a proveedor con referencia; el historial la muestra con el responsable (4.6s)
+  ✓   3 [chromium] › e2e-real/balance-real.spec.ts:104:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › una referencia repetida en la misma factura se rechaza y no cambia el saldo (API real) (111ms)
+  ✓   4 [chromium] › e2e-real/balance-real.spec.ts:110:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › el cajero ve las cuentas por cobrar pero no las de proveedores (3.4s)
+  ✓   5 [chromium] › e2e-real/balance-real.spec.ts:119:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › el bodeguero no accede a información financiera (2.8s)
+  ✓   6 [chromium] › e2e-real/balance-real.spec.ts:126:3 › BALANCE: cuentas por cobrar y por pagar contra backend real › otra empresa no ve ni paga las cuentas de esta (separación entre empresas en backend real) (90ms)
+  ✓   7 [chromium] › e2e-real/caja-interfaz-real.spec.ts:33:1 › caja en navegador real: abrir desde la pantalla, registrar cobro, cerrar desde la pantalla y verificar la conciliación (4.1s)
+  ✓   8 [chromium] › e2e-real/cobro-entrega-real.spec.ts:39:3 › Cobro y entrega con backend real › cobrar y dejar en bodega → pendiente visible → entrega parcial y final → existencias correctas (8.2s)
+  ✓   9 [chromium] › e2e-real/contingencia-real.spec.ts:163:3 › POS offline de contingencia — backend real › 1. en línea: el equipo se registra, descarga la ventana, cobra y envía; la venta queda con correlativo central (3.3s)
+  ✘  10 [chromium] › e2e-real/contingencia-real.spec.ts:185:3 › POS offline de contingencia — backend real › 2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar (7.9s)
+  ✓  24 [chromium] › e2e-real/precision-monetaria-real.spec.ts:11:1 › POS: los cinco casos de redondeo coinciden en pantalla, payload, factura y caja (7.0s)
+    Error: expect(locator).toBeVisible() failed
+  1 failed
+  13 did not run
+  10 passed (57.8s)
+
+pr166-offline-baseline.log
+  ✓  1 [chromium] › e2e-real/contingencia-real.spec.ts:163:3 › POS offline de contingencia — backend real › 1. en línea: el equipo se registra, descarga la ventana, cobra y envía; la venta queda con correlativo central (2.5s)
+  ✘  2 [chromium] › e2e-real/contingencia-real.spec.ts:185:3 › POS offline de contingencia — backend real › 2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar (6.9s)
+    Error: expect(locator).toBeVisible() failed
+  1 failed
+  1 passed (12.6s)
+
+Builds backend/frontend, lint de archivos modificados, diff y control de migraciones: aprobados; advertencias previas. Cero migraciones nuevas.
