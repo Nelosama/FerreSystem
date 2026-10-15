@@ -339,10 +339,10 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         {/* Info Cajero/Admin y Botón de Cerrar Sesión */}
         {user && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div className="v2-user-badge" style={styles.userBadge}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '100%' }}>
+            <div className="v2-user-badge" style={{ ...styles.userBadge, minWidth: 0, maxWidth: '100%' }}>
               <UserCheck size={14} strokeWidth={2.4} color="var(--color-primary)" />
-              <span>{user.nombre}</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.nombre}</span>
             </div>
 
             <button
@@ -474,6 +474,8 @@ const styles: Record<string, React.CSSProperties> = {
   logoutBtn: {
     display: 'inline-flex',
     alignItems: 'center',
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
     gap: '6px',
     backgroundColor: '#FEE2E2',
     color: '#991B1B',
