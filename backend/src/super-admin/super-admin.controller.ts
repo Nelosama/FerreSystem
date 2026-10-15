@@ -5,6 +5,8 @@ import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 import type { Request, Response } from 'express';
 import { CreateTenantAdminDto, UpdateTenantAdminDto } from './tenant-admin.dto';
 import { SupportTokenDto } from './support-token.dto';
+import { PermiteSoporteSoloLectura } from '../common/decorators/soporte-solo-lectura.decorator';
+import { Query } from '@nestjs/common';
 
 @Controller('admin')
 export class SuperAdminController {
@@ -43,6 +45,26 @@ export class SuperAdminController {
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   async supportToken(@Req() req: Request & { user: { sub: string } }, @Body() dto: SupportTokenDto) {
     return this.superAdminService.supportToken(req.user.sub, dto.tenantId, dto.usuarioId, dto.readOnly ?? true, { motivo: dto.motivo, confirmarEscritura: dto.confirmarEscritura === true });
+  }
+
+  @Get('tenants/:id/usuarios')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async listSoporteUsuarios(@Param('id') id: string) {
+    return this.superAdminService.listSoporteUsuarios(id);
+  }
+
+  @Post('support/finalizar')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @PermiteSoporteSoloLectura()
+  async finalizarSoporte(@Req() req: Request & { user: { sub: string; tenantId?: string; impersonatedBy?: string; soporteSesionId?: string; sid?: string; readOnly?: boolean } }) {
+    return this.superAdminService.finalizarSoporte(req.user);
+  }
+
+  @Get('soporte/trazas')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async trazaSoporte(@Query('tenantId') tenantId?: string, @Query('limite') limite?: string) {
+    return this.superAdminService.trazaSoporte(tenantId || undefined, Number(limite) || 100);
   }
 
   @Post('tenants')
