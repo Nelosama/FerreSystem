@@ -17,7 +17,7 @@ interface TenantContextType {
   login: (user: UserInfo, tenant: TenantInfo) => void;
   logout: () => void;
   impersonateTenantAdmin: (targetTenant: TenantInfo, targetAdminUser: UserInfo, supportSessionId?: string, motivo?: string) => Promise<void>;
-  stopImpersonating: () => void;
+  stopImpersonating: () => Promise<void>;
   enableEditMode: (motivo?: string) => Promise<void>;
   switchSucursal: (targetSucursalName: string, targetTenantId: string) => void;
 }
@@ -57,7 +57,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return readStoredJson('ferre_is_read_only', true);
   });
 
-  const [activeSupportSessionId, setActiveSupportSessionId] = useState<string | null>(() => {
+  const [, setActiveSupportSessionId] = useState<string | null>(() => {
     return localStorage.getItem('ferre_active_support_session_id');
   });
 
@@ -244,46 +244,26 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('ferre_support_target', JSON.stringify(target));
     setIsReadOnlyState(false);
     localStorage.setItem('ferre_is_read_only', JSON.stringify(false));
-
-    if (activeSupportSessionId) {
-      const logsRaw = localStorage.getItem('ferre_mock_auditoria_soporte');
-      if (logsRaw) {
-        try {
-          const logs = JSON.parse(logsRaw);
-          const updated = logs.map((log: any) =>
-            log.id === activeSupportSessionId ? { ...log, modoEdicionActivado: true } : log,
-          );
-          localStorage.setItem('ferre_mock_auditoria_soporte', JSON.stringify(updated));
-        } catch (e) {
-          // Fallback
-        }
-      }
-    }
+    // La sesión de solo lectura anterior queda revocada en el servidor: no debe seguir vigente junto a la de escritura.
+    await api.post('/admin/support/finalizar', {}, { headers: { Authorization: `Bearer ${supportToken}` } }).catch(() => {});
   };
 
-  const stopImpersonating = () => {
+  const stopImpersonating = async () => {
     configRevision.current++;
     settingsReads.current.invalidate();
     const adminToken = localStorage.getItem('ferre_original_superadmin_token');
+    const supportToken = localStorage.getItem('ferre_token');
+    // Revoca la sesión de soporte en el servidor (queda registrada como finalizada). Si la red falla, el token
+    // de soporte vence solo en pocos minutos; la identidad original se recupera igual para no bloquear al Super Admin.
+    if (adminToken && supportToken && adminToken !== supportToken && localStorage.getItem('ferre_support_target')) {
+      await api.post('/admin/support/finalizar', {}, { headers: { Authorization: `Bearer ${supportToken}` } }).catch((error) => {
+        console.error('No se pudo revocar la sesión de soporte en el servidor:', error);
+      });
+    }
     // Compatibilidad con sesiones antiguas: conservaban el token de superadmin.
     if (adminToken) localStorage.setItem('ferre_token', adminToken);
     localStorage.removeItem('ferre_original_superadmin_token');
     localStorage.removeItem('ferre_support_target');
-    if (activeSupportSessionId) {
-      const logsRaw = localStorage.getItem('ferre_mock_auditoria_soporte');
-      if (logsRaw) {
-        try {
-          const logs = JSON.parse(logsRaw);
-          const nowFormatted = new Date().toISOString().replace('T', ' ').slice(0, 16);
-          const updated = logs.map((log: any) =>
-            log.id === activeSupportSessionId && !log.fechaFin ? { ...log, fechaFin: nowFormatted } : log,
-          );
-          localStorage.setItem('ferre_mock_auditoria_soporte', JSON.stringify(updated));
-        } catch (e) {
-          // Fallback
-        }
-      }
-    }
 
     if (originalSuperAdminUser && originalTenant) {
       setUser(originalSuperAdminUser);

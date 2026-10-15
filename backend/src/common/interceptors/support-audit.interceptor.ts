@@ -2,6 +2,8 @@ import { CallHandler, ExecutionContext, ForbiddenException, Injectable, Logger, 
 import { Observable, catchError, from, switchMap, tap, throwError } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { runWithSupportContext } from '../support-context';
+import { Reflector } from '@nestjs/core';
+import { PERMITE_SOPORTE_SOLO_LECTURA } from '../decorators/soporte-solo-lectura.decorator';
 
 const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 
@@ -13,13 +15,15 @@ const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 @Injectable()
 export class SupportAuditInterceptor implements NestInterceptor {
   private readonly logger = new Logger(SupportAuditInterceptor.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly reflector: Reflector) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== 'http') return next.handle();
     const request = context.switchToHttp().getRequest();
     const user = request.user;
     if (!user?.impersonatedBy || user.type !== 'tenant') return next.handle();
+    // La ruta que finaliza el soporte la audita su propio handler y debe responder aunque la sesión sea de solo lectura.
+    if (this.reflector.getAllAndOverride<boolean>(PERMITE_SOPORTE_SOLO_LECTURA, [context.getHandler(), context.getClass()])) return next.handle();
 
     const supportContext = { impersonatedBy: String(user.impersonatedBy), soporteSesionId: String(user.soporteSesionId), readOnly: user.readOnly !== false };
     const run = () => new Observable<unknown>(subscriber => runWithSupportContext(supportContext, () => next.handle().subscribe(subscriber)));

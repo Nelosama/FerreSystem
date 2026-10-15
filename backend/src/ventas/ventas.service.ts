@@ -5,6 +5,19 @@ import { aCentesimas, huellaCanonica, normalizarTexto } from '../common/huella-s
 import { cent, registrarEventosCobro, ROLES_ENTREGA } from '../entregas/entregas-core';
 import { Injectable, BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { calcularTotales, centavosADecimal } from '../common/dinero';
+import { aCentavos } from '../common/redondeo-monetario';
+
+/**
+ * Facturado, cobrado y saldo pendiente de una venta. Al contado se cobra el total. En crédito el saldo lo mantienen
+ * los abonos (operaciones: saldo_credito y cuenta CXC); cobrado = facturado − saldo. No inventa plazos ni vencimientos.
+ */
+export function cobroDeVenta(v: { total: unknown; tipoPago: string; saldoCredito: unknown }) {
+  const totalFacturado = Number(v.total);
+  if (v.tipoPago !== 'CREDITO') return { totalFacturado, totalCobrado: totalFacturado, saldoPendiente: 0 };
+  const saldoPendiente = v.saldoCredito === null || v.saldoCredito === undefined ? totalFacturado : Number(v.saldoCredito);
+  return { totalFacturado, totalCobrado: centavosADecimal(aCentavos(totalFacturado) - aCentavos(saldoPendiente)), saldoPendiente };
+}
 
 @Injectable()
 export class VentasService {
@@ -46,6 +59,7 @@ export class VentasService {
 
     return ventas.map((v) => ({
       ...v,
+      ...cobroDeVenta(v),
       subtotal: Number(v.subtotal),
       isv: Number(v.isv),
       descuento: Number(v.descuento),
@@ -83,6 +97,7 @@ export class VentasService {
 
     return {
       ...v,
+      ...cobroDeVenta(v),
       subtotal: Number(v.subtotal),
       isv: Number(v.isv),
       descuento: Number(v.descuento),
@@ -229,7 +244,6 @@ export class VentasService {
       const numeroVenta = result[0].ultimo_numero;
 
       // 2. Procesar ítems y descontar stock
-      let subtotalTotal = 0;
       const detallesParaCrear: {
         productoId: string;
         cantidad: number;
@@ -283,8 +297,6 @@ export class VentasService {
           if (!provider) throw new BadRequestException('Venta sin inventario requiere proveedor registrado');
           if(item.ordenCompraId){const [order]=await query(tx,'SELECT id FROM ordenes_compra WHERE id=$1 AND tenant_id=$2 AND proveedor_id=$3',item.ordenCompraId,tenantId,provider.id);if(!order)throw new BadRequestException('Compra no corresponde al proveedor');}
         } else if (item.proveedorId || item.ordenCompraId) throw new BadRequestException('Use venta sin inventario para vincular proveedor');
-        const itemSubtotal = Math.round(precioUnitario * item.cantidad * 100) / 100;
-        subtotalTotal += itemSubtotal;
 
         // Descontar inventario con precisión decimal exacta
         if (!item.sinInventario) {
@@ -303,7 +315,7 @@ export class VentasService {
           productoId: prod.id,
           cantidad: item.cantidad,
           precioUnitario,
-          subtotal: itemSubtotal,
+          subtotal: 0,
           costoUnitario: Number(prod.precioCosto),
           sinInventario: !!item.sinInventario,
           proveedorId: item.proveedorId || null,
@@ -314,11 +326,15 @@ export class VentasService {
       }
 
       // 3. Cálculos fiscales de Honduras: ISV 15%
-      subtotalTotal = money(subtotalTotal);
-      validateDiscount(user,subtotalTotal,descuento);
-      const baseGravable = money(subtotalTotal - descuento);
-      const isv = Math.round(baseGravable * 0.15 * 100) / 100;
-      const total = Math.round((baseGravable + isv) * 100) / 100;
+      // Mismo cálculo que el POS offline (common/dinero.ts): líneas en centavos, mitad hacia arriba, ISV 15% sobre la base.
+      const monetarias = detallesParaCrear.map((d) => ({ precioCentavos: aCentavos(d.precioUnitario, 'Precio unitario'), cantidadCentesimas: aCentavos(d.cantidad, 'Cantidad') }));
+      const subtotalCentavos = calcularTotales(monetarias, 0).subtotal;
+      validateDiscount(user, centavosADecimal(subtotalCentavos), descuento);
+      const totales = calcularTotales(monetarias, aCentavos(descuento, 'Descuento'));
+      detallesParaCrear.forEach((d, i) => { d.subtotal = centavosADecimal(totales.lineas[i]); });
+      const subtotalTotal = centavosADecimal(totales.subtotal);
+      const isv = centavosADecimal(totales.isv);
+      const total = centavosADecimal(totales.total);
       if (!(total > 0)) throw new BadRequestException('La venta debe tener un importe mayor que cero');
 
       if (tipoPago === 'CREDITO' && clienteCredito.limiteCredito !== null) {
@@ -408,6 +424,7 @@ export class VentasService {
       descuento: Number(venta.descuento),
       total: Number(venta.total),
       saldoCredito: venta.saldoCredito === null ? null : Number(venta.saldoCredito),
+      ...cobroDeVenta(venta),
       detalles: venta.detalles.map((d) => ({
         id: d.id,
         productoId: d.productoId,
