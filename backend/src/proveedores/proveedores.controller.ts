@@ -1,5 +1,6 @@
 import { RequiredModule } from '../common/decorators/required-module.decorator';
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Rol } from '../types/prisma-enums';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
@@ -17,8 +18,8 @@ export class ProveedoresController {
   constructor(private readonly service: ProveedoresService) {}
 
   @Post() create(@TenantId() tenantId: string, @Body() dto: CreateProveedorDto) { return this.service.create(tenantId, dto); }
-  @Get() findAll(@TenantId() tenantId: string) { return this.service.findAll(tenantId); }
+  @Get() findAll(@TenantId() tenantId: string, @Query('incluirInactivos') incluirInactivos?: string) { return this.service.findAll(tenantId, incluirInactivos === 'true'); }
   @Get(':id') findById(@TenantId() tenantId: string, @Param('id') id: string) { return this.service.findById(tenantId, id); }
-  @Patch(':id') update(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdateProveedorDto) { return this.service.update(tenantId, id, dto); }
-  @Delete(':id') deactivate(@TenantId() tenantId: string, @Param('id') id: string) { return this.service.deactivate(tenantId, id); }
+  @Patch(':id') update(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Param('id') id: string, @Body() dto: UpdateProveedorDto) { return this.service.update(tenantId, id, dto, usuarioId); }
+  @Delete(':id') deactivate(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Param('id') id: string) { return this.service.deactivate(tenantId, id, usuarioId); }
 }
