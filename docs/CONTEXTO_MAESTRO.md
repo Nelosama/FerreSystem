@@ -1441,6 +1441,19 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 
 ---
 
+## Auditoría 12/10 — correcciones backend (2026-10-13, rama `claude/dazzling-bell-xxx0pn`, sin merge ni despliegue)
+
+- **Estado:** backend corregido para P0/P1 de importación CSV, P1 de crédito (cobrado y saldo), P3 de redondeo en ventas y cotizaciones, y color de marca. **Pendiente en frontend** (Claude): el importador aún no envía precios; ver contrato en el informe. Decisiones pendientes del dueño: semántica de `aprobarPrecios` y vencimiento de crédito.
+- **Commits:** `af13c754` (importación `POST /productos/importacion`), `beb317b6` (centavos en ventas y cotizaciones; `totalFacturado`, `totalCobrado`, `saldoPendiente`), `649ccb91` (color `#RRGGBB`).
+- **Informe completo, contratos API y riesgos:** [AUDITORIA_BACKEND_CORRECCIONES_20261013.md](AUDITORIA_BACKEND_CORRECCIONES_20261013.md).
+- **Pruebas (evidencia de ejecución local):** unitarias 43 archivos / 416 pasan; integración con PostgreSQL 16 desechable 57 archivos / 926 pasan (1 omitida, previa). Build, `test:scripts` (42/42) y control de migraciones correctos. Antes: 377 unitarias y 904 integración.
+- **Esquema y migraciones:** sin cambios. No aplica informe NEXUS en esta entrega.
+- **Bitácora:** lectura de AGENTS.md y del contexto; verificación de rama y commit base `4b650445`; línea base de pruebas; diagnóstico de P0 en `ImportarProductosModal.tsx` y `productos.service.ts`; implementación y pruebas de importación; redondeo en centavos con prueba de regresión contra la fórmula anterior; color de marca; informe y actualización de este documento.
+- **Pendientes reales:** (1) adaptar importador frontend a `POST /productos/importacion`; (2) decidir `aprobarPrecios` y vencimiento de crédito; (3) redondeo en compras, devoluciones, abonos, dashboard y estado de cuenta; (4) medir importación de 5000 filas; (5) aprobar precios de productos ya importados con L.0.00 desde Precios y aprobación.
+- **Entorno de pruebas:** `initdb` no corre como root. Para ejecutar las pruebas de integración se usó un envoltorio externo al repositorio que lo ejecuta como `ubuntu` (`PG_BIN`). No cambia el código ni las pruebas.
+
+---
+
 **FIN DEL CONTEXTO VIGENTE**
 
 
