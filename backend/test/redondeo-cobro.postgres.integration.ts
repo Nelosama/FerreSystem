@@ -32,7 +32,7 @@ import { Reflector } from '@nestjs/core';
 
 // P1/P3 de la auditoría 12/10: aritmética en centavos (línea, ISV, total, cotización) y total facturado/cobrado/saldo.
 // PostgreSQL temporal con todas las migraciones reales. Nunca lee DATABASE_URL.
-// Nunca lee DATABASE_URL.
+// Los servicios y la persistencia son reales: no se usan mocks monetarios ni de PostgreSQL.
 const bin = process.env.PG_BIN || '/usr/bin';
 const exe = (name: string) => join(bin, name);
 
@@ -142,6 +142,64 @@ describe('Redondeo y cobro de ventas / HTTP y PostgreSQL aislado', () => {
     expect(Number((await prisma.cuentaOperativa.findUniqueOrThrow({ where: { id: cuenta.id } })).saldo)).toBe(44.23);
     const listado = (await http('get', '/ventas').expect(200)).body.find((v: any) => v.id === venta.body.id);
     expect(listado).toMatchObject({ totalCobrado: 30.5, saldoPendiente: 44.23 });
+  });
+
+  it('importe elevado con dos decimales: venta y abono conservan los centavos en API y PostgreSQL', async () => {
+    const p = await producto('ALTO', 1234567890.12);
+    const client = await prisma.cliente.create({ data: { tenantId, nombre: 'Cliente importe alto QA', creditoHabilitado: true, limiteCredito: 2000000000 } });
+    const venta = await http('post', '/ventas', { solicitudId: randomUUID(), clienteId: client.id, metodoPago: 'CREDITO', detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(201);
+    expect(venta.body).toMatchObject({ subtotal: 1234567890.12, descuento: 0, isv: 185185183.52, total: 1419753073.64, totalCobrado: 0, saldoPendiente: 1419753073.64 });
+    const guardada = await prisma.venta.findUniqueOrThrow({ where: { id: venta.body.id } });
+    expect([guardada.subtotal, guardada.isv, guardada.total].map(String)).toEqual(['1234567890.12', '185185183.52', '1419753073.64']);
+    const cuenta = await prisma.cuentaOperativa.findFirstOrThrow({ where: { tenantId, documentoId: venta.body.id } });
+    const pago = await http('post', `/operaciones/cuentas/${cuenta.id}/pagos`, { solicitudId: randomUUID(), monto: 1234567890.12, metodo: 'EFECTIVO' }).expect(201);
+    expect(Number(pago.body.monto)).toBe(1234567890.12);
+    expect(String((await prisma.pagoCuenta.findUniqueOrThrow({ where: { id: pago.body.id } })).monto)).toBe('1234567890.12');
+    const leida = await http('get', `/ventas/${venta.body.id}`).expect(200);
+    expect(leida.body).toMatchObject({ totalFacturado: 1419753073.64, totalCobrado: 1234567890.12, saldoPendiente: 185185183.52 });
+    expect(String((await prisma.cuentaOperativa.findUniqueOrThrow({ where: { id: cuenta.id } })).saldo)).toBe('185185183.52');
+    expect(String((await prisma.cliente.findUniqueOrThrow({ where: { id: client.id } })).saldoPendiente)).toBe('185185183.52');
+  });
+
+  it('L.0.10 + L.0.20: rechaza sobrepago sin cambios y dos abonos exactos saldan L.0.35', async () => {
+    const a = await producto('CENT-A', 0.1);
+    const b = await producto('CENT-B', 0.2);
+    const client = await prisma.cliente.create({ data: { tenantId, nombre: 'Cliente centavos QA', creditoHabilitado: true, limiteCredito: 1 } });
+    const venta = await http('post', '/ventas', { solicitudId: randomUUID(), clienteId: client.id, metodoPago: 'CREDITO', detalles: [{ productoId: a.id, cantidad: 1 }, { productoId: b.id, cantidad: 1 }] }).expect(201);
+    expect(venta.body).toMatchObject({ subtotal: 0.3, descuento: 0, isv: 0.05, total: 0.35, totalCobrado: 0, saldoPendiente: 0.35 });
+    const cuenta = await prisma.cuentaOperativa.findFirstOrThrow({ where: { tenantId, documentoId: venta.body.id } });
+    const movimientosAntes = await prisma.movimientoCaja.count({ where: { caja: { tenantId } } });
+    await http('post', `/operaciones/cuentas/${cuenta.id}/pagos`, { solicitudId: randomUUID(), monto: 0.36, metodo: 'EFECTIVO' }).expect(400);
+    expect(String((await prisma.cuentaOperativa.findUniqueOrThrow({ where: { id: cuenta.id } })).saldo)).toBe('0.35');
+    expect(String((await prisma.cliente.findUniqueOrThrow({ where: { id: client.id } })).saldoPendiente)).toBe('0.35');
+    expect(await prisma.pagoCuenta.count({ where: { cuentaId: cuenta.id } })).toBe(0);
+    expect(await prisma.movimientoCaja.count({ where: { caja: { tenantId } } })).toBe(movimientosAntes);
+    for (const monto of [0.1, 0.25]) {
+      await http('post', `/operaciones/cuentas/${cuenta.id}/pagos`, { solicitudId: randomUUID(), monto, metodo: 'EFECTIVO' }).expect(201);
+    }
+    const leida = await http('get', `/ventas/${venta.body.id}`).expect(200);
+    expect(leida.body).toMatchObject({ totalFacturado: 0.35, totalCobrado: 0.35, saldoPendiente: 0 });
+    expect(String((await prisma.cuentaOperativa.findUniqueOrThrow({ where: { id: cuenta.id } })).saldo)).toBe('0');
+    expect(String((await prisma.cliente.findUniqueOrThrow({ where: { id: client.id } })).saldoPendiente)).toBe('0');
+    expect(await prisma.pagoCuenta.count({ where: { cuentaId: cuenta.id } })).toBe(2);
+  });
+
+  it('arqueo de 2000 movimientos elevados: conserva L.10 netos y cierra sin una diferencia ficticia', async () => {
+    const caja = await prisma.caja.findFirstOrThrow({ where: { tenantId, usuarioId, estado: 'ABIERTA' } });
+    // Cada par aporta exactamente un centavo; SQL NUMERIC conserva el importe real de cada movimiento.
+    await prisma.$executeRawUnsafe(`INSERT INTO movimientos_caja (id,caja_id,usuario_id,tipo,monto,metodo,concepto)
+      SELECT gen_random_uuid()::text,$1,$2,v.tipo::"TipoMovimientoCaja",v.monto,'EFECTIVO','Arqueo precisión QA'
+      FROM generate_series(1,1000) AS n CROSS JOIN (VALUES ('INGRESO_MANUAL',$3::numeric),('EGRESO_MANUAL',-$4::numeric)) AS v(tipo,monto)`, caja.id, usuarioId, '1000000000.01', '1000000000');
+    expect(await prisma.movimientoCaja.count({ where: { cajaId: caja.id } })).toBe(2000);
+    const consultada = (await http('get', '/operaciones/caja').expect(200)).body[0];
+    expect(consultada.efectivoEsperado).toBe(110);
+    expect(consultada.resumen).toMatchObject({ fondoInicial: 100, efectivoEsperado: 110, totalesPorMetodo: { EFECTIVO: 10 } });
+    const cerrada = await http('post', `/operaciones/caja/${caja.id}/cerrar`, { monto: 110 }).expect(201);
+    expect(cerrada.body.resumen).toMatchObject({ efectivoEsperado: 110, efectivoContado: 110, diferencia: 0 });
+    const guardada = await prisma.caja.findUniqueOrThrow({ where: { id: caja.id } });
+    expect(guardada.estado).toBe('CERRADA');
+    expect([guardada.montoEsperado, guardada.montoCierreFisico, guardada.diferencia].map(String)).toEqual(['110', '110', '0']);
+    expect(guardada.notas).toBeNull();
   });
 
   it('cotización con descuento general prorrateado: centavos enteros, misma regla que la venta', async () => {

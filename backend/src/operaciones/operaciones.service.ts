@@ -182,10 +182,13 @@ export class OperacionesService {
  }
  // Caja: el efectivo esperado solo suma movimientos EFECTIVO. Tarjeta, transferencia y crédito son totales informativos.
  private resumenCaja(c:any,movements:any[]){
-  const efectivo=movements.filter(m=>m.metodo==='EFECTIVO').map(m=>Number(m.monto));
-  const ingresosEfectivo=money(efectivo.filter(n=>n>0).reduce((s,n)=>s+n,0));
-  const egresosEfectivo=money(-efectivo.filter(n=>n<0).reduce((s,n)=>s+n,0));
-  const resumen:any={fondoInicial:money(Number(c.monto_apertura)),ingresosEfectivo,egresosEfectivo,efectivoEsperado:money(Number(c.monto_apertura)+ingresosEfectivo-egresosEfectivo),totalesPorMetodo:Object.fromEntries(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].map(method=>[method,money(movements.filter(m=>m.metodo===method).reduce((s,m)=>s+Number(m.monto),0))]))};
+  // Los importes de BD son DECIMAL(12,2); acumular sus centavos evita perder dinero al sumar turnos elevados.
+  const centavos=(valor:unknown)=>BigInt(Number(valor).toFixed(2).replace('.', ''));
+  const fondo=centavos(c.monto_apertura);
+  const efectivo=movements.filter(m=>m.metodo==='EFECTIVO').map(m=>centavos(m.monto));
+  const ingresos=efectivo.filter(n=>n>0n).reduce((s,n)=>s+n,0n);
+  const egresos=-efectivo.filter(n=>n<0n).reduce((s,n)=>s+n,0n);
+  const resumen:any={fondoInicial:Number(fondo)/100,ingresosEfectivo:Number(ingresos)/100,egresosEfectivo:Number(egresos)/100,efectivoEsperado:Number(fondo+ingresos-egresos)/100,totalesPorMetodo:Object.fromEntries(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].map(method=>[method,Number(movements.filter(m=>m.metodo===method).reduce((s,m)=>s+centavos(m.monto),0n))/100]))};
   if(c.estado==='CERRADA'){resumen.efectivoContado=Number(c.monto_cierre_fisico);resumen.diferencia=Number(c.diferencia);}
   return resumen;
  }
