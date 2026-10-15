@@ -7,6 +7,8 @@ import { ZONA_HORARIA_NEGOCIO, formatLempiras, formatFechaCalendario } from '../
 import { availableTasks } from '../utils/taskNavigation';
 import { useI18n } from '../context/I18nContext';
 import { Link } from 'react-router-dom';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { SyncStatus } from '../components/SyncStatus';
 import './OperacionesPage.css';
 
 type Mode = 'compras' | 'cuentas' | 'entregas';
@@ -23,6 +25,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  const [busy,setBusy]=useState(false);const running=useRef(false);
  const pendingKey=`ferre_operacion_pendiente:${tenant.id}:${user?.id}:${modo}`;
  const [pending,setPending]=useState<any>(null);
+ const [lineaError,setLineaError]=useState<{campo:'producto'|'cantidad'|'costo';texto:string}|null>(null);
  const [proveedorId,setProveedorId]=useState(''),[factura,setFactura]=useState(''),[vencimiento,setVencimiento]=useState(''),[tax,setTax]=useState('0');
  const [items,setItems]=useState<any[]>([]),[productId,setProductId]=useState(''),[qty,setQty]=useState('1'),[cost,setCost]=useState('');
  const [providerName,setProviderName]=useState(''),[phone,setPhone]=useState('');
@@ -30,17 +33,35 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  const [selected,setSelected]=useState<any>(null),[payAmount,setPayAmount]=useState(''),[method,setMethod]=useState('EFECTIVO');
  useEffect(()=>{try{setPending(JSON.parse(localStorage.getItem(pendingKey)||'null'));}catch{setPending(null);}setSelected(null);},[pendingKey]);
  const [filtroEstado,setFiltroEstado]=useState('');const [filtroDesde,setFiltroDesde]=useState('');const [filtroHasta,setFiltroHasta]=useState('');const [buscarCuenta,setBuscarCuenta]=useState('');
- const load=useCallback(async()=>{
-  setLoading(true);setError('');
+ // Lectura de la pantalla. Devuelve false si falló. No se ejecuta mientras una operación escribe (evita
+ // respuestas viejas que pisen datos recién confirmados) y descarta respuestas superadas por otra carga.
+ const loadSeq=useRef(0);const loaded=useRef(false);
+ const load=useCallback(async(force=false):Promise<boolean>=>{
+  if(running.current&&!force)return true;
+  const seq=++loadSeq.current;
+  if(!loaded.current)setLoading(true);
+  setError('');
   try{
    if(modo==='compras'){
     const [o,p,s]=await Promise.all([api.get('/operaciones/compras'),api.get('/productos'),api.get('/operaciones/proveedores')]);
+    if(seq!==loadSeq.current)return true;
     setRows(o.data);setProducts(p.data);setProviders(s.data);
-   }else if(modo==='cuentas')setRows((await api.get('/operaciones/cuentas',{params:{tipo,estado:filtroEstado||undefined,desde:filtroDesde||undefined,hasta:filtroHasta||undefined}})).data);
-   else setRows((await api.get('/operaciones/entregas')).data);
-  }catch(e){setError(errorMessage(e));}finally{setLoading(false);}
+   }else{
+    const res=modo==='cuentas'?await api.get('/operaciones/cuentas',{params:{tipo,estado:filtroEstado||undefined,desde:filtroDesde||undefined,hasta:filtroHasta||undefined}}):await api.get('/operaciones/entregas');
+    if(seq!==loadSeq.current)return true;
+    setRows(res.data);
+   }
+   loaded.current=true;return true;
+  }catch(e){if(seq===loadSeq.current)setError(errorMessage(e));return false;}
+  finally{if(seq===loadSeq.current)setLoading(false);}
  },[modo,tipo,tenant.id,filtroEstado,filtroDesde,filtroHasta]);
- useEffect(()=>{void load();},[load]);
+ // Se actualiza sola: al entrar, cada 60 s en compras y 30 s en cuentas/entregas, y al volver o recuperar la red.
+ const { sync } = useAutoRefresh<void>({
+  load: async () => { if (!(await load())) throw new Error('lectura fallida'); },
+  apply: () => {},
+  intervalMs: modo === 'compras' ? 60_000 : 30_000,
+  deps: [load],
+ });
  const send=async(command:any)=>{
   if(running.current||isReadOnly)return false;
   running.current=true;setBusy(true);setError('');setSuccess('');
@@ -48,7 +69,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
    localStorage.setItem(pendingKey,JSON.stringify(command));setPending(command);
    await api.post(command.path,command.body);
    localStorage.removeItem(pendingKey);setPending(null);setSuccess('Operación registrada.');
-   await load();return true;
+   await load(true);return true;
   }catch(e:any){
    if([400,403,404,409,422].includes(e.response?.status)){localStorage.removeItem(pendingKey);setPending(null);}
    setError(errorMessage(e));return false;
@@ -65,12 +86,13 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
  const puedeEntregar=user?.rol==='ADMIN'||user?.rol==='BODEGUERO';
  const total=items.reduce((sum,i)=>sum+Math.round(Number(i.cantidad)*Number(i.costo)*100)/100,0)+Number(tax||0);
  const addItem=()=>{
+  // Los errores de la línea se muestran junto a sus campos, no en la barra general.
   const p=products.find(p=>p.id===productId);
-  if(!p){setError('Seleccione el producto de la compra.');return;}
+  if(!p){setLineaError({campo:'producto',texto:'Seleccione el producto de la compra.'});return;}
   const checked=validarLineaCompra(qty,cost);
-  if('error' in checked){setError(checked.error);return;}
-  setError('');
-  if(items.some(i=>i.productoId===p.id)){setError('El producto ya está en la factura. Quite su línea para corregirla.');return;}
+  if('error' in checked){setLineaError({campo:/costo/i.test(checked.error)?'costo':'cantidad',texto:checked.error});return;}
+  setLineaError(null);
+  if(items.some(i=>i.productoId===p.id)){setLineaError({campo:'producto',texto:'El producto ya está en la factura. Quite su línea para corregirla.'});return;}
   setItems([...items,{productoId:p.id,nombre:p.nombre,cantidad:checked.linea.cantidad,costo:checked.linea.costo}]);setProductId('');setQty('1');setCost('');
  };
  return <div><TopBar title={{compras:'COMPRAS Y REPOSICIONES',cuentas:'CUENTAS Y ABONOS',entregas:'ENTREGA DE VENTAS'}[modo]} subtitle="Control operativo de la ferretería"/>
@@ -78,7 +100,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
    <nav className="operation-actions" aria-label={t('navigation.OPERACION')}>{availableTasks(user, tenant).filter(item => ['pos', 'arqueo_caja', 'cuentas', 'entregas', 'ordenes_compra'].includes(item.key)).map(item => <Link key={item.key} to={item.route}>{t(item.labelKey)}</Link>)}</nav>
    {error&&<div role="alert" className="operation-error">{error}</div>}{success&&<div role="status" className="operation-success">{success}</div>}
    {pending&&<div role="status" className="operation-card"><p>Hay una operación pendiente de confirmar. Reintente antes de registrar otra.</p><button className="btn btn-primary" disabled={busy||isReadOnly} onClick={()=>void send(pending)}>Confirmar operación pendiente</button></div>}
-   <button className="btn btn-secondary" type="button" disabled={busy} onClick={()=>void load()}>Actualizar</button>
+   <SyncStatus sync={sync}/>
    {modo==='compras'&&<>
     {user?.rol==='ADMIN'&&<form className="operation-card operation-form" onSubmit={async e=>{e.preventDefault();if(await run('/operaciones/proveedores',{nombre:providerName,telefono:phone})){setProviderName('');setPhone('');}}}>
      <h2>Registrar proveedor</h2><label>Nombre<input className="form-input" required value={providerName} disabled={blocked} onChange={e=>setProviderName(e.target.value)}/></label><label>Teléfono<input className="form-input" value={phone} disabled={blocked} onChange={e=>setPhone(e.target.value)}/></label><button className="btn btn-primary" disabled={blocked}>Guardar proveedor</button>
@@ -86,7 +108,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
     {user?.rol==='ADMIN'&&<form className="operation-card" onSubmit={async e=>{e.preventDefault();if(await run('/operaciones/compras',{proveedorId,numeroFactura:factura,vencimiento:vencimiento||undefined,isv:Number(tax),items:items.map(({nombre,...i})=>i),...(contado&&user?.rol==='ADMIN'?{pagoContado:{metodo:metodoContado}}:{})})){setItems([]);setFactura('');setTax('0');setContado(false);}}}>
      <h2>Registrar factura de compra</h2><p>Registrar la factura crea el saldo del proveedor. Recibir la mercancía aumenta existencias y actualiza el costo vigente.</p>
      <fieldset disabled={blocked} className="operation-form"><label>Proveedor<select required className="form-input" value={proveedorId} onChange={e=>setProveedorId(e.target.value)}><option value="">Seleccione</option>{providers.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}</select></label><label>Número de factura<input className="form-input" required value={factura} onChange={e=>setFactura(e.target.value)}/></label><label>Vencimiento<input className="form-input" type="date" value={vencimiento} onChange={e=>setVencimiento(e.target.value)}/></label><label>Impuesto de la factura<input className="form-input" type="number" min="0" step="0.01" required value={tax} onChange={e=>setTax(e.target.value)}/></label></fieldset>
-     <fieldset disabled={blocked} className="operation-form"><label>Producto<select className="form-input" value={productId} onChange={e=>{setProductId(e.target.value);setCost(costoSugerido(products.find(p=>p.id===e.target.value)?.precioCosto));void cargarPreferido(e.target.value);}}><option value="">Seleccione</option>{products.map(p=><option key={p.id} value={p.id}>{p.codigo} · {p.nombre}</option>)}</select></label><label>Cantidad<input className="form-input" type="number" min="0.01" step="0.01" value={qty} onChange={e=>setQty(e.target.value)}/></label><label>Costo de esta compra<input className="form-input" type="number" min="0" step="0.01" value={cost} onChange={e=>setCost(e.target.value)}/></label><button type="button" className="btn btn-secondary" onClick={addItem}>Agregar producto</button>{preferido&&<p className="operation-note">Proveedor preferido de este producto: <strong>{preferido.proveedor_nombre}</strong>{proveedorId!==preferido.proveedor_id&&<> <button type="button" onClick={()=>setProveedorId(preferido.proveedor_id)}>Usar preferido</button></>}</p>}</fieldset>
+     <fieldset disabled={blocked} className="operation-form"><label>Producto<select className="form-input" value={productId} onChange={e=>{setProductId(e.target.value);setCost(costoSugerido(products.find(p=>p.id===e.target.value)?.precioCosto));void cargarPreferido(e.target.value);}}><option value="">Seleccione</option>{products.map(p=><option key={p.id} value={p.id}>{p.codigo} · {p.nombre}</option>)}</select></label><label>Cantidad<input className="form-input" type="number" min="0.01" step="0.01" value={qty} onChange={e=>setQty(e.target.value)}/></label><label>Costo de esta compra<input className="form-input" type="number" min="0" step="0.01" value={cost} onChange={e=>setCost(e.target.value)}/></label>{lineaError&&<p role="alert" className="operation-error" data-campo={lineaError.campo}>{lineaError.texto}</p>}<button type="button" className="btn btn-secondary" onClick={addItem}>Agregar producto</button>{preferido&&<p className="operation-note">Proveedor preferido de este producto: <strong>{preferido.proveedor_nombre}</strong>{proveedorId!==preferido.proveedor_id&&<> <button type="button" onClick={()=>setProveedorId(preferido.proveedor_id)}>Usar preferido</button></>}</p>}</fieldset>
      {items.map(i=><p key={i.productoId}>{i.nombre} · {i.cantidad} × {amount(i.costo)} <button disabled={blocked} type="button" onClick={()=>setItems(items.filter(x=>x.productoId!==i.productoId))}>Quitar</button></p>)}{user?.rol==='ADMIN'&&<fieldset disabled={blocked} className="operation-form"><label><input type="checkbox" checked={contado} onChange={e=>setContado(e.target.checked)}/> Pagar al contado al registrar</label>{contado&&<label>Método de pago<select className="form-input" value={metodoContado} onChange={e=>setMetodoContado(e.target.value)}><option value="EFECTIVO">Efectivo</option><option value="TARJETA">Tarjeta</option><option value="TRANSFERENCIA">Transferencia</option></select></label>}<p className="operation-note">{contado?'Fuente del pago: fondos administrativos del negocio. La compra queda pagada por el total y NO descuenta la caja del turno; los pagos a proveedor no afectan caja (regla FS-09).':'Sin pago al contado, la factura queda como cuenta por pagar.'}</p></fieldset>}
      <p><strong>Total: {amount(total)}</strong></p><button className="btn btn-primary" disabled={blocked||!items.length}>Registrar factura</button>
     </form>}

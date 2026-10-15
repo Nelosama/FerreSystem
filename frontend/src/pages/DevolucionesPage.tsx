@@ -2,7 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { api } from '../utils/api';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { SyncStatus } from '../components/SyncStatus';
 import { formatInstanteNegocio, formatLempiras } from '../utils/format';
+import { numeroVentaDesdeIdentificador } from '../utils/numeroVenta';
 import './OperacionesPage.css';
 
 type Command = { kind: 'SOLICITAR' | 'EJECUTAR' | 'DECIDIR' | 'DIRECTA'; requestId: string; saleId?: string; dto?: any };
@@ -44,9 +47,6 @@ export const DevolucionesPage: React.FC = () => {
   const [corrupt, setCorrupt] = useState(false);
   const [requests, setRequests] = useState<any[]>([]);
   const [page, setPage] = useState(0);
-  const [refresh, setRefresh] = useState(0);
-  const [listError, setListError] = useState('');
-  const [loading, setLoading] = useState(true);
   const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
   const isAdmin = user?.rol === 'ADMIN';
 
@@ -55,22 +55,21 @@ export const DevolucionesPage: React.FC = () => {
     try { setPending(readCommand(key)); } catch { setCorrupt(true); setError('No se puede leer la operación pendiente. Conserva este navegador y pide ayuda al administrador antes de registrar otra devolución.'); }
   }, [key]);
 
-  useEffect(() => {
-    let active = true;
-    const startedKey = key;
-    setLoading(true); setListError('');
-    api.get('/operaciones/solicitudes-devolucion', { params: { page } }).then(response => {
-      if (active && scope.current === startedKey) setRequests(response.data);
-    }).catch(e => { if (active && scope.current === startedKey) setListError(errorMessage(e)); })
-      .finally(() => { if (active && scope.current === startedKey) setLoading(false); });
-    return () => { active = false; };
-  }, [key, page, refresh]);
+  // Solicitudes: se cargan al entrar, se actualizan solas y tras cada decisión. Cambiar de sucursal o de página cancela la consulta anterior.
+  const { refresh: refrescarSolicitudes, sync } = useAutoRefresh<any[]>({
+    load: signal => api.get('/operaciones/solicitudes-devolucion', { params: { page }, signal }).then(response => response.data),
+    apply: data => setRequests(data),
+    intervalMs: 30_000,
+    deps: [key, page],
+  });
+  const loading = requests.length === 0 && (sync.phase === 'idle' || sync.phase === 'loading');
+  const listError = requests.length === 0 && sync.phase === 'error' ? 'No se pudieron consultar las solicitudes. Se reintentará automáticamente.' : '';
 
   const load = async () => {
     if (sending.current || (pending && !correctionId) || corrupt) return;
     const startedKey = key; sending.current = true; setBusy(true); setError(''); setSale(null);
     try {
-      const response = await api.get('/operaciones/ventas/buscar', { params: { numero } });
+      const response = await api.get('/operaciones/ventas/buscar', { params: { numero: numeroVentaDesdeIdentificador(numero) } });
       if (scope.current !== startedKey) return;
       setSale(response.data); setQuantities({}); setTargets({});
     } catch (e) { if (scope.current === startedKey) setError(errorMessage(e)); }
@@ -138,7 +137,7 @@ export const DevolucionesPage: React.FC = () => {
         releaseCommand();
         setNotice(recoveredOriginal ? 'Se recuperó la solicitud original que ya estaba registrada. Tus correcciones no la modificaron; revisa sus datos en la lista antes de continuar.' : command.kind === 'SOLICITAR' ? 'Solicitud guardada. El administrador debe revisarla; todavía no se movió dinero ni inventario.' : `Decisión guardada: ${statuses[response.estado]}.`);
       }
-      setSale(null); setMotivo(''); setQuantities({}); setRefresh(value => value + 1);
+      setSale(null); setMotivo(''); setQuantities({}); void refrescarSolicitudes();
     } catch (e: any) {
       if (!current()) return;
       setError(e.message && !e.response && e.message !== 'Network Error' ? e.message : errorMessage(e));
@@ -160,7 +159,7 @@ export const DevolucionesPage: React.FC = () => {
               ? found.estado === 'PENDIENTE' ? 'Este intento de decisión fue rechazado. Revisa la solicitud y el motivo antes de decidir de nuevo.' : `Se recuperó el estado confirmado: ${statuses[found.estado]}.`
               : 'Este intento de ejecución fue rechazado. La solicitud sigue guardada en la lista con la misma identidad; revisa el motivo antes de volver a confirmarla.');
           }
-          setRefresh(value => value + 1);
+          void refrescarSolicitudes();
         } catch {
           if (current()) setNotice('No pudimos comprobar el estado después del rechazo. Conservamos la operación y su identidad; consulta de nuevo cuando puedas acceder a la solicitud.');
         }
@@ -208,7 +207,7 @@ export const DevolucionesPage: React.FC = () => {
         {pending.kind === 'SOLICITAR' && <button disabled={busy || isReadOnly} className="btn btn-secondary" onClick={() => void clearUnregistered()}>Corregir solo si no está registrada</button>}
       </section>}
       <form className="operation-card operation-form" onSubmit={e => { e.preventDefault(); void load(); }}>
-        <label>Número del comprobante de venta<input className="form-input" type="number" min="1" step="1" required disabled={busy || (!!pending && !correctionId) || corrupt} value={numero} onChange={e => setNumero(e.target.value)} /></label>
+        <label>Número del comprobante de venta<input className="form-input" type="text" inputMode="numeric" autoComplete="off" placeholder="Ej. 3 o V-3" required disabled={busy || (!!pending && !correctionId) || corrupt} value={numero} onChange={e => setNumero(e.target.value)} /></label>
         <button className="btn btn-primary" disabled={busy || (!!pending && !correctionId) || corrupt}>Buscar venta</button>
       </form>
       {sale && <form className="operation-card" onSubmit={e => {
@@ -238,7 +237,7 @@ export const DevolucionesPage: React.FC = () => {
         <h3>Devoluciones anteriores</h3>{sale.devoluciones.length ? sale.devoluciones.map((item: any) => <p key={item.id}>{formatInstanteNegocio(item.created_at)} · {item.motivo} · {formatLempiras(Number(item.monto))}</p>) : <p>No hay devoluciones registradas para esta venta.</p>}
       </form>}
       <section className="operation-card"><h2>{isAdmin ? 'Solicitudes para revisar' : 'Mis solicitudes'}</h2>
-        <button className="btn btn-secondary" disabled={loading || busy} onClick={() => setRefresh(value => value + 1)}>Actualizar estados</button>
+        <SyncStatus sync={sync} />
         {loading && <p role="status">Consultando solicitudes…</p>}
         {listError && <p role="alert">{listError}</p>}
         {!loading && !listError && !requests.length && <p>No hay solicitudes en esta página.</p>}

@@ -14,40 +14,29 @@ import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
 import { formatLempiras } from '../utils/format';
 import { api } from '../utils/api';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { SyncStatus } from '../components/SyncStatus';
 
 export const DashboardPage: React.FC = () => {
   const { t } = useI18n();
-
-  const [dashboardError, setDashboardError] = React.useState(false);
-  const [dashboardLoading, setDashboardLoading] = React.useState(true);
-  const [retry, setRetry] = React.useState(0);
   const [dashboardData, setDashboardData] = React.useState<any>(null);
 
   // El backend solo entrega el resumen a estos roles. Pedirlo a otros roles produce un 403 falso.
-  const { user } = useTenant();
+  const { user, tenant } = useTenant();
   const puedeVerResumen = ['ADMIN', 'BODEGUERO', 'VENDEDOR'].includes(user?.rol ?? '');
 
-  React.useEffect(() => {
-    if (!puedeVerResumen) {
-      setDashboardLoading(false);
-      return;
-    }
-    let active = true;
-    setDashboardLoading(true);
-    setDashboardError(false);
-    const fetchDashboard = async () => {
-      try {
-        const res = await api.get('/dashboard');
-        if (active) setDashboardData(res.data);
-      } catch (err) {
-        if (active) setDashboardError(true);
-      } finally {
-        if (active) setDashboardLoading(false);
-      }
-    };
-    fetchDashboard();
-    return () => { active = false; };
-  }, [retry, puedeVerResumen]);
+  // Carga al entrar y se actualiza sola (30 s, al volver a la pestaña y al recuperar la red).
+  const cargar = React.useCallback((signal: AbortSignal) => api.get('/dashboard', { signal }).then(res => res.data), []);
+  const aplicar = React.useCallback((value: any) => { setDashboardData(value); }, []);
+  const { sync } = useAutoRefresh<any>({
+    load: cargar,
+    apply: aplicar,
+    intervalMs: 30_000,
+    enabled: puedeVerResumen,
+    deps: [user?.id, tenant.id],
+  });
+  const dashboardError = puedeVerResumen && sync.phase === 'error' && !dashboardData;
+  const dashboardLoading = puedeVerResumen && !dashboardData && !dashboardError;
 
   const totalVentasDia = dashboardData?.ventasDelDia?.total || 0;
   const productosStockBajo = dashboardData?.alertasStock?.items || [];
@@ -60,7 +49,8 @@ export const DashboardPage: React.FC = () => {
       <main style={styles.content}>
         <TaskShortcuts />
         {dashboardLoading && <p role="status">Cargando el resumen del negocio…</p>}
-        {dashboardError && <div role="alert">No se pudo cargar el resumen. Puedes seguir usando los accesos de arriba. <button type="button" className="btn btn-secondary" onClick={() => setRetry(value => value + 1)}>Reintentar</button></div>}
+        {dashboardError && <div role="alert">No se pudo cargar el resumen. Se reintentará automáticamente; mientras tanto puedes usar los accesos de arriba.</div>}
+        {puedeVerResumen && <SyncStatus sync={sync} />}
         {puedeVerResumen && !dashboardLoading && !dashboardError && <>
         {/* Metric Cards Grid */}
         <div style={styles.metricsGrid}>

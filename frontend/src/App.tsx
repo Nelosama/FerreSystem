@@ -29,6 +29,9 @@ const OperacionesPage=React.lazy(()=>import('./pages/OperacionesPage').then(m=>(
 const DashboardPage = React.lazy(() =>
   import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage }))
 );
+const AdminHomePage = React.lazy(() =>
+  import('./pages/admin/AdminHomePage').then(m => ({ default: m.AdminHomePage }))
+);
 const InventarioPage = React.lazy(() =>
   import('./pages/InventarioPage').then(m => ({ default: m.InventarioPage }))
 );
@@ -111,6 +114,8 @@ const HomeRoute: React.FC = () => {
   if (user?.rol === 'SUPERADMIN') {
     return <Navigate to="/admin" replace />;
   }
+  // ADMIN ve el panel administrativo rediseñado; el resto de roles conserva el resumen actual.
+  if (user?.rol === 'ADMIN') return <AdminHomePage />;
   return <DashboardPage />;
 };
 

@@ -8,6 +8,13 @@ const exports = {};
 const source = fs.readFileSync('src/utils/unidadMedida.ts', 'utf8');
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports });
 const { normalizarUnidadMedida, unidadCsvValida, UNIDADES_INVENTARIO } = exports;
+const evaluarModulo = (file, globals = {}) => {
+  const salida = {};
+  const contexto = { exports: salida, ...globals, require: name => (name.endsWith('/unidadMedida') ? exports : undefined) };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, contexto);
+  return salida;
+};
+const importacion = evaluarModulo('src/utils/importacionProductos.ts', { crypto: globalThis.crypto });
 
 test('CSV admite las doce unidades del inventario y conserva cada identidad', () => {
   assert.equal(UNIDADES_INVENTARIO.length, 12);
@@ -41,7 +48,11 @@ const modalHarness = (rawRows = []) => {
     '../hooks/useRubroConfig': { useRubroConfig: () => ({ unidadesMedida: ['unidad', 'caja', 'metro', 'kg', 'galón'], categoriasDefault: ['General'] }) },
     '../context/I18nContext': { useI18n: () => ({ t: key => key }) },
     '../utils/unidadMedida': exports,
-    '../utils/api': { api: { post: async (url, data) => { posts.push(data); return { data: { id: 'p', version: 1, stockActual: data.stockActual } }; } } },
+    '../utils/importacionProductos': importacion,
+    '../utils/api': { api: {
+      get: async () => ({ data: [] }),
+      post: async (url, data) => { posts.push({ url, ...data }); return { data: { resultado: 'APLICADA', creados: data.filas.length, actualizados: 0, sinCambios: 0, omitidos: 0, reintento: false, filas: [], advertencias: [] } }; },
+    } },
   };
   const context = { exports: {}, console, require: name => mocks[name],
     Blob: class { constructor(parts) { blobs.push(parts.join('')); } },
@@ -61,18 +72,24 @@ const modalHarness = (rawRows = []) => {
   return { render, posts, blobs, contenido };
 };
 
-test('el modal importa las doce unidades aunque el rubro tenga solo cinco, conservando cantidades', async () => {
+test('el modal importa las doce unidades en un solo envío, conservando cantidades', async () => {
   const h = modalHarness(UNIDADES_INVENTARIO.map((unidad, i) => ({ nombre: 'Producto real', codigo: `REAL-${i}`,
     categoria: 'General', precioCosto: '8', precioVenta: '12', stockActual: '0', stockMinimo: '5', unidadMedida: unidad })));
   h.render().find(node => node.type === 'input' && node.props.type === 'file').props.onChange({ target: { files: [{ name: 'inventario.csv', size: 100 }] } });
-  const boton = h.render().find(node => node.type === 'button' && h.contenido(node).includes('Importar 12 productos válidos'));
-  assert.ok(boton);
-  await boton.props.onClick();
+  const revisar = h.render().find(node => node.type === 'button' && h.contenido(node).includes('Revisar y confirmar'));
+  assert.ok(revisar);
+  revisar.props.onClick();
+  const confirmar = h.render().find(node => node.type === 'button' && h.contenido(node).includes('Confirmar importación'));
+  assert.ok(confirmar);
+  await confirmar.props.onClick();
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(h.posts.length, 12);
+  assert.equal(h.posts.length, 1);
+  assert.equal(h.posts[0].url, '/productos/importacion');
+  const filas = h.posts[0].filas;
+  assert.equal(filas.length, 12);
   for (let i = 0; i < 12; i++) {
-    assert.equal(h.posts[i].unidadMedida, UNIDADES_INVENTARIO[i]);
-    assert.equal(h.posts[i].stockActual, 0);
+    assert.equal(filas[i].unidadMedida, UNIDADES_INVENTARIO[i]);
+    assert.equal(filas[i].stockActual, '0.00');
   }
 });
 

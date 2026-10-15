@@ -1,366 +1,262 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
 import { Upload, Download, AlertTriangle, Check, X, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
-import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
-import { normalizarUnidadMedida, unidadCsvValida } from '../utils/unidadMedida';
+import {
+  MAX_FILAS_IMPORTACION,
+  construirSolicitud,
+  huellaSolicitud,
+  interpretarErrorImportacion,
+  nuevoSolicitudId,
+  prepararPrevia,
+  type ErrorImportacion,
+  type EstadoPrecio,
+  type FilaPrevia,
+  type ProductoExistente,
+  type RespuestaImportacion,
+} from '../utils/importacionProductos';
 
 interface ImportarProductosModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** ADMIN puede importar y aprobar precios. BODEGUERO importa existencias y datos, sin precios. */
+  esAdmin: boolean;
 }
 
-interface ParsedRow {
-  index: number;
-  codigo: string;
-  nombre: string;
-  categoria: string;
-  stockActual: number;
-  stockMinimo: number;
-  unidadMedida: string;
-  esValido: boolean;
-  errores: string[];
-}
+type Fase = 'seleccion' | 'previa' | 'confirmar' | 'enviando' | 'resultado';
 
-interface ImportSummary {
-  importadosCount: number;
-  actualizadosCount: number;
-  errorCount: number;
-  omitidosCount: number;
-}
+const ENCABEZADOS_PLANTILLA = ['nombre', 'codigo', 'codigoBarras', 'categoria', 'unidadMedida', 'stockActual', 'stockMinimo', 'precioCosto', 'precioVenta'];
 
-export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
-  isOpen,
-  onClose,
-}) => {
-  const [productos, setProductos] = useState<any[]>([]);
-  const rubroConfig = useRubroConfig();
+const ESTADO_PRECIO_TEXTO: Record<EstadoPrecio, string> = {
+  APROBADO: 'Aprobado',
+  PENDIENTE_APROBACION: 'Pendiente de aprobación',
+  SIN_PRECIO: 'Sin precio',
+};
+
+const ACCION_TEXTO: Record<FilaPrevia['accion'], string> = {
+  NUEVO: 'Nuevo',
+  OMITIR: 'Se omite (ya existe)',
+  ACTUALIZAR: 'Se actualiza',
+  ERROR: 'Corregir',
+};
+
+export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({ isOpen, onClose, esAdmin }) => {
   const { t } = useI18n();
+  const [existentes, setExistentes] = useState<ProductoExistente[]>([]);
+  const [fase, setFase] = useState<Fase>('seleccion');
+  const [fileName, setFileName] = useState<string>('');
+  const [crudas, setCrudas] = useState<Record<string, unknown>[] | null>(null);
+  const [errorArchivo, setErrorArchivo] = useState<string | null>(null);
+  const [cargando, setCargando] = useState<boolean>(false);
+  const [sobrescribir, setSobrescribir] = useState<boolean>(false);
+  const [aprobarPrecios, setAprobarPrecios] = useState<boolean>(false);
+  const [solicitud, setSolicitud] = useState<{ id: string; huella: string } | null>(null);
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
+  const [erroresServidor, setErroresServidor] = useState<ErrorImportacion[]>([]);
+  const [resultado, setResultado] = useState<RespuestaImportacion | null>(null);
 
   React.useEffect(() => {
-    if (isOpen) {
-      api.get('/productos')
-        .then((res) => {
-          if (Array.isArray(res.data)) setProductos(res.data);
-        })
-        .catch((err) => console.error('Error al cargar productos:', err));
-    }
+    if (isOpen) cargarExistentes();
   }, [isOpen]);
-
-  const [rows, setRows] = useState<ParsedRow[]>([]);
-  const [fileName, setFileName] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState<boolean>(false);
-  const [duplicateCount, setDuplicateCount] = useState<number>(0);
-  const [summary, setSummary] = useState<ImportSummary | null>(null);
 
   if (!isOpen) return null;
 
-  const handleDownloadTemplate = () => {
-    const headers = ['nombre', 'codigo', 'categoria', 'stockActual', 'stockMinimo', 'unidadMedida'];
-    const csvContent = headers.join(',') + '\n';
+  // Solo lectura: la lista de productos sirve para detectar duplicados y mostrar el estado actual del precio.
+  function cargarExistentes() {
+    api.get('/productos')
+      .then((res) => {
+        if (Array.isArray(res.data)) setExistentes(res.data as ProductoExistente[]);
+      })
+      .catch(() => setErrorEnvio('No se pudo cargar el inventario actual para revisar duplicados. Cierre y vuelva a abrir la importación.'));
+  }
 
+  const previa = crudas
+    ? prepararPrevia(crudas, { existentes, sobrescribir, aprobarPrecios: esAdmin && aprobarPrecios, puedePrecios: esAdmin })
+    : null;
+  const bloqueado = !previa || previa.resumen.conError > 0 || previa.resumen.total === 0;
 
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const descargarPlantilla = () => {
+    const contenido = ENCABEZADOS_PLANTILLA.join(',') + '\n';
+    const blob = new Blob(['﻿' + contenido], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'plantilla_productos.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const enlace = document.createElement('a');
+    enlace.setAttribute('href', url);
+    enlace.setAttribute('download', 'plantilla_productos.csv');
+    document.body.appendChild(enlace);
+    enlace.click();
+    document.body.removeChild(enlace);
   };
 
-  const getFieldValue = (rawObj: Record<string, any>, possibleKeys: string[]): string => {
-    for (const k of Object.keys(rawObj)) {
-      const cleanKey = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (possibleKeys.includes(cleanKey)) {
-        return String(rawObj[k] ?? '').trim();
-      }
+  const cargarArchivo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    setFileName(archivo.name);
+    setErrorArchivo(null);
+    setErrorEnvio(null);
+    setResultado(null);
+    setErroresServidor([]);
+    setCrudas(null);
+    setFase('seleccion');
+    if (!archivo.name.toLowerCase().endsWith('.csv') || archivo.size > 5 * 1024 * 1024) {
+      setErrorArchivo('Selecciona un archivo CSV de hasta 5 MB. Si usas Excel, guárdalo como CSV UTF-8.');
+      return;
     }
-    return '';
-  };
-
-  const validateAndParseRawData = (rawObjects: Record<string, any>[]): ParsedRow[] => {
-    const defaultCategory = rubroConfig.categoriasDefault[0] || 'General';
-    const defaultUnit = rubroConfig.unidadesMedida[0] || 'unidad';
-
-    return rawObjects.map((raw, idx) => {
-      const codigo = getFieldValue(raw, ['codigo', 'code', 'sku', 'codigoproducto', 'cod']);
-      const nombre = getFieldValue(raw, ['nombre', 'name', 'producto', 'articulo', 'descripcion']);
-      let categoria = getFieldValue(raw, ['categoria', 'category', 'cat']);
-      const stockActualStr = getFieldValue(raw, ['stockactual', 'stock', 'cantidad', 'qty', 'quantity']);
-      const stockMinimoStr = getFieldValue(raw, ['stockminimo', 'minimo', 'minstock']);
-      let unidadMedida = getFieldValue(raw, ['unidadmedida', 'unidad', 'medida', 'unit']);
-
-      const errores: string[] = [];
-
-      if (!codigo) {
-        errores.push(t('inventory.invalid_code'));
-      }
-
-      if (!nombre) {
-        errores.push(t('inventory.invalid_name'));
-      }
-
-
-      const numStock = Number(stockActualStr || '0');
-      if (isNaN(numStock) || numStock < 0) {
-        errores.push(t('inventory.invalid_prices'));
-      }
-
-      const numStockMin = Number(stockMinimoStr || '5');
-      if (isNaN(numStockMin) || numStockMin < 0) {
-        errores.push(t('inventory.invalid_prices'));
-      }
-
-      if (!unidadMedida) {
-        unidadMedida = defaultUnit;
-      } else if (!unidadCsvValida(unidadMedida)) {
-        errores.push(t('inventory.invalid_unit') + `: "${unidadMedida}"`);
-      }
-
-      if (!categoria) {
-        categoria = defaultCategory;
-      }
-
-      return {
-        index: idx + 1,
-        codigo,
-        nombre,
-        categoria,
-        stockActual: isNaN(numStock) ? 0 : numStock,
-        stockMinimo: isNaN(numStockMin) ? 5 : numStockMin,
-        unidadMedida,
-        esValido: errores.length === 0,
-        errores,
-      };
+    setCargando(true);
+    Papa.parse(archivo, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        setCargando(false);
+        if (results.errors?.length || results.data.length > MAX_FILAS_IMPORTACION) {
+          setErrorArchivo(`Revisa el formato CSV y utiliza como máximo ${MAX_FILAS_IMPORTACION} filas por archivo.`);
+          return;
+        }
+        const datos = results.data as Record<string, unknown>[];
+        if (!datos.length) {
+          setErrorArchivo('El archivo CSV está vacío o no tiene encabezados válidos.');
+          return;
+        }
+        setCrudas(datos);
+        setFase('previa');
+      },
+      error: (err) => {
+        setCargando(false);
+        setErrorArchivo('Error al leer el archivo CSV: ' + err.message);
+      },
     });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setFileName(file.name);
-    setLoading(true);
-    setErrorMsg(null);
-    setSummary(null);
-    setShowDuplicateConfirm(false);
-
-    if (!file.name.toLowerCase().endsWith('.csv') || file.size > 5 * 1024 * 1024) {
-      setErrorMsg('Selecciona un archivo CSV de hasta 5 MB. Si usas Excel, guárdalo como CSV UTF-8.');
-      setRows([]); setLoading(false); return;
-    }
-    {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          try {
-            if (results.errors?.length || results.data.length > 5000) throw new Error('CSV inválido o más de 5000 filas');
-            const json = results.data as Record<string, any>[];
-            if (!json || json.length === 0) {
-              setErrorMsg('El archivo CSV está vacío o no tiene encabezados válidos.');
-              setRows([]);
-            } else {
-              const parsed = validateAndParseRawData(json);
-              setRows(parsed);
-            }
-          } catch (err) {
-            setErrorMsg('Revisa el formato CSV y utiliza como máximo 5000 filas por archivo.');
-            setRows([]);
-          } finally {
-            setLoading(false);
-          }
-        },
-        error: (err) => {
-          setErrorMsg('Error al leer el archivo CSV: ' + err.message);
-          setRows([]);
-          setLoading(false);
-        },
-      });
-    }
-  };
-
-  const validRows = rows.filter((r) => r.esValido);
-  const invalidRows = rows.filter((r) => !r.esValido);
-
-  const handleIniciarImportacion = () => {
-    if (validRows.length === 0) return;
-
-    // Check duplicates against existing products in MockData
-    const existingCodes = new Set(productos.map((p) => p.codigo.trim().toUpperCase()));
-    const duplicates = validRows.filter((r) => existingCodes.has(r.codigo.trim().toUpperCase()));
-
-    if (duplicates.length > 0) {
-      setDuplicateCount(duplicates.length);
-      setShowDuplicateConfirm(true);
-    } else {
-      ejecutarImportacion(false);
-    }
-  };
-
-  const ejecutarImportacion = async (sobrescribir: boolean) => {
-    if (loading) return;
-    setLoading(true);
-    let importados = 0;
-    let actualizados = 0;
-    let errores = invalidRows.length;
-    let omitidos = 0;
-    // FS-07: el importador envía la versión que leyó; si el producto cambió después, el servidor rechaza la edición.
-    const existentes = new Map(productos.map((p) => [p.codigo.trim().toUpperCase(), { id: p.id, version: p.version, stockActual: Number(p.stockActual) }]));
-
+  const enviarImportacion = async () => {
+    if (fase === 'enviando' || !previa || bloqueado) return;
+    const opciones = { sobrescribir, aprobarPrecios: esAdmin && aprobarPrecios, puedePrecios: esAdmin };
+    const cuerpoSinId = construirSolicitud(previa.filas, opciones, '');
+    const huella = huellaSolicitud(cuerpoSinId);
+    // El mismo archivo y las mismas opciones reutilizan el solicitudId: un reintento no duplica nada.
+    const id = solicitud && solicitud.huella === huella ? solicitud.id : nuevoSolicitudId();
+    setSolicitud({ id, huella });
+    setFase('enviando');
+    setErrorEnvio(null);
+    setErroresServidor([]);
     try {
-      for (const r of validRows) {
-        const payload = {
-          codigo: r.codigo.toUpperCase().trim(),
-          motivo: 'Importación de inventario revisada',
-          nombre: r.nombre.trim(),
-          categoria: r.categoria,
-          stockActual: r.stockActual,
-          stockMinimo: r.stockMinimo,
-          unidadMedida: normalizarUnidadMedida(r.unidadMedida),
-        };
-
-        try {
-          const existente = existentes.get(payload.codigo);
-          if (existente) {
-            if (!sobrescribir) { omitidos++; continue; }
-            await api.put(`/productos/${existente.id}`, { ...payload, version: existente.version, stockAnterior: existente.stockActual });
-            actualizados++;
-          } else {
-            const res = await api.post('/productos', payload);
-            existentes.set(payload.codigo, { id: res.data.id, version: res.data.version ?? 1, stockActual: Number(res.data.stockActual) });
-            importados++;
-          }
-        } catch {
-          errores++;
-        }
+      const res = await api.post('/productos/importacion', construirSolicitud(previa.filas, opciones, id));
+      setResultado(res.data as RespuestaImportacion);
+      setFase('resultado');
+    } catch (err) {
+      const error = interpretarErrorImportacion(err);
+      if (error.tipo === 'VALIDACION') {
+        setErroresServidor(error.errores);
+        setErrorEnvio(error.mensaje);
+      } else if (error.tipo === 'CONFLICTO') {
+        if (error.nuevaSolicitud) setSolicitud(null);
+        setErrorEnvio(error.mensaje);
+        if (error.recargar) cargarExistentes();
+      } else {
+        setErrorEnvio(error.mensaje);
       }
-
-      setSummary({
-        importadosCount: importados,
-        actualizadosCount: actualizados,
-        errorCount: errores,
-        omitidosCount: omitidos,
-      });
-    } catch (err: any) {
-      setErrorMsg('Error durante la importación: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setLoading(false);
-      setShowDuplicateConfirm(false);
+      setFase('previa');
     }
   };
 
   const resetModal = () => {
-    setRows([]);
+    setFase('seleccion');
+    setCrudas(null);
     setFileName('');
-    setErrorMsg(null);
-    setSummary(null);
-    setShowDuplicateConfirm(false);
+    setErrorArchivo(null);
+    setErrorEnvio(null);
+    setErroresServidor([]);
+    setResultado(null);
+    setSolicitud(null);
+    setSobrescribir(false);
+    setAprobarPrecios(false);
     onClose();
   };
+
+  const erroresDeFila = (fila: FilaPrevia) => [
+    ...fila.errores.map((e) => `${etiqueta(e.campo)}: ${e.mensaje}`),
+    ...erroresServidor.filter((e) => e.fila === fila.fila).map((e) => `${etiqueta(e.campo)}: ${e.mensaje}`),
+  ];
 
   return (
     <div style={styles.modalOverlay}>
       <div className="industrial-card" style={styles.modalContent}>
-        {/* Header */}
         <div style={styles.modalHeader}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <FileSpreadsheet size={22} style={{ color: 'var(--color-primary)' }} />
-            <h2 style={{ fontSize: '18px', textTransform: 'uppercase' }}>
-              {t('inventory.import_modal_title')}
-            </h2>
+            <h2 style={{ fontSize: '18px', textTransform: 'uppercase' }}>{t('inventory.import_modal_title')}</h2>
           </div>
-          <button type="button" onClick={resetModal} style={styles.closeBtn}>
+          <button type="button" onClick={resetModal} style={styles.closeBtn} aria-label={t('navigation.close')}>
             <X size={20} />
           </button>
         </div>
 
-        {/* Modal Body */}
         <div style={{ marginTop: '16px' }}>
-          {/* Summary View if finished */}
-          {summary ? (
+          {fase === 'resultado' && resultado ? (
             <div style={styles.summaryContainer}>
               <CheckCircle2 size={48} style={{ color: '#16A34A', marginBottom: '12px' }} />
-              <h3 style={{ fontSize: '18px', fontWeight: 800, textTransform: 'uppercase' }}>
-                {t('inventory.summary_title')}
-              </h3>
-              <p style={{ fontSize: '14px', marginTop: '8px', textAlign: 'center', color: '#44403C' }}>
-                {t('inventory.import_summary_counts', { imported: summary.importadosCount, updated: summary.actualizadosCount, errors: summary.errorCount, skipped: summary.omitidosCount })}
+              <h3 style={{ fontSize: '18px', fontWeight: 800, textTransform: 'uppercase' }}>{t('inventory.summary_title')}</h3>
+              <p role="status" style={{ fontSize: '14px', marginTop: '8px', textAlign: 'center', color: '#44403C' }}>
+                {resultado.reintento
+                  ? 'Esta importación ya estaba aplicada. No se duplicó ningún producto.'
+                  : `${resultado.creados} creados, ${resultado.actualizados} actualizados, ${resultado.omitidos} omitidos, ${resultado.sinCambios} sin cambios.`}
               </p>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={resetModal}
-                style={{ marginTop: '24px' }}
-              >
+              {esAdmin && (
+                <p style={{ fontSize: '13px', marginTop: '8px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                  {contarEstados(resultado.filas)}
+                </p>
+              )}
+              {resultado.advertencias.length > 0 && (
+                <ul style={{ fontSize: '12px', marginTop: '12px', color: '#92400E', textAlign: 'left' }}>
+                  {resultado.advertencias.map((a, i) => <li key={i}>Fila {a.fila}: {a.mensaje}</li>)}
+                </ul>
+              )}
+              <button type="button" className="btn btn-primary" onClick={resetModal} style={{ marginTop: '24px' }}>
                 {t('common.accept')}
               </button>
             </div>
-          ) : showDuplicateConfirm ? (
-            /* Duplicate Confirmation Prompt */
+          ) : fase === 'confirmar' && previa ? (
             <div style={styles.confirmBox}>
               <AlertTriangle size={36} style={{ color: '#D97706', marginBottom: '12px' }} />
-              <h3 style={{ fontSize: '16px', fontWeight: 700, textAlign: 'center' }}>
-                {t('inventory.overwrite_confirmation')}
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', marginTop: '6px' }}>
-                Se detectaron {duplicateCount} productos con código ya existente en su inventario actual.
+              <h3 style={{ fontSize: '16px', fontWeight: 700, textAlign: 'center' }}>Confirmar importación</h3>
+              <p style={{ fontSize: '14px', marginTop: '8px', textAlign: 'center' }}>
+                Se crearán <strong>{previa.resumen.nuevos}</strong> productos, se actualizarán <strong>{previa.resumen.actualizar}</strong> y
+                se omitirán <strong>{previa.resumen.omitir}</strong> (ya existen y no se sobrescriben).
               </p>
-
-              <div style={{ display: 'flex', gap: '12px', marginTop: '20px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowDuplicateConfirm(false)}
-                >
-                  {t('common.cancel')}
+              {esAdmin && (
+                <p style={{ fontSize: '13px', marginTop: '8px', textAlign: 'center' }}>
+                  Precios: {previa.resumen.precioAprobado} aprobados, {previa.resumen.precioPendiente} pendientes de aprobación y {previa.resumen.sinPrecio} sin precio.
+                </p>
+              )}
+              {esAdmin && previa.resumen.sinPrecio > 0 && (
+                <p role="alert" style={{ fontSize: '13px', marginTop: '8px', textAlign: 'center', color: '#92400E' }}>
+                  {previa.resumen.sinPrecio} productos quedarán sin precio y no se podrán vender hasta que se les asigne uno.
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: '12px', marginTop: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setFase('previa')}>
+                  Volver a revisar
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => ejecutarImportacion(false)}
-                >
-                  Ignorar duplicados (solo agregar nuevos)
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => ejecutarImportacion(true)}
-                >
-                  <Check size={16} /> Sobrescribir existencias
+                <button type="button" className="btn btn-primary" onClick={() => void enviarImportacion()}>
+                  <Check size={16} /> Confirmar importación
                 </button>
               </div>
             </div>
           ) : (
-            /* Main Upload & Preview Form */
             <>
-              <p>Importa un CSV de hasta 5 MB y 5000 productos. Desde Excel: Guardar como → CSV UTF-8.</p>
-              {/* Action Toolbar: Template & File Upload */}
+              <p style={{ fontSize: '13px' }}>
+                Importa un CSV de hasta 5 MB y {MAX_FILAS_IMPORTACION} productos. Desde Excel: Guardar como → CSV UTF-8.
+                Un precio vacío significa «no informado»: no se cambia ni se guarda como 0.
+              </p>
+
               <div style={styles.uploadBar}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={handleDownloadTemplate}
-                  title="Descargar plantilla CSV vacía para este rubro"
-                >
+                <button type="button" className="btn btn-secondary" onClick={descargarPlantilla} title="Descargar plantilla CSV vacía">
                   <Download size={16} />
                   <span>{t('inventory.download_template')}</span>
                 </button>
-
                 <label className="btn btn-primary" style={{ cursor: 'pointer', margin: 0 }}>
                   <Upload size={16} />
                   <span>{fileName ? 'Cambiar archivo' : t('inventory.select_file')}</span>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleFileUpload}
-                    style={{ display: 'none' }}
-                  />
+                  <input type="file" accept=".csv" onChange={cargarArchivo} style={{ display: 'none' }} />
                 </label>
               </div>
 
@@ -369,100 +265,107 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
                   Archivo seleccionado: <strong>{fileName}</strong>
                 </div>
               )}
+              {errorArchivo && <div role="alert" style={styles.errorBox}><AlertTriangle size={16} /><span>{errorArchivo}</span></div>}
+              {errorEnvio && <div role="alert" style={styles.errorBox}><AlertTriangle size={16} /><span>{errorEnvio}</span></div>}
+              {cargando && <div style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>Procesando archivo...</div>}
+              {fase === 'enviando' && <div role="status" style={{ textAlign: 'center', padding: '16px' }}>Importando...</div>}
 
-              {errorMsg && (
-                <div style={styles.errorBox}>
-                  <AlertTriangle size={16} />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-
-              {loading && (
-                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>
-                  Procesando archivo...
-                </div>
-              )}
-
-              {/* Preview Table */}
-              {rows.length > 0 && !loading && (
+              {previa && fase !== 'enviando' && (
                 <div style={{ marginTop: '16px' }}>
-                  <div style={styles.previewStats}>
-                    <span style={{ fontWeight: 700, fontSize: '13px' }}>
-                      {t('inventory.preview_title')} ({rows.length} total)
-                    </span>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <span className="badge badge-success">
-                        {validRows.length} {t('inventory.valid_rows')}
-                      </span>
-                      {invalidRows.length > 0 && (
-                        <span className="badge badge-danger">
-                          {invalidRows.length} {t('inventory.error_rows')}
-                        </span>
-                      )}
-                    </div>
+                  {previa.avisos.map((aviso) => (
+                    <div key={aviso} role="status" className="operation-note" style={{ marginBottom: '8px' }}>{aviso}</div>
+                  ))}
+
+                  <div style={styles.opciones}>
+                    <label style={styles.opcion}>
+                      <input type="checkbox" checked={sobrescribir} onChange={(e) => setSobrescribir(e.target.checked)} />
+                      <span>Sobrescribir productos que ya existen (actualiza sus datos con los del archivo). Sin esta opción se omiten.</span>
+                    </label>
+                    {esAdmin && (
+                      <label style={styles.opcion}>
+                        <input type="checkbox" checked={aprobarPrecios} onChange={(e) => setAprobarPrecios(e.target.checked)} />
+                        <span>Aprobar los precios de venta de este archivo. Sin esta opción quedan pendientes y no se venden.</span>
+                      </label>
+                    )}
+                    {!esAdmin && (
+                      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                        Su usuario no importa precios: las columnas de precio se ignoran. Los precios actuales no cambian.
+                      </p>
+                    )}
                   </div>
 
-                  <div className="table-container" style={{ maxHeight: '320px', overflowY: 'auto', marginTop: '10px' }}>
+                  <div style={styles.previewStats}>
+                    <span style={{ fontWeight: 700, fontSize: '13px' }}>
+                      {t('inventory.preview_title')} ({previa.resumen.total} total): {previa.resumen.nuevos} nuevos · {previa.resumen.actualizar} a actualizar · {previa.resumen.omitir} omitidos · {previa.resumen.conError} con error
+                    </span>
+                  </div>
+
+                  <div className="table-container" style={{ maxHeight: '340px', overflowY: 'auto', marginTop: '10px' }}>
                     <table className="industrial-table" style={{ fontSize: '12px' }}>
                       <thead>
                         <tr>
-                          <th style={{ width: '40px' }}>#</th>
-                          <th>CÓDIGO</th>
-                          <th>NOMBRE</th>
-                          <th>CATEGORÍA</th>
-                          <th>UNIDAD</th>
-                          <th style={{ textAlign: 'center' }}>STOCK</th>
-                          <th>ESTADO</th>
+                          <th style={{ width: '40px' }}>Fila</th>
+                          <th>Código</th>
+                          <th>Nombre</th>
+                          <th>Unidad</th>
+                          <th style={{ textAlign: 'center' }}>Existencias</th>
+                          {esAdmin && <th style={{ textAlign: 'right' }}>Costo</th>}
+                          {esAdmin && <th style={{ textAlign: 'right' }}>Venta</th>}
+                          {esAdmin && <th>Precio</th>}
+                          <th>Acción</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {rows.map((r) => (
-                          <tr
-                            key={r.index}
-                            style={!r.esValido ? { backgroundColor: '#FEF2F2' } : undefined}
-                          >
-                            <td style={{ color: 'var(--color-text-muted)' }}>{r.index}</td>
-                            <td style={{ fontFamily: 'var(--font-display)', fontWeight: 700 }}>
-                              {r.codigo || <em style={{ color: '#DC2626' }}>[Vacío]</em>}
-                            </td>
-                            <td>{r.nombre || <em style={{ color: '#DC2626' }}>[Vacío]</em>}</td>
-                            <td>{r.categoria}</td>
-                            <td style={{ textTransform: 'lowercase' }}>{r.unidadMedida}</td>
-                            <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.stockActual}</td>
-                            <td>
-                              {r.esValido ? (
-                                <span className="badge badge-success">VÁLIDO</span>
-                              ) : (
-                                <span
-                                  className="badge badge-danger"
-                                  title={r.errores.join(', ')}
-                                  style={{ whiteSpace: 'normal', textAlign: 'left' }}
-                                >
-                                  {r.errores.join('; ')}
-                                </span>
+                        {previa.filas.map((fila) => {
+                          const errores = erroresDeFila(fila);
+                          const advertencias = fila.advertencias;
+                          return (
+                            <tr key={fila.fila} style={errores.length ? { backgroundColor: '#FEF2F2' } : undefined}>
+                              <td style={{ color: 'var(--color-text-muted)' }}>{fila.fila}</td>
+                              <td style={{ fontFamily: 'var(--font-display)', fontWeight: 700 }}>{fila.codigo || <em style={{ color: '#DC2626' }}>[Vacío]</em>}</td>
+                              <td>
+                                {fila.nombre || <em style={{ color: '#DC2626' }}>[Vacío]</em>}
+                                {errores.map((texto) => <div key={texto} style={{ color: '#991B1B', fontSize: '11px' }}>{texto}</div>)}
+                                {advertencias.map((texto) => <div key={texto} style={{ color: '#92400E', fontSize: '11px' }}>{texto}</div>)}
+                              </td>
+                              <td style={{ textTransform: 'lowercase' }}>{fila.valores.unidadMedida || <em>por defecto</em>}</td>
+                              <td style={{ textAlign: 'center' }}>{fila.valores.stockActual || <em>no informado</em>}</td>
+                              {esAdmin && <td style={{ textAlign: 'right' }}>{fila.valores.precioCosto || <em>no informado</em>}</td>}
+                              {esAdmin && <td style={{ textAlign: 'right' }}>{fila.valores.precioVenta || <em>no informado</em>}</td>}
+                              {esAdmin && (
+                                <td>
+                                  {fila.estadoPrecioPrevisto ? (
+                                    <span className={fila.estadoPrecioPrevisto === 'APROBADO' ? 'badge badge-success' : 'badge badge-warning'}>
+                                      {ESTADO_PRECIO_TEXTO[fila.estadoPrecioPrevisto]}
+                                    </span>
+                                  ) : '—'}
+                                </td>
                               )}
-                            </td>
-                          </tr>
-                        ))}
+                              <td>
+                                <span className={fila.accion === 'ERROR' ? 'badge badge-danger' : 'badge badge-success'}>
+                                  {ACCION_TEXTO[fila.accion]}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
 
-                  {/* Confirmation Button Footer */}
+                  {bloqueado && previa.resumen.total > 0 && (
+                    <p role="alert" style={{ ...styles.errorBox, marginTop: '12px' }}>
+                      Corrija las filas con error para poder importar. Ningún producto se guardará hasta entonces.
+                    </p>
+                  )}
+
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
                     <button type="button" className="btn btn-secondary" onClick={resetModal}>
                       {t('common.cancel')}
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={validRows.length === 0}
-                      onClick={handleIniciarImportacion}
-                    >
+                    <button type="button" className="btn btn-primary" disabled={bloqueado} onClick={() => setFase('confirmar')}>
                       <Check size={16} />
-                      <span>
-                        Importar {validRows.length} productos válidos
-                      </span>
+                      <span>Revisar y confirmar</span>
                     </button>
                   </div>
                 </div>
@@ -475,84 +378,49 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({
   );
 };
 
-const styles: Record<string, React.CSSProperties> = {
-  modalOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 999,
-    padding: '20px',
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: '920px',
-    maxHeight: '90vh',
-    overflowY: 'auto',
-  },
-  modalHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: '12px',
-    borderBottom: '2px solid var(--color-border)',
-  },
-  closeBtn: {
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    color: 'var(--color-text-main)',
-  },
-  uploadBar: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '12px',
-    flexWrap: 'wrap',
-    padding: '12px',
-    backgroundColor: 'var(--color-surface-hover)',
-    borderRadius: '4px',
-    border: '1px dashed var(--color-border)',
-  },
-  errorBox: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '10px 14px',
-    backgroundColor: '#FEF2F2',
-    color: '#991B1B',
-    borderRadius: '4px',
-    fontSize: '13px',
-    marginTop: '12px',
-    border: '1px solid #FCA5A5',
-  },
-  previewStats: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '12px',
-  },
-  summaryContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '32px 16px',
-  },
-  confirmBox: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px 16px',
-    backgroundColor: '#FEF3C7',
-    borderRadius: '6px',
-    border: '1px solid #FCD34D',
-  },
+/** Nombre legible del campo para mensajes por fila. */
+const etiqueta = (campo: string): string => {
+  const nombres: Record<string, string> = {
+    codigo: 'Código', nombre: 'Nombre', codigoBarras: 'Código de barras', categoria: 'Categoría',
+    unidadMedida: 'Unidad', stockActual: 'Existencias', stockMinimo: 'Stock mínimo',
+    precioCosto: 'Costo', precioVenta: 'Venta', '*': 'Fila',
+  };
+  return nombres[campo] ?? campo;
 };
 
+/** Cuenta los estados de precio que devolvió el servidor (solo ADMIN los recibe). */
+const contarEstados = (filas: RespuestaImportacion['filas']): string => {
+  const conteo: Record<EstadoPrecio, number> = { APROBADO: 0, PENDIENTE_APROBACION: 0, SIN_PRECIO: 0 };
+  for (const f of filas) if (f.estadoPrecio) conteo[f.estadoPrecio] += 1;
+  return `Precios: ${conteo.APROBADO} ${ESTADO_PRECIO_TEXTO.APROBADO.toLowerCase()} · ${conteo.PENDIENTE_APROBACION} ${ESTADO_PRECIO_TEXTO.PENDIENTE_APROBACION.toLowerCase()} · ${conteo.SIN_PRECIO} ${ESTADO_PRECIO_TEXTO.SIN_PRECIO.toLowerCase()}`;
+};
+
+const styles: Record<string, React.CSSProperties> = {
+  modalOverlay: {
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 999, padding: '20px',
+  },
+  modalContent: { width: '100%', maxWidth: '980px', maxHeight: '90vh', overflowY: 'auto' },
+  modalHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    paddingBottom: '12px', borderBottom: '2px solid var(--color-border)',
+  },
+  closeBtn: { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-main)' },
+  uploadBar: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap',
+    padding: '12px', backgroundColor: 'var(--color-surface-hover)', borderRadius: '4px', border: '1px dashed var(--color-border)',
+  },
+  errorBox: {
+    display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', backgroundColor: '#FEF2F2',
+    color: '#991B1B', borderRadius: '4px', fontSize: '13px', marginTop: '12px', border: '1px solid #FCA5A5',
+  },
+  opciones: { display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' },
+  opcion: { display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' },
+  previewStats: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginTop: '12px' },
+  summaryContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 16px' },
+  confirmBox: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px',
+    backgroundColor: '#FEF3C7', borderRadius: '6px', border: '1px solid #FCD34D',
+  },
+};

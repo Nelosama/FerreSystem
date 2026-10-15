@@ -1,7 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { SyncStatus } from '../components/SyncStatus';
+import { useTenant } from '../context/TenantContext';
 import { diaCalendarioEnZona, formatLempiras } from '../utils/format';
 import {
   clientesConSaldo, cuentasPorVencer, productosBajoStock, solicitudesPendientes, ventasDelDia,
@@ -16,6 +19,7 @@ const vacia = <T,>(): Seccion<T> => ({ datos: null, error: false });
 
 export const AdminMovilPage: React.FC = () => {
   const { t } = useI18n();
+  const { user, tenant } = useTenant();
   const [hoy, setHoy] = useState(() => diaCalendarioEnZona());
   const [resumen, setResumen] = useState<Seccion<ResumenOperativo>>(vacia);
   const [cajas, setCajas] = useState<Seccion<any[]>>(vacia);
@@ -25,15 +29,16 @@ export const AdminMovilPage: React.FC = () => {
   const [solicitudes, setSolicitudes] = useState<Seccion<SolicitudDevolucion[]>>(vacia);
   const [cargando, setCargando] = useState(false);
 
-  const cargar = useCallback(async () => {
+  // Se actualiza sola: al entrar, cada 30 s, al volver a la pestaña y al recuperar la red.
+  // Cada sección se aplica al llegar y un fallo parcial no oculta las demás.
+  const cargar = useCallback(async (signal: AbortSignal) => {
     const hoyNegocio = diaCalendarioEnZona();
     setHoy(hoyNegocio);
     setCargando(true);
-    // Cada petición actualiza su propia sección al terminar: una lenta no retrasa a las demás.
     const pedir = <T,>(ruta: string, params: Record<string, string> | undefined, guardar: (s: Seccion<T>) => void, extraer: (data: any) => T) => {
-      return api.get(ruta, params ? { params } : undefined)
-        .then(res => guardar({ datos: extraer(res.data), error: false }))
-        .catch(() => guardar({ datos: null, error: true }));
+      return api.get(ruta, { signal, ...(params ? { params } : {}) })
+        .then(res => { if (!signal.aborted) guardar({ datos: extraer(res.data), error: false }); })
+        .catch(() => { if (!signal.aborted) guardar({ datos: null, error: true }); });
     };
     await Promise.all([
       pedir<ResumenOperativo>('/operaciones/resumen', { desde: hoyNegocio, hasta: hoyNegocio }, setResumen, d => d ?? {}),
@@ -43,10 +48,15 @@ export const AdminMovilPage: React.FC = () => {
       pedir<CuentaPorVencer[]>('/operaciones/cuentas', { tipo: 'CXP' }, setCxp, d => d ?? []),
       pedir<SolicitudDevolucion[]>('/operaciones/solicitudes-devolucion', undefined, setSolicitudes, d => d ?? []),
     ]);
-    setCargando(false);
+    if (!signal.aborted) setCargando(false);
   }, []);
 
-  useEffect(() => { void cargar(); }, [cargar]);
+  const { sync } = useAutoRefresh<void>({
+    load: cargar,
+    apply: () => {},
+    intervalMs: 30_000,
+    deps: [user?.id, tenant.id],
+  });
 
   const ventas = ventasDelDia(resumen.datos);
   const porVencer = cxp.datos ? cuentasPorVencer(cxp.datos, hoy) : [];
@@ -65,9 +75,7 @@ export const AdminMovilPage: React.FC = () => {
           <h1>{t('admin_mobile.title')}</h1>
           <p>{t('admin_mobile.day')}: {hoy}</p>
         </div>
-        <button type="button" className="admin-movil-refrescar" onClick={() => void cargar()} disabled={cargando}>
-          {cargando ? t('admin_mobile.refreshing') : t('admin_mobile.refresh')}
-        </button>
+        <SyncStatus sync={sync} />
       </header>
 
       <section className="admin-movil-tarjeta" aria-labelledby="admin-movil-ventas">
