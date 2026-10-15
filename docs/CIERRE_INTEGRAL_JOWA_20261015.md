@@ -55,6 +55,17 @@ Simulación local con `git merge-tree`, sin crear ramas, sobre `main` `74ba4dcc`
 - Esta rama se fusiona encima **sin conflictos**.
 - `ContingenciaAdminPage.tsx` recibe dos correcciones complementarias del mismo defecto (la de #165 conserva la confirmación tras recargar; la de #166 la muestra después de recargar). Conviven sin contradicción.
 
+## Evidencia de la segunda fase
+
+| Ejecución | Backend unitarias | Scripts | Integración PG (navegador real) | Frontend unitarias | Navegador simulado | E2E real |
+|---|---|---|---|---|---|---|
+| Esta rama, código `ceaeb710` | 446/446 | 48/48 | 948/948 | 316/316 | 148/148 | 140 OK, 10 omitidas, 0 fallos |
+| Conjunta main + #165 `28ffbde9` + #166 `afd14930` + esta rama (commit temporal local, sin rama) | 486/486 | 48/48 | 977/977 | 334/334 | 152/152 | 145 OK, 10 omitidas, 0 fallos |
+
+Builds correctos y lint del frontend sin errores. CI de GitHub en `88167a17`: `validate`, `test` y `guard-base-datos` aprobados.
+
+En `b7404b07`, `validate` falló una vez en `contingencia-admin-simulado.spec.ts:83`. Es un defecto intermitente heredado de `main`: la recarga borraba la confirmación de la decisión. #165 (`28ffbde9`) y #166 (`afd14930`) ya lo corrigen; no se porta aquí porque el archivo pertenece a ambos PR. Verificación con compilación nueva en #165: falló 1 de 20 ejecuciones sin la corrección y 0 de 20 con ella.
+
 ## Pendientes externos
 
 - **JW-07** (centavo de CxP) y el resto de **JW-08** (pantalla de proveedores y exclusión de inactivos en compras): aplicar cuando #165 y #166 liberen `operaciones.service.ts`, `OperacionesPage.tsx` y `App.tsx`. La solución está descrita en la matriz.
