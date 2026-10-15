@@ -22,6 +22,44 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Jowa System — marca, Inicio, panel del negocio y permisos (2026-10-15, rama `claude/festive-thompson-25nx9m` desde `main` `94d052e2`, sin PR ni merge)
+
+- **Estado Git verificado:** `main` = `94d052e2`. La rama de frontend `claude/modest-galileo-693672` (#161, cabeza `a97f9792`) ya es ascendente de `main`; #160, #161, #162 y #163 aparecen cerrados sin merge en GitHub, aunque los merges de #161 y #162 están en el historial de `main`. La rama designada `claude/festive-thompson-25nx9m` ya no existía en origen: se recreó desde `main` con el mismo nombre. No hay PR abierto para esta rama; no se creó ninguno.
+- **Marca:** «Jowa System» en `index.html` (título), `manifest.webmanifest`, login y portal Super Admin, Sidebar, TopNav, POS (cabecera y pie), recibo PDF (pie), tenant por defecto, mensaje del escáner y `README.md` del frontend. Identificadores internos (claves `ferre_*` de `localStorage`, rutas, paquetes, variables de entorno) sin cambios; nombre del repositorio sin cambios.
+- **Inicio:** el logotipo de Sidebar y TopNav enlaza a `/` (ADMIN → panel; resto → resumen; SUPERADMIN → `/admin`). El elemento «Inicio» ya existía en Sidebar, TopNav y barra móvil (`menu.dashboard`); no se creó una segunda navegación. Protección de cambios sin guardar: no existe un mecanismo general (solo `window.confirm` puntuales y el borrador del POS); no se añadió ninguno.
+- **Panel del negocio (ADMIN, `pages/admin/AdminHomePage.tsx`):** eliminadas la sección «En preparación», la tarjeta «Indicadores en preparación» y la línea «Próximamente» del inventario. Cifras reales y accesos rápidos sin cambio.
+- **Permisos en frontend:** `/configuracion` y `/auditoria` solo `SUPERADMIN` (`App.tsx` y `config/navigation.ts`). ADMIN, CAJERO, VENDEDOR y BODEGUERO ven «Acceso Denegado» por navegación directa y no ven el ítem en menús. `GET /operaciones/auditoria` no se invoca desde esas vistas.
+- **Terminología:** en `locales/es.json` y `OperacionesPage` «ferretería» pasó a «negocio» donde era texto de administración. Se conservan el rubro `FERRETERIA`, el catálogo de ferretería y los ejemplos o datos de prueba.
+- **Logotipo por negocio — NO IMPLEMENTADO (dependencia de backend):** el backend no tiene almacenamiento persistente de archivos. `SUPABASE_URL` y `SUPABASE_SERVICE_KEY` están en `backend/.env.example`, pero el backend solo usa PostgreSQL. No se crearon subidas simuladas ni se guardan binarios en PostgreSQL. Contrato necesario:
+  - `POST /tenant/logo`: multipart, un archivo PNG, JPG, JPEG o WEBP de hasta 2 MB; validar firma binaria y re-codificar para eliminar metadatos; SVG rechazado. Solo SUPERADMIN. Registrar evento de auditoría.
+  - `GET /tenant/logo`: devuelve los bytes solo para el tenant activo; 404 si no hay logo.
+  - `DELETE /tenant/logo`: solo SUPERADMIN; evento de auditoría.
+  - Almacén: objeto privado `tenants/{tenantId}/logo.{ext}`. En `Tenant` solo metadatos (clave, MIME, tamaño, fecha de actualización).
+  - Frontend: `<img>` no envía el token Bearer, así que Sidebar, TopNav y `TenantBrand` deberán pedir el logo con autorización y mostrar un blob URL.
+  - **Decisión pendiente del dueño:** proveedor de almacenamiento (Supabase Storage privado o disco del servidor con respaldo).
+- **Bloqueos de backend detectados (no modificados en esta tarea de frontend):**
+  1. `PUT /tenant/settings` (`tenants/tenants.controller.ts`) exige `@Roles('ADMIN')`: ADMIN puede cambiar identidad, logotipo y configuración del negocio; SUPERADMIN recibiría 403. Corrección propuesta: `@Roles('SUPERADMIN')` con flujo de administración por tenant (p. ej. `/admin/tenants/:id/settings`) y prueba de autorización.
+  2. `GET /operaciones/auditoria` (`operaciones/operaciones.controller.ts:71`) exige `@Roles('ADMIN')`: ADMIN puede consultar la auditoría por API aunque la UI la oculte. Corrección propuesta: `@Roles('SUPERADMIN')` o endpoint administrativo dedicado. Los eventos de auditoría no se tocaron.
+  3. `TenantContext` (línea 85) no carga `/tenant/settings` cuando el usuario es `SUPERADMIN`. La pantalla `/configuracion` no puede funcionar para ese rol hasta resolver este punto junto con el 1. Mientras tanto, la marca del negocio se edita desde `/admin` (modal «Configurar marca y datos de empresa», `PATCH /admin/tenants/:id`).
+- **Pruebas actualizadas por la regla nueva (no se ocultan fallos):**
+  - `test/taskNavigation.test.mjs`: el SUPERADMIN ve además Auditoría y Configuración; nueva prueba de exclusividad.
+  - `e2e/arranque.spec.ts`: ADMIN y CAJERO ven «Acceso Denegado» en `/auditoria` y `/configuracion`.
+  - `e2e/admin-home-simulado.spec.ts`: sin «En preparación» ni «Próximamente».
+  - `e2e/navigation-settings.spec.ts`: el SUPERADMIN ve Configuración en la navegación; nueva prueba de denegación para ADMIN con pendientes traducidos.
+  - **Bloqueadas con `test.fixme` (4 casos):** los flujos de Configuración del negocio y el de plantilla V2 (`template-v2.spec.ts`) quedan con su rol original. No se cambió el rol para que pasaran: fallan por el bloqueo 3 y el 1.
+- **Pruebas nuevas:** `frontend/test/marca-jowa-guard.test.mjs` (4 casos: título y manifiesto, sin «FerreSystem» en la interfaz, sin «En preparación» en el panel, enlace de marca a Inicio).
+- **Evidencia (`frontend/`):**
+  - `npm ci` correcto. Línea base previa al cambio: `tsc -b` 0 errores; lint 0 errores; unitarias 312/312.
+  - Después del cambio: `tsc -b` 0 errores; lint 0 errores; unitarias **317/317**.
+  - `VITE_API_URL=/api npm run build` correcto.
+  - Playwright (Chromium del entorno), suite completa: base `main` **146/146**; cambio **143 OK + 5 omitidas**. Las 5 omitidas son las 4 bloqueadas y la de V2. Las 2 pruebas nuevas de ADMIN explican la diferencia: 146 − 5 + 2 = 143.
+- **Pendientes y riesgos:**
+  - Logotipo por negocio: contrato, almacenamiento y UI sin implementar.
+  - Bloqueos de backend 1, 2 y 3.
+  - Revisión visual en 390 px y en dispositivo físico; rediseño visual amplio no realizado (solo ajustes de texto y navegación).
+  - Quedan textos funcionales de ferretería: rubro, catálogo, «Partida General de Materiales de Construcción» en cotizaciones y nombres de ejemplo.
+  - Sin PR, sin merge a `main` y sin despliegue.
+
 ## Frontend UX/UI — sincronización automática y panel administrativo (2026-10-13, rama `claude/modest-galileo-693672`, sin merge)
 
 - **Alcance real:** la misión pedía `feat/frontend-uxui`; esa rama no existe y la directiva prohíbe crear ramas, así que el trabajo está en `claude/modest-galileo-693672`. Referencias obligatorias **no disponibles en el repositorio**: `docs/figma-make-admin-reference/` y `docs/PLAN_REDISENO_FRONTEND_UXUI_20261012.md` no existen en ninguna rama ni en disco. Sin ellas no hay comparación pixel a pixel con Figma: **no se declara pixel-perfect**.
