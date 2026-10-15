@@ -38,6 +38,8 @@ export const DashboardPage: React.FC = () => {
   const dashboardError = puedeVerResumen && sync.phase === 'error' && !dashboardData;
   const dashboardLoading = puedeVerResumen && !dashboardData && !dashboardError;
 
+  // BODEGUERO recibe ventasDelDia = null (no lee ventas): la tarjeta no se muestra en lugar de un L 0.00 falso.
+  const muestraVentas = dashboardData?.ventasDelDia != null;
   const totalVentasDia = dashboardData?.ventasDelDia?.total || 0;
   const productosStockBajo = dashboardData?.alertasStock?.items || [];
   const cotizacionesPendientesCount = dashboardData?.cotizacionesPendientes?.cantidad || 0;
@@ -55,14 +57,14 @@ export const DashboardPage: React.FC = () => {
         {/* Metric Cards Grid */}
         <div style={styles.metricsGrid}>
           {/* Tarjeta 1: Ventas del Día */}
-          <MetricCard
+          {muestraVentas && <MetricCard
             title={t('dashboard.sales_today')}
             value={formatLempiras(totalVentasDia)}
             badgeText="Total registrado hoy"
             badgeVariant="success"
             badgeIcon={<TrendingUp size={13} strokeWidth={2.6} />}
             watermarkIcon={<Coins size={110} strokeWidth={1.5} />}
-          />
+          />}
 
           {/* Tarjeta 2: Alertas de Stock */}
           <MetricCard
