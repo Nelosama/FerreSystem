@@ -45,7 +45,7 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
   - Playwright **simulado**: **149/149**.
   - Frontend unitarias **321/321**; `tsc -b`, lint y build de producción correctos.
   - Backend: sin cambios de código desde `2fc4907c`. Evidencia de integración PostgreSQL (958 OK, 1 omitida preexistente) y unitarias (474/474) de ese commit siguen vigentes.
-  - Aislamiento multi-tenant: cubierto por la integración (23/24 de autorización y aislamiento) y por la prueba real de API.
+  - Aislamiento multi-tenant y autorización: cubiertos por la integración PostgreSQL (`configuracion-logotipo`, 24/24) y por la prueba real de API.
 - **Limpieza:** eliminado un script temporal de verificación de PDF; capturas regeneradas por Playwright restauradas.
 - **Riesgos pendientes:**
   - Supabase no verificado contra servicio real.
