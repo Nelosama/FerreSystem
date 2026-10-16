@@ -22,6 +22,22 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## PR #171 — revisión técnica final (2026-10-16 UTC, rama `claude/optimizacion-limpieza-jowa`)
+
+- **Estado Git:** `main` sigue en `d5fec352`; la rama no tiene conflictos con `main`. No había comentarios ni revisiones pendientes.
+- **Simulación de merge con #170** (HEAD `af73e67`): el único conflicto es `backend/pnpm-lock.yaml` (modificado en #170, eliminado en #171). Se resuelve eliminándolo.
+- **Defecto propio de #170, ajeno a #171:** su `backend/package-lock.json` ya falla `npm ci` por sí solo («Missing: typescript@5.9.3 from lock file»). No se tocó #170.
+- **Defecto corregido en #171:** la paginación del catálogo del POS conservaba el límite ampliado con «Mostrar más» al volver a la búsqueda vacía. Ahora cualquier cambio de búsqueda reinicia a 120. Prueba de regresión `frontend/e2e/pos-catalogo-grande-simulado.spec.ts` (300 productos): falló antes de la corrección y pasa después. Cubre búsqueda fuera de lo visible, código de barras y código interno con Enter, cantidades, quitar renglón y totales con ISV.
+- **`.vs/` en el historial:** no se detectaron patrones de credenciales (URL de BD con contraseña, JWT, claves de Supabase, GitHub u OpenAI, llaves privadas, variables de entorno, correos). La sesión de Copilot y el índice contienen bloques binarios o base64 que no se pueden clasificar con certeza. Si preocupa, el dueño decide si rota secretos o purga el historial. No se publicó contenido.
+- **Pruebas locales sobre `ab25ace`:**
+  - `npm ci` limpio en frontend y backend; `prisma validate` y `generate`.
+  - Frontend: build con `tsc -b`, lint (0 errores), unitarias 340/340 y Playwright simulado 155/155 (antes de la corrección). Después de la corrección: e2e de POS, caja, contingencia y offline 22/22, más la nueva prueba.
+  - Backend: build, lint (0 errores), unitarias 494/494, scripts 48/48 y Python OK.
+  - PostgreSQL 16 con `REAL_SETTINGS_BROWSER=1`: 977 + 65 en una repetición aislada de los dos archivos que habían fallado por interferencia del entorno (recompilación de `dist` en paralelo y permisos de `.vite-temp`). Backend `test:e2e` 6/6 en ejecución aislada.
+  - Piloto real en escritorio (`e2e-real`): 145 aprobadas y 10 omitidas preexistentes, incluida la contingencia offline completa 5/5.
+  - Piloto real en móvil: 142 aprobadas, 10 omitidas y 1 fallo preexistente: `logotipo-real.spec.ts:61` falla igual en `main` (SIDEBAR no visible en 390 px; la configuración móvil no corre en CI).
+  - Safari/WebKit: no ejecutado, porque no está instalado en el entorno.
+
 ## Optimización y limpieza — PR #171 (2026-10-16 UTC, rama `claude/optimizacion-limpieza-jowa`, borrador, sin merge ni despliegue)
 
 - **Base:** `main` `d5fec352`. No había rama ni PR de Codex abiertos al empezar. Apareció #170 (Jules): toca `backend/pnpm-lock.yaml` (que #171 elimina) y agrega `multer` sin actualizar `package-lock.json`. Coordinación publicada en #170. Sin cambios de esquema, migraciones, autenticación, permisos, reglas de negocio ni archivos de PWA/móvil.
