@@ -62,6 +62,7 @@ export const correlativoLocal = (codigoDispositivo: string, secuencia: number) =
  * pestañas no reutilizan un identificador. Sin identificadores disponibles la transacción se aborta: no hay venta.
  */
 export function registrarOperacion(nueva: NuevaOperacion, codigoDispositivo: string, emitidas: string[]): Promise<OperacionLocal> {
+  if (nueva.totalCentavos <= 0) return Promise.reject(new Error('La venta debe tener un importe mayor que cero'));
   return transaccion<OperacionLocal>(['operaciones', 'meta'], 'readwrite', (tx, salida) => {
     const meta = tx.objectStore('meta');
     const ops = tx.objectStore('operaciones');

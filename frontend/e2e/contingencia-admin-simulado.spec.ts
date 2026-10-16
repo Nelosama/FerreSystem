@@ -107,10 +107,14 @@ test('cierre sin venta: no envía caja, la regularización aparece solo tras el 
   // 3) Motivo suficiente: se envía la regularización con el motivo recortado y todavía sin caja.
   const texto = 'Cobro verificado; la caja cerró con el efectivo en el cajón';
   await motivo.fill(`  ${texto}  `);
+  const recarga = page.waitForResponse(r => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith('/operaciones/caja/cierres'));
   await cerrar.click();
   await expect.poll(() => sim.resoluciones.length).toBe(2);
   expect(sim.resoluciones[1]).toMatchObject({ accion: 'CERRAR_MANUAL', regularizarCajaCerrada: true, motivoRegularizacion: texto });
   expect(sim.resoluciones[1]).not.toHaveProperty('cajaId');
+  await (await recarga).finished();
+  // La confirmación debe sobrevivir a la recarga del panel y a su render, no ser un mensaje transitorio.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await expect(page.getByText('Decisión registrada y auditada.')).toBeVisible();
   expect(sim.errores).toEqual([]);
 });

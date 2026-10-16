@@ -41,6 +41,10 @@ describe('aCentesimas', () => {
     expect(() => aCentesimas(0, 'c', true)).toThrow('mayor que cero');
     expect(() => aCentesimas(-1, 'c')).toThrow('no negativo');
   });
+  it.each([[16777216.01, 1677721601], [1234567890.12, 123456789012]])('conserva la huella de precios elevados válidos: %s', (precio, centesimas) => {
+    expect(aCentesimas(precio, 'Precio')).toBe(centesimas);
+    expect(() => aCentesimas(precio + 0.001, 'Precio')).toThrow('máximo dos decimales');
+  });
 });
 
 describe('normalizarTexto', () => {

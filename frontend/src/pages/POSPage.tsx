@@ -1,3 +1,4 @@
+import { calcularVentaPOS } from '../utils/posMoney';
 import { Link } from 'react-router-dom';
 import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
 import './POSPage.css';
@@ -223,12 +224,12 @@ export const POSPage: React.FC = () => {
   const descuentoMaximoPermitido = user?.rol==='ADMIN'?100:Number(user?.descuentoMaximo??0);
 
   // Cálculos fiscales hondureños con descuento
-  const subtotalBruto = cart.reduce((acc, item) => acc + Math.round(item.precioUnitario * item.cantidad * 100)/100, 0);
+  const totalesCentavos = calcularVentaPOS(cart, descuentoPorcentaje);
+  const subtotalBruto = totalesCentavos.subtotal / 100;
   const esDescuentoExcedido = descuentoPorcentaje > descuentoMaximoPermitido;
-  const montoDescuento = Math.round(subtotalBruto * (descuentoPorcentaje / 100) * 100) / 100;
-  const subtotal = subtotalBruto - montoDescuento;
-  const isv = Math.round(subtotal * 0.15 * 100) / 100;
-  const total = subtotal + isv;
+  const montoDescuento = totalesCentavos.descuento / 100;
+  const isv = totalesCentavos.isv / 100;
+  const total = totalesCentavos.total / 100;
 
   const agregarAlCarrito = (prod: ProductItem) => {
     if (edicionBloqueada || cobrandoRef.current) return;
@@ -367,7 +368,7 @@ export const POSPage: React.FC = () => {
       pendingIdentityRef.current = pending.solicitudId;
       setVentaPendiente(pending);
       setRecoveryStatus('SIN_COMPROBAR');
-      const descuentoPendiente = Math.round(pending.cart.reduce((sum, i) => sum + Math.round(i.precioUnitario * i.cantidad * 100) / 100, 0) * pending.descuentoPorcentaje) / 100;
+      const descuentoPendiente = calcularVentaPOS(pending.cart, pending.descuentoPorcentaje).descuento / 100;
       enviado = true;
       const { data } = await api.post('/ventas', {
         solicitudId: pending.solicitudId, clienteId: pending.clienteId, vencimiento: pending.vencimiento || undefined,
@@ -578,7 +579,7 @@ export const POSPage: React.FC = () => {
                   </span>
                 </div>
               ) : (
-                cart.map((item) => (
+                cart.map((item, index) => (
                   <div key={item.productoId} style={styles.cartItemRow}>
                     <div style={{ flex: 1 }}>
                       <div style={styles.cartItemName}>{item.nombre}</div>
@@ -607,7 +608,7 @@ export const POSPage: React.FC = () => {
                     </div>
 
                     <div style={styles.itemSubtotal}>
-                      {formatLempiras(item.cantidad * item.precioUnitario)}
+                      {formatLempiras(totalesCentavos.lineas[index] / 100)}
                     </div>
 
                     <button
@@ -782,12 +783,12 @@ export const POSPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {cart.map((i) => (
+                  {cart.map((i, index) => (
                     <tr key={i.productoId}>
                       <td style={{ textAlign: 'left' }}>{i.nombre}</td>
                       <td style={{ textAlign: 'center' }}>{i.cantidad}</td>
                       <td style={{ textAlign: 'right' }}>
-                        {formatLempiras(i.cantidad * i.precioUnitario)}
+                        {formatLempiras(totalesCentavos.lineas[index] / 100)}
                       </td>
                     </tr>
                   ))}
@@ -797,7 +798,8 @@ export const POSPage: React.FC = () => {
               <div style={styles.ticketDashed} />
 
               <div style={styles.ticketTotals}>
-                <div>{t('common.subtotal')}: {formatLempiras(Number(ventaRegistrada?.subtotal ?? subtotal))}</div>
+                <div>{t('common.subtotal')}: {formatLempiras(Number(ventaRegistrada?.subtotal ?? subtotalBruto))}</div>
+                {Number(ventaRegistrada?.descuento ?? montoDescuento) > 0 && <div>Descuento: -{formatLempiras(Number(ventaRegistrada?.descuento ?? montoDescuento))}</div>}
                 <div>ISV (15%): {formatLempiras(Number(ventaRegistrada?.isv ?? isv))}</div>
                 <div style={{ fontSize: '15px', fontWeight: 900, marginTop: '4px' }}>
                   {t('pos.total_paid')}: {formatLempiras(Number(ventaRegistrada?.total ?? total))}
@@ -829,15 +831,15 @@ export const POSPage: React.FC = () => {
                       clienteRtn: clienteRtn || undefined,
                       vendedorNombre: user?.nombre || '',
                       metodoPago,
-                      items: cart.map((item) => ({
+                      items: cart.map((item, index) => ({
                         codigo: item.codigo,
                         descripcion: item.nombre,
                         cantidad: item.cantidad,
                         precioUnitario: item.precioUnitario,
-                        subtotal: item.cantidad * item.precioUnitario,
-                        totalLinea: item.cantidad * item.precioUnitario,
+                        subtotal: totalesCentavos.lineas[index] / 100,
+                        totalLinea: totalesCentavos.lineas[index] / 100,
                       })),
-                      subtotal: Number(ventaRegistrada?.subtotal ?? subtotal),
+                      subtotal: Number(ventaRegistrada?.subtotal ?? subtotalBruto),
                       descuento: Number(ventaRegistrada?.descuento ?? montoDescuento),
                       isv: Number(ventaRegistrada?.isv ?? isv),
                       total: Number(ventaRegistrada?.total ?? total),

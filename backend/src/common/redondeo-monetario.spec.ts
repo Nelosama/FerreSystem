@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { calcularTotales } from './dinero';
 import { aCentavos, divisionMitadArriba } from './redondeo-monetario';
-import { validateDiscount } from '../operaciones/ledger';
+import { decimal, validateDiscount } from '../operaciones/ledger';
 
 describe('aCentavos', () => {
   it('convierte importes de hasta dos decimales sin error de coma flotante', () => {
@@ -13,10 +13,24 @@ describe('aCentavos', () => {
   it('rechaza más de dos decimales en vez de redondear en silencio', () => {
     expect(() => aCentavos(25.999)).toThrow(BadRequestException);
   });
+  it.each([[16777216.01, 1677721601], [1234567890.12, 123456789012], [9999999999.99, 999999999999]])('acepta L.%s dentro del rango DECIMAL(12,2)', (importe, centavos) => {
+    expect(aCentavos(importe)).toBe(centavos);
+  });
+  it('mantiene la tolerancia al ruido binario y rechaza milésimas en importes elevados', () => {
+    expect(aCentavos(0.1 + 0.2)).toBe(30);
+    expect(() => aCentavos(1234567890.123)).toThrow(BadRequestException);
+    expect(() => decimal(1234567890.123, 'Pago')).toThrow(BadRequestException);
+  });
   it('rechaza valores no numéricos o fuera de rango', () => {
     expect(() => aCentavos(Number.NaN)).toThrow(BadRequestException);
     expect(() => aCentavos(Number.POSITIVE_INFINITY)).toThrow(BadRequestException);
     expect(() => aCentavos(Number.MAX_SAFE_INTEGER)).toThrow(BadRequestException);
+  });
+});
+
+describe('importes elevados de pagos y caja', () => {
+  it('admite dos decimales válidos sin confundir el residuo binario con una milésima', () => {
+    expect(decimal(1234567890.12, 'Pago', true)).toBe(1234567890.12);
   });
 });
 
@@ -54,6 +68,10 @@ describe('validateDiscount en centavos exactos', () => {
   });
   it('un centavo por encima del límite exacto se rechaza', () => {
     expect(() => validateDiscount(cajero(10), 64.98, 6.51)).toThrow(ForbiddenException);
+  });
+  it('con importes elevados, el límite porcentual no permite un centavo adicional', () => {
+    expect(() => validateDiscount(cajero(99.99), 9900000050.01, 9899010050)).not.toThrow();
+    expect(() => validateDiscount(cajero(99.99), 9900000050.01, 9899010050.01)).toThrow(ForbiddenException);
   });
   it('administrador puede descontar hasta el subtotal, nunca más', () => {
     expect(() => validateDiscount({ rol: 'ADMIN' }, 64.98, 64.98)).not.toThrow();

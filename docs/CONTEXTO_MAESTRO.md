@@ -22,6 +22,22 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Precisión monetaria — continuación de PR #166 (2026-10-15 UTC)
+
+- **Sincronización (2026-10-15, tarde):** `main` `34dd1feb` (PR #165 integrado) incorporado con merge normal. Único conflicto: este documento; se conservaron ambas secciones. Sin force push ni rebase.
+- **JW-07 corregido (compras):** el total de compra se calculaba en coma flotante (2.5 × L 25.99 daba L 64.97; correcto L 64.98). Ahora `operaciones/compra-totales.ts` usa centavos enteros con mitad hacia arriba (`common/dinero.ts`). Pruebas nuevas `compra-totales.spec.ts` (8). Devoluciones y CxP ya usaban centavos; no se cambió su regla.
+- **Validación de esta tarde:** backend unitarias 466/466 (49 de 50 archivos; `productos-security.http.spec.ts` no carga por cliente Prisma sin regenerar); frontend 330/330; `tsc -b` y build correctos.
+- **NO ejecutado en este entorno:** PostgreSQL real y Playwright. Bloqueo: `binaries.prisma.sh` responde 403 por política del proxy, así que no se puede generar el cliente Prisma ni arrancar la API; tampoco hay navegador Playwright instalado. **Decisión:** el PR sigue en borrador y la recomendación es NO MERGE hasta ejecutar esas suites.
+
+- **Estado:** [PR único #166](https://github.com/Nelosama/FerreSystem/pull/166), rama `codex/auditoria-precision-monetaria`, sigue en borrador. Conserva `463efae8` y sus cuatro correcciones. #165 comprobado antes de tocar archivos compartidos y al cierre: abierto, no integrado (`cc29135a`); `main` sigue en `74ba4dcc`, ya incluido. Sin nuevas ramas/PR, merge, despliegue ni cambios de esquema/migraciones.
+- **Corregido:** POS reutiliza cálculo monetario offline para líneas, subtotal, ISV, descuento mostrado/enviado y total; descuento con cociente entero y porcentaje sin redondeo previo. Comprobante/PDF usan líneas redondeadas y subtotal bruto coherente con API. Devoluciones conservan el reparto proporcional acumulado, calculado con `BigInt`: 9 de 12 unidades a L 0.21 devuelve L 2.18 (antes 2.17), remanente L 0.72; con abono L 1.01 cancela crédito L 1.89 y reembolsa L 0.29 + L 0.72. Sin cambios comerciales.
+- **Evidencia:** backend 458/458; frontend 321/321, selección final POS/recuperación/dinero 51/51 solapada; diferencial de 10.000 carritos frontend/backend/offline; PostgreSQL real 241/241 en nueve suites; builds, lint sin errores, diff y guard (0 migraciones nuevas) correctos. Navegador contra API/PostgreSQL reales: 10 aprobadas, 1 fallida, 13 no ejecutadas. Pasan los cinco casos monetarios de POS, crédito/abonos, caja y cobro/entrega.
+- **Pendiente de navegador:** `contingencia-real.spec.ts:192`, recarga offline no muestra «● Sin conexión»; reproducido también sobre `463efae8` con Chromium 151 (base: 1 pasa/1 falla). No se cambió ni debilitó la prueba. No se certifica la secuencia offline restante.
+- **CI de `4979d8a7`:** guard aprobado; piloto real completo aprobado (141 pasan/10 omitidas, respaldo, recuperación y actualización/reversión). La secuencia offline sí pasa allí: la discrepancia local sigue sin explicación. `validate` falló en aviso de éxito de cierre manual simulado (145 pasan/1 falla). Causa preexistente: `cargar()` borraba el mensaje que `resolver` acababa de mostrar. Corregido el orden de confirmación tras recarga satisfactoria; test reforzado espera recarga y render: rojo en `463efae8`, verde 1/1 en corrección. Build/lint y pruebas de texto 21/21 correctos. Sin cambios monetarios posteriores a `4979d8a7`; falta comprobar los workflows del nuevo HEAD publicados en #166.
+- **Siguiente paso:** cuando el responsable integre #165, actualizar esta misma rama desde `main` y repetir validación conjunta; checks del HEAD publicado se consultan y reportan en #166. **NO listo para producción** mientras siga pendiente esa integración y la validación offline. Sin aceptación física ni revisión de datos productivos.
+- **Bitácora/informe reproducible:** [AUDITORIA_PRECISION_MONETARIA_20261015.md](AUDITORIA_PRECISION_MONETARIA_20261015.md), pruebas rojas/verdes y evidencia de PostgreSQL/navegador. Cliente Prisma regenerado desde el esquema existente. PostgreSQL 17.11 temporal sin privilegios. NEXUS firma la validación de integridad monetaria.
+
+---
 ## Jowa System — PR #165: validación final y cierre (2026-10-15, rama `claude/festive-thompson-25nx9m`, sin merge ni despliegue)
 
 - **Alcance:** solo verificación y correcciones de defectos del propio PR. Sin funcionalidades nuevas. `main` (`74ba4dcc`) integrado; sin conflictos.
