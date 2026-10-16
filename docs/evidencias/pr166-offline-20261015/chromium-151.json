@@ -1,0 +1,20 @@
+{
+  "navegador": "151.0.7922.173",
+  "ejecutable": "/usr/bin/chromium",
+  "inicio": {
+    "online": true,
+    "serviceWorker": true,
+    "api": 200,
+    "peticionesAPI": 1
+  },
+  "antesRecarga": {
+    "online": false,
+    "serviceWorker": true
+  },
+  "despuesRecarga": {
+    "online": true,
+    "serviceWorker": true,
+    "api": "NETWORK_ERROR",
+    "peticionesAPI": 1
+  }
+}

@@ -20,6 +20,8 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name.endsWith('/numeroCliente')) return evaluate('src/utils/numeroCliente.ts', {});
     if (name.endsWith('/tenantSettings')) return evaluate('src/utils/tenantSettings.ts', {}, globals);
     if (name.endsWith('/storage')) return evaluate('src/utils/storage.ts', {}, globals);
+    if (name.endsWith('/money')) return evaluate('src/offline/money.ts', {}, globals);
+    if (name.endsWith('/posMoney')) return evaluate('src/utils/posMoney.ts', {}, globals);
     if (name.endsWith('/posRecovery')) return evaluate('src/utils/posRecovery.ts', {}, globals);
     return new Proxy({}, { get: (_, key) => String(key) });
   } };
@@ -194,4 +196,30 @@ test('Desvincular cliente registrado restablece estado a Consumidor Final', asyn
   page.render();
 
   assert.equal(page.find(n => n.children?.includes('✓ Cliente registrado seleccionado.')), undefined);
+});
+
+for (const caso of [
+  { precio: 4.02, cantidad: 0.25, porcentaje: 0, bruto: 1.01, isv: 0.15, descuento: 0, total: 1.16 },
+  { precio: 1.50, cantidad: 1, porcentaje: 0, bruto: 1.50, isv: 0.23, descuento: 0, total: 1.73 },
+  { precio: 0.05, cantidad: 1, porcentaje: 70, bruto: 0.05, isv: 0, descuento: 0.04, total: 0.01 },
+  { precio: 0.29, cantidad: 1, porcentaje: 50, bruto: 0.29, isv: 0.02, descuento: 0.15, total: 0.16 },
+]) test(`POS: pantalla y descuento enviado coinciden al cobrar ${JSON.stringify(caso)}`, async () => {
+  const sent = [];
+  const api = {
+    get: async () => ({ data: [{ ...catalog[0], precioVenta: caso.precio }] }),
+    post: async (_url, body) => { sent.push(body); return { data: { id: 'v1', total: caso.total, detalles: [] } }; },
+  };
+  const page = harness('src/pages/POSPage.tsx', 'POSPage', { '../utils/api': { api } });
+  page.render(); await page.effects(); page.render();
+  page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick(); page.render();
+  page.find(n => n.props['aria-label'] === 'Cantidad Martillo').props.onChange({ target: { value: String(caso.cantidad) } }); page.render();
+  page.find(n => n.type === 'input' && n.props.max === '100').props.onChange({ target: { value: String(caso.porcentaje) } });
+  const nodes = page.render();
+  const text = n => (n?.children || []).map(c => typeof c === 'object' ? text(c) : String(c ?? '')).join('');
+  for (const [label, value] of [['operational.subtotal_bruto', caso.bruto], ['ISV (15%):', caso.isv], ['pos.total_due', caso.total]]) {
+    assert.ok(nodes.some(n => text(n) === label + String(value)), `${label}: ${value}`);
+  }
+  await page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].descuento, caso.descuento);
 });

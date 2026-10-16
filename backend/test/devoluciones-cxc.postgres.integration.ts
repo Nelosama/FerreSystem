@@ -104,6 +104,31 @@ describe('Devoluciones con crédito, saldo y reembolsos / PostgreSQL aislado', (
   const cuentaDe = async (ventaId: string) => (await sql("SELECT id, saldo::float AS saldo FROM cuentas_operativas WHERE documento_id=$1 AND tipo='CXC'", ventaId))[0];
   const reembolsosCaja = (ventaId: string) => sql("SELECT COALESCE(SUM(monto),0)::float AS total, COUNT(*)::int AS n FROM movimientos_caja WHERE tipo='DEVOLUCION' AND referencia IN (SELECT id FROM devoluciones WHERE venta_id=$1)", ventaId);
 
+  it('prorrateo exacto: 9 de 12 unidades a 0.21 devuelve 2.18 y el remanente completa 2.90', async () => {
+    await prisma.producto.update({ where: { id: productoId }, data: { precioVenta: 0.21 } });
+    const v = await venta(admin, { detalles: [{ productoId, cantidad: 12 }] });
+    expect(Number(v.total)).toBe(2.90);
+    const primera = await devolver(v.id, 9);
+    expect([Number(primera.monto), Number(primera.reembolso)]).toEqual([2.18, 2.18]);
+    const segunda = await devolver(v.id, 3);
+    expect(Number(segunda.monto)).toBe(0.72);
+    expect((await reembolsosCaja(v.id))[0]).toEqual({ total: -2.90, n: 2 });
+  });
+
+  it('prorrateo con abono: cancela 1.89 de crédito y reembolsa 0.29 más 0.72 sin residuo', async () => {
+    await prisma.producto.update({ where: { id: productoId }, data: { precioVenta: 0.21 } });
+    const v = await venta(admin, { clienteId: clienteCredito, metodoPago: 'CREDITO', detalles: [{ productoId, cantidad: 12 }] });
+    const cuenta = await cuentaDe(v.id);
+    await ops.pagar(tenantA, admin, cuenta.id, { solicitudId: randomUUID(), monto: 1.01, metodo: 'EFECTIVO' } as any);
+    const primera = await devolver(v.id, 9);
+    expect([Number(primera.monto), Number(primera.credito_cancelado), Number(primera.reembolso)]).toEqual([2.18, 1.89, 0.29]);
+    expect((await cuentaDe(v.id)).saldo).toBe(0);
+    expect(Number((await prisma.cliente.findUniqueOrThrow({ where: { id: clienteCredito } })).saldoPendiente)).toBe(0);
+    const segunda = await devolver(v.id, 3);
+    expect([Number(segunda.credito_cancelado), Number(segunda.reembolso)]).toEqual([0, 0.72]);
+    expect((await reembolsosCaja(v.id))[0]).toEqual({ total: -1.01, n: 2 });
+  });
+
   describe('devoluciones con crédito', () => {
     it('devolución parcial con deuda pendiente: cancela crédito proporcional y no reembolsa efectivo', async () => {
       const cliente = await prisma.cliente.create({ data: { tenantId: tenantA, nombre: 'Cliente Parcial', creditoHabilitado: true, limiteCredito: 10000, saldoPendiente: 0 } as any });

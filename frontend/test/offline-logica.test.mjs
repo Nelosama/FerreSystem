@@ -136,6 +136,16 @@ test('el diario no permite modificar la carga recibida; solo campos de sincroniz
   await assert.rejects(journal.actualizarSincronizacion('a', { totalCentavos: 1 }), /no modificable/);
 });
 
+test('el diario rechaza antes de persistir una venta cuyo importe se redondea a cero', async () => {
+  const linea = { productoId: 'p1', codigo: 'T', nombre: 'Tornillo', precioCentavos: 1, cantidadCentesimas: 1 };
+  const totales = money.calcularTotales([linea]);
+  assert.equal(totales.total, 0);
+  await assert.rejects(journal.registrarOperacion(op({
+    lineas: [linea], subtotalCentavos: totales.subtotal, isvCentavos: totales.isv,
+    totalCentavos: totales.total, efectivoRecibidoCentavos: 0, cambioCentavos: 0,
+  }), '01', ['operacion-emitida']), /La venta debe tener un importe mayor que cero/);
+});
+
 test('revisión resuelta en el servidor: la caja recibe la decisión (aplicada, cerrada o sin cambio)', () => {
   const enRevision = op({ estado: 'REVISION', requiereRevision: true, conflictos: [{ codigo: 'STOCK_INSUFICIENTE' }] });
   const aplicada = sync.cambiosDesdeServidor(enRevision, { operacionId: 'a', estado: 'APLICADA', numeroVenta: 9, correlativoDefinitivo: 'V-00000009', ventaId: 'a', requiereRevision: false, conflictos: [] });
