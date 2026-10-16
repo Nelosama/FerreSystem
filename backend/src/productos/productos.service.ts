@@ -11,6 +11,11 @@ import { UnidadMedida } from '../types/prisma-enums';
 /** Estado del precio de venta para la interfaz: el producto solo se vende en APROBADO. */
 export const estadoPrecio = (aprobado: boolean, precioVenta: number) => (aprobado ? 'APROBADO' : precioVenta > 0 ? 'PENDIENTE_APROBACION' : 'SIN_PRECIO');
 
+/** Columnas que necesitan format() y publicProduct() en el catálogo comercial; el resto no se lee. */
+const COLUMNAS_COMERCIAL={id:true,codigo:true,codigoBarras:true,codigoFabricante:true,nombre:true,descripcion:true,categoriaId:true,
+ precioVenta:true,precioCosto:true,precioAprobado:true,stockActual:true,stockReservado:true,stockMinimo:true,unidadMedida:true,usaMedida:true,
+ activo:true,imagenUrl:true,marca:true,version:true,categoria:{select:{id:true,nombre:true}}} as const;
+
 /** Marca de la migración para productos que ya se vendían antes de la aprobación de precios. */
 const LEGADO_PRECIO='LEGADO_MIGRACION';
 
@@ -33,8 +38,11 @@ export class ProductosService {
   return (await this.conAutores(tenantId,rows)).map(p=>this.format(p));
  }
  async comercial(tenantId:string){
-  // Consulta comercial y POS: solo productos con precio aprobado por ADMIN y precio positivo.
-  const rows=(await this.findAll(tenantId)).filter(p=>p.precioAprobado===true&&Number(p.precioVenta)>0);return rows.map(p=>publicProduct({...p,stockFisico:p.stockActual,stockActual:p.stockDisponible}));
+  // Consulta comercial y POS: solo productos activos con precio aprobado por ADMIN y precio positivo.
+  // El filtro va en la consulta (antes se leía todo el catálogo y se filtraba en memoria) y no se buscan
+  // los nombres de quien aprobó el precio: publicProduct no los expone en esta respuesta.
+  const rows=await this.prisma.producto.findMany({where:{tenantId,activo:true,precioAprobado:true,precioVenta:{gt:0}},select:COLUMNAS_COMERCIAL,orderBy:{nombre:'asc'}});
+  return rows.map(r=>{const p=this.format(r);return publicProduct({...p,stockFisico:p.stockActual,stockActual:p.stockDisponible});});
  }
  async estadoParaVenta(tenantId:string,codigo:string){
   const c=codigo.trim().slice(0,100);
