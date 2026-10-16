@@ -8,13 +8,17 @@
 -- cierres diarios (con una diferencia explicada) y cotizaciones.
 -- No modifica ninguna empresa existente.
 --
--- Cuándo: solo en bases de DESARROLLO o STAGING con la marca de entorno
--- (backend/prisma/entorno/entorno-marcador.sql). Nunca en producción.
--- Si la empresa demo ya existe, el script se detiene sin cambiar nada.
+-- Cuándo: solo en una base de DESARROLLO o STAGING cuya marca de entorno (backend/prisma/entorno/
+-- entorno-marcador.sql) tenga un identificador AUTORIZADO en backend/prisma/entornos-seed.json.
+-- Si la lista está vacía, falta la marca o el identificador no coincide, no se inserta nada.
+-- Si la empresa demo ya existe, se detiene sin cambiar nada.
 --
--- Ejecutar (una sola transacción; si algo falla, no queda nada):
---   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/scripts/datos-ficticios-un-mes.sql
+-- Ejecutar SOLO con el script envoltorio, que usa DEMO_DATABASE_URL (nunca DATABASE_URL):
+--   DEMO_DATABASE_URL=postgresql://... backend/scripts/cargar-datos-demo.sh
 --
+-- Variable interna AUTORIZADOS (la fija el envoltorio, separada por comas): identificadores autorizados.
+-- Si no se define, psql aborta antes de cualquier INSERT (falla cerrada).
+
 -- Reglas que reproduce, tomadas del backend:
 --   - Venta MOSTRADOR: descuenta existencias al cobrar; genera evento COBRO,
 --     evento ENTREGA y movimiento ENTREGA enlazado a la línea.
@@ -30,17 +34,36 @@
 
 BEGIN;
 
--- 1. Guardia de entorno: solo DESARROLLO o STAGING, y sin repetir la carga.
+-- 0. Lista de identificadores autorizados (la fija el envoltorio desde entornos-seed.json).
+-- Si AUTORIZADOS no está definida, esta sentencia falla y no se carga nada.
+CREATE TEMP TABLE entornos_autorizados ON COMMIT DROP AS
+  SELECT lower(btrim(x)) AS identificador FROM unnest(string_to_array(:'AUTORIZADOS', ',')) AS x WHERE btrim(x) <> '';
+
+-- 1. Guardia de entorno: marca presente y única, tipo DESARROLLO/STAGING, identificador autorizado,
+-- y sin repetir la carga. Una modificación de la marca no basta: el identificador debe estar en la lista.
 DO $guardia$
 DECLARE
   v_tipo text;
+  v_id   text;
+  v_n    int;
 BEGIN
   IF to_regclass('public.entorno_ferresystem') IS NULL THEN
     RAISE EXCEPTION 'Falta la marca de entorno (backend/prisma/entorno/entorno-marcador.sql). No se carga nada.';
   END IF;
-  SELECT tipo INTO v_tipo FROM entorno_ferresystem WHERE id = 1;
+  SELECT count(*) INTO v_n FROM entornos_autorizados WHERE identificador ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+  IF v_n = 0 THEN
+    RAISE EXCEPTION 'La lista de entornos autorizados está vacía o no tiene identificadores válidos. No se carga nada.';
+  END IF;
+  SELECT count(*) INTO v_n FROM entorno_ferresystem;
+  IF v_n <> 1 THEN
+    RAISE EXCEPTION 'La marca de entorno es ambigua (% filas). No se carga nada.', v_n;
+  END IF;
+  SELECT tipo, lower(identificador::text) INTO v_tipo, v_id FROM entorno_ferresystem WHERE id = 1;
   IF v_tipo IS NULL OR v_tipo NOT IN ('DESARROLLO', 'STAGING') THEN
     RAISE EXCEPTION 'La marca de entorno es %. Este script solo carga datos en DESARROLLO o STAGING.', COALESCE(v_tipo, 'ausente');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM entornos_autorizados WHERE identificador = v_id) THEN
+    RAISE EXCEPTION 'El identificador de la marca de entorno no está autorizado en backend/prisma/entornos-seed.json. No se carga nada.';
   END IF;
   IF EXISTS (SELECT 1 FROM tenants WHERE nombre_comercial = 'Ferreteria Demo Operacion 1 Mes') THEN
     RAISE EXCEPTION 'La empresa demo ya existe. No se vuelve a cargar.';
@@ -57,10 +80,11 @@ $f$;
 
 -- Huella canónica de un evento de entrega (forma v1 de common/huella-solicitud.ts).
 -- p_lineas: objetos JSON ya ordenados por detalleVentaId, separados por comas.
-CREATE FUNCTION pg_temp.huella_evento(p_tipo text, p_venta text, p_usuario text, p_lineas text) RETURNS text
+CREATE FUNCTION pg_temp.huella_evento(p_tipo text, p_venta text, p_usuario text, p_lineas text, p_receptor text) RETURNS text
   LANGUAGE sql IMMUTABLE AS $f$
   SELECT encode(sha256(convert_to(
-    '{"lineas":[' || p_lineas || '],"motivo":null,"origen":"ONLINE","receptorNombre":null,"tipo":"' || p_tipo ||
+    '{"lineas":[' || p_lineas || '],"motivo":null,"origen":"ONLINE","receptorNombre":' ||
+    COALESCE(to_json(p_receptor)::text, 'null') || ',"tipo":"' || p_tipo ||
     '","usuarioId":"' || p_usuario || '","v":1,"ventaId":"' || p_venta || '"}', 'UTF8')), 'hex')
 $f$;
 
@@ -111,6 +135,7 @@ DECLARE
   v_tipo   text;
   v_credito boolean;
   v_lineas text;
+  v_recep  text;
   v_ev     text;
   v_n      int;
 
@@ -298,11 +323,14 @@ BEGIN
       SELECT stock_actual INTO v_stock FROM productos WHERE id = v_p.prod;
       v_hora := v_dia::timestamp + make_interval(mins => 600 + floor(random() * 300)::int);
       v_lineas := format('{"cantidadCentesimas":%s,"detalleVentaId":"%s"}', round(v_p.cant * 100)::int, v_p.det);
+      -- La entrega desde bodega exige nombre del receptor (entregas-core: "nombre del receptor obligatorio").
+      SELECT COALESCE(NULLIF(btrim(regexp_replace(cliente_nombre, '\s+', ' ', 'g')), ''), 'Cliente demo')
+        INTO v_recep FROM ventas WHERE id = v_p.venta;
       v_ev := gen_random_uuid()::text;
 
       INSERT INTO entregas_eventos (id, tenant_id, solicitud_id, huella, tipo, venta_id, usuario_id, receptor_nombre, motivo, origen, created_at)
-      VALUES (v_ev, v_tenant, gen_random_uuid()::text, pg_temp.huella_evento('ENTREGA', v_p.venta, v_bod, v_lineas),
-              'ENTREGA', v_p.venta, v_bod, NULL, NULL, 'ONLINE', pg_temp.utc(v_hora));
+      VALUES (v_ev, v_tenant, gen_random_uuid()::text, pg_temp.huella_evento('ENTREGA', v_p.venta, v_bod, v_lineas, v_recep),
+              'ENTREGA', v_p.venta, v_bod, v_recep, NULL, 'ONLINE', pg_temp.utc(v_hora));
       INSERT INTO entregas_eventos_lineas (tenant_id, evento_id, detalle_venta_id, cantidad) VALUES (v_tenant, v_ev, v_p.det, v_p.cant);
       INSERT INTO movimientos_inventario (id, tenant_id, producto_id, usuario_id, tipo, cantidad, anterior, nuevo, documento_id, motivo, evento_id, detalle_venta_id, created_at)
       VALUES (gen_random_uuid()::text, v_tenant, v_p.prod, v_bod, 'ENTREGA', -v_p.cant, v_stock, v_stock - v_p.cant, v_p.venta,
@@ -462,7 +490,7 @@ BEGIN
         INTO v_lineas FROM tmp_lineas;
       v_ev := gen_random_uuid()::text;
       INSERT INTO entregas_eventos (id, tenant_id, solicitud_id, huella, tipo, venta_id, usuario_id, receptor_nombre, motivo, origen, created_at)
-      VALUES (v_ev, v_tenant, gen_random_uuid()::text, pg_temp.huella_evento('COBRO', v_venta, v_cajero, v_lineas),
+      VALUES (v_ev, v_tenant, gen_random_uuid()::text, pg_temp.huella_evento('COBRO', v_venta, v_cajero, v_lineas, NULL),
               'COBRO', v_venta, v_cajero, NULL, NULL, 'ONLINE', pg_temp.utc(v_hora));
       INSERT INTO entregas_eventos_lineas (tenant_id, evento_id, detalle_venta_id, cantidad)
       SELECT v_tenant, v_ev, det, cant FROM tmp_lineas;
@@ -474,7 +502,7 @@ BEGIN
           INTO v_lineas FROM tmp_lineas WHERE modo = 'MOSTRADOR';
         v_ev := gen_random_uuid()::text;
         INSERT INTO entregas_eventos (id, tenant_id, solicitud_id, huella, tipo, venta_id, usuario_id, receptor_nombre, motivo, origen, created_at)
-        VALUES (v_ev, v_tenant, gen_random_uuid()::text, pg_temp.huella_evento('ENTREGA', v_venta, v_cajero, v_lineas),
+        VALUES (v_ev, v_tenant, gen_random_uuid()::text, pg_temp.huella_evento('ENTREGA', v_venta, v_cajero, v_lineas, NULL),
                 'ENTREGA', v_venta, v_cajero, NULL, NULL, 'ONLINE', pg_temp.utc(v_hora));
         INSERT INTO entregas_eventos_lineas (tenant_id, evento_id, detalle_venta_id, cantidad)
         SELECT v_tenant, v_ev, det, cant FROM tmp_lineas WHERE modo = 'MOSTRADOR';
@@ -621,7 +649,7 @@ BEGIN
 END
 $carga$;
 
-DROP FUNCTION pg_temp.huella_evento(text, text, text, text);
+DROP FUNCTION pg_temp.huella_evento(text, text, text, text, text);
 DROP FUNCTION pg_temp.utc(timestamp);
 
 COMMIT;
