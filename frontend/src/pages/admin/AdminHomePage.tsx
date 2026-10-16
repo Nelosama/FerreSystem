@@ -84,7 +84,7 @@ export const AdminHomePage: React.FC = () => {
 
         <section className="admin-home__metricas" aria-label="Indicadores de hoy">
           <article className="admin-home__metrica">
-            <span className="admin-home__metrica-etiqueta">Ventas del día</span>
+            <span className="admin-home__metrica-etiqueta">Ventas del día (netas de devoluciones)</span>
             <strong className="admin-home__metrica-cifra">{datos ? formatLempiras(datos.ventasDelDia.total) : '—'}</strong>
             <span className="admin-home__metrica-pie">
               <TrendingUp size={14} aria-hidden="true" />
@@ -109,7 +109,7 @@ export const AdminHomePage: React.FC = () => {
 
         <div className="admin-home__rejilla">
           <section className="admin-home__tarjeta" aria-labelledby="home-tendencia">
-            <h2 id="home-tendencia" className="admin-home__subtitulo">Tendencia semanal</h2>
+            <h2 id="home-tendencia" className="admin-home__subtitulo">Tendencia semanal (ventas brutas)</h2>
             {datos ? <TendenciaSemanal dias={datos.tendenciaSemanal} /> : <p className="admin-home__vacio">Cargando tendencia…</p>}
           </section>
 
