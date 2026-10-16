@@ -70,6 +70,8 @@ En `b7404b07`, `validate` falló una vez en `contingencia-admin-simulado.spec.ts
 
 #165 se integró en `main` (`34dd1feb`). Esta rama incorporó `main` en `4f3ad934` **sin conflictos**. Validación local completa de ese commit: backend unitarias 474/474, scripts 48/48, integración PostgreSQL con navegador real 972/972, frontend unitarias 325/325, navegador simulado 151/151, E2E real 144 aprobadas, 10 omitidas y 0 fallos. CI de GitHub en verde. Con #165 integrado quedaron libres `OperacionesPage.tsx`, `App.tsx` y `AdminHomePage.tsx`, lo que permitió terminar JW-08 (interfaz) y rotular JW-03.
 
+**CI intermitente en `66276f75` (job `test`):** el paso 7 de `backend/scripts/ensayo-actualizacion-preproduccion.sh` (heredado de `main`) no pudo arrancar PostgreSQL en el puerto fijo 55612. Ese puerto cae en el rango efímero de Linux (32768-60999), así que un socket cliente abierto puede ocuparlo. Además, la guardia final daba PASS vacío aunque el clúster no hubiera arrancado. Corrección: los puertos de PostgreSQL se eligen libres al momento de arrancar cada clúster, el fallo de arranque se informa como FAIL y la guardia exige el mensaje «faltan N migraciones». Ensayo local completo: FALLOS=0.
+
 ## Pendientes externos
 
 - **JW-07** (centavo de CxP) y el rechazo en servidor de compras con proveedor inactivo (JW-08): aplicar cuando #166 libere `operaciones.service.ts`. La solución está descrita en la matriz.
