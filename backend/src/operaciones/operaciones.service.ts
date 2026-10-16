@@ -1,4 +1,5 @@
 import { aCentavos } from '../common/redondeo-monetario';
+import { calcularTotalesCompra } from './compra-totales';
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
@@ -50,17 +51,17 @@ export class OperacionesService {
    const numeroFactura=text(dto.numeroFactura,'Factura');
    const [duplicate]=await query(tx,'SELECT id FROM ordenes_compra WHERE tenant_id=$1 AND proveedor_id=$2 AND UPPER(TRIM(numero_factura))=UPPER(TRIM($3))',tenantId,p.id,numeroFactura);
    if(duplicate)throw new ConflictException('Esta factura de proveedor ya está registrada');
-   let subtotal=0;
+   // JW-07: totales en centavos enteros (compra-totales.ts). Antes 2.5 × 25.99 daba L 64.97 en lugar de L 64.98.
    for(const item of dto.items){
     const prod=await tx.producto.findFirst({where:{id:item.productoId,tenantId,activo:true}});if(!prod)throw new NotFoundException('Producto no encontrado');
-    subtotal=money(subtotal+money(decimal(item.cantidad,'Cantidad',true)*decimal(item.costo,'Costo')));
+    decimal(item.cantidad,'Cantidad',true);decimal(item.costo,'Costo');
    }
-   const tax=decimal(dto.isv,'Impuesto'), total=decimal(money(subtotal+tax),'Total');
+   const {lineas,subtotal,isv:tax,total}=calcularTotalesCompra(dto.items,decimal(dto.isv,'Impuesto'));
    // D1: compra al contado. Pagar a proveedor es función de administrador (igual que pagar()).
    if(dto.pagoContado&&user.rol!=='ADMIN')throw new ForbiddenException('Compra al contado requiere administrador');
    const metodoContado=dto.pagoContado?paymentMethod(dto.pagoContado.metodo):null;
    const [order]=await query(tx,'INSERT INTO ordenes_compra (id,tenant_id,codigo,proveedor_id,usuario_id,subtotal,isv,total,estado,numero_factura,vencimiento,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,\'SOLICITADA\',$9,$10::timestamp,NOW()) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,`COMP-${dto.solicitudId}`,p.id,userId,subtotal,tax,total,numeroFactura,dto.vencimiento || null);
-   for(const item of dto.items)await query(tx,'INSERT INTO detalles_orden_compra (id,orden_id,producto_id,cantidad,precio_costo,subtotal) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',id(),order.id,item.productoId,item.cantidad,item.costo,money(item.cantidad*item.costo));
+   for(const [i,item] of dto.items.entries())await query(tx,'INSERT INTO detalles_orden_compra (id,orden_id,producto_id,cantidad,precio_costo,subtotal) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',id(),order.id,item.productoId,item.cantidad,item.costo,lineas[i]);
    const cuentaId=await account(tx,tenantId,userId,'CXP',order.id,p.id,total,dto.vencimiento);
    // El pago de contado usa la misma solicitud que la factura: un reintento no paga dos veces. No toca la caja.
    if(metodoContado){
