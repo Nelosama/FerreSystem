@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { TopBar } from '../components/TopBar';
-import { useTenant } from '../context/TenantContext';
+import { LogotipoNegocioEditor } from '../components/LogotipoNegocioEditor';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { Rubro, type TenantInfo } from '../types';
 import { Button } from '../components/Button';
 import { errorColorHex } from '../utils/colorHex';
+import { FORMATOS_IMPRESION, type FormatoImpresion } from '../utils/formatoImpresion';
 import { Palette, Building2, Check, RefreshCw, Store, Layout, Type, Eye, Languages, Coins, Receipt } from 'lucide-react';
 
 const PRESET_COLORS = [
@@ -17,29 +19,34 @@ const PRESET_COLORS = [
   { name: 'uxAudit.color_5', hex: '#4B5563' },
 ];
 
-export const ConfiguracionPage: React.FC = () => {
-  const { tenant, updateTenantConfig } = useTenant();
+/**
+ * Configuración del negocio seleccionado. Exclusiva del SUPERADMIN: carga y guarda con /admin/tenants/:id/settings,
+ * sin modificar la sesión ni el negocio del propio usuario.
+ */
+export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }) => {
   const { locale, setLocale, t } = useI18n();
+  const [datos, setDatos] = useState<any>(null);
+  const [cargaError, setCargaError] = useState('');
+  const negocio: any = datos ?? {};
 
-  const [templateVersion, setTemplateVersion] = useState<'v1' | 'v2'>(tenant.templateVersion || 'v1');
-  const [v2Mode, setV2Mode] = useState<NonNullable<TenantInfo['v2Mode']>>(tenant.v2Mode || 'light');
-  const [nombre, setNombre] = useState(tenant.nombreComercial || '');
-  const [sucursal, setSucursal] = useState(tenant.sucursal || '');
-  const [logoUrl, setLogoUrl] = useState(tenant.logoUrl || '');
-  const [color, setColor] = useState(tenant.colorPrimario || '#EA580C');
+  const [templateVersion, setTemplateVersion] = useState<'v1' | 'v2'>(negocio.templateVersion || 'v1');
+  const [v2Mode, setV2Mode] = useState<NonNullable<TenantInfo['v2Mode']>>(negocio.v2Mode || 'light');
+  const [nombre, setNombre] = useState(negocio.nombreComercial || '');
+  const [color, setColor] = useState(negocio.colorPrimario || '#EA580C');
   const errorColor = errorColorHex(color);
-  const [rubro, setRubro] = useState<Rubro>((tenant.rubro || Rubro.FERRETERIA) as Rubro);
+  const [rubro, setRubro] = useState<Rubro>((negocio.rubro || Rubro.FERRETERIA) as Rubro);
+  const [formatoImpresion, setFormatoImpresion] = useState<FormatoImpresion>((negocio.formatoImpresion || 'A4') as FormatoImpresion);
   const [estiloUI, setEstiloUI] = useState<'INDUSTRIAL' | 'MINIMALISTA' | 'MODERNO'>(
-    (tenant.estiloUI || 'INDUSTRIAL') as any,
+    (negocio.estiloUI || 'INDUSTRIAL') as any,
   );
   const [modoNavegacion, setModoNavegacion] = useState<'SIDEBAR' | 'TOPNAV'>(
-    (tenant.modoNavegacion || 'SIDEBAR') as any,
+    (negocio.modoNavegacion || 'SIDEBAR') as any,
   );
   const [fuenteTitulos, setFuenteTitulos] = useState<'Archivo' | 'Space Grotesk' | 'Poppins' | 'Montserrat'>(
-    (tenant.fuenteTitulos || 'Archivo') as any,
+    (negocio.fuenteTitulos || 'Archivo') as any,
   );
   const [fuenteCuerpo, setFuenteCuerpo] = useState<'Inter' | 'IBM Plex Sans' | 'Nunito Sans'>(
-    (tenant.fuenteCuerpo || 'Inter') as any,
+    (negocio.fuenteCuerpo || 'Inter') as any,
   );
 
   // Moneda e Impuesto
@@ -48,34 +55,43 @@ export const ConfiguracionPage: React.FC = () => {
   const impuestoNombre = 'ISV';
   const impuestoTasa = '15';
 
-  const [direccion, setDireccion] = useState(tenant.direccion || '');
-  const [telefono, setTelefono] = useState(tenant.telefono || '');
-  const [email, setEmail] = useState(tenant.email || '');
+  const [direccion, setDireccion] = useState(negocio.direccion || '');
+  const [telefono, setTelefono] = useState(negocio.telefono || '');
+  const [email, setEmail] = useState(negocio.email || '');
   const dirty = React.useRef(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
 
-  // Sincronizar estados cuando el tenant del contexto cambie o cargue
+  // Cargar el negocio seleccionado desde la administración.
   React.useEffect(() => {
-    if (tenant && !dirty.current) {
-      setTemplateVersion(tenant.templateVersion || 'v1');
-      setV2Mode(tenant.v2Mode || 'light');
-      setNombre(tenant.nombreComercial || '');
-      setSucursal(tenant.sucursal || '');
-      setLogoUrl(tenant.logoUrl || '');
-      setColor(tenant.colorPrimario || '#EA580C');
-      setRubro((tenant.rubro || Rubro.FERRETERIA) as Rubro);
-      setEstiloUI((tenant.estiloUI || 'INDUSTRIAL') as any);
-      setModoNavegacion((tenant.modoNavegacion || 'SIDEBAR') as any);
-      setFuenteTitulos((tenant.fuenteTitulos || 'Archivo') as any);
-      setFuenteCuerpo((tenant.fuenteCuerpo || 'Inter') as any);
+    let vivo = true;
+    setDatos(null); setCargaError('');
+    api.get(`/admin/tenants/${negocioId}/settings`)
+      .then(({ data }) => { if (vivo) { dirty.current = false; setDatos(data); } })
+      .catch(() => { if (vivo) setCargaError('No se pudo cargar la configuración de este negocio.'); });
+    return () => { vivo = false; };
+  }, [negocioId]);
 
-      setDireccion(tenant.direccion || '');
-      setTelefono(tenant.telefono || '');
-      setEmail(tenant.email || '');
+  // Sincronizar estados cuando el negocio cargado cambie
+  React.useEffect(() => {
+    if (negocio && !dirty.current) {
+      setTemplateVersion(negocio.templateVersion || 'v1');
+      setV2Mode(negocio.v2Mode || 'light');
+      setNombre(negocio.nombreComercial || '');
+      setColor(negocio.colorPrimario || '#EA580C');
+      setRubro((negocio.rubro || Rubro.FERRETERIA) as Rubro);
+      setFormatoImpresion((negocio.formatoImpresion || 'A4') as FormatoImpresion);
+      setEstiloUI((negocio.estiloUI || 'INDUSTRIAL') as any);
+      setModoNavegacion((negocio.modoNavegacion || 'SIDEBAR') as any);
+      setFuenteTitulos((negocio.fuenteTitulos || 'Archivo') as any);
+      setFuenteCuerpo((negocio.fuenteCuerpo || 'Inter') as any);
+
+      setDireccion(negocio.direccion || '');
+      setTelefono(negocio.telefono || '');
+      setEmail(negocio.email || '');
     }
-  }, [tenant]);
+  }, [datos]);
 
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,24 +103,23 @@ export const ConfiguracionPage: React.FC = () => {
     if (errorColor) { setSaveError(errorColor); return; }
     setSaving(true); setSaveError(''); setGuardadoExitoso(false);
     try {
-      const { data } = await api.put('/tenant/settings', {
+      const { data } = await api.put(`/admin/tenants/${negocioId}/settings`, {
         nombreComercial: nombre,
         direccion,
         telefono,
         email,
         colorPrimario: color,
-        logoUrl: logoUrl.trim() || null,
         modoNavegacion,
-        configuracion: { rubro, estiloUI, templateVersion, v2Mode, fuenteTitulos, fuenteCuerpo, moneda: updatedMoneda, impuesto: updatedImpuesto },
+        configuracion: { rubro, formatoImpresion, estiloUI, templateVersion, v2Mode, fuenteTitulos, fuenteCuerpo, moneda: updatedMoneda, impuesto: updatedImpuesto },
       });
 
       dirty.current = false;
-      updateTenantConfig({ ...data.configuracion, ...data, sucursal });
+      setDatos(data);
 
       setGuardadoExitoso(true);
       setTimeout(() => setGuardadoExitoso(false), 4000);
     } catch (err: any) {
-      console.error('Error al guardar configuración del tenant:', err);
+      console.error('Error al guardar configuración del negocio:', err);
       setSaveError(err.response?.data?.message || (locale === 'es' ? 'No se pudo guardar. Tus cambios siguen en el formulario; vuelve a intentar.' : 'Could not save. Your changes remain in the form; please retry.'));
     } finally {
       setSaving(false);
@@ -119,12 +134,22 @@ export const ConfiguracionPage: React.FC = () => {
 
   };
 
+  if (cargaError) return <div style={styles.container}><TopBar title="Configuración del negocio" subtitle="Super Admin" /><main style={styles.content}><p role="alert">{cargaError}</p><Link to="/admin">Volver al panel global</Link></main></div>;
+  if (!datos) return <div style={styles.container}><TopBar title="Configuración del negocio" subtitle="Super Admin" /><main style={styles.content}><p role="status">Cargando configuración…</p></main></div>;
+
   return (
     <div style={styles.container}>
       <TopBar title={t('uxAudit.settings_and_branding')} subtitle={t('uxAudit.business_details_and_appearance')} />
 
       <main style={styles.content}>
+        <p><Link to="/admin">← Volver al panel global</Link></p>
         <p>{t('settings.scope')}</p>
+        <LogotipoNegocioEditor
+          negocioId={negocioId}
+          nombreNegocio={nombre || negocio.nombreComercial || 'el negocio'}
+          logotipo={negocio.logotipo ?? null}
+          onCambio={logotipo => setDatos((actual: any) => ({ ...actual, logotipo }))}
+        />
         {saveError && <p role="alert">{saveError}</p>}
 
         {guardadoExitoso && (
@@ -136,7 +161,7 @@ export const ConfiguracionPage: React.FC = () => {
           </div>
         )}
 
-        <form className="tenant-settings-grid" onSubmit={handleGuardar} onChange={() => { dirty.current = true; }} onClick={event => { if ((event.target as HTMLElement).closest('button[type="button"]')) dirty.current = true; }} aria-busy={saving} style={styles.grid}>
+        <form className="negocio-settings-grid" onSubmit={handleGuardar} onChange={() => { dirty.current = true; }} onClick={event => { if ((event.target as HTMLElement).closest('button[type="button"]')) dirty.current = true; }} aria-busy={saving} style={styles.grid}>
           {/* Columna Izquierda: Identidad y Datos del Negocio */}
           <div className="industrial-card" style={styles.card}>
             <div style={styles.cardHeader}>
@@ -197,16 +222,23 @@ export const ConfiguracionPage: React.FC = () => {
               />
             </div>
 
-            {/* URL del Logo Personalizado de la Empresa */}
+            {/* Formato de impresión: hoja A4 o papel de rollo térmico para facturas, recibos y tickets */}
             <div className="form-group">
-              <label className="form-label">{t('uxAudit.custom_logo_url_company_image')} </label>
-              <input
-                type="url"
-                placeholder="https://ejemplo.com/logo-ferreteria.png"
-                id="business-logo" aria-label={t('settings.logo')} value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                className="form-input"
-              />
+              <label className="form-label" htmlFor="formato-impresion" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Receipt size={14} color="var(--color-primary)" />
+                <span>Formato de impresión de facturas y recibos</span>
+              </label>
+              <select
+                id="formato-impresion" aria-label="Formato de impresión de facturas y recibos" value={formatoImpresion}
+                onChange={(e) => setFormatoImpresion(e.target.value as FormatoImpresion)}
+                className="form-select"
+                style={{ fontWeight: 700 }}
+              >
+                {FORMATOS_IMPRESION.map(formato => <option key={formato.valor} value={formato.valor}>{formato.etiqueta}</option>)}
+              </select>
+              <p id="formato-impresion-ayuda" style={{ fontSize: 12, margin: '4px 0 0' }}>
+                {FORMATOS_IMPRESION.find(formato => formato.valor === formatoImpresion)?.descripcion}
+              </p>
             </div>
 
             {/* Selector de Rubro Comercial */}

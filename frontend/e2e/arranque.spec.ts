@@ -103,8 +103,10 @@ for (const role of ['ADMIN', 'CAJERO'] as const) {
     await expect(page.getByRole('heading', { name: role === 'ADMIN' ? 'Revisar devoluciones' : 'Solicitar una devolución', exact: true })).toBeVisible();
 
     await page.goto('/auditoria');
-    await expect(page.getByRole('heading', { name: role === 'ADMIN' ? 'AUDITORÍA' : 'Acceso Denegado', exact: true })).toBeVisible();
-    if (role === 'CAJERO') expect(runtime.requests).not.toContain('GET /operaciones/auditoria');
+    await expect(page.getByRole('heading', { name: 'Acceso Denegado', exact: true })).toBeVisible();
+    expect(runtime.requests).not.toContain('GET /operaciones/auditoria');
+    await page.goto('/configuracion');
+    await expect(page.getByRole('heading', { name: 'Acceso Denegado', exact: true })).toBeVisible();
 
     // POS is lazy-loaded; wait for its mocked catalog before checking its controls.
     await Promise.all([

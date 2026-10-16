@@ -1,7 +1,7 @@
 {
-  "name": "FerreSystem",
-  "short_name": "FerreSystem",
-  "description": "Ventas, caja y administración de la ferretería",
+  "name": "Jowa System",
+  "short_name": "Jowa System",
+  "description": "Ventas, caja y administración del negocio",
   "lang": "es",
   "start_url": "/",
   "scope": "/",

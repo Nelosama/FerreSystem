@@ -15,6 +15,8 @@ const evaluate = (file, mocks, globals = {}) => {
   const context = { exports: {}, console, ...globals, require: (name) => {
     if (name in mocks) return mocks[name];
     if (name.endsWith('/unidadMedida')) return evaluate('src/utils/unidadMedida.ts', {});
+    if (name.endsWith('/formatoImpresion')) return evaluate('src/utils/formatoImpresion.ts', {});
+    if (name.endsWith('/LogotipoNegocio')) return { LogotipoNegocio: () => null };
     if (name.endsWith('/numeroCliente')) return evaluate('src/utils/numeroCliente.ts', {});
     if (name.endsWith('/tenantSettings')) return evaluate('src/utils/tenantSettings.ts', {}, globals);
     if (name.endsWith('/storage')) return evaluate('src/utils/storage.ts', {}, globals);

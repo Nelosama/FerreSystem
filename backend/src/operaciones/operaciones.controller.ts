@@ -68,6 +68,7 @@ export class OperacionesController {
  @Post('solicitudes-devolucion/:id/ejecutar') @Roles('ADMIN','CAJERO','VENDEDOR') ejecutarAutorizada(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.ejecutarAutorizada(t,u,id);}
  @RequiredModule('pos')
  @Get('devoluciones/:id') @Roles('ADMIN','CAJERO','VENDEDOR') consultarDevolucionDirecta(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.consultarDevolucionDirecta(t,u,id);}
- @Get('auditoria') @Roles('ADMIN') auditoria(@TenantId() t:string,@Query('page') p:string){return this.service.auditoria(t,Number(p));}
+ // Auditoría exclusiva del SUPERADMIN: ver /admin/tenants/:id/auditoria. Los usuarios de tenant reciben 403.
+ @Get('auditoria') @Roles('SUPERADMIN') auditoria(@TenantId() t:string,@Query('page') p:string){return this.service.auditoria(t,Number(p));}
 
 }

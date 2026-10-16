@@ -19,8 +19,9 @@ try {
     await page.locator('input[type="email"]').fill(process.env.SETTINGS_EMAIL);
     await page.locator('input[type="password"]').fill(process.env.SETTINGS_PASSWORD);
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
-    await expect(page).toHaveURL(`${origin}/`);
-    await page.goto(`${origin}/configuracion`);
+    await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+    // La configuración del negocio es exclusiva del SUPERADMIN y se edita por negocio seleccionado.
+    await page.goto(`${origin}/admin/negocios/${process.env.SETTINGS_TENANT}/configuracion`);
     return { context, page };
   }
   const first = await session();

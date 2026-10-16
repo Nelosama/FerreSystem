@@ -9,6 +9,8 @@ import { JwtStrategy } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperAdminController } from './super-admin.controller';
 import { SuperAdminService } from './super-admin.service';
+import { TenantsService } from '../tenants/tenants.service';
+import { TenantLogoService } from '../tenants/tenant-logo.service';
 import { SupportAuditInterceptor } from '../common/interceptors/support-audit.interceptor';
 
 // Pruebas HTTP reales de guards, JWT, interceptor y servicio. Solo la base de datos es simulada en memoria.
@@ -62,6 +64,9 @@ describe('Soporte remoto · usuarios reales, fin de sesión y trazabilidad (HTTP
       providers: [
         JwtStrategy,
         SuperAdminService,
+        // Servicios de configuración y logotipo: estas pruebas cubren soporte y sesiones, no el logotipo.
+        { provide: TenantsService, useValue: {} },
+        { provide: TenantLogoService, useValue: {} },
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigService, useValue: { get: (key: string) => (key === 'JWT_SECRET' ? SECRET : undefined) } },
         { provide: JwtService, useValue: new JwtService({ secret: SECRET }) },

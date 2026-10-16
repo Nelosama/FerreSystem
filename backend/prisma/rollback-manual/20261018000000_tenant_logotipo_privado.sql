@@ -1,0 +1,13 @@
+-- Reversión MANUAL de 20261018000000_tenant_logotipo_privado. No es una migración: no se ejecuta sola.
+-- Procedimiento (con respaldo previo y autorización del propietario):
+-- 1. Respaldar la base (pg_dump) antes de cualquier cambio.
+-- 2. Eliminar primero los objetos del almacenamiento privado de los negocios que tengan logotipo
+--    (los bytes NO están en PostgreSQL). Sin este paso quedarían archivos huérfanos.
+-- 3. Quitar las restricciones y luego las columnas (ninguna tabla ni dato previo se modifica):
+--    ALTER TABLE "tenants" DROP CONSTRAINT IF EXISTS "tenants_logo_coherencia_check";
+--    ALTER TABLE "tenants" DROP CONSTRAINT IF EXISTS "tenants_logo_bytes_check";
+--    ALTER TABLE "tenants" DROP CONSTRAINT IF EXISTS "tenants_logo_mime_check";
+--    ALTER TABLE "tenants" DROP COLUMN IF EXISTS "logo_actualizado_at", DROP COLUMN IF EXISTS "logo_bytes",
+--      DROP COLUMN IF EXISTS "logo_mime", DROP COLUMN IF EXISTS "logo_storage_key";
+-- 4. Quitar las entradas de _prisma_migrations de esta migración solo si se retira del repositorio.
+-- Este archivo no contiene sentencias activas a propósito.

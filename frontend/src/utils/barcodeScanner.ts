@@ -71,7 +71,7 @@ export function startBarcodeCamera(video: HTMLVideoElement, callbacks: {
   const fail = (error: unknown) => { if (!stopped) { stop(); callbacks.onError(cameraError(error, callbacks.locale)); } };
   void (async () => {
     try {
-      if (!dependencies.secure) throw new Error(callbacks.locale === 'en' ? 'The camera requires HTTPS. Open FerreSystem using a secure address or enter the code manually.' : 'La cámara requiere HTTPS. Abra FerreSystem mediante una dirección segura o introduzca el código manualmente.');
+      if (!dependencies.secure) throw new Error(callbacks.locale === 'en' ? 'The camera requires HTTPS. Open Jowa System using a secure address or enter the code manually.' : 'La cámara requiere HTTPS. Abra Jowa System mediante una dirección segura o introduzca el código manualmente.');
       if (!dependencies.mediaDevices?.getUserMedia) throw new Error(callbacks.locale === 'en' ? 'This browser does not support camera access. Use updated Safari or enter the code manually.' : 'Este navegador no permite acceder a la cámara. Use Safari actualizado o introduzca el código manualmente.');
       stream = await dependencies.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
       if (stopped) { stream.getTracks().forEach(track => track.stop()); return; }

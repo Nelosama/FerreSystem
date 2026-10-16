@@ -13,7 +13,8 @@ const reads = [
   { route: '/operaciones/caja', allowed: ['ADMIN', 'CAJERO', 'VENDEDOR'] },
   { route: '/operaciones/entregas', allowed: ['ADMIN', 'CAJERO', 'BODEGUERO'] },
   { route: '/operaciones/compras', allowed: ['ADMIN', 'BODEGUERO'] },
-  { route: '/operaciones/auditoria', allowed: ['ADMIN'] },
+  // Auditoría: solo SUPERADMIN (ruta por negocio). Ningún rol de negocio la lee por esta ruta.
+  { route: '/operaciones/auditoria', allowed: [] },
   { route: '/contingencia/dispositivos', allowed: ['ADMIN'] },
 ];
 
