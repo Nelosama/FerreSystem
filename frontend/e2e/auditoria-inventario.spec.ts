@@ -150,20 +150,6 @@ async function ingresar(page: Page) {
   await page.goto('/levantamiento');
 }
 
-async function crearLevantamiento(page: Page, nombre = 'Conteo bodega') {
-  await page.getByLabel('Nombre del levantamiento', { exact: true }).fill(nombre);
-  await page.getByRole('button', { name: 'Crear levantamiento' }).click();
-  await expect(page.getByRole('heading', { name: 'Contar producto', exact: true })).toBeVisible();
-}
-
-async function contar(page: Page, datos: { descripcion: string; cantidad?: string; codigo?: string; marca?: string }) {
-  await page.getByLabel('Descripción y variante', { exact: true }).fill(datos.descripcion);
-  if (datos.cantidad) await page.getByLabel('Cantidad', { exact: true }).fill(datos.cantidad);
-  if (datos.codigo) await page.getByLabel('Código interno o fabricante (opcional)', { exact: true }).fill(datos.codigo);
-  if (datos.marca) await page.getByLabel('Marca', { exact: true }).fill(datos.marca);
-}
-
-
 test('QA-INV-004: conciliación muestra el nombre del contador y conserva su identificador',async({page,sim})=>{
  // La respuesta simulada replica el contrato del backend: contador resuelto dentro de la empresa.
  const ana='ce4833d4-b09c-4eb3-a233-271a10211640';
