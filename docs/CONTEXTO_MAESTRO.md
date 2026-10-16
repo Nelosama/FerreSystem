@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-14, America/Tegucigalpa** — actualización exclusiva del PR #162 en `fix/pilot-readiness`; integración de main `be1a7fe7` con #160 y #163. Pruebas locales completas; checks del HEAD y recomendación final en #162, sin merge del PR ni despliegue ni migraciones productivas.
+Última revisión: **2026-10-16 UTC** — PR #171 (optimización y limpieza, sección siguiente). Revisión anterior: **2026-10-14, America/Tegucigalpa** — actualización exclusiva del PR #162 en `fix/pilot-readiness`; integración de main `be1a7fe7` con #160 y #163. Pruebas locales completas; checks del HEAD y recomendación final en #162, sin merge del PR ni despliegue ni migraciones productivas.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -19,6 +19,55 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 7. **No hacer merge automático** ni desplegar a producción sin autorización explícita del dueño del proyecto.
 
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
+
+---
+
+## Optimización y limpieza — PR #171 (2026-10-16 UTC, rama `claude/optimizacion-limpieza-jowa`, borrador, sin merge ni despliegue)
+
+- **Base:** `main` `d5fec352`. No había rama ni PR de Codex abiertos al empezar. Apareció #170 (Jules): toca `backend/pnpm-lock.yaml` (que #171 elimina) y agrega `multer` sin actualizar `package-lock.json`. Coordinación publicada en #170. Sin cambios de esquema, migraciones, autenticación, permisos, reglas de negocio ni archivos de PWA/móvil.
+- **Frontend:**
+  1. `@react-pdf/renderer` se importa dinámicamente en `components/descargarRecibo.ts`. Se precarga al acercar el puntero o enfocar el botón de descarga. Abrir el POS bajó de 1,25 MB a 45 KB de JS.
+  2. **POS:** índice del catálogo en `utils/posCatalogo.ts`, con pruebas de equivalencia contra el filtro anterior (`test/pos-catalogo.test.mjs`); tarjetas memorizadas; 120 tarjetas visibles con «Mostrar más».
+  3. **Inventario:** filtro, filas y `ProductoGestion` memorizados.
+  4. `en.json` se carga bajo demanda.
+  5. `GarantiasPage` pasa a carga diferida. Las páginas de contingencia siguen en el bundle inicial a propósito (offline).
+- **Backend:**
+  - `GET /productos/comercial`: filtra en SQL y lee solo las columnas expuestas, sin la consulta de autores. Respuesta idéntica por SHA-256.
+  - `GET /dashboard`: consultas en paralelo; sumas con `aggregate` sobre NUMERIC. Los totales quedan exactos al centavo: antes, p. ej., 34500.530000000006. Prueba nueva en `test/dashboard.postgres.integration.ts`.
+  - Índices: `EXPLAIN ANALYZE` muestra que los existentes ya cubren estas consultas; no se agregó ninguno.
+- **Limpieza:**
+  - Archivos retirados: `.vs/` (estado local de Visual Studio/Copilot, 1,9 MB; queda en el historial de Git); `tests/example.spec.ts` y `playwright.config.ts` de la raíz (plantilla) con sus devDependencies; los tres `pnpm-lock.yaml` (npm es el gestor en CI, Render y Vercel); `test-results/.last-run.json`; `public/icons.svg`; `WeeklyTrend.tsx`; `SuperAdminLoginPage.tsx`.
+  - Dependencias y scripts: script `deploy` + `@nestjs/mau` (recomendación R3 de CENTINELA), `pg-gateway` y `source-map-support`; imports sin uso.
+  - `logo.jpg` re-codificado de 1,88 MB a 269 KB, con las mismas dimensiones y ruta.
+- **Métricas:** Chromium con backend simulado y 5.000 productos; API con PostgreSQL 16 temporal, 5.000 productos y 2.100 ventas. Scripts y resultados en [evidencias/optimizacion-20261016/](evidencias/optimizacion-20261016/).
+
+  | Medida | Antes | Después |
+  |---|---|---|
+  | JS inicial (index.html) | 597 KB / 193 KB gzip | 531 KB / 171 KB gzip |
+  | JS en /login | 585 KB | 518 KB |
+  | JS adicional al abrir POS | 1,25 MB | 45 KB |
+  | POS: agregar al carrito | 208–348 ms | 31–32 ms |
+  | POS: tecla en nombre de cliente | 189–251 ms | 31–32 ms |
+  | POS: nodos DOM | 30.368 | 1.092 |
+  | Inventario: tecla en el alta | 191–212 ms | 15–31 ms |
+  | `/productos/comercial` (mediana) | 182 ms, 3 consultas | 98 ms, 2 consultas |
+  | `/dashboard` con +3 ms/sentido | 456 ms | 51 ms |
+  | `public/` | 1,90 MB | 283 KB |
+
+- **Pruebas locales:**
+  - Frontend: unitarias 340/340; `tsc -b`; lint sin errores (avisos 116 → 115); Playwright simulado 155/155 (Chromium 1194 del entorno).
+  - Backend: build; unitarias 494/494; scripts 48/48; Python OK; lint sin errores (avisos 396 → 390).
+  - PostgreSQL 16 real: suite de integración completa, 978 aprobadas y 1 omitida (navegador opt-in preexistente).
+- **CI de #171:** `guard-base-datos` aprobado. «Piloto con API y PostgreSQL reales» aprobado: 145 pasan, 10 omitidas preexistentes, junto con respaldo, recuperación y actualización. El resultado de `validate` se informa en el PR.
+- **Pendientes y decisiones del dueño:**
+  - Páginas sin ruta que usan localStorage (`ApartadosPage`, `TransferenciasPage`, `PedidosEspecialesPage`, `ListasPrecioPage`): ya no se empaquetan; decidir si retirarlas.
+  - `deploy/local/` (servidor local): se conserva porque lo cubren pruebas de scripts; con la arquitectura web definitiva, el dueño debe decidir si se retira.
+  - `.vercel/project.json` versionado: no es secreto, pero Vercel recomienda no commitearlo.
+  - Revisar el historial de `.vs/` (sesión de Copilot) por si contiene datos sensibles.
+  - Compresión HTTP de la API: no se agregó porque requiere una dependencia o middleware propio. El catálogo comercial pesa unos 2,4 MB sin comprimir con 4.000 productos; verificar si Render comprime.
+  - Las capturas de `frontend/artifacts/` se regeneran en cada corrida de Playwright.
+  - La tabla de Inventario sigue pintando todas las filas: solo se memorizó.
+  - No hubo prueba en dispositivo físico, Safari ni con datos reales.
 
 ---
 
