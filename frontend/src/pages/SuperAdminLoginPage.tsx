@@ -35,7 +35,7 @@ export const SuperAdminLoginPage: React.FC = () => {
         },
         {
           id: 'saas-global',
-          nombreComercial: 'FerreSystem Admin Portal',
+          nombreComercial: 'Jowa System Admin Portal',
           sucursal: 'Global',
           colorPrimario: '#1C1917',
         },
@@ -66,7 +66,7 @@ export const SuperAdminLoginPage: React.FC = () => {
             <ShieldCheck size={42} strokeWidth={2.5} color="#EA580C" />
           </div>
           <div style={styles.brandTitle}>
-            <span style={{ color: 'var(--color-bg)' }}>FerreSystem</span>
+            <span style={{ color: 'var(--color-bg)' }}>Jowa System</span>
             <span style={{ color: '#EA580C', fontSize: '14px', display: 'block', fontWeight: 800 }}>
               PORTAL EXCLUSIVO PROVEEDOR SAAS
             </span>

@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useI18n } from '../context/I18nContext';
-import { descargarReciboPDF } from '../components/ReciboPDF';
+import { descargarReciboPDF } from '../components/descargarRecibo';
 import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
 import { filterCotizaciones } from '../utils/cotizacionesFilters';
 

@@ -21,6 +21,9 @@ import { ContingenciaController } from '../src/contingencia/contingencia.control
 import { ContingenciaService } from '../src/contingencia/contingencia.service';
 import { SuperAdminController } from '../src/super-admin/super-admin.controller';
 import { SuperAdminService } from '../src/super-admin/super-admin.service';
+import { TenantsService } from '../src/tenants/tenants.service';
+import { TenantLogoService } from '../src/tenants/tenant-logo.service';
+import { LOGOTIPO_ALMACEN } from '../src/tenants/logotipo-almacen';
 import { UsuariosService } from '../src/usuarios/usuarios.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { sesionVigente } from '../src/auth/sesiones-auth';
@@ -92,7 +95,8 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [AuthController, SuperAdminController, ContingenciaController],
       providers: [
-        AuthService, JwtStrategy, SuperAdminService, ContingenciaService,
+        AuthService, JwtStrategy, SuperAdminService, ContingenciaService, TenantsService, TenantLogoService,
+        { provide: LOGOTIPO_ALMACEN, useValue: null },
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: jwt },
         { provide: ConfigService, useValue: config },

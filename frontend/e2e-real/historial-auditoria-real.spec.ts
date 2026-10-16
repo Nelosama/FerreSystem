@@ -63,26 +63,50 @@ test('el cajero vende de contado y el administrador entrega: la venta aparece en
   expect(sql(`SELECT usuario_id FROM ventas WHERE id='${ventaId}'`)).toBe(cajero.id);
 });
 
-test('la auditoría registra venta y entrega con usuario, y la API la devuelve solo al administrador', async ({ request }) => {
+
+// La auditoría es exclusiva del SUPERADMIN (ruta por negocio). Un ADMIN recibe 403 en la ruta de tenant.
+async function tokenSuperAdmin(request: any): Promise<string> {
+  const r = await request.post(`${API}/auth/login`, { data: { email: 'superadmin.e2e@e2e.invalid', password: process.env.E2E_PASSWORD } });
+  expect(r.status()).toBe(200);
+  return (await r.json()).accessToken as string;
+}
+
+test('la auditoría registra venta y entrega con usuario; la API por negocio la devuelve solo al SUPERADMIN', async ({ request }) => {
   expect(Number(sql(`SELECT COUNT(*) FROM auditoria_operaciones WHERE tenant_id='${TENANT}' AND operacion='VENTA_CREAR' AND entidad_id='${ventaId}' AND usuario_id='${cajero.id}'`))).toBe(1);
   expect(Number(sql(`SELECT COUNT(*) FROM auditoria_operaciones WHERE tenant_id='${TENANT}' AND operacion='VENTA_ENTREGAR' AND datos::text LIKE '%${ventaId}%' AND usuario_id='${admin.id}'`))).toBe(1);
-  const api = await request.get(`${API}/operaciones/auditoria?page=0`, { headers: auth(admin.token) });
+  // ADMIN no puede leer la auditoría del negocio por la ruta de tenant: 403.
+  expect((await request.get(`${API}/operaciones/auditoria?page=0`, { headers: auth(admin.token) })).status()).toBe(403);
+  const sa = await tokenSuperAdmin(request);
+  const api = await request.get(`${API}/admin/tenants/${TENANT}/auditoria?page=0`, { headers: auth(sa) });
   expect(api.status()).toBe(200);
   const filas = (await api.json()) as any[];
+  expect(filas.every((f) => f.tenant_id === TENANT)).toBe(true);
   const operaciones = filas.filter((f) => f.entidad_id === ventaId || JSON.stringify(f.datos ?? {}).includes(ventaId)).map((f) => f.operacion).sort();
   expect(operaciones).toEqual(['VENTA_CREAR', 'VENTA_ENTREGAR']);
   expect((await request.get(`${API}/operaciones/auditoria?page=0`, { headers: auth(cajero.token) })).status()).toBe(403);
+  expect((await request.get(`${API}/admin/tenants/${TENANT}/auditoria?page=0`, { headers: auth(cajero.token) })).status()).toBe(403);
 });
 
 for (const [nombre, vista] of [['escritorio', { width: 1280, height: 800 }], ['móvil 390 px', { width: 390, height: 844 }]] as const) {
-  test(`el administrador ve la auditoría en la pantalla (${nombre}) y el cajero no entra`, async ({ page }) => {
+  test(`el SUPERADMIN ve la auditoría del negocio (${nombre}); el administrador del negocio recibe acceso denegado`, async ({ page }) => {
     await page.setViewportSize(vista);
+    // El administrador del negocio no accede a la auditoría (regla nueva): acceso denegado en la pantalla.
     await page.goto('/login');
     await page.locator('input[type="email"]').fill(ADMIN);
     await page.locator('input[type="password"]').fill(PASSWORD);
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await page.waitForURL((url) => !url.pathname.startsWith('/login'));
     await page.goto('/auditoria');
+    await expect(page.getByRole('heading', { name: 'Acceso Denegado', exact: true })).toBeVisible();
+    await expect(page.locator('table')).toHaveCount(0);
+
+    // El SUPERADMIN consulta la auditoría del negocio desde el panel por negocio.
+    await page.goto('/login');
+    await page.locator('input[type="email"]').fill('superadmin.e2e@e2e.invalid');
+    await page.locator('input[type="password"]').fill(PASSWORD);
+    await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
+    await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+    await page.goto(`/admin/negocios/${TENANT}/auditoria`);
     const tabla = page.locator('table');
     await expect(tabla.getByRole('cell', { name: 'Venta registrada' }).first()).toBeVisible();
     await expect(tabla.getByRole('cell', { name: 'Entrega', exact: true }).first()).toBeVisible();

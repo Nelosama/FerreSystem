@@ -6,9 +6,9 @@ import {
   View,
   StyleSheet,
   Image,
-  pdf,
 } from '@react-pdf/renderer';
 import type { TenantInfo } from '../types';
+import { esFormatoRollo, tamanoPaginaRecibo, type FormatoImpresion } from '../utils/formatoImpresion';
 
 export interface ReciboPDFItem {
   codigo?: string;
@@ -45,6 +45,10 @@ export interface ReciboPDFProps {
   pagado?: number;
   saldoPendiente?: number;
   tenant: TenantInfo;
+  /** Logotipo privado ya resuelto como data URL (lo prepara descargarReciboPDF). */
+  logoDataUrl?: string | null;
+  /** Formato del negocio: hoja A4 o papel de rollo térmico (80 mm / 58 mm). */
+  formato?: FormatoImpresion;
 }
 
 const formatMoney = (amount: number, simbolo = 'L.'): string => {
@@ -76,6 +80,8 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
   pagado,
   saldoPendiente,
   tenant,
+  logoDataUrl,
+  formato,
 }) => {
   const primaryColor = tenant.colorPrimario || '#1E3A8A';
   // Ventas guardan importes e ISV, sin moneda ni tasa global histórica.
@@ -270,12 +276,12 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
 
   return (
     <Document title={`${tipo === 'VENTA' ? 'Venta' : 'Cotizacion'}-${numeroDocumento}`}>
-      <Page size="LETTER" style={styles.page}>
+      <Page size={tamanoPaginaRecibo(formato ?? tenant.formatoImpresion, items.length + (notas ? 4 : 0) + 22)} style={esFormatoRollo(formato ?? tenant.formatoImpresion) ? { ...styles.page, padding: 12 } : styles.page}>
         {/* Encabezado del Tenant & Documento */}
         <View style={styles.headerRow}>
           <View style={styles.companyBox}>
-            {tenant.logoUrl ? (
-              <Image src={tenant.logoUrl} style={styles.logo} />
+            {logoDataUrl ? (
+              <Image src={logoDataUrl} style={styles.logo} />
             ) : null}
             <Text style={styles.companyName}>{tenant.nombreComercial}</Text>
             {tenant.direccion ? (
@@ -444,23 +450,10 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
               : `Cotización válida por ${diasValidez} días`}
           </Text>
           <Text style={styles.footerSubtext}>
-            Documento generado por FerreSystem Multi-tenant SaaS
+            Documento generado por Jowa System
           </Text>
         </View>
       </Page>
     </Document>
   );
-};
-
-export const descargarReciboPDF = async (props: ReciboPDFProps, nombreArchivo: string) => {
-  const doc = <ReciboPDF {...props} />;
-  const blob = await pdf(doc).toBlob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = nombreArchivo;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 };

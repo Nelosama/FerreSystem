@@ -34,8 +34,11 @@ export async function checkSettingsHttp(prisma: PrismaService, base: string) {
   const token = adminA.accessToken;
   expect(await settings(token)).toMatchObject({ configuracion: {}, templateVersion: 'v1', v2Mode: 'light' });
   const bBefore = await settings(adminB.accessToken);
-  const saved = { nombreComercial: 'Marca persistida', direccion: 'Calle sintética', telefono: '99990000', email: 'marca@example.test', logoUrl: 'https://example.test/logo.png', colorPrimario: '#123456', modoNavegacion: 'TOPNAV', configuracion: { templateVersion: 'v2', v2Mode: 'dark', estiloUI: 'MODERNO', fuenteTitulos: 'Poppins', fuenteCuerpo: 'Inter' } };
-  const put = await call('/tenant/settings', token, 'PUT', saved);
+  const saved = { nombreComercial: 'Marca persistida', direccion: 'Calle sintética', telefono: '99990000', email: 'marca@example.test', colorPrimario: '#123456', modoNavegacion: 'TOPNAV', configuracion: { templateVersion: 'v2', v2Mode: 'dark', estiloUI: 'MODERNO', fuenteTitulos: 'Poppins', fuenteCuerpo: 'Inter' } };
+  // ADMIN no puede cambiar la configuración del negocio: 403 en el backend.
+  expect((await call('/tenant/settings', token, 'PUT', saved)).status).toBe(403);
+  // El SUPERADMIN configura el negocio seleccionado por su identificador.
+  const put = await call(`/admin/tenants/${a.id}/settings`, sa.accessToken, 'PUT', saved);
   expect(put.status).toBe(200);
   expect(await put.json()).toMatchObject(saved);
   expect(await prisma.tenant.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject(saved);
@@ -46,14 +49,15 @@ export async function checkSettingsHttp(prisma: PrismaService, base: string) {
   expect((await call('/tenant/settings', cashier.accessToken, 'PUT', { nombreComercial: 'Forbidden' })).status).toBe(403);
   expect((await call(`/admin/tenants/${b.id}`, token, 'PATCH', { nombreComercial: 'Forbidden' })).status).toBe(403);
   // A tenant id supplied in an untrusted body must never select the target tenant.
-  expect((await call('/tenant/settings', token, 'PUT', { tenantId: b.id, colorPrimario: '#234567' })).status).toBe(200);
+  // Un identificador de negocio en el cuerpo no selecciona otro negocio: ADMIN recibe 403 y B no cambia.
+  expect((await call('/tenant/settings', token, 'PUT', { tenantId: b.id, colorPrimario: '#234567' })).status).toBe(403);
   expect(await settings(adminB.accessToken)).toEqual(bBefore);
-  const brand = { nombreComercial: 'Marca Super Admin', colorPrimario: '#345678', modoNavegacion: 'SIDEBAR', logoUrl: 'https://example.test/sa.png' };
+  const brand = { nombreComercial: 'Marca Super Admin', colorPrimario: '#345678', modoNavegacion: 'SIDEBAR' };
   expect((await call(`/admin/tenants/${a.id}`, sa.accessToken, 'PATCH', brand)).status).toBe(200);
   expect(await settings(token)).toMatchObject({ ...brand, configuracion: saved.configuracion });
   expect((await login(users[0])).tenant).toMatchObject({ ...brand, ...saved.configuracion });
-  const cleared = { logoUrl: null, direccion: '', telefono: '', email: '', configuracion: {} };
-  expect((await call('/tenant/settings', token, 'PUT', cleared)).status).toBe(200);
+  const cleared = { direccion: '', telefono: '', email: '', configuracion: {} };
+  expect((await call(`/admin/tenants/${a.id}/settings`, sa.accessToken, 'PUT', cleared)).status).toBe(200);
   expect(await prisma.tenant.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject(cleared);
   expect(await settings(token)).toMatchObject({ ...cleared, templateVersion: 'v1', v2Mode: 'light' });
   expect((await login(users[0])).tenant).toMatchObject({ logoUrl: null, direccion: '', telefono: '', email: '', templateVersion: 'v1', v2Mode: 'light' });
@@ -75,7 +79,7 @@ export async function checkSettingsHttp(prisma: PrismaService, base: string) {
   if (process.env.REAL_SETTINGS_BROWSER === '1') {
     execFileSync(process.execPath, [resolve('test/real-settings-browser.mjs')], {
       timeout: 60000, windowsHide: true, stdio: 'inherit',
-      env: { ...process.env, VITE_API_URL: '/api', SETTINGS_API: base, SETTINGS_EMAIL: users[0].email, SETTINGS_PASSWORD: password },
+      env: { ...process.env, VITE_API_URL: '/api', SETTINGS_API: base, SETTINGS_EMAIL: superadmin.email, SETTINGS_TENANT: a.id, SETTINGS_PASSWORD: password },
     });
     expect((await settings(token)).nombreComercial).toBe('Marca navegador real');
     expect(await settings(adminB.accessToken)).toEqual(bBefore);

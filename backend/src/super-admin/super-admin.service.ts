@@ -1,5 +1,8 @@
 import { CORE_TENANT_MODULES, DEFAULT_TENANT_MODULES, enabledTenantModules } from '../common/tenant-modules';
-import { lockTenant } from '../operaciones/ledger';
+import { audit, lockTenant } from '../operaciones/ledger';
+import { consultarAuditoria } from '../operaciones/auditoria-consulta';
+import { TenantsService } from '../tenants/tenants.service';
+import { TenantLogoService } from '../tenants/tenant-logo.service';
 import { CreateTenantAdminDto, UpdateTenantAdminDto } from './tenant-admin.dto';
 import { Injectable, UnauthorizedException, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -20,7 +23,45 @@ export class SuperAdminService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private tenantsService: TenantsService,
+    private tenantLogoService: TenantLogoService,
   ) {}
+
+  private async existeNegocio(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
+    if (!tenant) throw new NotFoundException('Ferretería no encontrada');
+  }
+
+  /** Configuración completa del negocio seleccionado (mismo servicio que usa el negocio, sin su rol). */
+  async configuracionNegocio(tenantId: string) {
+    await this.existeNegocio(tenantId);
+    return this.tenantsService.getTenantSettings(tenantId);
+  }
+
+  async actualizarConfiguracionNegocio(tenantId: string, superAdminId: string, cambios: Parameters<TenantsService['updateTenantBranding']>[1]) {
+    await this.existeNegocio(tenantId);
+    const actualizado = await this.tenantsService.updateTenantBranding(tenantId, cambios, { esSuperAdmin: true });
+    await audit(this.prisma as any, tenantId, superAdminId, 'CONFIGURACION_NEGOCIO_ACTUALIZAR', tenantId, { superAdminId, campos: Object.keys(cambios) });
+    return actualizado;
+  }
+
+  /** Auditoría del negocio seleccionado. Solo lectura; la consulta se limita al identificador recibido. */
+  async auditoriaNegocio(tenantId: string, page: number) {
+    await this.existeNegocio(tenantId);
+    return consultarAuditoria(this.prisma as any, tenantId, page);
+  }
+
+  logotipoNegocio(tenantId: string) {
+    return this.tenantLogoService.leer(tenantId);
+  }
+
+  guardarLogotipoNegocio(tenantId: string, superAdminId: string, datos: Buffer, mime: string | undefined) {
+    return this.tenantLogoService.guardar(tenantId, datos, mime, superAdminId);
+  }
+
+  eliminarLogotipoNegocio(tenantId: string, superAdminId: string) {
+    return this.tenantLogoService.eliminar(tenantId, superAdminId);
+  }
 
   // Mismo límite de intentos que el login de tenants (por cuenta y por IP).
   async login(loginDto: { email: string; password: string }, res: Response, req?: Request) {
@@ -310,6 +351,7 @@ export class SuperAdminService {
 
   async updateTenantConfig(
     tenantId: string,
+    adminId: string,
     dto: {
       nombreComercial?: string;
       direccion?: string;
@@ -321,11 +363,12 @@ export class SuperAdminService {
       plan?: string;
     },
   ) {
+    if (dto.logoUrl !== undefined) throw new BadRequestException('El logotipo se carga como archivo en la administración del negocio');
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
       throw new NotFoundException('Ferretería no encontrada');
     }
-    return this.prisma.tenant.update({
+    const actualizado = await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
         ...(dto.nombreComercial ? { nombreComercial: dto.nombreComercial } : {}),
@@ -333,11 +376,12 @@ export class SuperAdminService {
         ...(dto.telefono !== undefined ? { telefono: dto.telefono } : {}),
         ...(dto.email !== undefined ? { email: dto.email } : {}),
         ...(dto.colorPrimario ? { colorPrimario: dto.colorPrimario } : {}),
-        ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
         ...(dto.modoNavegacion ? { modoNavegacion: dto.modoNavegacion } : {}),
         ...(dto.plan ? { plan: dto.plan } : {}),
       },
     });
+    await audit(this.prisma as any, tenantId, adminId, 'NEGOCIO_ACTUALIZAR', tenantId, { superAdminId: adminId, campos: Object.keys(dto) });
+    return actualizado;
   }
 
   async createTenantAdmin(tenantId: string, dto: CreateTenantAdminDto) {
