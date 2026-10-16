@@ -16,8 +16,9 @@ export function normalizarTexto(texto: string | null | undefined): string | null
 /** Convierte una cantidad a centésimas enteras. Rechaza más de dos decimales y valores no finitos. */
 export function aCentesimas(valor: unknown, etiqueta: string, positiva = false): number {
   if (typeof valor !== 'number' || !Number.isFinite(valor)) throw new Error(`${etiqueta}: valor no numérico`);
-  const centesimas = Math.round(valor * 100);
-  if (Math.abs(valor * 100 - centesimas) > 1e-7) throw new Error(`${etiqueta}: máximo dos decimales`);
+  const fijo = valor.toFixed(2);
+  const centesimas = Number(fijo.replace('.', ''));
+  if (Math.abs(valor - Number(fijo)) > 1e-9) throw new Error(`${etiqueta}: máximo dos decimales`);
   if (!Number.isSafeInteger(centesimas)) throw new Error(`${etiqueta}: fuera de rango`);
   if (positiva ? centesimas <= 0 : centesimas < 0) throw new Error(`${etiqueta}: debe ser ${positiva ? 'mayor que cero' : 'no negativo'}`);
   return centesimas;

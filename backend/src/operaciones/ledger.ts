@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { withSupportIdentity } from '../common/support-context';
 import type { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
-import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
+import { aCentavos } from '../common/redondeo-monetario';
 
 export type Tx = Prisma.TransactionClient;
 export const id = () => randomUUID();
@@ -51,7 +51,7 @@ export const fingerprint = (data: unknown) => createHash('sha256').update(JSON.s
 export const money = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 export function decimal(value: unknown, label: string, positive = false) {
   const n = Number(value);
-  if (!Number.isFinite(n) || n < 0 || (positive && n <= 0) || n > 9999999999.99 || Math.abs(n * 100 - Math.round(n * 100)) > 0.00001) {
+  if (!Number.isFinite(n) || n < 0 || (positive && n <= 0) || n > 9999999999.99 || Math.abs(n - Number(n.toFixed(2))) > 0.0000001) {
     throw new BadRequestException(`${label}: use un valor ${positive ? 'mayor a cero' : 'no negativo'} con hasta dos decimales`);
   }
   return n;
@@ -101,7 +101,8 @@ export function validateDiscount(user: any, subtotal: number, descuento: number)
   if (descuentoCentavos > subtotalCentavos) throw new BadRequestException('Descuento mayor al subtotal');
   if(descuentoCentavos>0 && user.rol!=='ADMIN' && user.permisos_configurados && !user.permisos?.includes('pos.aplicar_descuento'))throw new ForbiddenException('No tiene permiso para aplicar descuentos');
   const limit = user.rol === 'ADMIN' ? 100 : Number(user.descuento_maximo || 0);
-  const maximoCentavos = divisionMitadArriba(subtotalCentavos * Math.round(limit * 100), 10000);
+  const numerador = BigInt(subtotalCentavos) * BigInt(Math.round(limit * 100));
+  const maximoCentavos = Number((numerador * 2n + 10000n) / 20000n);
   if (descuentoCentavos > maximoCentavos) throw new ForbiddenException('Descuento requiere autorización administrativa');
 }
 export async function openCash(tx: Tx, tenantId: string, usuarioId: string) {
