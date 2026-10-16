@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { useI18n } from '../context/I18nContext';
-import { descargarReciboPDF } from '../components/descargarRecibo';
+import { descargarReciboPDF, precargarGeneradorPDF } from '../components/descargarRecibo';
 import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
 import { filterCotizaciones } from '../utils/cotizacionesFilters';
 
@@ -736,6 +736,8 @@ export const CotizacionesPage: React.FC = () => {
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
+                          onPointerEnter={precargarGeneradorPDF}
+                          onFocus={precargarGeneradorPDF}
                           onClick={async () => {
                             await descargarReciboPDF(
                               {
@@ -1541,6 +1543,8 @@ export const CotizacionesPage: React.FC = () => {
               <button
                 type="button"
                 className="btn btn-primary"
+                onPointerEnter={precargarGeneradorPDF}
+                onFocus={precargarGeneradorPDF}
                 onClick={async () => {
                   if (!modalPdf) return;
                   await descargarReciboPDF(
