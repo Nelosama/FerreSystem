@@ -95,7 +95,7 @@ export const OperacionesPage: React.FC<{modo:Mode}> = ({modo}) => {
   if(items.some(i=>i.productoId===p.id)){setLineaError({campo:'producto',texto:'El producto ya está en la factura. Quite su línea para corregirla.'});return;}
   setItems([...items,{productoId:p.id,nombre:p.nombre,cantidad:checked.linea.cantidad,costo:checked.linea.costo}]);setProductId('');setQty('1');setCost('');
  };
- return <div><TopBar title={{compras:'COMPRAS Y REPOSICIONES',cuentas:'CUENTAS Y ABONOS',entregas:'ENTREGA DE VENTAS'}[modo]} subtitle="Control operativo de la ferretería"/>
+ return <div><TopBar title={{compras:'COMPRAS Y REPOSICIONES',cuentas:'CUENTAS Y ABONOS',entregas:'ENTREGA DE VENTAS'}[modo]} subtitle="Control operativo del negocio"/>
   <main className="operation-page">
    <nav className="operation-actions" aria-label={t('navigation.OPERACION')}>{availableTasks(user, tenant).filter(item => ['pos', 'arqueo_caja', 'cuentas', 'entregas', 'ordenes_compra'].includes(item.key)).map(item => <Link key={item.key} to={item.route}>{t(item.labelKey)}</Link>)}</nav>
    {error&&<div role="alert" className="operation-error">{error}</div>}{success&&<div role="status" className="operation-success">{success}</div>}

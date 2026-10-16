@@ -45,6 +45,10 @@ export interface TenantInfo {
   nombreComercial: string;
   sucursal?: string;
   logoUrl?: string | null;
+  /** Logotipo privado: solo metadatos; los bytes se piden autenticados. */
+  logotipo?: { mime: string; bytes: number; actualizadoAt: string } | null;
+  /** Formato de facturas, recibos y tickets; lo configura el SUPERADMIN. */
+  formatoImpresion?: 'A4' | 'ROLLO_80MM' | 'ROLLO_58MM';
   colorPrimario: string;
   direccion?: string;
   telefono?: string;

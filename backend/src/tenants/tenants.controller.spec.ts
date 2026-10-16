@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
 import { TenantsController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
+import { TenantLogoService } from './tenant-logo.service';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 
@@ -23,6 +24,7 @@ describe('TenantsController Security', () => {
           provide: TenantsService,
           useValue: mockTenantsService,
         },
+        { provide: TenantLogoService, useValue: { leer: vi.fn() } },
       ],
     }).compile();
 
@@ -40,8 +42,8 @@ describe('TenantsController Security', () => {
     expect(guards).toContain(RolesGuard);
   });
 
-  it('should require ADMIN role for updateSettings endpoint', () => {
+  it('should require SUPERADMIN role for updateSettings endpoint', () => {
     const roles = reflector.get<string[]>(ROLES_KEY, controller.updateSettings);
-    expect(roles).toEqual(['ADMIN']);
+    expect(roles).toEqual(['SUPERADMIN']);
   });
 });

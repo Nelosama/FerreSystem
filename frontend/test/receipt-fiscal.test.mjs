@@ -6,9 +6,11 @@ import ts from 'typescript';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 const Block = ({ children }) => React.createElement('div', null, children);
+const fmt={}; vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/utils/formatoImpresion.ts','utf8'),{ compilerOptions:{ module:ts.ModuleKind.CommonJS } }).outputText,{ exports:fmt, require:()=>{throw new Error('dep');} });
 const context={ exports:{}, require:name=>{
   if(name==='react')return React;
   if(name==='@react-pdf/renderer')return { Document:Block, Page:Block, Text:Block, View:Block, Image:()=>null, StyleSheet:{ create:value=>value } };
+  if(name.endsWith('/utils/formatoImpresion'))return fmt;
   throw new Error(name);
 } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/components/ReciboPDF.tsx','utf8'),{ compilerOptions:{ module:ts.ModuleKind.CommonJS, jsx:ts.JsxEmit.React, esModuleInterop:true } }).outputText,context);

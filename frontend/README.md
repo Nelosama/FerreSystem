@@ -1,4 +1,4 @@
-# FerreSystem: frontend
+# Jowa System: frontend
 
 El frontend usa React, TypeScript y Vite. Usa Node.js 24 y npm; `package-lock.json` fija las versiones instaladas tanto en CI como en Docker y Vercel.
 

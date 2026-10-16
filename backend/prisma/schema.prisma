@@ -124,6 +124,11 @@ model Tenant {
   telefono         String?
   email            String?
   logoUrl          String?      @map("logo_url")
+  // Logotipo corporativo en almacenamiento privado: solo referencia y metadatos (sin binarios).
+  logoStorageKey   String?      @map("logo_storage_key")
+  logoMime         String?      @map("logo_mime")
+  logoBytes        Int?         @map("logo_bytes")
+  logoActualizadoAt DateTime?   @map("logo_actualizado_at")
   colorPrimario    String       @default("#EA580C") @map("color_primario")
   modoNavegacion   ModoNavegacion @default(SIDEBAR) @map("modo_navegacion")
   plan             String       @default("Plan Pro")

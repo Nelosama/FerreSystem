@@ -207,7 +207,11 @@ test('8. el administrador consulta las ventas y la auditoría; cada operación e
   expect(lista.status()).toBe(200);
   const texto = JSON.stringify(await lista.json());
   for (const v of [ventas.EFECTIVO, ventas.TARJETA, ventas.TRANSFERENCIA]) expect(texto).toContain(v.id);
-  const aud = await request.get(`${API}/operaciones/auditoria?page=0`, { headers: auth(admin.token) });
+  // La auditoría es exclusiva del SUPERADMIN: el administrador del negocio recibe 403 y la consulta se hace por negocio.
+  expect((await request.get(`${API}/operaciones/auditoria?page=0`, { headers: auth(admin.token) })).status()).toBe(403);
+  const saRes = await request.post(`${API}/auth/login`, { data: { email: 'superadmin.e2e@e2e.invalid', password: process.env.E2E_PASSWORD } });
+  expect(saRes.status()).toBe(200);
+  const aud = await request.get(`${API}/admin/tenants/${TENANT}/auditoria?page=0`, { headers: auth((await saRes.json()).accessToken) });
   expect(aud.status()).toBe(200);
   const filas = (await aud.json()) as any[];
   for (const v of [ventas.EFECTIVO, ventas.TARJETA, ventas.TRANSFERENCIA]) {

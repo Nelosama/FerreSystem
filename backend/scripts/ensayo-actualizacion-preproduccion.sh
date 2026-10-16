@@ -42,6 +42,8 @@ INSERT INTO tenants (id, nombre_comercial, estado, updated_at) VALUES ('T1','Fer
 INSERT INTO usuarios (id, tenant_id, nombre, email, password_hash, rol, permisos, permisos_configurados, updated_at) VALUES
  ('UA','T1','Administrador','admin@piloto.invalid','$HASH','ADMIN','{}',false,NOW()),
  ('UC','T1','Cajero','cajero@piloto.invalid','$HASH','CAJERO','{pos.vender}',true,NOW());
+-- Super Admin de plataforma: la auditoría de un negocio es exclusiva de este rol.
+INSERT INTO super_admins (id, nombre, email, password_hash, activo, updated_at) VALUES ('SA1','Super Admin ensayo','superadmin@piloto.invalid','$HASH',true,NOW());
 INSERT INTO productos (id, tenant_id, codigo, nombre, precio_venta, precio_costo, stock_actual, stock_reservado, stock_minimo, activo, updated_at) VALUES
  ('P-ACT','T1','A-1','Tornillo histórico',100,40,100,5,1,true,NOW()),
  ('P-CERO','T1','A-2','Producto sin precio',0,0,20,0,1,true,NOW()),
@@ -75,7 +77,7 @@ q "$PP" "SELECT string_agg(id||'='||precio_aprobado::text||'/'||coalesce(precio_
 echo "== 5. Arranque con el procedimiento de producción (NODE_ENV=production, sin migrar)"
 arrancar produccion
 if espera; then ok "El backend arranca en modo producción sobre la base migrada" "puerto $API"; else ko "Arranque en producción" "$(tail -3 "$WORK/api-produccion.log" | tr '\n' ' ' | cut -c1-200)"; fi
-if API_URL="http://127.0.0.1:$API/api" ADMIN_EMAIL=admin@piloto.invalid ADMIN_PASSWORD="$PW" CAJERO_EMAIL=cajero@piloto.invalid CAJERO_PASSWORD="$PW" node "$ROOT/backend/scripts/humo-preproduccion.mjs" --escribe > "$WORK/humo.log" 2>&1; then ok "Humo de API con escritura" "$(tail -1 "$WORK/humo.log")"; else ko "Humo de API" "$(grep FAIL "$WORK/humo.log" | head -2 | tr '\n' ' ')"; fi
+if API_URL="http://127.0.0.1:$API/api" ADMIN_EMAIL=admin@piloto.invalid ADMIN_PASSWORD="$PW" CAJERO_EMAIL=cajero@piloto.invalid CAJERO_PASSWORD="$PW" SUPERADMIN_EMAIL=superadmin@piloto.invalid SUPERADMIN_PASSWORD="$PW" node "$ROOT/backend/scripts/humo-preproduccion.mjs" --escribe > "$WORK/humo.log" 2>&1; then ok "Humo de API con escritura" "$(tail -1 "$WORK/humo.log")"; else ko "Humo de API" "$(grep FAIL "$WORK/humo.log" | head -2 | tr '\n' ' ')"; fi
 cat > "$WORK/historicos.mjs" <<'EON'
 const [api, pw] = process.argv.slice(2);
 const j = async (m, r, t, d) => { const res = await fetch(api + r, { method: m, headers: { 'content-type': 'application/json', ...(t ? { authorization: 'Bearer ' + t } : {}) }, body: d ? JSON.stringify(d) : undefined }); const x = await res.text(); return { s: res.status, b: x ? JSON.parse(x) : null }; };
@@ -106,7 +108,7 @@ echo "== 6. Reinicio del backend y persistencia"
 SNAP1="$(foto)"; kill "$API_PID" 2>/dev/null; sleep 3; arrancar reinicio
 if espera; then ok "El backend reinicia solo con el procedimiento de producción" "sin migrar"; else ko "Reinicio" "$(tail -3 "$WORK/api-produccion.log" | tr '\n' ' ' | cut -c1-200)"; fi
 [[ "$(foto)" == "$SNAP1" ]] && ok "Datos idénticos tras el reinicio" "$SNAP1" || ko "Persistencia tras reinicio" "$(foto)"
-API_URL="http://127.0.0.1:$API/api" ADMIN_EMAIL=admin@piloto.invalid ADMIN_PASSWORD="$PW" CAJERO_EMAIL=cajero@piloto.invalid CAJERO_PASSWORD="$PW" node "$ROOT/backend/scripts/humo-preproduccion.mjs" > "$WORK/humo2.log" 2>&1 && ok "Humo de solo lectura tras el reinicio" "$(tail -1 "$WORK/humo2.log")" || ko "Humo tras el reinicio" "$(grep FAIL "$WORK/humo2.log" | head -2 | tr '\n' ' ')"
+API_URL="http://127.0.0.1:$API/api" ADMIN_EMAIL=admin@piloto.invalid ADMIN_PASSWORD="$PW" CAJERO_EMAIL=cajero@piloto.invalid CAJERO_PASSWORD="$PW" SUPERADMIN_EMAIL=superadmin@piloto.invalid SUPERADMIN_PASSWORD="$PW" node "$ROOT/backend/scripts/humo-preproduccion.mjs" > "$WORK/humo2.log" 2>&1 && ok "Humo de solo lectura tras el reinicio" "$(tail -1 "$WORK/humo2.log")" || ko "Humo tras el reinicio" "$(grep FAIL "$WORK/humo2.log" | head -2 | tr '\n' ' ')"
 kill "$API_PID" 2>/dev/null; API_PID=""
 FUGAS=0; for f in "$WORK"/api-*.log "$WORK"/humo*.log "$WORK"/verif.log "$WORK"/respaldo.log "$WORK"/deploy.err; do for v in "$CONTINGENCIA_CLAVE_OPERACIONES" "$JWT_SECRET" "$PW"; do grep -qF -- "$v" "$f" 2>/dev/null && FUGAS=$((FUGAS+1)); done; done
 [[ "$FUGAS" == 0 ]] && ok "Ningún secreto en registros ni salidas" "ni la clave de contingencia, ni JWT_SECRET, ni las contraseñas aparecen en los registros del backend, el humo, el respaldo o la verificación" || ko "Secretos en registros" "$FUGAS coincidencias"

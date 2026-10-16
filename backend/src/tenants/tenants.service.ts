@@ -3,6 +3,8 @@ import { enabledTenantModules } from '../common/tenant-modules';
 import { normalizeTenantConfiguration, validateTenantConfiguration } from './tenant-configuration';
 import { PrismaService } from '../prisma/prisma.service';
 
+const logoStorageKey = (tenant: { logoStorageKey?: string | null }) => tenant.logoStorageKey ?? null;
+
 @Injectable()
 export class TenantsService {
   constructor(private prisma: PrismaService) {}
@@ -19,13 +21,20 @@ export class TenantsService {
       throw new NotFoundException('Ferretería no encontrada');
     }
 
+    // La clave de almacenamiento es interna: el cliente solo recibe metadatos del logotipo.
+    const { logoStorageKey: _claveInterna, logoMime, logoBytes, logoActualizadoAt, ...publico } = tenant;
     return {
-      ...tenant,
+      ...publico,
       ...normalizeTenantConfiguration(tenant.configuracion),
+      logotipo: logoStorageKey(tenant) ? { mime: logoMime, bytes: logoBytes, actualizadoAt: logoActualizadoAt } : null,
       modulosHabilitados: enabledTenantModules(tenant.modulos),
     };
   }
 
+  /**
+   * Configuración del negocio. Solo la invoca la ruta del SUPERADMIN (`esSuperAdmin`), que es la única
+   * autorizada a cambiar el rubro. El logotipo no se escribe aquí: se gestiona con almacenamiento privado.
+   */
   async updateTenantBranding(
     tenantId: string,
     data: {
@@ -38,7 +47,9 @@ export class TenantsService {
       modoNavegacion?: "SIDEBAR" | "TOPNAV";
       configuracion?: Record<string, any>;
     },
+    opciones: { esSuperAdmin?: boolean } = {},
   ) {
+    if (data.logoUrl !== undefined) throw new BadRequestException('El logotipo se carga como archivo desde la administración del negocio');
     if (data.modoNavegacion && !['SIDEBAR', 'TOPNAV'].includes(data.modoNavegacion)) throw new BadRequestException('Navegación inválida');
     // Auditoría 12/10 (P3): un color inválido no se guarda; antes la vista previa caía a negro sin aviso.
     if (data.colorPrimario !== undefined && !/^#[0-9A-Fa-f]{6}$/.test(data.colorPrimario)) throw new BadRequestException('Color de marca inválido: use el formato #RRGGBB');
@@ -50,7 +61,7 @@ export class TenantsService {
       if (configuracion.rubro !== undefined) {
         const actual = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
         const rubroActual = (actual?.configuracion as Record<string, unknown> | null)?.rubro ?? 'FERRETERIA';
-        if (configuracion.rubro !== rubroActual) throw new ForbiddenException('El rubro del negocio solo lo configura el Super Admin');
+        if (configuracion.rubro !== rubroActual && !opciones.esSuperAdmin) throw new ForbiddenException('El rubro del negocio solo lo configura el Super Admin');
       }
     }
     await this.prisma.tenant.update({
@@ -63,7 +74,6 @@ export class TenantsService {
         ...(data.telefono !== undefined && { telefono: data.telefono }),
         ...(data.email !== undefined && { email: data.email }),
         ...(data.colorPrimario && { colorPrimario: data.colorPrimario }),
-        ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
       },
     });
     return this.getTenantSettings(tenantId);

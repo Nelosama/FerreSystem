@@ -27,7 +27,9 @@ import {
   Download,
 } from 'lucide-react';
 import { ZONA_HORARIA_NEGOCIO, formatLempiras } from '../utils/format';
-import { descargarReciboPDF } from '../components/ReciboPDF';
+import { descargarReciboPDF } from '../components/descargarRecibo';
+import { LogotipoNegocio } from '../components/LogotipoNegocio';
+import { anchoTicketCss, tamanoPaginaImpresion } from '../utils/formatoImpresion';
 
 // Autorización bancaria de tarjeta/transferencia: la registra el cajero tras la aprobación del POS físico.
 const pagoElectronicoDesde = (metodo: string, aut: { referencia: string; terminal: string }) =>
@@ -748,11 +750,10 @@ export const POSPage: React.FC = () => {
             </div>
 
             {/* Ticket Impreso con Branding del Tenant */}
-            <div style={styles.printableTicket}>
+            <style>{`@page { size: ${tamanoPaginaImpresion(tenant.formatoImpresion)}; }`}</style>
+            <div style={{ ...styles.printableTicket, ...anchoTicketCss(tenant.formatoImpresion) }}>
               <div style={styles.ticketBrandHeader}>
-                <div style={{ ...styles.ticketLogo, color: 'var(--color-primary)' }}>
-                  FERRESYSTEM POS
-                </div>
+                <LogotipoNegocio size={44} conIcono={false} />
                 <div style={styles.ticketTenantName}>{tenant.nombreComercial}</div>
                 {tenant.telefono && <div style={styles.ticketMeta}>{tenant.telefono}</div>}
                 {tenant.direccion && <div style={styles.ticketMeta}>{tenant.direccion}</div>}
@@ -811,7 +812,7 @@ export const POSPage: React.FC = () => {
               <div style={styles.ticketDashed} />
 
               <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '10px' }}>
-                {t('pos.thanks')} • FerreSystem
+                {t('pos.thanks')} • Jowa System
               </div>
             </div>
 

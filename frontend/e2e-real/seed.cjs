@@ -34,6 +34,9 @@ const TENANT_B = 'e2e-empresa-b';
   await crear(TENANT_A, 'bodegueroA', 'Bodeguero E2E', 'bodeguero.a@e2e.invalid', 'BODEGUERO');
   await crear(TENANT_B, 'adminB', 'Administrador Norte E2E', 'admin.b@e2e.invalid', 'ADMIN');
 
+  // Super Admin de plataforma (tabla super_admins): necesario para la prueba de configuración por negocio.
+  await prisma.superAdmin.create({ data: { nombre: 'Super Admin E2E', email: 'superadmin.e2e@e2e.invalid', passwordHash } });
+
   const productos = {};
   const producto = async (tenantId, key, codigo, nombre, precio) => {
     productos[key] = await prisma.producto.create({
