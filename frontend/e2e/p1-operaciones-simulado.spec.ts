@@ -59,6 +59,8 @@ const test = base.extend<{ sim: Sim; rol: Rol }>({
       if (method === 'GET' && path in vacias) return responder(route, 200, vacias[path]);
       if (method === 'GET' && path === '/productos') return responder(route, 200, [producto]);
       if (method === 'GET' && path === '/operaciones/proveedores') return responder(route, 200, proveedores);
+      // Gestión de proveedores del administrador (JW-08): solo lectura en este simulador.
+      if (method === 'GET' && path === '/proveedores') return responder(route, 200, proveedores.map((p: any) => ({ ...p, activo: true })));
       if (method === 'GET' && path === '/operaciones/compras') return responder(route, 200, sim.compras);
       if (method === 'POST' && path === '/operaciones/compras') { const body = request.postDataJSON(); sim.compras.push(body); return responder(route, 201, { id: 'oc-1', ...body }); }
       if (method === 'GET' && path === '/clientes') return responder(route, 200, [cliente]);
