@@ -1629,6 +1629,21 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - **Pendientes reales:** (1) adaptar importador frontend a `POST /productos/importacion`; (2) decidir `aprobarPrecios` y vencimiento de crédito; (3) redondeo en compras, devoluciones, abonos, dashboard y estado de cuenta; (4) medir importación de 5000 filas; (5) aprobar precios de productos ya importados con L.0.00 desde Precios y aprobación.
 - **Entorno de pruebas:** `initdb` no corre como root. Para ejecutar las pruebas de integración se usó un envoltorio externo al repositorio que lo ejecuta como `ubuntu` (`PG_BIN`). No cambia el código ni las pruebas.
 
+## Datos ficticios de un mes de operación (2026-10-15, rama `claude/laughing-lamport-phd4os`)
+
+- **Alcance:** `backend/scripts/datos-ficticios-un-mes.sql` crea una empresa demo nueva («Ferreteria Demo Operacion 1 Mes») con operación del 16-sep al 14-oct-2026. Solo inserta datos: sin cambios de esquema, migraciones ni código de la aplicación. No toca otras empresas. Es una sola transacción.
+- **Protección de entorno (corregida):** ejecutar únicamente con `backend/scripts/cargar-datos-demo.sh` y `DEMO_DATABASE_URL` (nunca `DATABASE_URL`). El envoltorio rechaza si `DEMO_DATABASE_URL` es igual a `DATABASE_URL`, si la lista `backend/prisma/entornos-seed.json` está vacía o tiene identificadores no válidos. El SQL exige: marca `entorno_ferresystem` única, tipo DESARROLLO o STAGING, e identificador de la marca presente en la lista autorizada (variable `AUTORIZADOS`). Cambiar solo el tipo de la marca no basta. Si falta la variable, psql aborta antes de insertar.
+- **Corrección de compatibilidad:** las entregas desde bodega ahora llevan nombre de receptor (nombre del cliente de la venta), porque `entregas-core` lo exige. La huella se calcula con ese receptor.
+- **Contenido (verificado en la última carga):** 522 ventas (911 líneas), 29 compras recibidas con CXP, 45 cuentas por cobrar, 50 cajas cerradas. Operación de lunes a sábado; el 15-sep se omite por feriado patrio.
+- **Pruebas en base temporal desechable (PostgreSQL 16 con las migraciones de `main`, datos sintéticos):**
+  - Rechazos antes de insertar nada (0 filas creadas en todos): marca ausente; marca PRODUCCION con identificador autorizado; identificador no autorizado; lista vacía; variable `AUTORIZADOS` sin definir; cambio de PRODUCCION a DESARROLLO sin autorización; empresa demo ya existente (segunda carga).
+  - Envoltorio: sin `DEMO_DATABASE_URL`, `DEMO_DATABASE_URL` igual a `DATABASE_URL`, lista vacía del repositorio, identificador inválido: rechazados. Carga completa con lista de prueba en una copia desechable (el repositorio no cambió).
+  - Integridad: 100 claves foráneas validadas; sin huérfanos en detalles, líneas de evento ni movimientos. Cálculos: líneas, subtotales, ISV, totales, compras, saldos CXC/CXP y diferencias de caja correctos (0 incumplimientos). Existencias sin negativos y reservas ≤ existencias. Ninguna entrega de bodega sin receptor.
+  - Huellas: las 1.178 huellas almacenadas (522 COBRO, 656 ENTREGA) se recalcularon con `huellaAccionVenta` de `backend/src/common/huella-solicitud.ts` y coinciden todas.
+- **Límites:** no ejecutado en Supabase ni en STAGING; no validado en navegador ni en la interfaz real. `conciliacion-credito-lectura.sql` exige un parámetro de empresa y no se ejecutó. No incluye devoluciones, apartados, pedidos especiales, garantías ni transferencias. En la carga de prueba quedaron 10 líneas de bodega (19 unidades) pendientes al 14-oct; el script usa aleatoriedad controlada (`random()`), así que estas cifras pueden variar entre cargas. Los datos son ficticios; los correos usan el dominio `.example`.
+- **Pendientes:** registrar en `backend/prisma/entornos-seed.json` (revisión CODEOWNERS) solo los identificadores de bases de DESARROLLO o STAGING que deban recibir la demo; validar la carga en una base de desarrollo con la aplicación levantada. No requiere informe de NEXUS porque no cambia el esquema.
+- **Bitácora:** lectura de AGENTS.md y del contexto; revisión del esquema Prisma, de los servicios de ventas, compras, caja, entregas y de la huella de eventos; creación del script; pruebas en base local con migraciones; actualización de este documento.
+
 ---
 
 **FIN DEL CONTEXTO VIGENTE**
