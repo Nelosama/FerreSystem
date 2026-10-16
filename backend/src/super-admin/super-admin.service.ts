@@ -14,6 +14,7 @@ import type { Request, Response } from 'express';
 import { leerConfiguracionAuth } from '../auth/auth-config';
 import { clavesDeLogin, excepcionLimiteLogin, registrarExitoLogin, registrarFalloLogin, segundosBloqueados } from '../auth/login-rate-limit';
 import { crearSesion, revocarSesion, revocarSesionesDeSujeto, sesionVigente, sidDeToken } from '../auth/sesiones-auth';
+import { isPasswordAllowed, PASSWORD_POLICY_MESSAGE } from '../common/password-policy';
 
 const bearerDe = (req?: Request) => req?.headers?.authorization?.replace(/^Bearer /, '') || undefined;
 
@@ -421,6 +422,7 @@ export class SuperAdminService {
     adminPassword: string;
     colorPrimario?: string;
   }) {
+    if (!isPasswordAllowed(dto.adminPassword)) throw new BadRequestException(PASSWORD_POLICY_MESSAGE);
     const emailNormalizado = dto.adminEmail.toLowerCase().trim();
     return this.prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({

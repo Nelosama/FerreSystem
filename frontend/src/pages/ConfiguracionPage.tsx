@@ -161,7 +161,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
           </div>
         )}
 
-        <form className="negocio-settings-grid" onSubmit={handleGuardar} onChange={() => { dirty.current = true; }} onClick={event => { if ((event.target as HTMLElement).closest('button[type="button"]')) dirty.current = true; }} aria-busy={saving} style={styles.grid}>
+        <form className="negocio-settings-grid tenant-settings-grid" onSubmit={handleGuardar} onChange={() => { dirty.current = true; }} onClick={event => { if ((event.target as HTMLElement).closest('button[type="button"]')) dirty.current = true; }} aria-busy={saving} style={styles.grid}>
           {/* Columna Izquierda: Identidad y Datos del Negocio */}
           <div className="industrial-card" style={styles.card}>
             <div style={styles.cardHeader}>
