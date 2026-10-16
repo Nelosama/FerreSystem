@@ -16,7 +16,6 @@ export const PERMISOS_DEFAULT_POR_ROL = {
   ADMIN: {
     permisos: [
       'pos.vender',
-      'pos.anular_venta',
       'pos.aplicar_descuento',
       'inventario.ver',
       'inventario.editar',
@@ -98,7 +97,8 @@ export const UsuariosPage: React.FC = () => {
 
   const TODOS_LOS_PERMISOS = [
     { clave: 'pos.vender', labelKey: 'users.perm_pos_vender' },
-    { clave: 'pos.anular_venta', labelKey: 'users.perm_pos_anular' },
+    // No hay «anular venta»: una venta se revierte con una devolución (directa solo ADMIN; el resto la solicita
+    // y un administrador la autoriza). Un permiso que el servidor no aplica no se ofrece (JW-09).
     { clave: 'pos.aplicar_descuento', labelKey: 'users.perm_pos_descuento' },
     { clave: 'caja.movimientos_manuales', labelKey: 'users.perm_caja_manual' },
     { clave: 'inventario.ver', labelKey: 'users.perm_inv_ver' },

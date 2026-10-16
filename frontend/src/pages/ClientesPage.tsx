@@ -3,6 +3,7 @@ import { TopBar } from '../components/TopBar';
 import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
 import { formatNumeroCliente } from '../utils/numeroCliente';
+import { leerPlazoCredito } from '../utils/plazoCredito';
 import {
   Users,
   Search,
@@ -59,6 +60,7 @@ export interface Cliente {
   tipo: 'CONSUMIDOR_FINAL' | 'MAYORISTA' | 'CONTRATISTA';
   creditoHabilitado?: boolean;
   limiteCredito?: string | number | null;
+  plazoCreditoDias?: number | null;
   saldoPendiente?: string | number;
   createdAt?: string;
   updatedAt?: string;
@@ -83,6 +85,7 @@ export const ClientesPage: React.FC = () => {
   const [clienteCredito, setClienteCredito] = useState<Cliente | null>(null);
   const [creditoActivo, setCreditoActivo] = useState(false);
   const [creditoLimite, setCreditoLimite] = useState('');
+  const [creditoPlazo, setCreditoPlazo] = useState('');
   const [creditoError, setCreditoError] = useState<string | null>(null);
   const [guardandoCredito, setGuardandoCredito] = useState(false);
 
@@ -100,6 +103,7 @@ export const ClientesPage: React.FC = () => {
     setClienteCredito(c);
     setCreditoActivo(!!c.creditoHabilitado);
     setCreditoLimite(c.limiteCredito === null || c.limiteCredito === undefined ? '' : String(Number(c.limiteCredito)));
+    setCreditoPlazo(c.plazoCreditoDias ? String(c.plazoCreditoDias) : '');
     setCreditoError(null);
   };
 
@@ -111,10 +115,15 @@ export const ClientesPage: React.FC = () => {
       setCreditoError('El límite debe ser un número mayor o igual a 0, o vacío para crédito sin límite.');
       return;
     }
+    const plazo = leerPlazoCredito(creditoPlazo);
+    if (!plazo.ok) {
+      setCreditoError(plazo.error);
+      return;
+    }
     setGuardandoCredito(true);
     setCreditoError(null);
     try {
-      await api.patch(`/clientes/${clienteCredito.id}/credito`, { creditoHabilitado: creditoActivo, limiteCredito: limite });
+      await api.patch(`/clientes/${clienteCredito.id}/credito`, { creditoHabilitado: creditoActivo, limiteCredito: limite, plazoCreditoDias: plazo.valor });
       setSuccessBanner(`Crédito de ${clienteCredito.nombre} actualizado.`);
       setClienteCredito(null);
       await fetchClientes();
@@ -387,6 +396,7 @@ export const ClientesPage: React.FC = () => {
                             <span className="badge badge-dark" style={{ fontSize: '10px' }}>HABILITADO</span>
                             <div>Límite: {c.limiteCredito === null || c.limiteCredito === undefined ? 'sin límite' : `L ${Number(c.limiteCredito).toFixed(2)}`}</div>
                             <div>Saldo: L {Number(c.saldoPendiente ?? 0).toFixed(2)}</div>
+                            {c.plazoCreditoDias ? <div>Plazo: {c.plazoCreditoDias} días</div> : null}
                           </>
                         ) : <span style={{ color: 'var(--color-text-muted)' }}>No habilitado</span>}
                       </td>
@@ -601,6 +611,10 @@ export const ClientesPage: React.FC = () => {
               </label>
               <label>Límite de crédito (L), vacío = sin límite
                 <input className="form-input" type="number" min="0" step="0.01" inputMode="decimal" value={creditoLimite} disabled={guardandoCredito} onChange={e => setCreditoLimite(e.target.value)} />
+              </label>
+              <label>Plazo de crédito (días), vacío = sin plazo
+                <input className="form-input" type="number" min="1" max="365" step="1" inputMode="numeric" value={creditoPlazo} disabled={guardandoCredito} onChange={e => setCreditoPlazo(e.target.value)} />
+                <small style={{ display: 'block', color: 'var(--color-text-muted)' }}>Las facturas a crédito nuevas vencen a este plazo; las ya emitidas conservan su vencimiento.</small>
               </label>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary" disabled={guardandoCredito} onClick={() => setClienteCredito(null)}>Cancelar</button>

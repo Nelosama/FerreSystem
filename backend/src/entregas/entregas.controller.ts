@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards, UseInterceptors } from '@nestjs/common';
 import { RequiredModule } from '../common/decorators/required-module.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
@@ -6,6 +6,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { SinCostosParaBodeguero } from '../common/interceptors/sin-costos-bodeguero.interceptor';
 import { EntregasService } from './entregas.service';
 import { EntregarLineasDto, LiberarLineasDto, PrepararLineasDto } from './dto/entregas.dto';
 
@@ -15,10 +16,13 @@ import { EntregarLineasDto, LiberarLineasDto, PrepararLineasDto } from './dto/en
 export class EntregasController {
   constructor(private readonly service: EntregasService) {}
 
+  // BODEGUERO entrega mercancía: ve líneas y cantidades, no el importe de la venta (no lee ventas, igual que GET /ventas).
   @RequiredModule('pos')
+  @UseInterceptors(SinCostosParaBodeguero(['total']))
   @Get('pendientes') pendientes(@TenantId() t: string, @CurrentUser('sub') u: string) { return this.service.pendientes(t, u); }
 
   @RequiredModule('pos')
+  @UseInterceptors(SinCostosParaBodeguero(['total']))
   @Get('ventas/:id') detalle(@TenantId() t: string, @CurrentUser('sub') u: string, @Param('id') id: string) { return this.service.detalle(t, u, id); }
 
   @RequiredModule('pos')

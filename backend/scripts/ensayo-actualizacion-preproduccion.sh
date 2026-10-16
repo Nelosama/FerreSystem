@@ -10,8 +10,10 @@ unset POS_OFFLINE_ENABLED FERRE_MIGRAR_AL_ARRANCAR   # el ensayo reproduce la pr
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; PG_BIN="${PG_BIN:-/usr/lib/postgresql/16/bin}"; export PG_BIN PATH="$PG_BIN:$PATH"
 WORK="$(mktemp -d /tmp/ferre-ensayo-XXXXXX)"; chmod 777 "$WORK"
 if [[ "$(id -u)" == 0 ]]; then AS=(runuser -u nobody --); else AS=(); fi
-PP=55611; PQ=55612; API=3391
-PRODURL="postgresql://postgres@127.0.0.1:$PP/postgres"; QURL="postgresql://postgres@127.0.0.1:$PQ/postgres"
+# Puertos libres elegidos al momento: uno fijo dentro del rango efímero (32768-60999) puede estar ocupado por un socket cliente.
+libre() { node -e 'const s=require("net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})'; }
+PP="$(libre)"; API=3391
+PRODURL="postgresql://postgres@127.0.0.1:$PP/postgres"
 export JWT_SECRET="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 48)"
 export CONTINGENCIA_CLAVE_OPERACIONES="$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 48)"
 PW="Ens-$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 18)"
@@ -114,12 +116,13 @@ FUGAS=0; for f in "$WORK"/api-*.log "$WORK"/humo*.log "$WORK"/verif.log "$WORK"/
 [[ "$FUGAS" == 0 ]] && ok "Ningún secreto en registros ni salidas" "ni la clave de contingencia, ni JWT_SECRET, ni las contraseñas aparecen en los registros del backend, el humo, el respaldo o la verificación" || ko "Secretos en registros" "$FUGAS coincidencias"
 
 echo "== 7. Reversión simulada: restaurar el respaldo y proteger contra el código nuevo sobre el esquema viejo"
-cluster q $PQ
+PQ="$(libre)"; QURL="postgresql://postgres@127.0.0.1:$PQ/postgres"
+cluster q $PQ || { ko "Arranque del clúster de reversión" "$(tail -3 "$WORK/q.log")"; }
 psql -X -q -h 127.0.0.1 -p $PQ -U postgres -d postgres -c "DROP SCHEMA public CASCADE" >/dev/null 2>&1
 if pg_restore -h 127.0.0.1 -p $PQ -U postgres -d postgres --no-owner --no-privileges --exit-on-error "$WORK/respaldo/database.dump" > "$WORK/restore.log" 2>&1; then ok "Restauración del respaldo previo en una base nueva" "sin errores"; else ko "Restauración" "$(tail -2 "$WORK/restore.log")"; fi
 RQ="$(q "$PQ" "SELECT (SELECT count(*) FROM ventas)||'|'||(SELECT sum(total)::float FROM ventas)||'|'||(SELECT count(*) FROM detalles_venta)||'|'||(SELECT sum(stock_actual)::float FROM productos)||'|'||(SELECT sum(stock_reservado)::float FROM productos)||'|'||(SELECT count(*) FROM usuarios)")"
 [[ "$RQ" == "$FOTO_PRE" ]] && ok "La base restaurada es idéntica a la de antes de migrar" "$RQ" || ko "Estado restaurado" "esperado $FOTO_PRE, obtenido $RQ"
-if (cd "$ROOT/backend" && DATABASE_URL="$QURL" DIRECT_URL="$QURL" node scripts/migration-safe.mjs startup > "$WORK/q.out" 2> "$WORK/q.err"); then ko "Guardia sobre el esquema viejo" "el código nuevo habría arrancado"; else ok "El código nuevo NO arranca sobre el esquema viejo restaurado" "$(grep -o 'faltan [0-9]* migraciones' "$WORK/q.err" | head -1)"; fi
+if (cd "$ROOT/backend" && DATABASE_URL="$QURL" DIRECT_URL="$QURL" node scripts/migration-safe.mjs startup > "$WORK/q.out" 2> "$WORK/q.err"); then ko "Guardia sobre el esquema viejo" "el código nuevo habría arrancado"; elif FQ="$(grep -o 'faltan [0-9]* migraciones' "$WORK/q.err" | head -1)" && [[ -n "$FQ" ]]; then ok "El código nuevo NO arranca sobre el esquema viejo restaurado" "$FQ"; else ko "Guardia sobre el esquema viejo" "falló por otra causa: $(tail -2 "$WORK/q.err" | tr '\n' ' ')"; fi
 
 echo; echo "===== RESUMEN DEL ENSAYO ====="; printf '%s\n' "${RES[@]}"; echo "FALLOS=$FALLOS"
 exit $((FALLOS>0))

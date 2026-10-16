@@ -55,6 +55,9 @@ test.describe('Panel administrativo (simulado)', () => {
     await expect(page.getByText(/Actualizado \d{2}:\d{2}/)).toBeVisible();
     await expect(page.getByText('Tubo PVC')).toBeVisible();
     await expect(page.getByText('Tendencia semanal')).toBeVisible();
+    // JW-03: la tendencia es bruta y la tarjeta neta; cada cifra dice lo que muestra.
+    await expect(page.getByRole('heading', { name: 'Tendencia semanal (ventas brutas)' })).toBeVisible();
+    await expect(page.getByText('Ventas del día (netas de devoluciones)')).toBeVisible();
     await expect(page.getByRole('img', { name: 'Ventas de los últimos 7 días' })).toBeVisible();
     await expect(page.getByText('En preparación')).toHaveCount(0);
     await expect(page.getByText('Próximamente')).toHaveCount(0);

@@ -23,6 +23,7 @@ describe('Dashboard / PostgreSQL aislado', () => {
   let prisma: PrismaService;
   let dashboard: DashboardService;
   let tenantId: string;
+  let rolPrueba = 'ADMIN';
   let app: INestApplication;
   let psqlEnv: NodeJS.ProcessEnv;
 
@@ -53,7 +54,7 @@ describe('Dashboard / PostgreSQL aislado', () => {
       providers: [{ provide: DashboardService, useValue: dashboard }, { provide: PrismaService, useValue: prisma }],
     }).overrideGuard(JwtAuthGuard).useValue({
       canActivate(context: any) {
-        context.switchToHttp().getRequest().user = { tenantId, type: 'tenant', rol: 'ADMIN' };
+        context.switchToHttp().getRequest().user = { tenantId, type: 'tenant', rol: rolPrueba };
         return true;
       },
     }).compile();
@@ -72,6 +73,7 @@ describe('Dashboard / PostgreSQL aislado', () => {
   });
 
   beforeEach(async () => {
+    rolPrueba = 'ADMIN';
     tenantId = randomUUID();
     await prisma.tenant.create({ data: { id: tenantId, nombreComercial: 'Dashboard de prueba' } });
   });
@@ -153,6 +155,30 @@ describe('Dashboard / PostgreSQL aislado', () => {
       await prisma.$executeRawUnsafe('ALTER TABLE productos RENAME COLUMN version_prueba TO version');
       await prisma.$executeRawUnsafe('DROP OWNED BY dashboard_lectura');
       await prisma.$executeRawUnsafe('DROP ROLE dashboard_lectura');
+    }
+  });
+
+  it('JW-10 BODEGUERO recibe existencias y cotizaciones, pero ninguna cifra ni detalle de ventas', async () => {
+    const usuario = await prisma.usuario.create({ data: { tenantId, nombre: 'Cajero', email: `b-${tenantId}@example.test`, passwordHash: 'x' } });
+    const cliente = await prisma.cliente.create({ data: { tenantId, nombre: 'Cliente confidencial' } });
+    await prisma.venta.create({ data: { tenantId, usuarioId: usuario.id, clienteId: cliente.id, numeroVenta: 1, subtotal: 900, isv: 135, total: 1035 } });
+    await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'BAJO', nombre: 'Producto bajo', precioVenta: 10, precioCosto: 5, stockActual: 1, stockMinimo: 5 } });
+    rolPrueba = 'BODEGUERO';
+    const { body } = await request(app.getHttpServer()).get('/dashboard').expect(200);
+    expect(body.alertasStock.cantidad).toBe(1);
+    expect(body.cotizacionesPendientes).toMatchObject({ cantidad: 0 });
+    expect(body.ventasDelDia).toBeNull();
+    expect(body.tendenciaSemanal).toEqual([]);
+    expect(body.ultimasVentas).toEqual([]);
+    const texto = JSON.stringify(body);
+    expect(texto).not.toContain('1035');
+    expect(texto).not.toContain('Cliente confidencial');
+    // VENDEDOR y ADMIN conservan el resumen de ventas.
+    for (const rol of ['VENDEDOR', 'ADMIN']) {
+      rolPrueba = rol;
+      const { body: completo } = await request(app.getHttpServer()).get('/dashboard').expect(200);
+      expect(completo.ultimasVentas[0]).toMatchObject({ total: 1035, cliente: 'Cliente confidencial' });
+      expect(completo.tendenciaSemanal).toHaveLength(7);
     }
   });
 

@@ -53,35 +53,8 @@ export class DashboardService {
       variacionPorcentaje = 100;
     }
 
-    // 2. Alertas de stock bajo
-    const productos = await this.prisma.producto.findMany({
-      where: { tenantId, activo: true },
-      // Seleccionar únicamente datos del resumen evita depender de columnas de otros módulos.
-      select: {
-        id: true, codigo: true, nombre: true, stockActual: true,
-        stockReservado: true, stockMinimo: true, unidadMedida: true,
-      },
-      orderBy: { stockActual: 'asc' },
-    });
-
-    const productosBajoStock = productos.filter((p) => p.stockActual.minus(p.stockReservado).lte(p.stockMinimo));
-
-    // 3. Cotizaciones pendientes y por vencer hoy
-    const cotizaciones = await this.prisma.cotizacion.findMany({
-      select: { fechaValidez: true },
-      where: {
-        tenantId,
-        estado: { in: ['BORRADOR', 'ENVIADA', 'APROBADA'] },
-      },
-    });
-
-    // fechaValidez es DATE (sin hora): su día calendario se lee tal cual, en UTC.
-    let porVencerHoy = 0;
-    for (const c of cotizaciones) {
-      if (c.fechaValidez.toISOString().slice(0, 10) === diaHoy) {
-        porVencerHoy++;
-      }
-    }
+    // 2 y 3. Alertas de stock bajo y cotizaciones pendientes
+    const { productosBajoStock, cotizaciones, porVencerHoy } = await this.existenciasYCotizaciones(tenantId, diaHoy);
 
     // 4. Tendencia semanal (últimos 7 días)
     const diasSemana = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
@@ -130,17 +103,7 @@ export class DashboardService {
         cantidad: ventasHoy.length,
         variacionPorcentaje,
       },
-      alertasStock: {
-        cantidad: productosBajoStock.length,
-        items: productosBajoStock.slice(0, 10).map((p) => ({
-          id: p.id,
-          codigo: p.codigo,
-          nombre: p.nombre,
-          stockActual: p.stockActual,
-          stockMinimo: p.stockMinimo,
-          unidadMedida: p.unidadMedida,
-        })),
-      },
+      alertasStock: this.alertas(productosBajoStock),
       cotizacionesPendientes: {
         cantidad: cotizaciones.length,
         porVencerHoy,
@@ -157,5 +120,67 @@ export class DashboardService {
       })),
     };
   }
-}
 
+  /**
+   * Resumen operativo sin cifras de ventas, para BODEGUERO (no lee ventas: mismo criterio que GET /ventas).
+   * Conserva la forma de la respuesta: las secciones de ventas van vacías.
+   */
+  async getResumenOperativo(tenantId: string, zona = ZONA_HORARIA_NEGOCIO) {
+    const { productosBajoStock, cotizaciones, porVencerHoy } = await this.existenciasYCotizaciones(tenantId, diaCalendario(new Date(), zona));
+    return {
+      ventasDelDia: null,
+      alertasStock: this.alertas(productosBajoStock),
+      cotizacionesPendientes: { cantidad: cotizaciones.length, porVencerHoy },
+      tendenciaSemanal: [],
+      ultimasVentas: [],
+    };
+  }
+
+  private alertas(productosBajoStock: { id: string; codigo: string; nombre: string; stockActual: unknown; stockMinimo: unknown; unidadMedida: unknown }[]) {
+    return {
+      cantidad: productosBajoStock.length,
+      items: productosBajoStock.slice(0, 10).map((p) => ({
+        id: p.id,
+        codigo: p.codigo,
+        nombre: p.nombre,
+        stockActual: p.stockActual,
+        stockMinimo: p.stockMinimo,
+        unidadMedida: p.unidadMedida,
+      })),
+    };
+  }
+
+  private async existenciasYCotizaciones(tenantId: string, diaHoy: string) {
+    // Alertas de stock bajo
+    const productos = await this.prisma.producto.findMany({
+      where: { tenantId, activo: true },
+      // Seleccionar únicamente datos del resumen evita depender de columnas de otros módulos.
+      select: {
+        id: true, codigo: true, nombre: true, stockActual: true,
+        stockReservado: true, stockMinimo: true, unidadMedida: true,
+      },
+      orderBy: { stockActual: 'asc' },
+    });
+
+    const productosBajoStock = productos.filter((p) => p.stockActual.minus(p.stockReservado).lte(p.stockMinimo));
+
+    // Cotizaciones pendientes y por vencer hoy
+    const cotizaciones = await this.prisma.cotizacion.findMany({
+      select: { fechaValidez: true },
+      where: {
+        tenantId,
+        estado: { in: ['BORRADOR', 'ENVIADA', 'APROBADA'] },
+      },
+    });
+
+    // fechaValidez es DATE (sin hora): su día calendario se lee tal cual, en UTC.
+    let porVencerHoy = 0;
+    for (const c of cotizaciones) {
+      if (c.fechaValidez.toISOString().slice(0, 10) === diaHoy) {
+        porVencerHoy++;
+      }
+    }
+
+    return { productosBajoStock, cotizaciones, porVencerHoy };
+  }
+}

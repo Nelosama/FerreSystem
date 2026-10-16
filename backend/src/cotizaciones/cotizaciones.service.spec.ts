@@ -123,7 +123,7 @@ describe('CotizacionesService', () => {
     mockPrisma.$queryRaw.mockResolvedValue([{ ultimo_numero: 11 }]);
     mockPrisma.cotizacion.findFirst.mockResolvedValue({
       id: 'cot-123', estado: 'APROBADA', fechaValidez: new Date('2099-12-31T00:00:00.000Z'), descuento:0, detalles: [{
-        productoId:'p-1',precioUnitario:10,cantidad: 2.75, totalMedida: 2.75, producto: { id: 'p-1', nombre: 'Cable',precioVenta:10, stockActual: 3 },
+        productoId:'p-1',precioUnitario:10,cantidad: 2.75, totalMedida: 2.75, producto: { id: 'p-1', nombre: 'Cable',precioVenta:10,precioAprobado:true,activo:true, stockActual: 3 },
       }],
     });
     mockPrisma.producto.updateMany.mockResolvedValue({ count: 0 });

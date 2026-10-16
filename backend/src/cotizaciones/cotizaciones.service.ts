@@ -2,7 +2,7 @@ import { account, authorizedActor, audit, cashMovement, id, lockTenant, money, o
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
-import { diaCalendario, inicioDiaEnZona } from '../common/zona-horaria';
+import { diaCalendario, inicioDiaEnZona, sumarDias } from '../common/zona-horaria';
 import { centavosADecimal, subtotalLinea } from '../common/dinero';
 import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
@@ -470,6 +470,10 @@ export class CotizacionesService {
       if (cotizacion.estado === 'CONVERTIDA') {
         throw new BadRequestException('Esta cotización ya fue convertida previamente a una venta');
       }
+      // El cliente la rechazó: venderla exige reabrirla antes (cambiar su estado), igual que ofrece la interfaz.
+      if (cotizacion.estado === 'RECHAZADA') {
+        throw new BadRequestException('La cotización fue rechazada. Cambie su estado a Enviada o Aprobada antes de convertirla en venta');
+      }
 
       // fecha_validez es DATE: Prisma lo representa a medianoche UTC, sin zona horaria.
       // El día actual sí corresponde a la zona de negocio. Vigencia inclusiva hasta ese día.
@@ -481,6 +485,7 @@ export class CotizacionesService {
       // Crédito: mismas reglas que una venta directa (cliente activo, crédito habilitado y límite con el saldo actual).
       // lockTenant serializa esta conversión con las ventas de la empresa, así que el cupo no puede agotarse dos veces.
       const totalVenta = Number(cotizacion.total);
+      let plazoCreditoDias: number | null = null;
       if (metodoPago === 'CREDITO') {
         const clienteCredito = await tx.cliente.findFirst({ where: { id: cotizacion.clienteId!, tenantId } });
         if (!clienteCredito || !clienteCredito.activo) throw new NotFoundException('Cliente seleccionado no existe o está inactivo');
@@ -488,14 +493,25 @@ export class CotizacionesService {
         if (clienteCredito.limiteCredito !== null && money(Number(clienteCredito.saldoPendiente) + totalVenta) > Number(clienteCredito.limiteCredito)) {
           throw new BadRequestException('La venta supera el límite de crédito disponible del cliente');
         }
+        plazoCreditoDias = clienteCredito.plazoCreditoDias ?? null;
       }
       if(new Set(cotizacion.detalles.map(d=>d.productoId)).size!==cotizacion.detalles.length) throw new BadRequestException('Agrupe las líneas del mismo producto antes de convertir la cotización');
-      const bruto=money(cotizacion.detalles.reduce((sum,d)=>sum+Number(d.totalMedida)*Number(d.precioUnitario),0));
+      // Importe bruto por línea en centavos enteros, misma regla que la cotización y la venta directa (common/dinero).
+      const brutoLinea=(d:{totalMedida:unknown;precioUnitario:unknown})=>subtotalLinea(aCentavos(Number(d.precioUnitario),'Precio unitario'),Math.round(Number(d.totalMedida)*100));
+      const bruto=centavosADecimal(cotizacion.detalles.reduce((sum,d)=>sum+brutoLinea(d),0));
       validateDiscount(user,bruto,Number(cotizacion.descuento));
       if(user.rol !== 'ADMIN' && cotizacion.detalles.some(d=>Number(d.precioUnitario)!==Number(d.producto.precioVenta))) throw new BadRequestException('La cotización requiere validación del precio por administrador');
+      // La venta directa siempre aplica ISV 15 % sin exenciones. Igual que un precio modificado, una tasa distinta o una
+      // línea exenta en la cotización cambia el impuesto facturado: solo el administrador la convierte.
+      if(user.rol !== 'ADMIN' && (Number(cotizacion.porcentajeIsv)!==15 || cotizacion.detalles.some(d=>d.exento))) throw new BadRequestException('La cotización tiene ISV distinto de 15 % o líneas exentas: requiere validación del administrador');
       // Verificar y descontar stock por la cantidad solicitada con precisión decimal
       for (const d of cotizacion.detalles) {
         await query(tx,'SELECT id FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.productoId,tenantId);
+        // Mismas reglas que la venta directa: un precio revocado o un producto inactivo después de cotizar no se vende.
+        if (d.producto.activo === false) throw new BadRequestException(`"${d.producto.nombre}" está inactivo; no se puede vender`);
+        if (!d.producto.precioAprobado || Number(d.producto.precioVenta) <= 0) {
+          throw new BadRequestException(`"${d.producto.nombre}" no tiene precio aprobado por el administrador; no se puede vender`);
+        }
         const reservado=Number(d.producto.stockReservado||0);
         const stockDisponible = money(Number(d.producto.stockActual)-reservado);
         const cantidadRequerida = Number(d.totalMedida);
@@ -541,7 +557,7 @@ export class CotizacionesService {
               productoId: d.productoId,
               cantidad: d.totalMedida,
               precioUnitario: d.precioUnitario,
-              subtotal: money(Number(d.totalMedida)*Number(d.precioUnitario)),
+              subtotal: centavosADecimal(brutoLinea(d)),
               costoUnitario:d.producto.precioCosto,
             })),
           },
@@ -551,7 +567,9 @@ export class CotizacionesService {
       if(metodoPago==='CREDITO'){
         const saldoCliente=await tx.cliente.updateMany({where:{id:cotizacion.clienteId!,tenantId,activo:true,creditoHabilitado:true},data:{saldoPendiente:{increment:totalVenta}}});
         if(saldoCliente.count!==1)throw new BadRequestException('El cliente no tiene habilitado el crédito');
-        await account(tx,tenantId,usuarioId,'CXC',venta.id,cotizacion.clienteId!,Number(venta.total));
+        // Mismo vencimiento que una venta directa a crédito: el plazo del cliente al facturar (ventas.service).
+        const vencimiento = plazoCreditoDias ? sumarDias(diaCalendario(new Date()), plazoCreditoDias) : undefined;
+        await account(tx,tenantId,usuarioId,'CXC',venta.id,cotizacion.clienteId!,Number(venta.total),vencimiento);
       }
       if (autorizacion) await registrarAprobacion(tx,tenantId,usuarioId,autorizacion,Number(venta.total),'VENTA',venta.id);
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',Number(venta.total),metodoPago,venta.id,'Venta desde cotización');
