@@ -201,10 +201,29 @@ describe('Alta SaaS, usuarios y formatos / HTTP y PostgreSQL aislado', () => {
   });
 
   it('un fallo al crear el administrador revierte negocio, secuencias y módulos', async () => {
-    const dto = alta();
+    const dto = { ...alta(), adminEmail: 'rollback-alta@example.test' };
     const antes = await Promise.all([prisma.tenant.count(), prisma.usuario.count(), prisma.secuenciaTenant.count(), prisma.tenantModule.count()]);
-    // Fallo real de persistencia DESPUÉS de crear negocio, secuencias y módulos.
-    await expect(app.get(SuperAdminService).createTenant({ ...dto, adminNombre: undefined as unknown as string })).rejects.toThrow();
+    // Solo en este clúster desechable: el fallo exige comprobar las escrituras previas
+    // dentro de PostgreSQL. Un rechazo anterior a la transacción NO satisface el test.
+    await prisma.$executeRawUnsafe(`CREATE FUNCTION qa_fallar_admin_alta() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.email = 'rollback-alta@example.test' THEN
+          IF EXISTS (SELECT 1 FROM tenants WHERE id = NEW.tenant_id)
+             AND (SELECT count(*) FROM secuencias_tenant WHERE tenant_id = NEW.tenant_id) = 2
+             AND EXISTS (SELECT 1 FROM tenant_modules WHERE tenant_id = NEW.tenant_id) THEN
+            RAISE EXCEPTION 'QA_ALTA_POST_MODULOS';
+          END IF;
+          RAISE EXCEPTION 'QA_ALTA_ORDEN_INESPERADO';
+        END IF;
+        RETURN NEW;
+      END $$`);
+    try {
+      await prisma.$executeRawUnsafe('CREATE TRIGGER qa_fallar_admin_alta BEFORE INSERT ON usuarios FOR EACH ROW EXECUTE FUNCTION qa_fallar_admin_alta()');
+      await expect(app.get(SuperAdminService).createTenant(dto)).rejects.toThrow('QA_ALTA_POST_MODULOS');
+    } finally {
+      await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS qa_fallar_admin_alta ON usuarios');
+      await prisma.$executeRawUnsafe('DROP FUNCTION qa_fallar_admin_alta()');
+    }
     expect(await Promise.all([prisma.tenant.count(), prisma.usuario.count(), prisma.secuenciaTenant.count(), prisma.tenantModule.count()])).toEqual(antes);
     expect(await prisma.tenant.count({ where: { nombreComercial: dto.nombreComercial } })).toBe(0);
   });
