@@ -297,12 +297,12 @@ describe('AuthService', () => {
 
       await expect(service.refresh('super-admin-refresh', mockResponse)).rejects.toThrow(UnauthorizedException);
       expect(mockPrisma.usuario.findUnique).not.toHaveBeenCalled();
-      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', { path: '/' });
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', expect.objectContaining({ path: '/', httpOnly: true, secure: false, sameSite: 'strict' }));
     });
 
     it('logout tenant elimina la cookie tenant', async () => {
       expect(await service.logout(mockResponse)).toMatchObject({ success: true });
-      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', { path: '/' });
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken', expect.objectContaining({ path: '/', httpOnly: true, secure: false, sameSite: 'strict' }));
     });
   });
 
@@ -312,5 +312,17 @@ describe('AuthService', () => {
     mockPrisma.usuario.findMany.mockResolvedValue([{ id: 'u-1', tenantId: 'tenant-1', email: 'test@example.test', passwordHash, activo: true, tenant: { id: 'tenant-1', estado: 'ACTIVO' } }]);
     await service.login({ email: 'test@example.test', password: 'test-password' }, mockResponse);
     expect(mockResponse.cookie).toHaveBeenCalledWith('refreshToken', 'mock-jwt-token', expect.objectContaining({ httpOnly: true, secure: true, sameSite: 'none', path: '/' }));
+  });
+});
+
+describe('refresh: indisponibilidad de infraestructura', () => {
+  it('no convierte una caída de BD en 401 ni elimina la cookie recuperable', async () => {
+    const databaseError = new Error('DB temporalmente no disponible');
+    const prisma = { sesionAuth: { findUnique: vi.fn().mockRejectedValue(databaseError) } } as any;
+    const jwt = { verify: () => ({ sub: 'u', tenantId: 't', type: 'tenant', typ: 'refresh', sid: 's' }) } as any;
+    const service = new AuthService(prisma, jwt, { get: (_key: string, fallback: any) => fallback } as any);
+    const res = { clearCookie: vi.fn() } as any;
+    await expect(service.refresh('valid-refresh', res)).rejects.toBe(databaseError);
+    expect(res.clearCookie).not.toHaveBeenCalled();
   });
 });

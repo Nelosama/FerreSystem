@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-14, America/Tegucigalpa** — actualización exclusiva del PR #162 en `fix/pilot-readiness`; integración de main `be1a7fe7` con #160 y #163. Pruebas locales completas; checks del HEAD y recomendación final en #162, sin merge del PR ni despliegue ni migraciones productivas.
+Última revisión: **2026-10-16 UTC** — corrección de sesiones en `codex/fix-expired-sessions`, base `main` `d5fec352`. Sin merge ni despliegue; evidencia y bloqueo de emulación offline en la sección siguiente.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -19,6 +19,20 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 7. **No hacer merge automático** ni desplegar a producción sin autorización explícita del dueño del proyecto.
 
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
+
+---
+
+## Sesiones expiradas y navegación protegida (2026-10-16)
+
+- **Rama única:** `codex/fix-expired-sessions`, desde `main` `d5fec352`. Se consultaron PR abiertos #170/#171 y ramas Codex remotas; no había una rama apropiada reutilizable. Sin cambios de esquema, migraciones, dependencias, reglas comerciales, merge ni despliegue.
+- **Causas reproducidas antes de corregir:** usuario persistido habilitaba módulos antes de `/auth/me`; Axios sin timeout; errores 403/502/503/504 del refresh borraban credenciales; 401 tardíos fallaban después de renovar; NestJS convertía errores de BD del refresh en 401. No hay HAR del incidente: la duración exacta de 60 s no se atribuye a una solicitud confirmada.
+- **Código:** controlador único `sessionValidation.ts` sustituye `sessionSync.ts`; `TenantContext`, `ProtectedRoute`, interceptor HTTP, login y SW. Verificación inicial/restauración sin montar módulos; formularios conservados durante renovación; sesión irrecuperable limpia identidad y pide login con el texto solicitado. Foco, visibilidad, BFCache, almacenamiento entre pestañas y expiración JWT; backend sigue autorizando cada solicitud. Refresh compartido y reintento único; errores de conexión no cierran sesión. Cookies siguen la política configurada y se borran con sus opciones de seguridad. API no-store y SW limitado al shell estático.
+- **Contingencia:** conserva solo la ventana existente vigente del mismo tenant/cajero, incluso con red conectada sin acceso real. No habilita otros módulos ni evita 401/403. No se añaden borradores persistentes ni sincronización offline; permanecen las identidades de comandos inciertos existentes para evitar duplicados.
+- **Pruebas:** frontend 368/368; backend 498/498; scripts 48/48; PostgreSQL temporal 17.11, 979 pasan/1 omitida preexistente en 60 archivos. Escenarios nuevos de navegador: escritorio 15/15, emulación Pixel 7 15/15 (SW real), y NestJS/PostgreSQL reales 3/3. Builds/lint y control de migraciones correctos (0 nuevas). NEXUS firma la validación de persistencia.
+- **Regresión amplia y bloqueo real:** navegador simulado, repetición final: 169 pasan/1 falla (170 casos); piloto real completo 131 pasan/1 falla/10 omitidas preexistentes/13 no ejecutadas por serialidad. Chromium 151 restablece `navigator.onLine=true` al recargar offline con SW, aunque la API está bloqueada; lo reproduce una prueba independiente sin código de Jowa. La repetición final restaura el catálogo de contingencia, pero sigue fallando «● Sin conexión». No se cambia esa aserción ni el valor de navigator. Chromium 153 de Playwright no se pudo descargar: proxy HTTP 403 para `cdn.playwright.dev`. CI incluye los casos móviles nuevos.
+- **Publicación sin despliegue:** `frontend/vercel.json` excluye esta rama de previews automáticas antes del primer push; guard probado (sin afectar otras ramas).
+- **Estado al publicar:** NO LISTO PARA MERGE hasta comprobar la regresión offline con el Chromium correspondiente y los checks del commit. Sin Safari/WebKit ni PWA instalada en dispositivos físicos. Informe, comandos, archivos y límites: [CORRECCION_SESIONES_20261016.md](CORRECCION_SESIONES_20261016.md).
+- **Bitácora:** lectura de instrucciones y contexto; verificación Git/PR; reproducciones rojas de frontend/backend/navegador; corrección centralizada, sesiones por rol/soporte y cookies; pruebas con relojes simulados, API simulada y PostgreSQL temporal real; revisión de caché y preservación del diario de contingencia; publicación de una rama/PR en borrador para revisión. Sin aceptación física ni acceso a producción.
 
 ---
 

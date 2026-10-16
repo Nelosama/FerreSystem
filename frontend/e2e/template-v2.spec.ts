@@ -10,6 +10,7 @@ test('V2 preserves branding across modes, reload, and return to classic variants
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/tenant/logo' || url.pathname === '/api/admin/tenants/theme-test/logo') { await route.fulfill({ body: PNG_1X1, contentType: 'image/png' }); return; }
+    if (url.pathname === '/api/auth/me') { await route.fulfill({ json: { user: { sub: 'test-admin', type: 'super_admin', rol: 'SUPER_ADMIN' } } }); return; }
     if (url.pathname.startsWith('/api/')) {
       if (/^\/api\/admin\/tenants\/theme-test\/settings$/.test(url.pathname) && route.request().method() === 'PUT') { const body = route.request().postDataJSON(); serverTenant = { ...serverTenant, ...body, ...body.configuracion }; }
       await route.fulfill({ json: /\/settings$/.test(url.pathname) ? serverTenant : {}, headers: { 'access-control-allow-origin': new URL(baseURL!).origin, 'access-control-allow-credentials': 'true', 'access-control-allow-methods': 'GET, PUT, OPTIONS', 'access-control-allow-headers': '*' } });

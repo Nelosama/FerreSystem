@@ -161,7 +161,7 @@ export class SuperAdminController {
   async getTenantLogoAdmin(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
     const logotipo = await this.superAdminService.logotipoNegocio(id);
     if (!logotipo) throw new NotFoundException('El negocio no tiene logotipo');
-    res.setHeader('Cache-Control', 'private, no-cache');
+    res.setHeader('Cache-Control', 'no-store, private');
     return new StreamableFile(logotipo.datos, { type: logotipo.mime });
   }
 

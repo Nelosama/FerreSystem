@@ -43,7 +43,7 @@ async function setup(page: Page, role: string, mode: string, language = 'es', en
       await route.fulfill({ json: { type: 'tenant', accessToken: 'test-only', user, tenant: settings } }); return;
     }
     const data: Record<string, unknown> = {
-      '/api/auth/me': { user: { ...user, sub: user.id, tenantId: company.id } },
+      '/api/auth/me': { user: { ...user, sub: user.id, tenantId: company.id, type: role === 'SUPERADMIN' ? 'super_admin' : 'tenant' } },
       '/api/dashboard': { ventasDelDia: { total: 0 }, alertasStock: { items: [] }, cotizacionesPendientes: { cantidad: 0 } },
       '/api/maintenance/backup': { configured: false },
       '/api/admin/tenants': [], '/api/admin/dashboard': {},

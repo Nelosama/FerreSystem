@@ -44,6 +44,7 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npm run test:browser
+          npm run test:browser -- --config playwright.session.mobile.config.ts
       - name: Conservar evidencia de fallos en el navegador
         if: ${{ failure() && steps.browser.outcome == 'failure' }}
         uses: actions/upload-artifact@v4

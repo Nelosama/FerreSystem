@@ -25,6 +25,7 @@ const getBaseUrl = (): string => {
 export const api = axios.create({
   baseURL: getBaseUrl(),
   withCredentials: true,
+  timeout: 30_000, // Espera de red acotada; nunca se usa como vencimiento de sesión.
   headers: {
     'Content-Type': 'application/json',
   },

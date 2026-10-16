@@ -49,7 +49,7 @@ export class TenantsController {
   async getLogo(@TenantId() tenantId: string, @Res({ passthrough: true }) res: Response) {
     const logotipo = await this.tenantLogoService.leer(tenantId);
     if (!logotipo) throw new NotFoundException('El negocio no tiene logotipo');
-    res.setHeader('Cache-Control', 'private, no-cache');
+    res.setHeader('Cache-Control', 'no-store, private');
     return new StreamableFile(logotipo.datos, { type: logotipo.mime });
   }
 }

@@ -3,7 +3,7 @@
 // - La navegación cae a la última versión cacheada del shell si no hay red.
 // - Los recursos estáticos se sirven desde caché y se actualizan en segundo plano.
 // No llama a skipWaiting: una versión nueva se activa al cerrar las pestañas, nunca durante un cobro.
-const VERSION = 'ferresystem-shell-v1';
+const VERSION = 'ferresystem-shell-v2';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/logo.jpg', '/favicon.svg'];
 
 // Precarga el shell y los recursos que referencia index.html (los nombres de archivo cambian en cada build).
@@ -28,7 +28,7 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api')) return;
+  if (url.pathname.startsWith('/api') || request.headers.has('Authorization')) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(
@@ -42,6 +42,8 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
+
+  if (!SHELL.includes(url.pathname) && !url.pathname.startsWith('/assets/')) return;
 
   event.respondWith(
     caches.match(request).then((enCache) => {

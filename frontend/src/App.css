@@ -96,3 +96,9 @@
   .settings-save-actions { flex-direction: column; }
   .settings-save-actions button { min-height: 44px; }
 }
+
+/* Evita una instantánea interactiva de datos privados al suspender/restaurar una pestaña o PWA. */
+html[data-session-pending="true"] [data-protected-content] {
+  visibility: hidden;
+  pointer-events: none;
+}
