@@ -66,7 +66,7 @@ Convención: **[P]** = propietario autoriza o decide · **[X]** = ejecuta quien 
 - [ ] **[X]** `psql "$DIRECT_URL" -X -f backend/scripts/estado-base-solo-lectura.sql` en la base de preproducción y revisar la salida.
 - [ ] **[X]** `cd backend && DIRECT_URL=… npm run migrate:deploy` **una vez**.
 - [ ] **[X]** Desplegar el backend de la rama del PR #155; ver `Nest application successfully started`; `/api/health` = 200.
-- [ ] **[X]** `API_URL=…/api ADMIN_EMAIL=… ADMIN_PASSWORD=… CAJERO_EMAIL=… CAJERO_PASSWORD=… CONFIRMO_ENTORNO_NO_PRODUCTIVO=SI node backend/scripts/humo-preproduccion.mjs --escribe` → **20 de 20 PASS**.
+- [ ] **[X]** `API_URL=…/api ADMIN_EMAIL=… ADMIN_PASSWORD=… CAJERO_EMAIL=… CAJERO_PASSWORD=… SUPERADMIN_EMAIL=… SUPERADMIN_PASSWORD=… CONFIRMO_ENTORNO_NO_PRODUCTIVO=SI node backend/scripts/humo-preproduccion.mjs --escribe` → **22 de 22 PASS** (la auditoría la consulta el Super Admin).
 - [ ] **[X]** Reiniciar el servicio en Render y repetir el humo sin `--escribe` (9 de 9): datos y sesión siguen.
 - [ ] **[X]** Recorrer `docs/CHECKLIST_EQUIPOS_REALES.md` contra preproducción (computadoras, iPhone/Safari, impresora, lector, Wi-Fi, corte de internet).
 

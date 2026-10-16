@@ -189,6 +189,20 @@ describe('CENTINELA: entregas, entregas parciales y permisos (PR #148) / Postgre
       expect((await http('get', '/api/operaciones/entregas', e.vendedor.token)).status).toBe(403);
     });
 
+    it('JW-10 BODEGUERO ve qué entregar pero no el importe de la venta; ADMIN sí', async () => {
+      const e = await escenario();
+      const v = await venta(e.cajero, e.producto.id, 1);
+      const pend = (await http('get', '/api/entregas/pendientes', e.bodeguero.token).expect(200)).body.pendientes.find((x: any) => x.ventaId === v.id);
+      expect(pend).toBeDefined();
+      expect(pend.lineas.length).toBeGreaterThan(0);
+      expect(pend).not.toHaveProperty('total');
+      const detalle = (await http('get', `/api/entregas/ventas/${v.id}`, e.bodeguero.token).expect(200)).body;
+      expect(detalle.venta).not.toHaveProperty('total');
+      expect(detalle.lineas.length).toBeGreaterThan(0);
+      const admin = (await http('get', '/api/entregas/pendientes', e.admin.token).expect(200)).body.pendientes.find((x: any) => x.ventaId === v.id);
+      expect(admin.total).toBe(Number(v.total));
+    });
+
     it('CAJERO solo consulta sus ventas pendientes; el detalle de la venta de otro cajero no se lee (404)', async () => {
       const e = await escenario();
       const miaV = await venta(e.cajero, e.producto.id, 1);

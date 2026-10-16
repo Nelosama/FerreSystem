@@ -66,6 +66,14 @@ test('roles comparten categorías, excluyen pendientes y reciben hasta cuatro ta
   assert.ok(availableTasks({ rol: 'BODEGUERO' }, tenant).every(item => !['pos', 'clientes', 'usuarios'].includes(item.key)));
 });
 
+test('Auditoría y Configuración del negocio no están en el menú: se abren por negocio desde el panel del SUPERADMIN', () => {
+  const items = load('src/config/navigation.ts').NAVIGATION_ITEMS;
+  for (const key of ['auditoria', 'configuracion']) assert.equal(items.some(item => item.key === key), false, key);
+  for (const rol of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO', 'SUPERADMIN']) {
+    assert.equal(availableTasks({ rol }, tenant).some(item => ['auditoria', 'configuracion'].includes(item.key)), false, rol);
+  }
+});
+
 test('permiso ausente se rechaza y Clientes y Caja son funciones base', () => {
   const item = { allowedRoles: ['VENDEDOR'], requiredPermiso: 'special.read' };
   assert.equal(canNavigate(item, { rol: 'VENDEDOR' }, tenant), false);

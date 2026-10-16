@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowUpRight, Clock, Coins, FileText, Plus, TrendingUp } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, FileText, Plus, TrendingUp } from 'lucide-react';
 import { TopBar } from '../../components/TopBar';
 import { SyncStatus } from '../../components/SyncStatus';
 import { TaskShortcuts } from '../../components/TaskFinder';
@@ -25,9 +25,6 @@ const INTERVALO_RESUMEN_MS = 30_000;
 
 // Accesos rápidos: solo los que el rol y los módulos del negocio permiten (filtrados por availableTasks).
 const ACCESOS_RAPIDOS = ['pos', 'cotizaciones', 'inventario', 'clientes', 'cuentas', 'entregas'];
-
-// Indicadores que el backend todavía no calcula. Se muestran como «Próximamente», nunca con cifras.
-const PROXIMAMENTE = ['Ganancia estimada', 'Ticket promedio', 'Por cobrar', 'Entregas pendientes', 'Estado del inventario', 'Apertura de caja'];
 
 // Completa una respuesta parcial o malformada con valores neutros: nunca se pintan cifras inventadas.
 const normalizarResumen = (raw: Partial<DashboardResponse> | null | undefined): DashboardResponse => ({
@@ -87,7 +84,7 @@ export const AdminHomePage: React.FC = () => {
 
         <section className="admin-home__metricas" aria-label="Indicadores de hoy">
           <article className="admin-home__metrica">
-            <span className="admin-home__metrica-etiqueta">Ventas del día</span>
+            <span className="admin-home__metrica-etiqueta">Ventas del día (netas de devoluciones)</span>
             <strong className="admin-home__metrica-cifra">{datos ? formatLempiras(datos.ventasDelDia.total) : '—'}</strong>
             <span className="admin-home__metrica-pie">
               <TrendingUp size={14} aria-hidden="true" />
@@ -108,16 +105,11 @@ export const AdminHomePage: React.FC = () => {
               {datos ? `${datos.cotizacionesPendientes.porVencerHoy} vencen hoy` : 'Cargando…'}
             </span>
           </article>
-          <article className="admin-home__metrica admin-home__metrica--pendiente">
-            <span className="admin-home__metrica-etiqueta">Indicadores en preparación</span>
-            <strong className="admin-home__metrica-cifra admin-home__metrica-cifra--pendiente">Próximamente</strong>
-            <span className="admin-home__metrica-pie"><Clock size={14} aria-hidden="true" />{PROXIMAMENTE.length} indicadores</span>
-          </article>
         </section>
 
         <div className="admin-home__rejilla">
           <section className="admin-home__tarjeta" aria-labelledby="home-tendencia">
-            <h2 id="home-tendencia" className="admin-home__subtitulo">Tendencia semanal</h2>
+            <h2 id="home-tendencia" className="admin-home__subtitulo">Tendencia semanal (ventas brutas)</h2>
             {datos ? <TendenciaSemanal dias={datos.tendenciaSemanal} /> : <p className="admin-home__vacio">Cargando tendencia…</p>}
           </section>
 
@@ -138,7 +130,6 @@ export const AdminHomePage: React.FC = () => {
                   ))}
                 </ul>
               )}
-            <p className="admin-home__pendiente">Estado porcentual del inventario: Próximamente</p>
           </section>
 
           <section className="admin-home__tarjeta" aria-labelledby="home-ventas">
@@ -169,15 +160,6 @@ export const AdminHomePage: React.FC = () => {
                 <Link to="/cotizaciones" className="admin-home__enlace">Ver cotizaciones <ArrowUpRight size={14} aria-hidden="true" /></Link>
               </div>
             )}
-          </section>
-
-          <section className="admin-home__tarjeta admin-home__tarjeta--pendiente" aria-labelledby="home-proximamente">
-            <h2 id="home-proximamente" className="admin-home__subtitulo">En preparación</h2>
-            <ul className="admin-home__pendientes">
-              {PROXIMAMENTE.map(nombre => (
-                <li key={nombre}><Coins size={13} aria-hidden="true" /> {nombre} <span>Próximamente</span></li>
-              ))}
-            </ul>
           </section>
         </div>
       </main>

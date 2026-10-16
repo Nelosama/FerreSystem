@@ -21,6 +21,10 @@ export E2E_DIST="$WORK/dist"
 export E2E_API_TARGET="http://127.0.0.1:${API_PORT}"
 export PG_BIN
 export POS_OFFLINE_ENABLED=true
+# Logotipos: almacenamiento local efímero dentro del directorio de la ejecución (se borra al terminar).
+# Sin almacén configurado el backend responde 503 por diseño; logotipo-real.spec.ts lee los archivos de aquí.
+export LOGOTIPO_ALMACEN=local
+export LOGOTIPO_DIRECTORIO="$WORK/logotipos"
 export E2E_PG_PORT="$PG_PORT"
 if [[ "$(id -u)" == 0 ]]; then AS=(runuser -u nobody --); else AS=(); fi
 API_PID=""
@@ -32,7 +36,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "== 1. PostgreSQL temporal (usuario nobody, puerto $PG_PORT)"
-mkdir -p "$WORK"
+mkdir -p "$WORK" "$LOGOTIPO_DIRECTORIO"
 chmod 777 "$WORK"
 "${AS[@]}" "$PG_BIN/initdb" -D "$WORK/data" -U postgres -A trust --locale=C -E UTF8 --no-sync >/dev/null
 "${AS[@]}" "$PG_BIN/pg_ctl" -D "$WORK/data" -l "$WORK/pg.log" -o "-h 127.0.0.1 -p $PG_PORT -k $WORK" -w start >/dev/null

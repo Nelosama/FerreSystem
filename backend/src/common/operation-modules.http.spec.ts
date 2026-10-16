@@ -77,6 +77,8 @@ describe('Module restrictions through HTTP (mock services/database)', () => {
   });
   it('base cash, existing accounts and trace remain readable with optional modules disabled', async () => {
     for(const key of ['pos','ordenes_compra','inventario','reportes'])disabled.add(`A:${key}`);
-    for(const path of ['caja','cuentas','auditoria'])await request(app.getHttpServer()).get(`/operaciones/${path}`).expect(200);
+    for(const path of ['caja','cuentas'])await request(app.getHttpServer()).get(`/operaciones/${path}`).expect(200);
+    // La auditoría es exclusiva del SUPERADMIN: un ADMIN recibe 403 aunque el módulo esté activo.
+    await request(app.getHttpServer()).get('/operaciones/auditoria').expect(403);
   });
 });

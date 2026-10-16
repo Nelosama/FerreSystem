@@ -7,8 +7,12 @@ const configuration = JSON.parse(readFileSync(new URL('../vercel.json', import.m
 test('pilot branch is excluded from Git previews in Vercel configuration', () => {
   assert.equal(configuration.git.deploymentEnabled['fix/pilot-readiness'], false);
 });
+test('monetary audit branch is excluded from Git previews', () => {
+  assert.equal(configuration.git.deploymentEnabled['codex/auditoria-precision-monetaria'], false);
+});
 for (const [branch, expected] of [
   ['fix/pilot-readiness', 0], ['nexus/review', 0], ['fix/inventario-inicial-seguro', 0],
+  ['codex/auditoria-precision-monetaria', 0],
   ['main', 1], ['fix/auditoria-admin', 1], ['fix/pilot-readiness-extra', 1],
 ]) {
   test(`Vercel ignoreCommand: ${branch} exits ${expected}`, { skip: process.platform === 'win32' }, () => {

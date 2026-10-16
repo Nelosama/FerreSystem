@@ -2,15 +2,15 @@ import type { TenantInfo } from '../types';
 
 const defaults = {
   rubro: 'FERRETERIA', estiloUI: 'INDUSTRIAL', templateVersion: 'v1', v2Mode: 'light',
-  fuenteTitulos: 'Archivo', fuenteCuerpo: 'Inter',
+  fuenteTitulos: 'Archivo', fuenteCuerpo: 'Inter', formatoImpresion: 'A4',
 } as const;
 
 /** Server fields are rebuilt; only branch selection is a local session preference. */
 export function normalizeTenantSettings(data: any, local?: Pick<TenantInfo, 'sucursal'>): TenantInfo {
   const configuration = data.configuracion ?? data;
   return {
-    id: data.id, nombreComercial: data.nombreComercial ?? 'FerreSystem',
-    colorPrimario: data.colorPrimario ?? '#EA580C', logoUrl: data.logoUrl ?? null,
+    id: data.id, nombreComercial: data.nombreComercial ?? 'Negocio',
+    colorPrimario: data.colorPrimario ?? '#EA580C', logoUrl: data.logoUrl ?? null, logotipo: data.logotipo ?? null,
     direccion: data.direccion ?? '', telefono: data.telefono ?? '', email: data.email ?? '',
     modoNavegacion: data.modoNavegacion ?? 'SIDEBAR',
     modulosHabilitados: data.modulosHabilitados,

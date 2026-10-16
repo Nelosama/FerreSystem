@@ -8,6 +8,7 @@ import { ProductosController } from '../productos/productos.controller';
 import { ProductosService } from '../productos/productos.service';
 import { TenantsController } from '../tenants/tenants.controller';
 import { TenantsService } from '../tenants/tenants.service';
+import { TenantLogoService } from '../tenants/tenant-logo.service';
 import { UsuariosController } from '../usuarios/usuarios.controller';
 import { UsuariosService } from '../usuarios/usuarios.service';
 import { VentasController } from '../ventas/ventas.controller';
@@ -26,6 +27,7 @@ describe('Roles and cashier HTTP access', () => {
       providers: [
         { provide: ProductosService, useValue: products },
         { provide: TenantsService, useValue: { getTenantSettings: () => ({}), updateTenantBranding: () => ({}) } },
+        { provide: TenantLogoService, useValue: { leer: () => null } },
         { provide: UsuariosService, useValue: { findAll: () => [] } },
         { provide: VentasService, useValue: sales },
         { provide: CotizacionesService, useValue: { create: () => ({ id: 'c' }) } },
@@ -43,6 +45,10 @@ describe('Roles and cashier HTTP access', () => {
 
   it.each([['delete', '/productos/p'], ['post', '/productos'], ['put', '/productos/p'], ['put', '/tenant/settings'], ['get', '/usuarios']])('denies cashier %s %s', async (method, path) => {
     await (request(app.getHttpServer()) as any)[method](path).set('x-test-role', 'CAJERO').send({}).expect(403);
+  });
+  // La configuración del negocio es exclusiva del SUPERADMIN: ADMIN también recibe 403 en el backend.
+  it('denies admin configuration writes on the tenant route', async () => {
+    await request(app.getHttpServer()).put('/tenant/settings').set('x-test-role', 'ADMIN').send({ nombreComercial: 'X' }).expect(403);
   });
   it('allows cashier to read shared branding without changing settings', async () => {
     await request(app.getHttpServer()).get('/tenant/settings').set('x-test-role', 'CAJERO').expect(200);

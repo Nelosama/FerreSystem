@@ -5,6 +5,7 @@ import { TenantGuard } from '../common/guards/tenant.guard';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
@@ -13,7 +14,9 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get()
-  async getDashboard(@TenantId() tenantId: string) {
+  async getDashboard(@TenantId() tenantId: string, @CurrentUser('rol') rol?: string) {
+    // BODEGUERO no lee ventas (mismo criterio que GET /ventas): recibe solo el resumen operativo de existencias y cotizaciones.
+    if (rol === 'BODEGUERO') return this.dashboardService.getResumenOperativo(tenantId);
     return this.dashboardService.getDashboardData(tenantId);
   }
 }

@@ -10,7 +10,8 @@ interface LineaEntrega {
   cantidad: number; entregada: number; pendiente: number; enPoderDelCliente: number;
 }
 interface VentaPendiente {
-  ventaId: string; numeroVenta: string | number; creadaAt: string; total: number; cliente?: string | null;
+  // total no llega a BODEGUERO (el servidor lo omite): su tarea es entregar, no conocer el importe.
+  ventaId: string; numeroVenta: string | number; creadaAt: string; total?: number; cliente?: string | null;
   cajero: string; antiguedadHoras: number; alerta: 'NINGUNA' | 'INFORMATIVA' | 'AVISO' | 'ESCALAMIENTO'; lineas: LineaEntrega[];
 }
 interface Formulario { solicitudId: string; receptor: string; cantidades: Record<string, string> }
@@ -93,7 +94,7 @@ export const EntregasPage: React.FC = () => {
         const abiertaAhora = abierta === v.ventaId && f;
         return <section className="operation-card" key={v.ventaId} aria-label={`Venta ${v.numeroVenta}`}>
           <h3>Venta {v.numeroVenta} · {v.cliente || 'Consumidor final'}</h3>
-          <p>{new Date(v.creadaAt).toLocaleString('es-HN', { timeZone: ZONA_HORARIA_NEGOCIO })} · {formatLempiras(v.total)} · Cobró {v.cajero}</p>
+          <p>{new Date(v.creadaAt).toLocaleString('es-HN', { timeZone: ZONA_HORARIA_NEGOCIO })}{typeof v.total === 'number' ? ` · ${formatLempiras(v.total)}` : ''} · Cobró {v.cajero}</p>
           {v.alerta !== 'NINGUNA' && <p role="note"><strong>{ALERTAS[v.alerta]}</strong></p>}
           <ul>{v.lineas.filter((l) => l.modoEntrega === 'BODEGA').map((l) => <li key={l.detalleId}>
             <strong>{l.nombre}</strong> · Vendido {l.cantidad} · Entregado {l.entregada} · <strong>Pendiente {l.pendiente}</strong>

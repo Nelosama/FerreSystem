@@ -98,7 +98,8 @@ export default function ContingenciaAdminPage() {
       setEntornoHabilitado(Boolean(c.data.entornoHabilitado));
       const abiertas = await api.get('/operaciones/caja/cierres', { params: { estado: 'ABIERTA' } }).then((x) => x.data).catch(() => []);
       setCajasAbiertas((abiertas ?? []).map((k: any) => ({ id: k.id, codigo: k.codigo, usuario: k.usuario?.nombre ?? '' })));
-      setMensaje(null);
+      // Una lectura correcta solo retira errores; la confirmación de una acción recién registrada se conserva.
+      setMensaje((m) => (m?.tipo === 'ok' ? m : null));
       return true;
     } catch (error: any) {
       if (seq === cargaSeq.current) setMensaje({ tipo: 'error', texto: error?.response?.data?.message ?? 'No se pudo cargar el panel. Revise la conexión.' });
@@ -131,8 +132,8 @@ export default function ContingenciaAdminPage() {
         ...(accion === 'CERRAR_MANUAL' && reg?.necesaria ? { regularizarCajaCerrada: true, motivoRegularizacion: limpiarTextoLibre(reg.motivo) } : {}),
       });
       setNotas((n) => ({ ...n, [op.operacionId]: '' }));
-      setMensaje({ tipo: 'ok', texto: 'Decisión registrada y auditada.' });
-      await cargar();
+      // cargar limpia los mensajes: confirmar después de la lectura evita borrar el éxito antes del render.
+      if (await cargar()) setMensaje({ tipo: 'ok', texto: 'Decisión registrada y auditada.' });
     } catch (error: any) {
       if (error?.response?.data?.code === 'CAJA_CERRADA_REQUIERE_REGULARIZACION') {
         setRegularizar((r) => ({ ...r, [op.operacionId]: { necesaria: true, motivo: r[op.operacionId]?.motivo ?? '' } }));

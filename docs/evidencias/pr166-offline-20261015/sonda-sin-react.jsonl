@@ -1,0 +1,6 @@
+{"label":"online","online":true,"events":[],"sw":true,"requests":6}
+{"label":"offline before reload","online":false,"events":[{"name":"offline","online":false}],"sw":true,"requests":6}
+{"label":"offline after reload","online":true,"events":[],"sw":true,"requests":6}
+{"label":"offline after reload plus 3s","online":true,"events":[],"sw":true,"requests":7}
+{"fetchOffline":"Failed to fetch"}
+{"label":"online after reconnect","online":true,"events":[],"sw":true,"requests":7}

@@ -1,6 +1,9 @@
+import { aCentavos } from '../common/redondeo-monetario';
+import { calcularTotalesCompra } from './compra-totales';
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
+import { consultarAuditoria } from './auditoria-consulta';
 import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
 import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerprint, id, idRecurso, idSolicitud, lockTenant, money, movement, openCash, paymentMethod, query, text } from './ledger';
 import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, EntregarVentaDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
@@ -48,17 +51,17 @@ export class OperacionesService {
    const numeroFactura=text(dto.numeroFactura,'Factura');
    const [duplicate]=await query(tx,'SELECT id FROM ordenes_compra WHERE tenant_id=$1 AND proveedor_id=$2 AND UPPER(TRIM(numero_factura))=UPPER(TRIM($3))',tenantId,p.id,numeroFactura);
    if(duplicate)throw new ConflictException('Esta factura de proveedor ya está registrada');
-   let subtotal=0;
+   // JW-07: totales en centavos enteros (compra-totales.ts). Antes 2.5 × 25.99 daba L 64.97 en lugar de L 64.98.
    for(const item of dto.items){
     const prod=await tx.producto.findFirst({where:{id:item.productoId,tenantId,activo:true}});if(!prod)throw new NotFoundException('Producto no encontrado');
-    subtotal=money(subtotal+money(decimal(item.cantidad,'Cantidad',true)*decimal(item.costo,'Costo')));
+    decimal(item.cantidad,'Cantidad',true);decimal(item.costo,'Costo');
    }
-   const tax=decimal(dto.isv,'Impuesto'), total=decimal(money(subtotal+tax),'Total');
+   const {lineas,subtotal,isv:tax,total}=calcularTotalesCompra(dto.items,decimal(dto.isv,'Impuesto'));
    // D1: compra al contado. Pagar a proveedor es función de administrador (igual que pagar()).
    if(dto.pagoContado&&user.rol!=='ADMIN')throw new ForbiddenException('Compra al contado requiere administrador');
    const metodoContado=dto.pagoContado?paymentMethod(dto.pagoContado.metodo):null;
    const [order]=await query(tx,'INSERT INTO ordenes_compra (id,tenant_id,codigo,proveedor_id,usuario_id,subtotal,isv,total,estado,numero_factura,vencimiento,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,\'SOLICITADA\',$9,$10::timestamp,NOW()) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,`COMP-${dto.solicitudId}`,p.id,userId,subtotal,tax,total,numeroFactura,dto.vencimiento || null);
-   for(const item of dto.items)await query(tx,'INSERT INTO detalles_orden_compra (id,orden_id,producto_id,cantidad,precio_costo,subtotal) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',id(),order.id,item.productoId,item.cantidad,item.costo,money(item.cantidad*item.costo));
+   for(const [i,item] of dto.items.entries())await query(tx,'INSERT INTO detalles_orden_compra (id,orden_id,producto_id,cantidad,precio_costo,subtotal) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',id(),order.id,item.productoId,item.cantidad,item.costo,lineas[i]);
    const cuentaId=await account(tx,tenantId,userId,'CXP',order.id,p.id,total,dto.vencimiento);
    // El pago de contado usa la misma solicitud que la factura: un reintento no paga dos veces. No toca la caja.
    if(metodoContado){
@@ -182,10 +185,13 @@ export class OperacionesService {
  }
  // Caja: el efectivo esperado solo suma movimientos EFECTIVO. Tarjeta, transferencia y crédito son totales informativos.
  private resumenCaja(c:any,movements:any[]){
-  const efectivo=movements.filter(m=>m.metodo==='EFECTIVO').map(m=>Number(m.monto));
-  const ingresosEfectivo=money(efectivo.filter(n=>n>0).reduce((s,n)=>s+n,0));
-  const egresosEfectivo=money(-efectivo.filter(n=>n<0).reduce((s,n)=>s+n,0));
-  const resumen:any={fondoInicial:money(Number(c.monto_apertura)),ingresosEfectivo,egresosEfectivo,efectivoEsperado:money(Number(c.monto_apertura)+ingresosEfectivo-egresosEfectivo),totalesPorMetodo:Object.fromEntries(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].map(method=>[method,money(movements.filter(m=>m.metodo===method).reduce((s,m)=>s+Number(m.monto),0))]))};
+  // Los importes de BD son DECIMAL(12,2); acumular sus centavos evita perder dinero al sumar turnos elevados.
+  const centavos=(valor:unknown)=>BigInt(Number(valor).toFixed(2).replace('.', ''));
+  const fondo=centavos(c.monto_apertura);
+  const efectivo=movements.filter(m=>m.metodo==='EFECTIVO').map(m=>centavos(m.monto));
+  const ingresos=efectivo.filter(n=>n>0n).reduce((s,n)=>s+n,0n);
+  const egresos=-efectivo.filter(n=>n<0n).reduce((s,n)=>s+n,0n);
+  const resumen:any={fondoInicial:Number(fondo)/100,ingresosEfectivo:Number(ingresos)/100,egresosEfectivo:Number(egresos)/100,efectivoEsperado:Number(fondo+ingresos-egresos)/100,totalesPorMetodo:Object.fromEntries(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].map(method=>[method,Number(movements.filter(m=>m.metodo===method).reduce((s,m)=>s+centavos(m.monto),0n))/100]))};
   if(c.estado==='CERRADA'){resumen.efectivoContado=Number(c.monto_cierre_fisico);resumen.diferencia=Number(c.diferencia);}
   return resumen;
  }
@@ -350,8 +356,10 @@ export class OperacionesService {
    const [v]=await query(tx,"SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado='COMPLETADA' FOR UPDATE",ventaId,tenantId);if(!v)throw new NotFoundException('Venta no encontrada');
    if(!dto.items?.length||new Set(dto.items.map(i=>i.detalleId)).size!==dto.items.length)throw new BadRequestException('Seleccione líneas distintas');
    const details=await query(tx,'SELECT d.*,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d WHERE d.venta_id=$1',v.id);
-   let gross=0,before=0,added=0;
-   for(const d of details){gross+=Number(d.cantidad)*Number(d.precio_unitario);before+=Number(d.devuelto)*Number(d.precio_unitario);}
+   const entero=(valor:unknown)=>BigInt(aCentavos(Number(valor)));
+   // Conservar el reparto proporcional acumulado existente, con pesos exactos en diezmilésimas.
+   let gross=0n,before=0n,added=0n;
+   for(const d of details){gross+=entero(d.cantidad)*entero(d.precio_unitario);before+=entero(d.devuelto)*entero(d.precio_unitario);}
    for(const item of dto.items){
     const d=details.find(d=>d.id===item.detalleId),quantity=decimal(item.cantidad,'Cantidad',true);if(!d)throw new NotFoundException('Línea de venta no encontrada');
     if(d.sin_inventario){
@@ -365,10 +373,12 @@ export class OperacionesService {
       if(q>C-E-N)throw new BadRequestException(`Cantidad supera lo pendiente de entrega (pendiente: ${((C-E-N)/100).toFixed(2)}); la mercancía entregada requiere un destino físico`);
      }else if(q>E-R-S)throw new BadRequestException(`Cantidad supera lo vendido pendiente de devolver (disponible para devolver: ${((E-R-S)/100).toFixed(2)})`);
     }
-    added+=quantity*Number(d.precio_unitario);
+    added+=entero(quantity)*entero(d.precio_unitario);
    }
    const [old]=await query(tx,'SELECT COALESCE(SUM(monto),0) AS monto FROM devoluciones WHERE venta_id=$1',v.id);
-   const monto=money(Math.max(0,(gross>0?money(Number(v.total)*(before+added)/gross):0)-Number(old.monto)));
+   const acumulado=gross>0n?(entero(v.total)*(before+added)*2n+gross)/(gross*2n):0n;
+   const pendiente=acumulado-entero(old.monto);
+   const monto=Number(pendiente>0n?pendiente:0n)/100;
    return {v,details,monto};
  }
  async devolver(tenantId:string,userId:string,ventaId:string,dto:DevolucionDto){
@@ -478,7 +488,7 @@ export class OperacionesService {
      await query(tx,"UPDATE ventas SET saldo_credito=GREATEST(COALESCE(saldo_credito,total)-$1,0) WHERE id=$2 AND tenant_id=$3 AND tipo_pago='CREDITO' RETURNING id",credito,v.id,tenantId);
     }
    }
-   const refund=money(monto-credito),metodo=paymentMethod(dto.metodo);let caja:any=null;
+   const refund=(aCentavos(monto)-aCentavos(credito))/100,metodo=paymentMethod(dto.metodo);let caja:any=null;
    if(refund>0){caja=await openCash(tx,tenantId,userId);if(metodo==='EFECTIVO'){
     const [cash]=await query(tx,"SELECT COALESCE(SUM(monto),0) AS monto FROM movimientos_caja WHERE caja_id=$1 AND metodo='EFECTIVO'",caja.id);
     if(refund>money(Number(caja.monto_apertura)+Number(cash.monto)))throw new ConflictException('Efectivo insuficiente para reembolsar');
@@ -494,6 +504,6 @@ export class OperacionesService {
    await audit(tx,tenantId,userId,'VENTA_DEVOLVER',result.id,{ventaId,monto,credito,refund,metodo,items:dto.items});return result;
  }
 
- async auditoria(tenantId:string,page:number){return query(this.prisma,'SELECT a.*,u.nombre AS usuario_nombre FROM auditoria_operaciones a LEFT JOIN usuarios u ON u.id=a.usuario_id WHERE a.tenant_id=$1 ORDER BY a.created_at DESC,a.id DESC LIMIT 100 OFFSET $2',tenantId,Math.max(0,Math.floor(Number.isFinite(page)?page:0))*100);}
+ async auditoria(tenantId:string,page:number){return consultarAuditoria(this.prisma,tenantId,page);}
 
 }

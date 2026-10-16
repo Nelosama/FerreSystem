@@ -14,8 +14,10 @@ import { BadRequestException } from '@nestjs/common';
 /** Convierte un importe o precio a centavos. Rechaza más de dos decimales (un redondeo silencioso cambiaría el total). */
 export function aCentavos(valor: number, etiqueta = 'Importe'): number {
   if (typeof valor !== 'number' || !Number.isFinite(valor)) throw new BadRequestException(`${etiqueta}: valor no numérico`);
-  const centavos = Math.round(valor * 100);
-  if (Math.abs(valor * 100 - centavos) > 1e-7) throw new BadRequestException(`${etiqueta}: use hasta dos decimales`);
+  // Validar en unidades evita amplificar el residuo binario de importes elevados (p. ej. 16777216.01).
+  const fijo = valor.toFixed(2);
+  const centavos = Number(fijo.replace('.', ''));
+  if (Math.abs(valor - Number(fijo)) > 1e-9) throw new BadRequestException(`${etiqueta}: use hasta dos decimales`);
   if (!Number.isSafeInteger(centavos)) throw new BadRequestException(`${etiqueta}: fuera de rango`);
   return centavos;
 }

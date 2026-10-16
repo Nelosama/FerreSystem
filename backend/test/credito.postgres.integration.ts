@@ -9,6 +9,7 @@ import { VentasService } from '../src/ventas/ventas.service';
 import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
 import { ClientesService } from '../src/clientes/clientes.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
+import { diaCalendario, sumarDias } from '../src/common/zona-horaria';
 
 // Ciclo de crédito contra PostgreSQL real: venta/cotización a crédito, abonos de clientes y devoluciones.
 // Crea un clúster temporal exclusivo; nunca lee DATABASE_URL. Llama a los servicios reales (sin mocks).
@@ -148,6 +149,14 @@ describe('Crédito de clientes / PostgreSQL aislado', () => {
     expect(Number(v.saldoCredito)).toBe(115);
     expect(await saldoCliente()).toBe(115);
     expect(Number((await cuentaDe(ventaId)).saldo)).toBe(115);
+  });
+
+  it('JW-01 una cotización convertida a crédito vence según el plazo del cliente, igual que una venta directa', async () => {
+    await prisma.cliente.update({ where: { id: clienteId }, data: { plazoCreditoDias: 30 } });
+    const cotId = await cotizacionCredito(clienteId);
+    const venta = await cotizaciones.convertirAVenta(tenantId, adminId, cotId, 'CREDITO') as any;
+    const [{ v }] = await sql('SELECT vencimiento::date::text AS v FROM cuentas_operativas WHERE documento_id=$1', venta.ventaId);
+    expect(v).toBe(sumarDias(diaCalendario(new Date()), 30));
   });
 
   // ─── P0-B: abonos de clientes ───────────────────────────────────────────

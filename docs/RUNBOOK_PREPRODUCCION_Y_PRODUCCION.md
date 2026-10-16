@@ -60,7 +60,7 @@ No se necesitan claves de aplicación (`anon`/`service_role`) para este backend.
 3. En la base de preproducción: `psql "$DIRECT_URL" -X -f backend/scripts/estado-base-solo-lectura.sql > estado.txt` y revise `estado.txt` (migraciones `PENDIENTE`, `APLICADA_CHECKSUM_DISTINTO`, la sección 5 en 0).
 4. `cd backend && DIRECT_URL=… npm run migrate:deploy` (desde una máquina de confianza o un *Shell* de Render, **una sola vez**).
 5. Despliegue el backend; compruebe en el registro `Nest application successfully started`.
-6. `API_URL=https://<preprod>/api ADMIN_EMAIL=… ADMIN_PASSWORD=… CAJERO_EMAIL=… CAJERO_PASSWORD=… CONFIRMO_ENTORNO_NO_PRODUCTIVO=SI node backend/scripts/humo-preproduccion.mjs --escribe` → 20 de 20 PASS (inicio de sesión, productos, venta de contado, idempotencia, entrega, cierre de caja, historial, auditoría, renovación de sesión).
+6. `API_URL=https://<preprod>/api ADMIN_EMAIL=… ADMIN_PASSWORD=… CAJERO_EMAIL=… CAJERO_PASSWORD=… SUPERADMIN_EMAIL=… SUPERADMIN_PASSWORD=… CONFIRMO_ENTORNO_NO_PRODUCTIVO=SI node backend/scripts/humo-preproduccion.mjs --escribe` → 22 de 22 PASS (inicio de sesión, productos, venta de contado, idempotencia, entrega, cierre de caja, historial, auditoría consultada por el Super Admin —ADMIN y CAJERO reciben 403—, renovación de sesión).
 7. Reinicie el servicio desde Render y repita el humo **sin** `--escribe`: debe seguir todo y no deben aparecer migraciones.
 8. Recorra el checklist de equipos reales (`docs/CHECKLIST_EQUIPOS_REALES.md`) con la preproducción.
 

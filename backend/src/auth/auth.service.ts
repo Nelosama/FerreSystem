@@ -272,6 +272,8 @@ export class AuthService {
         id: usuario.tenant.id,
         nombreComercial: usuario.tenant.nombreComercial,
         logoUrl: usuario.tenant.logoUrl,
+        // Metadatos del logotipo privado; los bytes se piden a GET /tenant/logo con el token.
+        logotipo: usuario.tenant.logoStorageKey ? { mime: usuario.tenant.logoMime, bytes: usuario.tenant.logoBytes, actualizadoAt: usuario.tenant.logoActualizadoAt } : null,
         colorPrimario: usuario.tenant.colorPrimario,
         estado: usuario.tenant.estado,
         direccion: usuario.tenant.direccion,

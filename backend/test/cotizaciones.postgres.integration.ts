@@ -129,6 +129,42 @@ describe('FUNC-001 / HTTP and isolated PostgreSQL', () => {
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
   });
 
+  it('JW-02 producto con precio revocado o inactivo después de cotizar: la conversión se rechaza sin venta ni reservas', async () => {
+    const [primero] = await prisma.producto.findMany({ where: { tenantId }, orderBy: { codigo: 'asc' } });
+    await prisma.producto.update({ where: { id: primero.id }, data: { precioAprobado: false } });
+    const rechazo = await post().expect(400);
+    expect(rechazo.body.message).toMatch(/precio aprobado/);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
+    for (const p of await prisma.producto.findMany({ where: { tenantId } })) expect(Number(p.stockReservado)).toBe(0);
+    expect((await prisma.cotizacion.findUniqueOrThrow({ where: { id: cotizacionId } })).estado).toBe('BORRADOR');
+    await prisma.producto.update({ where: { id: primero.id }, data: { precioAprobado: true, activo: false } });
+    await post().expect(400);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
+  });
+
+  it('JW-06 la venta convertida conserva los subtotales en centavos de la cotización (2.5 × 25.99 = 64.98)', async () => {
+    const product = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'C2599', nombre: 'Cable', precioVenta: 25.99, precioCosto: 10, stockActual: 100 } });
+    const cot = await new CotizacionesService(prisma).create(tenantId, usuarioId, { detalles: [{ productoId: product.id, cantidad: 2.5 }] } as any);
+    expect(cot).toMatchObject({ subtotal: 64.98, isv: 9.75, total: 74.73 });
+    const response = await post(cot.id).expect(201);
+    const sale = await prisma.venta.findUniqueOrThrow({ where: { id: response.body.ventaId }, include: { detalles: true } });
+    expect(Number(sale.detalles[0].subtotal)).toBe(64.98);
+    expect([Number(sale.subtotal), Number(sale.isv), Number(sale.total)]).toEqual([64.98, 9.75, 74.73]);
+  });
+
+  it('JW-11 una cotización RECHAZADA no se convierte en venta; reabierta (ENVIADA) sí', async () => {
+    const patch = (estado: string) => request(app.getHttpServer()).patch(`/api/cotizaciones/${cotizacionId}/estado`).auth(token, { type: 'bearer' }).send({ estado });
+    await patch('RECHAZADA').expect(200);
+    const rechazo = await post().expect(400);
+    expect(rechazo.body.message).toMatch(/rechazada/i);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
+    for (const p of await prisma.producto.findMany({ where: { tenantId } })) expect(Number(p.stockReservado)).toBe(0);
+    expect((await prisma.cotizacion.findUniqueOrThrow({ where: { id: cotizacionId } })).estado).toBe('RECHAZADA');
+    await patch('ENVIADA').expect(200);
+    await post().expect(201);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
+  });
+
   it('ID inexistente o de otro tenant y método inválido no crean ventas', async () => {
     await post(randomUUID()).expect(404);
     const otherTenantId = randomUUID();
