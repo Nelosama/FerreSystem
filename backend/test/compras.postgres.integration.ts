@@ -101,6 +101,18 @@ describe('Compras, recepciones, costos y CxP / PostgreSQL aislado', () => {
     await ops.compra(otherTenantId, users.OTHER, { ...compraDe('FAC-300', 1, 1), proveedorId: otroTenantProveedor, items: [{ productoId: otroProducto, cantidad: 1, costo: 1 }] });
   });
 
+  it('JW-08: un proveedor desactivado no recibe compras nuevas; reintentar una compra previa devuelve la misma orden', async () => {
+    const previa = compraDe('FAC-350', 45, 10);
+    const orden = await ops.compra(tenantId, users.ADMIN, previa);
+    await prisma.proveedor.update({ where: { id: proveedorId }, data: { activo: false } });
+    await expect(ops.compra(tenantId, users.ADMIN, compraDe('FAC-351', 45, 10))).rejects.toThrow('desactivado');
+    expect((await ops.compra(tenantId, users.ADMIN, previa)).id).toBe(orden.id);
+    expect(await prisma.ordenCompra.count({ where: { tenantId } })).toBe(1);
+    expect(await prisma.cuentaOperativa.count({ where: { tenantId, tipo: 'CXP' } })).toBe(1);
+    await prisma.proveedor.update({ where: { id: proveedorId }, data: { activo: true } });
+    await ops.compra(tenantId, users.ADMIN, compraDe('FAC-351', 45, 10));
+  });
+
   // ─── Recepción, inventario y costos ─────────────────────────────────────
 
   it('una recepción completa aumenta existencias una vez, actualiza el costo vigente y deja historial de costo', async () => {

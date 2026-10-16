@@ -45,7 +45,9 @@ export class OperacionesService {
    const hash=fingerprint({userId,dto});
    const [previous] = await query(tx, 'SELECT o.*, a.datos FROM ordenes_compra o JOIN auditoria_operaciones a ON a.entidad_id=o.id AND a.operacion=\'COMPRA_CREAR\' WHERE o.id IN ($1,$3) AND o.tenant_id=$2',idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
    if(previous){if(previous.datos.hash!==hash)throw new ConflictException('Solicitud utilizada para otra compra');return previous;}
-   const [p]=await query(tx,'SELECT id FROM proveedores WHERE id=$1 AND tenant_id=$2',dto.proveedorId,tenantId);if(!p)throw new NotFoundException('Proveedor no encontrado');
+   const [p]=await query(tx,'SELECT id,activo FROM proveedores WHERE id=$1 AND tenant_id=$2',dto.proveedorId,tenantId);if(!p)throw new NotFoundException('Proveedor no encontrado');
+   // JW-08: un proveedor desactivado no recibe compras nuevas (el reintento idempotente de arriba sigue respondiendo).
+   if(!p.activo)throw new BadRequestException('El proveedor está desactivado. Reactívelo en Proveedores registrados para registrar compras');
    if(!dto.items?.length)throw new BadRequestException('Agregue productos');
    if(new Set(dto.items.map(x=>x.productoId)).size!==dto.items.length)throw new BadRequestException('Agrupe las líneas del mismo producto');
    const numeroFactura=text(dto.numeroFactura,'Factura');

@@ -91,14 +91,14 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
         }
         return [];
       }
-      if (sql.includes('SELECT id FROM proveedores WHERE id=$1 AND tenant_id=$2')) {
+      if (sql.includes('FROM proveedores WHERE id=$1 AND tenant_id=$2')) {
         const [id, tenantId] = params;
         const p = dbSuppliers[id];
         return p && p.tenant_id === tenantId ? [p] : [];
       }
       if (sql.includes('INSERT INTO proveedores')) {
         const [id, tenantId, nombre, telefono, rtn] = params;
-        const p = { id, tenant_id: tenantId, nombre, telefono, rtn, updated_at: new Date().toISOString() };
+        const p = { id, tenant_id: tenantId, nombre, telefono, rtn, activo: true, updated_at: new Date().toISOString() };
         dbSuppliers[id] = p;
         return [p];
       }
@@ -360,8 +360,8 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
     };
 
     dbSuppliers = {
-      'prov-1': { id: 'prov-1', tenant_id: 'tenant-A', nombre: 'Distribuidora Ferretera S.A.', telefono: '2233-4455', rtn: '08011990123456' },
-      'prov-B': { id: 'prov-B', tenant_id: 'tenant-B', nombre: 'Proveedor Exclusivo Tenant B', telefono: '2211-0000', rtn: '08011995999999' },
+      'prov-1': { id: 'prov-1', tenant_id: 'tenant-A', nombre: 'Distribuidora Ferretera S.A.', telefono: '2233-4455', rtn: '08011990123456', activo: true },
+      'prov-B': { id: 'prov-B', tenant_id: 'tenant-B', nombre: 'Proveedor Exclusivo Tenant B', telefono: '2211-0000', rtn: '08011995999999', activo: true },
     };
 
     dbProducts = {
