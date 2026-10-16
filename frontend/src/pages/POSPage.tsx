@@ -36,10 +36,10 @@ import { anchoTicketCss, tamanoPaginaImpresion } from '../utils/formatoImpresion
 const pagoElectronicoDesde = (metodo: string, aut: { referencia: string; terminal: string }) =>
   (metodo === 'TARJETA' || metodo === 'TRANSFERENCIA') ? { referencia: aut.referencia.trim(), terminal: aut.terminal.trim() } : undefined;
 
-// Adapta un producto del catálogo comercial al formato del POS.
 // Tarjetas del catálogo pintadas a la vez: con catálogos grandes la búsqueda acota y «Mostrar más» amplía.
 const TARJETAS_POR_PAGINA = 120;
 
+// Adapta un producto del catálogo comercial al formato del POS.
 const mapearProductoPOS = (p: any): ProductItem => ({
   id: p.id,
   codigo: p.codigo,
@@ -273,8 +273,13 @@ export const POSPage: React.FC = () => {
   agregarRef.current = agregarAlCarrito;
   const indiceCatalogo = useMemo(() => indexarCatalogo(productos), [productos]);
   const catalogoFiltrado = useMemo(() => filtrarCatalogo(indiceCatalogo, search), [indiceCatalogo, search]);
-  const [paginaCatalogo, setPaginaCatalogo] = useState({ busqueda: '', limite: TARJETAS_POR_PAGINA });
-  const limiteCatalogo = paginaCatalogo.busqueda === search ? paginaCatalogo.limite : TARJETAS_POR_PAGINA;
+  // Cada cambio de búsqueda (también volver a vacío) reinicia la lista a la primera página.
+  const [limiteCatalogo, setLimiteCatalogo] = useState(TARJETAS_POR_PAGINA);
+  const [busquedaPaginada, setBusquedaPaginada] = useState(search);
+  if (busquedaPaginada !== search) {
+    setBusquedaPaginada(search);
+    setLimiteCatalogo(TARJETAS_POR_PAGINA);
+  }
   const tarjetasCatalogo = useMemo(() => catalogoFiltrado.slice(0, limiteCatalogo).map((prod) => (
     <div
       key={prod.id}
@@ -526,7 +531,7 @@ export const POSPage: React.FC = () => {
             {catalogoFiltrado.length > limiteCatalogo && (
               <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
                 <span>Mostrando {limiteCatalogo} de {catalogoFiltrado.length} productos. Escriba para acotar la búsqueda.</span>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPaginaCatalogo({ busqueda: search, limite: limiteCatalogo + TARJETAS_POR_PAGINA })}>Mostrar más</button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setLimiteCatalogo(limiteCatalogo + TARJETAS_POR_PAGINA)}>Mostrar más</button>
               </div>
             )}
           </div>
