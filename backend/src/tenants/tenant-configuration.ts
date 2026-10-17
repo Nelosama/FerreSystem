@@ -4,7 +4,7 @@ const options: Record<string, readonly string[]> = {
   idioma: ['es', 'en'],
   rubro: ['FERRETERIA', 'PULPERIA', 'MINIMARKET', 'FARMACIA', 'PAPELERIA', 'DISTRIBUIDORA', 'AGROSERVICIO', 'REPUESTOS_AUTOMOTRICES', 'ELECTRODOMESTICOS', 'GENERAL'],
   estiloUI: ['INDUSTRIAL', 'MINIMALISTA', 'MODERNO'],
-  templateVersion: ['v1', 'v2'],
+  templateVersion: ['v1', 'v2', 'v3'],
   v2Mode: ['light', 'dark', 'hybrid'],
   fuenteTitulos: ['Archivo', 'Space Grotesk', 'Poppins', 'Montserrat'],
   fuenteCuerpo: ['Inter', 'IBM Plex Sans', 'Nunito Sans'],

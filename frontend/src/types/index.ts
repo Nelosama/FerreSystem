@@ -57,7 +57,7 @@ export interface TenantInfo {
   modulosHabilitados?: string[];
   estiloUI?: 'INDUSTRIAL' | 'MINIMALISTA' | 'MODERNO';
   /** Missing on legacy tenants; interpreted as v1. */
-  templateVersion?: 'v1' | 'v2';
+  templateVersion?: 'v1' | 'v2' | 'v3';
   v2Mode?: 'dark' | 'light' | 'hybrid';
   modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
   fuenteTitulos?: 'Archivo' | 'Space Grotesk' | 'Poppins' | 'Montserrat';
