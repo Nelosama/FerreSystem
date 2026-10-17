@@ -1,0 +1,44 @@
+{
+  "loginJsBytes": 518237,
+  "loginJsFiles": 10,
+  "posFirstProductMs": 293,
+  "posJsBytesAdicionales": 45568,
+  "posJsArchivos": [
+    "/assets/POSPage-D4R-Bswg.js:35907",
+    "/assets/circle-check-big-DXkr1nIk.js:246",
+    "/assets/download-7uKJiP7k.js:259",
+    "/assets/plus-S5iC8YXy.js:180",
+    "/assets/numeroCliente-D2MqSlhv.js:93",
+    "/assets/ClientePicker-n2T_gEVm.js:3537",
+    "/assets/receipt-D-Xq13iX.js:681",
+    "/assets/trash-BYB8kG1Y.js:373",
+    "/assets/BarcodeScanner-Don21Bp-.js:4292"
+  ],
+  "posApi": [
+    "GET /operaciones/caja",
+    "GET /operaciones/proveedores",
+    "GET /productos/comercial"
+  ],
+  "posCardsRendered": 120,
+  "busquedaMsPorTecla": [
+    12,
+    31,
+    31,
+    31,
+    32
+  ],
+  "agregarCarritoMs": [
+    31,
+    31,
+    32,
+    32,
+    31
+  ],
+  "clienteMsPorTecla": [
+    32,
+    32,
+    32
+  ],
+  "heapBytes": 10894276,
+  "domNodes": 1094
+}

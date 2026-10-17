@@ -248,3 +248,17 @@ test('formato de impresión: el Super Admin elige rollo de 80 mm, se guarda y se
   await page.reload();
   await expect(page.getByLabel('Formato de impresión de facturas y recibos')).toHaveValue('ROLLO_80MM');
 });
+
+for (const width of [390, 320]) test(`settings: controles completos dentro de la pantalla de ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 844 });
+  await setup(page, 'SUPERADMIN', 'TOPNAV');
+  await page.goto('/admin/negocios/ux-company/configuracion');
+  await expect(page.locator('#business-name')).toHaveValue('Ferretería UX');
+  const controles = page.locator('main .industrial-card, main form, main form input:visible, main form select:visible, .settings-save-actions button');
+  expect(await controles.count()).toBeGreaterThan(8);
+  const fuera = await controles.evaluateAll(elements => elements.flatMap(element => {
+    const rect = element.getBoundingClientRect();
+    return rect.left < 0 || rect.right > window.innerWidth + 1 ? [{ control: element.id || element.textContent, left: rect.left, right: rect.right, viewport: window.innerWidth }] : [];
+  }));
+  expect(fuera).toEqual([]);
+});

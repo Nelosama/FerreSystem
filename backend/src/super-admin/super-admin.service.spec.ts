@@ -164,7 +164,7 @@ describe('SuperAdminService', () => {
       nombreComercial: 'Ferreteria Uno',
       adminNombre: 'Tenant Admin',
       adminEmail: 'ADMIN@FERRETERIA.TEST',
-      adminPassword: 'tenant password',
+      adminPassword: 'TenantPassword123!',
     });
 
     expect(prisma.$transaction).toHaveBeenCalledOnce();
@@ -176,7 +176,12 @@ describe('SuperAdminService', () => {
     });
     expect(tx.tenantModule.createMany).toHaveBeenCalledOnce();
     expect(result.adminUsuario).toMatchObject({ id: 'user-1', email: 'admin@ferreteria.test', rol: 'ADMIN' });
-    expect(await bcrypt.compare('tenant password', tx.usuario.create.mock.calls[0][0].data.passwordHash)).toBe(true);
+    expect(await bcrypt.compare('TenantPassword123!', tx.usuario.create.mock.calls[0][0].data.passwordHash)).toBe(true);
+  });
+
+  it.each(['', 'abc', 'Ferre2026!', 'solo-letras', undefined, null, 12345678, 'A1' + 'x'.repeat(127)])('rechaza contraseña de alta inválida %j antes de abrir la transacción', async adminPassword => {
+    await expect(service.createTenant({ nombreComercial: 'Negocio', adminNombre: 'Admin', adminEmail: 'admin@example.test', adminPassword: adminPassword as string })).rejects.toThrow('contraseña');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('scopes administrator edits to the selected company and ADMIN role', async () => {

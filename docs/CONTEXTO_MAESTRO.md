@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-16 UTC** — corrección de sesiones en `codex/fix-expired-sessions`, base `main` `d5fec352`. Sin merge ni despliegue; evidencia y bloqueo de emulación offline en la sección siguiente.
+Última revisión: **2026-10-16, America/Tegucigalpa** — PR #172: integración normal de main `735fbb9c` (#170/#171), conservando sesiones y optimizaciones. Sin merge del PR ni despliegue.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -33,6 +33,69 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Publicación sin despliegue:** `frontend/vercel.json` excluye esta rama de previews automáticas antes del primer push; guard probado (sin afectar otras ramas).
 - **Estado al publicar:** NO LISTO PARA MERGE hasta comprobar la regresión offline con el Chromium correspondiente y los checks del commit. Sin Safari/WebKit ni PWA instalada en dispositivos físicos. Informe, comandos, archivos y límites: [CORRECCION_SESIONES_20261016.md](CORRECCION_SESIONES_20261016.md).
 - **Bitácora:** lectura de instrucciones y contexto; verificación Git/PR; reproducciones rojas de frontend/backend/navegador; corrección centralizada, sesiones por rol/soporte y cookies; pruebas con relojes simulados, API simulada y PostgreSQL temporal real; revisión de caché y preservación del diario de contingencia; publicación de una rama/PR en borrador para revisión. Sin aceptación física ni acceso a producción.
+
+## PR #171 — revisión técnica final (2026-10-16 UTC, rama `claude/optimizacion-limpieza-jowa`)
+
+- **Estado Git:** `main` sigue en `d5fec352`; la rama no tiene conflictos con `main`. No había comentarios ni revisiones pendientes.
+- **Simulación de merge con #170** (HEAD `af73e67`): el único conflicto es `backend/pnpm-lock.yaml` (modificado en #170, eliminado en #171). Se resuelve eliminándolo.
+- **Defecto propio de #170, ajeno a #171:** su `backend/package-lock.json` ya falla `npm ci` por sí solo («Missing: typescript@5.9.3 from lock file»). No se tocó #170.
+- **Defecto corregido en #171:** la paginación del catálogo del POS conservaba el límite ampliado con «Mostrar más» al volver a la búsqueda vacía. Ahora cualquier cambio de búsqueda reinicia a 120. Prueba de regresión `frontend/e2e/pos-catalogo-grande-simulado.spec.ts` (300 productos): falló antes de la corrección y pasa después. Cubre búsqueda fuera de lo visible, código de barras y código interno con Enter, cantidades, quitar renglón y totales con ISV.
+- **`.vs/` en el historial:** no se detectaron patrones de credenciales (URL de BD con contraseña, JWT, claves de Supabase, GitHub u OpenAI, llaves privadas, variables de entorno, correos). La sesión de Copilot y el índice contienen bloques binarios o base64 que no se pueden clasificar con certeza. Si preocupa, el dueño decide si rota secretos o purga el historial. No se publicó contenido.
+- **Pruebas locales sobre `ab25ace`:**
+  - `npm ci` limpio en frontend y backend; `prisma validate` y `generate`.
+  - Frontend: build con `tsc -b`, lint (0 errores), unitarias 340/340 y Playwright simulado 155/155 (antes de la corrección). Después de la corrección: e2e de POS, caja, contingencia y offline 22/22, más la nueva prueba.
+  - Backend: build, lint (0 errores), unitarias 494/494, scripts 48/48 y Python OK.
+  - PostgreSQL 16 con `REAL_SETTINGS_BROWSER=1`: 977 + 65 en una repetición aislada de los dos archivos que habían fallado por interferencia del entorno (recompilación de `dist` en paralelo y permisos de `.vite-temp`). Backend `test:e2e` 6/6 en ejecución aislada.
+  - Piloto real en escritorio (`e2e-real`): 145 aprobadas y 10 omitidas preexistentes, incluida la contingencia offline completa 5/5.
+  - Piloto real en móvil: 142 aprobadas, 10 omitidas y 1 fallo preexistente: `logotipo-real.spec.ts:61` falla igual en `main` (SIDEBAR no visible en 390 px; la configuración móvil no corre en CI).
+  - Safari/WebKit: no ejecutado, porque no está instalado en el entorno.
+
+## Optimización y limpieza — PR #171 (2026-10-16 UTC, rama `claude/optimizacion-limpieza-jowa`, borrador, sin merge ni despliegue)
+
+- **Base:** `main` `d5fec352`. No había rama ni PR de Codex abiertos al empezar. Apareció #170 (Jules): toca `backend/pnpm-lock.yaml` (que #171 elimina) y agrega `multer` sin actualizar `package-lock.json`. Coordinación publicada en #170. Sin cambios de esquema, migraciones, autenticación, permisos, reglas de negocio ni archivos de PWA/móvil.
+- **Frontend:**
+  1. `@react-pdf/renderer` se importa dinámicamente en `components/descargarRecibo.ts`. Se precarga al acercar el puntero o enfocar el botón de descarga. Abrir el POS bajó de 1,25 MB a 45 KB de JS.
+  2. **POS:** índice del catálogo en `utils/posCatalogo.ts`, con pruebas de equivalencia contra el filtro anterior (`test/pos-catalogo.test.mjs`); tarjetas memorizadas; 120 tarjetas visibles con «Mostrar más».
+  3. **Inventario:** filtro, filas y `ProductoGestion` memorizados.
+  4. `en.json` se carga bajo demanda.
+  5. `GarantiasPage` pasa a carga diferida. Las páginas de contingencia siguen en el bundle inicial a propósito (offline).
+- **Backend:**
+  - `GET /productos/comercial`: filtra en SQL y lee solo las columnas expuestas, sin la consulta de autores. Respuesta idéntica por SHA-256.
+  - `GET /dashboard`: consultas en paralelo; sumas con `aggregate` sobre NUMERIC. Los totales quedan exactos al centavo: antes, p. ej., 34500.530000000006. Prueba nueva en `test/dashboard.postgres.integration.ts`.
+  - Índices: `EXPLAIN ANALYZE` muestra que los existentes ya cubren estas consultas; no se agregó ninguno.
+- **Limpieza:**
+  - Archivos retirados: `.vs/` (estado local de Visual Studio/Copilot, 1,9 MB; queda en el historial de Git); `tests/example.spec.ts` y `playwright.config.ts` de la raíz (plantilla) con sus devDependencies; los tres `pnpm-lock.yaml` (npm es el gestor en CI, Render y Vercel); `test-results/.last-run.json`; `public/icons.svg`; `WeeklyTrend.tsx`; `SuperAdminLoginPage.tsx`.
+  - Dependencias y scripts: script `deploy` + `@nestjs/mau` (recomendación R3 de CENTINELA), `pg-gateway` y `source-map-support`; imports sin uso.
+  - `logo.jpg` re-codificado de 1,88 MB a 269 KB, con las mismas dimensiones y ruta.
+- **Métricas:** Chromium con backend simulado y 5.000 productos; API con PostgreSQL 16 temporal, 5.000 productos y 2.100 ventas. Scripts y resultados en [evidencias/optimizacion-20261016/](evidencias/optimizacion-20261016/).
+
+  | Medida | Antes | Después |
+  |---|---|---|
+  | JS inicial (index.html) | 597 KB / 193 KB gzip | 531 KB / 171 KB gzip |
+  | JS en /login | 585 KB | 518 KB |
+  | JS adicional al abrir POS | 1,25 MB | 45 KB |
+  | POS: agregar al carrito | 208–348 ms | 31–32 ms |
+  | POS: tecla en nombre de cliente | 189–251 ms | 31–32 ms |
+  | POS: nodos DOM | 30.368 | 1.092 |
+  | Inventario: tecla en el alta | 191–212 ms | 15–31 ms |
+  | `/productos/comercial` (mediana) | 182 ms, 3 consultas | 98 ms, 2 consultas |
+  | `/dashboard` con +3 ms/sentido | 456 ms | 51 ms |
+  | `public/` | 1,90 MB | 283 KB |
+
+- **Pruebas locales:**
+  - Frontend: unitarias 340/340; `tsc -b`; lint sin errores (avisos 116 → 115); Playwright simulado 155/155 (Chromium 1194 del entorno).
+  - Backend: build; unitarias 494/494; scripts 48/48; Python OK; lint sin errores (avisos 396 → 390).
+  - PostgreSQL 16 real: suite de integración completa, 978 aprobadas y 1 omitida (navegador opt-in preexistente).
+- **CI de #171:** `guard-base-datos` aprobado. «Piloto con API y PostgreSQL reales» aprobado: 145 pasan, 10 omitidas preexistentes, junto con respaldo, recuperación y actualización. El resultado de `validate` se informa en el PR.
+- **Pendientes y decisiones del dueño:**
+  - Páginas sin ruta que usan localStorage (`ApartadosPage`, `TransferenciasPage`, `PedidosEspecialesPage`, `ListasPrecioPage`): ya no se empaquetan; decidir si retirarlas.
+  - `deploy/local/` (servidor local): se conserva porque lo cubren pruebas de scripts; con la arquitectura web definitiva, el dueño debe decidir si se retira.
+  - `.vercel/project.json` versionado: no es secreto, pero Vercel recomienda no commitearlo.
+  - Revisar el historial de `.vs/` (sesión de Copilot) por si contiene datos sensibles.
+  - Compresión HTTP de la API: no se agregó porque requiere una dependencia o middleware propio. El catálogo comercial pesa unos 2,4 MB sin comprimir con 4.000 productos; verificar si Render comprime.
+  - Las capturas de `frontend/artifacts/` se regeneran en cada corrida de Playwright.
+  - La tabla de Inventario sigue pintando todas las filas: solo se memorizó.
+  - No hubo prueba en dispositivo físico, Safari ni con datos reales.
 
 ---
 
@@ -1657,6 +1720,24 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - **Límites:** no ejecutado en Supabase ni en STAGING; no validado en navegador ni en la interfaz real. `conciliacion-credito-lectura.sql` exige un parámetro de empresa y no se ejecutó. No incluye devoluciones, apartados, pedidos especiales, garantías ni transferencias. En la carga de prueba quedaron 10 líneas de bodega (19 unidades) pendientes al 14-oct; el script usa aleatoriedad controlada (`random()`), así que estas cifras pueden variar entre cargas. Los datos son ficticios; los correos usan el dominio `.example`.
 - **Pendientes:** registrar en `backend/prisma/entornos-seed.json` (revisión CODEOWNERS) solo los identificadores de bases de DESARROLLO o STAGING que deban recibir la demo; validar la carga en una base de desarrollo con la aplicación levantada. No requiere informe de NEXUS porque no cambia el esquema.
 - **Bitácora:** lectura de AGENTS.md y del contexto; revisión del esquema Prisma, de los servicios de ventas, compras, caja, entregas y de la huella de eventos; creación del script; pruebas en base local con migraciones; actualización de este documento.
+
+---
+
+## Revisión de PR #170 — 2026-10-16 UTC (NEXUS para PostgreSQL)
+
+- **Estado: WAITING FOR #171.** Rama exclusiva `qa/jules-03-saas-administracion-4258687846587708011`. Base `main` `d5fec352598cb6ef8933c27d9f1af4601e2c32c4`; #170 recibido en `af73e671e4406e0b976940b64e75219292770184`; #171 abierto en `220435fa015d7a3f597e562ef6708734f3cdc575` al investigar y `70179f51b72d55992c6f49a0e4983a8fcdac6041` al repetir la simulación; main sigue sin incluirlo. Sin ramas/PR nuevos, merge, despliegues manuales ni cambios en #171.
+- **Seguridad corregida:** alta de negocio omitía la política existente de contraseñas y aceptaba vacía, corta, bloqueada, sin números y demasiado larga (cinco casos HTTP: esperado 400, recibido 201). `SuperAdminService.createTenant` ahora llama `isPasswordAllowed` antes de la transacción. No cambia la política ni cuentas existentes. Ocho regresiones unitarias incluyen nulos/tipos incorrectos; el fixture válido sigue comprobando el hash.
+- **Pruebas engañosas sustituidas:** `saas-onboarding-audit.spec.ts` asignaba formatos/planes en mocks, ignoraba selects, no tenía rollback y devolvía JWT constante. Nueva `test/saas-onboarding.postgres.integration.ts`: 16 casos con HTTP/JWT y PostgreSQL temporal reales, migraciones, defaults, secuencias, módulos, hash, aislamiento, roles, sesiones, soporte y persistencia A4/80/58 mm. Mutación en copia aislada (nombre comercial forzado incorrectamente): las 6 pruebas originales pasan y las 3 nuevas de alta fallan. El mutante no se publica.
+- **Defecto móvil:** la clase `negocio-settings-grid` dejó de activar el CSS de `tenant-settings-grid`. Regresión: 390 px pasa; 320 px deja controles hasta x=390. Se conserva la clase nueva y se añade la clase CSS existente. Dos pruebas verifican límites reales de los controles sin ocultar overflow.
+- **Dependencias:** las entradas directas package.json/package-lock.json del HEAD recibido coincidían y npm 11.9 instalaba (398 paquetes), pero npm 10.9.4 falla en copia vacía: Missing typescript@5.9.3. La actualización de lock de Jules había eliminado el peer opcional anidado que tsconfck necesita con TypeScript 6 raíz. Regenerado con npm 10 mediante install --package-lock-only --ignore-scripts: solo recupera esa entrada previa (sin cambiar package.json ni versiones). Instalaciones limpias finales con npm 10.9.4 y 11.9: ambas correctas, 399 paquetes; frontend npm ci correcto (131 paquetes). Se conservan `multer` (import directo de `memoryStorage` en `super-admin.controller.ts`, logotipos privados) y `@types/multer` (tipos de desarrollo de ese import); sin paquetes nuevos. Se revierte solo el cambio incidental del pnpm-lock de backend al contenido de main para permitir su eliminación por #171; no se usa pnpm ni se pretende reparar ese lock histórico.
+- **Render:** comando documentado comprobado en copia limpia con Node 24, NODE_ENV=production y URL PostgreSQL sintética: `npm ci --include=dev`, Prisma generate y build. Resultado: correcto primero con npm 11 (398 paquetes); tras reparar el peer, repetido con npm 10 (399 paquetes), Prisma 6.4.1 y build sin errores. No se accede al panel Render ni a producción.
+- **Evidencia:** integración afectada (SaaS, configuración/logotipo, administración/soporte, autenticación fase 3, seguridad fase 2, auditoría de soporte) **99/99**, PostgreSQL 17.11 temporal sin root. Frontend unitarias **337/337**, scripts backend **48/48**, Python **10/10**; builds, lint sin errores (avisos existentes), guard correcto con 0 migraciones nuevas. Backend unitarias **502/502**. Tras regenerar el lock: nueva integración **16/16** y unitarias SuperAdmin **24/24** repetidas en copia instalada con npm 10. El rollback exige un trigger PostgreSQL que comprueba negocio/secuencias/módulos ya escritos antes del fallo sintético: un rechazo previo no pasa la prueba. Navegador afectado: **9/10** (las seis de configuración/móvil pasan; timeout de 30 s en movimiento de Caja, fuera de los archivos funcionales modificados). Se repite la suite de navegador sin carga paralela de compilaciones/pruebas backend; resultado final en #170.
+- **Impresión:** PDFs reales de ReciboPDF/@react-pdf/renderer: A4 595.280029×841.890015 pt; 80 mm 226.770004 pt de ancho; 58 mm 164.410004 pt (altura 668 pt con el fixture). Sin impresoras físicas; no se toca la carga diferida de PDF que implementa #171.
+- **CI/revisiones:** HEAD recibido con validate, guard y piloto real aprobados; sin reviews ni comentarios inline. Leídos comentarios generales y respuesta posterior de sincronización del lock. Consultar checks del nuevo HEAD en #170: los antiguos no certifican los commits nuevos.
+- **Coordinación:** simulación inicial con `git merge-tree --write-tree HEAD origin/pr171`: solo conflicto modify/delete de backend/pnpm-lock.yaml; package.json y lock npm combinaban textualmente. #171 elimina @nestjs/mau, pg-gateway y source-map-support: las pruebas nuevas no los usan y se deben conservar esas eliminaciones. Simulación repetida contra #171 `70179f51`: sin conflictos textuales, dependencias directas/raíz del lock coinciden y las tres eliminaciones se conservan. Coincidencia textual del lock no sustituye regeneración npm tras la integración real. Este bloque se añade lejos del de #171 para evitar conflicto documental.
+- **Tras integrar #171:** fetch y comprobar ascendencia en main; actualizar esta misma rama; conservar eliminaciones y multer/tipos; regenerar lockfiles npm afectados usando npm; npm ci, build Render, pruebas afectadas/integración y Actions en el nuevo HEAD. Resolver documentación conservando ambos registros. No se declara integración definitiva ni se sondea indefinidamente.
+- **Límites:** sin validación de datos/configuración productivos, Supabase real, Safari/iPhone ni impresoras. Primera ejecución amplia local de navegador interrumpida: 36 aprobadas, 2 fallos en Caja y 2 interrumpidas bajo carga concurrente; se repiten Caja y configuración aisladamente sin modificar aserciones. No presentar esa ejecución como aprobada. Integración con #171 y checks del nuevo HEAD pendientes de consulta.
+- **Bitácora:** lectura de AGENTS/contexto/límites NEXUS; fetch; diff completo incluidas capturas, comentarios y workflows; npm ci limpio; regresiones rojas; correcciones mínimas; HTTP/PostgreSQL real; mutación de control; PDFs; validación y publicación en la misma rama. Sin esquema/migraciones ni operaciones productivas.
 
 ---
 

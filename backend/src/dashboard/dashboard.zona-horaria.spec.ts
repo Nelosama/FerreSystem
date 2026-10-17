@@ -9,7 +9,7 @@ describe('Dashboard — día calendario de America/Tegucigalpa', () => {
 
   function prismaMock() {
     return {
-      venta: { findMany: vi.fn().mockResolvedValue([]) },
+      venta: { aggregate: vi.fn().mockResolvedValue({ _sum: { total: null }, _count: 0 }), findMany: vi.fn().mockResolvedValue([]) },
       devolucion: { aggregate: vi.fn().mockResolvedValue({ _sum: { monto: null } }) },
       producto: { findMany: vi.fn().mockResolvedValue([]) },
       cotizacion: { findMany: vi.fn().mockResolvedValue([]) },
@@ -23,7 +23,7 @@ describe('Dashboard — día calendario de America/Tegucigalpa', () => {
 
     await new DashboardService(prisma as any).getDashboardData('t1');
 
-    const rango = prisma.venta.findMany.mock.calls[0][0].where.createdAt;
+    const rango = prisma.venta.aggregate.mock.calls[0][0].where.createdAt;
     expect(rango.gte.toISOString()).toBe('2026-10-09T06:00:00.000Z');
     expect(rango.lte.toISOString()).toBe('2026-10-10T05:59:59.999Z');
   });
@@ -46,7 +46,7 @@ describe('Dashboard — día calendario de America/Tegucigalpa', () => {
 
     await new DashboardService(prisma as any).getDashboardData('t1');
 
-    const ayer = prisma.venta.findMany.mock.calls[1][0].where.createdAt;
+    const ayer = prisma.venta.aggregate.mock.calls[1][0].where.createdAt;
     expect(ayer.gte.toISOString()).toBe('2026-10-08T06:00:00.000Z');
     expect(ayer.lte.toISOString()).toBe('2026-10-09T05:59:59.999Z');
   });
