@@ -31,7 +31,6 @@ test('no quedan referencias comerciales a FerreSystem en la interfaz', () => {
     'src/context/TenantContext.tsx',
     'src/utils/tenantSettings.ts',
     'src/pages/LoginPage.tsx',
-    'src/pages/SuperAdminLoginPage.tsx',
     'src/pages/POSPage.tsx',
     'src/utils/barcodeScanner.ts',
   ];

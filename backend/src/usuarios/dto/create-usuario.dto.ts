@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsEnum, IsBoolean, IsOptional, MinLength, IsArray, IsNumber, Min, Max, ArrayMaxSize } from 'class-validator';
+import { IsString, IsEmail, IsEnum, IsBoolean, IsOptional, IsArray, IsNumber, Min, Max, ArrayMaxSize } from 'class-validator';
 import { IsAllowedPassword } from '../../common/password-policy';
 import { Rol } from '../../types/prisma-enums';
 

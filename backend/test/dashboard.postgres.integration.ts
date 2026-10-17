@@ -102,6 +102,17 @@ describe('Dashboard / PostgreSQL aislado', () => {
     expect(data.ultimasVentas.length).toBeGreaterThan(0);
   });
 
+  it('suma las ventas del día al centavo exacto (en PostgreSQL), cuenta solo las completadas y respeta la tendencia', async () => {
+    const usuario = await prisma.usuario.create({ data: { tenantId, nombre: 'Cajero', email: `s-${tenantId}@prueba.test`, passwordHash: 'x' } });
+    // Diez ventas de L 0.10 suman 0.9999999999999999 en coma flotante; el total correcto es L 1.00.
+    const hoy = new Date(Date.now() - 60 * 1000);
+    for (let i = 1; i <= 10; i++) await prisma.venta.create({ data: { tenantId, usuarioId: usuario.id, numeroVenta: i, subtotal: 0.1, isv: 0, total: 0.1, createdAt: hoy } });
+    await prisma.venta.create({ data: { tenantId, usuarioId: usuario.id, numeroVenta: 11, subtotal: 500, isv: 0, total: 500, estado: 'ANULADA', createdAt: hoy } });
+    const data = await dashboard.getDashboardData(tenantId);
+    expect(data.ventasDelDia).toMatchObject({ total: 1, cantidad: 10 });
+    expect(data.tendenciaSemanal.at(-1)).toMatchObject({ esHoy: true, total: 1 });
+  });
+
   it.each([
     ['productos', 'version'],
     ['ventas', 'reserva_pendiente'],

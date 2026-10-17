@@ -15,13 +15,13 @@ import './App.css';
 import './v2-theme.css';
 import { TaskFinder } from './components/TaskFinder';
 import { ModuloPendiente } from './components/ModuloPendiente';
-import { GarantiasPage } from './pages/GarantiasPage';
 
 import { useTenant } from './context/TenantContext';
 
 const AuditoriaPage=React.lazy(()=>import('./pages/AuditoriaPage').then(m=>({default:m.AuditoriaPage})));
 const DevolucionesPage=React.lazy(()=>import('./pages/DevolucionesPage').then(m=>({default:m.DevolucionesPage})));
 const PreciosPage=React.lazy(()=>import('./pages/PreciosPage').then(m=>({default:m.PreciosPage})));
+const GarantiasPage=React.lazy(()=>import('./pages/GarantiasPage').then(m=>({default:m.GarantiasPage})));
 const EntregasPage=React.lazy(()=>import('./pages/EntregasPage').then(m=>({default:m.EntregasPage})));
 const OperacionesPage=React.lazy(()=>import('./pages/OperacionesPage').then(m=>({default:m.OperacionesPage})));
 

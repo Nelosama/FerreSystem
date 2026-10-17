@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsInt, MaxLength, IsUUID, IsBoolean, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsInt, MaxLength, IsUUID, Matches } from 'class-validator';
 
 export class CreateLevantamientoItemDto {
  @IsOptional() @IsUUID('4') solicitudId?:string;

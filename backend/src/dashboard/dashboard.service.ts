@@ -20,31 +20,49 @@ export class DashboardService {
     const { inicio: inicioAyer, fin: finExclusivoAyer } = rangoDiasEnZona(diaAyer, diaAyer, zona);
     const finAyer = new Date(finExclusivoAyer.getTime() - 1);
 
-    // 1. Ventas del día (HNL)
-    const ventasHoy = await this.prisma.venta.findMany({
-      select: { total: true },
-      where: {
-        tenantId,
-        estado: 'COMPLETADA',
-        createdAt: { gte: inicioHoy, lte: finHoy },
-      },
+    // Las consultas son independientes entre sí: se lanzan juntas en lugar de una tras otra
+    // (el panel se consulta cada 30 s). Los rangos y filtros son los de siempre; la suma la hace PostgreSQL
+    // sobre NUMERIC (exacta y sin depender del orden de las filas) en vez de traer cada venta y sumar en coma flotante.
+    const ventasEntre = (createdAt: { gte: Date; lte?: Date; lt?: Date }) => this.prisma.venta.aggregate({
+      where: { tenantId, estado: 'COMPLETADA', createdAt },
+      _sum: { total: true },
+      _count: true,
     });
+    const totalDe = (r: { _sum: { total: unknown } }) => Number(r._sum.total || 0);
+    const devolucionesEntre = (gte: Date, lte: Date) =>
+      this.prisma.devolucion.aggregate({ where: { tenantId, createdAt: { gte, lte } }, _sum: { monto: true } });
 
-    const returnsToday=await this.prisma.devolucion.aggregate({where:{tenantId,createdAt:{gte:inicioHoy,lte:finHoy}},_sum:{monto:true}});
-    const totalVentasHoy = ventasHoy.reduce((acc, v) => acc + Number(v.total), 0)-Number(returnsToday._sum.monto||0);
+    // 4. Tendencia semanal (últimos 7 días)
+    const diasSemana = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+    const diasTendencia = [6, 5, 4, 3, 2, 1, 0].map((i) => ({ i, dia: sumarDias(diaHoy, -i) }));
 
-    // Ventas de ayer para variación porcentual
-    const ventasAyer = await this.prisma.venta.findMany({
-      select: { total: true },
-      where: {
-        tenantId,
-        estado: 'COMPLETADA',
-        createdAt: { gte: inicioAyer, lte: finAyer },
-      },
-    });
+    const [ventasHoy, ventasAyer, returnsToday, returnsYesterday, existencias, ventasPorDia, ultimasVentas] = await Promise.all([
+      // 1. Ventas del día (HNL) y de ayer para la variación porcentual
+      ventasEntre({ gte: inicioHoy, lte: finHoy }),
+      ventasEntre({ gte: inicioAyer, lte: finAyer }),
+      devolucionesEntre(inicioHoy, finHoy),
+      devolucionesEntre(inicioAyer, finAyer),
+      // 2 y 3. Alertas de stock bajo y cotizaciones pendientes
+      this.existenciasYCotizaciones(tenantId, diaHoy),
+      Promise.all(diasTendencia.map(({ dia }) => {
+        const { inicio, fin } = rangoDiasEnZona(dia, dia, zona);
+        return ventasEntre({ gte: inicio, lt: fin });
+      })),
+      // 5. Últimas ventas
+      this.prisma.venta.findMany({
+        where: { tenantId },
+        select: {
+          id: true, numeroVenta: true, total: true, metodoPago: true, createdAt: true,
+          cliente: { select: { nombre: true } },
+          usuario: { select: { nombre: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+    ]);
 
-    const returnsYesterday=await this.prisma.devolucion.aggregate({where:{tenantId,createdAt:{gte:inicioAyer,lte:finAyer}},_sum:{monto:true}});
-    const totalVentasAyer = ventasAyer.reduce((acc, v) => acc + Number(v.total), 0)-Number(returnsYesterday._sum.monto||0);
+    const totalVentasHoy = totalDe(ventasHoy)-Number(returnsToday._sum.monto||0);
+    const totalVentasAyer = totalDe(ventasAyer)-Number(returnsYesterday._sum.monto||0);
 
     let variacionPorcentaje: number | null = null;
     if (totalVentasAyer > 0) {
@@ -53,54 +71,19 @@ export class DashboardService {
       variacionPorcentaje = 100;
     }
 
-    // 2 y 3. Alertas de stock bajo y cotizaciones pendientes
-    const { productosBajoStock, cotizaciones, porVencerHoy } = await this.existenciasYCotizaciones(tenantId, diaHoy);
+    const { productosBajoStock, cotizaciones, porVencerHoy } = existencias;
 
-    // 4. Tendencia semanal (últimos 7 días)
-    const diasSemana = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
-    const tendenciaSemanal: { dia: string; fecha: string; total: number; esHoy: boolean }[] = [];
-
-    for (let i = 6; i >= 0; i--) {
-      const dia = sumarDias(diaHoy, -i);
-      const { inicio, fin } = rangoDiasEnZona(dia, dia, zona);
-
-      const ventasDia = await this.prisma.venta.findMany({
-        select: { total: true },
-        where: {
-          tenantId,
-          estado: 'COMPLETADA',
-          createdAt: { gte: inicio, lt: fin },
-        },
-      });
-
-      const totalDia = ventasDia.reduce((acc, v) => acc + Number(v.total), 0);
-      const diaSemana = new Date(`${dia}T00:00:00.000Z`).getUTCDay();
-      const diaTexto = i === 0 ? 'HOY' : diasSemana[diaSemana];
-
-      tendenciaSemanal.push({
-        dia: diaTexto,
-        fecha: dia,
-        total: totalDia,
-        esHoy: i === 0,
-      });
-    }
-
-    // 5. Últimas ventas
-    const ultimasVentas = await this.prisma.venta.findMany({
-      where: { tenantId },
-      select: {
-        id: true, numeroVenta: true, total: true, metodoPago: true, createdAt: true,
-        cliente: { select: { nombre: true } },
-        usuario: { select: { nombre: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    });
+    const tendenciaSemanal = diasTendencia.map(({ i, dia }, n) => ({
+      dia: i === 0 ? 'HOY' : diasSemana[new Date(`${dia}T00:00:00.000Z`).getUTCDay()],
+      fecha: dia,
+      total: totalDe(ventasPorDia[n]),
+      esHoy: i === 0,
+    }));
 
     return {
       ventasDelDia: {
         total: totalVentasHoy,
-        cantidad: ventasHoy.length,
+        cantidad: ventasHoy._count,
         variacionPorcentaje,
       },
       alertasStock: this.alertas(productosBajoStock),
@@ -152,7 +135,7 @@ export class DashboardService {
 
   private async existenciasYCotizaciones(tenantId: string, diaHoy: string) {
     // Alertas de stock bajo
-    const productos = await this.prisma.producto.findMany({
+    const [productos, cotizaciones] = await Promise.all([this.prisma.producto.findMany({
       where: { tenantId, activo: true },
       // Seleccionar únicamente datos del resumen evita depender de columnas de otros módulos.
       select: {
@@ -160,18 +143,17 @@ export class DashboardService {
         stockReservado: true, stockMinimo: true, unidadMedida: true,
       },
       orderBy: { stockActual: 'asc' },
-    });
-
-    const productosBajoStock = productos.filter((p) => p.stockActual.minus(p.stockReservado).lte(p.stockMinimo));
-
+    }),
     // Cotizaciones pendientes y por vencer hoy
-    const cotizaciones = await this.prisma.cotizacion.findMany({
+    this.prisma.cotizacion.findMany({
       select: { fechaValidez: true },
       where: {
         tenantId,
         estado: { in: ['BORRADOR', 'ENVIADA', 'APROBADA'] },
       },
-    });
+    })]);
+
+    const productosBajoStock = productos.filter((p) => p.stockActual.minus(p.stockReservado).lte(p.stockMinimo));
 
     // fechaValidez es DATE (sin hora): su día calendario se lee tal cual, en UTC.
     let porVencerHoy = 0;

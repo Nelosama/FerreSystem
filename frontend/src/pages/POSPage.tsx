@@ -1,9 +1,10 @@
 import { calcularVentaPOS } from '../utils/posMoney';
+import { buscarPorCodigo, filtrarCatalogo, indexarCatalogo } from '../utils/posCatalogo';
 import { Link } from 'react-router-dom';
 import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
 import './POSPage.css';
 import { BarcodeScanner } from '../components/BarcodeScanner';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import type { ProductItem } from '../types';
@@ -27,13 +28,16 @@ import {
   Download,
 } from 'lucide-react';
 import { ZONA_HORARIA_NEGOCIO, formatLempiras } from '../utils/format';
-import { descargarReciboPDF } from '../components/descargarRecibo';
+import { descargarReciboPDF, precargarGeneradorPDF } from '../components/descargarRecibo';
 import { LogotipoNegocio } from '../components/LogotipoNegocio';
 import { anchoTicketCss, tamanoPaginaImpresion } from '../utils/formatoImpresion';
 
 // Autorización bancaria de tarjeta/transferencia: la registra el cajero tras la aprobación del POS físico.
 const pagoElectronicoDesde = (metodo: string, aut: { referencia: string; terminal: string }) =>
   (metodo === 'TARJETA' || metodo === 'TRANSFERENCIA') ? { referencia: aut.referencia.trim(), terminal: aut.terminal.trim() } : undefined;
+
+// Tarjetas del catálogo pintadas a la vez: con catálogos grandes la búsqueda acota y «Mostrar más» amplía.
+const TARJETAS_POR_PAGINA = 120;
 
 // Adapta un producto del catálogo comercial al formato del POS.
 const mapearProductoPOS = (p: any): ProductItem => ({
@@ -263,6 +267,35 @@ export const POSPage: React.FC = () => {
     }
   };
 
+  // Las tarjetas del catálogo se memorizan: escribir en el carrito o en el cliente no vuelve a pintarlas.
+  // El clic usa siempre la versión vigente de agregarAlCarrito (carrito, bloqueo y proveedor actuales).
+  const agregarRef = useRef(agregarAlCarrito);
+  agregarRef.current = agregarAlCarrito;
+  const indiceCatalogo = useMemo(() => indexarCatalogo(productos), [productos]);
+  const catalogoFiltrado = useMemo(() => filtrarCatalogo(indiceCatalogo, search), [indiceCatalogo, search]);
+  // Cada cambio de búsqueda (también volver a vacío) reinicia la lista a la primera página.
+  const [limiteCatalogo, setLimiteCatalogo] = useState(TARJETAS_POR_PAGINA);
+  const [busquedaPaginada, setBusquedaPaginada] = useState(search);
+  if (busquedaPaginada !== search) {
+    setBusquedaPaginada(search);
+    setLimiteCatalogo(TARJETAS_POR_PAGINA);
+  }
+  const tarjetasCatalogo = useMemo(() => catalogoFiltrado.slice(0, limiteCatalogo).map((prod) => (
+    <div
+      key={prod.id}
+      className="industrial-card"
+      style={styles.productCard}
+      onClick={() => agregarRef.current(prod)}
+    >
+      <div style={styles.skuBadge}>{prod.codigo}</div>
+      <div style={styles.productName}>{prod.nombre}</div>
+      <div style={styles.priceRow}>
+        <span style={styles.priceText}>{formatLempiras(prod.precioVenta)}</span>
+        {prod.imagenUrl&&<img src={prod.imagenUrl} alt={prod.nombre} loading="lazy" referrerPolicy="no-referrer" style={{width:80,height:60,objectFit:'contain'}}/>}<span style={{ ...styles.stockText, ...(Number(prod.stockActual) <= 0 ? { color: '#B45309', fontWeight: 700 } : {}) }}>{prod.stockActual} {t('pos.available')}{Number(prod.stockActual) <= 0 ? ' · sin existencia' : ''}</span>
+      </div>
+    </div>
+  )), [catalogoFiltrado, limiteCatalogo, t]);
+
   const modificarCantidad = (productoId: string, delta: number) => {
     if (edicionBloqueada || cobrandoRef.current) return;
     setCart(
@@ -483,7 +516,7 @@ export const POSPage: React.FC = () => {
                 type="text"
                 placeholder={t('pos.search_products')}
                 value={search}
-                onKeyDown={e=>{if(e.key==='Enter'){const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===search.trim().toUpperCase()));if(matches.length===1){e.preventDefault();agregarAlCarrito(matches[0]);setSearch('');}else if(matches.length>1)setErrorText('Código ambiguo; seleccione el producto');else if(search.trim())void explicarCodigoNoVendible(search.trim());}}}
+                onKeyDown={e=>{if(e.key==='Enter'){const matches=buscarPorCodigo(indiceCatalogo,search.trim());if(matches.length===1){e.preventDefault();agregarAlCarrito(matches[0]);setSearch('');}else if(matches.length>1)setErrorText('Código ambiguo; seleccione el producto');else if(search.trim())void explicarCodigoNoVendible(search.trim());}}}
                 onChange={(e) => setSearch(e.target.value)}
                 className="form-input"
                 style={{ paddingLeft: '38px', height: '46px', fontSize: '15px' }}
@@ -491,31 +524,16 @@ export const POSPage: React.FC = () => {
               />
             </div>
 
-            <BarcodeScanner disabled={edicionBloqueada} onCode={code=>{const matches=productos.filter(p=>[p.codigo,p.codigoBarras,p.codigoFabricante].some(c=>c?.toUpperCase()===code.toUpperCase()));if(matches.length===1){agregarAlCarrito(matches[0]);setSearch('');}else{setSearch(code);if(matches.length)setErrorText('Código ambiguo; seleccione el producto');else void explicarCodigoNoVendible(code);}}}/>
+            <BarcodeScanner disabled={edicionBloqueada} onCode={code=>{const matches=buscarPorCodigo(indiceCatalogo,code);if(matches.length===1){agregarAlCarrito(matches[0]);setSearch('');}else{setSearch(code);if(matches.length)setErrorText('Código ambiguo; seleccione el producto');else void explicarCodigoNoVendible(code);}}}/>
             <div style={styles.catalogGrid} className="ferre-pos-catalog">
-              {productos
-                .filter(
-                  (p) =>
-                    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-                    p.codigo.toLowerCase().includes(search.toLowerCase()) ||
-                    p.codigoBarras?.includes(search) || p.codigoFabricante?.toLowerCase().includes(search.toLowerCase()) || p.descripcion?.toLowerCase().includes(search.toLowerCase()),
-                )
-                .map((prod) => (
-                  <div
-                    key={prod.id}
-                    className="industrial-card"
-                    style={styles.productCard}
-                    onClick={() => agregarAlCarrito(prod)}
-                  >
-                    <div style={styles.skuBadge}>{prod.codigo}</div>
-                    <div style={styles.productName}>{prod.nombre}</div>
-                    <div style={styles.priceRow}>
-                      <span style={styles.priceText}>{formatLempiras(prod.precioVenta)}</span>
-                      {prod.imagenUrl&&<img src={prod.imagenUrl} alt={prod.nombre} loading="lazy" referrerPolicy="no-referrer" style={{width:80,height:60,objectFit:'contain'}}/>}<span style={{ ...styles.stockText, ...(Number(prod.stockActual) <= 0 ? { color: '#B45309', fontWeight: 700 } : {}) }}>{prod.stockActual} {t('pos.available')}{Number(prod.stockActual) <= 0 ? ' · sin existencia' : ''}</span>
-                    </div>
-                  </div>
-                ))}
+              {tarjetasCatalogo}
             </div>
+            {catalogoFiltrado.length > limiteCatalogo && (
+              <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                <span>Mostrando {limiteCatalogo} de {catalogoFiltrado.length} productos. Escriba para acotar la búsqueda.</span>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setLimiteCatalogo(limiteCatalogo + TARJETAS_POR_PAGINA)}>Mostrar más</button>
+              </div>
+            )}
           </div>
 
           {/* Columna Derecha: Factura y Resumen */}
@@ -820,6 +838,8 @@ export const POSPage: React.FC = () => {
               <button
                 type="button"
                 className="btn btn-primary"
+                onPointerEnter={precargarGeneradorPDF}
+                onFocus={precargarGeneradorPDF}
                 onClick={async () => {
                   if (!numeroVentaGenerado) return;
                   await descargarReciboPDF(

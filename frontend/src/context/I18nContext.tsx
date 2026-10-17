@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import esTranslations from '../locales/es.json';
-import enTranslations from '../locales/en.json';
 
 type Locale = 'es' | 'en';
 
@@ -10,10 +9,12 @@ interface I18nContextType {
   t: (key: string, values?: Record<string, string | number>) => string;
 }
 
-const translations: Record<Locale, Record<string, any>> = {
-  es: esTranslations,
-  en: enTranslations,
-};
+type Diccionario = Record<string, any>;
+
+// El español va en la carga inicial; el inglés (~57 KB) se descarga solo si se elige.
+// Mientras llega, los textos se muestran en español, como ya ocurría con claves ausentes.
+let ingles: Diccionario | null = null;
+const cargarIngles = () => import('../locales/en.json').then((m) => (ingles = m.default as Diccionario));
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
@@ -23,9 +24,20 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return (saved === 'en' || saved === 'es') ? saved : 'es';
   });
 
+  const [diccionarioIngles, setDiccionarioIngles] = useState<Diccionario | null>(ingles);
+
   useEffect(() => {
     localStorage.setItem('ferre_language', locale);
   }, [locale]);
+
+  useEffect(() => {
+    if (locale !== 'en' || diccionarioIngles) return;
+    let vigente = true;
+    cargarIngles().then((d) => { if (vigente) setDiccionarioIngles(d); }).catch(() => undefined);
+    return () => { vigente = false; };
+  }, [locale, diccionarioIngles]);
+
+  const diccionario: Diccionario = locale === 'en' && diccionarioIngles ? diccionarioIngles : esTranslations;
 
   const setLocale = (lang: Locale) => {
     setLocaleState(lang);
@@ -33,7 +45,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const t = useCallback((path: string, values?: Record<string, string | number>): string => {
     const keys = path.split('.');
-    let current: any = translations[locale] || translations.es;
+    let current: any = diccionario;
 
     for (const k of keys) {
       if (current && typeof current === 'object' && k in current) {
@@ -46,7 +58,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return typeof current === 'string'
       ? current.replace(/\{(\w+)\}/g, (match, key) => values?.[key] !== undefined ? String(values[key]) : match)
       : path;
-  }, [locale]);
+  }, [diccionario]);
 
   return (
     <I18nContext.Provider value={{ locale, setLocale, t }}>
