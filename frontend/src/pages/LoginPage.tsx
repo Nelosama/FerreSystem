@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate } from 'react-router-dom';
-import { SESSION_EXPIRED_MESSAGE } from '../utils/authInterceptors';
+import { SESSION_EXPIRED_MESSAGE, hasSessionExpiredNotice, clearSessionExpiredNotice } from '../utils/authInterceptors';
 import { api } from '../utils/api';
 
 export const LoginPage: React.FC = () => {
@@ -12,7 +12,10 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(() => sessionStorage.getItem('ferre_session_expired') ? SESSION_EXPIRED_MESSAGE : null);
+  const [error, setError] = useState<string | null>(() => hasSessionExpiredNotice() ? SESSION_EXPIRED_MESSAGE : null);
+
+  // El aviso pertenece a la redirección actual, no a visitas futuras al login.
+  useEffect(() => { clearSessionExpiredNotice(); }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

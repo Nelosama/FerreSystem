@@ -102,3 +102,40 @@ html[data-session-pending="true"] [data-protected-content] {
   visibility: hidden;
   pointer-events: none;
 }
+
+.jowa-topnav { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px 20px; background:var(--color-sidebar-bg); border-bottom:1px solid var(--color-border); position:relative; z-index:100; }
+.jowa-brand-home { display:flex; align-items:center; gap:10px; min-width:0; color:var(--color-sidebar-text); text-decoration:none; padding:6px; border-radius:4px; }
+.jowa-brand-home:focus-visible { outline:2px solid var(--color-primary); }
+.jowa-brand-text { display:flex; flex-direction:column; min-width:0; }
+.jowa-brand-text strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px; }
+.jowa-brand-text small { color:var(--color-primary); font-size:10px; font-weight:700; }
+.jowa-topnav-links { display:flex; flex-wrap:wrap; align-items:center; gap:4px; }
+.topnav-entry { display:flex; align-items:center; }
+.topnav-link, .topnav-more summary { display:block; padding:9px 8px; color:var(--color-sidebar-text); font-size:12px; font-weight:700; text-decoration:none; cursor:pointer; border-radius:4px; white-space:nowrap; }
+.topnav-link.active { background:var(--color-primary); color:white; }
+.topnav-more { position:relative; }
+.topnav-more summary { list-style:none; }
+.topnav-dropdown { position:absolute; top:100%; right:0; min-width:210px; padding:6px; background:var(--color-sidebar-bg); border:1px solid var(--color-border); box-shadow:var(--shadow-hard-sm); z-index:101; }
+.topnav-dropdown .topnav-link { white-space:normal; }
+.negocio-detail { padding:24px; display:grid; gap:18px; min-width:0; }
+.negocio-tabs { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
+.negocio-tabs a { padding:10px 14px; color:var(--color-text-main); border:1px solid var(--color-border); border-radius:4px; text-decoration:none; }
+.negocio-tabs a.active { background:var(--color-primary); color:white; }
+.negocio-management { padding:20px; min-width:0; }
+.negocio-form { display:grid; gap:14px; margin:18px 0; max-width:720px; }
+.negocio-form label { display:grid; gap:6px; }
+.negocio-form input,.negocio-form select { min-width:0; max-width:100%; }
+.negocio-module { display:flex; gap:8px; padding:10px 0; }
+@media(max-width:600px) { .negocio-detail { padding:12px; } .negocio-management { padding:12px; } }
+.jowa-topnav { flex-direction:column; align-items:stretch; gap:0; padding:0; }
+.jowa-topnav-header { display:flex; align-items:center; gap:24px; padding:12px 24px; border-bottom:1px solid var(--color-border-subtle); }
+.jowa-topnav-header .task-finder { flex:1; min-width:0; margin:0; }
+.jowa-topnav-links { padding:4px 24px; border-bottom:1px solid var(--color-border-subtle); gap:12px; }
+.jowa-topnav-links .topnav-link.active { background:transparent; color:var(--color-primary); box-shadow:inset 0 -3px var(--color-primary); border-radius:0; }
+.mobile-brand-only { display:none; }
+@media(max-width:768px) { .mobile-brand-only { display:block; } }
+.v2-tenant-brand { display:flex; align-items:center; gap:8px; min-width:0; max-width:100%; font-weight:800; }
+.v2-tenant-brand span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.navigation-group { text-transform:uppercase; }
+.topnav-dropdown { left:0; right:auto; }
+.topnav-entry:last-child .topnav-dropdown, .jowa-topnav-links > .topnav-more .topnav-dropdown { left:auto; right:0; }

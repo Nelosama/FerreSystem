@@ -6,7 +6,7 @@
     "quotations": "QUOTATIONS",
     "layaway": "LAYAWAY",
     "cash_drawer": "CASH DRAWER",
-    "purchase_orders": "PURCHASE ORDERS",
+    "purchase_orders": "Purchases",
     "transfers": "TRANSFERS",
     "warranties": "WARRANTIES & SERIALS",
     "special_orders": "SPECIAL ORDERS",
@@ -23,7 +23,9 @@
     "mobile_admin": "Mobile summary",
     "customer_statement": "Estado de cuenta",
     "bank_reconciliation": "Bank reconciliation",
-    "prices": "PRICES AND APPROVAL"
+    "prices": "PRICES AND APPROVAL",
+    "users": "Staff",
+    "clients": "Customers"
   },
   "stock_taking": {
     "title": "STOCK TAKING",
@@ -489,7 +491,7 @@
     "tenants_count": "REGISTERED STORES",
     "admins_count": "ADMINISTRATOR USERS",
     "active_subscriptions": "ACTIVE SUBSCRIPTIONS",
-    "total_branches": "BRANCHES (NOT AVAILABLE)",
+    "total_branches": "BRANCHES",
     "tab_tenants": "CLIENTS (TENANTS)",
     "tab_services": "SERVICE CATALOG",
     "tab_admins": "ADMIN USERS",
@@ -766,7 +768,12 @@
     "cash_help": "View cash drawer opening and closing",
     "branch": "Branch",
     "language": "Language",
-    "modules": "Available screens"
+    "modules": "Available screens",
+    "INICIO": "Home",
+    "VENTAS": "Sales",
+    "ADMINISTRACION": "Administration",
+    "purchases_receiving": "Purchases and receiving",
+    "staff_permissions": "Staff and permissions"
   },
   "tasks": {
     "finder": "Find a screen or task",

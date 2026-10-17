@@ -29,3 +29,8 @@ test('guardar o cambiar sesión/tenant invalida todas las lecturas anteriores', 
   assert.equal(reads.accepts(first, current, current), false);
   const next = reads.begin(); assert.equal(reads.accepts(next, normalize({ id: 'B' }), current), false);
 });
+
+test('idioma del servidor prevalece sobre preferencias locales y cambia con el tenant', () => {
+  assert.equal(normalize({ id: 'A', configuracion: { idioma: 'en' } }, { idioma: 'es' }).idioma, 'en');
+  assert.equal(normalize({ id: 'B', configuracion: {} }, { idioma: 'en' }).idioma, 'es');
+});

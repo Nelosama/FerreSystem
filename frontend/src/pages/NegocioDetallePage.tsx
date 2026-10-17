@@ -1,0 +1,104 @@
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { TopBar } from '../components/TopBar';
+import { NegocioNavigation } from '../components/NegocioNavigation';
+import { api } from '../utils/api';
+import { CATALOGO_MODULOS, PENDING_MODULES } from '../config/modulesCatalog';
+import { useI18n } from '../context/I18nContext';
+import { LogotipoNegocioEditor } from '../components/LogotipoNegocioEditor';
+
+type Registro = { id: string; nombre: string; email?: string; rol?: string; activo?: boolean; activa?: boolean; direccion?: string; telefono?: string; permisos?: string[]; descuentoMaximo?: number };
+const mensaje = (error: any) => { const value = error.response?.data?.message; return Array.isArray(value) ? value.join(', ') : value || 'No se pudo completar la operación. Sus cambios se conservan; vuelva a intentar.'; };
+
+function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuarios' | 'sucursales' }) {
+  const endpoint = `/admin/tenants/${negocioId}/${tipo}`;
+  const usuarios = tipo === 'usuarios';
+  const [filas, setFilas] = useState<Registro[]>([]);
+  const [form, setForm] = useState<Partial<Registro> & { password?: string } | null>(null);
+  const [error, setError] = useState('');
+  const [estado, setEstado] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [permisosEditados, setPermisosEditados] = useState(false);
+  const cargar = async () => { const { data } = await api.get(endpoint, { params: usuarios ? { gestion: true } : {} }); setFilas(data); };
+  useEffect(() => {
+    let vigente = true;
+    api.get(endpoint, { params: usuarios ? { gestion: true } : {} }).then(({ data }) => { if (vigente) setFilas(data); }).catch(e => { if (vigente) setError(mensaje(e)); });
+    return () => { vigente = false; };
+  }, [endpoint, usuarios]);
+  const guardar = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!form || busy) return;
+    setBusy(true); setError(''); setEstado('');
+    const body = usuarios ? { nombre: form.nombre, email: form.email, rol: form.rol, activo: form.activo, ...(form.password && { password: form.password }), ...(permisosEditados && { permisos: form.permisos ?? [] }), descuentoMaximo: Number(form.descuentoMaximo || 0) } : { nombre: form.nombre, direccion: form.direccion || '', telefono: form.telefono || '', activa: form.activa };
+    try {
+      if (form.id) await api.patch(`${endpoint}/${form.id}`, body); else await api.post(endpoint, body);
+      setForm(null); setEstado('Cambios guardados.'); await cargar();
+    } catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
+  };
+  const toggle = async (fila: Registro) => {
+    const activo = usuarios ? fila.activo : fila.activa;
+    if (!window.confirm(`¿${activo ? 'Desactivar' : 'Reactivar'} ${fila.nombre}? Se conserva su historial.`)) return;
+    setBusy(true); setError(''); setEstado('');
+    try { await api.patch(`${endpoint}/${fila.id}`, usuarios ? { activo: !activo } : { activa: !activo }); setEstado('Estado actualizado.'); await cargar(); }
+    catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
+  };
+  return <section className="industrial-card negocio-management">
+    <h2>{usuarios ? 'Usuarios del negocio' : 'Sucursales del negocio'}</h2>
+    <p>{usuarios ? 'Administre cuentas, roles y acceso. El último administrador activo está protegido.' : 'Administre los datos y el estado de las sucursales.'} La desactivación conserva la trazabilidad.</p>
+    {error && <p role="alert">{error}</p>}{estado && <p role="status">{estado}</p>}
+    <button className="btn btn-primary" disabled={busy} onClick={() => { setError(''); setEstado(''); setPermisosEditados(false); setForm(usuarios ? { nombre: '', email: '', rol: 'CAJERO', activo: true, descuentoMaximo: 0 } : { nombre: '', direccion: '', telefono: '', activa: true }); }}>{usuarios ? 'Crear usuario' : 'Crear sucursal'}</button>
+    {form && <form onSubmit={guardar} className="negocio-form" aria-label={usuarios ? 'Datos del usuario' : 'Datos de la sucursal'}>
+      <label>Nombre<input className="form-input" required maxLength={100} value={form.nombre || ''} onChange={e => setForm({ ...form, nombre: e.target.value })} /></label>
+      {usuarios ? <>
+        <label>Correo electrónico<input className="form-input" required type="email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
+        <label>Rol<select aria-label="Rol" className="form-input" value={form.rol} onChange={e => setForm({ ...form, rol: e.target.value })}>{['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO'].map(rol => <option key={rol}>{rol}</option>)}</select></label>
+        <label>{form.id ? 'Nueva contraseña (opcional)' : 'Contraseña'}<input className="form-input" autoComplete="new-password" type="password" required={!form.id} minLength={8} value={form.password || ''} onChange={e => setForm({ ...form, password: e.target.value })} /></label>
+        <fieldset><legend>Permisos de operación</legend><p>Los roles siguen limitando el acceso. Guarde una selección solo si desea definir permisos individuales.</p>
+          {Object.entries({ 'pos.vender': 'Vender', 'pos.aplicar_descuento': 'Aplicar descuentos', 'caja.movimientos_manuales': 'Movimientos manuales de caja', 'inventario.ver': 'Consultar inventario', 'inventario.editar': 'Editar inventario', 'cotizaciones.crear': 'Crear cotizaciones', 'cotizaciones.aprobar': 'Aprobar cotizaciones', 'cotizaciones.convertir_venta': 'Convertir cotizaciones', 'reportes.ver': 'Ver reportes', 'usuarios.gestionar': 'Gestionar usuarios' }).map(([key,label]) => <label key={key}><input type="checkbox" checked={form.permisos?.includes(key) || false} onChange={e => { setPermisosEditados(true); setForm({ ...form, permisos: e.target.checked ? [...(form.permisos || []), key] : (form.permisos || []).filter(p => p !== key) }); }} />{label}</label>)}
+        </fieldset>
+        <label>Descuento máximo (%)<input className="form-input" type="number" min={0} max={100} step="0.01" value={form.descuentoMaximo || 0} onChange={e => setForm({ ...form, descuentoMaximo: Number(e.target.value) })} /></label>
+      </> : <>
+        <label>Dirección<input className="form-input" maxLength={500} value={form.direccion || ''} onChange={e => setForm({ ...form, direccion: e.target.value })} /></label>
+        <label>Teléfono<input className="form-input" maxLength={40} value={form.telefono || ''} onChange={e => setForm({ ...form, telefono: e.target.value })} /></label>
+      </>}
+      <label><input type="checkbox" checked={usuarios ? form.activo : form.activa} onChange={e => setForm({ ...form, ...(usuarios ? { activo: e.target.checked } : { activa: e.target.checked }) })} /> {usuarios ? 'Usuario activo' : 'Sucursal activa'}</label>
+      <div><button className="btn btn-primary" disabled={busy}>Guardar</button> <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setForm(null)}>Cancelar</button></div>
+    </form>}
+    <div className="table-container"><table className="industrial-table"><thead><tr><th>Nombre</th><th>{usuarios ? 'Correo / rol' : 'Dirección / teléfono'}</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+      {filas.map(fila => <tr key={fila.id}><td>{fila.nombre}</td><td>{usuarios ? `${fila.email} · ${fila.rol}` : `${fila.direccion} · ${fila.telefono}`}</td><td>{(usuarios ? fila.activo : fila.activa) ? 'Activo' : 'Inactivo'}</td><td><button className="btn btn-secondary" disabled={busy} onClick={() => { setPermisosEditados(false); setForm({ ...fila }); setError(''); }}>Editar</button> <button className="btn btn-secondary" disabled={busy} onClick={() => void toggle(fila)}>{(usuarios ? fila.activo : fila.activa) ? 'Desactivar' : 'Reactivar'}</button></td></tr>)}
+      {!filas.length && <tr><td colSpan={4}>No hay registros.</td></tr>}
+    </tbody></table></div>
+  </section>;
+}
+
+export function NegocioDetallePage({ negocioId, tab = 'resumen' }: { negocioId: string; tab?: string }) {
+  const { t } = useI18n();
+  const [negocio, setNegocio] = useState<any>(null);
+  const [modulos, setModulos] = useState<string[]>([]);
+  const [error, setError] = useState('');
+  const [estado, setEstado] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [marca, setMarca] = useState<any>({});
+  useEffect(() => {
+    let active = true;
+    api.get(`/admin/tenants/${negocioId}/settings`).then(({ data }) => {
+      if (!active) return; setNegocio(data); setMarca({ nombreComercial: data.nombreComercial, colorPrimario: data.colorPrimario, modoNavegacion: data.modoNavegacion }); setModulos(data.modulosHabilitados || []);
+    }).catch(e => { if (active) setError(mensaje(e)); });
+    return () => { active = false; };
+  }, [negocioId]);
+  const guardar = async (e: React.FormEvent) => {
+    e.preventDefault(); if (busy) return; setBusy(true); setError(''); setEstado('');
+    try {
+      if (tab === 'servicios') await api.put(`/admin/tenants/${negocioId}/modules`, { modules: CATALOGO_MODULOS.map(m => ({ moduleKey: m.key, enabled: m.isCore || modulos.includes(m.key) })) });
+      else { const { data } = await api.put(`/admin/tenants/${negocioId}/settings`, marca); setNegocio(data); }
+      setEstado('Cambios guardados.');
+    } catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
+  };
+  return <div><TopBar title={negocio?.nombreComercial || 'Negocio'} subtitle="Super Admin" /><main className="negocio-detail">
+    <Link to="/admin">← Volver al panel global</Link><NegocioNavigation negocioId={negocioId} />
+    {error && <p role="alert">{error}</p>}{estado && <p role="status">{estado}</p>}
+    {negocio && tab === 'resumen' && <><section className="industrial-card negocio-management"><h1>{negocio.nombreComercial}</h1><p>Estado: {negocio.estado} · Plan: {negocio.plan}</p><p>{negocio.direccion} · {negocio.telefono} · {negocio.email}</p><p>Idioma: {negocio.idioma === 'en' ? 'English' : 'Español'} · Navegación: {negocio.modoNavegacion}</p></section><GestionRegistros key={negocioId} negocioId={negocioId} tipo="sucursales" /></>}
+    {negocio && tab === 'usuarios' && <GestionRegistros key={negocioId} negocioId={negocioId} tipo="usuarios" />}
+    {negocio && tab === 'servicios' && <form onSubmit={guardar} className="industrial-card negocio-management"><h1>Servicios del negocio</h1>{CATALOGO_MODULOS.map(m => <label key={m.key} className="negocio-module"><input type="checkbox" checked={m.isCore || modulos.includes(m.key)} disabled={m.isCore || PENDING_MODULES.has(m.key) || busy} onChange={e => setModulos(e.target.checked ? [...modulos, m.key] : modulos.filter(key => key !== m.key))} /> {t(m.labelKey)}{m.isCore ? ' · Esencial' : PENDING_MODULES.has(m.key) ? ' · Pendiente' : ''}</label>)}<button className="btn btn-primary" disabled={busy}>Guardar servicios</button></form>}
+    {negocio && tab === 'marca' && <><LogotipoNegocioEditor negocioId={negocioId} nombreNegocio={negocio.nombreComercial} logotipo={negocio.logotipo} onCambio={logotipo => setNegocio({ ...negocio, logotipo })} /><form className="industrial-card negocio-management negocio-form" onSubmit={guardar}><h1>Marca y navegación</h1><label>Nombre comercial<input className="form-input" required value={marca.nombreComercial} onChange={e => setMarca({ ...marca, nombreComercial: e.target.value })} /></label><label>Color<input type="color" value={marca.colorPrimario} onChange={e => setMarca({ ...marca, colorPrimario: e.target.value })} /></label><label>Navegación<select className="form-input" value={marca.modoNavegacion} onChange={e => setMarca({ ...marca, modoNavegacion: e.target.value })}><option>SIDEBAR</option><option>TOPNAV</option></select></label><button className="btn btn-primary" disabled={busy}>Guardar marca y navegación</button></form></>}
+  </main></div>;
+}

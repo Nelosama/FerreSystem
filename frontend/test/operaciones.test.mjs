@@ -75,7 +75,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     '../utils/format': { formatLempiras: String },
     '../utils/api': { api: { get: async () => ({ data: {} }) } },
     '../utils/sessionValidation': { startSessionValidation: options => { options.onStatus('ready'); return () => {}; } },
-    '../utils/authInterceptors': { clearSessionStorage: () => {} },
+    '../utils/authInterceptors': { clearSessionStorage: () => {}, clearSessionExpiredNotice: () => {} },
     ...overrides,
   };
   const component = evaluate(file, mocks, { localStorage: sharedStorage, sessionStorage: storage(), crypto: webcrypto, alert() {},

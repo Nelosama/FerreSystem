@@ -22,6 +22,19 @@ describe('Persistencia de configuración por empresa', () => {
     expect(await service.getTenantSettings('B')).toMatchObject({ modoNavegacion: 'SIDEBAR', configuracion: {} });
     expect(prisma.tenant.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'A' } }));
   });
+  it('guarda idioma por tenant, preserva campos en cambios parciales y conserva el restablecimiento explícito', async () => {
+    await service.updateTenantBranding('A', { configuracion: { idioma: 'en', templateVersion: 'v2' } }, { esSuperAdmin: true });
+    await service.updateTenantBranding('A', { configuracion: { estiloUI: 'MODERNO' } }, { esSuperAdmin: true });
+    expect(await service.getTenantSettings('A')).toMatchObject({ idioma: 'en', templateVersion: 'v2', estiloUI: 'MODERNO' });
+    expect(await service.getTenantSettings('B')).toMatchObject({ idioma: 'es', templateVersion: 'v1' });
+    await service.updateTenantBranding('A', { configuracion: {} }, { esSuperAdmin: true });
+    expect(await service.getTenantSettings('A')).toMatchObject({ idioma: 'es', templateVersion: 'v1', configuracion: {} });
+  });
+  it('rechaza modificar idioma sin identidad Super Admin y valida el idioma aceptado', async () => {
+    await expect(service.updateTenantBranding('A', { configuracion: { idioma: 'en' } })).rejects.toThrow('solo lo configura el Super Admin');
+    await expect(service.updateTenantBranding('A', { configuracion: { idioma: 'fr' } }, { esSuperAdmin: true })).rejects.toThrow('Configuración inválida');
+    expect(prisma.tenant.update).not.toHaveBeenCalled();
+  });
   it('rechaza logoUrl externo: el logotipo solo se guarda como archivo privado', async () => {
     await expect(service.updateTenantBranding('A', { logoUrl: 'https://ejemplo.com/logo.png' })).rejects.toThrow('El logotipo se carga como archivo');
     expect(prisma.tenant.update).not.toHaveBeenCalled();

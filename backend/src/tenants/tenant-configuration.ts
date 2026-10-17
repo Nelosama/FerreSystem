@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 
 const options: Record<string, readonly string[]> = {
+  idioma: ['es', 'en'],
   rubro: ['FERRETERIA', 'PULPERIA', 'MINIMARKET', 'FARMACIA', 'PAPELERIA', 'DISTRIBUIDORA', 'AGROSERVICIO', 'REPUESTOS_AUTOMOTRICES', 'ELECTRODOMESTICOS', 'GENERAL'],
   estiloUI: ['INDUSTRIAL', 'MINIMALISTA', 'MODERNO'],
   templateVersion: ['v1', 'v2'],
@@ -28,7 +29,7 @@ export function validateTenantConfiguration(value: unknown): asserts value is Re
 /** Defaults for legacy/empty configurations. Fiscal settings cannot relabel stored money. */
 export function normalizeTenantConfiguration(value: unknown) {
   const configuration = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-  const defaults = { rubro: 'FERRETERIA', estiloUI: 'INDUSTRIAL', templateVersion: 'v1', v2Mode: 'light', fuenteTitulos: 'Archivo', fuenteCuerpo: 'Inter', formatoImpresion: 'A4' };
+  const defaults = { idioma: 'es', rubro: 'FERRETERIA', estiloUI: 'INDUSTRIAL', templateVersion: 'v1', v2Mode: 'light', fuenteTitulos: 'Archivo', fuenteCuerpo: 'Inter', formatoImpresion: 'A4' };
   return {
     ...Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, options[key].includes(configuration[key] as string) ? configuration[key] : fallback])),
     moneda: { simbolo: 'L.', codigo: 'HNL' }, impuesto: { nombre: 'ISV', tasa: 15 },

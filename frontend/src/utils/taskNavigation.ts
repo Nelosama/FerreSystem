@@ -21,7 +21,7 @@ export const TASK_DETAILS: Record<string, { title: string; description: string; 
 };
 export function canNavigate(item: NavigationItem, user: UserInfo | null, tenant: TenantInfo): boolean {
   if (!user || (item.allowedRoles?.length && !item.allowedRoles.includes(user.rol))) return false;
-  if (item.requiredPermiso && user.rol !== 'ADMIN' && !user.permisos?.includes(item.requiredPermiso)) return false;
+  if (item.requiredPermiso && user.rol !== 'ADMIN' && user.permisosConfigurados && !user.permisos?.includes(item.requiredPermiso)) return false;
   if (item.moduleKey && CATALOGO_MODULOS.find(module => module.key === item.moduleKey)?.isCore) return true;
   return !item.moduleKey || tenant.modulosHabilitados === undefined || tenant.modulosHabilitados.includes(item.moduleKey);
 }

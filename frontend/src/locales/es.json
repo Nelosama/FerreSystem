@@ -1,12 +1,12 @@
 {
   "menu": {
     "dashboard": "Inicio",
-    "inventory": "INVENTARIO Y CATÁLOGO",
-    "pos": "PUNTO DE VENTA POS",
-    "quotations": "COTIZACIONES",
+    "inventory": "Inventario",
+    "pos": "Punto de venta",
+    "quotations": "Cotizaciones",
     "layaway": "APARTADOS",
     "cash_drawer": "ARQUEO DE CAJA",
-    "purchase_orders": "ÓRDENES DE COMPRA",
+    "purchase_orders": "Compras",
     "transfers": "TRANSFERENCIAS",
     "warranties": "GARANTÍAS & SERIES",
     "special_orders": "PEDIDOS ESPECIALES",
@@ -16,14 +16,16 @@
     "stock_taking": "LEVANTAMIENTO DE INVENTARIO",
     "configuration": "Configuración del negocio",
     "super_admin": "Administrar plataforma",
-    "accounts": "CUENTAS Y ABONOS",
-    "deliveries": "ENTREGAS",
+    "accounts": "Cuentas y abonos",
+    "deliveries": "Entregas",
     "returns": "DEVOLUCIONES",
     "audit": "AUDITORÍA",
     "mobile_admin": "Resumen móvil",
     "customer_statement": "Estado de cuenta",
     "bank_reconciliation": "Conciliación bancaria",
-    "prices": "PRECIOS Y APROBACIÓN"
+    "prices": "PRECIOS Y APROBACIÓN",
+    "users": "Personal",
+    "clients": "Clientes"
   },
   "stock_taking": {
     "title": "LEVANTAMIENTO DE INVENTARIO",
@@ -489,7 +491,7 @@
     "tenants_count": "NEGOCIOS REGISTRADOS",
     "admins_count": "USUARIOS ADMINISTRADORES",
     "active_subscriptions": "SUSCRIPCIONES ACTIVAS",
-    "total_branches": "SUCURSALES (NO DISPONIBLE)",
+    "total_branches": "SUCURSALES",
     "tab_tenants": "CLIENTES (EMPRESAS)",
     "tab_services": "CATÁLOGO DE SERVICIOS",
     "tab_admins": "USUARIOS ADMIN",
@@ -766,7 +768,12 @@
     "cash_help": "Consulta tu apertura y cierre en Caja",
     "branch": "Sucursal",
     "language": "Idioma",
-    "modules": "Pantallas disponibles"
+    "modules": "Pantallas disponibles",
+    "INICIO": "Inicio",
+    "VENTAS": "Ventas",
+    "ADMINISTRACION": "Administración",
+    "purchases_receiving": "Compras y recepción",
+    "staff_permissions": "Personal y permisos"
   },
   "tasks": {
     "finder": "Buscar una pantalla o tarea",

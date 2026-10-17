@@ -13,7 +13,7 @@ describe('API de administradores de empresa', () => {
       .overrideGuard(JwtAuthGuard).useValue({ canActivate(context: any) {
         const req = context.switchToHttp().getRequest();
         const role = req.headers['x-test-role'];
-        req.user = role === 'SUPERADMIN' ? { type: 'super_admin', rol: 'SUPER_ADMIN' } : { type: 'tenant', rol: role, tenantId: 'A' };
+        req.user = role === 'SUPERADMIN' ? { sub: 'platform-admin', type: 'super_admin', rol: 'SUPER_ADMIN' } : { type: 'tenant', rol: role, tenantId: 'A' };
         return true;
       } }).compile();
     app = module.createNestApplication();
@@ -29,7 +29,7 @@ describe('API de administradores de empresa', () => {
   });
   it('acepta Super Admin y descarta cambios de empresa o rol del body', async () => {
     await request(app.getHttpServer()).post('/admin/tenants/A/admins').set('x-test-role', 'SUPERADMIN').send({ nombre: 'Admin', email: 'admin@example.test', password: 'SecurePassword123', tenantId: 'B', rol: 'SUPER_ADMIN' }).expect(201);
-    expect(service.createTenantAdmin).toHaveBeenCalledWith('A', expect.objectContaining({ nombre: 'Admin' }));
+    expect(service.createTenantAdmin).toHaveBeenCalledWith('A', expect.objectContaining({ nombre: 'Admin' }), 'platform-admin');
     const body = service.createTenantAdmin.mock.calls[0][1]; expect(body.tenantId).toBeUndefined(); expect(body.rol).toBeUndefined();
   });
   it('rechaza contraseña corta antes de llamar al servicio', async () => {

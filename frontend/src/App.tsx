@@ -18,6 +18,7 @@ import { ModuloPendiente } from './components/ModuloPendiente';
 
 import { useTenant } from './context/TenantContext';
 
+const NegocioDetallePage = React.lazy(() => import('./pages/NegocioDetallePage').then(m => ({ default: m.NegocioDetallePage })));
 const AuditoriaPage=React.lazy(()=>import('./pages/AuditoriaPage').then(m=>({default:m.AuditoriaPage})));
 const DevolucionesPage=React.lazy(()=>import('./pages/DevolucionesPage').then(m=>({default:m.DevolucionesPage})));
 const PreciosPage=React.lazy(()=>import('./pages/PreciosPage').then(m=>({default:m.PreciosPage})));
@@ -118,6 +119,11 @@ const NegocioAuditoriaRoute: React.FC = () => {
   return <AuditoriaPage negocioId={tenantId} />;
 };
 
+const NegocioDetalleRoute: React.FC<{ tab?: string }> = ({ tab }) => {
+  const { tenantId = '' } = useParams();
+  return <NegocioDetallePage key={`${tenantId}:${tab}`} negocioId={tenantId} tab={tab} />;
+};
+
 // Componente para manejar redirección raíz según rol
 const HomeRoute: React.FC = () => {
   const { user } = useTenant();
@@ -148,7 +154,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className={isTopNav ? "app-container-topnav" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
-      {isTopNav ? <TopNavigation /> : <Sidebar />}
+      {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : <Sidebar />}
       <div
         className="main-content"
         style={{
@@ -156,7 +162,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           ...(isMobile ? { paddingBottom: '72px' } : {}),
         }}
       >
-        <TaskFinder />
+        {(!isTopNav || isMobile) && <TaskFinder />}
         {children}
       </div>
       <BottomNavigation />
@@ -172,11 +178,15 @@ export const App: React.FC = () => {
             <BrowserRouter>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
-                <Route path="/pos-contingencia" element={<ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="pos"><PosContingenciaPage /></ProtectedRoute>} />
+                <Route path="/pos-contingencia" element={<ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="pos" requiredPermiso="pos.vender"><PosContingenciaPage /></ProtectedRoute>} />
                 <Route path="/contingencia-admin" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="pos"><AppLayout><ContingenciaAdminPage /></AppLayout></ProtectedRoute>} />
                 <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','VENDEDOR']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
                   <Route path="/auditoria" element={<Navigate to="/admin" replace />} />
                   <Route path="/precios" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><PreciosPage/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/admin/negocios/:tenantId" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><NegocioDetalleRoute /></AppLayout></ProtectedRoute>} />
+                  <Route path="/admin/negocios/:tenantId/servicios" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><NegocioDetalleRoute tab="servicios" /></AppLayout></ProtectedRoute>} />
+                  <Route path="/admin/negocios/:tenantId/usuarios" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><NegocioDetalleRoute tab="usuarios" /></AppLayout></ProtectedRoute>} />
+                  <Route path="/admin/negocios/:tenantId/marca" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><NegocioDetalleRoute tab="marca" /></AppLayout></ProtectedRoute>} />
                   {/* Rutas públicas de login */}
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/admin/login" element={<Navigate to="/login" replace />} />

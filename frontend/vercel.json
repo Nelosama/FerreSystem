@@ -14,8 +14,9 @@
       "fix/pilot-readiness": false,
       "codex/auditoria-precision-monetaria": false,
       "fix/inventario-inicial-seguro": false,
-      "codex/fix-expired-sessions": false
+      "codex/fix-expired-sessions": false,
+      "fix/jowa-operacion-estable": false
     }
   },
-  "ignoreCommand": "case \"$VERCEL_GIT_COMMIT_REF\" in nexus/*|fix/inventario-inicial-seguro|fix/pilot-readiness|codex/auditoria-precision-monetaria|codex/fix-expired-sessions) exit 0;; *) exit 1;; esac"
+  "ignoreCommand": "case \"$VERCEL_GIT_COMMIT_REF\" in nexus/*|fix/inventario-inicial-seguro|fix/pilot-readiness|codex/auditoria-precision-monetaria|codex/fix-expired-sessions|fix/jowa-operacion-estable) exit 0;; *) exit 1;; esac"
 }

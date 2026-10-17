@@ -138,6 +138,9 @@ model Tenant {
 
   configuracion Json @default("{}")
 
+  logotipoObjetos LogotipoObjeto[]
+  sucursales Sucursal[]
+
   // Relaciones
   usuarios         Usuario[]
   categorias       Categoria[]
@@ -1476,4 +1479,29 @@ model EntregaEventoLinea {
 
   @@id([tenantId, eventoId, detalleVentaId])
   @@map("entregas_eventos_lineas")
+}
+
+// NEXUS: archivos pequeños privados respaldados con la base cloud. No se exponen mediante Prisma al cliente.
+model LogotipoObjeto {
+  clave String @id
+  tenantId String @map("tenant_id")
+  datos Bytes
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  @@index([tenantId])
+  @@map("logotipo_objetos")
+}
+
+// Catálogo administrativo. No reasigna ventas, existencias, cajas ni operaciones históricas.
+model Sucursal {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  nombre String
+  direccion String @default("")
+  telefono String @default("")
+  activa Boolean @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  @@unique([tenantId, nombre])
+  @@map("sucursales")
 }

@@ -14,7 +14,7 @@ function setup(adapter) {
   vm.runInNewContext(code, context);
   const api = axios.create({ adapter });
   context.exports.installAuthInterceptors(api);
-  return { api, localStorage, window };
+  return { api, localStorage, window, notices: context.exports };
 }
 const ok = (config, data) => ({ config, data, status: 200, statusText: 'OK', headers: {} });
 const unauthorized = (config) => { throw new axios.AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, {}, { status: 401, config, data: {}, headers: {} }); };
@@ -185,4 +185,19 @@ test('Super Admin usa su cookie de renovación también al validar /auth/me',asy
   localStorage.setItem('ferre_token',jwtToken({...base,exp:Date.now()/1000-86400}));
   localStorage.setItem('ferre_user',JSON.stringify({id:'sa',rol:'SUPERADMIN'}));
   await api.get('/auth/me');assert.deepEqual(calls,['/admin/auth/refresh','/auth/me']);
+});
+
+
+test('el aviso de vencimiento pertenece a la sesión actual y no a una visita inicial', async () => {
+  const { api, localStorage, notices } = setup(unauthorized);
+  assert.equal(notices.hasSessionExpiredNotice(), false);
+  await assert.rejects(api.get('/productos'));
+  assert.equal(notices.hasSessionExpiredNotice(), true);
+  assert.equal(localStorage.getItem('ferre_token'), null);
+  notices.clearSessionExpiredNotice();
+  assert.equal(notices.hasSessionExpiredNotice(), false);
+  const fresh = setup(unauthorized);
+  fresh.localStorage.removeItem('ferre_token');
+  await assert.rejects(fresh.api.get('/productos'));
+  assert.equal(fresh.notices.hasSessionExpiredNotice(), false);
 });

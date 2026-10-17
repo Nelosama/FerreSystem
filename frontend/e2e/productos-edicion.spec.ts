@@ -14,6 +14,7 @@ type Sim = {
   posts: any[];
   perderRespuestaAlta: boolean;
   modoNavegacion: string;
+  idioma: 'es' | 'en';
   historial: string[];
   fallarSiguientePut: boolean;
   errores: string[];
@@ -31,7 +32,7 @@ const productoBase = (partial: Partial<Producto>): Producto => ({
 
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
-    const sim: Sim = { productos: [], puts: [], posts: [], perderRespuestaAlta: false, modoNavegacion: 'SIDEBAR', historial: [], fallarSiguientePut: false, errores: [], inesperados: [], listados: 0 };
+    const sim: Sim = { productos: [], puts: [], posts: [], perderRespuestaAlta: false, modoNavegacion: 'SIDEBAR', idioma: 'es', historial: [], fallarSiguientePut: false, errores: [], inesperados: [], listados: 0 };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
     page.on('pageerror', e => sim.errores.push(e.message));
@@ -45,9 +46,9 @@ const test = base.extend<{ sim: Sim }>({
         const method = request.method();
         const path = url.pathname.slice(4);
         if (method === 'OPTIONS') { await route.fulfill({ status: 204, headers: { ...cabeceras, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } }); return; }
-        if (method === 'GET' && path === '/tenant/settings') return responder(route, 200, { ...tenant, modoNavegacion: sim.modoNavegacion });
+        if (method === 'GET' && path === '/tenant/settings') return responder(route, 200, { ...tenant, modoNavegacion: sim.modoNavegacion, idioma: sim.idioma });
         if (method === 'GET' && path === '/auth/me') return responder(route, 200, { user: { sub: admin.id, tenantId: tenant.id, rol: 'ADMIN', permisos: ['inventario.editar', 'inventario.ver'], descuentoMaximo: 0 } });
-        if (method === 'POST' && path === '/auth/login') return responder(route, 200, { type: 'tenant', accessToken: 'prod-e2e-token', user: admin, tenant: { ...tenant, modoNavegacion: sim.modoNavegacion } });
+        if (method === 'POST' && path === '/auth/login') return responder(route, 200, { type: 'tenant', accessToken: 'prod-e2e-token', user: admin, tenant: { ...tenant, modoNavegacion: sim.modoNavegacion, idioma: sim.idioma } });
         const lecturasVacias: Record<string, unknown> = {
           '/dashboard': { ventasDelDia: { total: 0 }, alertasStock: { items: [] }, cotizacionesPendientes: { cantidad: 0 } },
           '/maintenance/backup': { configured: false }, '/productos/comercial': [], '/clientes': [],
@@ -343,9 +344,9 @@ test.describe('Inventario para entrega al cliente / API simulada', () => {
     expect(sim.posts[0].solicitudId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
-  test('alta y cámara muestran textos en inglés', async ({ page }) => {
+  test('alta y cámara muestran textos en inglés', async ({ page, sim }) => {
     await ingresarAInventario(page);
-    await page.evaluate(() => localStorage.setItem('ferre_language', 'en'));
+    sim.idioma = 'en'; // Configuración del negocio devuelta por el servidor, como la que guarda Super Admin.
     await page.reload();
     await page.getByRole('button', { name: 'NEW PRODUCT', exact: true }).click();
     const dialog = page.getByRole('dialog');

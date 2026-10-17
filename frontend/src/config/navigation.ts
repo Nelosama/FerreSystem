@@ -1,7 +1,8 @@
 import {
-  LayoutGrid,
+  House,
   PackageSearch,
-  Calculator,
+  ShoppingCart,
+  FileText,
   ClipboardList,
   ShieldCheck,
   Bookmark,
@@ -26,7 +27,7 @@ export interface NavigationItem {
   moduleKey?: string;
   allowedRoles?: string[];
   requiredPermiso?: string;
-  category: 'OPERACION' | 'INVENTARIO' | 'CLIENTES' | 'GESTION' | 'ANALISIS' | 'CONFIGURACION' | 'SYSTEM';
+  category: 'VENTAS' | 'CLIENTES' | 'INVENTARIO' | 'ADMINISTRACION' | 'SYSTEM';
   exact?: boolean;
 }
 
@@ -46,32 +47,33 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   {
     key: 'dashboard',
     labelKey: 'menu.dashboard',
-    defaultLabel: 'DASHBOARD',
+    defaultLabel: 'INICIO',
     route: '/',
-    icon: LayoutGrid,
+    icon: House,
     exact: true,
     allowedRoles: ['ADMIN', 'CAJERO', 'BODEGUERO', 'VENDEDOR'],
-    category: 'OPERACION',
+    category: 'VENTAS',
   },
   {
     key: 'pos',
     labelKey: 'menu.pos',
     defaultLabel: 'PUNTO DE VENTA (POS)',
     route: '/pos',
-    icon: Calculator,
+    icon: ShoppingCart,
     moduleKey: 'pos',
+    requiredPermiso: 'pos.vender',
     allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
-    category: 'OPERACION',
+    category: 'VENTAS',
   },
   {
     key: 'cotizaciones',
     labelKey: 'menu.quotations',
     defaultLabel: 'COTIZACIONES',
     route: '/cotizaciones',
-    icon: ClipboardList,
+    icon: FileText,
     moduleKey: 'cotizaciones',
     allowedRoles: ['ADMIN', 'VENDEDOR', 'CAJERO'],
-    category: 'OPERACION',
+    category: 'VENTAS',
   },
   {
     key: 'pedidos_especiales',
@@ -81,7 +83,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     icon: Clock,
     moduleKey: 'pedidos_especiales',
     allowedRoles: ['ADMIN', 'VENDEDOR', 'CAJERO'],
-    category: 'OPERACION',
+    category: 'VENTAS',
   },
   {
     key: 'apartados',
@@ -91,12 +93,12 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     icon: Bookmark,
     moduleKey: 'apartados',
     allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
-    category: 'OPERACION',
+    category: 'VENTAS',
   },
 
-    {key:'devoluciones',labelKey:'menu.returns',defaultLabel:'DEVOLUCIONES',route:'/devoluciones',moduleKey:'pos',icon:PackageSearch,allowedRoles:['ADMIN','CAJERO','VENDEDOR'],category:'OPERACION'},
+    {key:'devoluciones',labelKey:'menu.returns',defaultLabel:'DEVOLUCIONES',route:'/devoluciones',moduleKey:'pos',icon:PackageSearch,allowedRoles:['ADMIN','CAJERO','VENDEDOR'],category:'VENTAS'},
   {key:'cuentas',labelKey:'menu.accounts',defaultLabel:'CUENTAS Y ABONOS',route:'/cuentas',icon:DollarSign,allowedRoles:['ADMIN','CAJERO'],category:'CLIENTES'},
-  {key:'entregas',labelKey:'menu.deliveries',defaultLabel:'ENTREGAS',route:'/entregas',moduleKey:'pos',icon:Truck,allowedRoles:['ADMIN','CAJERO','BODEGUERO'],category:'OPERACION'},
+  {key:'entregas',labelKey:'menu.deliveries',defaultLabel:'ENTREGAS',route:'/entregas',moduleKey:'pos',icon:Truck,allowedRoles:['ADMIN','CAJERO','BODEGUERO'],category:'VENTAS'},
 
   // INVENTARIO
   {
@@ -133,7 +135,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     labelKey: 'menu.purchase_orders',
     defaultLabel: 'ÓRDENES DE COMPRA',
     route: '/ordenes-compra',
-    icon: Truck,
+    icon: ClipboardList,
     moduleKey: 'ordenes_compra',
     allowedRoles: ['ADMIN', 'BODEGUERO'],
     category: 'INVENTARIO',
@@ -168,7 +170,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     route: '/conciliacion-bancaria',
     icon: Smartphone,
     allowedRoles: ['ADMIN'],
-    category: 'ANALISIS',
+    category: 'ADMINISTRACION',
   },
   // CLIENTES
   {
@@ -209,7 +211,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     icon: Users,
     moduleKey: 'usuarios',
     allowedRoles: ['ADMIN'],
-    category: 'GESTION',
+    category: 'ADMINISTRACION',
   },
   {
     key: 'comisiones',
@@ -219,7 +221,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     icon: Percent,
     moduleKey: 'comisiones_venta',
     allowedRoles: ['ADMIN'],
-    category: 'GESTION',
+    category: 'ADMINISTRACION',
   },
   {
     key: 'arqueo_caja',
@@ -228,7 +230,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     route: '/arqueo-caja',
     icon: DollarSign,
     allowedRoles: ['ADMIN', 'CAJERO', 'VENDEDOR'],
-    category: 'OPERACION',
+    category: 'VENTAS',
   },
 
   // ANALISIS
@@ -241,7 +243,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     moduleKey: 'reportes',
     allowedRoles: ['ADMIN'],
     requiredPermiso: 'reportes.ver',
-    category: 'ANALISIS',
+    category: 'ADMINISTRACION',
   },
   // Resumen administrativo para iPhone: solo lectura de datos ya operativos (ventas, caja, existencias, cobros).
   {
@@ -251,13 +253,13 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     route: '/admin-movil',
     icon: Smartphone,
     allowedRoles: ['ADMIN'],
-    category: 'ANALISIS',
+    category: 'ADMINISTRACION',
   },
 
 ];
 
 
-export const NAVIGATION_CATEGORIES = ['SYSTEM', 'OPERACION', 'INVENTARIO', 'CLIENTES', 'GESTION', 'ANALISIS', 'CONFIGURACION'] as const;
+export const NAVIGATION_CATEGORIES = ['SYSTEM', 'VENTAS', 'CLIENTES', 'INVENTARIO', 'ADMINISTRACION'] as const;
 export const ROLE_PRIORITIES: Record<string, string[]> = {
   SUPERADMIN: ['superadmin'], ADMIN: ['ordenes_compra', 'inventario', 'usuarios', 'reportes'],
   CAJERO: ['arqueo_caja', 'pos', 'cuentas'],

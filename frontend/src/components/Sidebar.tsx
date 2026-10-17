@@ -20,7 +20,8 @@ export const Sidebar: React.FC = () => {
     if (item.key === 'inventario') {
       return rubroConfig.nombreCatalogo.toUpperCase();
     }
-    const translated = t(item.labelKey);
+    const contextualKey = item.key === 'ordenes_compra' ? 'navigation.purchases_receiving' : item.key === 'usuarios' ? 'navigation.staff_permissions' : item.labelKey;
+    const translated = t(contextualKey);
     return translated && translated !== item.labelKey ? translated : item.defaultLabel;
   };
 
@@ -28,13 +29,13 @@ export const Sidebar: React.FC = () => {
     <aside className="desktop-sidebar-nav v2-sidebar" style={styles.sidebar}>
       {/* Identidad del negocio: su logotipo y nombre. Jowa System es el proveedor y enlaza a Inicio. */}
       <div style={styles.brandHeader}>
-        <div style={styles.logoRow}>
+        <NavLink to="/" aria-label="Jowa System: ir a Inicio" style={styles.logoRow}>
           <LogotipoNegocio size={40} />
           <div style={styles.identidad}>
             <div style={styles.tenantName}>{tenant.nombreComercial || 'Negocio'}</div>
-            <NavLink to="/" aria-label="Jowa System: ir a Inicio" style={styles.plataforma}>Jowa System</NavLink>
+            <span style={styles.plataforma}>Jowa System</span>
           </div>
-        </div>
+        </NavLink>
       </div>
 
       {/* Navigation List */}
@@ -68,7 +69,7 @@ export const Sidebar: React.FC = () => {
 
 const styles: Record<string, React.CSSProperties> = {
   sidebar: {
-    width: '240px',
+    width: '264px',
     backgroundColor: 'var(--color-sidebar-bg)',
     color: 'var(--color-sidebar-text)',
     display: 'flex',
@@ -98,7 +99,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tenantName: {
     fontFamily: 'var(--font-display)',
-    fontSize: '15px',
+    fontSize: '18px',
     fontWeight: 800,
     color: 'var(--color-sidebar-text)',
     overflow: 'hidden',
@@ -132,9 +133,9 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    padding: '10px 12px',
+    padding: '11px 12px',
     fontFamily: 'var(--font-display)',
-    fontSize: '11px',
+    fontSize: '14px',
     fontWeight: 700,
     letterSpacing: '0.03em',
     color: 'var(--color-sidebar-text)',
@@ -143,9 +144,9 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'all 150ms ease',
   },
   navItemActive: {
-    backgroundColor: 'var(--color-sidebar-active-bg)',
-    color: '#FFFFFF',
+    backgroundColor: 'var(--color-primary-light)',
+    color: 'var(--color-primary)',
     fontWeight: 800,
-    boxShadow: 'var(--shadow-hard-sm)',
+    boxShadow: 'inset 4px 0 var(--color-primary)',
   },
 };

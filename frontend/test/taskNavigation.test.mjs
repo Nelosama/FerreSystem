@@ -76,8 +76,8 @@ test('Auditoría y Configuración del negocio no están en el menú: se abren po
 
 test('permiso ausente se rechaza y Clientes y Caja son funciones base', () => {
   const item = { allowedRoles: ['VENDEDOR'], requiredPermiso: 'special.read' };
-  assert.equal(canNavigate(item, { rol: 'VENDEDOR' }, tenant), false);
-  assert.equal(canNavigate(item, { rol: 'VENDEDOR', permisos: ['special.read'] }, tenant), true);
+  assert.equal(canNavigate(item, { rol: 'VENDEDOR', permisosConfigurados: true }, tenant), false);
+  assert.equal(canNavigate(item, { rol: 'VENDEDOR', permisosConfigurados: true, permisos: ['special.read'] }, tenant), true);
   const keys = availableTasks({ rol: 'CAJERO' }, { ...tenant, modulosHabilitados: [] }).map(item => item.key);
   assert.ok(!keys.includes('clientes') && keys.includes('arqueo_caja'));
   // FS-14: la lista de clientes es solo ADMIN (GET /clientes); el cajero usa el buscador del POS.
@@ -143,4 +143,10 @@ test('todas las rutas de App están dentro de Routes para evitar el fallo de arr
   };
   walk(source);
   assert.ok(routes > 15);
+});
+
+test('POS respeta permisos explícitos y hereda permisos del rol cuando no fueron configurados', () => {
+  assert.equal(availableTasks({ rol: 'CAJERO', permisosConfigurados: true, permisos: [] }, tenant).some(item => item.key === 'pos'), false);
+  assert.equal(availableTasks({ rol: 'CAJERO', permisosConfigurados: false, permisos: [] }, tenant).some(item => item.key === 'pos'), true);
+  assert.equal(availableTasks({ rol: 'CAJERO', permisosConfigurados: true, permisos: ['pos.vender'] }, tenant).some(item => item.key === 'pos'), true);
 });

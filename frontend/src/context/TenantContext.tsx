@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { TenantInfo, UserInfo } from '../types';
 import { api } from '../utils/api';
 import { startSessionValidation, profileRequestConfig, type SessionStatus } from '../utils/sessionValidation';
-import { clearSessionStorage } from '../utils/authInterceptors';
+import { clearSessionStorage, clearSessionExpiredNotice } from '../utils/authInterceptors';
 import { readStoredJson } from '../utils/storage';
 import { normalizeTenantSettings, TenantSettingsReads } from '../utils/tenantSettings';
 
@@ -207,7 +207,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const login = (newUser: UserInfo, newTenant: TenantInfo) => {
     setAuthStatus('checking');
     setSessionGeneration(value => value + 1);
-    sessionStorage.removeItem('ferre_session_expired');
+    clearSessionExpiredNotice();
     configRevision.current++;
     settingsReads.current.invalidate();
     setOriginalSuperAdminUser(null);
@@ -334,7 +334,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (original && token) void api.post('/admin/support/finalizar', {}, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     void api.post(logoutPath, undefined, { headers: { Authorization: `Bearer ${original || token || ''}` } }).catch(() => {});
     clearSessionStorage();
-    sessionStorage.removeItem('ferre_session_expired');
+    clearSessionExpiredNotice();
     resetIdentity();
   };
 
