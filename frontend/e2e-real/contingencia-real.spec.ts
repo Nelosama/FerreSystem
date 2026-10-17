@@ -474,19 +474,23 @@ test.describe('POS offline de contingencia — backend real', () => {
       await page.locator('#pc-cobrar').click();
       await expect.poll(async () => (await diario(page)).length).toBe(diarioAntes.length + 1);
       const pendientes = await diario(page);
+      // Los reintentos pueden actualizar su diagnóstico; identidad, importes, líneas y estado pendiente deben conservarse.
+      const contenidoPersistido = (ops: any[]) => ops.map(op => Object.fromEntries(Object.entries(op)
+        .filter(([clave]) => !['intentos', 'proximoIntentoAt', 'ultimoError'].includes(clave))));
       const nueva = pendientes.find((op) => !diarioAntes.some((anterior) => anterior.operacionId === op.operacionId));
       expect(nueva.estado).toBe('PENDIENTE');
       await page.reload();
       await expect(page.locator('#pc-cobrar')).toBeVisible();
-      expect(await diario(page)).toEqual(pendientes);
+      await expect.poll(async () => contenidoPersistido(await diario(page))).toEqual(contenidoPersistido(pendientes));
       expect(await page.evaluate(() => caches.keys())).toContain(versionActual);
       // Al cerrar la última pestaña puede activarse el worker nuevo: el diario es independiente de CacheStorage.
       await page.close();
       const reabierta = await ctx.newPage();
       await reabierta.goto('/pos-contingencia');
+      await expect(reabierta.locator('#pc-cobrar')).toBeVisible();
       await expect.poll(() => reabierta.evaluate(() => caches.keys())).not.toContain(versionActual);
       expect(await reabierta.evaluate(() => caches.keys())).toContain(versionNueva);
-      expect(await diario(reabierta)).toEqual(pendientes);
+      await expect.poll(async () => contenidoPersistido(await diario(reabierta))).toEqual(contenidoPersistido(pendientes));
       await ctx.setOffline(false);
       await esperarEstado(reabierta, nueva.correlativoLocal, 'SINCRONIZADA');
       const final = (await diario(reabierta)).find(op => op.operacionId === nueva.operacionId);
