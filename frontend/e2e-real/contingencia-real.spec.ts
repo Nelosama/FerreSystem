@@ -545,8 +545,13 @@ test.describe('POS offline de contingencia — backend real', () => {
     // Leave the sync component while still offline, then logout online through
     // the UI, so the server actually revokes the session before any send.
     await page.goto('/arqueo-caja');
-    await expect(page.getByRole('button', { name: 'SALIR', exact: true })).toBeVisible();
+    await expect(page.locator('#pc-cobrar')).toHaveCount(0);
+    expect(sql(`SELECT count(*) FROM operaciones_contingencia WHERE id='${centralId}'`)).toBe('0');
     await context.setOffline(false);
+    // Arqueo requiere validar la sesión online; la excepción offline solo autoriza el POS.
+    // Recargar aquí valida sin volver a montar el componente que envía la cola.
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'SALIR', exact: true })).toBeVisible();
     const revoked = page.waitForResponse(response => response.url().endsWith('/auth/logout') && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'SALIR', exact: true }).click();
     expect((await revoked).status()).toBe(200);
