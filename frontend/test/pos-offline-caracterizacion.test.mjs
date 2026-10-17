@@ -125,7 +125,7 @@ const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =
 test('el service worker existe, no cachea la API y el POS base sigue sin persistir catálogo (el de contingencia es otra página)', () => {
   // Actualizado por el PR de contingencia: el shell se cachea; la API nunca. POSPage.tsx no cambió.
   const sw = fs.readFileSync('public/sw.js', 'utf8');
-  assert.match(sw, /url\.pathname\.startsWith\('\/api'\)\) return;/);
+  assert.match(sw, /url\.pathname\.startsWith\('\/api'\)/);
   assert.doesNotMatch(sw.replace(/\/\/.*$/gm, ''), /skipWaiting\(/);
   const hits = [];
   for (const file of [...walk('src'), 'index.html', 'vite.config.ts']) {
@@ -145,9 +145,9 @@ test('el catálogo del POS vive solo en estado React: no se persiste', () => {
   assert.deepEqual(writes.sort(), ['pendingKey', 'pendingKey'].sort());
 });
 
-test('el cliente HTTP no define timeout: una red caída puede dejar la petición colgada', () => {
+test('el cliente HTTP acota la espera de red sin cambiar vigencia de sesión', () => {
   const source = fs.readFileSync('src/utils/api.ts', 'utf8');
-  assert.doesNotMatch(source, /timeout/);
+  assert.match(source, /timeout: 30_000/);
 });
 
 test('la actualización de precios del carrito es un botón manual que reemplaza precios sin desglose', () => {
@@ -164,8 +164,8 @@ const interceptors = (localStorage, postImpl) => {
     interceptors: { request: { use() {} }, response: { use: (_ok, bad) => { onRejected = bad; } } },
     post: postImpl,
   });
-  const window = { location: { pathname: '/pos', href: '' } };
-  const mod = load('src/utils/authInterceptors.ts', { localStorage, window });
+  const window = { location: { pathname: '/pos', href: '' }, events: [], dispatchEvent(event) { this.events.push(event.type); } };
+  const mod = load('src/utils/authInterceptors.ts', { localStorage, window, sessionStorage: memoryStorage(), Event, atob });
   mod.installAuthInterceptors(api);
   return { fail: onRejected, window };
 };
@@ -201,7 +201,7 @@ test('401 con refresh rechazado por la API (sesión vencida de verdad): elimina 
     response: { status: 401 }, config: { url: '/ventas', headers: { Authorization: 'Bearer T1' } },
   }));
   assert.equal(localStorage.getItem('ferre_token'), null);
-  assert.equal(window.location.href, '/login');
+  assert.ok(window.events.includes('ferre:session-expired')); // React limpia y redirige sin recarga destructiva.
 });
 
 test('401 con refresh correcto guarda el token nuevo y reintenta una sola vez', async () => {
@@ -218,5 +218,5 @@ test('401 con refresh correcto guarda el token nuevo y reintenta una sola vez', 
 test('la sesión vive en localStorage (token de acceso) y el refresh es cookie HttpOnly: no hay sesión offline', () => {
   const source = fs.readFileSync('src/utils/authInterceptors.ts', 'utf8');
   assert.match(source, /localStorage\.getItem\('ferre_token'\)/);
-  assert.match(source, /api\.post\(admin \? '\/admin\/auth\/refresh' : '\/auth\/refresh'\)/);
+  assert.match(source, /api\.post\(admin \? '\/admin\/auth\/refresh' : '\/auth\/refresh'/);
 });

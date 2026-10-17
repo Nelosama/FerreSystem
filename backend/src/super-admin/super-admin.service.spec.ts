@@ -130,12 +130,12 @@ describe('SuperAdminService', () => {
 
     await expect(service.refresh('tenant-refresh', response)).rejects.toThrow('Refresh token de Super Admin inválido');
     expect(prisma.superAdmin.findUnique).not.toHaveBeenCalled();
-    expect(response.clearCookie).toHaveBeenCalledWith('superAdminRefreshToken', { path: '/api/admin/auth' });
+    expect(response.clearCookie).toHaveBeenCalledWith('superAdminRefreshToken', expect.objectContaining({ path: '/api/admin/auth', httpOnly: true, secure: true, sameSite: 'none' }));
   });
 
   it('logout clears only the Super Admin refresh cookie', async () => {
     expect(await service.logout(response)).toMatchObject({ success: true });
-    expect(response.clearCookie).toHaveBeenCalledWith('superAdminRefreshToken', { path: '/api/admin/auth' });
+    expect(response.clearCookie).toHaveBeenCalledWith('superAdminRefreshToken', expect.objectContaining({ path: '/api/admin/auth', httpOnly: true, secure: true, sameSite: 'none' }));
   });
 
   it('creates the tenant, initial sequences, modules, and admin in one transaction', async () => {

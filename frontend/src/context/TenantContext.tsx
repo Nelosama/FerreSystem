@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { TenantInfo, UserInfo } from '../types';
 import { api } from '../utils/api';
-import { startSessionSync } from '../utils/sessionSync';
+import { startSessionValidation, profileRequestConfig, type SessionStatus } from '../utils/sessionValidation';
+import { clearSessionStorage } from '../utils/authInterceptors';
 import { readStoredJson } from '../utils/storage';
 import { normalizeTenantSettings, TenantSettingsReads } from '../utils/tenantSettings';
 
@@ -9,6 +10,8 @@ interface TenantContextType {
   tenant: TenantInfo;
   user: UserInfo | null;
   isAuthenticated: boolean;
+  authStatus: SessionStatus;
+  retrySession: () => void;
   isImpersonating: boolean;
   isReadOnly: boolean;
   originalSuperAdminUser: UserInfo | null;
@@ -35,6 +38,8 @@ const DEFAULT_TENANT: TenantInfo = {
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [sessionGeneration, setSessionGeneration] = useState(0);
+  const [authStatus, setAuthStatus] = useState<SessionStatus>('checking');
   const configRevision = React.useRef(0);
   const settingsReads = React.useRef(new TenantSettingsReads());
   const [tenant, setTenant] = useState<TenantInfo>(() => {
@@ -61,28 +66,46 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return localStorage.getItem('ferre_active_support_session_id');
   });
 
-  useEffect(() => {
+  const resetIdentity = React.useCallback(() => {
+    document.documentElement.dataset.sessionPending = 'true';
+    configRevision.current++;
+    settingsReads.current.invalidate();
+    setUser(null);
+    setTenant(DEFAULT_TENANT);
+    setOriginalSuperAdminUser(null);
+    setOriginalTenant(null);
+    setIsReadOnlyState(false);
+    setActiveSupportSessionId(null);
+    setAuthStatus('checking');
+  }, []);
+
+  React.useLayoutEffect(() => {
+    window.addEventListener('ferre:session-expired', resetIdentity);
+    return () => window.removeEventListener('ferre:session-expired', resetIdentity);
+  }, [resetIdentity]);
+
+  React.useLayoutEffect(() => {
     if (!user) return;
-    return startSessionSync(() => api.get('/auth/me'), next => setUser(next), {
-      userId: user.id,
-      tenantId: tenant.id,
-      onChanged: () => {
-        configRevision.current++;
-        settingsReads.current.invalidate();
-        // Otra pestaña puede haber iniciado otra cuenta. Invalidar solo esta
-        // pantalla evita mezclar su empresa con el token compartido nuevo.
-        setUser(null);
-        setTenant(DEFAULT_TENANT);
-        setOriginalSuperAdminUser(null);
-        setOriginalTenant(null);
-        setIsReadOnlyState(false);
-        setActiveSupportSessionId(null);
+    return startSessionValidation({
+      profile: () => api.get('/auth/me', { ...profileRequestConfig, params: { _session: Date.now() } }),
+      userId: user.id, tenantId: tenant.id, superAdmin: user.rol === 'SUPERADMIN',
+      onStatus: setAuthStatus,
+      onChanged: resetIdentity,
+      onProfile: profile => {
+        if (user.rol === 'SUPERADMIN') return;
+        setUser(previous => {
+          if (!previous || previous.id !== profile.sub) return previous;
+          const next = { ...previous, rol: profile.rol, permisos: profile.permisos, permisosConfigurados: profile.permisosConfigurados, descuentoMaximo: profile.descuentoMaximo };
+          if (JSON.stringify(previous) === JSON.stringify(next)) return previous;
+          localStorage.setItem('ferre_user', JSON.stringify(next));
+          return next;
+        });
       },
     });
-  }, [user?.id, tenant.id, !!originalSuperAdminUser]);
+  }, [user?.id, tenant.id, !!originalSuperAdminUser, resetIdentity, sessionGeneration]);
 
   useEffect(() => {
-    if (!user || user.rol === 'SUPERADMIN' || !tenant.id) return;
+    if (authStatus !== 'ready' || !user || user.rol === 'SUPERADMIN' || !tenant.id) return;
     let active = true;
     const refresh = () => {
       const revision = configRevision.current;
@@ -103,7 +126,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     void refresh();
     window.addEventListener('focus', refresh);
     return () => { active = false; window.removeEventListener('focus', refresh); };
-  }, [user?.id, tenant.id]);
+  }, [user?.id, tenant.id, authStatus]);
 
   // Aplicar exclusivamente la configuración activa a las variables CSS
   useEffect(() => {
@@ -182,6 +205,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const login = (newUser: UserInfo, newTenant: TenantInfo) => {
+    setAuthStatus('checking');
+    setSessionGeneration(value => value + 1);
+    sessionStorage.removeItem('ferre_session_expired');
     configRevision.current++;
     settingsReads.current.invalidate();
     setOriginalSuperAdminUser(null);
@@ -216,6 +242,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     configRevision.current++;
     settingsReads.current.invalidate();
+    setAuthStatus('checking');
+    setSessionGeneration(value => value + 1);
     setUser(targetAdminUser);
     setTenant(targetTenant);
     setIsReadOnlyState(true);
@@ -266,6 +294,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.removeItem('ferre_support_target');
 
     if (originalSuperAdminUser && originalTenant) {
+      setAuthStatus('checking');
+      setSessionGeneration(value => value + 1);
       setUser(originalSuperAdminUser);
       setTenant(originalTenant);
       localStorage.setItem('ferre_user', JSON.stringify(originalSuperAdminUser));
@@ -284,6 +314,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const switchSucursal = (targetSucursalName: string, targetTenantId: string) => {
     configRevision.current++;
     settingsReads.current.invalidate();
+    if (targetTenantId !== tenant.id) throw new Error('Para cambiar de empresa debes iniciar una sesión autorizada para esa empresa');
     const updatedTenant = {
       ...tenant,
       id: targetTenantId,
@@ -297,17 +328,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     configRevision.current++;
     settingsReads.current.invalidate();
     const logoutPath = user?.rol === 'SUPERADMIN' || originalSuperAdminUser ? '/admin/auth/logout' : '/auth/logout';
-    void api.post(logoutPath).catch(() => {});
-    localStorage.removeItem('ferre_token');
-    setUser(null);
-    setOriginalSuperAdminUser(null);
-    setOriginalTenant(null);
-    localStorage.removeItem('ferre_user');
-    localStorage.removeItem('ferre_original_superadmin_user');
-    localStorage.removeItem('ferre_original_superadmin_tenant');
-    ['ferre_original_superadmin_token', 'ferre_support_target', 'ferre_is_read_only', 'ferre_active_support_session_id'].forEach((key) => localStorage.removeItem(key));
-    setIsReadOnlyState(false);
-    setActiveSupportSessionId(null);
+    // Capturar el Bearer antes de borrar el estado: Axios ejecuta su interceptor de forma asíncrona.
+    const token = localStorage.getItem('ferre_token');
+    const original = localStorage.getItem('ferre_original_superadmin_token');
+    if (original && token) void api.post('/admin/support/finalizar', {}, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    void api.post(logoutPath, undefined, { headers: { Authorization: `Bearer ${original || token || ''}` } }).catch(() => {});
+    clearSessionStorage();
+    sessionStorage.removeItem('ferre_session_expired');
+    resetIdentity();
   };
 
   return (
@@ -315,7 +343,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       value={{
         tenant,
         user,
-        isAuthenticated: !!user,
+        isAuthenticated: !!user && (authStatus === 'ready' || authStatus === 'offline'),
+        authStatus,
+        retrySession: () => window.dispatchEvent(new Event('ferre:session-retry')),
         isImpersonating: !!originalSuperAdminUser,
         isReadOnly: !!originalSuperAdminUser && isReadOnlyState,
         originalSuperAdminUser,

@@ -54,6 +54,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
   const windowListeners = new Map();
   const states = [], dependencies = [], effects = [], cleanups = [];
   const react = {
+    useLayoutEffect(fn, deps) { return react.useEffect(fn, deps); },
     createContext() { return { Provider: 'ContextProvider' }; },
     useState(initial) { const i = cursor++; if (!(i in states)) states[i] = typeof initial === 'function' ? initial() : initial; return [states[i], (next) => { states[i] = typeof next === 'function' ? next(states[i]) : next; }]; },
     useRef(initial) { const i = cursor++; return states[i] ?? (states[i] = { current: initial }); },
@@ -73,10 +74,11 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     '../hooks/useRubroConfig': { useRubroConfig: () => ({ categoriasDefault: ['General'], unidadesMedida: ['unidad', 'galón'], activarVencimientos: false, activarGarantiaSerie: false }) },
     '../utils/format': { formatLempiras: String },
     '../utils/api': { api: { get: async () => ({ data: {} }) } },
-    '../utils/sessionSync': { startSessionSync: () => () => {} },
+    '../utils/sessionValidation': { startSessionValidation: options => { options.onStatus('ready'); return () => {}; } },
+    '../utils/authInterceptors': { clearSessionStorage: () => {} },
     ...overrides,
   };
-  const component = evaluate(file, mocks, { localStorage: sharedStorage, crypto: webcrypto, alert() {},
+  const component = evaluate(file, mocks, { localStorage: sharedStorage, sessionStorage: storage(), crypto: webcrypto, alert() {},
     window: { addEventListener: (name, fn) => windowListeners.set(name, fn), removeEventListener: (name) => windowListeners.delete(name) },
     document: { documentElement: { dataset: {}, classList: { add() {}, remove() {} }, style: { setProperty() {} } } },
     setTimeout: (fn, delay) => setTimeout(fn, delay).unref(), clearTimeout })[name];
@@ -156,7 +158,7 @@ test('configuración antigua del catálogo local no sobrescribe el servidor ni c
   const page = harness('src/context/TenantContext.tsx', 'TenantProvider', {
     '../utils/api': { api: { get: async () => ({ data: { id: 'tenant-A', colorPrimario: '#0284C7', modoNavegacion: 'TOPNAV', modulosHabilitados: ['pos'] } }) } },
   }, saved);
-  page.render(); await page.effects(); page.render();
+  page.render(); await page.effects(); page.render(); await page.effects(); page.render();
   const value = page.find(node => node.type === 'ContextProvider').props.value;
   assert.equal(value.tenant.colorPrimario, '#0284C7');
   assert.equal(value.tenant.modoNavegacion, 'TOPNAV');
@@ -170,7 +172,7 @@ test('respuesta de configuración antigua no contamina el login de otra empresa'
   const page = harness('src/context/TenantContext.tsx', 'TenantProvider', {
     '../utils/api': { api: { get: () => new Promise(done => { resolve = done; }) } },
   }, saved);
-  page.render(); await page.effects();
+  page.render(); await page.effects(); page.render(); await page.effects();
   saved.setItem('ferre_user', JSON.stringify({ id: 'user-B', rol: 'ADMIN' }));
   saved.setItem('ferre_tenant', JSON.stringify({ id: 'tenant-B', colorPrimario: '#FFFFFF' }));
   resolve({ data: { id: 'tenant-A', colorPrimario: '#FF0000' } });
@@ -186,7 +188,7 @@ test('lectura anterior del servidor no revierte una configuración recién guard
   const page = harness('src/context/TenantContext.tsx', 'TenantProvider', {
     '../utils/api': { api: { get: () => new Promise(done => { resolve = done; }) } },
   }, saved);
-  page.render(); await page.effects();
+  page.render(); await page.effects(); page.render(); await page.effects();
   page.find(node => node.type === 'ContextProvider').props.value.updateTenantConfig({ id: 'tenant-A', colorPrimario: '#0284C7', modoNavegacion: 'TOPNAV' });
   resolve({ data: { id: 'tenant-A', colorPrimario: '#000000', modoNavegacion: 'SIDEBAR' } });
   await new Promise(done => setImmediate(done));
@@ -202,14 +204,14 @@ test('cambiar sesión en otra pestaña invalida usuario y empresa locales sin bo
   saved.setItem('ferre_saas_tenants', JSON.stringify([{ id: 'tenant-C', nombreComercial: 'FerreSystem', colorPrimario: '#123456' }]));
   let boundIdentity;
   const page = harness('src/context/TenantContext.tsx', 'TenantProvider', {
-    '../utils/sessionSync': { startSessionSync: (_, __, identity) => { boundIdentity = identity; return () => {}; } },
+    '../utils/sessionValidation': { startSessionValidation: options => { boundIdentity = options; options.onStatus('ready'); return () => {}; } },
   }, saved);
-  page.render(); await page.effects(); page.render();
+  page.render(); await page.effects(); page.render(); await page.effects(); page.render();
   assert.equal(boundIdentity.userId, 'user-A'); assert.equal(boundIdentity.tenantId, 'tenant-A');
   saved.setItem('ferre_user', JSON.stringify({ id: 'user-B', rol: 'CAJERO' }));
   saved.setItem('ferre_tenant', JSON.stringify({ id: 'tenant-B', nombreComercial: 'Empresa B' }));
   saved.setItem('ferre_token', 'token-B');
-  boundIdentity.onChanged(); page.render(); await page.effects(); page.render();
+  boundIdentity.onChanged(); page.render(); await page.effects(); page.render(); await page.effects(); page.render();
   const local = page.find(node => node.type === 'ContextProvider').props.value;
   assert.equal(local.isAuthenticated, false); assert.equal(local.user, null); assert.equal(local.tenant.id, '');
   assert.equal(local.isImpersonating, false);
@@ -230,7 +232,7 @@ test('POS conserva identidad tras respuesta perdida/reload y bloquea doble enví
     },
   };
   const make = () => harness('src/pages/POSPage.tsx', 'POSPage', { '../utils/api': { api } }, saved);
-  let page = make(); page.render(); await page.effects(); page.render();
+  let page = make(); page.render(); await page.effects(); page.render(); await page.effects(); page.render();
   page.find((n) => n.props.onClick && n.props.className === 'industrial-card').props.onClick();
   page.render();
   const cobrar = page.find((n) => n.props.onClick?.name === 'handleCobrar').props.onClick;
@@ -238,7 +240,7 @@ test('POS conserva identidad tras respuesta perdida/reload y bloquea doble enví
   assert.equal(sent.length, 1);
   const pending = saved.getItem('ferre_pending_sale:tenant-A:user-A');
   assert.ok(pending);
-  fail = false; page = make(); page.render(); await page.effects(); page.render();
+  fail = false; page = make(); page.render(); await page.effects(); page.render(); await page.effects(); page.render();
   await page.find((n) => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
   await page.find((n) => n.props.onClick?.name === 'handleCobrar').props.onClick();
   page.render();
@@ -321,7 +323,7 @@ test('editar cotización recupera porcentajes desde los montos guardados', async
   const cot = { id: 'cot-1', numeroCotizacion: 1, clienteNombre: 'Cliente', estado: 'BORRADOR', createdAt: '2026-10-02', fechaValidez: '2026-10-17', subtotal: 15, isv: 2.25, descuento: 6.5, descuentoGeneral: 1.5, tipoDescuentoGeneral: 'PORCENTAJE', total: 15.75,
     detalles: [{ id: 'line-1', productoId: 'p1', productoNombre: 'Cable', cantidad: 2, medida: 1, totalMedida: 2, precioUnitario: 10, descuento: 5, tipoDescuento: 'PORCENTAJE', subtotal: 15, isv: 2.25, totalLinea: 17.25 }] };
   const page = harness('src/pages/CotizacionesPage.tsx', 'CotizacionesPage', { '../utils/api': { api: { get: async (url) => ({ data: url === '/cotizaciones' ? [cot] : [] }) } } });
-  page.render(); await page.effects(); page.render();
+  page.render(); await page.effects(); page.render(); await page.effects(); page.render();
   page.find((n) => n.props.onClick?.toString().includes('handleAbrirEditar')).props.onClick();
   const nodes = page.render();
   const percentageInputs = nodes.filter((n) => n.type === 'input' && n.props.type === 'number').map((n) => n.props.value);
@@ -368,7 +370,7 @@ test('seleccionar cliente completa datos y guarda su ID; ingreso manual desvincu
   const page = harness('src/pages/CotizacionesPage.tsx', 'CotizacionesPage', {
     '../utils/api': { api: { get: async (url) => ({ data: url === '/cotizaciones' ? [cot] : [] }), put: async (url, body) => { saved.push(body); } } },
   });
-  page.render(); await page.effects(); page.render();
+  page.render(); await page.effects(); page.render(); await page.effects(); page.render();
   const open = () => page.find((node) => node.props.onClick?.toString().includes('handleAbrirEditar')).props.onClick();
   open(); page.render();
   assert.ok(page.find((node) => node.props.value === 'Anterior' && node.props.readOnly));
@@ -411,7 +413,7 @@ const makePOS = (saved, getStatus, post = async () => { throw new Error('No debe
     } }, ...extra,
   }, saved);
 const settlePOS = async page => {
-  page.render(); await page.effects(); page.render(); await page.effects(); page.render();
+  page.render(); await page.effects(); page.render(); await page.effects(); page.render(); await page.effects(); page.render();
 };
 
 test('POS autoguarda carrito antes de cobrar y restaura cantidades, cliente y pago al regresar', async () => {
@@ -423,7 +425,7 @@ test('POS autoguarda carrito antes de cobrar y restaura cantidades, cliente y pa
   page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.onChange({ target: { value: '2.5' } });
   page.render();
   page.find(n => n.props.onClick && n.children.includes('TRANSFERENCIA')).props.onClick();
-  page.render(); await page.effects();
+  page.render(); await page.effects(); page.render(); await page.effects();
   const envelope = JSON.parse(saved.getItem(recoveryKeys.draft));
   assert.equal(envelope.sale.cart[0].cantidad, 2.5);
   assert.equal(envelope.sale.metodoPago, 'TRANSFERENCIA');
@@ -533,7 +535,7 @@ test('corregir precio pendiente conserva identidad y una confirmación tardía s
   await page.find(n => n.props.onClick?.name === 'comprobarVenta').props.onClick(); page.render();
   page.find(n => n.children.includes('Corregir datos de esta venta')).props.onClick(); page.render();
   page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.onChange({ target: { value: '1.5' } });
-  page.render(); await page.effects(); page.render();
+  page.render(); await page.effects(); page.render(); await page.effects(); page.render();
   const corrected = JSON.parse(saved.getItem(recoveryKeys.pending));
   assert.equal(corrected.solicitudId, pending.solicitudId);
   assert.equal(corrected.cart[0].cantidad, 1.5);
@@ -617,7 +619,7 @@ test('cerrar comprobante antiguo conserva y recupera un pendiente o borrador pos
     }
     const key = kind === 'pending' ? recoveryKeys.pending : recoveryKeys.draft;
     const expected = saved.getItem(key);
-    closeOldReceipt(); page.render(); await page.effects(); page.render();
+    closeOldReceipt(); page.render(); await page.effects(); page.render(); await page.effects(); page.render();
     const recovered = JSON.parse(saved.getItem(key));
     assert.equal(recovered.solicitudId ?? recovered.sale.clienteNombre, kind === 'pending' ? newer.solicitudId : newer.clienteNombre);
     if (kind === 'pending') assert.equal(saved.getItem(recoveryKeys.pending), expected);
@@ -630,7 +632,7 @@ const returnKey = 'ferre_pending_return:tenant-A:user-A';
 const returnCommand = { kind: 'EJECUTAR', requestId: 'request-A' };
 const returnReceipt = { id: 'request-A', monto: 10, credito_cancelado: 0, reembolso: 10, metodo: 'EFECTIVO' };
 const makeReturns = (saved, apiMock, overrides = {}) => harness('src/pages/DevolucionesPage.tsx', 'DevolucionesPage', { '../utils/api': { api: apiMock }, ...overrides }, saved);
-const settleReturns = async page => { page.render(); await page.effects(); page.render(); await page.effects(); page.render(); };
+const settleReturns = async page => { page.render(); await page.effects(); page.render(); await page.effects(); page.render(); await page.effects(); page.render(); };
 const confirmReturn = async page => { page.find(n => n.children.includes('Consultar y confirmar pendiente')).props.onClick(); await new Promise(resolve => setImmediate(resolve)); };
 
 test('devolución recupera respuesta confirmada sin POST y mantiene comprobante hasta cerrarlo', async () => {
@@ -755,7 +757,7 @@ test('respuesta vacía del servidor elimina apariencia antigua sin perder sucurs
   saved.setItem('ferre_user', JSON.stringify({ id:'user-A', rol:'ADMIN' }));
   saved.setItem('ferre_tenant', JSON.stringify({ id:'tenant-A', templateVersion:'v2', v2Mode:'dark', fuenteTitulos:'Poppins', modoNavegacion:'TOPNAV', sucursal:'Norte', direccion:'Antigua', impuesto:{ tasa:0 } }));
   const page=harness('src/context/TenantContext.tsx','TenantProvider', { '../utils/api':{ api:{ get:async()=>({ data:{ id:'tenant-A', configuracion:{}, modulosHabilitados:[] } }) } } },saved);
-  page.render(); await page.effects(); page.render();
+  page.render(); await page.effects(); page.render(); await page.effects(); page.render();
   const tenant=page.find(node=>node.type==='ContextProvider').props.value.tenant;
   assert.equal(tenant.templateVersion,'v1'); assert.equal(tenant.v2Mode,'light');
   assert.equal(tenant.fuenteTitulos,'Archivo'); assert.equal(tenant.modoNavegacion,'SIDEBAR');
@@ -767,7 +769,7 @@ test('lecturas fuera de orden y versiones antiguas no reemplazan el último serv
   saved.setItem('ferre_user',JSON.stringify({ id:'user-A', rol:'ADMIN' }));
   saved.setItem('ferre_tenant',JSON.stringify({ id:'tenant-A' }));
   const page=harness('src/context/TenantContext.tsx','TenantProvider',{ '../utils/api':{ api:{ get:()=>new Promise(resolve=>pending.push(resolve)) } } },saved);
-  page.render(); await page.effects(); page.fireFocus();
+  page.render(); await page.effects(); page.render(); await page.effects(); page.fireFocus();
   pending[1]({ data:{ id:'tenant-A', nombreComercial:'Nueva', modoNavegacion:'TOPNAV', updatedAt:'2026-10-06T12:00:00Z', configuracion:{ templateVersion:'v2' } } });
   await new Promise(resolve=>setImmediate(resolve));
   pending[0]({ data:{ id:'tenant-A', nombreComercial:'Vieja', updatedAt:'2026-10-06T11:00:00Z', configuracion:{} } });
@@ -784,7 +786,7 @@ test('respuesta de la misma cuenta con otro token de sesión no se aplica', asyn
   saved.setItem('ferre_user',JSON.stringify({ id:'user-A', rol:'ADMIN' }));
   saved.setItem('ferre_tenant',JSON.stringify({ id:'tenant-A', nombreComercial:'Actual' })); saved.setItem('ferre_token','login-1');
   const page=harness('src/context/TenantContext.tsx','TenantProvider',{ '../utils/api':{ api:{ get:()=>new Promise(resolve=>{finish=resolve;}) } } },saved);
-  page.render(); await page.effects(); saved.setItem('ferre_token','login-2');
+  page.render(); await page.effects(); page.render(); await page.effects(); saved.setItem('ferre_token','login-2');
   finish({ data:{ id:'tenant-A', nombreComercial:'Respuesta anterior' } });
   await new Promise(resolve=>setImmediate(resolve)); page.render();
   assert.equal(page.find(node=>node.type==='ContextProvider').props.value.tenant.nombreComercial,'Actual');

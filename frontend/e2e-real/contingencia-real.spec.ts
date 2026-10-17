@@ -441,21 +441,62 @@ test.describe('POS offline de contingencia — backend real', () => {
       await ingresar(page, CAJERO, '/pos-contingencia');
       await expect(page.getByRole('button', { name: new RegExp(TALADRO) })).toBeVisible();
       await controlada(page);
-      // Publica una versión nueva del worker (cambia el nombre de caché).
-      writeFileSync(destino, original.replace(/ferresystem-shell-v\d+/, 'ferresystem-shell-vnueva'));
-      const estado = await page.evaluate(async () => {
-        const reg = await navigator.serviceWorker.getRegistration();
-        await reg!.update();
-        await new Promise((r) => setTimeout(r, 4000));
-        return {
-          esperando: reg!.waiting !== null,
-          // Solo la versión activa limpia la caché anterior: si sigue la v1, la nueva no se ha activado.
-          cachesActivas: await caches.keys(),
-        };
+      // La versión de partida es la del build bajo prueba, no una versión histórica.
+      const versionActual = original.match(/const VERSION = '([^']+)'/)?.[1];
+      expect(versionActual).toMatch(/^ferresystem-shell-v\d+$/);
+      const versionNueva = `${versionActual}-actualizacion-e2e`;
+      await page.getByRole('button', { name: new RegExp(TALADRO) }).click();
+      await page.locator('#pc-efectivo').fill('3000');
+      const carritoAntes = await page.getByRole('region', { name: 'Venta actual' }).innerText();
+      const diarioAntes = await diario(page);
+      await page.evaluate(() => {
+        (window as any).__controladorAntes = navigator.serviceWorker.controller;
+        (window as any).__cambiosControlador = 0;
+        navigator.serviceWorker.addEventListener('controllerchange', () => { (window as any).__cambiosControlador++; });
       });
-      expect(estado.esperando).toBe(true);
-      expect(estado.cachesActivas).toContain('ferresystem-shell-v1');
-      await expect(page.getByRole('button', { name: new RegExp(TALADRO) })).toBeVisible();
+      writeFileSync(destino, original.replace(`'${versionActual}'`, `'${versionNueva}'`));
+      await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration())!.update(); });
+      await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())!.waiting?.state), { timeout: 30_000 }).toBe('installed');
+      const estado = await page.evaluate(async () => ({
+        mismoControlador: navigator.serviceWorker.controller === (window as any).__controladorAntes,
+        cambiosControlador: (window as any).__cambiosControlador,
+        cachesActivas: await caches.keys(),
+      }));
+      expect(estado.mismoControlador).toBe(true);
+      expect(estado.cambiosControlador).toBe(0);
+      expect(estado.cachesActivas).toContain(versionActual);
+      expect(estado.cachesActivas).toContain(versionNueva);
+      expect(await page.getByRole('region', { name: 'Venta actual' }).innerText()).toBe(carritoAntes);
+      await expect(page.locator('#pc-efectivo')).toHaveValue('3000');
+      expect(await diario(page)).toEqual(diarioAntes);
+      // Con la actualización esperando, la caja puede completar una venta offline.
+      await ctx.setOffline(true);
+      await page.locator('#pc-cobrar').click();
+      await expect.poll(async () => (await diario(page)).length).toBe(diarioAntes.length + 1);
+      const pendientes = await diario(page);
+      // Los reintentos pueden actualizar su diagnóstico; identidad, importes, líneas y estado pendiente deben conservarse.
+      const contenidoPersistido = (ops: any[]) => ops.map(op => Object.fromEntries(Object.entries(op)
+        .filter(([clave]) => !['intentos', 'proximoIntentoAt', 'ultimoError'].includes(clave))));
+      const nueva = pendientes.find((op) => !diarioAntes.some((anterior) => anterior.operacionId === op.operacionId));
+      expect(nueva.estado).toBe('PENDIENTE');
+      await page.reload();
+      await expect(page.locator('#pc-cobrar')).toBeVisible();
+      await expect.poll(async () => contenidoPersistido(await diario(page))).toEqual(contenidoPersistido(pendientes));
+      expect(await page.evaluate(() => caches.keys())).toContain(versionActual);
+      // Al cerrar la última pestaña puede activarse el worker nuevo: el diario es independiente de CacheStorage.
+      await page.close();
+      const reabierta = await ctx.newPage();
+      await reabierta.goto('/pos-contingencia');
+      await expect(reabierta.locator('#pc-cobrar')).toBeVisible();
+      await expect.poll(() => reabierta.evaluate(() => caches.keys())).not.toContain(versionActual);
+      expect(await reabierta.evaluate(() => caches.keys())).toContain(versionNueva);
+      await expect.poll(async () => contenidoPersistido(await diario(reabierta))).toEqual(contenidoPersistido(pendientes));
+      await ctx.setOffline(false);
+      await esperarEstado(reabierta, nueva.correlativoLocal, 'SINCRONIZADA');
+      const final = (await diario(reabierta)).find(op => op.operacionId === nueva.operacionId);
+      expect(final.lineas).toEqual(nueva.lineas);
+      expect(final.totalCentavos).toBe(nueva.totalCentavos);
+      expect(sql(`SELECT count(*) FROM ventas WHERE tenant_id='${TENANT}' AND correlativo_local='${nueva.correlativoLocal}'`)).toBe('1');
     } finally {
       writeFileSync(destino, original);
     }
@@ -504,8 +545,13 @@ test.describe('POS offline de contingencia — backend real', () => {
     // Leave the sync component while still offline, then logout online through
     // the UI, so the server actually revokes the session before any send.
     await page.goto('/arqueo-caja');
-    await expect(page.getByRole('button', { name: 'SALIR', exact: true })).toBeVisible();
+    await expect(page.locator('#pc-cobrar')).toHaveCount(0);
+    expect(sql(`SELECT count(*) FROM operaciones_contingencia WHERE id='${centralId}'`)).toBe('0');
     await context.setOffline(false);
+    // Arqueo requiere validar la sesión online; la excepción offline solo autoriza el POS.
+    // Recargar aquí valida sin volver a montar el componente que envía la cola.
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'SALIR', exact: true })).toBeVisible();
     const revoked = page.waitForResponse(response => response.url().endsWith('/auth/logout') && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'SALIR', exact: true }).click();
     expect((await revoked).status()).toBe(200);

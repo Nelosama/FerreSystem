@@ -20,13 +20,23 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiredPermiso,
   requiredModule,
 }) => {
-  const { user, tenant, isAuthenticated } = useTenant();
+  const { user, tenant, authStatus, retrySession } = useTenant();
   const { pathname } = useLocation();
   const { t } = useI18n();
 
-  if (!isAuthenticated || !user) {
+  const mountedIdentity = React.useRef('');
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
+
+  const ready = authStatus === 'ready' || (authStatus === 'offline' && pathname === '/pos-contingencia');
+  const identity = `${user.id}:${tenant.id}`;
+  if (ready) mountedIdentity.current = identity;
+  const sessionGate = <div role={authStatus === 'checking' ? 'status' : 'alert'} style={styles.deniedContainer}>
+    <p>{authStatus === 'checking' ? 'Verificando sesión…' : authStatus === 'denied' ? 'Acceso denegado. Tu sesión sigue abierta.' : 'No pudimos verificar la sesión. Revisa la conexión y vuelve a intentar.'}</p>
+    {authStatus !== 'checking' && <button className="btn btn-primary" onClick={retrySession}>Reintentar</button>}
+  </div>;
+  if (!ready && mountedIdentity.current !== identity) return sessionGate;
 
   if (pathname === '/' && user.rol === 'SUPERADMIN') return <Navigate to="/admin" replace />;
 
@@ -74,7 +84,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
   }
 
-  return <>{children}</>;
+  return <>
+    {!ready && sessionGate}
+    <div data-protected-content key={identity} hidden={!ready} inert={!ready}>{children}</div>
+  </>;
 };
 
 const styles: Record<string, React.CSSProperties> = {

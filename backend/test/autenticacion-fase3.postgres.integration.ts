@@ -1,3 +1,4 @@
+import { noStore } from '../src/common/no-store.middleware';
 import { idSolicitud } from '../src/operaciones/ledger';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -104,6 +105,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
       ],
     }).compile();
     app = moduleRef.createNestApplication();
+    app.use(noStore);
     app.use(cookieParser());
     app.setGlobalPrefix('api');
     await app.init();
@@ -137,6 +139,21 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
   // Cada prueba empieza sin contadores de intentos. Las sesiones se conservan: cada prueba crea las suyas.
   beforeEach(async () => {
     await prisma.$executeRawUnsafe('DELETE FROM intentos_login');
+  });
+
+  it('las respuestas privadas y los rechazos de autenticación llevan no-store', async () => {
+    const res = await login('admin@auth.test.invalid').expect(200);
+    expect(res.headers['cache-control']).toBe('no-store, private');
+    await get('/auth/me', res.body.accessToken).expect(200).expect('Cache-Control', 'no-store, private');
+    await get('/auth/me', 'token-invalido').expect(401).expect('Cache-Control', 'no-store, private');
+  });
+
+  it('refresh no cambia de tenant aunque un token firmado afirme otro tenant', async () => {
+    const res = await login('admin@auth.test.invalid').expect(200);
+    const original = jwt.decode<any>(res.body.accessToken);
+    const invalid = jwt.sign({ sub: adminId, tenantId: randomUUID(), type: 'tenant', typ: 'refresh', sid: original.sid });
+    await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', `refreshToken=${invalid}`).expect(401);
+    await get('/auth/me', res.body.accessToken).expect(200);
   });
 
   describe('límite de intentos de inicio de sesión', () => {

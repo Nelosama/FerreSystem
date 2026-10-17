@@ -1,3 +1,4 @@
+import { refreshCookieOptions } from './refresh-cookie';
 import { normalizeTenantConfiguration } from '../tenants/tenant-configuration';
 import { Injectable, UnauthorizedException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -88,14 +89,9 @@ export class AuthService {
         expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
       });
       await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: superAdmin.id, expiresAt: this.expiracionRefresh(refreshToken) });
-      const isProduction = this.configService.get('NODE_ENV') === 'production';
-
       res.cookie('superAdminRefreshToken', refreshToken, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? 'none' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: '/api/admin/auth',
+        ...refreshCookieOptions(this.configService, true),
+        maxAge: Math.max(0, this.expiracionRefresh(refreshToken).getTime() - Date.now()),
       });
 
       return {
@@ -240,13 +236,9 @@ export class AuthService {
     await crearSesion(this.prisma, { id: sid, tipo: 'TENANT', sujetoId: usuario.id, tenantId: usuario.tenantId, expiresAt: this.expiracionRefresh(refreshToken) });
 
     // Guardar refresh token en cookie httpOnly + secure
-    const isProduction = this.configService.get('NODE_ENV') === 'production';
     res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
-      path: '/',
+      ...refreshCookieOptions(this.configService),
+      maxAge: Math.max(0, this.expiracionRefresh(refreshToken).getTime() - Date.now()),
     });
 
     // Etapa 9: Respuesta exitosa
@@ -288,8 +280,14 @@ export class AuthService {
       throw new UnauthorizedException('No se encontró el refresh token en las cookies');
     }
 
+    let decoded: any;
     try {
-      const decoded = this.jwtService.verify(refreshToken);
+      decoded = this.jwtService.verify(refreshToken);
+    } catch {
+      res.clearCookie('refreshToken', refreshCookieOptions(this.configService));
+      throw new UnauthorizedException('Refresh token expirado o inválido');
+    }
+    try {
       if (decoded.typ !== 'refresh' || decoded.type !== 'tenant' || !decoded.tenantId) {
         throw new UnauthorizedException('Token inválido para refrescar sesión');
       }
@@ -302,7 +300,7 @@ export class AuthService {
         include: { tenant: true },
       });
 
-      if (!usuario || !usuario.activo || usuario.tenant.estado !== 'ACTIVO') {
+      if (!usuario || usuario.tenantId !== decoded.tenantId || !usuario.activo || usuario.tenant.estado !== 'ACTIVO') {
         throw new UnauthorizedException('Usuario o ferretería no autorizados');
       }
 
@@ -320,15 +318,18 @@ export class AuthService {
       });
 
       return { accessToken };
-    } catch {
-      res.clearCookie('refreshToken', { path: '/' });
-      throw new UnauthorizedException('Refresh token expirado o inválido');
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        res.clearCookie('refreshToken', refreshCookieOptions(this.configService));
+        throw new UnauthorizedException('Refresh token expirado o inválido');
+      }
+      throw error; // Un fallo de infraestructura no invalida el refresh token.
     }
   }
 
   // Revoca la sesión del refresh token (cookie) y la del Bearer enviado (incluye sesiones de soporte).
   async logout(res: Response, req?: Request) {
-    res.clearCookie('refreshToken', { path: '/' });
+    res.clearCookie('refreshToken', refreshCookieOptions(this.configService));
     const sids = new Set([sidDeToken(this.jwtService, req?.cookies?.refreshToken), sidDeToken(this.jwtService, bearerDe(req))]);
     for (const sid of sids) {
       if (sid) await revocarSesion(this.prisma, sid, 'LOGOUT');

@@ -1,3 +1,4 @@
+import { refreshCookieOptions } from '../auth/refresh-cookie';
 import { CORE_TENANT_MODULES, DEFAULT_TENANT_MODULES, enabledTenantModules } from '../common/tenant-modules';
 import { audit, lockTenant } from '../operaciones/ledger';
 import { consultarAuditoria } from '../operaciones/auditoria-consulta';
@@ -116,13 +117,9 @@ export class SuperAdminService {
       expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
     });
     await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: admin.id, expiresAt: this.expiracionRefresh(refreshToken) });
-    const isProduction = this.configService.get('NODE_ENV') === 'production';
     res.cookie('superAdminRefreshToken', refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/admin/auth',
+      ...refreshCookieOptions(this.configService, true),
+      maxAge: Math.max(0, this.expiracionRefresh(refreshToken).getTime() - Date.now()),
     });
     return {
       accessToken,
@@ -142,20 +139,20 @@ export class SuperAdminService {
     try {
       decoded = this.jwtService.verify(refreshToken);
     } catch {
-      res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+      res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Refresh token de Super Admin expirado o inválido');
     }
     if (decoded.typ !== 'refresh' || decoded.type !== 'super_admin' || decoded.rol !== 'SUPER_ADMIN' || !decoded.sub) {
-      res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+      res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Refresh token de Super Admin inválido');
     }
     if (!decoded.sid || !(await sesionVigente(this.prisma, String(decoded.sid), String(decoded.sub)))) {
-      res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+      res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Sesión de Super Admin cerrada o vencida');
     }
     const admin = await this.prisma.superAdmin.findUnique({ where: { id: decoded.sub } });
     if (!admin || !admin.activo) {
-      res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+      res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Super Admin no autorizado');
     }
     const accessToken = this.jwtService.sign(
@@ -166,8 +163,8 @@ export class SuperAdminService {
   }
 
   async logout(res: Response, req?: Request) {
-    res.clearCookie('superAdminRefreshToken', { path: '/admin' });
-    res.clearCookie('superAdminRefreshToken', { path: '/api/admin/auth' });
+    res.clearCookie('superAdminRefreshToken', { ...refreshCookieOptions(this.configService, true), path: '/admin' });
+    res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
     const sids = new Set([sidDeToken(this.jwtService, req?.cookies?.superAdminRefreshToken), sidDeToken(this.jwtService, bearerDe(req))]);
     for (const sid of sids) {
       if (sid) await revocarSesion(this.prisma, sid, 'LOGOUT');

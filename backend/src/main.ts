@@ -1,3 +1,4 @@
+import { noStore } from './common/no-store.middleware';
 import { NestFactory } from '@nestjs/core';
 import * as express from 'express';
 import { AppModule } from './app.module';
@@ -19,6 +20,7 @@ async function bootstrap() {
   // Analizador de cuerpo explícito: JSON admite hasta 2 MB para la importación masiva (5000 filas ≈ 1 MB);
   // el resto de rutas sigue igual que con el valor por defecto de Nest.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.use(noStore);
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true }));
 

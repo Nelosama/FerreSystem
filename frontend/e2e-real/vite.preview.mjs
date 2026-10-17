@@ -11,6 +11,9 @@ export default defineConfig({
   preview: {
     host: '127.0.0.1',
     strictPort: true,
+    // El piloto es del mismo origen (/api usa proxy): no crear variantes CORS
+    // artificiales en los recursos estáticos precargados antes de abrir la página.
+    cors: false,
     proxy: { '/api': { target, changeOrigin: true } },
   },
 });
