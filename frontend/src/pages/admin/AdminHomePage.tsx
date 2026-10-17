@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowUpRight, FileText, Plus, TrendingUp } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, FileText, Package, Plus, Tags, Truck, TrendingUp } from 'lucide-react';
 import { TopBar } from '../../components/TopBar';
 import { SyncStatus } from '../../components/SyncStatus';
 import { TaskShortcuts } from '../../components/TaskFinder';
@@ -56,6 +56,16 @@ export const AdminHomePage: React.FC = () => {
   const accesos = availableTasks(user, tenant).filter(item => ACCESOS_RAPIDOS.includes(item.key));
   const alertas = datos?.alertasStock.items ?? [];
   const variacion = datos?.ventasDelDia.variacionPorcentaje;
+  const puedeVender = accesos.some(item => item.key === 'pos');
+  const puedeCotizar = accesos.some(item => item.key === 'cotizaciones');
+  // Solo tareas con datos reales del resumen; sin datos no se muestran cifras.
+  const tareasDelRol = availableTasks(user, tenant);
+  const pendientes: { icono: React.ReactNode; titulo: string; detalle: string; cantidad?: number; ruta: string }[] = [
+    { icono: <Tags size={18} aria-hidden="true" />, titulo: 'Precios por aprobar', detalle: 'Cambios de precio enviados por bodega', cantidad: undefined as number | undefined, ruta: '/precios' },
+    { icono: <Truck size={18} aria-hidden="true" />, titulo: 'Entregas pendientes', detalle: 'Ventas por entregar', cantidad: undefined, ruta: '/entregas' },
+    { icono: <FileText size={18} aria-hidden="true" />, titulo: 'Cotizaciones por vencer', detalle: `${datos?.cotizacionesPendientes.porVencerHoy ?? 0} vencen hoy`, cantidad: datos?.cotizacionesPendientes.porVencerHoy, ruta: '/cotizaciones' },
+    { icono: <Package size={18} aria-hidden="true" />, titulo: 'Stock bajo', detalle: 'Productos bajo mínimo', cantidad: datos?.alertasStock.cantidad, ruta: '/inventario' },
+  ].filter(p => tareasDelRol.some(item => item.route === p.ruta));
 
   return (
     <div className="admin-home">
@@ -67,11 +77,24 @@ export const AdminHomePage: React.FC = () => {
             <SyncStatus sync={sync} />
           </div>
           <nav className="admin-home__acciones" aria-label="Accesos rápidos">
-            {accesos.map(item => (
-              <Link key={item.key} to={item.route} className="admin-home__acceso">{item.defaultLabel}</Link>
-            ))}
+            {puedeCotizar && <Link to="/cotizaciones" className="admin-home__acceso"><FileText size={15} aria-hidden="true" /> Nueva cotización</Link>}
+            {puedeVender && <Link to="/pos" className="admin-home__acceso admin-home__acceso--principal"><Plus size={15} aria-hidden="true" /> Nueva venta</Link>}
           </nav>
         </header>
+
+        {/* Lo que requiere una acción hoy va primero; las tareas generales siguen debajo. */}
+        <section className="admin-home__pendientes" aria-labelledby="home-pendientes">
+          <h2 id="home-pendientes" className="admin-home__subtitulo">Pendientes de hoy</h2>
+          <ul className="admin-home__lista">
+            {pendientes.map(p => (
+              <li key={p.titulo} className="admin-home__fila">
+                <span className="admin-home__icono">{p.icono}</span>
+                <div><strong>{p.titulo}</strong><span className="admin-home__meta">{p.detalle}</span></div>
+                {p.cantidad != null && <span className="admin-home__contador">{p.cantidad}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
 
         {/* Accesos por tarea del negocio: se conservan del resumen anterior (funcionalidad existente). */}
         <TaskShortcuts />

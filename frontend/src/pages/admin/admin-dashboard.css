@@ -225,3 +225,18 @@
 @media (max-width: 380px) {
   .admin-home__metricas { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Inicio del administrador (rediseño): pendientes de hoy primero, acciones principales y tarjetas claras. */
+.admin-home__acceso--principal { background:var(--color-primary); border-color:var(--color-primary); color:#fff; }
+.admin-home__acceso--principal svg { color:#fff; }
+.admin-home__pendientes { background:var(--color-surface); border:1px solid var(--color-border-subtle); border-radius:12px; padding:16px 18px; margin:0 0 16px; }
+.admin-home__pendientes .admin-home__lista { margin-top:6px; }
+.admin-home__pendientes .admin-home__fila { padding:12px 0; }
+.admin-home__icono { width:36px; height:36px; flex:0 0 auto; display:grid; place-items:center; border-radius:8px; background:var(--color-primary-light); color:var(--color-primary); }
+.admin-home__contador { min-width:28px; text-align:center; font-weight:700; font-size:13px; padding:3px 9px; border-radius:12px; background:var(--color-warning-bg); color:#92400E; font-variant-numeric:tabular-nums; }
+.admin-home__acceso { gap:8px; }
+.admin-home__pendientes .admin-home__fila { justify-content:flex-start; }
+.admin-home__pendientes .admin-home__fila > div { flex:1; min-width:0; text-align:left; }
+.admin-home__pendientes .admin-home__fila > div strong { display:block; }
+.admin-home__pendientes .admin-home__fila > div { align-items:flex-start; }
+.admin-home__pendientes .admin-home__meta { margin-left:0; text-align:left; }
