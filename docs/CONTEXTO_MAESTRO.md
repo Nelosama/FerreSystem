@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-16, America/Tegucigalpa** — correcciones operativas en `fix/jowa-operacion-estable`, PR #173 desde main con #172 integrado. Validación local terminada; checks del SHA final en el PR. Sin merge ni despliegue.
+Última revisión: **2026-10-17, America/Tegucigalpa** — rediseño de navegación fase 1 en `claude/gifted-dirac-fqc2u5` (menú reordenado y desplegable, estado de conexión, menú de plataforma y plantilla V3). Sin PR, merge ni despliegue.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -21,6 +21,28 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
 
 ---
+
+## Rediseño de navegación Jowa — fase 1 (2026-10-17, rama `claude/gifted-dirac-fqc2u5`, sin PR, merge ni despliegue)
+
+- **Origen:** propuesta Figma Make «Rediseño de Jowa System» evaluada y adaptada en chat con el propietario: formatos actuales (L., ISV 15 %, RTN, `V-…`), módulos reales, modo sin conexión y color por negocio. El propietario aprobó el orden de las maquetas y pidió grupos del menú lateral desplegables, conservando SIDEBAR y TOPNAV.
+- **Orden del menú:** `NAVIGATION_ORDER` en `frontend/src/config/navigation.ts`, aplicado por `availableTasks`. Grupos: Inicio, luego Ventas y caja, Clientes y cobros, Inventario y compras, y Administración. Dentro de cada grupo, por uso: el POS antes de Arqueo, Cotizaciones y demás. Rutas, roles, permisos, módulos y `PENDING_MODULES` sin cambios. Etiquetas del menú en es/en pasan a mayúscula inicial.
+- **Menú lateral** (`components/Sidebar.tsx`, estilos `.jowa-*` en `App.css`):
+  - Grupos desplegables con `aria-expanded`. El grupo cerrado se recuerda en `localStorage` (`jowa_menu_grupos_cerrados`) y se abre solo si contiene la ruta activa.
+  - Marca del negocio y sucursal arriba.
+  - Pie con «En línea» / «Sin conexión» y las ventas de contingencia por enviar (`useConexion` + `contarVentasPorEnviar` en `offline/journal.ts`, que no crea la base local si el equipo nunca vendió sin red).
+  - Sin red, los módulos distintos del POS se atenúan con la marca «en línea». Solo informa: no cambia sincronización, contingencia ni autorización.
+  - TOPNAV sin cambios estructurales.
+- **Super Admin:**
+  - `PlatformSidebar` con color fijo de plataforma (no adopta el del negocio). Grupos: Clientes (Negocios, Usuarios administradores) y Plataforma (Catálogo de servicios, Soporte remoto, Auditoría, Mantenimiento y respaldos).
+  - `SuperAdminPage` lee y escribe la sección en `?seccion=` (`config/platformNavigation.ts`).
+  - En `/admin/negocios/:id` se despliega el menú del negocio (las seis pestañas de `NegocioNavigation`) con su color.
+- **Plantilla V3 «Jowa claro»:** `templateVersion: 'v3'` admitido en el backend (`tenant-configuration.ts`, sin esquema ni migración: es la configuración JSON existente), en `TenantContext` y en el selector de Configuración. `v3-theme.css` redefine superficies, bordes, radios y tablas; el color y las fuentes siguen siendo los del negocio. V1/V2 sin cambios y V1 sigue siendo el valor por defecto.
+- **Pruebas locales:**
+  - Frontend: unitarias 380/380 (incluye una nueva de orden), `tsc -b`, lint sin errores nuevos y build (`VITE_API_URL=/api`).
+  - Navegador simulado: `navigation-settings` + `template-v2` 47/47. `e2e/menu-jowa-v3.spec.ts` es nueva (orden, grupos desplegables persistentes, color del negocio, sin conexión, TOPNAV, Super Admin por URL y menú anidado). Suite simulada completa **178/178** con Chromium 1194 del entorno. La primera pasada dio 171/3: el indicador de conexión usaba `role="status"` y competía con los mensajes de Entregas y Conciliación; ahora es solo `aria-live`. También se corrigió que los grupos plegados seguían visibles por CSS.
+  - Backend: unitarias 510/510 (V3 admitida y `v4` rechazada) y build.
+  - No ejecutados: PostgreSQL real, piloto `e2e-real`, dispositivo físico ni Safari.
+- **Pendiente (fase 2, autorizada en el mismo chat):** reordenar Inicio (pendientes de hoy primero), panel de venta del POS en pasos (Cliente → Productos → Pago y entrega), barra superior con estado de caja y vista previa de color en Marca y navegación. El sidebar de plataforma solo aplica a SIDEBAR; en TOPNAV el Super Admin conserva las pestañas del panel.
 
 ## Correcciones operativas Jowa — 2026-10-16, America/Tegucigalpa
 

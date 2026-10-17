@@ -131,7 +131,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Aplicar exclusivamente la configuración activa a las variables CSS
   useEffect(() => {
     const root = document.documentElement;
-    const templateVersion = tenant.templateVersion === 'v2' ? 'v2' : 'v1';
+    const templateVersion = tenant.templateVersion === 'v2' || tenant.templateVersion === 'v3' ? tenant.templateVersion : 'v1';
     const v2Mode = tenant.v2Mode === 'dark' || tenant.v2Mode === 'hybrid' ? tenant.v2Mode : 'light';
     root.dataset.template = templateVersion;
     root.classList.remove('v2-mode-light', 'v2-mode-dark', 'v2-mode-hybrid');

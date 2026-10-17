@@ -13,6 +13,7 @@ import ContingenciaAdminPage from './pages/ContingenciaAdminPage';
 
 import './App.css';
 import './v2-theme.css';
+import './v3-theme.css';
 import { TaskFinder } from './components/TaskFinder';
 import { ModuloPendiente } from './components/ModuloPendiente';
 

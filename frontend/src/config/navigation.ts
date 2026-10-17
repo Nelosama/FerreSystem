@@ -260,6 +260,14 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
 
 
 export const NAVIGATION_CATEGORIES = ['SYSTEM', 'VENTAS', 'CLIENTES', 'INVENTARIO', 'ADMINISTRACION'] as const;
+// Orden dentro de cada grupo: lo que se usa a diario primero. No cambia rutas, roles ni módulos.
+export const NAVIGATION_ORDER = [
+  'superadmin',
+  'dashboard', 'pos', 'arqueo_caja', 'cotizaciones', 'pedidos_especiales', 'apartados', 'devoluciones', 'entregas',
+  'clientes', 'cuentas', 'estado_cuenta_clientes', 'listas_precio',
+  'inventario', 'levantamiento', 'ordenes_compra', 'transferencias', 'precios', 'garantias',
+  'reportes', 'conciliacion_bancaria', 'comisiones', 'usuarios', 'admin_movil',
+];
 export const ROLE_PRIORITIES: Record<string, string[]> = {
   SUPERADMIN: ['superadmin'], ADMIN: ['ordenes_compra', 'inventario', 'usuarios', 'reportes'],
   CAJERO: ['arqueo_caja', 'pos', 'cuentas'],

@@ -19,7 +19,8 @@ import {
 } from 'lucide-react';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { SECCIONES_PLATAFORMA, SLUG_SECCION, type SeccionPlataforma } from '../config/platformNavigation';
 import { CATALOGO_MODULOS, PENDING_MODULES } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
@@ -179,7 +180,10 @@ export const SuperAdminPage: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useI18n();
 
-  const [tabActiva, setTabActiva] = useState<'dashboard' | 'tenants' | 'modulos' | 'admins' | 'auditoria' | 'soporte_historial' | 'mantenimiento'>('tenants');
+  // La sección vive en la URL (?seccion=) para que el menú de plataforma abra cada área directamente.
+  const [parametros, setParametros] = useSearchParams();
+  const tabActiva: SeccionPlataforma = SECCIONES_PLATAFORMA[parametros.get('seccion') || ''] ?? 'tenants';
+  const setTabActiva = (tab: SeccionPlataforma) => setParametros(actual => { const siguiente = new URLSearchParams(actual); siguiente.set('seccion', SLUG_SECCION[tab]); return siguiente; });
 
   const [tenants, setTenants] = useState<TenantItem[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUserItem[]>([]);

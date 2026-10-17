@@ -150,3 +150,14 @@ test('POS respeta permisos explícitos y hereda permisos del rol cuando no fuero
   assert.equal(availableTasks({ rol: 'CAJERO', permisosConfigurados: false, permisos: [] }, tenant).some(item => item.key === 'pos'), true);
   assert.equal(availableTasks({ rol: 'CAJERO', permisosConfigurados: true, permisos: ['pos.vender'] }, tenant).some(item => item.key === 'pos'), true);
 });
+
+test('el menú sigue el orden de uso dentro de cada grupo', () => {
+  const keys = availableTasks({ rol: 'ADMIN' }, tenant).map(item => item.key);
+  const antes = (a, b) => assert.ok(keys.indexOf(a) < keys.indexOf(b), `${a} antes de ${b}`);
+  assert.equal(keys[0], 'dashboard');
+  antes('pos', 'arqueo_caja'); antes('arqueo_caja', 'cotizaciones'); antes('devoluciones', 'entregas');
+  antes('clientes', 'cuentas'); antes('cuentas', 'estado_cuenta_clientes');
+  antes('inventario', 'levantamiento'); antes('ordenes_compra', 'precios');
+  antes('reportes', 'conciliacion_bancaria'); antes('usuarios', 'admin_movil');
+  assert.deepEqual(Array.from(groupNavigation(availableTasks({ rol: 'ADMIN' }, tenant)), group => group.category), ['VENTAS', 'CLIENTES', 'INVENTARIO', 'ADMINISTRACION']);
+});

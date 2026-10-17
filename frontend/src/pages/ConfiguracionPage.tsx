@@ -31,7 +31,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   const negocio: any = datos ?? {};
 
   const [idioma, setIdioma] = useState<'es' | 'en'>('es');
-  const [templateVersion, setTemplateVersion] = useState<'v1' | 'v2'>(negocio.templateVersion || 'v1');
+  const [templateVersion, setTemplateVersion] = useState<'v1' | 'v2' | 'v3'>(negocio.templateVersion || 'v1');
   const [v2Mode, setV2Mode] = useState<NonNullable<TenantInfo['v2Mode']>>(negocio.v2Mode || 'light');
   const [nombre, setNombre] = useState(negocio.nombreComercial || '');
   const [color, setColor] = useState(negocio.colorPrimario || '#EA580C');
@@ -321,15 +321,15 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
 
             <div className="form-group">
               <label htmlFor="template-version" className="form-label">{t('uxAudit.design_template')} </label>
-              <select id="template-version" className="form-select" value={templateVersion} onChange={e => setTemplateVersion(e.target.value as 'v1' | 'v2')}>
-                <option value="v1">{t('uxAudit.classic_v1')} </option><option value="v2">Template V2</option>
+              <select id="template-version" className="form-select" value={templateVersion} onChange={e => setTemplateVersion(e.target.value as 'v1' | 'v2' | 'v3')}>
+                <option value="v1">{t('uxAudit.classic_v1')} </option><option value="v2">Template V2</option><option value="v3">{t('uxAudit.template_v3')}</option>
               </select>
               {templateVersion === 'v2' ? <>
                 <label htmlFor="v2-mode" className="form-label">{t('uxAudit.template_v2_mode')} </label>
                 <select id="v2-mode" className="form-select" value={v2Mode} onChange={e => setV2Mode(e.target.value as NonNullable<TenantInfo['v2Mode']>)}>
                   <option value="light">{t('uxAudit.corporate_light')} </option><option value="dark">{t('uxAudit.industrial_dark')} </option><option value="hybrid">{t('uxAudit.energetic')} </option>
                 </select>
-              </> : <>
+              </> : templateVersion === 'v3' ? null : <>
                 <label htmlFor="classic-style" className="form-label">{t('uxAudit.classic_variant')} </label>
                 <select id="classic-style" className="form-select" value={estiloUI} onChange={e => setEstiloUI(e.target.value as NonNullable<TenantInfo['estiloUI']>)}>
                   <option value="INDUSTRIAL">Industrial</option><option value="MINIMALISTA">{t('uxAudit.minimalist')} </option><option value="MODERNO">{t('uxAudit.modern')} </option>

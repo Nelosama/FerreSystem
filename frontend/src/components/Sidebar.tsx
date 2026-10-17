@@ -1,152 +1,104 @@
 import { LogotipoNegocio } from './LogotipoNegocio';
+import { PlatformSidebar } from './PlatformSidebar';
 import { availableTasks, groupNavigation } from '../utils/taskNavigation';
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
+import { ChevronDown, MapPin, WifiOff } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
+import { useConexion } from '../hooks/useConexion';
 import { type NavigationItem } from '../config/navigation';
 
+const CLAVE_GRUPOS = 'jowa_menu_grupos_cerrados';
+// Sin red solo sigue operando el POS (contingencia en efectivo); el resto necesita el servidor.
+const DISPONIBLE_SIN_RED = new Set(['pos']);
+
+const leerCerrados = (): string[] => {
+  try { const valor = JSON.parse(localStorage.getItem(CLAVE_GRUPOS) || '[]'); return Array.isArray(valor) ? valor : []; } catch { return []; }
+};
+
 export const Sidebar: React.FC = () => {
+  const { user } = useTenant();
+  if (user?.rol === 'SUPERADMIN') return <PlatformSidebar />;
+  return <TenantSidebar />;
+};
+
+const TenantSidebar: React.FC = () => {
   const { tenant, user } = useTenant();
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
-
-
+  const { pathname } = useLocation();
+  const { enLinea, ventasPorEnviar } = useConexion();
+  const [cerrados, setCerrados] = React.useState<string[]>(leerCerrados);
 
   const visibleItems = availableTasks(user, tenant);
+  const inicio = visibleItems.find(item => item.key === 'dashboard');
+  const grupos = groupNavigation(visibleItems.filter(item => item !== inicio));
 
   const getLabel = (item: NavigationItem) => {
-    if (item.key === 'inventario') {
-      return rubroConfig.nombreCatalogo.toUpperCase();
-    }
+    if (item.key === 'inventario') return rubroConfig.nombreCatalogo;
     const contextualKey = item.key === 'ordenes_compra' ? 'navigation.purchases_receiving' : item.key === 'usuarios' ? 'navigation.staff_permissions' : item.labelKey;
     const translated = t(contextualKey);
-    return translated && translated !== item.labelKey ? translated : item.defaultLabel;
+    return translated && translated !== contextualKey ? translated : item.defaultLabel;
+  };
+
+  const alternar = (categoria: string) => setCerrados(actual => {
+    const siguiente = actual.includes(categoria) ? actual.filter(c => c !== categoria) : [...actual, categoria];
+    try { localStorage.setItem(CLAVE_GRUPOS, JSON.stringify(siguiente)); } catch { /* preferencia opcional */ }
+    return siguiente;
+  });
+
+  const enlace = (item: NavigationItem) => {
+    const Icon = item.icon;
+    const sinRed = !enLinea && !DISPONIBLE_SIN_RED.has(item.key);
+    return <li key={item.key}>
+      <NavLink to={item.route} end={item.exact} className={({ isActive }) => `jowa-nav-item${isActive ? ' active' : ''}${sinRed ? ' sin-red' : ''}`}>
+        <Icon size={18} strokeWidth={2} aria-hidden="true" />
+        <span className="jowa-nav-label">{getLabel(item)}</span>
+        {sinRed && <small className="jowa-nav-hint">{t('navigation.needs_connection')}</small>}
+      </NavLink>
+    </li>;
   };
 
   return (
-    <aside className="desktop-sidebar-nav v2-sidebar" style={styles.sidebar}>
+    <aside className="desktop-sidebar-nav v2-sidebar jowa-sidebar">
       {/* Identidad del negocio: su logotipo y nombre. Jowa System es el proveedor y enlaza a Inicio. */}
-      <div style={styles.brandHeader}>
-        <NavLink to="/" aria-label="Jowa System: ir a Inicio" style={styles.logoRow}>
+      <div className="jowa-sidebar-brand">
+        <NavLink to="/" aria-label="Jowa System: ir a Inicio" className="jowa-sidebar-home">
           <LogotipoNegocio size={40} />
-          <div style={styles.identidad}>
-            <div style={styles.tenantName}>{tenant.nombreComercial || 'Negocio'}</div>
-            <span style={styles.plataforma}>Jowa System</span>
-          </div>
+          <span className="jowa-sidebar-identity">
+            <strong>{tenant.nombreComercial || 'Negocio'}</strong>
+            <small>Jowa System</small>
+          </span>
         </NavLink>
+        {tenant.sucursal && <p className="jowa-sidebar-branch"><MapPin size={14} aria-hidden="true" />{tenant.sucursal}</p>}
       </div>
 
-      {/* Navigation List */}
-      <nav style={styles.navContainer}>
-        <ul style={styles.navList}>
-          {groupNavigation(visibleItems).map(group => <React.Fragment key={group.category}>
-            <li className="navigation-group">{t('navigation.' + group.category)}</li>
-            {group.items.map((item) => {
-            const Icon = item.icon;
-            return (
-              <li key={item.key}>
-                <NavLink
-                  to={item.route}
-                  end={item.exact}
-                  style={({ isActive }) => ({
-                    ...styles.navItem,
-                    ...(isActive ? styles.navItemActive : {}),
-                  })}
-                >
-                  <Icon size={18} strokeWidth={2.4} />
-                  <span>{getLabel(item)}</span>
-                </NavLink>
-              </li>
-            );
-          })}</React.Fragment>)}
+      <nav className="jowa-sidebar-nav" aria-label={t('navigation.main')}>
+        <ul className="jowa-nav-list">
+          {inicio && enlace(inicio)}
+          {grupos.map(group => {
+            const abierto = !cerrados.includes(group.category) || group.items.some(item => pathname.startsWith(item.route));
+            const id = `menu-grupo-${group.category.toLowerCase()}`;
+            return <li key={group.category} className="jowa-nav-group">
+              <button type="button" className="navigation-group" aria-expanded={abierto} aria-controls={id} onClick={() => alternar(group.category)}>
+                <span>{t('navigation.' + group.category)}</span>
+                <ChevronDown size={14} aria-hidden="true" />
+              </button>
+              <ul id={id} className="jowa-nav-list" hidden={!abierto}>{group.items.map(enlace)}</ul>
+            </li>;
+          })}
         </ul>
       </nav>
+
+      <div className={`jowa-connection${enLinea ? '' : ' offline'}`} aria-live="polite">
+        {enLinea ? <span className="jowa-connection-dot" aria-hidden="true" /> : <WifiOff size={16} aria-hidden="true" />}
+        <span>
+          <strong>{t(enLinea ? 'navigation.online' : 'navigation.offline')}</strong>
+          {ventasPorEnviar > 0 && <> · {t('navigation.pending_sales', { count: ventasPorEnviar })}</>}
+        </span>
+      </div>
     </aside>
   );
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  sidebar: {
-    width: '264px',
-    backgroundColor: 'var(--color-sidebar-bg)',
-    color: 'var(--color-sidebar-text)',
-    display: 'flex',
-    flexDirection: 'column',
-    borderRight: '1px solid var(--color-border-subtle)',
-    flexShrink: 0,
-    minHeight: '100vh',
-    userSelect: 'none',
-  },
-  brandHeader: {
-    padding: '24px 20px 20px',
-    borderBottom: '1px solid rgba(128, 128, 128, 0.2)',
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
-  },
-  logoRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    color: 'inherit',
-    textDecoration: 'none',
-  },
-  identidad: {
-    minWidth: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-  },
-  tenantName: {
-    fontFamily: 'var(--font-display)',
-    fontSize: '18px',
-    fontWeight: 800,
-    color: 'var(--color-sidebar-text)',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  plataforma: {
-    fontFamily: 'var(--font-display)',
-    fontSize: '10px',
-    fontWeight: 700,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: 'var(--color-primary)',
-    textDecoration: 'none',
-  },
-  navContainer: {
-    padding: '16px 12px',
-    display: 'flex',
-    flexDirection: 'column',
-    flex: 1,
-  },
-  navList: {
-    listStyle: 'none',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-    padding: 0,
-    margin: 0,
-  },
-  navItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    padding: '11px 12px',
-    fontFamily: 'var(--font-display)',
-    fontSize: '14px',
-    fontWeight: 700,
-    letterSpacing: '0.03em',
-    color: 'var(--color-sidebar-text)',
-    textDecoration: 'none',
-    borderRadius: 'var(--radius-sm)',
-    transition: 'all 150ms ease',
-  },
-  navItemActive: {
-    backgroundColor: 'var(--color-primary-light)',
-    color: 'var(--color-primary)',
-    fontWeight: 800,
-    boxShadow: 'inset 4px 0 var(--color-primary)',
-  },
 };

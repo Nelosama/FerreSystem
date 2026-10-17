@@ -1,4 +1,4 @@
-import { NAVIGATION_CATEGORIES, NAVIGATION_ITEMS, ROLE_PRIORITIES, type NavigationItem } from '../config/navigation';
+import { NAVIGATION_CATEGORIES, NAVIGATION_ITEMS, NAVIGATION_ORDER, ROLE_PRIORITIES, type NavigationItem } from '../config/navigation';
 import type { TenantInfo, UserInfo } from '../types';
 
 import { PENDING_MODULES, CATALOGO_MODULOS } from '../config/modulesCatalog';
@@ -25,8 +25,9 @@ export function canNavigate(item: NavigationItem, user: UserInfo | null, tenant:
   if (item.moduleKey && CATALOGO_MODULOS.find(module => module.key === item.moduleKey)?.isCore) return true;
   return !item.moduleKey || tenant.modulosHabilitados === undefined || tenant.modulosHabilitados.includes(item.moduleKey);
 }
+const ordenMenu = (key: string) => { const i = NAVIGATION_ORDER.indexOf(key); return i < 0 ? NAVIGATION_ORDER.length : i; };
 export const availableTasks = (user: UserInfo | null, tenant: TenantInfo) =>
-  NAVIGATION_ITEMS.filter(item => (!item.moduleKey || !PENDING_MODULES.has(item.moduleKey)) && canNavigate(item, user, tenant)).sort((a,b) => NAVIGATION_CATEGORIES.indexOf(a.category) - NAVIGATION_CATEGORIES.indexOf(b.category));
+  NAVIGATION_ITEMS.filter(item => (!item.moduleKey || !PENDING_MODULES.has(item.moduleKey)) && canNavigate(item, user, tenant)).sort((a,b) => NAVIGATION_CATEGORIES.indexOf(a.category) - NAVIGATION_CATEGORIES.indexOf(b.category) || ordenMenu(a.key) - ordenMenu(b.key));
 const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 export function searchTasks(items: NavigationItem[], query: string, translate?: (key: string) => string): NavigationItem[] {
   const words = normalize(query).trim().split(/\s+/).filter(Boolean);

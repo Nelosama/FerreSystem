@@ -139,3 +139,49 @@ html[data-session-pending="true"] [data-protected-content] {
 .navigation-group { text-transform:uppercase; }
 .topnav-dropdown { left:0; right:auto; }
 .topnav-entry:last-child .topnav-dropdown, .jowa-topnav-links > .topnav-more .topnav-dropdown { left:auto; right:0; }
+
+/* Menú lateral: grupos desplegables, marca del negocio y estado de conexión. Usa los tokens de cada plantilla. */
+.jowa-sidebar { width:264px; flex-shrink:0; min-height:100vh; display:flex; flex-direction:column; background:var(--color-sidebar-bg); color:var(--color-sidebar-text); border-right:1px solid var(--color-border-subtle); user-select:none; position:sticky; top:0; max-height:100vh; }
+.jowa-sidebar-brand { padding:18px 16px 14px; border-bottom:1px solid rgba(128,128,128,.2); }
+.jowa-sidebar-home { display:flex; align-items:center; gap:10px; color:inherit; text-decoration:none; border-radius:8px; }
+.jowa-sidebar-identity { display:flex; flex-direction:column; min-width:0; }
+.jowa-sidebar-identity strong { font:800 16px var(--font-display); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jowa-sidebar-identity small { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--color-primary); }
+.jowa-sidebar-branch { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12.5px; opacity:.85; }
+.jowa-sidebar-nav { flex:1; overflow-y:auto; padding:8px 10px 12px; }
+.jowa-nav-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px; }
+.jowa-nav-list[hidden] { display:none; }
+.jowa-nav-group { margin-top:8px; }
+.jowa-sidebar .navigation-group { width:100%; display:flex; align-items:center; justify-content:space-between; padding:8px 10px 6px; background:none; border:0; color:var(--color-sidebar-muted, inherit); font:700 11px var(--font-body); letter-spacing:.06em; text-transform:uppercase; cursor:pointer; opacity:1; }
+.jowa-sidebar span.navigation-group { cursor:default; }
+.jowa-sidebar .navigation-group svg { transition:transform var(--transition-fast); }
+.jowa-sidebar .navigation-group[aria-expanded='false'] svg { transform:rotate(-90deg); }
+.jowa-nav-item { display:flex; align-items:center; gap:10px; min-height:36px; padding:6px 10px; border-radius:var(--radius-sm); color:var(--color-sidebar-text); text-decoration:none; font-size:13.5px; font-weight:600; transition:background var(--transition-fast); }
+.jowa-nav-item:hover { background:var(--color-sidebar-hover, rgba(128,128,128,.12)); }
+.jowa-nav-item.active { background:var(--color-primary-light); color:var(--color-primary); font-weight:800; box-shadow:inset 3px 0 var(--color-primary); }
+.jowa-nav-label { flex:1; min-width:0; }
+.jowa-nav-item.sin-red { opacity:.55; }
+.jowa-nav-hint { font-size:10.5px; font-weight:600; }
+.jowa-connection { display:flex; align-items:center; gap:8px; margin:10px 12px 12px; padding:9px 10px; border-radius:8px; font-size:12.5px; background:var(--color-success-bg); color:#166534; }
+.jowa-connection.offline { background:var(--color-warning-bg); color:#92400E; }
+.jowa-connection-dot { width:8px; height:8px; border-radius:50%; background:currentColor; flex:0 0 auto; }
+/* Plataforma: color fijo, independiente del negocio que se administre. */
+.jowa-platform-sidebar { --plat-accent:#0F766E; background:#141c22; color:#c9d2d8; border-right-color:#26323b; }
+.jowa-platform-sidebar .jowa-sidebar-brand { border-color:#26323b; }
+.jowa-platform-sidebar .jowa-sidebar-identity strong { color:#fff; }
+.jowa-platform-sidebar .jowa-sidebar-identity small { color:#8796a0; }
+.jowa-platform-mark { width:38px; height:38px; border-radius:10px; display:grid; place-items:center; background:var(--plat-accent); color:#fff; }
+.jowa-platform-sidebar .navigation-group { color:#8796a0; }
+.jowa-platform-sidebar .jowa-nav-item { color:#c9d2d8; }
+.jowa-platform-sidebar .jowa-nav-item:hover { background:#1d272f; }
+.jowa-platform-sidebar .jowa-nav-item.active { background:#1d272f; color:#fff; box-shadow:inset 3px 0 #2bb3a3; }
+.jowa-platform-context { margin:6px 0 4px; padding:10px; border-radius:10px; background:#1d272f; border:1px solid #2b3842; }
+.jowa-platform-context-head { display:flex; align-items:center; gap:9px; padding-bottom:8px; margin-bottom:6px; border-bottom:1px solid #2b3842; color:#fff; font-size:13px; min-width:0; }
+.jowa-platform-context-head strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jowa-platform-tenant { width:28px; height:28px; flex:0 0 auto; border-radius:8px; display:grid; place-items:center; background:var(--tenant-color); color:#fff; font:800 11px var(--font-display); }
+.jowa-nav-sub { display:flex; align-items:center; gap:8px; min-height:32px; padding:4px 8px; border-radius:6px; color:#c9d2d8; text-decoration:none; font-size:13px; }
+.jowa-nav-sub::before { content:''; width:6px; height:6px; border-radius:50%; background:#51616c; }
+.jowa-nav-sub:hover { background:#2a3741; }
+.jowa-nav-sub.active { background:#2a3741; color:#fff; font-weight:700; }
+.jowa-nav-sub.active::before { background:var(--tenant-color); }
+.jowa-platform-foot { padding:12px 16px; border-top:1px solid #26323b; font-size:12px; color:#8796a0; }

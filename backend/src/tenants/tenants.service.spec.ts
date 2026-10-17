@@ -54,11 +54,16 @@ describe('Persistencia de configuración por empresa', () => {
   });
   it.each([
     { moneda: { simbolo: '$', codigo: 'USD' } }, { impuesto: { nombre: 'ISV', tasa: 0 } }, { impuesto: { nombre: 'ISV', tasa: -1 } }, { impuesto: { nombre: 'ISV', tasa: 101 } },
-    { moneda: { simbolo: '$', codigo: 'invalid' } }, { templateVersion: 'unknown' },
+    { moneda: { simbolo: '$', codigo: 'invalid' } }, { templateVersion: 'unknown' }, { templateVersion: 'v4' },
     { id: 'B' }, { modulosHabilitados: ['pos'] }, { modoNavegacion: 'TOPNAV' },
   ])('rechaza configuración inválida o campos administrados por plataforma: %j', async configuracion => {
     await expect(service.updateTenantBranding('A', { configuracion })).rejects.toThrow();
     expect(prisma.tenant.update).not.toHaveBeenCalled();
+  });
+  it('admite la plantilla V3 «Jowa claro» y la conserva al leer', async () => {
+    await service.updateTenantBranding('A', { configuracion: { templateVersion: 'v3' } }, { esSuperAdmin: true });
+    expect(await service.getTenantSettings('A')).toMatchObject({ templateVersion: 'v3' });
+    expect(await service.getTenantSettings('B')).toMatchObject({ templateVersion: 'v1' });
   });
   it('normaliza configuración vacía y fiscal heredada sin cambiar datos transaccionales', async () => {
     expect(await service.getTenantSettings('A')).toMatchObject({ templateVersion:'v1', v2Mode:'light', estiloUI:'INDUSTRIAL', fuenteTitulos:'Archivo', moneda:{ codigo:'HNL', simbolo:'L.' }, impuesto:{ nombre:'ISV', tasa:15 } });
