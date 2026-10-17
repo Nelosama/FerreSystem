@@ -1,5 +1,5 @@
 import { ProductoGestion } from '../components/ProductoGestion';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { TopBar } from '../components/TopBar';
 import { Search, Plus, Upload, AlertTriangle, Check, X, Calendar, ShieldCheck, RefreshCw } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
@@ -100,13 +100,80 @@ const InventarioContent: React.FC = () => {
 
   const categorias = ['TODAS', ...new Set([...rubroConfig.categoriasDefault, ...productos.map(p => p.categoria)])];
 
-  const productosFiltrados = productos.filter((p) => {
-    const matchSearch =
-      p.nombre.toLowerCase().includes(search.trim().toLowerCase()) ||
-      p.codigo.toLowerCase().includes(search.trim().toLowerCase()) || p.codigoBarras?.toLowerCase().includes(search.trim().toLowerCase()) || p.codigoFabricante?.toLowerCase().includes(search.trim().toLowerCase()) || p.descripcion?.toLowerCase().includes(search.trim().toLowerCase()) || p.categoria.toLowerCase().includes(search.trim().toLowerCase());
-    const matchCat = filtroCategoria === 'TODAS' || p.categoria === filtroCategoria;
-    return matchSearch && matchCat;
-  });
+  // Filtro y filas memorizados: escribir en el formulario de alta no vuelve a filtrar ni a pintar la tabla.
+  const productosFiltrados = useMemo(() => {
+    const termino = search.trim().toLowerCase();
+    return productos.filter((p) => {
+      const matchSearch =
+        p.nombre.toLowerCase().includes(termino) ||
+        p.codigo.toLowerCase().includes(termino) || p.codigoBarras?.toLowerCase().includes(termino) || p.codigoFabricante?.toLowerCase().includes(termino) || p.descripcion?.toLowerCase().includes(termino) || p.categoria.toLowerCase().includes(termino);
+      const matchCat = filtroCategoria === 'TODAS' || p.categoria === filtroCategoria;
+      return matchSearch && matchCat;
+    });
+  }, [productos, search, filtroCategoria]);
+
+  const filasProductos = useMemo(() => (
+    productosFiltrados.map((p) => {
+      const stockBajo = (p.stockDisponible??p.stockActual) <= p.stockMinimo;
+      return (
+        <tr key={p.id}>
+          <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{p.codigo}</td>
+          <td style={{ fontWeight: 600 }}>
+            <div>{p.nombre}</div>
+            {(p.fechaVencimiento || p.numeroSerie) && (
+              <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', display: 'flex', gap: '8px', marginTop: '2px' }}>
+                {p.fechaVencimiento && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                    <Calendar size={11} /> {t('operational.vence')} {p.fechaVencimiento} {p.lote ? `(Lote: ${p.lote})` : ''}
+                  </span>
+                )}
+                {p.numeroSerie && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#0284C7' }}>
+                    <ShieldCheck size={11} /> S/N: {p.numeroSerie} ({p.mesesGarantia || 12}{t('operational.m_garantia')}
+                  </span>
+                )}
+              </div>
+            )}
+          </td>
+          <td>
+            <span className="badge badge-dark">{p.categoria}</span>
+          </td>
+          <td style={{ fontSize: '12px', color: 'var(--color-text-muted)', textTransform: 'lowercase' }}>
+            {p.unidadMedida}
+          </td>
+          <td className="numeric-cell" style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, whiteSpace: 'nowrap' }}>
+            {formatLempiras(p.precioVenta)}
+            {p.precioAprobado === false && <span className="badge badge-warning" style={{ marginLeft: 6, fontSize: 11 }}>{t('inventory.price_pending')}</span>}
+          </td>
+          {esAdmin && (<td className="numeric-cell" style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+            {formatLempiras(p.precioCosto)}
+          </td>)}
+          <td className="numeric-cell" style={{ textAlign: 'center', fontFamily: 'var(--font-display)',
+              fontWeight: 800,
+              fontSize: '15px',
+              color: stockBajo ? 'var(--color-primary)' : 'inherit',
+            }}
+          >
+            {p.stockActual} físicos
+            <small style={{display:'block',fontSize:10}}>{p.stockReservado||0} reservados · {p.stockDisponible??p.stockActual} disponibles</small>
+          </td>
+          <td className="numeric-cell" style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>{p.stockMinimo}</td>
+          <td style={{ textAlign: 'center' }}>
+            {stockBajo ? (
+              <span className="badge badge-danger">
+                <AlertTriangle size={11} strokeWidth={2.6} /> {t('operational.stock_bajo')}
+              </span>
+            ) : (
+              <span className="badge badge-success">{t('inventory.available')}</span>
+            )}
+          </td>
+        </tr>
+      );
+    })
+  ), [productosFiltrados, esAdmin, t]);
+
+  // El editor de productos (un <select> con todo el catálogo) tampoco se repinta al escribir en el alta.
+  const gestionProductos = useMemo(() => <ProductoGestion productos={productos} onSaved={fetchProductos}/>, [productos, fetchProductos]);
 
   // Advertencia (no bloquea): nombres iguales a productos ya cargados.
   const duplicadosPosibles = posiblesDuplicados(formNombre, productos);
@@ -164,7 +231,7 @@ const InventarioContent: React.FC = () => {
         {savedMessage && <p role="status">{savedMessage}</p>}
         {pendingProduct && !modalAbierto && <div role="alert" className="operation-card"><p>{t('inventory_create.pending', { nombre: pendingProduct.nombre })}</p><button type="button" className="btn btn-primary" disabled={saving || isReadOnly} onClick={() => void handleCrearProducto()}>{saving ? t('inventory_create.saving') : t('inventory_create.retry')}</button></div>}
         {createError && !modalAbierto && <p role="alert">{createError}</p>}
-        <ProductoGestion productos={productos} onSaved={fetchProductos}/>
+        {gestionProductos}
         {/* Barra de Filtros y Acción */}
         <div style={styles.actionsBar}>
           <div style={styles.searchWrapper}>
@@ -250,63 +317,7 @@ const InventarioContent: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                productosFiltrados.map((p) => {
-                  const stockBajo = (p.stockDisponible??p.stockActual) <= p.stockMinimo;
-                  return (
-                    <tr key={p.id}>
-                      <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{p.codigo}</td>
-                      <td style={{ fontWeight: 600 }}>
-                        <div>{p.nombre}</div>
-                        {(p.fechaVencimiento || p.numeroSerie) && (
-                          <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', display: 'flex', gap: '8px', marginTop: '2px' }}>
-                            {p.fechaVencimiento && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                <Calendar size={11} /> {t('operational.vence')} {p.fechaVencimiento} {p.lote ? `(Lote: ${p.lote})` : ''}
-                              </span>
-                            )}
-                            {p.numeroSerie && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#0284C7' }}>
-                                <ShieldCheck size={11} /> S/N: {p.numeroSerie} ({p.mesesGarantia || 12}{t('operational.m_garantia')}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td>
-                        <span className="badge badge-dark">{p.categoria}</span>
-                      </td>
-                      <td style={{ fontSize: '12px', color: 'var(--color-text-muted)', textTransform: 'lowercase' }}>
-                        {p.unidadMedida}
-                      </td>
-                      <td className="numeric-cell" style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                        {formatLempiras(p.precioVenta)}
-                        {p.precioAprobado === false && <span className="badge badge-warning" style={{ marginLeft: 6, fontSize: 11 }}>{t('inventory.price_pending')}</span>}
-                      </td>
-                      {esAdmin && (<td className="numeric-cell" style={{ textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
-                        {formatLempiras(p.precioCosto)}
-                      </td>)}
-                      <td className="numeric-cell" style={{ textAlign: 'center', fontFamily: 'var(--font-display)',
-                          fontWeight: 800,
-                          fontSize: '15px',
-                          color: stockBajo ? 'var(--color-primary)' : 'inherit',
-                        }}
-                      >
-                        {p.stockActual} físicos
-                        <small style={{display:'block',fontSize:10}}>{p.stockReservado||0} reservados · {p.stockDisponible??p.stockActual} disponibles</small>
-                      </td>
-                      <td className="numeric-cell" style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>{p.stockMinimo}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        {stockBajo ? (
-                          <span className="badge badge-danger">
-                            <AlertTriangle size={11} strokeWidth={2.6} /> {t('operational.stock_bajo')}
-                          </span>
-                        ) : (
-                          <span className="badge badge-success">{t('inventory.available')}</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
+                filasProductos
               )}
             </tbody>
           </table>

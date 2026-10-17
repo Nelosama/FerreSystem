@@ -1,0 +1,10 @@
+const [, , dist, url, tenantId] = process.argv;
+const crypto = require('crypto');
+const { PrismaService } = require(`${dist}/prisma/prisma.service.js`);
+const { ProductosService } = require(`${dist}/productos/productos.service.js`);
+const { DashboardService } = require(`${dist}/dashboard/dashboard.service.js`);
+(async () => { const p = new PrismaService({ datasources: { db: { url } } }); await p.$connect();
+  const h = o => crypto.createHash('sha256').update(JSON.stringify(o)).digest('hex').slice(0, 16);
+  const d = await new DashboardService(p).getDashboardData(tenantId);
+  if(process.env.DUMP){require('fs').writeFileSync(process.env.DUMP,JSON.stringify(d,null,1));}console.log('comercial', h(await new ProductosService(p).comercial(tenantId)), 'dashboard', h(d), 'hoy', d.ventasDelDia.total, d.ventasDelDia.cantidad, 'var', d.ventasDelDia.variacionPorcentaje, 'stockBajo', d.alertasStock.cantidad);
+  await p.$disconnect(); })();

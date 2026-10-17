@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { actor, authorizedActor, audit, candidatosSolicitud, fingerprint, idSolicitud, lockTenant, movement, query, text } from '../operaciones/ledger';
 import { CreateLevantamientoDto, UpdateLevantamientoDto } from './dto/create-levantamiento.dto';
