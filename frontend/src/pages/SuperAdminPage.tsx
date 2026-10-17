@@ -581,7 +581,7 @@ export const SuperAdminPage: React.FC = () => {
           <div className="industrial-card" style={styles.metricCard}>
             <Server size={24} strokeWidth={2.4} color="var(--color-primary)" />
             <div style={styles.metricValue}>{tenants.reduce((total, tenant) => total + (tenant.sucursalesCount ?? 0), 0)}</div>
-            <div style={styles.metricLabel}>{t('superadmin.total_branches') || "SUCURSALES (NO DISPONIBLE)"}</div>
+            <div style={styles.metricLabel}>{t('superadmin.total_branches') || "SUCURSALES"}</div>
           </div>
         </div>
 

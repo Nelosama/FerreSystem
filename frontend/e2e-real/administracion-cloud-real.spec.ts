@@ -37,8 +37,9 @@ test('Super Admin gestiona sucursales con persistencia y desactivación real', a
   await entrar(page);
   await expect(page.getByRole('navigation', { name: 'Administración de plataforma' }).getByRole('button')).toHaveText(['Clientes y usuarios administradores', 'Catálogo de servicios', 'Soporte', 'Auditoría', 'Mantenimiento']);
   await page.goto(`/admin/negocios/${A}`);
-  await page.screenshot({ path: test.info().outputPath('negocio-resumen.png'), fullPage: true });
   await expect(page.getByRole('navigation', { name: 'Administración del negocio' }).getByRole('link')).toHaveText(['Resumen','Servicios','Usuarios','Marca y navegación','Configuración','Auditoría']);
+  await expect(page.getByRole('heading', { name: 'Sucursales del negocio' })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('negocio-resumen.png'), fullPage: true });
   await page.getByRole('button', { name: 'Crear sucursal' }).click();
   await page.getByLabel('Nombre', { exact: true }).fill(`Sucursal ${run}`);
   await page.getByLabel('Dirección', { exact: true }).fill('Dirección de prueba');
