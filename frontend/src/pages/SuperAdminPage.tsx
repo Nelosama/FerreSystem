@@ -175,6 +175,8 @@ function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
   return { tenants, adminUsers };
 }
 
+const iniciales = (nombre: string) => (nombre || 'N').split(/\s+/).filter(p => p.length > 2).slice(-2).map(p => p[0]).join('').toUpperCase() || 'N';
+
 export const SuperAdminPage: React.FC = () => {
   const { impersonateTenantAdmin } = useTenant();
   const navigate = useNavigate();
@@ -623,7 +625,7 @@ export const SuperAdminPage: React.FC = () => {
                 <thead>
                   <tr>
                     <th>{t('uxAudit.company_customer')} </th>
-                    <th>{t('uxAudit.main_contact')} </th>
+                    <th style={{ textAlign: 'center' }}>Color</th>
                     <th style={{ textAlign: 'center' }}>PLAN</th>
                     <th style={{ textAlign: 'center' }}>{t('uxAudit.navigation')} </th>
                     <th style={{ textAlign: 'center' }}>{t('uxAudit.enabled_services')} </th>
@@ -639,12 +641,17 @@ export const SuperAdminPage: React.FC = () => {
 
                     return (
                       <tr key={tItem.id}>
-                        <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
-                          <div>{tItem.nombreComercial}</div>
+                        <td>
+                          <div className="jowa-tenant-cell">
+                            <span className="jowa-tenant-mark" style={{ background: tItem.colorPrimario || '#EA580C' }}>{iniciales(tItem.nombreComercial)}</span>
+                            <div>
+                              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{tItem.nombreComercial}</div>
+                              <small>{tItem.contacto}{tItem.telefono ? ` · ${tItem.telefono}` : ''}</small>
+                            </div>
+                          </div>
                         </td>
-                        <td style={{ fontWeight: 600 }}>
-                          <div>{tItem.contacto}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{tItem.telefono}</div>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="jowa-color-chip"><i style={{ background: tItem.colorPrimario || '#EA580C' }} />{tItem.colorPrimario || '#EA580C'}</span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <span className="badge badge-dark" style={{ fontSize: '11px' }}>{tItem.plan || 'Plan Pro'}</span>
@@ -668,7 +675,7 @@ export const SuperAdminPage: React.FC = () => {
                             title={t('uxAudit.manage_subscribed_services_and_modules')}
                             style={{ fontWeight: 800 }}
                           >
-                            <Layers size={13} color="var(--color-primary)" /> {modCount} / {CATALOGO_MODULOS.length}{t('uxAudit.services')} </button>
+                            <Layers size={13} color="var(--color-primary)" /> {modCount} / {CATALOGO_MODULOS.length} {t('uxAudit.services')} </button>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           {tItem.estado === 'ACTIVO' ? (
@@ -1806,9 +1813,9 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'all 150ms ease',
   },
   tabBtnActive: {
-    backgroundColor: 'var(--color-sidebar-bg)',
-    color: 'var(--color-bg)',
-    borderColor: 'var(--color-sidebar-bg)',
+    backgroundColor: 'var(--color-text-main)',
+    color: '#FFFFFF',
+    borderColor: 'var(--color-text-main)',
     boxShadow: '2px 2px 0px rgba(0,0,0,0.3)',
   },
   headerRow: {
