@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 const roles = ['SUPERADMIN', 'ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO'] as const;
 async function setup(page: Page, role: string, mode: string, language = 'es', enabled?: string[]) {
-  const company = { id: 'ux-company', nombreComercial: 'Ferretería UX', colorPrimario: '#0284C7', modoNavegacion: mode, templateVersion: 'v2', v2Mode: 'light', modulosHabilitados: enabled };
+  const company = { id: 'ux-company', nombreComercial: 'Ferretería UX', colorPrimario: '#0284C7', modoNavegacion: mode, templateVersion: 'v2', v2Mode: 'light', idioma: role === 'SUPERADMIN' ? 'es' : language, modulosHabilitados: enabled };
   const user = { id: 'ux-user', nombre: 'Usuario UX', rol: role, permisos: [] };
   let settings: any = company;
   let failSave = false;
@@ -56,6 +56,7 @@ async function setup(page: Page, role: string, mode: string, language = 'es', en
 
 for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const language of ['es', 'en']) {
   test(`${role} ${mode} ${language}: navegación, prioridades, módulos y móvil`, async ({ page }) => {
+    const expectedLanguage = language;
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
     await setup(page, role, mode, language, []);
     await page.goto(role === 'SUPERADMIN' ? '/admin' : '/');
@@ -68,7 +69,7 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
     if (role !== 'SUPERADMIN') {
       expect(await page.locator('.daily-tasks .task-link').count()).toBeLessThanOrEqual(4);
       if (['CAJERO', 'VENDEDOR'].includes(role)) {
-        if (mode === 'TOPNAV') await navigation.getByRole('button', { name: language === 'es' ? 'Ventas y caja' : 'Sales and register' }).click();
+        if (mode === 'TOPNAV') { const submenu = navigation.locator('a[href="/arqueo-caja"]').locator('xpath=ancestor::details'); if (await submenu.count()) await submenu.locator('summary').click(); }
         await expect(navigation.locator('a[href="/arqueo-caja"]')).toBeVisible();
       }
       if (role !== 'ADMIN') await expect(navigation.locator('a[href="/usuarios"]')).toHaveCount(0);
@@ -85,7 +86,7 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
       await page.goto('/'); await expect(page).toHaveURL(/\/admin$/);
     }
     await page.goto('/inventario');
-    await expect(page.getByRole('heading', { name: language === 'es' ? /Acceso Denegado/i : /Access Denied/i, exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: expectedLanguage === 'es' ? /Acceso Denegado/i : /Access Denied/i, exact: true })).toBeVisible();
     expect(errors).toEqual([]);
   });
 }

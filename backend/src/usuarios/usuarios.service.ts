@@ -1,4 +1,4 @@
-import { Injectable,NotFoundException,BadRequestException,ConflictException } from '@nestjs/common';
+import { Injectable,NotFoundException,BadRequestException,ConflictException,ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
@@ -9,24 +9,30 @@ const select={id:true,tenantId:true,nombre:true,email:true,rol:true,activo:true,
 @Injectable()
 export class UsuariosService {
  constructor(private readonly prisma:PrismaService){}
+ private async authorize(tx:any,tenantId:string,actorId:string,plataforma:boolean){
+  if(!plataforma)return authorizedActor(tx,tenantId,actorId,['ADMIN'],'usuarios.gestionar');
+  if(!await tx.superAdmin.findFirst({where:{id:actorId,activo:true}}))throw new ForbiddenException('Super Admin no disponible');
+  if(!await tx.tenant.findUnique({where:{id:tenantId}}))throw new NotFoundException('Negocio no encontrado');
+ }
+
  findAll(tenantId:string){return this.prisma.usuario.findMany({where:{tenantId},select,orderBy:{createdAt:'desc'}});}
  async findById(tenantId:string,id:string){const user=await this.prisma.usuario.findFirst({where:{tenantId,id},select});if(!user)throw new NotFoundException('Usuario no encontrado');return user;}
- async create(tenantId:string,dto:CreateUsuarioDto,actorId:string){
+ async create(tenantId:string,dto:CreateUsuarioDto,actorId:string,plataforma=false){
   if(!dto.password)throw new BadRequestException('Defina una contraseña para el nuevo usuario');
   const passwordHash=await bcrypt.hash(dto.password,10),email=dto.email.toLowerCase().trim();
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
-   await authorizedActor(tx,tenantId,actorId,['ADMIN'],'usuarios.gestionar');
+   await this.authorize(tx,tenantId,actorId,plataforma);
    if(await tx.usuario.findFirst({where:{tenantId,email}}))throw new ConflictException('Ya existe un usuario con este correo electrónico');
    const user=await tx.usuario.create({data:{tenantId,nombre:dto.nombre.trim(),email,passwordHash,rol:dto.rol||'CAJERO',permisos:dto.permisos||[],permisosConfigurados:dto.permisos!==undefined,descuentoMaximo:dto.descuentoMaximo??0,activo:dto.activo??true},select});
    await audit(tx,tenantId,actorId,'USUARIO_CREAR',user.id,{usuario:user});return user;
   });
  }
- async update(tenantId:string,id:string,dto:UpdateUsuarioDto,actorId:string){
+ async update(tenantId:string,id:string,dto:UpdateUsuarioDto,actorId:string,plataforma=false){
   const passwordHash=dto.password?await bcrypt.hash(dto.password,10):undefined;
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
-   await authorizedActor(tx,tenantId,actorId,['ADMIN'],'usuarios.gestionar');
+   await this.authorize(tx,tenantId,actorId,plataforma);
    const old=await tx.usuario.findFirst({where:{tenantId,id},select});if(!old)throw new NotFoundException('Usuario no encontrado');
    // Nadie se deja fuera de su propia empresa: la desactivación de la cuenta propia se rechaza.
    if(dto.activo===false&&id===actorId)throw new ConflictException('No puede desactivar su propia cuenta');
@@ -48,11 +54,11 @@ export class UsuariosService {
   });
  }
  /** Eliminación lógica: no se borra ninguna fila (el historial de ventas, caja y auditoría la referencia). Desactiva y revoca sesiones. */
- async remove(tenantId:string,id:string,actorId:string){
+ async remove(tenantId:string,id:string,actorId:string,plataforma=false){
   const actual=await this.prisma.usuario.findFirst({where:{tenantId,id},select});
   if(!actual)throw new NotFoundException('Usuario no encontrado');
   // Ya desactivado: no hay nada que cambiar ni que auditar.
   if(!actual.activo)return actual;
-  return this.update(tenantId,id,{activo:false},actorId);
+  return this.update(tenantId,id,{activo:false},actorId,plataforma);
  }
 }

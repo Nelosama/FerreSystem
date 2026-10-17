@@ -1,284 +1,43 @@
+import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { TaskFinder } from './TaskFinder';
 import { LogotipoNegocio } from './LogotipoNegocio';
 import { availableTasks } from '../utils/taskNavigation';
-import React, { useState, useRef, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import {
-  Box,
-  ChevronDown,
-  ShoppingCart,
-  Package,
-  Users,
-  Briefcase,
-  BarChart2,
-  Settings,
-  ShieldCheck,
-} from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
-import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
-import { NAVIGATION_CATEGORIES, type NavigationItem } from '../config/navigation';
 
-const CATEGORY_CONFIG: Record<
-  string,
-  { icon: any }
-> = {
-  SYSTEM: { icon: ShieldCheck },
-  OPERACION: { icon: ShoppingCart },
-  INVENTARIO: { icon: Package },
-  CLIENTES: { icon: Users },
-  GESTION: { icon: Briefcase },
-  ANALISIS: { icon: BarChart2 },
-  CONFIGURACION: { icon: Settings },
+// El mismo catálogo autorizado alimenta ambos modos. Los accesos secundarios siguen disponibles.
+const primaryOrder = ['dashboard', 'pos', 'cotizaciones', 'clientes', 'cuentas', 'entregas', 'inventario', 'ordenes_compra', 'usuarios'];
+const related: Record<string, string[]> = {
+  dashboard: ['reportes', 'admin_movil', 'conciliacion_bancaria'],
+  pos: ['arqueo_caja', 'devoluciones', 'apartados', 'pedidos_especiales'],
+  clientes: ['estado_cuenta_clientes', 'listas_precio'],
+  inventario: ['precios', 'levantamiento', 'transferencias', 'garantias'],
+  usuarios: ['comisiones'],
 };
 
-export const TopNavigation: React.FC = () => {
+export const TopNavigation: React.FC<{ showTaskFinder?: boolean }> = ({ showTaskFinder = true }) => {
   const { tenant, user } = useTenant();
-  const rubroConfig = useRubroConfig();
   const { t } = useI18n();
-  const location = useLocation();
-
-  const [openCategory, setOpenCategory] = useState<string | null>(null);
-  const navRef = useRef<HTMLDivElement>(null);
-
-
-
-  // Close dropdown when clicking outside or navigating
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (navRef.current && !navRef.current.contains(event.target as Node)) {
-        setOpenCategory(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    setOpenCategory(null);
-  }, [location.pathname]);
-
-  const visibleItems = availableTasks(user, tenant);
-
-  const getLabel = (item: NavigationItem) => {
-    if (item.key === 'inventario') {
-      return rubroConfig.nombreCatalogo.toUpperCase();
-    }
-    const translated = t(item.labelKey);
-    return translated && translated !== item.labelKey ? translated : item.defaultLabel;
-  };
-
-  // Group items by category
-  const groupedItems = visibleItems.reduce((acc, item) => {
-    const cat = item.category || 'OPERACION';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(item);
-    return acc;
-  }, {} as Record<string, NavigationItem[]>);
-
-  const categories = NAVIGATION_CATEGORIES.filter(
-    (catKey) => groupedItems[catKey] && groupedItems[catKey].length > 0,
-  );
-
-  return (
-    <header className="desktop-sidebar-nav v2-top-navigation" style={styles.topNavContainer}>
-      <div style={styles.brandContainer}>
-        <LogotipoNegocio size={28} />
-        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <span style={styles.tenantTag}>{tenant.nombreComercial || 'Negocio'}</span>
-          <NavLink to="/" aria-label="Jowa System: ir a Inicio" style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-primary)', textDecoration: 'none' }}>Jowa System</NavLink>
-        </div>
-      </div>
-
-      <nav ref={navRef} style={styles.navWrapper} onKeyDown={event => {
-        if (event.key === 'Escape' && openCategory) {
-          navRef.current?.querySelector<HTMLButtonElement>('[aria-expanded="true"]')?.focus();
-          setOpenCategory(null);
-        }
-      }}>
-        <div style={styles.categoriesRow}>
-          {categories.map((catKey) => {
-            const items = groupedItems[catKey];
-            const config = CATEGORY_CONFIG[catKey] || { icon: Box };
-            const CategoryIcon = config.icon;
-            const isOpen = openCategory === catKey;
-
-            // Check if any item in this category is currently active
-            const hasActiveRoute = items.some((it) =>
-              it.exact ? location.pathname === it.route : location.pathname.startsWith(it.route) && it.route !== '/',
-            );
-
-            // If category only has 1 item, render directly as a link for faster access
-            if (items.length === 1) {
-              const single = items[0];
-              const ItemIcon = single.icon;
-              return (
-                <NavLink
-                  key={catKey}
-                  to={single.route}
-                  end={single.exact}
-                  style={({ isActive }) => ({
-                    ...styles.categoryBtn,
-                    ...(isActive ? styles.categoryBtnActive : {}),
-                  })}
-                >
-                  <ItemIcon size={15} strokeWidth={2.2} />
-                  <span>{getLabel(single)}</span>
-                </NavLink>
-              );
-            }
-
-            return (
-              <div key={catKey} style={{ position: 'relative' }}>
-                <button
-                  type="button"
-                  onClick={() => setOpenCategory(isOpen ? null : catKey)}
-                  aria-expanded={isOpen}
-                  onKeyDown={event => { if (event.key === 'Escape') setOpenCategory(null); }}
-                  style={{
-                    ...styles.categoryBtn,
-                    ...(hasActiveRoute ? styles.categoryBtnActive : {}),
-                    ...(isOpen ? styles.categoryBtnOpen : {}),
-                  }}
-                >
-                  <CategoryIcon size={15} strokeWidth={2.2} />
-                  <span>{t('navigation.' + catKey)}</span>
-                  <ChevronDown
-                    size={14}
-                    style={{
-                      transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 150ms ease',
-                    }}
-                  />
-                </button>
-
-                {/* Dropdown Menu */}
-                {isOpen && (
-                  <div style={styles.dropdownMenu}>
-                    {items.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <NavLink
-                          key={item.key}
-                          to={item.route}
-                          end={item.exact}
-                          onClick={() => setOpenCategory(null)}
-                          style={({ isActive }) => ({
-                            ...styles.dropdownItem,
-                            ...(isActive ? styles.dropdownItemActive : {}),
-                          })}
-                        >
-                          <Icon size={16} strokeWidth={2.2} />
-                          <span>{getLabel(item)}</span>
-                        </NavLink>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </nav>
-    </header>
-  );
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  topNavContainer: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'var(--color-sidebar-bg)',
-    padding: '8px 24px',
-    borderBottom: '2px solid var(--color-border)',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    position: 'relative',
-    zIndex: 100,
-  },
-  brandContainer: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  },
-  tenantTag: {
-    fontFamily: 'var(--font-display)',
-    fontWeight: 800,
-    fontSize: '11px',
-    letterSpacing: '0.04em',
-    color: '#A8A29E',
-    borderLeft: '1px solid #44403C',
-    paddingLeft: '10px',
-    textTransform: 'uppercase',
-  },
-  navWrapper: {
-    display: 'flex',
-    alignItems: 'center',
-  },
-  categoriesRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-  },
-  categoryBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '8px 14px',
-    fontFamily: 'var(--font-display)',
-    fontSize: '11px',
-    fontWeight: 800,
-    letterSpacing: '0.04em',
-    color: 'var(--color-sidebar-text)',
-    backgroundColor: 'transparent',
-    border: '1.5px solid transparent',
-    borderRadius: 'var(--radius-sm)',
-    cursor: 'pointer',
-    textDecoration: 'none',
-    transition: 'all 150ms ease',
-    whiteSpace: 'nowrap',
-  },
-  categoryBtnActive: {
-    backgroundColor: 'var(--color-primary)',
-    color: '#FFFFFF',
-    borderColor: 'var(--color-primary)',
-  },
-  categoryBtnOpen: {
-    backgroundColor: 'var(--color-text-main)',
-    borderColor: '#44403C',
-    color: '#FFFFFF',
-  },
-  dropdownMenu: {
-    position: 'absolute',
-    top: 'calc(100% + 6px)',
-    left: 0,
-    minWidth: '210px',
-    backgroundColor: 'var(--color-sidebar-bg)',
-    border: '2px solid var(--color-border)',
-    borderRadius: 'var(--radius-xs)',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-    padding: '6px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-    zIndex: 1000,
-  },
-  dropdownItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    padding: '8px 12px',
-    fontFamily: 'var(--font-display)',
-    fontSize: '11px',
-    fontWeight: 700,
-    letterSpacing: '0.03em',
-    color: 'var(--color-sidebar-text)',
-    textDecoration: 'none',
-    borderRadius: '2px',
-    transition: 'all 150ms ease',
-  },
-  dropdownItemActive: {
-    backgroundColor: 'var(--color-primary)',
-    color: '#FFFFFF',
-    fontWeight: 800,
-  },
+  const tasks = availableTasks(user, tenant);
+  const primary = primaryOrder.flatMap(key => tasks.filter(item => item.key === key));
+  const secondary = tasks.filter(item => !primaryOrder.includes(item.key));
+  const assigned = primary.flatMap(item => related[item.key] || []);
+  const extras = secondary.filter(item => !assigned.includes(item.key));
+  const link = (item: typeof tasks[number]) => <NavLink key={item.key} to={item.route} end={item.exact} className={({ isActive }) => `topnav-link${isActive ? ' active' : ''}`}>{t(item.labelKey)}</NavLink>;
+  return <header className="desktop-sidebar-nav v2-top-navigation jowa-topnav">
+    <div className="jowa-topnav-header"><NavLink to="/" aria-label="Jowa System: ir a Inicio" className="jowa-brand-home">
+      <LogotipoNegocio size={32} />
+      <span className="jowa-brand-text"><strong>{tenant.nombreComercial || 'Negocio'}</strong><small>Jowa System</small></span>
+    </NavLink>{showTaskFinder && <TaskFinder />}</div>
+    <nav aria-label="Navegación principal" className="jowa-topnav-links" onKeyDown={event => {
+      if (event.key === 'Escape') { const detail = (event.target as HTMLElement).closest('details'); detail?.removeAttribute('open'); detail?.querySelector('summary')?.focus(); }
+    }}>
+      {primary.map(item => {
+        const children = secondary.filter(child => related[item.key]?.includes(child.key));
+        return <div key={item.key} className="topnav-entry">{link(item)}{children.length > 0 && <details className="topnav-more"><summary aria-label={`Más opciones: ${t(item.labelKey)}`}>▾</summary><div className="topnav-dropdown" onClick={event => (event.currentTarget.parentElement as HTMLDetailsElement).removeAttribute('open')}>{children.map(link)}</div></details>}</div>;
+      })}
+      {extras.length > 0 && <details className="topnav-more"><summary>{user?.rol === 'SUPERADMIN' ? 'Plataforma' : 'Más'}</summary><div className="topnav-dropdown">{extras.map(link)}</div></details>}
+    </nav>
+  </header>;
 };

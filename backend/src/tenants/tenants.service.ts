@@ -56,6 +56,7 @@ export class TenantsService {
     const configuracion = data.configuracion;
     if (configuracion !== undefined) {
       validateTenantConfiguration(configuracion);
+      if (configuracion.idioma !== undefined && !opciones.esSuperAdmin) throw new ForbiddenException('El idioma del negocio solo lo configura el Super Admin');
       // FS-10: el rubro del negocio define plantillas y catálogo; solo lo cambia el Super Admin (ruta de soporte).
       // Reenviar el valor vigente sigue permitido, así un guardado de apariencia no falla.
       if (configuracion.rubro !== undefined) {
@@ -67,7 +68,7 @@ export class TenantsService {
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
-        ...(configuracion !== undefined && { configuracion }),
+        ...(configuracion !== undefined && { configuracion: Object.keys(configuracion).length ? { ...((await this.prisma.tenant.findUnique({ where: { id: tenantId } }))?.configuracion as Record<string, any> ?? {}), ...configuracion } : {} }),
         ...(data.modoNavegacion && { modoNavegacion: data.modoNavegacion }),
         ...(data.nombreComercial && { nombreComercial: data.nombreComercial }),
         ...(data.direccion !== undefined && { direccion: data.direccion }),

@@ -1,8 +1,8 @@
 import { expect, test, request, type Page, type APIRequestContext } from '@playwright/test';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 
-// E2E REAL (backend NestJS + PostgreSQL temporal + almacenamiento local persistente; sin mocks).
+// E2E REAL (backend NestJS + PostgreSQL temporal + almacenamiento PostgreSQL persistente; sin mocks).
 // Flujo de logotipo por negocio: carga, persistencia, visualización en ambos modos de navegación,
 // reemplazo, eliminación y autorización directa por API. Supabase Storage no forma parte de esta prueba
 // (no hay proyecto real autorizado en el entorno); ver docs/CONTEXTO_MAESTRO.md.
@@ -11,7 +11,13 @@ const PASSWORD = process.env.E2E_PASSWORD!;
 const API = process.env.E2E_API_URL!;
 // Con baseURL, Playwright descarta el segmento /api si la ruta empieza por «/»: las rutas van relativas.
 const BASE = API.endsWith('/') ? API : `${API}/`;
-const LOGOS = process.env.LOGOTIPO_DIRECTORIO!;
+const { PrismaClient } = createRequire(resolve('../backend/package.json'))('@prisma/client');
+const prisma = new PrismaClient();
+test.afterAll(async () => { await prisma.$disconnect(); });
+async function objetoActual() {
+  const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: NEGOCIO_A } });
+  return tenant.logoStorageKey ? await prisma.logotipoObjeto.findUniqueOrThrow({ where: { clave: tenant.logoStorageKey } }) : null;
+}
 const NEGOCIO_A = 'e2e-empresa-a';
 const NOMBRE_A = 'Ferretería Central E2E';
 
@@ -49,8 +55,9 @@ test.describe.serial('Logotipo por negocio (backend real)', () => {
     await expect(page.getByText('Vista previa (sin guardar)')).toBeVisible();
     await page.getByRole('button', { name: 'Guardar logotipo' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Logotipo guardado' })).toBeVisible();
-    expect(existsSync(join(LOGOS, 'tenants', NEGOCIO_A, 'logo'))).toBe(true);
-    expect(readFileSync(join(LOGOS, 'tenants', NEGOCIO_A, 'logo')).equals(PNG)).toBe(true);
+    const objeto = await objetoActual();
+    expect(objeto.tenantId).toBe(NEGOCIO_A);
+    expect(Buffer.from(objeto.datos).equals(PNG)).toBe(true);
 
     await page.reload();
     await expect(logoVisible(page, `Logotipo de ${NOMBRE_A}`)).toBeVisible();
@@ -65,16 +72,17 @@ test.describe.serial('Logotipo por negocio (backend real)', () => {
     expect(modo.status()).toBe(200);
 
     await ingresar(page, 'admin.a@e2e.invalid');
-    await expect(page.locator('aside.desktop-sidebar-nav').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
+    const mobile = (page.viewportSize()?.width || 1280) <= 768;
+    await expect(page.locator(mobile ? '.v2-tenant-brand' : 'aside.desktop-sidebar-nav').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
 
     const topo = await api.put(`admin/tenants/${NEGOCIO_A}/settings`, { headers: { Authorization: `Bearer ${sa}` }, data: { modoNavegacion: 'TOPNAV' } });
     expect(topo.status()).toBe(200);
     await page.reload();
-    await expect(page.locator('header.desktop-sidebar-nav').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
+    await expect(page.locator(mobile ? '.v2-tenant-brand' : 'header.desktop-sidebar-nav').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
     await expect(page.locator('aside.desktop-sidebar-nav')).toHaveCount(0);
 
     // La marca del negocio enlaza a Inicio; Jowa System es el proveedor y también enlaza a Inicio.
-    await expect(page.getByRole('link', { name: 'Jowa System: ir a Inicio' }).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: mobile ? 'Ir a Inicio del negocio' : 'Jowa System: ir a Inicio' }).first()).toBeVisible();
     await api.put(`admin/tenants/${NEGOCIO_A}/settings`, { headers: { Authorization: `Bearer ${sa}` }, data: { modoNavegacion: 'SIDEBAR' } });
     await api.dispose();
   });
@@ -85,13 +93,14 @@ test.describe.serial('Logotipo por negocio (backend real)', () => {
     await page.locator('input[type="file"][aria-label="Elegir archivo de logotipo"]').setInputFiles({ name: 'logo.webp', mimeType: 'image/webp', buffer: WEBP });
     await page.getByRole('button', { name: 'Guardar logotipo' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Logotipo guardado' })).toBeVisible();
-    expect(readFileSync(join(LOGOS, 'tenants', NEGOCIO_A, 'logo')).equals(WEBP)).toBe(true);
+    expect(Buffer.from((await objetoActual()).datos).equals(WEBP)).toBe(true);
 
     page.once('dialog', (d) => d.accept());
     await page.getByRole('button', { name: 'Quitar logotipo' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Logotipo eliminado' })).toBeVisible();
     await expect(page.getByText('Sin logotipo: se muestra el ícono predeterminado')).toBeVisible();
-    expect(existsSync(join(LOGOS, 'tenants', NEGOCIO_A, 'logo'))).toBe(false);
+    expect(await objetoActual()).toBeNull();
+    expect(await prisma.logotipoObjeto.count({ where: { tenantId: NEGOCIO_A } })).toBe(0);
 
     await page.reload();
     await expect(page.getByText('Sin logotipo: se muestra el ícono predeterminado')).toBeVisible();
@@ -125,7 +134,7 @@ test.describe.serial('Logotipo por negocio (backend real)', () => {
     expect(html.status()).toBe(415);
     const grande = await api.post(`admin/tenants/${NEGOCIO_A}/logo`, { headers: { Authorization: `Bearer ${sa}` }, multipart: { archivo: { name: 'g.png', mimeType: 'image/png', buffer: Buffer.concat([PNG, Buffer.alloc(2 * 1024 * 1024)]) } } });
     expect(grande.status()).toBe(413);
-    expect(readFileSync(join(LOGOS, 'tenants', NEGOCIO_A, 'logo')).equals(PNG)).toBe(true);
+    expect(Buffer.from((await objetoActual()).datos).equals(PNG)).toBe(true);
 
     // Limpieza: deja el negocio sin logotipo para las ejecuciones siguientes.
     expect((await api.delete(`admin/tenants/${NEGOCIO_A}/logo`, { headers: { Authorization: `Bearer ${sa}` } })).status()).toBe(200);

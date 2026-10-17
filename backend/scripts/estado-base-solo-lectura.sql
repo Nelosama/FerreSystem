@@ -52,7 +52,8 @@ WITH esperado(nombre, sha_lf, sha_crlf) AS (VALUES
   ('20261015000000_contingencia_revocar_ventanas_anteriores','88b2ac18252f77c35cdc8c3e5035a72a8cf089ff43f6c4221240ab787233a1ae','eb44b9cc2ea06f29f9bea817c28394b268a4b48bd74f172e28b89c71b42e5409'),
   ('20261016000000_contingencia_estado_rechazada','fe54728a8232c3c12ea1ce787ee2bd96cc4eac42ea1587647f67691384c8e23d','9eb6bf0255e3df291618e4940f37593951eeabac4f0e09ea89b8309cc0be59a2'),
   ('20261017000000_contingencia_rechazos_importe_incoherente','d177422a73e5ceab163285c22e3ecdcf353292aa13bbbd79547e63460281f3cf','d6d61a6f9c0e97e4c1f3f6ea87144ddda1e96b8cebb7e82b3d0b1a55e640347d'),
-  ('20261018000000_tenant_logotipo_privado','64305c584ed8c8eaf2e4a1ca7dd1f62e4adb3672697e0ec43551877c5bf7faf1','95822f1b6f6af1bc6be5d84c9c12944b68e9560b8309aaab2b8c638137c70c21')
+  ('20261018000000_tenant_logotipo_privado','64305c584ed8c8eaf2e4a1ca7dd1f62e4adb3672697e0ec43551877c5bf7faf1','95822f1b6f6af1bc6be5d84c9c12944b68e9560b8309aaab2b8c638137c70c21'),
+  ('20261019000000_cloud_branding_sucursales','eb24fb6acdec8a08b6bee9edd0d597609097b479b723f966f49dd7af724d4cc8','1b9df1f791278b71c1bdfdbdd4e748d881e5d4455be7fc175ca97339c26b0ef6')
 ), aplicada AS (
   SELECT migration_name, checksum, finished_at, rolled_back_at FROM _prisma_migrations
 )

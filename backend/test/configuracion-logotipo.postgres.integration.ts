@@ -258,8 +258,9 @@ describe('Configuración del negocio, auditoría y logotipo / HTTP y PostgreSQL 
       const respuesta = await subirLogo(sa.accessToken, A, PNG, 'image/png');
       expect(respuesta.status).toBe(201);
       const fila = await prisma.tenant.findUniqueOrThrow({ where: { id: A } });
-      expect(fila).toMatchObject({ logoStorageKey: `tenants/${A}/logo`, logoMime: 'image/png', logoBytes: PNG.length });
-      expect(readFileSync(join(almacenDirectorio, `tenants/${A}/logo`)).equals(PNG)).toBe(true);
+      expect(fila.logoStorageKey).toMatch(new RegExp(`^tenants/${A}/logo/[A-Za-z0-9-]+$`));
+      expect(fila).toMatchObject({ logoMime: 'image/png', logoBytes: PNG.length });
+      expect(readFileSync(join(almacenDirectorio, fila.logoStorageKey!)).equals(PNG)).toBe(true);
     });
 
     it('el negocio A lee su logotipo tras volver a iniciar sesión (persistencia entre sesiones)', async () => {
@@ -317,10 +318,11 @@ describe('Configuración del negocio, auditoría y logotipo / HTTP y PostgreSQL 
 
     it('SUPERADMIN elimina el logotipo de A: referencia, archivo y respuesta de tenant quedan vacíos', async () => {
       const sa = await loginSuperAdmin();
+      const anterior = await prisma.tenant.findUniqueOrThrow({ where: { id: A } });
       const respuesta = await fetch(`${base}/api/admin/tenants/${A}/logo`, { method: 'DELETE', headers: { Authorization: `Bearer ${sa.accessToken}` } });
       expect(respuesta.status).toBe(200);
       expect(await prisma.tenant.findUniqueOrThrow({ where: { id: A } })).toMatchObject({ logoStorageKey: null, logoMime: null, logoBytes: null });
-      expect(existsSync(join(almacenDirectorio, `tenants/${A}/logo`))).toBe(false);
+      expect(existsSync(join(almacenDirectorio, anterior.logoStorageKey!))).toBe(false);
       const admin = await loginNegocio(adminA, A);
       expect((await http('GET', '/api/tenant/logo', admin.accessToken)).status).toBe(404);
     });

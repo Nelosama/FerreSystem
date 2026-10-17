@@ -1,3 +1,7 @@
+import { UsuariosService } from '../usuarios/usuarios.service';
+import { CreateUsuarioDto } from '../usuarios/dto/create-usuario.dto';
+import { UpdateUsuarioDto } from '../usuarios/dto/update-usuario.dto';
+import { EditarSucursalDto } from './sucursal.dto';
 import { refreshCookieOptions } from '../auth/refresh-cookie';
 import { CORE_TENANT_MODULES, DEFAULT_TENANT_MODULES, enabledTenantModules } from '../common/tenant-modules';
 import { audit, lockTenant } from '../operaciones/ledger';
@@ -28,6 +32,40 @@ export class SuperAdminService {
     private tenantsService: TenantsService,
     private tenantLogoService: TenantLogoService,
   ) {}
+
+  async usuariosNegocio(tenantId: string) {
+    await this.existeNegocio(tenantId);
+    return new UsuariosService(this.prisma).findAll(tenantId);
+  }
+  crearUsuarioNegocio(tenantId: string, dto: CreateUsuarioDto, actor: string) {
+    return new UsuariosService(this.prisma).create(tenantId, dto, actor, true);
+  }
+  editarUsuarioNegocio(tenantId: string, id: string, dto: UpdateUsuarioDto, actor: string) {
+    return new UsuariosService(this.prisma).update(tenantId, id, dto, actor, true);
+  }
+  desactivarUsuarioNegocio(tenantId: string, id: string, actor: string) {
+    return new UsuariosService(this.prisma).update(tenantId, id, { activo: false }, actor, true);
+  }
+  async sucursalesNegocio(tenantId: string) {
+    await this.existeNegocio(tenantId);
+    return this.prisma.sucursal.findMany({ where: { tenantId }, orderBy: { createdAt: 'asc' } });
+  }
+  async guardarSucursal(tenantId: string, id: string | undefined, dto: EditarSucursalDto, actor: string) {
+    return this.prisma.$transaction(async tx => {
+      await lockTenant(tx, tenantId);
+      if (!await tx.tenant.findUnique({ where: { id: tenantId } })) throw new NotFoundException('Negocio no encontrado');
+      if (id && !await tx.sucursal.findFirst({ where: { id, tenantId } })) throw new NotFoundException('Sucursal no encontrada');
+      const nombre = dto.nombre?.trim();
+      if (nombre && await tx.sucursal.findFirst({ where: { tenantId, nombre, ...(id && { id: { not: id } }) } })) throw new BadRequestException('Ya existe una sucursal con este nombre');
+      const data = { ...(nombre !== undefined && { nombre }), ...(dto.direccion !== undefined && { direccion: dto.direccion.trim() }), ...(dto.telefono !== undefined && { telefono: dto.telefono.trim() }), ...(dto.activa !== undefined && { activa: dto.activa }) };
+      const actual = id ? await tx.sucursal.update({ where: { id }, data }) : await tx.sucursal.create({ data: { ...data, nombre: nombre!, tenantId } });
+      await audit(tx, tenantId, actor, id ? dto.activa === false ? 'SUCURSAL_DESACTIVAR' : 'SUCURSAL_EDITAR' : 'SUCURSAL_CREAR', actual.id, { sucursal: actual, superAdminId: actor });
+      return actual;
+    });
+  }
+  async auditoriaPlataforma() {
+    return this.prisma.auditoriaOperacion.findMany({ take: 200, orderBy: { createdAt: 'desc' } });
+  }
 
   private async existeNegocio(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
@@ -183,6 +221,7 @@ export class SuperAdminService {
         },
         _count: {
           select: {
+            sucursales: true,
             usuarios: true,
             productos: true,
             ventas: true,
@@ -204,6 +243,7 @@ export class SuperAdminService {
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
       cantidadUsuarios: t._count.usuarios,
+      cantidadSucursales: t._count.sucursales,
       usuarios: t.usuarios,
       cantidadProductos: t._count.productos,
       cantidadVentas: t._count.ventas,
@@ -315,7 +355,7 @@ export class SuperAdminService {
     return tenant.modulos;
   }
 
-  async updateTenantModules(tenantId: string, modules: { moduleKey: string; enabled: boolean }[]) {
+  async updateTenantModules(tenantId: string, modules: { moduleKey: string; enabled: boolean }[], actorId?: string) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
@@ -343,6 +383,7 @@ export class SuperAdminService {
       const updatedModules = await tx.tenantModule.findMany({
         where: { tenantId },
       });
+      if (actorId) await audit(tx, tenantId, actorId, 'ACTUALIZAR_SERVICIOS', tenantId, { modules: updatedModules, superAdminId: actorId });
       return updatedModules;
     });
   }
@@ -382,18 +423,20 @@ export class SuperAdminService {
     return actualizado;
   }
 
-  async createTenantAdmin(tenantId: string, dto: CreateTenantAdminDto) {
+  async createTenantAdmin(tenantId: string, dto: CreateTenantAdminDto, actorId?: string) {
     const passwordHash = await bcrypt.hash(dto.password, 10);
     return this.prisma.$transaction(async tx => {
       await lockTenant(tx, tenantId);
       if (!await tx.tenant.findUnique({ where: { id: tenantId } })) throw new NotFoundException('Empresa no encontrada');
       const email = dto.email.trim().toLowerCase();
       if (await tx.usuario.findFirst({ where: { tenantId, email } })) throw new BadRequestException('Correo ya registrado en esta empresa');
-      return tx.usuario.create({ data: { tenantId, nombre: dto.nombre.trim(), email, passwordHash, rol: 'ADMIN', activo: dto.activo ?? true }, select: { id: true, tenantId: true, nombre: true, email: true, activo: true, rol: true, createdAt: true } });
+      const creado = await tx.usuario.create({ data: { tenantId, nombre: dto.nombre.trim(), email, passwordHash, rol: 'ADMIN', activo: dto.activo ?? true }, select: { id: true, tenantId: true, nombre: true, email: true, activo: true, rol: true, createdAt: true } });
+      if (actorId) await audit(tx, tenantId, actorId, 'USUARIO_CREAR', creado.id, { usuario: creado, superAdminId: actorId });
+      return creado;
     });
   }
 
-  async updateTenantAdmin(tenantId: string, userId: string, dto: UpdateTenantAdminDto) {
+  async updateTenantAdmin(tenantId: string, userId: string, dto: UpdateTenantAdminDto, actorId?: string) {
     const passwordHash = dto.password ? await bcrypt.hash(dto.password, 10) : undefined;
     return this.prisma.$transaction(async tx => {
       await lockTenant(tx, tenantId);
@@ -405,6 +448,7 @@ export class SuperAdminService {
       const actualizado = await tx.usuario.update({ where: { id: userId }, data: { ...(dto.nombre !== undefined && { nombre: dto.nombre.trim() }), ...(email !== undefined && { email }), ...(dto.activo !== undefined && { activo: dto.activo }), ...(passwordHash && { passwordHash }) }, select: { id: true, tenantId: true, nombre: true, email: true, activo: true, rol: true, createdAt: true } });
       // Cambio de contraseña o desactivación: las sesiones abiertas del administrador dejan de valer.
       if (passwordHash || dto.activo === false) await revocarSesionesDeSujeto(tx, userId, passwordHash ? 'CAMBIO_CONTRASEÑA' : 'USUARIO_DESACTIVADO');
+      if (actorId) await audit(tx, tenantId, actorId, dto.activo === false ? 'USUARIO_DESACTIVAR' : 'USUARIO_EDITAR', userId, { usuario: actualizado, cambioPassword: !!passwordHash, superAdminId: actorId });
       return actualizado;
     });
   }
@@ -418,7 +462,7 @@ export class SuperAdminService {
     adminEmail: string;
     adminPassword: string;
     colorPrimario?: string;
-  }) {
+  }, actorId?: string) {
     if (!isPasswordAllowed(dto.adminPassword)) throw new BadRequestException(PASSWORD_POLICY_MESSAGE);
     const emailNormalizado = dto.adminEmail.toLowerCase().trim();
     return this.prisma.$transaction(async (tx) => {
@@ -456,6 +500,7 @@ export class SuperAdminService {
           activo: true,
         },
       });
+      if (actorId) await audit(tx, tenant.id, actorId, 'CREAR_TENANT', tenant.id, { nombreComercial: tenant.nombreComercial, adminId: adminUsuario.id, superAdminId: actorId });
       return {
         tenant,
         adminUsuario: {
@@ -468,16 +513,18 @@ export class SuperAdminService {
     });
   }
 
-  async toggleTenantStatus(tenantId: string, estado: 'ACTIVO' | 'SUSPENDIDO') {
+  async toggleTenantStatus(tenantId: string, estado: 'ACTIVO' | 'SUSPENDIDO', actorId?: string) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
     if (!tenant) {
       throw new NotFoundException('Ferretería no encontrada');
     }
-    return this.prisma.tenant.update({
-      where: { id: tenantId },
-      data: { estado },
+    return this.prisma.$transaction(async tx => {
+      await lockTenant(tx, tenantId);
+      const actualizado = await tx.tenant.update({ where: { id: tenantId }, data: { estado } });
+      if (actorId) await audit(tx, tenantId, actorId, 'CAMBIO_ESTADO_TENANT', tenantId, { estado, superAdminId: actorId });
+      return actualizado;
     });
   }
 }

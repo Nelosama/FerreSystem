@@ -5,8 +5,6 @@ import {
   CheckCircle,
   Building,
   Power,
-  Users,
-  ShieldCheck,
   KeyRound,
   Edit2,
   Check,
@@ -45,6 +43,7 @@ interface TenantItem {
   plan: string;
   estado: 'ACTIVO' | 'SUSPENDIDO';
   usuariosCount: number;
+  sucursalesCount?: number;
   colorPrimario: string;
   logoUrl?: string | null;
   modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
@@ -138,6 +137,7 @@ interface AdminTenantApiRecord {
   plan: string;
   estado: 'ACTIVO' | 'SUSPENDIDO';
   cantidadUsuarios: number;
+  cantidadSucursales?: number;
   modulosHabilitados: string[];
   usuarios: { id: string; nombre: string; email: string; rol?: string; activo: boolean; createdAt: string }[];
 }
@@ -151,6 +151,7 @@ function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
     plan: record.plan,
     estado: record.estado,
     usuariosCount: record.cantidadUsuarios,
+    sucursalesCount: record.cantidadSucursales,
     colorPrimario: record.colorPrimario || '#EA580C',
     logoUrl: record.logoUrl,
     modoNavegacion: record.modoNavegacion,
@@ -173,25 +174,6 @@ function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
   return { tenants, adminUsers };
 }
 
-const INITIAL_AUDIT_LOGS: AuditLogItem[] = [
-  {
-    id: 'log-1',
-    fecha: '2026-03-15 10:30',
-    accion: 'CREAR_TENANT',
-    tenantNombre: 'LA MUNDIAL - SUCURSAL CENTRO',
-    detalles: 'Empresa aprovisionada con plan Enterprise',
-    usuario: 'Super Admin',
-  },
-  {
-    id: 'log-2',
-    fecha: '2026-03-16 14:15',
-    accion: 'ACTUALIZAR_SERVICIOS',
-    tenantNombre: 'FERRETERÍA EL MARTILLO DE ORO',
-    detalles: 'Servicios de Arqueo de Caja activados',
-    usuario: 'Super Admin',
-  },
-];
-
 export const SuperAdminPage: React.FC = () => {
   const { impersonateTenantAdmin } = useTenant();
   const navigate = useNavigate();
@@ -202,10 +184,7 @@ export const SuperAdminPage: React.FC = () => {
   const [tenants, setTenants] = useState<TenantItem[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUserItem[]>([]);
 
-  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(() => {
-    const saved = localStorage.getItem('ferre_saas_audit');
-    return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
-  });
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
 
   const [supportLogs, setSupportLogs] = useState<SupportHistoryItem[]>([]);
   const [cargandoTrazas, setCargandoTrazas] = useState(false);
@@ -278,17 +257,12 @@ export const SuperAdminPage: React.FC = () => {
   const [brandSaving, setBrandSaving] = useState(false);
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
-  const registrarAuditoria = (accion: string, tenantNombre: string, detalles: string) => {
-    const nuevoLog: AuditLogItem = {
-      id: `log-${Date.now()}`,
-      fecha: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      accion,
-      tenantNombre,
-      detalles,
-      usuario: 'Super Admin',
-    };
-    setAuditLogs([nuevoLog, ...auditLogs]);
-  };
+  const cargarAuditoria = React.useCallback(() => api.get('/admin/auditoria').then(({ data }) => {
+    setAuditLogs(data.map((row: any) => ({ id: row.id, fecha: row.createdAt, accion: row.operacion, tenantNombre: tenants.find(tenant => tenant.id === row.tenantId)?.nombreComercial || row.tenantId, detalles: JSON.stringify(row.datos), usuario: row.usuarioId })));
+  }).catch(() => setErrorText('No se pudo cargar la auditoría del servidor.')), [tenants]);
+  const registrarAuditoria = (_accion: string, _tenantNombre: string, _detalles: string) => { void cargarAuditoria(); };
+  useEffect(() => { if (tabActiva === 'auditoria') void cargarAuditoria(); }, [tabActiva, cargarAuditoria]);
+
 
   const toggleEstadoTenant = async (id: string) => {
     const target = tenants.find((t) => t.id === id);
@@ -394,7 +368,7 @@ export const SuperAdminPage: React.FC = () => {
   useEffect(() => {
     if (tabActiva === 'soporte_historial') cargarTrazasSoporte();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabActiva]);
+  }, [tabActiva, cargarAuditoria]);
 
   const abrirFormularioMotivoSuplantar = (usrObj: { id: string; nombre: string; email: string; rol: any }) => {
     setUsuarioASuplantar(usrObj);
@@ -594,7 +568,7 @@ export const SuperAdminPage: React.FC = () => {
 
           <div className="industrial-card" style={styles.metricCard}>
             <UserCheck size={24} strokeWidth={2.4} color="#0284C7" />
-            <div style={styles.metricValue}>{adminUsers.length}</div>
+            <div style={styles.metricValue}>{adminUsers.filter(u => u.rol === 'ADMIN').length}</div>
             <div style={styles.metricLabel}>{t('superadmin.admins_count') || "USUARIOS ADMINISTRADORES"}</div>
           </div>
 
@@ -606,77 +580,15 @@ export const SuperAdminPage: React.FC = () => {
 
           <div className="industrial-card" style={styles.metricCard}>
             <Server size={24} strokeWidth={2.4} color="var(--color-primary)" />
-            {/* El sistema todavía no modela sucursales: no se muestra un conteo ni un estado de conexión inventados. */}
-            <div style={styles.metricValue} title="Sin modelo de sucursales en el sistema">—</div>
+            <div style={styles.metricValue}>{tenants.reduce((total, tenant) => total + (tenant.sucursalesCount ?? 0), 0)}</div>
             <div style={styles.metricLabel}>{t('superadmin.total_branches') || "SUCURSALES (NO DISPONIBLE)"}</div>
           </div>
         </div>
 
-        {/* Navegación por Tabs del Super Admin */}
-        <div style={styles.tabsContainer}>
-          <button type="button" onClick={() => setTabActiva('mantenimiento')} style={{ ...styles.tabBtn, ...(tabActiva === 'mantenimiento' ? styles.tabBtnActive : {}) }}>
-            <Server size={16} /><span>MANTENIMIENTO</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setTabActiva('tenants')}
-            style={{
-              ...styles.tabBtn,
-              ...(tabActiva === 'tenants' ? styles.tabBtnActive : {}),
-            }}
-          >
-            <Building size={16} />
-            <span>{t('superadmin.tab_tenants') || "CLIENTES (EMPRESAS)"}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTabActiva('modulos')}
-            style={{
-              ...styles.tabBtn,
-              ...(tabActiva === 'modulos' ? styles.tabBtnActive : {}),
-            }}
-          >
-            <Layers size={16} />
-            <span>{t('superadmin.tab_services') || "CATÁLOGO DE SERVICIOS"}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTabActiva('admins')}
-            style={{
-              ...styles.tabBtn,
-              ...(tabActiva === 'admins' ? styles.tabBtnActive : {}),
-            }}
-          >
-            <Users size={16} />
-            <span>{t('superadmin.tab_admins') || "USUARIOS ADMIN"}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTabActiva('auditoria')}
-            style={{
-              ...styles.tabBtn,
-              ...(tabActiva === 'auditoria' ? styles.tabBtnActive : {}),
-            }}
-          >
-            <ShieldCheck size={16} />
-            <span>{t('superadmin.tab_audit') || "AUDITORÍA SAAS"}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTabActiva('soporte_historial')}
-            style={{
-              ...styles.tabBtn,
-              ...(tabActiva === 'soporte_historial' ? styles.tabBtnActive : {}),
-            }}
-          >
-            <KeyRound size={16} />
-            <span>{t('uxAudit.support_history')} </span>
-          </button>
-        </div>
+        <nav aria-label="Administración de plataforma" style={styles.tabsContainer}>
+          {([['tenants', 'Clientes y usuarios administradores'], ['modulos', 'Catálogo de servicios'], ['soporte_historial', 'Soporte'], ['auditoria', 'Auditoría'], ['mantenimiento', 'Mantenimiento']] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => setTabActiva(tab)} aria-current={tabActiva === tab || tab === 'tenants' && tabActiva === 'admins' ? 'page' : undefined} style={{ ...styles.tabBtn, ...(tabActiva === tab ? styles.tabBtnActive : {}) }}>{label}</button>)}
+        </nav>
+        {(tabActiva === 'tenants' || tabActiva === 'admins') && <nav aria-label="Clientes y administradores" className="negocio-tabs"><button className="btn btn-secondary" onClick={() => setTabActiva('tenants')}>Clientes</button><button className="btn btn-secondary" onClick={() => setTabActiva('admins')}>Usuarios administradores</button></nav>}
 
         {/* TAB 1: GESTIÓN DE TENANTS / CLIENTES */}
         {tabActiva === 'mantenimiento' && <BackupStatus />}
@@ -778,7 +690,8 @@ export const SuperAdminPage: React.FC = () => {
                               onClick={() => abrirModalModulos(tItem)}
                               title={t('uxAudit.manage_subscribed_services')}
                             >{t('uxAudit.services')} </button>
-                            <p>{t('pending.branches')}</p>
+                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}`)}>Resumen y sucursales</button>
+                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}/usuarios`)}>Usuarios del negocio</button>
                             <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}/configuracion`)}>Configurar negocio</button>
                             <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}/auditoria`)}>Auditoría</button>
                             <button

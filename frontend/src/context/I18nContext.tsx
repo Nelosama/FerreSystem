@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useTenant } from './TenantContext';
 import esTranslations from '../locales/es.json';
 
 type Locale = 'es' | 'en';
@@ -19,16 +20,17 @@ const cargarIngles = () => import('../locales/en.json').then((m) => (ingles = m.
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [locale, setLocaleState] = useState<Locale>(() => {
-    const saved = localStorage.getItem('ferre_language');
-    return (saved === 'en' || saved === 'es') ? saved : 'es';
-  });
-
+  const { tenant, user } = useTenant();
+  const [platformLocale, setPlatformLocale] = useState<Locale>(() => localStorage.getItem('ferre_language') === 'en' ? 'en' : 'es');
+  const locale: Locale = user?.rol === 'SUPERADMIN' ? platformLocale : user && tenant.idioma === 'en' ? 'en' : 'es';
+  const setLocale = (lang: Locale) => {
+    // Preferencia de la plataforma; nunca modifica el idioma de un negocio ni de sus usuarios.
+    if (user?.rol !== 'SUPERADMIN' || !['es', 'en'].includes(lang)) return;
+    setPlatformLocale(lang); localStorage.setItem('ferre_language', lang);
+  };
   const [diccionarioIngles, setDiccionarioIngles] = useState<Diccionario | null>(ingles);
 
-  useEffect(() => {
-    localStorage.setItem('ferre_language', locale);
-  }, [locale]);
+  useEffect(() => { document.documentElement.lang = locale; }, [locale]);
 
   useEffect(() => {
     if (locale !== 'en' || diccionarioIngles) return;
@@ -38,10 +40,6 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [locale, diccionarioIngles]);
 
   const diccionario: Diccionario = locale === 'en' && diccionarioIngles ? diccionarioIngles : esTranslations;
-
-  const setLocale = (lang: Locale) => {
-    setLocaleState(lang);
-  };
 
   const t = useCallback((path: string, values?: Record<string, string | number>): string => {
     const keys = path.split('.');

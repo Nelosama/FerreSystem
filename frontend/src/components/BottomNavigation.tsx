@@ -11,7 +11,7 @@ import { type NavigationItem } from '../config/navigation';
 export const BottomNavigation: React.FC = () => {
   const { tenant, user, switchSucursal } = useTenant();
   const rubroConfig = useRubroConfig();
-  const { locale, setLocale, t } = useI18n();
+  const { t } = useI18n();
   const location = useLocation();
 
   const [showMasModal, setShowMasModal] = useState(false);
@@ -155,34 +155,6 @@ export const BottomNavigation: React.FC = () => {
                 </div>
               )}
 
-              {/* Selector de Idioma ES / EN */}
-              <div style={styles.configRow}>
-                <span style={{ fontSize: '12px', fontWeight: 700 }}>{t('navigation.language')}</span>
-                <div style={styles.langToggle}>
-                  <button
-                    type="button"
-                    onClick={() => setLocale('es')}
-                    style={{
-                      ...styles.langBtn,
-                      backgroundColor: locale === 'es' ? 'var(--color-primary)' : 'transparent',
-                      color: locale === 'es' ? '#FFFFFF' : '#44403C',
-                    }}
-                  >
-                    ES
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLocale('en')}
-                    style={{
-                      ...styles.langBtn,
-                      backgroundColor: locale === 'en' ? 'var(--color-primary)' : 'transparent',
-                      color: locale === 'en' ? '#FFFFFF' : '#44403C',
-                    }}
-                  >
-                    EN
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* Cuadrícula de opciones restadas */}

@@ -25,7 +25,15 @@ export function sessionIdentity(): string {
   catch { return ''; }
 }
 
+let sessionExpiredNotice = false;
+export const hasSessionExpiredNotice = () => sessionExpiredNotice;
+export function clearSessionExpiredNotice() {
+  sessionExpiredNotice = false;
+  sessionStorage.removeItem('ferre_session_expired');
+}
+
 function expired() {
+  sessionExpiredNotice = true;
   clearSessionStorage();
   sessionStorage.setItem('ferre_session_expired', '1');
   window.dispatchEvent(new Event('ferre:session-expired'));

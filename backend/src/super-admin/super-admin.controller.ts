@@ -1,3 +1,6 @@
+import { CreateUsuarioDto } from '../usuarios/dto/create-usuario.dto';
+import { UpdateUsuarioDto } from '../usuarios/dto/update-usuario.dto';
+import { SucursalDto, EditarSucursalDto } from './sucursal.dto';
 import { Controller, Post, Get, Put, Patch, Delete, Body, Param, UseGuards, Req, Res, HttpCode, HttpStatus, UploadedFile, UseInterceptors, BadRequestException, StreamableFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -52,9 +55,47 @@ export class SuperAdminController {
 
   @Get('tenants/:id/usuarios')
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
-  async listSoporteUsuarios(@Param('id') id: string) {
+  async listSoporteUsuarios(@Param('id') id: string, @Query('gestion') gestion?: string) {
+    if (gestion === 'true') return this.superAdminService.usuariosNegocio(id);
     return this.superAdminService.listSoporteUsuarios(id);
   }
+
+  @Post('tenants/:id/usuarios')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  crearUsuario(@Param('id') tenantId: string, @Body() dto: CreateUsuarioDto, @Req() req: Request & { user: { sub: string } }) {
+    return this.superAdminService.crearUsuarioNegocio(tenantId, dto, req.user.sub);
+  }
+  @Patch('tenants/:id/usuarios/:userId')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  editarUsuario(@Param('id') tenantId: string, @Param('userId') id: string, @Body() dto: UpdateUsuarioDto, @Req() req: Request & { user: { sub: string } }) {
+    return this.superAdminService.editarUsuarioNegocio(tenantId, id, dto, req.user.sub);
+  }
+  @Delete('tenants/:id/usuarios/:userId')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  desactivarUsuario(@Param('id') tenantId: string, @Param('userId') id: string, @Req() req: Request & { user: { sub: string } }) {
+    return this.superAdminService.desactivarUsuarioNegocio(tenantId, id, req.user.sub);
+  }
+  @Get('tenants/:id/sucursales')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  sucursales(@Param('id') id: string) { return this.superAdminService.sucursalesNegocio(id); }
+  @Post('tenants/:id/sucursales')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  crearSucursal(@Param('id') id: string, @Body() dto: SucursalDto, @Req() req: Request & { user: { sub: string } }) {
+    return this.superAdminService.guardarSucursal(id, undefined, dto, req.user.sub);
+  }
+  @Patch('tenants/:id/sucursales/:sucursalId')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  editarSucursal(@Param('id') id: string, @Param('sucursalId') sucursalId: string, @Body() dto: EditarSucursalDto, @Req() req: Request & { user: { sub: string } }) {
+    return this.superAdminService.guardarSucursal(id, sucursalId, dto, req.user.sub);
+  }
+  @Delete('tenants/:id/sucursales/:sucursalId')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  desactivarSucursal(@Param('id') id: string, @Param('sucursalId') sucursalId: string, @Req() req: Request & { user: { sub: string } }) {
+    return this.superAdminService.guardarSucursal(id, sucursalId, { activa: false }, req.user.sub);
+  }
+  @Get('auditoria')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  auditoriaPlataforma() { return this.superAdminService.auditoriaPlataforma(); }
 
   @Post('support/finalizar')
   @HttpCode(HttpStatus.OK)
@@ -84,8 +125,9 @@ export class SuperAdminController {
       adminPassword: string;
       colorPrimario?: string;
     },
+    @Req() req: Request & { user: { sub: string } },
   ) {
-    return this.superAdminService.createTenant(dto);
+    return this.superAdminService.createTenant(dto, req.user.sub);
   }
 
   @Patch('tenants/:id/status')
@@ -93,8 +135,9 @@ export class SuperAdminController {
   async toggleTenantStatus(
     @Param('id') id: string,
     @Body() body: { estado: 'ACTIVO' | 'SUSPENDIDO' },
+    @Req() req: Request & { user: { sub: string } },
   ) {
-    return this.superAdminService.toggleTenantStatus(id, body.estado);
+    return this.superAdminService.toggleTenantStatus(id, body.estado, req.user.sub);
   }
 
   @Get('tenants/:id/modules')
@@ -108,20 +151,21 @@ export class SuperAdminController {
   async updateTenantModules(
     @Param('id') id: string,
     @Body() body: { modules: { moduleKey: string; enabled: boolean }[] },
+    @Req() req: Request & { user: { sub: string } },
   ) {
-    return this.superAdminService.updateTenantModules(id, body.modules);
+    return this.superAdminService.updateTenantModules(id, body.modules, req.user.sub);
   }
 
   @Post('tenants/:tenantId/admins')
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
-  createTenantAdmin(@Param('tenantId') tenantId: string, @Body() dto: CreateTenantAdminDto) {
-    return this.superAdminService.createTenantAdmin(tenantId, dto);
+  createTenantAdmin(@Param('tenantId') tenantId: string, @Body() dto: CreateTenantAdminDto, @Req() req: Request & { user: { sub: string } }) {
+    return this.superAdminService.createTenantAdmin(tenantId, dto, req.user.sub);
   }
 
   @Patch('tenants/:tenantId/admins/:userId')
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
-  updateTenantAdmin(@Param('tenantId') tenantId: string, @Param('userId') userId: string, @Body() dto: UpdateTenantAdminDto) {
-    return this.superAdminService.updateTenantAdmin(tenantId, userId, dto);
+  updateTenantAdmin(@Param('tenantId') tenantId: string, @Param('userId') userId: string, @Body() dto: UpdateTenantAdminDto, @Req() req: Request & { user: { sub: string } }) {
+    return this.superAdminService.updateTenantAdmin(tenantId, userId, dto, req.user.sub);
   }
 
   /** Configuración del negocio seleccionado. Solo SUPERADMIN; el negocio no tiene acceso a esta ruta. */

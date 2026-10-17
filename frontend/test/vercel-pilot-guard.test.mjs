@@ -16,6 +16,7 @@ test('session correction branch is excluded from Git previews', () => {
 for (const [branch, expected] of [
   ['fix/pilot-readiness', 0], ['nexus/review', 0], ['fix/inventario-inicial-seguro', 0],
   ['codex/auditoria-precision-monetaria', 0], ['codex/fix-expired-sessions', 0],
+  ['fix/jowa-operacion-estable', 0], ['fix/jowa-operacion-estable-extra', 1],
   ['codex/fix-expired-sessions-extra', 1],
   ['main', 1], ['fix/auditoria-admin', 1], ['fix/pilot-readiness-extra', 1],
 ]) {

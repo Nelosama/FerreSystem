@@ -117,7 +117,7 @@ describe('AlmacenLogotipoSupabase: contrato HTTP con servidor de prueba local', 
 });
 
 describe('selección del almacenamiento por entorno', () => {
-  it('sin configuración no simula almacenamiento', () => {
+  it('sin cliente Prisma no construye un almacén ficticio', () => {
     expect(crearAlmacenLogotipo({})).toBeNull();
   });
   it('local exige directorio; supabase exige URL y clave de servicio', () => {

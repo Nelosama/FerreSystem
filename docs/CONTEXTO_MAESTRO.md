@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-16, America/Tegucigalpa** — PR #172: integración normal de main `735fbb9c` (#170/#171), conservando sesiones y optimizaciones. Sin merge del PR ni despliegue.
+Última revisión: **2026-10-16, America/Tegucigalpa** — correcciones operativas en `fix/jowa-operacion-estable`, desde main con #172 integrado. Validación final en curso; sin merge ni despliegue.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -21,6 +21,19 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
 
 ---
+
+## Correcciones operativas Jowa — 2026-10-16, America/Tegucigalpa
+
+- Rama única `fix/jowa-operacion-estable`, creada desde main `1e8afd617d8b215ba7063f0e2aeb72db1f18c2f5` con #172 integrado. Sin PR abiertos al iniciar. `git merge --no-ff origin/main` confirma que main ya está incluido; no se ha fusionado el PR ni desplegado.
+- Aviso de sesión vencida limitado a la redirección de la sesión actual; una marca antigua de sessionStorage no contamina el acceso inicial. Se conserva íntegra la validación preventiva de #172 y su tratamiento de conectividad/contingencia.
+- NEXUS: almacén PostgreSQL privado predeterminado para logotipos (2 MB), sin credenciales adicionales ni disco efímero. Proveedores local y Supabase explícitos conservados; claves versionadas y referencia/auditoría transaccionales, bytes en la misma transacción con PostgreSQL. No se sobrescribe el logotipo previo ante fallos. Migración aditiva `20261019000000_cloud_branding_sucursales`, RLS sin políticas públicas y FK restrictivas; diagnóstico SQL actualizado con checksums. Solo bases temporales; producción intacta.
+- Idioma por negocio en configuración validada, edición exclusiva de SUPERADMIN y aplicación automática a sus usuarios. ES/EN eliminado de las interfaces de tenant (escritorio y móvil); preferencia personal de la plataforma reservada al Super Admin. Guardados parciales preservan preferencias y `{}` conserva su restablecimiento explícito.
+- Referencias de navegación recibidas del propietario en este chat: TOPNAV con dos filas y nueve accesos principales; SIDEBAR con Ventas (incluye Inicio), Clientes, Inventario y Administración. Accesos secundarios conservados, catálogo único por rol/módulo/permiso y marca completa enlazada a Inicio.
+- Panel de plataforma con cinco áreas y detalle de negocio con seis pestañas. Auditoría global leída de PostgreSQL en lugar de registros ficticios/locales. Soporte, impersonación, módulos y mantenimiento conservados.
+- Gestión real de sucursales y de todos los roles de usuario por Super Admin. Reutiliza UsuariosService; desactivación, auditoría y revocación, protección concurrente del último administrador y filtro tenant+id. Sin borrado físico ni reasignación de ventas/cajas/existencias a sucursales.
+- Validación en curso al publicar borrador: backend unitarias 508/508, frontend 377/377, scripts 48/48, HTTP/recuperación 6/6 en repetición aislada, builds/lint sin errores. La regresión completa inicial encontró y permitió corregir restablecimiento `{}`, registro de migraciones, buscador móvil y etiqueta accesible de Rol. No se declara entrega final hasta cerrar repeticiones y consultar CI del HEAD.
+- Límite del entorno: Chromium 151 reproduce la incoherencia de navigator.onLine conocida; descarga de Chromium 153 rechazada por proxy 403 Domain forbidden. No se fuerza navigator ni se omite la prueba. Servicio Supabase, datos productivos y aceptación física no verificados.
+- Informe y lista final de archivos: [CORRECCIONES_OPERACION_JOWA_20261016.md](CORRECCIONES_OPERACION_JOWA_20261016.md). Estado de pruebas y SHA final se actualizarán en este mismo bloque y en el PR único. **Sin merge ni despliegue autorizado.**
 
 ## PR #172 — cierre de integración (2026-10-16, America/Tegucigalpa)
 

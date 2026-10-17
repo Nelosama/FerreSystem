@@ -1,3 +1,4 @@
+import { PrismaService } from '../prisma/prisma.service';
 import { Module } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { TenantsController } from './tenants.controller';
@@ -9,8 +10,8 @@ import { LOGOTIPO_ALMACEN, crearAlmacenLogotipo } from './logotipo-almacen';
   providers: [
     TenantsService,
     TenantLogoService,
-    // Configuración del almacenamiento privado; sin variables devuelve null y los endpoints responden 503.
-    { provide: LOGOTIPO_ALMACEN, useFactory: () => crearAlmacenLogotipo() },
+    // PostgreSQL persistente por defecto; se mantienen los proveedores explícitos.
+    { provide: LOGOTIPO_ALMACEN, inject: [PrismaService], useFactory: (prisma: PrismaService) => crearAlmacenLogotipo(process.env, prisma) },
   ],
   exports: [TenantsService, TenantLogoService],
 })

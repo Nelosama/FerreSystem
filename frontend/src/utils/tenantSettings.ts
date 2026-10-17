@@ -1,7 +1,7 @@
 import type { TenantInfo } from '../types';
 
 const defaults = {
-  rubro: 'FERRETERIA', estiloUI: 'INDUSTRIAL', templateVersion: 'v1', v2Mode: 'light',
+  idioma: 'es', rubro: 'FERRETERIA', estiloUI: 'INDUSTRIAL', templateVersion: 'v1', v2Mode: 'light',
   fuenteTitulos: 'Archivo', fuenteCuerpo: 'Inter', formatoImpresion: 'A4',
 } as const;
 

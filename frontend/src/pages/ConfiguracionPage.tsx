@@ -1,3 +1,4 @@
+import { NegocioNavigation } from '../components/NegocioNavigation';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TopBar } from '../components/TopBar';
@@ -24,11 +25,12 @@ const PRESET_COLORS = [
  * sin modificar la sesión ni el negocio del propio usuario.
  */
 export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }) => {
-  const { locale, setLocale, t } = useI18n();
+  const { locale, t } = useI18n();
   const [datos, setDatos] = useState<any>(null);
   const [cargaError, setCargaError] = useState('');
   const negocio: any = datos ?? {};
 
+  const [idioma, setIdioma] = useState<'es' | 'en'>('es');
   const [templateVersion, setTemplateVersion] = useState<'v1' | 'v2'>(negocio.templateVersion || 'v1');
   const [v2Mode, setV2Mode] = useState<NonNullable<TenantInfo['v2Mode']>>(negocio.v2Mode || 'light');
   const [nombre, setNombre] = useState(negocio.nombreComercial || '');
@@ -76,6 +78,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   // Sincronizar estados cuando el negocio cargado cambie
   React.useEffect(() => {
     if (negocio && !dirty.current) {
+      setIdioma(negocio.idioma === 'en' ? 'en' : 'es');
       setTemplateVersion(negocio.templateVersion || 'v1');
       setV2Mode(negocio.v2Mode || 'light');
       setNombre(negocio.nombreComercial || '');
@@ -110,7 +113,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         email,
         colorPrimario: color,
         modoNavegacion,
-        configuracion: { rubro, formatoImpresion, estiloUI, templateVersion, v2Mode, fuenteTitulos, fuenteCuerpo, moneda: updatedMoneda, impuesto: updatedImpuesto },
+        configuracion: { idioma, rubro, formatoImpresion, estiloUI, templateVersion, v2Mode, fuenteTitulos, fuenteCuerpo, moneda: updatedMoneda, impuesto: updatedImpuesto },
       });
 
       dirty.current = false;
@@ -143,6 +146,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
 
       <main style={styles.content}>
         <p><Link to="/admin">← Volver al panel global</Link></p>
+        <NegocioNavigation negocioId={negocioId} />
         <p>{t('settings.scope')}</p>
         <LogotipoNegocioEditor
           negocioId={negocioId}
@@ -178,13 +182,13 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
                   type="button"
-                  onClick={() => setLocale('es')}
+                  onClick={() => setIdioma('es')}
                   style={{
                     flex: 1,
                     padding: '8px',
                     fontWeight: 800,
-                    backgroundColor: locale === 'es' ? 'var(--color-text-main)' : 'var(--color-surface)',
-                    color: locale === 'es' ? 'var(--color-bg)' : 'var(--color-text-main)',
+                    backgroundColor: idioma === 'es' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: idioma === 'es' ? 'var(--color-bg)' : 'var(--color-text-main)',
                     border: '1.5px solid var(--color-sidebar-bg)',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -194,13 +198,13 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
                 </button>
                 <button
                   type="button"
-                  onClick={() => setLocale('en')}
+                  onClick={() => setIdioma('en')}
                   style={{
                     flex: 1,
                     padding: '8px',
                     fontWeight: 800,
-                    backgroundColor: locale === 'en' ? 'var(--color-text-main)' : 'var(--color-surface)',
-                    color: locale === 'en' ? 'var(--color-bg)' : 'var(--color-text-main)',
+                    backgroundColor: idioma === 'en' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: idioma === 'en' ? 'var(--color-bg)' : 'var(--color-text-main)',
                     border: '1.5px solid var(--color-sidebar-bg)',
                     borderRadius: '4px',
                     cursor: 'pointer',

@@ -147,7 +147,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
       )}
 
-      <div className="v2-topbar-title" style={styles.titleContainer}>{tenant.templateVersion === 'v2' && <TenantBrand />}
+      <div className="v2-topbar-title" style={styles.titleContainer}>{tenant.templateVersion === 'v2' ? <TenantBrand /> : <span className="mobile-brand-only"><TenantBrand /></span>}
         <div style={styles.headingWrapper}>
           <h1 style={styles.mainTitle}>{title}</h1>
           <div style={styles.accentUnderline} />
@@ -293,44 +293,9 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
         )}
 
-        {/* Selector de Idioma Global ES / EN */}
-        <div className="topbar-desktop-only" style={{ display: 'flex', alignItems: 'center', backgroundColor: '#FFFFFF', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-xs)', padding: '2px' }}>
-          <button
-            type="button"
-            onClick={() => setLocale('es')}
-            style={{
-              padding: '4px 8px',
-              fontFamily: 'var(--font-display)',
-              fontWeight: 800,
-              fontSize: '11px',
-              border: 'none',
-              borderRadius: '2px',
-              backgroundColor: locale === 'es' ? 'var(--color-primary)' : 'transparent',
-              color: locale === 'es' ? '#FFFFFF' : '#44403C',
-              cursor: 'pointer',
-            }}
-          >
-            ES
-          </button>
-          <button
-            type="button"
-            onClick={() => setLocale('en')}
-            style={{
-              padding: '4px 8px',
-              fontFamily: 'var(--font-display)',
-              fontWeight: 800,
-              fontSize: '11px',
-              border: 'none',
-              borderRadius: '2px',
-              backgroundColor: locale === 'en' ? 'var(--color-primary)' : 'transparent',
-              color: locale === 'en' ? '#FFFFFF' : '#44403C',
-              cursor: 'pointer',
-            }}
-          >
-            EN
-          </button>
-        </div>
-
+        {user?.rol === 'SUPERADMIN' && <div aria-label="Idioma de la plataforma" className="topbar-desktop-only" style={{ display: 'flex', gap: 4 }}>
+          {(['es', 'en'] as const).map(lang => <button key={lang} type="button" aria-pressed={locale === lang} onClick={() => setLocale(lang)} className="btn btn-secondary btn-sm">{lang.toUpperCase()}</button>)}
+        </div>}
         {/* Badge de Fecha Oficial */}
         <div className="v2-date-badge" style={styles.dateBadge}>
           <Calendar size={15} strokeWidth={2.5} />

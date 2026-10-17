@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+import type { PrismaService } from '../prisma/prisma.service';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { ServiceUnavailableException } from '@nestjs/common';
@@ -8,6 +10,7 @@ import { ServiceUnavailableException } from '@nestjs/common';
  */
 export interface AlmacenLogotipo {
   readonly nombre: string;
+  usarTransaccion?(tx: Prisma.TransactionClient): AlmacenLogotipo;
   guardar(clave: string, datos: Buffer, mime: string): Promise<void>;
   leer(clave: string): Promise<Buffer | null>;
   eliminar(clave: string): Promise<void>;
@@ -108,11 +111,12 @@ export class AlmacenLogotipoSupabase implements AlmacenLogotipo {
 }
 
 /**
- * Selecciona el driver según variables de entorno. Sin configuración devuelve null y los endpoints
- * responden 503: nunca se simula almacenamiento.
+ * Selecciona PostgreSQL por defecto, o un proveedor explícito. Requiere un cliente Prisma real
+ * para el proveedor predeterminado; nunca se simula almacenamiento.
  */
-export function crearAlmacenLogotipo(entorno: NodeJS.ProcessEnv = process.env): AlmacenLogotipo | null {
+export function crearAlmacenLogotipo(entorno: NodeJS.ProcessEnv = process.env, prisma?: PrismaService): AlmacenLogotipo | null {
   const driver = (entorno.LOGOTIPO_ALMACEN ?? '').trim().toLowerCase();
+  if (!driver || driver === 'postgres') return prisma ? new AlmacenLogotipoPostgres(prisma) : null;
   if (driver === 'local') {
     if (!entorno.LOGOTIPO_DIRECTORIO) throw new Error('LOGOTIPO_ALMACEN=local requiere LOGOTIPO_DIRECTORIO');
     return new AlmacenLogotipoLocal(entorno.LOGOTIPO_DIRECTORIO);
@@ -121,7 +125,24 @@ export function crearAlmacenLogotipo(entorno: NodeJS.ProcessEnv = process.env): 
     if (!entorno.SUPABASE_URL || !entorno.SUPABASE_SERVICE_KEY) throw new Error('LOGOTIPO_ALMACEN=supabase requiere SUPABASE_URL y SUPABASE_SERVICE_KEY');
     return new AlmacenLogotipoSupabase(entorno.SUPABASE_URL, entorno.SUPABASE_SERVICE_KEY, entorno.SUPABASE_LOGOTIPO_BUCKET || 'logotipos-privados');
   }
-  return null;
+  throw new Error('LOGOTIPO_ALMACEN debe ser postgres, supabase o local');
+}
+
+/** La base PostgreSQL cloud ya configurada es el almacén por defecto; sin bucket ni disco efímero. */
+export class AlmacenLogotipoPostgres implements AlmacenLogotipo {
+  readonly nombre = 'postgres';
+  constructor(private readonly prisma: Pick<PrismaService, 'logotipoObjeto'>) {}
+  usarTransaccion(tx: Prisma.TransactionClient) { return new AlmacenLogotipoPostgres(tx); }
+  async guardar(clave: string, datos: Buffer) {
+    const partes = /^tenants\/([A-Za-z0-9_-]{1,64})\/logo\/[A-Za-z0-9-]+$/.exec(clave);
+    if (!partes) throw new Error('Clave de logotipo inválida');
+    await this.prisma.logotipoObjeto.create({ data: { clave, tenantId: partes[1], datos } });
+  }
+  async leer(clave: string) {
+    const objeto = await this.prisma.logotipoObjeto.findUnique({ where: { clave } });
+    return objeto ? Buffer.from(objeto.datos) : null;
+  }
+  async eliminar(clave: string) { await this.prisma.logotipoObjeto.deleteMany({ where: { clave } }); }
 }
 
 export const LOGOTIPO_ALMACEN = Symbol('LOGOTIPO_ALMACEN');
