@@ -22,6 +22,14 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## PR #172 — cierre de integración (2026-10-16, America/Tegucigalpa)
+
+- Rama única `codex/fix-expired-sessions`. Merge normal de main `735fbb9c` (#170 y #171), commit `93f4a727`. Solo conflicto documental: se conservaron sesiones y ambas secciones de optimización. Sin rebase, amend, force push, despliegue ni migraciones productivas.
+- Causa confirmada en Actions `38958353754`, job `117166809049`: la aserción de worker en espera pasó, pero la siguiente exigía `ferresystem-shell-v1`, aunque el worker de sesiones usa `v2`. La caché nueva instalada coexiste correctamente mientras espera; no demuestra activación prematura.
+- Corrección en `frontend/e2e-real/contingencia-real.spec.ts`: versión obtenida del build, espera explícita de instalación; identidad del controlador y ausencia de controllerchange; carrito y efectivo intactos; diario intacto; nueva venta offline persistida al recargar, conservada al cerrar la última pestaña y activar el nuevo worker, y sincronizada una sola vez. Sin modificar el worker ni el comportamiento offline.
+- Validación de este HEAD: unitarias, navegador de sesiones/POS/contingencia y PostgreSQL temporal en ejecución; resultados finales y SHA se informan en #172. Chromium 153 no descargable localmente (`cdn.playwright.dev`, 403); Chromium 151 disponible, con limitación de emulación offline ya documentada. No atribuir resultados de las dependencias previas a esta integración: se ejecutó npm ci de ambos paquetes y prisma generate del esquema existente antes de la pasada válida.
+- NEXUS: solo pruebas de integridad en PostgreSQL 17 temporal; ningún cambio de esquema o acceso productivo. Estado conservador: NO MERGE hasta completar checks del nuevo HEAD. Sin autorización para ejecutar el merge del PR.
+
 ## Sesiones expiradas y navegación protegida (2026-10-16)
 
 - **Rama única:** `codex/fix-expired-sessions`, desde `main` `d5fec352`. Se consultaron PR abiertos #170/#171 y ramas Codex remotas; no había una rama apropiada reutilizable. Sin cambios de esquema, migraciones, dependencias, reglas comerciales, merge ni despliegue.
