@@ -1,5 +1,5 @@
 import { PrismaService } from '../prisma/prisma.service';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -47,6 +47,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any): Promise<JwtValidatedPayload> {
+    try { return await this.validatePayload(payload); }
+    catch (error) {
+      // Infrastructure failure cannot establish that a session was revoked.
+      // Fail closed with a recoverable response; never retry a business write.
+      const code = error && typeof error === 'object'
+        ? ('code' in error ? error.code : 'errorCode' in error ? error.errorCode : undefined)
+        : undefined;
+      if (typeof code === 'string' && ['P1001', 'P1002', 'P1008', 'P1017', 'P2024', 'P2037'].includes(code)) {
+        throw new ServiceUnavailableException('Servicio temporalmente no disponible');
+      }
+      throw error;
+    }
+  }
+
+  private async validatePayload(payload: any): Promise<JwtValidatedPayload> {
     if (!payload || !payload.sub || !payload.type) {
       throw new UnauthorizedException('Token inválido');
     }

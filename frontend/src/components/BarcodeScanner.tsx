@@ -11,6 +11,9 @@ export const BarcodeScanner: React.FC<{
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [success, setSuccess] = useState(false);
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [deviceId, setDeviceId] = useState('');
+  const [activeDeviceId, setActiveDeviceId] = useState('');
   const video = useRef<HTMLVideoElement>(null);
   const stopSession = useRef<(() => void) | undefined>(undefined);
   const callback = useRef(onCode);
@@ -20,7 +23,8 @@ export const BarcodeScanner: React.FC<{
     if (!open || disabled || !video.current) return;
     const preview = video.current;
     const stop = startBarcodeCamera(preview, {
-      locale,
+      locale, deviceId,
+      onCameras: (devices, active) => { setCameras(devices); setActiveDeviceId(active); },
       onReady: () => setStatus(t('scanner.ready')),
       onError: message => { setError(message); setOpen(false); setStatus(''); },
       onCode: code => { setOpen(false); setSuccess(true); setStatus(t('scanner.read', { code })); callback.current(code); },
@@ -44,17 +48,29 @@ export const BarcodeScanner: React.FC<{
       document.removeEventListener('visibilitychange', visibility);
       details?.removeEventListener('toggle', toggle);
     };
-  }, [open, disabled, t, locale]);
+  }, [open, disabled, t, locale, deviceId]);
   return <div className="barcode-scanner">
     <div className="barcode-scanner__actions">
       <button type="button" className="btn btn-secondary" disabled={disabled && !open} onClick={() => {
         if (open) stopSession.current?.();
+        else { setDeviceId(''); setCameras([]); setActiveDeviceId(''); }
         setError(''); setSuccess(false); setStatus(open ? '' : t('scanner.starting')); setOpen(value => !value);
       }}>{open ? t('scanner.stop') : t('scanner.start')}</button>
       {(open || error) && <button type="button" className="btn btn-secondary" disabled={disabled} onClick={() => {
         stopSession.current?.(); setOpen(false); setError(''); setSuccess(false); setStatus(t('scanner.manual_hint')); onManual?.();
       }}>{t('scanner.manual')}</button>}
     </div>
+    {open && cameras.length > 1 && <label>
+      {t('scanner.camera')}
+      <select aria-label={t('scanner.camera')} value={deviceId || activeDeviceId} onChange={event => {
+        stopSession.current?.(); setError(''); setSuccess(false); setStatus(t('scanner.starting')); setDeviceId(event.target.value);
+      }}>
+        {!activeDeviceId && !deviceId && <option value="">{t('scanner.default_camera')}</option>}
+        {cameras.map((camera, index) => <option key={camera.deviceId} value={camera.deviceId}>
+          {camera.label || t('scanner.camera_number', { number: index + 1 })}
+        </option>)}
+      </select>
+    </label>}
     {open && <div className="barcode-scanner__preview">
       <video ref={video} autoPlay muted playsInline aria-label={t('scanner.preview')} />
       <div className="barcode-scanner__guide" aria-hidden="true" />

@@ -460,3 +460,19 @@ test('cámara: sesión vencida durante levantamiento libera pistas y descarta le
   expect(sim.postsItem).toEqual([]); expect(sim.aplicarTokens).toEqual([]);
   expect(sim.postsLev).toHaveLength(1); // Only the explicit setup action created a draft.
 });
+
+test('cámara: cambiar de dispositivo libera la pista anterior y conserva alternativa manual', async ({ page, sim }) => {
+  await installScannerCamera(page); await ingresar(page); await crearLevantamiento(page);
+  await scannerStart(page).click();
+  const camera = page.getByRole('combobox', { name: 'Cámara', exact: true });
+  await expect(camera).toHaveValue('back');
+  await camera.selectOption('front');
+  await expect.poll(async () => (await cameraState(page)).requests).toBe(2);
+  await expect.poll(async () => (await cameraState(page)).stops).toBe(1);
+  await expect(page.getByText('Apunte al código y mantenga el teléfono estable.')).toBeVisible();
+  expect((await cameraState(page)).constraints[1]).toMatchObject({ video: { deviceId: { exact: 'front' } } });
+  await page.getByRole('button', { name: 'Introducir código manualmente' }).click();
+  await expect(page.getByLabel('Buscar por código, descripción o categoría')).toBeFocused();
+  expect((await cameraState(page)).stops).toBe(2);
+  expect(sim.postsItem).toEqual([]); expect(sim.aplicarTokens).toEqual([]);
+});

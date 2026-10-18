@@ -58,8 +58,10 @@ export default function PosContingenciaPage() {
   const [guardando, setGuardando] = useState(false);
   const [confirmacion, setConfirmacion] = useState<OperacionLocal | null>(null);
   const [aImprimir, setAImprimir] = useState<OperacionLocal | null>(null);
-  // El formato del negocio (si es rollo) decide el papel; sin rollo se usa la preferencia guardada en este equipo.
+  // La configuración del negocio gobierna página y ancho; sin configuración se conserva la preferencia local.
   const [papel, setPapel] = useState<'58' | '80'>(() => (tenant?.formatoImpresion === 'ROLLO_58MM' ? '58' : tenant?.formatoImpresion === 'ROLLO_80MM' ? '80' : leerPapel()));
+  const formatoPapel = tenant?.formatoImpresion ?? (papel === '58' ? 'ROLLO_58MM' : 'ROLLO_80MM');
+  const papelComprobante = formatoPapel === 'A4' ? 'A4' : formatoPapel === 'ROLLO_58MM' ? '58' : '80';
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'ok' | 'aviso'; texto: string } | null>(null);
   const [ultimaSync, setUltimaSync] = useState<string | undefined>(undefined);
   const [habilitada, setHabilitada] = useState<boolean | null>(null);
@@ -483,7 +485,8 @@ export default function PosContingenciaPage() {
         )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
           <label className="pc-papel">Papel de la impresora
-            <select value={papel} onChange={(e) => cambiarPapel(e.target.value as '58' | '80')}>
+            <select value={papelComprobante} disabled={Boolean(tenant?.formatoImpresion)} onChange={(e) => cambiarPapel(e.target.value as '58' | '80')}>
+              {formatoPapel === 'A4' && <option value="A4">A4</option>}
               <option value="80">80 mm</option>
               <option value="58">58 mm</option>
             </select>
@@ -494,11 +497,11 @@ export default function PosContingenciaPage() {
         {operador === false && <p role="status">Esta pestaña no cobra porque otra pestaña del POS ya está activa.</p>}
       </section>
 
-      {aImprimir && <style>{`@page { size: ${tamanoPaginaImpresion(tenant?.formatoImpresion ?? (papel === '58' ? 'ROLLO_58MM' : 'ROLLO_80MM'))}; }`}</style>}
+      {aImprimir && <style>{`@page { size: ${tamanoPaginaImpresion(formatoPapel, aImprimir.lineas.length)}; }`}</style>}
       {aImprimir && (() => {
         const c: ComprobanteContingencia = construirComprobante(aImprimir, tenant?.nombreComercial ?? '');
         return (
-          <div className={`pc-comprobante-impresion papel-${papel}`} aria-hidden="true">
+          <div className={`pc-comprobante-impresion papel-${papelComprobante}`} aria-hidden="true">
             <div className="pc-imp-titulo">{c.titulo}</div>
             <div className="pc-imp-aviso">{c.aviso}</div>
             <div className="pc-imp-centrado">{c.ferreteria}</div>

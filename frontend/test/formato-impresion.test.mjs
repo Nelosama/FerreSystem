@@ -37,3 +37,14 @@ test('el ticket en pantalla respeta el ancho del papel', () => {
   assert.equal(JSON.stringify(f.anchoTicketCss('ROLLO_58MM')), '{"width":"58mm","maxWidth":"58mm"}');
   assert.equal(f.anchoTicketCss('A4').maxWidth, '210mm');
 });
+
+test('CSS térmico usa dos longitudes válidas y comparte la estimación de alto del PDF', () => {
+  for (const [formato, ancho] of [['ROLLO_80MM', 80], ['ROLLO_58MM', 58]]) {
+    const size = f.tamanoPaginaImpresion(formato, 3);
+    assert.match(size, new RegExp(`^${ancho}mm [0-9.]+mm$`));
+    const [, alto] = f.tamanoPaginaRecibo(formato, 25);
+    assert.equal(size, `${ancho}mm ${(alto * 25.4 / 72).toFixed(2)}mm`);
+    assert.notEqual(f.tamanoPaginaImpresion(formato, 3), f.tamanoPaginaImpresion(formato, 100));
+  }
+  assert.equal(f.tamanoPaginaImpresion('A4', 100), 'A4');
+});

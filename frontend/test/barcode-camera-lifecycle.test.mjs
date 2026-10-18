@@ -26,8 +26,8 @@ function env(t, { camera, play, decoder } = {}) {
     mediaDevices: { getUserMedia: () => { requests++; return camera ? camera.promise : Promise.resolve(stream); } },
     createDecoder: () => Promise.resolve(decoder || (() => Promise.resolve(null))),
   };
-  const start = () => context.exports.startBarcodeCamera(video, {
-    onReady: () => { events.ready++; }, onCode: code => events.codes.push(code), onError: message => events.errors.push(message),
+  const start = (options = {}) => context.exports.startBarcodeCamera(video, {
+    onReady: () => { events.ready++; }, onCode: code => events.codes.push(code), onError: message => events.errors.push(message), ...options,
   }, deps);
   return { start, video, track, stream, deps, events, get stops() { return stops; }, get requests() { return requests; } };
 }
@@ -141,4 +141,59 @@ test('tras agotar permiso se puede reintentar con otra petición; la anterior ta
   const newTrack = Object.assign(new EventTarget(), { stop() { secondStops++; } });
   second.resolve({ getTracks: () => [newTrack], getVideoTracks: () => [newTrack] }); await flush();
   assert.equal(e.events.ready, 1); assert.equal(secondStops, 0); stop(); assert.equal(secondStops, 1);
+});
+
+
+test('cámara elegida usa deviceId exacto sin facingMode y libera la anterior', async t => {
+  const e = env(t); const constraints = [];
+  e.deps.mediaDevices.getUserMedia = value => { constraints.push(value); return Promise.resolve(e.stream); };
+  const first = e.start(); await flush(); first();
+  e.deps.mediaDevices.getUserMedia = value => {
+    assert.equal(e.stops, 1); constraints.push(value); return Promise.resolve(e.stream);
+  };
+  const stop = e.start({ deviceId: 'front' }); await flush();
+  assert.equal(constraints[0].video.facingMode.ideal, 'environment');
+  assert.equal(constraints[1].video.deviceId.exact, 'front');
+  assert.equal(constraints[1].video.facingMode, undefined); stop();
+});
+
+test('enumeración posterior al permiso no publica resultados tras cerrar', async t => {
+  const e = env(t); const devices = deferred(); const reports = [];
+  e.deps.mediaDevices.enumerateDevices = () => {
+    assert.equal(e.events.ready, 1); return devices.promise;
+  };
+  const stop = e.start({ onCameras: (...args) => reports.push(args) }); await flush(); stop();
+  devices.resolve([{ kind: 'videoinput', deviceId: 'front' }]); await flush();
+  assert.equal(reports.length, 0);
+});
+
+test('rechazo de enumerateDevices conserva cámara y lector operativos', async t => {
+  const e = env(t);
+  e.deps.mediaDevices.enumerateDevices = () => Promise.reject(new Error('not supported'));
+  const stop = e.start({ onCameras: () => assert.fail('sin dispositivos') }); await flush();
+  assert.equal(e.events.ready, 1); assert.equal(e.events.errors.length, 0); assert.equal(e.stops, 0); stop();
+});
+
+test('cambio rápido con permiso pendiente no reutiliza la cámara de otro dispositivo', async t => {
+  const e = env(t); const front = deferred(), back = deferred(); const requests = [];
+  let oldStops = 0;
+  const oldStream = { getTracks: () => [{ stop: () => oldStops++ }] };
+  e.deps.mediaDevices.getUserMedia = constraints => {
+    requests.push(constraints.video.deviceId.exact);
+    return constraints.video.deviceId.exact === 'front' ? front.promise : back.promise;
+  };
+  const stopFront = e.start({ deviceId: 'front' }); stopFront();
+  const stopBack = e.start({ deviceId: 'back' });
+  assert.deepEqual(requests, ['front', 'back']);
+  back.resolve(e.stream); await flush();
+  front.resolve(oldStream); await flush();
+  assert.equal(e.video.srcObject, e.stream); assert.equal(oldStops, 1);
+  assert.equal(e.events.ready, 1); stopBack();
+});
+
+test('enumerateDevices que lanza sincrónicamente tampoco detiene el lector', async t => {
+  const e = env(t);
+  e.deps.mediaDevices.enumerateDevices = () => { throw new Error('unsupported'); };
+  const stop = e.start({ onCameras: () => assert.fail('sin dispositivos') }); await flush();
+  assert.equal(e.events.ready, 1); assert.equal(e.events.errors.length, 0); assert.equal(e.stops, 0); stop();
 });

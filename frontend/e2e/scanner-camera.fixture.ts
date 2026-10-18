@@ -13,13 +13,16 @@ export async function installScannerCamera(page: Page, software = false) {
     const getUserMedia = (constraints: MediaStreamConstraints) => {
       state.requests++; state.constraints.push(constraints);
       if (state.denied) return Promise.reject(new DOMException('Denied', 'NotAllowedError'));
-      const track = Object.assign(new EventTarget(), { stop: () => { state.stops++; } });
+      const track = Object.assign(new EventTarget(), { stop: () => { state.stops++; }, getSettings: () => ({ deviceId: (constraints.video as MediaTrackConstraints)?.deviceId ? 'front' : 'back' }) });
       state.tracks.push(track);
       const stream = { getTracks: () => [track], getVideoTracks: () => [track] };
       if (state.pending) return new Promise(resolve => { state.resolveCamera = () => resolve(stream); });
       return Promise.resolve(stream);
     };
-    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia, enumerateDevices: () => Promise.resolve([
+      { kind: 'videoinput', deviceId: 'back', label: 'Rear camera' },
+      { kind: 'videoinput', deviceId: 'front', label: 'Front camera' },
+    ]) } });
     const streams = new WeakMap<HTMLMediaElement, unknown>();
     Object.defineProperty(HTMLMediaElement.prototype, 'srcObject', { configurable: true, get() { return streams.get(this) || null; }, set(value) { streams.set(this, value); } });
     HTMLMediaElement.prototype.play = () => Promise.resolve();

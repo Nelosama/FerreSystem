@@ -30,8 +30,10 @@ export function anchoTicketCss(formato: FormatoImpresion | undefined): { width: 
 }
 
 /** Valor de `@page { size }` para imprimir en el papel configurado. */
-export const tamanoPaginaImpresion = (formato: FormatoImpresion | undefined): string => {
-  if (formato === 'ROLLO_80MM') return '80mm auto';
-  if (formato === 'ROLLO_58MM') return '58mm auto';
-  return 'A4';
+export const tamanoPaginaImpresion = (formato: FormatoImpresion | undefined, lineas = 0): string => {
+  if (!esFormatoRollo(formato)) return 'A4';
+  // CSS size accepts two lengths, never '80mm auto' (silently discarded).
+  // Reuse the PDF height estimate, including space for header and totals.
+  const [, alto] = tamanoPaginaRecibo(formato, lineas + 22) as [number, number];
+  return `${formato === 'ROLLO_80MM' ? 80 : 58}mm ${(alto * 25.4 / 72).toFixed(2)}mm`;
 };
