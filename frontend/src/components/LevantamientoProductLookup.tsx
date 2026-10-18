@@ -13,6 +13,7 @@ export const LevantamientoProductLookup: React.FC<{
 }> = ({ disabled, onSearch, onSelect }) => {
   const { t } = useI18n();
   const [search, setSearch] = useState('');
+  const searchInput = useRef<HTMLInputElement>(null);
   const [products, setProducts] = useState<CountProduct[]>([]);
   const [selected, setSelected] = useState<CountProduct | null>(null);
   const [loading, setLoading] = useState(false);
@@ -53,8 +54,8 @@ export const LevantamientoProductLookup: React.FC<{
     } finally { if (current === generation.current) setLoading(false); }
   };
   return <section aria-label={t('count_lookup.label')}>
-    <BarcodeScanner disabled={disabled || loading} onCode={code => void lookup(code, true)} />
-    <label>{t('count_lookup.search')}<input className="form-input" type="search" value={search} disabled={disabled} onChange={e => setSearch(e.target.value)} onKeyDown={e => {
+    <BarcodeScanner onManual={() => searchInput.current?.focus()} disabled={disabled || loading} onCode={code => void lookup(code, true)} />
+    <label>{t('count_lookup.search')}<input ref={searchInput} className="form-input" type="search" value={search} disabled={disabled} onChange={e => setSearch(e.target.value)} onKeyDown={e => {
       if (e.key === 'Enter') { e.preventDefault(); void lookup(search); }
     }} /></label>
     <button type="button" className="btn btn-secondary" disabled={disabled || loading || !search.trim()} onClick={() => void lookup(search)}>{t('count_lookup.button')}</button>

@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-17, America/Tegucigalpa** — rediseño de navegación fase 1 en `claude/gifted-dirac-fqc2u5` (menú reordenado y desplegable, estado de conexión, menú de plataforma y plantilla V3). Sin PR, merge ni despliegue.
+Última revisión: **2026-10-17, America/Tegucigalpa** — cierre para aceptación manual del PR #176, rama única `codex/fix-camera-lifecycle-ios`. Validación física Safari/PWA pendiente; sin merge ni despliegue.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -21,6 +21,23 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
 
 ---
+
+## Escáner de cámara iPhone — 2026-10-18 UTC
+
+- **Base y rama única:** `main` `174cce19`; rama `codex/fix-camera-lifecycle-ios`. Árbol limpio al inicio; solo `main` remoto y ningún PR abierto. PR #76 ya integrado, revisado junto al historial posterior de inventario. Sin cambios en ramas ajenas.
+- **Demostrado:** siete fallos en nueve pruebas nuevas de ciclo sobre el código anterior (doble limpieza, solicitudes duplicadas mientras el permiso no responde, esperas ilimitadas e interrupciones sin salida). UPC-E omitido y lector experimental de ZXing 0.23.0 defectuoso incluso habilitado. Plegar la sección de cámara ocultaba sin detener el vídeo.
+- **Implementado:** limpieza idempotente/cancelable y propiedad de stream tardío; espera limitada en permiso/vídeo/carga/detección; vigilancia de pistas/fotogramas; cierre al plegar, navegar o pasar a segundo plano y reapertura explícita. Enfoque opcional por capacidad, canvas acotado y lectores reutilizados; marco, confirmación y acceso al campo manual existente.
+- **Biblioteca:** ZXing conservado; adaptador acotado a UPC-E reutiliza sus primitivas, valida checksum expandido y devuelve el código compacto. Sin dependencias nuevas, cambios de inventario, esquema, autenticación ni lógica de ventas/cobros/caja. El componente compartido existente sigue siendo usado por POS; se amplía la regresión del frontend sin cambiar esa página.
+- **Evidencia:** frontend 443/443; escáner focalizado 90/90 (20 ciclo, 46 lector real y 24 previas); backend inventario 81/81. TypeScript/build correctos y lint con 0 errores (116 avisos previos). Protocolo, comandos y logs en [ESCANER_IPHONE_20261018.md](ESCANER_IPHONE_20261018.md). Cierre de navegador y checks por SHA en [#176](https://github.com/Nelosama/FerreSystem/pull/176); se conserva una pasada amplia interrumpida bajo carga (102 pasan, 3 fallan, 2 interrumpidas, 78 sin ejecutar) sin declararla aprobada. WebKit no descargable (proxy 403); **sin iPhone físico ni PWA iOS instalada**, por lo que LEV-015 sigue pendiente.
+- **Publicación:** [PR único #176](https://github.com/Nelosama/FerreSystem/pull/176); rama excluida de previews Vercel antes del push. Sin merge ni despliegue.
+- **Bitácora:** lectura de AGENTS/contexto y estado Git/PR; reproducción roja; corrección conservando biblioteca y reglas; pruebas de lector real en memoria, APIs simuladas, canvas de navegador y regresión de inventario; informe con protocolo de aceptación física. PR único publicado en borrador; resultado final del navegador y checks por SHA se informan allí. Se añadió y verificó la recuperación con petición nueva tras agotar permiso y la comprobación UPC-E central, manteniendo búsqueda completa.
+
+### Cierre de aceptación #176 — 2026-10-17, America/Tegucigalpa
+
+- Revisión de permisos, límites, limpieza, selección trasera, enfoque por capacidad, fallback ZXing, Inventario/Levantamiento y consumidor POS completada; sin nuevos defectos de producción demostrados. Sin dependencias ni cambios de autenticación/reglas comerciales.
+- Se amplían exclusivamente E2E: diez ciclos exactos y liberación por ciclo; permiso denegado/manual/recuperación; códigos con ceros iniciales/desconocidos sin escrituras; expiración con cámara activa y lecturas tardías descartadas; POS compartido con una lectura por apertura y carrito/total correctos sin enviar venta. Un fallo inicial del nuevo test de expiración correspondía al patrón de ruta sin query; se corrigió el test, no autenticación.
+- El protocolo de [aceptación física](ESCANER_IPHONE_20261018.md#comprobación-obligatoria-en-iphone-real) exige HTTPS autorizado con el SHA del PR, Safari y PWA instalada; se añade sesión revocada. Los previews de esta rama siguen deshabilitados. Sin acceso a iPhone ni WebKit descargable; no se presenta emulación como aceptación física.
+- Bitácora: HEAD anterior `ccb55e15` con ambos workflows aprobados (443 frontend, 185 navegador, 15 sesiones móviles; piloto real 153/10 omisiones previas). Cierre local: frontend completo 443/443, navegador afectado 49/49 sin reintentos, lint 0 errores/116 avisos previos y TypeScript/build correctos. Logs de cierre en `docs/evidencias/scanner-20261018/acceptance-*.log`. El SHA definitivo, resultados y checks se mantienen en [#176](https://github.com/Nelosama/FerreSystem/pull/176) para no confundir checks anteriores con el nuevo HEAD. Sin merge ni despliegue.
 
 ## Rediseño de navegación Jowa — fase 1 (2026-10-17, rama `claude/gifted-dirac-fqc2u5`, sin PR, merge ni despliegue)
 
