@@ -268,14 +268,16 @@ describe('createImageDecoder() — luminancia', () => {
     };
 
     return {
+      './upceReader': { UpceReader: class { decodeRow() { throw new NotFoundException(); } decode() { throw new NotFoundException(); } reset() {} } },
       '@zxing/library': {
         BarcodeFormat: { EAN_13: 'EAN_13', EAN_8: 'EAN_8', UPC_A: 'UPC_A', CODE_128: 'CODE_128' },
-        BinaryBitmap: class BinaryBitmap { constructor(_binarizer) {} },
+        BitArray: class {},
+        BinaryBitmap: class BinaryBitmap { constructor(_binarizer) {} getBlackRow() { return {}; } },
         ChecksumException,
         DecodeHintType: { POSSIBLE_FORMATS: 'POSSIBLE_FORMATS', TRY_HARDER: 'TRY_HARDER' },
         FormatException,
         HybridBinarizer: class HybridBinarizer { constructor(_source) {} },
-        MultiFormatReader: class MultiFormatReader { decode() { return mockReader.decode(); } reset() { return mockReader.reset(); } },
+        MultiFormatReader: class MultiFormatReader { setHints() {} decodeWithState() { return mockReader.decode(); } reset() { return mockReader.reset(); } },
         NotFoundException,
         RGBLuminanceSource: class RGBLuminanceSource { constructor(_lum, _w, _h) {} },
       },

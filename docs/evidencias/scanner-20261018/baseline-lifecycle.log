@@ -1,0 +1,142 @@
+✖ stop es idempotente: libera una vez y desconecta el vídeo (6.653287ms)
+✖ cerrar y reabrir con permiso pendiente comparte petición y entrega solo al último consumidor (1.702935ms)
+✖ permiso pendiente agota espera; un stream tardío se detiene sin callbacks (2.353776ms)
+✖ play pendiente agota espera y libera cámara (1.510604ms)
+✖ pista terminada por el sistema informa interrupción y permite otra activación (1.533864ms)
+✖ lector pendiente agota espera y libera cámara (1.657897ms)
+✖ sin fotogramas no queda escaneando indefinidamente (2.437169ms)
+✔ una lectura detiene antes de notificar; sin duplicados ni callbacks tardíos (3.640621ms)
+✔ activaciones consecutivas aceptan diferentes productos una vez cada una (1.451859ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 2
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 407.938407
+
+✖ failing tests:
+
+test at frontend/test/barcode-camera-lifecycle.test.mjs:35:1
+✖ stop es idempotente: libera una vez y desconecta el vídeo (6.653287ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  2 !== 1
+
+      at TestContext.<anonymous> (file:///workspace/FerreSystem/frontend/test/barcode-camera-lifecycle.test.mjs:37:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at frontend/test/barcode-camera-lifecycle.test.mjs:39:1
+✖ cerrar y reabrir con permiso pendiente comparte petición y entrega solo al último consumidor (1.702935ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  2 !== 1
+
+      at TestContext.<anonymous> (file:///workspace/FerreSystem/frontend/test/barcode-camera-lifecycle.test.mjs:42:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at frontend/test/barcode-camera-lifecycle.test.mjs:47:1
+✖ permiso pendiente agota espera; un stream tardío se detiene sin callbacks (2.353776ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /tiempo|tard|respond/i. Input:
+
+  ''
+
+      at TestContext.<anonymous> (file:///workspace/FerreSystem/frontend/test/barcode-camera-lifecycle.test.mjs:50:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: /tiempo|tard|respond/i,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at frontend/test/barcode-camera-lifecycle.test.mjs:53:1
+✖ play pendiente agota espera y libera cámara (1.510604ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 1
+
+      at TestContext.<anonymous> (file:///workspace/FerreSystem/frontend/test/barcode-camera-lifecycle.test.mjs:55:52)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at frontend/test/barcode-camera-lifecycle.test.mjs:57:1
+✖ pista terminada por el sistema informa interrupción y permite otra activación (1.533864ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 1
+
+      at TestContext.<anonymous> (file:///workspace/FerreSystem/frontend/test/barcode-camera-lifecycle.test.mjs:59:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at frontend/test/barcode-camera-lifecycle.test.mjs:62:1
+✖ lector pendiente agota espera y libera cámara (1.657897ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 1
+
+      at TestContext.<anonymous> (file:///workspace/FerreSystem/frontend/test/barcode-camera-lifecycle.test.mjs:64:51)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at frontend/test/barcode-camera-lifecycle.test.mjs:66:1
+✖ sin fotogramas no queda escaneando indefinidamente (2.437169ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 1
+
+      at TestContext.<anonymous> (file:///workspace/FerreSystem/frontend/test/barcode-camera-lifecycle.test.mjs:69:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

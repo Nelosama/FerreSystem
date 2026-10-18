@@ -1233,6 +1233,9 @@
     "details": "Más detalles (opcional)"
   },
   "scanner": {
+    "manual": "Introducir código manualmente",
+    "manual_hint": "Introduzca el código en el campo del formulario.",
+    "interrupted": "Cámara detenida al salir de la aplicación. Pulse Leer código con cámara para continuar.",
     "ready": "Apunte al código y mantenga el teléfono estable.",
     "read": "Código leído: {code}",
     "starting": "Iniciando cámara…",

@@ -1,0 +1,47 @@
+✔ stop es idempotente: libera una vez y desconecta el vídeo (7.024376ms)
+✔ cerrar y reabrir con permiso pendiente comparte petición y entrega solo al último consumidor (2.113638ms)
+✔ permiso pendiente agota espera; un stream tardío se detiene sin callbacks (6.299754ms)
+✔ play pendiente agota espera y libera cámara (2.679775ms)
+✔ pista terminada por el sistema informa interrupción y permite otra activación (2.421221ms)
+✔ lector pendiente agota espera y libera cámara (3.375533ms)
+✔ sin fotogramas no queda escaneando indefinidamente (2.021479ms)
+✔ una lectura detiene antes de notificar; sin duplicados ni callbacks tardíos (3.867257ms)
+✔ activaciones consecutivas aceptan diferentes productos una vez cada una (1.541451ms)
+✔ cancelar durante carga del lector libera pista y descarta carga tardía (1.26453ms)
+✔ carga del lector sin resolver muestra error y libera pista (2.008397ms)
+✔ enfoque continuo opcional no bloquea si el dispositivo lo rechaza (1.316082ms)
+✔ una respuesta tardía a permiso después del cierre no conserva cámara (1.114504ms)
+✔ selección de lector absent: fallback local sin user-agent (1.417778ms)
+✔ selección de lector partial: fallback local sin user-agent (0.758836ms)
+✔ selección de lector throws: fallback local sin user-agent (0.634417ms)
+✔ selección de lector native: fallback local sin user-agent (0.820445ms)
+✔ selección de lector runtime-failure: fallback local sin user-agent (0.663877ms)
+✔ cerrar entre resolver getUserMedia y adjuntar el stream tampoco deja pistas vivas (2.357015ms)
+✖ tras agotar permiso se puede reintentar con otra petición; la anterior tardía se limpia (2.171068ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 19
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1464.031343
+
+✖ failing tests:
+
+test at frontend/test/barcode-camera-lifecycle.test.mjs:134:1
+✖ tras agotar permiso se puede reintentar con otra petición; la anterior tardía se limpia (2.171068ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  1 !== 2
+
+      at TestContext.<anonymous> (file:///workspace/FerreSystem/frontend/test/barcode-camera-lifecycle.test.mjs:138:34)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

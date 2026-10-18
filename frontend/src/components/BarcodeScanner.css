@@ -1,0 +1,10 @@
+.barcode-scanner { width: 100%; min-width: 0; }
+.barcode-scanner__actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; }
+.barcode-scanner__actions button { min-height: 44px; }
+.barcode-scanner__preview { position: relative; width: 100%; max-width: 640px; background: #111827; border-radius: .75rem; overflow: hidden; }
+.barcode-scanner__preview video { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; max-height: 55svh; }
+.barcode-scanner__guide { position: absolute; inset: 28% 7%; border: 2px solid #fff; border-radius: .5rem; box-shadow: 0 0 0 100vmax #0004; pointer-events: none; }
+.barcode-scanner__indicator { position: absolute; bottom: .75rem; left: calc(50% - 4px); width: 8px; height: 8px; background: #fff; border-radius: 50%; animation: scanner-pulse 1.4s ease-in-out infinite; }
+.barcode-scanner__success { padding: .6rem; border: 1px solid #15803d; border-radius: .5rem; background: #dcfce7; color: #14532d; overflow-wrap: anywhere; }
+@keyframes scanner-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .barcode-scanner__indicator { animation: none; } }

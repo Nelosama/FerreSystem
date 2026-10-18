@@ -1,0 +1,309 @@
+
+> frontend@0.0.0 test:browser
+> playwright test --workers=2
+
+[WebServer] (node:3044) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 185 tests using 2 workers
+
+(node:3085) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓    2 [chromium] › e2e/admin-home-simulado.spec.ts:71:5 › Panel administrativo (simulado) › móvil › muestra el botón flotante de nueva venta sin desbordamiento horizontal (4.2s)
+  ✓    1 [chromium] › e2e/admin-home-simulado.spec.ts:50:3 › Panel administrativo (simulado) › escritorio: muestra cifras reales, sin secciones pendientes y ninguna acción «Actualizar» (5.5s)
+  ✓    3 [chromium] › e2e/admin-home-simulado.spec.ts:81:3 › Panel administrativo (simulado) › si el resumen falla no muestra cifras falsas y avisa del reintento automático (3.8s)
+  ✓    4 [chromium] › e2e/admin-movil-simulado.spec.ts:60:3 › Resumen administrativo para iPhone (simulado) › el administrador ve ventas, caja, existencias, cobros, pagos y solicitudes sin desbordar la pantalla (4.9s)
+  ✓    5 [chromium] › e2e/admin-movil-simulado.spec.ts:80:3 › Resumen administrativo para iPhone (simulado) › si falla una sección, las demás siguen visibles y solo esa muestra el aviso (5.2s)
+  ✓    6 [chromium] › e2e/admin-movil-simulado.spec.ts:93:3 › Resumen administrativo para iPhone (simulado) › el cajero no accede al resumen administrativo (4.1s)
+  ✓    8 [chromium] › e2e/arranque.spec.ts:56:3 › sin sesión, /login muestra el login del bundle construido (3.3s)
+  ✓    7 [chromium] › e2e/arranque.spec.ts:56:3 › sin sesión, / muestra el login del bundle construido (4.0s)
+  ✓    9 [chromium] › e2e/arranque.spec.ts:56:3 › sin sesión, /pos muestra el login del bundle construido (2.3s)
+  ✓   10 [chromium] › e2e/arranque.spec.ts:56:3 › sin sesión, /devoluciones muestra el login del bundle construido (3.1s)
+  ✓   11 [chromium] › e2e/arranque.spec.ts:56:3 › sin sesión, /auditoria muestra el login del bundle construido (2.6s)
+  ✓   12 [chromium] › e2e/arranque.spec.ts:56:3 › sin sesión, /admin/login muestra el login del bundle construido (2.3s)
+  ✓   13 [chromium] › e2e/arranque.spec.ts:67:3 › el login sigue disponible si ferre_solicitudes_descuento_tenant-demo-1 contiene JSON corrupto (1.8s)
+  ✓   14 [chromium] › e2e/arranque.spec.ts:67:3 › el login sigue disponible si ferre_solicitudes_descuento contiene JSON corrupto (2.5s)
+  ✓   15 [chromium] › e2e/arranque.spec.ts:67:3 › el login sigue disponible si ferre_notificaciones_transferencia_tenant-demo-1 contiene JSON corrupto (2.3s)
+  ✓   16 [chromium] › e2e/arranque.spec.ts:75:1 › eventos de otras pestañas con notificaciones inválidas no interrumpen el login (3.3s)
+  ✓   17 [chromium] › e2e/arranque.spec.ts:88:3 › login simulado de ADMIN carga las pantallas y respeta acceso a auditoría (9.4s)
+  ✓   18 [chromium] › e2e/arranque.spec.ts:88:3 › login simulado de CAJERO carga las pantallas y respeta acceso a auditoría (7.9s)
+  ✓   19 [chromium] › e2e/auditoria-inventario.spec.ts:153:1 › QA-INV-004: conciliación muestra el nombre del contador y conserva su identificador (7.3s)
+  ✓   20 [chromium] › e2e/auditoria-inventario.spec.ts:174:3 › QA-INV-002: conciliación obsoleta recarga 12 y exige nueva decisión; doble clic (1280px, API simulada) (6.5s)
+  ✓   22 [chromium] › e2e/balance-cxc-cxp-simulado.spec.ts:82:5 › Cuentas por cobrar y por pagar (BALANCE, simulado) › como ADMIN › filtra por estado de deuda, muestra el estado y registra un pago a proveedor con referencia (4.5s)
+  ✓   21 [chromium] › e2e/auditoria-inventario.spec.ts:174:3 › QA-INV-002: conciliación obsoleta recarga 12 y exige nueva decisión; doble clic (390px, API simulada) (5.4s)
+  ✓   23 [chromium] › e2e/balance-cxc-cxp-simulado.spec.ts:98:5 › Cuentas por cobrar y por pagar (BALANCE, simulado) › como ADMIN › el estado de cuenta del cliente muestra movimientos con saldo acumulado y responsable (5.0s)
+  ✓   24 [chromium] › e2e/balance-cxc-cxp-simulado.spec.ts:111:5 › Cuentas por cobrar y por pagar (BALANCE, simulado) › como CAJERO (negativo) › el cajero ve cuentas por cobrar pero no las cuentas por pagar (4.6s)
+  ✓   25 [chromium] › e2e/bodeguero-sin-ventas-simulado.spec.ts:46:1 › BODEGUERO: el inicio muestra existencias y cotizaciones sin una tarjeta de ventas con L 0.00 (3.4s)
+  ✓   26 [chromium] › e2e/bodeguero-sin-ventas-simulado.spec.ts:56:1 › BODEGUERO: la entrega pendiente muestra qué entregar sin importe de la venta (4.0s)
+  ✓   27 [chromium] › e2e/caja-simulado.spec.ts:122:3 › Caja y arqueo — interfaz con backend simulado (E2E simulado) › abrir caja, registrar una salida autorizada y ver el efectivo esperado (3.7s)
+  ✓   28 [chromium] › e2e/caja-simulado.spec.ts:139:3 › Caja y arqueo — interfaz con backend simulado (E2E simulado) › una diferencia al cerrar exige explicación antes de confirmar; el comprobante muestra el resultado (5.5s)
+  ✓   29 [chromium] › e2e/caja-simulado.spec.ts:165:3 › Caja y arqueo — interfaz con backend simulado (E2E simulado) › si se pierde la respuesta de la apertura, el reintento usa la misma solicitud y no abre dos cajas (4.6s)
+  ✓   30 [chromium] › e2e/caja-simulado.spec.ts:181:3 › Caja y arqueo — interfaz con backend simulado (E2E simulado) › el administrador ve los cierres de todos los cajeros de la empresa (4.2s)
+  ✓   31 [chromium] › e2e/compras-simulado.spec.ts:121:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › recibir mercancía exige confirmación: cancelar no envía nada; aceptar envía una sola recepción (3.9s)
+  ✓   32 [chromium] › e2e/compras-simulado.spec.ts:134:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › un doble clic en Confirmar recepción envía una sola recepción (4.1s)
+  ✓   33 [chromium] › e2e/compras-simulado.spec.ts:144:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › si se pierde la respuesta, la recepción queda pendiente y el reintento usa la misma solicitud (5.8s)
+  ✓   34 [chromium] › e2e/compras-simulado.spec.ts:157:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › un doble clic en Registrar factura envía una sola factura (12.6s)
+  ✓   35 [chromium] › e2e/compras-simulado.spec.ts:171:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › registrar un pago a proveedor pide confirmación, avisa que no afecta la caja y marca la cuenta como pagada (10.8s)
+  ✓   36 [chromium] › e2e/compras-simulado.spec.ts:188:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › el ciclo de compras cabe en un teléfono sin desbordamiento horizontal (7.0s)
+  ✓   37 [chromium] › e2e/contingencia-admin-simulado.spec.ts:83:1 › cierre sin venta: no envía caja, la regularización aparece solo tras el 409 y un motivo que no cumple la regla no se envía (7.4s)
+  ✓   39 [chromium] › e2e/contingencia-simulado.spec.ts:126:3 › Contingencia POS — red y almacenamiento con backend simulado › almacenamiento lleno: el cobro no se confirma, no hay comprobante ni operación a medias (4.6s)
+  ✓   40 [chromium] › e2e/contingencia-simulado.spec.ts:147:3 › Contingencia POS — red y almacenamiento con backend simulado › si la lista del diario falla después de guardar, la venta sigue confirmada y no se dice que no se guardó (4.4s)
+  ✓   41 [chromium] › e2e/contingencia-simulado.spec.ts:179:3 › Contingencia POS — red y almacenamiento con backend simulado › la venta siguiente se cobra y guarda mientras la sincronización de la anterior sigue sin respuesta (2.9s)
+  ✓   42 [chromium] › e2e/contingencia-simulado.spec.ts:214:3 › Impresión del comprobante de contingencia › el comprobante interno trae ferretería, CT, cajero, código, descripción, cantidades, precios, total, efectivo y cambio (3.4s)
+  ✓   43 [chromium] › e2e/contingencia-simulado.spec.ts:232:3 › Impresión del comprobante de contingencia › reimprimir desde el diario muestra el mismo comprobante y no crea otra venta (4.5s)
+  ✓   44 [chromium] › e2e/contingencia-simulado.spec.ts:245:3 › Impresión del comprobante de contingencia › recargar el navegador después de guardar: la venta sigue en el diario y se reimprime (3.3s)
+  ✓   45 [chromium] › e2e/contingencia-simulado.spec.ts:258:3 › Impresión del comprobante de contingencia › una impresora que falla no revierte la venta, no permite cobrarla otra vez y deja atender al siguiente cliente (3.6s)
+  ✓   38 [chromium] › e2e/contingencia-simulado.spec.ts:102:3 › Contingencia POS — red y almacenamiento con backend simulado › timeout real: una petición colgada no deja la venta en "enviando"; vuelve a pendiente y se envía una sola vez (34.9s)
+  ✓   46 [chromium] › e2e/contingencia-simulado.spec.ts:275:3 › Impresión del comprobante de contingencia › cancelar el diálogo de impresión no cambia la venta ni muestra un error (6.2s)
+  ✓   48 [chromium] › e2e/contingencia-simulado.spec.ts:300:3 › Contingencia POS — sin internet y existencias locales › dos ventas consecutivas sin internet: ambas quedan guardadas y pendientes, sin duplicar (11.2s)
+  ✓   47 [chromium] › e2e/contingencia-simulado.spec.ts:286:3 › Impresión del comprobante de contingencia › el papel de 58 mm se aplica al comprobante y se recuerda al recargar (12.3s)
+  ✓   50 [chromium] › e2e/contingencia-simulado.spec.ts:342:3 › Contingencia POS — sin internet y existencias locales › la existencia local baja al instante con cada venta, sin esperar la sincronización (6.8s)
+  ✓   51 [chromium] › e2e/entregas-simulado.spec.ts:50:1 › bodega ve vendido, entregado y pendiente; entrega parcial exige receptor y envía una solicitud (4.4s)
+  ✓   49 [chromium] › e2e/contingencia-simulado.spec.ts:313:3 › Contingencia POS — sin internet y existencias locales › lote rechazado con 400: el equipo reenvía las ventas de una en una, ninguna se pierde ni se duplica (12.4s)
+  ✓   53 [chromium] › e2e/entregas-simulado.spec.ts:93:1 › cajero ve las cantidades pero no puede confirmar la entrega (5.9s)
+  ✓   52 [chromium] › e2e/entregas-simulado.spec.ts:72:1 › rechazo del servidor se muestra en español, no se envía exceso y el reintento usa una solicitud nueva (7.5s)
+  ✓   54 [chromium] › e2e/garantias-simulado.spec.ts:88:3 › Garantías — interfaz con backend simulado (E2E simulado) › administrador: busca la factura, elige el producto, revisa el vencimiento y guarda con solicitud (6.8s)
+  ✓   55 [chromium] › e2e/garantias-simulado.spec.ts:108:3 › Garantías — interfaz con backend simulado (E2E simulado) › una línea ya garantizada no se puede volver a elegir (7.4s)
+  ✓   56 [chromium] › e2e/garantias-simulado.spec.ts:117:3 › Garantías — interfaz con backend simulado (E2E simulado) › días no válidos: no se puede guardar y no se envía nada (6.6s)
+  ✓   57 [chromium] › e2e/garantias-simulado.spec.ts:130:3 › Garantías — interfaz con backend simulado (E2E simulado) › factura inexistente: muestra un mensaje claro y no ofrece guardar (4.6s)
+  ✓   58 [chromium] › e2e/garantias-simulado.spec.ts:142:3 › Garantías — interfaz con backend simulado (E2E simulado) › cajero › consulta sin formulario de alta ni edición (6.0s)
+  ✓   59 [chromium] › e2e/garantias-simulado.spec.ts:155:3 › Garantías — interfaz con backend simulado (E2E simulado) › móvil 390 px: sin desbordamiento horizontal (6.3s)
+  ✓   60 [chromium] › e2e/levantamiento.spec.ts:155:3 › Levantamiento de inventario (FS-06 fase 2) › crear levantamiento: un fallo de red conserva la clave y el reintento no duplica el levantamiento (6.9s)
+  ✓   61 [chromium] › e2e/levantamiento.spec.ts:169:3 › Levantamiento de inventario (FS-06 fase 2) › contar: un envío perdido queda pendiente, se confirma sin duplicar y el guardado es visible (7.9s)
+  ✓   62 [chromium] › e2e/levantamiento.spec.ts:183:3 › Levantamiento de inventario (FS-06 fase 2) › advierte antes de guardar un artículo ya contado por el mismo empleado y permite editar el conteo anterior (6.8s)
+  ✓   63 [chromium] › e2e/levantamiento.spec.ts:198:3 › Levantamiento de inventario (FS-06 fase 2) › avisa, sin bloquear, cuando otro empleado ya contó el artículo y registra el conflicto (6.8s)
+  ✓   64 [chromium] › e2e/levantamiento.spec.ts:211:3 › Levantamiento de inventario (FS-06 fase 2) › si otro dispositivo registró el artículo después de cargar la pantalla, el servidor rechaza el duplicado y muestra el motivo (6.4s)
+  ✓   65 [chromium] › e2e/levantamiento.spec.ts:223:3 › Levantamiento de inventario (FS-06 fase 2) › flujo completo: crear, contar con marca, finalizar, revisar impacto y aplicar (10.2s)
+  ✓   66 [chromium] › e2e/levantamiento.spec.ts:250:3 › Levantamiento de inventario (FS-06 fase 2) › conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token (7.5s)
+  ✓   67 [chromium] › e2e/levantamiento.spec.ts:297:3 › Levantamiento en teléfono › la captura cabe en el ancho del teléfono y registra un producto sin fotografía (4.5s)
+  ✓   68 [chromium] › e2e/levantamiento.spec.ts:319:1 › cámara: aperturas repetidas, cierre manual y alternativa enfocada sin alterar inventario (7.2s)
+  ✓   69 [chromium] › e2e/levantamiento.spec.ts:345:1 › cámara: lecturas consecutivas, desconocido y sin duplicados ni guardado automático (7.1s)
+  ✓   70 [chromium] › e2e/levantamiento.spec.ts:368:1 › cámara: permiso denegado conserva sesión y búsqueda manual (4.5s)
+  ✓   71 [chromium] › e2e/levantamiento.spec.ts:381:1 › cámara: pista interrumpida, segundo plano, BFCache y navegación liberan recursos (4.6s)
+  ✓   72 [chromium] › e2e/levantamiento.spec.ts:404:1 › cámara: cerrar y reabrir mientras espera permiso no repite getUserMedia (5.3s)
+  ✓   73 [chromium] › e2e/levantamiento.spec.ts:416:1 › cámara: sin BarcodeDetector carga ZXing y lee EAN-13 con canvas real (5.0s)
+  ✓   74 [chromium] › e2e/menu-jowa-v3.spec.ts:35:1 › ADMIN: orden por uso, grupos desplegables que se recuerdan y plantilla V3 con el color del negocio (4.2s)
+  ✓   75 [chromium] › e2e/menu-jowa-v3.spec.ts:65:1 › sin conexión: el menú lo indica y solo el POS sigue disponible (2.2s)
+  ✓   76 [chromium] › e2e/menu-jowa-v3.spec.ts:80:1 › TOPNAV se conserva con la plantilla V3 (2.3s)
+  ✓   77 [chromium] › e2e/menu-jowa-v3.spec.ts:87:1 › SUPERADMIN: menú de plataforma con secciones por URL y menú del negocio anidado (5.6s)
+  ✓   78 [chromium] › e2e/navigation-settings.spec.ts:58:3 › SUPERADMIN SIDEBAR es: navegación, prioridades, módulos y móvil (3.7s)
+  ✓   79 [chromium] › e2e/navigation-settings.spec.ts:58:3 › SUPERADMIN SIDEBAR en: navegación, prioridades, módulos y móvil (4.2s)
+  ✓   80 [chromium] › e2e/navigation-settings.spec.ts:58:3 › SUPERADMIN TOPNAV es: navegación, prioridades, módulos y móvil (5.7s)
+  ✓   81 [chromium] › e2e/navigation-settings.spec.ts:58:3 › SUPERADMIN TOPNAV en: navegación, prioridades, módulos y móvil (3.8s)
+  ✓   82 [chromium] › e2e/navigation-settings.spec.ts:58:3 › ADMIN SIDEBAR es: navegación, prioridades, módulos y móvil (3.5s)
+  ✓   83 [chromium] › e2e/navigation-settings.spec.ts:58:3 › ADMIN SIDEBAR en: navegación, prioridades, módulos y móvil (4.4s)
+  ✓   84 [chromium] › e2e/navigation-settings.spec.ts:58:3 › ADMIN TOPNAV es: navegación, prioridades, módulos y móvil (5.3s)
+  ✓   85 [chromium] › e2e/navigation-settings.spec.ts:58:3 › ADMIN TOPNAV en: navegación, prioridades, módulos y móvil (6.5s)
+  ✓   86 [chromium] › e2e/navigation-settings.spec.ts:58:3 › CAJERO SIDEBAR es: navegación, prioridades, módulos y móvil (5.8s)
+  ✓   87 [chromium] › e2e/navigation-settings.spec.ts:58:3 › CAJERO SIDEBAR en: navegación, prioridades, módulos y móvil (4.1s)
+  ✓   88 [chromium] › e2e/navigation-settings.spec.ts:58:3 › CAJERO TOPNAV es: navegación, prioridades, módulos y móvil (7.3s)
+  ✓   89 [chromium] › e2e/navigation-settings.spec.ts:58:3 › CAJERO TOPNAV en: navegación, prioridades, módulos y móvil (7.1s)
+  ✓   90 [chromium] › e2e/navigation-settings.spec.ts:58:3 › VENDEDOR SIDEBAR es: navegación, prioridades, módulos y móvil (5.3s)
+  ✓   91 [chromium] › e2e/navigation-settings.spec.ts:58:3 › VENDEDOR SIDEBAR en: navegación, prioridades, módulos y móvil (5.0s)
+  ✓   92 [chromium] › e2e/navigation-settings.spec.ts:58:3 › VENDEDOR TOPNAV es: navegación, prioridades, módulos y móvil (11.3s)
+  ✓   93 [chromium] › e2e/navigation-settings.spec.ts:58:3 › VENDEDOR TOPNAV en: navegación, prioridades, módulos y móvil (11.4s)
+  ✓   94 [chromium] › e2e/navigation-settings.spec.ts:58:3 › BODEGUERO SIDEBAR es: navegación, prioridades, módulos y móvil (8.0s)
+  ✓   95 [chromium] › e2e/navigation-settings.spec.ts:58:3 › BODEGUERO SIDEBAR en: navegación, prioridades, módulos y móvil (8.4s)
+  ✓   96 [chromium] › e2e/navigation-settings.spec.ts:58:3 › BODEGUERO TOPNAV es: navegación, prioridades, módulos y móvil (4.7s)
+  ✓   97 [chromium] › e2e/navigation-settings.spec.ts:58:3 › BODEGUERO TOPNAV en: navegación, prioridades, módulos y móvil (10.6s)
+  ✓   98 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false ADMIN SIDEBAR: menús, buscador, accesos, móvil y URL (23.3s)
+  ✘   99 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true ADMIN SIDEBAR: menús, buscador, accesos, móvil y URL (13.0s)
+(node:7784) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  100 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false ADMIN TOPNAV: menús, buscador, accesos, móvil y URL (29.1s)
+  ✘  101 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true ADMIN TOPNAV: menús, buscador, accesos, móvil y URL (34.0s)
+  ✓  102 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false CAJERO SIDEBAR: menús, buscador, accesos, móvil y URL (17.7s)
+(node:8033) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  103 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false CAJERO TOPNAV: menús, buscador, accesos, móvil y URL (26.7s)
+  ✘  104 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true CAJERO SIDEBAR: menús, buscador, accesos, móvil y URL (32.6s)
+(node:8319) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  105 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true CAJERO TOPNAV: menús, buscador, accesos, móvil y URL (28.5s)
+  ✘  106 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false VENDEDOR SIDEBAR: menús, buscador, accesos, móvil y URL (21.5s)
+  ✘  107 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true VENDEDOR SIDEBAR: menús, buscador, accesos, móvil y URL (16.9s)
+
+
+  1) [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true ADMIN SIDEBAR: menús, buscador, accesos, móvil y URL
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('aside.desktop-sidebar-nav')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('aside.desktop-sidebar-nav') with timeout 5000ms
+      - waiting for locator('aside.desktop-sidebar-nav')
+
+
+       97 |     await page.goto('/');
+       98 |     const nav = page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
+    >  99 |     await expect(nav).toBeVisible();
+          |                       ^
+      100 |     const salesMenu = nav.getByRole('button', { name: 'Ventas y caja' });
+      101 |     if (mode === 'TOPNAV' && await salesMenu.count()) await salesMenu.click();
+      102 |     for (const route of ['entregas', 'devoluciones']) {
+        at /workspace/FerreSystem/frontend/e2e/navigation-settings.spec.ts:99:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/navigation-settings-POS-tr-3d4ec-uscador-accesos-móvil-y-URL-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/navigation-settings-POS-tr-3d4ec-uscador-accesos-móvil-y-URL-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/navigation-settings-POS-tr-3d4ec-uscador-accesos-móvil-y-URL-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/navigation-settings-POS-tr-3d4ec-uscador-accesos-móvil-y-URL-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true ADMIN TOPNAV: menús, buscador, accesos, móvil y URL
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.task-finder-toggle')
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.task-finder-toggle') with timeout 5000ms
+      - waiting for locator('.task-finder-toggle')
+      - Test timeout of 30000ms exceeded.
+
+
+      128 |       const denied = page.getByRole('heading', { name: /Acceso Denegado/i, exact: true });
+      129 |       if (allowed) {
+    > 130 |         await expect(page.locator('.task-finder-toggle')).toBeVisible();
+          |                                                           ^
+      131 |         await expect(denied).toHaveCount(0);
+      132 |       } else await expect(denied).toBeVisible();
+      133 |     }
+        at /workspace/FerreSystem/frontend/e2e/navigation-settings.spec.ts:130:59
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/navigation-settings-POS-tr-353ee-uscador-accesos-móvil-y-URL-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/navigation-settings-POS-tr-353ee-uscador-accesos-móvil-y-URL-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/navigation-settings-POS-tr-353ee-uscador-accesos-móvil-y-URL-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/navigation-settings-POS-tr-353ee-uscador-accesos-móvil-y-URL-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true CAJERO SIDEBAR: menús, buscador, accesos, móvil y URL
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://127.0.0.1:4173/DEVOLUCIONES/", waiting until "load"
+
+
+      124 |     await page.keyboard.press('Escape');
+      125 |     for (const route of ['entregas', 'devoluciones']) for (const url of [`/${route}`, `/${route.toUpperCase()}/`]) {
+    > 126 |       await page.goto(url);
+          |                  ^
+      127 |       const allowed = enabled && (route === 'entregas' ? role !== 'VENDEDOR' : role !== 'BODEGUERO');
+      128 |       const denied = page.getByRole('heading', { name: /Acceso Denegado/i, exact: true });
+      129 |       if (allowed) {
+        at /workspace/FerreSystem/frontend/e2e/navigation-settings.spec.ts:126:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/navigation-settings-POS-tr-58af0-uscador-accesos-móvil-y-URL-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/navigation-settings-POS-tr-58af0-uscador-accesos-móvil-y-URL-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/navigation-settings-POS-tr-58af0-uscador-accesos-móvil-y-URL-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/navigation-settings-POS-tr-58af0-uscador-accesos-móvil-y-URL-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false VENDEDOR SIDEBAR: menús, buscador, accesos, móvil y URL
+
+    Test was interrupted.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://127.0.0.1:4173/DEVOLUCIONES/", waiting until "load"
+
+
+      124 |     await page.keyboard.press('Escape');
+      125 |     for (const route of ['entregas', 'devoluciones']) for (const url of [`/${route}`, `/${route.toUpperCase()}/`]) {
+    > 126 |       await page.goto(url);
+          |                  ^
+      127 |       const allowed = enabled && (route === 'entregas' ? role !== 'VENDEDOR' : role !== 'BODEGUERO');
+      128 |       const denied = page.getByRole('heading', { name: /Acceso Denegado/i, exact: true });
+      129 |       if (allowed) {
+        at /workspace/FerreSystem/frontend/e2e/navigation-settings.spec.ts:126:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/navigation-settings-POS-fa-d933a-uscador-accesos-móvil-y-URL-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/navigation-settings-POS-fa-d933a-uscador-accesos-móvil-y-URL-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/navigation-settings-POS-fa-d933a-uscador-accesos-móvil-y-URL-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/navigation-settings-POS-fa-d933a-uscador-accesos-móvil-y-URL-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true VENDEDOR SIDEBAR: menús, buscador, accesos, móvil y URL
+
+    Test was interrupted.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://127.0.0.1:4173/DEVOLUCIONES/", waiting until "load"
+
+
+      124 |     await page.keyboard.press('Escape');
+      125 |     for (const route of ['entregas', 'devoluciones']) for (const url of [`/${route}`, `/${route.toUpperCase()}/`]) {
+    > 126 |       await page.goto(url);
+          |                  ^
+      127 |       const allowed = enabled && (route === 'entregas' ? role !== 'VENDEDOR' : role !== 'BODEGUERO');
+      128 |       const denied = page.getByRole('heading', { name: /Acceso Denegado/i, exact: true });
+      129 |       if (allowed) {
+        at /workspace/FerreSystem/frontend/e2e/navigation-settings.spec.ts:126:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/navigation-settings-POS-tr-0946f-uscador-accesos-móvil-y-URL-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/navigation-settings-POS-tr-0946f-uscador-accesos-móvil-y-URL-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/navigation-settings-POS-tr-0946f-uscador-accesos-móvil-y-URL-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/navigation-settings-POS-tr-0946f-uscador-accesos-móvil-y-URL-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true ADMIN SIDEBAR: menús, buscador, accesos, móvil y URL
+    [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true ADMIN TOPNAV: menús, buscador, accesos, móvil y URL
+    [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true CAJERO SIDEBAR: menús, buscador, accesos, móvil y URL
+  2 interrupted
+    [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false VENDEDOR SIDEBAR: menús, buscador, accesos, móvil y URL
+    [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true VENDEDOR SIDEBAR: menús, buscador, accesos, móvil y URL
+  78 did not run
+  102 passed (7.4m)

@@ -1233,6 +1233,9 @@
     "details": "More details (optional)"
   },
   "scanner": {
+    "manual": "Enter code manually",
+    "manual_hint": "Enter the code in the form field.",
+    "interrupted": "Camera stopped when leaving the app. Tap Scan barcode with camera to continue.",
     "ready": "Point at the barcode and hold the phone steady.",
     "read": "Code read: {code}",
     "starting": "Starting camera…",
