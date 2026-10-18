@@ -7,6 +7,7 @@ import { useI18n } from '../context/I18nContext';
 import { useSucursales } from '../hooks/useSucursales';
 import { useNavigate } from 'react-router-dom';
 import { formatLempiras } from '../utils/format';
+import { useEstadoCaja } from '../hooks/useEstadoCaja';
 
 interface TopBarProps {
   title: string;
@@ -23,6 +24,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   const { solicitudes, notificacionesTransferencia, responderSolicitud } = useNotification();
   const { locale, setLocale, t } = useI18n();
   const navigate = useNavigate();
+  const estadoCaja = useEstadoCaja();
 
   const [panelNotificaciones, setPanelNotificaciones] = React.useState(false);
   const sucursalesDisponibles = useSucursales();
@@ -296,6 +298,12 @@ export const TopBar: React.FC<TopBarProps> = ({
         {user?.rol === 'SUPERADMIN' && <div aria-label="Idioma de la plataforma" className="topbar-desktop-only" style={{ display: 'flex', gap: 4 }}>
           {(['es', 'en'] as const).map(lang => <button key={lang} type="button" aria-pressed={locale === lang} onClick={() => setLocale(lang)} className="btn btn-secondary btn-sm">{lang.toUpperCase()}</button>)}
         </div>}
+        {estadoCaja && (
+          <span className={`jowa-caja-estado jowa-caja-estado--${estadoCaja}`} aria-live="polite" aria-label={`Estado de la caja: ${estadoCaja === 'abierta' ? 'abierta' : estadoCaja === 'cerrada' ? 'cerrada' : 'sin verificar'}`}>
+            <span className="jowa-caja-punto" aria-hidden="true" />
+            {estadoCaja === 'abierta' ? 'Caja abierta' : estadoCaja === 'cerrada' ? 'Caja cerrada' : 'Caja sin verificar'}
+          </span>
+        )}
         {/* Badge de Fecha Oficial */}
         <div className="v2-date-badge" style={styles.dateBadge}>
           <Calendar size={15} strokeWidth={2.5} />

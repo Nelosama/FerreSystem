@@ -59,6 +59,11 @@ const mapearProductoPOS = (p: any): ProductItem => ({
   stockBajo: p.stockBajo ?? (Number(p.stockActual) <= Number(p.stockMinimo)),
 });
 
+/** Encabezado de paso del ticket: «1 · Cliente», «2 · Productos», «3 · Pago y entrega». Solo presentación. */
+function PasoTicket({ numero, titulo, derecha }: { numero: number; titulo: string; derecha?: string }) {
+  return <div className="pos-paso" aria-hidden="true"><span><b>{numero}</b> · {titulo}</span>{derecha && <small>{derecha}</small>}</div>;
+}
+
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
   const puedeEntregar = user?.rol === 'ADMIN' || user?.rol === 'BODEGUERO';
@@ -544,6 +549,8 @@ export const POSPage: React.FC = () => {
               <span className="badge badge-dark">{t('operational.items')} {cart.length}</span>
             </div>
 
+            {/* Paso 1 · Cliente */}
+            <PasoTicket numero={1} titulo="Cliente" />
             {/* Selector de Cliente */}
             <div style={styles.clientSection}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -586,6 +593,8 @@ export const POSPage: React.FC = () => {
             {!edicionBloqueada&&!clienteId&&<ClientePicker onSelect={(c:ClienteSeleccionable)=>{setClienteId(c.id);setClienteNombre(c.nombre);setClienteRtn(c.rtn||'');}}/>}
             {clienteId&&<p style={{ fontSize: '11px', color: '#15803D', fontWeight: 700, marginTop: '4px' }}>✓ Cliente registrado seleccionado.</p>}
             {metodoPago==='CREDITO'&&<label>Vencimiento del crédito<input className="form-input" type="date" value={vencimiento} disabled={edicionBloqueada} onChange={e=>setVencimiento(e.target.value)}/></label>}
+            {/* Paso 2 · Productos */}
+            <PasoTicket numero={2} titulo="Productos" derecha={`${cart.length} ${cart.length === 1 ? 'línea' : 'líneas'}`} />
             {/* Lista de ítems en carrito */}
             <div style={styles.cartItemsList}>
               {cart.length === 0 ? (
@@ -695,6 +704,8 @@ export const POSPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Paso 3 · Pago y entrega */}
+            <PasoTicket numero={3} titulo="Pago y entrega" />
             {/* Método de Pago */}
             <div style={styles.paymentMethods}>{(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'] as const).map(m=><button key={m} type="button" disabled={edicionBloqueada} onClick={()=>setMetodoPago(m)} style={{...styles.payBtn,...(metodoPago===m?styles.payBtnActive:{})}}>{m}</button>)}</div>
 

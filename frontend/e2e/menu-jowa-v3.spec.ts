@@ -106,3 +106,27 @@ test('SUPERADMIN: menú de plataforma con secciones por URL y menú del negocio 
   // El menú de plataforma no adopta el color del negocio administrado.
   await expect(nav).toHaveCSS('background-color', 'rgb(20, 28, 34)');
 });
+
+test('barra superior muestra el estado de la caja a quien vende', async ({ page }) => {
+  await setup(page, 'CAJERO');
+  await page.goto('/');
+  await expect(page.locator('.jowa-caja-estado')).toContainText('Caja cerrada');
+});
+
+test('el POS muestra sus tres pasos en el ticket', async ({ page }) => {
+  await setup(page, 'CAJERO');
+  await page.goto('/pos');
+  const pasos = page.locator('.pos-paso');
+  await expect(pasos).toHaveCount(3);
+  await expect(pasos.nth(0)).toContainText('Cliente');
+  await expect(pasos.nth(1)).toContainText('Productos');
+  await expect(pasos.nth(2)).toContainText('Pago y entrega');
+});
+
+test('SUPERADMIN en modo lateral: no repite las pestañas superiores de plataforma', async ({ page }) => {
+  await setup(page, 'SUPERADMIN');
+  await page.goto('/admin');
+  await expect(page.locator('aside.jowa-platform-sidebar')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Administración de plataforma' })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Menú de plataforma' })).toBeVisible();
+});

@@ -215,3 +215,10 @@ html[data-session-pending="true"] [data-protected-content] {
 .jowa-preview-cards i { height:42px; background:#fff; border:1px solid var(--color-border-subtle); border-radius:6px; }
 .jowa-preview-cobrar { margin-top:auto; height:24px; border-radius:6px; background:var(--tenant-color); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; }
 @media (max-width:820px) { .jowa-brand-grid { grid-template-columns:1fr; } }
+
+/* Estado de la caja en la barra superior. */
+.jowa-caja-estado { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 12px; border-radius:17px; font-size:12.5px; font-weight:700; border:1px solid var(--color-border-subtle); background:var(--color-surface); color:var(--color-text-muted); white-space:nowrap; }
+.jowa-caja-punto { width:8px; height:8px; border-radius:50%; background:currentColor; }
+.jowa-caja-estado--abierta { color:#166534; background:var(--color-success-bg); border-color:transparent; }
+.jowa-caja-estado--cerrada { color:#374151; }
+.jowa-caja-estado--desconocida { color:#92400E; background:var(--color-warning-bg); border-color:transparent; }

@@ -2,3 +2,7 @@
 @media(max-width:800px){.ferre-pos-grid{display:flex!important;flex-direction:column!important;gap:16px!important}.ferre-pos-catalog{grid-template-columns:repeat(2,minmax(0,1fr))!important;max-height:45vh!important;overflow:auto}.ferre-pos-notice{width:100%!important}}
 .ferre-pos-recovery{padding:16px;border:2px solid var(--color-primary);border-radius:8px;background:var(--color-primary-light,#fff7ed);font-size:16px;line-height:1.5}
 .ferre-pos-recovery button{min-height:44px;margin:6px 8px 0 0;white-space:normal}
+.pos-paso { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 0 6px; font:700 11px var(--font-body); letter-spacing:.06em; text-transform:uppercase; color:var(--color-text-muted); }
+.pos-paso b { color:var(--color-primary); font-weight:800; }
+.pos-paso small { font-size:11px; font-weight:600; text-transform:none; letter-spacing:0; }
+[data-template='v3'] .pos-paso { color:#6B7480; }

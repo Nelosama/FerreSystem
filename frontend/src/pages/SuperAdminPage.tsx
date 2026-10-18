@@ -178,7 +178,9 @@ function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
 const iniciales = (nombre: string) => (nombre || 'N').split(/\s+/).filter(p => p.length > 2).slice(-2).map(p => p[0]).join('').toUpperCase() || 'N';
 
 export const SuperAdminPage: React.FC = () => {
-  const { impersonateTenantAdmin } = useTenant();
+  const { impersonateTenantAdmin, tenant: negocioActual } = useTenant();
+  // Igual que AppLayout: en modo lateral el menú de plataforma ya ofrece estas secciones.
+  const menuSuperiorVisible = negocioActual.modoNavegacion === 'TOPNAV';
   const navigate = useNavigate();
   const { t } = useI18n();
 
@@ -591,10 +593,10 @@ export const SuperAdminPage: React.FC = () => {
           </div>
         </div>
 
-        <nav aria-label="Administración de plataforma" style={styles.tabsContainer}>
+        {menuSuperiorVisible && <nav aria-label="Administración de plataforma" style={styles.tabsContainer}>
           {([['tenants', 'Clientes y usuarios administradores'], ['modulos', 'Catálogo de servicios'], ['soporte_historial', 'Soporte'], ['auditoria', 'Auditoría'], ['mantenimiento', 'Mantenimiento']] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => setTabActiva(tab)} aria-current={tabActiva === tab || tab === 'tenants' && tabActiva === 'admins' ? 'page' : undefined} style={{ ...styles.tabBtn, ...(tabActiva === tab ? styles.tabBtnActive : {}) }}>{label}</button>)}
-        </nav>
-        {(tabActiva === 'tenants' || tabActiva === 'admins') && <nav aria-label="Clientes y administradores" className="negocio-tabs"><button className="btn btn-secondary" onClick={() => setTabActiva('tenants')}>Clientes</button><button className="btn btn-secondary" onClick={() => setTabActiva('admins')}>Usuarios administradores</button></nav>}
+        </nav>}
+        {menuSuperiorVisible && (tabActiva === 'tenants' || tabActiva === 'admins') && <nav aria-label="Clientes y administradores" className="negocio-tabs"><button className="btn btn-secondary" onClick={() => setTabActiva('tenants')}>Clientes</button><button className="btn btn-secondary" onClick={() => setTabActiva('admins')}>Usuarios administradores</button></nav>}
 
         {/* TAB 1: GESTIÓN DE TENANTS / CLIENTES */}
         {tabActiva === 'mantenimiento' && <BackupStatus />}

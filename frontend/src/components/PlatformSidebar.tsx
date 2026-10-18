@@ -31,7 +31,7 @@ export const PlatformSidebar: React.FC = () => {
           <span className="jowa-sidebar-identity"><strong>Jowa System</strong><small>Super Admin</small></span>
         </NavLink>
       </div>
-      <nav className="jowa-sidebar-nav" aria-label="Administración de plataforma">
+      <nav className="jowa-sidebar-nav" aria-label="Menú de plataforma">
         <ul className="jowa-nav-list">
           {MENU_PLATAFORMA.map(grupo => <li key={grupo.grupo} className="jowa-nav-group">
             <span className="navigation-group">{grupo.grupo === 'clientes' ? 'Clientes' : 'Plataforma'}</span>
