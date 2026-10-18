@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 const roles = ['SUPERADMIN', 'ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO'] as const;
 async function setup(page: Page, role: string, mode: string, language = 'es', enabled?: string[]) {
-  const company = { id: 'ux-company', nombreComercial: 'Ferretería UX', colorPrimario: '#0284C7', modoNavegacion: mode, templateVersion: 'v2', v2Mode: 'light', idioma: role === 'SUPERADMIN' ? 'es' : language, modulosHabilitados: enabled };
+  const company = { id: 'ux-company', nombreComercial: 'Ferretería UX', colorPrimario: '#0284C7', modoNavegacion: mode, v2Mode: 'light', idioma: role === 'SUPERADMIN' ? 'es' : language, modulosHabilitados: enabled };
   const user = { id: 'ux-user', nombre: 'Usuario UX', rol: role, permisos: [] };
   let settings: any = company;
   let failSave = false;
@@ -137,17 +137,17 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
 test('settings: valores fiscales soportados, guardado, reload, errores y capturas', async ({ page }) => {
   const api = await setup(page, 'SUPERADMIN', 'TOPNAV');
   await page.goto('/admin/negocios/ux-company/configuracion');
-  await expect(page.locator('.v2-top-navigation')).toBeVisible();
+  await expect(page.locator('.app-top-navigation')).toBeVisible();
   await expect(page.locator('#task-search')).toHaveCount(0);
   await expect(page.locator('#tax-rate')).toHaveValue('15');
   for (const id of ['currency-code', 'currency-symbol', 'tax-name', 'tax-rate']) await expect(page.locator('#' + id)).toHaveAttribute('readonly', '');
   await page.locator('#business-name').fill('Empresa guardada');
   await page.getByRole('button', { name: 'APLICAR CAMBIOS', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'guardada correctamente' })).toBeVisible();
-  expect(api.writes[0]).toMatchObject({ modoNavegacion: 'TOPNAV', configuracion: { impuesto: { tasa: 15 }, moneda: { codigo: 'HNL' }, templateVersion: 'v2' } });
+  expect(api.writes[0]).toMatchObject({ modoNavegacion: 'TOPNAV', configuracion: { impuesto: { tasa: 15 }, moneda: { codigo: 'HNL' } } });
   await page.reload();
   await expect(page.locator('input[type="number"]')).toHaveValue('15');
-  await expect(page.locator('.v2-top-navigation')).toBeVisible();
+  await expect(page.locator('.app-top-navigation')).toBeVisible();
   await page.screenshot({ path: 'artifacts/ux-settings-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'artifacts/ux-settings-mobile.png', fullPage: true });
@@ -230,8 +230,10 @@ test('configuración vacía del servidor sustituye apariencia vieja de la caché
   await setup(page,'SUPERADMIN','TOPNAV');
   await page.route('**/api/admin/tenants/ux-company/settings',route=>route.fulfill({ json:{ id:'ux-company',nombreComercial:'Servidor',colorPrimario:'#0284C7',modoNavegacion:'SIDEBAR',configuracion:{},modulosHabilitados:[] } }));
   await page.goto('/admin/negocios/ux-company/configuracion');
-  await expect(page.locator('#template-version')).toHaveValue('v1');
-  await expect(page.locator('#classic-style')).toHaveValue('INDUSTRIAL');
+  // Diseño único: ya no existen selectores de plantilla, estilo ni tipografía.
+  await expect(page.locator('#template-version')).toHaveCount(0);
+  await expect(page.locator('#classic-style')).toHaveCount(0);
+  await expect(page.locator('#heading-font')).toHaveCount(0);
   // La navegación de la plataforma del Super Admin no depende del negocio editado; el formulario sí refleja el servidor.
 
   await expect(page.locator('#currency-code')).toHaveValue('HNL');

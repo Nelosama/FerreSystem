@@ -41,6 +41,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name.endsWith('/numeroVenta')) return evaluate('src/utils/numeroVenta.ts', {});
     if (name.endsWith('/formatoImpresion')) return evaluate('src/utils/formatoImpresion.ts', {});
     if (name.endsWith('/LogotipoNegocio')) return { LogotipoNegocio: () => null };
+    if (name.endsWith('/useEstadoCaja')) return { useEstadoCaja: () => null };
     return new Proxy({}, { get: (_, key) => String(key) });
   } };
   const source = fs.readFileSync(filePath, 'utf8');
@@ -759,8 +760,8 @@ test('respuesta vacía del servidor elimina apariencia antigua sin perder sucurs
   const page=harness('src/context/TenantContext.tsx','TenantProvider', { '../utils/api':{ api:{ get:async()=>({ data:{ id:'tenant-A', configuracion:{}, modulosHabilitados:[] } }) } } },saved);
   page.render(); await page.effects(); page.render(); await page.effects(); page.render();
   const tenant=page.find(node=>node.type==='ContextProvider').props.value.tenant;
-  assert.equal(tenant.templateVersion,'v1'); assert.equal(tenant.v2Mode,'light');
-  assert.equal(tenant.fuenteTitulos,'Archivo'); assert.equal(tenant.modoNavegacion,'SIDEBAR');
+  assert.equal(tenant.templateVersion,undefined); assert.equal(tenant.v2Mode,undefined);
+  assert.equal(tenant.fuenteTitulos,undefined); assert.equal(tenant.modoNavegacion,'SIDEBAR');
   assert.equal(tenant.impuesto.tasa,15); assert.equal(tenant.direccion,''); assert.equal(tenant.sucursal,'Norte');
 });
 
@@ -777,7 +778,7 @@ test('lecturas fuera de orden y versiones antiguas no reemplazan el último serv
   pending[2]({ data:{ id:'tenant-A', nombreComercial:'Replica atrasada', updatedAt:'2026-10-06T11:30:00Z', configuracion:{} } });
   await new Promise(resolve=>setImmediate(resolve)); page.render();
   const tenant=page.find(node=>node.type==='ContextProvider').props.value.tenant;
-  assert.equal(tenant.nombreComercial,'Nueva'); assert.equal(tenant.templateVersion,'v2');
+  assert.equal(tenant.nombreComercial,'Nueva'); assert.equal(tenant.templateVersion,undefined);
   assert.equal(tenant.modoNavegacion,'TOPNAV');
 });
 

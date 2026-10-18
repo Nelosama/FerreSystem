@@ -54,6 +54,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     '../utils/api': { api: { get: async () => ({ data: [] }), post: async () => ({ data: {} }) } },
     // Sondeo de fondo (caja y catálogo): estas pruebas no dependen de él; sus lecturas siguen en el propio POS.
     '../hooks/useAutoRefresh': { useAutoRefresh: () => ({ refresh: async () => {}, sync: { phase: 'idle', lastSync: null } }) },
+    '../hooks/useEstadoCaja': { useEstadoCaja: () => null },
     ...overrides,
   };
   const component = evaluate(file, mocks, { localStorage: sharedStorage, crypto: webcrypto, alert() {},

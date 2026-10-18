@@ -593,7 +593,7 @@ export const SuperAdminPage: React.FC = () => {
           </div>
         </div>
 
-        {menuSuperiorVisible && <nav aria-label="Administración de plataforma" style={styles.tabsContainer}>
+        {menuSuperiorVisible && <nav aria-label={t('shell.platform_tabs')} style={styles.tabsContainer}>
           {([['tenants', 'Clientes y usuarios administradores'], ['modulos', 'Catálogo de servicios'], ['soporte_historial', 'Soporte'], ['auditoria', 'Auditoría'], ['mantenimiento', 'Mantenimiento']] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => setTabActiva(tab)} aria-current={tabActiva === tab || tab === 'tenants' && tabActiva === 'admins' ? 'page' : undefined} style={{ ...styles.tabBtn, ...(tabActiva === tab ? styles.tabBtnActive : {}) }}>{label}</button>)}
         </nav>}
         {menuSuperiorVisible && (tabActiva === 'tenants' || tabActiva === 'admins') && <nav aria-label="Clientes y administradores" className="negocio-tabs"><button className="btn btn-secondary" onClick={() => setTabActiva('tenants')}>Clientes</button><button className="btn btn-secondary" onClick={() => setTabActiva('admins')}>Usuarios administradores</button></nav>}
@@ -627,7 +627,7 @@ export const SuperAdminPage: React.FC = () => {
                 <thead>
                   <tr>
                     <th>{t('uxAudit.company_customer')} </th>
-                    <th style={{ textAlign: 'center' }}>Color</th>
+                    <th style={{ textAlign: 'center' }}>{t('shell.tenant_color')}</th>
                     <th style={{ textAlign: 'center' }}>PLAN</th>
                     <th style={{ textAlign: 'center' }}>{t('uxAudit.navigation')} </th>
                     <th style={{ textAlign: 'center' }}>{t('uxAudit.enabled_services')} </th>

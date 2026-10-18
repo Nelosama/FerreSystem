@@ -25,7 +25,7 @@ export const TopNavigation: React.FC<{ showTaskFinder?: boolean }> = ({ showTask
   const assigned = primary.flatMap(item => related[item.key] || []);
   const extras = secondary.filter(item => !assigned.includes(item.key));
   const link = (item: typeof tasks[number]) => <NavLink key={item.key} to={item.route} end={item.exact} className={({ isActive }) => `topnav-link${isActive ? ' active' : ''}`}>{t(item.labelKey)}</NavLink>;
-  return <header className="desktop-sidebar-nav v2-top-navigation jowa-topnav">
+  return <header className="desktop-sidebar-nav app-top-navigation jowa-topnav">
     <div className="jowa-topnav-header"><NavLink to="/" aria-label="Jowa System: ir a Inicio" className="jowa-brand-home">
       <LogotipoNegocio size={32} />
       <span className="jowa-brand-text"><strong>{tenant.nombreComercial || 'Negocio'}</strong><small>Jowa System</small></span>

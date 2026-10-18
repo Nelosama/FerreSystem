@@ -204,7 +204,7 @@ describe('Administración cloud / HTTP y PostgreSQL aislado', () => {
 
   it('idioma persiste por tenant y los guardados parciales no lo revierten', async () => {
     expect((await http('PUT', endpoint(A, 'settings'), sa, { configuracion: { idioma: 'en' } })).status).toBe(200);
-    expect((await http('PUT', endpoint(A, 'settings'), sa, { configuracion: { estiloUI: 'MODERNO' } })).status).toBe(200);
+    expect((await http('PUT', endpoint(A, 'settings'), sa, { configuracion: { formatoImpresion: 'A4' } })).status).toBe(200);
     const admin = await loginNegocio(adminA, A);
     expect((await (await http('GET', '/api/tenant/settings', admin.accessToken)).json() as any).idioma).toBe('en');
     expect((await (await http('GET', endpoint(B, 'settings'), sa)).json() as any).idioma).toBe('es');

@@ -527,7 +527,10 @@
     "read_only": " (READ ONLY MODE)",
     "edit_enabled": " (EDIT MODE ACTIVATED)",
     "edit_failed": "Could not activate editing. Re-initiate support session.",
-    "today": "TODAY"
+    "today": "TODAY",
+    "caja_abierta": "Cash open",
+    "caja_cerrada": "Cash closed",
+    "caja_sin_verificar": "Cash unverified"
   },
   "reports": {
     "title": "REPORTS & KPIS MODULE",
@@ -881,8 +884,6 @@
     "symbol": "Currency Symbol",
     "tax_name": "Tax Name",
     "tax_rate": "Tax Rate",
-    "heading_font": "Heading Font",
-    "body_font": "Body Font",
     "contact": "Contact Details",
     "address": "Address",
     "phone": "Phone",
@@ -890,7 +891,6 @@
     "currency_code": "Currency Code",
     "currency_tax": "Currency and Tax",
     "fiscal_help": "Supported currency is HNL (L.) and default setting is 15% Sales Tax. These fields are read-only: no currency conversion. Receipts retain recorded amounts and taxes.",
-    "typography": "Typography",
     "scope": "Company business and appearance settings shared across organization. Language is your personal preference. Changes apply upon saving.",
     "saved": "Branding settings saved successfully for \"{name}\"!"
   },
@@ -904,28 +904,11 @@
     "business_sector": "TRADE SECTOR (MULTI-SECTOR ENGINE)",
     "currency_symbol": "CURRENCY SYMBOL",
     "tax": ") • Tax:",
-    "design_template": "Design Template",
-    "classic_v1": "Classic (V1)",
-    "template_v3": "Jowa light (V3)",
-    "template_v2_mode": "Template V2 Mode",
-    "corporate_light": "Corporate Light",
-    "industrial_dark": "Industrial Dark",
-    "energetic": "Energetic",
-    "classic_variant": "Classic Variant",
-    "minimalist": "Minimalist",
-    "modern": "Modern",
-    "keeps_your_logo_color_and_fonts_appearance_is_saved_for_the_whole_company_when_you_apply_changes": "Keeps your logo, color and fonts. Appearance is saved for the whole company when applying changes.",
     "navigation_mode_and_page_structure": "NAVIGATION MODE AND PAGE STRUCTURE",
     "side_menu_sidebar": "SIDE MENU (SIDEBAR)",
     "vertical_panel_on_the_left": "Vertical panel on the left",
     "top_menu_topnav": "TOP MENU (TOPNAV)",
     "full_horizontal_navigation": "Full horizontal navigation",
-    "heading_font": "HEADING FONT",
-    "montserrat_elegant": "Montserrat (Elegant)",
-    "body_font": "BODY FONT",
-    "inter_standard_ui": "Inter (Standard UI)",
-    "ibm_plex_sans_technical": "IBM Plex Sans (Technical)",
-    "nunito_sans_rounded": "Nunito Sans (Rounded)",
     "brand_color_live_preview": "BRAND COLOR & LIVE PREVIEW",
     "choose_the_color_used_for_your_company_in_navigation_buttons_and_documents": "Choose the color that identifies your company in navigation, buttons and documents.",
     "hex_code": "HEXADECIMAL CODE",
@@ -1526,5 +1509,64 @@
     "invalid": "Check cost and price: they must be numbers equal to or greater than zero.",
     "conflict": "The product changed on another device. The list was reloaded; review before saving.",
     "error": "Could not save. Try again."
+  },
+  "shell": {
+    "platform_home": "Jowa System: go to the platform panel",
+    "platform_menu": "Platform menu",
+    "platform_tabs": "Platform administration",
+    "group_clients": "Clients",
+    "group_platform": "Platform",
+    "business_admin": "Business administration",
+    "business_default": "Business",
+    "platform_footer": "Platform session · not tied to a business",
+    "platform": {
+      "tenants": "Businesses",
+      "admins": "Administrator users",
+      "services": "Service catalog",
+      "support": "Remote support",
+      "audit": "Audit",
+      "maintenance": "Maintenance and backups"
+    },
+    "business": {
+      "summary": "Summary and branches",
+      "services": "Services",
+      "users": "Users",
+      "brand": "Brand and navigation",
+      "config": "Settings",
+      "audit": "Audit"
+    },
+    "tenant_color": "Color",
+    "home": {
+      "pending": "Today's pending items",
+      "prices": "Prices to approve",
+      "prices_detail": "Price changes sent by the warehouse",
+      "deliveries": "Pending deliveries",
+      "deliveries_detail": "Sales to deliver",
+      "quotes": "Quotes expiring",
+      "quotes_detail": "{count} expire today",
+      "stock": "Low stock",
+      "stock_detail": "Products below minimum",
+      "new_quote": "New quote",
+      "new_sale": "New sale"
+    },
+    "brand": {
+      "primary_color": "Primary color",
+      "preview": "Preview",
+      "preview_help": "This is how the business staff will see it. The Super Admin panel always uses its own color.",
+      "sidebar": "Side menu",
+      "topnav": "Top menu",
+      "navigation": "Navigation",
+      "point_of_sale": "Point of sale",
+      "cash_drawer": "Cash drawer",
+      "quotations": "Quotations",
+      "charge": "Charge"
+    },
+    "pos": {
+      "step_client": "Customer",
+      "step_products": "Products",
+      "step_payment": "Payment and delivery",
+      "line_one": "{count} line",
+      "line_other": "{count} lines"
+    }
   }
 }

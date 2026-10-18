@@ -62,7 +62,7 @@ const TenantSidebar: React.FC = () => {
   };
 
   return (
-    <aside className="desktop-sidebar-nav v2-sidebar jowa-sidebar">
+    <aside className="desktop-sidebar-nav app-sidebar jowa-sidebar">
       {/* Identidad del negocio: su logotipo y nombre. Jowa System es el proveedor y enlaza a Inicio. */}
       <div className="jowa-sidebar-brand">
         <NavLink to="/" aria-label="Jowa System: ir a Inicio" className="jowa-sidebar-home">

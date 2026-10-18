@@ -1,9 +1,7 @@
 import type { TenantInfo } from '../types';
 
-const defaults = {
-  idioma: 'es', rubro: 'FERRETERIA', estiloUI: 'INDUSTRIAL', templateVersion: 'v1', v2Mode: 'light',
-  fuenteTitulos: 'Archivo', fuenteCuerpo: 'Inter', formatoImpresion: 'A4',
-} as const;
+// Un solo diseño visual: las claves de plantilla de versiones anteriores no se leen ni se devuelven.
+const defaults = { idioma: 'es', rubro: 'FERRETERIA', formatoImpresion: 'A4' } as const;
 
 /** Server fields are rebuilt; only branch selection is a local session preference. */
 export function normalizeTenantSettings(data: any, local?: Pick<TenantInfo, 'sucursal'>): TenantInfo {

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { enabledTenantModules } from '../common/tenant-modules';
-import { normalizeTenantConfiguration, validateTenantConfiguration } from './tenant-configuration';
+import { normalizeTenantConfiguration, retirarClavesVisuales, validateTenantConfiguration } from './tenant-configuration';
 import { PrismaService } from '../prisma/prisma.service';
 
 const logoStorageKey = (tenant: { logoStorageKey?: string | null }) => tenant.logoStorageKey ?? null;
@@ -68,7 +68,7 @@ export class TenantsService {
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
-        ...(configuracion !== undefined && { configuracion: Object.keys(configuracion).length ? { ...((await this.prisma.tenant.findUnique({ where: { id: tenantId } }))?.configuracion as Record<string, any> ?? {}), ...configuracion } : {} }),
+        ...(configuracion !== undefined && { configuracion: Object.keys(configuracion).length ? { ...retirarClavesVisuales((await this.prisma.tenant.findUnique({ where: { id: tenantId } }))?.configuracion as Record<string, any> ?? {}), ...retirarClavesVisuales(configuracion) } : {} }),
         ...(data.modoNavegacion && { modoNavegacion: data.modoNavegacion }),
         ...(data.nombreComercial && { nombreComercial: data.nombreComercial }),
         ...(data.direccion !== undefined && { direccion: data.direccion }),

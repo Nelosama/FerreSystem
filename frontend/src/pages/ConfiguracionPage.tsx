@@ -5,11 +5,11 @@ import { TopBar } from '../components/TopBar';
 import { LogotipoNegocioEditor } from '../components/LogotipoNegocioEditor';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
-import { Rubro, type TenantInfo } from '../types';
+import { Rubro } from '../types';
 import { Button } from '../components/Button';
 import { errorColorHex } from '../utils/colorHex';
 import { FORMATOS_IMPRESION, type FormatoImpresion } from '../utils/formatoImpresion';
-import { Palette, Building2, Check, RefreshCw, Store, Layout, Type, Eye, Languages, Coins, Receipt } from 'lucide-react';
+import { Palette, Building2, Check, RefreshCw, Store, Layout, Eye, Languages, Coins, Receipt } from 'lucide-react';
 
 const PRESET_COLORS = [
   { name: 'uxAudit.color_0', hex: '#EA580C' },
@@ -31,24 +31,13 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   const negocio: any = datos ?? {};
 
   const [idioma, setIdioma] = useState<'es' | 'en'>('es');
-  const [templateVersion, setTemplateVersion] = useState<'v1' | 'v2' | 'v3'>(negocio.templateVersion || 'v1');
-  const [v2Mode, setV2Mode] = useState<NonNullable<TenantInfo['v2Mode']>>(negocio.v2Mode || 'light');
   const [nombre, setNombre] = useState(negocio.nombreComercial || '');
   const [color, setColor] = useState(negocio.colorPrimario || '#EA580C');
   const errorColor = errorColorHex(color);
   const [rubro, setRubro] = useState<Rubro>((negocio.rubro || Rubro.FERRETERIA) as Rubro);
   const [formatoImpresion, setFormatoImpresion] = useState<FormatoImpresion>((negocio.formatoImpresion || 'A4') as FormatoImpresion);
-  const [estiloUI, setEstiloUI] = useState<'INDUSTRIAL' | 'MINIMALISTA' | 'MODERNO'>(
-    (negocio.estiloUI || 'INDUSTRIAL') as any,
-  );
   const [modoNavegacion, setModoNavegacion] = useState<'SIDEBAR' | 'TOPNAV'>(
     (negocio.modoNavegacion || 'SIDEBAR') as any,
-  );
-  const [fuenteTitulos, setFuenteTitulos] = useState<'Archivo' | 'Space Grotesk' | 'Poppins' | 'Montserrat'>(
-    (negocio.fuenteTitulos || 'Archivo') as any,
-  );
-  const [fuenteCuerpo, setFuenteCuerpo] = useState<'Inter' | 'IBM Plex Sans' | 'Nunito Sans'>(
-    (negocio.fuenteCuerpo || 'Inter') as any,
   );
 
   // Moneda e Impuesto
@@ -79,16 +68,11 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   React.useEffect(() => {
     if (negocio && !dirty.current) {
       setIdioma(negocio.idioma === 'en' ? 'en' : 'es');
-      setTemplateVersion(negocio.templateVersion || 'v1');
-      setV2Mode(negocio.v2Mode || 'light');
       setNombre(negocio.nombreComercial || '');
       setColor(negocio.colorPrimario || '#EA580C');
       setRubro((negocio.rubro || Rubro.FERRETERIA) as Rubro);
       setFormatoImpresion((negocio.formatoImpresion || 'A4') as FormatoImpresion);
-      setEstiloUI((negocio.estiloUI || 'INDUSTRIAL') as any);
       setModoNavegacion((negocio.modoNavegacion || 'SIDEBAR') as any);
-      setFuenteTitulos((negocio.fuenteTitulos || 'Archivo') as any);
-      setFuenteCuerpo((negocio.fuenteCuerpo || 'Inter') as any);
 
       setDireccion(negocio.direccion || '');
       setTelefono(negocio.telefono || '');
@@ -113,7 +97,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         email,
         colorPrimario: color,
         modoNavegacion,
-        configuracion: { idioma, rubro, formatoImpresion, estiloUI, templateVersion, v2Mode, fuenteTitulos, fuenteCuerpo, moneda: updatedMoneda, impuesto: updatedImpuesto },
+        configuracion: { idioma, rubro, formatoImpresion, moneda: updatedMoneda, impuesto: updatedImpuesto },
       });
 
       dirty.current = false;
@@ -131,10 +115,6 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
 
   const handleRestablecerDefault = () => {
     setColor('#EA580C');
-    setEstiloUI('INDUSTRIAL');
-    setFuenteTitulos('Archivo');
-    setFuenteCuerpo('Inter');
-
   };
 
   if (cargaError) return <div style={styles.container}><TopBar title="Configuración del negocio" subtitle="Super Admin" /><main style={styles.content}><p role="alert">{cargaError}</p><Link to="/admin">Volver al panel global</Link></main></div>;
@@ -319,25 +299,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
               </div>
             </div>
 
-            <div className="form-group">
-              <label htmlFor="template-version" className="form-label">{t('uxAudit.design_template')} </label>
-              <select id="template-version" className="form-select" value={templateVersion} onChange={e => setTemplateVersion(e.target.value as 'v1' | 'v2' | 'v3')}>
-                <option value="v1">{t('uxAudit.classic_v1')} </option><option value="v2">Template V2</option><option value="v3">{t('uxAudit.template_v3')}</option>
-              </select>
-              {templateVersion === 'v2' ? <>
-                <label htmlFor="v2-mode" className="form-label">{t('uxAudit.template_v2_mode')} </label>
-                <select id="v2-mode" className="form-select" value={v2Mode} onChange={e => setV2Mode(e.target.value as NonNullable<TenantInfo['v2Mode']>)}>
-                  <option value="light">{t('uxAudit.corporate_light')} </option><option value="dark">{t('uxAudit.industrial_dark')} </option><option value="hybrid">{t('uxAudit.energetic')} </option>
-                </select>
-              </> : templateVersion === 'v3' ? null : <>
-                <label htmlFor="classic-style" className="form-label">{t('uxAudit.classic_variant')} </label>
-                <select id="classic-style" className="form-select" value={estiloUI} onChange={e => setEstiloUI(e.target.value as NonNullable<TenantInfo['estiloUI']>)}>
-                  <option value="INDUSTRIAL">Industrial</option><option value="MINIMALISTA">{t('uxAudit.minimalist')} </option><option value="MODERNO">{t('uxAudit.modern')} </option>
-                </select>
-              </>}
-              <small>{t('uxAudit.keeps_your_logo_color_and_fonts_appearance_is_saved_for_the_whole_company_when_you_apply_changes')} </small>
-            </div>
-            {/* Selector de Estilo de Interfaz y Modo de Navegación */}
+            {/* Modo de navegación: SIDEBAR o TOPNAV, el único elemento de distribución configurable */}
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Layout size={14} color="var(--color-primary)" />
@@ -380,43 +342,6 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
               </div>
             </div>
 
-            <details><summary>{t('settings.typography')}</summary>
-            {/* Tipografía de Títulos y Cuerpo */}
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Type size={14} color="var(--color-primary)" />
-                  <span>{t('uxAudit.heading_font')} </span>
-                </label>
-                <select
-                  id="heading-font" aria-label={t('settings.heading_font')} value={fuenteTitulos}
-                  onChange={(e) => setFuenteTitulos(e.target.value as any)}
-                  className="form-select"
-                >
-                  <option value="Archivo">Archivo (Industrial)</option>
-                  <option value="Space Grotesk">Space Grotesk (Tech)</option>
-                  <option value="Poppins">Poppins (Clean)</option>
-                  <option value="Montserrat">{t('uxAudit.montserrat_elegant')} </option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Type size={14} color="var(--color-primary)" />
-                  <span>{t('uxAudit.body_font')} </span>
-                </label>
-                <select
-                  id="body-font" aria-label={t('settings.body_font')} value={fuenteCuerpo}
-                  onChange={(e) => setFuenteCuerpo(e.target.value as any)}
-                  className="form-select"
-                >
-                  <option value="Inter">{t('uxAudit.inter_standard_ui')} </option>
-                  <option value="IBM Plex Sans">{t('uxAudit.ibm_plex_sans_technical')} </option>
-                  <option value="Nunito Sans">{t('uxAudit.nunito_sans_rounded')} </option>
-                </select>
-              </div>
-            </div>
-            </details>
           </div>
 
           {/* Columna Derecha: White-Labeling y Selector de Color Primario & Preview */}
@@ -478,19 +403,11 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px' }}>
                 <Eye size={14} color={color} />{t('uxAudit.live_preview')} {locale.toUpperCase()})
               </div>
-              <div
-                style={{
-                  padding: '16px',
-                  backgroundColor: estiloUI === 'MINIMALISTA' ? 'var(--color-surface-hover)' : estiloUI === 'MODERNO' ? color : '#1C1917',
-                  color: estiloUI === 'MINIMALISTA' ? 'var(--color-text-main)' : '#FFFFFF',
-                  borderRadius: estiloUI === 'MODERNO' ? '12px' : estiloUI === 'MINIMALISTA' ? '10px' : '2px',
-                  border: '1px solid #44403C',
-                }}
-              >
-                <div style={{ fontFamily: `"${fuenteTitulos}", sans-serif`, fontWeight: 800, fontSize: '15px' }}>
+              <div style={{ padding: '16px', backgroundColor: 'var(--color-surface)', color: 'var(--color-text-main)', borderRadius: '12px', border: '1px solid var(--color-border-subtle)' }}>
+                <div style={{ fontWeight: 800, fontSize: '15px' }}>
                   {nombre || t('settings.name')}
                 </div>
-                <div style={{ fontFamily: `"${fuenteCuerpo}", sans-serif`, fontSize: '12px', marginTop: '4px', opacity: 0.85 }}>{t('uxAudit.currency')} {monedaSimbolo} ({monedaCodigo}{t('uxAudit.tax')} {impuestoNombre} {impuestoTasa}%
+                <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.85 }}>{t('uxAudit.currency')} {monedaSimbolo} ({monedaCodigo}{t('uxAudit.tax')} {impuestoNombre} {impuestoTasa}%
                 </div>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                   <button type="button" style={{ padding: '6px 12px', backgroundColor: color, color: '#FFFFFF', border: 'none', borderRadius: '4px', fontWeight: 800, fontSize: '11px' }}>{t('uxAudit.active_button')} </button>

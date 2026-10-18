@@ -527,7 +527,10 @@
     "read_only": " (MODO SOLO LECTURA)",
     "edit_enabled": " (MODO EDICIÓN ACTIVADO)",
     "edit_failed": "No se pudo activar la edición. Vuelve a iniciar la sesión de soporte.",
-    "today": "HOY"
+    "today": "HOY",
+    "caja_abierta": "Caja abierta",
+    "caja_cerrada": "Caja cerrada",
+    "caja_sin_verificar": "Caja sin verificar"
   },
   "reports": {
     "title": "MÓDULO DE REPORTES & KPIS",
@@ -881,8 +884,6 @@
     "symbol": "Símbolo de moneda",
     "tax_name": "Nombre del impuesto",
     "tax_rate": "Tasa del impuesto",
-    "heading_font": "Fuente de títulos",
-    "body_font": "Fuente de cuerpo",
     "contact": "Datos de contacto",
     "address": "Dirección",
     "phone": "Teléfono",
@@ -890,7 +891,6 @@
     "currency_code": "Código de moneda",
     "currency_tax": "Moneda e impuesto",
     "fiscal_help": "La moneda soportada es HNL (L.) y la configuración general es ISV 15%. Estos campos son de solo lectura: no hay conversión monetaria. Los comprobantes conservan los importes e ISV registrados, incluidas cotizaciones con tasas por línea y ventas anteriores.",
-    "typography": "Tipografía",
     "scope": "Datos del negocio y apariencia compartidos por la empresa. El idioma es tu preferencia personal. Los cambios se aplican al guardar.",
     "saved": "¡Configuración de marca guardada correctamente para \"{name}\"!"
   },
@@ -904,28 +904,11 @@
     "business_sector": "RUBRO / GIRO COMERCIAL (MOTOR MULTI-RUBRO)",
     "currency_symbol": "SÍMBOLO MONEDA",
     "tax": ") • Impuesto:",
-    "design_template": "Plantilla de diseño",
-    "classic_v1": "Clásica (V1)",
-    "template_v3": "Jowa claro (V3)",
-    "template_v2_mode": "Modo de Template V2",
-    "corporate_light": "Claro Corporativo",
-    "industrial_dark": "Oscuro Industrial",
-    "energetic": "Enérgico",
-    "classic_variant": "Variante clásica",
-    "minimalist": "Minimalista",
-    "modern": "Moderno",
-    "keeps_your_logo_color_and_fonts_appearance_is_saved_for_the_whole_company_when_you_apply_changes": "Conserva tu logo, color y tipografías. La apariencia se guarda para toda la empresa al aplicar los cambios.",
     "navigation_mode_and_page_structure": "MODO DE NAVEGACIÓN Y ESTRUCTURA DE PÁGINA",
     "side_menu_sidebar": "MENÚ LATERAL (SIDEBAR)",
     "vertical_panel_on_the_left": "Panel vertical a la izquierda",
     "top_menu_topnav": "MENÚ SUPERIOR (TOPNAV)",
     "full_horizontal_navigation": "Navegación horizontal completa",
-    "heading_font": "FUENTE TÍTULOS",
-    "montserrat_elegant": "Montserrat (Elegante)",
-    "body_font": "FUENTE CUERPO",
-    "inter_standard_ui": "Inter (Estándar UI)",
-    "ibm_plex_sans_technical": "IBM Plex Sans (Técnico)",
-    "nunito_sans_rounded": "Nunito Sans (Redondeado)",
     "brand_color_live_preview": "COLOR DE MARCA & VISTA PREVIA EN VIVO",
     "choose_the_color_used_for_your_company_in_navigation_buttons_and_documents": "Elige el color que identificará tu empresa en la navegación, los botones y los documentos.",
     "hex_code": "CÓDIGO HEXADECIMAL",
@@ -1526,5 +1509,64 @@
     "invalid": "Revise costo y precio: deben ser números iguales o mayores que cero.",
     "conflict": "El producto cambió en otro equipo. Se recargó la lista; revise antes de guardar.",
     "error": "No se pudo guardar. Intente de nuevo."
+  },
+  "shell": {
+    "platform_home": "Jowa System: ir al panel de plataforma",
+    "platform_menu": "Menú de plataforma",
+    "platform_tabs": "Administración de plataforma",
+    "group_clients": "Clientes",
+    "group_platform": "Plataforma",
+    "business_admin": "Administración del negocio",
+    "business_default": "Negocio",
+    "platform_footer": "Sesión de plataforma · no ligada a un negocio",
+    "platform": {
+      "tenants": "Negocios",
+      "admins": "Usuarios administradores",
+      "services": "Catálogo de servicios",
+      "support": "Soporte remoto",
+      "audit": "Auditoría",
+      "maintenance": "Mantenimiento y respaldos"
+    },
+    "business": {
+      "summary": "Resumen y sucursales",
+      "services": "Servicios",
+      "users": "Usuarios",
+      "brand": "Marca y navegación",
+      "config": "Configuración",
+      "audit": "Auditoría"
+    },
+    "tenant_color": "Color",
+    "home": {
+      "pending": "Pendientes de hoy",
+      "prices": "Precios por aprobar",
+      "prices_detail": "Cambios de precio enviados por bodega",
+      "deliveries": "Entregas pendientes",
+      "deliveries_detail": "Ventas por entregar",
+      "quotes": "Cotizaciones por vencer",
+      "quotes_detail": "{count} vencen hoy",
+      "stock": "Stock bajo",
+      "stock_detail": "Productos bajo mínimo",
+      "new_quote": "Nueva cotización",
+      "new_sale": "Nueva venta"
+    },
+    "brand": {
+      "primary_color": "Color principal",
+      "preview": "Vista previa",
+      "preview_help": "Así verá el personal del negocio. El panel del Super Admin siempre usa su color propio.",
+      "sidebar": "Menú lateral",
+      "topnav": "Menú superior",
+      "navigation": "Navegación",
+      "point_of_sale": "Punto de venta",
+      "cash_drawer": "Arqueo de caja",
+      "quotations": "Cotizaciones",
+      "charge": "Cobrar"
+    },
+    "pos": {
+      "step_client": "Cliente",
+      "step_products": "Productos",
+      "step_payment": "Pago y entrega",
+      "line_one": "{count} línea",
+      "line_other": "{count} líneas"
+    }
   }
 }

@@ -2,10 +2,12 @@ import React from 'react';
 import { Link, NavLink, useLocation, useSearchParams } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { api } from '../utils/api';
+import { useI18n } from '../context/I18nContext';
 import { MENU_PLATAFORMA, PESTANAS_NEGOCIO, SECCIONES_PLATAFORMA, SLUG_SECCION } from '../config/platformNavigation';
 
 /** Menú del SUPERADMIN: usa siempre el color de la plataforma, nunca el de un negocio. */
 export const PlatformSidebar: React.FC = () => {
+  const { t } = useI18n();
   const { pathname } = useLocation();
   const [parametros] = useSearchParams();
   const negocioId = /^\/admin\/negocios\/([^/]+)/.exec(pathname)?.[1];
@@ -21,29 +23,29 @@ export const PlatformSidebar: React.FC = () => {
   }, [negocioId]);
 
   const base = negocioId ? `/admin/negocios/${negocioId}` : '';
-  const iniciales = (negocio?.nombreComercial || 'Negocio').split(/\s+/).filter(p => p.length > 2).slice(-2).map(p => p[0]).join('').toUpperCase() || 'N';
+  const iniciales = (negocio?.nombreComercial || t('shell.business_default')).split(/\s+/).filter(p => p.length > 2).slice(-2).map(p => p[0]).join('').toUpperCase() || 'N';
 
   return (
     <aside className="desktop-sidebar-nav jowa-sidebar jowa-platform-sidebar">
       <div className="jowa-sidebar-brand">
-        <NavLink to="/admin" aria-label="Jowa System: ir al panel de plataforma" className="jowa-sidebar-home">
+        <NavLink to="/admin" aria-label={t('shell.platform_home')} className="jowa-sidebar-home">
           <span className="jowa-platform-mark"><ShieldCheck size={20} aria-hidden="true" /></span>
           <span className="jowa-sidebar-identity"><strong>Jowa System</strong><small>Super Admin</small></span>
         </NavLink>
       </div>
-      <nav className="jowa-sidebar-nav" aria-label="Menú de plataforma">
+      <nav className="jowa-sidebar-nav" aria-label={t('shell.platform_menu')}>
         <ul className="jowa-nav-list">
           {MENU_PLATAFORMA.map(grupo => <li key={grupo.grupo} className="jowa-nav-group">
-            <span className="navigation-group">{grupo.grupo === 'clientes' ? 'Clientes' : 'Plataforma'}</span>
+            <span className="navigation-group">{grupo.grupo === 'clientes' ? t('shell.group_clients') : t('shell.group_platform')}</span>
             <ul className="jowa-nav-list">
               {grupo.items.map(item => <li key={item.seccion}>
                 <Link to={`/admin?seccion=${SLUG_SECCION[item.seccion]}`} aria-current={seccion === item.seccion ? 'page' : undefined} className={`jowa-nav-item${seccion === item.seccion ? ' active' : ''}`}>
-                  <item.icon size={18} strokeWidth={2} aria-hidden="true" /><span className="jowa-nav-label">{item.etiqueta}</span>
+                  <item.icon size={18} strokeWidth={2} aria-hidden="true" /><span className="jowa-nav-label">{t(item.etiquetaKey)}</span>
                 </Link>
                 {item.seccion === 'tenants' && negocio && <div className="jowa-platform-context" style={{ '--tenant-color': negocio.colorPrimario || 'var(--plat-accent)' } as React.CSSProperties}>
-                  <div className="jowa-platform-context-head"><span className="jowa-platform-tenant">{iniciales}</span><strong>{negocio.nombreComercial || 'Negocio'}</strong></div>
-                  <ul className="jowa-nav-list" aria-label="Administración del negocio">
-                    {PESTANAS_NEGOCIO.map(([ruta, etiqueta]) => <li key={ruta}><NavLink end to={`${base}${ruta}`} className={({ isActive }) => `jowa-nav-sub${isActive ? ' active' : ''}`}>{etiqueta}</NavLink></li>)}
+                  <div className="jowa-platform-context-head"><span className="jowa-platform-tenant">{iniciales}</span><strong>{negocio.nombreComercial || t('shell.business_default')}</strong></div>
+                  <ul className="jowa-nav-list" aria-label={t('shell.business_admin')}>
+                    {PESTANAS_NEGOCIO.map(([ruta, etiqueta]) => <li key={ruta}><NavLink end to={`${base}${ruta}`} className={({ isActive }) => `jowa-nav-sub${isActive ? ' active' : ''}`}>{t(etiqueta)}</NavLink></li>)}
                   </ul>
                 </div>}
               </li>)}
@@ -51,7 +53,7 @@ export const PlatformSidebar: React.FC = () => {
           </li>)}
         </ul>
       </nav>
-      <p className="jowa-platform-foot">Sesión de plataforma · no ligada a un negocio</p>
+      <p className="jowa-platform-foot">{t('shell.platform_footer')}</p>
     </aside>
   );
 };

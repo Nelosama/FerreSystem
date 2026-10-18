@@ -5,6 +5,7 @@ import { TopBar } from '../../components/TopBar';
 import { SyncStatus } from '../../components/SyncStatus';
 import { TaskShortcuts } from '../../components/TaskFinder';
 import { useTenant } from '../../context/TenantContext';
+import { useI18n } from '../../context/I18nContext';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { availableTasks } from '../../utils/taskNavigation';
 import { api } from '../../utils/api';
@@ -39,6 +40,7 @@ const etiquetaMetodo: Record<string, string> = { EFECTIVO: 'Efectivo', TARJETA: 
 
 export const AdminHomePage: React.FC = () => {
   const { user, tenant } = useTenant();
+  const { t } = useI18n();
   const [datos, setDatos] = useState<DashboardResponse | null>(null);
 
   const cargar = useCallback((signal: AbortSignal) => api.get<Partial<DashboardResponse>>('/dashboard', { signal }).then(res => normalizarResumen(res.data)), []);
@@ -61,10 +63,10 @@ export const AdminHomePage: React.FC = () => {
   // Solo tareas con datos reales del resumen; sin datos no se muestran cifras.
   const tareasDelRol = availableTasks(user, tenant);
   const pendientes: { icono: React.ReactNode; titulo: string; detalle: string; cantidad?: number; ruta: string }[] = [
-    { icono: <Tags size={18} aria-hidden="true" />, titulo: 'Precios por aprobar', detalle: 'Cambios de precio enviados por bodega', cantidad: undefined as number | undefined, ruta: '/precios' },
-    { icono: <Truck size={18} aria-hidden="true" />, titulo: 'Entregas pendientes', detalle: 'Ventas por entregar', cantidad: undefined, ruta: '/entregas' },
-    { icono: <FileText size={18} aria-hidden="true" />, titulo: 'Cotizaciones por vencer', detalle: `${datos?.cotizacionesPendientes.porVencerHoy ?? 0} vencen hoy`, cantidad: datos?.cotizacionesPendientes.porVencerHoy, ruta: '/cotizaciones' },
-    { icono: <Package size={18} aria-hidden="true" />, titulo: 'Stock bajo', detalle: 'Productos bajo mínimo', cantidad: datos?.alertasStock.cantidad, ruta: '/inventario' },
+    { icono: <Tags size={18} aria-hidden="true" />, titulo: t('shell.home.prices'), detalle: t('shell.home.prices_detail'), cantidad: undefined as number | undefined, ruta: '/precios' },
+    { icono: <Truck size={18} aria-hidden="true" />, titulo: t('shell.home.deliveries'), detalle: t('shell.home.deliveries_detail'), cantidad: undefined, ruta: '/entregas' },
+    { icono: <FileText size={18} aria-hidden="true" />, titulo: t('shell.home.quotes'), detalle: t('shell.home.quotes_detail', { count: datos?.cotizacionesPendientes.porVencerHoy ?? 0 }), cantidad: datos?.cotizacionesPendientes.porVencerHoy, ruta: '/cotizaciones' },
+    { icono: <Package size={18} aria-hidden="true" />, titulo: t('shell.home.stock'), detalle: t('shell.home.stock_detail'), cantidad: datos?.alertasStock.cantidad, ruta: '/inventario' },
   ].filter(p => tareasDelRol.some(item => item.route === p.ruta));
 
   return (
@@ -77,14 +79,14 @@ export const AdminHomePage: React.FC = () => {
             <SyncStatus sync={sync} />
           </div>
           <nav className="admin-home__acciones" aria-label="Accesos rápidos">
-            {puedeCotizar && <Link to="/cotizaciones" className="admin-home__acceso"><FileText size={15} aria-hidden="true" /> Nueva cotización</Link>}
-            {puedeVender && <Link to="/pos" className="admin-home__acceso admin-home__acceso--principal"><Plus size={15} aria-hidden="true" /> Nueva venta</Link>}
+            {puedeCotizar && <Link to="/cotizaciones" className="admin-home__acceso"><FileText size={15} aria-hidden="true" /> {t('shell.home.new_quote')}</Link>}
+            {puedeVender && <Link to="/pos" className="admin-home__acceso admin-home__acceso--principal"><Plus size={15} aria-hidden="true" /> {t('shell.home.new_sale')}</Link>}
           </nav>
         </header>
 
         {/* Lo que requiere una acción hoy va primero; las tareas generales siguen debajo. */}
         <section className="admin-home__pendientes" aria-labelledby="home-pendientes">
-          <h2 id="home-pendientes" className="admin-home__subtitulo">Pendientes de hoy</h2>
+          <h2 id="home-pendientes" className="admin-home__subtitulo">{t('shell.home.pending')}</h2>
           <ul className="admin-home__lista">
             {pendientes.map(p => (
               <li key={p.titulo} className="admin-home__fila">

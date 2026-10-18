@@ -13,16 +13,16 @@ export const SECCIONES_PLATAFORMA: Record<string, SeccionPlataforma> = Object.fr
 
 export const MENU_PLATAFORMA = [
   { grupo: 'clientes', items: [
-    { seccion: 'tenants' as const, etiqueta: 'Negocios', icon: Store },
-    { seccion: 'admins' as const, etiqueta: 'Usuarios administradores', icon: UserCog },
+    { seccion: 'tenants' as const, etiquetaKey: 'shell.platform.tenants', icon: Store },
+    { seccion: 'admins' as const, etiquetaKey: 'shell.platform.admins', icon: UserCog },
   ] },
   { grupo: 'plataforma', items: [
-    { seccion: 'modulos' as const, etiqueta: 'Catálogo de servicios', icon: Layers },
-    { seccion: 'soporte_historial' as const, etiqueta: 'Soporte remoto', icon: Headset },
-    { seccion: 'auditoria' as const, etiqueta: 'Auditoría', icon: ListChecks },
-    { seccion: 'mantenimiento' as const, etiqueta: 'Mantenimiento y respaldos', icon: Database },
+    { seccion: 'modulos' as const, etiquetaKey: 'shell.platform.services', icon: Layers },
+    { seccion: 'soporte_historial' as const, etiquetaKey: 'shell.platform.support', icon: Headset },
+    { seccion: 'auditoria' as const, etiquetaKey: 'shell.platform.audit', icon: ListChecks },
+    { seccion: 'mantenimiento' as const, etiquetaKey: 'shell.platform.maintenance', icon: Database },
   ] },
 ];
 
 /** Pestañas de un negocio concreto; mismas rutas que NegocioNavigation. */
-export const PESTANAS_NEGOCIO = [['', 'Resumen y sucursales'], ['/servicios', 'Servicios'], ['/usuarios', 'Usuarios'], ['/marca', 'Marca y navegación'], ['/configuracion', 'Configuración'], ['/auditoria', 'Auditoría']] as const;
+export const PESTANAS_NEGOCIO = [['', 'shell.business.summary'], ['/servicios', 'shell.business.services'], ['/usuarios', 'shell.business.users'], ['/marca', 'shell.business.brand'], ['/configuracion', 'shell.business.config'], ['/auditoria', 'shell.business.audit']] as const;

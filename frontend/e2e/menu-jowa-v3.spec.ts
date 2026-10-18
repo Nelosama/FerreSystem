@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 // Menú lateral reorganizado, grupos desplegables, estado de conexión, menú de plataforma y plantilla V3.
 async function setup(page: Page, role: string, mode = 'SIDEBAR') {
-  const company = { id: 'ux-company', nombreComercial: 'Ferretería El Roble', colorPrimario: '#1D4ED8', modoNavegacion: mode, templateVersion: 'v3', idioma: 'es' };
+  const company = { id: 'ux-company', nombreComercial: 'Ferretería El Roble', colorPrimario: '#1D4ED8', modoNavegacion: mode, idioma: 'es' };
   const user = { id: 'ux-user', nombre: 'Usuario UX', rol: role, permisos: [] };
   await page.addInitScript(({ company, user }) => {
     if (!localStorage.getItem('ferre_user')) {
@@ -32,10 +32,10 @@ async function setup(page: Page, role: string, mode = 'SIDEBAR') {
 
 const hrefs = (nav: ReturnType<Page['locator']>) => nav.locator('a').evaluateAll(links => links.map(a => a.getAttribute('href')));
 
-test('ADMIN: orden por uso, grupos desplegables que se recuerdan y plantilla V3 con el color del negocio', async ({ page }) => {
+test('ADMIN: orden por uso, grupos desplegables que se recuerdan y diseño único con el color del negocio', async ({ page }) => {
   await setup(page, 'ADMIN');
   await page.goto('/');
-  await expect(page.locator('html')).toHaveAttribute('data-template', 'v3');
+  await expect(page.locator('html')).not.toHaveAttribute('data-template');
   const nav = page.locator('aside.jowa-sidebar');
   await expect(nav.getByRole('button', { name: 'Ventas y caja' })).toBeVisible();
   const orden = await hrefs(nav);
@@ -77,7 +77,7 @@ test('sin conexión: el menú lo indica y solo el POS sigue disponible', async (
   await expect(nav.locator('a[href="/arqueo-caja"]')).not.toHaveClass(/sin-red/);
 });
 
-test('TOPNAV se conserva con la plantilla V3', async ({ page }) => {
+test('TOPNAV se conserva en el diseño único', async ({ page }) => {
   await setup(page, 'ADMIN', 'TOPNAV');
   await page.goto('/');
   await expect(page.locator('header.jowa-topnav')).toBeVisible();
@@ -110,7 +110,7 @@ test('SUPERADMIN: menú de plataforma con secciones por URL y menú del negocio 
 test('barra superior muestra el estado de la caja a quien vende', async ({ page }) => {
   await setup(page, 'CAJERO');
   await page.goto('/');
-  await expect(page.locator('.jowa-caja-estado')).toContainText('Caja cerrada');
+  await expect(page.locator('.app-caja-estado')).toContainText('Caja cerrada');
 });
 
 test('el POS muestra sus tres pasos en el ticket', async ({ page }) => {
