@@ -1,4 +1,4 @@
-export const SCAN_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'code_128'] as const;
+export const SCAN_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] as const;
 export type FrameDecoder = (video: HTMLVideoElement) => Promise<string | null>;
 interface NativeDetector { detect(video: HTMLVideoElement): Promise<{ rawValue: string }[]> }
 interface NativeConstructor {
@@ -46,9 +46,51 @@ export function cameraError(error: unknown, locale: 'es' | 'en' = 'es'): string 
   if (name === 'NotFoundError' || name === 'OverconstrainedError') return en
     ? 'No camera found. You can enter the code manually.'
     : 'No se encontró una cámara disponible. Puede introducir el código manualmente.';
-  if (error instanceof Error && error.message) return error.message;
+  if (name === 'TimeoutError') return en
+    ? 'The camera or scanner did not respond in time. Retry or enter the code manually.'
+    : 'La cámara o el escáner no respondió a tiempo. Reintente o introduzca el código manualmente.';
+  if (name === 'CameraInterruptedError') return en
+    ? 'The camera was interrupted. Reopen the scanner or enter the code manually.'
+    : 'Se interrumpió la cámara. Vuelva a abrir el escáner o introduzca el código manualmente.';
+  if (name === 'ScannerSetupError' && error instanceof Error) return error.message;
   return en ? 'Could not start the scanner. Retry or enter the code manually.'
     : 'No se pudo iniciar el escáner. Reintente o introduzca el código manualmente.';
+}
+
+// getUserMedia cannot be aborted. Reuse an unresolved permission request on reopen,
+// and let only its latest consumer own the eventual stream (or release it).
+const pendingCameras = new WeakMap<MediaDevices, { promise: Promise<MediaStream>; owner: symbol }>();
+function acquireCamera(mediaDevices: MediaDevices, stopped: () => boolean): Promise<MediaStream | undefined> {
+  const owner = Symbol();
+  let pending = pendingCameras.get(mediaDevices);
+  if (!pending) {
+    const promise = mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
+    });
+    pending = { promise, owner };
+    pendingCameras.set(mediaDevices, pending);
+    const clear = () => { if (pendingCameras.get(mediaDevices) === pending) pendingCameras.delete(mediaDevices); };
+    // Both handlers settle successfully: no unhandled rejection from finally().
+    void promise.then(clear, clear);
+  }
+  pending.owner = owner;
+  const request = pending;
+  return request.promise.then(stream => {
+    if (request.owner !== owner) return undefined;
+    if (stopped()) { stream.getTracks().forEach(track => track.stop()); return undefined; }
+    return stream;
+  });
+}
+
+function configureAutofocus(track?: MediaStreamTrack) {
+  // Safari may omit focusMode; unsupported optional controls must not stop scanning.
+  try {
+    const capabilities = track?.getCapabilities?.() as (MediaTrackCapabilities & { focusMode?: string[] }) | undefined;
+    if (capabilities?.focusMode?.includes('continuous')) {
+      void track?.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }).catch(() => undefined);
+    }
+  } catch { /* Keep the camera's default focus if capabilities are unavailable. */ }
 }
 
 // Owns one activation: one accepted reading, one stream, one cancellable loop.
@@ -62,34 +104,72 @@ export function startBarcodeCamera(video: HTMLVideoElement, callbacks: {
   let stopped = false;
   let stream: MediaStream | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let frameTimer: ReturnType<typeof setTimeout> | undefined;
+  const cancellations = new Set<() => void>();
+  const listeners: (() => void)[] = [];
   const stop = () => {
+    if (stopped) return;
     stopped = true;
-    clearTimeout(timer);
+    clearTimeout(timer); clearTimeout(frameTimer);
+    listeners.forEach(remove => remove());
+    cancellations.forEach(cancel => cancel());
+    cancellations.clear();
     stream?.getTracks().forEach(track => track.stop());
     if (stream && video.srcObject === stream) { video.pause(); video.srcObject = null; }
   };
   const fail = (error: unknown) => { if (!stopped) { stop(); callbacks.onError(cameraError(error, callbacks.locale)); } };
+  const waitFor = <T,>(promise: Promise<T>, milliseconds: number): Promise<T> => new Promise((resolve, reject) => {
+    const cancel = () => { clearTimeout(timeout); cancellations.delete(cancel); reject({ name: 'AbortError' }); };
+    const timeout = setTimeout(() => { cancellations.delete(cancel); reject({ name: 'TimeoutError' }); }, milliseconds);
+    cancellations.add(cancel);
+    void promise.then(value => {
+      clearTimeout(timeout); cancellations.delete(cancel); resolve(value);
+    }, error => { clearTimeout(timeout); cancellations.delete(cancel); reject(error); });
+  });
+  const interrupted = () => fail({ name: 'CameraInterruptedError' });
+  const watchFrames = () => {
+    clearTimeout(frameTimer);
+    frameTimer = setTimeout(interrupted, 15000);
+  };
   void (async () => {
     try {
-      if (!dependencies.secure) throw new Error(callbacks.locale === 'en' ? 'The camera requires HTTPS. Open Jowa System using a secure address or enter the code manually.' : 'La cámara requiere HTTPS. Abra Jowa System mediante una dirección segura o introduzca el código manualmente.');
-      if (!dependencies.mediaDevices?.getUserMedia) throw new Error(callbacks.locale === 'en' ? 'This browser does not support camera access. Use updated Safari or enter the code manually.' : 'Este navegador no permite acceder a la cámara. Use Safari actualizado o introduzca el código manualmente.');
-      stream = await dependencies.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
-      if (stopped) { stream.getTracks().forEach(track => track.stop()); return; }
+      if (!dependencies.secure) throw Object.assign(new Error(callbacks.locale === 'en' ? 'The camera requires HTTPS. Open Jowa System using a secure address or enter the code manually.' : 'La cámara requiere HTTPS. Abra Jowa System mediante una dirección segura o introduzca el código manualmente.'), { name: 'ScannerSetupError' });
+      if (!dependencies.mediaDevices?.getUserMedia) throw Object.assign(new Error(callbacks.locale === 'en' ? 'This browser does not support camera access. Use updated Safari or enter the code manually.' : 'Este navegador no permite acceder a la cámara. Use Safari actualizado o introduzca el código manualmente.'), { name: 'ScannerSetupError' });
+      await waitFor(acquireCamera(dependencies.mediaDevices, () => stopped).then(acquired => {
+        if (acquired && stopped) acquired.getTracks().forEach(track => track.stop());
+        else stream = acquired;
+      }), 30000);
+      if (!stream || stopped) return;
+      for (const track of stream.getTracks()) {
+        track.addEventListener?.('ended', interrupted);
+        listeners.push(() => track.removeEventListener?.('ended', interrupted));
+      }
+      video.addEventListener?.('error', interrupted);
+      listeners.push(() => video.removeEventListener?.('error', interrupted));
+      configureAutofocus(stream.getVideoTracks?.()[0]);
       video.muted = true; video.playsInline = true; video.srcObject = stream;
-      await video.play();
+      await waitFor(video.play(), 15000);
       if (stopped) return;
-      const decode = await dependencies.createDecoder();
+      const decode = await waitFor(dependencies.createDecoder(), 15000);
       if (stopped) return;
       callbacks.onReady();
+      if (stopped) return;
+      let previousTime = -1;
+      watchFrames();
       const scan = async () => {
         if (stopped) return;
         try {
           if (video.readyState >= 2) {
-            const code = await decode(video);
+            // A live track can still produce a frozen/black preview after interruption.
+            if (!Number.isFinite(video.currentTime) || video.currentTime !== previousTime) {
+              previousTime = video.currentTime;
+              watchFrames();
+            }
+            const code = await waitFor(decode(video), 5000);
             if (stopped) return;
-            if (code) { stop(); callbacks.onCode(code); return; }
+            if (code?.trim()) { stop(); callbacks.onCode(code.trim()); return; }
           }
-          timer = setTimeout(() => void scan(), 250);
+          if (!stopped) timer = setTimeout(() => void scan(), 250);
         } catch (error) { fail(error); }
       };
       void scan();

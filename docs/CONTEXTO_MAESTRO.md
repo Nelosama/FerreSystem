@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-17, America/Tegucigalpa** — rediseño de navegación fase 1 en `claude/gifted-dirac-fqc2u5` (menú reordenado y desplegable, estado de conexión, menú de plataforma y plantilla V3). Sin PR, merge ni despliegue.
+Última revisión: **2026-10-18 UTC** — corrección del ciclo de cámara y UPC-E, rama `codex/fix-camera-lifecycle-ios`. Validación física Safari/PWA pendiente; sin merge ni despliegue.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -21,6 +21,16 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
 
 ---
+
+## Escáner de cámara iPhone — 2026-10-18 UTC
+
+- **Base y rama única:** `main` `174cce19`; rama `codex/fix-camera-lifecycle-ios`. Árbol limpio al inicio; solo `main` remoto y ningún PR abierto. PR #76 ya integrado, revisado junto al historial posterior de inventario. Sin cambios en ramas ajenas.
+- **Demostrado:** siete fallos en nueve pruebas nuevas de ciclo sobre el código anterior (doble limpieza, solicitudes duplicadas mientras el permiso no responde, esperas ilimitadas e interrupciones sin salida). UPC-E omitido y lector experimental de ZXing 0.23.0 defectuoso incluso habilitado. Plegar la sección de cámara ocultaba sin detener el vídeo.
+- **Implementado:** limpieza idempotente/cancelable y propiedad de stream tardío; espera limitada en permiso/vídeo/carga/detección; vigilancia de pistas/fotogramas; cierre al plegar, navegar o pasar a segundo plano y reapertura explícita. Enfoque opcional por capacidad, canvas acotado y lectores reutilizados; marco, confirmación y acceso al campo manual existente.
+- **Biblioteca:** ZXing conservado; adaptador acotado a UPC-E reutiliza sus primitivas, valida checksum expandido y devuelve el código compacto. Sin dependencias nuevas, cambios de inventario, esquema, autenticación ni lógica de ventas/cobros/caja. El componente compartido existente sigue siendo usado por POS; se amplía la regresión del frontend sin cambiar esa página.
+- **Evidencia en curso:** 81/81 backend de inventario; imágenes sintéticas y ciclo de cámara aprobados. Cierre de pruebas frontend y PR en [ESCANER_IPHONE_20261018.md](ESCANER_IPHONE_20261018.md). WebKit no descargable (proxy 403); **sin iPhone físico ni PWA iOS instalada**, por lo que LEV-015 sigue pendiente.
+- **Publicación:** rama excluida de previews Vercel antes del push. No hay autorización de merge ni despliegue.
+- **Bitácora:** lectura de AGENTS/contexto y estado Git/PR; reproducción roja; corrección conservando biblioteca y reglas; pruebas de lector real en memoria, APIs simuladas, canvas de navegador y regresión de inventario; informe con protocolo de aceptación física. Resultados definitivos y vínculo PR se actualizan al cierre.
 
 ## Rediseño de navegación Jowa — fase 1 (2026-10-17, rama `claude/gifted-dirac-fqc2u5`, sin PR, merge ni despliegue)
 

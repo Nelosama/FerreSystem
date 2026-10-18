@@ -86,6 +86,7 @@ const InventarioContent: React.FC = () => {
   // Form State
   const [formCodigo, setFormCodigo] = useState('');
   const [formBarcode,setFormBarcode]=useState('');
+  const barcodeInput = useRef<HTMLInputElement>(null);
   const [formFabricante,setFormFabricante]=useState('');
   const [formMarca,setFormMarca]=useState('');
   const [formNombre, setFormNombre] = useState('');
@@ -357,8 +358,8 @@ const InventarioContent: React.FC = () => {
                 {duplicadosPosibles.length > 0 && <p role="status" className="operation-note">Ya existe un producto con este nombre ({duplicadosPosibles.map(p => p.codigo).join(', ')}). Revise antes de guardar para evitar duplicados; si es una variante, puede continuar.</p>}
                 <p>{t('inventory_create.variant_help')}</p>
                 <label className="form-label" htmlFor="create-barcode">{t('product_edit.field.codigoBarras')}</label>
-                <input id="create-barcode" className="form-input" maxLength={100} value={formBarcode} onChange={e => setFormBarcode(e.target.value)} />
-                <details><summary>{t('inventory_create.scan')}</summary><BarcodeScanner disabled={saving || !!pendingProduct} onCode={setFormBarcode}/></details>
+                <input ref={barcodeInput} id="create-barcode" className="form-input" maxLength={100} value={formBarcode} onChange={e => setFormBarcode(e.target.value)} />
+                <details><summary>{t('inventory_create.scan')}</summary><BarcodeScanner onManual={() => barcodeInput.current?.focus()} disabled={saving || !!pendingProduct} onCode={setFormBarcode}/></details>
                 <div style={styles.formRow}>
                   <label className="form-group" style={{ flex: '1 1 140px', minWidth: 0 }}>{t('inventory.category')}
                     <select className="form-select" value={formCategoria} onChange={e => setFormCategoria(e.target.value)}>

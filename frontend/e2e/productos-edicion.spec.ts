@@ -1,3 +1,4 @@
+import { installScannerCamera } from './scanner-camera.fixture';
 import { expect, test as base, type Page, type Route } from '@playwright/test';
 
 // Edición de productos (FS-07). Todas las llamadas API se interceptan con un servidor simulado
@@ -354,4 +355,24 @@ test.describe('Inventario para entrega al cliente / API simulada', () => {
     await dialog.locator('summary').first().click();
     await expect(dialog.getByRole('button', { name: 'Scan barcode with camera' })).toBeVisible();
   });
+});
+
+// Synthetic media: collapsing <details> must release the camera even without unmount.
+test('cámara: plegar escáner o cerrar formulario libera pistas, sin alta automática', async ({ page, sim }) => {
+  await installScannerCamera(page); await ingresarAInventario(page);
+  await page.getByRole('button', { name: 'NUEVO PRODUCTO', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const details = dialog.locator('details').filter({ has: page.locator('.barcode-scanner') });
+  await dialog.locator('summary').first().click();
+  await dialog.getByRole('button', { name: 'Leer código con cámara' }).click();
+  await expect(dialog.getByText('Apunte al código y mantenga el teléfono estable.')).toBeVisible();
+  await details.locator('summary').click();
+  await expect.poll(() => page.evaluate(() => (window as any).scannerCamera.stops)).toBe(1);
+  await expect(dialog.locator('video')).toHaveCount(0);
+  await details.locator('summary').click();
+  await dialog.getByRole('button', { name: 'Leer código con cámara' }).click();
+  await expect(dialog.getByText('Apunte al código y mantenga el teléfono estable.')).toBeVisible();
+  await dialog.getByRole('button', { name: 'CANCELAR', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).scannerCamera.stops)).toBe(2);
+  expect(sim.posts).toHaveLength(0);
 });

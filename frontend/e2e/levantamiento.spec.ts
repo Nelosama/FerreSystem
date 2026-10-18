@@ -1,3 +1,4 @@
+import { installScannerCamera } from './scanner-camera.fixture';
 import { expect, test as base, type Page, type Route } from '@playwright/test';
 
 // Recorrido del levantamiento de inventario (FS-06 fase 2).
@@ -303,4 +304,120 @@ test.describe('Levantamiento en teléfono', () => {
     await expect(page.getByRole('status').filter({ hasText: 'Guardado: Clavo 2 pulgadas · 10 UNIDAD' })).toBeVisible();
     expect(sim.levantamientos[0].items[0].imagenUrl).toBeUndefined();
   });
+});
+
+// Camera APIs are simulated. These cases do not establish Safari/iPhone acceptance.
+async function cameraState(page: Page) {
+  return page.evaluate(() => {
+    const s = (window as any).scannerCamera;
+    return { requests: s.requests, stops: s.stops, detections: s.detections, constraints: s.constraints };
+  });
+}
+const scannerStart = (page: Page) => page.getByRole('button', { name: 'Leer código con cámara', exact: true });
+const scannerStop = (page: Page) => page.getByRole('button', { name: 'Detener escáner', exact: true });
+
+test('cámara: aperturas repetidas, cierre manual y alternativa enfocada sin alterar inventario', async ({ page, sim }) => {
+  await installScannerCamera(page); await page.setViewportSize({ width: 390, height: 844 });
+  await ingresar(page); await crearLevantamiento(page);
+  for (let i = 0; i < 3; i++) {
+    await scannerStart(page).click();
+    await expect(page.getByText('Apunte al código y mantenga el teléfono estable.')).toBeVisible();
+    await expect(page.locator('video')).toHaveJSProperty('playsInline', true);
+    await expect(page.locator('video')).toHaveJSProperty('muted', true);
+    if (i === 0) {
+      const bounds = await page.locator('video').boundingBox();
+      expect(bounds!.width).toBeGreaterThan(250); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+      await page.locator('.barcode-scanner').screenshot({ path: 'test-results/scanner-390.png' });
+    }
+    await scannerStop(page).click();
+    await expect(page.locator('video')).toHaveCount(0);
+  }
+  await scannerStart(page).click();
+  await page.getByRole('button', { name: 'Introducir código manualmente' }).click();
+  await expect(page.getByLabel('Buscar por código, descripción o categoría')).toBeFocused();
+  await expect(page.locator('video')).toHaveCount(0);
+  const state = await cameraState(page);
+  expect(state.requests).toBe(4); expect(state.stops).toBe(4);
+  expect(state.constraints[0]).toMatchObject({ audio: false, video: { facingMode: { ideal: 'environment' } } });
+  expect(sim.postsItem).toEqual([]); expect(sim.aplicarTokens).toEqual([]);
+});
+
+test('cámara: lecturas consecutivas, desconocido y sin duplicados ni guardado automático', async ({ page, sim }) => {
+  await installScannerCamera(page); await ingresar(page); await crearLevantamiento(page);
+  const searches: string[] = [];
+  await page.route('**/api/productos?**', async route => {
+    const code = new URL(route.request().url()).searchParams.get('search')!;
+    searches.push(code);
+    await route.fulfill({ json: code === 'UNKNOWN-128' ? [] : [{ id: code, codigo: code, codigoBarras: code, nombre: `Producto ${code}`, unidadMedida: 'UNIDAD', stockActual: 7 }] });
+  });
+  for (const code of ['5901234123457', '96385074', 'UNKNOWN-128']) {
+    await page.evaluate(code => { (window as any).scannerCamera.code = code; }, code);
+    await scannerStart(page).click();
+    await expect(page.getByText(`Código leído: ${code}`, { exact: true })).toBeVisible();
+    await expect(page.locator('video')).toHaveCount(0);
+    if (code === 'UNKNOWN-128') await expect(page.getByText(/Código de barras no registrado/)).toBeVisible();
+    else await expect(page.getByText(`Producto ${code}`, { exact: true })).toBeVisible();
+    await expect(scannerStart(page)).toBeEnabled();
+  }
+  expect(searches).toEqual(['5901234123457', '96385074', 'UNKNOWN-128']);
+  expect((await cameraState(page)).stops).toBe(3);
+  expect(sim.postsItem).toEqual([]); expect(sim.aplicarTokens).toEqual([]);
+  await expect(page).toHaveURL(/levantamiento/);
+});
+
+test('cámara: permiso denegado conserva sesión y búsqueda manual', async ({ page, sim }) => {
+  await installScannerCamera(page); await ingresar(page); await crearLevantamiento(page);
+  await page.evaluate(() => { (window as any).scannerCamera.denied = true; });
+  await scannerStart(page).click();
+  await expect(page.getByRole('alert')).toContainText('Permiso de cámara denegado');
+  expect((await cameraState(page)).requests).toBe(1);
+  await page.getByRole('button', { name: 'Introducir código manualmente' }).click();
+  await page.getByLabel('Buscar por código, descripción o categoría').fill('MANUAL-1');
+  await page.getByRole('button', { name: 'Buscar producto', exact: true }).click();
+  await expect(page.getByText('Producto no encontrado. Revise el código o nombre e intente de nuevo.')).toBeVisible();
+  expect(sim.postsItem).toEqual([]); await expect(page).toHaveURL(/levantamiento/);
+});
+
+test('cámara: pista interrumpida, segundo plano, BFCache y navegación liberan recursos', async ({ page, sim }) => {
+  await installScannerCamera(page); await ingresar(page); await crearLevantamiento(page);
+  await scannerStart(page).click(); await expect(page.getByText('Apunte al código y mantenga el teléfono estable.')).toBeVisible();
+  await page.evaluate(() => { (window as any).scannerCamera.endTrack(); });
+  await expect(page.getByRole('alert')).toContainText('Se interrumpió la cámara');
+  await scannerStart(page).click(); await expect(page.locator('video')).toBeVisible();
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(page.locator('video')).toHaveCount(0); expect((await cameraState(page)).requests).toBe(2);
+  await scannerStart(page).click(); await expect(page.locator('video')).toBeVisible();
+  await page.evaluate(() => { window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })); window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); });
+  await expect(page.locator('video')).toHaveCount(0); expect((await cameraState(page)).requests).toBe(3);
+  await scannerStart(page).click(); await expect(page.getByText('Apunte al código y mantenga el teléfono estable.')).toBeVisible();
+  await page.locator('a[href="/"]').first().click();
+  await expect(page.locator('video')).toHaveCount(0);
+  await expect.poll(async () => (await cameraState(page)).stops).toBe(4);
+  expect(sim.postsItem).toEqual([]); expect(sim.aplicarTokens).toEqual([]);
+});
+
+test('cámara: cerrar y reabrir mientras espera permiso no repite getUserMedia', async ({ page }) => {
+  await installScannerCamera(page); await ingresar(page); await crearLevantamiento(page);
+  await page.evaluate(() => { (window as any).scannerCamera.pending = true; });
+  await scannerStart(page).click(); await scannerStop(page).click(); await scannerStart(page).click();
+  expect((await cameraState(page)).requests).toBe(1);
+  await page.evaluate(() => { (window as any).scannerCamera.resolveCamera(); });
+  await expect(page.getByText('Apunte al código y mantenga el teléfono estable.')).toBeVisible();
+  expect((await cameraState(page)).stops).toBe(0);
+  await page.keyboard.press('Escape'); await expect(page.locator('video')).toHaveCount(0);
+  expect((await cameraState(page)).stops).toBe(1);
+});
+
+test('cámara: sin BarcodeDetector carga ZXing y lee EAN-13 con canvas real', async ({ page, sim }) => {
+  await installScannerCamera(page, true); await ingresar(page); await crearLevantamiento(page);
+  await scannerStart(page).click();
+  await expect(page.getByText('Código leído: 5901234123457', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Código de barras no registrado/)).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(0);
+  expect((await cameraState(page)).stops).toBe(1); expect(sim.postsItem).toEqual([]);
 });
