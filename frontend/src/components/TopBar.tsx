@@ -7,6 +7,7 @@ import { useI18n } from '../context/I18nContext';
 import { useSucursales } from '../hooks/useSucursales';
 import { useNavigate } from 'react-router-dom';
 import { formatLempiras } from '../utils/format';
+import { useEstadoCaja } from '../hooks/useEstadoCaja';
 
 interface TopBarProps {
   title: string;
@@ -23,6 +24,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   const { solicitudes, notificacionesTransferencia, responderSolicitud } = useNotification();
   const { locale, setLocale, t } = useI18n();
   const navigate = useNavigate();
+  const estadoCaja = useEstadoCaja();
 
   const [panelNotificaciones, setPanelNotificaciones] = React.useState(false);
   const sucursalesDisponibles = useSucursales();
@@ -63,7 +65,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <header className="v2-topbar" style={styles.header}>
+    <header className="app-topbar" style={styles.header}>
       {/* Banner de Modo Soporte Técnico (Impersonación de Super Admin) */}
       {isImpersonating && (
         <div style={styles.supportBanner}>
@@ -147,7 +149,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
       )}
 
-      <div className="v2-topbar-title" style={styles.titleContainer}>{tenant.templateVersion === 'v2' ? <TenantBrand /> : <span className="mobile-brand-only"><TenantBrand /></span>}
+      <div className="app-topbar-title" style={styles.titleContainer}><span className="mobile-brand-only"><TenantBrand /></span>
         <div style={styles.headingWrapper}>
           <h1 style={styles.mainTitle}>{title}</h1>
           <div style={styles.accentUnderline} />
@@ -166,7 +168,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 value={tenant.sucursal || 'Sucursal Principal'}
                 disabled={sucursalesDisponibles.length < 2}
                 onChange={(e) => switchSucursal(e.target.value, tenant.id)}
-                className="v2-branch-select" style={styles.sucursalSelect}
+                className="app-branch-select" style={styles.sucursalSelect}
                 aria-label={t('topbar.select_branch')}
               >
                 {sucursalesDisponibles.map((s: any) => (
@@ -296,8 +298,14 @@ export const TopBar: React.FC<TopBarProps> = ({
         {user?.rol === 'SUPERADMIN' && <div aria-label="Idioma de la plataforma" className="topbar-desktop-only" style={{ display: 'flex', gap: 4 }}>
           {(['es', 'en'] as const).map(lang => <button key={lang} type="button" aria-pressed={locale === lang} onClick={() => setLocale(lang)} className="btn btn-secondary btn-sm">{lang.toUpperCase()}</button>)}
         </div>}
+        {estadoCaja && (
+          <span className={`app-caja-estado app-caja-estado--${estadoCaja.estado}`} aria-live="polite">
+            <span className="app-caja-punto" aria-hidden="true" />
+            {t(`topbar.caja_${estadoCaja.estado}`)}
+          </span>
+        )}
         {/* Badge de Fecha Oficial */}
-        <div className="v2-date-badge" style={styles.dateBadge}>
+        <div className="app-date-badge" style={styles.dateBadge}>
           <Calendar size={15} strokeWidth={2.5} />
           <span>{getDynamicDate()}</span>
         </div>
@@ -305,7 +313,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Info Cajero/Admin y Botón de Cerrar Sesión */}
         {user && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '100%' }}>
-            <div className="v2-user-badge" style={{ ...styles.userBadge, minWidth: 0, maxWidth: '100%' }}>
+            <div className="app-user-badge" style={{ ...styles.userBadge, minWidth: 0, maxWidth: '100%' }}>
               <UserCheck size={14} strokeWidth={2.4} color="var(--color-primary)" />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.nombre}</span>
             </div>
@@ -333,7 +341,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     padding: '24px 32px 18px',
     backgroundColor: 'var(--color-bg)',
-    borderBottom: '2px solid var(--color-border)',
+    borderBottom: '1px solid var(--color-border)',
     flexWrap: 'wrap',
     gap: '16px',
     position: 'relative',
@@ -410,17 +418,14 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '8px',
-    backgroundColor: 'var(--color-sidebar-bg)',
-    color: 'var(--color-bg)',
-    fontFamily: 'var(--font-display)',
-    fontWeight: 800,
-    fontSize: '12px',
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-    padding: '10px 14px',
-    border: '2px solid var(--color-border)',
-    borderRadius: 'var(--radius-xs)',
-    boxShadow: '2px 2px 0px var(--color-border)',
+    backgroundColor: 'var(--color-surface)',
+    color: 'var(--color-text-main)',
+    fontFamily: 'var(--font-body)',
+    fontWeight: 600,
+    fontSize: '12.5px',
+    padding: '9px 14px',
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-sm)',
   },
   userBadge: {
     display: 'inline-flex',

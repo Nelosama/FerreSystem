@@ -7,10 +7,10 @@ const context = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/utils/tenantSettings.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, context);
 const { normalizeTenantSettings: normalize, TenantSettingsReads } = context.exports;
 test('configuracion vacía reconstruye defaults sin heredar la caché; conserva solo sucursal', () => {
-  const cached = { id: 'A', sucursal: 'Norte', templateVersion: 'v2', v2Mode: 'dark', fuenteTitulos: 'Poppins', moneda: { codigo: 'USD' }, impuesto: { tasa: 0 }, direccion: 'Antigua', modoNavegacion: 'TOPNAV', modulosHabilitados: ['pos'] };
+  const cached = { id: 'A', sucursal: 'Norte', templateVersion: 'v2', v2Mode: 'dark', fuenteTitulos: 'Poppins', estiloUI: 'MODERNO', moneda: { codigo: 'USD' }, impuesto: { tasa: 0 }, direccion: 'Antigua', modoNavegacion: 'TOPNAV', modulosHabilitados: ['pos'] };
   const current = normalize({ id: 'A', configuracion: {}, modulosHabilitados: [] }, cached);
-  assert.equal(current.templateVersion, 'v1'); assert.equal(current.v2Mode, 'light');
-  assert.equal(current.fuenteTitulos, 'Archivo'); assert.equal(current.moneda.codigo, 'HNL');
+  assert.equal(current.templateVersion, undefined); assert.equal(current.v2Mode, undefined);
+  assert.equal(current.fuenteTitulos, undefined); assert.equal(current.estiloUI, undefined); assert.equal(current.moneda.codigo, 'HNL');
   assert.equal(current.impuesto.tasa, 15); assert.equal(current.direccion, '');
   assert.equal(current.modoNavegacion, 'SIDEBAR'); assert.equal(current.modulosHabilitados.length, 0);
   assert.equal(current.sucursal, 'Norte');

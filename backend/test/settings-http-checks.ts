@@ -32,9 +32,9 @@ export async function checkSettingsHttp(prisma: PrismaService, base: string) {
   const cashier = await login(users[2]);
   const sa = await login(superadmin, true);
   const token = adminA.accessToken;
-  expect(await settings(token)).toMatchObject({ configuracion: {}, templateVersion: 'v1', v2Mode: 'light' });
+  expect(await settings(token)).toMatchObject({ configuracion: {},  });
   const bBefore = await settings(adminB.accessToken);
-  const saved = { nombreComercial: 'Marca persistida', direccion: 'Calle sintética', telefono: '99990000', email: 'marca@example.test', colorPrimario: '#123456', modoNavegacion: 'TOPNAV', configuracion: { templateVersion: 'v2', v2Mode: 'dark', estiloUI: 'MODERNO', fuenteTitulos: 'Poppins', fuenteCuerpo: 'Inter' } };
+  const saved = { nombreComercial: 'Marca persistida', direccion: 'Calle sintética', telefono: '99990000', email: 'marca@example.test', colorPrimario: '#123456', modoNavegacion: 'TOPNAV', configuracion: { formatoImpresion: 'ROLLO_80MM' } };
   // ADMIN no puede cambiar la configuración del negocio: 403 en el backend.
   expect((await call('/tenant/settings', token, 'PUT', saved)).status).toBe(403);
   // El SUPERADMIN configura el negocio seleccionado por su identificador.
@@ -59,8 +59,8 @@ export async function checkSettingsHttp(prisma: PrismaService, base: string) {
   const cleared = { direccion: '', telefono: '', email: '', configuracion: {} };
   expect((await call(`/admin/tenants/${a.id}/settings`, sa.accessToken, 'PUT', cleared)).status).toBe(200);
   expect(await prisma.tenant.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject(cleared);
-  expect(await settings(token)).toMatchObject({ ...cleared, templateVersion: 'v1', v2Mode: 'light' });
-  expect((await login(users[0])).tenant).toMatchObject({ logoUrl: null, direccion: '', telefono: '', email: '', templateVersion: 'v1', v2Mode: 'light' });
+  expect(await settings(token)).toMatchObject({ ...cleared,  });
+  expect((await login(users[0])).tenant).toMatchObject({ logoUrl: null, direccion: '', telefono: '', email: '',  });
   expect(await settings(adminB.accessToken)).toEqual(bBefore);
 
   for (const enabled of [false, true]) {

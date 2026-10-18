@@ -2,6 +2,7 @@ import { calcularVentaPOS } from '../utils/posMoney';
 import { buscarPorCodigo, filtrarCatalogo, indexarCatalogo } from '../utils/posCatalogo';
 import { Link } from 'react-router-dom';
 import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
+import { useEstadoCaja } from '../hooks/useEstadoCaja';
 import './POSPage.css';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -59,6 +60,11 @@ const mapearProductoPOS = (p: any): ProductItem => ({
   stockBajo: p.stockBajo ?? (Number(p.stockActual) <= Number(p.stockMinimo)),
 });
 
+/** Encabezado de paso del ticket: «1 · Cliente», «2 · Productos», «3 · Pago y entrega». Solo presentación. */
+function PasoTicket({ numero, titulo, derecha }: { numero: number; titulo: string; derecha?: string }) {
+  return <div className="pos-paso" aria-hidden="true"><span><b>{numero}</b> · {titulo}</span>{derecha && <small>{derecha}</small>}</div>;
+}
+
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
   const puedeEntregar = user?.rol === 'ADMIN' || user?.rol === 'BODEGUERO';
@@ -104,15 +110,10 @@ export const POSPage: React.FC = () => {
     immediate: false,
     deps: [tenant.id, user?.id],
   });
-  // Estado real de la caja: si no se puede comprobar (red o servidor) NO se afirma que esté cerrada.
-  const [cajaEstado,setCajaEstado]=useState<'abierta'|'cerrada'|'desconocida'>('desconocida');
-  const syncCaja=useAutoRefresh<any[]>({
-    load:signal=>api.get('/operaciones/caja',{signal}).then(r=>r.data),
-    apply:datos=>setCajaEstado(datos.some((c:any)=>c.estado==='ABIERTA')?'abierta':'cerrada'),
-    intervalMs:30_000,
-    deps:[tenant.id,user?.id],
-  }).sync;
-  const estadoCajaVisible=syncCaja.phase==='error'||syncCaja.phase==='offline'?'desconocida':cajaEstado;
+  // Estado real de la caja compartido con la barra superior: si no se puede comprobar, NO se afirma que esté cerrada.
+  const caja = useEstadoCaja();
+  const estadoCajaVisible = !caja || caja.estado === 'sin_verificar' ? 'desconocida' : caja.estado;
+  const syncCaja = { phase: caja?.fase ?? 'loading' };
   useEffect(()=>{let alive=true;setProviders([]);api.get('/operaciones/proveedores').then(r=>{if(alive)setProviders(r.data);}).catch(()=>{});return()=>{alive=false;};},[tenant.id,user?.id]);
   const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA'>(initialSale?.metodoPago || 'EFECTIVO');
   const [autorizacionBancaria, setAutorizacionBancaria] = useState({ referencia: '', terminal: '' });
@@ -544,6 +545,8 @@ export const POSPage: React.FC = () => {
               <span className="badge badge-dark">{t('operational.items')} {cart.length}</span>
             </div>
 
+            {/* Paso 1 · Cliente */}
+            <PasoTicket numero={1} titulo={t('shell.pos.step_client')} />
             {/* Selector de Cliente */}
             <div style={styles.clientSection}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -586,6 +589,8 @@ export const POSPage: React.FC = () => {
             {!edicionBloqueada&&!clienteId&&<ClientePicker onSelect={(c:ClienteSeleccionable)=>{setClienteId(c.id);setClienteNombre(c.nombre);setClienteRtn(c.rtn||'');}}/>}
             {clienteId&&<p style={{ fontSize: '11px', color: '#15803D', fontWeight: 700, marginTop: '4px' }}>✓ Cliente registrado seleccionado.</p>}
             {metodoPago==='CREDITO'&&<label>Vencimiento del crédito<input className="form-input" type="date" value={vencimiento} disabled={edicionBloqueada} onChange={e=>setVencimiento(e.target.value)}/></label>}
+            {/* Paso 2 · Productos */}
+            <PasoTicket numero={2} titulo={t('shell.pos.step_products')} derecha={cart.length === 1 ? t('shell.pos.line_one', { count: cart.length }) : t('shell.pos.line_other', { count: cart.length })} />
             {/* Lista de ítems en carrito */}
             <div style={styles.cartItemsList}>
               {cart.length === 0 ? (
@@ -695,6 +700,8 @@ export const POSPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Paso 3 · Pago y entrega */}
+            <PasoTicket numero={3} titulo={t('shell.pos.step_payment')} />
             {/* Método de Pago */}
             <div style={styles.paymentMethods}>{(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'] as const).map(m=><button key={m} type="button" disabled={edicionBloqueada} onClick={()=>setMetodoPago(m)} style={{...styles.payBtn,...(metodoPago===m?styles.payBtnActive:{})}}>{m}</button>)}</div>
 

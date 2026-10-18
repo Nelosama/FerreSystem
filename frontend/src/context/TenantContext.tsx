@@ -31,7 +31,6 @@ const DEFAULT_TENANT: TenantInfo = {
   sucursal: 'Sucursal Principal',
   colorPrimario: '#EA580C',
   logoUrl: null,
-  templateVersion: 'v1',
 };
 
 
@@ -128,63 +127,15 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => { active = false; window.removeEventListener('focus', refresh); };
   }, [user?.id, tenant.id, authStatus]);
 
-  // Aplicar exclusivamente la configuración activa a las variables CSS
+  // Diseño único de Jowa System: solo el color de marca cambia por negocio; tipografía y estilo son fijos.
   useEffect(() => {
     const root = document.documentElement;
-    const templateVersion = tenant.templateVersion === 'v2' || tenant.templateVersion === 'v3' ? tenant.templateVersion : 'v1';
-    const v2Mode = tenant.v2Mode === 'dark' || tenant.v2Mode === 'hybrid' ? tenant.v2Mode : 'light';
-    root.dataset.template = templateVersion;
-    root.classList.remove('v2-mode-light', 'v2-mode-dark', 'v2-mode-hybrid');
-    if (templateVersion === 'v2') root.classList.add(`v2-mode-${v2Mode}`);
-    let color = tenant.colorPrimario || '#EA580C';
-    let estiloUI = tenant.estiloUI || 'INDUSTRIAL';
-    let fuenteTitulos = tenant.fuenteTitulos || 'Archivo';
-    let fuenteCuerpo = tenant.fuenteCuerpo || 'Inter';
-
+    const color = tenant.colorPrimario || '#EA580C';
     root.style.setProperty('--color-primary', color);
     root.style.setProperty('--color-primary-hover', adjustColorBrightness(color, -15));
     root.style.setProperty('--color-primary-active', adjustColorBrightness(color, -30));
     root.style.setProperty('--color-primary-light', `${color}1F`);
-
-    // Estilo de interfaz (INDUSTRIAL, MINIMALISTA, MODERNO)
-    if (estiloUI === 'MINIMALISTA') {
-      root.style.setProperty('--color-sidebar-bg', '#FFFFFF');
-      root.style.setProperty('--color-sidebar-text', '#1C1917');
-      root.style.setProperty('--color-sidebar-active-bg', color);
-      root.style.setProperty('--radius-sm', '6px');
-      root.style.setProperty('--radius-md', '10px');
-      root.style.setProperty('--shadow-hard', '0 2px 8px rgba(0,0,0,0.08)');
-      root.style.setProperty('--shadow-hard-sm', '0 1px 3px rgba(0,0,0,0.1)');
-      root.style.setProperty('--shadow-hard-primary', `0 2px 8px ${color}33`);
-    } else if (estiloUI === 'MODERNO') {
-      root.style.setProperty('--color-sidebar-bg', color);
-      root.style.setProperty('--color-sidebar-text', '#FFFFFF');
-      root.style.setProperty('--color-sidebar-active-bg', adjustColorBrightness(color, -20));
-      root.style.setProperty('--radius-sm', '8px');
-      root.style.setProperty('--radius-md', '12px');
-      root.style.setProperty('--shadow-hard', '0 4px 14px rgba(0,0,0,0.12)');
-      root.style.setProperty('--shadow-hard-sm', '0 2px 6px rgba(0,0,0,0.1)');
-      root.style.setProperty('--shadow-hard-primary', `0 4px 14px ${color}40`);
-    } else {
-      // INDUSTRIAL (Default)
-      root.style.setProperty('--color-sidebar-bg', '#1C1917');
-      root.style.setProperty('--color-sidebar-text', '#D6D3D1');
-      root.style.setProperty('--color-sidebar-active-bg', color);
-      root.style.setProperty('--radius-sm', '3px');
-      root.style.setProperty('--radius-md', '4px');
-      root.style.setProperty('--shadow-hard', '3px 3px 0px #1C1917');
-      root.style.setProperty('--shadow-hard-sm', '2px 2px 0px #1C1917');
-      root.style.setProperty('--shadow-hard-primary', `3px 3px 0px ${color}`);
-    }
-
-    // Tipografías
-    root.style.setProperty('--font-display', `'${fuenteTitulos}', sans-serif`);
-    root.style.setProperty('--font-body', `'${fuenteCuerpo}', sans-serif`);
-    return () => {
-      delete root.dataset.template;
-      root.classList.remove('v2-mode-light', 'v2-mode-dark', 'v2-mode-hybrid');
-    };
-  }, [user?.id, tenant.id, tenant.nombreComercial, tenant.colorPrimario, tenant.estiloUI, tenant.fuenteTitulos, tenant.fuenteCuerpo, tenant.templateVersion, tenant.v2Mode]);
+  }, [user?.id, tenant.id, tenant.colorPrimario]);
 
   const updateBranding = (colorPrimario: string, nombreComercial: string) => {
     configRevision.current++;

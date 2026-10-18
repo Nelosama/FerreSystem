@@ -48,7 +48,7 @@ const test = base.extend<{ sim: Sim; rol: 'ADMIN' | 'CAJERO' }>({
       if (method === 'GET' && path === '/tenant/settings') return responder(route, 200, tenant);
       if (method === 'GET' && path === '/auth/me') return responder(route, 200, { user: { sub: usuario.id, tenantId: tenant.id, rol: usuario.rol, permisos: [], descuentoMaximo: 0 } });
       if (method === 'POST' && path === '/auth/login') return responder(route, 200, { type: 'tenant', accessToken: 'garantias-e2e-token', user: usuario, tenant });
-      const vacias: Record<string, unknown> = { '/dashboard': { ventasDelDia: { total: 0 }, alertasStock: { items: [] }, cotizacionesPendientes: { cantidad: 0 } }, '/maintenance/backup': { configured: false } };
+      const vacias: Record<string, unknown> = { '/dashboard': { ventasDelDia: { total: 0 }, alertasStock: { items: [] }, cotizacionesPendientes: { cantidad: 0 } }, '/maintenance/backup': { configured: false }, '/operaciones/caja': [] };
       if (method === 'GET' && path in vacias) return responder(route, 200, vacias[path]);
       if (method === 'GET' && path.startsWith('/garantias/facturas/')) {
         const n = path.split('/').pop()!;

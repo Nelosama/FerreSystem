@@ -73,12 +73,12 @@ test.describe.serial('Logotipo por negocio (backend real)', () => {
 
     await ingresar(page, 'admin.a@e2e.invalid');
     const mobile = (page.viewportSize()?.width || 1280) <= 768;
-    await expect(page.locator(mobile ? '.v2-tenant-brand' : 'aside.desktop-sidebar-nav').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
+    await expect(page.locator(mobile ? '.app-tenant-brand' : 'aside.desktop-sidebar-nav').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
 
     const topo = await api.put(`admin/tenants/${NEGOCIO_A}/settings`, { headers: { Authorization: `Bearer ${sa}` }, data: { modoNavegacion: 'TOPNAV' } });
     expect(topo.status()).toBe(200);
     await page.reload();
-    await expect(page.locator(mobile ? '.v2-tenant-brand' : 'header.desktop-sidebar-nav').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
+    await expect(page.locator(mobile ? '.app-tenant-brand' : 'header.desktop-sidebar-nav').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
     await expect(page.locator('aside.desktop-sidebar-nav')).toHaveCount(0);
 
     // La marca del negocio enlaza a Inicio; Jowa System es el proveedor y también enlaza a Inicio.

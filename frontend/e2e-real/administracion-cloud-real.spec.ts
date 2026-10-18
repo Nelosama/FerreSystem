@@ -35,9 +35,12 @@ test('visita inicial y aviso antiguo no muestran sesión expirada; logout tampoc
 
 test('Super Admin gestiona sucursales con persistencia y desactivación real', async ({ page }) => {
   await entrar(page);
-  await expect(page.getByRole('navigation', { name: 'Administración de plataforma' }).getByRole('button')).toHaveText(['Clientes y usuarios administradores', 'Catálogo de servicios', 'Soporte', 'Auditoría', 'Mantenimiento']);
+  // Modo lateral: las secciones de plataforma están en el menú lateral y no se repiten como pestañas.
+  await expect(page.getByRole('navigation', { name: 'Menú de plataforma' }).getByRole('link')).toHaveText(['Negocios', 'Usuarios administradores', 'Catálogo de servicios', 'Soporte remoto', 'Auditoría', 'Mantenimiento y respaldos']);
+  await expect(page.getByRole('navigation', { name: 'Administración de plataforma' })).toHaveCount(0);
   await page.goto(`/admin/negocios/${A}`);
-  await expect(page.getByRole('navigation', { name: 'Administración del negocio' }).getByRole('link')).toHaveText(['Resumen','Servicios','Usuarios','Marca y navegación','Configuración','Auditoría']);
+  await expect(page.getByRole('list', { name: 'Administración del negocio' }).getByRole('link')).toHaveText(['Resumen y sucursales','Servicios','Usuarios','Marca y navegación','Configuración','Auditoría']);
+  await expect(page.getByRole('navigation', { name: 'Administración del negocio' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Sucursales del negocio' })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('negocio-resumen.png'), fullPage: true });
   await page.getByRole('button', { name: 'Crear sucursal' }).click();

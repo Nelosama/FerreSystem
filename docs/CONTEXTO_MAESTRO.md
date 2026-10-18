@@ -22,6 +22,18 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Diseño único de Jowa System — consolidación PR #177 (2026-10-18, rama `claude/gifted-dirac-fqc2u5`, sin merge ni despliegue)
+
+- **Decisión:** un solo diseño visual oficial (base V3: superficies claras, bordes suaves, tipografía fija Archivo/Inter). Solo color de marca por negocio. Única elección de distribución: SIDEBAR o TOPNAV.
+- **Eliminado:** plantillas V1/V2/V3 y su selector; modos oscuro/híbrido; estilos INDUSTRIAL/MINIMALISTA/MODERNO; selectores de tipografía; `data-template`; `v2-theme.css` y `v3-theme.css`; clases `v2-*` renombradas a `app-*`; claves de traducción huérfanas (plantilla, estilo, tipografía).
+- **Conservado:** logo, color de marca, idioma, formato de impresión, módulos habilitados, permisos y modo de navegación (`modoNavegacion` en columna propia; no se tocó el esquema de PostgreSQL).
+- **Compatibilidad:** `configuracion` guardada con claves visuales antiguas no falla al leer ni al escribir: las claves retiradas (`CLAVES_VISUALES_RETIRADAS`) se descartan en `tenant-configuration.ts` y no se vuelven a guardar. Sin migración de datos ni cambios de esquema.
+- **Caja (PR #177):** `CajaProvider` en `AppLayout`, una sola consulta a `/operaciones/caja` por pantalla compartida por la barra superior y el POS. Estado inicial «sin verificar»; «abierta» o «cerrada» solo tras respuesta válida; la lectura se descarta si cambia usuario, negocio o sucursal.
+- **i18n:** textos nuevos en `shell.*` y `topbar.caja_*` (ES/EN).
+- **Super Admin:** pestañas del negocio solo en TOPNAV (en SIDEBAR el menú de plataforma las muestra); pestañas superiores del panel solo en TOPNAV.
+- **Validación local:** backend 509/509 pruebas unitarias; frontend 380/380 unitarias; lint sin errores; build de frontend y `tsc` de backend sin errores; navegador 186/186 (incluye `diseno-unico.spec.ts`: configuración antigua, mismos módulos en ambos modos, caja, EN y secciones del Super Admin).
+- **Límites:** pruebas de integración con PostgreSQL y de persistencia en servidor no ejecutadas en este entorno; sin prueba en tablet ni dispositivo físico; Safari no probado.
+
 ## Escáner de cámara iPhone — 2026-10-18 UTC
 
 - **Base y rama única:** `main` `174cce19`; rama `codex/fix-camera-lifecycle-ios`. Árbol limpio al inicio; solo `main` remoto y ningún PR abierto. PR #76 ya integrado, revisado junto al historial posterior de inventario. Sin cambios en ramas ajenas.
@@ -61,7 +73,9 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
   - No ejecutados: PostgreSQL real, piloto `e2e-real`, dispositivo físico ni Safari.
 - **Páginas rediseñadas en la misma rama (2026-10-17):** Panel del Super Admin con lista de negocios que muestra logotipo, color, plan, servicios y estado (`SuperAdminPage.tsx`); Marca y navegación con vista previa del color (`NegocioDetallePage.tsx`); Inicio del administrador con «Pendientes de hoy» primero, acciones «Nueva cotización» y «Nueva venta», y solo tareas del rol con datos reales (`pages/admin/AdminHomePage.tsx`). Corregido el contraste de la pestaña activa del Super Admin en plantilla V3.
 - **Validación:** unitarias 380/380; navegador 63/63 en páginas afectadas (admin home, navegación, Super Admin, plantilla V2, móvil admin, entregas y conciliación). Suite completa previa 178/178.
-- **Pendiente (fase 2):** panel de venta del POS en pasos (Cliente → Productos → Pago y entrega) y barra superior con estado de caja. En el Super Admin, la barra de pestañas superior duplica el menú lateral; decidir si se retira en SIDEBAR. El sidebar de plataforma solo aplica a SIDEBAR; en TOPNAV el Super Admin conserva las pestañas del panel.
+- **Fase 2 (2026-10-18):** encabezados de paso en el ticket del POS (`PasoTicket` en `POSPage.tsx`, sin mover lógica); píldora de estado de caja en la barra superior para ADMIN, CAJERO y VENDEDOR (`hooks/useEstadoCaja.ts`, lee `/operaciones/caja`; «sin verificar» cuando no hay red, nunca «cerrada»); el Super Admin en modo lateral ya no repite las pestañas superiores (TOPNAV las conserva).
+- **Validación final:** unitarias 380/380; build y lint sin errores; navegador 181/181 (incluye 3 pruebas nuevas en `menu-jowa-v3.spec.ts`). Una corrida previa tuvo un fallo intermitente de cierre de sesión que no se reprodujo: 14/14 en aislado y la suite completa siguiente pasó.
+- **Límites:** no probado contra base de datos real, dispositivo físico ni Safari. Los datos de la captura del POS fueron de prueba. Sin PR, merge ni despliegue. El sidebar de plataforma solo aplica a SIDEBAR; en TOPNAV el Super Admin conserva las pestañas del panel.
 
 ## Correcciones operativas Jowa — 2026-10-16, America/Tegucigalpa
 

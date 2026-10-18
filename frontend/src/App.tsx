@@ -11,9 +11,8 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import PosContingenciaPage from './pages/PosContingenciaPage';
 import ContingenciaAdminPage from './pages/ContingenciaAdminPage';
 
+import { CajaProvider } from './hooks/useEstadoCaja';
 import './App.css';
-import './v2-theme.css';
-import './v3-theme.css';
 import { TaskFinder } from './components/TaskFinder';
 import { ModuloPendiente } from './components/ModuloPendiente';
 
@@ -154,6 +153,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, []);
 
   return (
+    <CajaProvider>
     <div className={isTopNav ? "app-container-topnav" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
       {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : <Sidebar />}
       <div
@@ -168,6 +168,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </div>
       <BottomNavigation />
     </div>
+    </CajaProvider>
   );
 };
 
