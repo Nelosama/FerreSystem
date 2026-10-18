@@ -10,7 +10,7 @@ const producto = { id: 'prod-1', codigo: 'TOR-1', nombre: 'Tornillo 2 pulgadas',
   libreCentesimas: 4000, cupoCentesimas: 2000, usaMedida: false, unidadMedida: 'UNIDAD' };
 const VIGENTE = new Date(Date.now() + 30 * 3_600_000).toISOString();
 
-type Sim = { formatoImpresion?: 'A4' | 'ROLLO_80MM' | 'ROLLO_58MM'; operacionesRecibidas: string[]; colgarPrimera: boolean; errores: string[]; sinRed: boolean; lotes: number[]; rechazarLotesDeVarias: boolean };
+type Sim = { retenerEnvio?: boolean; liberarEnvio?: () => void; formatoImpresion?: 'A4' | 'ROLLO_80MM' | 'ROLLO_58MM'; operacionesRecibidas: string[]; colgarPrimera: boolean; errores: string[]; sinRed: boolean; lotes: number[]; rechazarLotesDeVarias: boolean };
 // H-5: identificadores que el mock de la ventana emite, en orden.
 const EMITIDAS = Array.from({ length: 500 }, (_, i) => `00000000-0000-4000-8000-${(i + 1).toString(16).padStart(12, '0')}`);
 
@@ -52,6 +52,7 @@ const test = base.extend<{ sim: Sim }>({
         // H-5: como el servidor real, solo acepta una operación cuyo identificador es el emitido en la posición indiceOperacion.
         // Sin el índice (o con otro) la rechaza: así el equipo no puede ocultar que omite el campo.
         const emitida = (o: { operacionId: string; indiceOperacion?: number }) => typeof o.indiceOperacion === 'number' && EMITIDAS[o.indiceOperacion] === o.operacionId;
+        if (sim.retenerEnvio) await new Promise<void>(resolve => { sim.liberarEnvio = resolve; });
         return responder(route, 200, { resultados: cuerpo.operaciones.map((o) => emitida(o)
           ? { operacionId: o.operacionId, estado: 'APLICADA', numeroVenta: 7, correlativoDefinitivo: 'V-00000007', ventaId: o.operacionId, requiereRevision: false, conflictos: [] }
           : { operacionId: o.operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'OPERACION_NO_EMITIDA', mensaje: 'La operación no fue emitida por el servidor para esta ventana', requiereRevision: true, conflictos: [] }), serverNow: new Date().toISOString() });
@@ -256,11 +257,16 @@ test.describe('Impresión del comprobante de contingencia', () => {
   });
 
   test('una impresora que falla no revierte la venta, no permite cobrarla otra vez y deja atender al siguiente cliente', async ({ page, sim }) => {
+    sim.retenerEnvio = true;
     await preparaImpresion(page);
     await ingresarYAbrirPos(page);
     await venderUnTornillo(page);
     await page.evaluate(() => { (window as any).__fallarImpresion = true; });
     await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
+    await expect(page.getByRole('status').or(page.getByRole('alert')).filter({ hasText: 'No se pudo imprimir' })).toBeVisible();
+    await expect.poll(() => Boolean(sim.liberarEnvio)).toBe(true);
+    sim.retenerEnvio = false; sim.liberarEnvio!();
+    await expect(page.getByText('1 venta(s) enviadas y confirmadas por la oficina.')).toBeVisible();
     await expect(page.getByRole('status').or(page.getByRole('alert')).filter({ hasText: 'No se pudo imprimir' })).toBeVisible();
     await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0001' })).toBeVisible();
     expect((await diario(page)).map((o) => o.correlativoLocal)).toEqual(['CT-01-0001']);

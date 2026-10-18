@@ -58,6 +58,7 @@ export default function PosContingenciaPage() {
   const [guardando, setGuardando] = useState(false);
   const [confirmacion, setConfirmacion] = useState<OperacionLocal | null>(null);
   const [aImprimir, setAImprimir] = useState<OperacionLocal | null>(null);
+  const [avisoImpresion, setAvisoImpresion] = useState<string | null>(null);
   // Un rollo configurado por negocio gobierna página y ancho; en otro caso se conserva la preferencia por equipo.
   const [papel, setPapel] = useState<'A4' | '58' | '80'>(() => (tenant?.formatoImpresion === 'ROLLO_58MM' ? '58' : tenant?.formatoImpresion === 'ROLLO_80MM' ? '80' : leerPapel()));
   const formatoNegocio = tenant?.formatoImpresion;
@@ -282,10 +283,11 @@ export default function PosContingenciaPage() {
   // Imprime desde el registro local ya guardado. Una falla de impresión solo avisa: la venta no se revierte
   // y no se vuelve a cobrar. Reimprimir nunca crea una operación.
   const imprimir = (operacion: OperacionLocal) => {
+    setAvisoImpresion(null);
     setAImprimir(operacion);
     requestAnimationFrame(() => {
       try { window.print(); } catch {
-        setMensaje({ tipo: 'aviso', texto: `No se pudo imprimir. La venta ${operacion.correlativoLocal} sigue guardada en este equipo; reimprímala desde «Ventas guardadas en este equipo».` });
+        setAvisoImpresion(`No se pudo imprimir. La venta ${operacion.correlativoLocal} sigue guardada en este equipo; reimprímala desde «Ventas guardadas en este equipo».`);
       }
     });
   };
@@ -369,6 +371,8 @@ export default function PosContingenciaPage() {
       )}
       {bloqueo && <div className="pc-aviso error" role="alert">{bloqueo}</div>}
       {mensaje && <div className={`pc-aviso ${mensaje.tipo === 'error' ? 'error' : mensaje.tipo === 'ok' ? 'ok' : ''}`} role={mensaje.tipo === 'error' ? 'alert' : 'status'}>{mensaje.texto}</div>}
+
+      {avisoImpresion && <div className="pc-aviso" role="status">{avisoImpresion}</div>}
 
       <div className="pc-grid">
         <section className="pc-panel" aria-label="Buscar productos">
@@ -465,7 +469,7 @@ export default function PosContingenciaPage() {
               <div>Total {formatearCentavos(confirmacion.totalCentavos)} · Recibido {formatearCentavos(confirmacion.efectivoRecibidoCentavos)} · Cambio {formatearCentavos(confirmacion.cambioCentavos)}</div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <button className="pc-btn" onClick={() => imprimir(confirmacion)}>Imprimir comprobante</button>
-                <button className="pc-btn primario" style={{ fontSize: 16, minHeight: 44, width: 'auto' }} onClick={() => { setConfirmacion(null); setMensaje(null); }}>Siguiente cliente</button>
+                <button className="pc-btn primario" style={{ fontSize: 16, minHeight: 44, width: 'auto' }} onClick={() => { setConfirmacion(null); setMensaje(null); setAvisoImpresion(null); }}>Siguiente cliente</button>
               </div>
             </div>
           )}
