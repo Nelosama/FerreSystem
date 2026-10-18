@@ -60,7 +60,7 @@ export const BarcodeScanner: React.FC<{
         stopSession.current?.(); setOpen(false); setError(''); setSuccess(false); setStatus(t('scanner.manual_hint')); onManual?.();
       }}>{t('scanner.manual')}</button>}
     </div>
-    {open && cameras.length > 1 && <label>
+    {open && cameras.length > 1 && <label className="barcode-scanner__camera">
       {t('scanner.camera')}
       <select aria-label={t('scanner.camera')} value={deviceId || activeDeviceId} onChange={event => {
         stopSession.current?.(); setError(''); setSuccess(false); setStatus(t('scanner.starting')); setDeviceId(event.target.value);

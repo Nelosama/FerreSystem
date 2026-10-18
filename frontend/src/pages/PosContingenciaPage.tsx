@@ -27,9 +27,9 @@ const UMBRAL_RENOVAR_MS = 2 * 3_600_000;
 const LIMITE_LINEAS = 60;
 const CLAVE_PAPEL = 'pos-contingencia-papel';
 
-// Ancho de la impresora térmica por equipo (58 u 80 mm). Es una preferencia de pantalla, no un dato de la venta.
-function leerPapel(): '58' | '80' {
-  try { return localStorage.getItem(CLAVE_PAPEL) === '58' ? '58' : '80'; } catch { return '80'; }
+// Papel de la impresora por equipo (A4, 58 u 80 mm). Es una preferencia de pantalla, no un dato de la venta.
+function leerPapel(): 'A4' | '58' | '80' {
+  try { const value = localStorage.getItem(CLAVE_PAPEL); return value === 'A4' || value === '58' ? value : '80'; } catch { return '80'; }
 }
 
 type Linea = LineaLocal & { productoIdCatalogo?: string };
@@ -58,9 +58,11 @@ export default function PosContingenciaPage() {
   const [guardando, setGuardando] = useState(false);
   const [confirmacion, setConfirmacion] = useState<OperacionLocal | null>(null);
   const [aImprimir, setAImprimir] = useState<OperacionLocal | null>(null);
-  // La configuración del negocio gobierna página y ancho; sin configuración se conserva la preferencia local.
-  const [papel, setPapel] = useState<'58' | '80'>(() => (tenant?.formatoImpresion === 'ROLLO_58MM' ? '58' : tenant?.formatoImpresion === 'ROLLO_80MM' ? '80' : leerPapel()));
-  const formatoPapel = tenant?.formatoImpresion ?? (papel === '58' ? 'ROLLO_58MM' : 'ROLLO_80MM');
+  // Un rollo configurado por negocio gobierna página y ancho; en otro caso se conserva la preferencia por equipo.
+  const [papel, setPapel] = useState<'A4' | '58' | '80'>(() => (tenant?.formatoImpresion === 'ROLLO_58MM' ? '58' : tenant?.formatoImpresion === 'ROLLO_80MM' ? '80' : leerPapel()));
+  const formatoNegocio = tenant?.formatoImpresion;
+  const rolloConfigurado = formatoNegocio === 'ROLLO_58MM' || formatoNegocio === 'ROLLO_80MM';
+  const formatoPapel = rolloConfigurado ? formatoNegocio : papel === 'A4' ? 'A4' : papel === '58' ? 'ROLLO_58MM' : 'ROLLO_80MM';
   const papelComprobante = formatoPapel === 'A4' ? 'A4' : formatoPapel === 'ROLLO_58MM' ? '58' : '80';
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'ok' | 'aviso'; texto: string } | null>(null);
   const [ultimaSync, setUltimaSync] = useState<string | undefined>(undefined);
@@ -272,7 +274,7 @@ export default function PosContingenciaPage() {
     return null;
   };
 
-  const cambiarPapel = (valor: '58' | '80') => {
+  const cambiarPapel = (valor: 'A4' | '58' | '80') => {
     setPapel(valor);
     try { localStorage.setItem(CLAVE_PAPEL, valor); } catch { /* sin almacenamiento: la preferencia dura solo esta sesión */ }
   };
@@ -485,8 +487,8 @@ export default function PosContingenciaPage() {
         )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
           <label className="pc-papel">Papel de la impresora
-            <select value={papelComprobante} disabled={Boolean(tenant?.formatoImpresion)} onChange={(e) => cambiarPapel(e.target.value as '58' | '80')}>
-              {formatoPapel === 'A4' && <option value="A4">A4</option>}
+            <select value={papelComprobante} disabled={rolloConfigurado} onChange={(e) => cambiarPapel(e.target.value as 'A4' | '58' | '80')}>
+              <option value="A4">A4</option>
               <option value="80">80 mm</option>
               <option value="58">58 mm</option>
             </select>

@@ -354,17 +354,20 @@ test.describe('Contingencia POS — sin internet y existencias locales', () => {
 
 
 for (const [formato, papel] of [['A4', 'A4'], ['ROLLO_80MM', '80'], ['ROLLO_58MM', '58']] as const) {
-  test(`contingencia: ${formato} del negocio gobierna página y ancho pese a preferencia local`, async ({ page, sim }) => {
+  test(`contingencia: ${formato} mantiene página y ancho coherentes y respeta preferencias permitidas`, async ({ page, sim }) => {
     sim.formatoImpresion = formato;
     await preparaImpresion(page);
     await page.addInitScript(() => localStorage.setItem('pos-contingencia-papel', '58'));
     await ingresarYAbrirPos(page); await venderUnTornillo(page);
+    if (formato === 'A4') {
+      await expect(page.getByLabel('Papel de la impresora')).toHaveValue('58');
+      await page.getByLabel('Papel de la impresora').selectOption('A4');
+    } else await expect(page.getByLabel('Papel de la impresora')).toBeDisabled();
     await expect(page.getByLabel('Papel de la impresora')).toHaveValue(papel);
-    await expect(page.getByLabel('Papel de la impresora')).toBeDisabled();
     await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
     await expect.poll(async () => (await impresiones(page)).length).toBe(1);
     expect((await impresiones(page))[0].clase).toContain(`papel-${papel}`);
-    const size = await page.evaluate(() => [...document.styleSheets].flatMap(sheet => [...sheet.cssRules])
+    const size = await page.evaluate(() => [...document.querySelectorAll('style')].flatMap(style => [...(style.sheet?.cssRules ?? [])])
       .filter(rule => rule instanceof CSSPageRule).map(rule => (rule as CSSPageRule).style.getPropertyValue('size')).filter(Boolean).at(-1));
     if (formato === 'A4') expect(size).toBe('a4');
     else expect(size).toMatch(new RegExp(`^${papel}mm [0-9.]+mm$`));
