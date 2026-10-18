@@ -6,6 +6,7 @@ Código y protocolo: [informe](../../ESCANER_IPHONE_20261018.md). PR único [#17
 - `baseline-lifecycle.log`: 2/9 pasan; 7 fallos reproducidos contra main antes de editar la cámara.
 - `retry-before.log`: reproducción posterior del reintento que seguía ligado a una solicitud ya agotada; corregido y cubierto en la suite final.
 - `focused-final.log`: 90/90; cámara simulada y biblioteca ZXing real con píxeles sintéticos. Incluye diagnóstico de tiempo con la comprobación UPC-E central (9/13/8 ms).
+- `acceptance-checks.log` y `acceptance-browser.log`: cierre posterior de #176; frontend completo 443/443, TypeScript/build y lint correctos, navegador relacionado 49/49 sin reintentos. Incluye diez ciclos, recuperación de permiso, sesión vencida y consumidor POS sin enviar venta.
 - `unit-final.log`: 443/443, sin omitidas, sobre las fuentes finales.
 - `build-final.log`: tsc y Vite correctos con `VITE_API_URL=/api`.
 - `lint-final.log`: 0 errores, 116 avisos.

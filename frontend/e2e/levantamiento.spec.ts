@@ -316,10 +316,10 @@ async function cameraState(page: Page) {
 const scannerStart = (page: Page) => page.getByRole('button', { name: 'Leer código con cámara', exact: true });
 const scannerStop = (page: Page) => page.getByRole('button', { name: 'Detener escáner', exact: true });
 
-test('cámara: aperturas repetidas, cierre manual y alternativa enfocada sin alterar inventario', async ({ page, sim }) => {
+test('cámara: diez aperturas y cierres, cierre manual y alternativa enfocada sin alterar inventario', async ({ page, sim }) => {
   await installScannerCamera(page); await page.setViewportSize({ width: 390, height: 844 });
   await ingresar(page); await crearLevantamiento(page);
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 10; i++) {
     await scannerStart(page).click();
     await expect(page.getByText('Apunte al código y mantenga el teléfono estable.')).toBeVisible();
     await expect(page.locator('video')).toHaveJSProperty('playsInline', true);
@@ -331,18 +331,20 @@ test('cámara: aperturas repetidas, cierre manual y alternativa enfocada sin alt
     }
     await scannerStop(page).click();
     await expect(page.locator('video')).toHaveCount(0);
+    const cycle = await cameraState(page);
+    expect(cycle.requests).toBe(i + 1); expect(cycle.stops).toBe(i + 1);
   }
   await scannerStart(page).click();
   await page.getByRole('button', { name: 'Introducir código manualmente' }).click();
   await expect(page.getByLabel('Buscar por código, descripción o categoría')).toBeFocused();
   await expect(page.locator('video')).toHaveCount(0);
   const state = await cameraState(page);
-  expect(state.requests).toBe(4); expect(state.stops).toBe(4);
+  expect(state.requests).toBe(11); expect(state.stops).toBe(11);
   expect(state.constraints[0]).toMatchObject({ audio: false, video: { facingMode: { ideal: 'environment' } } });
   expect(sim.postsItem).toEqual([]); expect(sim.aplicarTokens).toEqual([]);
 });
 
-test('cámara: lecturas consecutivas, desconocido y sin duplicados ni guardado automático', async ({ page, sim }) => {
+test('cámara: lecturas consecutivas, ceros iniciales, desconocido y sin duplicados ni guardado automático', async ({ page, sim }) => {
   await installScannerCamera(page); await ingresar(page); await crearLevantamiento(page);
   const searches: string[] = [];
   await page.route('**/api/productos?**', async route => {
@@ -350,7 +352,7 @@ test('cámara: lecturas consecutivas, desconocido y sin duplicados ni guardado a
     searches.push(code);
     await route.fulfill({ json: code === 'UNKNOWN-128' ? [] : [{ id: code, codigo: code, codigoBarras: code, nombre: `Producto ${code}`, unidadMedida: 'UNIDAD', stockActual: 7 }] });
   });
-  for (const code of ['5901234123457', '96385074', 'UNKNOWN-128']) {
+  for (const code of ['5901234123457', '96385074', '012345678905', '04252614', '000123', 'UNKNOWN-128']) {
     await page.evaluate(code => { (window as any).scannerCamera.code = code; }, code);
     await scannerStart(page).click();
     await expect(page.getByText(`Código leído: ${code}`, { exact: true })).toBeVisible();
@@ -359,13 +361,13 @@ test('cámara: lecturas consecutivas, desconocido y sin duplicados ni guardado a
     else await expect(page.getByText(`Producto ${code}`, { exact: true })).toBeVisible();
     await expect(scannerStart(page)).toBeEnabled();
   }
-  expect(searches).toEqual(['5901234123457', '96385074', 'UNKNOWN-128']);
-  expect((await cameraState(page)).stops).toBe(3);
+  expect(searches).toEqual(['5901234123457', '96385074', '012345678905', '04252614', '000123', 'UNKNOWN-128']);
+  expect((await cameraState(page)).stops).toBe(6);
   expect(sim.postsItem).toEqual([]); expect(sim.aplicarTokens).toEqual([]);
   await expect(page).toHaveURL(/levantamiento/);
 });
 
-test('cámara: permiso denegado conserva sesión y búsqueda manual', async ({ page, sim }) => {
+test('cámara: permiso denegado conserva sesión, captura manual y recuperación', async ({ page, sim }) => {
   await installScannerCamera(page); await ingresar(page); await crearLevantamiento(page);
   await page.evaluate(() => { (window as any).scannerCamera.denied = true; });
   await scannerStart(page).click();
@@ -376,6 +378,13 @@ test('cámara: permiso denegado conserva sesión y búsqueda manual', async ({ p
   await page.getByRole('button', { name: 'Buscar producto', exact: true }).click();
   await expect(page.getByText('Producto no encontrado. Revise el código o nombre e intente de nuevo.')).toBeVisible();
   expect(sim.postsItem).toEqual([]); await expect(page).toHaveURL(/levantamiento/);
+  await page.evaluate(() => { (window as any).scannerCamera.denied = false; });
+  await scannerStart(page).click();
+  await expect(page.getByText('Apunte al código y mantenga el teléfono estable.')).toBeVisible();
+  await scannerStop(page).click();
+  expect((await cameraState(page)).requests).toBe(2);
+  expect((await cameraState(page)).stops).toBe(1);
+  expect(sim.postsItem).toEqual([]); expect(sim.aplicarTokens).toEqual([]);
 });
 
 test('cámara: pista interrumpida, segundo plano, BFCache y navegación liberan recursos', async ({ page, sim }) => {
@@ -420,4 +429,34 @@ test('cámara: sin BarcodeDetector carga ZXing y lee EAN-13 con canvas real', as
   await expect(page.getByText(/Código de barras no registrado/)).toBeVisible();
   await expect(page.locator('video')).toHaveCount(0);
   expect((await cameraState(page)).stops).toBe(1); expect(sim.postsItem).toEqual([]);
+});
+
+// Exercise existing auth behavior, without changing authentication or persistence rules.
+test('cámara: sesión vencida durante levantamiento libera pistas y descarta lecturas tardías', async ({ page, sim }) => {
+  await installScannerCamera(page); await page.clock.install();
+  await ingresar(page); await crearLevantamiento(page);
+  await page.getByLabel('Descripción y variante', { exact: true }).fill('Conteo todavía sin guardar');
+  await scannerStart(page).click();
+  await expect(page.getByText('Apunte al código y mantenga el teléfono estable.')).toBeVisible();
+  let refreshes = 0, searches = 0;
+  await page.route('**/api/auth/me?**', route => route.fulfill({ status: 401, json: { message: 'Sesión vencida de prueba' } }));
+  await page.route('**/api/auth/refresh', route => {
+    refreshes++;
+    return route.fulfill({ status: 401, json: { message: 'Sesión inválida de prueba' } });
+  });
+  await page.route('**/api/productos?**', route => { searches++; return route.fulfill({ json: [] }); });
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByText('Tu sesión ha expirado. Inicia sesión nuevamente para continuar.')).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(0);
+  expect((await cameraState(page)).stops).toBe(1);
+  expect(refreshes).toBe(1);
+  expect(await page.evaluate(() => localStorage.getItem('ferre_token'))).toBeNull();
+  const detections = (await cameraState(page)).detections;
+  await page.evaluate(() => { (window as any).scannerCamera.code = '04252614'; });
+  await page.clock.runFor(1000);
+  expect((await cameraState(page)).detections).toBe(detections);
+  expect(searches).toBe(0);
+  expect(sim.postsItem).toEqual([]); expect(sim.aplicarTokens).toEqual([]);
+  expect(sim.postsLev).toHaveLength(1); // Only the explicit setup action created a draft.
 });

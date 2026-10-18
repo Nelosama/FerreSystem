@@ -1,3 +1,4 @@
+import { installScannerCamera } from './scanner-camera.fixture';
 import { expect, test as base, type Page, type Route } from '@playwright/test';
 
 // E2E CON BACKEND SIMULADO: POS con un catálogo de 300 productos (más que las 120 tarjetas que se pintan a la vez).
@@ -110,4 +111,25 @@ test.describe('POS con catálogo grande (simulado)', () => {
     await expect(page.getByLabel('Cantidad Artículo 250')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Procesar Venta L\. 43\.13/ })).toBeVisible(); // 37.50 + ISV 5.63
   });
+});
+
+// Shared scanner regression only: do not submit a sale, payment or cash operation.
+test('escáner compartido: una lectura por apertura conserva carrito y total sin enviar venta', async ({ page, sim }) => {
+  await installScannerCamera(page); await page.clock.install(); await abrirPos(page);
+  await page.evaluate(() => { (window as any).scannerCamera.code = '7401000000250'; });
+  await page.getByRole('button', { name: 'Leer código con cámara', exact: true }).click();
+  const cantidad = page.getByLabel('Cantidad Artículo 250');
+  await expect(cantidad).toHaveValue('1');
+  await expect(page.getByText('Código leído: 7401000000250', { exact: true })).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(0);
+  await page.clock.runFor(1000);
+  await expect(cantidad).toHaveValue('1');
+  await expect(page.getByRole('button', { name: /Procesar Venta L\. 29\.89/ })).toBeVisible();
+  // An explicit second opening is allowed to add another unit, as before.
+  await page.getByRole('button', { name: 'Leer código con cámara', exact: true }).click();
+  await expect(cantidad).toHaveValue('2');
+  await page.clock.runFor(1000); await expect(cantidad).toHaveValue('2');
+  await expect(page.getByRole('button', { name: /Procesar Venta L\. 59\.78/ })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).scannerCamera.stops)).toBe(2);
+  expect(sim.inesperados).toEqual([]); // Fixture rejects any unplanned write, including POST ventas.
 });

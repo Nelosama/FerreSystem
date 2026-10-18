@@ -1,0 +1,25 @@
+Cierre PR #176, 2026-10-17 America/Tegucigalpa
+Misma rama codex/fix-camera-lifecycle-ios; solo cobertura E2E/documentación adicional.
+
+cd frontend && npm test
+Exit 0
+ℹ UPC-E 1280×720 (ms por fotograma, entorno local): 8, 8, 7
+ℹ tests 443
+ℹ suites 4
+ℹ pass 443
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 25822.915324
+
+cd frontend && npm run lint
+Exit 0; 116 warnings, 0 errors (existentes).
+
+VITE_API_URL=/api npm run build --prefix frontend
+Exit 0; tsc -b && vite build. Aviso previo: react-pdf chunk >500 kB.
+
+Navegador: ver acceptance-browser.log (49/49, sin reintentos).
+Decodificación real: incluida en npm test; cinco formatos con ZXing real e imágenes sintéticas.
+Sin prueba física iPhone ni PWA instalada; WebKit local no disponible.
+Checks del HEAD publicado: consultar PR #176, no atribuir checks del commit anterior al nuevo.
