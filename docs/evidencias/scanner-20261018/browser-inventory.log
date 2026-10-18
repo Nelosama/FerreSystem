@@ -1,0 +1,80 @@
+
+> frontend@0.0.0 test:browser
+> playwright test --workers=2 levantamiento.spec.ts productos-edicion.spec.ts
+
+[WebServer] (node:1312) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 30 tests using 2 workers
+
+(node:1345) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1346) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › e2e/levantamiento.spec.ts:155:3 › Levantamiento de inventario (FS-06 fase 2) › crear levantamiento: un fallo de red conserva la clave y el reintento no duplica el levantamiento (6.7s)
+  ✓   2 [chromium] › e2e/levantamiento.spec.ts:169:3 › Levantamiento de inventario (FS-06 fase 2) › contar: un envío perdido queda pendiente, se confirma sin duplicar y el guardado es visible (7.1s)
+  ✓   3 [chromium] › e2e/levantamiento.spec.ts:183:3 › Levantamiento de inventario (FS-06 fase 2) › advierte antes de guardar un artículo ya contado por el mismo empleado y permite editar el conteo anterior (6.4s)
+  ✓   4 [chromium] › e2e/levantamiento.spec.ts:198:3 › Levantamiento de inventario (FS-06 fase 2) › avisa, sin bloquear, cuando otro empleado ya contó el artículo y registra el conflicto (6.9s)
+  ✓   5 [chromium] › e2e/levantamiento.spec.ts:211:3 › Levantamiento de inventario (FS-06 fase 2) › si otro dispositivo registró el artículo después de cargar la pantalla, el servidor rechaza el duplicado y muestra el motivo (5.2s)
+  ✓   6 [chromium] › e2e/levantamiento.spec.ts:223:3 › Levantamiento de inventario (FS-06 fase 2) › flujo completo: crear, contar con marca, finalizar, revisar impacto y aplicar (7.8s)
+  ✓   7 [chromium] › e2e/levantamiento.spec.ts:250:3 › Levantamiento de inventario (FS-06 fase 2) › conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token (6.8s)
+  ✓   8 [chromium] › e2e/levantamiento.spec.ts:297:3 › Levantamiento en teléfono › la captura cabe en el ancho del teléfono y registra un producto sin fotografía (5.1s)
+  ✓   9 [chromium] › e2e/levantamiento.spec.ts:319:1 › cámara: aperturas repetidas, cierre manual y alternativa enfocada sin alterar inventario (4.9s)
+  ✓  10 [chromium] › e2e/levantamiento.spec.ts:340:1 › cámara: lecturas consecutivas, desconocido y sin duplicados ni guardado automático (4.0s)
+  ✓  11 [chromium] › e2e/levantamiento.spec.ts:363:1 › cámara: permiso denegado conserva sesión y búsqueda manual (5.3s)
+  ✓  12 [chromium] › e2e/levantamiento.spec.ts:376:1 › cámara: pista interrumpida, segundo plano, BFCache y navegación liberan recursos (5.9s)
+  ✓  13 [chromium] › e2e/levantamiento.spec.ts:399:1 › cámara: cerrar y reabrir mientras espera permiso no repite getUserMedia (4.5s)
+  ✓  14 [chromium] › e2e/productos-edicion.spec.ts:130:3 › Edición de productos (FS-07) › una edición parcial envía solo el nombre y la versión, sin tocar existencias ni precios (4.0s)
+  ✓  15 [chromium] › e2e/productos-edicion.spec.ts:144:3 › Edición de productos (FS-07) › la ficha no ofrece cambiar costo ni precio: se fijan en Precios y aprobación (3.7s)
+  ✓  16 [chromium] › e2e/productos-edicion.spec.ts:157:3 › Edición de productos (FS-07) › si otro usuario cambió el producto, el servidor rechaza la edición, no sobrescribe y recarga la lista (4.0s)
+  ✓  17 [chromium] › e2e/productos-edicion.spec.ts:172:3 › Edición de productos (FS-07) › un doble clic en Guardar envía una sola edición (5.1s)
+  ✓  18 [chromium] › e2e/productos-edicion.spec.ts:184:3 › Edición de productos (FS-07) › un fallo de red no pierde el formulario y el reintento usa la misma versión (5.8s)
+  ✓  19 [chromium] › e2e/productos-edicion.spec.ts:200:3 › Edición de productos (FS-07) › cambiar existencias exige motivo antes de enviar (5.3s)
+  ✓  20 [chromium] › e2e/productos-edicion.spec.ts:216:3 › Edición de productos (FS-07) › reactivar un producto inactivo: se muestra al activar la opción y se envía activo=true tras confirmar (5.2s)
+  ✓  21 [chromium] › e2e/productos-edicion.spec.ts:230:3 › Edición de productos (FS-07) › la edición cabe en un teléfono sin desbordamiento horizontal (3.6s)
+  ✓  22 [chromium] › e2e/productos-edicion.spec.ts:245:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en SIDEBAR (4.3s)
+  ✓  23 [chromium] › e2e/productos-edicion.spec.ts:245:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en TOPNAV (4.7s)
+  ✓  24 [chromium] › e2e/productos-edicion.spec.ts:267:3 › Inventario para entrega al cliente / API simulada › respuesta perdida y recarga: confirma la misma alta sin crear otro producto (4.8s)
+  ✓  25 [chromium] › e2e/productos-edicion.spec.ts:284:3 › Inventario para entrega al cliente / API simulada › código de barras duplicado muestra el error y conserva el formulario (4.0s)
+  ✓  26 [chromium] › e2e/productos-edicion.spec.ts:299:3 › Inventario para entrega al cliente / API simulada › buscar por categoría real y descripción filtra el catálogo (4.3s)
+  ✓  27 [chromium] › e2e/productos-edicion.spec.ts:314:3 › Inventario para entrega al cliente / API simulada › una recepción mientras el formulario está abierto impide un ajuste obsoleto (5.4s)
+  ✓  28 [chromium] › e2e/productos-edicion.spec.ts:327:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático (5.0s)
+  ✓  29 [chromium] › e2e/productos-edicion.spec.ts:348:3 › Inventario para entrega al cliente / API simulada › alta y cámara muestran textos en inglés (4.2s)
+  ✘  30 [chromium] › e2e/productos-edicion.spec.ts:361:1 › cámara: plegar escáner o cerrar formulario libera pistas, sin alta automática (30.3s)
+
+
+  1) [chromium] › e2e/productos-edicion.spec.ts:361:1 › cámara: plegar escáner o cerrar formulario libera pistas, sin alta automática
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('dialog').locator('details').filter({ has: getByRole('button', { name: 'Leer código con cámara' }) }).locator('summary')
+
+
+      367 |   await dialog.getByRole('button', { name: 'Leer código con cámara' }).click();
+      368 |   await expect(dialog.getByText('Apunte al código y mantenga el teléfono estable.')).toBeVisible();
+    > 369 |   await details.locator('summary').click();
+          |                                    ^
+      370 |   await expect.poll(() => page.evaluate(() => (window as any).scannerCamera.stops)).toBe(1);
+      371 |   await expect(dialog.locator('video')).toHaveCount(0);
+      372 |   await details.locator('summary').click();
+        at /workspace/FerreSystem/frontend/e2e/productos-edicion.spec.ts:369:36
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/productos-edicion-cámara-p-325dd--pistas-sin-alta-automática-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/productos-edicion-cámara-p-325dd--pistas-sin-alta-automática-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/productos-edicion-cámara-p-325dd--pistas-sin-alta-automática-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/productos-edicion-cámara-p-325dd--pistas-sin-alta-automática-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/productos-edicion.spec.ts:361:1 › cámara: plegar escáner o cerrar formulario libera pistas, sin alta automática
+  29 passed (1.9m)

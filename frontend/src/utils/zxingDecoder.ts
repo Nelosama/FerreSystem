@@ -1,9 +1,10 @@
 import { UpceReader } from './upceReader';
-import { BarcodeFormat, BinaryBitmap, ChecksumException, DecodeHintType, FormatException, HybridBinarizer, MultiFormatReader, NotFoundException, RGBLuminanceSource } from '@zxing/library';
+import { BarcodeFormat, BinaryBitmap, BitArray, ChecksumException, DecodeHintType, FormatException, HybridBinarizer, MultiFormatReader, NotFoundException, RGBLuminanceSource } from '@zxing/library';
 
 export function createImageDecoder() {
   const reader = new MultiFormatReader();
   const upce = new UpceReader();
+  let middleRow = new BitArray();
   const hints = new Map<DecodeHintType, unknown>([
     [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.CODE_128]],
     [DecodeHintType.TRY_HARDER, true],
@@ -17,6 +18,16 @@ export function createImageDecoder() {
     }
     const bitmap = new BinaryBitmap(new HybridBinarizer(new RGBLuminanceSource(luminance, image.width, image.height)));
     try {
+      // A centered UPC-E should not wait for a full-frame failed EAN/Code 128 scan.
+      // Keep the full-frame fallback for off-center/reversed labels.
+      try {
+        const middle = Math.floor(image.height / 2);
+        middleRow = bitmap.getBlackRow(middle, middleRow);
+        return upce.decodeRow(middle, middleRow).getText();
+      }
+      catch (error) {
+        if (!(error instanceof NotFoundException || error instanceof ChecksumException || error instanceof FormatException)) throw error;
+      }
       try { return reader.decodeWithState(bitmap).getText(); }
       catch (error) {
         if (!(error instanceof NotFoundException || error instanceof ChecksumException || error instanceof FormatException)) throw error;

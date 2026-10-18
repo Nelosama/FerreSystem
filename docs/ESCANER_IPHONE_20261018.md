@@ -14,7 +14,7 @@ Corrección implementada; aceptación en iPhone físico **PENDIENTE**. No se con
 | Hallazgo | Reproducción | Corrección |
 |---|---|---|
 | `stop()` repetido invocaba `track.stop()` más de una vez. | Primera prueba nueva falla con 2 frente a 1. | Limpieza idempotente de pistas, vídeo, temporizadores y listeners. |
-| Cerrar/reabrir con permiso pendiente hacía dos `getUserMedia`. | Segunda prueba nueva obtiene 2 solicitudes frente a 1. | Compartir exclusivamente la solicitud pendiente; solo su último consumidor recibe el stream. Cerrar/expirar libera también streams tardíos. |
+| Cerrar/reabrir con permiso pendiente hacía dos `getUserMedia`. | Segunda prueba nueva obtiene 2 solicitudes frente a 1. | Compartir exclusivamente la solicitud pendiente; solo su último consumidor recibe el stream. Cerrar/expirar libera también streams tardíos. Tras agotar 30 s, el reintento puede crear una petición nueva sin quedar ligado a la que dejó de responder. |
 | Permiso, `video.play`, carga del lector y `detect()` podían quedar sin resolver. | Promesas deliberadamente pendientes, reloj simulado. | Límites cancelables: 30 s permiso, 15 s vídeo/carga, 5 s lectura. Cerrar no espera esas promesas. La solicitud de permiso del navegador no puede cancelarse por JavaScript. |
 | Pista terminada o vídeo sin avance no daban error útil. | Eventos `ended`, `readyState=0` y reloj simulado. | Aviso de interrupción; watchdog de 15 s sin fotogramas/avance; nueva apertura explícita. |
 | Plegar la sección de cámara de Inventario ocultaba el vídeo, sin desmontarlo ni detener las pistas. | Prueba de `<details>`, además de cerrar modal/navegar. | Escuchar el cierre de esa sección y detener la activación. |
@@ -24,7 +24,7 @@ La línea base de las primeras nueve pruebas de ciclo daba **2 aprobadas / 7 fal
 
 ### Decisión sobre ZXing
 
-Se conserva `@zxing/library@0.23.0`: sus lecturas EAN-13, EAN-8, UPC-A y Code 128 pasan con imágenes reales en memoria (no mocks de lector). Safari sin `BarcodeDetector` carga este módulo local de forma diferida. Android/escritorio conservan detección por capacidades y fallback si falta soporte o falla el detector, sin identificación por user-agent.
+Se conserva `@zxing/library@0.23.0`: sus lecturas EAN-13, EAN-8, UPC-A y Code 128 pasan con imágenes sintéticas y la biblioteca real (sin mocks de lector). Safari sin `BarcodeDetector` carga este módulo local de forma diferida. Android/escritorio conservan detección por capacidades y fallback si falta soporte o falla el detector, sin identificación por user-agent.
 
 El lector UPC-E incluido es experimental y presenta defectos verificables en el paquete instalado: devuelve un número donde el padre espera `{rowOffset,resultString}`, no devuelve el texto acumulado, el padre usa guard/checksum EAN, la expansión compara códigos ASCII con dígitos y la última paridad del sistema 1 está incorrecta. Cambiar a `@zxing/browser` no corrige ese núcleo compartido. Reemplazar toda la biblioteca o incorporar WASM añadiría dependencias y riesgos para cuatro formatos que ya pasan.
 
@@ -34,7 +34,7 @@ El lector UPC-E incluido es experimental y presenta defectos verificables en el 
 
 - `getUserMedia` solo comienza al abrir el escáner; no enumera dispositivos ni pide una cámara preliminar. Conserva `audio:false`, `facingMode:{ideal:'environment'}` y resolución ideal 1280×720, con 24 fps ideales y máximo 30. `ideal` permite webcams de escritorio; no garantiza por sí solo qué lente elegirá iOS en equipos con varias cámaras. Eso requiere comprobación física.
 - `muted`, `autoPlay` y `playsInline` están en el vídeo. Se solicita enfoque continuo solo cuando la pista declara soportarlo; si lo rechaza, se conserva el enfoque predeterminado. No se ha demostrado un fallo de enfoque del cliente.
-- Canvas limitado a 1280 píxeles en su lado mayor, incluso en orientación vertical. No se redimensiona en cada frame. ZXing reutiliza sus lectores mediante `setHints`/`decodeWithState`. Bucle secuencial, una sola lectura aceptada por apertura y espera de 250 ms entre intentos; no se solapan decodificaciones.
+- Canvas limitado a 1280 píxeles en su lado mayor, incluso en orientación vertical. No se redimensiona en cada frame. ZXing reutiliza sus lectores mediante `setHints`/`decodeWithState`. UPC-E comprueba primero la fila central y conserva la búsqueda completa para etiquetas fuera del centro o invertidas. Bucle secuencial, una sola lectura aceptada por apertura y espera de 250 ms entre intentos; no se solapan decodificaciones.
 - Los límites de promesas no pueden interrumpir JavaScript síncrono que ya está ejecutándose. No se acredita velocidad, uso térmico ni ausencia de pausas en un iPhone real con este ensayo.
 - `visibilitychange`/`pagehide` detienen y cierran; al regresar el usuario pulsa el mismo botón para reabrir. No se abre la cámara en segundo plano ni al recuperar BFCache. Escape, cierre, plegado, deshabilitación y desmontaje limpian la sesión.
 - La PWA usa el mismo componente y origen HTTPS; el manifiesto existente es `standalone`. El service worker conserva su política (solo shell/recursos estáticos, API sin caché). No se modifica el comportamiento offline: el inventario sigue necesitando conexión y sesión válida. El chunk ZXing se descarga la primera vez que se requiere; sin red/caché puede fallar y debe permitir captura manual.
@@ -46,7 +46,23 @@ Vídeo adaptable sin recortar el fotograma, marco orientativo (no limita el áre
 
 ## Validación
 
-Resultados finales y comandos en la sección de cierre de este informe. Evidencia de navegador usa APIs y backend simulados; la prueba de software sí carga el chunk ZXing y decodifica píxeles mediante canvas real, con una imagen sintética en lugar de cámara.
+Verificaciones sobre el código final, antes de la publicación del cierre:
+
+| Comando | Resultado | Qué acredita |
+|---|---|---|
+| `cd frontend && npm test` | **443/443**, 0 omitidas | Regresión unitaria completa, con lectores reales e imágenes sintéticas. |
+| `node --test frontend/test/barcode-camera-lifecycle.test.mjs frontend/test/barcode-decoder-real.test.mjs frontend/test/barcode-scanner.test.mjs` | **90/90** | 20 de ciclo/selección de lector, 46 del decodificador real y 24 previas. |
+| `cd frontend && npm run lint` | **0 errores**, 116 avisos | Avisos existentes de hooks/refs/variables; no se amplía el alcance para reformatear o corregir pantallas ajenas. |
+| `cd frontend && VITE_API_URL=/api npm run build` | **Correcto**, incluye `tsc -b` | TypeScript y bundle de producción. Aviso previo de tamaño de chunk PDF. |
+| `cd backend && npx vitest run src/levantamientos/levantamientos.service.spec.ts src/productos/productos-security.http.spec.ts src/productos/importacion-productos.spec.ts` | **81/81**, 3 archivos | Regresión de conteo, permisos y contrato de importación; no es persistencia PostgreSQL. |
+
+No se modificó código de backend, por lo que no se repitieron localmente su build/lint completos ni la integración PostgreSQL. Los workflows existentes del PR ejecutan esas verificaciones y el piloto real en sus propios entornos; consultar su SHA y conclusión antes de atribuirlos al HEAD final.
+
+Se midió el mismo UPC-E centrado en un frame 1280×720: antes de la comprobación central, 731/884/846 ms; después, 91/84/89 ms con carga y 9/13/8 ms en la pasada focalizada. Son observaciones del ejecutor Linux, sin umbral de rendimiento en los tests y **sin extrapolación a iPhone**. El decodificador sigue comprobando imágenes fuera del centro e invertidas.
+
+La primera pasada focalizada de navegador fue 29 aprobadas / 1 fallo de un selector nuevo (buscaba el botón de inicio cuando su texto ya había cambiado a Detener). Se corrigió el selector, no la aserción de liberación. Una ejecución amplia paralela con unitarias y compilación se detuvo: 102 aprobadas, 3 fallos de espera en navegación sin escáner abierto, 2 interrumpidas y 78 sin ejecutar. Se conserva ese registro y se ejecuta la suite completa sin carga paralela. No se presenta aquella pasada como aprobada. El cierre de esa regresión de navegador y los checks asociados a cada SHA se publican en el [PR único #176](https://github.com/Nelosama/FerreSystem/pull/176); no atribuir a un commit los checks de otro.
+
+ Evidencia de navegador usa APIs y backend simulados; la prueba de software sí carga el chunk ZXing y decodifica píxeles mediante canvas real, con una imagen sintética en lugar de cámara.
 
 La instalación local de WebKit 26.6 fue rechazada por el proxy con **HTTP 403 Domain forbidden** en los destinos de descarga de Playwright. No se presenta ese intento como una prueba Safari aprobada. **No hay acceso a un iPhone físico ni a una PWA instalada en iOS en este entorno.**
 
@@ -65,3 +81,15 @@ Usar una instalación de prueba HTTPS autorizada y un levantamiento de prueba. P
 9. Repetir lectura/cierre con giro vertical/horizontal, luz baja y etiquetas del cliente. Registrar errores y vídeos de reproducción sin datos sensibles. Repetir controles básicos en Android y escritorio con webcam.
 
 Aceptación física: **sin ejecutar**. No declarar el incidente del cliente resuelto hasta completar ese registro.
+
+## Archivos de implementación y pruebas
+
+- `frontend/src/utils/barcodeScanner.ts`: adquisición, límites, ciclo y errores.
+- `frontend/src/utils/zxingDecoder.ts` y `upceReader.ts`: decodificación, rendimiento y UPC-E.
+- `frontend/src/components/BarcodeScanner.tsx` y `.css`: controles, cierre, guía y confirmación.
+- `frontend/src/components/LevantamientoProductLookup.tsx` y `frontend/src/pages/InventarioPage.tsx`: enfocar el campo manual ya existente.
+- `frontend/src/locales/{es,en}.json`: textos nuevos.
+- `frontend/test/barcode-camera-lifecycle.test.mjs`, `barcode-decoder-real.test.mjs`, `barcode-scanner.test.mjs`: regresiones y ajuste del mock a la API reutilizable del lector.
+- `frontend/e2e/scanner-camera.fixture.ts`, `levantamiento.spec.ts`, `productos-edicion.spec.ts`: medios simulados, canvas real y regresión de formularios.
+- `frontend/vercel.json` y `frontend/test/vercel-pilot-guard.test.mjs`: impedir previews de esta rama, verificando que otras ramas conservan su política.
+- `docs/CONTEXTO_MAESTRO.md`, este informe y `docs/evidencias/scanner-20261018/`: continuidad y evidencia.

@@ -130,3 +130,15 @@ test('cerrar entre resolver getUserMedia y adjuntar el stream tampoco deja pista
   camera.resolve(e.stream); queueMicrotask(stop); await flush();
   assert.equal(e.stops, 1); assert.equal(e.video.srcObject, null); assert.equal(e.events.ready, 0);
 });
+
+test('tras agotar permiso se puede reintentar con otra petición; la anterior tardía se limpia', async t => {
+  const first = deferred(), second = deferred(); let requests = 0;
+  const e = env(t); e.deps.mediaDevices.getUserMedia = () => (++requests === 1 ? first.promise : second.promise);
+  e.start(); t.mock.timers.tick(30001); await flush(); assert.equal(e.events.errors.length, 1);
+  const stop = e.start(); assert.equal(requests, 2);
+  first.resolve(e.stream); await flush(); assert.equal(e.stops, 1); assert.equal(e.events.ready, 0);
+  let secondStops = 0;
+  const newTrack = Object.assign(new EventTarget(), { stop() { secondStops++; } });
+  second.resolve({ getTracks: () => [newTrack], getVideoTracks: () => [newTrack] }); await flush();
+  assert.equal(e.events.ready, 1); assert.equal(secondStops, 0); stop(); assert.equal(secondStops, 1);
+});

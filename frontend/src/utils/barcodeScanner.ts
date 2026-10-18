@@ -60,7 +60,7 @@ export function cameraError(error: unknown, locale: 'es' | 'en' = 'es'): string 
 // getUserMedia cannot be aborted. Reuse an unresolved permission request on reopen,
 // and let only its latest consumer own the eventual stream (or release it).
 const pendingCameras = new WeakMap<MediaDevices, { promise: Promise<MediaStream>; owner: symbol }>();
-function acquireCamera(mediaDevices: MediaDevices, stopped: () => boolean): Promise<MediaStream | undefined> {
+function acquireCamera(mediaDevices: MediaDevices, stopped: () => boolean, onPending: (retire: () => void) => void): Promise<MediaStream | undefined> {
   const owner = Symbol();
   let pending = pendingCameras.get(mediaDevices);
   if (!pending) {
@@ -76,6 +76,9 @@ function acquireCamera(mediaDevices: MediaDevices, stopped: () => boolean): Prom
   }
   pending.owner = owner;
   const request = pending;
+  onPending(() => {
+    if (request.owner === owner && pendingCameras.get(mediaDevices) === request) pendingCameras.delete(mediaDevices);
+  });
   return request.promise.then(stream => {
     if (request.owner !== owner) return undefined;
     if (stopped()) { stream.getTracks().forEach(track => track.stop()); return undefined; }
@@ -103,6 +106,7 @@ export function startBarcodeCamera(video: HTMLVideoElement, callbacks: {
 }) {
   let stopped = false;
   let stream: MediaStream | undefined;
+  let retirePending: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let frameTimer: ReturnType<typeof setTimeout> | undefined;
   const cancellations = new Set<() => void>();
@@ -117,7 +121,13 @@ export function startBarcodeCamera(video: HTMLVideoElement, callbacks: {
     stream?.getTracks().forEach(track => track.stop());
     if (stream && video.srcObject === stream) { video.pause(); video.srcObject = null; }
   };
-  const fail = (error: unknown) => { if (!stopped) { stop(); callbacks.onError(cameraError(error, callbacks.locale)); } };
+  const fail = (error: unknown) => {
+    if (stopped) return;
+    // After a timeout, a retry must be able to request a fresh camera. The retired
+    // request still releases its stream if the browser eventually resolves it.
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'TimeoutError') retirePending?.();
+    stop(); callbacks.onError(cameraError(error, callbacks.locale));
+  };
   const waitFor = <T,>(promise: Promise<T>, milliseconds: number): Promise<T> => new Promise((resolve, reject) => {
     const cancel = () => { clearTimeout(timeout); cancellations.delete(cancel); reject({ name: 'AbortError' }); };
     const timeout = setTimeout(() => { cancellations.delete(cancel); reject({ name: 'TimeoutError' }); }, milliseconds);
@@ -135,7 +145,7 @@ export function startBarcodeCamera(video: HTMLVideoElement, callbacks: {
     try {
       if (!dependencies.secure) throw Object.assign(new Error(callbacks.locale === 'en' ? 'The camera requires HTTPS. Open Jowa System using a secure address or enter the code manually.' : 'La cámara requiere HTTPS. Abra Jowa System mediante una dirección segura o introduzca el código manualmente.'), { name: 'ScannerSetupError' });
       if (!dependencies.mediaDevices?.getUserMedia) throw Object.assign(new Error(callbacks.locale === 'en' ? 'This browser does not support camera access. Use updated Safari or enter the code manually.' : 'Este navegador no permite acceder a la cámara. Use Safari actualizado o introduzca el código manualmente.'), { name: 'ScannerSetupError' });
-      await waitFor(acquireCamera(dependencies.mediaDevices, () => stopped).then(acquired => {
+      await waitFor(acquireCamera(dependencies.mediaDevices, () => stopped, retire => { retirePending = retire; }).then(acquired => {
         if (acquired && stopped) acquired.getTracks().forEach(track => track.stop());
         else stream = acquired;
       }), 30000);

@@ -101,3 +101,26 @@ for (const system of ['0', '1']) for (let digit = 0; digit < 10; digit++) {
     assert.equal(decode(image(upceBits(code))), code);
   });
 }
+
+test('UPC-E fuera de la fila central conserva la búsqueda de fotograma completo', () => {
+  const fixture = image(upceBits('04252614'));
+  for (let y = 25; y < fixture.height; y++) fixture.data.fill(255, y * fixture.width * 4, (y + 1) * fixture.width * 4);
+  assert.equal(decode(fixture), '04252614');
+});
+
+test('fotograma UPC-E 1280×720: diagnóstico de tiempo, sin umbral dependiente del equipo', t => {
+  const modules = '0'.repeat(20) + upceBits('04252614') + '0'.repeat(20);
+  const data = new Uint8ClampedArray(1280 * 720 * 4).fill(255);
+  for (let y = 280; y < 440; y++) for (let x = 480; x < 480 + modules.length * 3; x++) {
+    if (modules[Math.floor((x - 480) / 3)] === '1') {
+      const i = (y * 1280 + x) * 4; data[i] = data[i + 1] = data[i + 2] = 0;
+    }
+  }
+  const milliseconds = [];
+  for (let i = 0; i < 3; i++) {
+    const started = performance.now();
+    assert.equal(decode({ width: 1280, height: 720, data }), '04252614');
+    milliseconds.push(Math.round(performance.now() - started));
+  }
+  t.diagnostic(`UPC-E 1280×720 (ms por fotograma, entorno local): ${milliseconds.join(', ')}`);
+});

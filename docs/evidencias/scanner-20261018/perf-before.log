@@ -1,0 +1,28 @@
+MultiFormatReader: non-ReaderException from reader: NotFoundException
+    at OneDReader.decode (/workspace/FerreSystem/frontend/node_modules/@zxing/library/cjs/core/oned/OneDReader.js:72:23)
+    at MultiFormatReader.decodeInternal (/workspace/FerreSystem/frontend/node_modules/@zxing/library/cjs/core/MultiFormatReader.js:204:35)
+    at MultiFormatReader.decodeWithState (/workspace/FerreSystem/frontend/node_modules/@zxing/library/cjs/core/MultiFormatReader.js:100:21)
+    at evalmachine.<anonymous>:24:31
+    at file:///workspace/FerreSystem/frontend/scanner-perf.tmp.mjs:18:68
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+MultiFormatReader: non-ReaderException from reader: NotFoundException
+    at OneDReader.decode (/workspace/FerreSystem/frontend/node_modules/@zxing/library/cjs/core/oned/OneDReader.js:72:23)
+    at MultiFormatReader.decodeInternal (/workspace/FerreSystem/frontend/node_modules/@zxing/library/cjs/core/MultiFormatReader.js:204:35)
+    at MultiFormatReader.decodeWithState (/workspace/FerreSystem/frontend/node_modules/@zxing/library/cjs/core/MultiFormatReader.js:100:21)
+    at evalmachine.<anonymous>:24:31
+    at file:///workspace/FerreSystem/frontend/scanner-perf.tmp.mjs:18:68
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+MultiFormatReader: non-ReaderException from reader: NotFoundException
+    at OneDReader.decode (/workspace/FerreSystem/frontend/node_modules/@zxing/library/cjs/core/oned/OneDReader.js:72:23)
+    at MultiFormatReader.decodeInternal (/workspace/FerreSystem/frontend/node_modules/@zxing/library/cjs/core/MultiFormatReader.js:204:35)
+    at MultiFormatReader.decodeWithState (/workspace/FerreSystem/frontend/node_modules/@zxing/library/cjs/core/MultiFormatReader.js:100:21)
+    at evalmachine.<anonymous>:24:31
+    at file:///workspace/FerreSystem/frontend/scanner-perf.tmp.mjs:18:68
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+{"fixture":"UPC-E 04252614, 1280x720, centered","milliseconds":[731,884,846]}
