@@ -24,6 +24,8 @@ describe('Dashboard / PostgreSQL aislado', () => {
   let dashboard: DashboardService;
   let tenantId: string;
   let rolPrueba = 'ADMIN';
+  let subPrueba = 'admin-sin-registro';
+  let permisosPrueba: { permisos?: string[]; permisosConfigurados?: boolean } = {};
   let app: INestApplication;
   let psqlEnv: NodeJS.ProcessEnv;
 
@@ -54,7 +56,7 @@ describe('Dashboard / PostgreSQL aislado', () => {
       providers: [{ provide: DashboardService, useValue: dashboard }, { provide: PrismaService, useValue: prisma }],
     }).overrideGuard(JwtAuthGuard).useValue({
       canActivate(context: any) {
-        context.switchToHttp().getRequest().user = { tenantId, type: 'tenant', rol: rolPrueba };
+        context.switchToHttp().getRequest().user = { tenantId, type: 'tenant', rol: rolPrueba, sub: subPrueba, ...permisosPrueba };
         return true;
       },
     }).compile();
@@ -74,6 +76,8 @@ describe('Dashboard / PostgreSQL aislado', () => {
 
   beforeEach(async () => {
     rolPrueba = 'ADMIN';
+    subPrueba = 'admin-sin-registro';
+    permisosPrueba = {};
     tenantId = randomUUID();
     await prisma.tenant.create({ data: { id: tenantId, nombreComercial: 'Dashboard de prueba' } });
   });
@@ -205,5 +209,98 @@ describe('Dashboard / PostgreSQL aislado', () => {
     expect(body.cotizacionesPendientes.cantidad).toBe(0);
     expect(body.ventasDelDia.total).toBe(0);
     expect(body.tendenciaSemanal.every((dia: { total: number }) => dia.total === 0)).toBe(true);
+  });
+  // ── GET /dashboard/pendientes: contadores reales del inicio ──────────────────────────────────────────
+  async function sembrarPendientes(tenant: string, prefijo: string) {
+    const cajero = await prisma.usuario.create({ data: { tenantId: tenant, nombre: `Cajero ${prefijo}`, email: `${prefijo}-c-${tenant}@example.test`, passwordHash: 'x', rol: 'CAJERO' } });
+    const otroCajero = await prisma.usuario.create({ data: { tenantId: tenant, nombre: `Otro ${prefijo}`, email: `${prefijo}-o-${tenant}@example.test`, passwordHash: 'x', rol: 'CAJERO' } });
+    // Precios: dos activos pendientes, uno inactivo pendiente (no aparece en /precios) y uno aprobado.
+    const aprobado = await prisma.producto.create({ data: { tenantId: tenant, codigo: `${prefijo}-A`, nombre: 'Aprobado', precioVenta: 10, precioCosto: 5, precioAprobado: true, stockActual: 100, stockMinimo: 1 } });
+    await prisma.producto.create({ data: { tenantId: tenant, codigo: `${prefijo}-P1`, nombre: 'Pendiente 1', precioVenta: 10, precioCosto: 5, stockActual: 100, stockMinimo: 1 } });
+    await prisma.producto.create({ data: { tenantId: tenant, codigo: `${prefijo}-P2`, nombre: 'Pendiente 2', precioVenta: 0, precioCosto: 0, stockActual: 100, stockMinimo: 1 } });
+    await prisma.producto.create({ data: { tenantId: tenant, codigo: `${prefijo}-PI`, nombre: 'Pendiente inactivo', precioVenta: 10, precioCosto: 5, activo: false, stockActual: 0, stockMinimo: 5 } });
+    // Existencias: disponible = actual − reservado; 3 − 2 = 1 ≤ 1 cuenta, aunque el actual supere el mínimo.
+    await prisma.producto.create({ data: { tenantId: tenant, codigo: `${prefijo}-B`, nombre: 'Bajo mínimo', precioVenta: 10, precioCosto: 5, precioAprobado: true, stockActual: 3, stockReservado: 2, stockMinimo: 1 } });
+    // Entregas: venta del cajero con bodega pendiente, otra del otro cajero, una entregada, una cancelada y una anulada.
+    let numero = 0;
+    const venta = async (usuarioId: string, linea: Record<string, unknown>, extra: Record<string, unknown> = {}) => prisma.venta.create({ data: {
+      tenantId: tenant, usuarioId, numeroVenta: ++numero, subtotal: 10, isv: 0, total: 10, reservaPendiente: true, ...extra,
+      detalles: { create: [{ tenantId: tenant, productoId: aprobado.id, cantidad: 2, precioUnitario: 5, subtotal: 10, ...linea }] },
+    } as any });
+    await venta(cajero.id, { cantidadEntregada: 1 });
+    await venta(otroCajero.id, {});
+    await venta(cajero.id, { cantidadEntregada: 2 });
+    await venta(cajero.id, { cantidadEntregada: 1, cantidadCancelada: 1 });
+    await venta(cajero.id, { modoEntrega: 'INMEDIATA' });
+    await venta(cajero.id, {}, { estado: 'ANULADA' });
+    // Cotizaciones: una vence hoy (vigente), otra vence hoy pero ya convertida, otra vence mañana.
+    const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Tegucigalpa' });
+    const manana = new Date(Date.parse(`${hoy}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+    await prisma.cotizacion.create({ data: { tenantId: tenant, usuarioId: cajero.id, numeroCotizacion: 1, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date(`${hoy}T00:00:00Z`), estado: 'ENVIADA' } as any });
+    await prisma.cotizacion.create({ data: { tenantId: tenant, usuarioId: cajero.id, numeroCotizacion: 2, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date(`${hoy}T00:00:00Z`), estado: 'CONVERTIDA' } as any });
+    await prisma.cotizacion.create({ data: { tenantId: tenant, usuarioId: cajero.id, numeroCotizacion: 3, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date(`${manana}T00:00:00Z`), estado: 'ENVIADA' } as any });
+    // Contingencia: dos operaciones requieren revisión, una ya revisada.
+    const dispositivo = await prisma.dispositivoPos.create({ data: { id: randomUUID(), tenantId: tenant, codigo: `${prefijo}-D`, nombre: 'Caja 1', registradoPor: cajero.id } });
+    const caja = await prisma.caja.create({ data: { tenantId: tenant, codigo: `${prefijo}-CAJA`, usuarioId: cajero.id, montoApertura: 0 } as any });
+    await prisma.catalogoInstantanea.create({ data: { tenantId: tenant, hash: `${prefijo}-h`, datos: {} } });
+    const ventana = await prisma.contingenciaVentana.create({ data: { tenantId: tenant, dispositivoId: dispositivo.id, usuarioId: cajero.id, cajaId: caja.id, vigenteHasta: new Date(Date.now() + 3600000), catalogoHash: `${prefijo}-h`, limites: {} } });
+    for (const [i, requiereRevision, estado] of [[1, true, 'REVISION'], [2, true, 'APLICADA'], [3, false, 'APLICADA']] as const) {
+      await prisma.operacionContingencia.create({ data: {
+        id: randomUUID(), tenantId: tenant, dispositivoId: dispositivo.id, ventanaId: ventana.id, usuarioId: cajero.id, cajaId: caja.id,
+        secuenciaLocal: i, correlativoLocal: `${prefijo}-${i}`, ocurridoAtLocal: new Date(), ocurridoAtEstimado: new Date(),
+        payload: {}, payloadHash: `${prefijo}-${i}`, totalCentavos: 1000, efectivoRecibidoCentavos: 1000, estado, requiereRevision,
+      } });
+    }
+    return { cajero, otroCajero };
+  }
+  const mapa = (body: any) => Object.fromEntries(body.indicadores.map((i: any) => [i.clave, i.cantidad]));
+
+  it('pendientes ADMIN: cuenta en PostgreSQL con las reglas de cada pantalla y conduce a su ruta', async () => {
+    await sembrarPendientes(tenantId, 'a');
+    const { body } = await request(app.getHttpServer()).get('/dashboard/pendientes').expect(200);
+    expect(mapa(body)).toEqual({ contingencia_revision: 2, precios_pendientes: 2, entregas_pendientes: 2, cotizaciones_vencen_hoy: 1, stock_bajo_minimo: 1 });
+    expect(body.indicadores.map((i: any) => i.ruta)).toEqual(['/contingencia-admin', '/precios', '/entregas', '/cotizaciones', '/inventario']);
+  });
+
+  it('pendientes: coinciden con la lista de GET /entregas/pendientes', async () => {
+    const { EntregasService } = await import('../src/entregas/entregas.service');
+    const admin = await prisma.usuario.create({ data: { tenantId, nombre: 'Admin', email: `adm-${tenantId}@example.test`, passwordHash: 'x', rol: 'ADMIN' } });
+    const { cajero } = await sembrarPendientes(tenantId, 'e');
+    const entregas = new EntregasService(prisma);
+    subPrueba = admin.id;
+    const { body } = await request(app.getHttpServer()).get('/dashboard/pendientes').expect(200);
+    expect(mapa(body).entregas_pendientes).toBe((await entregas.pendientes(tenantId, admin.id)).pendientes.length);
+    rolPrueba = 'CAJERO'; subPrueba = cajero.id;
+    const { body: propio } = await request(app.getHttpServer()).get('/dashboard/pendientes').expect(200);
+    expect(mapa(propio).entregas_pendientes).toBe((await entregas.pendientes(tenantId, cajero.id)).pendientes.length);
+    expect(mapa(propio).entregas_pendientes).toBe(1);
+  });
+
+  it('pendientes: aislamiento estricto por tenant y cero confirmado sin datos', async () => {
+    const otro = await prisma.tenant.create({ data: { nombreComercial: 'Otro negocio pendientes' } });
+    await sembrarPendientes(otro.id, 'x');
+    const { body } = await request(app.getHttpServer()).get('/dashboard/pendientes').expect(200);
+    expect(mapa(body)).toEqual({ contingencia_revision: 0, precios_pendientes: 0, entregas_pendientes: 0, cotizaciones_vencen_hoy: 0, stock_bajo_minimo: 0 });
+  });
+
+  it('pendientes por rol: CAJERO solo sus entregas, VENDEDOR solo cotizaciones, BODEGUERO sin precios ni contingencia', async () => {
+    const { cajero } = await sembrarPendientes(tenantId, 'r');
+    rolPrueba = 'CAJERO'; subPrueba = cajero.id;
+    const cajeroBody = (await request(app.getHttpServer()).get('/dashboard/pendientes').expect(200)).body;
+    expect(mapa(cajeroBody)).toEqual({ entregas_pendientes: 1, cotizaciones_vencen_hoy: 1 });
+    expect(cajeroBody.indicadores[0].alcance).toBe('PROPIAS');
+    rolPrueba = 'VENDEDOR';
+    expect(mapa((await request(app.getHttpServer()).get('/dashboard/pendientes').expect(200)).body)).toEqual({ cotizaciones_vencen_hoy: 1 });
+    rolPrueba = 'BODEGUERO';
+    expect(mapa((await request(app.getHttpServer()).get('/dashboard/pendientes').expect(200)).body)).toEqual({ entregas_pendientes: 2, stock_bajo_minimo: 1 });
+    rolPrueba = 'SUPERADMIN';
+    await request(app.getHttpServer()).get('/dashboard/pendientes').expect(403);
+  });
+
+  it('pendientes: un módulo deshabilitado oculta sus contadores', async () => {
+    await sembrarPendientes(tenantId, 'm');
+    await prisma.tenantModule.create({ data: { tenantId, moduleKey: 'pos', enabled: false } as any });
+    const { body } = await request(app.getHttpServer()).get('/dashboard/pendientes').expect(200);
+    expect(Object.keys(mapa(body))).toEqual(['precios_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo']);
   });
 });

@@ -15,13 +15,16 @@ interface LogotipoNegocioEditorProps {
   nombreNegocio: string;
   logotipo: LogotipoMeta | null;
   onCambio: (logotipo: LogotipoMeta | null) => void;
+  /** Nivel del título cuando el editor va dentro de otra sección (p. ej. «Mi negocio»). */
+  nivelTitulo?: 'h2' | 'h3';
 }
 
 /**
  * Carga, vista previa, reemplazo y eliminación del logotipo de un negocio (solo SUPERADMIN).
  * La validación del navegador es orientativa: el servidor revalida tipo real, tamaño y dimensiones.
  */
-export const LogotipoNegocioEditor: React.FC<LogotipoNegocioEditorProps> = ({ negocioId, nombreNegocio, logotipo, onCambio }) => {
+export const LogotipoNegocioEditor: React.FC<LogotipoNegocioEditorProps> = ({ negocioId, nombreNegocio, logotipo, onCambio, nivelTitulo = 'h2' }) => {
+  const Titulo = nivelTitulo;
   const endpoint = `/admin/tenants/${negocioId}/logo`;
   const actual = useLogotipoNegocio(logotipo ? endpoint : null, logotipo?.actualizadoAt ?? null);
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -92,7 +95,7 @@ export const LogotipoNegocioEditor: React.FC<LogotipoNegocioEditorProps> = ({ ne
 
   return (
     <section className="industrial-card" aria-labelledby="logotipo-negocio" style={{ padding: 16, display: 'grid', gap: 12 }}>
-      <h2 id="logotipo-negocio" style={{ fontSize: 15, textTransform: 'uppercase', margin: 0 }}>Logotipo del negocio</h2>
+      <Titulo id="logotipo-negocio" style={{ fontSize: 15, textTransform: 'uppercase', margin: 0 }}>Logotipo del negocio</Titulo>
       <p style={{ margin: 0, fontSize: 13 }}>
         PNG, JPG o WEBP de hasta 2 MB. Se muestra en el menú, los encabezados, el punto de venta y los recibos de {nombreNegocio}.
       </p>

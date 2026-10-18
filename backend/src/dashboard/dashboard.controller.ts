@@ -19,4 +19,14 @@ export class DashboardController {
     if (rol === 'BODEGUERO') return this.dashboardService.getResumenOperativo(tenantId);
     return this.dashboardService.getDashboardData(tenantId);
   }
+
+  /** Pendientes del usuario autenticado (contadores del inicio). CAJERO solo cuenta sus entregas. */
+  @Get('pendientes')
+  @Roles('ADMIN', 'BODEGUERO', 'VENDEDOR', 'CAJERO')
+  async getPendientes(
+    @TenantId() tenantId: string,
+    @CurrentUser() usuario: { sub?: string; rol?: string; permisos?: string[]; permisosConfigurados?: boolean },
+  ) {
+    return this.dashboardService.getPendientes(tenantId, usuario);
+  }
 }

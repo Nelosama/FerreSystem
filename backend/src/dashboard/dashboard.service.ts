@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
+import { MODULOS_PENDIENTES, reglasAutorizadas, type ClavePendiente, type UsuarioPendientes } from './pendientes';
+
+// Estados de cotización que siguen vigentes (mismo criterio que el resumen).
+const COTIZACION_VIGENTE = ['BORRADOR', 'ENVIADA', 'APROBADA'] as const;
 
 @Injectable()
 export class DashboardService {
@@ -102,6 +106,63 @@ export class DashboardService {
         hora: new Date(v.createdAt).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit', timeZone: zona }),
       })),
     };
+  }
+
+  /**
+   * Pendientes del usuario autenticado: solo los indicadores que su rol, permisos y módulos permiten abrir.
+   * Cada cifra es un COUNT en PostgreSQL filtrado por tenant; un indicador no autorizado no se consulta ni se devuelve.
+   */
+  async getPendientes(tenantId: string, usuario: UsuarioPendientes & { sub?: string }, zona = ZONA_HORARIA_NEGOCIO) {
+    const registros = await this.prisma.tenantModule.findMany({
+      where: { tenantId, moduleKey: { in: MODULOS_PENDIENTES } },
+      select: { moduleKey: true, enabled: true },
+    });
+    const reglas = reglasAutorizadas(usuario, registros);
+    const contar = (clave: ClavePendiente, propias: boolean): Promise<number> => {
+      switch (clave) {
+        case 'contingencia_revision':
+          // Igual que el filtro «solo revisión» de /contingencia-admin.
+          return this.prisma.operacionContingencia.count({ where: { tenantId, requiereRevision: true } });
+        case 'precios_pendientes':
+          // Igual que la pestaña «Pendientes» de /precios: productos activos sin precio aprobado.
+          return this.prisma.producto.count({ where: { tenantId, activo: true, precioAprobado: false } });
+        case 'entregas_pendientes':
+          return this.contarEntregasPendientes(tenantId, propias ? String(usuario.sub ?? '') : null);
+        case 'cotizaciones_vencen_hoy':
+          // fechaValidez es DATE: se compara con el día calendario del negocio.
+          return this.prisma.cotizacion.count({
+            where: { tenantId, estado: { in: [...COTIZACION_VIGENTE] }, fechaValidez: new Date(`${diaCalendario(new Date(), zona)}T00:00:00.000Z`) },
+          });
+        case 'stock_bajo_minimo':
+          return this.contarStockBajo(tenantId);
+      }
+    };
+    const cantidades = await Promise.all(reglas.map((r) => contar(r.clave, r.alcance === 'PROPIAS')));
+    return {
+      generadoAt: new Date().toISOString(),
+      indicadores: reglas.map((r, i) => ({ clave: r.clave, cantidad: cantidades[i], ruta: r.ruta, alcance: r.alcance })),
+    };
+  }
+
+  /** Ventas con mercancía de bodega por entregar: misma condición que GET /entregas/pendientes, en un solo COUNT. */
+  private async contarEntregasPendientes(tenantId: string, usuarioId: string | null) {
+    const [fila] = await this.prisma.$queryRawUnsafe<{ cantidad: number }[]>(
+      `SELECT COUNT(DISTINCT v.id)::int AS cantidad
+         FROM ventas v JOIN detalles_venta d ON d.venta_id = v.id AND d.tenant_id = v.tenant_id
+        WHERE v.tenant_id = $1 AND v.estado = 'COMPLETADA' AND v.reserva_pendiente = true
+          AND ($2::text IS NULL OR v.usuario_id = $2::text)
+          AND d.modo_entrega = 'BODEGA' AND d.cantidad - d.cantidad_entregada - d.cantidad_cancelada > 0`,
+      tenantId, usuarioId);
+    return Number(fila?.cantidad ?? 0);
+  }
+
+  /** Productos activos con disponible (existencia − reservado) en o bajo el mínimo: mismo criterio que el resumen. */
+  private async contarStockBajo(tenantId: string) {
+    const [fila] = await this.prisma.$queryRawUnsafe<{ cantidad: number }[]>(
+      `SELECT COUNT(*)::int AS cantidad FROM productos
+        WHERE tenant_id = $1 AND activo = true AND stock_actual - stock_reservado <= stock_minimo`,
+      tenantId);
+    return Number(fila?.cantidad ?? 0);
   }
 
   /**

@@ -73,7 +73,7 @@
 
 .admin-home__metricas {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -207,7 +207,8 @@
   box-shadow: 0 8px 20px rgba(234, 88, 12, 0.35);
 }
 
-@media (max-width: 1100px) {
+/* Tableta: las tres métricas caben en una fila hasta 900 px; después, dos columnas. */
+@media (max-width: 900px) {
   .admin-home__metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -218,6 +219,7 @@
   .admin-home__metrica-cifra { font-size: 22px; }
   .admin-home__metrica-cifra--pendiente { font-size: 14px; white-space: normal; }
   .admin-home__rejilla { grid-template-columns: minmax(0, 1fr); }
+  .admin-home__tarjeta--ancha { grid-column: auto; }
   .admin-home__acciones { display: none; }
   .admin-home__flotante { display: inline-flex; }
 }
@@ -240,3 +242,17 @@
 .admin-home__pendientes .admin-home__fila > div strong { display:block; }
 .admin-home__pendientes .admin-home__fila > div { align-items:flex-start; }
 .admin-home__pendientes .admin-home__meta { margin-left:0; text-align:left; }
+
+/* Pendientes con cifras del servidor: cada fila conduce a la pantalla que lo resuelve. */
+.admin-home__pendientes .admin-home__lista > li { border-bottom:1px solid var(--ah-border); }
+.admin-home__pendientes .admin-home__lista > li:last-child { border-bottom:none; }
+.admin-home__fila--enlace { color:inherit; text-decoration:none; border-bottom:none; border-radius:8px; margin:0 -8px; padding-left:8px !important; padding-right:8px !important; min-height:44px; }
+.admin-home__fila--enlace:hover { background:var(--color-primary-light, #FFF7ED); }
+.admin-home__fila--enlace:focus-visible, .admin-home__enlace:focus-visible { outline:3px solid var(--color-primary); outline-offset:2px; }
+.admin-home__chevron { flex:0 0 auto; color:var(--ah-muted); }
+.admin-home__al-dia { margin-top:8px; }
+.admin-home__aviso--compacto { margin:4px 0 0; }
+.admin-home__tarjeta--ancha { grid-column:1 / -1; }
+.admin-home__metrica .admin-home__enlace { margin-top:2px; }
+.admin-home__pendientes .admin-home__fila--enlace { flex:1; min-width:0; }
+.admin-home__pendientes .admin-home__icono { margin-left:0; }

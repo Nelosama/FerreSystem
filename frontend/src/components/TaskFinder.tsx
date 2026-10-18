@@ -36,10 +36,12 @@ export const TaskFinder: React.FC = () => {
     </div>}
   </section>;
 };
-export const TaskShortcuts: React.FC = () => {
+// `exclude` y `limit` permiten al inicio del administrador no repetir sus acciones principales (máximo cuatro en total).
+export const TaskShortcuts: React.FC<{ exclude?: string[]; limit?: number }> = ({ exclude = [], limit = 4 }) => {
   const { user, tenant } = useTenant();
   const { t } = useI18n();
-  const tasks = priorityTasks(user, tenant);
+  const prioritarias = priorityTasks(user, tenant);
+  const tasks = prioritarias.filter(item => !exclude.includes(item.key)).slice(0, Math.max(0, limit));
   return <section aria-labelledby="daily-tasks-title" className="daily-tasks">
     <h2 id="daily-tasks-title">{t(user?.rol === 'ADMIN' ? 'tasks.manage' : 'tasks.daily')}</h2>
     <p>{t('tasks.guidance.' + user?.rol)}</p>
@@ -48,7 +50,7 @@ export const TaskShortcuts: React.FC = () => {
       <strong>{t('tasks.' + item.key + '.title')}</strong>
       <span>{t('tasks.' + item.key + '.description')}</span>
     </Link>)}</div>
-    {!tasks.length && <p role="status">{t('tasks.unavailable')}</p>}
+    {!prioritarias.length && <p role="status">{t('tasks.unavailable')}</p>}
     <details><summary>{t('pending.title')}</summary><p>{t('pending.help')}</p></details>
   </section>;
 };

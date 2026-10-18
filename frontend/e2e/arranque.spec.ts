@@ -24,6 +24,7 @@ const test = base.extend<{ runtime: Runtime }>({
           '/tenant/settings': tenant,
           '/auth/me': { user: role ? { sub: user(role).id, tenantId: tenant.id, rol: role, permisos: ['pos.vender'], descuentoMaximo: 0 } : null },
           '/dashboard': { ventasDelDia: { total: 0 }, alertasStock: { items: [] }, cotizacionesPendientes: { cantidad: 0 } },
+          '/dashboard/pendientes': { generadoAt: '2026-10-18T00:00:00.000Z', indicadores: [] },
           '/maintenance/backup': { configured: false },
           '/productos/comercial': [],
           '/clientes': [],

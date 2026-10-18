@@ -11,6 +11,7 @@ export const TASK_DETAILS: Record<string, { title: string; description: string; 
   levantamiento: { title: 'Contar el inventario', description: 'Registrar el conteo físico de los productos.', keywords: 'conteo fisico contar inventario' },
   clientes: { title: 'Buscar o registrar un cliente', description: 'Consultar y actualizar los datos de clientes.', keywords: 'cliente nombre telefono registro' },
   cuentas: { title: 'Consultar cuentas y registrar abonos', description: 'Revisar saldos pendientes y registrar pagos.', keywords: 'deuda credito abono pagar cobrar saldo' },
+  contingencia_admin: { title: 'Revisar ventas sin conexión', description: 'Decidir sobre las ventas offline que el servidor dejó en revisión.', keywords: 'contingencia offline sin conexion revision conflictos' },
   entregas: { title: 'Entregar productos vendidos', description: 'Revisar las entregas pendientes y confirmar la entrega.', keywords: 'despachar entrega pedido' },
   usuarios: { title: 'Administrar el personal', description: 'Gestionar usuarios, roles y permisos.', keywords: 'empleado cajero acceso clave usuario permisos' },
   reportes: { title: 'Revisar los reportes', description: 'Consultar los resultados del negocio.', keywords: 'ventas resultados estadisticas ganancias reporte' },
