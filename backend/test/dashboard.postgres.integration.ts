@@ -231,7 +231,7 @@ describe('Dashboard / PostgreSQL aislado', () => {
     await venta(otroCajero.id, {});
     await venta(cajero.id, { cantidadEntregada: 2 });
     await venta(cajero.id, { cantidadEntregada: 1, cantidadCancelada: 1 });
-    await venta(cajero.id, { modoEntrega: 'INMEDIATA' });
+    await venta(cajero.id, { modoEntrega: 'MOSTRADOR' });
     await venta(cajero.id, {}, { estado: 'ANULADA' });
     // Cotizaciones: una vence hoy (vigente), otra vence hoy pero ya convertida, otra vence mañana.
     const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Tegucigalpa' });
@@ -239,12 +239,12 @@ describe('Dashboard / PostgreSQL aislado', () => {
     await prisma.cotizacion.create({ data: { tenantId: tenant, usuarioId: cajero.id, numeroCotizacion: 1, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date(`${hoy}T00:00:00Z`), estado: 'ENVIADA' } as any });
     await prisma.cotizacion.create({ data: { tenantId: tenant, usuarioId: cajero.id, numeroCotizacion: 2, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date(`${hoy}T00:00:00Z`), estado: 'CONVERTIDA' } as any });
     await prisma.cotizacion.create({ data: { tenantId: tenant, usuarioId: cajero.id, numeroCotizacion: 3, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date(`${manana}T00:00:00Z`), estado: 'ENVIADA' } as any });
-    // Contingencia: dos operaciones requieren revisión, una ya revisada.
-    const dispositivo = await prisma.dispositivoPos.create({ data: { id: randomUUID(), tenantId: tenant, codigo: `${prefijo}-D`, nombre: 'Caja 1', registradoPor: cajero.id } });
+    // Contingencia: dos operaciones requieren revisión y una ya se resolvió (APLICADA exige venta; no hace falta aquí).
+    const dispositivo = await prisma.dispositivoPos.create({ data: { id: randomUUID(), tenantId: tenant, codigo: '01', nombre: 'Caja 1', registradoPor: cajero.id } });
     const caja = await prisma.caja.create({ data: { tenantId: tenant, codigo: `${prefijo}-CAJA`, usuarioId: cajero.id, montoApertura: 0 } as any });
     await prisma.catalogoInstantanea.create({ data: { tenantId: tenant, hash: `${prefijo}-h`, datos: {} } });
     const ventana = await prisma.contingenciaVentana.create({ data: { tenantId: tenant, dispositivoId: dispositivo.id, usuarioId: cajero.id, cajaId: caja.id, vigenteHasta: new Date(Date.now() + 3600000), catalogoHash: `${prefijo}-h`, limites: {} } });
-    for (const [i, requiereRevision, estado] of [[1, true, 'REVISION'], [2, true, 'APLICADA'], [3, false, 'APLICADA']] as const) {
+    for (const [i, requiereRevision, estado] of [[1, true, 'REVISION'], [2, true, 'REVISION'], [3, false, 'RESUELTA_MANUAL']] as const) {
       await prisma.operacionContingencia.create({ data: {
         id: randomUUID(), tenantId: tenant, dispositivoId: dispositivo.id, ventanaId: ventana.id, usuarioId: cajero.id, cajaId: caja.id,
         secuenciaLocal: i, correlativoLocal: `${prefijo}-${i}`, ocurridoAtLocal: new Date(), ocurridoAtEstimado: new Date(),
