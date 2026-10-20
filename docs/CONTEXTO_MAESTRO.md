@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-18 UTC** — inicio del administrador con pendientes reales, rama única `claude/admin-pendientes-ux` (PR abierto hacia `main`, sin merge ni despliegue).
+Última revisión: **2026-10-20 UTC** — validación de Impeccable en la rama `claude/impeccable-init` (PR hacia `main`, sin merge ni despliegue).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -21,6 +21,18 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
 
 ---
+
+## Impeccable para Jowa System — validación e integración (2026-10-20, rama `claude/impeccable-init`, sin merge ni despliegue)
+
+- **Procedencia del motor:** `impeccable-windows-x64.exe` (19,8 MB) tiene sha256 `c7dfa8846ec59ceb3a40be99b89fba29e4f3bdd16f3c412a33f19ad8a68ccff2`, igual al `.sha256` del release oficial `engine-v0.1.16` de `pbakaus/impeccable`. El paquete npm `impeccable@4.7.0` coincide con su `dist.integrity` sha512 y no incluye el binario; el launcher lo descarga de GitHub Releases y lo valida con `.sha256`. Ningún binario se ejecutó durante la revisión.
+- **Decisión:** salen del repositorio el motor, el launcher, los bundles JS y el hook `.github/hooks/impeccable.json`. El hook ejecutaba el launcher tras cada edición en Copilot, con descarga de binario si faltaba; se añadieron reglas al `.gitignore`. **Pendiente:** decidir si se instala el ejecutable.
+- **Conservado como documentación:** `.github/skills/impeccable/SKILL.md`, `reference/` y `.github/agents/impeccable-*.agent.md`. Revisados: sin comandos de red, sin instrucciones ocultas ni secretos.
+- **PRODUCT.md:** rehecho con las decisiones oficiales. Cada afirmación lleva estado (Implementado, Parcial, En desarrollo, Planificado o Pendiente) y se verificó contra el código de `main` o la rama indicada.
+- **Conflictos abiertos:** "totalmente en la nube" frente a `deploy/local`; `.xlsx` frente al `.xls` XML actual; rol Contador solo en `feat/contabilidad-honduras`; vista móvil sin ocultar POS, caja y cobros.
+- **DESIGN.md:** no creado. El diseño está en cambio en la ronda 1 UX (`claude/ux-ronda1-pos-marca`); documentarlo ahora fijaría una versión provisional.
+- **Verificaciones:** no hay cambios en `frontend/` ni `backend/` respecto a `main`. Por eso no se ejecutaron build, lint ni pruebas de aplicación, y no hay resultados que declarar. Actions: pendiente de comprobar en el PR.
+- **Sin cambios de:** dependencias, esquema Prisma, migraciones, reglas de negocio, POS, inventario ni backend.
+- **Pendientes:** decisión sobre la instalación ejecutable; confirmar nube frente a despliegue local; integrar o no `feat/contabilidad-honduras`; exportación `.xlsx`; POS móvil; fotografías de producto con almacenamiento; validación física iOS/impresoras.
 
 ## Auditoría final acotada PR #178 — 2026-10-19, America/Tegucigalpa
 

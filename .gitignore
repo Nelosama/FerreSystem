@@ -17,3 +17,8 @@ playwright-report/
 
 # Estado local de editores (Visual Studio / Copilot): no se versiona
 .vs/
+
+# Impeccable: el launcher, el motor binario y los bundles JS no se versionan
+# (instalación ejecutable pendiente de decisión; ver PRODUCT.md / CONTEXTO_MAESTRO)
+.github/skills/impeccable/scripts/
+.github/hooks/impeccable.json
