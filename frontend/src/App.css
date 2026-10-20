@@ -244,3 +244,11 @@ html[data-session-pending="true"] [data-protected-content] {
 .topnav-link, .topnav-more summary { font-size:13px; font-weight:600; border-radius:8px; }
 .topnav-dropdown { border-radius:10px; box-shadow:0 8px 24px rgba(16,24,40,.12); }
 @media (max-width:768px) { .app-topbar { padding:16px !important; } .app-tenant-brand img { max-width:150px; } }
+/* Configuración del negocio (Super Admin): cuatro secciones numeradas y barra de guardado común. */
+.settings-section { gap: 4px; min-width: 0; }
+.settings-section-help { font-size: 13px; color: var(--color-text-muted); margin: 10px 0 4px; }
+.settings-links { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.settings-links a { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text-main); text-decoration: none; font-weight: 600; }
+.settings-links a:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.settings-links a:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+.settings-save-bar { grid-column: 1 / -1; position: sticky; bottom: 0; z-index: 2; padding: 12px 0; background: var(--color-bg); border-top: 1px solid var(--color-border); }
