@@ -25,13 +25,6 @@ const INTERVALO_SYNC_MS = 30_000;
 const MAX_CENTAVOS_SERVIDOR = 2_000_000_000;
 const UMBRAL_RENOVAR_MS = 2 * 3_600_000;
 const LIMITE_LINEAS = 60;
-const CLAVE_PAPEL = 'pos-contingencia-papel';
-
-// Papel de la impresora por equipo (A4, 58 u 80 mm). Es una preferencia de pantalla, no un dato de la venta.
-function leerPapel(): 'A4' | '58' | '80' {
-  try { const value = localStorage.getItem(CLAVE_PAPEL); return value === 'A4' || value === '58' ? value : '80'; } catch { return '80'; }
-}
-
 type Linea = LineaLocal & { productoIdCatalogo?: string };
 
 const hora = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' }) : 'nunca');
@@ -59,11 +52,8 @@ export default function PosContingenciaPage() {
   const [confirmacion, setConfirmacion] = useState<OperacionLocal | null>(null);
   const [aImprimir, setAImprimir] = useState<OperacionLocal | null>(null);
   const [avisoImpresion, setAvisoImpresion] = useState<string | null>(null);
-  // El formato configurado por negocio gobierna página y ancho, incluido A4.
-  const [papel, setPapel] = useState<'A4' | '58' | '80'>(() => (tenant?.formatoImpresion === 'ROLLO_58MM' ? '58' : tenant?.formatoImpresion === 'ROLLO_80MM' ? '80' : leerPapel()));
-  const formatoNegocio = tenant?.formatoImpresion;
-  const formatoConfigurado = formatoNegocio === 'A4' || formatoNegocio === 'ROLLO_58MM' || formatoNegocio === 'ROLLO_80MM';
-  const formatoPapel = formatoConfigurado ? formatoNegocio : papel === 'A4' ? 'A4' : papel === '58' ? 'ROLLO_58MM' : 'ROLLO_80MM';
+  // Solo el Super Admin decide el formato; sin configuración se usa A4.
+  const formatoPapel = tenant?.formatoImpresion ?? 'A4';
   const papelComprobante = formatoPapel === 'A4' ? 'A4' : formatoPapel === 'ROLLO_58MM' ? '58' : '80';
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'ok' | 'aviso'; texto: string } | null>(null);
   const [ultimaSync, setUltimaSync] = useState<string | undefined>(undefined);
@@ -273,11 +263,6 @@ export default function PosContingenciaPage() {
     }
     if (almacen !== 'ok') return 'No hay almacenamiento local disponible. No se puede cobrar sin conservar la venta.';
     return null;
-  };
-
-  const cambiarPapel = (valor: 'A4' | '58' | '80') => {
-    setPapel(valor);
-    try { localStorage.setItem(CLAVE_PAPEL, valor); } catch { /* sin almacenamiento: la preferencia dura solo esta sesión */ }
   };
 
   // Imprime desde el registro local ya guardado. Una falla de impresión solo avisa: la venta no se revierte
@@ -491,7 +476,7 @@ export default function PosContingenciaPage() {
         )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
           <label className="pc-papel">Papel de la impresora
-            <select value={papelComprobante} disabled={formatoConfigurado} onChange={(e) => cambiarPapel(e.target.value as 'A4' | '58' | '80')}>
+            <select value={papelComprobante} disabled>
               <option value="A4">A4</option>
               <option value="80">80 mm</option>
               <option value="58">58 mm</option>

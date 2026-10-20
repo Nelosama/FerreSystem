@@ -22,11 +22,21 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Auditoría final acotada PR #178 — 2026-10-19, America/Tegucigalpa
+
+- Mismo PR/rama; `main` sigue en `aae1546d` e incluido, sin conflictos nuevos ni Contabilidad. Se conservan el inicio administrativo, navegación y configuración de Claude.
+- Corrección: `ReciboPDF` prioriza el formato del negocio frente a un parámetro alternativo. Seis regresiones de PDF real (VENTA/COTIZACION × A4/80/58) fallaron antes y pasan después. Se mantienen las seis pruebas originales de documento/ancho. Sin cálculos monetarios ni cambios fiscales.
+- Corrección: contingencia elimina la lectura/escritura de `pos-contingencia-papel` y la selección operativa del papel. El formato viene del negocio, con A4 predeterminado. Se conserva el control visible como solo lectura. Las regresiones existentes cubren una preferencia local incompatible, los tres formatos, reimpresión y aviso de fallo que sobrevive a la sincronización.
+- Cotizaciones: el modal HTML heredado no es accesible desde la interfaz (`setModalPdf` solo se usa para cerrar). La acción vigente descarga `ReciboPDF` con el tenant; no se activa ni modifica ese modal.
+- Revisados: timeout de perfil de 10 s, distinción 401/503 y errores de red, identidad antes de aplicar respuestas, guards de tenant/sesiones, tracks y permisos/reintentos de cámara, diario/sincronización/idempotencia. Sin otro defecto demostrado que requiera ampliar el alcance. Caída de Render/Supabase productivos no provocada ni certificada: se prueba el contrato de indisponibilidad y PostgreSQL temporal real.
+- Validación: seis regresiones rojas y doce PDF verdes; suites relevantes locales y Actions completas del HEAD definitivo, con resultados/enlaces finales en [PR #178](https://github.com/Nelosama/FerreSystem/pull/178). No reutilizar checks de HEAD anteriores como aprobación del nuevo commit.
+- Límites conservados: Safari/iPhone/PWA físicos, cámaras e impresoras reales sin validar; no bloquear el merge por hardware no disponible ni confundir simulación con aceptación física. Sin merge, despliegue, migraciones ni dependencias nuevas. NEXUS firma la evidencia PostgreSQL.
+
 ## Cierre técnico PR #178 — 2026-10-19, America/Tegucigalpa
 
 - Rama exclusiva `codex/estabilidad-operativa`; `main` actualizado a `aae1546d` (#179). Único conflicto documental en este contexto, resuelto conservando íntegros ambos registros. Sin cambios en otras ramas/PR ni en el trabajo de Claude.
 - Regresión heredada adaptada a la regla solicitada: el comprobante sin formato explícito espera A4 (normalización existente); la persistencia de 58 mm se prueba con configuración del negocio y selector bloqueado, sin permitir que una preferencia local sustituya A4.
-- Contingencia: A4, 80 mm y 58 mm configurados por Super Admin prevalecen sobre la preferencia local; página CSS y ancho del comprobante usan el mismo formato. Regresión de navegador con una preferencia local incompatible para cada formato. El selector solo permite preferencia local cuando no hay formato configurado.
+- Contingencia: A4, 80 mm y 58 mm configurados por Super Admin prevalecen sobre la preferencia local; página CSS y ancho del comprobante usan el mismo formato. Regresión de navegador con una preferencia local incompatible para cada formato. El selector es de solo lectura; sin configuración se usa A4 y no se lee ni escribe la preferencia local.
 - Sesiones: errores temporales de Prisma devuelven 503 sin autorizar ni revocar; sesiones revocadas siguen devolviendo 401. `backend/test/app.e2e-spec.ts` verifica caída/reinicio de PostgreSQL real, recuperación con el mismo token y revocación posterior. `session-lifecycle.spec.ts` verifica conservación de credenciales ante 502/503/504.
 - Cámara: limpieza antes de adquirir otro dispositivo, descarte de streams tardíos y entrada manual conservada; pruebas unitarias de ciclo y prueba de navegador en `levantamiento.spec.ts`. APIs de cámara simuladas: no acreditan hardware.
 - Validación de esta continuación: frontend `npm test`, build con `VITE_API_URL=/api`, lint y Playwright; backend unitarias, build, lint, scripts, integración PostgreSQL temporal 17.11 y recuperación HTTP. Guard de migraciones correcto: cero migraciones nuevas. Resultados definitivos y checks vinculados al SHA final se registran en [PR #178](https://github.com/Nelosama/FerreSystem/pull/178); no usar checks de SHA anteriores para aprobarlo.

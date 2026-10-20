@@ -47,7 +47,7 @@ export interface ReciboPDFProps {
   tenant: TenantInfo;
   /** Logotipo privado ya resuelto como data URL (lo prepara descargarReciboPDF). */
   logoDataUrl?: string | null;
-  /** Formato del negocio: hoja A4 o papel de rollo térmico (80 mm / 58 mm). */
+  /** Respaldo para documentos sin configuración; nunca sustituye el formato del negocio. */
   formato?: FormatoImpresion;
 }
 
@@ -276,7 +276,7 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
 
   return (
     <Document title={`${tipo === 'VENTA' ? 'Venta' : 'Cotizacion'}-${numeroDocumento}`}>
-      <Page size={tamanoPaginaRecibo(formato ?? tenant.formatoImpresion, items.length + (notas ? 4 : 0) + 22)} style={esFormatoRollo(formato ?? tenant.formatoImpresion) ? { ...styles.page, padding: 12 } : styles.page}>
+      <Page size={tamanoPaginaRecibo(tenant.formatoImpresion ?? formato, items.length + (notas ? 4 : 0) + 22)} style={esFormatoRollo(tenant.formatoImpresion ?? formato) ? { ...styles.page, padding: 12 } : styles.page}>
         {/* Encabezado del Tenant & Documento */}
         <View style={styles.headerRow}>
           <View style={styles.companyBox}>
