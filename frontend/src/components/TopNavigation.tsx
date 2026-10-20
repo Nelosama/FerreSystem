@@ -10,7 +10,7 @@ import { useI18n } from '../context/I18nContext';
 const primaryOrder = ['dashboard', 'pos', 'cotizaciones', 'clientes', 'cuentas', 'entregas', 'inventario', 'ordenes_compra', 'usuarios'];
 const related: Record<string, string[]> = {
   dashboard: ['reportes', 'admin_movil', 'conciliacion_bancaria'],
-  pos: ['arqueo_caja', 'devoluciones', 'apartados', 'pedidos_especiales'],
+  pos: ['arqueo_caja', 'devoluciones', 'apartados', 'pedidos_especiales', 'contingencia_admin'],
   clientes: ['estado_cuenta_clientes', 'listas_precio'],
   inventario: ['precios', 'levantamiento', 'transferencias', 'garantias'],
   usuarios: ['comisiones'],

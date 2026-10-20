@@ -52,6 +52,7 @@ const test = base.extend<{ sim: Sim }>({
         if (method === 'POST' && path === '/auth/login') return responder(route, 200, { type: 'tenant', accessToken: 'prod-e2e-token', user: admin, tenant: { ...tenant, modoNavegacion: sim.modoNavegacion, idioma: sim.idioma } });
         const lecturasVacias: Record<string, unknown> = {
           '/dashboard': { ventasDelDia: { total: 0 }, alertasStock: { items: [] }, cotizacionesPendientes: { cantidad: 0 } },
+          '/dashboard/pendientes': { generadoAt: '2026-10-18T00:00:00.000Z', indicadores: [] },
           '/maintenance/backup': { configured: false }, '/productos/comercial': [], '/clientes': [],
           '/operaciones/proveedores': [], '/operaciones/caja': [], '/operaciones/solicitudes-devolucion': [], '/operaciones/auditoria': [],
         };

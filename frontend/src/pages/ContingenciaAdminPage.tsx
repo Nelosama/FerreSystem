@@ -70,7 +70,11 @@ const etiqueta = (c: Conflicto) => ETIQUETAS[c.codigo] ?? c.codigo;
 export default function ContingenciaAdminPage() {
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [ops, setOps] = useState<Operacion[]>([]);
+  // Lista confirmada por el servidor para el filtro vigente: hasta entonces no se afirma que no haya operaciones.
+  const [opsCargadas, setOpsCargadas] = useState(false);
   const [soloRevision, setSoloRevision] = useState(true);
+  // Al cambiar de filtro, la lista anterior no corresponde: se espera la nueva lectura.
+  const filtrar = (valor: boolean) => { if (valor !== soloRevision) { setOpsCargadas(false); setSoloRevision(valor); } };
   const [habilitada, setHabilitada] = useState<boolean | null>(null);
   const [entornoHabilitado, setEntornoHabilitado] = useState<boolean | null>(null);
   const [notas, setNotas] = useState<Record<string, string>>({});
@@ -94,6 +98,7 @@ export default function ContingenciaAdminPage() {
       if (seq !== cargaSeq.current) return true;
       setResumen(r.data);
       setOps(o.data);
+      setOpsCargadas(true);
       setHabilitada(Boolean(c.data.habilitada));
       setEntornoHabilitado(Boolean(c.data.entornoHabilitado));
       const abiertas = await api.get('/operaciones/caja/cierres', { params: { estado: 'ABIERTA' } }).then((x) => x.data).catch(() => []);
@@ -222,10 +227,11 @@ export default function ContingenciaAdminPage() {
       <section className="pc-panel" style={{ margin: 16 }} aria-label="Operaciones">
         <h2>Operaciones</h2>
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <button className={`pc-btn ${soloRevision ? 'primario' : ''}`} style={soloRevision ? { fontSize: 15, minHeight: 40, width: 'auto' } : undefined} onClick={() => setSoloRevision(true)}>Requieren revisión</button>
-          <button className={`pc-btn ${!soloRevision ? 'primario' : ''}`} style={!soloRevision ? { fontSize: 15, minHeight: 40, width: 'auto' } : undefined} onClick={() => setSoloRevision(false)}>Todas</button>
+          <button className={`pc-btn ${soloRevision ? 'primario' : ''}`} aria-pressed={soloRevision} style={soloRevision ? { fontSize: 15, minHeight: 40, width: 'auto' } : undefined} onClick={() => filtrar(true)}>Requieren revisión</button>
+          <button className={`pc-btn ${!soloRevision ? 'primario' : ''}`} aria-pressed={!soloRevision} style={!soloRevision ? { fontSize: 15, minHeight: 40, width: 'auto' } : undefined} onClick={() => filtrar(false)}>Todas</button>
         </div>
-        {ops.length === 0 && <p>No hay operaciones en esta vista.</p>}
+        {!opsCargadas && <p role="status">{sync.phase === 'error' || sync.phase === 'offline' ? 'No se pudo consultar la lista; se reintentará automáticamente.' : 'Cargando operaciones…'}</p>}
+        {opsCargadas && ops.length === 0 && <p>{soloRevision ? 'No hay operaciones pendientes de revisión.' : 'No hay operaciones en esta vista.'}</p>}
         <div style={{ display: 'grid', gap: 12 }}>
           {ops.map((op) => (
             <article key={op.operacionId} className="pc-panel" aria-label={`Operación ${op.correlativoLocal}`}>
@@ -264,7 +270,7 @@ export default function ContingenciaAdminPage() {
                   </select>
                 </label>
               )}
-              {(op.estado === 'REVISION' || op.estado === 'RECHAZADA' || (op.estado === 'SINCRONIZADA' && op.requiereRevision)) && (
+              {(op.estado === 'REVISION' || op.estado === 'RECHAZADA' || (op.estado === 'APLICADA' && op.requiereRevision)) && (
                 <label style={{ display: 'grid', gap: 4, marginTop: 8 }}>
                   Nota de la decisión (mínimo 10 caracteres)
                   <textarea rows={2} value={notas[op.operacionId] ?? ''} onChange={(e) => setNotas((n) => ({ ...n, [op.operacionId]: e.target.value }))} />
@@ -287,7 +293,8 @@ export default function ContingenciaAdminPage() {
                     <button className="pc-btn" onClick={() => void resolver(op, 'CERRAR_MANUAL')}>Cerrar sin venta y registrar el efectivo en caja</button>
                   </>
                 )}
-                {op.estado === 'SINCRONIZADA' && op.requiereRevision && (
+                {/* El servidor solo marca como revisada una venta APLICADA («SINCRONIZADA» es un estado del diario local del equipo). */}
+                {op.estado === 'APLICADA' && op.requiereRevision && (
                   <button className="pc-btn" onClick={() => void resolver(op, 'MARCAR_REVISADA')}>Marcar como revisada</button>
                 )}
               </div>

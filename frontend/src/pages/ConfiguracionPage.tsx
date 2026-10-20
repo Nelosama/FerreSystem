@@ -9,7 +9,7 @@ import { Rubro } from '../types';
 import { Button } from '../components/Button';
 import { errorColorHex } from '../utils/colorHex';
 import { FORMATOS_IMPRESION, type FormatoImpresion } from '../utils/formatoImpresion';
-import { Palette, Building2, Check, RefreshCw, Store, Layout, Eye, Languages, Coins, Receipt } from 'lucide-react';
+import { Palette, Building2, Check, RefreshCw, Store, Layout, Eye, Languages, Coins, Receipt, Users, Layers } from 'lucide-react';
 
 const PRESET_COLORS = [
   { name: 'uxAudit.color_0', hex: '#EA580C' },
@@ -128,12 +128,6 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         <p><Link to="/admin">← Volver al panel global</Link></p>
         <NegocioNavigation negocioId={negocioId} />
         <p>{t('settings.scope')}</p>
-        <LogotipoNegocioEditor
-          negocioId={negocioId}
-          nombreNegocio={nombre || negocio.nombreComercial || 'el negocio'}
-          logotipo={negocio.logotipo ?? null}
-          onCambio={logotipo => setDatos((actual: any) => ({ ...actual, logotipo }))}
-        />
         {saveError && <p role="alert">{saveError}</p>}
 
         {guardadoExitoso && (
@@ -146,13 +140,50 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         )}
 
         <form className="negocio-settings-grid tenant-settings-grid" onSubmit={handleGuardar} onChange={() => { dirty.current = true; }} onClick={event => { if ((event.target as HTMLElement).closest('button[type="button"]')) dirty.current = true; }} aria-busy={saving} style={styles.grid}>
-          {/* Columna Izquierda: Identidad y Datos del Negocio */}
-          <div className="industrial-card" style={styles.card}>
+          <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-business">
             <div style={styles.cardHeader}>
               <Building2 size={20} strokeWidth={2.4} color="var(--color-primary)" />
-              <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>{t('uxAudit.business_details_and_language')} </h2>
+              <h2 id="settings-section-business" style={{ fontSize: '15px' }}>1. {t('settings.sections.business')}</h2>
+            </div>
+            <p className="settings-section-help">{t('settings.sections.business_help')}</p>
+            <div className="form-group">
+              <label className="form-label">{t('uxAudit.business_name_shown_in_navigation_and_receipts')} </label>
+              <input
+                type="text"
+                required
+                id="business-name" aria-label={t('settings.name')} value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                className="form-input"
+              />
             </div>
 
+            {/* Selector de Rubro Comercial */}
+            <div className="form-group">
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Store size={14} color="var(--color-primary)" />
+                <span>{t('uxAudit.business_sector')} </span>
+              </label>
+              <select
+                id="business-sector" aria-label={t('settings.sector')} value={rubro}
+                onChange={(e) => setRubro(e.target.value as Rubro)}
+                className="form-select"
+                style={{ fontWeight: 700 }}
+              >
+                {Object.keys(Rubro).map((rKey) => {
+                  return (
+                    <option key={rKey} value={rKey}>
+                      {t('sectors.' + rKey)}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <details><summary>{t('settings.contact')}</summary>
+              <label className="form-label" htmlFor="company-address">{t('settings.address')}</label><input id="company-address" className="form-input" value={direccion} onChange={event => setDireccion(event.target.value)} />
+              <label className="form-label" htmlFor="company-phone">{t('settings.phone')}</label><input id="company-phone" type="tel" className="form-input" value={telefono} onChange={event => setTelefono(event.target.value)} />
+              <label className="form-label" htmlFor="company-email">{t('settings.email')}</label><input id="company-email" type="email" className="form-input" value={email} onChange={event => setEmail(event.target.value)} />
+            </details>
             {/* Selector de Idioma (I18n ES / EN) */}
             <div className="form-group" style={{ marginTop: '16px' }}>
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -195,162 +226,14 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
               </div>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">{t('uxAudit.business_name_shown_in_navigation_and_receipts')} </label>
-              <input
-                type="text"
-                required
-                id="business-name" aria-label={t('settings.name')} value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                className="form-input"
-              />
-            </div>
-
-            {/* Formato de impresión: hoja A4 o papel de rollo térmico para facturas, recibos y tickets */}
-            <div className="form-group">
-              <label className="form-label" htmlFor="formato-impresion" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Receipt size={14} color="var(--color-primary)" />
-                <span>Formato de impresión de facturas y recibos</span>
-              </label>
-              <select
-                id="formato-impresion" aria-label="Formato de impresión de facturas y recibos" value={formatoImpresion}
-                onChange={(e) => setFormatoImpresion(e.target.value as FormatoImpresion)}
-                className="form-select"
-                style={{ fontWeight: 700 }}
-              >
-                {FORMATOS_IMPRESION.map(formato => <option key={formato.valor} value={formato.valor}>{formato.etiqueta}</option>)}
-              </select>
-              <p id="formato-impresion-ayuda" style={{ fontSize: 12, margin: '4px 0 0' }}>
-                {FORMATOS_IMPRESION.find(formato => formato.valor === formatoImpresion)?.descripcion}
-              </p>
-            </div>
-
-            {/* Selector de Rubro Comercial */}
-            <div className="form-group">
-              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Store size={14} color="var(--color-primary)" />
-                <span>{t('uxAudit.business_sector')} </span>
-              </label>
-              <select
-                id="business-sector" aria-label={t('settings.sector')} value={rubro}
-                onChange={(e) => setRubro(e.target.value as Rubro)}
-                className="form-select"
-                style={{ fontWeight: 700 }}
-              >
-                {Object.keys(Rubro).map((rKey) => {
-                  return (
-                    <option key={rKey} value={rKey}>
-                      {t('sectors.' + rKey)}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            <details><summary>{t('settings.contact')}</summary>
-              <label className="form-label" htmlFor="company-address">{t('settings.address')}</label><input id="company-address" className="form-input" value={direccion} onChange={event => setDireccion(event.target.value)} />
-              <label className="form-label" htmlFor="company-phone">{t('settings.phone')}</label><input id="company-phone" type="tel" className="form-input" value={telefono} onChange={event => setTelefono(event.target.value)} />
-              <label className="form-label" htmlFor="company-email">{t('settings.email')}</label><input id="company-email" type="email" className="form-input" value={email} onChange={event => setEmail(event.target.value)} />
-            </details>
-            <h3>{t('settings.currency_tax')}</h3><p id="fiscal-limit">{t('settings.fiscal_help')}</p>
-            <label htmlFor="currency-code" className="form-label">{t('settings.currency_code')}</label>
-            <input id="currency-code" className="form-input" required pattern="[A-Z]{3}" maxLength={3} value={monedaCodigo} readOnly aria-describedby="fiscal-limit" />
-            {/* Configuración de Moneda e Impuesto */}
-            <div className="settings-fiscal-row" style={{ display: 'flex', gap: '12px' }}>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Coins size={14} color="var(--color-primary)" />
-                  <span>{t('uxAudit.currency_symbol')} </span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  id="currency-symbol" aria-label={t('settings.symbol')} value={monedaSimbolo}
-                  readOnly aria-describedby="fiscal-limit"
-                  className="form-input"
-                  style={{ fontWeight: 800 }}
-                />
-              </div>
-
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Receipt size={14} color="var(--color-primary)" />
-                  <span>{t('uxAudit.tax_percent')} </span>
-                </label>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <input
-                    type="text"
-                    required
-                    id="tax-name" aria-label={t('settings.tax_name')} value={impuestoNombre}
-                    readOnly aria-describedby="fiscal-limit"
-                    className="form-input"
-                    style={{ width: '70px', fontWeight: 800 }}
-                  />
-                  <input
-                    type="number"
-                    required
-                    id="tax-rate" aria-label={t('settings.tax_rate')} min="0" max="100" step="0.01" value={impuestoTasa}
-                    readOnly aria-describedby="fiscal-limit"
-                    className="form-input"
-                    style={{ fontWeight: 800 }}
-                  />
-                  <span style={{ fontWeight: 800 }}>%</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Modo de navegación: SIDEBAR o TOPNAV, el único elemento de distribución configurable */}
-            <div className="form-group">
-              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Layout size={14} color="var(--color-primary)" />
-                <span>{t('uxAudit.navigation_mode_and_page_structure')} </span>
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
-                <button
-                  type="button"
-                  aria-pressed={modoNavegacion === 'SIDEBAR'} onClick={() => setModoNavegacion('SIDEBAR')}
-                  style={{
-                    padding: '10px',
-                    backgroundColor: modoNavegacion === 'SIDEBAR' ? 'var(--color-text-main)' : 'var(--color-surface)',
-                    color: modoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-text-main)',
-                    border: modoNavegacion === 'SIDEBAR' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
-                >
-                  <div style={{ fontWeight: 900, fontSize: '11px' }}>{t('uxAudit.side_menu_sidebar')} </div>
-                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>{t('uxAudit.vertical_panel_on_the_left')} </div>
-                </button>
-
-                <button
-                  type="button"
-                  aria-pressed={modoNavegacion === 'TOPNAV'} onClick={() => setModoNavegacion('TOPNAV')}
-                  style={{
-                    padding: '10px',
-                    backgroundColor: modoNavegacion === 'TOPNAV' ? 'var(--color-text-main)' : 'var(--color-surface)',
-                    color: modoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-text-main)',
-                    border: modoNavegacion === 'TOPNAV' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
-                >
-                  <div style={{ fontWeight: 900, fontSize: '11px' }}>{t('uxAudit.top_menu_topnav')} </div>
-                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>{t('uxAudit.full_horizontal_navigation')} </div>
-                </button>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Columna Derecha: White-Labeling y Selector de Color Primario & Preview */}
-          <div className="industrial-card" style={styles.card}>
-            <div style={styles.cardHeader}>
-              <Palette size={20} strokeWidth={2.4} color="var(--color-primary)" />
-              <h2 style={{ fontSize: '15px', textTransform: 'uppercase' }}>{t('uxAudit.brand_color_live_preview')} </h2>
-            </div>
-
+            <LogotipoNegocioEditor
+              nivelTitulo="h3"
+              negocioId={negocioId}
+              nombreNegocio={nombre || negocio.nombreComercial || 'el negocio'}
+              logotipo={negocio.logotipo ?? null}
+              onCambio={logotipo => setDatos((actual: any) => ({ ...actual, logotipo }))}
+            />
+            <h3 style={{ fontSize: '14px', marginTop: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}><Palette size={16} color="var(--color-primary)" />{t('uxAudit.brand_color_live_preview')}</h3>
             <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '12px' }}>{t('uxAudit.choose_the_color_used_for_your_company_in_navigation_buttons_and_documents')} </p>
 
             {/* Selector de color HEX interactivo */}
@@ -416,7 +299,144 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
               </div>
             </div>
 
-            <div className="settings-save-actions" style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+          </section>
+          <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-sales">
+            <div style={styles.cardHeader}>
+              <Receipt size={20} strokeWidth={2.4} color="var(--color-primary)" />
+              <h2 id="settings-section-sales" style={{ fontSize: '15px' }}>2. {t('settings.sections.sales')}</h2>
+            </div>
+            <p className="settings-section-help">{t('settings.sections.sales_help')}</p>
+            {/* Formato de impresión: hoja A4 o papel de rollo térmico para facturas, recibos y tickets */}
+            <div className="form-group">
+              <label className="form-label" htmlFor="formato-impresion" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Receipt size={14} color="var(--color-primary)" />
+                <span>Formato de impresión de facturas y recibos</span>
+              </label>
+              <select
+                id="formato-impresion" aria-label="Formato de impresión de facturas y recibos" value={formatoImpresion}
+                onChange={(e) => setFormatoImpresion(e.target.value as FormatoImpresion)}
+                className="form-select"
+                style={{ fontWeight: 700 }}
+              >
+                {FORMATOS_IMPRESION.map(formato => <option key={formato.valor} value={formato.valor}>{formato.etiqueta}</option>)}
+              </select>
+              <p id="formato-impresion-ayuda" style={{ fontSize: 12, margin: '4px 0 0' }}>
+                {FORMATOS_IMPRESION.find(formato => formato.valor === formatoImpresion)?.descripcion}
+              </p>
+            </div>
+
+            <h3>{t('settings.currency_tax')}</h3><p id="fiscal-limit">{t('settings.fiscal_help')}</p>
+            <label htmlFor="currency-code" className="form-label">{t('settings.currency_code')}</label>
+            <input id="currency-code" className="form-input" required pattern="[A-Z]{3}" maxLength={3} value={monedaCodigo} readOnly aria-describedby="fiscal-limit" />
+            {/* Configuración de Moneda e Impuesto */}
+            <div className="settings-fiscal-row" style={{ display: 'flex', gap: '12px' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Coins size={14} color="var(--color-primary)" />
+                  <span>{t('uxAudit.currency_symbol')} </span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  id="currency-symbol" aria-label={t('settings.symbol')} value={monedaSimbolo}
+                  readOnly aria-describedby="fiscal-limit"
+                  className="form-input"
+                  style={{ fontWeight: 800 }}
+                />
+              </div>
+
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Receipt size={14} color="var(--color-primary)" />
+                  <span>{t('uxAudit.tax_percent')} </span>
+                </label>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    required
+                    id="tax-name" aria-label={t('settings.tax_name')} value={impuestoNombre}
+                    readOnly aria-describedby="fiscal-limit"
+                    className="form-input"
+                    style={{ width: '70px', fontWeight: 800 }}
+                  />
+                  <input
+                    type="number"
+                    required
+                    id="tax-rate" aria-label={t('settings.tax_rate')} min="0" max="100" step="0.01" value={impuestoTasa}
+                    readOnly aria-describedby="fiscal-limit"
+                    className="form-input"
+                    style={{ fontWeight: 800 }}
+                  />
+                  <span style={{ fontWeight: 800 }}>%</span>
+                </div>
+              </div>
+            </div>
+
+          </section>
+          <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-team">
+            <div style={styles.cardHeader}>
+              <Users size={20} strokeWidth={2.4} color="var(--color-primary)" />
+              <h2 id="settings-section-team" style={{ fontSize: '15px' }}>3. {t('settings.sections.team')}</h2>
+            </div>
+            <p className="settings-section-help">{t('settings.sections.team_help')}</p>
+            <ul className="settings-links">
+              <li><Link to={`/admin/negocios/${negocioId}/usuarios`}><Users size={16} aria-hidden="true" />{t('settings.sections.team_users')}</Link></li>
+              <li><Link to={`/admin/negocios/${negocioId}/servicios`}><Layers size={16} aria-hidden="true" />{t('settings.sections.team_services')}</Link></li>
+            </ul>
+          </section>
+          <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-navigation">
+            <div style={styles.cardHeader}>
+              <Layout size={20} strokeWidth={2.4} color="var(--color-primary)" />
+              <h2 id="settings-section-navigation" style={{ fontSize: '15px' }}>4. {t('settings.sections.navigation')}</h2>
+            </div>
+            <p className="settings-section-help">{t('settings.sections.navigation_help')}</p>
+            {/* Modo de navegación: SIDEBAR o TOPNAV, el único elemento de distribución configurable */}
+            <div className="form-group">
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Layout size={14} color="var(--color-primary)" />
+                <span>{t('uxAudit.navigation_mode_and_page_structure')} </span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  aria-pressed={modoNavegacion === 'SIDEBAR'} onClick={() => setModoNavegacion('SIDEBAR')}
+                  style={{
+                    padding: '10px',
+                    backgroundColor: modoNavegacion === 'SIDEBAR' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: modoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-text-main)',
+                    border: modoNavegacion === 'SIDEBAR' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ fontWeight: 900, fontSize: '11px' }}>{t('uxAudit.side_menu_sidebar')} </div>
+                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>{t('uxAudit.vertical_panel_on_the_left')} </div>
+                </button>
+
+                <button
+                  type="button"
+                  aria-pressed={modoNavegacion === 'TOPNAV'} onClick={() => setModoNavegacion('TOPNAV')}
+                  style={{
+                    padding: '10px',
+                    backgroundColor: modoNavegacion === 'TOPNAV' ? 'var(--color-text-main)' : 'var(--color-surface)',
+                    color: modoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-text-main)',
+                    border: modoNavegacion === 'TOPNAV' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ fontWeight: 900, fontSize: '11px' }}>{t('uxAudit.top_menu_topnav')} </div>
+                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>{t('uxAudit.full_horizontal_navigation')} </div>
+                </button>
+              </div>
+            </div>
+
+          </section>
+
+          <div className="settings-save-bar">
+            <div className="settings-save-actions" style={{ display: 'flex', gap: '10px' }}>
               <button
                 type="button"
                 className="btn btn-secondary"

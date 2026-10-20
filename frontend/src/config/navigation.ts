@@ -16,6 +16,7 @@ import {
   BarChart3,
   Smartphone,
   Users,
+  ShieldAlert,
 } from 'lucide-react';
 
 export interface NavigationItem {
@@ -99,6 +100,8 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     {key:'devoluciones',labelKey:'menu.returns',defaultLabel:'DEVOLUCIONES',route:'/devoluciones',moduleKey:'pos',icon:PackageSearch,allowedRoles:['ADMIN','CAJERO','VENDEDOR'],category:'VENTAS'},
   {key:'cuentas',labelKey:'menu.accounts',defaultLabel:'CUENTAS Y ABONOS',route:'/cuentas',icon:DollarSign,allowedRoles:['ADMIN','CAJERO'],category:'CLIENTES'},
   {key:'entregas',labelKey:'menu.deliveries',defaultLabel:'ENTREGAS',route:'/entregas',moduleKey:'pos',icon:Truck,allowedRoles:['ADMIN','CAJERO','BODEGUERO'],category:'VENTAS'},
+  // Revisión de ventas sin conexión: misma ruta y autorización que ya existían (solo ADMIN, módulo POS; el backend autoriza cada acción).
+  {key:'contingencia_admin',labelKey:'menu.offline_review',defaultLabel:'VENTAS SIN CONEXIÓN',route:'/contingencia-admin',moduleKey:'pos',icon:ShieldAlert,allowedRoles:['ADMIN'],category:'VENTAS'},
 
   // INVENTARIO
   {
@@ -263,7 +266,7 @@ export const NAVIGATION_CATEGORIES = ['SYSTEM', 'VENTAS', 'CLIENTES', 'INVENTARI
 // Orden dentro de cada grupo: lo que se usa a diario primero. No cambia rutas, roles ni módulos.
 export const NAVIGATION_ORDER = [
   'superadmin',
-  'dashboard', 'pos', 'arqueo_caja', 'cotizaciones', 'pedidos_especiales', 'apartados', 'devoluciones', 'entregas',
+  'dashboard', 'pos', 'arqueo_caja', 'cotizaciones', 'pedidos_especiales', 'apartados', 'devoluciones', 'entregas', 'contingencia_admin',
   'clientes', 'cuentas', 'estado_cuenta_clientes', 'listas_precio',
   'inventario', 'levantamiento', 'ordenes_compra', 'transferencias', 'precios', 'garantias',
   'reportes', 'conciliacion_bancaria', 'comisiones', 'usuarios', 'admin_movil',
