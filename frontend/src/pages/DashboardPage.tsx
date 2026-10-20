@@ -158,7 +158,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     fontSize: '11px',
     textTransform: 'uppercase',
-    color: 'var(--color-primary)',
+    color: 'var(--color-primary-text)',
     textDecoration: 'none',
   },
   alertsList: {

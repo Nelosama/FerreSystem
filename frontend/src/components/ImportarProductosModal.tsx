@@ -182,7 +182,7 @@ export const ImportarProductosModal: React.FC<ImportarProductosModalProps> = ({ 
       <div className="industrial-card" style={styles.modalContent}>
         <div style={styles.modalHeader}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <FileSpreadsheet size={22} style={{ color: 'var(--color-primary)' }} />
+            <FileSpreadsheet size={22} style={{ color: 'var(--color-primary-text)' }} />
             <h2 style={{ fontSize: '18px', textTransform: 'uppercase' }}>{t('inventory.import_modal_title')}</h2>
           </div>
           <button type="button" onClick={resetModal} style={styles.closeBtn} aria-label={t('navigation.close')}>

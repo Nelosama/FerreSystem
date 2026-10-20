@@ -95,11 +95,11 @@ export const LoginPage: React.FC = () => {
         {/* Brand Header */}
         <div style={styles.logoSection}>
           <div style={styles.logoIcon}>
-            <Box size={38} strokeWidth={2.6} color="var(--color-primary)" />
+            <Box size={38} strokeWidth={2.6} color="var(--color-primary-text)" />
           </div>
           <div style={styles.brandTitle}>
-            <span style={{ color: 'var(--color-sidebar-bg)' }}>Jowa</span>
-            <span style={{ color: 'var(--color-primary)' }}> System</span>
+            <span style={{ color: 'var(--color-text-main)' }}>Jowa</span>
+            <span style={{ color: 'var(--color-primary-text)' }}> System</span>
           </div>
           <div style={styles.subtitle}>SISTEMA DE GESTIÓN PARA NEGOCIOS</div>
         </div>
@@ -199,7 +199,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-flex',
     padding: '10px',
     backgroundColor: 'var(--color-bg)',
-    border: '2px solid var(--color-sidebar-bg)',
+    border: '2px solid var(--color-text-main)',
     borderRadius: '4px',
     marginBottom: '10px',
   },

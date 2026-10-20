@@ -576,7 +576,7 @@ export const CotizacionesPage: React.FC = () => {
           <div style={styles.metricCard}>
             <div style={styles.metricHeader}>
               <span style={styles.metricLabel}>{t('operational.cotizaciones_totales')}</span>
-              <FileText size={18} color="var(--color-primary)" />
+              <FileText size={18} color="var(--color-primary-text)" />
             </div>
             <div style={styles.metricValue}>{metricas.totalCount}</div>
             <div style={styles.metricSub}>{t('operational.registradas_en_el_sistema')}</div>
@@ -603,7 +603,7 @@ export const CotizacionesPage: React.FC = () => {
           <div style={styles.metricCard}>
             <div style={styles.metricHeader}>
               <span style={styles.metricLabel}>{t('operational.monto_cotizado_total')}</span>
-              <DollarSign size={18} color="var(--color-primary)" />
+              <DollarSign size={18} color="var(--color-primary-text)" />
             </div>
             <div style={styles.metricValue}>{formatLempiras(metricas.montoTotalMined)}</div>
             <div style={styles.metricSub}>{t('operational.valor_bruto_en_cartera')}</div>
@@ -856,7 +856,7 @@ export const CotizacionesPage: React.FC = () => {
           <div className="industrial-card" style={styles.largeModalCard}>
             <div style={styles.modalHeader}>
               <div>
-                <h2 style={{ fontSize: '18px', textTransform: 'uppercase', color: 'var(--color-primary)' }}>
+                <h2 style={{ fontSize: '18px', textTransform: 'uppercase', color: 'var(--color-primary-text)' }}>
                   {editingCotizacionId ? 'EDITAR COTIZACIÓN' : 'CREAR NUEVA COTIZACIÓN'}
                 </h2>
                 <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
@@ -1068,7 +1068,7 @@ export const CotizacionesPage: React.FC = () => {
                                 onChange={(e) => handleActualizarLinea(idx, 'medida', e.target.value)}
                               />
                             </td>
-                            <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--color-primary)' }}>
+                            <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--color-primary-text)' }}>
                               {item.totalMedida}
                             </td>
                             <td style={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
@@ -1201,7 +1201,7 @@ export const CotizacionesPage: React.FC = () => {
                     <span>{formatLempiras(calculosGlobales.isvTotal)}</span>
                   </div>
 
-                  <div style={{ borderTop: '2px solid var(--color-text-main)', marginTop: '8px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 900, color: 'var(--color-primary)' }}>
+                  <div style={{ borderTop: '2px solid var(--color-text-main)', marginTop: '8px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 900, color: 'var(--color-primary-text)' }}>
                     <span>{t('operational.total_cotizado')}</span>
                     <span>{formatLempiras(calculosGlobales.totalFinal)}</span>
                   </div>
@@ -1221,7 +1221,7 @@ export const CotizacionesPage: React.FC = () => {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-sidebar-bg)', border: '1.5px solid #A8A29E' }}
+                  style={{ backgroundColor: 'var(--color-surface-hover)', color: 'var(--color-text-main)', border: '1.5px solid #A8A29E' }}
                   onClick={() => handleGuardarFormulario('BORRADOR')}
                 >
                   {t('operational.guardar_borrador')}
@@ -1414,7 +1414,7 @@ export const CotizacionesPage: React.FC = () => {
               {/* Header Empresa */}
               <div style={styles.pdfHeader}>
                 <div>
-                  <h2 style={{ color: 'var(--color-primary)', fontSize: '22px', textTransform: 'uppercase', fontFamily: 'var(--font-display)', fontWeight: 900 }}>
+                  <h2 style={{ color: 'var(--color-primary-text)', fontSize: '22px', textTransform: 'uppercase', fontFamily: 'var(--font-display)', fontWeight: 900 }}>
                     {tenant.nombreComercial || 'FERRETERÍA LA MUNDIAL'}
                   </h2>
                   <div style={{ fontSize: '11px', color: '#444' }}>
@@ -1429,13 +1429,13 @@ export const CotizacionesPage: React.FC = () => {
                 </div>
 
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '18px', color: 'var(--color-sidebar-bg)' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '18px', color: 'var(--color-text-main)' }}>
                     COTIZACIÓN #COT-{modalPdf.numero.toString().padStart(4, '0')}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                     {t('operational.fecha_emision')} {modalPdf.fechaEmision || ''}
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-primary)', fontWeight: 800, marginTop: '2px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--color-primary-text)', fontWeight: 800, marginTop: '2px' }}>
                     {t('operational.valida_hasta')} {modalPdf.fechaValidez}
                   </div>
                   <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
@@ -1520,7 +1520,7 @@ export const CotizacionesPage: React.FC = () => {
                   <div>{t('operational.subtotal')} {formatLempiras(modalPdf.subtotal)}</div>
                   {(modalPdf.descuento || 0) > 0 && <div>{t('operational.descuento')} {formatLempiras(modalPdf.descuento || 0)}</div>}
                   <div>ISV (15%): {formatLempiras(modalPdf.isv)}</div>
-                  <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--color-primary)', marginTop: '6px', borderTop: '1px solid var(--color-text-main)', paddingTop: '4px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--color-primary-text)', marginTop: '6px', borderTop: '1px solid var(--color-text-main)', paddingTop: '4px' }}>
                     {t('operational.valor_a_pagar')} {formatLempiras(modalPdf.total)}
                   </div>
                 </div>
@@ -1660,7 +1660,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     fontFamily: 'var(--font-display)',
     marginTop: '6px',
-    color: 'var(--color-sidebar-bg)',
+    color: 'var(--color-text-main)',
   },
   metricSub: {
     fontSize: '11px',
@@ -1763,7 +1763,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    color: 'var(--color-sidebar-bg)',
+    color: 'var(--color-text-main)',
   },
   formSection: {
     backgroundColor: 'var(--color-bg)',

@@ -152,7 +152,7 @@ const InventarioContent: React.FC = () => {
           <td className="numeric-cell" style={{ textAlign: 'center', fontFamily: 'var(--font-display)',
               fontWeight: 800,
               fontSize: '15px',
-              color: stockBajo ? 'var(--color-primary)' : 'inherit',
+              color: stockBajo ? 'var(--color-primary-text)' : 'inherit',
             }}
           >
             {p.stockActual} físicos
@@ -252,6 +252,7 @@ const InventarioContent: React.FC = () => {
               <button
                 key={cat === 'TODAS' ? t('common.all') : cat}
                 type="button"
+                aria-pressed={filtroCategoria === cat}
                 onClick={() => setFiltroCategoria(cat)}
                 style={{
                   ...styles.catButton,
@@ -471,9 +472,9 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   catButtonActive: {
-    backgroundColor: 'var(--color-sidebar-bg)',
-    color: 'var(--color-bg)',
-    borderColor: 'var(--color-sidebar-bg)',
+    backgroundColor: 'var(--color-selected-bg)',
+    color: 'var(--color-selected-text)',
+    borderColor: 'var(--color-selected-bg)',
   },
   modalOverlay: {
     position: 'fixed',

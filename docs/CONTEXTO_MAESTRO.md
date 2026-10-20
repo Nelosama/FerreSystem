@@ -22,6 +22,23 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## UX ronda 1 (P0+P1) — EN CURSO, 2026-10-19 (rama local `claude/ux-ronda1-pos-marca`, sin push, PR, merge ni despliegue)
+
+- **Origen:** crítica Impeccable (`.impeccable/critique/2026-10-20T02-15-53Z__frontend-src.md`, 25/40). Alcance autorizado: P0+P1; P2 después. Sin cambios en cálculos monetarios, crédito ni sincronización.
+- **Hecho (commit WIP):**
+  - Colores legibles: `utils/colorMarca.ts` + `test/color-marca.test.mjs` (8/8). `TenantContext` publica `--color-on-primary`, `--color-primary-text`, `--color-selected-*` y `--color-focus-ring`. Textos e iconos de marca usan la variante legible. **Efecto visible:** #EA580C (predeterminado), #16A34A y #0284C7 pasan a texto oscuro en botones, porque el blanco no llega a 4.5:1. Hay que decidirlo con el dueño.
+  - `AvisoColorMarca` en los 4 selectores de color. `--color-sidebar-bg` mal usado sustituido.
+  - POS: método de pago visible (`aria-pressed`, etiquetas traducidas), cliente plegado («Cambiar cliente»), ticket con pie fijo (total, método, cobrar), botones de 40 px con nombre accesible, tarjetas del catálogo como botones, barra «Ir a cobrar» en teléfono.
+  - Atajos: F2 buscar, F8 enfoca «Procesar Venta» y Enter confirma. Se descartaron F4, F9 y F12 por conflictos con el navegador.
+  - Etiqueta del comprobante: TRANSFERENCIA decía «Crédito».
+  - TOPNAV: indicador de conexión compartido (`IndicadorConexion`), textos traducidos, «Más» compacto por debajo de 1200 px.
+- **Pendiente:**
+  - 23 pruebas unitarias nuevas en rojo: 29 fallan con los cambios frente a 6 en `main`, probablemente guardias de fuente; revisarlas.
+  - Inicio del administrador en móvil: quitar `display:grid` heredado de `.admin-home__pendientes` (causa medida del recorte), reservar espacio para el botón flotante, `.admin-home__acceso--principal` con `--color-on-primary`.
+  - BottomNavigation: etiquetas de 12 px y pestaña activa en /pos.
+  - Actualizar las e2e: `pos-tarjeta` usa el nombre 'Tarjeta'; `arranque` y la e2e-real `clientes-pos-cajero` necesitan pulsar «Cambiar cliente».
+  - Nueva e2e de atajos, contraste y TOPNAV; lint, build y Playwright completo; capturas a 1440, 1024, 820 y 390 px; nueva crítica.
+
 ## Auditoría final acotada PR #178 — 2026-10-19, America/Tegucigalpa
 
 - Mismo PR/rama; `main` sigue en `aae1546d` e incluido, sin conflictos nuevos ni Contabilidad. Se conservan el inicio administrativo, navegación y configuración de Claude.

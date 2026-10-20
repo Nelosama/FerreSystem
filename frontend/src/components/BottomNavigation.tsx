@@ -67,7 +67,7 @@ export const BottomNavigation: React.FC = () => {
               end={item.exact}
               style={{
                 ...styles.navTab,
-                color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                color: isActive ? 'var(--color-primary-text)' : 'var(--color-text-muted)',
               }}
             >
               <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
@@ -87,7 +87,7 @@ export const BottomNavigation: React.FC = () => {
           onClick={() => setShowMasModal(true)}
           style={{
             ...styles.navTab,
-            color: showMasModal || isMasActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
+            color: showMasModal || isMasActive ? 'var(--color-primary-text)' : 'var(--color-text-muted)',
             background: 'none',
             border: 'none',
             cursor: 'pointer',
@@ -137,7 +137,7 @@ export const BottomNavigation: React.FC = () => {
               {/* Selector de Sucursal */}
               {user?.rol === 'ADMIN' && (
                 <div style={styles.configRow}>
-                  <GitBranch size={15} color="var(--color-primary)" />
+                  <GitBranch size={15} color="var(--color-primary-text)" />
                   <span style={{ fontSize: '12px', fontWeight: 700 }}>{t('navigation.branch')}</span>
                   <select
                     value={tenant.sucursal || 'Sucursal Principal'}
@@ -185,7 +185,7 @@ export const BottomNavigation: React.FC = () => {
                       style={{
                         ...styles.iconWrapper,
                         backgroundColor: isActive ? 'var(--color-primary)' : 'var(--color-surface-hover)',
-                        color: isActive ? '#FFFFFF' : 'var(--color-primary)',
+                        color: isActive ? 'var(--color-on-primary)' : 'var(--color-primary-text)',
                       }}
                     >
                       <Icon size={22} strokeWidth={2.4} />

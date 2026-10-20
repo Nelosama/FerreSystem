@@ -470,7 +470,7 @@ export const UsuariosPage: React.FC = () => {
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Users size={20} color="var(--color-primary)" />
+                <Users size={20} color="var(--color-primary-text)" />
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
                   {usuarioEditando ? t('users.edit_user') : t('users.new_user')}
                 </h2>
@@ -627,7 +627,7 @@ export const UsuariosPage: React.FC = () => {
               {/* Matriz de Permisos Individuales */}
               <div style={{ borderTop: '1px solid var(--color-sidebar-text)', marginTop: '14px', paddingTop: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                  <ShieldCheck size={16} color="var(--color-primary)" />
+                  <ShieldCheck size={16} color="var(--color-primary-text)" />
                   <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase' }}>
                     {t('users.fine_tuning_permissions')}
                   </span>
@@ -825,7 +825,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'monospace',
     fontWeight: 700,
     fontSize: '11px',
-    color: 'var(--color-sidebar-bg)',
+    color: 'var(--color-text-main)',
   },
   permisoLabel: {
     fontSize: '10px',

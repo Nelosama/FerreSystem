@@ -27,6 +27,11 @@ import {
   Loader2,
   Percent,
   Download,
+  Banknote,
+  CreditCard,
+  ArrowLeftRight,
+  CalendarClock,
+  ChevronUp,
 } from 'lucide-react';
 import { ZONA_HORARIA_NEGOCIO, formatLempiras } from '../utils/format';
 import { descargarReciboPDF, precargarGeneradorPDF } from '../components/descargarRecibo';
@@ -62,8 +67,24 @@ const mapearProductoPOS = (p: any): ProductItem => ({
 
 /** Encabezado de paso del ticket: «1 · Cliente», «2 · Productos», «3 · Pago y entrega». Solo presentación. */
 function PasoTicket({ numero, titulo, derecha }: { numero: number; titulo: string; derecha?: string }) {
-  return <div className="pos-paso" aria-hidden="true"><span><b>{numero}</b> · {titulo}</span>{derecha && <small>{derecha}</small>}</div>;
+  return <div className="pos-paso"><h2><b>{numero}</b> · {titulo}</h2>{derecha && <small>{derecha}</small>}</div>;
 }
+
+// Métodos de pago: el valor enviado al servidor no cambia; solo se muestra traducido y con icono.
+const METODOS_PAGO = [
+  { valor: 'EFECTIVO', etiqueta: 'pos.cash', Icono: Banknote },
+  { valor: 'TARJETA', etiqueta: 'pos.card', Icono: CreditCard },
+  { valor: 'TRANSFERENCIA', etiqueta: 'pos.transfer', Icono: ArrowLeftRight },
+  { valor: 'CREDITO', etiqueta: 'pos.credit', Icono: CalendarClock },
+] as const;
+const ETIQUETA_METODO: Record<string, string> = { EFECTIVO: 'pos.cash', TARJETA: 'pos.card', TRANSFERENCIA: 'pos.transfer', CREDITO: 'pos.credit' };
+
+// Atajos del POS. Solo F2 y F8: no tienen función propia en Chrome, Edge, Firefox ni Safari
+// (F1 ayuda, F3 buscar, F4 barra de direcciones en Edge, F5 recargar, F6 dirección, F7 navegación con cursor,
+// F9 lector inmersivo en Edge y lectura en Firefox, F10 menú, F11 pantalla completa, F12 herramientas).
+// F8 lleva el foco a «Procesar Venta» y Enter confirma: ninguna tecla registra una venta por sí sola.
+const ATAJO_BUSCAR = 'F2';
+const ATAJO_COBRAR = 'F8';
 
 export const POSPage: React.FC = () => {
   const { tenant, user } = useTenant();
@@ -124,6 +145,59 @@ export const POSPage: React.FC = () => {
   const [numeroVentaGenerado, setNumeroVentaGenerado] = useState<number | null>(null);
   const [ventaRegistrada, setVentaRegistrada] = useState<any>(null);
   const edicionBloqueada = procesandoVenta || comprobando || (!!ventaPendiente && !corrigiendoPendiente) || modalTicket || !!storageError || loadedKey !== pendingKey;
+  // Cliente plegado: la mayoría de ventas son a consumidor final. Crédito exige un cliente registrado, así que se abre.
+  const [clienteAbierto, setClienteAbierto] = useState(false);
+  const clienteVisible = clienteAbierto || (metodoPago === 'CREDITO' && !clienteId);
+  const buscarRef = useRef<HTMLInputElement>(null);
+  const cobrarRef = useRef<HTMLButtonElement>(null);
+  const pieTicketRef = useRef<HTMLDivElement>(null);
+  const modalAbiertoRef = useRef(modalTicket);
+  modalAbiertoRef.current = modalTicket;
+
+  useEffect(() => {
+    const alPulsar = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.isComposing || modalAbiertoRef.current) return;
+      if (event.key === ATAJO_BUSCAR) {
+        event.preventDefault();
+        buscarRef.current?.focus();
+        buscarRef.current?.select();
+      } else if (event.key === ATAJO_COBRAR) {
+        event.preventDefault();
+        cobrarRef.current?.scrollIntoView({ block: 'nearest' });
+        cobrarRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', alPulsar);
+    return () => window.removeEventListener('keydown', alPulsar);
+  }, []);
+
+  // Altura del ticket según su posición en pantalla: el pie (total, método y cobro) siempre queda visible,
+  // también antes de desplazar la página. En el teléfono el CSS anula este límite.
+  const ticketRef = useRef<HTMLDivElement>(null);
+  const contenidoRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const ticket = ticketRef.current;
+    if (!ticket) return;
+    let cuadro = 0;
+    const ajustar = () => {
+      cancelAnimationFrame(cuadro);
+      cuadro = requestAnimationFrame(() => {
+        const arriba = Math.max(16, ticket.getBoundingClientRect().top);
+        ticket.style.setProperty('--pos-ticket-alto', `${Math.max(360, Math.floor(window.innerHeight - arriba - 16))}px`);
+      });
+    };
+    ajustar();
+    const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(ajustar);
+    if (contenidoRef.current) observador?.observe(contenidoRef.current);
+    window.addEventListener('scroll', ajustar, { passive: true });
+    window.addEventListener('resize', ajustar);
+    return () => {
+      cancelAnimationFrame(cuadro);
+      observador?.disconnect();
+      window.removeEventListener('scroll', ajustar);
+      window.removeEventListener('resize', ajustar);
+    };
+  }, []);
 
   const restoreRecovery = () => {
     const recovery = readRecovery(pendingKey, draftKey);
@@ -282,19 +356,20 @@ export const POSPage: React.FC = () => {
     setLimiteCatalogo(TARJETAS_POR_PAGINA);
   }
   const tarjetasCatalogo = useMemo(() => catalogoFiltrado.slice(0, limiteCatalogo).map((prod) => (
-    <div
+    <button
+      type="button"
       key={prod.id}
-      className="industrial-card"
+      className="industrial-card pos-producto"
       style={styles.productCard}
       onClick={() => agregarRef.current(prod)}
     >
-      <div style={styles.skuBadge}>{prod.codigo}</div>
-      <div style={styles.productName}>{prod.nombre}</div>
-      <div style={styles.priceRow}>
+      <span style={styles.skuBadge}>{prod.codigo}</span>
+      <span style={styles.productName}>{prod.nombre}</span>
+      <span style={styles.priceRow}>
         <span style={styles.priceText}>{formatLempiras(prod.precioVenta)}</span>
-        {prod.imagenUrl&&<img src={prod.imagenUrl} alt={prod.nombre} loading="lazy" referrerPolicy="no-referrer" style={{width:80,height:60,objectFit:'contain'}}/>}<span style={{ ...styles.stockText, ...(Number(prod.stockActual) <= 0 ? { color: '#B45309', fontWeight: 700 } : {}) }}>{prod.stockActual} {t('pos.available')}{Number(prod.stockActual) <= 0 ? ' · sin existencia' : ''}</span>
-      </div>
-    </div>
+        {prod.imagenUrl&&<img src={prod.imagenUrl} alt="" loading="lazy" referrerPolicy="no-referrer" style={{width:80,height:60,objectFit:'contain'}}/>}<span style={{ ...styles.stockText, ...(Number(prod.stockActual) <= 0 ? { color: '#B45309', fontWeight: 700 } : {}) }}>{prod.stockActual} {t('pos.available')}{Number(prod.stockActual) <= 0 ? ' · sin existencia' : ''}</span>
+      </span>
+    </button>
   )), [catalogoFiltrado, limiteCatalogo, t]);
 
   const modificarCantidad = (productoId: string, delta: number) => {
@@ -460,10 +535,7 @@ export const POSPage: React.FC = () => {
     <div style={styles.container} className="ferre-pos">
       <TopBar title={t('pos.title')} subtitle={t('pos.subtitle')} />
 
-      <main style={styles.content} className="ferre-pos-main">
-        <div className="ferre-pos-notice"><Link to="/arqueo-caja">Abrir o revisar mi caja</Link> · <Link to="/cuentas">Cuentas y abonos</Link> · <Link to="/entregas">Entregas</Link>{estadoCajaVisible==='cerrada'&&<p>Abra su caja antes de cobrar.</p>}{estadoCajaVisible==='desconocida'&&<p role="alert">{syncCaja.phase==='offline'?'Sin conexión: no se pudo comprobar la caja. Se volverá a comprobar al recuperar la red.':'No se pudo comprobar el estado de la caja por un error de conexión o del servidor. Se reintentará automáticamente; no significa que la caja esté cerrada.'}</p>}</div>
-        <button className="btn btn-secondary" disabled={edicionBloqueada} onClick={async()=>{const data=await fetchProductos();if(data)setCart(current=>current.map(i=>{const p=data.find((p:ProductItem)=>p.id===i.productoId);return p?{...i,precioUnitario:p.precioVenta}:i;}));}}>Actualizar catálogo y precios del carrito</button>
-        <div className="ferre-pos-notice"><label><input type="checkbox" checked={special} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecial(e.target.checked)}/> Venta sin inventario: mercancía que no entra al local</label>{special&&<select aria-label="Proveedor de venta sin inventario" className="form-input" value={specialProvider} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecialProvider(e.target.value)}><option value="">Seleccione proveedor</option>{providers.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}</select>}</div>
+      <main ref={contenidoRef} style={styles.content} className="ferre-pos-main">
         {(storageError || draftError) && <div role="alert" className="ferre-pos-recovery">{storageError || draftError}</div>}
         {borradorRecuperado && !ventaPendiente && cart.length > 0 && <div role="status" className="ferre-pos-recovery">Recuperamos los productos de su venta en preparación. Revise cantidades y precios antes de cobrar. Todavía no se ha registrado.</div>}
         {cart.length > 0 && !ventaPendiente && !modalTicket && !storageError && !draftError && <p role="status">Borrador guardado en este equipo. Todavía no se ha registrado una venta.</p>}
@@ -511,10 +583,17 @@ export const POSPage: React.FC = () => {
         <div style={styles.posGrid} className="ferre-pos-grid">
           {/* Columna Izquierda: Catálogo y Búsqueda */}
           <div style={styles.catalogColumn}>
+            {/* Caja, catálogo y venta sin inventario: controles del catálogo, no del ticket */}
+            <div className="ferre-pos-notice"><Link to="/arqueo-caja">Abrir o revisar mi caja</Link> · <Link to="/cuentas">Cuentas y abonos</Link> · <Link to="/entregas">Entregas</Link>{estadoCajaVisible==='cerrada'&&<p>Abra su caja antes de cobrar.</p>}{estadoCajaVisible==='desconocida'&&<p role="alert">{syncCaja.phase==='offline'?'Sin conexión: no se pudo comprobar la caja. Se volverá a comprobar al recuperar la red.':'No se pudo comprobar el estado de la caja por un error de conexión o del servidor. Se reintentará automáticamente; no significa que la caja esté cerrada.'}</p>}</div>
+            <button className="btn btn-secondary pos-actualizar" disabled={edicionBloqueada} onClick={async()=>{const data=await fetchProductos();if(data)setCart(current=>current.map(i=>{const p=data.find((p:ProductItem)=>p.id===i.productoId);return p?{...i,precioUnitario:p.precioVenta}:i;}));}}>Actualizar catálogo y precios del carrito</button>
+            <div className="ferre-pos-notice"><label><input type="checkbox" checked={special} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecial(e.target.checked)}/> Venta sin inventario: mercancía que no entra al local</label>{special&&<select aria-label="Proveedor de venta sin inventario" className="form-input" value={specialProvider} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecialProvider(e.target.value)}><option value="">Seleccione proveedor</option>{providers.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}</select>}</div>
             <div style={styles.searchBox}>
               <Search size={18} strokeWidth={2.4} style={styles.searchIcon} />
               <input
+                ref={buscarRef}
                 type="text"
+                aria-label={t('shell.pos.search_label')}
+                aria-keyshortcuts={ATAJO_BUSCAR}
                 placeholder={t('pos.search_products')}
                 value={search}
                 onKeyDown={e=>{if(e.key==='Enter'){const matches=buscarPorCodigo(indiceCatalogo,search.trim());if(matches.length===1){e.preventDefault();agregarAlCarrito(matches[0]);setSearch('');}else if(matches.length>1)setErrorText('Código ambiguo; seleccione el producto');else if(search.trim())void explicarCodigoNoVendible(search.trim());}}}
@@ -537,57 +616,84 @@ export const POSPage: React.FC = () => {
             )}
           </div>
 
-          {/* Columna Derecha: Factura y Resumen */}
-          <div className="industrial-card" style={styles.cartColumn}>
+          {/* Columna Derecha: ticket. El cuerpo (cliente, líneas y descuento) se desplaza; el pie con total,
+              método de pago y cobro queda siempre visible en escritorio. */}
+          <div ref={ticketRef} className="industrial-card pos-ticket" style={styles.cartColumn}>
             {/* Cabecera del ticket */}
             <div style={styles.cartHeader}>
               <div style={styles.cartTitle}>{t('pos.cart').toUpperCase()}</div>
               <span className="badge badge-dark">{t('operational.items')} {cart.length}</span>
             </div>
 
-            {/* Paso 1 · Cliente */}
+            <div className="pos-ticket-cuerpo">
+            {/* Paso 1 · Cliente: resumen plegado; se abre para cambiarlo o cuando el crédito exige un cliente registrado */}
             <PasoTicket numero={1} titulo={t('shell.pos.step_client')} />
-            {/* Selector de Cliente */}
-            <div style={styles.clientSection}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <User size={16} strokeWidth={2.4} color="var(--color-primary)" />
-                <input
-                  type="text"
-                  value={clienteNombre}
-                  disabled={edicionBloqueada || !!clienteId}
-                  onChange={(e) => setClienteNombre(e.target.value)}
-                  className="form-input"
-                  style={{ padding: '6px 10px', fontSize: '12px', flex: 1 }}
-                  placeholder={t('pos.client_placeholder')}
-                />
-                {clienteId && !edicionBloqueada && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      setClienteId(undefined);
-                      setClienteNombre('Consumidor Final');
-                      setClienteRtn('');
-                    }}
-                    title="Cambiar o desvincular cliente registrado"
-                  >
-                    <X size={14} />
+            {!clienteVisible ? (
+              <div className="pos-cliente-resumen">
+                <User size={16} strokeWidth={2.4} color="var(--color-primary-text)" aria-hidden="true" />
+                <span className="pos-cliente-nombre">
+                  <strong>{clienteNombre || 'Consumidor Final'}</strong>
+                  {clienteRtn && <small>RTN {clienteRtn}</small>}
+                </span>
+                {clienteId && <span className="badge badge-success">{t('shell.pos.client_registered')}</span>}
+                {!edicionBloqueada && (
+                  <button type="button" className="btn btn-secondary btn-sm" aria-expanded={false} aria-controls="pos-cliente-detalle" onClick={() => setClienteAbierto(true)}>
+                    {t('shell.pos.client_change')}
                   </button>
                 )}
               </div>
-              <input
-                type="text"
-                value={clienteRtn}
-                disabled={edicionBloqueada || !!clienteId}
-                onChange={(e) => setClienteRtn(e.target.value)}
-                className="form-input"
-                style={{ padding: '6px 10px', fontSize: '11px', marginTop: '6px' }}
-                placeholder={t('pos.rtn_placeholder')}
-              />
-            </div>
+            ) : (
+              <div id="pos-cliente-detalle">
+                <div style={styles.clientSection}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <User size={16} strokeWidth={2.4} color="var(--color-primary-text)" aria-hidden="true" />
+                    <input
+                      type="text"
+                      value={clienteNombre}
+                      disabled={edicionBloqueada || !!clienteId}
+                      onChange={(e) => setClienteNombre(e.target.value)}
+                      className="form-input"
+                      style={{ padding: '6px 10px', fontSize: '13px', flex: 1, minHeight: 40 }}
+                      aria-label={t('shell.pos.client_name_label')}
+                      placeholder={t('pos.client_placeholder')}
+                    />
+                    {clienteId && !edicionBloqueada && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm pos-icono"
+                        onClick={() => {
+                          setClienteId(undefined);
+                          setClienteNombre('Consumidor Final');
+                          setClienteRtn('');
+                        }}
+                        aria-label={t('shell.pos.client_unlink')}
+                        title={t('shell.pos.client_unlink')}
+                      >
+                        <X size={16} aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={clienteRtn}
+                    disabled={edicionBloqueada || !!clienteId}
+                    onChange={(e) => setClienteRtn(e.target.value)}
+                    className="form-input"
+                    style={{ padding: '6px 10px', fontSize: '13px', marginTop: '6px', minHeight: 40 }}
+                    aria-label={t('shell.pos.client_rtn_label')}
+                    placeholder={t('pos.rtn_placeholder')}
+                  />
+                </div>
 
-            {!edicionBloqueada&&!clienteId&&<ClientePicker onSelect={(c:ClienteSeleccionable)=>{setClienteId(c.id);setClienteNombre(c.nombre);setClienteRtn(c.rtn||'');}}/>}
-            {clienteId&&<p style={{ fontSize: '11px', color: '#15803D', fontWeight: 700, marginTop: '4px' }}>✓ Cliente registrado seleccionado.</p>}
+                {!edicionBloqueada&&!clienteId&&<ClientePicker onSelect={(c:ClienteSeleccionable)=>{setClienteId(c.id);setClienteNombre(c.nombre);setClienteRtn(c.rtn||'');setClienteAbierto(false);}}/>}
+                {clienteAbierto && (
+                  <button type="button" className="btn btn-secondary btn-sm" aria-expanded={true} aria-controls="pos-cliente-detalle" onClick={() => setClienteAbierto(false)}>
+                    <ChevronUp size={14} aria-hidden="true" /> {t('shell.pos.client_done')}
+                  </button>
+                )}
+              </div>
+            )}
+            {clienteId&&<p style={{ fontSize: '12px', color: '#15803D', fontWeight: 700, marginTop: '4px' }}>✓ Cliente registrado seleccionado.</p>}
             {metodoPago==='CREDITO'&&<label>Vencimiento del crédito<input className="form-input" type="date" value={vencimiento} disabled={edicionBloqueada} onChange={e=>setVencimiento(e.target.value)}/></label>}
             {/* Paso 2 · Productos */}
             <PasoTicket numero={2} titulo={t('shell.pos.step_products')} derecha={cart.length === 1 ? t('shell.pos.line_one', { count: cart.length }) : t('shell.pos.line_other', { count: cart.length })} />
@@ -595,7 +701,7 @@ export const POSPage: React.FC = () => {
             <div style={styles.cartItemsList}>
               {cart.length === 0 ? (
                 <div style={styles.emptyCart}>
-                  <Receipt size={40} strokeWidth={1.5} color="#A8A29E" />
+                  <Receipt size={40} strokeWidth={1.5} color="#A8A29E" aria-hidden="true" />
                   <p style={{ marginTop: '8px', fontWeight: 600 }}>{t('pos.empty_cart')}</p>
                   <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                     {t('pos.select_products')}
@@ -603,44 +709,49 @@ export const POSPage: React.FC = () => {
                 </div>
               ) : (
                 cart.map((item, index) => (
-                  <div key={item.productoId} style={styles.cartItemRow}>
-                    <div style={{ flex: 1 }}>
+                  <div key={item.productoId} className="pos-linea">
+                    <div className="pos-linea-info">
                       <div style={styles.cartItemName}>{item.nombre}</div>
                       <div style={styles.cartItemPrice}>
                         {item.sinInventario&&'Sin inventario · '}{item.cantidad} x {formatLempiras(item.precioUnitario)}
                       </div>
                     </div>
 
-                    <div style={styles.quantityControls}>
+                    <div className="pos-linea-cantidad">
                       <button
                         type="button"
+                        className="pos-cantidad-btn"
                         onClick={() => modificarCantidad(item.productoId, -1)}
                         disabled={edicionBloqueada}
-                        style={styles.qtyBtn}
+                        aria-label={t('shell.pos.qty_less', { name: item.nombre })}
                       >
-                        <Minus size={13} strokeWidth={3} />
+                        <Minus size={16} strokeWidth={2.6} aria-hidden="true" />
                       </button>
-                      <input aria-label={`Cantidad ${item.nombre}`} type="number" min="0.01" step="0.01" value={item.cantidad} disabled={edicionBloqueada} style={{width:70,padding:4}} onChange={e=>{const q=Number(e.target.value);if(q>0)setCart(cart.map(i=>i.productoId===item.productoId?{...i,cantidad:q}:i));}}/>
+                      <input className="pos-cantidad-input" aria-label={`Cantidad ${item.nombre}`} type="number" min="0.01" step="0.01" value={item.cantidad} disabled={edicionBloqueada} onChange={e=>{const q=Number(e.target.value);if(q>0)setCart(cart.map(i=>i.productoId===item.productoId?{...i,cantidad:q}:i));}}/>
                       <button
                         type="button"
+                        className="pos-cantidad-btn"
                         onClick={() => modificarCantidad(item.productoId, 1)}
-                        style={styles.qtyBtn}
+                        disabled={edicionBloqueada}
+                        aria-label={t('shell.pos.qty_more', { name: item.nombre })}
                       >
-                        <Plus size={13} strokeWidth={3} />
+                        <Plus size={16} strokeWidth={2.6} aria-hidden="true" />
                       </button>
                     </div>
 
-                    <div style={styles.itemSubtotal}>
+                    <div className="pos-linea-subtotal" style={styles.itemSubtotal}>
                       {formatLempiras(totalesCentavos.lineas[index] / 100)}
                     </div>
 
                     <button
                       type="button"
+                      className="pos-linea-quitar"
                       onClick={() => eliminarDelCarrito(item.productoId)}
                       disabled={edicionBloqueada}
-                      style={styles.deleteBtn}
+                      aria-label={t('shell.pos.remove_line', { name: item.nombre })}
+                      title={t('shell.pos.remove_line', { name: item.nombre })}
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={16} aria-hidden="true" />
                     </button>
                   </div>
                 ))
@@ -649,15 +760,16 @@ export const POSPage: React.FC = () => {
 
             {/* Sección de Descuento y Autorización */}
             <div style={styles.descuentoSection}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Percent size={13} color="var(--color-primary)" /> {t('pos.apply_discount')}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
+                <label htmlFor="pos-descuento" style={{ fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Percent size={13} color="var(--color-primary-text)" aria-hidden="true" /> {t('pos.apply_discount')}
                 </label>
-                <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{t('operational.limite_cajero')} {descuentoMaximoPermitido}%</span>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{t('operational.limite_cajero')} {descuentoMaximoPermitido}%</span>
               </div>
 
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <input
+                  id="pos-descuento"
                   type="number"
                   min="0"
                   max="100"
@@ -667,7 +779,7 @@ export const POSPage: React.FC = () => {
                     setDescuentoPorcentaje(Math.min(100, Math.max(0, Number(e.target.value))));
                                   }}
                   className="form-input"
-                  style={{ padding: '6px 10px', fontSize: '13px', width: '90px', fontWeight: 800 }}
+                  style={{ padding: '6px 10px', fontSize: '13px', width: '90px', fontWeight: 800, minHeight: 40 }}
                 />
                 {montoDescuento > 0 && (
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#DC2626' }}>
@@ -677,7 +789,9 @@ export const POSPage: React.FC = () => {
               </div>
 
             </div>
+            </div>
 
+            <div className="pos-ticket-pie" ref={pieTicketRef}>
             {/* Totales Fiscales */}
             <div style={styles.totalsSection}>
               <div style={styles.totalRow}>
@@ -702,8 +816,15 @@ export const POSPage: React.FC = () => {
 
             {/* Paso 3 · Pago y entrega */}
             <PasoTicket numero={3} titulo={t('shell.pos.step_payment')} />
-            {/* Método de Pago */}
-            <div style={styles.paymentMethods}>{(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'] as const).map(m=><button key={m} type="button" disabled={edicionBloqueada} onClick={()=>setMetodoPago(m)} style={{...styles.payBtn,...(metodoPago===m?styles.payBtnActive:{})}}>{m}</button>)}</div>
+            {/* Método de Pago: botones de alternancia; el seleccionado se distingue por relleno, borde e icono */}
+            <div role="group" aria-label={t('shell.pos.payment_method')} className="pos-metodos">
+              {METODOS_PAGO.map(({ valor, etiqueta, Icono }) => (
+                <button key={valor} type="button" className="pos-metodo" aria-pressed={metodoPago === valor} disabled={edicionBloqueada} onClick={() => setMetodoPago(valor)}>
+                  {metodoPago === valor ? <CheckCircle size={16} strokeWidth={2.4} aria-hidden="true" /> : <Icono size={16} strokeWidth={2.2} aria-hidden="true" />}
+                  <span>{t(etiqueta)}</span>
+                </button>
+              ))}
+            </div>
 
             {(metodoPago === 'TARJETA' || metodoPago === 'TRANSFERENCIA') && !ventaPendiente && (
               <div style={styles.paymentMethods}>
@@ -727,15 +848,18 @@ export const POSPage: React.FC = () => {
             ) : (
               <>
               <button
+                ref={cobrarRef}
+                id="pos-cobrar"
                 type="button"
                 className="btn btn-primary"
                 onClick={handleCobrar}
                 disabled={cart.length === 0 || edicionBloqueada || !!draftError || !!ventaPendiente}
                 aria-busy={procesandoVenta}
+                aria-keyshortcuts={ATAJO_COBRAR}
                 style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1 }}
               >
-                <CheckCircle size={20} strokeWidth={2.5} />
-                {procesandoVenta && <Loader2 size={18} className="animate-spin" />}
+                <CheckCircle size={20} strokeWidth={2.5} aria-hidden="true" />
+                {procesandoVenta && <Loader2 size={18} className="animate-spin" aria-hidden="true" />}
                 <span>{t(procesandoVenta ? 'pos.processing' : 'pos.checkout')} {formatLempiras(total)}</span>
               </button>
               {puedeEntregar ? (
@@ -745,7 +869,7 @@ export const POSPage: React.FC = () => {
                   onClick={() => handleCobrar('BODEGA')}
                   disabled={cart.length === 0 || edicionBloqueada || !!draftError || !!ventaPendiente}
                   aria-busy={procesandoVenta}
-                  style={{ ...styles.checkoutBtn, opacity: cart.length === 0 ? 0.5 : 1, marginTop: 8 }}
+                  style={{ ...styles.checkoutSecondary, opacity: cart.length === 0 ? 0.5 : 1 }}
                 >
                   <span>Cobrar y dejar en bodega (entrega después)</span>
                 </button>
@@ -754,9 +878,25 @@ export const POSPage: React.FC = () => {
               )}
               </>
             )}
+            <p className="pos-atajos"><kbd>{ATAJO_BUSCAR}</kbd> {t('shell.pos.shortcut_search')} · <kbd>{ATAJO_COBRAR}</kbd> {t('shell.pos.shortcut_checkout')} · <kbd>Enter</kbd> {t('shell.pos.shortcut_confirm')}</p>
+            </div>
           </div>
         </div>
       </main>
+
+      {/* Teléfono: el ticket queda debajo del catálogo. Esta barra muestra el total y lleva al pie del ticket;
+          no registra la venta (el cobro sigue siendo el botón «Procesar Venta»). */}
+      {cart.length > 0 && !modalTicket && (
+        <div className="pos-barra-movil">
+          <span className="pos-barra-movil-total">
+            <small>{t('shell.pos.pending_items', { count: cart.length })} · {t(ETIQUETA_METODO[metodoPago])}</small>
+            <strong>{formatLempiras(total)}</strong>
+          </span>
+          <button type="button" className="btn btn-primary" onClick={() => { pieTicketRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }); cobrarRef.current?.focus({ preventScroll: true }); }}>
+            {t('shell.pos.go_to_checkout')}
+          </button>
+        </div>
+      )}
 
       {/* Modal de Comprobante / Ticket Generado */}
       {modalTicket && (
@@ -830,7 +970,7 @@ export const POSPage: React.FC = () => {
                   {t('pos.total_paid')}: {formatLempiras(Number(ventaRegistrada?.total ?? total))}
                 </div>
                 <div style={{ fontSize: '11px', marginTop: '2px' }}>
-                  {t('pos.payment_method')}: {t(`pos.${metodoPago === 'EFECTIVO' ? 'cash' : metodoPago === 'TARJETA' ? 'card' : 'credit'}`)}
+                  {t('pos.payment_method')}: {t(ETIQUETA_METODO[metodoPago] ?? 'pos.credit')}
                 </div>
               </div>
 
@@ -953,11 +1093,15 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     minHeight: '130px',
     userSelect: 'none',
+    width: '100%',
+    textAlign: 'left',
+    font: 'inherit',
+    color: 'inherit',
   },
   skuBadge: {
     fontFamily: 'var(--font-display)',
     fontWeight: 800,
-    fontSize: '10px',
+    fontSize: '11px',
     color: 'var(--color-text-muted)',
     textTransform: 'uppercase',
   },
@@ -979,7 +1123,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'var(--font-display)',
     fontWeight: 900,
     fontSize: '15px',
-    color: 'var(--color-primary)',
+    color: 'var(--color-primary-text)',
   },
   stockText: {
     fontSize: '11px',
@@ -990,6 +1134,9 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     padding: '20px',
+    position: 'sticky',
+    top: '16px',
+    maxHeight: 'var(--pos-ticket-alto, calc(100vh - 32px))',
   },
   cartHeader: {
     display: 'flex',
@@ -1009,9 +1156,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid var(--color-border-subtle)',
   },
   cartItemsList: {
-    minHeight: '220px',
-    maxHeight: '340px',
-    overflowY: 'auto',
+    minHeight: '120px',
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
@@ -1025,15 +1170,6 @@ const styles: Record<string, React.CSSProperties> = {
     height: '200px',
     color: 'var(--color-text-muted)',
   },
-  cartItemRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    padding: '8px 10px',
-    backgroundColor: 'var(--color-bg)',
-    border: '1px solid var(--color-border-subtle)',
-    borderRadius: 'var(--radius-xs)',
-  },
   cartItemName: {
     fontFamily: 'var(--font-display)',
     fontWeight: 700,
@@ -1045,42 +1181,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-text-muted)',
     marginTop: '2px',
   },
-  quantityControls: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-  },
-  qtyBtn: {
-    width: '24px',
-    height: '24px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#FFFFFF',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-xs)',
-    cursor: 'pointer',
-  },
-  qtyText: {
-    fontFamily: 'var(--font-display)',
-    fontWeight: 800,
-    fontSize: '13px',
-    minWidth: '18px',
-    textAlign: 'center',
-  },
   itemSubtotal: {
     fontFamily: 'var(--font-display)',
     fontWeight: 800,
     fontSize: '13px',
     minWidth: '70px',
     textAlign: 'right',
-  },
-  deleteBtn: {
-    background: 'none',
-    border: 'none',
-    color: '#DC2626',
-    cursor: 'pointer',
-    padding: '4px',
   },
   descuentoSection: {
     padding: '10px 0',
@@ -1100,11 +1206,10 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '4px',
   },
   totalsSection: {
-    borderTop: '2px solid var(--color-border)',
-    paddingTop: '12px',
+    paddingTop: '8px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px',
+    gap: '3px',
   },
   totalRow: {
     display: 'flex',
@@ -1121,8 +1226,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   grandTotalRow: {
     borderTop: '1px dashed var(--color-border)',
-    paddingTop: '8px',
-    marginTop: '4px',
+    paddingTop: '6px',
+    marginTop: '3px',
     alignItems: 'baseline',
   },
   grandTotalLabel: {
@@ -1133,37 +1238,27 @@ const styles: Record<string, React.CSSProperties> = {
   grandTotalVal: {
     fontFamily: 'var(--font-display)',
     fontWeight: 900,
-    fontSize: '22px',
-    color: 'var(--color-primary)',
+    fontSize: '24px',
+    color: 'var(--color-text-main)',
+    fontVariantNumeric: 'tabular-nums',
   },
   paymentMethods: {
     display: 'flex',
     gap: '8px',
     margin: '14px 0 12px',
   },
-  payBtn: {
-    flex: 1,
-    padding: '8px',
-    fontFamily: 'var(--font-display)',
-    fontWeight: 700,
-    fontSize: '11px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    border: '1.5px solid var(--color-border)',
-    borderRadius: 'var(--radius-xs)',
-    backgroundColor: '#FFFFFF',
-    cursor: 'pointer',
-  },
-  payBtnActive: {
-    backgroundColor: 'var(--color-sidebar-bg)',
-    color: '#FFFFFF',
-  },
   checkoutBtn: {
     width: '100%',
+    minHeight: '52px',
     padding: '14px',
-    fontSize: '15px',
+    fontSize: '16px',
+  },
+  // «Cobrar y dejar en bodega» es una variante menos frecuente: menor peso que el cobro principal.
+  checkoutSecondary: {
+    width: '100%',
+    minHeight: '40px',
+    marginTop: 8,
+    fontSize: '13px',
   },
   modalOverlay: {
     position: 'fixed',

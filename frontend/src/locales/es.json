@@ -782,7 +782,13 @@
     "needs_connection": "en línea",
     "online": "En línea",
     "offline": "Sin conexión",
-    "pending_sales": "{count} ventas por enviar"
+    "pending_sales": "{count} ventas por enviar",
+    "more_options": "Más opciones de {name}",
+    "more_short": "Más",
+    "home_link": "Jowa System: ir a Inicio",
+    "platform": "Plataforma",
+    "connection_status": "Estado de la conexión",
+    "more_menu": "Más secciones"
   },
   "tasks": {
     "finder": "Buscar una pantalla o tarea",
@@ -1621,14 +1627,34 @@
       "point_of_sale": "Punto de venta",
       "cash_drawer": "Arqueo de caja",
       "quotations": "Cotizaciones",
-      "charge": "Cobrar"
+      "charge": "Cobrar",
+      "contrast_title": "El texto blanco sobre este color tiene un contraste de {ratio}:1 (mínimo recomendado 4.5:1).",
+      "contrast_dark_text": "Los botones y elementos activos mostrarán texto oscuro para que se lean bien.",
+      "contrast_darker_text": "Los textos y enlaces con el color de marca usarán un tono más oscuro sobre fondos claros."
     },
     "pos": {
       "step_client": "Cliente",
       "step_products": "Productos",
       "step_payment": "Pago y entrega",
       "line_one": "{count} línea",
-      "line_other": "{count} líneas"
+      "line_other": "{count} líneas",
+      "client_change": "Cambiar cliente",
+      "client_done": "Listo",
+      "client_registered": "Registrado",
+      "client_name_label": "Nombre del cliente",
+      "client_rtn_label": "RTN del cliente",
+      "client_unlink": "Desvincular cliente registrado",
+      "search_label": "Buscar producto por código o nombre",
+      "qty_less": "Restar uno: {name}",
+      "qty_more": "Sumar uno: {name}",
+      "remove_line": "Quitar {name} del ticket",
+      "payment_method": "Método de pago",
+      "shortcut_search": "buscar producto",
+      "shortcut_checkout": "ir a cobrar",
+      "shortcut_confirm": "confirmar",
+      "go_to_checkout": "Ir a cobrar",
+      "more_actions": "Más acciones de venta",
+      "pending_items": "{count} artículos"
     }
   }
 }
