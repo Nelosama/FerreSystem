@@ -60,6 +60,29 @@ describe('AuthService', () => {
     expect(service).toBeDefined();
   });
 
+  it.each(['superAdmin', 'usuario'] as const)('no expone detalles del error de %s en logs ni respuesta de login', async (model) => {
+    const marker = 'synthetic-private-credential-marker';
+    const failure = Object.assign(new Error(`postgresql://user:${marker}@db.invalid/db`), {
+      code: marker, meta: { code: marker },
+    });
+    mockPrisma.superAdmin.findUnique.mockResolvedValue(null);
+    if (model === 'superAdmin') mockPrisma.superAdmin.findUnique.mockRejectedValueOnce(failure);
+    else mockPrisma.usuario.findMany.mockRejectedValueOnce(failure);
+    const log = vi.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    try {
+      await service.login({ email: 'security@test.invalid', password: marker }, mockResponse);
+      expect.fail('Debe responder con error');
+    } catch (error: any) {
+      expect(error.getStatus()).toBe(500);
+      expect(error.getResponse()).toMatchObject({ code: 'N/A', error: 'DatabaseQueryError' });
+      expect(JSON.stringify(error.getResponse())).not.toContain(marker);
+    }
+    expect(log).toHaveBeenCalled();
+    expect(JSON.stringify(log.mock.calls)).not.toContain(marker);
+    expect(mockResponse.cookie).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
   describe('login unificado de Super Admin', () => {
     it('autentica Super Admin desde el mismo servicio y emite el tipo de sesión correcto', async () => {
       const passwordHash = await bcrypt.hash('super-admin-test-password', 4);

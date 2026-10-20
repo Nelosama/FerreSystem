@@ -59,8 +59,8 @@ export class AuthService {
     try {
       superAdmin = await this.prisma.superAdmin.findUnique({ where: { email: normalizedEmail } });
     } catch (error: any) {
-      const errorCode = error?.code || error?.meta?.code || 'N/A';
-      this.logger.error('[LOGIN_DIAGNOSTIC] Error consultando SuperAdmin.', error?.stack);
+      const errorCode = typeof error?.code === 'string' && /^P\d{4}$/.test(error.code) ? error.code : 'N/A';
+      this.logger.error(`[LOGIN_DIAGNOSTIC] Error consultando SuperAdmin. Código: ${errorCode}`);
       throw new InternalServerErrorException({
         statusCode: 500,
         message: 'Error de conexión o consulta con la base de datos al autenticar',
@@ -155,11 +155,9 @@ export class AuthService {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      const errorMsg = error?.message || 'Error desconocido';
-      const errorCode = error?.code || error?.meta?.code || 'N/A';
+      const errorCode = typeof error?.code === 'string' && /^P\d{4}$/.test(error.code) ? error.code : 'N/A';
       this.logger.error(
-        `[LOGIN_DIAGNOSTIC] [CASO E] ERROR DE BD/PRISMA durante consulta de usuario. Código: ${errorCode}, Mensaje: ${errorMsg}`,
-        error?.stack,
+        `[LOGIN_DIAGNOSTIC] [CASO E] ERROR DE BD/PRISMA durante consulta de usuario. Código: ${errorCode}`,
       );
       throw new InternalServerErrorException({
         statusCode: 500,
@@ -184,10 +182,9 @@ export class AuthService {
     try {
       this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 5] Comparando contraseña con bcrypt.compare()`);
       passwordValido = await bcrypt.compare(password, usuario.passwordHash);
-    } catch (bcryptError: any) {
+    } catch {
       this.logger.error(
-        `[LOGIN_DIAGNOSTIC] [CASO F] Error de ejecución en bcrypt.compare(): ${bcryptError?.message}`,
-        bcryptError?.stack,
+        '[LOGIN_DIAGNOSTIC] [CASO F] Error de ejecución en bcrypt.compare()',
       );
       throw new InternalServerErrorException('Error al validar credenciales de seguridad');
     }

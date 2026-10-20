@@ -15,6 +15,10 @@ test('browsers must not sniff content types', () => {
   assert.equal(cabeceras['X-Content-Type-Options'], 'nosniff');
 });
 
+test('cross-origin requests do not send the full application URL as referrer', () => {
+  assert.equal(cabeceras['Referrer-Policy'], 'strict-origin-when-cross-origin');
+});
+
 test('the app cannot be framed by other sites', () => {
   assert.equal(cabeceras['X-Frame-Options'], 'SAMEORIGIN');
 });
