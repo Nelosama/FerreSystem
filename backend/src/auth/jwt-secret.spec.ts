@@ -10,4 +10,10 @@ describe('JWT secret', () => {
     expect(getJwtSecret(config({ NODE_ENV: 'production', JWT_SECRET: 'test-secret' }))).toBe('test-secret');
     expect(getJwtSecret(config({ NODE_ENV: 'development' }))).toContain('dev-secret');
   });
+  it('no usa el secreto público si NODE_ENV no está definido ni es de desarrollo o pruebas', () => {
+    expect(() => getJwtSecret(config({}))).toThrow('obligatorio');
+    expect(() => getJwtSecret(config({ NODE_ENV: 'staging' }))).toThrow('obligatorio');
+    expect(() => getJwtSecret(config({ NODE_ENV: 'Production' }))).toThrow('obligatorio');
+    expect(getJwtSecret(config({ NODE_ENV: 'test' }))).toContain('dev-secret');
+  });
 });

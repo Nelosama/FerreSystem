@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-18 UTC** — inicio del administrador con pendientes reales, rama única `claude/admin-pendientes-ux` (PR abierto hacia `main`, sin merge ni despliegue).
+Última revisión: **2026-10-20 UTC** — revisión de seguridad integral (autenticación, multi-tenant, roles, frontend, operaciones e infraestructura), rama `claude/revision-seguridad-jowa-20261020` (PR en borrador hacia `main`, sin merge ni despliegue). Detalle: [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -19,6 +19,19 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 7. **No hacer merge automático** ni desplegar a producción sin autorización explícita del dueño del proyecto.
 
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
+
+---
+
+## Revisión de seguridad integral — 2026-10-20 UTC (rama `claude/revision-seguridad-jowa-20261020`, sin merge ni despliegue)
+
+- **Base y estado Git:** `main` `c4cadc3` = `origin/main`. PR abiertos ajenos al iniciar: #180 (`feat/contabilidad-honduras`, borrador) y #181 (`claude/impeccable-init`); no se tocaron. Sin acceso a producción, Render, Vercel ni Supabase desde esta sesión.
+- **Corregido (H-01, alta):** `getJwtSecret` (`backend/src/auth/jwt-secret.ts`) aceptaba el secreto público de desarrollo cuando `JWT_SECRET` faltaba y `NODE_ENV` no era `production` (incluido sin definir). Ahora solo `development` y `test` lo usan; en otro caso la API no arranca. Reproducción roja previa: `expected [Function] to throw`. Pruebas en `jwt-secret.spec.ts`.
+- **Corregido (H-02, media):** `frontend/vercel.json` sin encabezados de seguridad. Añadidos `nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, `Permissions-Policy` (cámara solo `self` para el escáner) y HSTS. Prueba `frontend/test/vercel-security-headers.test.mjs`. **Sin CSP**: requiere validación en navegador de la app completa.
+- **Pendientes con decisión:** H-03 token de acceso en `localStorage` (`ferre_token`, y token original de Super Admin durante soporte); H-04 refresh sin rotación ni detección de reutilización (ya registrado en fase 3); H-05 logout forzable desde otro sitio por cookie `SameSite=None`; H-06 `GET /api/health/db` público y marcado como temporal.
+- **Verificado sin hallazgo:** revalidación de usuario, empresa y sesión en cada petición; refresh no válido como Bearer; tenant solo desde el token; escrituras por `id` precedidas de lectura con `tenantId`; SQL parametrizado; todo handler de negocio con `@Roles`/permiso/`SuperAdminGuard`; el rol `SUPERADMIN` no existe en el enum `Rol`; CORS con lista exacta; cookies `httpOnly`/`Secure`; `ValidationPipe` con `whitelist`; sin secretos ni `.env` versionados; `npm audit` sin vulnerabilidades en backend y frontend.
+- **Validación:** backend unitarias 53 archivos / 530 pruebas; integración PostgreSQL 16 temporal como `nobody` (`autenticacion-fase3` + `seguridad-fase2`) 47/47; `tsc` de build sin errores; frontend unitarias 475/475 y pruebas de cabeceras/guard 25/25. **No ejecutado:** Playwright simulado, `e2e-real`, suite PostgreSQL completa, cabeceras en un despliegue real.
+- **Límites:** no se validó Render (`JWT_SECRET`, `NODE_ENV`, `TRUST_PROXY`), ni respaldos, ni configuración de Supabase. Confirmar `JWT_SECRET` y `NODE_ENV=production` antes de desplegar, porque H-01 hace fallar el arranque sin ellos. Sin merge ni despliegue.
+- **Bitácora:** lectura del contexto y de PR/refs; escaneo de guards por handler; búsqueda de SQL, secretos, CORS, cookies y sumideros XSS; reproducción roja de H-01; corrección mínima y pruebas; informe en `docs/REVISION_SEGURIDAD_20261020.md`.
 
 ---
 
