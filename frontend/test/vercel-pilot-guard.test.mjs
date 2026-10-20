@@ -19,6 +19,7 @@ for (const [branch, expected] of [
   ['fix/jowa-operacion-estable', 0], ['fix/jowa-operacion-estable-extra', 1],
   ['codex/fix-expired-sessions-extra', 1],
   ['codex/fix-camera-lifecycle-ios', 0], ['codex/fix-camera-lifecycle-ios-extra', 1],
+  ['codex/estabilidad-operativa', 0], ['codex/estabilidad-operativa-extra', 1],
   ['main', 1], ['fix/auditoria-admin', 1], ['fix/pilot-readiness-extra', 1],
 ]) {
   test(`Vercel ignoreCommand: ${branch} exits ${expected}`, { skip: process.platform === 'win32' }, () => {
@@ -27,3 +28,7 @@ for (const [branch, expected] of [
     assert.equal(result.status, expected);
   });
 }
+
+test('operational stability branch is excluded from Git previews', () => {
+  assert.equal(configuration.git.deploymentEnabled['codex/estabilidad-operativa'], false);
+});

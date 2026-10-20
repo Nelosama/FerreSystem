@@ -1251,6 +1251,10 @@
     "details": "Más detalles (opcional)"
   },
   "scanner": {
+    "camera": "Cámara",
+    "default_camera": "Cámara predeterminada",
+    "camera_number": "Cámara {number}",
+
     "manual": "Introducir código manualmente",
     "manual_hint": "Introduzca el código en el campo del formulario.",
     "interrupted": "Cámara detenida al salir de la aplicación. Pulse Leer código con cámara para continuar.",

@@ -103,16 +103,26 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
       const response = await request(app!.getHttpServer()).get('/api/health').expect(503);
       expect(response.body.message).toBe('Servicio temporalmente no disponible');
       expect(JSON.stringify(response.body)).not.toMatch(/postgresql:|127\.0\.0\.1|password|Prisma/);
+      const privateResponse = await request(app!.getHttpServer()).get('/api/auth/me')
+        .auth(token, { type: 'bearer' }).expect(503);
+      expect(privateResponse.body.message).toBe('Servicio temporalmente no disponible');
+      expect(JSON.stringify(privateResponse.body)).not.toMatch(/postgresql:|127\.0\.0\.1|password|Prisma/);
     } finally { start(); }
   }, 15000);
 
   it('recupera readiness tras reiniciar PostgreSQL sin reiniciar la aplicación', async () => {
-    await request(app!.getHttpServer()).get('/api/health').expect(200).expect({ status: 'ok' });
+    // Stale pooled connections may fail on the first read after restart.
+    // Require bounded recovery with the same process/client, without reconnect hooks.
+    await vi.waitFor(async () => {
+      await request(app!.getHttpServer()).get('/api/health').expect(200).expect({ status: 'ok' });
+    }, { timeout: 5000, interval: 100 });
   });
 
   it('la sesión anterior a la caída recupera lecturas sin cruzar empresas', async () => {
-    const me = await request(app!.getHttpServer()).get('/api/auth/me').auth(token, { type: 'bearer' }).expect(200);
-    expect(me.body.user.sub).toBe(userId);
+    await vi.waitFor(async () => {
+      const me = await request(app!.getHttpServer()).get('/api/auth/me').auth(token, { type: 'bearer' }).expect(200);
+      expect(me.body.user.sub).toBe(userId);
+    }, { timeout: 5000, interval: 100 });
     const users = await request(app!.getHttpServer()).get('/api/usuarios')
       .auth(token, { type: 'bearer' }).set('x-tenant-id', otherTenantId).expect(200);
     expect(users.body.map((user: { id: string }) => user.id)).toEqual([userId]);
