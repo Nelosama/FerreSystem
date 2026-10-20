@@ -25,6 +25,7 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 ## Cierre técnico PR #178 — 2026-10-19, America/Tegucigalpa
 
 - Rama exclusiva `codex/estabilidad-operativa`; `main` actualizado a `aae1546d` (#179). Único conflicto documental en este contexto, resuelto conservando íntegros ambos registros. Sin cambios en otras ramas/PR ni en el trabajo de Claude.
+- Regresión heredada adaptada a la regla solicitada: el comprobante sin formato explícito espera A4 (normalización existente); la persistencia de 58 mm se prueba con configuración del negocio y selector bloqueado, sin permitir que una preferencia local sustituya A4.
 - Contingencia: A4, 80 mm y 58 mm configurados por Super Admin prevalecen sobre la preferencia local; página CSS y ancho del comprobante usan el mismo formato. Regresión de navegador con una preferencia local incompatible para cada formato. El selector solo permite preferencia local cuando no hay formato configurado.
 - Sesiones: errores temporales de Prisma devuelven 503 sin autorizar ni revocar; sesiones revocadas siguen devolviendo 401. `backend/test/app.e2e-spec.ts` verifica caída/reinicio de PostgreSQL real, recuperación con el mismo token y revocación posterior. `session-lifecycle.spec.ts` verifica conservación de credenciales ante 502/503/504.
 - Cámara: limpieza antes de adquirir otro dispositivo, descarte de streams tardíos y entrada manual conservada; pruebas unitarias de ciclo y prueba de navegador en `levantamiento.spec.ts`. APIs de cámara simuladas: no acreditan hardware.

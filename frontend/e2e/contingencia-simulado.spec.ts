@@ -220,7 +220,7 @@ test.describe('Impresión del comprobante de contingencia', () => {
     await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
     await expect.poll(async () => (await impresiones(page)).length).toBe(1);
     const [{ texto, clase }] = await impresiones(page);
-    expect(clase).toContain('papel-80');
+    expect(clase).toContain('papel-A4');
     for (const esperado of [
       'COMPROBANTE INTERNO DE CONTINGENCIA', 'NO ES FACTURA FISCAL', 'Ferretería de contingencia',
       'Número temporal: CT-01-0001', 'Cajero: Cajero de prueba', 'Cliente: Consumidor final',
@@ -289,10 +289,12 @@ test.describe('Impresión del comprobante de contingencia', () => {
     expect((await diario(page)).length).toBe(1);
   });
 
-  test('el papel de 58 mm se aplica al comprobante y se recuerda al recargar', async ({ page }) => {
+  test('el formato de 58 mm configurado por negocio se aplica y se conserva al recargar', async ({ page, sim }) => {
+    sim.formatoImpresion = 'ROLLO_58MM';
     await preparaImpresion(page);
     await ingresarYAbrirPos(page);
-    await page.getByLabel('Papel de la impresora').selectOption('58');
+    await expect(page.getByLabel('Papel de la impresora')).toBeDisabled();
+    await expect(page.getByLabel('Papel de la impresora')).toHaveValue('58');
     await venderUnTornillo(page);
     await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
     await expect.poll(async () => (await impresiones(page)).length).toBe(1);
