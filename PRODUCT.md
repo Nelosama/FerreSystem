@@ -17,7 +17,8 @@ Leyenda de estado: **[Implementado]** verificado en código de `main`; **[Parcia
 
 - Frontend: React 19 + TypeScript + Vite, aplicación web/PWA (`frontend/public/manifest.webmanifest`, `sw.js`). **[Implementado]**
 - Backend: NestJS + Prisma + PostgreSQL. **[Implementado]**
-- Hosting: backend en Render, frontend en Vercel, base de datos y Storage de logotipos en Supabase. **[Implementado]** según `docs/CONTEXTO_MAESTRO.md`.
+- Hosting: backend en Render, frontend en Vercel, base de datos PostgreSQL en Supabase. **[Implementado]** según `docs/CONTEXTO_MAESTRO.md` y `docs/ARQUITECTURA_CONTINUIDAD_POS_20261010.md`.
+- Logotipos: almacenamiento privado en PostgreSQL por defecto; Supabase Storage y disco local solo con `LOGOTIPO_ALMACEN` explícito. **[Implementado]** (`backend/src/tenants/logotipo-almacen.ts`). Validación de Supabase Storage contra el servicio real **[Pendiente]**.
 - "Totalmente en la nube": **[Pendiente]** de confirmación. Existe también un despliegue local (`deploy/local`: Caddy + Compose) que contradice la decisión.
 
 ## Users and roles
@@ -37,7 +38,7 @@ Una sola aplicación integrada, sin app nativa por ahora.
 - Dashboard, administración, supervisión, reportes e inventario en móvil. **[Parcial]**: `mobile/README.md` confirma solo la revisión de solicitudes de devolución por ADMIN.
 - Escaneo de códigos con cámara. **[Implementado]** (levantamiento). Validación en iPhone/Safari **[Pendiente]**.
 - Notificaciones push con la app cerrada. **[Planificado]** (`mobile/README.md`, `docs/APP_MOVIL_Y_NOTIFICACIONES.md`).
-- Fotografías opcionales con almacenamiento en la nube. **[Planificado]**: hoy `imagenUrl` solo acepta URL `https` externa. Los logotipos sí usan Supabase Storage privado.
+- Fotografías opcionales con almacenamiento en la nube. **[Planificado]**: hoy `imagenUrl` solo acepta URL `https` externa. Los logotipos usan el almacenamiento privado descrito en Hosting.
 - Sin POS móvil ni operaciones de caja, cobros o facturación. **[Pendiente]**: la ruta `/pos` no se oculta en móvil; depende solo de rol y módulo. Requiere cambio fuera de este alcance.
 
 ## Accounting (Honduras)
@@ -51,7 +52,7 @@ Una sola aplicación integrada, sin app nativa por ahora.
 - Fondo gris claro `#F4F5F7`, superficies blancas `#FFFFFF`, bordes suaves `#E4E7EB`. **[Implementado]**
 - Color de marca y logotipo configurables por negocio. **[Implementado]**
 - Navegación SIDEBAR o TOPNAV configurable por negocio. **[Implementado]**
-- Español e inglés (`es.json`, `en.json`). **[Implementado]**
+- Español e inglés (`es.json`, `en.json`). **[Implementado]**: el idioma se fija por negocio en la configuración del Super Admin; no hay selector ES/EN en las interfaces del negocio.
 - Interfaz extremadamente sencilla: criterio de diseño, sin medición. **[Pendiente]** de evaluación.
 - Configuración del negocio y auditoría solo para Super Admin. **[Implementado]**
 

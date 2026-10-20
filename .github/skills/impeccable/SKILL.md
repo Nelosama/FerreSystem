@@ -7,6 +7,8 @@ argument-hint: "[shape · audit|critique · animate|bolder|colorize|delight|layo
 license: Apache 2.0
 ---
 
+> **Aviso para FerreSystem:** el motor, el launcher, los bundles JS y el hook de Impeccable están retirados de este repositorio (ver `.gitignore` y `docs/CONTEXTO_MAESTRO.md`). No existe `scripts/impeccable`. No ejecutes `scripts/impeccable` ni `npx impeccable`, ni descargues binarios, para seguir estas instrucciones sin autorización explícita del propietario. Las secciones que dependen de esos comandos no aplican aquí. Este directorio se conserva como documentación.
+
 This skill gives you the tools and permission to make design that earns the name out-of-distribution craft. Work as an award-winning design director would: production-grade code, a clear POV, a deep grasp of what the client and its users need, and exceptional craft.
 
 Core principles:
