@@ -22,6 +22,16 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Cierre técnico PR #178 — 2026-10-19, America/Tegucigalpa
+
+- Rama exclusiva `codex/estabilidad-operativa`; `main` `8bab63d2` ya es ancestro, actualización sin conflictos. Sin cambios en otras ramas/PR ni en el trabajo de Claude.
+- Contingencia: A4, 80 mm y 58 mm configurados por Super Admin prevalecen sobre la preferencia local; página CSS y ancho del comprobante usan el mismo formato. Regresión de navegador con una preferencia local incompatible para cada formato. El selector solo permite preferencia local cuando no hay formato configurado.
+- Sesiones: errores temporales de Prisma devuelven 503 sin autorizar ni revocar; sesiones revocadas siguen devolviendo 401. `backend/test/app.e2e-spec.ts` verifica caída/reinicio de PostgreSQL real, recuperación con el mismo token y revocación posterior. `session-lifecycle.spec.ts` verifica conservación de credenciales ante 502/503/504.
+- Cámara: limpieza antes de adquirir otro dispositivo, descarte de streams tardíos y entrada manual conservada; pruebas unitarias de ciclo y prueba de navegador en `levantamiento.spec.ts`. APIs de cámara simuladas: no acreditan hardware.
+- Validación de esta continuación: frontend `npm test`, build con `VITE_API_URL=/api`, lint y Playwright; backend unitarias, build, lint, scripts, integración PostgreSQL temporal 17.11 y recuperación HTTP. Guard de migraciones correcto: cero migraciones nuevas. Resultados definitivos y checks vinculados al SHA final se registran en [PR #178](https://github.com/Nelosama/FerreSystem/pull/178); no usar checks de SHA anteriores para aprobarlo.
+- Límites: sin iPhone físico, Safari/PWA iOS instalada ni impresoras físicas A4/80/58. PDFs y Chromium no validan enfoque, permisos reales, liberación del hardware iOS, márgenes del driver, avance/corte ni legibilidad del papel. Pendiente ejecutar el protocolo físico de `ESCANER_IPHONE_20261018.md` y comprobantes en los tres equipos/papeles del cliente. Sin validación productiva ni certificación de aislamiento transaccional entre sucursales.
+- Bitácora: inspección de PR/refs y árbol limpio, actualización de la misma rama, corrección acotada de A4 y regresión de formatos, ejecución de suites y consulta de Actions sobre HEAD definitivo. Sin dependencias, migraciones, merge ni despliegue. Retirar Draft solo con comprobaciones satisfactorias; el merge queda reservado a autorización del propietario. NEXUS firma la evidencia de PostgreSQL.
+
 ## Diseño único de Jowa System — consolidación PR #177 (2026-10-18, rama `claude/gifted-dirac-fqc2u5`, sin merge ni despliegue)
 
 - **Decisión:** un solo diseño visual oficial (base V3: superficies claras, bordes suaves, tipografía fija Archivo/Inter). Solo color de marca por negocio. Única elección de distribución: SIDEBAR o TOPNAV.

@@ -360,15 +360,12 @@ test.describe('Contingencia POS — sin internet y existencias locales', () => {
 
 
 for (const [formato, papel] of [['A4', 'A4'], ['ROLLO_80MM', '80'], ['ROLLO_58MM', '58']] as const) {
-  test(`contingencia: ${formato} mantiene página y ancho coherentes y respeta preferencias permitidas`, async ({ page, sim }) => {
+  test(`contingencia: ${formato} mantiene página y ancho coherentes y respeta la configuración del negocio frente a la preferencia local`, async ({ page, sim }) => {
     sim.formatoImpresion = formato;
     await preparaImpresion(page);
-    await page.addInitScript(() => localStorage.setItem('pos-contingencia-papel', '58'));
+    await page.addInitScript(preferencia => localStorage.setItem('pos-contingencia-papel', preferencia), papel === '58' ? '80' : '58');
     await ingresarYAbrirPos(page); await venderUnTornillo(page);
-    if (formato === 'A4') {
-      await expect(page.getByLabel('Papel de la impresora')).toHaveValue('58');
-      await page.getByLabel('Papel de la impresora').selectOption('A4');
-    } else await expect(page.getByLabel('Papel de la impresora')).toBeDisabled();
+    await expect(page.getByLabel('Papel de la impresora')).toBeDisabled();
     await expect(page.getByLabel('Papel de la impresora')).toHaveValue(papel);
     await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
     await expect.poll(async () => (await impresiones(page)).length).toBe(1);

@@ -59,11 +59,11 @@ export default function PosContingenciaPage() {
   const [confirmacion, setConfirmacion] = useState<OperacionLocal | null>(null);
   const [aImprimir, setAImprimir] = useState<OperacionLocal | null>(null);
   const [avisoImpresion, setAvisoImpresion] = useState<string | null>(null);
-  // Un rollo configurado por negocio gobierna página y ancho; en otro caso se conserva la preferencia por equipo.
+  // El formato configurado por negocio gobierna página y ancho, incluido A4.
   const [papel, setPapel] = useState<'A4' | '58' | '80'>(() => (tenant?.formatoImpresion === 'ROLLO_58MM' ? '58' : tenant?.formatoImpresion === 'ROLLO_80MM' ? '80' : leerPapel()));
   const formatoNegocio = tenant?.formatoImpresion;
-  const rolloConfigurado = formatoNegocio === 'ROLLO_58MM' || formatoNegocio === 'ROLLO_80MM';
-  const formatoPapel = rolloConfigurado ? formatoNegocio : papel === 'A4' ? 'A4' : papel === '58' ? 'ROLLO_58MM' : 'ROLLO_80MM';
+  const formatoConfigurado = formatoNegocio === 'A4' || formatoNegocio === 'ROLLO_58MM' || formatoNegocio === 'ROLLO_80MM';
+  const formatoPapel = formatoConfigurado ? formatoNegocio : papel === 'A4' ? 'A4' : papel === '58' ? 'ROLLO_58MM' : 'ROLLO_80MM';
   const papelComprobante = formatoPapel === 'A4' ? 'A4' : formatoPapel === 'ROLLO_58MM' ? '58' : '80';
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'ok' | 'aviso'; texto: string } | null>(null);
   const [ultimaSync, setUltimaSync] = useState<string | undefined>(undefined);
@@ -491,7 +491,7 @@ export default function PosContingenciaPage() {
         )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
           <label className="pc-papel">Papel de la impresora
-            <select value={papelComprobante} disabled={rolloConfigurado} onChange={(e) => cambiarPapel(e.target.value as 'A4' | '58' | '80')}>
+            <select value={papelComprobante} disabled={formatoConfigurado} onChange={(e) => cambiarPapel(e.target.value as 'A4' | '58' | '80')}>
               <option value="A4">A4</option>
               <option value="80">80 mm</option>
               <option value="58">58 mm</option>
