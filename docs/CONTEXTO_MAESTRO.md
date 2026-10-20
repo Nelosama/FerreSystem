@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-20 UTC** — validación de Impeccable en la rama `claude/impeccable-init` (PR hacia `main`, sin merge ni despliegue).
+Última revisión: **2026-10-20 UTC** — validación de Impeccable en la rama `claude/impeccable-integracion-limpia` (PR #182 hacia `main`, sin merge ni despliegue).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -39,6 +39,8 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Revisión pendiente:** `.github/` está en CODEOWNERS (`@Nelosama`), por lo que el merge requiere su revisión.
 - **Sin cambios de:** dependencias, esquema Prisma, migraciones, reglas de negocio, POS, inventario ni backend.
 - **Pendientes:** confirmar `buildPath` (`code`); decisión sobre la instalación ejecutable; confirmar nube frente a despliegue local; integrar o no `feat/contabilidad-honduras`; exportación `.xlsx`; POS móvil; fotografías de producto con almacenamiento; validación física iOS/impresoras.
+
+- **Revisión del PR #182 (2026-10-20, mismo PR, sin ramas nuevas):** el diff contra `main` no toca `frontend/`, `backend/`, `mobile/` ni `deploy/`. Historial limpio: la rama tiene un único commit sobre `main` (`aeddc71`); los commits de `claude/impeccable-init` (`949ca14`, `f64c9ca`, `90fc820`) no son ancestros. `main` no contiene archivos de Impeccable. **Vercel:** falla en el preview del PR y también en `main`; causa: `frontend/vite.config.ts` exige `VITE_API_URL` (HTTPS del backend o `/api`) y el proyecto de Vercel no la define. Corregirlo corresponde al propietario en la configuración del proyecto; no se modificó la guarda ni se fijó una URL. **Agentes:** los cuatro `.github/agents/impeccable-*.agent.md` avisan ahora de que el motor está retirado; el de producción de activos ordenaba ejecutar `impeccable comp-spec`. Las referencias internas de `reference/` siguen citando el motor, cubiertas por el aviso de `SKILL.md`. **Pendientes:** `CODEOWNERS` exige aprobación de `@Nelosama` por `.github/`; confirmar `buildPath: code`; `git diff --check` marca espacios finales en documentación de terceros de Impeccable, que no se modificó. El PR #183 modifica las líneas 3 y la sección de cabecera de este mismo archivo: al integrar uno de los dos habrá conflicto documental.
 
 ## Auditoría final acotada PR #178 — 2026-10-19, America/Tegucigalpa
 

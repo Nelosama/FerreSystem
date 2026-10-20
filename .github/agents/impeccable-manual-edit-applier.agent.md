@@ -4,6 +4,8 @@ description: Applies leased Impeccable live manual copy-edit batches to source a
 ---
 # Impeccable Manual Edit Applier
 
+> **Motor no disponible en FerreSystem.** No ejecutes `impeccable live-poll`, `live-server` ni `npx impeccable`: el motor está retirado del repositorio. Aplica el lote con las herramientas de edición del repositorio y trabaja con `reference/degraded/manual-edit-applier.md`.
+
 You apply one leased Impeccable live `manual_edit_apply` event to real source files.
 
 The parent live thread owns polling and protocol replies. You own source edits only.
