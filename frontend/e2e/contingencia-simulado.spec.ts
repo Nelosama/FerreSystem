@@ -10,7 +10,7 @@ const producto = { id: 'prod-1', codigo: 'TOR-1', nombre: 'Tornillo 2 pulgadas',
   libreCentesimas: 4000, cupoCentesimas: 2000, usaMedida: false, unidadMedida: 'UNIDAD' };
 const VIGENTE = new Date(Date.now() + 30 * 3_600_000).toISOString();
 
-type Sim = { operacionesRecibidas: string[]; colgarPrimera: boolean; errores: string[]; sinRed: boolean; lotes: number[]; rechazarLotesDeVarias: boolean };
+type Sim = { retenerEnvio?: boolean; liberarEnvio?: () => void; formatoImpresion?: 'A4' | 'ROLLO_80MM' | 'ROLLO_58MM'; operacionesRecibidas: string[]; colgarPrimera: boolean; errores: string[]; sinRed: boolean; lotes: number[]; rechazarLotesDeVarias: boolean };
 // H-5: identificadores que el mock de la ventana emite, en orden.
 const EMITIDAS = Array.from({ length: 500 }, (_, i) => `00000000-0000-4000-8000-${(i + 1).toString(16).padStart(12, '0')}`);
 
@@ -30,7 +30,7 @@ const test = base.extend<{ sim: Sim }>({
       const path = url.pathname.slice(4);
       if (sim.sinRed) { await route.abort(); return; } // sin internet: ninguna llamada a la API llega
       if (method === 'OPTIONS') { await route.fulfill({ status: 204, headers: { ...cabeceras, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } }); return; }
-      if (method === 'GET' && path === '/tenant/settings') return responder(route, 200, { ...tenant, modoNavegacion: 'SIDEBAR' });
+      if (method === 'GET' && path === '/tenant/settings') return responder(route, 200, { ...tenant, formatoImpresion: sim.formatoImpresion, modoNavegacion: 'SIDEBAR' });
       if (method === 'GET' && path === '/auth/me') return responder(route, 200, { user: { sub: usuario.id, tenantId: tenant.id, rol: usuario.rol, permisos: ['pos.vender'], permisosConfigurados: true, descuentoMaximo: 0, nombre: usuario.nombre } });
       if (method === 'POST' && path === '/auth/login') return responder(route, 200, { type: 'tenant', accessToken: 'cont-sim-token', user: usuario, tenant });
       if (method === 'GET' && path === '/contingencia/configuracion') return responder(route, 200, { habilitada: true, entornoHabilitado: true });
@@ -52,6 +52,7 @@ const test = base.extend<{ sim: Sim }>({
         // H-5: como el servidor real, solo acepta una operación cuyo identificador es el emitido en la posición indiceOperacion.
         // Sin el índice (o con otro) la rechaza: así el equipo no puede ocultar que omite el campo.
         const emitida = (o: { operacionId: string; indiceOperacion?: number }) => typeof o.indiceOperacion === 'number' && EMITIDAS[o.indiceOperacion] === o.operacionId;
+        if (sim.retenerEnvio) await new Promise<void>(resolve => { sim.liberarEnvio = resolve; });
         return responder(route, 200, { resultados: cuerpo.operaciones.map((o) => emitida(o)
           ? { operacionId: o.operacionId, estado: 'APLICADA', numeroVenta: 7, correlativoDefinitivo: 'V-00000007', ventaId: o.operacionId, requiereRevision: false, conflictos: [] }
           : { operacionId: o.operacionId, estado: 'RECHAZADA_TECNICA', codigo: 'OPERACION_NO_EMITIDA', mensaje: 'La operación no fue emitida por el servidor para esta ventana', requiereRevision: true, conflictos: [] }), serverNow: new Date().toISOString() });
@@ -219,7 +220,7 @@ test.describe('Impresión del comprobante de contingencia', () => {
     await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
     await expect.poll(async () => (await impresiones(page)).length).toBe(1);
     const [{ texto, clase }] = await impresiones(page);
-    expect(clase).toContain('papel-80');
+    expect(clase).toContain('papel-A4');
     for (const esperado of [
       'COMPROBANTE INTERNO DE CONTINGENCIA', 'NO ES FACTURA FISCAL', 'Ferretería de contingencia',
       'Número temporal: CT-01-0001', 'Cajero: Cajero de prueba', 'Cliente: Consumidor final',
@@ -256,11 +257,16 @@ test.describe('Impresión del comprobante de contingencia', () => {
   });
 
   test('una impresora que falla no revierte la venta, no permite cobrarla otra vez y deja atender al siguiente cliente', async ({ page, sim }) => {
+    sim.retenerEnvio = true;
     await preparaImpresion(page);
     await ingresarYAbrirPos(page);
     await venderUnTornillo(page);
     await page.evaluate(() => { (window as any).__fallarImpresion = true; });
     await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
+    await expect(page.getByRole('status').or(page.getByRole('alert')).filter({ hasText: 'No se pudo imprimir' })).toBeVisible();
+    await expect.poll(() => Boolean(sim.liberarEnvio)).toBe(true);
+    sim.retenerEnvio = false; sim.liberarEnvio!();
+    await expect(page.getByText('1 venta(s) enviadas y confirmadas por la oficina.')).toBeVisible();
     await expect(page.getByRole('status').or(page.getByRole('alert')).filter({ hasText: 'No se pudo imprimir' })).toBeVisible();
     await expect(page.locator('strong', { hasText: 'Venta guardada en este equipo: CT-01-0001' })).toBeVisible();
     expect((await diario(page)).map((o) => o.correlativoLocal)).toEqual(['CT-01-0001']);
@@ -283,10 +289,12 @@ test.describe('Impresión del comprobante de contingencia', () => {
     expect((await diario(page)).length).toBe(1);
   });
 
-  test('el papel de 58 mm se aplica al comprobante y se recuerda al recargar', async ({ page }) => {
+  test('el formato de 58 mm configurado por negocio se aplica y se conserva al recargar', async ({ page, sim }) => {
+    sim.formatoImpresion = 'ROLLO_58MM';
     await preparaImpresion(page);
     await ingresarYAbrirPos(page);
-    await page.getByLabel('Papel de la impresora').selectOption('58');
+    await expect(page.getByLabel('Papel de la impresora')).toBeDisabled();
+    await expect(page.getByLabel('Papel de la impresora')).toHaveValue('58');
     await venderUnTornillo(page);
     await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
     await expect.poll(async () => (await impresiones(page)).length).toBe(1);
@@ -351,3 +359,22 @@ test.describe('Contingencia POS — sin internet y existencias locales', () => {
     await expect(tornillo).toContainText('Disponible: 18');
   });
 });
+
+
+for (const [formato, papel] of [['A4', 'A4'], ['ROLLO_80MM', '80'], ['ROLLO_58MM', '58']] as const) {
+  test(`contingencia: ${formato} mantiene página y ancho coherentes y respeta la configuración del negocio frente a la preferencia local`, async ({ page, sim }) => {
+    sim.formatoImpresion = formato;
+    await preparaImpresion(page);
+    await page.addInitScript(preferencia => localStorage.setItem('pos-contingencia-papel', preferencia), papel === '58' ? '80' : '58');
+    await ingresarYAbrirPos(page); await venderUnTornillo(page);
+    await expect(page.getByLabel('Papel de la impresora')).toBeDisabled();
+    await expect(page.getByLabel('Papel de la impresora')).toHaveValue(papel);
+    await page.getByRole('button', { name: 'Imprimir comprobante' }).click();
+    await expect.poll(async () => (await impresiones(page)).length).toBe(1);
+    expect((await impresiones(page))[0].clase).toContain(`papel-${papel}`);
+    const size = await page.evaluate(() => [...document.querySelectorAll('style')].flatMap(style => [...(style.sheet?.cssRules ?? [])])
+      .filter(rule => rule instanceof CSSPageRule).map(rule => (rule as CSSPageRule).style.getPropertyValue('size')).filter(Boolean).at(-1));
+    if (formato === 'A4') expect(size).toBe('a4');
+    else expect(size).toMatch(new RegExp(`^${papel}mm [0-9.]+mm$`));
+  });
+}

@@ -59,16 +59,16 @@ export function cameraError(error: unknown, locale: 'es' | 'en' = 'es'): string 
 
 // getUserMedia cannot be aborted. Reuse an unresolved permission request on reopen,
 // and let only its latest consumer own the eventual stream (or release it).
-const pendingCameras = new WeakMap<MediaDevices, { promise: Promise<MediaStream>; owner: symbol }>();
-function acquireCamera(mediaDevices: MediaDevices, stopped: () => boolean, onPending: (retire: () => void) => void): Promise<MediaStream | undefined> {
+const pendingCameras = new WeakMap<MediaDevices, { promise: Promise<MediaStream>; owner: symbol; deviceId?: string }>();
+function acquireCamera(mediaDevices: MediaDevices, stopped: () => boolean, onPending: (retire: () => void) => void, deviceId?: string): Promise<MediaStream | undefined> {
   const owner = Symbol();
   let pending = pendingCameras.get(mediaDevices);
-  if (!pending) {
+  if (!pending || pending.deviceId !== deviceId) {
     const promise = mediaDevices.getUserMedia({
       audio: false,
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
+      video: { ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: 'environment' } }), width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
     });
-    pending = { promise, owner };
+    pending = { promise, owner, deviceId };
     pendingCameras.set(mediaDevices, pending);
     const clear = () => { if (pendingCameras.get(mediaDevices) === pending) pendingCameras.delete(mediaDevices); };
     // Both handlers settle successfully: no unhandled rejection from finally().
@@ -99,6 +99,7 @@ function configureAutofocus(track?: MediaStreamTrack) {
 // Owns one activation: one accepted reading, one stream, one cancellable loop.
 export function startBarcodeCamera(video: HTMLVideoElement, callbacks: {
   onCode(code: string): void; onError(message: string): void; onReady(): void; locale?: 'es' | 'en';
+  deviceId?: string; onCameras?(cameras: MediaDeviceInfo[], activeDeviceId: string): void;
 }, dependencies = {
   secure: window.isSecureContext,
   mediaDevices: navigator.mediaDevices,
@@ -145,7 +146,7 @@ export function startBarcodeCamera(video: HTMLVideoElement, callbacks: {
     try {
       if (!dependencies.secure) throw Object.assign(new Error(callbacks.locale === 'en' ? 'The camera requires HTTPS. Open Jowa System using a secure address or enter the code manually.' : 'La cámara requiere HTTPS. Abra Jowa System mediante una dirección segura o introduzca el código manualmente.'), { name: 'ScannerSetupError' });
       if (!dependencies.mediaDevices?.getUserMedia) throw Object.assign(new Error(callbacks.locale === 'en' ? 'This browser does not support camera access. Use updated Safari or enter the code manually.' : 'Este navegador no permite acceder a la cámara. Use Safari actualizado o introduzca el código manualmente.'), { name: 'ScannerSetupError' });
-      await waitFor(acquireCamera(dependencies.mediaDevices, () => stopped, retire => { retirePending = retire; }).then(acquired => {
+      await waitFor(acquireCamera(dependencies.mediaDevices, () => stopped, retire => { retirePending = retire; }, callbacks.deviceId).then(acquired => {
         if (acquired && stopped) acquired.getTracks().forEach(track => track.stop());
         else stream = acquired;
       }), 30000);
@@ -163,6 +164,16 @@ export function startBarcodeCamera(video: HTMLVideoElement, callbacks: {
       const decode = await waitFor(dependencies.createDecoder(), 15000);
       if (stopped) return;
       callbacks.onReady();
+      // Enumerate only after permission. Unsupported/rejected enumeration must
+      // leave the working camera usable; a late result cannot revive a session.
+      if (callbacks.onCameras && dependencies.mediaDevices.enumerateDevices) {
+        void Promise.resolve().then(() => dependencies.mediaDevices.enumerateDevices()).then(devices => {
+          if (!stopped) callbacks.onCameras?.(
+            devices.filter(device => device.kind === 'videoinput' && device.deviceId),
+            stream?.getVideoTracks?.()[0]?.getSettings?.().deviceId || '',
+          );
+        }).catch(() => undefined);
+      }
       if (stopped) return;
       let previousTime = -1;
       watchFrames();

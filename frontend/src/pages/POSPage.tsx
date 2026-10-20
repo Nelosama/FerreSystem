@@ -775,7 +775,7 @@ export const POSPage: React.FC = () => {
             </div>
 
             {/* Ticket Impreso con Branding del Tenant */}
-            <style>{`@page { size: ${tamanoPaginaImpresion(tenant.formatoImpresion)}; }`}</style>
+            <style>{`@page { size: ${tamanoPaginaImpresion(tenant.formatoImpresion, ventaRegistrada?.detalles?.length ?? cart.length)}; }`}</style>
             <div style={{ ...styles.printableTicket, ...anchoTicketCss(tenant.formatoImpresion) }}>
               <div style={styles.ticketBrandHeader}>
                 <LogotipoNegocio size={44} conIcono={false} />

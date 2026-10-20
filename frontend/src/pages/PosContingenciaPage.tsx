@@ -25,13 +25,6 @@ const INTERVALO_SYNC_MS = 30_000;
 const MAX_CENTAVOS_SERVIDOR = 2_000_000_000;
 const UMBRAL_RENOVAR_MS = 2 * 3_600_000;
 const LIMITE_LINEAS = 60;
-const CLAVE_PAPEL = 'pos-contingencia-papel';
-
-// Ancho de la impresora térmica por equipo (58 u 80 mm). Es una preferencia de pantalla, no un dato de la venta.
-function leerPapel(): '58' | '80' {
-  try { return localStorage.getItem(CLAVE_PAPEL) === '58' ? '58' : '80'; } catch { return '80'; }
-}
-
 type Linea = LineaLocal & { productoIdCatalogo?: string };
 
 const hora = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' }) : 'nunca');
@@ -58,8 +51,10 @@ export default function PosContingenciaPage() {
   const [guardando, setGuardando] = useState(false);
   const [confirmacion, setConfirmacion] = useState<OperacionLocal | null>(null);
   const [aImprimir, setAImprimir] = useState<OperacionLocal | null>(null);
-  // El formato del negocio (si es rollo) decide el papel; sin rollo se usa la preferencia guardada en este equipo.
-  const [papel, setPapel] = useState<'58' | '80'>(() => (tenant?.formatoImpresion === 'ROLLO_58MM' ? '58' : tenant?.formatoImpresion === 'ROLLO_80MM' ? '80' : leerPapel()));
+  const [avisoImpresion, setAvisoImpresion] = useState<string | null>(null);
+  // Solo el Super Admin decide el formato; sin configuración se usa A4.
+  const formatoPapel = tenant?.formatoImpresion ?? 'A4';
+  const papelComprobante = formatoPapel === 'A4' ? 'A4' : formatoPapel === 'ROLLO_58MM' ? '58' : '80';
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'ok' | 'aviso'; texto: string } | null>(null);
   const [ultimaSync, setUltimaSync] = useState<string | undefined>(undefined);
   const [habilitada, setHabilitada] = useState<boolean | null>(null);
@@ -270,18 +265,14 @@ export default function PosContingenciaPage() {
     return null;
   };
 
-  const cambiarPapel = (valor: '58' | '80') => {
-    setPapel(valor);
-    try { localStorage.setItem(CLAVE_PAPEL, valor); } catch { /* sin almacenamiento: la preferencia dura solo esta sesión */ }
-  };
-
   // Imprime desde el registro local ya guardado. Una falla de impresión solo avisa: la venta no se revierte
   // y no se vuelve a cobrar. Reimprimir nunca crea una operación.
   const imprimir = (operacion: OperacionLocal) => {
+    setAvisoImpresion(null);
     setAImprimir(operacion);
     requestAnimationFrame(() => {
       try { window.print(); } catch {
-        setMensaje({ tipo: 'aviso', texto: `No se pudo imprimir. La venta ${operacion.correlativoLocal} sigue guardada en este equipo; reimprímala desde «Ventas guardadas en este equipo».` });
+        setAvisoImpresion(`No se pudo imprimir. La venta ${operacion.correlativoLocal} sigue guardada en este equipo; reimprímala desde «Ventas guardadas en este equipo».`);
       }
     });
   };
@@ -365,6 +356,8 @@ export default function PosContingenciaPage() {
       )}
       {bloqueo && <div className="pc-aviso error" role="alert">{bloqueo}</div>}
       {mensaje && <div className={`pc-aviso ${mensaje.tipo === 'error' ? 'error' : mensaje.tipo === 'ok' ? 'ok' : ''}`} role={mensaje.tipo === 'error' ? 'alert' : 'status'}>{mensaje.texto}</div>}
+
+      {avisoImpresion && <div className="pc-aviso" role="status">{avisoImpresion}</div>}
 
       <div className="pc-grid">
         <section className="pc-panel" aria-label="Buscar productos">
@@ -461,7 +454,7 @@ export default function PosContingenciaPage() {
               <div>Total {formatearCentavos(confirmacion.totalCentavos)} · Recibido {formatearCentavos(confirmacion.efectivoRecibidoCentavos)} · Cambio {formatearCentavos(confirmacion.cambioCentavos)}</div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <button className="pc-btn" onClick={() => imprimir(confirmacion)}>Imprimir comprobante</button>
-                <button className="pc-btn primario" style={{ fontSize: 16, minHeight: 44, width: 'auto' }} onClick={() => { setConfirmacion(null); setMensaje(null); }}>Siguiente cliente</button>
+                <button className="pc-btn primario" style={{ fontSize: 16, minHeight: 44, width: 'auto' }} onClick={() => { setConfirmacion(null); setMensaje(null); setAvisoImpresion(null); }}>Siguiente cliente</button>
               </div>
             </div>
           )}
@@ -483,7 +476,8 @@ export default function PosContingenciaPage() {
         )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
           <label className="pc-papel">Papel de la impresora
-            <select value={papel} onChange={(e) => cambiarPapel(e.target.value as '58' | '80')}>
+            <select value={papelComprobante} disabled>
+              <option value="A4">A4</option>
               <option value="80">80 mm</option>
               <option value="58">58 mm</option>
             </select>
@@ -494,11 +488,11 @@ export default function PosContingenciaPage() {
         {operador === false && <p role="status">Esta pestaña no cobra porque otra pestaña del POS ya está activa.</p>}
       </section>
 
-      {aImprimir && <style>{`@page { size: ${tamanoPaginaImpresion(tenant?.formatoImpresion ?? (papel === '58' ? 'ROLLO_58MM' : 'ROLLO_80MM'))}; }`}</style>}
+      {aImprimir && <style>{`@page { size: ${tamanoPaginaImpresion(formatoPapel, aImprimir.lineas.length)}; }`}</style>}
       {aImprimir && (() => {
         const c: ComprobanteContingencia = construirComprobante(aImprimir, tenant?.nombreComercial ?? '');
         return (
-          <div className={`pc-comprobante-impresion papel-${papel}`} aria-hidden="true">
+          <div className={`pc-comprobante-impresion papel-${papelComprobante}`} aria-hidden="true">
             <div className="pc-imp-titulo">{c.titulo}</div>
             <div className="pc-imp-aviso">{c.aviso}</div>
             <div className="pc-imp-centrado">{c.ferreteria}</div>

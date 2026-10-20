@@ -51,6 +51,7 @@ table.pc-tabla th, table.pc-tabla td { text-align: left; padding: 8px 4px; borde
     font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.3; padding: 2mm 1mm;
   }
   /* Impresoras térmicas: el ancho útil del rollo es menor que el papel. */
+  .pc-comprobante-impresion.papel-A4 { width: 190mm; }
   .pc-comprobante-impresion.papel-80 { width: 72mm; }
   .pc-comprobante-impresion.papel-58 { width: 52mm; font-size: 10px; }
   .pc-imp-titulo { font-weight: 700; text-align: center; }
