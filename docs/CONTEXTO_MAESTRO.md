@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-18 UTC** — inicio del administrador con pendientes reales, rama única `claude/admin-pendientes-ux` (PR abierto hacia `main`, sin merge ni despliegue).
+Última revisión: **2026-10-20 UTC** — validación de Impeccable en la rama `claude/impeccable-init` (PR hacia `main`, sin merge ni despliegue).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -21,6 +21,24 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
 
 ---
+
+## Impeccable para Jowa System — validación e integración (2026-10-20, rama limpia `claude/impeccable-integracion-limpia` desde `main`, sin merge ni despliegue)
+
+- **Integración limpia:** la rama `claude/impeccable-integracion-limpia` parte de `main` `c4cadc3` y trae solo los archivos finales de `claude/impeccable-init` (`949ca14`), copiados por ruta. No hay merge ni cherry-pick de `90fc820`. El PR nuevo reemplaza al #181 y el #181 se cierra como reemplazado. La rama antigua `claude/impeccable-init` no se borra y conserva el ejecutable en su historial.
+- **Instrucciones del motor:** SKILL.md ya no ordena ejecutar `scripts/impeccable context` al inicio; ese paso queda no disponible. Hooks, `live`, `doctor`, `visualize` y `npx impeccable` quedan no disponibles hasta autorizar una instalación verificada.
+
+- **Procedencia del motor:** `impeccable-windows-x64.exe` (19,8 MB) tiene sha256 `c7dfa8846ec59ceb3a40be99b89fba29e4f3bdd16f3c412a33f19ad8a68ccff2`, igual al `.sha256` del release oficial `engine-v0.1.16` de `pbakaus/impeccable`. El paquete npm `impeccable@4.7.0` coincide con su `dist.integrity` sha512 y no incluye el binario; el launcher lo descarga de GitHub Releases y lo valida con `.sha256`. Ningún binario se ejecutó durante la revisión.
+- **Decisión:** salen del árbol de archivos el motor, el launcher, los bundles JS y el hook `.github/hooks/impeccable.json` (commit `f64c9ca`). El hook ejecutaba el launcher tras cada edición en Copilot, con descarga de binario si faltaba; se añadieron reglas al `.gitignore`. **Riesgo cerrado en la integración limpia:** el binario de 19,8 MB (commit `90fc820`) no entra en `main`. Sigue solo en el historial de la rama antigua `claude/impeccable-init`. **Pendiente:** decidir si se instala el ejecutable.
+- **Conservado como documentación:** `.github/skills/impeccable/SKILL.md`, `reference/` y `.github/agents/impeccable-*.agent.md`. Revisados: sin comandos de red, sin instrucciones ocultas ni secretos.
+- **PRODUCT.md:** rehecho con las decisiones oficiales. Cada afirmación lleva estado (Implementado, Parcial, En desarrollo, Planificado o Pendiente) y se verificó contra el código de `main` o la rama indicada. Corrección cerrada: los logotipos usan PostgreSQL privado por defecto (`backend/src/tenants/logotipo-almacen.ts`), no Supabase Storage; Supabase y disco local son proveedores explícitos.
+- **`.impeccable/config.json`:** `buildPath` admite `comp` o `code` y es una preferencia de flujo, no una ruta. El frontend está en `frontend/src` y no tiene carpeta `code/`, así que no aplica corregir una ruta. Se mantiene `code` (commit `90fc820`); queda pendiente que el propietario confirme ese valor.
+- **Aviso en skill:** `.github/skills/impeccable/SKILL.md` indica que el motor y los hooks están retirados y que no se ejecuten `scripts/impeccable` ni `npx impeccable` sin autorización. Las referencias internas no se editaron.
+- **Conflictos abiertos:** "totalmente en la nube" frente a `deploy/local`; `.xlsx` frente al `.xls` XML actual; rol Contador solo en `feat/contabilidad-honduras`; vista móvil sin ocultar POS, caja y cobros.
+- **DESIGN.md:** no creado. El diseño está en cambio en la ronda 1 UX (`claude/ux-ronda1-pos-marca`); documentarlo ahora fijaría una versión provisional.
+- **Verificaciones de cierre:** `git diff main` de la rama solo toca `.github/` (agentes, skill y referencias de Impeccable), `.gitignore`, `.impeccable/`, `PRODUCT.md` y `docs/`. `frontend/`, `backend/`, `mobile/` y `deploy/` no tienen diferencias frente a `main`, así que no hay cambio funcional en la aplicación. `config.json` es JSON válido; ningún archivo versionado de Impeccable tiene modo ejecutable; no hay scripts, launcher ni hooks versionados. Actions: ver el PR; no se reutilizan resultados de otros commits.
+- **Revisión pendiente:** `.github/` está en CODEOWNERS (`@Nelosama`), por lo que el merge requiere su revisión.
+- **Sin cambios de:** dependencias, esquema Prisma, migraciones, reglas de negocio, POS, inventario ni backend.
+- **Pendientes:** confirmar `buildPath` (`code`); decisión sobre la instalación ejecutable; confirmar nube frente a despliegue local; integrar o no `feat/contabilidad-honduras`; exportación `.xlsx`; POS móvil; fotografías de producto con almacenamiento; validación física iOS/impresoras.
 
 ## Auditoría final acotada PR #178 — 2026-10-19, America/Tegucigalpa
 
