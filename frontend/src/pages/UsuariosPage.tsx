@@ -6,7 +6,7 @@ export interface Usuario {
   id: string;
   nombre: string;
   email: string;
-  rolBase: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR';
+  rolBase: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR' | 'CONTADOR';
   permisos: string[];
   descuentoMaximo: number;
   activo: boolean;
@@ -39,6 +39,11 @@ export const PERMISOS_DEFAULT_POR_ROL = {
   VENDEDOR: {
     permisos: ['pos.vender', 'cotizaciones.crear'],
     descuentoMaximo: 10,
+  },
+  // Solo Contabilidad y Control Tributario: el servidor no le permite modificar ventas, cobros, inventario ni caja.
+  CONTADOR: {
+    permisos: ['contabilidad.ver', 'contabilidad.registrar', 'contabilidad.configurar', 'contabilidad.cerrar_periodo'],
+    descuentoMaximo: 0,
   },
 };
 
@@ -109,6 +114,10 @@ export const UsuariosPage: React.FC = () => {
     { clave: 'reportes.ver', labelKey: 'users.perm_rep_ver' },
     { clave: 'usuarios.gestionar', labelKey: 'users.perm_usr_gestionar' },
     { clave: 'configuracion.editar', labelKey: 'users.perm_cfg_editar' },
+    { clave: 'contabilidad.ver', labelKey: 'users.perm_cont_ver' },
+    { clave: 'contabilidad.registrar', labelKey: 'users.perm_cont_registrar' },
+    { clave: 'contabilidad.configurar', labelKey: 'users.perm_cont_configurar' },
+    { clave: 'contabilidad.cerrar_periodo', labelKey: 'users.perm_cont_cerrar' },
   ];
 
   const [listaUsuarios, setListaUsuarios] = useState<Usuario[]>([]);
@@ -126,7 +135,7 @@ export const UsuariosPage: React.FC = () => {
   const [formEmail, setFormEmail] = useState('');
   const [formPassword, setFormPassword] = useState('');
   const [mostrarPassword, setMostrarPassword] = useState(false);
-  const [formRolBase, setFormRolBase] = useState<'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR'>('CAJERO');
+  const [formRolBase, setFormRolBase] = useState<'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR' | 'CONTADOR'>('CAJERO');
   const [formPermisos, setFormPermisos] = useState<string[]>([]);
   const [formDescuentoMaximo, setFormDescuentoMaximo] = useState<number>(10);
   const [formActivo, setFormActivo] = useState(true);
@@ -146,7 +155,7 @@ export const UsuariosPage: React.FC = () => {
             id: u.id,
             nombre: u.nombre,
             email: u.email,
-            rolBase: u.rol as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR',
+            rolBase: u.rol as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR' | 'CONTADOR',
             permisos: u.permisosConfigurados ? u.permisos : PERMISOS_DEFAULT_POR_ROL[u.rol as keyof typeof PERMISOS_DEFAULT_POR_ROL]?.permisos || [],
             descuentoMaximo: Number(u.descuentoMaximo || 0),
             activo: u.activo,
@@ -233,7 +242,7 @@ export const UsuariosPage: React.FC = () => {
     }, 4000);
   };
 
-  const handleCambioRolBase = (nuevoRol: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR') => {
+  const handleCambioRolBase = (nuevoRol: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR' | 'CONTADOR') => {
     setFormRolBase(nuevoRol);
     const defaults = PERMISOS_DEFAULT_POR_ROL[nuevoRol];
     setFormPermisos(defaults.permisos);
@@ -565,7 +574,7 @@ export const UsuariosPage: React.FC = () => {
                     value={formRolBase}
                     disabled={submitting}
                     onChange={(e) =>
-                      handleCambioRolBase(e.target.value as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR')
+                      handleCambioRolBase(e.target.value as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR' | 'CONTADOR')
                     }
                     className="form-select"
                   >
@@ -573,6 +582,7 @@ export const UsuariosPage: React.FC = () => {
                     <option value="CAJERO">CAJERO</option>
                     <option value="BODEGUERO">BODEGUERO</option>
                     <option value="VENDEDOR">VENDEDOR</option>
+                    <option value="CONTADOR">CONTADOR</option>
                   </select>
                 </div>
               </div>

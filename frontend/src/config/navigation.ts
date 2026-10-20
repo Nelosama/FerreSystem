@@ -17,6 +17,7 @@ import {
   Smartphone,
   Users,
   ShieldAlert,
+  Calculator,
 } from 'lucide-react';
 
 export interface NavigationItem {
@@ -248,6 +249,18 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     requiredPermiso: 'reportes.ver',
     category: 'ADMINISTRACION',
   },
+  // Contabilidad y Control Tributario: módulo opcional por empresa; ADMIN y CONTADOR (el servidor aplica rol, permiso y módulo).
+  {
+    key: 'contabilidad',
+    labelKey: 'menu.accounting',
+    defaultLabel: 'CONTABILIDAD',
+    route: '/contabilidad',
+    icon: Calculator,
+    moduleKey: 'contabilidad',
+    allowedRoles: ['ADMIN', 'CONTADOR'],
+    requiredPermiso: 'contabilidad.ver',
+    category: 'ADMINISTRACION',
+  },
   // Resumen administrativo para iPhone: solo lectura de datos ya operativos (ventas, caja, existencias, cobros).
   {
     key: 'admin_movil',
@@ -269,11 +282,12 @@ export const NAVIGATION_ORDER = [
   'dashboard', 'pos', 'arqueo_caja', 'cotizaciones', 'pedidos_especiales', 'apartados', 'devoluciones', 'entregas', 'contingencia_admin',
   'clientes', 'cuentas', 'estado_cuenta_clientes', 'listas_precio',
   'inventario', 'levantamiento', 'ordenes_compra', 'transferencias', 'precios', 'garantias',
-  'reportes', 'conciliacion_bancaria', 'comisiones', 'usuarios', 'admin_movil',
+  'reportes', 'contabilidad', 'conciliacion_bancaria', 'comisiones', 'usuarios', 'admin_movil',
 ];
 export const ROLE_PRIORITIES: Record<string, string[]> = {
   SUPERADMIN: ['superadmin'], ADMIN: ['ordenes_compra', 'inventario', 'usuarios', 'reportes'],
   CAJERO: ['arqueo_caja', 'pos', 'cuentas'],
   VENDEDOR: ['pos', 'cotizaciones', 'arqueo_caja'],
   BODEGUERO: ['entregas', 'inventario', 'ordenes_compra', 'levantamiento'],
+  CONTADOR: ['contabilidad'],
 };

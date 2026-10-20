@@ -3,7 +3,7 @@ import { Navigate, matchPath, useLocation } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { NAVIGATION_ITEMS } from '../config/navigation';
 import { canNavigate } from '../utils/taskNavigation';
-import { CATALOGO_MODULOS } from '../config/modulesCatalog';
+import { CATALOGO_MODULOS, modulosPorDefecto } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { Lock } from 'lucide-react';
 
@@ -39,6 +39,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (!ready && mountedIdentity.current !== identity) return sessionGate;
 
   if (pathname === '/' && user.rol === 'SUPERADMIN') return <Navigate to="/admin" replace />;
+  // El contador no tiene panel operativo: su inicio es Contabilidad (la ruta aplica módulo, rol y permiso).
+  if (pathname === '/' && user.rol === 'CONTADOR') return <Navigate to="/contabilidad" replace />;
 
   const entry = NAVIGATION_ITEMS.find(item => matchPath({ path: item.route, end: true }, pathname));
   if (entry && !canNavigate(entry, user, tenant)) return <div role="alert" style={styles.deniedContainer}><Lock size={48} /><h2>{t('navigation.denied')}</h2><p>{t('navigation.denied_help')}</p></div>;
@@ -67,7 +69,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Verificar si el módulo está habilitado para el Tenant
   if (requiredModule) {
-    const activeModules = tenant.modulosHabilitados || CATALOGO_MODULOS.map(module => module.key);
+    const activeModules = tenant.modulosHabilitados || modulosPorDefecto();
     const isCore = CATALOGO_MODULOS.find(module => module.key === requiredModule)?.isCore;
 
     if (!isCore && !activeModules.includes(requiredModule)) {

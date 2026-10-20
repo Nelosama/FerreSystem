@@ -8,7 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { REQUIRED_MODULE_KEY } from '../decorators/required-module.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import { CORE_TENANT_MODULES } from '../tenant-modules';
+import { CORE_TENANT_MODULES, moduleEnabled } from '../tenant-modules';
 
 @Injectable()
 export class TenantModuleGuard extends JwtAuthGuard implements CanActivate {
@@ -53,8 +53,8 @@ export class TenantModuleGuard extends JwtAuthGuard implements CanActivate {
       const tenantModule = await this.prisma.tenantModule.findUnique({
         where: { tenantId_moduleKey: { tenantId, moduleKey } },
       });
-      // Missing records retain legacy availability; explicit disabled records are authoritative.
-      const enabled = !tenantModule || tenantModule.enabled;
+      // Missing records retain legacy availability (except opt-in modules); explicit records are authoritative.
+      const enabled = moduleEnabled(moduleKey, tenantModule);
       if (anyOf && enabled) return true;
       if (!anyOf && !enabled) {
         throw new ForbiddenException(`El módulo "${moduleKey}" no está habilitado para su suscripción.`);

@@ -1,7 +1,7 @@
 import { NAVIGATION_CATEGORIES, NAVIGATION_ITEMS, NAVIGATION_ORDER, ROLE_PRIORITIES, type NavigationItem } from '../config/navigation';
 import type { TenantInfo, UserInfo } from '../types';
 
-import { PENDING_MODULES, CATALOGO_MODULOS } from '../config/modulesCatalog';
+import { PENDING_MODULES, CATALOGO_MODULOS, OPT_IN_MODULES } from '../config/modulesCatalog';
 export const TASK_DETAILS: Record<string, { title: string; description: string; keywords: string }> = {
   dashboard: { title: 'Inicio', description: 'Elegir una tarea y revisar el resumen del negocio.', keywords: 'ayuda resumen inicio' },
   pos: { title: 'Hacer una venta', description: 'Buscar productos, cobrar y emitir el comprobante.', keywords: 'vender cobrar factura punto de venta' },
@@ -24,7 +24,8 @@ export function canNavigate(item: NavigationItem, user: UserInfo | null, tenant:
   if (!user || (item.allowedRoles?.length && !item.allowedRoles.includes(user.rol))) return false;
   if (item.requiredPermiso && user.rol !== 'ADMIN' && user.permisosConfigurados && !user.permisos?.includes(item.requiredPermiso)) return false;
   if (item.moduleKey && CATALOGO_MODULOS.find(module => module.key === item.moduleKey)?.isCore) return true;
-  return !item.moduleKey || tenant.modulosHabilitados === undefined || tenant.modulosHabilitados.includes(item.moduleKey);
+  if (!item.moduleKey) return true;
+  return tenant.modulosHabilitados === undefined ? !OPT_IN_MODULES.has(item.moduleKey) : tenant.modulosHabilitados.includes(item.moduleKey);
 }
 const ordenMenu = (key: string) => { const i = NAVIGATION_ORDER.indexOf(key); return i < 0 ? NAVIGATION_ORDER.length : i; };
 export const availableTasks = (user: UserInfo | null, tenant: TenantInfo) =>

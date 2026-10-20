@@ -1,4 +1,4 @@
-export type Rol = 'SUPERADMIN' | 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR';
+export type Rol = 'SUPERADMIN' | 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR' | 'CONTADOR';
 
 export type Permiso =
   | 'pos.vender'
@@ -12,7 +12,11 @@ export type Permiso =
   | 'cotizaciones.convertir_venta'
   | 'reportes.ver'
   | 'usuarios.gestionar'
-  | 'configuracion.editar';
+  | 'configuracion.editar'
+  | 'contabilidad.ver'
+  | 'contabilidad.registrar'
+  | 'contabilidad.configurar'
+  | 'contabilidad.cerrar_periodo';
 
 export const Rubro = {
   FERRETERIA: 'FERRETERIA',

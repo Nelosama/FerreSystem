@@ -109,6 +109,13 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
     categoria: 'GESTION',
   },
   {
+    key: 'contabilidad',
+    labelKey: 'menu.accounting',
+    nombre: 'Contabilidad y Control Tributario (Honduras)',
+    descripcion: 'Libros de ventas y compras, ISV, retenciones, RTN, CAI, períodos, conciliación y partida doble. Se habilita por empresa.',
+    categoria: 'GESTION',
+  },
+  {
     key: 'reportes',
     labelKey: 'menu.reports',
     nombre: 'Módulo de Reportes & KPIs',
@@ -124,5 +131,10 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
     isCore: true,
   },
 ];
+
+// Opcionales: sin registro habilitado quedan apagados (igual que OPT_IN_TENANT_MODULES del backend).
+export const OPT_IN_MODULES = new Set(['contabilidad']);
+/** Módulos que se suponen activos cuando el servidor no envía la lista (compatibilidad con sesiones antiguas). */
+export const modulosPorDefecto = () => CATALOGO_MODULOS.map(m => m.key).filter(k => !OPT_IN_MODULES.has(k));
 
 export const PENDING_MODULES = new Set(['apartados', 'transferencias_sucursal', 'garantias', 'pedidos_especiales', 'listas_precio']);

@@ -25,6 +25,7 @@ const PreciosPage=React.lazy(()=>import('./pages/PreciosPage').then(m=>({default
 const GarantiasPage=React.lazy(()=>import('./pages/GarantiasPage').then(m=>({default:m.GarantiasPage})));
 const EntregasPage=React.lazy(()=>import('./pages/EntregasPage').then(m=>({default:m.EntregasPage})));
 const OperacionesPage=React.lazy(()=>import('./pages/OperacionesPage').then(m=>({default:m.OperacionesPage})));
+const ContabilidadPage=React.lazy(()=>import('./pages/ContabilidadPage').then(m=>({default:m.ContabilidadPage})));
 
 // Dynamic page imports with React.lazy
 const DashboardPage = React.lazy(() =>
@@ -182,6 +183,7 @@ export const App: React.FC = () => {
                 <Routes>
                 <Route path="/pos-contingencia" element={<ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="pos" requiredPermiso="pos.vender"><PosContingenciaPage /></ProtectedRoute>} />
                 <Route path="/contingencia-admin" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="pos"><AppLayout><ContingenciaAdminPage /></AppLayout></ProtectedRoute>} />
+                <Route path="/contabilidad" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage /></AppLayout></ProtectedRoute>} />
                 <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','VENDEDOR']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
                   <Route path="/auditoria" element={<Navigate to="/admin" replace />} />
                   <Route path="/precios" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><PreciosPage/></AppLayout></ProtectedRoute>}/>

@@ -20,6 +20,7 @@ enum Rol {
   CAJERO
   BODEGUERO
   VENDEDOR
+  CONTADOR
 }
 
 enum EstadoTenant {
@@ -179,6 +180,18 @@ model Tenant {
   // Cobro y entrega
   detallesVentaTenant DetalleVenta[]   @relation("DetalleVentaTenant")
   entregasEventos     EntregaEvento[]
+
+  // Contabilidad y Control Tributario
+  fiscalConfiguracion FiscalConfiguracion?
+  fiscalTasas         FiscalTasa[]
+  fiscalReglasRetencion FiscalReglaRetencion[]
+  fiscalCai           FiscalCai[]
+  fiscalDocumentos    FiscalDocumento[]
+  fiscalRetenciones   FiscalRetencion[]
+  fiscalPeriodos      FiscalPeriodo[]
+  fiscalAjustes       FiscalAjuste[]
+  contableCuentas     ContableCuenta[]
+  contableAsientos    ContableAsiento[]
 }
 
 // ============================================================
@@ -239,6 +252,16 @@ model Usuario {
   productosProveedoresActualizados ProductoProveedor[] @relation("ProductoProveedorActualizado")
   @@unique([tenantId, id], map: "usuarios_tenant_id_id_key")
   eventosEntrega EntregaEvento[] @relation("EventoUsuario")
+  fiscalConfiguraciones FiscalConfiguracion[] @relation("FiscalConfiguracionUsuario")
+  fiscalTasas           FiscalTasa[]          @relation("FiscalTasaUsuario")
+  fiscalReglas          FiscalReglaRetencion[] @relation("FiscalReglaUsuario")
+  fiscalCai             FiscalCai[]           @relation("FiscalCaiUsuario")
+  fiscalDocumentos      FiscalDocumento[]     @relation("FiscalDocumentoUsuario")
+  fiscalRetenciones     FiscalRetencion[]     @relation("FiscalRetencionUsuario")
+  fiscalPeriodos        FiscalPeriodo[]       @relation("FiscalPeriodoUsuario")
+  fiscalAjustes         FiscalAjuste[]        @relation("FiscalAjusteUsuario")
+  contableCuentas       ContableCuenta[]      @relation("ContableCuentaUsuario")
+  contableAsientos      ContableAsiento[]     @relation("ContableAsientoUsuario")
 }
 
 // ============================================================
@@ -447,6 +470,7 @@ model Venta {
   @@unique([tenantId, id], map: "ventas_tenant_id_id_key")
   detallesTenant DetalleVenta[]  @relation("DetalleVentaTenantVenta")
   eventosEntrega EntregaEvento[] @relation("EventoVenta")
+  documentosFiscales FiscalDocumento[] @relation("FiscalDocumentoVenta")
 }
 
 model AbonoCliente {
@@ -791,6 +815,8 @@ model OrdenCompra {
   proveedor   Proveedor   @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
   usuario     Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   detalles    DetalleOrdenCompra[]
+  documentosFiscales FiscalDocumento[] @relation("FiscalDocumentoOrden")
+  @@unique([tenantId, id], map: "ordenes_compra_tenant_id_id_key")
 }
 model DetalleOrdenCompra {
  id String @id @default(uuid())
@@ -1504,4 +1530,255 @@ model Sucursal {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   @@unique([tenantId, nombre])
   @@map("sucursales")
+}
+
+// ============================================================
+// CONTABILIDAD Y CONTROL TRIBUTARIO (Honduras, fase 1) — migración 20261020000100_contabilidad_honduras.
+// Los libros se leen de ventas, devoluciones y ordenes_compra; aquí solo vive lo que la operación no guarda.
+// Restricciones CHECK, índices parciales y disparadores de inmutabilidad/cuadre están en la migración.
+// ============================================================
+
+model FiscalConfiguracion {
+  tenantId        String   @id @map("tenant_id")
+  pais            String   @default("HN")
+  rtn             String?
+  razonSocial     String   @default("") @map("razon_social")
+  nombreComercial String   @default("") @map("nombre_comercial")
+  agenteRetencion Boolean  @default(false) @map("agente_retencion")
+  moneda          String   @default("HNL")
+  zonaHoraria     String   @default("America/Tegucigalpa") @map("zona_horaria")
+  notas           String?
+  actualizadoPor  String   @map("actualizado_por")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @map("updated_at")
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_configuraciones_tenant_fkey")
+  usuario         Usuario  @relation("FiscalConfiguracionUsuario", fields: [actualizadoPor], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_configuraciones_usuario_fkey")
+
+  @@map("fiscal_configuraciones")
+}
+
+model FiscalTasa {
+  id           String    @id
+  tenantId     String    @map("tenant_id")
+  impuesto     String
+  categoria    String
+  porcentaje   Decimal   @db.Decimal(5, 2)
+  vigenteDesde DateTime  @map("vigente_desde") @db.Date
+  vigenteHasta DateTime? @map("vigente_hasta") @db.Date
+  baseLegal    String    @map("base_legal")
+  creadoPor    String    @map("creado_por")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_tasas_tenant_fkey")
+  usuario      Usuario   @relation("FiscalTasaUsuario", fields: [creadoPor], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_tasas_usuario_fkey")
+
+  @@index([tenantId, impuesto, categoria, vigenteDesde], map: "fiscal_tasas_tenant_idx")
+  @@map("fiscal_tasas")
+}
+
+model FiscalReglaRetencion {
+  id           String    @id
+  tenantId     String    @map("tenant_id")
+  codigo       String
+  impuesto     String
+  descripcion  String
+  porcentaje   Decimal   @db.Decimal(5, 2)
+  baseCalculo  String    @map("base_calculo")
+  vigenteDesde DateTime  @map("vigente_desde") @db.Date
+  vigenteHasta DateTime? @map("vigente_hasta") @db.Date
+  baseLegal    String    @map("base_legal")
+  creadoPor    String    @map("creado_por")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_reglas_retencion_tenant_fkey")
+  usuario      Usuario   @relation("FiscalReglaUsuario", fields: [creadoPor], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_reglas_retencion_usuario_fkey")
+  retenciones  FiscalRetencion[]
+
+  @@unique([tenantId, id], map: "fiscal_reglas_retencion_tenant_id_id_key")
+  @@index([tenantId, codigo, vigenteDesde], map: "fiscal_reglas_retencion_tenant_idx")
+  @@map("fiscal_reglas_retencion")
+}
+
+model FiscalCai {
+  id                 String   @id
+  tenantId           String   @map("tenant_id")
+  cai                String
+  tipoDocumento      String   @map("tipo_documento")
+  establecimiento    String
+  puntoEmision       String   @map("punto_emision")
+  rangoInicial       Int      @map("rango_inicial")
+  rangoFinal         Int      @map("rango_final")
+  fechaLimiteEmision DateTime @map("fecha_limite_emision") @db.Date
+  activo             Boolean  @default(true)
+  creadoPor          String   @map("creado_por")
+  createdAt          DateTime @default(now()) @map("created_at")
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_cai_tenant_fkey")
+  usuario            Usuario  @relation("FiscalCaiUsuario", fields: [creadoPor], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_cai_usuario_fkey")
+  documentos         FiscalDocumento[]
+
+  @@unique([tenantId, id], map: "fiscal_cai_tenant_id_id_key")
+  @@unique([tenantId, cai, tipoDocumento, establecimiento, puntoEmision], map: "fiscal_cai_tenant_cai_key")
+  @@map("fiscal_cai")
+}
+
+model FiscalDocumento {
+  id                     String    @id
+  tenantId               String    @map("tenant_id")
+  direccion              String
+  tipoDocumento          String    @map("tipo_documento")
+  numero                 String
+  cai                    String?
+  caiId                  String?   @map("cai_id")
+  fechaEmision           DateTime  @map("fecha_emision") @db.Date
+  rtnContraparte         String?   @map("rtn_contraparte")
+  nombreContraparte      String    @map("nombre_contraparte")
+  ventaId                String?   @map("venta_id")
+  ordenCompraId          String?   @map("orden_compra_id")
+  documentoReferenciaId  String?   @map("documento_referencia_id")
+  importeExento          Decimal   @default(0) @map("importe_exento") @db.Decimal(14, 2)
+  importeExonerado       Decimal   @default(0) @map("importe_exonerado") @db.Decimal(14, 2)
+  importeGravadoGeneral  Decimal   @default(0) @map("importe_gravado_general") @db.Decimal(14, 2)
+  importeGravadoEspecial Decimal   @default(0) @map("importe_gravado_especial") @db.Decimal(14, 2)
+  isvGeneral             Decimal   @default(0) @map("isv_general") @db.Decimal(14, 2)
+  isvEspecial            Decimal   @default(0) @map("isv_especial") @db.Decimal(14, 2)
+  total                  Decimal   @db.Decimal(14, 2)
+  estado                 String    @default("VIGENTE")
+  motivoAnulacion        String?   @map("motivo_anulacion")
+  creadoPor              String    @map("creado_por")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @default(now()) @map("updated_at")
+  tenant                 Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_documentos_tenant_fkey")
+  usuario                Usuario   @relation("FiscalDocumentoUsuario", fields: [creadoPor], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_documentos_usuario_fkey")
+  autorizacion           FiscalCai? @relation(fields: [tenantId, caiId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_documentos_cai_fkey")
+  venta                  Venta?    @relation("FiscalDocumentoVenta", fields: [ventaId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_documentos_venta_fkey")
+  ordenCompra            OrdenCompra? @relation("FiscalDocumentoOrden", fields: [tenantId, ordenCompraId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_documentos_orden_fkey")
+  documentoReferencia    FiscalDocumento? @relation("FiscalDocumentoReferencia", fields: [tenantId, documentoReferenciaId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_documentos_referencia_fkey")
+  referenciadoPor        FiscalDocumento[] @relation("FiscalDocumentoReferencia")
+  retenciones            FiscalRetencion[]
+
+  @@unique([tenantId, id], map: "fiscal_documentos_tenant_id_id_key")
+  @@index([tenantId, direccion, fechaEmision], map: "fiscal_documentos_tenant_fecha_idx")
+  @@map("fiscal_documentos")
+}
+
+model FiscalRetencion {
+  id                String          @id
+  tenantId          String          @map("tenant_id")
+  documentoId       String          @map("documento_id")
+  reglaId           String          @map("regla_id")
+  tipo              String
+  fecha             DateTime        @db.Date
+  base              Decimal         @db.Decimal(14, 2)
+  porcentaje        Decimal         @db.Decimal(5, 2)
+  monto             Decimal         @db.Decimal(14, 2)
+  comprobanteNumero String?         @map("comprobante_numero")
+  estado            String          @default("VIGENTE")
+  creadoPor         String          @map("creado_por")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_retenciones_tenant_fkey")
+  usuario           Usuario         @relation("FiscalRetencionUsuario", fields: [creadoPor], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_retenciones_usuario_fkey")
+  documento         FiscalDocumento @relation(fields: [tenantId, documentoId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_retenciones_documento_fkey")
+  regla             FiscalReglaRetencion @relation(fields: [tenantId, reglaId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_retenciones_regla_fkey")
+
+  @@index([tenantId, fecha], map: "fiscal_retenciones_tenant_fecha_idx")
+  @@index([tenantId, documentoId], map: "fiscal_retenciones_documento_idx")
+  @@map("fiscal_retenciones")
+}
+
+model FiscalPeriodo {
+  tenantId   String    @map("tenant_id")
+  anio       Int
+  mes        Int
+  estado     String
+  resumen    Json?
+  huella     String?   @db.Char(64)
+  cerradoPor String?   @map("cerrado_por")
+  cerradoAt  DateTime? @map("cerrado_at")
+  updatedAt  DateTime  @default(now()) @map("updated_at")
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_periodos_tenant_fkey")
+  usuario    Usuario?  @relation("FiscalPeriodoUsuario", fields: [cerradoPor], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_periodos_usuario_fkey")
+
+  @@id([tenantId, anio, mes])
+  @@map("fiscal_periodos")
+}
+
+model FiscalAjuste {
+  id        String   @id
+  tenantId  String   @map("tenant_id")
+  anio      Int
+  mes       Int
+  entidad   String
+  entidadId String   @map("entidad_id")
+  accion    String
+  motivo    String
+  anterior  Json?
+  nuevo     Json?
+  usuarioId String   @map("usuario_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_ajustes_tenant_fkey")
+  usuario   Usuario  @relation("FiscalAjusteUsuario", fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fiscal_ajustes_usuario_fkey")
+
+  @@index([tenantId, anio, mes, createdAt], map: "fiscal_ajustes_tenant_periodo_idx")
+  @@map("fiscal_ajustes")
+}
+
+model ContableCuenta {
+  id                String   @id
+  tenantId          String   @map("tenant_id")
+  codigo            String
+  nombre            String
+  tipo              String
+  naturaleza        String
+  padreId           String?  @map("padre_id")
+  aceptaMovimientos Boolean  @default(true) @map("acepta_movimientos")
+  activa            Boolean  @default(true)
+  creadoPor         String   @map("creado_por")
+  createdAt         DateTime @default(now()) @map("created_at")
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "contable_cuentas_tenant_fkey")
+  usuario           Usuario  @relation("ContableCuentaUsuario", fields: [creadoPor], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "contable_cuentas_usuario_fkey")
+  padre             ContableCuenta?  @relation("ContableCuentaPadre", fields: [tenantId, padreId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade, map: "contable_cuentas_padre_fkey")
+  hijas             ContableCuenta[] @relation("ContableCuentaPadre")
+  lineas            ContableAsientoLinea[]
+
+  @@unique([tenantId, id], map: "contable_cuentas_tenant_id_id_key")
+  @@unique([tenantId, codigo], map: "contable_cuentas_tenant_codigo_key")
+  @@map("contable_cuentas")
+}
+
+model ContableAsiento {
+  id         String   @id
+  tenantId   String   @map("tenant_id")
+  numero     Int
+  fecha      DateTime @db.Date
+  concepto   String
+  origen     String   @default("MANUAL")
+  revierteId String?  @map("revierte_id")
+  estado     String   @default("CONTABILIZADO")
+  creadoPor  String   @map("creado_por")
+  createdAt  DateTime @default(now()) @map("created_at")
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "contable_asientos_tenant_fkey")
+  usuario    Usuario  @relation("ContableAsientoUsuario", fields: [creadoPor], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "contable_asientos_usuario_fkey")
+  revierte   ContableAsiento?  @relation("ContableAsientoReversion", fields: [tenantId, revierteId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade, map: "contable_asientos_revierte_fkey")
+  revertidoPor ContableAsiento[] @relation("ContableAsientoReversion")
+  lineas     ContableAsientoLinea[]
+
+  @@unique([tenantId, id], map: "contable_asientos_tenant_id_id_key")
+  @@unique([tenantId, numero], map: "contable_asientos_tenant_numero_key")
+  @@unique([tenantId, revierteId], map: "contable_asientos_revierte_key")
+  @@index([tenantId, fecha], map: "contable_asientos_tenant_fecha_idx")
+  @@map("contable_asientos")
+}
+
+model ContableAsientoLinea {
+  id          String          @id
+  tenantId    String          @map("tenant_id")
+  asientoId   String          @map("asiento_id")
+  cuentaId    String          @map("cuenta_id")
+  debe        Decimal         @default(0) @db.Decimal(14, 2)
+  haber       Decimal         @default(0) @db.Decimal(14, 2)
+  descripcion String?
+  asiento     ContableAsiento @relation(fields: [tenantId, asientoId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade, map: "contable_asiento_lineas_asiento_fkey")
+  cuenta      ContableCuenta  @relation(fields: [tenantId, cuentaId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade, map: "contable_asiento_lineas_cuenta_fkey")
+
+  @@index([tenantId, asientoId], map: "contable_asiento_lineas_asiento_idx")
+  @@index([tenantId, cuentaId], map: "contable_asiento_lineas_cuenta_idx")
+  @@map("contable_asiento_lineas")
 }

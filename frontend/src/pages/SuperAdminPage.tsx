@@ -21,7 +21,7 @@ import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SECCIONES_PLATAFORMA, SLUG_SECCION, type SeccionPlataforma } from '../config/platformNavigation';
-import { CATALOGO_MODULOS, PENDING_MODULES } from '../config/modulesCatalog';
+import { CATALOGO_MODULOS, PENDING_MODULES, modulosPorDefecto } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { Rubro } from '../types';
@@ -289,7 +289,7 @@ export const SuperAdminPage: React.FC = () => {
 
   const abrirModalModulos = (tenantItem: TenantItem) => {
     setModalModulosTenant(tenantItem);
-    setTempModulosTenant(tenantItem.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key));
+    setTempModulosTenant(tenantItem.modulosHabilitados || modulosPorDefecto());
   };
 
   const toggleTempModulo = (moduleKey: string) => {
@@ -401,7 +401,7 @@ export const SuperAdminPage: React.FC = () => {
           logoUrl: modalSuplantarUser.logoUrl,
           modoNavegacion: modalSuplantarUser.modoNavegacion || 'SIDEBAR',
           rubro: modalSuplantarUser.rubro || Rubro.FERRETERIA,
-          modulosHabilitados: modalSuplantarUser.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key),
+          modulosHabilitados: modalSuplantarUser.modulosHabilitados || modulosPorDefecto(),
         },
         {
           id: usuarioASuplantar.id,
@@ -637,7 +637,7 @@ export const SuperAdminPage: React.FC = () => {
                 </thead>
                 <tbody>
                   {tenants.map((tItem) => {
-                    const activeMods = tItem.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key);
+                    const activeMods = tItem.modulosHabilitados || modulosPorDefecto();
                     const modCount = activeMods.length;
                     const modoNav = tItem.modoNavegacion || 'SIDEBAR';
 
