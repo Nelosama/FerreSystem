@@ -3,100 +3,130 @@
 **Fecha:** 2026-10-20
 **Proyecto:** FerreSystem / Jowa System
 **Rama:** `jules-6650504171296380351-3c58c742` (PR #184)
+**Commit Evaluado:** `c4cadc34a4b67de3052b076cfd646813e5afc6d8`
 **Evaluador:** Senior QA & Security Engineer
-**Veredicto Final:** **READY FOR MERGE**
+**Veredicto Final:** **NO MERGE** (Pendiente de alineación de variables Vercel y verificación en hardware físico)
 
 ---
 
-## 1. Resumen Ejecutivo
+## 1. Resumen Ejecutivo y Veredicto Fundamentado
 
-Se ha realizado una auditoría exhaustiva de seguridad, aislamiento multi-tenant, control de acceso basado en roles (RBAC), protección contra IDOR, validación de entradas, gestión de sesiones, PWA y experiencia móvil administrativa para **Jowa System**.
+Se ha realizado una revisión crítica e independiente de la seguridad SaaS multi-tenant, aislamiento de datos, control de acceso basado en roles (RBAC), resiliencia de sesiones JWT, PWA y experiencia móvil para **Jowa System**, contrastando los hallazgos con las correcciones y pendientes registrados en el PR #183 y auditorías anteriores (H-01 a H-06).
 
-### Resultados Clave de la Evaluación
-1. **Aislamiento Multi-Tenant e IDOR:** Se verificó que todas las consultas y mutaciones en el backend NestJS/Prisma aplican filtrado estricto por `tenantId` y bloqueos de fila transaccionales (`FOR UPDATE` / `lockTenant`). Intentos de acceso cruzado entre negocios devuelven `404 NotFoundException` o `403 ForbiddenException`.
-2. **Autenticación y Revocación de Sesiones:** El sistema implementa un esquema robusto de tokens de dos capas (`accessToken` de 15 min y `refreshToken` de 7 días en cookie `httpOnly`). La tabla `sesiones_auth` y el mecanismo `sid` garantizan revocación inmediata en servidor al cerrar sesión. Ante caídas temporales de la base de datos, NestJS responde `503 ServiceUnavailableException` sin revocar innecesariamente las credenciales del usuario.
-3. **Control de Acceso por Roles (RBAC):** Los guards (`JwtAuthGuard`, `TenantGuard`, `RolesGuard`, `TenantModuleGuard`, `SuperAdminGuard`) protegen eficazmente endpoints administrativos (`/usuarios`, `/configuracion`, `/tenant/settings`, `/precios`, `/contingencia-admin`). El rol `Contador` no está integrado en la base de datos ni en el esquema Prisma (`enum Rol { ADMIN, CAJERO, BODEGUERO, VENDEDOR }`).
-4. **Experiencia Móvil Administrativa (`/admin-movil`):** La vista móvil para administradores es estrictamente de lectura gerencial (resumen de ventas, alertas de inventario, cuentas por vencer, saldos de clientes y solicitudes de autorización). No expone cobros, emisión de comprobantes ni funciones de caja transaccionales.
-5. **PWA, Conectividad y Escáner de Cámara:** El Service Worker (`sw.js`, versión `ferresystem-shell-v2`) precarga el shell de la aplicación sin cachear endpoints privados `/api`. El componente `BarcodeScanner.tsx` gestiona el ciclo de vida de la cámara con soporte nativo `BarcodeDetector` y fallback dinámico a `@zxing/library`, liberando streams de video al plegar, desmontar, cambiar de pestaña o perder foco.
-6. **Seguridad en Carga de Archivos e Insumos:** Las imágenes corporativas (`TenantLogoService`) se validan mediante la firma binaria de sus primeros bytes (`magic bytes`), admitiendo exclusivamente PNG, JPEG y WEBP hasta 2 MB y 4096 px. SVG y HTML son explícitamente rechazados para evitar XSS.
+### Veredicto Técnico: **NO MERGE**
+El estado actual del código en la rama incluye parches de seguridad y estabilidad de ingeniería de gran valor (idempotencia transaccional, limites por IP, revocación por `sid`, validación binaria de logotipos). Sin embargo, se emite veredicto **NO MERGE** debido a las siguientes restricciones no resueltas:
+
+1. **Configuración de Despliegue en Vercel:** Los despliegues de vista previa en Vercel fallan o devuelven HTML `200` en peticiones `/api` por falta de la variable de entorno `VITE_API_URL` en tiempo de compilación Vite y reglas de `ignoreCommand` en `frontend/vercel.json`.
+2. **Límite de Dispositivos Físicos y Web Push:** La PWA web no garantiza notificaciones push en segundo plano con la aplicación cerrada en iOS Safari / Android sin un canal/wrapper nativo configurado (Expo / FCM). Las pruebas de cámara y escáner en Chromium emulado no sustituyen la prueba de aceptación física en iPhone Safari WebKit ni impresoras térmicas de 80 mm / 58 mm.
+3. **Riesgos Pendientes de Producción:** Se identificaron configuraciones de almacenamiento privado (Supabase Storage vs disco local) y variables de entorno productivas (`JWT_SECRET`, `TRUST_PROXY=1`) que requieren verificación previa al despliegue.
 
 ---
 
-## 2. Cobertura de Pruebas Ejecutadas y Evidencia Técnica
+## 2. Matriz Comparativa de Hallazgos Históricos (H-01 a H-06 / PR #183)
 
-### 2.1 Pruebas Unitarias y de Integración Backend (NestJS / Vitest)
+| ID Hallazgo | Severidad | Descripción del Defecto | Evidencia / Endpoint Afectado | Estado de Corrección | PR / Agente Responsable |
+|---|---|---|---|---|---|
+| **H-01 / P0** | **CRÍTICO** | Pérdida de precios al importar productos por CSV (quedaban en L.0.00). | `POST /api/productos` individual desde frontend sin `precioVenta`/`precioCosto`. | **CORREGIDO** en backend vía `POST /productos/importacion` masivo con `aprobarPrecios` e idempotencia. | PR #161 / #183 (Claude) |
+| **H-02 / P1** | **ALTO** | "Iniciar Soporte Remoto" roto con error HTTP 404 y usuarios demo hardcodeados. | `POST /api/admin/support/token` (endpoint faltante en backend). | **CORREGIDO** agregando `GET /admin/tenants/:id/usuarios` y revocación `POST /admin/support/finalizar`. | PR #160 (Codex) |
+| **H-03 / P1** | **ALTO** | Salto de validación en CSV (precios negativos y códigos de barras duplicados pasaban la vista previa). | `importacion-productos.ts` en servidor. | **CORREGIDO** mediante validación por fila antes de inserción en BD. | PR #161 / #183 (Claude) |
+| **H-04 / P3** | **BAJO** | El recibo impreso de ventas a crédito mostraba la etiqueta "TOTAL PAGADO". | `ReciboPDF.tsx` en módulo de ventas. | **CORREGIDO** mostrando "TOTAL A CRÉDITO" / "SALDO PENDIENTE" cuando `metodoPago === 'CREDITO'`. | PR #166 (Codex) |
+| **H-05 / P3** | **BAJO** | Discrepancia de L.0.01 en el subtotal de líneas con fracciones decimales exactas `.5`. | Carrito del POS (coma flotante JavaScript). | **CORREGIDO** usando aritmética estricta en centavos enteros (`common/redondeo-monetario.ts`). | PR #166 (Codex) |
+| **H-06 / P3** | **BAJO** | El color primario de marca aceptaba cadenas inválidas (`NOTAHEX`), cayendo a negro. | `PATCH /tenant/settings` y `TenantsService`. | **CORREGIDO** con validación estricta de formato `#RRGGBB` y HTTP 400. | PR #177 (Claude) |
+
+---
+
+## 3. Cobertura de Pruebas Ejecutadas y Entornos de Verificación
+
+Se diferencia estrictamente el alcance de cada suite ejecutada sobre el commit `c4cadc34a4b67de3052b076cfd646813e5afc6d8`:
+
+### 3.1 Pruebas Unitarias Backend (Vitest)
 * **Comando:** `npm test --prefix backend`
-* **Resultado:** **529/529 pruebas pasadas** (53 archivos de prueba, 0 fallos).
-* **Módulos evaluados:** `auth`, `usuarios`, `tenants`, `productos`, `ventas`, `cotizaciones`, `operaciones`, `contingencia`, `levantamientos`, `entregas`, `proveedores`, `costo-inicial`, `backup-status`.
+* **Resultado:** **529/529 pruebas pasadas** (53 archivos).
+* **Alcance:** Lógica de negocio en memoria, DTOs, redondeo monetario, cálculo de comisiones, generación de JWT y guards con mocks de Prisma.
 
-### 2.2 Pruebas Unitarias Frontend (Node Native Test Runner)
+### 3.2 Pruebas Unitarias Frontend (Node Native Test Runner)
 * **Comando:** `npm test --prefix frontend`
-* **Resultado:** **469/469 pruebas pasadas** (0 fallos).
-* **Módulos evaluados:** `i18n`, `sessionValidation`, `taskNavigation`, `tenantSettings`, `autoRefresh`, `posCatalogo`, `barcodeScanner`, `formatoImpresion`, `importacionProductos`.
+* **Resultado:** **469/469 pruebas pasadas** (4 archivos).
+* **Alcance:** Formateadores de fecha, lógica i18n, catálogo del POS, interceptores Axios y utilidades pure de filtrado.
 
-### 2.3 Pruebas Automatizadas de Navegador E2E (Playwright / Chromium)
+### 3.3 Pruebas de Integración PostgreSQL (Clúster PostgreSQL Temporal)
+* **Comando:** Integración automatizada mediante arnés ephemeral PostgreSQL.
+* **Resultado:** **PASADO**.
+* **Alcance:** Transacciones atómicas, bloqueos `FOR UPDATE`, idempotencia de secuencias comerciales y migraciones aditivas de esquema.
+
+### 3.4 Pruebas de Navegador Simulado (Playwright Chromium)
 * **Comandos:** `VITE_API_URL=/api npm run build --prefix frontend && PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome npm run test:browser --prefix frontend`
-* **Resultado:** **10/10 suites de prueba pasadas** (0 fallos).
-* **Escenarios probados:**
-  - `e2e/navigation-settings.spec.ts`: Roles, navegaciones TOPNAV y SIDEBAR, configuración por negocio, multilingüe ES/EN.
-  - `e2e/session-lifecycle.spec.ts` & `e2e/session-pwa.spec.ts`: Ciclo de vida de sesiones, expiración JWT, revocación en servidor, PWA shell offline.
-  - `e2e/p1-operaciones-simulado.spec.ts`: Proveedores por producto, compras al contado, estado de cuenta de clientes.
-  - `e2e/productos-edicion.spec.ts`: Edición de inventario, prevención de doble clic, liberación de cámara en escáner.
-  - `e2e/pagos-bancarios-simulado.spec.ts` & `e2e/pos-tarjeta-simulado.spec.ts`: Cobros POS, tarjetas, comprobación de terminales.
-  - `e2e/pos-catalogo-grande-simulado.spec.ts`: Paginación y escaneo rápido en carritos de alto volumen.
+* **Resultado:** **10/10 suites de prueba pasadas** (`navigation-settings`, `session-lifecycle`, `session-pwa`, `p1-operaciones-simulado`, `productos-edicion`, `pagos-bancarios-simulado`, `pos-tarjeta-simulado`, `pos-catalogo-grande-simulado`, `proveedores-gestion-simulado`, `offline-emulation`).
+* **Alcance:** Renderizado UI, flujos de navegación V1/V2/V3, simulación de respuestas de API interceptadas y Service Worker shell precache.
+
+### 3.5 Límite Indispensable: Dispositivos y Hardware Físico Real
+* **Estado:** **NO CERTIFICADO EN HARDWARE FÍSICO**.
+* **Aviso de QA:** La emulación de API de cámara y navegador en Chromium **no acredita** la velocidad de enfoque óptico en la cámara trasera de un iPhone físico en Safari WebKit PWA, ni el corte de papel o márgenes del driver en impresoras térmicas de tickets (80 mm y 58 mm). El protocolo de prueba física en local (`ESCANER_IPHONE_20261018.md` y `POS_PILOTO_CHECKLIST_FISICO.md`) debe ejecutarse en el sitio con los equipos reales del cliente.
 
 ---
 
-## 3. Matriz de Auditoría por Dominio de Seguridad y QA
+## 4. Auditoría Técnica Detallada por Dominio
 
-| Dominio de Auditoría | Estado | Hallazgo / Mecanismo de Control Verificado |
-|---|---|---|
-| **1. Autenticación, Expiración y Revocación** | **CONFORME** | Tokens de acceso (15 min) y refresh cookies `httpOnly`. La tabla `sesiones_auth` valida la sesión activa (`sid`). El logout limpia cookies, revoca el `sid` en BD y invalida `localStorage` (`ferre_token`, `ferre_tenant`). |
-| **2. Rutas Protegidas y Permisos Backend** | **CONFORME** | Decoradores `@Roles()`, `@RequiredPermission()` y `@RequiredModule()` combinados con `JwtAuthGuard`, `TenantGuard` y `RolesGuard`. |
-| **3. Aislamiento Multi-Tenant e IDOR** | **CONFORME** | Todas las operaciones en BD incluyen `tenantId` en la cláusula `where`. Bloqueos de fila explícitos (`FOR UPDATE`) en transacciones Prisma impiden manipular recursos de otras empresas. |
-| **4. Acceso por Roles (RBAC)** | **CONFORME** | `SUPERADMIN` restringido a `/admin/*`. Roles de tenant (`ADMIN`, `CAJERO`, `VENDEDOR`, `BODEGUERO`) aislados. El rol `Contador` no está integrado en la base de datos actual. |
-| **5. Protección IDOR y Escalamiento** | **CONFORME** | Intentos de usuarios sin privilegios (e.g. Vendedor intentando acceder a `/usuarios` o `/configuracion`) son bloqueados con HTTP 403. |
-| **6. Validación de Entradas, CORS, CSRF, XSS** | **CONFORME** | `ValidationPipe` global con `whitelist: true`. Configuración CORS estricta (`createFrontendCorsOptions`) que valida orígenes HTTP(S) exactos. `Cache-Control: no-store` en respuestas API. |
-| **7. Protección de Archivos y Fotos** | **CONFORME** | `validarLogotipo()` verifica firmas binarias (`magic bytes`). Limita el tamaño a 2 MB y las dimensiones a 4096 px. Rechaza archivos SVG/HTML para evitar almacenamiento de vectores XSS. |
-| **8. Exposición de Secretos y Configuración** | **CONFORME** | `getJwtSecret` exige `JWT_SECRET` en entornos de producción (`NODE_ENV === 'production'`). No hay claves ni contraseñas fijas en el código fuente. |
-| **9. Manejo de Errores de Red y Sesiones Caducadas** | **CONFORME** | `sessionValidation.ts` y Axios interceptors gestionan errores 401/403 de forma limpia. Errores 503 por indisponibilidad de la BD no provocan el cierre de sesión del usuario. |
-| **10. PWA en Escritorio y Móvil** | **CONFORME** | Manifest `standalone` configurado con `theme_color`. Service Worker precarga el shell HTML/JS sin cachear endpoints `/api` ni cabeceras `Authorization`. |
-| **11. Navegación Móvil Administrativa** | **CONFORME** | Vista `/admin-movil` accesible solo para `ADMIN`, adaptada a pantallas de 320 px–390 px con tarjetas resumiendo métricas del día. |
-| **12. Restricción de POS y Caja en Móvil** | **CONFORME** | `/admin-movil` es estrictamente de consulta. La operación de cobro POS y apertura/cierre de caja requiere pantalla completa y permisos operativos (`pos.vender` / `arqueo_caja`). |
-| **13. Escáner de Cámara y Permisos** | **CONFORME** | `BarcodeScanner.tsx` libera los tracks de video al plegar el panel, desmontar, presionar Escape o cambiar de visibilidad. Ofrece entrada manual ante denegación de permisos de cámara. |
-| **14. Accesibilidad, Formularios y Cargas** | **CONFORME** | Modales utilizan `aria-label={t('common.close_modal')}` y `type="button"`. Los botones de envío se deshabilitan durante peticiones asíncronas para prevenir envíos duplicados. |
-| **15. Persistencia de Configuración por Negocio** | **CONFORME** | Configuración de empresa se persiste en PostgreSQL (`GET/PUT /tenant/settings`). `TenantContext` carga dinámicamente los parámetros del negocio al iniciar sesión. |
+### 4.1 Autenticación y Revocación de Sesiones
+* **Mecanismo:** Access Token JWT (15 min) y Refresh Token (7 días) almacenado en cookie `httpOnly`.
+* **Revocación:** Cada token incluye el claim `sid` (Session ID). La tabla `sesiones_auth` valida que la sesión no esté revocada. La llamada a `POST /auth/logout` limpia las cookies y revoca el `sid` en la base de datos.
+* **Resiliencia de Infraestructura:** Ante fallos temporales de conexión a PostgreSQL (códigos Prisma `P1001`, `P1002`, `P1017`), `JwtStrategy` responde `503 ServiceUnavailableException` en lugar de `401 UnauthorizedException`, evitando que caídas breves del pool de la base de datos cierren automáticamente la sesión de los cajeros en producción.
 
----
+### 4.2 Aislamiento Multi-Tenant y Protección IDOR
+* **Mecanismo:** Todas las consultas Prisma en los servicios (`ventas`, `cotizaciones`, `productos`, `clientes`, `usuarios`, `proveedores`, `operaciones`, `levantamientos`, `entregas`) filtran explícitamente por `tenantId` (e.g. `where: { id, tenantId }`).
+* **Protección Transaccional:** Las mutaciones críticas ejecutan bloqueos de fila (`SELECT ... FOR UPDATE` o `lockTenant(tx, tenantId)`) antes de actualizar o eliminar registros, evitando condiciones de carrera o manipulación de datos entre empresas.
 
-## 4. Clasificación de Hallazgos y Riesgos
+### 4.3 Control de Acceso por Roles (RBAC) y Estado del Rol `Contador`
+* **Matriz de Roles Activos:** `ADMIN`, `CAJERO`, `VENDEDOR`, `BODEGUERO` (para usuarios de tenant) y `SUPERADMIN` (plataforma).
+* **Rol `Contador`:** **NO INTEGRADO**. La base de datos actual (`enum Rol` en `schema.prisma`) no incluye el valor `CONTADOR`. Las funciones de reportes financieros y estados de cuenta están restringidas al rol `ADMIN` con la función opcional de permiso `reportes.ver`.
+* **Protección de Endpoints:** Tentativas de usuarios con rol `CAJERO`, `VENDEDOR` o `BODEGUERO` de consumir endpoints restringidos (`/usuarios`, `/configuracion`, `/tenant/settings`, `/precios`, `/contingencia-admin`) son rechazadas con HTTP `403 ForbiddenException`.
 
-### Hallazgos Confirmados
-* **Críticos:** 0
-* **Altos:** 0
-* **Medios:** 0
-* **Bajos:** 0
+### 4.4 Experiencia Móvil Administrativa (`/admin-movil`) y Restricciones POS
+* **Navegación Móvil:** La pantalla `/admin-movil` (`AdminMovilPage.tsx`) está diseñada exclusivamente para administradores (`ADMIN`) en viewports de 320 px a 390 px (iPhone / Android).
+* **Restricción Transaccional:** La vista móvil es **estrictamente de consulta gerencial** (resumen de ventas del día, alertas de stock bajo, facturas por vencer, saldos de clientes y solicitudes de autorización de devolución). **No permite** realizar cobranzas, abrir/cerrar caja ni emitir comprobantes de venta desde el celular.
 
-### Observaciones e Información de Arquitectura (Informational)
-1. **Estado del Rol `Contador` (Informativo):**
-   - *Observación:* El rol `Contador` mencionado en especificaciones de alto nivel no se encuentra definido en el esquema Prisma (`enum Rol { ADMIN, CAJERO, BODEGUERO, VENDEDOR }`).
-   - *Impacto:* Nulo para la operación actual. Las funciones contables/reportes están centralizadas en el rol `ADMIN`.
-2. **Mapeo de Notificaciones Push Nativas en PWA (Informativo):**
-   - *Observación:* La PWA web ofrece precache de shell e IndexedDB offline para contingencia. Si se requieren notificaciones push con la aplicación cerrada en iOS/Android fuera de una sesión de navegador activa, se requerirá un wrapper o canal de notificaciones nativas push (Expo / FCM).
-3. **Límite de Verificación de Hardware Físico (Límite de QA):**
-   - *Observación:* Todas las pruebas de cámara y escáner fueron ejecutadas satisfactoriamente en entorno emulado mediante APIs web y Playwright Chromium.
-   - *Aviso Obligatorio:* No se presenta la simulación en navegador como certificación de hardware físico real. La velocidad de enfoque óptico en lentes físicas de iPhone/Android y el margen de corte en impresoras térmicas de 80 mm / 58 mm deben validarse en el sitio con los dispositivos físicos del cliente segun el protocolo `ESCANER_IPHONE_20261018.md`.
+### 4.5 PWA, Conectividad y Web Push
+* **Service Worker:** Registrado como `sw.js` (versión `ferresystem-shell-v2`). Precarga el shell estático (`index.html`, `manifest.webmanifest`, CSS/JS).
+* **Exclusión API:** Las llamadas a `/api/*` y solicitudes con cabecera `Authorization` **nunca se cachean** en el Service Worker.
+* **Limitación Web Push:** La PWA web actual no envía notificaciones push nativas en segundo plano cuando la aplicación está totalmente cerrada en iOS/Android. Requerirá la integración de un canal nativo (Expo Push / Firebase Cloud Messaging) si se exige entrega de alertas fuera del navegador.
+
+### 4.6 Escáner por Cámara y Ciclo de Vida
+* **Implementación:** `BarcodeScanner.tsx` utiliza la API nativa del navegador `BarcodeDetector` cuando está presente y conmuta dinámicamente a `@zxing/library` (`zxingDecoder.ts`).
+* **Liberación de Recursos:** Los tracks del `MediaStream` de la cámara se liberan explícitamente al plegar la sección, desmontar el componente, presionar la tecla `Escape`, cambiar la visibilidad de la pestaña (`visibilitychange`) o pasar la página a segundo plano (`pagehide`). Se ofrece un botón de entrada manual si el usuario deniega el permiso de cámara.
+
+### 4.7 Carga de Archivos e Insumos
+* **Firma Binaria (`Magic Bytes`):** `validarLogotipo` (`logotipo-validacion.ts`) inspecciona los primeros bytes del archivo en buffer (`0x89504E47` para PNG, `0xFFD8FF` para JPEG, `RIFF...WEBP` para WEBP).
+* **Límites de Seguridad:** Rechaza archivos de más de 2 MB o dimensiones superiores a 4096 px. Archivos SVG y HTML son bloqueados categóricamente para impedir ataques de Cross-Site Scripting (XSS) mediante imágenes almacenadas.
+* **Aislamiento de Almacenamiento:** Las claves de archivo incorporan identificadores aleatorios UUID (`${claveLogotipo(tenantId)}/${randomUUID()}`), impidiendo ataques de escalado de directorio (`path traversal`).
 
 ---
 
-## 5. Recomendaciones Priorizadas para Producción
+## 5. Diagnóstico de Despliegue en Vercel
 
-1. **Gestión de Entorno en Producción:** Asegurar que `JWT_SECRET`, `SUPER_ADMIN_PASSWORD` y `TENANT_ADMIN_PASSWORD` estén configurados mediante variables de entorno en Render/Supabase, y que `NODE_ENV=production` esté activo.
-2. **Configuración de Proxy Inverso:** Mantener `TRUST_PROXY=1` en el entorno de despliegue detras del proxy de Render para que la limitación de tasa por IP (`login-rate-limit.ts`) identifique correctamente la IP real del cliente.
-3. **Prueba de Aceptación Física:** Antes del despliegue en tienda física, realizar la verificación final con el lector de código de barras físico, cámara trasera de iPhone en Safari PWA y la impresora térmica de tickets (80 mm / 58 mm).
+Se investigó el comportamiento de compilación y servidor en Vercel para la aplicación frontend:
+
+1. **Regla de Cancelación (`ignoreCommand` en `frontend/vercel.json`):**
+   ```json
+   "ignoreCommand": "case \"$VERCEL_GIT_COMMIT_REF\" in nexus/*|fix/inventario-inicial-seguro|fix/pilot-readiness|codex/auditoria-precision-monetaria|codex/fix-expired-sessions|fix/jowa-operacion-estable|codex/fix-camera-lifecycle-ios|codex/estabilidad-operativa) exit 0;; *) exit 1;; esac"
+   ```
+   *Diagnóstico:* En Vercel, un valor de retorno `exit 0` indica al motor de despliegue que OMITA la compilación (cancelado), mientras que `exit 1` le indica que PROCEDA con el build. Las ramas listadas en el comando son omitidas a propósito para evitar despliegues innecesarios de ramas de prueba.
+
+2. **Error de Conexión `/api` o Respuesta HTML `200` en Vista Previa Vercel:**
+   *Diagnóstico:* Vite inyecta `import.meta.env.VITE_API_URL` durante la compilación (`npm run build`). Si la variable `VITE_API_URL` no está definida en la configuración del proyecto en Vercel (e.g. `https://ferresystem.onrender.com/api`), Vite asume la ruta relativa `/api`. Al no existir un proxy o backend en el servidor estático de Vercel, la regla `rewrites: [{ "source": "/(.*)", "destination": "/index.html" }]` reescribe la petición a `index.html` devolviendo HTML con HTTP 200 en lugar de JSON, lo que provoca errores de parseo en Axios.
 
 ---
 
-## 6. Veredicto Final
+## 6. Recomendaciones Priorizadas para la Liberación
 
-**READY FOR MERGE** — El código en la rama `jules-6650504171296380351-3c58c742` cumple con todos los estándares de seguridad SaaS multi-tenant, aislamiento de datos, RBAC y estabilidad PWA/móvil. Todas las 998 pruebas unitarias/de integración y las suites E2E de navegador pasan exitosamente con 0 regresiones.
+1. **Configurar `VITE_API_URL` en Vercel:** Definir `VITE_API_URL=https://ferresystem.onrender.com/api` en las variables de entorno de Vercel (Preview y Production) para que el bundle estático apunte correctamente al backend de Render.
+2. **Ajuste de Variables en Producción (Render):** Verificar que `NODE_ENV=production`, `JWT_SECRET`, `SUPER_ADMIN_PASSWORD` y `TRUST_PROXY=1` estén configurados en el panel de Render.
+3. **Protocolo de Aceptación Física:** Completar la verificación de campo con el lector de código de barras físico, la cámara trasera de iPhone en Safari PWA y la impresora térmica de tickets (80 mm y 58 mm) siguiendo `POS_PILOTO_CHECKLIST_FISICO.md`.
+
+---
+
+## 7. Resumen de Estado y Conclusión
+
+* **SHA del Commit Auditado:** `c4cadc34a4b67de3052b076cfd646813e5afc6d8`
+* **Archivos Modificados:** `docs/QA_SEGURIDAD_MOVIL_20261020.md`
+* **Pruebas Verificadas:** 529 backend Vitest OK, 469 frontend unitarias OK, 10 Playwright E2E browser suites OK.
+* **Veredicto Final:** **NO MERGE** (Pendiente de configuración de variables Vercel y protocolo de aceptación física en dispositivos del cliente).
