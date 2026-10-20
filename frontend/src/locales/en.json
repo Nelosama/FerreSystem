@@ -1259,7 +1259,6 @@
     "camera": "Camera",
     "default_camera": "Default camera",
     "camera_number": "Camera {number}",
-
     "manual": "Enter code manually",
     "manual_hint": "Enter the code in the form field.",
     "interrupted": "Camera stopped when leaving the app. Tap Scan barcode with camera to continue.",
@@ -1836,6 +1835,24 @@
       "SIN_RTN_EMPRESA": "The company has no RTN configured",
       "SIN_TASA_GENERAL_VIGENTE": "No general rate valid for the period",
       "LIBRO_CAMBIO_TRAS_CIERRE": "Books changed after closing"
+    },
+    "export_excel": "Export to Excel",
+    "export_month_book": "Monthly accounting book (Excel)",
+    "file_ready": "File downloaded: {name}",
+    "both": "Issued and received",
+    "report": {
+      "conciliacion": "Reconciliation and findings",
+      "ventas": "Sales book",
+      "compras": "Purchases book",
+      "isv": "VAT summary",
+      "retenciones": "Withholdings",
+      "documentos": "Tax documents",
+      "diario": "General journal",
+      "balanza": "Trial balance",
+      "catalogo": "Chart of accounts",
+      "periodos": "Periods and closings",
+      "ajustes": "Adjustments and audit trail",
+      "mensual": "Monthly accounting book"
     }
   }
 }

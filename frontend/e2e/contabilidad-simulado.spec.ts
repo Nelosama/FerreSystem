@@ -1,4 +1,23 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page, type Route } from '@playwright/test';
+
+// Libro de Excel de muestra generado con el escritor del backend (aLibroXlsx): el mock lo sirve como respuesta real.
+const XLSX_MUESTRA = readFileSync(new URL('./fixtures/ventas-2026-09.xlsx', import.meta.url));
+
+// Lectura mínima del ZIP del .xlsx (sin compresión) para comprobar hojas del archivo descargado.
+function hojasDelXlsx(buf: Buffer): string[] {
+  const fin = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  let p = buf.readUInt32LE(fin + 16);
+  const archivos: Record<string, string> = {};
+  for (let i = 0; i < buf.readUInt16LE(fin + 10); i++) {
+    const tam = buf.readUInt32LE(p + 20), nLen = buf.readUInt16LE(p + 28), eLen = buf.readUInt16LE(p + 30), cLen = buf.readUInt16LE(p + 32), offset = buf.readUInt32LE(p + 42);
+    const nombre = buf.subarray(p + 46, p + 46 + nLen).toString('utf8');
+    const local = offset + 30 + buf.readUInt16LE(offset + 26) + buf.readUInt16LE(offset + 28);
+    archivos[nombre] = buf.subarray(local, local + tam).toString('utf8');
+    p += 46 + nLen + eLen + cLen;
+  }
+  return [...archivos['xl/workbook.xml'].matchAll(/<sheet name="([^"]+)"/g)].map(m => m[1]);
+}
 
 // E2E CON BACKEND SIMULADO: pantalla de Contabilidad y Control Tributario para CONTADOR y ADMIN.
 // Cálculos, autorización y aislamiento reales: backend/test/contabilidad.postgres.integration.ts.
@@ -46,7 +65,12 @@ async function preparar(page: Page, baseURL: string | undefined, rol = 'CONTADOR
       if (cuerpo.numero.endsWith('00000099')) return responder(route, 400, { message: 'El documento emitido no cumple las reglas fiscales configuradas', hallazgos: ['FUERA_DE_RANGO'] });
       return responder(route, 201, { id: 'nuevo', ...cuerpo });
     }
-    if (path === '/contabilidad/exportar/ventas') return route.fulfill({ status: 200, body: '﻿Libro de ventas 2026-09\r\n', headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="ventas-2026-09.csv"' } });
+    // Igual que la API real: la cabecera Content-Disposition puede no ser legible entre orígenes; el nombre no depende de ella.
+    if (path.startsWith('/contabilidad/exportar/')) {
+      const formato = url.searchParams.get('formato') ?? 'xlsx';
+      if (formato === 'xlsx') return route.fulfill({ status: 200, body: XLSX_MUESTRA, headers: { 'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } });
+      return route.fulfill({ status: 200, body: '\uFEFFLibro de ventas 2026-09\r\n', headers: { 'content-type': 'text/csv; charset=utf-8' } });
+    }
     if (path === '/contabilidad/periodos') return responder(route, 200, Array.from({ length: 12 }, (_, i) => ({ anio: 2026, mes: i + 1, estado: i === 7 ? 'CERRADO' : 'ABIERTO', cerradoPor: i === 7 ? 'Carla' : null })));
     if (path.startsWith('/contabilidad/')) return responder(route, 200, []);
     // Cualquier otra consulta del CONTADOR sería un acceso operativo inesperado.
@@ -67,6 +91,28 @@ test.describe('Contabilidad y Control Tributario (simulado)', () => {
     for (const operativo of ['Punto de venta', 'Inventario', 'Arqueo de caja', 'Cuentas y abonos']) await expect(menu.getByRole('link', { name: operativo, exact: true })).toHaveCount(0);
     expect(r.rutas.filter(x => !x.includes('/contabilidad/') && !/\/(auth\/me|tenant\/settings|tenant\/logo)$/.test(x))).toEqual([]);
     expect(r.errores).toEqual([]);
+  });
+
+  test('Exportar a Excel descarga un .xlsx real con sus hojas, aunque no se pueda leer la cabecera del nombre', async ({ page, baseURL }) => {
+    await preparar(page, baseURL);
+    await page.goto('/contabilidad');
+    await page.getByRole('tab', { name: 'Libro de ventas' }).click();
+    const descarga = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Exportar a Excel' }).click();
+    const archivo = await descarga;
+    expect(archivo.suggestedFilename()).toBe('ventas-2026-09.xlsx');
+    const contenido = readFileSync((await archivo.path())!);
+    expect(contenido.subarray(0, 2).toString()).toBe('PK');
+    expect(hojasDelXlsx(contenido)).toEqual(['Ventas']);
+    await expect(page.getByRole('status')).toContainText('ventas-2026-09.xlsx');
+  });
+
+  test('libro contable del mes: un único Excel con su nombre', async ({ page, baseURL }) => {
+    await preparar(page, baseURL);
+    await page.goto('/contabilidad');
+    const descarga = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Libro contable del mes (Excel)' }).click();
+    expect((await descarga).suggestedFilename()).toBe('libro-contable-2026-09.xlsx');
   });
 
   test('libro de ventas con hallazgos, registro de documento con error explicado y exportación CSV', async ({ page, baseURL }) => {

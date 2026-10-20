@@ -41,8 +41,9 @@ export const PERMISOS_DEFAULT_POR_ROL = {
     descuentoMaximo: 10,
   },
   // Solo Contabilidad y Control Tributario: el servidor no le permite modificar ventas, cobros, inventario ni caja.
+  // Por defecto consulta y registra documentos; configurar tasas y cerrar períodos exigen concesión expresa.
   CONTADOR: {
-    permisos: ['contabilidad.ver', 'contabilidad.registrar', 'contabilidad.configurar', 'contabilidad.cerrar_periodo'],
+    permisos: ['contabilidad.ver', 'contabilidad.registrar'],
     descuentoMaximo: 0,
   },
 };

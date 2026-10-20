@@ -4,8 +4,9 @@ import { useTenant } from '../context/TenantContext';
 import { api } from '../utils/api';
 import { diaCalendarioEnZona, formatLempiras } from '../utils/format';
 import type { Pestana } from '../utils/contabilidad';
+import type { FormatoDescarga } from '../utils/contabilidad';
 import {
-  PESTANAS, consultaPeriodo, etiquetaHallazgo, importeOpcional, mensajeError, nombreArchivo, numeroFiscalValido, periodoAnterior, prepararAsiento,
+  PESTANAS, consultaPeriodo, etiquetaHallazgo, importeOpcional, mensajeError, mensajeErrorDescarga, nombreExportacion, numeroFiscalValido, periodoAnterior, prepararAsiento,
 } from '../utils/contabilidad';
 import './OperacionesPage.css';
 
@@ -31,6 +32,7 @@ export const ContabilidadPage: React.FC = () => {
   const [errorCarga, setErrorCarga] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [direccionDocs, setDireccionDocs] = useState<'' | 'EMITIDO' | 'RECIBIDO'>('');
   const q = consultaPeriodo(periodo);
 
   const cargar = useCallback(async () => {
@@ -65,18 +67,35 @@ export const ContabilidadPage: React.FC = () => {
     finally { setEnviando(false); }
   };
 
-  const exportar = async (reporte: string, formato: 'csv' | 'xlsx' | 'pdf') => {
-    setError('');
+  // Descarga: Excel por defecto. Las consultas de catálogo y de períodos dependen solo del año.
+  const exportar = async (reporte: string, formato: FormatoDescarga, direccion?: string) => {
+    setError(''); setMensaje('');
+    const alcance = reporte === 'catalogo' || reporte === 'periodos' ? `anio=${periodo.anio}` : q;
+    const nombre = nombreExportacion(reporte, periodo.anio, periodo.mes, formato);
     try {
-      const res = await api.get(`/contabilidad/exportar/${reporte}?${q}&formato=${formato}`, { responseType: 'blob' });
+      const res = await api.get(`/contabilidad/exportar/${reporte}?${alcance}&formato=${formato}${direccion ? `&direccion=${direccion}` : ''}`, { responseType: 'blob' });
       const url = URL.createObjectURL(res.data as Blob);
       const a = document.createElement('a');
-      a.href = url; a.download = nombreArchivo(res.headers['content-disposition'], `${reporte}.${formato}`);
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    } catch (e) { setError(mensajeError(e, t, t('accounting.export_error'))); }
+      a.href = url; a.download = nombre;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setMensaje(t('accounting.file_ready', { name: nombre }));
+    } catch (e) { setError(await mensajeErrorDescarga(e, t, t('accounting.export_error'))); }
   };
 
-  const reporteDe: Partial<Record<Pestana, string>> = { resumen: 'conciliacion', ventas: 'ventas', compras: 'compras', partida: 'balanza' };
+  // Qué puede descargar cada pantalla. La primera opción de Excel es la principal.
+  const EXPORTACIONES: Partial<Record<Pestana, { excel: string[]; csvPdf?: string }>> = {
+    resumen: { excel: ['conciliacion'], csvPdf: 'isv' },
+    ventas: { excel: ['ventas'], csvPdf: 'ventas' },
+    compras: { excel: ['compras'], csvPdf: 'compras' },
+    documentos: { excel: ['documentos'], csvPdf: 'documentos' },
+    retenciones: { excel: ['retenciones'], csvPdf: 'retenciones' },
+    periodos: { excel: ['periodos'], csvPdf: 'periodos' },
+    partida: { excel: ['diario', 'balanza', 'catalogo'], csvPdf: 'balanza' },
+    ajustes: { excel: ['ajustes'], csvPdf: 'ajustes' },
+  };
+  const exportacion = EXPORTACIONES[pestana];
+  const dirDocumentos = pestana === 'documentos' ? direccionDocs : '';
   const mesValor = `${periodo.anio}-${String(periodo.mes).padStart(2, '0')}`;
 
   return (
@@ -88,9 +107,30 @@ export const ContabilidadPage: React.FC = () => {
           <input className="form-input" type="month" aria-label={t('accounting.period')} value={mesValor} max={diaCalendarioEnZona().slice(0, 7)}
             onChange={e => { const [a, m] = e.target.value.split('-').map(Number); if (a && m) setPeriodo({ anio: a, mes: m }); }} />
         </label>
-        {reporteDe[pestana] && (['csv', 'xlsx', 'pdf'] as const).map(f => (
-          <button key={f} type="button" className="btn btn-secondary" onClick={() => void exportar(reporteDe[pestana]!, f)}>{t(`accounting.export_${f}`)}</button>
-        ))}
+        {pestana === 'documentos' && (
+          <label>{t('accounting.direction')}{' '}
+            <select className="form-input" aria-label={t('accounting.direction')} value={direccionDocs} onChange={e => setDireccionDocs(e.target.value as '' | 'EMITIDO' | 'RECIBIDO')}>
+              <option value="">{t('accounting.both')}</option>
+              <option value="EMITIDO">{t('accounting.issued')}</option>
+              <option value="RECIBIDO">{t('accounting.received')}</option>
+            </select>
+          </label>
+        )}
+        {exportacion && (
+          <>
+            <button type="button" className="btn btn-primary" onClick={() => void exportar(exportacion.excel[0], 'xlsx', dirDocumentos || undefined)}>{t('accounting.export_excel')}</button>
+            {exportacion.excel.slice(1).map(r => (
+              <button key={r} type="button" className="btn btn-secondary" onClick={() => void exportar(r, 'xlsx')}>{t(`accounting.report.${r}`)} · Excel</button>
+            ))}
+            {exportacion.csvPdf && (
+              <>
+                <button type="button" className="btn btn-secondary" disabled={pestana === 'documentos' && !dirDocumentos} onClick={() => void exportar(exportacion.csvPdf!, 'csv', dirDocumentos || undefined)}>{t('accounting.export_csv')}</button>
+                <button type="button" className="btn btn-secondary" disabled={pestana === 'documentos' && !dirDocumentos} onClick={() => void exportar(exportacion.csvPdf!, 'pdf', dirDocumentos || undefined)}>{t('accounting.export_pdf')}</button>
+              </>
+            )}
+          </>
+        )}
+        <button type="button" className="btn btn-secondary" onClick={() => void exportar('mensual', 'xlsx')}>{t('accounting.export_month_book')}</button>
       </div>
       <div role="tablist" aria-label={t('accounting.sections')} className="operation-actions">
         {PESTANAS.map(p => (

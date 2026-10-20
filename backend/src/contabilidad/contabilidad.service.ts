@@ -8,8 +8,9 @@ import {
   limitesPeriodo, normalizarCai, normalizarRtn, periodoDeFecha, periodoValido, seSolapan, tasaVigente, tipoDocumentoValido,
   totalDocumentoCentavos, validarContraCai, verificarIsv,
 } from './fiscal-hn';
-import { conciliacion, huellaLibros, libroCompras, libroVentas, resumenIsv, retencionesPeriodo, zonaDeEmpresa } from './libros';
-import { FORMATOS, Formato, Tabla } from './exportacion';
+import { balanza as balanzaLibro, conciliacion, huellaLibros, libroCompras, libroVentas, resumenIsv, retencionesPeriodo, zonaDeEmpresa } from './libros';
+import { aCsv, aExcel, aPdf, FORMATOS_ADMITIDOS, TIPO_MIME } from './exportacion';
+import { libroExcel, contexto, hojasDeReporte, nombreArchivo, REPORTES, Reporte } from './reportes';
 import { PERMISOS_CONTABILIDAD as P, ROLES_CONTABILIDAD, ROLES_REAPERTURA } from './permisos';
 import type {
   AsientoDto, CaiDto, CerrarVigenciaDto, ConfiguracionFiscalDto, CorreccionDocumentoDto, CuentaDto, DocumentoFiscalDto,
@@ -533,55 +534,28 @@ export class ContabilidadService {
     });
   }
 
-  /** Balanza de comprobación: movimientos del período y saldo acumulado al cierre, por cuenta. */
-  async balanza(tenantId: string, anio: number, mes: number) {
-    const p = periodoValido(anio, mes);
-    const { desde, hasta } = limitesPeriodo(p.anio, p.mes);
-    const filas = await query(this.prisma, `SELECT k.id, k.codigo, k.nombre, k.tipo, k.naturaleza,
-        COALESCE(sum(l.debe) FILTER (WHERE a.fecha BETWEEN $2::date AND $3::date),0) AS debe_periodo,
-        COALESCE(sum(l.haber) FILTER (WHERE a.fecha BETWEEN $2::date AND $3::date),0) AS haber_periodo,
-        COALESCE(sum(l.debe) FILTER (WHERE a.fecha <= $3::date),0) AS debe_acumulado,
-        COALESCE(sum(l.haber) FILTER (WHERE a.fecha <= $3::date),0) AS haber_acumulado
-      FROM contable_cuentas k LEFT JOIN contable_asiento_lineas l ON l.tenant_id=k.tenant_id AND l.cuenta_id=k.id
-      LEFT JOIN contable_asientos a ON a.tenant_id=l.tenant_id AND a.id=l.asiento_id
-      WHERE k.tenant_id=$1 GROUP BY k.id ORDER BY k.codigo`, tenantId, desde, hasta);
-    let td = 0, th = 0;
-    const cuentas = filas.map(k => {
-      const d = c(k.debe_acumulado), h = c(k.haber_acumulado);
-      td += c(k.debe_periodo); th += c(k.haber_periodo);
-      const saldo = k.naturaleza === 'DEUDORA' ? d - h : h - d;
-      return { id: k.id, codigo: k.codigo, nombre: k.nombre, tipo: k.tipo, naturaleza: k.naturaleza, debePeriodo: centavosAImporte(c(k.debe_periodo)), haberPeriodo: centavosAImporte(c(k.haber_periodo)), saldo: (saldo < 0 ? '-' : '') + centavosAImporte(Math.abs(saldo)) };
-    });
-    return { periodo: { anio: p.anio, mes: p.mes, desde, hasta }, cuentas, totales: { debe: centavosAImporte(td), haber: centavosAImporte(th), cuadra: td === th } };
-  }
+  balanza(tenantId: string, anio: number, mes: number) { const p = periodoValido(anio, mes); return balanzaLibro(this.prisma as unknown as Tx, tenantId, p.anio, p.mes); }
 
-  // ---------- Exportación ----------
-  async exportar(tenantId: string, reporte: string, anio: number, mes: number, formato: string) {
-    if (!(formato in FORMATOS)) throw new BadRequestException('Formato no admitido (csv, xlsx o pdf)');
-    const p = periodoValido(anio, mes);
-    const [cfg] = await query(this.prisma, 'SELECT rtn, razon_social FROM fiscal_configuraciones WHERE tenant_id=$1', tenantId);
-    const empresa = cfg ? `${cfg.razon_social}${cfg.rtn ? ` · RTN ${cfg.rtn}` : ''}` : 'Empresa sin configuración fiscal';
-    const periodo = `${p.anio}-${String(p.mes).padStart(2, '0')}`;
-    let tabla: Tabla;
-    const columnasLibro = ['Fecha', 'Tipo', 'Número', 'CAI', 'Contraparte', 'RTN', 'Ref. interna', 'Exento', 'Exonerado', 'Gravado general', 'Gravado especial', 'ISV general', 'ISV especial', 'Total', 'Estado', 'Hallazgos'];
-    const filaLibro = (f: any) => [f.fecha, f.tipoDocumentoNombre ?? (f.origen === 'VENTA' ? 'Venta sin documento' : 'Compra sin documento'), f.numero, f.cai, f.contraparte, f.rtn, f.referenciaInterna,
-      Number(f.importeExento), Number(f.importeExonerado), Number(f.importeGravadoGeneral), Number(f.importeGravadoEspecial), Number(f.isvGeneral), Number(f.isvEspecial), Number(f.total), f.estado, f.hallazgos.join(' ')];
-    const pieLibro = (t: any) => [`Documentos: ${t.documentos} · Gravado general L ${t.importeGravadoGeneral} · ISV general L ${t.isvGeneral} · ISV especial L ${t.isvEspecial} · Total L ${t.total}`,
-      `Operaciones sin documento fiscal (no suman): ${t.sinDocumento.cantidad} · Total L ${t.sinDocumento.total}`];
-    if (reporte === 'ventas') {
-      const l = await libroVentas(this.prisma, tenantId, p.anio, p.mes);
-      tabla = { titulo: `Libro de ventas ${periodo}`, subtitulo: empresa, columnas: columnasLibro, filas: l.filas.map(filaLibro), pie: pieLibro(l.totales) };
-    } else if (reporte === 'compras') {
-      const l = await libroCompras(this.prisma, tenantId, p.anio, p.mes);
-      tabla = { titulo: `Libro de compras ${periodo}`, subtitulo: empresa, columnas: columnasLibro, filas: l.filas.map(filaLibro), pie: pieLibro(l.totales) };
-    } else if (reporte === 'conciliacion') {
-      const r = await conciliacion(this.prisma, tenantId, p.anio, p.mes);
-      tabla = { titulo: `Conciliación fiscal ${periodo}`, subtitulo: `${empresa} · período ${r.estadoPeriodo}`, columnas: ['Libro', 'Hallazgo', 'Referencia', 'Detalle'], filas: r.hallazgos.map(h => [h.libro, h.codigo, h.referencia, h.detalle ?? null]), pie: [`Total de hallazgos: ${r.total}`, `Huella de los libros: ${r.huella}`] };
-    } else if (reporte === 'balanza') {
-      const b = await this.balanza(tenantId, p.anio, p.mes);
-      tabla = { titulo: `Balanza de comprobación ${periodo}`, subtitulo: empresa, columnas: ['Código', 'Cuenta', 'Tipo', 'Debe período', 'Haber período', 'Saldo acumulado'], filas: b.cuentas.map(k => [k.codigo, k.nombre, k.tipo, Number(k.debePeriodo), Number(k.haberPeriodo), Number(k.saldo)]), pie: [`Totales del período: debe L ${b.totales.debe} · haber L ${b.totales.haber}`] };
-    } else throw new BadRequestException('Reporte no admitido (ventas, compras, conciliacion o balanza)');
-    const f = FORMATOS[formato as Formato];
-    return { contenido: f.generar(tabla), tipo: f.tipo, nombre: `${reporte}-${periodo}.${f.extension}` };
+  // ---------- Exportación (Excel principal; CSV y PDF secundarios). No modifica la información contable. ----------
+  async exportar(tenantId: string, usuarioId: string, reporte: string, anio: number, mes: number | undefined, formato: string, direccion?: string) {
+    if (!(REPORTES as readonly string[]).includes(reporte)) throw new BadRequestException('Reporte no admitido');
+    if (!(FORMATOS_ADMITIDOS as string[]).includes(formato)) throw new BadRequestException('Formato no admitido (xlsx, csv o pdf)');
+    if (direccion !== undefined && !['EMITIDO', 'RECIBIDO'].includes(direccion)) throw new BadRequestException('Dirección inválida');
+    if (reporte === 'mensual' && formato !== 'xlsx') throw new BadRequestException('El libro contable del mes se descarga en Excel (.xlsx)');
+    if (reporte === 'documentos' && formato !== 'xlsx' && !direccion) throw new BadRequestException('Para CSV o PDF indique documentos emitidos o recibidos');
+    const periodo = periodoValido(anio, reporte === 'catalogo' || reporte === 'periodos' ? (mes ?? 1) : mes ?? 0);
+    return this.prisma.$transaction(async (tx: any) => {
+      // Una sola instantánea: todas las hojas del archivo muestran el mismo estado de la base.
+      await tx.$executeRawUnsafe("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+      const ctx = await contexto(tx, tenantId, periodo.anio, periodo.mes, usuarioId);
+      const hojas = await hojasDeReporte(tx, ctx, reporte as Reporte, { direccion });
+      await audit(tx, tenantId, usuarioId, 'CONTABILIDAD_EXPORTACION', reporte, { reporte, periodo: `${periodo.anio}-${String(periodo.mes).padStart(2, '0')}`, formato, direccion: direccion ?? null, hojas: hojas.map(h => h.nombre) });
+      const nombre = nombreArchivo(reporte, periodo.anio, periodo.mes, formato);
+      if (formato === 'xlsx') return { contenido: aExcel(libroExcel(ctx, hojas, `${reporte} ${periodo.anio}-${periodo.mes}`)), tipo: TIPO_MIME.xlsx, nombre };
+      const hoja = hojas[0];
+      return formato === 'csv'
+        ? { contenido: aCsv(hoja), tipo: TIPO_MIME.csv, nombre }
+        : { contenido: aPdf(hoja), tipo: TIPO_MIME.pdf, nombre };
+    }, { timeout: 120000 });
   }
 }

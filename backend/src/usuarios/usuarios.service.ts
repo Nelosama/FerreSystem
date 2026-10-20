@@ -5,6 +5,12 @@ import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { authorizedActor,audit,lockTenant } from '../operaciones/ledger';
 import * as bcrypt from 'bcrypt';
 import { revocarSesionesDeSujeto } from '../auth/sesiones-auth';
+/** Un CONTADOR nuevo solo consulta hasta que el administrador le concede más (mínimo privilegio). */
+export function permisosIniciales(rol: string | undefined, permisos: string[] | undefined) {
+  if (permisos !== undefined) return { permisos, permisosConfigurados: true };
+  if (rol === 'CONTADOR') return { permisos: ['contabilidad.ver'], permisosConfigurados: true };
+  return { permisos: [], permisosConfigurados: false };
+}
 const select={id:true,tenantId:true,nombre:true,email:true,rol:true,activo:true,permisos:true,permisosConfigurados:true,descuentoMaximo:true,createdAt:true,updatedAt:true} as const;
 @Injectable()
 export class UsuariosService {
@@ -24,7 +30,7 @@ export class UsuariosService {
    await lockTenant(tx,tenantId);
    await this.authorize(tx,tenantId,actorId,plataforma);
    if(await tx.usuario.findFirst({where:{tenantId,email}}))throw new ConflictException('Ya existe un usuario con este correo electrónico');
-   const user=await tx.usuario.create({data:{tenantId,nombre:dto.nombre.trim(),email,passwordHash,rol:dto.rol||'CAJERO',permisos:dto.permisos||[],permisosConfigurados:dto.permisos!==undefined,descuentoMaximo:dto.descuentoMaximo??0,activo:dto.activo??true},select});
+   const user=await tx.usuario.create({data:{tenantId,nombre:dto.nombre.trim(),email,passwordHash,rol:dto.rol||'CAJERO',...permisosIniciales(dto.rol,dto.permisos),descuentoMaximo:dto.descuentoMaximo??0,activo:dto.activo??true},select});
    await audit(tx,tenantId,actorId,'USUARIO_CREAR',user.id,{usuario:user});return user;
   });
  }
@@ -44,6 +50,7 @@ export class UsuariosService {
    if(dto.nombre!==undefined)data.nombre=dto.nombre.trim();if(email!==undefined)data.email=email;if(passwordHash)data.passwordHash=passwordHash;
    if(dto.rol!==undefined)data.rol=dto.rol;if(dto.activo!==undefined)data.activo=dto.activo;
    if(dto.permisos!==undefined){data.permisos=dto.permisos;data.permisosConfigurados=true;}
+   else if(dto.rol==='CONTADOR'&&old.rol!=='CONTADOR'){data.permisos=['contabilidad.ver'];data.permisosConfigurados=true;}
    if(dto.descuentoMaximo!==undefined)data.descuentoMaximo=dto.descuentoMaximo;
    const user=await tx.usuario.update({where:{id},data,select});
    // Cambio de contraseña o desactivación: se cierran todas las sesiones abiertas del usuario.

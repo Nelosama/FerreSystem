@@ -22,6 +22,9 @@ import { ProductosController } from '../src/productos/productos.controller';
 import { ProductosService } from '../src/productos/productos.service';
 import { ClientesController } from '../src/clientes/clientes.controller';
 import { ClientesService } from '../src/clientes/clientes.service';
+import { UsuariosController } from '../src/usuarios/usuarios.controller';
+import { UsuariosService } from '../src/usuarios/usuarios.service';
+import { leerZipXlsx, nombresHojas, celda, textosHoja } from './helpers/xlsx-lector';
 
 // Contabilidad y Control Tributario contra PostgreSQL real: clúster temporal y cadena completa de migraciones.
 // Guards reales (módulo por empresa, empresa, rol y permiso); solo la verificación del JWT se sustituye por la
@@ -98,9 +101,9 @@ describe('Contabilidad Honduras / PostgreSQL aislado', () => {
     }
 
     const module = await Test.createTestingModule({
-      controllers: [ContabilidadController, VentasController, OperacionesController, ProductosController, ClientesController],
+      controllers: [ContabilidadController, VentasController, OperacionesController, ProductosController, ClientesController, UsuariosController],
       providers: [
-        ContabilidadService, VentasService, OperacionesService, ProductosService, ClientesService,
+        ContabilidadService, VentasService, OperacionesService, ProductosService, ClientesService, UsuariosService,
         { provide: PrismaService, useValue: prisma },
         { provide: APP_GUARD, useClass: TenantModuleGuard },
       ],
@@ -279,8 +282,8 @@ describe('Contabilidad Honduras / PostgreSQL aislado', () => {
     expect(rev.reversion.numero).toBe(2);
     await como(u.contadorA).post(`/contabilidad/asientos/${asiento.id}/revertir`, { fecha: '2026-09-30', motivo: 'De nuevo' }).expect(409);
     const balanza = (await como(u.contadorA).get(`/contabilidad/balanza?${periodo}`).expect(200)).body;
-    expect(balanza.totales).toEqual({ debe: '2300.00', haber: '2300.00', cuadra: true });
-    expect(balanza.cuentas.find((k: any) => k.codigo === '1.1').saldo).toBe('0.00');
+    expect(balanza.totales).toEqual({ debe: 2300, haber: 2300, cuadra: true });
+    expect(balanza.cuentas.find((k: any) => k.codigo === '1.1').saldo).toBe(0);
     // Otra empresa no puede usar cuentas de A.
     await sql("INSERT INTO tenant_modules (id,tenant_id,module_key,enabled,updated_at) VALUES ($1,$2,'contabilidad',true,NOW()) ON CONFLICT (tenant_id,module_key) DO UPDATE SET enabled=true", randomUUID(), B);
     await como(u.contadorB).post('/contabilidad/asientos', { fecha: '2026-09-30', concepto: 'Ajeno', lineas: [{ cuentaId: efectivo.id, debe: 1 }, { cuentaId: ingresos.id, haber: 1 }] }).expect(404);
@@ -339,5 +342,155 @@ describe('Contabilidad Honduras / PostgreSQL aislado', () => {
     await expect(ops.ajustar(A, u.contadorA, randomUUID(), { cantidad: 1, motivo: 'x' } as any)).rejects.toThrow(/rol|permiso/i);
     const [{ n }] = await sql('SELECT count(*)::int AS n FROM cajas WHERE tenant_id=$1', A);
     expect(n).toBe(0);
+  });
+
+  // ---------- Excel, rol CONTADOR administrado por ADMIN y aislamiento de exportaciones ----------
+  const descargar = (ruta: string, usuario: string) => request(app.getHttpServer()).get(ruta).set('x-prueba-usuario', usuario).buffer(true).parse((res, cb) => {
+    const partes: Buffer[] = [];
+    res.on('data', (d: Buffer) => partes.push(d));
+    res.on('end', () => cb(null, Buffer.concat(partes)));
+  });
+
+  it('el ADMIN crea usuarios CONTADOR de su empresa; el CONTADOR no administra usuarios', async () => {
+    const nuevo = await como(u.adminA).post('/usuarios', { nombre: 'Contador Nuevo', email: 'contador.nuevo@example.invalid', password: 'Contador-2026-seguro', rol: 'CONTADOR' }).expect(201);
+    expect(nuevo.body).toMatchObject({ rol: 'CONTADOR', permisos: ['contabilidad.ver'], permisosConfigurados: true });
+    // Mínimo privilegio: el nuevo contador solo consulta; registrar, configurar o cerrar exigen concesión.
+    tenantDe[nuevo.body.id] = A; rolDe[nuevo.body.id] = 'CONTADOR';
+    permisosDe[nuevo.body.id] = { permisos: ['contabilidad.ver'], permisosConfigurados: true };
+    await como(nuevo.body.id).get('/contabilidad/configuracion').expect(200);
+    await como(nuevo.body.id).put('/contabilidad/configuracion', { razonSocial: 'X', agenteRetencion: false, motivo: 'intento' }).expect(403);
+    await como(nuevo.body.id).post('/contabilidad/periodos/2026/9/cerrar', { motivo: 'intento' }).expect(403);
+    await como(u.contadorA).post('/usuarios', { nombre: 'Otro', email: 'otro@example.invalid', password: 'Contador-2026-seguro', rol: 'CONTADOR' }).expect(403);
+    await como(u.cajeroA).post('/usuarios', { nombre: 'Otro', email: 'otro2@example.invalid', password: 'Contador-2026-seguro', rol: 'CONTADOR' }).expect(403);
+    // Un CONTADOR de la empresa B no aparece en la lista de la empresa A.
+    const lista = await como(u.adminA).get('/usuarios').expect(200);
+    expect(lista.body.some((x: any) => x.id === u.adminB)).toBe(false);
+  });
+
+  it('exportación Excel por defecto con nombre de archivo y cabeceras para navegadores de otro origen', async () => {
+    const res = await descargar(`/contabilidad/exportar/ventas?${periodo}`, u.contadorA).expect(200);
+    expect(res.headers['content-type']).toContain('spreadsheetml');
+    expect(res.headers['content-disposition']).toContain('ventas-2026-09.xlsx');
+    expect(res.headers['access-control-expose-headers']).toBe('Content-Disposition');
+    const archivos = leerZipXlsx(res.body as Buffer);
+    expect(nombresHojas(archivos)).toEqual(['Ventas']);
+    expect(textosHoja(archivos, 1).some(t => t === 'Empresa: Ferretería A')).toBe(true);
+    expect(textosHoja(archivos, 1).some(t => t === 'RTN: 08012000000001')).toBe(true);
+  });
+
+  it('libro contable del mes: un archivo con hojas separadas, en el orden del contador', async () => {
+    const res = await descargar(`/contabilidad/exportar/mensual?${periodo}&formato=xlsx`, u.contadorA).expect(200);
+    expect(res.headers['content-disposition']).toContain('libro-contable-2026-09.xlsx');
+    const archivos = leerZipXlsx(res.body as Buffer);
+    expect(nombresHojas(archivos)).toEqual(['Resumen general', 'Ventas', 'Compras', 'ISV', 'Retenciones', 'Documentos emitidos', 'Documentos recibidos', 'Conciliación', 'Hallazgos', 'Libro diario', 'Balanza de comprobación']);
+    // El resumen indica expresamente lo que falta y no inventa valores.
+    const resumen = textosHoja(archivos, 1);
+    expect(resumen.some(t => t.startsWith('Razón social:'))).toBe(true);
+    expect(resumen.some(t => t === 'Reglas de retención registradas')).toBe(true);
+    expect(resumen.some(t => t.includes('Lo siguiente falta'))).toBe(true);
+  });
+
+  it('las cifras del Excel coinciden con los libros de la pantalla (totales con fórmula)', async () => {
+    const libroPantalla = (await como(u.contadorA).get(`/contabilidad/libros/ventas?${periodo}`).expect(200)).body;
+    const xlsx = leerZipXlsx((await descargar(`/contabilidad/exportar/ventas?${periodo}`, u.contadorA).expect(200)).body as Buffer);
+    const etiqueta = textosHoja(xlsx, 1).findIndex(t => t.startsWith('Total del libro'));
+    expect(etiqueta).toBeGreaterThanOrEqual(0);
+    // Columna del total con IVA (O) en la fila de totales: fórmula SUMPRODUCT con el valor calculado por el servidor.
+    const filaTotales = [...xlsx['xl/worksheets/sheet1.xml'].matchAll(/<row r="(\d+)"><c r="A\1" s="9"/g)].map(m => Number(m[1]))[0];
+    const total = celda(xlsx, 1, `O${filaTotales}`);
+    expect(total?.formula).toContain('SUMPRODUCT');
+    expect(total?.numero).toBeCloseTo(Number(libroPantalla.totales.total), 2);
+    const isvCelda = celda(xlsx, 1, `M${filaTotales}`);
+    expect(isvCelda?.numero).toBeCloseTo(Number(libroPantalla.totales.isvGeneral) + Number(libroPantalla.totales.isvEspecial), 2);
+  });
+
+  it('nota de crédito y anulados: el Excel aplica el signo como la pantalla', async () => {
+    const xlsx = leerZipXlsx((await descargar(`/contabilidad/exportar/documentos?${periodo}&direccion=EMITIDO`, u.contadorA).expect(200)).body as Buffer);
+    const textos = textosHoja(xlsx, 1);
+    expect(textos).toContain('000-001-06-00000001');
+    // La fila de la nota de crédito tiene efecto −1 en el libro.
+    const filaNota = [...xlsx['xl/worksheets/sheet1.xml'].matchAll(/<row r="(\d+)">(.*?)<\/row>/g)].find(m => m[2].includes('000-001-06-00000001'))!;
+    const efecto = /<c r="O\d+"[^>]*><v>(-?\d+)<\/v>/.exec(filaNota[2]);
+    expect(efecto?.[1]).toBe('-1');
+  });
+
+  it('descarga en CSV y PDF desde los mismos datos; documentos exigen emitidos o recibidos', async () => {
+    const csv = await descargar(`/contabilidad/exportar/compras?${periodo}&formato=csv`, u.contadorA).expect(200);
+    expect(csv.headers['content-type']).toContain('text/csv');
+    expect(csv.body.toString('utf8')).toContain('RTN: 08012000000001');
+    const pdf = await descargar(`/contabilidad/exportar/conciliacion?${periodo}&formato=pdf`, u.adminA).expect(200);
+    expect((pdf.body as Buffer).subarray(0, 5).toString()).toBe('%PDF-');
+    await como(u.contadorA).get(`/contabilidad/exportar/documentos?${periodo}&formato=csv`).expect(400);
+    await como(u.contadorA).get(`/contabilidad/exportar/mensual?${periodo}&formato=pdf`).expect(400);
+    await como(u.contadorA).get(`/contabilidad/exportar/ventas?${periodo}&formato=doc`).expect(400);
+    await como(u.contadorA).get(`/contabilidad/exportar/inventado?${periodo}`).expect(400);
+  });
+
+  it('datos vacíos y empresa sin configuración fiscal: se indica, sin ceros inventados', async () => {
+    // La empresa B no registró datos fiscales ni documentos en el período.
+    await sql("INSERT INTO tenant_modules (id,tenant_id,module_key,enabled,updated_at) VALUES ($1,$2,'contabilidad',true,NOW()) ON CONFLICT (tenant_id,module_key) DO UPDATE SET enabled=true", randomUUID(), B);
+    const xlsx = leerZipXlsx((await descargar(`/contabilidad/exportar/mensual?anio=2019&mes=3`, u.contadorB).expect(200)).body as Buffer);
+    const resumen = textosHoja(xlsx, 1);
+    expect(resumen).toContain('RTN: NO REGISTRADO (complete los datos fiscales de la empresa)');
+    expect(resumen.some(t => t === 'Tasa general de ISV vigente en el período')).toBe(true);
+    expect(resumen).toContain('NO CONFIGURADA');
+    expect(resumen).toContain('NO CONFIGURADO');
+    expect(resumen).toContain('NO REGISTRADAS');
+    expect(resumen.some(t => t.startsWith('No hay registros en el período'))).toBe(false);
+    // El RTN ausente no se sustituye por cero ni por texto vacío.
+    const filaRtn = [...xlsx['xl/worksheets/sheet1.xml'].matchAll(/<row r="(\d+)">(.*?)<\/row>/g)].find(m => m[2].includes('>RTN de la empresa<'));
+    expect(filaRtn).toBeTruthy();
+    expect(filaRtn![2]).toContain('NO REGISTRADO');
+  });
+
+  it('aislamiento: el libro de una empresa nunca incluye datos de otra', async () => {
+    const xlsxA = leerZipXlsx((await descargar(`/contabilidad/exportar/mensual?${periodo}`, u.contadorA).expect(200)).body as Buffer);
+    const xlsxB = leerZipXlsx((await descargar(`/contabilidad/exportar/mensual?${periodo}`, u.contadorB).expect(200)).body as Buffer);
+    const todoA = Object.values(xlsxA).join('\n');
+    const todoB = Object.values(xlsxB).join('\n');
+    expect(todoA).toContain('Ferretería A');
+    expect(todoA).not.toContain('Ferretería B');
+    expect(todoB).toContain('Ferretería B');
+    expect(todoB).not.toContain('Ferretería A');
+    expect(todoB).not.toContain('08012000000001');
+    expect(todoB).not.toContain('000-001-01-00000001');
+    expect(todoB).not.toContain('Distribuidora Uno');
+  });
+
+  it('las descargas no alteran la información contable', async () => {
+    const contar = async () => (await sql(`SELECT
+      (SELECT count(*) FROM fiscal_documentos WHERE tenant_id=$1)::int AS documentos,
+      (SELECT count(*) FROM fiscal_retenciones WHERE tenant_id=$1)::int AS retenciones,
+      (SELECT count(*) FROM fiscal_ajustes WHERE tenant_id=$1)::int AS ajustes,
+      (SELECT count(*) FROM contable_asientos WHERE tenant_id=$1)::int AS asientos,
+      (SELECT count(*) FROM contable_asiento_lineas WHERE tenant_id=$1)::int AS lineas,
+      (SELECT count(*) FROM ventas WHERE tenant_id=$1)::int AS ventas,
+      (SELECT COALESCE(sum(total),0)::text FROM ventas WHERE tenant_id=$1) AS total_ventas,
+      (SELECT COALESCE(sum(total),0)::text FROM fiscal_documentos WHERE tenant_id=$1) AS total_documentos`, A))[0];
+    const antes = await contar();
+    for (const r of ['ventas', 'compras', 'isv', 'retenciones', 'documentos', 'conciliacion', 'diario', 'balanza', 'periodos', 'ajustes', 'catalogo', 'mensual']) {
+      await descargar(`/contabilidad/exportar/${r}?${periodo}&direccion=EMITIDO`, u.contadorA).expect(200);
+    }
+    expect(await contar()).toEqual(antes);
+    // Cada descarga deja rastro de quién la hizo (bitácora de solo lectura del negocio).
+    const rastros = await sql("SELECT count(*)::int AS n FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='CONTABILIDAD_EXPORTACION'", A);
+    expect(rastros[0].n).toBeGreaterThanOrEqual(12);
+  });
+
+  it('inyección de fórmulas con datos reales: un nombre que empieza por = queda como texto', async () => {
+    const doc = await como(u.contadorA).post('/contabilidad/documentos', { direccion: 'RECIBIDO', tipoDocumento: '01', numero: '002-002-01-00000001', cai: 'PROV-CAI-XYZ', fechaEmision: '2026-09-06', rtnContraparte: '08019000000001', nombreContraparte: '=HYPERLINK("http://malicioso.example")', importeGravadoGeneral: 100, isvGeneral: 15 }).expect(201);
+    expect(doc.body.id).toBeTruthy();
+    const xlsx = leerZipXlsx((await descargar(`/contabilidad/exportar/documentos?${periodo}&direccion=RECIBIDO`, u.contadorA).expect(200)).body as Buffer);
+    const hojaXml = xlsx['xl/worksheets/sheet1.xml'];
+    expect(hojaXml).not.toMatch(/<f>HYPERLINK/);
+    expect(textosHoja(xlsx, 1)).toContain(`'=HYPERLINK("http://malicioso.example")`);
+    const csv = await descargar(`/contabilidad/exportar/documentos?${periodo}&direccion=RECIBIDO&formato=csv`, u.contadorA).expect(200);
+    expect(csv.body.toString('utf8')).toContain(`'=HYPERLINK`);
+  });
+
+  it('el CONTADOR sin permiso de consulta no descarga información contable', async () => {
+    const sinPermiso = 'contador-sin-permiso';
+    tenantDe[sinPermiso] = A; rolDe[sinPermiso] = 'CONTADOR'; permisosDe[sinPermiso] = { permisos: [], permisosConfigurados: true };
+    await como(sinPermiso).get(`/contabilidad/exportar/ventas?${periodo}`).expect(403);
   });
 });

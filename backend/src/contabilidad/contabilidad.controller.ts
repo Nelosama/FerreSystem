@@ -45,11 +45,14 @@ export class ContabilidadController {
   @Get('resumen-isv') @RequiredPermission(P.ver) resumenIsv(@TenantId() t: string, @Query('anio', ParseIntPipe) anio: number, @Query('mes', ParseIntPipe) mes: number) { return this.service.resumenIsv(t, anio, mes); }
   @Get('conciliacion') @RequiredPermission(P.ver) conciliacion(@TenantId() t: string, @Query('anio', ParseIntPipe) anio: number, @Query('mes', ParseIntPipe) mes: number) { return this.service.conciliacion(t, anio, mes); }
   @Get('ajustes') @RequiredPermission(P.ver) ajustes(@TenantId() t: string, @Query('anio', ParseIntPipe) anio: number, @Query('mes', ParseIntPipe) mes: number) { return this.service.ajustes(t, anio, mes); }
+  // Formato por defecto: Excel. CSV y PDF son alternativas; el libro del mes solo existe en Excel.
   @Get('exportar/:reporte') @RequiredPermission(P.ver)
-  async exportar(@TenantId() t: string, @Param('reporte') reporte: string, @Query('anio', ParseIntPipe) anio: number, @Query('mes', ParseIntPipe) mes: number, @Query('formato') formato: string, @Res() res: Response) {
-    const archivo = await this.service.exportar(t, reporte, anio, mes, formato);
+  async exportar(@TenantId() t: string, @CurrentUser('sub') u: string, @Param('reporte') reporte: string, @Query('anio', ParseIntPipe) anio: number, @Query('mes') mes: string | undefined, @Query('formato') formato: string | undefined, @Query('direccion') direccion: string | undefined, @Res() res: Response) {
+    const archivo = await this.service.exportar(t, u, reporte, anio, mes === undefined || mes === '' ? undefined : Number(mes), formato || 'xlsx', direccion || undefined);
     res.setHeader('Content-Type', archivo.tipo);
     res.setHeader('Content-Disposition', `attachment; filename="${archivo.nombre}"`);
+    // Sin esto, un navegador en otro origen no puede leer el nombre del archivo.
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
     res.setHeader('Cache-Control', 'no-store');
     res.send(archivo.contenido);
   }

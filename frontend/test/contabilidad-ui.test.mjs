@@ -60,7 +60,7 @@ test('Usuarios ofrece el rol CONTADOR con permisos de contabilidad y sin descuen
   const src = fs.readFileSync('src/pages/UsuariosPage.tsx', 'utf8');
   assert.match(src, /<option value="CONTADOR">CONTADOR<\/option>/);
   const bloque = src.slice(src.indexOf('CONTADOR: {'), src.indexOf('};', src.indexOf('CONTADOR: {')));
-  assert.match(bloque, /'contabilidad\.ver', 'contabilidad\.registrar', 'contabilidad\.configurar', 'contabilidad\.cerrar_periodo'/);
+  assert.match(bloque, /permisos: \['contabilidad\.ver', 'contabilidad\.registrar'\]/);
   assert.match(bloque, /descuentoMaximo: 0/);
   assert.doesNotMatch(bloque, /pos\.|inventario\.|caja\./);
   for (const p of ['perm_cont_ver', 'perm_cont_registrar', 'perm_cont_configurar', 'perm_cont_cerrar']) assert.ok(es.users[p], p);
@@ -103,4 +103,20 @@ test('el inicio del CONTADOR lleva a Contabilidad y la ruta exige módulo, rol y
   const guard = fs.readFileSync('src/components/ProtectedRoute.tsx', 'utf8');
   assert.match(guard, /pathname === '\/' && user\.rol === 'CONTADOR'\) return <Navigate to="\/contabilidad" replace \/>/);
   assert.match(app, /path="\/contabilidad" element=\{<ProtectedRoute allowedRoles=\{\['ADMIN', 'CONTADOR'\]\} requiredModule="contabilidad" requiredPermiso="contabilidad.ver">/);
+});
+
+test('nombre de archivo calculado en el cliente (no depende de la cabecera del servidor)', () => {
+  assert.equal(u.nombreExportacion('ventas', 2026, 9, 'csv'), 'ventas-2026-09.csv');
+  assert.equal(u.nombreExportacion('ventas', 2026, 9, 'xlsx'), 'ventas-2026-09.xlsx');
+  assert.equal(u.nombreExportacion('mensual', 2026, 9, 'xlsx'), 'libro-contable-2026-09.xlsx');
+  assert.equal(u.nombreExportacion('catalogo', 2026, 9, 'xlsx'), 'catalogo-2026.xlsx');
+  assert.equal(u.nombreExportacion('periodos', 2026, 1, 'pdf'), 'periodos-2026.pdf');
+});
+
+test('errores de descarga (blob) muestran el mensaje del servidor', async () => {
+  const blob = new Blob([JSON.stringify({ message: 'El libro contable del mes se descarga en Excel (.xlsx)' })], { type: 'application/json' });
+  const msg = await u.mensajeErrorDescarga({ response: { data: blob } }, t, 'x');
+  assert.equal(msg, 'El libro contable del mes se descarga en Excel (.xlsx)');
+  assert.equal(await u.mensajeErrorDescarga({ response: { data: new Blob(['no json']) } }, t, 'respaldo'), 'respaldo');
+  assert.equal(await u.mensajeErrorDescarga({}, t, 'sin red'), es.accounting.network_error);
 });

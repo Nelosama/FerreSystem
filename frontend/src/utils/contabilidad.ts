@@ -64,3 +64,28 @@ export function mensajeError(err: any, t: (k: string) => string, respaldo: strin
   if (!err?.response) return t('accounting.network_error');
   return `${base || respaldo}${hallazgos}`;
 }
+
+export type FormatoDescarga = 'xlsx' | 'csv' | 'pdf';
+
+/**
+ * Nombre del archivo descargado. Lo calcula el cliente con el mismo criterio que el servidor: así no depende de que
+ * el navegador pueda leer la cabecera Content-Disposition (no siempre está expuesta entre orígenes).
+ */
+export function nombreExportacion(reporte: string, anio: number, mes: number, formato: FormatoDescarga): string {
+  const base = reporte === 'mensual' ? 'libro-contable' : reporte;
+  const periodo = `${anio}-${String(mes).padStart(2, '0')}`;
+  return reporte === 'catalogo' || reporte === 'periodos' ? `${base}-${anio}.${formato}` : `${base}-${periodo}.${formato}`;
+}
+
+/** Los errores de una descarga llegan como blob: se leen como JSON para mostrar el mensaje del servidor. */
+export async function mensajeErrorDescarga(err: any, t: (k: string) => string, respaldo: string): Promise<string> {
+  const data = err?.response?.data;
+  if (typeof data?.text === 'function') {
+    try {
+      const json = JSON.parse(await data.text());
+      const base = Array.isArray(json?.message) ? json.message.join(', ') : json?.message;
+      return base || respaldo;
+    } catch { return respaldo; }
+  }
+  return mensajeError(err, t, respaldo);
+}

@@ -1259,7 +1259,6 @@
     "camera": "Cámara",
     "default_camera": "Cámara predeterminada",
     "camera_number": "Cámara {number}",
-
     "manual": "Introducir código manualmente",
     "manual_hint": "Introduzca el código en el campo del formulario.",
     "interrupted": "Cámara detenida al salir de la aplicación. Pulse Leer código con cámara para continuar.",
@@ -1836,6 +1835,24 @@
       "SIN_RTN_EMPRESA": "La empresa no tiene RTN configurado",
       "SIN_TASA_GENERAL_VIGENTE": "Sin tasa general vigente en el período",
       "LIBRO_CAMBIO_TRAS_CIERRE": "Los libros cambiaron después del cierre"
+    },
+    "export_excel": "Exportar a Excel",
+    "export_month_book": "Libro contable del mes (Excel)",
+    "file_ready": "Archivo descargado: {name}",
+    "both": "Emitidos y recibidos",
+    "report": {
+      "conciliacion": "Conciliación e hallazgos",
+      "ventas": "Libro de ventas",
+      "compras": "Libro de compras",
+      "isv": "Resumen de ISV",
+      "retenciones": "Retenciones",
+      "documentos": "Documentos fiscales",
+      "diario": "Libro diario",
+      "balanza": "Balanza de comprobación",
+      "catalogo": "Catálogo de cuentas",
+      "periodos": "Períodos y cierres",
+      "ajustes": "Ajustes y trazabilidad",
+      "mensual": "Libro contable del mes"
     }
   }
 }

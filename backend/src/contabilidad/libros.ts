@@ -302,3 +302,24 @@ export async function conciliacion(db: Db, tenantId: string, anio: number, mes: 
   return { periodo: ventas.periodo, estadoPeriodo: periodo?.estado ?? 'ABIERTO', huella, total: hallazgos.length, porCodigo, hallazgos };
 }
 
+
+/** Balanza de comprobación del período: movimientos del mes y saldo acumulado al cierre, por cuenta. */
+export async function balanza(db: Tx, tenantId: string, anio: number, mes: number) {
+  const { desde, hasta } = limitesPeriodo(anio, mes);
+  const filas = await query(db, `SELECT k.id, k.codigo, k.nombre, k.tipo, k.naturaleza,
+      COALESCE(sum(l.debe) FILTER (WHERE a.fecha BETWEEN $2::date AND $3::date),0) AS debe_periodo,
+      COALESCE(sum(l.haber) FILTER (WHERE a.fecha BETWEEN $2::date AND $3::date),0) AS haber_periodo,
+      COALESCE(sum(l.debe) FILTER (WHERE a.fecha <= $3::date),0) AS debe_acumulado,
+      COALESCE(sum(l.haber) FILTER (WHERE a.fecha <= $3::date),0) AS haber_acumulado
+    FROM contable_cuentas k LEFT JOIN contable_asiento_lineas l ON l.tenant_id=k.tenant_id AND l.cuenta_id=k.id
+    LEFT JOIN contable_asientos a ON a.tenant_id=l.tenant_id AND a.id=l.asiento_id
+    WHERE k.tenant_id=$1 GROUP BY k.id ORDER BY k.codigo`, tenantId, desde, hasta);
+  let td = 0, th = 0;
+  const cuentas = filas.map(k => {
+    const d = c(k.debe_acumulado), h = c(k.haber_acumulado);
+    td += c(k.debe_periodo); th += c(k.haber_periodo);
+    const saldo = k.naturaleza === 'DEUDORA' ? d - h : h - d;
+    return { id: k.id as string, codigo: k.codigo as string, nombre: k.nombre as string, tipo: k.tipo as string, naturaleza: k.naturaleza as string, debePeriodo: c(k.debe_periodo) / 100, haberPeriodo: c(k.haber_periodo) / 100, saldo: saldo / 100 };
+  });
+  return { periodo: { anio, mes, desde, hasta }, cuentas, totales: { debe: td / 100, haber: th / 100, cuadra: td === th } };
+}
