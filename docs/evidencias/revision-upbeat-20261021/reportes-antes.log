@@ -13,7 +13,7 @@ Running 4 tests using 1 worker
   ✘  4 e2e/reportes-cajero-simulado.spec.ts:87:1 › inglés: métodos traducidos y CSV con los mismos importes y encabezados (7.3s)
 
 
-  1) e2e/reportes-cajero-simulado.spec.ts:66:3 › Reportes: ventas por cajero (simulado) › con un servidor sin la dimensión por cajero, la página sigue funcionando y lo indica 
+  1) e2e/reportes-cajero-simulado.spec.ts:66:3 › Reportes: ventas por cajero (simulado) › con un servidor sin la dimensión por cajero, la página sigue funcionando y lo indica
 
     Error: expect(locator).toContainText(expected) failed
 
@@ -40,7 +40,7 @@ Running 4 tests using 1 worker
 
     Error Context: test-results/reportes-cajero-simulado-R-11a9b-gue-funcionando-y-lo-indica/error-context.md
 
-  2) e2e/reportes-cajero-simulado.spec.ts:87:1 › inglés: métodos traducidos y CSV con los mismos importes y encabezados 
+  2) e2e/reportes-cajero-simulado.spec.ts:87:1 › inglés: métodos traducidos y CSV con los mismos importes y encabezados
 
     Error: expect(locator).toBeVisible() failed
 
@@ -66,6 +66,6 @@ Running 4 tests using 1 worker
     Error Context: test-results/reportes-cajero-simulado-i-0366d-smos-importes-y-encabezados/error-context.md
 
   2 failed
-    e2e/reportes-cajero-simulado.spec.ts:66:3 › Reportes: ventas por cajero (simulado) › con un servidor sin la dimensión por cajero, la página sigue funcionando y lo indica 
-    e2e/reportes-cajero-simulado.spec.ts:87:1 › inglés: métodos traducidos y CSV con los mismos importes y encabezados 
+    e2e/reportes-cajero-simulado.spec.ts:66:3 › Reportes: ventas por cajero (simulado) › con un servidor sin la dimensión por cajero, la página sigue funcionando y lo indica
+    e2e/reportes-cajero-simulado.spec.ts:87:1 › inglés: métodos traducidos y CSV con los mismos importes y encabezados
   2 passed (31.9s)

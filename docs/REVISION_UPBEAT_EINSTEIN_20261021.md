@@ -51,7 +51,7 @@ No hay una segunda implementación funcional que deba sustituir a la de main. Se
 
 La falla del piloto es el caso offline 2 de contingencia; los casos 3–15 de esa secuencia no corren tras él. No se cuenta esa parte como aprobada. La misma falla se reproduce en main (1 aprobada / 1 fallida), véase abajo. El resto de ventas, inventario, reportes, caja, roles y aislamiento ejecutado sí pasa.
 
-Comandos: [evidencias/revision-upbeat-20261021/COMANDOS.md](evidencias/revision-upbeat-20261021/COMANDOS.md). **NEXUS:** clústeres locales efímeros, migraciones reales y usuario sin privilegios; sin base externa. Los checks del SHA publicado y el veredicto final se mantienen en la descripción del PR de esta rama; este informe registra la evidencia local.
+Comandos: [evidencias/revision-upbeat-20261021/COMANDOS.md](evidencias/revision-upbeat-20261021/COMANDOS.md). **NEXUS:** clústeres locales efímeros, migraciones reales y usuario sin privilegios; sin base externa. Los checks del SHA publicado y el veredicto final se mantienen en la descripción del [PR #185](https://github.com/Nelosama/FerreSystem/pull/185); este informe registra la evidencia local.
 
 ## Incidencias del entorno de prueba
 

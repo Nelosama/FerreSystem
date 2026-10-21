@@ -244,7 +244,7 @@ offline-emulation {"navegador":"151.0.7922.173","ejecutable":"/usr/bin/chromium"
   ✓  226 [chromium] › e2e/session-lifecycle.spec.ts:160:1 › timeout de validación ofrece reintentar sin esperar un minuto ni cerrar sesión (11.9s)
 
 
-  1) [chromium] › e2e/offline-emulation.spec.ts:9:1 › el emulador offline conserva navigator.onLine tras recargar desde un service worker 
+  1) [chromium] › e2e/offline-emulation.spec.ts:9:1 › el emulador offline conserva navigator.onLine tras recargar desde un service worker
 
     Error: Emulación offline incoherente en 151.0.7922.173: la API sigue bloqueada, pero navigator.onLine cambió al recargar. Use el Chromium instalado por esta versión de Playwright (npx playwright install chromium); no fuerce navigator.onLine ni omita esta prueba.
 
@@ -286,5 +286,5 @@ offline-emulation {"navegador":"151.0.7922.173","ejecutable":"/usr/bin/chromium"
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
   1 failed
-    [chromium] › e2e/offline-emulation.spec.ts:9:1 › el emulador offline conserva navigator.onLine tras recargar desde un service worker 
+    [chromium] › e2e/offline-emulation.spec.ts:9:1 › el emulador offline conserva navigator.onLine tras recargar desde un service worker
   227 passed (9.5m)

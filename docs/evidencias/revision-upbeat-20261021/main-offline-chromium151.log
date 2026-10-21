@@ -22,7 +22,7 @@ Running 2 tests using 1 worker
   ✘  2 [chromium] › e2e-real/contingencia-real.spec.ts:185:3 › POS offline de contingencia — backend real › 2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar (12.0s)
 
 
-  1) [chromium] › e2e-real/contingencia-real.spec.ts:185:3 › POS offline de contingencia — backend real › 2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar 
+  1) [chromium] › e2e-real/contingencia-real.spec.ts:185:3 › POS offline de contingencia — backend real › 2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar
 
     Error: expect(locator).toBeVisible() failed
 
@@ -62,5 +62,5 @@ Running 2 tests using 1 worker
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
   1 failed
-    [chromium] › e2e-real/contingencia-real.spec.ts:185:3 › POS offline de contingencia — backend real › 2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar 
+    [chromium] › e2e-real/contingencia-real.spec.ts:185:3 › POS offline de contingencia — backend real › 2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar
   1 passed (34.3s)
