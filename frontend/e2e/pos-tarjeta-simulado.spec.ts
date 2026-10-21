@@ -82,4 +82,40 @@ test.describe('Cobro con tarjeta en el POS (simulado)', () => {
     await expect(page.getByLabel('Autorización bancaria')).toHaveCount(0);
     expect(sim.ventas).toEqual([]);
   });
+
+  test('efectivo: calcula el cambio en pantalla y en el comprobante sin enviarlo al servidor', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    const recibido = page.getByLabel('Efectivo recibido');
+    const vuelto = page.getByTestId('pos-vuelto');
+    await recibido.fill('100');
+    await expect(vuelto).toHaveText(/Falta: L\.? ?15\.00/);
+    await recibido.fill('abc');
+    await expect(vuelto).toContainText('Escriba un importe válido');
+    await recibido.fill('200,50');
+    await expect(vuelto).toHaveText(/Cambio: L\.? ?85\.50/);
+
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(Object.keys(sim.ventas[0])).not.toContain('efectivoRecibido');
+    expect(JSON.stringify(sim.ventas[0])).not.toContain('200');
+    const ticket = page.getByTestId('ticket-vuelto');
+    await expect(ticket).toContainText(/Efectivo recibido: L\.? ?200\.50/);
+    await expect(ticket).toContainText(/Cambio: L\.? ?85\.50/);
+    await expect(page.getByText(/Método de Pago: Efectivo/)).toBeVisible();
+  });
+
+  test('el comprobante en pantalla nombra la transferencia como tal y no como crédito', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    await page.getByRole('button', { name: 'TRANSFERENCIA', exact: true }).click();
+    await expect(page.getByLabel('Efectivo recibido')).toHaveCount(0);
+    await page.getByLabel('Autorización bancaria').fill('trf-778899');
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    await expect(page.getByText(/Método de Pago: Transferencia/)).toBeVisible();
+    await expect(page.getByText(/Método de Pago: Crédito/)).toHaveCount(0);
+    await expect(page.getByText(/TOTAL PAGADO/)).toBeVisible();
+    await expect(page.getByTestId('ticket-vuelto')).toHaveCount(0);
+  });
 });

@@ -171,7 +171,7 @@ test.describe('1. Venta de contado con efectivo', () => {
     expect(sql(`SELECT tipo||'|'||metodo||'|'||monto::float FROM movimientos_caja WHERE referencia='${idVenta(sid)}'`)).toBe('VENTA_POS|EFECTIVO|230');
   });
 
-  test.skip('1.2 cambio (vuelto): el cajero registra el efectivo recibido y el sistema calcula el cambio — PENDIENTE: no hay campo de efectivo recibido ni cálculo de cambio en POSPage', async () => {});
+  test.skip('1.2 cambio (vuelto): el cajero registra el efectivo recibido y el sistema calcula el cambio — solo en pantalla (no se envía al servidor); cubierto en e2e/pos-tarjeta-simulado.spec.ts, sin caso con API real', async () => {});
 });
 
 test.describe('2. Venta con tarjeta (POS bancario externo)', () => {

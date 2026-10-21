@@ -1,4 +1,4 @@
-import { calcularVentaPOS } from '../utils/posMoney';
+import { calcularVentaPOS, calcularVuelto } from '../utils/posMoney';
 import { buscarPorCodigo, filtrarCatalogo, indexarCatalogo } from '../utils/posCatalogo';
 import { Link } from 'react-router-dom';
 import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
@@ -117,6 +117,8 @@ export const POSPage: React.FC = () => {
   useEffect(()=>{let alive=true;setProviders([]);api.get('/operaciones/proveedores').then(r=>{if(alive)setProviders(r.data);}).catch(()=>{});return()=>{alive=false;};},[tenant.id,user?.id]);
   const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'CREDITO' | 'TRANSFERENCIA'>(initialSale?.metodoPago || 'EFECTIVO');
   const [autorizacionBancaria, setAutorizacionBancaria] = useState({ referencia: '', terminal: '' });
+  // Efectivo recibido: solo para calcular el cambio en pantalla; no forma parte de la venta enviada.
+  const [efectivoRecibido, setEfectivoRecibido] = useState('');
   const [descuentoPorcentaje, setDescuentoPorcentaje] = useState<number>(initialSale?.descuentoPorcentaje || 0);
   const cobrandoRef = useRef(false);
   const [procesandoVenta, setProcesandoVenta] = useState(false);
@@ -142,6 +144,7 @@ export const POSPage: React.FC = () => {
     setClienteId(sale?.clienteId);
     setVencimiento(sale?.vencimiento || '');
     setMetodoPago(sale?.metodoPago || 'EFECTIVO');
+    setEfectivoRecibido('');
     setDescuentoPorcentaje(sale?.descuentoPorcentaje || 0);
     setSpecial(!!sale?.cart[0]?.sinInventario);
     setSpecialProvider(sale?.cart[0]?.proveedorId || '');
@@ -235,6 +238,8 @@ export const POSPage: React.FC = () => {
   const montoDescuento = totalesCentavos.descuento / 100;
   const isv = totalesCentavos.isv / 100;
   const total = totalesCentavos.total / 100;
+  const vuelto = calcularVuelto(efectivoRecibido, totalesCentavos.total);
+  const etiquetaMetodo = (m: string) => t(`pos.${m === 'EFECTIVO' ? 'cash' : m === 'TARJETA' ? 'card' : m === 'TRANSFERENCIA' ? 'transfer' : 'credit'}`);
 
   const agregarAlCarrito = (prod: ProductItem) => {
     if (edicionBloqueada || cobrandoRef.current) return;
@@ -705,6 +710,21 @@ export const POSPage: React.FC = () => {
             {/* Método de Pago */}
             <div style={styles.paymentMethods}>{(['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'] as const).map(m=><button key={m} type="button" disabled={edicionBloqueada} onClick={()=>setMetodoPago(m)} style={{...styles.payBtn,...(metodoPago===m?styles.payBtnActive:{})}}>{m}</button>)}</div>
 
+            {metodoPago === 'EFECTIVO' && !ventaPendiente && cart.length > 0 && (
+              <div style={styles.paymentMethods}>
+                <label htmlFor="pos-efectivo-recibido">{t('pos.cash_received')}
+                  <input id="pos-efectivo-recibido" className="form-input" inputMode="decimal" placeholder="0.00" maxLength={13}
+                    value={efectivoRecibido} disabled={edicionBloqueada} onChange={e => setEfectivoRecibido(e.target.value)}
+                    aria-describedby="pos-vuelto" />
+                </label>
+                <div id="pos-vuelto" aria-live="polite" data-testid="pos-vuelto">
+                  {vuelto.estado === 'CAMBIO' && <strong>{t('pos.change_due')}: {formatLempiras(vuelto.centavos / 100)}</strong>}
+                  {vuelto.estado === 'FALTA' && <strong style={{ color: '#b91c1c' }}>{t('pos.cash_missing')}: {formatLempiras(vuelto.centavos / 100)}</strong>}
+                  {vuelto.estado === 'INVALIDO' && <span style={{ color: '#b91c1c' }}>{t('pos.cash_invalid')}</span>}
+                </div>
+              </div>
+            )}
+
             {(metodoPago === 'TARJETA' || metodoPago === 'TRANSFERENCIA') && !ventaPendiente && (
               <div style={styles.paymentMethods}>
                 <label>Autorización bancaria
@@ -827,11 +847,20 @@ export const POSPage: React.FC = () => {
                 {Number(ventaRegistrada?.descuento ?? montoDescuento) > 0 && <div>Descuento: -{formatLempiras(Number(ventaRegistrada?.descuento ?? montoDescuento))}</div>}
                 <div>ISV (15%): {formatLempiras(Number(ventaRegistrada?.isv ?? isv))}</div>
                 <div style={{ fontSize: '15px', fontWeight: 900, marginTop: '4px' }}>
-                  {t('pos.total_paid')}: {formatLempiras(Number(ventaRegistrada?.total ?? total))}
+                  {t(metodoPago === 'CREDITO' ? 'pos.total_credit' : 'pos.total_paid')}: {formatLempiras(Number(ventaRegistrada?.total ?? total))}
                 </div>
                 <div style={{ fontSize: '11px', marginTop: '2px' }}>
-                  {t('pos.payment_method')}: {t(`pos.${metodoPago === 'EFECTIVO' ? 'cash' : metodoPago === 'TARJETA' ? 'card' : 'credit'}`)}
+                  {t('pos.payment_method')}: {etiquetaMetodo(metodoPago)}
                 </div>
+                {metodoPago === 'EFECTIVO' && (() => {
+                  const cambio = calcularVuelto(efectivoRecibido, Math.round(Number(ventaRegistrada?.total ?? total) * 100));
+                  return cambio.estado === 'CAMBIO' ? (
+                    <div style={{ fontSize: '11px', marginTop: '2px' }} data-testid="ticket-vuelto">
+                      <div>{t('pos.cash_received')}: {formatLempiras(cambio.recibidoCentavos / 100)}</div>
+                      <div>{t('pos.change_due')}: {formatLempiras(cambio.centavos / 100)}</div>
+                    </div>
+                  ) : null;
+                })()}
               </div>
 
               <div style={styles.ticketDashed} />
