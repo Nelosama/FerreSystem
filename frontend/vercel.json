@@ -12,11 +12,26 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=(), payment=()" },
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=(), payment=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000"
+        }
       ]
     }
   ],
@@ -33,5 +48,5 @@
       "codex/estabilidad-operativa": false
     }
   },
-  "ignoreCommand": "case \"$VERCEL_GIT_COMMIT_REF\" in claude/revision-seguridad-jowa-20261020|nexus/*|fix/inventario-inicial-seguro|fix/pilot-readiness|codex/auditoria-precision-monetaria|codex/fix-expired-sessions|fix/jowa-operacion-estable|codex/fix-camera-lifecycle-ios|codex/estabilidad-operativa) exit 0;; *) exit 1;; esac"
+  "ignoreCommand": "sh scripts/vercel-ignore.sh"
 }
