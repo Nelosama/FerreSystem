@@ -6,6 +6,18 @@
 
 ---
 
+## Auditoría Jules PR #184 — hallazgos y seguimiento (2026-10-21)
+
+- **Fuente:** `docs/QA_SEGURIDAD_MOVIL_20261020.md`, auditó `main` en `c4cadc34`. El PR #184 añade únicamente ese informe; **no corrige código**. Las pruebas de GitHub Actions pasaron; el check de Vercel falló. No interpretar el veredicto «NO MERGE» del informe como evidencia de defectos nuevos en código.
+- **P0 — despliegue Vercel (pendiente de verificación operativa):** comprobar `VITE_API_URL` en Preview y Production y que las llamadas `/api` respondan JSON del backend, no HTML de la SPA. El informe también señala `ignoreCommand`; **PR #183 ya propone corregir su longitud inválida** mediante script. Responsable sugerido: Claude (#183) para código; propietario para variables del panel. Confirmar en un despliegue nuevo, no reutilizar checks anteriores.
+- **P0 — configuración de producción (pendiente de verificación):** confirmar `NODE_ENV=production`, `JWT_SECRET` privado y no predeterminado, `TRUST_PROXY=1`, `FRONTEND_URLS` y configuración de Super Admin en Render, sin publicar valores. El PR #183 introduce restricciones nuevas y migración de sesiones; requiere respaldo y `migrate:deploy` previo al backend. Responsable: Claude + propietario/operaciones.
+- **P1 — aceptación física (pendiente):** probar escáner y permisos/ciclo de cámara en iPhone Safari/PWA instalada, lector de barras y tickets 80/58 mm con hardware real; emulación Chromium no certifica estos escenarios. Responsable: QA en sitio / Codex para correcciones reproducibles. Registrar evidencia y resultados.
+- **P1 — notificaciones push (decisión funcional pendiente):** Jules afirma que la PWA no garantiza alertas con app cerrada. **No asumir que se necesita app nativa**: primero verificar compatibilidad Web Push de PWA instalada iOS/Android y definir requisitos reales de entrega. Responsable: arquitectura/Claude o Codex tras decisión del propietario.
+- **P1 — almacenamiento de logotipos (verificación pendiente):** comprobar que almacenamiento privado en nube coincida con la arquitectura actual totalmente web y que no dependa de disco local efímero; validar permisos y persistencia. Responsable: Codex o Claude.
+- **Hallazgos históricos que Jules marca como corregidos (no abrir tareas duplicadas sin reproducir):** importación de precios y validación CSV (#161), soporte remoto (#160), etiqueta de crédito y redondeo monetario (#166), validación de color (#177). Son afirmaciones del informe, no una reauditoría independiente de cada PR.
+- **Precaución de trazabilidad:** los IDs H-01 a H-06 de Jules describen incidencias funcionales históricas y **no corresponden** a los IDs H-01 a H-06 de la auditoría de seguridad de Claude #183. No fusionar ambas matrices por ID. La afirmación de Jules de que las PWA cerradas requieren necesariamente wrapper nativo debe validarse; también su descripción de `ignoreCommand` no prueba por sí sola la causa del check Vercel.
+- **Acción siguiente:** contrastar este registro con el estado final de #183 y #180 después de sus merges, verificar producción y documentar pruebas físicas. **Sin merge ni despliegue autorizados.**
+
 ## PROTOCOLO OBLIGATORIO PARA AGENTES
 
 Antes de comenzar cualquier trabajo en FerreSystem:
