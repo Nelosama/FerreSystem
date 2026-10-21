@@ -5,7 +5,68 @@
 **Alcance:** autenticación y sesiones, aislamiento multi-tenant, roles y permisos, frontend, operaciones críticas e infraestructura en el código versionado.
 **Sin:** merge, despliegue, acceso a producción, datos reales ni consultas a Render, Vercel o Supabase (no accesibles desde esta sesión).
 
-## Resumen
+## Estado vigente — continuación del 2026-10-21 (sustituye las tablas «Resumen» y «Priorización residual» de abajo)
+
+Misma rama y PR #183; `main` `c4cadc3` sigue siendo la base (sin conflictos). Las secciones posteriores se conservan como historial de la revisión inicial.
+
+| ID | Severidad | Hallazgo | Estado | Evidencia |
+|---|---|---|---|---|
+| H-01 | Alta | Secreto JWT público fuera de producción | Corregido (revisión inicial) | `jwt-secret.spec.ts` |
+| H-07 | **Alta** | `vercel.json` inválido: `ignoreCommand` de 266 caracteres en `main` (306 en este PR); Vercel exige ≤ 256 y rechaza el despliegue | **Corregido** | Mensaje del bot de Vercel en #184; `frontend/scripts/vercel-ignore.sh`; `vercel-pilot-guard.test.mjs` (rojo con la configuración anterior) |
+| H-04 | Media | Refresh sin rotación ni detección de reutilización | **Corregido** | `rotarRefresh` (`auth/sesiones-auth.ts`); 9 pruebas PostgreSQL en `autenticacion-fase3` (rojas sin la corrección) |
+| H-05 | Media (antes Baja) | CSRF de login/refresh/logout con cookie `SameSite=None` | **Corregido** | `OrigenPermitidoGuard`; unitarias + 2 de integración HTTP |
+| H-08 | Media | Correo en claro en los registros de cada login; `error.message` de Prisma (con argumentos de la consulta) en registros de soporte y contingencia | **Corregido** | `diagnosticoSeguro`; prueba de registros del login (roja antes) |
+| H-02 | Media | Frontend sin cabeceras | Corregido + **CSP validada** | `e2e/csp-vercel.spec.ts`, `e2e/camara-real-csp.spec.ts` |
+| H-09 | Baja | API sin cabeceras de seguridad y con `X-Powered-By` | **Corregido** | `cabeceras-seguridad.middleware.spec.ts` |
+| H-03 | Media → **Baja** con CSP | Access token en `localStorage` | Pendiente (decisión justificada abajo) | Control negativo de la CSP: un script inyectado no lee el token |
+| H-06 | Baja | `GET /api/health/db` público | Pendiente, sin cambio | Expone lo mismo que `/api/health` (readiness pública por diseño); retirarlo puede romper un monitor externo no identificado |
+
+### Correcciones de esta continuación
+
+- **H-07 Vercel (causa del despliegue fallido).** El bot de Vercel en #184 publica el error exacto: «`ignoreCommand` should NOT be longer than 256 characters». #182 (solo documentación) también falla en Vercel, así que el fallo no lo causaba el contenido de #183. `main` ya mide 266 desde que #178 añadió su rama: con alta probabilidad, el despliegue de producción de `main` posterior a #178 tampoco pasa la validación. La lista de ramas pasa a `frontend/scripts/vercel-ignore.sh` (misma semántica); `ignoreCommand` queda en 27 caracteres y una prueba fija el límite.
+- **H-04 rotación.** Cada refresh (negocio y Super Admin) emite una cookie con `jti` nuevo, mismo `sid` y el vencimiento absoluto original (no se alarga la sesión). La rotación se serializa con `SELECT … FOR UPDATE`. La cookie recién sustituida vale `AUTH_REFRESH_GRACIA_SEGUNDOS` (120 s por defecto, tope 600) sin volver a rotar, para pestañas concurrentes y respuestas perdidas. Cualquier otra (sustituida fuera de la gracia, más antigua o con `jti` inventado) revoca la sesión completa (`REUTILIZACION_REFRESH`) y su access token deja de valer. Las sesiones previas al despliegue (refresh sin `jti`) se aceptan una vez y pasan a rotar: nadie pierde la sesión por el cambio. **NEXUS:** migración aditiva `20261021000000_sesiones_auth_rotacion_refresh` (3 columnas nulas, compatible con el código anterior) y reversión manual sin sentencias activas.
+- **H-05 CSRF.** `OrigenPermitidoGuard` en login, refresh y logout (negocio y Super Admin): `Origin` debe estar en los mismos orígenes que CORS (`FRONTEND_URL[S]` + locales); sin `Origin`, se rechaza `Sec-Fetch-Site: cross-site`. CORS ya impedía que esos orígenes leyeran la respuesta, por lo que ningún cliente legítimo cambia. Los endpoints con Bearer no dependen de la cookie.
+- **CSP (H-02).** `script-src 'self' 'wasm-unsafe-eval'` (sin `unsafe-inline` ni `unsafe-eval`), estilos en línea y Google Fonts, `connect-src 'self' https: data:`, `img-src` con `blob:`/`data:`, `worker-src 'self' blob:`, `frame-ancestors 'self'`, `object-src 'none'`. La primera versión bloqueaba el PDF del comprobante (react-pdf carga su WASM con `fetch(data:)`): lo detectó la prueba y se ajustó. `connect-src https:` es deliberadamente amplio para no depender del dominio exacto del API en Render.
+- **Cabeceras del API (H-09).** `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, CSP `default-src 'none'`, COOP, HSTS solo en producción, sin `X-Powered-By`. Sin dependencias nuevas.
+- **H-08 privacidad.** El login ya no escribe el correo (el limitador ya lo guardaba solo como hash). Los errores de soporte y contingencia registran tipo, código Prisma y la primera línea del mensaje.
+
+### Aislamiento multi-tenant, roles y Super Admin (verificado, sin defectos)
+
+`test/aislamiento-barrido.postgres.integration.ts` arranca `AppModule` completo con PostgreSQL y enumera **todas** las rutas registradas:
+- ADMIN y CAJERO de la empresa B contra cada ruta con identificadores reales de A (todas las tablas con `tenant_id`, números de venta, códigos): ninguna respuesta exitosa contiene datos o ids de A, y la huella de todas las filas de A no cambia, también con POST/PUT/PATCH/DELETE.
+- Token de Super Admin (sin `tenantId`): ninguna ruta de negocio lo acepta. Rutas de plataforma: 403 para ADMIN y CAJERO. `@Roles`: 403 para el CAJERO en cada ruta que no lo incluye.
+- Solo 7 rutas no declaran roles, revisadas una a una (propia sesión, lecturas de inventario sin costos, fin de soporte); una ruta nueva sin roles hace fallar la prueba.
+- Prueba de mutación manual: quitar el filtro `tenantId` de `GET /productos/:id` hace fallar el barrido.
+- **Sucursales:** las operaciones no tienen sucursal en el esquema (ver contexto maestro), así que no hay selección de sucursal que autorizar. **Rol Contador:** no existe en `main`; lo introduce el PR #180 (migración `20261020000000_rol_contador`), que no se modificó. Sus permisos deben revisarse en ese PR.
+- **Impersonación:** ya restringida y auditada (motivo obligatorio, solo lectura por defecto, escritura con confirmación explícita, trazas y revocación). El barrido confirma que el token de Super Admin no opera directamente en rutas de negocio.
+
+### H-03: por qué no se migra el access token a memoria en este PR
+
+Cambiar a token solo en memoria exige reescribir `authInterceptors`, `sessionValidation`, `TenantContext`, el soporte (token original del Super Admin) y la coordinación entre pestañas, que hoy dependen de `localStorage` síncrono. También la contingencia offline: tras recargar sin red no habría token hasta poder renovar. Un cambio incompleto dejaría usuarios sin acceso, que es lo que se pidió evitar. La CSP aplicada cubre el vector principal (scripts inyectados) y la prueba de control lo demuestra. Queda como diseño posterior con E2E multipestaña, soporte y offline.
+
+### Pruebas de esta continuación (locales; los checks por SHA están en el PR)
+
+| Suite | Resultado |
+|---|---|
+| Backend unitarias | 57 archivos, **552/552** |
+| Backend integración PostgreSQL 16 temporal (completa) | **63 archivos, 1035 pasan / 1 omitida preexistente / 0 fallos** (una primera pasada falló en dos arneses con listas fijas de migraciones; corregidos y repetida completa) |
+| Backend `test:e2e` (caída y recuperación real de PostgreSQL) | 6/6 |
+| Backend scripts, build, lint, `tsc` | 48/48, sin errores |
+| Frontend unitarias, `tsc -b`, lint, build | **481/481**, sin errores, 117 avisos = base |
+| Navegador simulado completo (Chromium 1194) | **225/225** |
+| Sesiones móviles (Pixel 7 emulado) | 16/16 |
+| Piloto real (`e2e-real`: API compilada + PostgreSQL + Chromium, sin simulación) | **153 pasan / 10 omitidas preexistentes «PENDIENTE»** |
+| CSP con cabeceras de `vercel.json` + cámara con dispositivo falso de Chromium | 6/6 |
+
+**No ejecutado / no certificado:** Safari/WebKit (no descargable por proxy), iPhone físico, PWA instalada en iOS, impresoras físicas y cámara física; despliegue real en Vercel y Render.
+
+### Render y Vercel: comprobaciones que faltan (sin acceso a los proveedores)
+
+1. **Render, antes de desplegar:** `NODE_ENV=production`, `JWT_SECRET` privado (H-01 impide arrancar sin él), `TRUST_PROXY=1`, `FRONTEND_URLS` con el dominio real del frontend (ahora también autoriza login/refresh/logout), Health Check `/api/health`. **Ejecutar `npm run migrate:deploy` con respaldo previo antes de desplegar este código:** `start:prod` no arranca con la migración pendiente (y Render conserva la versión anterior). La migración es compatible con el backend anterior.
+2. **Vercel:** confirmar en el panel que el despliegue de `main` posterior a #178 falló por el mismo error de esquema; tras el merge, comprobar que el despliegue de producción pasa y que `curl -I` muestra `Content-Security-Policy` y demás cabeceras. Verificar `VITE_API_URL` en el entorno de Production (el build falla sin ella).
+3. Probar en el dominio real: login, POS, descarga del comprobante, escáner en iPhone/Safari y PWA instalada.
+
+## Resumen (revisión inicial, histórico)
 
 | Criticidad | Hallazgos | Estado |
 |---|---|---|
@@ -98,7 +159,7 @@
 - **Vercel bloqueado:** GitHub registra `failure` para `541de7cf`, deployment `dpl_8Yx5j2LHrVnmiQWU9Xa7ht7uENWm`, con indicación de consultar `vercel inspect ... --logs`. [Deployment original](https://vercel.com/nelspace/ferre-system/8Yx5j2LHrVnmiQWU9Xa7ht7uENWm). El panel Vercel también está rechazado por red y no hay credencial Vercel. No se dispone de logs de build ni de cabeceras servidas: la causa permanece sin determinar. No se atribuye a las cabeceras ni se modifica una configuración válida por conjetura. Build local y CI no sustituyen el deployment del proveedor.
 - **Veredicto condicionado: NO MERGE** mientras Render no esté verificado y el fallo Vercel original no tenga diagnóstico revisable. Una preview excluida/cancelada no cuenta como deployment aprobado. El PR permanece en borrador.
 
-## Priorización residual (sin ampliar cambios de sesión)
+## Priorización residual (revisión inicial, histórico — ver «Estado vigente»)
 
 | Hallazgo | Prioridad | Riesgo y criterio de cierre |
 |---|---|---|
