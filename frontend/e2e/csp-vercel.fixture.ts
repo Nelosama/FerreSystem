@@ -3,7 +3,7 @@ import type { Page, Route } from '@playwright/test';
 
 // CSP y cabeceras de vercel.json en Chromium real. El servidor de vista previa de Vite no aplica vercel.json:
 // aquí cada respuesta de la app (HTML, JS, CSS, sw.js, manifiesto) recibe exactamente las cabeceras de la regla
-// "/(.*)". La API está simulada en /api; en producción es otro origen HTTPS, permitido por connect-src https:.
+// "/(.*)". La API está simulada en el origen que use el build (/api o un HTTPS externo, como en CI y producción).
 // Las pruebas fallan ante cualquier violación de la CSP. No sustituyen la comprobación en el despliegue real ni en Safari.
 
 export const vercel = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
@@ -27,8 +27,11 @@ export async function preparar(page: Page, baseURL: string | undefined) {
   page.on('pageerror', e => violaciones.push(`pageerror: ${e.message}`));
   await page.route('**/*', async (route: Route) => {
     const url = new URL(route.request().url());
-    const responder = (body: unknown, status = 200) => route.fulfill({ status, json: body });
-    if (url.origin === origen && url.pathname.startsWith('/api/')) {
+    // La API puede estar en el mismo origen (/api) o en otro HTTPS (CI y producción): se simula en ambos casos con CORS.
+    const cors = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
+    const responder = (body: unknown, status = 200) => route.fulfill({ status, json: body, headers: cors });
+    if (url.pathname.startsWith('/api/')) {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { ...cors, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
       const path = url.pathname.slice(4);
       const method = route.request().method();
       if (path === '/tenant/settings') return responder(tenant);
