@@ -352,6 +352,125 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     });
   });
 
+  describe('rotación de refresh y detección de reutilización (H-04)', () => {
+    const refrescar = (cookie: string) => request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', cookie);
+    const fila = (sid: string) => prisma.sesionAuth.findUnique({ where: { id: sid } });
+    const maxAge = (res: request.Response, nombre = 'refreshToken') =>
+      Number(/Max-Age=(\d+)/.exec((res.headers['set-cookie'] as unknown as string[]).find(c => c.startsWith(`${nombre}=`))!)![1]);
+    // Simula que la última rotación ocurrió hace `segundos`, sin esperar en tiempo real.
+    const envejecerRotacion = (sid: string, segundos: number) =>
+      prisma.sesionAuth.update({ where: { id: sid }, data: { refreshRotadoAt: new Date(Date.now() - segundos * 1000) } });
+
+    it('cada refresh entrega una cookie nueva, conserva el sid y no alarga la sesión', async () => {
+      const res = await login('admin@auth.test.invalid').expect(200);
+      const sid = await sesionDe(res.body.accessToken);
+      const original = refreshCookie(res);
+      const r1 = await refrescar(original).expect(200);
+      const c1 = refreshCookie(r1);
+      expect(c1).not.toBe(original);
+      expect(await sesionDe(r1.body.accessToken)).toBe(sid);
+      expect(jwt.decode<any>(c1.split('=')[1]).jti).toBe((await fila(sid))!.refreshJti);
+      const r2 = await refrescar(c1).expect(200);
+      expect(refreshCookie(r2)).not.toBe(c1);
+      expect(maxAge(r2)).toBeLessThanOrEqual(maxAge(res));
+      expect(jwt.decode<any>(refreshCookie(r2).split('=')[1]).exp).toBeLessThanOrEqual(jwt.decode<any>(original.split('=')[1]).exp);
+      await get('/auth/me', r2.body.accessToken).expect(200);
+    });
+
+    it('la cookie recién sustituida se acepta en la ventana de gracia sin volver a rotar ni cerrar la sesión', async () => {
+      const res = await login('admin@auth.test.invalid').expect(200);
+      const sid = await sesionDe(res.body.accessToken);
+      const original = refreshCookie(res);
+      const rotada = await refrescar(original).expect(200);
+      const vigente = (await fila(sid))!.refreshJti;
+      const tardia = await refrescar(original).expect(200);
+      expect(jwt.decode<any>(refreshCookie(tardia).split('=')[1]).jti).toBe(vigente);
+      expect((await fila(sid))!.refreshJti).toBe(vigente);
+      expect((await fila(sid))!.revokedAt).toBeNull();
+      await get('/auth/me', rotada.body.accessToken).expect(200);
+    });
+
+    it('pestañas que renuevan a la vez con la misma cookie: todas reciben token y la sesión sigue abierta', async () => {
+      const res = await login('admin@auth.test.invalid').expect(200);
+      const sid = await sesionDe(res.body.accessToken);
+      const cookie = refreshCookie(res);
+      const respuestas = await Promise.all(Array.from({ length: 6 }, () => refrescar(cookie)));
+      expect(respuestas.map(r => r.status)).toEqual([200, 200, 200, 200, 200, 200]);
+      const s = (await fila(sid))!;
+      expect(s.revokedAt).toBeNull();
+      // Una sola rotación: el anterior es el jti de login y todas las respuestas llevan el jti vigente.
+      expect(s.refreshJtiAnterior).toBe(jwt.decode<any>(cookie.split('=')[1]).jti);
+      expect(new Set(respuestas.map(r => jwt.decode<any>(refreshCookie(r).split('=')[1]).jti))).toEqual(new Set([s.refreshJti]));
+    });
+
+    it('una cookie sustituida reutilizada fuera de la gracia revoca la sesión entera (también el token nuevo)', async () => {
+      const res = await login('admin@auth.test.invalid').expect(200);
+      const sid = await sesionDe(res.body.accessToken);
+      const robada = refreshCookie(res);
+      const legitimo = await refrescar(robada).expect(200);
+      await envejecerRotacion(sid, 121);
+      await refrescar(robada).expect(401);
+      expect((await fila(sid))!).toMatchObject({ revocationMotivo: 'REUTILIZACION_REFRESH' });
+      expect((await fila(sid))!.revokedAt).not.toBeNull();
+      await get('/auth/me', legitimo.body.accessToken).expect(401);
+      await refrescar(refreshCookie(legitimo)).expect(401);
+    });
+
+    it('un refresh más antiguo que el anterior es reutilización aunque esté dentro de la gracia', async () => {
+      const res = await login('admin@auth.test.invalid').expect(200);
+      const sid = await sesionDe(res.body.accessToken);
+      const primera = refreshCookie(res);
+      const segunda = refreshCookie(await refrescar(primera).expect(200));
+      await envejecerRotacion(sid, 121);
+      await refrescar(segunda).expect(200); // rota de nuevo: «primera» ya no es ni vigente ni anterior
+      await refrescar(primera).expect(401);
+      expect((await fila(sid))!.revocationMotivo).toBe('REUTILIZACION_REFRESH');
+    });
+
+    it('un refresh emitido antes de la rotación (sin jti) se acepta una vez y queda sustituido', async () => {
+      const sid = randomUUID();
+      const expiresAt = new Date(Date.now() + 3600_000);
+      await prisma.sesionAuth.create({ data: { id: sid, tipo: 'TENANT', sujetoId: adminId, tenantId, expiresAt } });
+      const legado = jwt.sign({ sub: adminId, tenantId, rol: 'ADMIN', type: 'tenant', sid, typ: 'refresh' }, { expiresIn: 3600 });
+      const nuevo = await refrescar(`refreshToken=${legado}`).expect(200);
+      expect((await fila(sid))!.refreshJtiAnterior).toBe('sin-jti');
+      await refrescar(`refreshToken=${legado}`).expect(200); // gracia
+      await envejecerRotacion(sid, 121);
+      await refrescar(`refreshToken=${legado}`).expect(401);
+      await get('/auth/me', nuevo.body.accessToken).expect(401);
+    });
+
+    it('un refresh con un jti inventado para una sesión válida revoca la sesión', async () => {
+      const res = await login('admin@auth.test.invalid').expect(200);
+      const sid = await sesionDe(res.body.accessToken);
+      const falso = jwt.sign({ sub: adminId, tenantId, rol: 'ADMIN', type: 'tenant', sid, typ: 'refresh' }, { expiresIn: 600, jwtid: randomUUID() });
+      await refrescar(`refreshToken=${falso}`).expect(401);
+      await get('/auth/me', res.body.accessToken).expect(401);
+    });
+
+    it('logout tras rotar revoca la sesión con la cookie vigente', async () => {
+      const res = await login('admin@auth.test.invalid').expect(200);
+      const r1 = await refrescar(refreshCookie(res)).expect(200);
+      await request(app.getHttpServer()).post('/api/auth/logout').set('Cookie', refreshCookie(r1)).expect(200);
+      await get('/auth/me', r1.body.accessToken).expect(401);
+      await refrescar(refreshCookie(r1)).expect(401);
+    });
+
+    it('el refresh del Super Admin rota y detecta la reutilización', async () => {
+      const cookieDe = (r: request.Response) => (r.headers['set-cookie'] as unknown as string[]).find(c => c.startsWith('superAdminRefreshToken='))!.split(';')[0];
+      const res = await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password }).expect(200);
+      const sid = await sesionDe(res.body.accessToken);
+      const original = cookieDe(res);
+      const r1 = await request(app.getHttpServer()).post('/api/admin/auth/refresh').set('Cookie', original).expect(200);
+      expect(cookieDe(r1)).not.toBe(original);
+      expect(maxAge(r1, 'superAdminRefreshToken')).toBeLessThanOrEqual(maxAge(res, 'superAdminRefreshToken'));
+      await envejecerRotacion(sid, 121);
+      await request(app.getHttpServer()).post('/api/admin/auth/refresh').set('Cookie', original).expect(401);
+      await get('/auth/me', r1.body.accessToken).expect(401);
+      expect((await fila(sid))!.revocationMotivo).toBe('REUTILIZACION_REFRESH');
+    });
+  });
+
   describe('contingencia offline y sesiones', () => {
     /** Un lote de una venta de 2 tornillos (20.00 + ISV 3.00), creado en el equipo mientras no había conexión. */
     async function ventanaYLote() {

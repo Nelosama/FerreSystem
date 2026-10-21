@@ -9,7 +9,7 @@ import { consultarAuditoria } from '../operaciones/auditoria-consulta';
 import { TenantsService } from '../tenants/tenants.service';
 import { TenantLogoService } from '../tenants/tenant-logo.service';
 import { CreateTenantAdminDto, UpdateTenantAdminDto } from './tenant-admin.dto';
-import { Injectable, UnauthorizedException, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -18,13 +18,14 @@ import * as bcrypt from 'bcrypt';
 import type { Request, Response } from 'express';
 import { leerConfiguracionAuth } from '../auth/auth-config';
 import { clavesDeLogin, excepcionLimiteLogin, registrarExitoLogin, registrarFalloLogin, segundosBloqueados } from '../auth/login-rate-limit';
-import { crearSesion, revocarSesion, revocarSesionesDeSujeto, sesionVigente, sidDeToken } from '../auth/sesiones-auth';
+import { crearSesion, revocarSesion, revocarSesionesDeSujeto, rotarRefresh, sidDeToken } from '../auth/sesiones-auth';
 import { isPasswordAllowed, PASSWORD_POLICY_MESSAGE } from '../common/password-policy';
 
 const bearerDe = (req?: Request) => req?.headers?.authorization?.replace(/^Bearer /, '') || undefined;
 
 @Injectable()
 export class SuperAdminService {
+  private readonly logger = new Logger(SuperAdminService.name);
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
@@ -151,10 +152,12 @@ export class SuperAdminService {
     const accessToken = this.jwtService.sign(payload, {
       expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
     });
+    const refreshJti = randomUUID();
     const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
       expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
+      jwtid: refreshJti,
     });
-    await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: admin.id, expiresAt: this.expiracionRefresh(refreshToken) });
+    await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: admin.id, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
     res.cookie('superAdminRefreshToken', refreshToken, {
       ...refreshCookieOptions(this.configService, true),
       maxAge: Math.max(0, this.expiracionRefresh(refreshToken).getTime() - Date.now()),
@@ -184,7 +187,7 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Refresh token de Super Admin inválido');
     }
-    if (!decoded.sid || !(await sesionVigente(this.prisma, String(decoded.sid), String(decoded.sub)))) {
+    if (!decoded.sid) {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Sesión de Super Admin cerrada o vencida');
     }
@@ -193,10 +196,21 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Super Admin no autorizado');
     }
-    const accessToken = this.jwtService.sign(
-      { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', sid: decoded.sid },
-      { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any },
-    );
+    // H-04: misma rotación y detección de reutilización que el refresh de negocio.
+    const rotacion = await rotarRefresh(this.prisma, {
+      sid: String(decoded.sid), sujetoId: String(decoded.sub), jti: typeof decoded.jti === 'string' ? decoded.jti : undefined,
+      graciaMs: leerConfiguracionAuth(this.configService).graciaRefreshSegundos * 1000,
+    });
+    if (rotacion.estado !== 'ROTADA' && rotacion.estado !== 'GRACIA') {
+      if (rotacion.estado === 'REUTILIZADA') this.logger.warn(`[AUTH] Refresh de Super Admin reutilizado: sesión ${String(decoded.sid)} revocada`);
+      res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
+      throw new UnauthorizedException('Sesión de Super Admin cerrada o vencida');
+    }
+    const payload = { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', sid: decoded.sid };
+    const accessToken = this.jwtService.sign(payload, { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any });
+    const restanteMs = rotacion.expiresAt.getTime() - Date.now();
+    const nuevoRefresh = this.jwtService.sign({ ...payload, typ: 'refresh' }, { expiresIn: Math.max(1, Math.floor(restanteMs / 1000)), jwtid: rotacion.jti });
+    res.cookie('superAdminRefreshToken', nuevoRefresh, { ...refreshCookieOptions(this.configService, true), maxAge: Math.max(0, restanteMs) });
     return { accessToken };
   }
 

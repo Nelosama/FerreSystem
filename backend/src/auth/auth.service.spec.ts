@@ -295,8 +295,13 @@ describe('AuthService', () => {
 
   describe('refresh y logout tenant', () => {
     it('refresca únicamente una sesión tenant activa', async () => {
-      mockJwtService.verify.mockReturnValue({ sub: 'u-1', type: 'tenant', tenantId: 'tenant-1', typ: 'refresh', sid: 's-1' });
-      mockPrisma.sesionAuth.findUnique.mockResolvedValue({ sujetoId: 'u-1', revokedAt: null, expiresAt: new Date(Date.now() + 60_000) });
+      mockJwtService.verify.mockReturnValue({ sub: 'u-1', type: 'tenant', tenantId: 'tenant-1', typ: 'refresh', sid: 's-1', jti: 'jti-1' });
+      // Fila bloqueada de la sesión: el jti presentado es el vigente, así que se rota.
+      const tx = {
+        $queryRaw: vi.fn().mockResolvedValue([{ sujeto_id: 'u-1', revoked_at: null, expires_at: new Date(Date.now() + 60_000), refresh_jti: 'jti-1', refresh_jti_anterior: null, refresh_rotado_at: null }]),
+        $executeRaw: vi.fn().mockResolvedValue(1),
+      };
+      (mockPrisma as any).$transaction = vi.fn((fn: (t: typeof tx) => unknown) => fn(tx));
       mockPrisma.usuario.findUnique.mockResolvedValue({
         id: 'u-1',
         tenantId: 'tenant-1',
@@ -313,6 +318,12 @@ describe('AuthService', () => {
         expect.objectContaining({ type: 'tenant', tenantId: 'tenant-1' }),
         expect.any(Object),
       );
+      // La cookie se sustituye por un refresh con un jti nuevo y sin alargar la sesión (≤ 60 s restantes).
+      const firmaRefresh = mockJwtService.sign.mock.calls.find(([payload]: any[]) => payload.typ === 'refresh');
+      expect(firmaRefresh[1].jwtid).toEqual(expect.any(String));
+      expect(firmaRefresh[1].jwtid).not.toBe('jti-1');
+      expect(firmaRefresh[1].expiresIn).toBeLessThanOrEqual(60);
+      expect(mockResponse.cookie).toHaveBeenCalledWith('refreshToken', 'mock-jwt-token', expect.objectContaining({ httpOnly: true, path: '/' }));
     });
 
     it('rechaza un refresh Super Admin en el endpoint tenant y limpia solo su cookie', async () => {
@@ -341,11 +352,18 @@ describe('AuthService', () => {
 describe('refresh: indisponibilidad de infraestructura', () => {
   it('no convierte una caída de BD en 401 ni elimina la cookie recuperable', async () => {
     const databaseError = new Error('DB temporalmente no disponible');
-    const prisma = { sesionAuth: { findUnique: vi.fn().mockRejectedValue(databaseError) } } as any;
     const jwt = { verify: () => ({ sub: 'u', tenantId: 't', type: 'tenant', typ: 'refresh', sid: 's' }) } as any;
-    const service = new AuthService(prisma, jwt, { get: (_key: string, fallback: any) => fallback } as any);
-    const res = { clearCookie: vi.fn() } as any;
-    await expect(service.refresh('valid-refresh', res)).rejects.toBe(databaseError);
-    expect(res.clearCookie).not.toHaveBeenCalled();
+    const config = { get: (_key: string, fallback: any) => fallback } as any;
+    // Caída al leer el usuario y caída durante la rotación: ninguna borra la cookie ni responde 401.
+    for (const prisma of [
+      { usuario: { findUnique: vi.fn().mockRejectedValue(databaseError) } },
+      { usuario: { findUnique: vi.fn().mockResolvedValue({ id: 'u', tenantId: 't', activo: true, tenant: { estado: 'ACTIVO' } }) }, $transaction: vi.fn().mockRejectedValue(databaseError) },
+    ]) {
+      const service = new AuthService(prisma as any, jwt, config);
+      const res = { clearCookie: vi.fn(), cookie: vi.fn() } as any;
+      await expect(service.refresh('valid-refresh', res)).rejects.toBe(databaseError);
+      expect(res.clearCookie).not.toHaveBeenCalled();
+      expect(res.cookie).not.toHaveBeenCalled();
+    }
   });
 });

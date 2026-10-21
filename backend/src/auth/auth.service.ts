@@ -10,7 +10,7 @@ import { LoginDto } from './dto/login.dto';
 import { randomUUID } from 'node:crypto';
 import { leerConfiguracionAuth } from './auth-config';
 import { clavesDeLogin, excepcionLimiteLogin, registrarExitoLogin, registrarFalloLogin, segundosBloqueados } from './login-rate-limit';
-import { crearSesion, revocarSesion, sesionVigente, sidDeToken } from './sesiones-auth';
+import { crearSesion, revocarSesion, rotarRefresh, sidDeToken } from './sesiones-auth';
 
 const bearerDe = (req?: Request) => req?.headers?.authorization?.replace(/^Bearer /, '') || undefined;
 
@@ -85,10 +85,12 @@ export class AuthService {
       const accessToken = this.jwtService.sign(payload, {
         expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
       });
+      const refreshJti = randomUUID();
       const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
         expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
+        jwtid: refreshJti,
       });
-      await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: superAdmin.id, expiresAt: this.expiracionRefresh(refreshToken) });
+      await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: superAdmin.id, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
       res.cookie('superAdminRefreshToken', refreshToken, {
         ...refreshCookieOptions(this.configService, true),
         maxAge: Math.max(0, this.expiracionRefresh(refreshToken).getTime() - Date.now()),
@@ -226,11 +228,13 @@ export class AuthService {
       expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
     });
 
+    const refreshJti = randomUUID();
     const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
       expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
+      jwtid: refreshJti,
     });
 
-    await crearSesion(this.prisma, { id: sid, tipo: 'TENANT', sujetoId: usuario.id, tenantId: usuario.tenantId, expiresAt: this.expiracionRefresh(refreshToken) });
+    await crearSesion(this.prisma, { id: sid, tipo: 'TENANT', sujetoId: usuario.id, tenantId: usuario.tenantId, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
 
     // Guardar refresh token en cookie httpOnly + secure
     res.cookie('refreshToken', refreshToken, {
@@ -288,9 +292,7 @@ export class AuthService {
       if (decoded.typ !== 'refresh' || decoded.type !== 'tenant' || !decoded.tenantId) {
         throw new UnauthorizedException('Token inválido para refrescar sesión');
       }
-      if (!decoded.sid || !(await sesionVigente(this.prisma, String(decoded.sid), String(decoded.sub)))) {
-        throw new UnauthorizedException('Sesión cerrada o vencida');
-      }
+      if (!decoded.sid) throw new UnauthorizedException('Sesión cerrada o vencida');
 
       const usuario = await this.prisma.usuario.findUnique({
         where: { id: decoded.sub },
@@ -310,9 +312,27 @@ export class AuthService {
         sid: decoded.sid,
       };
 
+      // H-04: cada refresh sustituye la cookie; presentar una ya sustituida fuera de la gracia revoca la sesión.
+      const rotacion = await rotarRefresh(this.prisma, {
+        sid: String(decoded.sid), sujetoId: String(decoded.sub), jti: typeof decoded.jti === 'string' ? decoded.jti : undefined,
+        graciaMs: leerConfiguracionAuth(this.configService).graciaRefreshSegundos * 1000,
+      });
+      if (rotacion.estado === 'REUTILIZADA') {
+        this.logger.warn(`[AUTH] Refresh reutilizado fuera de la ventana de gracia: sesión ${String(decoded.sid)} revocada`);
+        throw new UnauthorizedException('Sesión cerrada por reutilización del token');
+      }
+      if (rotacion.estado === 'NO_VIGENTE') throw new UnauthorizedException('Sesión cerrada o vencida');
+
       const accessToken = this.jwtService.sign(newPayload, {
         expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
       });
+      const restanteMs = rotacion.expiresAt.getTime() - Date.now();
+      // El vencimiento absoluto de la sesión no se alarga al rotar.
+      const nuevoRefresh = this.jwtService.sign({ ...newPayload, typ: 'refresh' }, {
+        expiresIn: Math.max(1, Math.floor(restanteMs / 1000)),
+        jwtid: rotacion.jti,
+      });
+      res.cookie('refreshToken', nuevoRefresh, { ...refreshCookieOptions(this.configService), maxAge: Math.max(0, restanteMs) });
 
       return { accessToken };
     } catch (error) {
