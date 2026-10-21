@@ -471,6 +471,38 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     });
   });
 
+  describe('CSRF en los endpoints con cookie (H-05)', () => {
+    const ajeno = 'https://atacante.example';
+    const local = 'http://localhost:5173';
+
+    it('login, refresh y logout desde otro origen responden 403 sin crear, rotar ni cerrar sesiones', async () => {
+      const antes = await prisma.sesionAuth.count();
+      await request(app.getHttpServer()).post('/api/auth/login').set('Origin', ajeno).send({ email: 'admin@auth.test.invalid', password, tenantId }).expect(403);
+      await request(app.getHttpServer()).post('/api/admin/auth/login').set('Origin', ajeno).send({ email: 'plataforma@auth.test.invalid', password }).expect(403);
+      expect(await prisma.sesionAuth.count()).toBe(antes);
+
+      const res = await login('admin@auth.test.invalid').set('Origin', local).expect(200);
+      const sid = await sesionDe(res.body.accessToken);
+      const jtiAntes = (await prisma.sesionAuth.findUnique({ where: { id: sid } }))!.refreshJti;
+      await request(app.getHttpServer()).post('/api/auth/refresh').set('Origin', ajeno).set('Cookie', refreshCookie(res)).expect(403);
+      await request(app.getHttpServer()).post('/api/auth/logout').set('Origin', ajeno).set('Cookie', refreshCookie(res)).expect(403);
+      // Formulario HTML clásico: sin Origin en algunos navegadores antiguos, pero con Sec-Fetch-Site.
+      await request(app.getHttpServer()).post('/api/auth/logout').set('Sec-Fetch-Site', 'cross-site').type('form').send('x=1').set('Cookie', refreshCookie(res)).expect(403);
+      const fila = (await prisma.sesionAuth.findUnique({ where: { id: sid } }))!;
+      expect(fila.revokedAt).toBeNull();
+      expect(fila.refreshJti).toBe(jtiAntes);
+      await get('/auth/me', res.body.accessToken).expect(200);
+
+      await request(app.getHttpServer()).post('/api/auth/refresh').set('Origin', local).set('Cookie', refreshCookie(res)).expect(200);
+      await request(app.getHttpServer()).post('/api/auth/logout').set('Origin', local).set('Cookie', refreshCookie(res)).expect(200);
+    });
+
+    it('los endpoints de API con Bearer no dependen del Origin (no usan la cookie)', async () => {
+      const res = await login('admin@auth.test.invalid').expect(200);
+      await get('/auth/me', res.body.accessToken).set('Origin', ajeno).expect(200);
+    });
+  });
+
   describe('contingencia offline y sesiones', () => {
     /** Un lote de una venta de 2 tornillos (20.00 + ISV 3.00), creado en el equipo mientras no había conexión. */
     async function ventanaYLote() {
