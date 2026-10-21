@@ -1,0 +1,290 @@
+
+> frontend@0.0.0 test:browser
+> playwright test --workers=2
+
+[WebServer] (node:10360) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 228 tests using 2 workers
+
+(node:10456) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:10455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓    1 [chromium] › e2e/admin-home-simulado.spec.ts:71:5 › Panel administrativo (simulado) › móvil › muestra el botón flotante de nueva venta sin desbordamiento horizontal (4.2s)
+  ✓    2 [chromium] › e2e/admin-home-simulado.spec.ts:50:3 › Panel administrativo (simulado) › escritorio: muestra cifras reales, sin secciones pendientes y ninguna acción «Actualizar» (4.6s)
+  ✓    3 [chromium] › e2e/admin-home-simulado.spec.ts:81:3 › Panel administrativo (simulado) › si el resumen falla no muestra cifras falsas y avisa del reintento automático (3.1s)
+  ✓    4 [chromium] › e2e/admin-movil-simulado.spec.ts:60:3 › Resumen administrativo para iPhone (simulado) › el administrador ve ventas, caja, existencias, cobros, pagos y solicitudes sin desbordar la pantalla (3.9s)
+  ✓    5 [chromium] › e2e/admin-movil-simulado.spec.ts:80:3 › Resumen administrativo para iPhone (simulado) › si falla una sección, las demás siguen visibles y solo esa muestra el aviso (3.3s)
+  ✓    6 [chromium] › e2e/admin-movil-simulado.spec.ts:93:3 › Resumen administrativo para iPhone (simulado) › el cajero no accede al resumen administrativo (2.6s)
+  ✓    7 [chromium] › e2e/admin-pendientes-simulado.spec.ts:81:3 › Inicio del administrador: pendientes reales › muestra las cifras del servidor, agrupa lo que está al día y cada fila conduce a su pantalla (3.3s)
+  ✓    8 [chromium] › e2e/admin-pendientes-simulado.spec.ts:99:3 › Inicio del administrador: pendientes reales › como máximo cuatro acciones principales y sin botones redundantes (2.4s)
+  ✓   10 [chromium] › e2e/admin-pendientes-simulado.spec.ts:124:3 › Inicio del administrador: pendientes reales › error: avisa sin cifras y una respuesta malformada no se toma como «sin pendientes» (2.5s)
+  ✓   11 [chromium] › e2e/admin-pendientes-simulado.spec.ts:133:3 › Inicio del administrador: pendientes reales › respuesta malformada: estado de error (1.8s)
+  ✓    9 [chromium] › e2e/admin-pendientes-simulado.spec.ts:113:3 › Inicio del administrador: pendientes reales › carga: no muestra ceros mientras el servidor no responde (5.0s)
+  ✓   12 [chromium] › e2e/admin-pendientes-simulado.spec.ts:139:3 › Inicio del administrador: pendientes reales › inglés: el inicio y los pendientes se traducen (2.8s)
+  ✓   13 [chromium] › e2e/admin-pendientes-simulado.spec.ts:151:7 › Inicio del administrador: pendientes reales › tableta y móvil › 820px: pendientes visibles y sin desbordamiento horizontal (3.0s)
+  ✓   14 [chromium] › e2e/admin-pendientes-simulado.spec.ts:151:7 › Inicio del administrador: pendientes reales › tableta y móvil › 390px: pendientes visibles y sin desbordamiento horizontal (2.5s)
+  ✓   15 [chromium] › e2e/admin-pendientes-simulado.spec.ts:164:3 › Ventas sin conexión: acceso desde ambos menús y permisos › SIDEBAR: ADMIN accede desde el menú lateral (2.9s)
+  ✓   17 [chromium] › e2e/admin-pendientes-simulado.spec.ts:181:3 › Ventas sin conexión: acceso desde ambos menús y permisos › sin módulo POS o con otro rol no aparece en ningún menú (2.0s)
+  ✓   16 [chromium] › e2e/admin-pendientes-simulado.spec.ts:173:3 › Ventas sin conexión: acceso desde ambos menús y permisos › TOPNAV: ADMIN accede desde las opciones del punto de venta (3.2s)
+  ✓   18 [chromium] › e2e/admin-pendientes-simulado.spec.ts:187:3 › Ventas sin conexión: acceso desde ambos menús y permisos › CAJERO no ve la revisión offline (2.3s)
+  ✓   19 [chromium] › e2e/admin-pendientes-simulado.spec.ts:193:3 › Ventas sin conexión: acceso desde ambos menús y permisos › una venta aplicada con observación se puede marcar como revisada con la acción existente (3.3s)
+  ✓   20 [chromium] › e2e/admin-pendientes-simulado.spec.ts:211:3 › Ventas sin conexión: acceso desde ambos menús y permisos › la lista distingue carga de «sin operaciones» (2.9s)
+  ✓   21 [chromium] › e2e/admin-pendientes-simulado.spec.ts:218:1 › Configuración del negocio: cuatro secciones, solo Super Admin y compatible con configuraciones antiguas (3.4s)
+  ✓   22 [chromium] › e2e/admin-pendientes-simulado.spec.ts:230:1 › ADMIN no obtiene la configuración del negocio (2.1s)
+  ✓   23 [chromium] › e2e/arranque.spec.ts:57:3 › sin sesión, / muestra el login del bundle construido (2.5s)
+  ✓   24 [chromium] › e2e/arranque.spec.ts:57:3 › sin sesión, /login muestra el login del bundle construido (2.6s)
+  ✓   25 [chromium] › e2e/arranque.spec.ts:57:3 › sin sesión, /pos muestra el login del bundle construido (1.7s)
+  ✓   26 [chromium] › e2e/arranque.spec.ts:57:3 › sin sesión, /devoluciones muestra el login del bundle construido (2.5s)
+  ✓   27 [chromium] › e2e/arranque.spec.ts:57:3 › sin sesión, /auditoria muestra el login del bundle construido (1.9s)
+  ✓   28 [chromium] › e2e/arranque.spec.ts:57:3 › sin sesión, /admin/login muestra el login del bundle construido (2.3s)
+  ✓   29 [chromium] › e2e/arranque.spec.ts:68:3 › el login sigue disponible si ferre_solicitudes_descuento_tenant-demo-1 contiene JSON corrupto (2.1s)
+  ✓   30 [chromium] › e2e/arranque.spec.ts:68:3 › el login sigue disponible si ferre_solicitudes_descuento contiene JSON corrupto (2.3s)
+  ✓   31 [chromium] › e2e/arranque.spec.ts:68:3 › el login sigue disponible si ferre_notificaciones_transferencia_tenant-demo-1 contiene JSON corrupto (2.1s)
+  ✓   32 [chromium] › e2e/arranque.spec.ts:76:1 › eventos de otras pestañas con notificaciones inválidas no interrumpen el login (2.3s)
+  ✓   33 [chromium] › e2e/arranque.spec.ts:89:3 › login simulado de ADMIN carga las pantallas y respeta acceso a auditoría (7.2s)
+  ✓   34 [chromium] › e2e/arranque.spec.ts:89:3 › login simulado de CAJERO carga las pantallas y respeta acceso a auditoría (6.7s)
+  ✓   35 [chromium] › e2e/auditoria-inventario.spec.ts:154:1 › QA-INV-004: conciliación muestra el nombre del contador y conserva su identificador (5.4s)
+  ✓   36 [chromium] › e2e/auditoria-inventario.spec.ts:175:3 › QA-INV-002: conciliación obsoleta recarga 12 y exige nueva decisión; doble clic (1280px, API simulada) (6.1s)
+  ✓   37 [chromium] › e2e/auditoria-inventario.spec.ts:175:3 › QA-INV-002: conciliación obsoleta recarga 12 y exige nueva decisión; doble clic (390px, API simulada) (5.3s)
+  ✓   38 [chromium] › e2e/balance-cxc-cxp-simulado.spec.ts:82:5 › Cuentas por cobrar y por pagar (BALANCE, simulado) › como ADMIN › filtra por estado de deuda, muestra el estado y registra un pago a proveedor con referencia (4.6s)
+  ✓   39 [chromium] › e2e/balance-cxc-cxp-simulado.spec.ts:98:5 › Cuentas por cobrar y por pagar (BALANCE, simulado) › como ADMIN › el estado de cuenta del cliente muestra movimientos con saldo acumulado y responsable (4.1s)
+  ✓   40 [chromium] › e2e/balance-cxc-cxp-simulado.spec.ts:111:5 › Cuentas por cobrar y por pagar (BALANCE, simulado) › como CAJERO (negativo) › el cajero ve cuentas por cobrar pero no las cuentas por pagar (4.1s)
+  ✓   41 [chromium] › e2e/bodeguero-sin-ventas-simulado.spec.ts:46:1 › BODEGUERO: el inicio muestra existencias y cotizaciones sin una tarjeta de ventas con L 0.00 (3.3s)
+  ✓   42 [chromium] › e2e/bodeguero-sin-ventas-simulado.spec.ts:56:1 › BODEGUERO: la entrega pendiente muestra qué entregar sin importe de la venta (3.9s)
+  ✓   43 [chromium] › e2e/caja-simulado.spec.ts:123:3 › Caja y arqueo — interfaz con backend simulado (E2E simulado) › abrir caja, registrar una salida autorizada y ver el efectivo esperado (6.3s)
+  ✓   44 [chromium] › e2e/caja-simulado.spec.ts:140:3 › Caja y arqueo — interfaz con backend simulado (E2E simulado) › una diferencia al cerrar exige explicación antes de confirmar; el comprobante muestra el resultado (7.1s)
+  ✓   45 [chromium] › e2e/caja-simulado.spec.ts:166:3 › Caja y arqueo — interfaz con backend simulado (E2E simulado) › si se pierde la respuesta de la apertura, el reintento usa la misma solicitud y no abre dos cajas (5.7s)
+  ✓   46 [chromium] › e2e/caja-simulado.spec.ts:182:3 › Caja y arqueo — interfaz con backend simulado (E2E simulado) › el administrador ve los cierres de todos los cajeros de la empresa (5.0s)
+  ✓   47 [chromium] › e2e/compras-simulado.spec.ts:122:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › recibir mercancía exige confirmación: cancelar no envía nada; aceptar envía una sola recepción (5.9s)
+  ✓   48 [chromium] › e2e/compras-simulado.spec.ts:135:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › un doble clic en Confirmar recepción envía una sola recepción (5.3s)
+  ✓   49 [chromium] › e2e/compras-simulado.spec.ts:145:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › si se pierde la respuesta, la recepción queda pendiente y el reintento usa la misma solicitud (5.5s)
+  ✓   50 [chromium] › e2e/compras-simulado.spec.ts:158:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › un doble clic en Registrar factura envía una sola factura (6.4s)
+  ✓   51 [chromium] › e2e/compras-simulado.spec.ts:172:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › registrar un pago a proveedor pide confirmación, avisa que no afecta la caja y marca la cuenta como pagada (5.8s)
+  ✓   52 [chromium] › e2e/compras-simulado.spec.ts:189:3 › Ciclo de compras — interfaz con backend simulado (E2E simulado) › el ciclo de compras cabe en un teléfono sin desbordamiento horizontal (4.7s)
+  ✓   53 [chromium] › e2e/contingencia-admin-simulado.spec.ts:83:1 › cierre sin venta: no envía caja, la regularización aparece solo tras el 409 y un motivo que no cumple la regla no se envía (5.5s)
+  ✓   55 [chromium] › e2e/contingencia-simulado.spec.ts:127:3 › Contingencia POS — red y almacenamiento con backend simulado › almacenamiento lleno: el cobro no se confirma, no hay comprobante ni operación a medias (3.7s)
+  ✓   56 [chromium] › e2e/contingencia-simulado.spec.ts:148:3 › Contingencia POS — red y almacenamiento con backend simulado › si la lista del diario falla después de guardar, la venta sigue confirmada y no se dice que no se guardó (3.5s)
+  ✓   57 [chromium] › e2e/contingencia-simulado.spec.ts:180:3 › Contingencia POS — red y almacenamiento con backend simulado › la venta siguiente se cobra y guarda mientras la sincronización de la anterior sigue sin respuesta (3.9s)
+  ✓   58 [chromium] › e2e/contingencia-simulado.spec.ts:215:3 › Impresión del comprobante de contingencia › el comprobante interno trae ferretería, CT, cajero, código, descripción, cantidades, precios, total, efectivo y cambio (3.2s)
+  ✓   59 [chromium] › e2e/contingencia-simulado.spec.ts:233:3 › Impresión del comprobante de contingencia › reimprimir desde el diario muestra el mismo comprobante y no crea otra venta (3.9s)
+  ✓   60 [chromium] › e2e/contingencia-simulado.spec.ts:246:3 › Impresión del comprobante de contingencia › recargar el navegador después de guardar: la venta sigue en el diario y se reimprime (4.2s)
+  ✓   61 [chromium] › e2e/contingencia-simulado.spec.ts:259:3 › Impresión del comprobante de contingencia › una impresora que falla no revierte la venta, no permite cobrarla otra vez y deja atender al siguiente cliente (4.9s)
+  ✓   54 [chromium] › e2e/contingencia-simulado.spec.ts:103:3 › Contingencia POS — red y almacenamiento con backend simulado › timeout real: una petición colgada no deja la venta en "enviando"; vuelve a pendiente y se envía una sola vez (34.8s)
+  ✓   62 [chromium] › e2e/contingencia-simulado.spec.ts:281:3 › Impresión del comprobante de contingencia › cancelar el diálogo de impresión no cambia la venta ni muestra un error (6.1s)
+  ✓   63 [chromium] › e2e/contingencia-simulado.spec.ts:292:3 › Impresión del comprobante de contingencia › el formato de 58 mm configurado por negocio se aplica y se conserva al recargar (7.3s)
+  ✓   64 [chromium] › e2e/contingencia-simulado.spec.ts:308:3 › Contingencia POS — sin internet y existencias locales › dos ventas consecutivas sin internet: ambas quedan guardadas y pendientes, sin duplicar (7.3s)
+  ✓   66 [chromium] › e2e/contingencia-simulado.spec.ts:350:3 › Contingencia POS — sin internet y existencias locales › la existencia local baja al instante con cada venta, sin esperar la sincronización (5.2s)
+  ✓   67 [chromium] › e2e/contingencia-simulado.spec.ts:365:3 › contingencia: A4 mantiene página y ancho coherentes y respeta la configuración del negocio frente a la preferencia local (4.7s)
+  ✓   65 [chromium] › e2e/contingencia-simulado.spec.ts:321:3 › Contingencia POS — sin internet y existencias locales › lote rechazado con 400: el equipo reenvía las ventas de una en una, ninguna se pierde ni se duplica (13.0s)
+  ✓   69 [chromium] › e2e/contingencia-simulado.spec.ts:365:3 › contingencia: ROLLO_58MM mantiene página y ancho coherentes y respeta la configuración del negocio frente a la preferencia local (5.7s)
+  ✓   68 [chromium] › e2e/contingencia-simulado.spec.ts:365:3 › contingencia: ROLLO_80MM mantiene página y ancho coherentes y respeta la configuración del negocio frente a la preferencia local (5.8s)
+  ✓   70 [chromium] › e2e/diseno-unico.spec.ts:39:1 › configuración heredada con plantillas antiguas: la app carga sin errores y usa el diseño único (3.3s)
+  ✓   71 [chromium] › e2e/diseno-unico.spec.ts:48:1 › SIDEBAR y TOPNAV muestran exactamente los mismos módulos para ADMIN (6.0s)
+  ✓   72 [chromium] › e2e/diseno-unico.spec.ts:63:1 › el modo de navegación del negocio persiste al volver a entrar (3.7s)
+  ✓   74 [chromium] › e2e/diseno-unico.spec.ts:88:1 › caja y navegación en inglés cuando el negocio está en EN (2.9s)
+  ✓   73 [chromium] › e2e/diseno-unico.spec.ts:73:1 › caja: sin verificar sin respuesta válida, abierta o cerrada según el servidor, y una sola consulta en el POS (5.0s)
+  ✓   76 [chromium] › e2e/entregas-simulado.spec.ts:50:1 › bodega ve vendido, entregado y pendiente; entrega parcial exige receptor y envía una solicitud (5.8s)
+  ✓   75 [chromium] › e2e/diseno-unico.spec.ts:94:1 › SUPERADMIN: todas las secciones de plataforma abren y el menú del negocio no se repite en modo lateral (10.3s)
+  ✓   77 [chromium] › e2e/entregas-simulado.spec.ts:72:1 › rechazo del servidor se muestra en español, no se envía exceso y el reintento usa una solicitud nueva (5.7s)
+  ✓   78 [chromium] › e2e/entregas-simulado.spec.ts:93:1 › cajero ve las cantidades pero no puede confirmar la entrega (4.0s)
+  ✓   79 [chromium] › e2e/garantias-simulado.spec.ts:88:3 › Garantías — interfaz con backend simulado (E2E simulado) › administrador: busca la factura, elige el producto, revisa el vencimiento y guarda con solicitud (6.1s)
+  ✓   80 [chromium] › e2e/garantias-simulado.spec.ts:108:3 › Garantías — interfaz con backend simulado (E2E simulado) › una línea ya garantizada no se puede volver a elegir (5.7s)
+  ✓   82 [chromium] › e2e/garantias-simulado.spec.ts:130:3 › Garantías — interfaz con backend simulado (E2E simulado) › factura inexistente: muestra un mensaje claro y no ofrece guardar (5.2s)
+  ✓   81 [chromium] › e2e/garantias-simulado.spec.ts:117:3 › Garantías — interfaz con backend simulado (E2E simulado) › días no válidos: no se puede guardar y no se envía nada (6.4s)
+  ✓   83 [chromium] › e2e/garantias-simulado.spec.ts:142:3 › Garantías — interfaz con backend simulado (E2E simulado) › cajero › consulta sin formulario de alta ni edición (4.6s)
+  ✓   84 [chromium] › e2e/garantias-simulado.spec.ts:155:3 › Garantías — interfaz con backend simulado (E2E simulado) › móvil 390 px: sin desbordamiento horizontal (4.7s)
+  ✓   85 [chromium] › e2e/impresion-formatos.spec.ts:6:3 › impresión A4: navegador acepta tamaño CSS y genera ancho correcto (804ms)
+  ✓   86 [chromium] › e2e/impresion-formatos.spec.ts:6:3 › impresión ROLLO_80MM: navegador acepta tamaño CSS y genera ancho correcto (808ms)
+  ✓   87 [chromium] › e2e/impresion-formatos.spec.ts:6:3 › impresión ROLLO_58MM: navegador acepta tamaño CSS y genera ancho correcto (844ms)
+  ✓   89 [chromium] › e2e/levantamiento.spec.ts:156:3 › Levantamiento de inventario (FS-06 fase 2) › crear levantamiento: un fallo de red conserva la clave y el reintento no duplica el levantamiento (4.6s)
+  ✓   88 [chromium] › e2e/inventario-paginacion-simulado.spec.ts:42:1 › Inventario pagina 450 productos de 200 en 200 y la búsqueda recorre todo el catálogo (9.3s)
+  ✓   90 [chromium] › e2e/levantamiento.spec.ts:170:3 › Levantamiento de inventario (FS-06 fase 2) › contar: un envío perdido queda pendiente, se confirma sin duplicar y el guardado es visible (5.5s)
+  ✓   91 [chromium] › e2e/levantamiento.spec.ts:184:3 › Levantamiento de inventario (FS-06 fase 2) › advierte antes de guardar un artículo ya contado por el mismo empleado y permite editar el conteo anterior (5.6s)
+  ✓   92 [chromium] › e2e/levantamiento.spec.ts:199:3 › Levantamiento de inventario (FS-06 fase 2) › avisa, sin bloquear, cuando otro empleado ya contó el artículo y registra el conflicto (5.9s)
+  ✓   93 [chromium] › e2e/levantamiento.spec.ts:212:3 › Levantamiento de inventario (FS-06 fase 2) › si otro dispositivo registró el artículo después de cargar la pantalla, el servidor rechaza el duplicado y muestra el motivo (5.4s)
+  ✓   94 [chromium] › e2e/levantamiento.spec.ts:224:3 › Levantamiento de inventario (FS-06 fase 2) › flujo completo: crear, contar con marca, finalizar, revisar impacto y aplicar (6.9s)
+  ✓   95 [chromium] › e2e/levantamiento.spec.ts:251:3 › Levantamiento de inventario (FS-06 fase 2) › conteo sin precios: sin campos ni datos comerciales en pantalla, responsable registrado y aplicación solo con el token (6.6s)
+  ✓   96 [chromium] › e2e/levantamiento.spec.ts:298:3 › Levantamiento en teléfono › la captura cabe en el ancho del teléfono y registra un producto sin fotografía (4.6s)
+  ✓   98 [chromium] › e2e/levantamiento.spec.ts:348:1 › cámara: lecturas consecutivas, ceros iniciales, desconocido y sin duplicados ni guardado automático (6.3s)
+  ✓   97 [chromium] › e2e/levantamiento.spec.ts:320:1 › cámara: diez aperturas y cierres, cierre manual y alternativa enfocada sin alterar inventario (9.8s)
+  ✓   99 [chromium] › e2e/levantamiento.spec.ts:371:1 › cámara: permiso denegado conserva sesión, captura manual y recuperación (5.8s)
+  ✓  100 [chromium] › e2e/levantamiento.spec.ts:391:1 › cámara: pista interrumpida, segundo plano, BFCache y navegación liberan recursos (6.4s)
+  ✓  101 [chromium] › e2e/levantamiento.spec.ts:414:1 › cámara: cerrar y reabrir mientras espera permiso no repite getUserMedia (5.1s)
+  ✓  102 [chromium] › e2e/levantamiento.spec.ts:426:1 › cámara: sin BarcodeDetector carga ZXing y lee EAN-13 con canvas real (5.4s)
+  ✓  103 [chromium] › e2e/levantamiento.spec.ts:436:1 › cámara: sesión vencida durante levantamiento libera pistas y descarta lecturas tardías (5.9s)
+  ✓  104 [chromium] › e2e/levantamiento.spec.ts:465:1 › cámara: cambiar de dispositivo libera la pista anterior y conserva alternativa manual (6.6s)
+  ✓  105 [chromium] › e2e/menu-jowa-v3.spec.ts:35:1 › ADMIN: orden por uso, grupos desplegables que se recuerdan y diseño único con el color del negocio (5.4s)
+  ✓  106 [chromium] › e2e/menu-jowa-v3.spec.ts:65:1 › sin conexión: el menú lo indica y solo el POS sigue disponible (3.2s)
+  ✓  107 [chromium] › e2e/menu-jowa-v3.spec.ts:80:1 › TOPNAV se conserva en el diseño único (3.4s)
+  ✓  109 [chromium] › e2e/menu-jowa-v3.spec.ts:110:1 › barra superior muestra el estado de la caja a quien vende (3.8s)
+  ✓  108 [chromium] › e2e/menu-jowa-v3.spec.ts:87:1 › SUPERADMIN: menú de plataforma con secciones por URL y menú del negocio anidado (7.5s)
+  ✓  110 [chromium] › e2e/menu-jowa-v3.spec.ts:116:1 › el POS muestra sus tres pasos en el ticket (3.3s)
+  ✓  111 [chromium] › e2e/menu-jowa-v3.spec.ts:126:1 › SUPERADMIN en modo lateral: no repite las pestañas superiores de plataforma (3.9s)
+  ✓  112 [chromium] › e2e/navigation-settings.spec.ts:58:3 › SUPERADMIN SIDEBAR es: navegación, prioridades, módulos y móvil (6.0s)
+  ✓  113 [chromium] › e2e/navigation-settings.spec.ts:58:3 › SUPERADMIN SIDEBAR en: navegación, prioridades, módulos y móvil (6.2s)
+  ✓  114 [chromium] › e2e/navigation-settings.spec.ts:58:3 › SUPERADMIN TOPNAV es: navegación, prioridades, módulos y móvil (6.4s)
+  ✓  115 [chromium] › e2e/navigation-settings.spec.ts:58:3 › SUPERADMIN TOPNAV en: navegación, prioridades, módulos y móvil (6.4s)
+  ✓  116 [chromium] › e2e/navigation-settings.spec.ts:58:3 › ADMIN SIDEBAR es: navegación, prioridades, módulos y móvil (5.3s)
+  ✓  117 [chromium] › e2e/navigation-settings.spec.ts:58:3 › ADMIN SIDEBAR en: navegación, prioridades, módulos y móvil (3.8s)
+  ✓  118 [chromium] › e2e/navigation-settings.spec.ts:58:3 › ADMIN TOPNAV es: navegación, prioridades, módulos y móvil (4.3s)
+  ✓  119 [chromium] › e2e/navigation-settings.spec.ts:58:3 › ADMIN TOPNAV en: navegación, prioridades, módulos y móvil (5.4s)
+  ✓  120 [chromium] › e2e/navigation-settings.spec.ts:58:3 › CAJERO SIDEBAR es: navegación, prioridades, módulos y móvil (4.6s)
+  ✓  121 [chromium] › e2e/navigation-settings.spec.ts:58:3 › CAJERO SIDEBAR en: navegación, prioridades, módulos y móvil (4.7s)
+  ✓  122 [chromium] › e2e/navigation-settings.spec.ts:58:3 › CAJERO TOPNAV es: navegación, prioridades, módulos y móvil (4.7s)
+  ✓  123 [chromium] › e2e/navigation-settings.spec.ts:58:3 › CAJERO TOPNAV en: navegación, prioridades, módulos y móvil (5.4s)
+  ✓  124 [chromium] › e2e/navigation-settings.spec.ts:58:3 › VENDEDOR SIDEBAR es: navegación, prioridades, módulos y móvil (4.9s)
+  ✓  125 [chromium] › e2e/navigation-settings.spec.ts:58:3 › VENDEDOR SIDEBAR en: navegación, prioridades, módulos y móvil (5.0s)
+  ✓  126 [chromium] › e2e/navigation-settings.spec.ts:58:3 › VENDEDOR TOPNAV es: navegación, prioridades, módulos y móvil (5.8s)
+  ✓  127 [chromium] › e2e/navigation-settings.spec.ts:58:3 › VENDEDOR TOPNAV en: navegación, prioridades, módulos y móvil (5.5s)
+  ✓  128 [chromium] › e2e/navigation-settings.spec.ts:58:3 › BODEGUERO SIDEBAR es: navegación, prioridades, módulos y móvil (4.7s)
+  ✓  129 [chromium] › e2e/navigation-settings.spec.ts:58:3 › BODEGUERO SIDEBAR en: navegación, prioridades, módulos y móvil (5.2s)
+  ✓  130 [chromium] › e2e/navigation-settings.spec.ts:58:3 › BODEGUERO TOPNAV es: navegación, prioridades, módulos y móvil (5.4s)
+  ✓  131 [chromium] › e2e/navigation-settings.spec.ts:58:3 › BODEGUERO TOPNAV en: navegación, prioridades, módulos y móvil (4.6s)
+  ✓  132 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false ADMIN SIDEBAR: menús, buscador, accesos, móvil y URL (8.0s)
+  ✓  133 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true ADMIN SIDEBAR: menús, buscador, accesos, móvil y URL (10.0s)
+  ✓  134 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false ADMIN TOPNAV: menús, buscador, accesos, móvil y URL (8.2s)
+  ✓  135 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true ADMIN TOPNAV: menús, buscador, accesos, móvil y URL (9.6s)
+  ✓  136 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false CAJERO SIDEBAR: menús, buscador, accesos, móvil y URL (7.5s)
+  ✓  137 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true CAJERO SIDEBAR: menús, buscador, accesos, móvil y URL (9.2s)
+  ✓  138 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false CAJERO TOPNAV: menús, buscador, accesos, móvil y URL (9.3s)
+  ✓  140 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false VENDEDOR SIDEBAR: menús, buscador, accesos, móvil y URL (8.6s)
+  ✓  139 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true CAJERO TOPNAV: menús, buscador, accesos, móvil y URL (11.6s)
+  ✓  141 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true VENDEDOR SIDEBAR: menús, buscador, accesos, móvil y URL (7.5s)
+  ✓  142 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false VENDEDOR TOPNAV: menús, buscador, accesos, móvil y URL (7.4s)
+  ✓  144 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false BODEGUERO SIDEBAR: menús, buscador, accesos, móvil y URL (6.4s)
+  ✓  143 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true VENDEDOR TOPNAV: menús, buscador, accesos, móvil y URL (8.1s)
+  ✓  145 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true BODEGUERO SIDEBAR: menús, buscador, accesos, móvil y URL (6.9s)
+  ✓  146 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS false BODEGUERO TOPNAV: menús, buscador, accesos, móvil y URL (6.0s)
+  ✓  147 [chromium] › e2e/navigation-settings.spec.ts:95:3 › POS true BODEGUERO TOPNAV: menús, buscador, accesos, móvil y URL (6.0s)
+  ✓  148 [chromium] › e2e/navigation-settings.spec.ts:137:1 › settings: valores fiscales soportados, guardado, reload, errores y capturas (8.2s)
+  ✓  149 [chromium] › e2e/navigation-settings.spec.ts:171:1 › marca de Super Admin guarda por API, permanece al recargar y no anuncia éxito ante error (6.0s)
+  ✓  150 [chromium] › e2e/navigation-settings.spec.ts:205:38 › inicio ADMIN: pendientes traducidos y Configuración denegada es (4.3s)
+  ✓  151 [chromium] › e2e/navigation-settings.spec.ts:205:38 › inicio ADMIN: pendientes traducidos y Configuración denegada en (4.0s)
+  ✓  152 [chromium] › e2e/navigation-settings.spec.ts:216:38 › configuración del negocio traducida es (3.7s)
+  ✓  154 [chromium] › e2e/navigation-settings.spec.ts:229:1 › configuración vacía del servidor sustituye apariencia vieja de la caché (3.3s)
+  ✓  153 [chromium] › e2e/navigation-settings.spec.ts:216:38 › configuración del negocio traducida en (3.8s)
+  ✓  156 [chromium] › e2e/navigation-settings.spec.ts:255:33 › settings: controles completos dentro de la pantalla de 390px (3.4s)
+  ✓  155 [chromium] › e2e/navigation-settings.spec.ts:243:1 › formato de impresión: el Super Admin elige rollo de 80 mm, se guarda y se conserva al recargar (4.6s)
+  ✓  157 [chromium] › e2e/navigation-settings.spec.ts:255:33 › settings: controles completos dentro de la pantalla de 320px (2.7s)
+offline-emulation {"navegador":"151.0.7922.173","ejecutable":"/usr/bin/chromium","inicio":{"online":true,"serviceWorker":true,"api":200,"peticionesAPI":1},"antesRecarga":{"online":false,"serviceWorker":true},"despuesRecarga":{"online":true,"serviceWorker":true,"api":"NETWORK_ERROR","peticionesAPI":1}}
+  ✓  159 [chromium] › e2e/p1-operaciones-simulado.spec.ts:101:3 › Proveedores por producto (simulado) › ADMIN asocia un proveedor con código, lo marca preferido y ve el último costo (4.4s)
+  ✘  158 [chromium] › e2e/offline-emulation.spec.ts:9:1 › el emulador offline conserva navigator.onLine tras recargar desde un service worker (8.2s)
+  ✓  160 [chromium] › e2e/p1-operaciones-simulado.spec.ts:115:3 › Proveedores por producto (simulado) › si el servidor rechaza el proveedor (inactivo), el mensaje se muestra y no se cambia la lista (3.6s)
+(node:22486) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  161 [chromium] › e2e/p1-operaciones-simulado.spec.ts:138:5 › Compra al contado (simulado) › como ADMIN › ADMIN marca compra al contado y el payload lleva pagoContado sin mencionar caja (5.0s)
+  ✓  162 [chromium] › e2e/p1-operaciones-simulado.spec.ts:130:7 › Compra al contado (simulado) › como ADMIN › al elegir un producto sugiere su proveedor preferido y el botón lo selecciona (5.5s)
+  ✓  163 [chromium] › e2e/p1-operaciones-simulado.spec.ts:157:5 › Compra al contado (simulado) › como BODEGUERO (negativo) › no registra facturas de compra: el formulario con costos es solo de ADMIN (4.1s)
+  ✓  164 [chromium] › e2e/p1-operaciones-simulado.spec.ts:168:3 › Estado de cuenta de clientes (simulado) › ADMIN busca un cliente y ve saldo, conciliación, factura vencida y abonos (5.4s)
+  ✓  165 [chromium] › e2e/p1-operaciones-simulado.spec.ts:183:7 › Estado de cuenta de clientes (simulado) › como CAJERO (negativo) › no puede abrir el estado de cuenta ni ver saldos de clientes (3.4s)
+  ✓  166 [chromium] › e2e/p1-operaciones-simulado.spec.ts:183:7 › Estado de cuenta de clientes (simulado) › como VENDEDOR (negativo) › no puede abrir el estado de cuenta ni ver saldos de clientes (4.4s)
+  ✓  167 [chromium] › e2e/pagos-bancarios-simulado.spec.ts:75:3 › Abono de crédito con tarjeta (simulado) › no se registra sin autorización y terminal; con ambas, el payload lleva pagoElectronico (5.7s)
+  ✓  169 [chromium] › e2e/pagos-bancarios-simulado.spec.ts:115:3 › Conciliación del POS bancario como CAJERO (negativo) › el cajero no ve la pantalla de conciliación ni consulta el historial (4.3s)
+  ✓  168 [chromium] › e2e/pagos-bancarios-simulado.spec.ts:95:3 › Conciliación del POS bancario (simulado) › una diferencia sin motivo se rechaza; con motivo queda registrada (6.0s)
+  ✓  171 [chromium] › e2e/pos-catalogo-grande-simulado.spec.ts:88:3 › POS con catálogo grande (simulado) › código de barras exacto agrega un producto no visible; cantidad, quitar y totales se actualizan (6.8s)
+  ✓  170 [chromium] › e2e/pos-catalogo-grande-simulado.spec.ts:68:3 › POS con catálogo grande (simulado) › pinta 120 tarjetas, «Mostrar más» amplía y la búsqueda encuentra productos fuera de lo visible (7.1s)
+  ✓  173 [chromium] › e2e/pos-tarjeta-simulado.spec.ts:73:3 › Cobro con tarjeta en el POS (simulado) › sin autorización bancaria no se envía la venta; con autorización y terminal, el payload la incluye (6.1s)
+  ✓  172 [chromium] › e2e/pos-catalogo-grande-simulado.spec.ts:117:1 › escáner compartido: una lectura por apertura conserva carrito y total sin enviar venta (6.7s)
+  ✓  174 [chromium] › e2e/pos-tarjeta-simulado.spec.ts:89:3 › Cobro con tarjeta en el POS (simulado) › efectivo no muestra campos de autorización (4.8s)
+  ✓  175 [chromium] › e2e/pos-tarjeta-simulado.spec.ts:96:3 › Cobro con tarjeta en el POS (simulado) › efectivo: calcula el cambio en pantalla y en el comprobante sin enviarlo al servidor (5.5s)
+  ✓  176 [chromium] › e2e/pos-tarjeta-simulado.spec.ts:118:3 › Cobro con tarjeta en el POS (simulado) › el comprobante en pantalla nombra la transferencia como tal y no como crédito (5.7s)
+  ✓  177 [chromium] › e2e/pos-tarjeta-simulado.spec.ts:132:3 › Cobro con tarjeta en el POS (simulado) › 14.4 respuesta tardía: mientras la venta sigue en curso no se reenvía ni se puede cambiar el carrito (7.9s)
+  ✓  178 [chromium] › e2e/pos-tarjeta-simulado.spec.ts:148:3 › Cobro con tarjeta en el POS (simulado) › respuesta perdida: la venta queda pendiente y se confirma por su identidad sin enviarla otra vez (4.2s)
+  ✓  179 [chromium] › e2e/pos-tarjeta-simulado.spec.ts:163:3 › Cobro con tarjeta en el POS (simulado) › venta a crédito: el comprobante en pantalla dice «TOTAL A CRÉDITO», no «TOTAL PAGADO» (5.5s)
+  ✓  180 [chromium] › e2e/productos-edicion.spec.ts:131:3 › Edición de productos (FS-07) › una edición parcial envía solo el nombre y la versión, sin tocar existencias ni precios (5.4s)
+  ✓  181 [chromium] › e2e/productos-edicion.spec.ts:145:3 › Edición de productos (FS-07) › la ficha no ofrece cambiar costo ni precio: se fijan en Precios y aprobación (5.0s)
+  ✓  182 [chromium] › e2e/productos-edicion.spec.ts:158:3 › Edición de productos (FS-07) › si otro usuario cambió el producto, el servidor rechaza la edición, no sobrescribe y recarga la lista (5.0s)
+  ✓  183 [chromium] › e2e/productos-edicion.spec.ts:173:3 › Edición de productos (FS-07) › un doble clic en Guardar envía una sola edición (5.7s)
+  ✓  184 [chromium] › e2e/productos-edicion.spec.ts:185:3 › Edición de productos (FS-07) › un fallo de red no pierde el formulario y el reintento usa la misma versión (5.7s)
+  ✓  185 [chromium] › e2e/productos-edicion.spec.ts:201:3 › Edición de productos (FS-07) › cambiar existencias exige motivo antes de enviar (5.2s)
+  ✓  186 [chromium] › e2e/productos-edicion.spec.ts:217:3 › Edición de productos (FS-07) › reactivar un producto inactivo: se muestra al activar la opción y se envía activo=true tras confirmar (5.4s)
+  ✓  187 [chromium] › e2e/productos-edicion.spec.ts:231:3 › Edición de productos (FS-07) › la edición cabe en un teléfono sin desbordamiento horizontal (4.5s)
+  ✓  188 [chromium] › e2e/productos-edicion.spec.ts:246:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en SIDEBAR (6.1s)
+  ✓  189 [chromium] › e2e/productos-edicion.spec.ts:246:5 › Inventario para entrega al cliente / API simulada › alta sencilla con decimales, variantes y doble clic en TOPNAV (6.7s)
+  ✓  190 [chromium] › e2e/productos-edicion.spec.ts:268:3 › Inventario para entrega al cliente / API simulada › respuesta perdida y recarga: confirma la misma alta sin crear otro producto (7.0s)
+  ✓  191 [chromium] › e2e/productos-edicion.spec.ts:285:3 › Inventario para entrega al cliente / API simulada › código de barras duplicado muestra el error y conserva el formulario (5.7s)
+  ✓  192 [chromium] › e2e/productos-edicion.spec.ts:300:3 › Inventario para entrega al cliente / API simulada › buscar por categoría real y descripción filtra el catálogo (5.4s)
+  ✓  193 [chromium] › e2e/productos-edicion.spec.ts:315:3 › Inventario para entrega al cliente / API simulada › una recepción mientras el formulario está abierto impide un ajuste obsoleto (5.8s)
+  ✓  194 [chromium] › e2e/productos-edicion.spec.ts:328:3 › Inventario para entrega al cliente / API simulada › cámara denegada conserva la captura manual, sin envío automático (5.7s)
+  ✓  195 [chromium] › e2e/productos-edicion.spec.ts:349:3 › Inventario para entrega al cliente / API simulada › alta y cámara muestran textos en inglés (5.7s)
+  ✓  196 [chromium] › e2e/productos-edicion.spec.ts:362:1 › cámara: plegar escáner o cerrar formulario libera pistas, sin alta automática (7.0s)
+  ✓  197 [chromium] › e2e/proveedores-gestion-simulado.spec.ts:53:1 › el administrador corrige el RTN de un proveedor: solo se envía lo que cambió (6.6s)
+  ✓  198 [chromium] › e2e/proveedores-gestion-simulado.spec.ts:66:1 › desactivar un proveedor lo quita de la factura de compra; reactivarlo lo devuelve (5.5s)
+  ✓  199 [chromium] › e2e/proveedores-gestion-simulado.spec.ts:82:1 › el alta de proveedor captura el RTN y el nombre vacío no se envía al editar (5.3s)
+  ✓  200 [chromium] › e2e/reportes-cajero-simulado.spec.ts:45:3 › Reportes: ventas por cajero (simulado) › agrupa por usuario con totales por método y el mayor total primero (4.1s)
+  ✓  201 [chromium] › e2e/reportes-cajero-simulado.spec.ts:66:3 › Reportes: ventas por cajero (simulado) › con un servidor sin la dimensión por cajero, la página sigue funcionando y lo indica (3.2s)
+  ✓  202 [chromium] › e2e/reportes-cajero-simulado.spec.ts:81:1 › sin ventas confirmadas por cajero no se anuncia falta de datos (3.4s)
+  ✓  204 [chromium] › e2e/seed-safety.spec.ts:50:1 › bloquea cuando SEED_TARGET_URL no está definida (4ms)
+  ✓  205 [chromium] › e2e/seed-safety.spec.ts:56:1 › bloquea cuando SEED_EMAIL no está definida (1ms)
+  ✓  206 [chromium] › e2e/seed-safety.spec.ts:62:1 › bloquea cuando SEED_PASSWORD no está definida (1ms)
+  ✓  207 [chromium] › e2e/seed-safety.spec.ts:68:1 › bloquea URL de producción Vercel (ferre-system.vercel.app) (14ms)
+  ✓  208 [chromium] › e2e/seed-safety.spec.ts:78:1 › bloquea cualquier subdominio de vercel.app (37ms)
+  ✓  209 [chromium] › e2e/seed-safety.spec.ts:88:1 › bloquea URL de producción Render (1ms)
+  ✓  210 [chromium] › e2e/seed-safety.spec.ts:98:1 › bloquea URL de Supabase (1ms)
+  ✓  211 [chromium] › e2e/seed-safety.spec.ts:108:1 › bloquea dominio propio de producción ferresystem.com (1ms)
+  ✓  212 [chromium] › e2e/seed-safety.spec.ts:118:1 › permite entorno local localhost (6ms)
+  ✓  213 [chromium] › e2e/seed-safety.spec.ts:128:1 › permite entorno de staging en dominio controlado (0ms)
+  ✓  214 [chromium] › e2e/session-lifecycle.spec.ts:36:1 › arranque: ningún módulo se monta mientras /auth/me sigue pendiente (1.4s)
+  ✓  203 [chromium] › e2e/reportes-cajero-simulado.spec.ts:87:1 › inglés: métodos traducidos y CSV con los mismos importes y encabezados (3.4s)
+  ✓  215 [chromium] › e2e/session-lifecycle.spec.ts:44:1 › sesión de ayer inválida no consulta inventario ni muestra navegación (1.8s)
+  ✓  216 [chromium] › e2e/session-lifecycle.spec.ts:53:1 › sesión de ayer se recupera con una sola renovación válida antes de abrir módulos (2.2s)
+  ✓  217 [chromium] › e2e/session-lifecycle.spec.ts:62:3 › backend temporal 502: conserva sesión, bloquea módulos y permite reintentar (2.2s)
+  ✓  218 [chromium] › e2e/session-lifecycle.spec.ts:62:3 › backend temporal 503: conserva sesión, bloquea módulos y permite reintentar (2.3s)
+  ✓  219 [chromium] › e2e/session-lifecycle.spec.ts:62:3 › backend temporal 504: conserva sesión, bloquea módulos y permite reintentar (2.3s)
+  ✓  220 [chromium] › e2e/session-lifecycle.spec.ts:75:1 › 403 con sesión válida muestra acceso denegado y conserva credenciales (1.8s)
+  ✓  221 [chromium] › e2e/session-lifecycle.spec.ts:83:1 › restaurar pestaña/PWA tras horas exige renovación y rechaza la sesión inválida (2.2s)
+  ✓  222 [chromium] › e2e/session-lifecycle.spec.ts:96:1 › formulario abierto conserva datos no enviados al renovar; no escribe automáticamente (2.4s)
+  ✓  223 [chromium] › e2e/session-lifecycle.spec.ts:110:1 › expiración mientras consulta inventario: 401 terminal pide login sin confirmar (2.3s)
+  ✓  224 [chromium] › e2e/session-lifecycle.spec.ts:121:1 › logout captura el Bearer, limpia identidad y Atrás no reactiva módulos (2.6s)
+  ✓  225 [chromium] › e2e/session-lifecycle.spec.ts:142:1 › otro usuario/tenant en otra pestaña retira el formulario sin borrar su login (3.0s)
+  ✓  227 [chromium] › e2e/session-lifecycle.spec.ts:170:1 › sesión irrecuperable con formulario abierto retira datos y no anuncia un guardado (1.6s)
+  ✓  228 [chromium] › e2e/session-pwa.spec.ts:4:1 › PWA real: shell cacheado no autoriza sesión expirada ni almacena API privada (2.1s)
+  ✓  226 [chromium] › e2e/session-lifecycle.spec.ts:160:1 › timeout de validación ofrece reintentar sin esperar un minuto ni cerrar sesión (11.9s)
+
+
+  1) [chromium] › e2e/offline-emulation.spec.ts:9:1 › el emulador offline conserva navigator.onLine tras recargar desde un service worker 
+
+    Error: Emulación offline incoherente en 151.0.7922.173: la API sigue bloqueada, pero navigator.onLine cambió al recargar. Use el Chromium instalado por esta versión de Playwright (npx playwright install chromium); no fuerce navigator.onLine ni omita esta prueba.
+
+    Emulación offline incoherente en 151.0.7922.173: la API sigue bloqueada, pero navigator.onLine cambió al recargar. Use el Chromium instalado por esta versión de Playwright (npx playwright install chromium); no fuerce navigator.onLine ni omita esta prueba.
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      66 |     await expect.poll(() => page.evaluate(() => navigator.onLine), { message:
+      67 |       `Emulación offline incoherente en ${diagnostico.navegador}: la API sigue bloqueada, pero navigator.onLine cambió al recargar. Use el Chromium instalado por esta versión de Playwright (npx playwright install chromium); no fuerce navigator.onLine ni omita esta prueba.`,
+    > 68 |     }).toBe(false);
+         |        ^
+      69 |     await context.setOffline(false);
+      70 |     const reconexion = { ...await estado(), api: await api(), peticionesAPI };
+      71 |     console.info('offline-reconnection', JSON.stringify(reconexion));
+        at /workspace/FerreSystem/frontend/e2e/offline-emulation.spec.ts:68:8
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/offline-emulation-el-emula-bf093-gar-desde-un-service-worker-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/offline-emulation-el-emula-bf093-gar-desde-un-service-worker-chromium/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/offline-emulation-el-emula-bf093-gar-desde-un-service-worker-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/offline-emulation-el-emula-bf093-gar-desde-un-service-worker-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/offline-emulation-el-emula-bf093-gar-desde-un-service-worker-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/offline-emulation.spec.ts:9:1 › el emulador offline conserva navigator.onLine tras recargar desde un service worker 
+  227 passed (9.5m)

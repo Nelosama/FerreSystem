@@ -556,6 +556,7 @@
     "gross_sales_summary": "Ventas brutas: {gross} · Devoluciones del período: {returns}",
     "credit_sales_note": "Las ventas a crédito son ventas registradas; sus abonos se consultan en Cuentas. Este reporte considera todos los registros del período.",
     "export_csv_btn": "Exportar CSV",
+    "cashier_data_unavailable": "El servidor no proporcionó el desglose por cajero para este rango.",
     "by_cashier_title": "Ventas por cajero",
     "cashier_col": "Registrada por",
     "unknown_user": "Usuario no disponible",

@@ -589,8 +589,8 @@ test.describe('7. Seguridad funcional: denegaciones por rol', () => {
 });
 
 test.describe('8. Omitidas heredadas (decisión de FARO)', () => {
-  test.skip('1.2 vuelto en el POS en línea — solo en pantalla (no se envía al servidor); cubierto en e2e/pos-tarjeta-simulado.spec.ts, sin caso con API real', async () => {});
+  // Caso 1.2 activo en pos-cajeros-real.spec.ts (API y PostgreSQL reales).
   test.skip('12.2 canal web para cliente final — PENDIENTE: sin canal en el código; alcance sin confirmar', async () => {});
-  test.skip('13.3 reporte por cajero — /operaciones/resumen devuelve «cajeros» (usuario×método); probado en backend/test/reportes-zona-horaria.postgres.integration.ts y e2e/reportes-cajero-simulado.spec.ts, sin caso de navegador con API real', async () => {});
-  test.skip('14.4 respuesta tardía del servidor en el POS — cubierto con latencia y respuesta perdida simuladas en e2e/pos-tarjeta-simulado.spec.ts; sin caso con API real', async () => {});
+  // Caso 13.3 activo en pos-cajeros-real.spec.ts (API y PostgreSQL reales).
+  // Caso 14.4 activo en pos-cajeros-real.spec.ts (API y PostgreSQL reales).
 });

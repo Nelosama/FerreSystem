@@ -12,7 +12,7 @@ const resumenBase = {
   rotacion: [], alertas: [],
 };
 
-async function simular(page: Page, baseURL: string | undefined, resumen: unknown) {
+async function simular(page: Page, baseURL: string | undefined, resumen: unknown, idioma = 'es') {
   const origen = new URL(baseURL!).origin;
   const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
   await page.route('**/*', async route => {
@@ -23,9 +23,9 @@ async function simular(page: Page, baseURL: string | undefined, resumen: unknown
     const path = url.pathname.slice(4);
     const responder = (body: unknown) => route.fulfill({ status: 200, json: body, headers: cabeceras });
     if (method === 'OPTIONS') { await route.fulfill({ status: 204, headers: { ...cabeceras, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } }); return; }
-    if (method === 'GET' && path === '/tenant/settings') return responder(tenant);
+    if (method === 'GET' && path === '/tenant/settings') return responder({ ...tenant, idioma });
     if (method === 'GET' && path === '/auth/me') return responder({ user: { sub: admin.id, tenantId: tenant.id, rol: 'ADMIN', permisos: [], descuentoMaximo: 100 } });
-    if (method === 'POST' && path === '/auth/login') return responder({ type: 'tenant', accessToken: 'reportes-e2e-token', user: admin, tenant });
+    if (method === 'POST' && path === '/auth/login') return responder({ type: 'tenant', accessToken: 'reportes-e2e-token', user: admin, tenant: { ...tenant, idioma } });
     if (method === 'GET' && path === '/operaciones/resumen') return responder(resumen);
     if (method === 'GET') return responder([]);
     return responder({});
@@ -69,8 +69,37 @@ test.describe('Reportes: ventas por cajero (simulado)', () => {
     await simular(page, baseURL, resumenBase);
     await abrirReportes(page);
     const seccion = page.getByRole('region', { name: 'Ventas por cajero' });
-    await expect(seccion).toContainText('Sin ventas completadas en el rango.');
+    await expect(seccion).toContainText('El servidor no proporcionó el desglose por cajero para este rango.');
+    await expect(seccion).not.toContainText('Sin ventas completadas');
+    await expect(seccion.getByRole('button', { name: /CSV/i })).toBeDisabled();
     await expect(page.getByRole('heading', { name: /170\.30/ })).toBeVisible();
     expect(errores).toEqual([]);
   });
+});
+
+// Distingue un backend anterior de un rango confirmado sin ventas.
+test('sin ventas confirmadas por cajero no se anuncia falta de datos', async ({ page, baseURL }) => {
+  await simular(page, baseURL, { ...resumenBase, cajeros: [] });
+  await abrirReportes(page);
+  await expect(page.getByRole('region', { name: 'Ventas por cajero' })).toContainText('Sin ventas completadas en el rango.');
+});
+
+test('inglés: métodos traducidos y CSV con los mismos importes y encabezados', async ({ page, baseURL }) => {
+  await simular(page, baseURL, { ...resumenBase, cajeros: [
+    { usuario_id: 'u1', usuario_nombre: 'Ana', metodo_pago: 'EFECTIVO', cantidad: 1, total: '30.10' },
+  ] }, 'en');
+  await abrirReportes(page);
+  const section = page.getByRole('region', { name: 'Sales by cashier' });
+  for (const name of ['Cash', 'Card', 'Transfer', 'Credit']) {
+    await expect(section.getByRole('columnheader', { name, exact: true })).toBeVisible();
+  }
+  const downloadEvent = page.waitForEvent('download');
+  await section.getByRole('button', { name: 'Export CSV' }).click();
+  const download = await downloadEvent;
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream!) chunks.push(chunk);
+  const csv = Buffer.concat(chunks).toString('utf8');
+  expect(csv).toContain('"Cash","Card","Transfer","Credit"');
+  expect(csv).toContain('"Ana","1","30.10","0.00","0.00","0.00","30.10"');
 });
