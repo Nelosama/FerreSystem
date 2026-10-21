@@ -3919,3 +3919,24 @@ gh pr create --base main --title "feat(levantamientos): conteo multiusuario segu
   --body "Ver docs/CONTEXTO_MAESTRO.md sección 2026-10-08"
 ```
 
+
+
+## 2026-10-21 — Cierre documental de Impeccable (PR #182)
+
+**Decisión:** conservar en este contexto las recomendaciones relevantes del PR #182, sin integrar sus archivos de configuración, agentes, referencias ni motor a `main`. El PR #182 se cierra sin merge. Las afirmaciones del documento `PRODUCT.md` son hallazgos de la rama, no certificación adicional de producción.
+
+### Recomendaciones y pendientes recuperados
+
+- Mantener **Jowa System** como identidad comercial y la arquitectura React/Vite + NestJS/Prisma/PostgreSQL con Vercel, Render y Supabase. La estrategia objetivo es **nube**; revisar y retirar o justificar el despliegue local heredado `deploy/local` antes de declarar completada la transición.
+- Logotipos: el documento indica almacenamiento privado en PostgreSQL por defecto y alternativas bajo `LOGOTIPO_ALMACEN`. Validar el almacenamiento elegido, los permisos y la recuperación en servicios reales; no asumir que Supabase Storage está probado.
+- Móvil: una sola PWA administrativa para consulta, supervisión, reportes e inventario; **sin POS, cobros ni caja móvil**. Verificar y bloquear la ruta `/pos` en móvil donde aún sea accesible. Completar las funciones administrativas y validar cámara/escáner en Safari e iPhone reales.
+- Fotografías opcionales de productos: definir e implementar almacenamiento en nube seguro; el campo `imagenUrl` señalado por la auditoría acepta referencias HTTPS, pero eso no equivale a un flujo completo de subida.
+- Notificaciones push con la PWA cerrada: requisito planificado, pendiente de implementación y pruebas reales.
+- Contabilidad hondureña y rol CONTADOR: siguen en rama separada, no integrados; evaluar permisos y migraciones antes de incorporar. Exportaciones `.xlsx` reales pendientes; no confundir CSV o XML `.xls` con XLSX.
+- Diseño: conservar navegación SIDEBAR/TOPNAV, personalización de marca, traducciones ES/EN y simplicidad operativa. Evaluar la facilidad de uso con usuarios reales; no declarar esa cualidad demostrada solo por la existencia de estilos.
+- Infraestructura/operación: validar PWA instalada, contingencia offline, impresoras A4/80/58 mm, cámaras físicas y sincronización; distinguir pruebas automatizadas de certificación en producción.
+- Sucursales: el documento señala ausencia de filtrado operativo por sucursal en ventas/productos; confirmar alcance y modelado antes de prometer soporte multi-sucursal.
+- Impeccable: el PR #182 contiene documentación y cuatro descripciones de agentes, pero **no incluye motor ejecutable**. El antiguo binario de 19,8 MB no debe introducirse en `main` sin validación de procedencia y hash. `buildPath: "code"` es una preferencia pendiente de confirmar, no una ruta funcional verificada.
+- Evitar incorporar documentación de terceros que no se utilizará en producción; conservar los hallazgos accionables en este contexto y reabrir el tema solo si se decide instalar Impeccable.
+
+**Fuente:** PR #182 y `PRODUCT.md` de la rama (`aeddc71`). **Estado:** recomendaciones documentadas; no implica que los pendientes estén corregidos.
