@@ -20,8 +20,19 @@ describe('OrigenPermitidoGuard (H-05)', () => {
     }
   });
 
+  it('frontend detrás de un proxy en /api sin FRONTEND_URL: el navegador declara same-origin y se acepta', () => {
+    expect(guard.canActivate(contexto({ origin: 'http://127.0.0.1:43587', 'sec-fetch-site': 'same-origin' }))).toBe(true);
+  });
+
+  it('otro sitio u otro subdominio del mismo sitio se rechazan aunque declaren su Sec-Fetch-Site real', () => {
+    expect(() => guard.canActivate(contexto({ origin: 'https://atacante.example', 'sec-fetch-site': 'cross-site' }))).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(contexto({ origin: 'https://otra.ferreteria.example', 'sec-fetch-site': 'same-site' }))).toThrow(ForbiddenException);
+    expect(guard.canActivate(contexto({ origin: 'https://app.ferreteria.example', 'sec-fetch-site': 'cross-site' }))).toBe(true);
+  });
+
   it('sin Origin: rechaza Sec-Fetch-Site cross-site y deja pasar clientes sin navegador', () => {
     expect(() => guard.canActivate(contexto({ 'sec-fetch-site': 'cross-site' }))).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(contexto({ 'sec-fetch-site': 'same-site' }))).toThrow(ForbiddenException);
     expect(guard.canActivate(contexto({ 'sec-fetch-site': 'same-origin' }))).toBe(true);
     expect(guard.canActivate(contexto({}))).toBe(true);
   });

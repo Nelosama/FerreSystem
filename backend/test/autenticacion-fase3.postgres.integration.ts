@@ -497,6 +497,14 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
       await request(app.getHttpServer()).post('/api/auth/logout').set('Origin', local).set('Cookie', refreshCookie(res)).expect(200);
     });
 
+    it('frontend servido por un proxy en el mismo origen (sin FRONTEND_URL): Sec-Fetch-Site same-origin entra y renueva', async () => {
+      const proxy = 'http://127.0.0.1:43587';
+      const res = await login('admin@auth.test.invalid').set('Origin', proxy).set('Sec-Fetch-Site', 'same-origin').expect(200);
+      await request(app.getHttpServer()).post('/api/auth/refresh').set('Origin', proxy).set('Sec-Fetch-Site', 'same-origin').set('Cookie', refreshCookie(res)).expect(200);
+      // El mismo origen no autorizado sin la garantía del navegador sigue rechazado.
+      await request(app.getHttpServer()).post('/api/auth/logout').set('Origin', proxy).set('Sec-Fetch-Site', 'cross-site').set('Cookie', refreshCookie(res)).expect(403);
+    });
+
     it('los endpoints de API con Bearer no dependen del Origin (no usan la cookie)', async () => {
       const res = await login('admin@auth.test.invalid').expect(200);
       await get('/auth/me', res.body.accessToken).set('Origin', ajeno).expect(200);
