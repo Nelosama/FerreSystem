@@ -461,7 +461,7 @@ test.describe('13. Reportes de ventas', () => {
     expect(res.status()).toBe(403);
   });
 
-  test.skip('13.3 reporte por cajero: ventas agrupadas por cajero, método y fecha — PENDIENTE: /operaciones/resumen no tiene dimensión por cajero', async () => {});
+  test.skip('13.3 reporte por cajero: ventas agrupadas por cajero, método y fecha — /operaciones/resumen devuelve «cajeros» (usuario×método); probado en backend/test/reportes-zona-horaria.postgres.integration.ts y e2e/reportes-cajero-simulado.spec.ts, sin caso de navegador con API real', async () => {});
 });
 
 test.describe('14. Operación de la interfaz POS', () => {
