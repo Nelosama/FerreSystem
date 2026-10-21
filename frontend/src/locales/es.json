@@ -264,6 +264,8 @@
     "print_proforma": "Imprimir Proforma"
   },
   "inventory": {
+    "showing_rows": "Mostrando {shown} de {total} productos. Busque o filtre por categoría para acotar.",
+    "show_more": "Mostrar más",
     "title": "INVENTARIO Y CATÁLOGO",
     "subtitle": "Control de Stock y Precios por Rubro",
     "new_product": "NUEVO PRODUCTO",

@@ -264,6 +264,8 @@
     "print_proforma": "Print Proforma"
   },
   "inventory": {
+    "showing_rows": "Showing {shown} of {total} products. Search or filter by category to narrow down.",
+    "show_more": "Show more",
     "title": "INVENTORY & CATALOG",
     "subtitle": "Stock & Price Control by Trade Sector",
     "new_product": "NEW PRODUCT",
