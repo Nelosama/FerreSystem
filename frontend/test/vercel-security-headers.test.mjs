@@ -35,3 +35,17 @@ test('HSTS is enabled for the deployed frontend', () => {
 test('the SPA rewrite is preserved next to the headers', () => {
   assert.deepEqual(configuration.rewrites, [{ source: '/(.*)', destination: '/index.html' }]);
 });
+
+test('CSP: scripts solo del propio origen, sin unsafe-inline ni unsafe-eval (WASM permitido para el PDF)', () => {
+  const csp = cabeceras['Content-Security-Policy'];
+  assert.ok(csp, 'falta Content-Security-Policy');
+  const directivas = Object.fromEntries(csp.split(';').map((d) => d.trim().split(/\s+/)).map(([k, ...v]) => [k, v]));
+  assert.deepEqual(directivas['script-src'], ["'self'", "'wasm-unsafe-eval'"]);
+  assert.deepEqual(directivas['object-src'], ["'none'"]);
+  assert.deepEqual(directivas['base-uri'], ["'self'"]);
+  assert.deepEqual(directivas['frame-ancestors'], ["'self'"]);
+  assert.ok(!csp.includes("'unsafe-eval'"), 'unsafe-eval habilitaría eval de JavaScript');
+  assert.ok(!directivas['script-src'].includes("'unsafe-inline'"));
+  // La API productiva está en otro origen HTTPS; el WASM de react-pdf se carga desde data:.
+  assert.deepEqual(directivas['connect-src'], ["'self'", 'https:', 'data:']);
+});
