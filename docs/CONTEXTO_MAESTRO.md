@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-18 UTC** — inicio del administrador con pendientes reales, rama única `claude/admin-pendientes-ux` (PR abierto hacia `main`, sin merge ni despliegue).
+Última revisión: **2026-10-21 UTC** — vuelto en POS, ventas por cajero, latencia del POS y paginación de Inventario, rama `claude/upbeat-einstein-ozjvpy` (sin merge ni despliegue).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -21,6 +21,20 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
 
 ---
+
+## Pendientes de QA cerrados: vuelto, ventas por cajero, latencia del POS e Inventario — 2026-10-21 UTC (rama `claude/upbeat-einstein-ozjvpy`, sin merge ni despliegue)
+
+- **Base:** `main` `c4cadc3` (#178 integrado). PR abiertos al iniciar y no tocados: #180 (contabilidad), #182 (impeccable), #183 (seguridad JWT/cabeceras), #184 (informe QA). Sin cambios de esquema, migraciones, dependencias, autenticación ni reglas de cobro.
+- **Vuelto en el POS en línea** (caso 1.2): campo «Efectivo recibido» con «Cambio» o «Falta» en centavos (`calcularVuelto` en `frontend/src/utils/posMoney.ts`, misma lectura `aCentavos` que contingencia). **Solo informativo:** no se envía al servidor, no se guarda ni bloquea el cobro (no se inventó una regla). El comprobante en pantalla muestra recibido/cambio cuando aplica.
+- **Defectos corregidos en el comprobante en pantalla del POS:** TRANSFERENCIA se mostraba como «Crédito»; las ventas a crédito decían «TOTAL PAGADO» (ahora «TOTAL A CRÉDITO», como el PDF de H-04).
+- **Ventas por cajero** (caso 13.3): `GET /operaciones/resumen` añade `cajeros` (usuario que registró × método, COMPLETADAS, mismo día local y `tenant_id` que `metodos`). Reportes muestra la tabla con totales por método en centavos y CSV (`utils/ventasPorCajero.ts`); si el servidor no envía la dimensión, la página sigue funcionando. Las devoluciones no se descuentan por cajero (no hay regla de atribución).
+- **Respuesta tardía/perdida del POS** (caso 14.4): solo pruebas. Con `POST /ventas` retrasado, clics y Enter repetidos envían una venta y el carrito no cambia; con la respuesta perdida, la venta queda pendiente y se confirma por `solicitudId` sin segundo envío. Sin cambios de código: el comportamiento ya era correcto.
+- **Inventario:** la tabla pinta 200 filas con «Mostrar más»; buscar o cambiar categoría filtra todo el catálogo y vuelve a la primera página (pendiente de #171).
+- **Validación local:** backend unitarias 529/529, build y lint sin errores; frontend unitarias 472/472, `tsc -b`, lint sin errores (117 avisos = base) y build; navegador simulado completo **224/224** antes de la paginación, luego afectados 21/21 (inventario) y 6/6 ×3 repeticiones (POS); **integración PostgreSQL 16 temporal completa: 1021 pasan / 1 omitida preexistente, 62 archivos** (incluye por primera vez en local los 5 casos de `dashboard.postgres.integration.ts` y el nuevo de ventas por cajero en `reportes-zona-horaria.postgres.integration.ts`). NEXUS: sin cambios de esquema; solo consultas de lectura validadas contra base temporal.
+- **Cómo ejecutar PostgreSQL en este contenedor (root):** `initdb` rechaza root. Envolver `initdb`/`pg_ctl` con `runuser -u nobody -- /usr/lib/postgresql/16/bin/<bin>` (haciendo `chown nobody` del directorio padre de `-D`), enlazar `psql`, y lanzar `PG_BIN=<dir-envoltorios> TMPDIR=/var/tmp/ferre-pg npm run test:integration` con `/var/tmp/ferre-pg` en modo 1777. El scratchpad de `/tmp/claude-0` no sirve: el entorno restablece sus permisos.
+- **No ejecutado:** piloto `e2e-real` (los `test.skip` 1.2, 13.3 y 14.4 ahora citan la prueba que los cubre, pero no tienen caso con API real), Safari/iPhone, impresoras físicas.
+- **Pendientes y decisiones del dueño:** si el vuelto debe guardarse en la venta o bloquear el cobro cuando falta efectivo (requiere esquema); si las devoluciones se atribuyen al cajero de la venta o al que devuelve; modal HTML heredado de cotizaciones sin acceso desde la interfaz; páginas sin ruta (`ApartadosPage`, `TransferenciasPage`, `PedidosEspecialesPage`, `ListasPrecioPage`).
+- **Bitácora:** lectura de AGENTS/contexto y PR abiertos; selección de pendientes marcados `PENDIENTE` en el piloto; implementación con pruebas unitarias, integración real y navegador simulado; corrección de una aserción propia frágil (UUID); cuatro commits en la misma rama.
 
 ## Auditoría final acotada PR #178 — 2026-10-19, America/Tegucigalpa
 
