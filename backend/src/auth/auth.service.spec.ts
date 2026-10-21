@@ -83,6 +83,23 @@ describe('AuthService', () => {
     log.mockRestore();
   });
 
+  it('los registros del login no contienen el correo, ni en un acceso correcto ni en uno fallido', async () => {
+    const correo = 'persona.privada@cliente.invalid';
+    const logger = (service as any).logger;
+    const espias = (['log', 'warn', 'error'] as const).map(nivel => vi.spyOn(logger, nivel).mockImplementation(() => undefined));
+    mockPrisma.superAdmin.findUnique.mockResolvedValue(null);
+    mockPrisma.usuario.findMany.mockResolvedValueOnce([]);
+    await expect(service.login({ email: correo, password: 'incorrecta' }, mockResponse)).rejects.toThrow(UnauthorizedException);
+    const passwordHash = await bcrypt.hash('correcta', 4);
+    mockPrisma.usuario.findMany.mockResolvedValueOnce([{ id: 'u-1', tenantId: 't-1', email: correo, passwordHash, activo: true, rol: 'ADMIN', tenant: { id: 't-1', estado: 'ACTIVO' } }]);
+    await service.login({ email: correo, password: 'correcta' }, mockResponse);
+    const registrado = JSON.stringify(espias.flatMap(e => e.mock.calls));
+    expect(registrado.length).toBeGreaterThan(50);
+    expect(registrado).not.toContain(correo);
+    expect(registrado).not.toContain('persona.privada');
+    espias.forEach(e => e.mockRestore());
+  });
+
   describe('login unificado de Super Admin', () => {
     it('autentica Super Admin desde el mismo servicio y emite el tipo de sesión correcto', async () => {
       const passwordHash = await bcrypt.hash('super-admin-test-password', 4);

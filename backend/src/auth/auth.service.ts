@@ -108,7 +108,7 @@ export class AuthService {
     }
 
     this.logger.log(
-      `[LOGIN_DIAGNOSTIC] [ETAPA 1-2] Inicio de intento de login para email normalizado: "${normalizedEmail}" (TenantId objetivo: ${targetTenantId || 'autodetect'})`,
+      `[LOGIN_DIAGNOSTIC] [ETAPA 1-2] Inicio de intento de login (TenantId objetivo: ${targetTenantId || 'autodetect'})`,
     );
 
     // Etapa 3 & 4: Búsqueda en BD considerando multi-tenancy (@@unique([tenantId, email]))
@@ -116,7 +116,7 @@ export class AuthService {
     try {
       if (targetTenantId) {
         this.logger.log(
-          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Buscando usuario específico en tenant: "${targetTenantId}" para email: "${normalizedEmail}"`,
+          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Buscando usuario específico en tenant: "${targetTenantId}"`,
         );
         usuario = await this.prisma.usuario.findFirst({
           where: { tenantId: targetTenantId, email: normalizedEmail },
@@ -124,7 +124,7 @@ export class AuthService {
         });
       } else {
         this.logger.log(
-          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Consultando usuarios globales con email: "${normalizedEmail}"`,
+          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Consultando usuarios globales con el correo indicado`,
         );
         const matchingUsers = await this.prisma.usuario.findMany({
           where: { email: normalizedEmail },
@@ -170,7 +170,8 @@ export class AuthService {
     }
 
     if (!usuario) {
-      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO A] Usuario NO encontrado para email: "${normalizedEmail}"`);
+      // El correo no se registra en claro: los intentos fallidos ya se guardan solo como hash (login-rate-limit).
+      this.logger.warn('[LOGIN_DIAGNOSTIC] [CASO A] Usuario NO encontrado para el correo indicado');
       throw new UnauthorizedException('Credenciales inválidas');
     }
 

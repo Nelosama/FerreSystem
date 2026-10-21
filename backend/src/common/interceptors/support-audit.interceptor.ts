@@ -1,3 +1,4 @@
+import { diagnosticoSeguro } from '../diagnostico-seguro';
 import { CallHandler, ExecutionContext, ForbiddenException, Injectable, Logger, NestInterceptor } from '@nestjs/common';
 import { Observable, catchError, from, switchMap, tap, throwError } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -41,9 +42,9 @@ export class SupportAuditInterceptor implements NestInterceptor {
 
     return from(registrar('SOPORTE_ESCRITURA_INICIO', { resultado: 'INICIADA' })).pipe(
       switchMap(() => run()),
-      tap(() => void registrar('SOPORTE_ESCRITURA_RESULTADO', { resultado: 'OK' }).catch(error => this.logger.error(`No se pudo registrar el resultado de soporte: ${error?.message}`))),
+      tap(() => void registrar('SOPORTE_ESCRITURA_RESULTADO', { resultado: 'OK' }).catch(error => this.logger.error(`No se pudo registrar el resultado de soporte: ${diagnosticoSeguro(error)}`))),
       catchError(error => {
-        void registrar('SOPORTE_ESCRITURA_RESULTADO', { resultado: 'ERROR', estado: error?.status ?? 500 }).catch(e => this.logger.error(`No se pudo registrar el error de soporte: ${e?.message}`));
+        void registrar('SOPORTE_ESCRITURA_RESULTADO', { resultado: 'ERROR', estado: error?.status ?? 500 }).catch(e => this.logger.error(`No se pudo registrar el error de soporte: ${diagnosticoSeguro(e)}`));
         return throwError(() => error);
       }),
     );

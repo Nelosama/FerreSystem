@@ -1,3 +1,4 @@
+import { diagnosticoSeguro } from '../diagnostico-seguro';
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -29,6 +30,6 @@ export class TenantGuard implements CanActivate {
         tenantId: String(user.tenantId), usuarioId: String(user.sub), operacion: 'SOPORTE_ESCRITURA_DENEGADA', entidadId: String(request.params?.id ?? ruta),
         datos: { metodo: request.method, ruta, _soporte: { superAdminId: String(user.impersonatedBy), soporteSesionId: String(user.soporteSesionId), readOnly: true, resultado: 'DENEGADA' } },
       },
-    }).catch(error => this.logger.error(`No se pudo registrar la denegación de soporte: ${error?.message}`));
+    }).catch(error => this.logger.error(`No se pudo registrar la denegación de soporte: ${diagnosticoSeguro(error)}`));
   }
 }

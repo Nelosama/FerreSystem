@@ -1,3 +1,4 @@
+import { diagnosticoSeguro } from '../common/diagnostico-seguro';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { plainToInstance } from 'class-transformer';
@@ -312,7 +313,7 @@ export class ContingenciaService {
         // Concurrencia: la decisión sobre un UUID (existencia, creación, alteración y aplicación) corre serializada y atómica.
         resultados.push(await this.serializada(tenantId, op.operacionId, (tx) => this.procesarOperacion(tx, tenantId, usuarioId, rol, dispositivo.id, dto.dispositivoId, op)));
       } catch (error: any) {
-        this.logger.error(`Operación ${op.operacionId}: ${error?.message}`);
+        this.logger.error(`Operación ${op.operacionId}: ${diagnosticoSeguro(error)}`);
         const status = error?.status ?? 500;
         if (status >= 500) {
           // Error técnico (BD, bloqueo, tiempo): nada definitivo; el cliente reintenta con el mismo UUID y no se pierde nada.
