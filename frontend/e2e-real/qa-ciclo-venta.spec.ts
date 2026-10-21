@@ -519,7 +519,7 @@ test.describe('14. Operación de la interfaz POS', () => {
     expect(num(`SELECT COUNT(*) FROM detalles_venta WHERE producto_id='${PUI}'`) - antes).toBe(1);
   });
 
-  test.skip('14.4 respuesta tardía del servidor: el POS no reintenta mientras la venta sigue en curso — PENDIENTE: no automatizado (requiere inyección de latencia controlada)', async () => {});
+  test.skip('14.4 respuesta tardía del servidor: el POS no reintenta mientras la venta sigue en curso — cubierto con latencia y respuesta perdida simuladas en e2e/pos-tarjeta-simulado.spec.ts; sin caso con API real', async () => {});
 });
 
 test.describe('15. Cierre de caja', () => {
