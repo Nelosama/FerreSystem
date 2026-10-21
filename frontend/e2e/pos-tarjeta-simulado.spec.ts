@@ -11,10 +11,10 @@ const producto = { id: 'prod-1', codigo: 'TAL-1', nombre: 'Taladro', codigoBarra
   margen: null, stockActual: 10, stockReservado: 0, stockDisponible: 10, stockFisico: 10, stockMinimo: 1, activo: true, imagenUrl: null, marca: null, version: 1 };
 
 // retrasoVentaMs: retrasa la respuesta de POST /ventas. perderRespuesta: el servidor registra la venta pero la respuesta no llega.
-type Sim = { ventas: any[]; errores: string[]; inesperados: string[]; retrasoVentaMs: number; perderRespuesta: boolean; consultas: string[] };
+type Sim = { ventas: any[]; errores: string[]; inesperados: string[]; retrasoVentaMs: number; perderRespuesta: boolean; consultas: string[]; clientes: any[] };
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
-    const sim: Sim = { ventas: [], errores: [], inesperados: [], retrasoVentaMs: 0, perderRespuesta: false, consultas: [] };
+    const sim: Sim = { ventas: [], errores: [], inesperados: [], retrasoVentaMs: 0, perderRespuesta: false, consultas: [], clientes: [] };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
     page.on('pageerror', e => sim.errores.push(e.message));
@@ -34,6 +34,7 @@ const test = base.extend<{ sim: Sim }>({
         '/maintenance/backup': { configured: false }, '/clientes/buscar': [], '/operaciones/proveedores': [], '/operaciones/entregas': [],
         '/operaciones/solicitudes-devolucion': [], '/operaciones/auditoria': [],
       };
+      if (method === 'GET' && path === '/clientes/buscar') return responder(route, 200, sim.clientes);
       if (method === 'GET' && path in vacias) return responder(route, 200, vacias[path]);
       if (method === 'GET' && path === '/productos/comercial') return responder(route, 200, [producto]);
       if (method === 'GET' && path === '/operaciones/caja') return responder(route, 200, [{ id: 'caja-1', codigo: 'CAJA-1', estado: 'ABIERTA', usuario_id: cajero.id, monto_apertura: 500, efectivo_esperado: 500, totales: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0, CREDITO: 0 }, movimientos: [] }]);
@@ -157,5 +158,20 @@ test.describe('Cobro con tarjeta en el POS (simulado)', () => {
     await expect(page.getByText(/Factura N°/)).toBeVisible();
     expect(sim.consultas).toEqual([sim.ventas[0].solicitudId]);
     expect(sim.ventas).toHaveLength(1);
+  });
+
+  test('venta a crédito: el comprobante en pantalla dice «TOTAL A CRÉDITO», no «TOTAL PAGADO»', async ({ page, sim }) => {
+    sim.clientes = [{ id: 'cli-1', numeroCliente: 7, nombre: 'Constructora Norte', rtn: '08011999000001', telefono: null, creditoHabilitado: true }];
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    await page.getByRole('button', { name: /Constructora Norte/ }).click();
+    await page.getByRole('button', { name: 'CREDITO', exact: true }).click();
+    await expect(page.getByLabel('Efectivo recibido')).toHaveCount(0);
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(sim.ventas[0]).toMatchObject({ metodoPago: 'CREDITO', clienteId: 'cli-1' });
+    await expect(page.getByText(/TOTAL A CRÉDITO/)).toBeVisible();
+    await expect(page.getByText(/TOTAL PAGADO/)).toHaveCount(0);
+    await expect(page.getByText(/Método de Pago: Crédito/)).toBeVisible();
   });
 });
