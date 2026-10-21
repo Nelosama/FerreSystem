@@ -6,6 +6,23 @@
 
 ---
 
+## QA Jules #184 — matriz de resultados y acciones (2026-10-21)
+
+**Fuente:** [informe Jules](https://github.com/Nelosama/FerreSystem/blob/jules-6650504171296380351-3c58c742/docs/QA_SEGURIDAD_MOVIL_20261020.md), auditó `main` SHA `c4cadc34`. El PR #184 contiene únicamente documentación, no parches. Guardar conclusiones en este contexto; no fusionar #184 solo por el informe. GitHub Actions de #184 exitosas, check Vercel fallido.
+
+**Bien según el informe (alcance acotado, no certificación productiva):** 529 pruebas backend y 469 frontend; 10 suites de navegador Chromium; integración PostgreSQL temporal; aislamiento multi-tenant por `tenantId`, controles RBAC, revocación de sesión, idempotencia, validación binaria de logotipos, liberación de recursos de cámara y ausencia de transacciones desde `/admin-movil`. La auditoría no sustituye pruebas de intrusión ni pruebas físicas.
+
+**Pendientes por prioridad:**
+1. **P0 despliegue Vercel — por verificar/corregir:** check fallido; validar error real del log, longitud de `ignoreCommand`, `VITE_API_URL` en Preview/Production y respuesta JSON de `/api`. #183 contiene propuesta de arreglo del comando; no duplicar. Responsable: Claude (#183) y dueño (panel Vercel).
+2. **P0 seguridad de Render — por verificar:** `NODE_ENV`, `JWT_SECRET` privado, `TRUST_PROXY`, `FRONTEND_URLS` y secretos de Super Admin. #183 introduce rotación de refresh y migración; respaldo y `migrate:deploy` antes de desplegar. Responsable: Claude y dueño.
+3. **P1 aceptación física — pendiente:** iPhone Safari/PWA instalada, permisos y enfoque del escáner, lector físico, impresoras 58/80 mm. Responsable: QA en sitio; Codex para defectos reproducidos.
+4. **P1 push — verificar requisitos:** el informe cuestiona notificaciones con PWA cerrada. No dar por obligatorio un wrapper nativo: evaluar Web Push en PWA instalada en iOS/Android y requisitos del negocio. Responsable: Claude/Codex tras decisión.
+5. **P1 almacenamiento de imágenes — verificar:** persistencia privada en nube y autorización multi-tenant; no depender de disco local efímero. Responsable: Codex.
+
+**Históricos marcados corregidos por Jules, sin reabrir sin reproducción:** importación de precios y CSV (#161), soporte remoto (#160), crédito y redondeo (#166), color de marca (#177). Los IDs H-01…H-06 de este informe **no son los mismos** que los H-01…H-06 de la auditoría de seguridad #183; no cruzarlos por número. Algunas afirmaciones del informe (por ejemplo la necesidad de wrapper nativo para push) requieren comprobación independiente.
+
+**Proceso:** usar este registro para asignar correcciones a Claude/Codex, adjuntar evidencias por hallazgo y marcar verificado solo tras pruebas apropiadas. No hacer merge de ramas de auditoría ni desplegar automáticamente.
+
 ## PROTOCOLO OBLIGATORIO PARA AGENTES
 
 Antes de comenzar cualquier trabajo en FerreSystem:
@@ -3928,3 +3945,24 @@ gh pr create --base main --title "feat(levantamientos): conteo multiusuario segu
   --body "Ver docs/CONTEXTO_MAESTRO.md sección 2026-10-08"
 ```
 
+
+
+## 2026-10-21 — Cierre documental de Impeccable (PR #182)
+
+**Decisión:** conservar en este contexto las recomendaciones relevantes del PR #182, sin integrar sus archivos de configuración, agentes, referencias ni motor a `main`. El PR #182 se cierra sin merge. Las afirmaciones del documento `PRODUCT.md` son hallazgos de la rama, no certificación adicional de producción.
+
+### Recomendaciones y pendientes recuperados
+
+- Mantener **Jowa System** como identidad comercial y la arquitectura React/Vite + NestJS/Prisma/PostgreSQL con Vercel, Render y Supabase. La estrategia objetivo es **nube**; revisar y retirar o justificar el despliegue local heredado `deploy/local` antes de declarar completada la transición.
+- Logotipos: el documento indica almacenamiento privado en PostgreSQL por defecto y alternativas bajo `LOGOTIPO_ALMACEN`. Validar el almacenamiento elegido, los permisos y la recuperación en servicios reales; no asumir que Supabase Storage está probado.
+- Móvil: una sola PWA administrativa para consulta, supervisión, reportes e inventario; **sin POS, cobros ni caja móvil**. Verificar y bloquear la ruta `/pos` en móvil donde aún sea accesible. Completar las funciones administrativas y validar cámara/escáner en Safari e iPhone reales.
+- Fotografías opcionales de productos: definir e implementar almacenamiento en nube seguro; el campo `imagenUrl` señalado por la auditoría acepta referencias HTTPS, pero eso no equivale a un flujo completo de subida.
+- Notificaciones push con la PWA cerrada: requisito planificado, pendiente de implementación y pruebas reales.
+- Contabilidad hondureña y rol CONTADOR: siguen en rama separada, no integrados; evaluar permisos y migraciones antes de incorporar. Exportaciones `.xlsx` reales pendientes; no confundir CSV o XML `.xls` con XLSX.
+- Diseño: conservar navegación SIDEBAR/TOPNAV, personalización de marca, traducciones ES/EN y simplicidad operativa. Evaluar la facilidad de uso con usuarios reales; no declarar esa cualidad demostrada solo por la existencia de estilos.
+- Infraestructura/operación: validar PWA instalada, contingencia offline, impresoras A4/80/58 mm, cámaras físicas y sincronización; distinguir pruebas automatizadas de certificación en producción.
+- Sucursales: el documento señala ausencia de filtrado operativo por sucursal en ventas/productos; confirmar alcance y modelado antes de prometer soporte multi-sucursal.
+- Impeccable: el PR #182 contiene documentación y cuatro descripciones de agentes, pero **no incluye motor ejecutable**. El antiguo binario de 19,8 MB no debe introducirse en `main` sin validación de procedencia y hash. `buildPath: "code"` es una preferencia pendiente de confirmar, no una ruta funcional verificada.
+- Evitar incorporar documentación de terceros que no se utilizará en producción; conservar los hallazgos accionables en este contexto y reabrir el tema solo si se decide instalar Impeccable.
+
+**Fuente:** PR #182 y `PRODUCT.md` de la rama (`aeddc71`). **Estado:** recomendaciones documentadas; no implica que los pendientes estén corregidos.
