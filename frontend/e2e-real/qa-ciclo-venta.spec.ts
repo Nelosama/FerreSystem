@@ -171,7 +171,7 @@ test.describe('1. Venta de contado con efectivo', () => {
     expect(sql(`SELECT tipo||'|'||metodo||'|'||monto::float FROM movimientos_caja WHERE referencia='${idVenta(sid)}'`)).toBe('VENTA_POS|EFECTIVO|230');
   });
 
-  test.skip('1.2 cambio (vuelto): el cajero registra el efectivo recibido y el sistema calcula el cambio — PENDIENTE: no hay campo de efectivo recibido ni cálculo de cambio en POSPage', async () => {});
+  // Caso 1.2 activo en pos-cajeros-real.spec.ts (API y PostgreSQL reales).
 });
 
 test.describe('2. Venta con tarjeta (POS bancario externo)', () => {
@@ -461,7 +461,7 @@ test.describe('13. Reportes de ventas', () => {
     expect(res.status()).toBe(403);
   });
 
-  test.skip('13.3 reporte por cajero: ventas agrupadas por cajero, método y fecha — PENDIENTE: /operaciones/resumen no tiene dimensión por cajero', async () => {});
+  // Caso 13.3 activo en pos-cajeros-real.spec.ts (API y PostgreSQL reales).
 });
 
 test.describe('14. Operación de la interfaz POS', () => {
@@ -519,7 +519,7 @@ test.describe('14. Operación de la interfaz POS', () => {
     expect(num(`SELECT COUNT(*) FROM detalles_venta WHERE producto_id='${PUI}'`) - antes).toBe(1);
   });
 
-  test.skip('14.4 respuesta tardía del servidor: el POS no reintenta mientras la venta sigue en curso — PENDIENTE: no automatizado (requiere inyección de latencia controlada)', async () => {});
+  // Caso 14.4 activo en pos-cajeros-real.spec.ts (API y PostgreSQL reales).
 });
 
 test.describe('15. Cierre de caja', () => {

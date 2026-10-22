@@ -1,4 +1,4 @@
-import { calcularTotales } from '../offline/money';
+import { aCentavos, calcularTotales } from '../offline/money';
 
 /** El POS en línea usa las mismas líneas, base e ISV en centavos que contingencia y servidor. */
 export function calcularVentaPOS(
@@ -20,4 +20,22 @@ export function calcularVentaPOS(
   const descuento = Number((producto * 2n + divisor) / (divisor * 2n));
   const totales = calcularTotales(lineas, descuento);
   return { ...totales, descuento, base: totales.subtotal - descuento };
+}
+
+export type VueltoPOS =
+  | { estado: 'VACIO' }
+  | { estado: 'INVALIDO' }
+  | { estado: 'FALTA'; centavos: number }
+  | { estado: 'CAMBIO'; recibidoCentavos: number; centavos: number };
+
+/**
+ * Cambio a entregar en una venta en efectivo. Solo informa al cajero: no se envía al servidor
+ * ni bloquea el cobro (misma lectura de importes que el POS de contingencia).
+ */
+export function calcularVuelto(efectivoTexto: string, totalCentavos: number): VueltoPOS {
+  if (!efectivoTexto.trim()) return { estado: 'VACIO' };
+  const recibido = aCentavos(efectivoTexto);
+  if (recibido === null) return { estado: 'INVALIDO' };
+  if (recibido < totalCentavos) return { estado: 'FALTA', centavos: totalCentavos - recibido };
+  return { estado: 'CAMBIO', recibidoCentavos: recibido, centavos: recibido - totalCentavos };
 }

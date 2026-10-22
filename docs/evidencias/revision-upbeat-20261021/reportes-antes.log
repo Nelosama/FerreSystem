@@ -1,0 +1,71 @@
+[WebServer] (node:5348) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 1 worker
+
+(node:5368) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 e2e/reportes-cajero-simulado.spec.ts:45:3 › Reportes: ventas por cajero (simulado) › agrupa por usuario con totales por método y el mayor total primero (4.4s)
+  ✘  2 e2e/reportes-cajero-simulado.spec.ts:66:3 › Reportes: ventas por cajero (simulado) › con un servidor sin la dimensión por cajero, la página sigue funcionando y lo indica (8.2s)
+(node:5950) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 e2e/reportes-cajero-simulado.spec.ts:81:1 › sin ventas confirmadas por cajero no se anuncia falta de datos (3.2s)
+  ✘  4 e2e/reportes-cajero-simulado.spec.ts:87:1 › inglés: métodos traducidos y CSV con los mismos importes y encabezados (7.3s)
+
+
+  1) e2e/reportes-cajero-simulado.spec.ts:66:3 › Reportes: ventas por cajero (simulado) › con un servidor sin la dimensión por cajero, la página sigue funcionando y lo indica
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByRole('region', { name: 'Ventas por cajero' })
+    Expected substring: "El servidor no proporcionó el desglose por cajero para este rango."
+    Received string:    "Ventas por cajeroSin ventas completadas en el rango.Ventas completadas en el rango, agrupadas por el usuario que las registró. Las devoluciones no se descuentan aquí.Exportar CSV"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" getByRole('region', { name: 'Ventas por cajero' }) with timeout 5000ms
+      - waiting for getByRole('region', { name: 'Ventas por cajero' })
+        9 × locator resolved to <section class="operation-card" aria-labelledby="reportes-cajeros">…</section>
+          - unexpected value "Ventas por cajeroSin ventas completadas en el rango.Ventas completadas en el rango, agrupadas por el usuario que las registró. Las devoluciones no se descuentan aquí.Exportar CSV"
+
+
+      70 |     await abrirReportes(page);
+      71 |     const seccion = page.getByRole('region', { name: 'Ventas por cajero' });
+    > 72 |     await expect(seccion).toContainText('El servidor no proporcionó el desglose por cajero para este rango.');
+         |                           ^
+      73 |     await expect(seccion).not.toContainText('Sin ventas completadas');
+      74 |     await expect(seccion.getByRole('button', { name: /CSV/i })).toBeDisabled();
+      75 |     await expect(page.getByRole('heading', { name: /170\.30/ })).toBeVisible();
+        at /workspace/FerreSystem/frontend/e2e/reportes-cajero-simulado.spec.ts:72:27
+
+    Error Context: test-results/reportes-cajero-simulado-R-11a9b-gue-funcionando-y-lo-indica/error-context.md
+
+  2) e2e/reportes-cajero-simulado.spec.ts:87:1 › inglés: métodos traducidos y CSV con los mismos importes y encabezados
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('region', { name: 'Sales by cashier' }).getByRole('columnheader', { name: 'Cash', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('region', { name: 'Sales by cashier' }).getByRole('columnheader', { name: 'Cash', exact: true }) with timeout 5000ms
+      - waiting for getByRole('region', { name: 'Sales by cashier' }).getByRole('columnheader', { name: 'Cash', exact: true })
+
+
+      92 |   const section = page.getByRole('region', { name: 'Sales by cashier' });
+      93 |   for (const name of ['Cash', 'Card', 'Transfer', 'Credit']) {
+    > 94 |     await expect(section.getByRole('columnheader', { name, exact: true })).toBeVisible();
+         |                                                                            ^
+      95 |   }
+      96 |   const downloadEvent = page.waitForEvent('download');
+      97 |   await section.getByRole('button', { name: 'Export CSV' }).click();
+        at /workspace/FerreSystem/frontend/e2e/reportes-cajero-simulado.spec.ts:94:76
+
+    Error Context: test-results/reportes-cajero-simulado-i-0366d-smos-importes-y-encabezados/error-context.md
+
+  2 failed
+    e2e/reportes-cajero-simulado.spec.ts:66:3 › Reportes: ventas por cajero (simulado) › con un servidor sin la dimensión por cajero, la página sigue funcionando y lo indica
+    e2e/reportes-cajero-simulado.spec.ts:87:1 › inglés: métodos traducidos y CSV con los mismos importes y encabezados
+  2 passed (31.9s)
