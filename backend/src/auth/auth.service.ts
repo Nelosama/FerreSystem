@@ -10,7 +10,7 @@ import { LoginDto } from './dto/login.dto';
 import { randomUUID } from 'node:crypto';
 import { leerConfiguracionAuth } from './auth-config';
 import { clavesDeLogin, excepcionLimiteLogin, registrarExitoLogin, registrarFalloLogin, segundosBloqueados } from './login-rate-limit';
-import { crearSesion, revocarSesion, sesionVigente, sidDeToken } from './sesiones-auth';
+import { crearSesion, revocarSesion, rotarRefresh, sidDeToken } from './sesiones-auth';
 
 const bearerDe = (req?: Request) => req?.headers?.authorization?.replace(/^Bearer /, '') || undefined;
 
@@ -59,8 +59,8 @@ export class AuthService {
     try {
       superAdmin = await this.prisma.superAdmin.findUnique({ where: { email: normalizedEmail } });
     } catch (error: any) {
-      const errorCode = error?.code || error?.meta?.code || 'N/A';
-      this.logger.error('[LOGIN_DIAGNOSTIC] Error consultando SuperAdmin.', error?.stack);
+      const errorCode = typeof error?.code === 'string' && /^P\d{4}$/.test(error.code) ? error.code : 'N/A';
+      this.logger.error(`[LOGIN_DIAGNOSTIC] Error consultando SuperAdmin. Código: ${errorCode}`);
       throw new InternalServerErrorException({
         statusCode: 500,
         message: 'Error de conexión o consulta con la base de datos al autenticar',
@@ -85,10 +85,12 @@ export class AuthService {
       const accessToken = this.jwtService.sign(payload, {
         expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
       });
+      const refreshJti = randomUUID();
       const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
         expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
+        jwtid: refreshJti,
       });
-      await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: superAdmin.id, expiresAt: this.expiracionRefresh(refreshToken) });
+      await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: superAdmin.id, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
       res.cookie('superAdminRefreshToken', refreshToken, {
         ...refreshCookieOptions(this.configService, true),
         maxAge: Math.max(0, this.expiracionRefresh(refreshToken).getTime() - Date.now()),
@@ -106,7 +108,7 @@ export class AuthService {
     }
 
     this.logger.log(
-      `[LOGIN_DIAGNOSTIC] [ETAPA 1-2] Inicio de intento de login para email normalizado: "${normalizedEmail}" (TenantId objetivo: ${targetTenantId || 'autodetect'})`,
+      `[LOGIN_DIAGNOSTIC] [ETAPA 1-2] Inicio de intento de login (TenantId objetivo: ${targetTenantId || 'autodetect'})`,
     );
 
     // Etapa 3 & 4: Búsqueda en BD considerando multi-tenancy (@@unique([tenantId, email]))
@@ -114,7 +116,7 @@ export class AuthService {
     try {
       if (targetTenantId) {
         this.logger.log(
-          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Buscando usuario específico en tenant: "${targetTenantId}" para email: "${normalizedEmail}"`,
+          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Buscando usuario específico en tenant: "${targetTenantId}"`,
         );
         usuario = await this.prisma.usuario.findFirst({
           where: { tenantId: targetTenantId, email: normalizedEmail },
@@ -122,7 +124,7 @@ export class AuthService {
         });
       } else {
         this.logger.log(
-          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Consultando usuarios globales con email: "${normalizedEmail}"`,
+          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Consultando usuarios globales con el correo indicado`,
         );
         const matchingUsers = await this.prisma.usuario.findMany({
           where: { email: normalizedEmail },
@@ -155,11 +157,9 @@ export class AuthService {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      const errorMsg = error?.message || 'Error desconocido';
-      const errorCode = error?.code || error?.meta?.code || 'N/A';
+      const errorCode = typeof error?.code === 'string' && /^P\d{4}$/.test(error.code) ? error.code : 'N/A';
       this.logger.error(
-        `[LOGIN_DIAGNOSTIC] [CASO E] ERROR DE BD/PRISMA durante consulta de usuario. Código: ${errorCode}, Mensaje: ${errorMsg}`,
-        error?.stack,
+        `[LOGIN_DIAGNOSTIC] [CASO E] ERROR DE BD/PRISMA durante consulta de usuario. Código: ${errorCode}`,
       );
       throw new InternalServerErrorException({
         statusCode: 500,
@@ -170,7 +170,8 @@ export class AuthService {
     }
 
     if (!usuario) {
-      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO A] Usuario NO encontrado para email: "${normalizedEmail}"`);
+      // El correo no se registra en claro: los intentos fallidos ya se guardan solo como hash (login-rate-limit).
+      this.logger.warn('[LOGIN_DIAGNOSTIC] [CASO A] Usuario NO encontrado para el correo indicado');
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
@@ -184,10 +185,9 @@ export class AuthService {
     try {
       this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 5] Comparando contraseña con bcrypt.compare()`);
       passwordValido = await bcrypt.compare(password, usuario.passwordHash);
-    } catch (bcryptError: any) {
+    } catch {
       this.logger.error(
-        `[LOGIN_DIAGNOSTIC] [CASO F] Error de ejecución en bcrypt.compare(): ${bcryptError?.message}`,
-        bcryptError?.stack,
+        '[LOGIN_DIAGNOSTIC] [CASO F] Error de ejecución en bcrypt.compare()',
       );
       throw new InternalServerErrorException('Error al validar credenciales de seguridad');
     }
@@ -229,11 +229,13 @@ export class AuthService {
       expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
     });
 
+    const refreshJti = randomUUID();
     const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
       expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
+      jwtid: refreshJti,
     });
 
-    await crearSesion(this.prisma, { id: sid, tipo: 'TENANT', sujetoId: usuario.id, tenantId: usuario.tenantId, expiresAt: this.expiracionRefresh(refreshToken) });
+    await crearSesion(this.prisma, { id: sid, tipo: 'TENANT', sujetoId: usuario.id, tenantId: usuario.tenantId, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
 
     // Guardar refresh token en cookie httpOnly + secure
     res.cookie('refreshToken', refreshToken, {
@@ -291,9 +293,7 @@ export class AuthService {
       if (decoded.typ !== 'refresh' || decoded.type !== 'tenant' || !decoded.tenantId) {
         throw new UnauthorizedException('Token inválido para refrescar sesión');
       }
-      if (!decoded.sid || !(await sesionVigente(this.prisma, String(decoded.sid), String(decoded.sub)))) {
-        throw new UnauthorizedException('Sesión cerrada o vencida');
-      }
+      if (!decoded.sid) throw new UnauthorizedException('Sesión cerrada o vencida');
 
       const usuario = await this.prisma.usuario.findUnique({
         where: { id: decoded.sub },
@@ -313,9 +313,27 @@ export class AuthService {
         sid: decoded.sid,
       };
 
+      // H-04: cada refresh sustituye la cookie; presentar una ya sustituida fuera de la gracia revoca la sesión.
+      const rotacion = await rotarRefresh(this.prisma, {
+        sid: String(decoded.sid), sujetoId: String(decoded.sub), jti: typeof decoded.jti === 'string' ? decoded.jti : undefined,
+        graciaMs: leerConfiguracionAuth(this.configService).graciaRefreshSegundos * 1000,
+      });
+      if (rotacion.estado === 'REUTILIZADA') {
+        this.logger.warn(`[AUTH] Refresh reutilizado fuera de la ventana de gracia: sesión ${String(decoded.sid)} revocada`);
+        throw new UnauthorizedException('Sesión cerrada por reutilización del token');
+      }
+      if (rotacion.estado === 'NO_VIGENTE') throw new UnauthorizedException('Sesión cerrada o vencida');
+
       const accessToken = this.jwtService.sign(newPayload, {
         expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
       });
+      const restanteMs = rotacion.expiresAt.getTime() - Date.now();
+      // El vencimiento absoluto de la sesión no se alarga al rotar.
+      const nuevoRefresh = this.jwtService.sign({ ...newPayload, typ: 'refresh' }, {
+        expiresIn: Math.max(1, Math.floor(restanteMs / 1000)),
+        jwtid: rotacion.jti,
+      });
+      res.cookie('refreshToken', nuevoRefresh, { ...refreshCookieOptions(this.configService), maxAge: Math.max(0, restanteMs) });
 
       return { accessToken };
     } catch (error) {

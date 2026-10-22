@@ -36,8 +36,12 @@ describe('SuperAdminService', () => {
   });
 
   it('refreshes only active super-admin sessions', async () => {
-    jwt.verify.mockReturnValue({ sub: admin.id, rol: 'SUPER_ADMIN', type: 'super_admin', typ: 'refresh', sid: 's-1' });
-    prisma.sesionAuth.findUnique.mockResolvedValue({ sujetoId: admin.id, revokedAt: null, expiresAt: new Date(Date.now() + 60_000) });
+    jwt.verify.mockReturnValue({ sub: admin.id, rol: 'SUPER_ADMIN', type: 'super_admin', typ: 'refresh', sid: 's-1', jti: 'jti-1' });
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ sujeto_id: admin.id, revoked_at: null, expires_at: new Date(Date.now() + 60_000), refresh_jti: 'jti-1', refresh_jti_anterior: null, refresh_rotado_at: null }]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    prisma.$transaction = vi.fn((fn: (t: typeof tx) => unknown) => fn(tx));
     prisma.superAdmin.findUnique.mockResolvedValue(admin);
 
     await expect(service.refresh('refresh-token', response)).resolves.toEqual({ accessToken: 'signed-token' });
@@ -45,6 +49,7 @@ describe('SuperAdminService', () => {
       { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', sid: 's-1' },
       expect.any(Object),
     );
+    expect(response.cookie).toHaveBeenCalledWith('superAdminRefreshToken', 'signed-token', expect.objectContaining({ path: '/api/admin/auth', httpOnly: true }));
   });
 
   it('sets a refresh cookie usable by the deployed admin API', async () => {

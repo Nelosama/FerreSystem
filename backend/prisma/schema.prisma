@@ -1172,6 +1172,10 @@ model SesionAuth {
   expiresAt        DateTime  @map("expires_at") @db.Timestamptz
   revokedAt        DateTime? @map("revoked_at") @db.Timestamptz
   revocationMotivo String?   @map("revocation_motivo")
+  // Rotación de refresh (H-04): jti vigente, el anterior (solo en la ventana de gracia) y la fecha de rotación.
+  refreshJti         String?   @map("refresh_jti")
+  refreshJtiAnterior String?   @map("refresh_jti_anterior")
+  refreshRotadoAt    DateTime? @map("refresh_rotado_at") @db.Timestamptz
 
   @@index([sujetoId])
   @@index([expiresAt])

@@ -28,8 +28,8 @@ export class AppController {
         database: 'connected',
         timestamp: new Date().toISOString(),
       };
-    } catch (error: any) {
-      this.logger.error('Database health check failed:', error?.message || error);
+    } catch {
+      this.logger.error('Database health check failed');
       return {
         status: 'error',
         database: 'disconnected',
