@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation, useSearchParams } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
-import { estiloMarcaNegocio } from './AvisoColorMarca';
+import { estiloMarcaNegocio } from '../utils/identidadNegocio';
 import { MENU_PLATAFORMA, PESTANAS_NEGOCIO, SECCIONES_PLATAFORMA, SLUG_SECCION } from '../config/platformNavigation';
 
 /** Menú del SUPERADMIN: usa siempre el color de la plataforma, nunca el de un negocio. */

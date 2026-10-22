@@ -7,7 +7,8 @@ import { CATALOGO_MODULOS, PENDING_MODULES } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
 import { LogotipoNegocioEditor } from '../components/LogotipoNegocioEditor';
-import { AvisoColorMarca, estiloMarcaNegocio } from '../components/AvisoColorMarca';
+import { AvisoColorMarca } from '../components/AvisoColorMarca';
+import { estiloMarcaNegocio } from '../utils/identidadNegocio';
 
 type Registro = { id: string; nombre: string; email?: string; rol?: string; activo?: boolean; activa?: boolean; direccion?: string; telefono?: string; permisos?: string[]; descuentoMaximo?: number };
 const mensaje = (error: any) => { const value = error.response?.data?.message; return Array.isArray(value) ? value.join(', ') : value || 'No se pudo completar la operación. Sus cambios se conservan; vuelva a intentar.'; };

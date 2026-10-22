@@ -34,7 +34,11 @@ test('contraste WCAG: blanco/negro 21:1 y mismo color 1:1', () => {
 test('marcas oscuras conservan el texto blanco y su propio color para texto', () => {
   assert.equal(colorSobreMarca('#1D4ED8'), TEXTO_CLARO);
   assert.equal(colorMarcaTexto('#1D4ED8'), '#1D4ED8');
-  assert.equal(colorMarcaTexto('#0f766e'), '#0F766E');
+  assert.equal(colorMarcaTexto('#1d4ed8'), '#1D4ED8');
+  // Verde azulado #0F766E queda justo por debajo de 4.5:1 sobre su tinte en el fondo gris: se oscurece lo mínimo.
+  const verde = colorMarcaTexto('#0F766E');
+  assert.notEqual(verde, '#0F766E');
+  assert.ok(contraste(verde, '#0F766E') < 1.15, `ajuste mínimo: ${verde}`);
 });
 
 test('marcas claras usan texto oscuro encima y un tono oscurecido para texto', () => {
@@ -53,7 +57,7 @@ test('para cualquier marca, texto encima y texto de marca cumplen el mínimo sob
   for (const marca of MARCAS) {
     const v = variantesMarca(marca);
     assert.ok(contraste(v.sobrePrimario, v.primario) >= 4.5, `${marca}: texto encima ${v.sobrePrimario}`);
-    for (const fondo of ['#FFFFFF', '#F4F5F7', mezclar(marca, '#FFFFFF', 0.12)]) {
+    for (const fondo of ['#FFFFFF', '#F4F5F7', mezclar(marca, '#FFFFFF', 0.12), mezclar(marca, '#F4F5F7', 0.12)]) {
       assert.ok(contraste(v.texto, fondo) >= 4.5, `${marca}: texto sobre ${fondo} = ${contraste(v.texto, fondo)}`);
     }
   }
@@ -70,6 +74,10 @@ test('un color no válido usa el naranja predeterminado sin lanzar errores', () 
   const v = variantesMarca('rojo');
   assert.equal(v.primario, '#EA580C');
   assert.equal(evaluarColorMarca('rojo'), null);
+  // Negocio sin color guardado: la pantalla de marca no debe fallar (antes lanzaba «undefined.trim»).
+  assert.equal(evaluarColorMarca(undefined), null);
+  assert.equal(evaluarColorMarca(null), null);
+  assert.equal(variantesMarca(undefined).primario, '#EA580C');
 });
 
 test('evaluación para el aviso de configuración', () => {

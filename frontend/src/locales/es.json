@@ -155,7 +155,11 @@
     "account_status": "ESTADO DE CUENTA",
     "active_can_login": "Activo (Puede iniciar sesión)",
     "inactive_blocked": "Inactivo (Bloqueado)",
-    "fine_tuning_permissions": "PERSONALIZACIÓN FINA DE PERMISOS",
+    "fine_tuning_permissions": "Personalización fina de permisos",
+    "permissions_selected": "{count} de {total} activos",
+    "permissions_help": "Marque lo que esta persona puede hacer. El rol base sigue limitando las pantallas a las que entra.",
+    "permissions_admin_help": "El rol Administrador incluye todos los permisos. Para limitarlos, elija otro rol base.",
+    "permission_by_role": "Incluido por el rol",
     "cancel": "CANCELAR",
     "saving": "GUARDANDO...",
     "save_user": "GUARDAR USUARIO",
@@ -1542,6 +1546,17 @@
     "error": "No se pudo guardar. Intente de nuevo."
   },
   "shell": {
+    "login": {
+      "subtitle": "Sistema de gestión para negocios",
+      "email": "Correo electrónico",
+      "password": "Contraseña",
+      "submit": "Ingresar al sistema",
+      "verifying": "Verificando…",
+      "invalid_session": "El servidor no devolvió una sesión válida. Inténtelo de nuevo.",
+      "unknown_session": "El servidor devolvió un tipo de sesión desconocido. Contacte a soporte.",
+      "bad_credentials": "Correo o contraseña incorrectos.",
+      "network_error": "No se pudo conectar con el servidor. Verifique su conexión a internet e inténtelo nuevamente."
+    },
     "platform_home": "Jowa System: ir al panel de plataforma",
     "platform_menu": "Menú de plataforma",
     "platform_tabs": "Administración de plataforma",

@@ -13,7 +13,9 @@ const OPACIDAD_TINTE = 0.12;
 
 type Rgb = [number, number, number];
 
-const canales = (hex: string): Rgb | null => {
+// Acepta valores ausentes: la configuración de un negocio puede no traer color todavía.
+const canales = (hex: string | null | undefined): Rgb | null => {
+  if (typeof hex !== 'string') return null;
   const limpio = hex.trim();
   if (!/^#[0-9A-Fa-f]{6}$/.test(limpio)) return null;
   const n = parseInt(limpio.slice(1), 16);
@@ -62,7 +64,8 @@ export function colorSobreMarca(color: string): string {
 export function colorMarcaTexto(color: string): string {
   const rgb = canales(color);
   if (!rgb) return TEXTO_OSCURO;
-  const fondos = [...SUPERFICIES_CLARAS, mezclar(color, TEXTO_CLARO, OPACIDAD_TINTE)];
+  // El tinte de marca se pinta tanto sobre tarjetas blancas como sobre el fondo gris de la página (avisos del POS).
+  const fondos = [...SUPERFICIES_CLARAS, ...SUPERFICIES_CLARAS.map(f => mezclar(color, f, OPACIDAD_TINTE))];
   const legible = (hex: string) => fondos.every(f => contraste(hex, f) >= CONTRASTE_TEXTO);
   for (let factor = 1; factor >= 0; factor -= 0.02) {
     const candidato = aHex(rgb.map(c => c * factor) as Rgb);
@@ -93,8 +96,8 @@ export interface VariantesMarca {
  * Todos los tokens derivados del color del negocio. Con texto claro encima, hover y activo oscurecen
  * (comportamiento anterior); con texto oscuro encima, aclaran, para no perder contraste al pasar el puntero.
  */
-export function variantesMarca(color: string): VariantesMarca {
-  const primario = canales(color) ? color.trim().toUpperCase() : '#EA580C';
+export function variantesMarca(color: string | null | undefined): VariantesMarca {
+  const primario = canales(color) ? (color as string).trim().toUpperCase() : '#EA580C';
   const sobrePrimario = colorSobreMarca(primario);
   const textoClaro = sobrePrimario === TEXTO_CLARO;
   return {
@@ -120,9 +123,9 @@ export interface EvaluacionColorMarca {
 }
 
 /** Diagnóstico para avisar al configurar la marca. No bloquea: el negocio puede conservar su color. */
-export function evaluarColorMarca(color: string): EvaluacionColorMarca | null {
+export function evaluarColorMarca(color: string | null | undefined): EvaluacionColorMarca | null {
   if (!canales(color)) return null;
-  const v = variantesMarca(color);
+  const v = variantesMarca(color as string);
   return {
     contrasteBlanco: Math.round(contraste(TEXTO_CLARO, v.primario) * 100) / 100,
     textoOscuroEncima: v.sobrePrimario !== TEXTO_CLARO,

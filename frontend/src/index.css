@@ -15,7 +15,7 @@
   --color-primary-border: rgba(234, 88, 12, 0.35);
   /* Derivados legibles (utils/colorMarca.ts): texto encima de la marca y marca como texto sobre fondo claro */
   --color-on-primary: #111827;
-  --color-primary-text: #BB460A;
+  --color-primary-text: #B24309;
   /* Selección (método de pago, filtro activo) y foco: siempre legibles con cualquier marca */
   --color-selected-bg: var(--color-primary);
   --color-selected-text: var(--color-on-primary);

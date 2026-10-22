@@ -243,7 +243,15 @@ html[data-session-pending="true"] [data-protected-content] {
 .task-search-row input { border-radius:8px; }
 .topnav-link, .topnav-more summary { font-size:13px; font-weight:600; border-radius:8px; }
 .topnav-dropdown { border-radius:10px; box-shadow:0 8px 24px rgba(16,24,40,.12); }
-@media (max-width:768px) { .app-topbar { padding:16px !important; } .app-tenant-brand img { max-width:150px; } }
+@media (max-width:768px) {
+  .app-topbar { padding:16px !important; gap:12px !important; }
+  .app-tenant-brand img { max-width:150px; }
+  /* Teléfono: título más corto y acciones en una fila que se ajusta al ancho; la fecha no cabe y no es necesaria. */
+  .app-topbar-titulo { font-size:22px !important; }
+  .app-topbar-acciones { width:100%; flex-wrap:wrap; gap:8px !important; margin-top:0 !important; }
+  .app-topbar .app-date-badge { display:none !important; }
+  .app-topbar-usuario { margin-left:auto; flex-wrap:nowrap !important; min-width:0; }
+}
 /* Configuración del negocio (Super Admin): cuatro secciones numeradas y barra de guardado común. */
 .settings-section { gap: 4px; min-width: 0; }
 .settings-section-help { font-size: 13px; color: var(--color-text-muted); margin: 10px 0 4px; }
@@ -257,11 +265,55 @@ html[data-session-pending="true"] [data-protected-content] {
 .topnav-more summary { display:flex; align-items:center; gap:4px; min-height:40px; min-width:32px; justify-content:center; }
 .topnav-more summary::-webkit-details-marker { display:none; }
 .jowa-connection--compacta { margin:0; padding:6px 10px; white-space:nowrap; flex:0 0 auto; }
-.topnav-grupo-compacto { display:none; }
-.topnav-more--solo-compacto { display:none; }
-@media (max-width:1199px) {
-  .topnav-entry--amplia { display:none; }
-  .topnav-grupo-compacto { display:block; padding-bottom:4px; margin-bottom:4px; border-bottom:1px solid var(--color-border-subtle); }
-  .topnav-more--solo-compacto { display:block; }
-}
+.topnav-grupo-compacto { display:block; padding-bottom:4px; margin-bottom:4px; border-bottom:1px solid var(--color-border-subtle); }
 .aviso-color-marca { display:flex; gap:8px; align-items:flex-start; margin:8px 0 0; padding:10px 12px; border-radius:8px; background:var(--color-info-bg); color:var(--color-text-main); font-size:13px; line-height:1.45; }
+
+/* Inicio de sesión y marca del producto. Fondo y superficies del diseño único; un solo ancho de tarjeta en todos los tamaños. */
+.marca-jowa { display:inline-flex; align-items:center; gap:10px; }
+.marca-jowa-simbolo { display:block; flex:0 0 auto; }
+.marca-jowa-nombre { font:800 18px var(--font-display); color:var(--color-text-main); letter-spacing:-0.01em; }
+.login-pagina { min-height:100vh; min-height:100dvh; display:flex; align-items:center; justify-content:center; padding:24px 16px; background:var(--color-bg); }
+.login-tarjeta { width:100%; max-width:420px; padding:32px 28px; }
+.login-marca { display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; }
+.login-titulo { margin-top:8px; font:800 28px/1.15 var(--font-display); letter-spacing:-0.02em; color:var(--color-text-main); }
+.login-subtitulo { font-size:14px; color:var(--color-text-muted); }
+.login-aviso { display:flex; align-items:flex-start; gap:8px; margin-top:20px; padding:12px 14px; border-radius:var(--radius-sm); border:1px solid #F5B5B5; background:var(--color-danger-bg); color:#991B1B; font-size:13.5px; font-weight:600; line-height:1.4; }
+.login-aviso svg { flex:0 0 auto; margin-top:1px; }
+.login-aviso--info { border-color:#F3D19C; background:var(--color-warning-bg); color:#7C2D12; }
+.login-formulario { margin-top:24px; }
+.login-formulario .form-label { font-size:13px; color:var(--color-text-main); }
+.login-campo { position:relative; }
+.login-campo svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-text-muted); pointer-events:none; }
+.login-campo .form-input { padding-left:38px; min-height:44px; font-size:16px; }
+.login-entrar { width:100%; min-height:48px; margin-top:8px; font-size:15px; }
+@media (max-width:400px) { .login-tarjeta { padding:24px 18px; } .login-titulo { font-size:24px; } }
+
+/* Usuarios: matriz de permisos. Texto siempre en tinta (≥ 4.5:1); el estado se distingue por casilla, borde y fondo,
+   no solo por color. Disponible = blanco; activo = borde y tinte de marca; bloqueado = gris con rótulo. */
+.permisos-matriz { border:0; border-top:1px solid var(--color-border); margin:16px 0 0; padding:14px 0 0; min-width:0; }
+.permisos-titulo { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; width:100%; padding:0; font:800 14px var(--font-display); color:var(--color-text-main); }
+.permisos-contador { margin-left:auto; font:600 12.5px var(--font-body); color:var(--color-text-muted); }
+.permisos-ayuda { margin:6px 0 10px; font-size:13px; color:var(--color-text-muted); }
+.permisos-lista { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap:8px; }
+.permiso-opcion { display:flex; align-items:flex-start; gap:10px; min-height:52px; padding:10px 12px; border:1px solid #C9CFD6; border-radius:var(--radius-sm); background:var(--color-surface); color:var(--color-text-main); cursor:pointer; }
+.permiso-opcion:hover { border-color:#98A2B3; }
+.permiso-opcion input { flex:0 0 auto; width:18px; height:18px; margin-top:1px; accent-color:var(--color-primary-text); cursor:inherit; }
+.permiso-opcion:focus-within { outline:2px solid var(--color-focus-ring); outline-offset:2px; }
+.permiso-opcion--activo { border-color:var(--color-primary-text); background:var(--color-primary-light); box-shadow:inset 3px 0 var(--color-primary-text); }
+.permiso-opcion--bloqueado { cursor:not-allowed; background:#F3F4F6; border-color:#D5DAE0; border-style:dashed; box-shadow:none; }
+.permiso-texto { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
+.permiso-nombre { font-size:13.5px; font-weight:600; line-height:1.3; color:var(--color-text-main); }
+.permiso-clave { font:500 12px var(--font-numeric); color:#4B5563; overflow-wrap:anywhere; }
+.permiso-estado { flex:0 0 auto; align-self:center; font-size:11.5px; font-weight:600; color:#374151; background:#E5E7EB; border-radius:10px; padding:2px 8px; }
+.usuario-modal-acciones { display:flex; justify-content:flex-end; gap:12px; margin-top:20px; }
+.usuario-modal-fila { flex-wrap:wrap; }
+.usuario-modal-fila > .form-group { min-width:min(100%, 220px); }
+@media (max-width:600px) {
+  /* Teléfono: el modal ocupa la pantalla, un único desplazamiento y acciones fijas al pie. */
+  .usuario-modal-fondo { padding:0 !important; align-items:stretch !important; }
+  .usuario-modal { max-width:none !important; max-height:none !important; height:100%; border-radius:0; padding:16px 16px 0; }
+  .usuario-modal-acciones { position:sticky; bottom:0; margin:16px -16px 0; padding:12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); background:var(--color-surface); border-top:1px solid var(--color-border); }
+  .usuario-modal-acciones .btn { flex:1; min-height:44px; padding:0 10px; white-space:nowrap; }
+  .usuario-modal-acciones .btn svg { display:none; }
+}
+.logotipo-iniciales { display:flex; align-items:center; justify-content:center; flex-shrink:0; background:var(--color-primary); color:var(--color-on-primary); font-family:var(--font-display); font-weight:800; letter-spacing:.02em; }

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, Clock, Loader2 } from 'lucide-react';
+import { MarcaJowa } from '../components/MarcaJowa';
+import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate } from 'react-router-dom';
 import { SESSION_EXPIRED_MESSAGE, hasSessionExpiredNotice, clearSessionExpiredNotice } from '../utils/authInterceptors';
@@ -7,6 +9,7 @@ import { api } from '../utils/api';
 
 export const LoginPage: React.FC = () => {
   const { login } = useTenant();
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -27,7 +30,7 @@ export const LoginPage: React.FC = () => {
       const { type, accessToken, user, tenant, superAdmin } = response.data;
 
       if (typeof accessToken !== 'string' || !accessToken) {
-        setError('El servidor no devolvió una sesión válida.');
+        setError(t('shell.login.invalid_session'));
         return;
       }
 
@@ -71,7 +74,7 @@ export const LoginPage: React.FC = () => {
         navigate('/');
       } else {
         localStorage.removeItem('ferre_token');
-        setError('El servidor devolvió un tipo de sesión desconocido.');
+        setError(t('shell.login.unknown_session'));
       }
     } catch (err: any) {
       if (err.response) {
@@ -79,160 +82,77 @@ export const LoginPage: React.FC = () => {
         setError(
           Array.isArray(message)
             ? message.join(', ')
-            : message || 'Correo o contraseña incorrectos'
+            : message || t('shell.login.bad_credentials')
         );
       } else {
-        setError('No se pudo conectar con el servidor. Verifique que el backend en Render esté disponible.');
+        setError(t('shell.login.network_error'));
       }
     } finally {
       setLoading(false);
     }
   };
 
+  const sesionExpirada = error === SESSION_EXPIRED_MESSAGE;
+
   return (
-    <div style={styles.container}>
-      <div className="industrial-card" style={styles.loginCard}>
-        {/* Brand Header */}
-        <div style={styles.logoSection}>
-          <div style={styles.logoIcon}>
-            <Box size={38} strokeWidth={2.6} color="var(--color-primary-text)" />
-          </div>
-          <div style={styles.brandTitle}>
-            <span style={{ color: 'var(--color-text-main)' }}>Jowa</span>
-            <span style={{ color: 'var(--color-primary-text)' }}> System</span>
-          </div>
-          <div style={styles.subtitle}>SISTEMA DE GESTIÓN PARA NEGOCIOS</div>
-        </div>
+    <main className="login-pagina">
+      <div className="industrial-card login-tarjeta">
+        {/* Marca del producto: nombre completo «Jowa System» en un solo color legible */}
+        <header className="login-marca">
+          <MarcaJowa size={52} />
+          <h1 className="login-titulo">Jowa System</h1>
+          <p className="login-subtitulo">{t('shell.login.subtitle')}</p>
+        </header>
 
         {error && (
-          <div
-            style={{
-              marginTop: '16px',
-              padding: '10px 14px',
-              backgroundColor: '#FEE2E2',
-              border: '1px solid #EF4444',
-              borderRadius: '4px',
-              color: '#991B1B',
-              fontSize: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontWeight: 600,
-            }}
-          >
-            <AlertCircle size={16} />
+          <div className={`login-aviso${sesionExpirada ? ' login-aviso--info' : ''}`} role={sesionExpirada ? 'status' : 'alert'}>
+            {sesionExpirada ? <Clock size={18} aria-hidden="true" /> : <AlertCircle size={18} aria-hidden="true" />}
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ marginTop: '20px' }}>
+        <form onSubmit={handleSubmit} className="login-formulario" aria-busy={loading}>
           <div className="form-group">
-            <label className="form-label">CORREO ELECTRÓNICO</label>
-            <div style={styles.inputWrapper}>
-              <Mail size={16} strokeWidth={2.4} style={styles.inputIcon} />
+            <label className="form-label" htmlFor="login-correo">{t('shell.login.email')}</label>
+            <div className="login-campo">
+              <Mail size={16} strokeWidth={2.2} aria-hidden="true" />
               <input
+                id="login-correo"
                 type="email"
                 required
+                autoComplete="username"
+                inputMode="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="correo@empresa.com"
                 className="form-input"
-                style={{ paddingLeft: '36px' }}
               />
             </div>
           </div>
 
           <div className="form-group">
-            <label className="form-label">CONTRASEÑA</label>
-            <div style={styles.inputWrapper}>
-              <Lock size={16} strokeWidth={2.4} style={styles.inputIcon} />
+            <label className="form-label" htmlFor="login-clave">{t('shell.login.password')}</label>
+            <div className="login-campo">
+              <Lock size={16} strokeWidth={2.2} aria-hidden="true" />
               <input
+                id="login-clave"
                 type="password"
                 required
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
                 className="form-input"
-                style={{ paddingLeft: '36px' }}
               />
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn btn-primary"
-            style={{ width: '100%', marginTop: '16px', padding: '14px', opacity: loading ? 0.7 : 1 }}
-          >
-            <span>{loading ? 'VERIFICANDO...' : 'INGRESAR AL SISTEMA'}</span>
-            {!loading && <ArrowRight size={18} strokeWidth={2.5} />}
+          <button type="submit" disabled={loading} className="btn btn-primary login-entrar">
+            {loading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : null}
+            <span>{loading ? t('shell.login.verifying') : t('shell.login.submit')}</span>
+            {!loading && <ArrowRight size={18} strokeWidth={2.4} aria-hidden="true" />}
           </button>
         </form>
-
-        <div style={styles.footerNote}>
-          Honduras • SAR Compliance ISV 15% • Multi-Tenant
-        </div>
       </div>
-    </div>
+    </main>
   );
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E7E5E4',
-    padding: '20px',
-  },
-  loginCard: {
-    width: '100%',
-    maxWidth: '440px',
-    backgroundColor: '#FFFFFF',
-    padding: '36px 32px',
-  },
-  logoSection: {
-    textAlign: 'center',
-  },
-  logoIcon: {
-    display: 'inline-flex',
-    padding: '10px',
-    backgroundColor: 'var(--color-bg)',
-    border: '2px solid var(--color-text-main)',
-    borderRadius: '4px',
-    marginBottom: '10px',
-  },
-  brandTitle: {
-    fontFamily: 'var(--font-display)',
-    fontWeight: 900,
-    fontSize: '32px',
-    letterSpacing: '-0.02em',
-  },
-  subtitle: {
-    fontFamily: 'var(--font-display)',
-    fontWeight: 800,
-    fontSize: '10px',
-    letterSpacing: '0.06em',
-    color: 'var(--color-text-muted)',
-    marginTop: '4px',
-  },
-  inputWrapper: {
-    position: 'relative',
-  },
-  inputIcon: {
-    position: 'absolute',
-    left: '11px',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    color: 'var(--color-text-muted)',
-  },
-  footerNote: {
-    textAlign: 'center',
-    fontSize: '11px',
-    color: '#A8A29E',
-    marginTop: '24px',
-    fontFamily: 'var(--font-display)',
-    fontWeight: 600,
-  },
 };

@@ -155,7 +155,11 @@
     "account_status": "ACCOUNT STATUS",
     "active_can_login": "Active (Can log in)",
     "inactive_blocked": "Inactive (Blocked)",
-    "fine_tuning_permissions": "FINE-TUNING PERMISSIONS",
+    "fine_tuning_permissions": "Fine-tuning permissions",
+    "permissions_selected": "{count} of {total} active",
+    "permissions_help": "Check what this person can do. The base role still limits which screens they can open.",
+    "permissions_admin_help": "The Administrator role includes every permission. To limit them, choose another base role.",
+    "permission_by_role": "Included by role",
     "cancel": "CANCEL",
     "saving": "SAVING...",
     "save_user": "SAVE USER",
@@ -1542,6 +1546,17 @@
     "error": "Could not save. Try again."
   },
   "shell": {
+    "login": {
+      "subtitle": "Business management system",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "verifying": "Verifying…",
+      "invalid_session": "The server did not return a valid session. Please try again.",
+      "unknown_session": "The server returned an unknown session type. Contact support.",
+      "bad_credentials": "Incorrect email or password.",
+      "network_error": "Could not connect to the server. Check your internet connection and try again."
+    },
     "platform_home": "Jowa System: go to the platform panel",
     "platform_menu": "Platform menu",
     "platform_tabs": "Platform administration",

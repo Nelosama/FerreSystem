@@ -13,6 +13,8 @@ async function ingresarCajero(page: Page, ruta: string) {
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
   await page.goto(ruta);
+  // El cliente está plegado como «Consumidor Final»: «Cambiar cliente» abre el buscador de clientes registrados.
+  if (ruta === '/pos') await page.getByRole('button', { name: 'Cambiar cliente' }).click();
 }
 
 test.describe('POS — cajero selecciona clientes (backend real)', () => {

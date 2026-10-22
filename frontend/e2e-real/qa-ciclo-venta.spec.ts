@@ -471,7 +471,7 @@ test.describe('14. Operación de la interfaz POS', () => {
     await buscar.fill(COD.ui);
     await buscar.press('Enter');
     await expect(page.getByLabel(new RegExp('^Cantidad QA ' + COD.ui))).toBeVisible();
-    await page.getByRole('button', { name: 'EFECTIVO', exact: true }).click();
+    await page.getByRole('button', { name: 'Efectivo', exact: true }).click();
     await page.getByRole('button', { name: /Procesar Venta/ }).click();
     await expect.poll(() => num(`SELECT COUNT(*) FROM detalles_venta d JOIN ventas v ON v.id=d.venta_id WHERE d.producto_id='${PUI}' AND v.usuario_id='${cajero1.id}'`), { timeout: 20000 }).toBe(1);
     expect(sql(`SELECT metodo_pago||'|'||total::float FROM ventas v JOIN detalles_venta d ON d.venta_id=v.id WHERE d.producto_id='${PUI}'`)).toBe('EFECTIVO|287.5');

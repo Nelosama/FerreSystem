@@ -112,10 +112,15 @@ for (const role of ['ADMIN', 'CAJERO'] as const) {
     // POS is lazy-loaded; wait for its mocked catalog before checking its controls.
     await Promise.all([
       page.waitForResponse(response => new URL(response.url()).pathname === '/api/productos/comercial' && response.status() === 200),
-      page.waitForResponse(response => new URL(response.url()).pathname === '/api/clientes/buscar' && response.status() === 200),
       page.goto('/pos'),
     ]);
     await expect(page.getByRole('link', { name: 'Abrir o revisar mi caja', exact: true })).toBeVisible();
+    // El cliente empieza plegado (Consumidor Final); «Cambiar cliente» abre el buscador de clientes registrados.
+    await expect(page.getByRole('searchbox', { name: 'Buscar cliente existente', exact: true })).toHaveCount(0);
+    await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname === '/api/clientes/buscar' && response.status() === 200),
+      page.getByRole('button', { name: 'Cambiar cliente' }).click(),
+    ]);
     await expect(page.getByRole('searchbox', { name: 'Buscar cliente existente', exact: true })).toBeVisible();
   });
 }

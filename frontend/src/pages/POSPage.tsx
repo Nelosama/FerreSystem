@@ -151,12 +151,12 @@ export const POSPage: React.FC = () => {
   const buscarRef = useRef<HTMLInputElement>(null);
   const cobrarRef = useRef<HTMLButtonElement>(null);
   const pieTicketRef = useRef<HTMLDivElement>(null);
-  const modalAbiertoRef = useRef(modalTicket);
-  modalAbiertoRef.current = modalTicket;
 
+  // Con el comprobante abierto los atajos no actúan: el diálogo tiene el foco y sus propios botones.
   useEffect(() => {
+    if (modalTicket) return;
     const alPulsar = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.isComposing || modalAbiertoRef.current) return;
+      if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.isComposing) return;
       if (event.key === ATAJO_BUSCAR) {
         event.preventDefault();
         buscarRef.current?.focus();
@@ -169,7 +169,7 @@ export const POSPage: React.FC = () => {
     };
     window.addEventListener('keydown', alPulsar);
     return () => window.removeEventListener('keydown', alPulsar);
-  }, []);
+  }, [modalTicket]);
 
   // Altura del ticket según su posición en pantalla: el pie (total, método y cobro) siempre queda visible,
   // también antes de desplazar la página. En el teléfono el CSS anula este límite.
@@ -198,6 +198,12 @@ export const POSPage: React.FC = () => {
       window.removeEventListener('resize', ajustar);
     };
   }, []);
+
+  const desvincularCliente = () => {
+    setClienteId(undefined);
+    setClienteNombre('Consumidor Final');
+    setClienteRtn('');
+  };
 
   const restoreRecovery = () => {
     const recovery = readRecovery(pendingKey, draftKey);
@@ -636,6 +642,11 @@ export const POSPage: React.FC = () => {
                   {clienteRtn && <small>RTN {clienteRtn}</small>}
                 </span>
                 {clienteId && <span className="badge badge-success">{t('shell.pos.client_registered')}</span>}
+                {clienteId && !edicionBloqueada && (
+                  <button type="button" className="btn btn-secondary btn-sm pos-icono" onClick={desvincularCliente} aria-label={t('shell.pos.client_unlink')} title={t('shell.pos.client_unlink')}>
+                    <X size={16} aria-hidden="true" />
+                  </button>
+                )}
                 {!edicionBloqueada && (
                   <button type="button" className="btn btn-secondary btn-sm" aria-expanded={false} aria-controls="pos-cliente-detalle" onClick={() => setClienteAbierto(true)}>
                     {t('shell.pos.client_change')}
@@ -661,11 +672,7 @@ export const POSPage: React.FC = () => {
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm pos-icono"
-                        onClick={() => {
-                          setClienteId(undefined);
-                          setClienteNombre('Consumidor Final');
-                          setClienteRtn('');
-                        }}
+                        onClick={desvincularCliente}
                         aria-label={t('shell.pos.client_unlink')}
                         title={t('shell.pos.client_unlink')}
                       >
@@ -819,7 +826,7 @@ export const POSPage: React.FC = () => {
             {/* Método de Pago: botones de alternancia; el seleccionado se distingue por relleno, borde e icono */}
             <div role="group" aria-label={t('shell.pos.payment_method')} className="pos-metodos">
               {METODOS_PAGO.map(({ valor, etiqueta, Icono }) => (
-                <button key={valor} type="button" className="pos-metodo" aria-pressed={metodoPago === valor} disabled={edicionBloqueada} onClick={() => setMetodoPago(valor)}>
+                <button key={valor} type="button" className="pos-metodo" data-metodo={valor} aria-pressed={metodoPago === valor} disabled={edicionBloqueada} onClick={() => setMetodoPago(valor)}>
                   {metodoPago === valor ? <CheckCircle size={16} strokeWidth={2.4} aria-hidden="true" /> : <Icono size={16} strokeWidth={2.2} aria-hidden="true" />}
                   <span>{t(etiqueta)}</span>
                 </button>

@@ -132,6 +132,11 @@ export const UsuariosPage: React.FC = () => {
   const [formActivo, setFormActivo] = useState(true);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // Al abrir el modal, el foco entra en él (primer campo): Escape y el lector de pantalla actúan sobre el diálogo.
+  const dialogoUsuarioRef = React.useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (modalAbierto) dialogoUsuarioRef.current?.querySelector<HTMLInputElement>('input:not([disabled])')?.focus();
+  }, [modalAbierto]);
 
 
   // Fetch real users on mount
@@ -239,6 +244,9 @@ export const UsuariosPage: React.FC = () => {
     setFormPermisos(defaults.permisos);
     setFormDescuentoMaximo(defaults.descuentoMaximo);
   };
+
+  // ADMIN tiene todas las facultades en el servidor: la lista individual no lo limita.
+  const permisosPorRol = formRolBase === 'ADMIN';
 
   const togglePermiso = (clavePermiso: string) => {
     if (formPermisos.includes(clavePermiso)) {
@@ -466,12 +474,13 @@ export const UsuariosPage: React.FC = () => {
 
       {/* Modal Crear / Editar Usuario */}
       {modalAbierto && (
-        <div style={styles.modalOverlay}>
-          <div className="industrial-card" style={styles.modalContent}>
+        <div style={styles.modalOverlay} className="usuario-modal-fondo">
+          <div ref={dialogoUsuarioRef} className="industrial-card usuario-modal" style={styles.modalContent} role="dialog" aria-modal="true" aria-labelledby="usuario-modal-titulo"
+            onKeyDown={(e) => { if (e.key === 'Escape' && !submitting) { e.stopPropagation(); setModalAbierto(false); } }}>
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Users size={20} color="var(--color-primary-text)" />
-                <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
+                <Users size={20} color="var(--color-primary-text)" aria-hidden="true" />
+                <h2 id="usuario-modal-titulo" style={{ fontSize: '16px' }}>
                   {usuarioEditando ? t('users.edit_user') : t('users.new_user')}
                 </h2>
               </div>
@@ -481,22 +490,23 @@ export const UsuariosPage: React.FC = () => {
                 style={styles.closeBtn}
                 aria-label={t('common.close_modal')}
               >
-                <X size={20} />
+                <X size={20} aria-hidden="true" />
               </button>
             </div>
 
             {modalError && (
-              <div style={styles.modalErrorBanner}>
+              <div style={styles.modalErrorBanner} role="alert">
                 <AlertCircle size={16} style={{ flexShrink: 0 }} />
                 <span>{modalError}</span>
               </div>
             )}
 
             <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
-              <div style={styles.formRow}>
+              <div style={styles.formRow} className="usuario-modal-fila">
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.full_name')}</label>
+                  <label className="form-label" htmlFor="usuario-nombre">{t('users.full_name')}</label>
                   <input
+                    id="usuario-nombre"
                     type="text"
                     required
                     placeholder={t('users.placeholder_name')}
@@ -514,8 +524,9 @@ export const UsuariosPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.email')}</label>
+                  <label className="form-label" htmlFor="usuario-correo">{t('users.email')}</label>
                   <input
+                    id="usuario-correo"
                     type="email"
                     required
                     placeholder={t('users.placeholder_email')}
@@ -535,8 +546,9 @@ export const UsuariosPage: React.FC = () => {
 
               {!usuarioEditando && (
                 <div className="form-group">
-                  <label className="form-label">{t('users.temp_password')}</label>
+                  <label className="form-label" htmlFor="usuario-clave">{t('users.temp_password')}</label>
                   <input
+                    id="usuario-clave"
                     type={mostrarPassword ? 'text' : 'password'}
                     required
                     disabled={submitting}
@@ -557,11 +569,12 @@ export const UsuariosPage: React.FC = () => {
                 </div>
               )}
 
-              <div style={styles.formRow}>
+              <div style={styles.formRow} className="usuario-modal-fila">
 
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.base_role')}</label>
+                  <label className="form-label" htmlFor="usuario-rol">{t('users.base_role')}</label>
                   <select
+                    id="usuario-rol"
                     value={formRolBase}
                     disabled={submitting}
                     onChange={(e) =>
@@ -577,10 +590,11 @@ export const UsuariosPage: React.FC = () => {
                 </div>
               </div>
 
-              <div style={styles.formRow}>
+              <div style={styles.formRow} className="usuario-modal-fila">
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">{t('users.max_allowed_discount')}</label>
+                  <label className="form-label" htmlFor="usuario-descuento">{t('users.max_allowed_discount')}</label>
                   <input
+                    id="usuario-descuento"
                     type="number"
                     min="0"
                     max="100"
@@ -600,23 +614,25 @@ export const UsuariosPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">{t('users.account_status')}</label>
-                <div style={{ display: 'flex', gap: '16px', marginTop: '6px' }}>
+              <div className="form-group" role="radiogroup" aria-labelledby="usuario-estado-titulo">
+                <span id="usuario-estado-titulo" className="form-label">{t('users.account_status')}</span>
+                <div style={{ display: 'flex', gap: '16px', marginTop: '6px', flexWrap: 'wrap' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}>
                     <input
                       type="radio"
                       name="activo"
                       checked={formActivo === true}
+                      disabled={submitting}
                       onChange={() => setFormActivo(true)}
                     />
                     {t('users.active_can_login')}
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#DC2626' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#B91C1C' }}>
                     <input
                       type="radio"
                       name="activo"
                       checked={formActivo === false}
+                      disabled={submitting}
                       onChange={() => setFormActivo(false)}
                     />
                     {t('users.inactive_blocked')}
@@ -624,44 +640,40 @@ export const UsuariosPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Matriz de Permisos Individuales */}
-              <div style={{ borderTop: '1px solid var(--color-sidebar-text)', marginTop: '14px', paddingTop: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                  <ShieldCheck size={16} color="var(--color-primary-text)" />
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase' }}>
-                    {t('users.fine_tuning_permissions')}
-                  </span>
-                </div>
-
-                <div style={styles.permisosGrid}>
+              {/* Permisos individuales: casillas reales (teclado y lector de pantalla), nombre legible primero y clave técnica
+                  como dato secundario. Con rol ADMIN el servidor no aplica esta lista (RolesGuard), así que se muestran
+                  incluidos y bloqueados; lo que se envía al guardar no cambia. */}
+              <fieldset className="permisos-matriz" aria-describedby="permisos-ayuda">
+                <legend className="permisos-titulo">
+                  <ShieldCheck size={16} color="var(--color-primary-text)" aria-hidden="true" />
+                  <span>{t('users.fine_tuning_permissions')}</span>
+                  <span className="permisos-contador">{t('users.permissions_selected', { count: permisosPorRol ? TODOS_LOS_PERMISOS.length : formPermisos.filter(p => TODOS_LOS_PERMISOS.some(x => x.clave === p)).length, total: TODOS_LOS_PERMISOS.length })}</span>
+                </legend>
+                <p id="permisos-ayuda" className="permisos-ayuda">{permisosPorRol ? t('users.permissions_admin_help') : t('users.permissions_help')}</p>
+                <div className="permisos-lista">
                   {TODOS_LOS_PERMISOS.map((p) => {
-                    const estaActivo = formPermisos.includes(p.clave);
+                    const estaActivo = permisosPorRol || formPermisos.includes(p.clave);
+                    const bloqueado = permisosPorRol || submitting;
                     return (
-                      <div
-                        key={p.clave}
-                        onClick={() => togglePermiso(p.clave)}
-                        style={{
-                          ...styles.permisoBox,
-                          ...(estaActivo ? styles.permisoBoxActive : {}),
-                        }}
-                      >
+                      <label key={p.clave} className={`permiso-opcion${estaActivo ? ' permiso-opcion--activo' : ''}${bloqueado ? ' permiso-opcion--bloqueado' : ''}`}>
                         <input
                           type="checkbox"
                           checked={estaActivo}
-                          onChange={() => {}} // handled by parent div
-                          style={{ cursor: 'pointer' }}
+                          disabled={bloqueado}
+                          onChange={() => togglePermiso(p.clave)}
                         />
-                        <div>
-                          <div style={styles.permisoKey}>{p.clave}</div>
-                          <div style={styles.permisoLabel}>{t(p.labelKey)}</div>
-                        </div>
-                      </div>
+                        <span className="permiso-texto">
+                          <span className="permiso-nombre">{t(p.labelKey)}</span>
+                          <code className="permiso-clave">{p.clave}</code>
+                        </span>
+                        {permisosPorRol && <span className="permiso-estado">{t('users.permission_by_role')}</span>}
+                      </label>
                     );
                   })}
                 </div>
-              </div>
+              </fieldset>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+              <div className="usuario-modal-acciones">
                 <button
                   type="button"
                   className="btn btn-secondary"
@@ -772,7 +784,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 999,
+    // Por encima de la navegación inferior móvil (z-index 999), que si no tapaba las acciones del modal.
+    zIndex: 1100,
     padding: '20px',
   },
   modalContent: {
@@ -790,45 +803,19 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '2px solid var(--color-border)',
   },
   closeBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 40,
+    height: 40,
     background: 'none',
     border: 'none',
+    borderRadius: 'var(--radius-sm)',
+    color: 'var(--color-text-main)',
     cursor: 'pointer',
   },
   formRow: {
     display: 'flex',
     gap: '14px',
-  },
-  permisosGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-    gap: '8px',
-    maxHeight: '220px',
-    overflowY: 'auto',
-    padding: '4px',
-  },
-  permisoBox: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '8px',
-    padding: '8px 10px',
-    border: '1px solid #E7E5E4',
-    borderRadius: 'var(--radius-xs)',
-    backgroundColor: 'var(--color-bg)',
-    cursor: 'pointer',
-    userSelect: 'none',
-  },
-  permisoBoxActive: {
-    borderColor: 'var(--color-primary)',
-    backgroundColor: 'var(--color-primary-light)',
-  },
-  permisoKey: {
-    fontFamily: 'monospace',
-    fontWeight: 700,
-    fontSize: '11px',
-    color: 'var(--color-text-main)',
-  },
-  permisoLabel: {
-    fontSize: '10px',
-    color: 'var(--color-text-muted)',
   },
 };

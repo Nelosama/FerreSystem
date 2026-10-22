@@ -63,7 +63,11 @@ test.describe('Cobro con tarjeta en el POS (simulado)', () => {
   test('sin autorización bancaria no se envía la venta; con autorización y terminal, el payload la incluye', async ({ page, sim }) => {
     await abrirPos(page);
     await page.getByText('Taladro').first().click();
-    await page.getByRole('button', { name: 'TARJETA', exact: true }).click();
+    // Los métodos de pago se muestran traducidos; el valor enviado sigue siendo TARJETA (se comprueba en el payload).
+    const tarjeta = page.getByRole('button', { name: 'Tarjeta', exact: true });
+    await tarjeta.click();
+    await expect(tarjeta).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Efectivo', exact: true })).toHaveAttribute('aria-pressed', 'false');
     const cobrar = page.getByRole('button', { name: /Procesar Venta/ }).last();
     await cobrar.click();
     await expect(page.getByText('Registre la autorización bancaria antes de confirmar la venta')).toBeVisible();
