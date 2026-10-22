@@ -1,6 +1,7 @@
 import { test, expect, request, type Page } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+import { CATALOGO_MODULOS, MODULE_DEPENDENCIES, PENDING_MODULES } from '../src/config/modulesCatalog';
 const { PrismaClient } = createRequire(resolve('../backend/package.json'))('@prisma/client');
 const prisma = new PrismaClient();
 const BASE = `${process.env.E2E_API_URL!.replace(/\/$/, '')}/`;
@@ -57,4 +58,80 @@ test('Modo Guía y módulos: navegador → NestJS → PostgreSQL, sin mocks', as
   await expect(page.getByRole('status')).toContainText('Cambios guardados');
   expect((await api.get('usuarios', { headers: { Authorization: `Bearer ${admin}` } })).status()).toBe(200);
   await api.dispose();
+});
+
+test('16 módulos: URL, navegación y API reales, dependencias y recuperación administrativa', async ({ page }) => {
+  test.setTimeout(180000);
+  expect(CATALOGO_MODULOS).toHaveLength(16);
+  const api = await request.newContext({ baseURL: BASE });
+  const platform = await api.post('auth/login', { data: { email: 'superadmin.e2e@e2e.invalid', password: PASSWORD } });
+  expect(platform.status()).toBe(200);
+  const auth = { Authorization: `Bearer ${(await platform.json()).accessToken}` };
+  const admin = await api.post('auth/login', { data: { email: 'admin.a@e2e.invalid', password: PASSWORD } });
+  expect(admin.status()).toBe(200);
+  const tenantAuth = { Authorization: `Bearer ${(await admin.json()).accessToken}` };
+  const initial = await api.get(`admin/tenants/${company}/modules`, { headers: auth });
+  expect(initial.status()).toBe(200);
+  const initialModules = await initial.json() as { moduleKey: string; enabled: boolean }[];
+  const saved = CATALOGO_MODULOS.map(({ key }) => ({ moduleKey: key, enabled: initialModules.find(m => m.moduleKey === key)?.enabled !== false }));
+  const allOff = saved.map(m => ({ ...m, enabled: false }));
+  const routes: Record<string, string> = {
+    pos: '/pos', cotizaciones: '/cotizaciones', pedidos_especiales: '/pedidos-especiales', apartados: '/apartados',
+    inventario: '/inventario', levantamiento: '/levantamiento', ordenes_compra: '/ordenes-compra',
+    transferencias_sucursal: '/transferencias', garantias: '/garantias', clientes: '/clientes',
+    listas_precio: '/listas-precio', usuarios: '/usuarios', comisiones_venta: '/comisiones',
+    arqueo_caja: '/arqueo-caja', reportes: '/reportes', configuracion: '/configuracion',
+  };
+  // Las cuatro claves pendientes no tienen operaciones propias.
+  // Comisiones consume Usuarios/POS; Configuración conserva su recuperación exclusiva de plataforma.
+  const today = new Date().toISOString().slice(0, 10);
+  const endpoints: Record<string, string> = {
+    pos: 'ventas', cotizaciones: 'cotizaciones', inventario: 'productos', levantamiento: 'levantamientos',
+    ordenes_compra: 'operaciones/compras', garantias: 'garantias/coberturas', clientes: 'clientes',
+    usuarios: 'usuarios', arqueo_caja: 'operaciones/caja', reportes: `operaciones/resumen?desde=${today}&hasta=${today}`,
+  };
+  const historical = () => Promise.all([
+    prisma.producto.findMany({ where: { tenantId: company }, orderBy: { id: 'asc' } }),
+    prisma.venta.findMany({ where: { tenantId: company }, orderBy: { id: 'asc' } }),
+    prisma.usuario.findMany({ where: { tenantId: company }, orderBy: { id: 'asc' } }),
+    prisma.tenantModule.findMany({ where: { tenantId: 'e2e-empresa-b' }, orderBy: { id: 'asc' } }),
+  ]);
+  const before = await historical();
+  const update = (modules: typeof saved) => api.put(`admin/tenants/${company}/modules`, { headers: auth, data: { modules } });
+  try {
+    await login(page, 'admin.a@e2e.invalid');
+    for (const [index, { key }] of CATALOGO_MODULOS.entries()) {
+      await page.setViewportSize({ width: [1280, 768, 390][index % 3], height: 900 });
+      const enabled = new Set<string>();
+      const enable = (moduleKey: string) => { if (enabled.has(moduleKey)) return; enabled.add(moduleKey); (MODULE_DEPENDENCIES[moduleKey] || []).forEach(enable); };
+      enable(key);
+      expect((await update(allOff.map(m => ({ ...m, enabled: enabled.has(m.moduleKey) })))).status()).toBe(200);
+      const settings = await api.get('tenant/settings', { headers: tenantAuth });
+      expect((await settings.json()).modulosHabilitados.sort()).toEqual([...enabled].sort());
+      if (endpoints[key]) expect((await api.get(endpoints[key], { headers: tenantAuth })).status(), `${key} habilitado`).toBe(200);
+      await page.goto(routes[key]);
+      if (key !== 'configuracion') {
+        await expect(page.locator('[data-protected-content]')).toBeVisible();
+        await expect(page.getByRole('heading', { name: /Acceso Denegado|Módulo No Contratado/i })).toHaveCount(0);
+        if (PENDING_MODULES.has(key)) await expect(page.getByRole('region', { name: 'Funciones pendientes' })).toBeVisible();
+        else await expect(page.locator(`a[href="${routes[key]}"]`).first()).toBeAttached();
+        if (key === 'reportes') {
+          await expect(page.getByRole('region', { name: 'Ventas por cajero' })).toBeVisible();
+          await expect(page.getByRole('alert')).toHaveCount(0);
+        }
+      }
+      expect((await update(allOff)).status()).toBe(200);
+      if (endpoints[key]) expect((await api.get(endpoints[key], { headers: tenantAuth })).status(), `${key} deshabilitado`).toBe(403);
+      await page.goto(routes[key]);
+      await expect(page.getByRole('heading', { name: /Acceso Denegado|Módulo No Contratado/i })).toBeVisible();
+      await page.goto('/');
+      await expect(page.locator(`a[href="${routes[key]}"]`)).toHaveCount(0);
+    }
+    expect(await historical()).toEqual(before);
+    expect((await api.get(`admin/tenants/${company}/usuarios?gestion=true`, { headers: auth })).status()).toBe(200);
+    expect((await api.get(`admin/tenants/${company}/settings`, { headers: auth })).status()).toBe(200);
+  } finally {
+    expect((await update(saved)).status()).toBe(200);
+    await api.dispose();
+  }
 });

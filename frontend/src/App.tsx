@@ -165,10 +165,10 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         }}
       >
         {(!isTopNav || isMobile) && <TaskFinder />}
+        <Guide />
         {children}
       </div>
       <BottomNavigation />
-      <Guide />
     </div>
     </CajaProvider>
   );

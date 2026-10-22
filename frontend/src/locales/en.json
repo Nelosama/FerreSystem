@@ -1132,7 +1132,7 @@
   "pending": {
     "label": "Pending",
     "title": "Pending Features",
-    "help": "Layaway, inter-branch transfers, warranties, special orders, and price lists do not record operational data yet. Enabling them in subscription does not make them operational.",
+    "help": "Layaway, inter-branch transfers, special orders, and price lists do not record operational data yet. Enabling them in subscription does not make them operational.",
     "branches": "Branch administration pending: requires a model and authorization API.",
     "subtitle": "Module pending operational implementation",
     "details": "This module does not record business operations yet. Previous demo data is kept for review.",

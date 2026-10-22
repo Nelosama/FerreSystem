@@ -122,7 +122,7 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
   },
 ];
 
-export const PENDING_MODULES = new Set(['apartados', 'transferencias_sucursal', 'garantias', 'pedidos_especiales', 'listas_precio']);
+export const PENDING_MODULES = new Set(['apartados', 'transferencias_sucursal', 'pedidos_especiales', 'listas_precio']);
 
 export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   pos: ['inventario', 'arqueo_caja', 'clientes'], cotizaciones: ['inventario', 'clientes'],

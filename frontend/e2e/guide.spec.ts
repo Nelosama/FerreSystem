@@ -119,3 +119,48 @@ test('la guía conserva las traducciones inglesas', async ({ page }) => {
   await guide.getByRole('button', { name: 'Start tour', exact: true }).click();
   await expect(guide.getByText(/Search by name or scan a product code/)).toBeVisible();
 });
+
+for (const width of [1280, 768, 390]) {
+  test(`guía no se superpone a las acciones del negocio en ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 720 });
+    await setup(page, 'SUPERADMIN');
+    const branch = { id: 'guide-branch', nombre: 'Sucursal de prueba', activa: true };
+    await page.route('**/api/admin/tenants/guide-company/sucursales**', async route => {
+      if (route.request().method() === 'PATCH') branch.activa = route.request().postDataJSON().activa;
+      await route.fulfill({ json: route.request().method() === 'GET' ? [branch] : branch });
+    });
+    await page.goto('/admin/negocios/guide-company');
+    const guide = page.locator('aside.guide');
+    await expect(guide.getByRole('button', { name: 'Iniciar guía', exact: true })).toBeVisible();
+    const row = page.getByRole('row').filter({ hasText: branch.nombre });
+    const deactivate = row.getByRole('button', { name: 'Desactivar', exact: true });
+    await deactivate.scrollIntoViewIfNeeded();
+    const guideBox = await guide.boundingBox();
+    const buttonBox = await deactivate.boundingBox();
+    expect(guideBox).not.toBeNull(); expect(buttonBox).not.toBeNull();
+    const overlaps = guideBox!.x < buttonBox!.x + buttonBox!.width && guideBox!.x + guideBox!.width > buttonBox!.x
+      && guideBox!.y < buttonBox!.y + buttonBox!.height && guideBox!.y + guideBox!.height > buttonBox!.y;
+    expect(overlaps, 'La guía debe dejar libres las acciones operativas').toBe(false);
+    page.once('dialog', dialog => dialog.accept());
+    await deactivate.click();
+    await expect(row).toContainText('Inactivo');
+  });
+}
+
+for (const rol of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO', 'SUPERADMIN']) {
+  test(`guía ${rol} en tablet e inglés: tareas, retroceso y salida`, async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await setup(page, rol, { language: 'en' });
+    await page.addInitScript(() => localStorage.setItem('ferre_language', 'en'));
+    await page.goto(rol === 'SUPERADMIN' ? '/admin' : '/');
+    const guide = page.locator('aside.guide');
+    await guide.getByRole('button', { name: 'Start tour', exact: true }).click();
+    await expect(guide.getByText(/1\//)).toBeVisible();
+    await guide.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(guide.getByText(/2\//)).toBeVisible();
+    await guide.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(guide.getByText(/1\//)).toBeVisible();
+    await guide.getByRole('button', { name: 'Exit', exact: true }).click();
+    await expect(guide.getByRole('button', { name: 'Help · Guided tour' })).toBeVisible();
+  });
+}

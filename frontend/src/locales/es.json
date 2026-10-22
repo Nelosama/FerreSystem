@@ -1132,7 +1132,7 @@
   "pending": {
     "label": "Pendiente",
     "title": "Funciones pendientes",
-    "help": "Apartados, transferencias entre sucursales, garantías, pedidos especiales y listas de precio todavía no registran operaciones. Su habilitación en una suscripción no los hace operativos.",
+    "help": "Apartados, transferencias entre sucursales, pedidos especiales y listas de precio todavía no registran operaciones. Su habilitación en una suscripción no los hace operativos.",
     "branches": "Administración de sucursales pendiente: requiere un modelo y una API con autorización.",
     "subtitle": "Módulo pendiente de implementación operativa",
     "details": "Este módulo todavía no registra operaciones del negocio. Sus datos de demostración anteriores se conservan para revisión.",

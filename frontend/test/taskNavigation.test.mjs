@@ -59,7 +59,7 @@ test('roles comparten categorías, excluyen pendientes y reciben hasta cuatro ta
     const tasks = availableTasks({ rol }, tenant);
     assert.ok(priorityTasks({ rol }, tenant).length <= 4);
     assert.deepEqual(groupNavigation(tasks).flatMap(group => group.items.map(item => item.key)), tasks.map(item => item.key));
-    assert.ok(tasks.every(item => !['apartados', 'transferencias', 'garantias', 'pedidos_especiales', 'listas_precio'].includes(item.key)));
+    assert.ok(tasks.every(item => !['apartados', 'transferencias', 'pedidos_especiales', 'listas_precio'].includes(item.key)));
     if (rol === 'SUPERADMIN') assert.deepEqual(Array.from(tasks, item => item.key), ['superadmin']);
   }
   assert.deepEqual(Array.from(priorityTasks({ rol: 'CAJERO' }, tenant), item => item.key), ['arqueo_caja', 'pos', 'cuentas']);
@@ -163,6 +163,13 @@ test('el menú sigue el orden de uso dentro de cada grupo', () => {
 });
 
 const { guideSteps } = load('src/utils/guide.ts');
+test('Garantías operativas conservan su acceso para ADMIN y CAJERO y respetan el interruptor', () => {
+  for (const rol of ['ADMIN', 'CAJERO']) {
+    assert.ok(availableTasks({ rol }, tenant).some(item => item.key === 'garantias'));
+    assert.ok(!availableTasks({ rol }, { ...tenant, modulosHabilitados: [] }).some(item => item.key === 'garantias'));
+  }
+  for (const rol of ['VENDEDOR', 'BODEGUERO']) assert.ok(!availableTasks({ rol }, tenant).some(item => item.key === 'garantias'));
+});
 for (const rol of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO', 'SUPERADMIN']) {
   test(`${rol}: guía breve con tareas autorizadas`, () => {
     const steps = guideSteps({ rol }, tenant);

@@ -56,6 +56,44 @@ describe('Arranque seguro: migration-safe verify/startup no migra salvo orden ex
   beforeEach(async () => { c = await iniciar(); }, 90000);
   afterEach(() => detener(c));
 
+  it('NEXUS: actualiza una base existente a Modo Guía sin alterar cuentas ni datos históricos', () => {
+    const guia = '20261022000000_guia_progreso';
+    const previo = prisma(c, ['migrate', 'deploy'], proyecto(c, antesDe(guia)));
+    expect(previo.status, previo.stderr).toBe(0);
+    sql(c, `
+      INSERT INTO tenants (id, nombre_comercial, updated_at) VALUES ('guia-a', 'Histórico A', now()), ('guia-b', 'Histórico B', now());
+      INSERT INTO usuarios (id, tenant_id, nombre, email, password_hash, updated_at)
+        VALUES ('guia-usuario-a', 'guia-a', 'Admin A', 'a@guia.invalid', 'hash-sintetico', now()),
+               ('guia-usuario-b', 'guia-b', 'Admin B', 'b@guia.invalid', 'hash-sintetico', now());
+      INSERT INTO super_admins (id, nombre, email, password_hash, updated_at)
+        VALUES ('guia-plataforma', 'Plataforma', 'sa@guia.invalid', 'hash-sintetico', now());
+      INSERT INTO productos (id, tenant_id, codigo, nombre, precio_costo, precio_venta, stock_actual, updated_at)
+        VALUES ('guia-producto', 'guia-a', 'HIST-01', 'Existencias anteriores', 8.25, 12.50, 7, now());
+    `);
+    const cuentas = () => sql(c, `SELECT jsonb_build_object(
+      'usuarios', (SELECT jsonb_agg(to_jsonb(u) - 'guia_progreso' ORDER BY id) FROM usuarios u),
+      'plataforma', (SELECT jsonb_agg(to_jsonb(s) - 'guia_progreso' ORDER BY id) FROM super_admins s),
+      'negocios', (SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tenants t),
+      'productos', (SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM productos p)
+    )`);
+    const antes = cuentas();
+    const pendiente = seguro(c, 'verify');
+    expect(pendiente.status).toBe(1);
+    expect(pendiente.stderr).toContain(guia);
+    const migrado = prisma(c, ['migrate', 'deploy'], proyecto(c, () => true));
+    expect(migrado.status, migrado.stderr).toBe(0);
+    expect(cuentas()).toBe(antes);
+    expect(sql(c, "SELECT count(*) FROM usuarios WHERE guia_progreso = '{}'::jsonb")).toBe('2');
+    expect(sql(c, "SELECT count(*) FROM super_admins WHERE guia_progreso = '{}'::jsonb")).toBe('1');
+    sql(c, `UPDATE usuarios SET guia_progreso = '{"status":"completed","step":"inventario"}' WHERE id = 'guia-usuario-a'`);
+    expect(prisma(c, ['migrate', 'deploy'], proyecto(c, () => true)).status).toBe(0);
+    expect(sql(c, "SELECT guia_progreso->>'status' FROM usuarios WHERE id='guia-usuario-a'")).toBe('completed');
+    expect(sql(c, "SELECT guia_progreso FROM usuarios WHERE id='guia-usuario-b'")).toBe('{}');
+    expect(sql(c, "SELECT guia_progreso FROM super_admins WHERE id='guia-plataforma'")).toBe('{}');
+    expect(cuentas()).toBe(antes);
+    expect(seguro(c, 'verify').status).toBe(0);
+  }, 180000);
+
   it('base vacía: el arranque por defecto NO arranca, no crea ninguna tabla y explica qué hacer', () => {
     const r = seguro(c, 'startup');
     expect(r.status).toBe(1);
