@@ -13,7 +13,9 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # La instalación de dependencias del navegador puede consumir ~11 min;
+    # reservar margen para ejecutar también toda la integración PostgreSQL.
+    timeout-minutes: 30
     env:
       VITE_API_URL: https://api.example.test/api
       DATABASE_URL: postgresql://postgres@127.0.0.1:5432/isolated
