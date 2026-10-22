@@ -12,6 +12,8 @@ describe('Migración de autenticación / PostgreSQL con datos previos', () => {
   const bin = process.env.PG_BIN || (process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/18/bin' : '/usr/bin');
   const exe = (name: string) => join(bin, name + (process.platform === 'win32' ? '.exe' : ''));
   const NUEVA = '20261012000000_autenticacion_sesiones_intentos';
+  // Migraciones posteriores que alteran tablas creadas por NUEVA: se aplican justo después de ella.
+  const DEPENDIENTES = ['20261021000000_sesiones_auth_rotacion_refresh'];
   let directory: string;
   let started = false;
   let prisma: PrismaService;
@@ -32,7 +34,7 @@ describe('Migración de autenticación / PostgreSQL con datos previos', () => {
     started = true;
     // Estado previo: todas las migraciones anteriores a la nueva, en orden.
     for (const migracion of readdirSync(resolve('prisma/migrations')).sort()) {
-      if (migracion === NUEVA || !existsSync(resolve('prisma/migrations', migracion, 'migration.sql'))) continue;
+      if (migracion === NUEVA || DEPENDIENTES.includes(migracion) || !existsSync(resolve('prisma/migrations', migracion, 'migration.sql'))) continue;
       execFileSync(exe('psql'), ['-X', '-q', '-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations', migracion, 'migration.sql')], { ...options, timeout: 120000 });
     }
   }, 180000);
@@ -53,7 +55,9 @@ describe('Migración de autenticación / PostgreSQL con datos previos', () => {
     psql(`INSERT INTO usuarios (id, tenant_id, nombre, email, password_hash, rol, activo, updated_at) VALUES ('${randomUUID()}', '${tenant}', 'Admin previo', 'previo@test.invalid', 'x', 'ADMIN', true, now())`);
     const antes = psql(`SELECT md5((SELECT string_agg(u::text, '|' ORDER BY u::text) FROM usuarios u) || (SELECT string_agg(t::text, '|' ORDER BY t::text) FROM tenants t))`);
 
-    execFileSync(exe('psql'), ['-X', '-q', '-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations', NUEVA, 'migration.sql')], { windowsHide: true, timeout: 60000, stdio: 'pipe' });
+    for (const migracion of [NUEVA, ...DEPENDIENTES]) {
+      execFileSync(exe('psql'), ['-X', '-q', '-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations', migracion, 'migration.sql')], { windowsHide: true, timeout: 60000, stdio: 'pipe' });
+    }
 
     const despues = psql(`SELECT md5((SELECT string_agg(u::text, '|' ORDER BY u::text) FROM usuarios u) || (SELECT string_agg(t::text, '|' ORDER BY t::text) FROM tenants t))`);
     expect(despues).toBe(antes);

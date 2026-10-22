@@ -1,0 +1,9 @@
+-- Reversión MANUAL de 20261021000000_sesiones_auth_rotacion_refresh. No es una migración: no se ejecuta sola.
+-- Procedimiento (con respaldo previo y autorización del propietario):
+-- 1. Desplegar antes un backend sin rotación de refresh (el código que lee estas columnas no arranca sin ellas).
+-- 2. Respaldar la base (pg_dump).
+-- 3. Quitar las columnas (solo contienen identificadores de tokens; ninguna otra tabla depende de ellas):
+--    ALTER TABLE "sesiones_auth" DROP COLUMN IF EXISTS "refresh_rotado_at",
+--      DROP COLUMN IF EXISTS "refresh_jti_anterior", DROP COLUMN IF EXISTS "refresh_jti";
+-- 4. Quitar la entrada de _prisma_migrations de esta migración solo si se retira del repositorio.
+-- Este archivo no contiene sentencias activas a propósito.

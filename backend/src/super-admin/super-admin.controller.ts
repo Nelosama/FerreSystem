@@ -8,6 +8,7 @@ import { LIMITE_LOGOTIPO_BYTES } from '../tenants/logotipo-validacion';
 import { SuperAdminService } from './super-admin.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../common/guards/super-admin.guard';
+import { OrigenPermitidoGuard } from '../common/guards/origen-permitido.guard';
 import type { Request, Response } from 'express';
 import { CreateTenantAdminDto, UpdateTenantAdminDto } from './tenant-admin.dto';
 import { SupportTokenDto } from './support-token.dto';
@@ -19,6 +20,7 @@ export class SuperAdminController {
   constructor(private readonly superAdminService: SuperAdminService) {}
 
   @Post('auth/login')
+  @UseGuards(OrigenPermitidoGuard)
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: { email: string; password: string },
@@ -29,12 +31,14 @@ export class SuperAdminController {
   }
 
   @Post('auth/refresh')
+  @UseGuards(OrigenPermitidoGuard)
   @HttpCode(HttpStatus.OK)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     return this.superAdminService.refresh(req.cookies?.superAdminRefreshToken, res);
   }
 
   @Post('auth/logout')
+  @UseGuards(OrigenPermitidoGuard)
   @HttpCode(HttpStatus.OK)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     return this.superAdminService.logout(res, req);
