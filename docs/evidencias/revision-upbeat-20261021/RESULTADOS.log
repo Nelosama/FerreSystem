@@ -1,0 +1,29 @@
+frontend-unitarias:
+ℹ tests 472
+ℹ pass 472
+ℹ fail 0
+ℹ skipped 0
+ℹ duration_ms 30110.447904
+
+backend-unitarias:
+ Test Files  53 passed (53)
+      Tests  529 passed (529)
+
+postgresql:
+ Test Files  62 passed (62)
+      Tests  1022 passed (1022)
+
+http-real:
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+
+scripts:
+ℹ tests 48
+ℹ pass 48
+ℹ fail 0
+ℹ skipped 0
+ℹ duration_ms 15514.072027
+
+python:
+Ran 10 tests in 0.356s
+OK

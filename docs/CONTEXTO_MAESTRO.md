@@ -2,6 +2,8 @@
 
 Última revisión: **2026-10-22, America/Tegucigalpa** — Modo Guía y control de módulos, rama única `codex/guia-control-modulos`, PR #189 en borrador, sin merge ni despliegue.
 
+Última revisión: **2026-10-22 UTC** — [PR #185](https://github.com/Nelosama/FerreSystem/pull/185) (rama `claude/upbeat-einstein-ozjvpy`) actualizado con `main` tras el merge de #183; ver «Sincronización del PR #185 con main». Seguridad #183 integrada en `main` (`7914d1b`): antes de desplegar, verificar variables de Render y respaldar la base (Render ejecuta `prisma migrate deploy` al iniciar). Detalle: [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
+
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
 ---
@@ -52,6 +54,48 @@ Antes de comenzar cualquier trabajo en FerreSystem:
 Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL CONTEXTO VIGENTE. Comprueba Git/PR actuales, continúa el pendiente autorizado y actualiza ese mismo documento con evidencia al terminar. Consulta solo el anexo necesario. No hagas merge ni despliegue sin autorización."**
 
 ---
+
+## Sincronización del PR #185 con main y validación final — 2026-10-22 UTC (sin merge ni despliegue)
+
+- **Estado Git:** `main` `7914d1b` (incluye #183 y #178). Rama `claude/upbeat-einstein-ozjvpy` tenía 20 commits de atraso y 8 propios al iniciar (`c4cadc3` como base común). Integración por **merge normal** (`6310f31`), sin rebase ni force push. Sin ramas ni PR nuevos; #180, #182, #183 y #184 no modificados.
+- **Conflicto resuelto:** único, en `docs/CONTEXTO_MAESTRO.md` (encabezado y bloque de bitácoras). Se conservaron las secciones de #183 y de #185. Código: sin conflictos.
+- **Cambios de #183 integrados:** rotación de refresh, CSRF, CSP y cabeceras de Vercel, migración aditiva `20261021000000_sesiones_auth_rotacion_refresh`. Ningún cambio del PR sobre esas áreas. Migraciones: `verificar-migraciones.mjs` correcto (41 archivos, 0 nuevas respecto a `main`).
+- **Validación (entorno local, PostgreSQL 16 temporal, Chromium del contenedor):**
+  - Backend unitarias 554/554 (57 archivos); scripts 48/48; Python OK; build, `tsc` y lint sin errores (avisos preexistentes).
+  - Frontend unitarias 484/484; build con `VITE_API_URL` de CI; lint sin errores.
+  - Integración PostgreSQL completa 1041/1041 (63 archivos). Dos fallos del primer intento eran de entorno: binario Chromium `1243` no instalado. Se reproducen igual en `origin/main` (`c4cadc3`). Con un enlace local del binario `1194` que ya existe en el contenedor pasan 65/65. Ningún test cambiado.
+  - E2E backend `test:e2e` 6/6. Navegador simulado 235/235. Móvil 16/16.
+  - E2E real (backend compilado + PostgreSQL temporal + frontend real): 156 aprobadas, 4 omitidas (`test.skip` de funciones no implementadas: entrega parcial, canal web, datáfono, pendiente de decisión). Incluye `pos-cajeros-real` 3/3 (vuelto, comprobante, caja, reporte por cajero, respuesta tardía/perdida).
+  - Guard de base de datos: correcto.
+- **Entorno (no código):** `/opt/pw-browsers` no contiene la revisión que espera Playwright del backend; se usó un enlace simbólico local. `run.sh` escribe en `/tmp`, donde `chown` no está permitido; se ejecutó una copia en el scratchpad con `/var/tmp` (mismos pasos). Los binarios de PostgreSQL se ejecutan con `runuser` del propio script.
+- **Atribución:** los commits nuevos no llevan identificador de modelo (regla del entorno). El merge `6310f31` lleva «Co-Authored-By: Claude Opus 5.5» por un recordatorio anterior; no se reescribió por ser una rama ya publicada.
+- **Pendientes sin cambio:** Safari/iPhone/PWA, impresoras físicas, lector físico, variables de Render, respaldo antes de desplegar (la migración se aplica al iniciar en Render), Vercel real. Aceptación del cliente no realizada.
+
+## Revisión de seis commits frente a main — 2026-10-21 UTC
+
+- **Rama única:** `claude/upbeat-einstein-ozjvpy`; recibida en `dda7e27db1a508243a33ed2be32087865f51ddc9`, seis commits exclusivos desde `main` `c4cadc34a4b67de3052b076cfd646813e5afc6d8`. Sin otra rama, rebase, force push, merge ni despliegue manual. PR #180, #182, #183 y #184 comprobados y no modificados.
+- **Conservado:** vuelto informativo y etiquetas de transferencia/crédito del comprobante, desglose por cajero y CSV, carga gradual del inventario y pruebas de idempotencia existente. No se duplican ventas, cobros ni motores monetarios. La optimización del inventario solo reduce el render inicial; sigue descargando todo el catálogo. Efectivo recibido no se guarda ni bloquea el cobro; devoluciones no se atribuyen por cajero.
+- **Corregido:** desglose ausente del backend ya no anuncia «sin ventas»; encabezados de métodos de pago en tabla y CSV por cajero traducidos ES/EN. Dos regresiones rojas sobre el bundle recibido y verdes tras corregir. Restauradas a main dos capturas ajenas de Configuración.
+- **Cobertura real nueva:** `frontend/e2e-real/pos-cajeros-real.spec.ts` (3/3): vuelto, comprobante, limpieza para siguiente venta, reporte y CSV con API real; PostgreSQL verifica venta, caja y salida física; reporte denegado al cajero; respuesta real retenida/perdida no duplica. Seis placeholders omitidos de las auditorías remiten al caso real activo.
+- **Validación local:** frontend 472/472; backend 529/529; scripts 48/48; Python 10/10; HTTP real 6/6; builds/lint correctos (avisos existentes); 13 claves ES/EN con parámetros idénticos; guard correcto, 0 migraciones nuevas. **NEXUS:** PostgreSQL 17.10 temporal, migraciones reales, suite completa `REAL_SETTINGS_BROWSER=1`: **1022/1022, 62 archivos, sin omisiones**; esquema sin deriva. Sin base externa ni datos productivos.
+- **Navegador local:** 227 aprobadas / 1 falla en la sonda independiente `offline-emulation.spec.ts` (sin aplicación/API); móvil 15/15. Piloto real: 142 aprobadas / 1 falla de recarga offline / 13 sin ejecutar por secuencia serial / 4 omitidas ajenas. Reproducción sobre copia exacta de main, sin crear rama: 1 aprobada / la misma falla offline. Chromium 151 bloquea la API pero cambia `navigator.onLine` a true al recargar con SW; Playwright requiere Chromium 153, cuya descarga local responde 403 por política de red. No se alteran emulador, navigator ni aserciones.
+- **Estado de integración:** correcciones y pruebas locales completadas; el veredicto final y los checks del SHA publicado se mantienen en el [PR #185](https://github.com/Nelosama/FerreSystem/pull/185). Requiere `validate`, `guard-base-datos` y piloto `test` satisfactorios con el navegador previsto. Hardware, Safari/iPhone e impresoras físicos siguen sin acreditar; no se certifica producción.
+- **Informe, clasificación de cada commit y evidencia:** [REVISION_UPBEAT_EINSTEIN_20261021.md](REVISION_UPBEAT_EINSTEIN_20261021.md).
+- **Bitácora:** AGENTS/contexto/NEXUS; fetch y comprobación de main/rama/PR; comparación de seis commits; correcciones acotadas con regresiones; cliente Prisma precargado regenerado y backend recompilado; PostgreSQL preparado fuera del repositorio; suites completas; reproducción offline en main; publicación en la misma rama y PR hacia main, sin merge.
+
+## Pendientes de QA cerrados: vuelto, ventas por cajero, latencia del POS e Inventario — 2026-10-21 UTC (rama `claude/upbeat-einstein-ozjvpy`, sin merge ni despliegue)
+
+- **Base:** `main` `c4cadc3` (#178 integrado). PR abiertos al iniciar y no tocados: #180 (contabilidad), #182 (impeccable), #183 (seguridad JWT/cabeceras), #184 (informe QA). Sin cambios de esquema, migraciones, dependencias, autenticación ni reglas de cobro.
+- **Vuelto en el POS en línea** (caso 1.2): campo «Efectivo recibido» con «Cambio» o «Falta» en centavos (`calcularVuelto` en `frontend/src/utils/posMoney.ts`, misma lectura `aCentavos` que contingencia). **Solo informativo:** no se envía al servidor, no se guarda ni bloquea el cobro (no se inventó una regla). El comprobante en pantalla muestra recibido/cambio cuando aplica.
+- **Defectos corregidos en el comprobante en pantalla del POS:** TRANSFERENCIA se mostraba como «Crédito»; las ventas a crédito decían «TOTAL PAGADO» (ahora «TOTAL A CRÉDITO», como el PDF de H-04).
+- **Ventas por cajero** (caso 13.3): `GET /operaciones/resumen` añade `cajeros` (usuario que registró × método, COMPLETADAS, mismo día local y `tenant_id` que `metodos`). Reportes muestra la tabla con totales por método en centavos y CSV (`utils/ventasPorCajero.ts`); si el servidor no envía la dimensión, la página sigue funcionando. Las devoluciones no se descuentan por cajero (no hay regla de atribución).
+- **Respuesta tardía/perdida del POS** (caso 14.4): solo pruebas. Con `POST /ventas` retrasado, clics y Enter repetidos envían una venta y el carrito no cambia; con la respuesta perdida, la venta queda pendiente y se confirma por `solicitudId` sin segundo envío. Sin cambios de código: el comportamiento ya era correcto.
+- **Inventario:** la tabla pinta 200 filas con «Mostrar más»; buscar o cambiar categoría filtra todo el catálogo y vuelve a la primera página (pendiente de #171).
+- **Validación local:** backend unitarias 529/529, build y lint sin errores; frontend unitarias 472/472, `tsc -b`, lint sin errores (117 avisos = base) y build; navegador simulado completo **224/224** antes de la paginación, luego afectados 21/21 (inventario) y 6/6 ×3 repeticiones (POS); **integración PostgreSQL 16 temporal completa: 1021 pasan / 1 omitida preexistente, 62 archivos** (incluye por primera vez en local los 5 casos de `dashboard.postgres.integration.ts` y el nuevo de ventas por cajero en `reportes-zona-horaria.postgres.integration.ts`). NEXUS: sin cambios de esquema; solo consultas de lectura validadas contra base temporal.
+- **Cómo ejecutar PostgreSQL en este contenedor (root):** `initdb` rechaza root. Envolver `initdb`/`pg_ctl` con `runuser -u nobody -- /usr/lib/postgresql/16/bin/<bin>` (haciendo `chown nobody` del directorio padre de `-D`), enlazar `psql`, y lanzar `PG_BIN=<dir-envoltorios> TMPDIR=/var/tmp/ferre-pg npm run test:integration` con `/var/tmp/ferre-pg` en modo 1777. El scratchpad de `/tmp/claude-0` no sirve: el entorno restablece sus permisos.
+- **No ejecutado:** piloto `e2e-real` (los `test.skip` 1.2, 13.3 y 14.4 ahora citan la prueba que los cubre, pero no tienen caso con API real), Safari/iPhone, impresoras físicas.
+- **Pendientes y decisiones del dueño:** si el vuelto debe guardarse en la venta o bloquear el cobro cuando falta efectivo (requiere esquema); si las devoluciones se atribuyen al cajero de la venta o al que devuelve; modal HTML heredado de cotizaciones sin acceso desde la interfaz; páginas sin ruta (`ApartadosPage`, `TransferenciasPage`, `PedidosEspecialesPage`, `ListasPrecioPage`).
+- **Bitácora:** lectura de AGENTS/contexto y PR abiertos; selección de pendientes marcados `PENDIENTE` en el piloto; implementación con pruebas unitarias, integración real y navegador simulado; corrección de una aserción propia frágil (UUID); cuatro commits en la misma rama.
 
 ## Seguridad integral PR #183, continuación — 2026-10-21 UTC (misma rama, sin merge ni despliegue)
 

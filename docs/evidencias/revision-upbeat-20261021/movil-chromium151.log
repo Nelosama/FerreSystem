@@ -1,0 +1,30 @@
+
+> frontend@0.0.0 test:browser
+> playwright test --config playwright.session.mobile.config.ts --workers=2
+
+[WebServer] (node:27274) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 15 tests using 2 workers
+
+(node:27350) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:27349) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   2 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:36:1 › arranque: ningún módulo se monta mientras /auth/me sigue pendiente (2.0s)
+  ✓   1 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:44:1 › sesión de ayer inválida no consulta inventario ni muestra navegación (2.1s)
+  ✓   3 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:53:1 › sesión de ayer se recupera con una sola renovación válida antes de abrir módulos (2.1s)
+  ✓   4 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:62:3 › backend temporal 502: conserva sesión, bloquea módulos y permite reintentar (2.6s)
+  ✓   5 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:62:3 › backend temporal 503: conserva sesión, bloquea módulos y permite reintentar (1.8s)
+  ✓   6 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:62:3 › backend temporal 504: conserva sesión, bloquea módulos y permite reintentar (2.3s)
+  ✓   7 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:75:1 › 403 con sesión válida muestra acceso denegado y conserva credenciales (2.2s)
+  ✓   8 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:83:1 › restaurar pestaña/PWA tras horas exige renovación y rechaza la sesión inválida (2.2s)
+  ✓   9 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:96:1 › formulario abierto conserva datos no enviados al renovar; no escribe automáticamente (2.5s)
+  ✓  10 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:110:1 › expiración mientras consulta inventario: 401 terminal pide login sin confirmar (2.3s)
+  ✓  11 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:121:1 › logout captura el Bearer, limpia identidad y Atrás no reactiva módulos (2.2s)
+  ✓  12 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:142:1 › otro usuario/tenant en otra pestaña retira el formulario sin borrar su login (3.0s)
+  ✓  14 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:170:1 › sesión irrecuperable con formulario abierto retira datos y no anuncia un guardado (2.0s)
+  ✓  15 [session-mobile-chromium] › e2e/session-pwa.spec.ts:4:1 › PWA real: shell cacheado no autoriza sesión expirada ni almacena API privada (2.1s)
+  ✓  13 [session-mobile-chromium] › e2e/session-lifecycle.spec.ts:160:1 › timeout de validación ofrece reintentar sin esperar un minuto ni cerrar sesión (11.9s)
+
+  15 passed (27.6s)

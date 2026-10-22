@@ -1,0 +1,66 @@
+== 1. PostgreSQL temporal (usuario nobody, puerto 55434)
+== 2. Migraciones con Prisma (migrate deploy, la ruta de producción)
+All migrations have been successfully applied.
+== 3. Deriva completa de esquema (una falla del comando también bloquea)
+sin deriva en el esquema completo
+== 4. Datos de prueba
+{"tenantA":"e2e-empresa-a","tenantB":"e2e-empresa-b","usuarios":{"adminA":{"id":"3f758931-d455-4b9e-91fc-f12d64aab244","rol":"ADMIN","email":"admin.a@e2e.invalid"},"cajeroA":{"id":"41a3c93f-1921-4aaa-8220-345374d2d92b","rol":"CAJERO","email":"cajero.a@e2e.invalid"},"bodegueroA":{"id":"bce0957d-c252-4b9f-8e12-f674345dc79d","rol":"BODEGUERO","email":"bodeguero.a@e2e.invalid"},"adminB":{"id":"49b427f
+== 5. Backend NestJS compilado (dist/main)
+API arriba en http://127.0.0.1:3110/api
+== 6. Frontend real (build con /api; la vista previa reenvía a http://127.0.0.1:3110)
+== 7. Playwright contra backend real
+[WebServer] (node:19992) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:20021) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:20077) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › e2e-real/contingencia-real.spec.ts:163:3 › POS offline de contingencia — backend real › 1. en línea: el equipo se registra, descarga la ventana, cobra y envía; la venta queda con correlativo central (9.8s)
+  ✘  2 [chromium] › e2e-real/contingencia-real.spec.ts:185:3 › POS offline de contingencia — backend real › 2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar (12.0s)
+
+
+  1) [chromium] › e2e-real/contingencia-real.spec.ts:185:3 › POS offline de contingencia — backend real › 2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('● Sin conexión')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByText('● Sin conexión') with timeout 5000ms
+      - waiting for getByText('● Sin conexión')
+
+
+      190 |     await context.setOffline(true);
+      191 |     await page.reload();
+    > 192 |     await expect(page.getByText('● Sin conexión')).toBeVisible();
+          |                                                    ^
+      193 |     await expect(page.getByRole('button', { name: new RegExp(TALADRO) })).toBeVisible();
+      194 |
+      195 |     // Antes de cobrar, la validación de efectivo bloquea el botón.
+        at /tmp/ferre-baseline/frontend/e2e-real/contingencia-real.spec.ts:192:52
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results-real/contingencia-real-POS-offl-f979c-y-guarda-antes-de-confirmar-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results-real/contingencia-real-POS-offl-f979c-y-guarda-antes-de-confirmar-chromium/error-context.md
+
+    Error Context: test-results-real/contingencia-real-POS-offl-f979c-y-guarda-antes-de-confirmar-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-real/contingencia-real-POS-offl-f979c-y-guarda-antes-de-confirmar-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results-real/contingencia-real-POS-offl-f979c-y-guarda-antes-de-confirmar-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e-real/contingencia-real.spec.ts:185:3 › POS offline de contingencia — backend real › 2. sin conexión: la página recarga desde el service worker, cobra y guarda antes de confirmar
+  1 passed (34.3s)

@@ -10,10 +10,11 @@ const producto = { id: 'prod-1', codigo: 'TAL-1', nombre: 'Taladro', codigoBarra
   categoria: { id: 'c1', nombre: 'Herramientas' }, categoriaId: 'c1', unidadMedida: 'UNIDAD', usaMedida: false, precioVenta: 100, precioCosto: 60,
   margen: null, stockActual: 10, stockReservado: 0, stockDisponible: 10, stockFisico: 10, stockMinimo: 1, activo: true, imagenUrl: null, marca: null, version: 1 };
 
-type Sim = { ventas: any[]; errores: string[]; inesperados: string[] };
+// retrasoVentaMs: retrasa la respuesta de POST /ventas. perderRespuesta: el servidor registra la venta pero la respuesta no llega.
+type Sim = { ventas: any[]; errores: string[]; inesperados: string[]; retrasoVentaMs: number; perderRespuesta: boolean; consultas: string[]; clientes: any[] };
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
-    const sim: Sim = { ventas: [], errores: [], inesperados: [] };
+    const sim: Sim = { ventas: [], errores: [], inesperados: [], retrasoVentaMs: 0, perderRespuesta: false, consultas: [], clientes: [] };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
     page.on('pageerror', e => sim.errores.push(e.message));
@@ -33,12 +34,21 @@ const test = base.extend<{ sim: Sim }>({
         '/maintenance/backup': { configured: false }, '/clientes/buscar': [], '/operaciones/proveedores': [], '/operaciones/entregas': [],
         '/operaciones/solicitudes-devolucion': [], '/operaciones/auditoria': [],
       };
+      if (method === 'GET' && path === '/clientes/buscar') return responder(route, 200, sim.clientes);
       if (method === 'GET' && path in vacias) return responder(route, 200, vacias[path]);
       if (method === 'GET' && path === '/productos/comercial') return responder(route, 200, [producto]);
       if (method === 'GET' && path === '/operaciones/caja') return responder(route, 200, [{ id: 'caja-1', codigo: 'CAJA-1', estado: 'ABIERTA', usuario_id: cajero.id, monto_apertura: 500, efectivo_esperado: 500, totales: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0, CREDITO: 0 }, movimientos: [] }]);
+      const ventaRegistrada = (body: any, n: number) => ({ id: `v-${n}`, numeroVenta: n, subtotal: 100, isv: 15, descuento: 0, total: 115, metodoPago: body.metodoPago, createdAt: new Date().toISOString(), detalles: [], estado: 'COMPLETADA' });
       if (method === 'POST' && path === '/ventas') {
         const body = request.postDataJSON(); sim.ventas.push(body);
-        return responder(route, 201, { id: `v-${sim.ventas.length}`, numeroVenta: sim.ventas.length, subtotal: 100, isv: 15, descuento: 0, total: 115, metodoPago: body.metodoPago, createdAt: new Date().toISOString(), detalles: [], estado: 'COMPLETADA' });
+        if (sim.retrasoVentaMs) await new Promise(r => setTimeout(r, sim.retrasoVentaMs));
+        if (sim.perderRespuesta) { await route.abort('connectionreset'); return; }
+        return responder(route, 201, ventaRegistrada(body, sim.ventas.length));
+      }
+      if (method === 'GET' && path.startsWith('/ventas/solicitudes/')) {
+        const id = path.split('/').pop()!; sim.consultas.push(id);
+        const index = sim.ventas.findIndex(v => v.solicitudId === id);
+        return responder(route, 200, index < 0 ? { estado: 'NO_REGISTRADA' } : { estado: 'REGISTRADA', venta: ventaRegistrada(sim.ventas[index], index + 1) });
       }
       sim.inesperados.push(`${method} ${path}`);
       await route.abort();
@@ -81,5 +91,87 @@ test.describe('Cobro con tarjeta en el POS (simulado)', () => {
     await page.getByText('Taladro').first().click();
     await expect(page.getByLabel('Autorización bancaria')).toHaveCount(0);
     expect(sim.ventas).toEqual([]);
+  });
+
+  test('efectivo: calcula el cambio en pantalla y en el comprobante sin enviarlo al servidor', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    const recibido = page.getByLabel('Efectivo recibido');
+    const vuelto = page.getByTestId('pos-vuelto');
+    await recibido.fill('100');
+    await expect(vuelto).toHaveText(/Falta: L\.? ?15\.00/);
+    await recibido.fill('abc');
+    await expect(vuelto).toContainText('Escriba un importe válido');
+    await recibido.fill('200,50');
+    await expect(vuelto).toHaveText(/Cambio: L\.? ?85\.50/);
+
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(Object.keys(sim.ventas[0])).not.toContain('efectivoRecibido');
+    expect(JSON.stringify(sim.ventas[0])).not.toMatch(/200[.,]5|efectivoRecibido|cambio|vuelto/i);
+    const ticket = page.getByTestId('ticket-vuelto');
+    await expect(ticket).toContainText(/Efectivo recibido: L\.? ?200\.50/);
+    await expect(ticket).toContainText(/Cambio: L\.? ?85\.50/);
+    await expect(page.getByText(/Método de Pago: Efectivo/)).toBeVisible();
+  });
+
+  test('el comprobante en pantalla nombra la transferencia como tal y no como crédito', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    await page.getByRole('button', { name: 'TRANSFERENCIA', exact: true }).click();
+    await expect(page.getByLabel('Efectivo recibido')).toHaveCount(0);
+    await page.getByLabel('Autorización bancaria').fill('trf-778899');
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    await expect(page.getByText(/Método de Pago: Transferencia/)).toBeVisible();
+    await expect(page.getByText(/Método de Pago: Crédito/)).toHaveCount(0);
+    await expect(page.getByText(/TOTAL PAGADO/)).toBeVisible();
+    await expect(page.getByTestId('ticket-vuelto')).toHaveCount(0);
+  });
+
+  test('14.4 respuesta tardía: mientras la venta sigue en curso no se reenvía ni se puede cambiar el carrito', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    sim.retrasoVentaMs = 2500;
+    const cobrar = page.getByRole('button', { name: /Procesar Venta|Procesando venta/ }).last();
+    await cobrar.click();
+    await expect(page.getByRole('button', { name: /Procesando venta/ }).last()).toBeDisabled();
+    await cobrar.click({ force: true });
+    await page.keyboard.press('Enter');
+    await page.getByText('Taladro').first().click({ force: true });
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    await expect(page.getByText(/Factura N°/)).toBeVisible({ timeout: 10_000 });
+    expect(sim.ventas).toHaveLength(1);
+    expect(sim.ventas[0].detalles).toEqual([expect.objectContaining({ productoId: 'prod-1', cantidad: 1 })]);
+  });
+
+  test('respuesta perdida: la venta queda pendiente y se confirma por su identidad sin enviarla otra vez', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    sim.perderRespuesta = true;
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect(page.getByText(/No recibimos confirmación/)).toBeVisible();
+    await expect(page.getByRole('button', { name: /Procesar Venta/ }).last()).toBeDisabled();
+    expect(sim.ventas).toHaveLength(1);
+
+    await page.getByRole('button', { name: 'Revisar venta y continuar' }).click();
+    await expect(page.getByText(/Factura N°/)).toBeVisible();
+    expect(sim.consultas).toEqual([sim.ventas[0].solicitudId]);
+    expect(sim.ventas).toHaveLength(1);
+  });
+
+  test('venta a crédito: el comprobante en pantalla dice «TOTAL A CRÉDITO», no «TOTAL PAGADO»', async ({ page, sim }) => {
+    sim.clientes = [{ id: 'cli-1', numeroCliente: 7, nombre: 'Constructora Norte', rtn: '08011999000001', telefono: null, creditoHabilitado: true }];
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    await page.getByRole('button', { name: /Constructora Norte/ }).click();
+    await page.getByRole('button', { name: 'CREDITO', exact: true }).click();
+    await expect(page.getByLabel('Efectivo recibido')).toHaveCount(0);
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(sim.ventas[0]).toMatchObject({ metodoPago: 'CREDITO', clienteId: 'cli-1' });
+    await expect(page.getByText(/TOTAL A CRÉDITO/)).toBeVisible();
+    await expect(page.getByText(/TOTAL PAGADO/)).toHaveCount(0);
+    await expect(page.getByText(/Método de Pago: Crédito/)).toBeVisible();
   });
 });

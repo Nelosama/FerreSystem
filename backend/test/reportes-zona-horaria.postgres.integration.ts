@@ -138,7 +138,7 @@ describe('Reportes FS-05 / PostgreSQL aislado', () => {
     const solicitudBase = { tenantId, usuarioId, ventaId: ventaIds.primerMs, motivo: 'prueba', creditoCancelado: 0, reembolso: 0, metodo: 'EFECTIVO', solicitudHash: randomUUID() };
     await prisma.devolucion.create({ data: { ...solicitudBase, monto: 15, createdAt: new Date('2026-10-10T05:30:00.000Z') } });
     await prisma.devolucion.create({ data: { ...solicitudBase, solicitudHash: randomUUID(), monto: 99, createdAt: new Date('2026-10-10T06:00:00.000Z') } });
-    return { tenantId, productoId };
+    return { tenantId, productoId, usuarioId, numero };
   }
 
   const ops = () => new OperacionesService(prisma);
@@ -210,6 +210,29 @@ describe('Reportes FS-05 / PostgreSQL aislado', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it('ventas por cajero: agrupa por usuario y método, suma lo mismo que «metodos» y no mezcla negocios', async () => {
+      const { tenantId, productoId, numero } = await sembrar();
+      const otroCajero = randomUUID();
+      await prisma.usuario.create({ data: { id: otroCajero, tenantId, nombre: 'Ana cajera', email: `${otroCajero}@example.test`, passwordHash: 'test-only' } });
+      // 2026-10-09 12:00 local; la anulada del mismo cajero no cuenta.
+      for (const [n, estado, total] of [[numero + 1, 'COMPLETADA', 70.35], [numero + 2, 'ANULADA', 900]] as const) {
+        await prisma.venta.create({ data: { tenantId, usuarioId: otroCajero, numeroVenta: n, subtotal: total, isv: 0, total, metodoPago: 'EFECTIVO', estado, createdAt: new Date('2026-10-09T18:00:00.000Z'),
+          detalles: { create: [{ productoId, cantidad: 1, precioUnitario: total, subtotal: total }] } } });
+      }
+      const otroNegocio = await sembrar();
+      const r = await ops().resumen(tenantId, '2026-10-09', '2026-10-09');
+      const filas = r.cajeros.map((c: any) => ({ nombre: c.usuario_nombre, metodo: c.metodo_pago, cantidad: c.cantidad, total: Number(c.total) }));
+      expect(filas).toEqual([
+        { nombre: 'Ana cajera', metodo: 'EFECTIVO', cantidad: 1, total: 70.35 },
+        { nombre: 'Cajero prueba', metodo: 'EFECTIVO', cantidad: 2, total: 40 },
+        { nombre: 'Cajero prueba', metodo: 'TARJETA', cantidad: 1, total: 20 },
+      ]);
+      const suma = (rows: any[]) => rows.reduce((a, m) => a + Math.round(Number(m.total) * 100), 0);
+      expect(suma(r.cajeros)).toBe(suma(r.metodos));
+      expect(r.cajeros.reduce((a: number, c: any) => a + c.cantidad, 0)).toBe(r.metodos.reduce((a: number, m: any) => a + m.cantidad, 0));
+      expect(r.cajeros.some((c: any) => c.usuario_id === otroNegocio.usuarioId)).toBe(false);
     });
   });
 });
