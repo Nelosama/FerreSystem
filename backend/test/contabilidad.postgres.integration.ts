@@ -24,6 +24,8 @@ import { ClientesController } from '../src/clientes/clientes.controller';
 import { ClientesService } from '../src/clientes/clientes.service';
 import { UsuariosController } from '../src/usuarios/usuarios.controller';
 import { UsuariosService } from '../src/usuarios/usuarios.service';
+import { EntregasController } from '../src/entregas/entregas.controller';
+import { EntregasService } from '../src/entregas/entregas.service';
 import { leerZipXlsx, nombresHojas, celda, textosHoja } from './helpers/xlsx-lector';
 
 // Contabilidad y Control Tributario contra PostgreSQL real: clúster temporal y cadena completa de migraciones.
@@ -101,9 +103,9 @@ describe('Contabilidad Honduras / PostgreSQL aislado', () => {
     }
 
     const module = await Test.createTestingModule({
-      controllers: [ContabilidadController, VentasController, OperacionesController, ProductosController, ClientesController, UsuariosController],
+      controllers: [ContabilidadController, VentasController, OperacionesController, ProductosController, ClientesController, UsuariosController, EntregasController],
       providers: [
-        ContabilidadService, VentasService, OperacionesService, ProductosService, ClientesService, UsuariosService,
+        ContabilidadService, VentasService, OperacionesService, ProductosService, ClientesService, UsuariosService, EntregasService,
         { provide: PrismaService, useValue: prisma },
         { provide: APP_GUARD, useClass: TenantModuleGuard },
       ],
@@ -326,6 +328,9 @@ describe('Contabilidad Honduras / PostgreSQL aislado', () => {
     await c.post('/ventas', {}).expect(403);
     await c.post('/operaciones/caja/abrir', { montoApertura: 0 }).expect(403);
     await c.post(`/operaciones/caja/${randomUUID()}/movimientos`, {}).expect(403);
+    await c.post(`/operaciones/caja/${randomUUID()}/cerrar`, { monto: 0 }).expect(403);
+    await c.post(`/operaciones/ventas/${venta.completa}/entregar`, {}).expect(403);
+    await c.post(`/entregas/ventas/${venta.completa}/entregas`, {}).expect(403);
     await c.post(`/operaciones/cuentas/${randomUUID()}/pagos`, {}).expect(403);
     await c.post(`/operaciones/productos/${randomUUID()}/ajuste`, {}).expect(403);
     await c.post(`/operaciones/ventas/${venta.completa}/devoluciones`, {}).expect(403);

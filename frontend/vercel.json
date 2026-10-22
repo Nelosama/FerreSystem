@@ -8,8 +8,40 @@
       "destination": "/index.html"
     }
   ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=(), payment=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: data:; worker-src 'self' blob:; manifest-src 'self'; media-src 'self' blob: mediastream:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+        }
+      ]
+    }
+  ],
   "git": {
     "deploymentEnabled": {
+      "claude/revision-seguridad-jowa-20261020": false,
       "nexus/*": false,
       "fix/pilot-readiness": false,
       "codex/auditoria-precision-monetaria": false,
@@ -21,5 +53,5 @@
       "feat/contabilidad-honduras": false
     }
   },
-  "ignoreCommand": "case \"$VERCEL_GIT_COMMIT_REF\" in nexus/*|fix/inventario-inicial-seguro|fix/pilot-readiness|codex/auditoria-precision-monetaria|codex/fix-expired-sessions|fix/jowa-operacion-estable|codex/fix-camera-lifecycle-ios|codex/estabilidad-operativa|feat/contabilidad-honduras) exit 0;; *) exit 1;; esac"
+  "ignoreCommand": "sh scripts/vercel-ignore.sh"
 }

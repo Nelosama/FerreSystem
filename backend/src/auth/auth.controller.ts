@@ -2,6 +2,7 @@ import { Controller, Post, Body, Res, Req, HttpCode, HttpStatus, Get, UseGuards 
 import { AuthService } from './auth.service';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { OrigenPermitidoGuard } from '../common/guards/origen-permitido.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
 
@@ -10,6 +11,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @UseGuards(OrigenPermitidoGuard)
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: LoginDto,
@@ -20,6 +22,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @UseGuards(OrigenPermitidoGuard)
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Req() req: Request,
@@ -30,6 +33,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @UseGuards(OrigenPermitidoGuard)
   @HttpCode(HttpStatus.OK)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     return this.authService.logout(res, req);

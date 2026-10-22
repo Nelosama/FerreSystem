@@ -180,3 +180,23 @@ test('sesión irrecuperable con formulario abierto retira datos y no anuncia un 
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('Captura privada sin enviar');
   expect(state.calls.filter(path => path === '/levantamientos')).toHaveLength(1);
 });
+
+test('cerrar sesión en una pestaña retira los módulos de la otra pestaña sin nuevas consultas', async ({ page, context }) => {
+  const state = await scenario(page);
+  await page.goto('/levantamiento');
+  await expect(page.locator('.operation-page')).toBeVisible();
+  const segunda = await context.newPage();
+  await segunda.goto('/levantamiento');
+  await expect(segunda.locator('.operation-page')).toBeVisible();
+  await segunda.locator('.operation-form input').first().fill('Dato sin guardar');
+  await page.getByTitle('Cerrar Sesión', { exact: true }).first().click();
+  await expect(page).toHaveURL(/\/login$/);
+  const llamadas = state.calls.length;
+  await segunda.bringToFront();
+  await expect(segunda).toHaveURL(/\/login$/);
+  await expect(segunda.locator('.operation-page')).toHaveCount(0);
+  expect(await segunda.locator('input').evaluateAll(campos => campos.some(c => (c as HTMLInputElement).value === 'Dato sin guardar'))).toBe(false);
+  expect(await segunda.evaluate(() => localStorage.getItem('ferre_token'))).toBeNull();
+  // La otra pestaña no consulta módulos con la sesión cerrada (solo podría intentar renovar y recibir rechazo).
+  expect(state.calls.slice(llamadas).filter(p => !['/auth/refresh', '/auth/logout', '/auth/me'].includes(p))).toEqual([]);
+});

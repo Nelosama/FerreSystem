@@ -55,7 +55,8 @@ WITH esperado(nombre, sha_lf, sha_crlf) AS (VALUES
   ('20261018000000_tenant_logotipo_privado','64305c584ed8c8eaf2e4a1ca7dd1f62e4adb3672697e0ec43551877c5bf7faf1','95822f1b6f6af1bc6be5d84c9c12944b68e9560b8309aaab2b8c638137c70c21'),
   ('20261019000000_cloud_branding_sucursales','eb24fb6acdec8a08b6bee9edd0d597609097b479b723f966f49dd7af724d4cc8','1b9df1f791278b71c1bdfdbdd4e748d881e5d4455be7fc175ca97339c26b0ef6'),
   ('20261020000000_rol_contador','570feee55e73b1ab4267d0723c934ce123b72aa05acfd08ad32b6e3fd287d6a5','5134446112a29cb86ab8e9aa41d08abb32f9ef24dd92abb153234c169415abca'),
-  ('20261020000100_contabilidad_honduras','ea1178301a7ec7d5c6782c2b9571a25c3e0cd9520c7f7a1b7a4c055026954251','ee5f5538da09657d5083e1486f22d06983caed112bdb966a38b4cf64f2e73af9')
+  ('20261020000100_contabilidad_honduras','ea1178301a7ec7d5c6782c2b9571a25c3e0cd9520c7f7a1b7a4c055026954251','ee5f5538da09657d5083e1486f22d06983caed112bdb966a38b4cf64f2e73af9'),
+  ('20261021000000_sesiones_auth_rotacion_refresh','aa16c2564b5038f8d22fa8dcfa556dd69cc93bcb973094bf22dd66e9a7ba642c','b8deb775549361ffc4178475ba5c986d98f2192978107e04e0d1ba7b56931a32')
 ), aplicada AS (
   SELECT migration_name, checksum, finished_at, rolled_back_at FROM _prisma_migrations
 )

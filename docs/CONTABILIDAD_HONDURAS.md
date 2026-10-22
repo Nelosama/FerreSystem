@@ -69,14 +69,14 @@ Períodos: `POST periodos/:anio/:mes/cerrar` (`contabilidad.cerrar_periodo`), `P
 
 | Suite | Resultado | Archivo |
 |---|---|---|
-| Backend unitarias | 540/540 (19 nuevas) | `src/contabilidad/*.spec.ts` |
+| Backend unitarias | 585/585 tras integrar `main` (19 nuevas de Contabilidad) | `src/contabilidad/*.spec.ts` |
 | Auditoría estática de rutas | Ninguna escritura fuera de Contabilidad admite CONTADOR; rutas sin `@Roles` solo de autenticación/Super Admin | `src/contabilidad/autorizacion-rutas.spec.ts` |
-| PostgreSQL 16 real (contabilidad) | 14/14 | `test/contabilidad.postgres.integration.ts` |
-| PostgreSQL 16 real (suite completa) | 63 archivos, 1031 pasan, 1 omitida preexistente; `test:e2e` 6/6 | `npm run test:integration` |
+| PostgreSQL 16 real (contabilidad) | 25/25 tras integrar `main` (incluye 403 de CONTADOR en cierre de caja y entregas) | `test/contabilidad.postgres.integration.ts` |
+| PostgreSQL 16 real (suite completa) | 64 archivos, 1062/1062 con Chromium tras integrar `main`; `test:e2e` 6/6 | `npm run test:integration` |
 | Mutaciones de control | Habilitar el módulo por defecto o dar CONTADOR a «abrir caja» hace fallar 2 pruebas de integración y 2 de la auditoría de rutas | — |
 | Exportaciones | XLSX abierto con openpyxl; PDF leído con pdftotext; CSV con BOM y fórmulas neutralizadas | `exportacion.spec.ts` |
-| Frontend unitarias | 459/459 (9 nuevas + 2 de Vercel) | `test/contabilidad-ui.test.mjs` |
-| Navegador simulado | 216/216 (5 nuevas) | `e2e/contabilidad-simulado.spec.ts` |
+| Frontend unitarias | 494/494 tras integrar `main` (9 nuevas de Contabilidad + Vercel) | `test/contabilidad-ui.test.mjs` |
+| Navegador simulado | 232/232 tras integrar `main` (5 nuevas de Contabilidad); móvil 16/16 | `e2e/contabilidad-simulado.spec.ts` |
 
 Cobertura de integración: módulo opcional por empresa; CAJERO sin acceso; CONTADOR con solo «ver»; solapes de tasas (servicio y disparador); CAI con rango/fecha/tipo; venta con una sola factura vigente; aislamiento multi-tenant por API, por FK y por disparador; libro de ventas con zona horaria, anuladas y sin documento; libro de compras con conciliación; retenciones y resumen de ISV; notas de crédito y devoluciones; saltos de correlativo; corrección/anulación con bitácora inmutable; partida doble (cuadre, cuenta de grupo, disparador diferido, reversión, balanza, cuentas de otra empresa); exportaciones; cierre/reapertura con huella; CONTADOR rechazado en ventas, caja, cobros, inventario, compras, productos y clientes (rutas y servicios).
 
