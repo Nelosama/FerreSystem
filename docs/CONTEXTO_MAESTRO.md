@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-22 UTC** — PR [#188](https://github.com/Nelosama/FerreSystem/pull/188) (rama `claude/ux-ronda1-pos-marca`) integrando `main` (`97609ed`, merge de [#185](https://github.com/Nelosama/FerreSystem/pull/185) con seguridad #183). Integración en curso: SHA final y resultados en la sección «Integración de #188 con main». Seguridad #183 en `main` (`7914d1b`): antes de desplegar, verificar variables de Render y respaldar la base (Render ejecuta `prisma migrate deploy` al iniciar). Detalle: [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
+Última revisión: **2026-10-22 UTC** — PR [#188](https://github.com/Nelosama/FerreSystem/pull/188) (rama `claude/ux-ronda1-pos-marca`) integrado con `main` (`97609ed`, #185 con seguridad #183) mediante merge normal en `46a66f8`. Validación local completa en «Integración de #188 con main»; GitHub Actions sobre `46a66f8` consta en esa sección. **NO MERGE** hasta revisar CI, la aceptación del dueño y las variables de Render; al hacer merge, Render ejecuta `prisma migrate deploy` antes de iniciar. Detalle: [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
@@ -55,6 +55,27 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 - **Pendientes reales:** prueba preexistente del service worker (`contingencia-real` 14) roja también en `main`; decisión del dueño sobre el texto oscuro en el naranja predeterminado; P2 de la crítica (fuentes DM Sans/Manrope no cargadas en el inicio, estilos en línea, mayúsculas mixtas, gráfico semanal, copy); bordes con `--color-sidebar-text` en Configuración/Super Admin/Cotizaciones (legibles, pero el token es semántico de menú); el icono PWA (`public/logo.jpg`) es el logotipo J&J de un cliente y el favicon es el de Vite: decidir la marca del producto; Safari/iPhone, tableta física y revisión con usuarios reales no hechas.
 - **Bitácora:** lectura de contexto y PR; merge de `main`; diagnóstico de las 23 unitarias rojas (arnés sin `colorMarca`, selectores del POS, guardia de marca) y corrección; capturas «antes» desde `main` con medición; correcciones; regresión nueva; suite completa; evidencia.
 ---
+
+## Integración de #188 con main — 2026-10-22 UTC (rama `claude/ux-ronda1-pos-marca`, sin merge ni despliegue)
+
+- **Git:** PR #188 en `67844c6`; `main` en `97609ed` (#185 integrado, base `7914d1b` de #183). Merge normal de `origin/main` en `46a66f8`, sin rebase ni force push. Código final y SHA del documento: ver encabezado.
+- **Conflictos reales (2):** `frontend/src/pages/POSPage.tsx` (etiqueta del método de pago en el comprobante: se conserva `etiquetaMetodo` de #185, ambos lados daban la misma salida) y `docs/CONTEXTO_MAESTRO.md` (encabezado y bitácora: se conservan ambas secciones, #188 y #185).
+- **Fusionados sin conflicto y revisados:** `InventarioPage.tsx` (carga gradual de #185 `FILAS_POR_PAGINA`/`limiteFilas` y `aria-pressed`/colores de #188 presentes), `es.json` y `en.json` (JSON válido, sin claves duplicadas), `e2e/pos-tarjeta-simulado.spec.ts`, `e2e-real/qa-ciclo-venta.spec.ts`.
+- **Regresiones de la integración corregidas (en pruebas, no en reglas):**
+  1. `pos-tarjeta-simulado.spec.ts` «transferencia»: buscaba el botón `TRANSFERENCIA`; #188 lo muestra como «Transferencia». Selector traducido.
+  2. «venta a crédito»: el test de #185 elegía el cliente antes del método; con el cliente plegado de #188, el selector aparece al elegir «Crédito». Orden del test ajustado. La regla (crédito exige cliente) y el payload no cambian.
+  Antes de la corrección, el escritorio daba 254 pasan / 2 fallan (solo esos dos).
+- **Entorno (no código):** Playwright del backend espera Chromium `1243`; el contenedor solo trae `1194`. Se enlazó localmente en `/opt/pw-browsers` (fuera del repositorio). La integración PostgreSQL necesita usuario no root porque sus tests invocan `initdb`; se ejecutó como `nobody`. `frontend/node_modules` necesitó permisos de escritura para el Vite del navegador real. `navigation-settings.spec.ts` sobrescribe `frontend/artifacts/ux-settings-*.png` en cada ejecución: se restauraron y no forman parte del cambio.
+- **Validación (local, PostgreSQL 16 temporal, Chromium 1194 del contenedor):**
+  - Frontend: unitarias 492/492; `tsc -b` + build OK; lint 0 errores (117 avisos, igual que `main`).
+  - Backend: Prisma validate/generate OK; build OK; lint 0 errores; unitarias 554/554 (57 archivos); scripts 48/48; Python OK; `verificar-migraciones.mjs` correcto (41 archivos, 0 nuevas).
+  - Integración PostgreSQL real: 1041/1041 (63 archivos). E2E backend 6/6.
+  - Navegador simulado, escritorio: 256 pasan / 0 fallan / 15 omitidas (`ux-capturas`, solo con `UX_CAPTURAS`). Móvil: 16/16.
+  - E2E real (backend compilado + PostgreSQL temporal + frontend real): 153 pasan / 1 falla / 4 omitidas. La falla es `contingencia-real` «14. actualización del service worker». **Preexistente:** la misma suite completa sobre `origin/main` da 153 / 1 / 4 con la misma falla; aislada pasa en ambas ramas. No la introduce la integración; falla dependiente del orden.
+  - Pruebas POS (unitarias, simulado y real): verdes, incluidas vuelto, ventas por cajero, comprobantes, protección contra duplicados y carga gradual.
+- **GitHub Actions sobre `46a66f8`:** `Operación de ferretería` (39849161111) y `Piloto con API y PostgreSQL reales` (39849159663) en cola al redactar esta bitácora. Resultado: ver la revisión final del encabezado.
+- **Atribución:** el commit de merge no incluye identificador de modelo (regla del entorno); se mantiene la línea `Claude-Session`.
+- **Pendientes sin cambio:** falla del service worker en la suite completa (preexistente en `main`); decisión del dueño sobre texto oscuro en el naranja predeterminado; P2 de la crítica; icono PWA (logotipo de un cliente); Safari/iPhone y tableta física; variables de Render y respaldo antes de desplegar (Render ejecuta `prisma migrate deploy` al iniciar). Aceptación del cliente no realizada.
 
 ## Sincronización del PR #185 con main y validación final — 2026-10-22 UTC (sin merge ni despliegue)
 
