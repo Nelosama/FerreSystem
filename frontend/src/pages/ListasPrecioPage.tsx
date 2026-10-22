@@ -94,7 +94,7 @@ export const ListasPrecioPage: React.FC = () => {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <span className="badge badge-dark" style={{ fontSize: '11px' }}>SEGMENTO CLIENTE</span>
-                  <span style={{ fontSize: '20px', fontWeight: 900, color: 'var(--color-primary)', fontFamily: 'var(--font-display)' }}>
+                  <span style={{ fontSize: '20px', fontWeight: 900, color: 'var(--color-primary-text)', fontFamily: 'var(--font-display)' }}>
                     -{l.descuentoPorcentaje}%
                   </span>
                 </div>

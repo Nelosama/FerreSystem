@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { estiloMarcaNegocio, inicialesNegocio } from '../utils/identidadNegocio';
 import { generatePassword } from '../utils/generatePassword';
 import {
   Plus,
@@ -27,6 +28,7 @@ import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { Rubro } from '../types';
 import { BackupStatus } from '../components/BackupStatus';
+import { AvisoColorMarca } from '../components/AvisoColorMarca';
 
 interface SubSucursalItem {
   id: string;
@@ -176,7 +178,7 @@ function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
   return { tenants, adminUsers };
 }
 
-const iniciales = (nombre: string) => (nombre || 'N').split(/\s+/).filter(p => p.length > 2).slice(-2).map(p => p[0]).join('').toUpperCase() || 'N';
+const iniciales = inicialesNegocio;
 
 export const SuperAdminPage: React.FC = () => {
   const { impersonateTenantAdmin, tenant: negocioActual } = useTenant();
@@ -563,7 +565,7 @@ export const SuperAdminPage: React.FC = () => {
         {/* Resumen Superior de Métricas SaaS */}
         <div style={styles.metricsRow}>
           <div className="industrial-card" style={styles.metricCard}>
-            <Building size={24} strokeWidth={2.4} color="var(--color-primary)" />
+            <Building size={24} strokeWidth={2.4} color="var(--color-primary-text)" />
             <div style={styles.metricValue}>{tenants.length}</div>
             <div style={styles.metricLabel}>{t('superadmin.tenants_count') || "FERRETERÍAS REGISTRADAS"}</div>
           </div>
@@ -581,7 +583,7 @@ export const SuperAdminPage: React.FC = () => {
           </div>
 
           <div className="industrial-card" style={styles.metricCard}>
-            <Server size={24} strokeWidth={2.4} color="var(--color-primary)" />
+            <Server size={24} strokeWidth={2.4} color="var(--color-primary-text)" />
             <div style={styles.metricValue}>{tenants.reduce((total, tenant) => total + (tenant.sucursalesCount ?? 0), 0)}</div>
             <div style={styles.metricLabel}>{t('superadmin.total_branches') || "SUCURSALES"}</div>
           </div>
@@ -640,7 +642,7 @@ export const SuperAdminPage: React.FC = () => {
                       <tr key={tItem.id}>
                         <td>
                           <div className="jowa-tenant-cell">
-                            <span className="jowa-tenant-mark" style={{ background: tItem.colorPrimario || '#EA580C' }}>{iniciales(tItem.nombreComercial)}</span>
+                            <span className="jowa-tenant-mark" style={estiloMarcaNegocio(tItem.colorPrimario)}>{iniciales(tItem.nombreComercial)}</span>
                             <div>
                               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{tItem.nombreComercial}</div>
                               <small>{tItem.contacto}{tItem.telefono ? ` · ${tItem.telefono}` : ''}</small>
@@ -661,7 +663,7 @@ export const SuperAdminPage: React.FC = () => {
                             style={{ fontWeight: 800, fontSize: '10px' }}
                             title={t('uxAudit.switch_between_side_menu_and_top_menu')}
                           >
-                            <Layout size={12} color="var(--color-primary)" /> {modoNav}
+                            <Layout size={12} color="var(--color-primary-text)" /> {modoNav}
                           </button>
                         </td>
                         <td style={{ textAlign: 'center' }}>
@@ -673,7 +675,7 @@ export const SuperAdminPage: React.FC = () => {
                             title={t('uxAudit.manage_subscribed_services_and_modules')}
                             style={{ fontWeight: 800 }}
                           >
-                            <Layers size={13} color="var(--color-primary)" /> {modCount} / {CATALOGO_MODULOS.length} {t('uxAudit.services')} </button>
+                            <Layers size={13} color="var(--color-primary-text)" /> {modCount} / {CATALOGO_MODULOS.length} {t('uxAudit.services')} </button>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           {tItem.estado === 'ACTIVO' ? (
@@ -689,7 +691,7 @@ export const SuperAdminPage: React.FC = () => {
                               className="btn btn-sm btn-primary"
                               onClick={() => abrirModalSuplantar(tItem)}
                               title={t('uxAudit.enter_as_an_administrator_or_user_for_remote_support')}
-                              style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
+                              style={{ fontWeight: 800 }}
                             >
                               <ExternalLink size={13} /> {t('navigation.support')}
                             </button>
@@ -823,7 +825,7 @@ export const SuperAdminPage: React.FC = () => {
                     )}
                   </div>
 
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '15px', color: 'var(--color-sidebar-bg)' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '15px', color: 'var(--color-text-main)' }}>
                     {t(mod.labelKey)}
                   </div>
 
@@ -831,7 +833,7 @@ export const SuperAdminPage: React.FC = () => {
                     {t('moduleDescriptions.' + mod.key)}
                   </div>
 
-                  <div style={{ fontSize: '11px', fontFamily: 'monospace', color: '#EA580C', fontWeight: 700, paddingTop: '8px', borderTop: '1px solid #E7E5E4' }}>
+                  <div style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--color-primary-text)', fontWeight: 700, paddingTop: '8px', borderTop: '1px solid #E7E5E4' }}>
                     key: {mod.key}
                   </div>
                 </div>
@@ -882,7 +884,7 @@ export const SuperAdminPage: React.FC = () => {
                   {adminUsers.filter(a => !a.rol || a.rol === 'ADMIN').map((a) => (
                     <tr key={a.id}>
                       <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{a.nombre}</td>
-                      <td style={{ fontWeight: 600, color: 'var(--color-sidebar-bg)' }}>{a.email}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{a.email}</td>
                       <td>
                         <span className="badge badge-dark">{a.tenantNombre}</span>
                       </td>
@@ -977,7 +979,7 @@ export const SuperAdminPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                 <div>
                   <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.manage_subscribed_services_and_modules')} </h2>
-                  <div style={{ fontSize: '13px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>{t('uxAudit.customer')} {modalModulosTenant.nombreComercial} ({modalModulosTenant.plan})
+                  <div style={{ fontSize: '13px', color: 'var(--color-primary-text)', fontWeight: 800, marginTop: '2px' }}>{t('uxAudit.customer')} {modalModulosTenant.nombreComercial} ({modalModulosTenant.plan})
                   </div>
                 </div>
                 <button
@@ -1038,7 +1040,7 @@ export const SuperAdminPage: React.FC = () => {
           <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '480px' }}>
             <div style={styles.modalHeader}>
               <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.navigation_settings')} </h2>
-              <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>{t('uxAudit.company')} {modalNavegacionTenant.nombreComercial}
+              <div style={{ fontSize: '12px', color: 'var(--color-primary-text)', fontWeight: 800, marginTop: '2px' }}>{t('uxAudit.company')} {modalNavegacionTenant.nombreComercial}
               </div>
             </div>
 
@@ -1054,9 +1056,9 @@ export const SuperAdminPage: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '14px 18px',
-                    backgroundColor: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                    color: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? '#FFFFFF' : 'var(--color-sidebar-bg)',
-                    border: '2px solid var(--color-sidebar-bg)',
+                    backgroundColor: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? 'var(--color-text-main)' : 'var(--color-bg)',
+                    color: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? '#FFFFFF' : 'var(--color-text-main)',
+                    border: '2px solid var(--color-text-main)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     fontFamily: 'var(--font-display)',
@@ -1067,7 +1069,7 @@ export const SuperAdminPage: React.FC = () => {
                     <div style={{ fontSize: '13px' }}>{t('uxAudit.circle_side_menu_sidebar')} </div>
                     <div style={{ fontSize: '11px', opacity: 0.8, fontWeight: 400 }}>{t('uxAudit.traditional_left_side_panel')} </div>
                   </div>
-                  {(modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' && <CheckCircle size={18} color="#EA580C" />}
+                  {(modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' && <CheckCircle size={18} color="var(--color-primary-text)" aria-hidden="true" />}
                 </button>
 
                 <button
@@ -1078,9 +1080,9 @@ export const SuperAdminPage: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '14px 18px',
-                    backgroundColor: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                    color: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? '#FFFFFF' : 'var(--color-sidebar-bg)',
-                    border: '2px solid var(--color-sidebar-bg)',
+                    backgroundColor: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? 'var(--color-text-main)' : 'var(--color-bg)',
+                    color: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? '#FFFFFF' : 'var(--color-text-main)',
+                    border: '2px solid var(--color-text-main)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     fontFamily: 'var(--font-display)',
@@ -1091,7 +1093,7 @@ export const SuperAdminPage: React.FC = () => {
                     <div style={{ fontSize: '13px' }}>{t('uxAudit.circle_top_menu_topnav')} </div>
                     <div style={{ fontSize: '11px', opacity: 0.8, fontWeight: 400 }}>{t('uxAudit.horizontal_top_navigation_bar')} </div>
                   </div>
-                  {modalNavegacionTenant.modoNavegacion === 'TOPNAV' && <CheckCircle size={18} color="#EA580C" />}
+                  {modalNavegacionTenant.modoNavegacion === 'TOPNAV' && <CheckCircle size={18} color="var(--color-primary-text)" aria-hidden="true" />}
                 </button>
               </div>
 
@@ -1159,8 +1161,8 @@ export const SuperAdminPage: React.FC = () => {
                       padding: '8px',
                       fontWeight: 800,
                       fontSize: '11px',
-                      backgroundColor: editModoNavegacion === 'SIDEBAR' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                      color: editModoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                      backgroundColor: editModoNavegacion === 'SIDEBAR' ? 'var(--color-text-main)' : 'var(--color-bg)',
+                      color: editModoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-text-main)',
                       border: editModoNavegacion === 'SIDEBAR' ? '2px solid #EA580C' : '1px solid var(--color-sidebar-text)',
                       borderRadius: '4px',
                       cursor: 'pointer',
@@ -1173,8 +1175,8 @@ export const SuperAdminPage: React.FC = () => {
                       padding: '8px',
                       fontWeight: 800,
                       fontSize: '11px',
-                      backgroundColor: editModoNavegacion === 'TOPNAV' ? 'var(--color-sidebar-bg)' : 'var(--color-bg)',
-                      color: editModoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-sidebar-bg)',
+                      backgroundColor: editModoNavegacion === 'TOPNAV' ? 'var(--color-text-main)' : 'var(--color-bg)',
+                      color: editModoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-text-main)',
                       border: editModoNavegacion === 'TOPNAV' ? '2px solid #EA580C' : '1px solid var(--color-sidebar-text)',
                       borderRadius: '4px',
                       cursor: 'pointer',
@@ -1222,6 +1224,7 @@ export const SuperAdminPage: React.FC = () => {
                     style={{ fontFamily: 'monospace', fontWeight: 700 }}
                   />
                 </div>
+                <AvisoColorMarca color={editColorPrimario} />
               </div>
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
@@ -1279,6 +1282,7 @@ export const SuperAdminPage: React.FC = () => {
                     onChange={(e) => setColorPrimario(e.target.value)}
                     style={{ width: '100%', height: '42px', cursor: 'pointer', border: '2px solid var(--color-text-main)' }}
                   />
+                  <AvisoColorMarca color={colorPrimario} />
                 </div>
               </div>
 
@@ -1347,7 +1351,7 @@ export const SuperAdminPage: React.FC = () => {
             <div style={styles.modalHeader}>
               <div>
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.remote_support_select_user_to_impersonate')} </h2>
-                <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 700 }}>{t('uxAudit.customer')} {modalSuplantarUser.nombreComercial}
+                <div style={{ fontSize: '12px', color: 'var(--color-primary-text)', fontWeight: 700 }}>{t('uxAudit.customer')} {modalSuplantarUser.nombreComercial}
                 </div>
               </div>
               <button
@@ -1417,7 +1421,7 @@ export const SuperAdminPage: React.FC = () => {
                         type="button"
                         onClick={() => abrirFormularioMotivoSuplantar({ id: u.id, nombre: u.nombre, email: u.email, rol: u.rol })}
                         className="btn btn-sm btn-primary"
-                        style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800, padding: '6px 12px' }}
+                        style={{ fontWeight: 800, padding: '6px 12px' }}
                       >
                         <ExternalLink size={13} />{t('uxAudit.impersonate_user')} </button>
                     </div>
@@ -1442,7 +1446,7 @@ export const SuperAdminPage: React.FC = () => {
           <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '500px' }}>
             <div style={styles.modalHeader}>
               <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.required_reason_for_support_access')} </h2>
-              <div style={{ fontSize: '12px', color: '#EA580C', fontWeight: 800, marginTop: '2px' }}>{t('uxAudit.entering_as')} {usuarioASuplantar.nombre} ({modalSuplantarUser.nombreComercial})
+              <div style={{ fontSize: '12px', color: 'var(--color-primary-text)', fontWeight: 800, marginTop: '2px' }}>{t('uxAudit.entering_as')} {usuarioASuplantar.nombre} ({modalSuplantarUser.nombreComercial})
               </div>
             </div>
 
@@ -1487,7 +1491,7 @@ export const SuperAdminPage: React.FC = () => {
                   type="submit"
                   disabled={soporteDescripcion.trim().length < 10}
                   className="btn btn-primary"
-                  style={{ backgroundColor: '#EA580C', borderColor: '#C2410C', fontWeight: 800 }}
+                  style={{ fontWeight: 800 }}
                 >{t('uxAudit.start_remote_support')} </button>
               </div>
             </form>

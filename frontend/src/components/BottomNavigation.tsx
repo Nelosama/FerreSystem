@@ -42,6 +42,13 @@ export const BottomNavigation: React.FC = () => {
     return translated && translated !== item.labelKey ? translated : item.defaultLabel;
   };
 
+  // En la barra inferior (≈ 75 px por pestaña) un nombre de catálogo largo («Herramientas y Materiales») no cabe
+  // sin partir palabras: se muestra el nombre estándar y el completo queda como nombre accesible y en «Más».
+  const getLabelCorta = (item: NavigationItem) => {
+    const completa = getLabel(item);
+    return item.key === 'inventario' && completa.length > 12 ? t(item.labelKey) : completa;
+  };
+
   const sucursalesDisponibles = useSucursales();
 
   const isMasActive = remainingItems.some((item) =>
@@ -67,12 +74,13 @@ export const BottomNavigation: React.FC = () => {
               end={item.exact}
               style={{
                 ...styles.navTab,
-                color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                color: isActive ? 'var(--color-primary-text)' : 'var(--color-text-muted)',
               }}
+              aria-label={getLabel(item)}
             >
-              <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+              <Icon size={20} strokeWidth={isActive ? 2.5 : 2} aria-hidden="true" />
               <span style={{ ...styles.tabLabel, fontWeight: isActive ? 800 : 600 }}>
-                {getLabel(item)}
+                {getLabelCorta(item)}
               </span>
             </NavLink>
           );
@@ -84,18 +92,19 @@ export const BottomNavigation: React.FC = () => {
           ref={moreButton}
           aria-expanded={showMasModal}
           aria-controls="mobile-more-menu"
+          aria-label={t('navigation.more')}
           onClick={() => setShowMasModal(true)}
           style={{
             ...styles.navTab,
-            color: showMasModal || isMasActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
+            color: showMasModal || isMasActive ? 'var(--color-primary-text)' : 'var(--color-text-muted)',
             background: 'none',
             border: 'none',
             cursor: 'pointer',
           }}
         >
-          <MoreHorizontal size={20} strokeWidth={showMasModal || isMasActive ? 2.5 : 2} />
+          <MoreHorizontal size={20} strokeWidth={showMasModal || isMasActive ? 2.5 : 2} aria-hidden="true" />
           <span style={{ ...styles.tabLabel, fontWeight: showMasModal || isMasActive ? 800 : 600 }}>
-            {t('navigation.more')}
+            {t('navigation.more_short')}
           </span>
         </button>
       </nav>
@@ -137,7 +146,7 @@ export const BottomNavigation: React.FC = () => {
               {/* Selector de Sucursal */}
               {user?.rol === 'ADMIN' && (
                 <div style={styles.configRow}>
-                  <GitBranch size={15} color="var(--color-primary)" />
+                  <GitBranch size={15} color="var(--color-primary-text)" />
                   <span style={{ fontSize: '12px', fontWeight: 700 }}>{t('navigation.branch')}</span>
                   <select
                     value={tenant.sucursal || 'Sucursal Principal'}
@@ -185,7 +194,7 @@ export const BottomNavigation: React.FC = () => {
                       style={{
                         ...styles.iconWrapper,
                         backgroundColor: isActive ? 'var(--color-primary)' : 'var(--color-surface-hover)',
-                        color: isActive ? '#FFFFFF' : 'var(--color-primary)',
+                        color: isActive ? 'var(--color-on-primary)' : 'var(--color-primary-text)',
                       }}
                     >
                       <Icon size={22} strokeWidth={2.4} />
@@ -208,7 +217,9 @@ const styles: Record<string, React.CSSProperties> = {
     bottom: 0,
     left: 0,
     right: 0,
-    height: '64px',
+    // El área segura del iPhone (barra de inicio) queda debajo de las pestañas, no encima.
+    height: 'calc(64px + env(safe-area-inset-bottom, 0px))',
+    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     backgroundColor: '#FFFFFF',
     borderTop: '2px solid var(--color-border)',
     display: 'flex',
@@ -222,23 +233,25 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
+    flex: '1 1 0',
+    minWidth: 0,
     height: '100%',
     textDecoration: 'none',
     gap: '2px',
     padding: '4px 0',
   },
+  // 12 px legibles y hasta dos líneas: los nombres largos («Herramientas y Materiales») no se cortan con «…».
   tabLabel: {
-    fontFamily: 'var(--font-display)',
-    fontSize: '10px',
-    letterSpacing: '0.02em',
-    textTransform: 'uppercase',
+    fontFamily: 'var(--font-body)',
+    fontSize: '12px',
     textAlign: 'center',
-    lineHeight: 1.1,
-    maxWidth: '68px',
+    lineHeight: 1.15,
+    maxWidth: '100%',
+    padding: '0 2px',
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
     overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
   },
   masOverlay: {
     position: 'fixed',

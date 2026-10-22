@@ -73,7 +73,11 @@ test.describe('Cobro con tarjeta en el POS (simulado)', () => {
   test('sin autorización bancaria no se envía la venta; con autorización y terminal, el payload la incluye', async ({ page, sim }) => {
     await abrirPos(page);
     await page.getByText('Taladro').first().click();
-    await page.getByRole('button', { name: 'TARJETA', exact: true }).click();
+    // Los métodos de pago se muestran traducidos; el valor enviado sigue siendo TARJETA (se comprueba en el payload).
+    const tarjeta = page.getByRole('button', { name: 'Tarjeta', exact: true });
+    await tarjeta.click();
+    await expect(tarjeta).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Efectivo', exact: true })).toHaveAttribute('aria-pressed', 'false');
     const cobrar = page.getByRole('button', { name: /Procesar Venta/ }).last();
     await cobrar.click();
     await expect(page.getByText('Registre la autorización bancaria antes de confirmar la venta')).toBeVisible();
@@ -118,7 +122,7 @@ test.describe('Cobro con tarjeta en el POS (simulado)', () => {
   test('el comprobante en pantalla nombra la transferencia como tal y no como crédito', async ({ page, sim }) => {
     await abrirPos(page);
     await page.getByText('Taladro').first().click();
-    await page.getByRole('button', { name: 'TRANSFERENCIA', exact: true }).click();
+    await page.getByRole('button', { name: 'Transferencia', exact: true }).click();
     await expect(page.getByLabel('Efectivo recibido')).toHaveCount(0);
     await page.getByLabel('Autorización bancaria').fill('trf-778899');
     await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
@@ -164,8 +168,9 @@ test.describe('Cobro con tarjeta en el POS (simulado)', () => {
     sim.clientes = [{ id: 'cli-1', numeroCliente: 7, nombre: 'Constructora Norte', rtn: '08011999000001', telefono: null, creditoHabilitado: true }];
     await abrirPos(page);
     await page.getByText('Taladro').first().click();
+    // El cliente va plegado; elegir Crédito abre el selector (la venta a crédito exige cliente).
+    await page.getByRole('button', { name: 'Crédito', exact: true }).click();
     await page.getByRole('button', { name: /Constructora Norte/ }).click();
-    await page.getByRole('button', { name: 'CREDITO', exact: true }).click();
     await expect(page.getByLabel('Efectivo recibido')).toHaveCount(0);
     await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
     await expect.poll(() => sim.ventas.length).toBe(1);

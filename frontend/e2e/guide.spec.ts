@@ -112,6 +112,29 @@ test('omitir persiste y Ayuda permite retomarla', async ({ page }) => {
   await guide.getByRole('button', { name: 'Iniciar guía', exact: true }).click();
   await expect(guide.getByText(/1\/5/)).toBeVisible();
 });
+
+for (const width of [1280, 390]) {
+  test(`integración #188: marca y navegación conservan los 16 controles y la guía en ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const api = await setup(page, 'SUPERADMIN', { modules: [] });
+    await page.goto('/admin/negocios/guide-company/marca');
+    await page.locator('input[type="color"]').fill('#F5C400');
+    await expect(page.locator('.aviso-color-marca')).toBeVisible();
+    await page.locator('select').selectOption('TOPNAV');
+    await page.getByRole('button', { name: 'Guardar marca y navegación' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Cambios guardados' })).toBeVisible();
+    expect(api.settings()).toMatchObject({ colorPrimario: '#f5c400', modoNavegacion: 'TOPNAV', modoGuia: true, modulosHabilitados: [] });
+    await page.reload();
+    await expect(page.locator('input[type="color"]')).toHaveValue('#f5c400');
+    const preview = page.locator('.jowa-brand-preview');
+    await expect(preview).toHaveCSS('--tenant-color', '#F5C400');
+    await expect(page.locator('aside.guide')).toBeVisible();
+    await page.goto('/admin/negocios/guide-company/servicios');
+    const inputs = page.locator('form input[type="checkbox"]');
+    await expect(inputs).toHaveCount(16);
+    for (const input of await inputs.all()) { await expect(input).toBeEnabled(); await expect(input).not.toBeChecked(); }
+  });
+}
 test('la guía conserva las traducciones inglesas', async ({ page }) => {
   await setup(page, 'CAJERO', { language: 'en' }); await page.goto('/');
   const guide = page.locator('aside.guide');

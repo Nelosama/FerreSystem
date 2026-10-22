@@ -34,6 +34,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name.endsWith('/tenantSettings')) return evaluate('src/utils/tenantSettings.ts', {}, globals);
     if (name.endsWith('/storage')) return evaluate('src/utils/storage.ts', {}, globals);
     if (name.endsWith('/money')) return evaluate('src/offline/money.ts', {}, globals);
+    if (name.endsWith('/colorMarca')) return evaluate('src/utils/colorMarca.ts', {});
     if (name.endsWith('/posMoney')) return evaluate('src/utils/posMoney.ts', {}, globals);
     if (name.endsWith('/posCatalogo')) return evaluate('src/utils/posCatalogo.ts', {}, globals);
     if (name.endsWith('/posRecovery')) return evaluate('src/utils/posRecovery.ts', {}, globals);
@@ -234,7 +235,7 @@ test('POS conserva identidad tras respuesta perdida/reload y bloquea doble enví
   };
   const make = () => harness('src/pages/POSPage.tsx', 'POSPage', { '../utils/api': { api } }, saved);
   let page = make(); page.render(); await page.effects(); page.render(); await page.effects(); page.render();
-  page.find((n) => n.props.onClick && n.props.className === 'industrial-card').props.onClick();
+  page.find((n) => n.props.onClick && n.props.className?.split(' ').includes('pos-producto')).props.onClick();
   page.render();
   const cobrar = page.find((n) => n.props.onClick?.name === 'handleCobrar').props.onClick;
   await Promise.all([cobrar(), cobrar()]);
@@ -311,7 +312,7 @@ test('el límite del cajero proviene del usuario y no de aprobaciones locales', 
     '../utils/api': {api:{get:async()=>({data:[{id:'p1',codigo:'P1',nombre:'Cable',precioVenta:10,stockActual:10,stockMinimo:0}]}),post:async(...args)=>{sent.push(args);return {data:{detalles:[]}};}}},
   });
   page.render();await page.effects();page.render();
-  page.find(n=>n.props.className==='industrial-card').props.onClick();page.render();
+  page.find(n=>n.props.className?.split(' ').includes('pos-producto')).props.onClick();page.render();
   page.find(n=>n.type==='input'&&n.props.max==='100').props.onChange({target:{value:'20'}});page.render();
   assert.ok(page.find(n=>n.props.role==='alert'&&n.children.some(v=>typeof v==='string'&&v.includes('supera su límite'))));
   assert.equal(page.find(n=>n.props.onClick?.name==='handleSolicitarAutorizacion'),undefined);
@@ -421,11 +422,11 @@ test('POS autoguarda carrito antes de cobrar y restaura cantidades, cliente y pa
   const saved = storage();
   let page = makePOS(saved, async () => ({ estado: 'NO_REGISTRADA' }));
   await settlePOS(page);
-  page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick();
+  page.find(n => n.props.className?.split(' ').includes('pos-producto') && n.props.onClick).props.onClick();
   page.render();
   page.find(n => n.props['aria-label'] === 'Cantidad Cable').props.onChange({ target: { value: '2.5' } });
   page.render();
-  page.find(n => n.props.onClick && n.children.includes('TRANSFERENCIA')).props.onClick();
+  page.find(n => n.props.onClick && n.props['data-metodo'] === 'TRANSFERENCIA').props.onClick();
   page.render(); await page.effects(); page.render(); await page.effects();
   const envelope = JSON.parse(saved.getItem(recoveryKeys.draft));
   assert.equal(envelope.sale.cart[0].cantidad, 2.5);
@@ -511,7 +512,7 @@ test('si almacenamiento falla no se envía la venta; si falla el borrado tras co
     posts++; return { data: sampleReceipt({ ...sampleSale(), solicitudId: body.solicitudId }) };
   });
   await settlePOS(page);
-  page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick(); page.render();
+  page.find(n => n.props.className?.split(' ').includes('pos-producto') && n.props.onClick).props.onClick(); page.render();
   failWrite = true;
   await page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick(); page.render();
   assert.equal(posts, 0);
@@ -571,7 +572,7 @@ test('respuesta tardía del POST no reemplaza una venta pendiente posterior de l
       original.solicitudId = body.solicitudId; finish = resolve;
     }));
     await settlePOS(page);
-    page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick(); page.render();
+    page.find(n => n.props.className?.split(' ').includes('pos-producto') && n.props.onClick).props.onClick(); page.render();
     const charging = page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick();
     saved.setItem(recoveryKeys.pending, JSON.stringify(newer));
     if (notifyStorage) page.fireStorage(recoveryKeys.pending);

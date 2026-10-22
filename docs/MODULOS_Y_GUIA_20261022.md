@@ -1,6 +1,6 @@
 # Modo Guía y administración de módulos
 
-Implementación sincronizada mediante merge normal con `main` `97609ed5` (#185 incluido), en `codex/guia-control-modulos`. La evidencia vigente de pruebas y publicación se registra en `CONTEXTO_MAESTRO.md`.
+Implementación sincronizada mediante merge normal con `main` `86bd1d74` (#185 y #188 incluidos), en `codex/guia-control-modulos`. La evidencia vigente de pruebas y publicación se registra en `CONTEXTO_MAESTRO.md` y el PR #189.
 
 ## Catálogo real y alcance
 
@@ -64,6 +64,10 @@ Aplicar mediante el procedimiento existente de migraciones, con respaldo verific
 Las pruebas crean PostgreSQL temporal local; no usan ni modifican bases compartidas o productivas. No se ejecuta merge ni despliegue. Firma: **NEXUS**.
 
 ## Coordinación de la sincronización (2026-10-22 UTC)
+
+Actualización posterior a la integración de #188: `main` avanzó de `97609ed5` a `86bd1d74`. GitHub informó `mergeable: false` para `dd3170b0` y el merge local confirmó conflictos reales en contexto y NegocioDetallePage. Se conservan los 16 controles, confirmación de desactivación y auditoría de #189 junto con AvisoColorMarca y estiloMarcaNegocio de #188. Los merges automáticos conservan la actualización de módulos de TenantContext, modoGuia en Configuración y los controles de SuperAdminPage. POSPage e InventarioPage son idénticos a main; tampoco se cambia el servicio de ventas ni la autenticación. Dos regresiones de navegador (1280/390) cubren guardar marca/TOPNAV y recargar sin perder guía ni los 16 estados desactivados. #180 sigue separado y no se incorpora.
+
+Antecedentes de la primera sincronización:
 
 Merge normal de `main` `97609ed5` en `947067f3`: único conflicto en `docs/CONTEXTO_MAESTRO.md`, resuelto conservando #185 y #189. POS, inventario, ventas por cajero y autenticación de main se conservan; no se modifica POSPage.
 
