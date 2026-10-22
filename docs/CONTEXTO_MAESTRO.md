@@ -1,10 +1,27 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-18 UTC** — inicio del administrador con pendientes reales, rama única `claude/admin-pendientes-ux` (PR abierto hacia `main`, sin merge ni despliegue).
+Última revisión: **2026-10-21 UTC** — seguridad integral del [PR #183](https://github.com/Nelosama/FerreSystem/pull/183) (rama `claude/revision-seguridad-jowa-20261020`): rotación de refresh, CSRF, CSP validada, barrido multi-tenant y causa del fallo de Vercel corregida. Código y pruebas completos; **NO MERGE** hasta verificar las variables de Render y respaldar la base (al hacer merge, Render ejecuta `prisma migrate deploy` antes de iniciar). Detalle: [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
 ---
+
+## QA Jules #184 — matriz de resultados y acciones (2026-10-21)
+
+**Fuente:** [informe Jules](https://github.com/Nelosama/FerreSystem/blob/jules-6650504171296380351-3c58c742/docs/QA_SEGURIDAD_MOVIL_20261020.md), auditó `main` SHA `c4cadc34`. El PR #184 contiene únicamente documentación, no parches. Guardar conclusiones en este contexto; no fusionar #184 solo por el informe. GitHub Actions de #184 exitosas, check Vercel fallido.
+
+**Bien según el informe (alcance acotado, no certificación productiva):** 529 pruebas backend y 469 frontend; 10 suites de navegador Chromium; integración PostgreSQL temporal; aislamiento multi-tenant por `tenantId`, controles RBAC, revocación de sesión, idempotencia, validación binaria de logotipos, liberación de recursos de cámara y ausencia de transacciones desde `/admin-movil`. La auditoría no sustituye pruebas de intrusión ni pruebas físicas.
+
+**Pendientes por prioridad:**
+1. **P0 despliegue Vercel — por verificar/corregir:** check fallido; validar error real del log, longitud de `ignoreCommand`, `VITE_API_URL` en Preview/Production y respuesta JSON de `/api`. #183 contiene propuesta de arreglo del comando; no duplicar. Responsable: Claude (#183) y dueño (panel Vercel).
+2. **P0 seguridad de Render — por verificar:** `NODE_ENV`, `JWT_SECRET` privado, `TRUST_PROXY`, `FRONTEND_URLS` y secretos de Super Admin. #183 introduce rotación de refresh y migración; respaldo y `migrate:deploy` antes de desplegar. Responsable: Claude y dueño.
+3. **P1 aceptación física — pendiente:** iPhone Safari/PWA instalada, permisos y enfoque del escáner, lector físico, impresoras 58/80 mm. Responsable: QA en sitio; Codex para defectos reproducidos.
+4. **P1 push — verificar requisitos:** el informe cuestiona notificaciones con PWA cerrada. No dar por obligatorio un wrapper nativo: evaluar Web Push en PWA instalada en iOS/Android y requisitos del negocio. Responsable: Claude/Codex tras decisión.
+5. **P1 almacenamiento de imágenes — verificar:** persistencia privada en nube y autorización multi-tenant; no depender de disco local efímero. Responsable: Codex.
+
+**Históricos marcados corregidos por Jules, sin reabrir sin reproducción:** importación de precios y CSV (#161), soporte remoto (#160), crédito y redondeo (#166), color de marca (#177). Los IDs H-01…H-06 de este informe **no son los mismos** que los H-01…H-06 de la auditoría de seguridad #183; no cruzarlos por número. Algunas afirmaciones del informe (por ejemplo la necesidad de wrapper nativo para push) requieren comprobación independiente.
+
+**Proceso:** usar este registro para asignar correcciones a Claude/Codex, adjuntar evidencias por hallazgo y marcar verificado solo tras pruebas apropiadas. No hacer merge de ramas de auditoría ni desplegar automáticamente.
 
 ## PROTOCOLO OBLIGATORIO PARA AGENTES
 
@@ -22,6 +39,32 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Seguridad integral PR #183, continuación — 2026-10-21 UTC (misma rama, sin merge ni despliegue)
+
+- **Base:** `main` `c4cadc3` incluido, sin conflictos. Sin cambios en #180, #182 ni #184 (solo se leyeron sus comentarios de Vercel y el informe de Jules). Estado vigente, tabla de hallazgos y pruebas: «Estado vigente» de [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
+- **Causa del fallo de Vercel (H-07, alta):** `vercel.json` no pasa la validación del esquema porque `ignoreCommand` supera 256 caracteres (266 en `main` desde #178; 306 en #183). Lo publica el bot de Vercel en #184 y afecta también a #182. Probablemente el despliegue de producción de `main` posterior a #178 también falla: **confirmar en el panel**. Corregido con `frontend/scripts/vercel-ignore.sh` y prueba del límite. **Regla para agentes:** no volver a alargar `ignoreCommand`; añadir ramas en el script.
+- **H-04 corregido:** rotación de refresh con `jti`, bloqueo de fila, gracia `AUTH_REFRESH_GRACIA_SEGUNDOS` (120 s, tope 600), revocación de la sesión ante reutilización, sesiones antiguas sin `jti` aceptadas una vez. **NEXUS:** migración aditiva `20261021000000_sesiones_auth_rotacion_refresh` + reversión manual; `estado-base-solo-lectura.sql` actualizado. Render arranca con `npx prisma migrate deploy && node dist/main.js` (dato del dueño): la migración se aplica sola al desplegar el merge; hacer respaldo antes. Ensayo local de actualización desde `main` con una sesión abierta: correcto. El código anterior es compatible con las columnas nuevas.
+- **H-05 corregido:** `OrigenPermitidoGuard` en login/refresh/logout (negocio y Super Admin), con los orígenes de CORS. **H-08 corregido:** sin correos en registros del login ni argumentos de Prisma en errores (`diagnosticoSeguro`). **H-09:** cabeceras de seguridad del API sin dependencias. **CSP del frontend** validada en Chromium con las cabeceras exactas de `vercel.json` (POS, PDF con WASM, escáner nativo y ZXing, cámara del navegador, service worker, offline, control negativo de XSS).
+- **Aislamiento/roles:** `test/aislamiento-barrido.postgres.integration.ts` recorre todas las rutas de `AppModule` (empresa B y Super Admin contra datos reales de A, `@Roles`, `SuperAdminGuard`, inventario de rutas sin roles) sin hallazgos; la prueba de mutación lo valida. El rol Contador no existe en `main` (llega con #180).
+- **Pendientes:** H-03 (token en `localStorage`; Baja con la CSP; migración a memoria requiere rediseño de sesiones, soporte y offline), H-06 (`/api/health/db` público, equivalente a `/api/health`). Externos: variables de Render (`NODE_ENV`, `JWT_SECRET`, `TRUST_PROXY`, `FRONTEND_URLS`), respaldo previo al merge, despliegue real de Vercel con cabeceras, iPhone/Safari/PWA e impresoras físicas.
+- **Límite heredado de cookies (Codex, sobre `4456b8a`):** con frontend y API en sitios distintos y las cookies de terceros bloqueadas (Safari/iPhone por defecto), la cookie de refresh no se guarda y la sesión cae a los 15 min. No es una regresión de #183. Decisión del dueño: API en el mismo sitio o *rewrite* `/api` en Vercel. Validar en los dominios reales.
+- **PostgreSQL en este contenedor (root):** `runuser -u nobody` en envoltorios de `initdb`/`pg_ctl` (`PG_BIN`) y `TMPDIR=/var/tmp/ferre-pg` (1777). `e2e-real/run.sh` ya lo hace solo.
+- **Validación:** ver la tabla de pruebas del informe (unitarias, PostgreSQL completa, `test:e2e`, navegador simulado completo, móvil, piloto real y CSP). Checks de GitHub Actions por SHA en el PR.
+- **Bitácora:** lectura del contexto/informe/#184; diagnóstico Vercel por comentarios del bot; correcciones con pruebas rojas→verdes; barrido con prueba de mutación; dos arneses de migraciones ajustados a la nueva migración; suites completas locales; informe y PR actualizados. Sin ramas ni PR nuevos, sin rebase/force push, sin merge ni despliegue. NEXUS firma la migración aditiva y la evidencia PostgreSQL temporal; producción intacta.
+
+## Revisión de seguridad integral — 2026-10-20 UTC (rama `claude/revision-seguridad-jowa-20261020`, sin merge ni despliegue)
+
+- **Base y estado Git:** rama existente del PR #183, HEAD recibido `541de7cf`; `origin/main` `c4cadc34` ya incluido (sin merge necesario ni conflictos). PR ajenos #180/#181 sin cambios. Sin acceso a producción, Render, Vercel ni Supabase.
+- **Corregido (H-01, alta):** `getJwtSecret` exige una clave no vacía fuera de `development`/`test` y rechaza los dos valores públicos conocidos (constante local y placeholder anterior), incluso configurados explícitamente o rodeados de espacios. No recorta claves privadas válidas. `.env.example` deja el campo vacío e indica generación aleatoria. Seis regresiones adicionales fallaron sobre el HEAD recibido; casos en `jwt-secret.spec.ts`. Render debe confirmar la configuración antes de integrar.
+- **Corregido (H-02, media):** `frontend/vercel.json` sin encabezados de seguridad. Añadidos `nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, `Permissions-Policy` (cámara solo `self` para el escáner) y HSTS. Prueba `frontend/test/vercel-security-headers.test.mjs`. **Sin CSP**: requiere validación en navegador de la app completa.
+- **Pendientes priorizados:** H-03 tokens en `localStorage`, incluido original Super Admin durante soporte (P2; P1 ante XSS); H-04 refresh sin rotación/reutilización (P2; P1 ante robo); H-05 CSRF de logout (P3); H-06 estado de BD público (P3). Riesgos, mitigaciones y criterios de cierre en el informe. Sin cambio de flujo de sesión ni de reglas de negocio.
+- **Verificado sin hallazgo:** revalidación de usuario, empresa y sesión en cada petición; refresh no válido como Bearer; tenant solo desde el token; escrituras por `id` precedidas de lectura con `tenantId`; SQL parametrizado; todo handler de negocio con `@Roles`/permiso/`SuperAdminGuard`; el rol `SUPERADMIN` no existe en el enum `Rol`; CORS con lista exacta; cookies `httpOnly`/`Secure`; `ValidationPipe` con `whitelist`; sin secretos ni `.env` versionados; `npm audit` sin vulnerabilidades en backend y frontend.
+- **Diagnóstico sin secretos:** login restringe códigos de errores a Prisma `Pdddd` y elimina stack/mensaje crudos de Prisma/bcrypt. Conexión Prisma y health registran solo texto fijo, conservando el comportamiento ante caída de BD. Regresiones con credenciales sintéticas en `auth.service.spec.ts` e `infrastructure-errors.spec.ts`. No se certifican logs productivos; quedan diagnósticos crudos en otros módulos para revisión posterior, sin modificar POS/inventario/caja.
+- **Validación de continuación:** instalación limpia frontend, build HTTPS correcto y cabeceras/guard **29/29** locales. Se reejecutan unitarias, build/lint, PostgreSQL temporal 17.11 sin root, autenticación/tenants y navegador; consultar resultados definitivos y checks del HEAD publicado en [PR #183](https://github.com/Nelosama/FerreSystem/pull/183). Los 530/475/47 casos de la revisión inicial son históricos y no aprueban el nuevo commit. Prisma requirió recuperación de motores oficiales por HTTPS tras un `ECONNRESET`, sin desactivar TLS ni cambiar dependencias.
+- **Bloqueos externos / NO MERGE:** Render sin acceso: presencia/caracter privado de `JWT_SECRET`, `NODE_ENV=production` y `TRUST_PROXY` pendientes. Vercel inicial fallido (`dpl_8Yx5j2LHrVnmiQWU9Xa7ht7uENWm`), sin logs accesibles para determinar causa. Ambos paneles rechazados por política de red (CONNECT 403). La rama se excluye de previews para respetar la prohibición de despliegue automático; esto no corrige ni aprueba aquel fallo. Cabeceras reales y dispositivo iPhone/PWA física no verificados.
+- **Bitácora:** diff completo, comentarios, workflows y ascendencia revisados; regresión roja de secreto público explícito y espacios; correcciones mínimas de claves/salidas de diagnóstico; pruebas locales y comprobación de Actions por SHA en el mismo PR. Sin ramas/PR adicionales, rebase, force push, migraciones ni operaciones productivas. NEXUS firma la evidencia PostgreSQL temporal, nunca producción.
+
+---
 ## UX ronda 1 (P0+P1) — EN CURSO, 2026-10-19 (rama local `claude/ux-ronda1-pos-marca`, sin push, PR, merge ni despliegue)
 
 - **Origen:** crítica Impeccable (`.impeccable/critique/2026-10-20T02-15-53Z__frontend-src.md`, 25/40). Alcance autorizado: P0+P1; P2 después. Sin cambios en cálculos monetarios, crédito ni sincronización.
@@ -3919,3 +3962,24 @@ gh pr create --base main --title "feat(levantamientos): conteo multiusuario segu
   --body "Ver docs/CONTEXTO_MAESTRO.md sección 2026-10-08"
 ```
 
+
+
+## 2026-10-21 — Cierre documental de Impeccable (PR #182)
+
+**Decisión:** conservar en este contexto las recomendaciones relevantes del PR #182, sin integrar sus archivos de configuración, agentes, referencias ni motor a `main`. El PR #182 se cierra sin merge. Las afirmaciones del documento `PRODUCT.md` son hallazgos de la rama, no certificación adicional de producción.
+
+### Recomendaciones y pendientes recuperados
+
+- Mantener **Jowa System** como identidad comercial y la arquitectura React/Vite + NestJS/Prisma/PostgreSQL con Vercel, Render y Supabase. La estrategia objetivo es **nube**; revisar y retirar o justificar el despliegue local heredado `deploy/local` antes de declarar completada la transición.
+- Logotipos: el documento indica almacenamiento privado en PostgreSQL por defecto y alternativas bajo `LOGOTIPO_ALMACEN`. Validar el almacenamiento elegido, los permisos y la recuperación en servicios reales; no asumir que Supabase Storage está probado.
+- Móvil: una sola PWA administrativa para consulta, supervisión, reportes e inventario; **sin POS, cobros ni caja móvil**. Verificar y bloquear la ruta `/pos` en móvil donde aún sea accesible. Completar las funciones administrativas y validar cámara/escáner en Safari e iPhone reales.
+- Fotografías opcionales de productos: definir e implementar almacenamiento en nube seguro; el campo `imagenUrl` señalado por la auditoría acepta referencias HTTPS, pero eso no equivale a un flujo completo de subida.
+- Notificaciones push con la PWA cerrada: requisito planificado, pendiente de implementación y pruebas reales.
+- Contabilidad hondureña y rol CONTADOR: siguen en rama separada, no integrados; evaluar permisos y migraciones antes de incorporar. Exportaciones `.xlsx` reales pendientes; no confundir CSV o XML `.xls` con XLSX.
+- Diseño: conservar navegación SIDEBAR/TOPNAV, personalización de marca, traducciones ES/EN y simplicidad operativa. Evaluar la facilidad de uso con usuarios reales; no declarar esa cualidad demostrada solo por la existencia de estilos.
+- Infraestructura/operación: validar PWA instalada, contingencia offline, impresoras A4/80/58 mm, cámaras físicas y sincronización; distinguir pruebas automatizadas de certificación en producción.
+- Sucursales: el documento señala ausencia de filtrado operativo por sucursal en ventas/productos; confirmar alcance y modelado antes de prometer soporte multi-sucursal.
+- Impeccable: el PR #182 contiene documentación y cuatro descripciones de agentes, pero **no incluye motor ejecutable**. El antiguo binario de 19,8 MB no debe introducirse en `main` sin validación de procedencia y hash. `buildPath: "code"` es una preferencia pendiente de confirmar, no una ruta funcional verificada.
+- Evitar incorporar documentación de terceros que no se utilizará en producción; conservar los hallazgos accionables en este contexto y reabrir el tema solo si se decide instalar Impeccable.
+
+**Fuente:** PR #182 y `PRODUCT.md` de la rama (`aeddc71`). **Estado:** recomendaciones documentadas; no implica que los pendientes estén corregidos.

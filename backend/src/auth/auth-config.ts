@@ -9,7 +9,12 @@ export interface ConfiguracionAuth {
   aceptarTokensSinSesion: boolean;
   /** Fin obligatorio de la transición en producción; se evalúa en cada petición, no solo al arrancar. */
   sinSesionHastaMs?: number;
+  /** Rotación de refresh: segundos en que el refresh recién sustituido sigue aceptándose (pestañas concurrentes, respuesta perdida). */
+  graciaRefreshSegundos: number;
 }
+
+/** Tope de la ventana de gracia del refresh: más tiempo amplía el uso de una cookie robada. */
+export const MAXIMA_GRACIA_REFRESH_SEGUNDOS = 600;
 
 type Lector = { get(clave: string): unknown };
 
@@ -51,6 +56,7 @@ export function leerConfiguracionAuth(config: Lector): ConfiguracionAuth {
     bloqueoSegundos: enteroDeConfig('AUTH_LOGIN_BLOQUEO_SEGUNDOS', 900),
     aceptarTokensSinSesion: aceptar,
     sinSesionHastaMs: hasta,
+    graciaRefreshSegundos: Math.min(enteroDeConfig('AUTH_REFRESH_GRACIA_SEGUNDOS', 120), MAXIMA_GRACIA_REFRESH_SEGUNDOS),
   };
 }
 
@@ -78,6 +84,9 @@ export function validarConfiguracionAuth(env: Record<string, string | undefined>
   enteroPositivo(env.AUTH_LOGIN_MAX_FALLOS_IP, 'AUTH_LOGIN_MAX_FALLOS_IP', 100);
   enteroPositivo(env.AUTH_LOGIN_VENTANA_SEGUNDOS, 'AUTH_LOGIN_VENTANA_SEGUNDOS', 900);
   enteroPositivo(env.AUTH_LOGIN_BLOQUEO_SEGUNDOS, 'AUTH_LOGIN_BLOQUEO_SEGUNDOS', 900);
+  if (enteroPositivo(env.AUTH_REFRESH_GRACIA_SEGUNDOS, 'AUTH_REFRESH_GRACIA_SEGUNDOS', 120) > MAXIMA_GRACIA_REFRESH_SEGUNDOS) {
+    throw new Error(`AUTH_REFRESH_GRACIA_SEGUNDOS no puede superar ${MAXIMA_GRACIA_REFRESH_SEGUNDOS}`);
+  }
   leerTrustProxy(env.TRUST_PROXY);
   return leerConfiguracionAuth({ get: (clave: string) => env[clave] });
 }

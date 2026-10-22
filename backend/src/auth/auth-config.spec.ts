@@ -41,4 +41,15 @@ describe('auth-config / transición de tokens sin sesión', () => {
     expect(aceptaTokenSinSesion(leerConfiguracionAuth({ get: () => undefined }), AHORA)).toBe(true);
     expect(aceptaTokenSinSesion(leerConfiguracionAuth({ get: (k: string) => (k === 'AUTH_ACEPTAR_TOKENS_SIN_SESION' ? 'false' : undefined) }), AHORA)).toBe(false);
   });
+
+  it('ventana de gracia del refresh: 120 s por defecto, configurable y con tope de 600 s', () => {
+    const leer = (valor?: string) => leerConfiguracionAuth({ get: (k: string) => (k === 'AUTH_REFRESH_GRACIA_SEGUNDOS' ? valor : undefined) }).graciaRefreshSegundos;
+    expect(leer()).toBe(120);
+    expect(leer('30')).toBe(30);
+    expect(leer('0')).toBe(120);
+    expect(leer('99999')).toBe(600);
+    expect(() => validarConfiguracionAuth({ AUTH_REFRESH_GRACIA_SEGUNDOS: '601' }, AHORA)).toThrow(/no puede superar 600/);
+    expect(() => validarConfiguracionAuth({ AUTH_REFRESH_GRACIA_SEGUNDOS: 'abc' }, AHORA)).toThrow(/entero mayor que 0/);
+    expect(() => validarConfiguracionAuth({ AUTH_REFRESH_GRACIA_SEGUNDOS: '60' }, AHORA)).not.toThrow();
+  });
 });
