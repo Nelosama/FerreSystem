@@ -21,7 +21,8 @@ import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SECCIONES_PLATAFORMA, SLUG_SECCION, type SeccionPlataforma } from '../config/platformNavigation';
-import { CATALOGO_MODULOS, PENDING_MODULES } from '../config/modulesCatalog';
+import { ModuleControls } from '../components/ModuleControls';
+import { CATALOGO_MODULOS } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { Rubro } from '../types';
@@ -292,28 +293,21 @@ export const SuperAdminPage: React.FC = () => {
     setTempModulosTenant(tenantItem.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key));
   };
 
-  const toggleTempModulo = (moduleKey: string) => {
-    if (tempModulosTenant.includes(moduleKey)) {
-      setTempModulosTenant(tempModulosTenant.filter((k) => k !== moduleKey));
-    } else {
-      setTempModulosTenant([...tempModulosTenant, moduleKey]);
-    }
-  };
 
   const activarTodosModulos = () => {
     setTempModulosTenant(CATALOGO_MODULOS.map((m) => m.key));
   };
 
   const desactivarOpcionalesModulos = () => {
-    const coreKeys = CATALOGO_MODULOS.filter((m) => m.isCore).map((m) => m.key);
-    setTempModulosTenant(coreKeys.length > 0 ? coreKeys : ['configuracion', 'pos']);
+    setTempModulosTenant([]);
   };
 
   const guardarModulosTenant = async () => {
     if (!modalModulosTenant) return;
+    if ((modalModulosTenant.modulosHabilitados || CATALOGO_MODULOS.map(m => m.key)).some(key => !tempModulosTenant.includes(key)) && !window.confirm(t('modules.confirm'))) return;
     const modulesPayload = CATALOGO_MODULOS.map((m) => ({
       moduleKey: m.key,
-      enabled: !!m.isCore || tempModulosTenant.includes(m.key),
+      enabled: tempModulosTenant.includes(m.key),
     }));
 
     try {
@@ -615,6 +609,7 @@ export const SuperAdminPage: React.FC = () => {
               <button
                 type="button"
                 className="btn btn-primary"
+                data-guide="businesses"
                 onClick={() => setModalNuevoTenant(true)}
               >
                 <Plus size={18} strokeWidth={2.5} />
@@ -656,7 +651,7 @@ export const SuperAdminPage: React.FC = () => {
                           <span className="jowa-color-chip"><i style={{ background: tItem.colorPrimario || '#EA580C' }} />{tItem.colorPrimario || '#EA580C'}</span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className="badge badge-dark" style={{ fontSize: '11px' }}>{tItem.plan || 'Plan Pro'}</span>
+                          <span data-guide="subscriptions" className="badge badge-dark" style={{ fontSize: '11px' }}>{tItem.plan || 'Plan Pro'}</span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <button
@@ -674,6 +669,7 @@ export const SuperAdminPage: React.FC = () => {
                             type="button"
                             className="btn btn-sm btn-secondary"
                             onClick={() => abrirModalModulos(tItem)}
+                            data-guide="modules"
                             title={t('uxAudit.manage_subscribed_services_and_modules')}
                             style={{ fontWeight: 800 }}
                           >
@@ -681,9 +677,9 @@ export const SuperAdminPage: React.FC = () => {
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           {tItem.estado === 'ACTIVO' ? (
-                            <span className="badge badge-success">{t('uxAudit.active')} </span>
+                            <span data-guide="status" className="badge badge-success">{t('uxAudit.active')} </span>
                           ) : (
-                            <span className="badge badge-danger">{t('uxAudit.suspended')} </span>
+                            <span data-guide="status" className="badge badge-danger">{t('uxAudit.suspended')} </span>
                           )}
                         </td>
                         <td style={{ textAlign: 'center' }}>
@@ -705,7 +701,7 @@ export const SuperAdminPage: React.FC = () => {
                             >{t('uxAudit.services')} </button>
                             <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}`)}>Resumen y sucursales</button>
                             <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}/usuarios`)}>Usuarios del negocio</button>
-                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}/configuracion`)}>Configurar negocio</button>
+                            <button type="button" className="btn btn-sm btn-secondary" data-guide="branding" onClick={() => navigate(`/admin/negocios/${tItem.id}/configuracion`)}>Configurar negocio</button>
                             <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}/auditoria`)}>Auditoría</button>
                             <button
                               type="button"
@@ -897,7 +893,7 @@ export const SuperAdminPage: React.FC = () => {
                         {a.activo ? (
                           <span className="badge badge-success">{t('uxAudit.active')} </span>
                         ) : (
-                          <span className="badge badge-danger">{t('uxAudit.suspended')} </span>
+                          <span data-guide="status" className="badge badge-danger">{t('uxAudit.suspended')} </span>
                         )}
                       </td>
                       <td style={{ textAlign: 'center' }}>
@@ -1015,45 +1011,8 @@ export const SuperAdminPage: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '12px' }}>
-                {CATALOGO_MODULOS.map((m) => {
-                  const isEnabled = !!m.isCore || tempModulosTenant.includes(m.key);
-
-                  return (
-                    <label
-                      key={m.key}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: '12px',
-                        padding: '12px',
-                        backgroundColor: isEnabled ? '#DCFCE7' : 'var(--color-bg)',
-                        border: isEnabled ? '1.5px solid #16A34A' : '1.5px solid var(--color-sidebar-text)',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        transition: 'all 150ms ease',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isEnabled}
-                        disabled={m.isCore || PENDING_MODULES.has(m.key)}
-                        onChange={() => toggleTempModulo(m.key)}
-                        style={{ marginTop: '3px', cursor: 'pointer', width: '16px', height: '16px' }}
-                      />
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontWeight: 800, fontSize: '13px', color: isEnabled ? '#15803D' : '#44403C' }}>
-                            {t(m.labelKey)} {PENDING_MODULES.has(m.key) ? '· ' + t('pending.label') : m.isCore ? '· ' + t('uxAudit.core_essential') : ''}
-                          </span>
-                          <span className="badge badge-dark" style={{ fontSize: '9px' }}>{t('moduleCategories.' + m.categoria)}</span>
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{t('moduleDescriptions.' + m.key)}</div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
+              <ModuleControls value={tempModulosTenant} onChange={setTempModulosTenant} />
+              <button type="button" className="btn btn-secondary" onClick={() => navigate(`/admin/negocios/${modalModulosTenant.id}/auditoria`)}>{t('modules.audit')}</button>
             </div>
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px', paddingTop: '12px', borderTop: '1px solid #E7E5E4' }}>

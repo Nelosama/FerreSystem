@@ -1,3 +1,4 @@
+import { Guide } from './components/Guide';
 import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -156,7 +157,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <CajaProvider>
     <div className={isTopNav ? "app-container-topnav" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
       {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : <Sidebar />}
-      <div
+      <div data-guide-content
         className="main-content"
         style={{
           ...(isTopNav ? { flex: 1, width: '100%' } : {}),
@@ -167,6 +168,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         {children}
       </div>
       <BottomNavigation />
+      <Guide />
     </div>
     </CajaProvider>
   );
@@ -182,9 +184,9 @@ export const App: React.FC = () => {
                 <Routes>
                 <Route path="/pos-contingencia" element={<ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="pos" requiredPermiso="pos.vender"><PosContingenciaPage /></ProtectedRoute>} />
                 <Route path="/contingencia-admin" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="pos"><AppLayout><ContingenciaAdminPage /></AppLayout></ProtectedRoute>} />
-                <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','VENDEDOR']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
+                <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','VENDEDOR']} requiredModule="pos"><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
                   <Route path="/auditoria" element={<Navigate to="/admin" replace />} />
-                  <Route path="/precios" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><PreciosPage/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/precios" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="inventario"><AppLayout><PreciosPage/></AppLayout></ProtectedRoute>}/>
                   <Route path="/admin/negocios/:tenantId" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><NegocioDetalleRoute /></AppLayout></ProtectedRoute>} />
                   <Route path="/admin/negocios/:tenantId/servicios" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><NegocioDetalleRoute tab="servicios" /></AppLayout></ProtectedRoute>} />
                   <Route path="/admin/negocios/:tenantId/usuarios" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><NegocioDetalleRoute tab="usuarios" /></AppLayout></ProtectedRoute>} />
@@ -207,7 +209,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/clientes"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                      <ProtectedRoute allowedRoles={['ADMIN']} requiredModule="clientes">
                         <AppLayout>
                           <ClientesPage />
                         </AppLayout>
@@ -237,7 +239,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/conciliacion-bancaria"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                      <ProtectedRoute allowedRoles={['ADMIN']} requiredModule="inventario">
                         <AppLayout>
                           <ConciliacionBancariaPage />
                         </AppLayout>
@@ -247,7 +249,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/estado-cuenta-clientes"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                      <ProtectedRoute allowedRoles={['ADMIN']} requiredModule="clientes">
                         <AppLayout>
                           <EstadoCuentaClientesPage />
                         </AppLayout>
@@ -319,7 +321,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/arqueo-caja"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="arqueo_caja">
                         <AppLayout>
                           <ArqueoCajaPage />
                         </AppLayout>
@@ -420,8 +422,8 @@ export const App: React.FC = () => {
                     }
                   />
 
-                  <Route path="/cuentas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO']}><AppLayout><OperacionesPage modo="cuentas"/></AppLayout></ProtectedRoute>}/>
-                  <Route path="/entregas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','BODEGUERO']}><AppLayout><EntregasPage/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/cuentas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO']} requiredModule="arqueo_caja"><AppLayout><OperacionesPage modo="cuentas"/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/entregas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','BODEGUERO']} requiredModule="pos"><AppLayout><EntregasPage/></AppLayout></ProtectedRoute>}/>
                   {/* Fallback */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

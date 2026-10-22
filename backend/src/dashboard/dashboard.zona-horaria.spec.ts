@@ -50,4 +50,13 @@ describe('Dashboard — día calendario de America/Tegucigalpa', () => {
     expect(ayer.gte.toISOString()).toBe('2026-10-08T06:00:00.000Z');
     expect(ayer.lte.toISOString()).toBe('2026-10-09T05:59:59.999Z');
   });
+  it('inicio sin módulos no consulta ni devuelve datos de funciones desactivadas', async () => {
+    const prisma = { ...prismaMock(), tenantModule: { findMany: vi.fn().mockResolvedValue(['pos','reportes','inventario','cotizaciones'].map(moduleKey => ({ moduleKey, enabled: false }))) } };
+    const data = await new DashboardService(prisma as any).getAuthorizedDashboard('t1', { rol: 'ADMIN' });
+    expect(data.ventasDelDia).toBeNull(); expect(data.ultimasVentas).toEqual([]);
+    expect(data.alertasStock.items).toEqual([]); expect(data.cotizacionesPendientes.cantidad).toBe(0);
+    for (const query of [prisma.venta.aggregate, prisma.venta.findMany, prisma.producto.findMany, prisma.cotizacion.findMany]) expect(query).not.toHaveBeenCalled();
+    expect(prisma.tenantModule.findMany).toHaveBeenCalledWith({ where: { tenantId: 't1' } });
+  });
+
 });

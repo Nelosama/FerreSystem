@@ -994,7 +994,7 @@
     "select_the_customer_s_enabled_modules_changes_apply_only_after_clicking": "Check the modules enabled for customer. Changes apply only after clicking",
     "save_changes": "SAVE CHANGES",
     "enable_all": "ENABLE ALL",
-    "disable_optional_modules": "DISABLE OPTIONALS",
+    "disable_optional_modules": "Disable all",
     "cancel": "CANCEL",
     "save_service_changes": "SAVE SERVICE CHANGES",
     "navigation_settings": "NAVIGATION SETTINGS",
@@ -1254,7 +1254,6 @@
     "camera": "Camera",
     "default_camera": "Default camera",
     "camera_number": "Camera {number}",
-
     "manual": "Enter code manually",
     "manual_hint": "Enter the code in the form field.",
     "interrupted": "Camera stopped when leaving the app. Tap Scan barcode with camera to continue.",
@@ -1629,6 +1628,62 @@
       "step_payment": "Payment and delivery",
       "line_one": "{count} line",
       "line_other": "{count} lines"
+    }
+  },
+  "guide": {
+    "title": "Guided tour",
+    "help": "Help · Guided tour",
+    "setting": "Guided tour for users",
+    "disabled": "Disabled",
+    "enabled": "Enabled",
+    "invite": "Is this your first time using Jowa System?",
+    "intro": "We will show you the main features to get started.",
+    "start": "Start tour",
+    "later": "Not now",
+    "restart": "Restart",
+    "complete": "Mark as completed",
+    "back": "Back",
+    "next": "Next",
+    "exit": "Exit",
+    "show": "Open page",
+    "saveError": "Could not save your progress. Please try again.",
+    "steps": {
+      "search": "Search by name or scan a product code. The tour does not add products or create sales.",
+      "cart": "Select a product to add it to a sale and review quantities before collecting payment.",
+      "total": "Check products, quantities, taxes and total before continuing.",
+      "payment": "Select the payment method. Confirm only after reviewing the total and receiving payment. The tour never confirms payments.",
+      "receipt": "After confirming your sale, view or download the receipt shown in the POS.",
+      "dashboard": "Use Home to find your available tasks and pending work.",
+      "inventario": "Find products and check stock. Register products only with authorization and verified information.",
+      "inventoryRead": "View products and stock. Read access does not authorize inventory changes.",
+      "levantamiento": "Record physical counts and review differences before applying an authorized stock take.",
+      "clientes": "View the directory and register customer contact and tax details.",
+      "ordenes_compra": "View suppliers and purchases. Receiving goods requires authorization and updates stock.",
+      "reportes": "Review sales and results for your selected period; check filters before exporting.",
+      "arqueo_caja": "Review your cash drawer and movements. Count cash before confirming a closing.",
+      "usuarios": "Manage staff and review roles and permissions before saving changes.",
+      "cotizaciones": "View and prepare quotes. Creating or converting a quote requires the corresponding permissions.",
+      "entregas": "View pending deliveries. Confirm movements only after authorization and verification.",
+      "pos": "Search or scan products, add them to a sale, and check the total and payment method before charging. View the receipt afterwards.",
+      "businesses": "Create and manage businesses in the global panel. Each business keeps its users and data separate.",
+      "modules": "Open Services for a business to enable or disable modules; review dependencies and confirm the impact.",
+      "branding": "Open Branding or Configure business to set identity, navigation and the guided tour.",
+      "subscriptions": "Review each business plan and available settings.",
+      "status": "Review active or suspended clients and use the audit log to see who made changes.",
+      "contacts": "Register customers in this directory. For suppliers and authorized goods receipt, open Purchase orders in the menu.",
+      "quoteRead": "View available quotes. Creating quotes requires an additional permission."
+    }
+  },
+  "modules": {
+    "impact": "Disabling blocks feature access and preserves its history. Super Admin retains user access management. Enabling pending features does not implement them.",
+    "dependencies": "Requires",
+    "confirm": "Save module deactivation? Screens and API operations will be blocked. Data and accounts are preserved. Review dependencies before continuing.",
+    "audit": "See who changed settings and when",
+    "groups": {
+      "sales": "Sales",
+      "stock": "Stock and purchasing",
+      "management": "Administration",
+      "finance": "Finance and reports"
     }
   }
 }

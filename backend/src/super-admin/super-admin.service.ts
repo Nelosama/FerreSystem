@@ -3,7 +3,7 @@ import { CreateUsuarioDto } from '../usuarios/dto/create-usuario.dto';
 import { UpdateUsuarioDto } from '../usuarios/dto/update-usuario.dto';
 import { EditarSucursalDto } from './sucursal.dto';
 import { refreshCookieOptions } from '../auth/refresh-cookie';
-import { CORE_TENANT_MODULES, DEFAULT_TENANT_MODULES, enabledTenantModules } from '../common/tenant-modules';
+import { DEFAULT_TENANT_MODULES, enabledTenantModules, moduleDependencyErrors } from '../common/tenant-modules';
 import { audit, lockTenant } from '../operaciones/ledger';
 import { consultarAuditoria } from '../operaciones/auditoria-consulta';
 import { TenantsService } from '../tenants/tenants.service';
@@ -376,9 +376,17 @@ export class SuperAdminService {
     if (!tenant) {
       throw new NotFoundException('Ferretería no encontrada');
     }
+    if (!Array.isArray(modules) || modules.length > DEFAULT_TENANT_MODULES.length || modules.some(item => !item || !DEFAULT_TENANT_MODULES.includes(item.moduleKey) || typeof item.enabled !== 'boolean') || new Set(modules.map(item => item.moduleKey)).size !== modules.length) {
+      throw new BadRequestException('Módulos inválidos: use claves del catálogo, booleanos y sin duplicados');
+    }
     return this.prisma.$transaction(async (tx) => {
+      await lockTenant(tx, tenantId);
+      const before = await tx.tenantModule.findMany({ where: { tenantId } });
+      const effective = enabledTenantModules([...modules, ...before.filter(record => !modules.some(item => item.moduleKey === record.moduleKey))]);
+      const conflicts = moduleDependencyErrors(effective);
+      if (conflicts.length) throw new BadRequestException(`Dependencias requeridas: ${conflicts.join(', ')}`);
       for (const item of modules) {
-        const enabled = CORE_TENANT_MODULES.includes(item.moduleKey) || item.enabled;
+        const enabled = item.enabled;
         await tx.tenantModule.upsert({
           where: {
             tenantId_moduleKey: {
@@ -394,10 +402,11 @@ export class SuperAdminService {
           },
         });
       }
+      await tx.tenant.update({ where: { id: tenantId }, data: { updatedAt: new Date() } });
       const updatedModules = await tx.tenantModule.findMany({
         where: { tenantId },
       });
-      if (actorId) await audit(tx, tenantId, actorId, 'ACTUALIZAR_SERVICIOS', tenantId, { modules: updatedModules, superAdminId: actorId });
+      if (actorId) await audit(tx, tenantId, actorId, 'ACTUALIZAR_SERVICIOS', tenantId, { before, modules: updatedModules, superAdminId: actorId });
       return updatedModules;
     });
   }

@@ -25,18 +25,29 @@ export class OperacionesController {
  @Post('compras') @UseInterceptors(SinCostosParaBodeguero(['subtotal','isv','total'])) @RequiredPermission('inventario.editar') @Roles('ADMIN') compra(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:CompraDto){return this.service.compra(t,u,dto);}
  @RequiredModule('ordenes_compra', 'inventario')
  @Post('compras/:id/recepciones') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') recibir(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:RecepcionDto){return this.service.recibir(t,u,id,dto);}
+ @RequiredModule('arqueo_caja')
  @Get('cuentas') @Roles('ADMIN','CAJERO') cuentas(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('tipo') tipo:string,@Query('clienteId') clienteId?:string,@Query('proveedorId') proveedorId?:string,@Query('estado') estado?:string,@Query('desde') desde?:string,@Query('hasta') hasta?:string){return this.service.cuentas(t,u,tipo,undefined,{clienteId,proveedorId,estado,desde,hasta});}
+ @RequiredModule('arqueo_caja')
  @Post('cuentas/:id/pagos') @Roles('ADMIN','CAJERO') pagar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:PagoDto){return this.service.pagar(t,u,id,dto);}
+ @RequiredModule('arqueo_caja')
  @Get('caja') @Roles('ADMIN','CAJERO','VENDEDOR') caja(@TenantId() t:string,@CurrentUser('sub') u:string){return this.service.caja(t,u);}
+ @RequiredModule('arqueo_caja')
  @Get('caja/cierres') @Roles('ADMIN') cierresCaja(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('estado') estado?:string,@Query('usuarioId') usuarioId?:string,@Query('desde') desde?:string,@Query('hasta') hasta?:string){return this.service.cierresCaja(t,u,{estado,usuarioId,desde,hasta});}
+ @RequiredModule('arqueo_caja')
  @Get('caja/:id') @Roles('ADMIN','CAJERO','VENDEDOR') cajaDetalle(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.cajaDetalle(t,u,id);}
+ @RequiredModule('arqueo_caja')
  @Post('caja/:id/movimientos') @Roles('ADMIN','CAJERO','VENDEDOR') movimientoCaja(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:MovimientoCajaDto){return this.service.movimientoCaja(t,u,id,dto);}
+ @RequiredModule('arqueo_caja')
  @Post('caja/abrir') @Roles('ADMIN','CAJERO','VENDEDOR') abrir(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:AbrirCajaDto){return this.service.abrir(t,u,dto);}
+ @RequiredModule('arqueo_caja')
  @Post('caja/:id/cerrar') @Roles('ADMIN','CAJERO','VENDEDOR') cerrar(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:CerrarCajaDto){return this.service.cerrar(t,u,id,dto);}
  @RequiredModule('inventario')
  @Post('conciliaciones-bancarias') @Roles('ADMIN') registrarConciliacionBancaria(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:ConciliacionBancariaDto){return this.service.registrarConciliacionBancaria(t,u,dto);}
+ @RequiredModule('inventario')
  @Get('conciliaciones-bancarias') @Roles('ADMIN') conciliacionesBancarias(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('fecha') fecha?:string){return this.service.conciliacionesBancarias(t,u,fecha);}
+ @RequiredModule('clientes')
  @Get('clientes/:id/estado-cuenta') @Roles('ADMIN','CAJERO') estadoCuentaCliente(@TenantId() t:string,@CurrentUser('rol') rol:string,@Param('id') id:string){return this.service.estadoCuentaCliente(t,id,rol);}
+ @RequiredModule('inventario')
  @Get('productos/:id/proveedores') @UseInterceptors(SinCostosParaBodeguero()) @RequiredPermission('inventario.ver') @Roles('ADMIN','BODEGUERO') proveedoresProducto(@TenantId() t:string,@Param('id') id:string){return this.service.proveedoresProducto(t,id);}
  @RequiredModule('inventario')
  @Put('productos/:id/proveedores/:proveedorId') @RequiredPermission('inventario.editar') @Roles('ADMIN','BODEGUERO') guardarProveedorProducto(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Param('proveedorId') proveedorId:string,@Body() dto:ProductoProveedorDto){return this.service.guardarProveedorProducto(t,u,id,proveedorId,dto);}

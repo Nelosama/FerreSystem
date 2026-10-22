@@ -46,8 +46,8 @@ for (const rol of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO', 'SUPERADMIN']) {
         if (!allowed) assert.ok(priorityTasks({ rol }, company).every(item => item.key !== key));
       }
       if (['ADMIN', 'CAJERO'].includes(rol)) {
-        assert.ok(tasks.some(item => item.key === 'arqueo_caja'));
-        assert.ok(tasks.some(item => item.key === 'cuentas'));
+        assert.ok(!tasks.some(item => item.key === 'arqueo_caja'));
+        assert.ok(!tasks.some(item => item.key === 'cuentas'));
       }
       if (rol === 'BODEGUERO') assert.equal(priorityTasks({ rol }, company).some(item => item.key === 'entregas'), enabled);
     }
@@ -74,14 +74,14 @@ test('Auditoría y Configuración del negocio no están en el menú: se abren po
   }
 });
 
-test('permiso ausente se rechaza y Clientes y Caja son funciones base', () => {
+test('permiso ausente y todos los módulos deshabilitados se rechazan', () => {
   const item = { allowedRoles: ['VENDEDOR'], requiredPermiso: 'special.read' };
   assert.equal(canNavigate(item, { rol: 'VENDEDOR', permisosConfigurados: true }, tenant), false);
   assert.equal(canNavigate(item, { rol: 'VENDEDOR', permisosConfigurados: true, permisos: ['special.read'] }, tenant), true);
   const keys = availableTasks({ rol: 'CAJERO' }, { ...tenant, modulosHabilitados: [] }).map(item => item.key);
-  assert.ok(!keys.includes('clientes') && keys.includes('arqueo_caja'));
+  assert.ok(!keys.includes('clientes') && !keys.includes('arqueo_caja'));
   // FS-14: la lista de clientes es solo ADMIN (GET /clientes); el cajero usa el buscador del POS.
-  assert.ok(availableTasks({ rol: 'ADMIN' }, { ...tenant, modulosHabilitados: [] }).some(item => item.key === 'clientes'));
+  assert.ok(!availableTasks({ rol: 'ADMIN' }, { ...tenant, modulosHabilitados: [] }).some(item => item.key === 'clientes'));
   assert.ok(availableTasks({ rol: 'VENDEDOR' }, { ...tenant, modulosHabilitados: [] }).every(item => item.key !== 'clientes'));
   assert.ok(!keys.includes('pos'));
 });
@@ -103,7 +103,7 @@ test('cajero no recibe accesos de administrador ni módulos deshabilitados', () 
   assert.equal(searchTasks(tasks, 'comprar').length, 0);
   assert.equal(searchTasks(tasks, 'personal').length, 0);
   assert.equal(searchTasks(tasks, 'vender').length, 0);
-  assert.equal(searchTasks(tasks, 'caja')[0].key, 'arqueo_caja');
+  assert.equal(searchTasks(tasks, 'caja').length, 0);
 });
 test('buscador tolera acentos, mayúsculas, espacios y combina palabras', () => {
   const tasks = availableTasks({ rol: 'ADMIN' }, tenant);
@@ -160,4 +160,31 @@ test('el menú sigue el orden de uso dentro de cada grupo', () => {
   antes('inventario', 'levantamiento'); antes('ordenes_compra', 'precios');
   antes('reportes', 'conciliacion_bancaria'); antes('usuarios', 'admin_movil');
   assert.deepEqual(Array.from(groupNavigation(availableTasks({ rol: 'ADMIN' }, tenant)), group => group.category), ['VENTAS', 'CLIENTES', 'INVENTARIO', 'ADMINISTRACION']);
+});
+
+const { guideSteps } = load('src/utils/guide.ts');
+for (const rol of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO', 'SUPERADMIN']) {
+  test(`${rol}: guía breve con tareas autorizadas`, () => {
+    const steps = guideSteps({ rol }, tenant);
+    assert.ok(steps.length >= 3 && steps.length <= 6);
+    if (rol === 'SUPERADMIN') assert.ok(steps.every(step => step.route === '/admin'));
+    else {
+      const routes = availableTasks({ rol }, tenant).map(item => item.route);
+      assert.ok(steps.every(step => routes.includes(step.route)));
+      const restricted = guideSteps({ rol }, { ...tenant, modulosHabilitados: [] });
+      assert.ok(restricted.every(step => step.route === '/'));
+    }
+  });
+}
+test('guía conserva permisos individuales y textos solo de consulta', () => {
+  assert.ok(!guideSteps({ rol: 'CAJERO', permisosConfigurados: true, permisos: [] }, tenant).some(step => step.route === '/pos'));
+  const steps = guideSteps({ rol: 'BODEGUERO', permisosConfigurados: true, permisos: ['inventario.ver'] }, tenant);
+  assert.equal(steps.find(step => step.route === '/inventario').textKey, 'inventoryRead');
+  assert.equal(guideSteps(null, tenant).length, 0);
+});
+
+test('dependencias de módulos coinciden entre panel y backend', () => {
+  const server = load('../backend/src/common/tenant-modules.ts').TENANT_MODULE_DEPENDENCIES;
+  const client = load('src/config/modulesCatalog.ts').MODULE_DEPENDENCIES;
+  assert.equal(JSON.stringify(client), JSON.stringify(server));
 });

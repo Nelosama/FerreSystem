@@ -30,6 +30,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   const [cargaError, setCargaError] = useState('');
   const negocio: any = datos ?? {};
 
+  const [modoGuia, setModoGuia] = useState(false);
   const [idioma, setIdioma] = useState<'es' | 'en'>('es');
   const [nombre, setNombre] = useState(negocio.nombreComercial || '');
   const [color, setColor] = useState(negocio.colorPrimario || '#EA580C');
@@ -67,6 +68,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   // Sincronizar estados cuando el negocio cargado cambie
   React.useEffect(() => {
     if (negocio && !dirty.current) {
+      setModoGuia(negocio.modoGuia === true);
       setIdioma(negocio.idioma === 'en' ? 'en' : 'es');
       setNombre(negocio.nombreComercial || '');
       setColor(negocio.colorPrimario || '#EA580C');
@@ -97,7 +99,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         email,
         colorPrimario: color,
         modoNavegacion,
-        configuracion: { idioma, rubro, formatoImpresion, moneda: updatedMoneda, impuesto: updatedImpuesto },
+        configuracion: { modoGuia, idioma, rubro, formatoImpresion, moneda: updatedMoneda, impuesto: updatedImpuesto },
       });
 
       dirty.current = false;
@@ -140,6 +142,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         )}
 
         <form className="negocio-settings-grid tenant-settings-grid" onSubmit={handleGuardar} onChange={() => { dirty.current = true; }} onClick={event => { if ((event.target as HTMLElement).closest('button[type="button"]')) dirty.current = true; }} aria-busy={saving} style={styles.grid}>
+<label style={{ display: 'block', margin: '16px 0' }}>{t('guide.setting')} <select className="form-input" value={String(modoGuia)} onChange={e => { dirty.current = true; setModoGuia(e.target.value === 'true'); }}><option value="false">{t('guide.disabled')}</option><option value="true">{t('guide.enabled')}</option></select></label>
           <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-business">
             <div style={styles.cardHeader}>
               <Building2 size={20} strokeWidth={2.4} color="var(--color-primary)" />

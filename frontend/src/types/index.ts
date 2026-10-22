@@ -55,6 +55,7 @@ export interface TenantInfo {
   email?: string;
   rubro?: Rubro | keyof typeof Rubro;
   modulosHabilitados?: string[];
+  modoGuia?: boolean;
   modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
   moneda?: MonedaConfig;
   impuesto?: ImpuestoConfig;

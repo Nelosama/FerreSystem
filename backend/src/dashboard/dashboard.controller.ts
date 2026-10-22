@@ -14,10 +14,8 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get()
-  async getDashboard(@TenantId() tenantId: string, @CurrentUser('rol') rol?: string) {
-    // BODEGUERO no lee ventas (mismo criterio que GET /ventas): recibe solo el resumen operativo de existencias y cotizaciones.
-    if (rol === 'BODEGUERO') return this.dashboardService.getResumenOperativo(tenantId);
-    return this.dashboardService.getDashboardData(tenantId);
+  async getDashboard(@TenantId() tenantId: string, @CurrentUser() usuario: { rol?: string; permisosConfigurados?: boolean; permisos?: string[] }) {
+    return this.dashboardService.getAuthorizedDashboard(tenantId, usuario);
   }
 
   /** Pendientes del usuario autenticado (contadores del inicio). CAJERO solo cuenta sus entregas. */
