@@ -39,6 +39,22 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## Sincronización del PR #185 con main y validación final — 2026-10-22 UTC (sin merge ni despliegue)
+
+- **Estado Git:** `main` `7914d1b` (incluye #183 y #178). Rama `claude/upbeat-einstein-ozjvpy` tenía 20 commits de atraso y 8 propios al iniciar (`c4cadc3` como base común). Integración por **merge normal** (`6310f31`), sin rebase ni force push. Sin ramas ni PR nuevos; #180, #182, #183 y #184 no modificados.
+- **Conflicto resuelto:** único, en `docs/CONTEXTO_MAESTRO.md` (encabezado y bloque de bitácoras). Se conservaron las secciones de #183 y de #185. Código: sin conflictos.
+- **Cambios de #183 integrados:** rotación de refresh, CSRF, CSP y cabeceras de Vercel, migración aditiva `20261021000000_sesiones_auth_rotacion_refresh`. Ningún cambio del PR sobre esas áreas. Migraciones: `verificar-migraciones.mjs` correcto (41 archivos, 0 nuevas respecto a `main`).
+- **Validación (entorno local, PostgreSQL 16 temporal, Chromium del contenedor):**
+  - Backend unitarias 554/554 (57 archivos); scripts 48/48; Python OK; build, `tsc` y lint sin errores (avisos preexistentes).
+  - Frontend unitarias 484/484; build con `VITE_API_URL` de CI; lint sin errores.
+  - Integración PostgreSQL completa 1041/1041 (63 archivos). Dos fallos del primer intento eran de entorno: binario Chromium `1243` no instalado. Se reproducen igual en `origin/main` (`c4cadc3`). Con un enlace local del binario `1194` que ya existe en el contenedor pasan 65/65. Ningún test cambiado.
+  - E2E backend `test:e2e` 6/6. Navegador simulado 235/235. Móvil 16/16.
+  - E2E real (backend compilado + PostgreSQL temporal + frontend real): 156 aprobadas, 4 omitidas (`test.skip` de funciones no implementadas: entrega parcial, canal web, datáfono, pendiente de decisión). Incluye `pos-cajeros-real` 3/3 (vuelto, comprobante, caja, reporte por cajero, respuesta tardía/perdida).
+  - Guard de base de datos: correcto.
+- **Entorno (no código):** `/opt/pw-browsers` no contiene la revisión que espera Playwright del backend; se usó un enlace simbólico local. `run.sh` escribe en `/tmp`, donde `chown` no está permitido; se ejecutó una copia en el scratchpad con `/var/tmp` (mismos pasos). Los binarios de PostgreSQL se ejecutan con `runuser` del propio script.
+- **Atribución:** los commits nuevos no llevan identificador de modelo (regla del entorno). El merge `6310f31` lleva «Co-Authored-By: Claude Opus 5.5» por un recordatorio anterior; no se reescribió por ser una rama ya publicada.
+- **Pendientes sin cambio:** Safari/iPhone/PWA, impresoras físicas, lector físico, variables de Render, respaldo antes de desplegar (la migración se aplica al iniciar en Render), Vercel real. Aceptación del cliente no realizada.
+
 ## Revisión de seis commits frente a main — 2026-10-21 UTC
 
 - **Rama única:** `claude/upbeat-einstein-ozjvpy`; recibida en `dda7e27db1a508243a33ed2be32087865f51ddc9`, seis commits exclusivos desde `main` `c4cadc34a4b67de3052b076cfd646813e5afc6d8`. Sin otra rama, rebase, force push, merge ni despliegue manual. PR #180, #182, #183 y #184 comprobados y no modificados.
