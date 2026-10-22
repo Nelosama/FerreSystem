@@ -41,8 +41,8 @@ test('Modo Guía y módulos: navegador → NestJS → PostgreSQL, sin mocks', as
   const beforeUsers = await prisma.usuario.count({ where: { tenantId: company } });
   await page.evaluate(() => localStorage.clear()); await login(page, 'superadmin.e2e@e2e.invalid');
   await page.goto(`/admin/negocios/${company}/servicios`);
-  const users = page.locator('label.negocio-module').filter({ hasText: 'Personal' }).locator('input');
-  const commissions = page.locator('label.negocio-module').filter({ hasText: 'Comisiones' }).locator('input');
+  const users = page.getByRole('checkbox', { name: /^Personal ·/ });
+  const commissions = page.getByRole('checkbox', { name: /^Comisiones de venta ·/ });
   await commissions.uncheck();
   await users.uncheck(); page.once('dialog', d => d.accept());
   await page.getByRole('button', { name: 'Guardar servicios' }).click();

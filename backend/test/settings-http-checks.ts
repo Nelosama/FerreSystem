@@ -63,8 +63,10 @@ export async function checkSettingsHttp(prisma: PrismaService, base: string) {
   expect((await login(users[0])).tenant).toMatchObject({ logoUrl: null, direccion: '', telefono: '', email: '',  });
   expect(await settings(adminB.accessToken)).toEqual(bBefore);
 
+  // Comisiones consume ventas: no se admite apagar POS dejando su dependiente habilitado.
+  expect((await call(`/admin/tenants/${a.id}/modules`, sa.accessToken, 'PUT', { modules: [{ moduleKey: 'pos', enabled: false }] })).status).toBe(400);
   for (const enabled of [false, true]) {
-    expect((await call(`/admin/tenants/${a.id}/modules`, sa.accessToken, 'PUT', { modules: [{ moduleKey: 'pos', enabled }] })).status).toBe(200);
+    expect((await call(`/admin/tenants/${a.id}/modules`, sa.accessToken, 'PUT', { modules: [{ moduleKey: 'pos', enabled }, { moduleKey: 'comisiones_venta', enabled }] })).status).toBe(200);
     for (const user of [adminA, cashier]) {
       for (const path of ['/operaciones/entregas', '/operaciones/solicitudes-devolucion']) {
         expect((await call(path, user.accessToken)).status).toBe(enabled ? 200 : 403);
