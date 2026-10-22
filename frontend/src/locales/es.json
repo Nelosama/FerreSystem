@@ -155,7 +155,11 @@
     "account_status": "ESTADO DE CUENTA",
     "active_can_login": "Activo (Puede iniciar sesión)",
     "inactive_blocked": "Inactivo (Bloqueado)",
-    "fine_tuning_permissions": "PERSONALIZACIÓN FINA DE PERMISOS",
+    "fine_tuning_permissions": "Personalización fina de permisos",
+    "permissions_selected": "{count} de {total} activos",
+    "permissions_help": "Marque lo que esta persona puede hacer. El rol base sigue limitando las pantallas a las que entra.",
+    "permissions_admin_help": "El rol Administrador incluye todos los permisos. Para limitarlos, elija otro rol base.",
+    "permission_by_role": "Incluido por el rol",
     "cancel": "CANCELAR",
     "saving": "GUARDANDO...",
     "save_user": "GUARDAR USUARIO",
@@ -792,10 +796,17 @@
     "purchases_receiving": "Compras y recepción",
     "staff_permissions": "Personal y permisos",
     "main": "Menú principal",
+    "main_top": "Navegación principal",
     "needs_connection": "en línea",
     "online": "En línea",
     "offline": "Sin conexión",
-    "pending_sales": "{count} ventas por enviar"
+    "pending_sales": "{count} ventas por enviar",
+    "more_options": "Más opciones de {name}",
+    "more_short": "Más",
+    "home_link": "Jowa System: ir a Inicio",
+    "platform": "Plataforma",
+    "connection_status": "Estado de la conexión",
+    "more_menu": "Más secciones"
   },
   "tasks": {
     "finder": "Buscar una pantalla o tarea",
@@ -1549,6 +1560,17 @@
     "error": "No se pudo guardar. Intente de nuevo."
   },
   "shell": {
+    "login": {
+      "subtitle": "Sistema de gestión para negocios",
+      "email": "Correo electrónico",
+      "password": "Contraseña",
+      "submit": "Ingresar al sistema",
+      "verifying": "Verificando…",
+      "invalid_session": "El servidor no devolvió una sesión válida. Inténtelo de nuevo.",
+      "unknown_session": "El servidor devolvió un tipo de sesión desconocido. Contacte a soporte.",
+      "bad_credentials": "Correo o contraseña incorrectos.",
+      "network_error": "No se pudo conectar con el servidor. Verifique su conexión a internet e inténtelo nuevamente."
+    },
     "platform_home": "Jowa System: ir al panel de plataforma",
     "platform_menu": "Menú de plataforma",
     "platform_tabs": "Administración de plataforma",
@@ -1634,14 +1656,34 @@
       "point_of_sale": "Punto de venta",
       "cash_drawer": "Arqueo de caja",
       "quotations": "Cotizaciones",
-      "charge": "Cobrar"
+      "charge": "Cobrar",
+      "contrast_title": "El texto blanco sobre este color tiene un contraste de {ratio}:1 (mínimo recomendado 4.5:1).",
+      "contrast_dark_text": "Los botones y elementos activos mostrarán texto oscuro para que se lean bien.",
+      "contrast_darker_text": "Los textos y enlaces con el color de marca usarán un tono más oscuro sobre fondos claros."
     },
     "pos": {
       "step_client": "Cliente",
       "step_products": "Productos",
       "step_payment": "Pago y entrega",
       "line_one": "{count} línea",
-      "line_other": "{count} líneas"
+      "line_other": "{count} líneas",
+      "client_change": "Cambiar cliente",
+      "client_done": "Listo",
+      "client_registered": "Registrado",
+      "client_name_label": "Nombre del cliente",
+      "client_rtn_label": "RTN del cliente",
+      "client_unlink": "Desvincular cliente registrado",
+      "search_label": "Buscar producto por código o nombre",
+      "qty_less": "Restar uno: {name}",
+      "qty_more": "Sumar uno: {name}",
+      "remove_line": "Quitar {name} del ticket",
+      "payment_method": "Método de pago",
+      "shortcut_search": "buscar producto",
+      "shortcut_checkout": "ir a cobrar",
+      "shortcut_confirm": "confirmar",
+      "go_to_checkout": "Ir a cobrar",
+      "more_actions": "Más acciones de venta",
+      "pending_items": "{count} artículos"
     }
   }
 }

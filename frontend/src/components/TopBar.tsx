@@ -151,7 +151,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
       <div className="app-topbar-title" style={styles.titleContainer}><span className="mobile-brand-only"><TenantBrand /></span>
         <div style={styles.headingWrapper}>
-          <h1 style={styles.mainTitle}>{title}</h1>
+          <h1 className="app-topbar-titulo" style={styles.mainTitle}>{title}</h1>
           <div style={styles.accentUnderline} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -163,7 +163,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           {/* Selector de Sucursales (Para clientes multi-sucursal) */}
           {user?.rol === 'ADMIN' && (
             <div className="topbar-desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <GitBranch size={13} color="var(--color-primary)" />
+              <GitBranch size={13} color="var(--color-primary-text)" />
               <select
                 value={tenant.sucursal || 'Sucursal Principal'}
                 disabled={sucursalesDisponibles.length < 2}
@@ -182,7 +182,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
       </div>
 
-      <div style={styles.actionsContainer}>
+      <div className="app-topbar-acciones" style={styles.actionsContainer}>
         {/* Campana de Notificaciones (Solicitudes & Transferencias) */}
         {(puedeAutorizar || transferenciasParaEstaSucursal.length > 0) && (
           <div style={{ position: 'relative' }}>
@@ -262,7 +262,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <div style={{ fontSize: '11px', color: '#444' }}>
                           {t('topbar.sale_amount')} <strong>{formatLempiras(sol.totalOriginal)}</strong>
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-primary)', fontWeight: 700 }}>
+                        <div style={{ fontSize: '11px', color: 'var(--color-primary-text)', fontWeight: 700 }}>
                           {t('topbar.discount')} {sol.descuentoPorcentaje}% (Monto con desc: {formatLempiras(sol.totalConDescuento)})
                         </div>
 
@@ -312,9 +312,9 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         {/* Info Cajero/Admin y Botón de Cerrar Sesión */}
         {user && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '100%' }}>
+          <div className="app-topbar-usuario" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '100%' }}>
             <div className="app-user-badge" style={{ ...styles.userBadge, minWidth: 0, maxWidth: '100%' }}>
-              <UserCheck size={14} strokeWidth={2.4} color="var(--color-primary)" />
+              <UserCheck size={14} strokeWidth={2.4} color="var(--color-primary-text)" />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.nombre}</span>
             </div>
 
@@ -357,8 +357,9 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 'var(--radius-xs)',
     marginBottom: '8px',
   },
+  // Aviso de soporte con color fijo (no el del negocio): naranja oscuro para que el blanco alcance 5.2:1.
   exitSupportBtn: {
-    backgroundColor: '#EA580C',
+    backgroundColor: '#C2410C',
     color: '#FFFFFF',
     fontWeight: 800,
     fontSize: '11px',

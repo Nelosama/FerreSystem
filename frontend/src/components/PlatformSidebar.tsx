@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useSearchParams } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
+import { estiloMarcaNegocio } from '../utils/identidadNegocio';
 import { MENU_PLATAFORMA, PESTANAS_NEGOCIO, SECCIONES_PLATAFORMA, SLUG_SECCION } from '../config/platformNavigation';
 
 /** Menú del SUPERADMIN: usa siempre el color de la plataforma, nunca el de un negocio. */
@@ -42,7 +43,7 @@ export const PlatformSidebar: React.FC = () => {
                 <Link to={`/admin?seccion=${SLUG_SECCION[item.seccion]}`} aria-current={seccion === item.seccion ? 'page' : undefined} className={`jowa-nav-item${seccion === item.seccion ? ' active' : ''}`}>
                   <item.icon size={18} strokeWidth={2} aria-hidden="true" /><span className="jowa-nav-label">{t(item.etiquetaKey)}</span>
                 </Link>
-                {item.seccion === 'tenants' && negocio && <div className="jowa-platform-context" style={{ '--tenant-color': negocio.colorPrimario || 'var(--plat-accent)' } as React.CSSProperties}>
+                {item.seccion === 'tenants' && negocio && <div className="jowa-platform-context" style={negocio.colorPrimario ? estiloMarcaNegocio(negocio.colorPrimario) : { '--tenant-color': 'var(--plat-accent)' } as React.CSSProperties}>
                   <div className="jowa-platform-context-head"><span className="jowa-platform-tenant">{iniciales}</span><strong>{negocio.nombreComercial || t('shell.business_default')}</strong></div>
                   <ul className="jowa-nav-list" aria-label={t('shell.business_admin')}>
                     {PESTANAS_NEGOCIO.map(([ruta, etiqueta]) => <li key={ruta}><NavLink end to={`${base}${ruta}`} className={({ isActive }) => `jowa-nav-sub${isActive ? ' active' : ''}`}>{t(etiqueta)}</NavLink></li>)}

@@ -355,7 +355,7 @@ export const ClientesPage: React.FC = () => {
                       <td style={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatNumeroCliente(c.numeroCliente)}</td>
                       <td style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <UserCheck size={16} color="var(--color-primary)" />
+                          <UserCheck size={16} color="var(--color-primary-text)" />
                           <span>{c.nombre}</span>
                         </div>
                       </td>
@@ -437,7 +437,7 @@ export const ClientesPage: React.FC = () => {
           <div className="industrial-card" style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Users size={20} color="var(--color-primary)" />
+                <Users size={20} color="var(--color-primary-text)" />
                 <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>
                   {clienteEditando ? t('clients.edit_client') : t('clients.new_client')}
                 </h2>

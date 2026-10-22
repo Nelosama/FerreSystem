@@ -31,7 +31,7 @@ try {
   expect((await conversion).status()).toBe(201);
   await page.goto(`${origin}/pos`);
   await page.getByText('QA NAVEGADOR', { exact: true }).click();
-  await page.getByRole('button', { name: 'TARJETA', exact: true }).click();
+  await page.getByRole('button', { name: 'Tarjeta', exact: true }).click();
   // Tarjeta exige autorización bancaria y terminal del POS.
   await page.getByLabel(/Autorización bancaria/i).fill('AUT-CHROMIUM-0002');
   await page.getByLabel(/Terminal POS/i).fill('POS-01');
@@ -42,7 +42,7 @@ try {
   await page.getByRole('button', { name: /Nueva venta/i }).click();
   await page.reload();
   await page.getByText('QA NAVEGADOR', { exact: true }).click();
-  await page.getByRole('button', { name: 'EFECTIVO', exact: true }).click();
+  await page.getByRole('button', { name: 'Efectivo', exact: true }).click();
   let posts = 0;
   // La petición llega al backend real y hace commit; solo se pierde la respuesta al navegador.
   await page.route('**/api/ventas', async route => {

@@ -155,7 +155,11 @@
     "account_status": "ACCOUNT STATUS",
     "active_can_login": "Active (Can log in)",
     "inactive_blocked": "Inactive (Blocked)",
-    "fine_tuning_permissions": "FINE-TUNING PERMISSIONS",
+    "fine_tuning_permissions": "Fine-tuning permissions",
+    "permissions_selected": "{count} of {total} active",
+    "permissions_help": "Check what this person can do. The base role still limits which screens they can open.",
+    "permissions_admin_help": "The Administrator role includes every permission. To limit them, choose another base role.",
+    "permission_by_role": "Included by role",
     "cancel": "CANCEL",
     "saving": "SAVING...",
     "save_user": "SAVE USER",
@@ -792,10 +796,17 @@
     "purchases_receiving": "Purchases and receiving",
     "staff_permissions": "Staff and permissions",
     "main": "Main menu",
+    "main_top": "Main navigation",
     "needs_connection": "online",
     "online": "Online",
     "offline": "Offline",
-    "pending_sales": "{count} sales to send"
+    "pending_sales": "{count} sales to send",
+    "more_options": "More options for {name}",
+    "more_short": "More",
+    "home_link": "Jowa System: go to Home",
+    "platform": "Platform",
+    "connection_status": "Connection status",
+    "more_menu": "More sections"
   },
   "tasks": {
     "finder": "Find a screen or task",
@@ -1549,6 +1560,17 @@
     "error": "Could not save. Try again."
   },
   "shell": {
+    "login": {
+      "subtitle": "Business management system",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "verifying": "Verifying…",
+      "invalid_session": "The server did not return a valid session. Please try again.",
+      "unknown_session": "The server returned an unknown session type. Contact support.",
+      "bad_credentials": "Incorrect email or password.",
+      "network_error": "Could not connect to the server. Check your internet connection and try again."
+    },
     "platform_home": "Jowa System: go to the platform panel",
     "platform_menu": "Platform menu",
     "platform_tabs": "Platform administration",
@@ -1634,14 +1656,34 @@
       "point_of_sale": "Point of sale",
       "cash_drawer": "Cash drawer",
       "quotations": "Quotations",
-      "charge": "Charge"
+      "charge": "Charge",
+      "contrast_title": "White text on this color has a contrast of {ratio}:1 (recommended minimum 4.5:1).",
+      "contrast_dark_text": "Buttons and active items will show dark text so they stay readable.",
+      "contrast_darker_text": "Brand-colored text and links will use a darker shade on light backgrounds."
     },
     "pos": {
       "step_client": "Customer",
       "step_products": "Products",
       "step_payment": "Payment and delivery",
       "line_one": "{count} line",
-      "line_other": "{count} lines"
+      "line_other": "{count} lines",
+      "client_change": "Change customer",
+      "client_done": "Done",
+      "client_registered": "Registered",
+      "client_name_label": "Customer name",
+      "client_rtn_label": "Customer RTN",
+      "client_unlink": "Unlink registered customer",
+      "search_label": "Search product by code or name",
+      "qty_less": "One less: {name}",
+      "qty_more": "One more: {name}",
+      "remove_line": "Remove {name} from the ticket",
+      "payment_method": "Payment method",
+      "shortcut_search": "search product",
+      "shortcut_checkout": "go to checkout",
+      "shortcut_confirm": "confirm",
+      "go_to_checkout": "Go to checkout",
+      "more_actions": "More sale actions",
+      "pending_items": "{count} items"
     }
   }
 }

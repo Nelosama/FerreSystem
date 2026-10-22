@@ -59,7 +59,7 @@
   font-weight: 600;
   text-decoration: none;
 }
-.admin-home__acceso:hover { border-color: var(--ah-brand); color: var(--ah-brand); }
+.admin-home__acceso:hover { border-color: var(--ah-brand); color: var(--color-primary-text, var(--ah-brand)); }
 
 .admin-home__aviso {
   margin-bottom: 16px;
@@ -170,15 +170,12 @@
   align-items: center;
   gap: 4px;
   margin-top: 8px;
-  color: var(--ah-brand);
+  color: var(--color-primary-text, var(--ah-brand));
   font-weight: 600;
   font-size: 13px;
   text-decoration: none;
 }
 
-.admin-home__pendientes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; color: var(--ah-muted); }
-.admin-home__pendientes li { display: flex; align-items: center; gap: 8px; }
-.admin-home__pendientes span { margin-left: auto; font-size: 12px; font-weight: 600; }
 
 .admin-home__grafico { margin: 0; }
 .admin-home__grafico svg { width: 100%; height: auto; display: block; }
@@ -200,11 +197,11 @@
   padding: 0 18px;
   border-radius: 999px;
   background: var(--ah-brand);
-  color: #fff;
+  color: var(--color-on-primary, #fff);
   font-weight: 700;
   font-size: 14px;
   text-decoration: none;
-  box-shadow: 0 8px 20px rgba(234, 88, 12, 0.35);
+  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.22);
 }
 
 /* Tableta: las tres métricas caben en una fila hasta 900 px; después, dos columnas. */
@@ -229,12 +226,13 @@
 }
 
 /* Inicio del administrador (rediseño): pendientes de hoy primero, acciones principales y tarjetas claras. */
-.admin-home__acceso--principal { background:var(--color-primary); border-color:var(--color-primary); color:#fff; }
-.admin-home__acceso--principal svg { color:#fff; }
+.admin-home__acceso--principal { background:var(--color-primary); border-color:var(--color-primary); color:var(--color-on-primary); }
+.admin-home__acceso--principal:hover { background:var(--color-primary-hover); color:var(--color-on-primary); }
+.admin-home__acceso--principal svg { color:currentColor; }
 .admin-home__pendientes { background:var(--color-surface); border:1px solid var(--color-border-subtle); border-radius:12px; padding:16px 18px; margin:0 0 16px; }
 .admin-home__pendientes .admin-home__lista { margin-top:6px; }
 .admin-home__pendientes .admin-home__fila { padding:12px 0; }
-.admin-home__icono { width:36px; height:36px; flex:0 0 auto; display:grid; place-items:center; border-radius:8px; background:var(--color-primary-light); color:var(--color-primary); }
+.admin-home__icono { width:36px; height:36px; flex:0 0 auto; display:grid; place-items:center; border-radius:8px; background:var(--color-primary-light); color:var(--color-primary-text); }
 .admin-home__contador { min-width:28px; text-align:center; font-weight:700; font-size:13px; padding:3px 9px; border-radius:12px; background:var(--color-warning-bg); color:#92400E; font-variant-numeric:tabular-nums; }
 .admin-home__acceso { gap:8px; }
 .admin-home__pendientes .admin-home__fila { justify-content:flex-start; }
@@ -248,7 +246,7 @@
 .admin-home__pendientes .admin-home__lista > li:last-child { border-bottom:none; }
 .admin-home__fila--enlace { color:inherit; text-decoration:none; border-bottom:none; border-radius:8px; margin:0 -8px; padding-left:8px !important; padding-right:8px !important; min-height:44px; }
 .admin-home__fila--enlace:hover { background:var(--color-primary-light, #FFF7ED); }
-.admin-home__fila--enlace:focus-visible, .admin-home__enlace:focus-visible { outline:3px solid var(--color-primary); outline-offset:2px; }
+.admin-home__fila--enlace:focus-visible, .admin-home__enlace:focus-visible { outline:2px solid var(--color-focus-ring); outline-offset:2px; }
 .admin-home__chevron { flex:0 0 auto; color:var(--ah-muted); }
 .admin-home__al-dia { margin-top:8px; }
 .admin-home__aviso--compacto { margin:4px 0 0; }

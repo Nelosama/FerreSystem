@@ -45,6 +45,9 @@ test('el panel del negocio no incluye la sección «En preparación» ni indicad
 });
 
 test('el logotipo de la marca enlaza a Inicio en Sidebar y TopNav', () => {
-  assert.match(read('src/components/Sidebar.tsx'), /<NavLink to="\/" aria-label="Jowa System: ir a Inicio"/);
-  assert.match(read('src/components/TopNavigation.tsx'), /<NavLink to="\/" aria-label="Jowa System: ir a Inicio"/);
+  // El nombre accesible se traduce (navigation.home_link) y sigue nombrando a Jowa System en ES y EN.
+  assert.match(read('src/components/Sidebar.tsx'), /<NavLink to="\/" aria-label=\{t\('navigation.home_link'\)\}/);
+  assert.match(read('src/components/TopNavigation.tsx'), /<NavLink to="\/" aria-label=\{t\('navigation.home_link'\)\}/);
+  assert.equal(JSON.parse(read('src/locales/es.json')).navigation.home_link, 'Jowa System: ir a Inicio');
+  assert.match(JSON.parse(read('src/locales/en.json')).navigation.home_link, /^Jowa System: /);
 });

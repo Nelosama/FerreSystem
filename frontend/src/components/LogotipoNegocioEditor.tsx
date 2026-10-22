@@ -104,7 +104,7 @@ export const LogotipoNegocioEditor: React.FC<LogotipoNegocioEditorProps> = ({ ne
         <div aria-label="Vista previa del logotipo" style={{ width: 160, height: 90, border: '1px dashed var(--color-border-subtle, #D6D3D1)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#FFFFFF' }}>
           {mostrado
             ? <img src={mostrado} alt={`Logotipo de ${nombreNegocio}`} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-            : <Box size={36} strokeWidth={2.2} color="var(--color-primary)" aria-hidden="true" />}
+            : <Box size={36} strokeWidth={2.2} color="var(--color-primary-text)" aria-hidden="true" />}
         </div>
         <div style={{ fontSize: 13, display: 'grid', gap: 4 }}>
           <strong>{vistaPrevia ? 'Vista previa (sin guardar)' : logotipo ? 'Logotipo actual' : 'Sin logotipo: se muestra el ícono predeterminado'}</strong>

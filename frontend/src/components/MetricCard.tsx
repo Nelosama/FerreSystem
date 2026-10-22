@@ -40,7 +40,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           <span
             style={{
               ...styles.valueText,
-              color: highlightValue ? 'var(--color-primary)' : 'var(--color-text-main)',
+              color: highlightValue ? 'var(--color-primary-text)' : 'var(--color-text-main)',
             }}
           >
             {value}
@@ -71,7 +71,7 @@ function getBadgeStyle(variant: string): React.CSSProperties {
     case 'warning':
       return {
         backgroundColor: '#FFEDD5',
-        color: 'var(--color-primary)',
+        color: 'var(--color-primary-text)',
         borderColor: 'var(--color-primary)',
       };
     case 'danger':
