@@ -41,7 +41,7 @@ export const TopNavigation: React.FC<{ showTaskFinder?: boolean }> = ({ showTask
       <LogotipoNegocio size={32} />
       <span className="jowa-brand-text"><strong>{tenant.nombreComercial || 'Negocio'}</strong><small>Jowa System</small></span>
     </NavLink>{showTaskFinder && <TaskFinder />}<IndicadorConexion compacto /></div>
-    <nav aria-label={t('navigation.main')} className="jowa-topnav-links" onKeyDown={event => {
+    <nav aria-label={t('navigation.main_top')} className="jowa-topnav-links" onKeyDown={event => {
       if (event.key === 'Escape') { const detail = (event.target as HTMLElement).closest('details'); detail?.removeAttribute('open'); detail?.querySelector('summary')?.focus(); }
     }}>
       {enBarra.map(item => {
