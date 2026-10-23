@@ -26,6 +26,7 @@ import { ModuleControls } from '../components/ModuleControls';
 import { CATALOGO_MODULOS } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
+import { alertas } from '../utils/alertas';
 import { Rubro } from '../types';
 import { BackupStatus } from '../components/BackupStatus';
 import { AvisoColorMarca } from '../components/AvisoColorMarca';
@@ -306,7 +307,7 @@ export const SuperAdminPage: React.FC = () => {
 
   const guardarModulosTenant = async () => {
     if (!modalModulosTenant) return;
-    if ((modalModulosTenant.modulosHabilitados || CATALOGO_MODULOS.map(m => m.key)).some(key => !tempModulosTenant.includes(key)) && !window.confirm(t('modules.confirm'))) return;
+    if ((modalModulosTenant.modulosHabilitados || CATALOGO_MODULOS.map(m => m.key)).some(key => !tempModulosTenant.includes(key)) && !(await alertas.confirmar({ texto: t('modules.confirm'), peligroso: true }))) return;
     const modulesPayload = CATALOGO_MODULOS.map((m) => ({
       moduleKey: m.key,
       enabled: tempModulosTenant.includes(m.key),

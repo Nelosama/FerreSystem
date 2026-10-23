@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { confirmarAlerta } from '../e2e/helpers/alertas';
 
 // Caja en NAVEGADOR REAL (Chromium) contra backend NestJS y PostgreSQL temporales (run.sh). Sin page.route.
 // La apertura y el cierre se hacen desde la pantalla /arqueo-caja. La venta del día se registra por API para no depender
@@ -60,10 +61,10 @@ test('caja en navegador real: abrir desde la pantalla, registrar cobro, cerrar d
   const esperado = Number((await (await request.get(`${API}/operaciones/caja`, { headers: auth })).json() as any[]).find((c) => c.id === cajaId)?.efectivoEsperado);
   expect(esperado).toBeCloseTo(500 + total, 2);
   await page.getByLabel('Efectivo contado').fill(String(esperado));
-  // La pantalla pide confirmación antes de cerrar: se acepta explícitamente (Playwright descarta los diálogos por defecto).
-  page.once('dialog', (d) => void d.accept());
+  // La pantalla pide confirmación antes de cerrar: se acepta en el modal de la aplicación.
   const cierreRespuesta = page.waitForResponse((r) => r.request().method() === 'POST' && /\/operaciones\/caja\/[^/]+\/cerrar$/.test(r.url()), { timeout: 15_000 });
   await page.getByRole('button', { name: 'Cerrar caja' }).click();
+  await confirmarAlerta(page);
   const cierre = await cierreRespuesta;
   expect(cierre.status(), await cierre.text()).toBeLessThan(300);
   await expect.poll(() => sql(`SELECT estado FROM cajas WHERE id='${cajaId}'`), { timeout: 15_000 }).toBe('CERRADA');

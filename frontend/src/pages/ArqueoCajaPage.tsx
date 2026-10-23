@@ -3,6 +3,7 @@ import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
+import { alertas } from '../utils/alertas';
 import { ZONA_HORARIA_NEGOCIO, formatLempiras } from '../utils/format';
 import './OperacionesPage.css';
 import './ArqueoCajaPage.css';
@@ -119,7 +120,7 @@ export const ArqueoCajaPage: React.FC = () => {
   };
   const closeDrawer = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!abierta || !window.confirm(t('cash_drawer.confirm_close'))) return;
+    if (!abierta || !(await alertas.confirmar({ texto: t('cash_drawer.confirm_close') }))) return;
     const closed = await run(`/operaciones/caja/${abierta.id}/cerrar`, { monto: Number(counted), notas: notes.trim() || undefined });
     if (closed) {
       setCounted(''); setNotes('');

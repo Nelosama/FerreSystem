@@ -1,4 +1,5 @@
 import { expect, test as base, type Page, type Route } from '@playwright/test';
+import { confirmarAlerta } from './helpers/alertas';
 
 // E2E CON BACKEND SIMULADO (BALANCE): cuentas por cobrar y por pagar en la pantalla de cuentas, filtros y referencia de
 // pago a proveedor; estado de cuenta del cliente con saldo acumulado. La persistencia está en
@@ -87,10 +88,10 @@ test.describe('Cuentas por cobrar y por pagar (BALANCE, simulado)', () => {
       await page.getByRole('combobox', { name: /Estado de deuda/ }).selectOption('');
       await page.getByRole('button', { name: 'Proveedores · Por pagar' }).click();
       await expect(page.getByText('Distribuidora Sur')).toBeVisible();
-      page.on('dialog', d => d.accept());
       await page.getByRole('button', { name: 'Registrar pago' }).first().click();
       await page.getByLabel('Referencia de pago (comprobante)').fill('transf-4433');
       await page.getByRole('button', { name: 'Registrar', exact: true }).click();
+      await confirmarAlerta(page);
       await expect.poll(() => sim.pagos.length).toBe(1);
       expect(sim.pagos[0]).toMatchObject({ cuenta: 'cu-cxp-1', body: { monto: 300, metodo: 'EFECTIVO', referencia: 'transf-4433' } });
     });

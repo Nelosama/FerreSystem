@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, ImageUp, Trash2 } from 'lucide-react';
 import { api } from '../utils/api';
+import { alertas } from '../utils/alertas';
 import { useLogotipoNegocio } from '../hooks/useLogotipoNegocio';
 import {
   invalidarLogotipo,
@@ -76,7 +77,7 @@ export const LogotipoNegocioEditor: React.FC<LogotipoNegocioEditorProps> = ({ ne
 
   const eliminar = async () => {
     if (ocupado || !logotipo) return;
-    if (!window.confirm(`¿Quitar el logotipo de ${nombreNegocio}? El negocio volverá a ver el ícono predeterminado.`)) return;
+    if (!(await alertas.confirmar({ texto: `¿Quitar el logotipo de ${nombreNegocio}? El negocio volverá a ver el ícono predeterminado.`, confirmar: 'Quitar', peligroso: true }))) return;
     setOcupado(true); setError(''); setEstado('');
     try {
       await api.delete(endpoint);

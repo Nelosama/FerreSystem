@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { confirmarAlerta } from './helpers/alertas';
 
 // E2E CON BACKEND SIMULADO (JW-08): el administrador edita el RTN de un proveedor, lo desactiva (deja de ofrecerse en
 // la factura de compra) y lo reactiva. Valida interfaz y contrato del payload; la persistencia, la auditoría y los
@@ -15,7 +16,6 @@ async function preparar(page: Page): Promise<Sim> {
     patches: [], deletes: [], altas: [], errores: [], inesperados: [],
   };
   page.on('pageerror', (e) => sim.errores.push(e.message));
-  page.on('dialog', (d) => d.accept());
   await page.route('**/*', async (route: Route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -68,6 +68,7 @@ test('desactivar un proveedor lo quita de la factura de compra; reactivarlo lo d
   await expect(opcionesFactura(page)).toContainText(['Seleccione', 'Distribuidora Norte', 'Ferretera Sur']);
   const panel = page.locator('section.proveedores-gestion');
   await panel.getByRole('button', { name: 'Desactivar Ferretera Sur' }).click();
+  await confirmarAlerta(page, 'Desactivar');
   await expect(panel.getByRole('status')).toContainText('Proveedor desactivado');
   expect(sim.deletes).toEqual(['prov-2']);
   await expect(panel.getByRole('row').filter({ hasText: 'Ferretera Sur' })).toContainText('Desactivado');

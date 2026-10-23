@@ -1,5 +1,6 @@
 import { installScannerCamera } from './scanner-camera.fixture';
 import { expect, test as base, type Page, type Route } from '@playwright/test';
+import { confirmarAlerta } from './helpers/alertas';
 
 // Recorrido del levantamiento de inventario (FS-06 fase 2).
 // Todas las llamadas API se interceptan con un servidor simulado en memoria por prueba.
@@ -231,16 +232,16 @@ test.describe('Levantamiento de inventario (FS-06 fase 2)', () => {
     await page.getByRole('button', { name: 'Guardar y siguiente' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Guardado: Cable metro' })).toBeVisible();
 
-    page.once('dialog', d => d.accept());
     await page.getByRole('button', { name: 'Finalizar conteo' }).click();
+    await confirmarAlerta(page);
     await expect(page.getByRole('heading', { name: /FINALIZADO/ })).toBeVisible();
 
     await page.getByRole('button', { name: 'Revisar impacto en inventario' }).click();
     await expect(page.getByRole('heading', { name: 'Vista previa de aplicación', exact: true })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'LLAVE-10 · Llave inglesa 10 mm', exact: true })).toBeVisible();
 
-    page.once('dialog', d => d.accept());
     await page.getByRole('button', { name: 'Aplicar al inventario' }).click();
+    await confirmarAlerta(page);
     await expect(page.getByText('Aplicado al inventario el')).toBeVisible();
     expect(sim.aplicarTokens).toHaveLength(1);
     expect(sim.aplicarTokens[0]).toBe(`tok-2-2-5`);
@@ -277,16 +278,16 @@ test.describe('Levantamiento de inventario (FS-06 fase 2)', () => {
     const registrado = sim.levantamientos[0].items.find(i => i.descripcion === 'Cable metro');
     expect([Number(registrado.cantidad), registrado.contadorId]).toEqual([9, admin.id]);
 
-    page.once('dialog', d => d.accept());
     await page.getByRole('button', { name: 'Finalizar conteo' }).click();
+    await confirmarAlerta(page);
     await expect(page.getByRole('heading', { name: /FINALIZADO/ })).toBeVisible();
     await page.getByRole('button', { name: 'Revisar impacto en inventario' }).click();
     await expect(page.getByRole('cell', { name: 'CABLE · Cable metro', exact: true })).toBeVisible();
     await expect(page.getByText(/no se aplica|Costo contado|Precio contado|Margen contado/)).toHaveCount(0);
 
     const aplicacion = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/aplicar'));
-    page.once('dialog', d => d.accept());
     await page.getByRole('button', { name: 'Aplicar al inventario' }).click();
+    await confirmarAlerta(page);
     expect((await aplicacion).postDataJSON()).toEqual({ token: 'tok-p2' });
     await expect(page.getByText('Aplicado al inventario el')).toBeVisible();
   });

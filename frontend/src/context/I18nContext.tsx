@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useTenant } from './TenantContext';
 import esTranslations from '../locales/es.json';
+import { registrarTraductor } from '../utils/alertas';
 
 type Locale = 'es' | 'en';
 
@@ -57,6 +58,9 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ? current.replace(/\{(\w+)\}/g, (match, key) => values?.[key] !== undefined ? String(values[key]) : match)
       : path;
   }, [diccionario]);
+
+  // Las alertas (utils/alertas.ts) no son componentes: reciben el mismo traductor que el resto de la interfaz.
+  useEffect(() => { registrarTraductor(t); }, [t]);
 
   return (
     <I18nContext.Provider value={{ locale, setLocale, t }}>

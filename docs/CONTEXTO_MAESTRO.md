@@ -1,10 +1,25 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-22 UTC** — PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Resueltos los conflictos en controles de módulos/marca y contexto; validación del nuevo commit en curso. Sin merge a main, despliegue ni cambios en producción.
+Última revisión: **2026-10-23 UTC** — rama `claude/admiring-albattani-n1ruvp` con notificaciones SweetAlert2 (sección siguiente, sin merge ni despliegue). PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Resueltos los conflictos en controles de módulos/marca y contexto; validación del nuevo commit en curso. Sin merge a main, despliegue ni cambios en producción.
 
 Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorporó la ronda de UX, marca y navegación. Se conservan sus bitácoras y evidencias a continuación. Detalle de seguridad: [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
+
+---
+
+## Notificaciones y confirmaciones con SweetAlert2 — 2026-10-23 UTC (rama `claude/admiring-albattani-n1ruvp`, sin merge ni despliegue)
+
+- **Auditoría previa:** 13 llamadas a `window.confirm` (ProductoGestion, ProveedoresProductoPanel, ProveedoresGestion, LogotipoNegocioEditor, OperacionesPage ×2, LevantamientoPage ×3, ArqueoCajaPage, NegocioDetallePage ×2, SuperAdminPage) y 3 `alert` (TopBar, csvExport, excelExport). Los mensajes inline `role="alert"/"status"` de POS, Inventario, Devoluciones, Garantías y similares se conservan: son estados de operación, no interrupciones.
+- **Servicio:** `frontend/src/utils/alertasOpciones.ts` (lógica pura: textos con respaldo, opciones de confirmación, control de duplicados) y `frontend/src/utils/alertas.ts` (SweetAlert2: `alertas.exito/error/advertencia/toast` como toast no bloqueante; `alertas.confirmar` como modal solo cuando hay que decidir). Estilos en `frontend/src/utils/alertas.css` con tokens de marca (`--color-primary`, `--color-on-primary`, `--color-danger`). El traductor activo se registra desde `I18nContext`; claves `alerts.*` en ES y EN.
+- **Reglas de uso:** acciones peligrosas (desactivar, quitar, eliminar conteo, desactivar módulos, cerrar caja con cambio) abren con foco en Cancelar; las demás, con foco en Confirmar. Una confirmación abierta bloquea otra y devuelve `false`, así que nunca se ejecuta sin confirmación. Un toast que llega con el modal abierto se encola y se muestra al cerrarlo. Mensajes idénticos en 2 s se filtran.
+- **Dependencia:** `sweetalert2@11.26.25` (versión exacta, publicada el 2026-05-23) en `frontend/package.json` y `frontend/package-lock.json`.
+- **Migrados:** las 13 confirmaciones y los 3 `alert` anteriores. Ningún `window.confirm`/`alert` queda en `frontend/src` (guard en `frontend/test/alertas-guard.test.mjs`).
+- **Fuera de alcance, sin cambios de negocio:** autenticación, sesiones, permisos, cálculos, POS y operaciones monetarias. No se añadió confirmación nueva a ventas ni anulaciones: no existían confirmaciones nativas en esos flujos y el requisito pide evitarlas en operaciones frecuentes.
+- **Pruebas:** `npm test` 513/513 (11 nuevas: `test/alertas.test.mjs` 8, `test/alertas-guard.test.mjs` 3); `npx tsc -b` sin errores; `npm run lint` con 117 avisos, igual que la base (sin avisos nuevos); `VITE_API_URL=/api npm run build` correcto. e2e simulados: se actualizaron los 13 archivos que aceptaban diálogos nativos (`e2e/` y `e2e-real/`); los 78 casos de los archivos afectados pasan con Chromium local. e2e-real no se ejecutó: requiere backend y PostgreSQL temporal.
+- **Límites:** no validado en dispositivo físico, PWA instalada, ni con lectores de pantalla (VoiceOver/NVDA). El contraste se apoya en los tokens existentes (`--color-on-primary`, `AvisoColorMarca`); no se midió con todos los colores de marca posibles.
+- **Pendientes reales:** textos de ProveedoresGestion, LogotipoNegocioEditor y del gestor de sucursales/usuarios de NegocioDetallePage siguen en español fijo (sus componentes no tienen i18n); el confirm de Super Admin para módulos ya usa `modules.confirm`. El modal propio de activación de modo edición en TopBar no se migró (requiere motivo escrito). Los mensajes inline no se convirtieron en toast para evitar duplicados.
+- **Riesgo de conflicto con otros PR:** tocan `OperacionesPage.tsx`, `LevantamientoPage.tsx`, `SuperAdminPage.tsx`, `NegocioDetallePage.tsx`, `ProductoGestion.tsx`, `I18nContext.tsx`, `locales/es.json` y `locales/en.json`, `frontend/package.json` y `package-lock.json`, y los e2e de compras, caja, levantamiento, productos, proveedores, guía y balance.
 
 ---
 
