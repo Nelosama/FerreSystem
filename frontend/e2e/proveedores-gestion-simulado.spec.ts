@@ -40,8 +40,8 @@ async function preparar(page: Page): Promise<Sim> {
     await route.abort();
   });
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(admin.email);
-  await page.locator('input[type="password"]').fill('solo-para-esta-prueba');
+  await page.locator('#login-correo').fill(admin.email);
+  await page.locator('#login-clave').fill('solo-para-esta-prueba');
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL((u) => !u.pathname.startsWith('/login'));
   await page.goto('/ordenes-compra');

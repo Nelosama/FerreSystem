@@ -61,8 +61,8 @@ test('1. el administrador inicia sesión y registra un producto con código, des
   expect(sql(`SELECT precio_aprobado FROM productos WHERE id='${productoId}'`)).toBe('f');
   const movimientosAntes = sql(`SELECT COUNT(*) FROM movimientos_inventario WHERE producto_id='${productoId}'`);
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(ADMIN);
-  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator('#login-correo').fill(ADMIN);
+  await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL(url => !url.pathname.startsWith('/login'));
   await page.goto('/precios');

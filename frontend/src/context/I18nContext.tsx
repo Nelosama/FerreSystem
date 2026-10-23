@@ -22,10 +22,10 @@ const I18nContext = createContext<I18nContextType | undefined>(undefined);
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { tenant, user } = useTenant();
   const [platformLocale, setPlatformLocale] = useState<Locale>(() => localStorage.getItem('ferre_language') === 'en' ? 'en' : 'es');
-  const locale: Locale = user?.rol === 'SUPERADMIN' ? platformLocale : user && tenant.idioma === 'en' ? 'en' : 'es';
+  const locale: Locale = (!user || user.rol === 'SUPERADMIN') ? platformLocale : user && tenant.idioma === 'en' ? 'en' : 'es';
   const setLocale = (lang: Locale) => {
     // Preferencia de la plataforma; nunca modifica el idioma de un negocio ni de sus usuarios.
-    if (user?.rol !== 'SUPERADMIN' || !['es', 'en'].includes(lang)) return;
+    if ((user && user.rol !== 'SUPERADMIN') || !['es', 'en'].includes(lang)) return;
     setPlatformLocale(lang); localStorage.setItem('ferre_language', lang);
   };
   const [diccionarioIngles, setDiccionarioIngles] = useState<Diccionario | null>(ingles);

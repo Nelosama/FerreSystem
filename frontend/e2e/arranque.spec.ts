@@ -57,8 +57,8 @@ for (const path of ['/', '/login', '/pos', '/devoluciones', '/auditoria', '/admi
   test(`sin sesión, ${path} muestra el login del bundle construido`, async ({ page, runtime }) => {
     await page.goto(path);
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.locator('input[type="email"]')).toBeVisible();
-    await expect(page.locator('input[type="password"]')).toBeVisible();
+    await expect(page.locator('#login-correo')).toBeVisible();
+    await expect(page.locator('#login-clave')).toBeVisible();
     await expect(page.getByRole('button', { name: 'INGRESAR AL SISTEMA' })).toBeVisible();
     expect(runtime.requests).toEqual([]);
   });
@@ -93,8 +93,8 @@ for (const role of ['ADMIN', 'CAJERO'] as const) {
       localStorage.setItem('ferre_notificaciones_transferencia_tenant-browser-test', 'null');
     });
     await page.goto('/login');
-    await page.locator('input[type="email"]').fill('usuario@prueba.invalid');
-    await page.locator('input[type="password"]').fill('solo-para-esta-prueba');
+    await page.locator('#login-correo').fill('usuario@prueba.invalid');
+    await page.locator('#login-clave').fill('solo-para-esta-prueba');
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await expect(page.getByRole('heading', { name: role === 'ADMIN' ? 'Administrar el negocio' : 'Tareas del día', exact: true })).toBeVisible();
 

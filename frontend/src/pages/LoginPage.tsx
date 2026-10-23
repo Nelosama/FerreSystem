@@ -6,14 +6,18 @@ import { useTenant } from '../context/TenantContext';
 import { useNavigate } from 'react-router-dom';
 import { SESSION_EXPIRED_MESSAGE, hasSessionExpiredNotice, clearSessionExpiredNotice } from '../utils/authInterceptors';
 import { api } from '../utils/api';
+import { RecoveryForm } from '../components/RecoveryForm';
 
 export const LoginPage: React.FC = () => {
   const { login } = useTenant();
-  const { t } = useI18n();
+  const { t, locale, setLocale } = useI18n();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [tenantId, setTenantId] = useState('');
+  const [platform, setPlatform] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(() => hasSessionExpiredNotice() ? SESSION_EXPIRED_MESSAGE : null);
 
@@ -26,7 +30,7 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post('/auth/login', { email, password, ...(!platform && tenantId ? { tenantId } : {}), ...(mfaCode && { mfaCode }) });
       const { type, accessToken, user, tenant, superAdmin } = response.data;
 
       if (typeof accessToken !== 'string' || !accessToken) {
@@ -102,6 +106,7 @@ export const LoginPage: React.FC = () => {
           <MarcaJowa size={52} />
           <h1 className="login-titulo">Jowa System</h1>
           <p className="login-subtitulo">{t('shell.login.subtitle')}</p>
+          <button type="button" className="btn btn-secondary" onClick={() => setLocale(locale === 'es' ? 'en' : 'es')}>{locale === 'es' ? 'English' : 'Español'}</button>
         </header>
 
         {error && (
@@ -112,19 +117,21 @@ export const LoginPage: React.FC = () => {
         )}
 
         <form onSubmit={handleSubmit} className="login-formulario" aria-busy={loading}>
+          <label><input type="checkbox" checked={platform} onChange={e => setPlatform(e.target.checked)} /> {t('security.platform')}</label>
+          {!platform && <div className="form-group"><label htmlFor="login-tenant">{t('security.tenant')}</label><input id="login-tenant" className="form-input" value={tenantId} onChange={e => setTenantId(e.target.value.trim())} required={!email.includes('@')} autoComplete="organization" /></div>}
           <div className="form-group">
             <label className="form-label" htmlFor="login-correo">{t('shell.login.email')}</label>
             <div className="login-campo">
               <Mail size={16} strokeWidth={2.2} aria-hidden="true" />
               <input
                 id="login-correo"
-                type="email"
+                type="text"
                 required
                 autoComplete="username"
-                inputMode="email"
+                autoCapitalize="none"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="correo@empresa.com"
+                placeholder="danielcm / 44556 / correo@empresa.com"
                 className="form-input"
               />
             </div>
@@ -146,12 +153,14 @@ export const LoginPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="form-group"><label htmlFor="login-mfa">{t('security.mfa')}</label><input id="login-mfa" className="form-input" value={mfaCode} onChange={e => setMfaCode(e.target.value.trim())} autoComplete="one-time-code" required={platform} /></div>
           <button type="submit" disabled={loading} className="btn btn-primary login-entrar">
             {loading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : null}
             <span>{loading ? t('shell.login.verifying') : t('shell.login.submit')}</span>
             {!loading && <ArrowRight size={18} strokeWidth={2.4} aria-hidden="true" />}
           </button>
         </form>
+        <RecoveryForm email={email} tenantId={tenantId} platform={platform} password={password} />
       </div>
     </main>
   );

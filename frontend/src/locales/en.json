@@ -1561,7 +1561,7 @@
   "shell": {
     "login": {
       "subtitle": "Business management system",
-      "email": "Email",
+      "email": "Username, code or email",
       "password": "Password",
       "submit": "Sign in",
       "verifying": "Verifying…",
@@ -1740,5 +1740,32 @@
       "management": "Administration",
       "finance": "Finance and reports"
     }
+  },
+  "security": {
+    "platform": "Super Admin sign-in",
+    "tenant": "Business identifier",
+    "mfa": "MFA code or emergency code (if configured)",
+    "recovery": "Recover access",
+    "employee_help": "Employees recover access with a private link issued by their administrator.",
+    "accepted": "If the account is eligible, instructions will be sent. Employees should contact their administrator.",
+    "done": "Request completed. Sign in again if you changed your credentials.",
+    "failed": "Unable to complete. Check your details, link expiration and connection.",
+    "save_codes": "Store these emergency codes privately. Each works once. They will not be shown again.",
+    "send": "Send recovery instructions",
+    "bootstrap": "Set up initial Super Admin MFA",
+    "token": "Private link code",
+    "secret": "Key for your authenticator application",
+    "current": "Current password",
+    "new_password": "New password (at least 8 characters, letters and numbers)",
+    "continue": "Continue",
+    "account": "My account security",
+    "switch": "Lock / switch employee",
+    "private_link": "Private link, valid for 10 minutes. Share only with its owner. Treat it as a temporary credential.",
+    "change": "Change my password",
+    "verify": "Verify my email",
+    "enroll": "Set up MFA",
+    "load_users": "Load users",
+    "employee": "User requesting access",
+    "admin_reset": "Issue private reset link"
   }
 }

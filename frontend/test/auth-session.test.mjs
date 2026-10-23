@@ -21,6 +21,13 @@ const unauthorized = (config) => { throw new axios.AxiosError('Unauthorized', 'E
 const deferred = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
+test('un rechazo de credenciales en seguridad no renueva sesión ni repite un cambio sensible', async () => {
+  const calls = [];
+  const { api } = setup(async config => { calls.push(config.url); unauthorized(config); });
+  await assert.rejects(api.post('/auth/security/change-password', { currentPassword: 'wrong', password: 'Synthetic-New-123' }));
+  assert.deepEqual(calls, ['/auth/security/change-password']);
+});
+
 test('renovaciones simultáneas comparten una petición y reintentan con el token nuevo', async () => {
   const gate = deferred(); let refreshes = 0;
   const { api, localStorage } = setup(async (config) => {

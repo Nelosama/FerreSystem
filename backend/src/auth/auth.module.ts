@@ -7,6 +7,9 @@ import { AuthService } from './auth.service';
 import { GuiaController } from './guia.controller';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { RecoveryController } from './recovery.controller';
+import { RecoveryService } from './recovery.service';
+import { RecoveryMailService } from './recovery-mail.service';
 
 @Module({
   imports: [
@@ -22,8 +25,8 @@ import { JwtStrategy } from './jwt.strategy';
       }),
     }),
   ],
-  controllers: [AuthController, GuiaController],
-  providers: [AuthService, JwtStrategy],
+  controllers: [AuthController, GuiaController, RecoveryController],
+  providers: [AuthService, JwtStrategy, RecoveryService, RecoveryMailService],
   exports: [AuthService, JwtModule, PassportModule],
 })
 export class AuthModule {}

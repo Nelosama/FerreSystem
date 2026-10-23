@@ -1,4 +1,5 @@
 import { Guide } from './components/Guide';
+import { AccountSecurity } from './components/AccountSecurity';
 import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -166,6 +167,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       >
         {(!isTopNav || isMobile) && <TaskFinder />}
         <Guide />
+        <AccountSecurity />
         {children}
       </div>
       <BottomNavigation />

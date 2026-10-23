@@ -263,6 +263,8 @@ export const SuperAdminPage: React.FC = () => {
   const [formAdminTenantId, setFormAdminTenantId] = useState('t-1');
   const [formAdminActivo, setFormAdminActivo] = useState(true);
   const [nuevaPasswordInput, setNuevaPasswordInput] = useState('');
+  const [resetMfa, setResetMfa] = useState('');
+  const [resetLink, setResetLink] = useState('');
 
   const [adminSaving, setAdminSaving] = useState(false);
   const [brandSaving, setBrandSaving] = useState(false);
@@ -518,8 +520,9 @@ export const SuperAdminPage: React.FC = () => {
     if (adminSaving) return;
     setAdminSaving(true); setErrorText(null);
     try {
-      await api.patch(`/admin/tenants/${modalResetPassAdmin.tenantId}/admins/${modalResetPassAdmin.id}`, { password: nuevaPasswordInput });
-      setModalResetPassAdmin(null); setNuevaPasswordInput(''); setMensajeExito(t('uxAudit.admin_message_13'));
+      const { data } = await api.post('/auth/security/admin-reset', { tenantId: modalResetPassAdmin.tenantId, usuarioId: modalResetPassAdmin.id, currentPassword: nuevaPasswordInput, mfaCode: resetMfa });
+      const url = new URL('/login', window.location.origin); url.hash = new URLSearchParams({ action: 'RESET_ADMIN', token: data.token }).toString();
+      setResetLink(url.href); setNuevaPasswordInput(''); setResetMfa('');
     } catch (error: any) { setErrorText(error.response?.data?.message || t('uxAudit.admin_message_14')); } finally { setAdminSaving(false); }
   };
 
@@ -909,7 +912,7 @@ export const SuperAdminPage: React.FC = () => {
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
-                            onClick={() => setModalResetPassAdmin(a)}
+                            onClick={() => { setModalResetPassAdmin(a); setResetLink(''); setNuevaPasswordInput(''); setResetMfa(''); }}
                             title={t('uxAudit.reset_password')}
                           >
                             <KeyRound size={13} />{t('uxAudit.password')} </button>
@@ -1675,8 +1678,10 @@ export const SuperAdminPage: React.FC = () => {
               <p style={{ fontSize: '13px', color: '#444' }}>{t('uxAudit.change_password_for')} <strong>{modalResetPassAdmin.nombre}</strong> (<code>{modalResetPassAdmin.email}</code>).
               </p>
 
+              {resetLink && <div><p>{t('security.private_link')}</p><input className="form-input" aria-label={t('security.private_link')} readOnly value={resetLink} /></div>}
+              <label>{t('security.mfa')}<input className="form-input" autoComplete="one-time-code" value={resetMfa} onChange={e => setResetMfa(e.target.value.trim())} /></label>
               <div className="form-group" style={{ marginTop: '12px' }}>
-                <label className="form-label">{t('uxAudit.new_temporary_password')} </label>
+                <label className="form-label">{t('security.current')} </label>
                 <input
                   type="password"
                   required

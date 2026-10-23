@@ -41,8 +41,8 @@ async function simular(page: Page, baseURL: string | undefined, opciones: Opcion
 
 async function ingresar(page: Page) {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill('usuario@prueba.invalid');
-  await page.locator('input[type="password"]').fill('solo-para-esta-prueba');
+  await page.locator('#login-correo').fill('usuario@prueba.invalid');
+  await page.locator('#login-clave').fill('solo-para-esta-prueba');
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
 }
 

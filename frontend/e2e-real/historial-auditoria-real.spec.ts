@@ -1,3 +1,4 @@
+import { fillPlatformMfa, syntheticMfaFor } from './mfa.fixture';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext } from '@playwright/test';
@@ -17,7 +18,7 @@ const CAJERO = `hist.cajero.${RUN}@e2e.invalid`;
 const TENANT = 'e2e-empresa-a';
 
 async function login(request: APIRequestContext, email: string) {
-  const res = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
+  const res = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD, mfaCode: await syntheticMfaFor(email) } });
   expect(res.status(), `login ${email}`).toBe(200);
   const body = await res.json();
   return { token: body.accessToken as string, id: body.user.id as string };
@@ -66,7 +67,7 @@ test('el cajero vende de contado y el administrador entrega: la venta aparece en
 
 // La auditoría es exclusiva del SUPERADMIN (ruta por negocio). Un ADMIN recibe 403 en la ruta de tenant.
 async function tokenSuperAdmin(request: any): Promise<string> {
-  const r = await request.post(`${API}/auth/login`, { data: { email: 'superadmin.e2e@e2e.invalid', password: process.env.E2E_PASSWORD } });
+  const r = await request.post(`${API}/auth/login`, { data: { email: 'superadmin.e2e@e2e.invalid', password: process.env.E2E_PASSWORD, mfaCode: await syntheticMfaFor('superadmin.e2e@e2e.invalid') } });
   expect(r.status()).toBe(200);
   return (await r.json()).accessToken as string;
 }
@@ -92,8 +93,8 @@ for (const [nombre, vista] of [['escritorio', { width: 1280, height: 800 }], ['m
     await page.setViewportSize(vista);
     // El administrador del negocio no accede a la auditoría (regla nueva): acceso denegado en la pantalla.
     await page.goto('/login');
-    await page.locator('input[type="email"]').fill(ADMIN);
-    await page.locator('input[type="password"]').fill(PASSWORD);
+    await page.locator('#login-correo').fill(ADMIN);
+    await page.locator('#login-clave').fill(PASSWORD);
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await page.waitForURL((url) => !url.pathname.startsWith('/login'));
     await page.goto('/auditoria');
@@ -102,8 +103,8 @@ for (const [nombre, vista] of [['escritorio', { width: 1280, height: 800 }], ['m
 
     // El SUPERADMIN consulta la auditoría del negocio desde el panel por negocio.
     await page.goto('/login');
-    await page.locator('input[type="email"]').fill('superadmin.e2e@e2e.invalid');
-    await page.locator('input[type="password"]').fill(PASSWORD);
+    await page.locator('#login-correo').fill('superadmin.e2e@e2e.invalid'); await fillPlatformMfa(page, 'superadmin.e2e@e2e.invalid');
+    await page.locator('#login-clave').fill(PASSWORD);
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await page.waitForURL((url) => !url.pathname.startsWith('/login'));
     await page.goto(`/admin/negocios/${TENANT}/auditoria`);
@@ -119,8 +120,8 @@ for (const [nombre, vista] of [['escritorio', { width: 1280, height: 800 }], ['m
 
 test('el cajero no accede a la pantalla de auditoría', async ({ page }) => {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(CAJERO);
-  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator('#login-correo').fill(CAJERO);
+  await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
   await page.goto('/auditoria');

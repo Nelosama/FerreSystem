@@ -1,0 +1,78 @@
+# Jowa System: acceso y recuperación de credenciales
+
+Rama dedicada `codex/auth-recovery-security`, base `main` `ed720baf`. Sin merge, despliegue ni acceso a datos de producción. Revisión de esquema y persistencia: **NEXUS**.
+
+## Auditoría inicial
+
+- React enviaba solo `email/password`. NestJS buscaba Super Admin y después usuarios en todas las empresas; cuando había varias coincidencias comparaba sus contraseñas para elegir una empresa. Se elimina esa selección por contraseña. Un correo globalmente único puede resolver la empresa **antes** de verificar credenciales; nombres, códigos y correos compartidos requieren `tenantId`. La autorización de las siguientes peticiones sigue tomando el tenant del JWT revalidado, nunca de una cabecera del cliente.
+- Prisma tenía `Usuario.email` obligatorio y unicidad `(tenantId,email)`, sin nombre/código de acceso, verificación de correo, MFA ni tokens de recuperación. Se añade `username` normalizado, único por empresa, sin `@` para evitar ambigüedad con correos. Cajeros, vendedores y bodegueros pueden usar solo ese identificador. ADMIN necesita correo. `CONTADOR` aún no existe en `main`: pertenece al PR #180, que sigue separado; las políticas de recuperación excluyen cualquier rol distinto de ADMIN, por lo que un futuro CONTADOR seguirá el flujo de empleado.
+- `UsuariosService.update` y `SuperAdminService.updateTenantAdmin` permitían al administrador elegir la contraseña de otra persona. Se rechaza esa asignación. El alta general genera un hash de una clave aleatoria desconocida y requiere un enlace privado posterior. El alta específica de administradores y la creación de negocios conservan su contrato de contraseña inicial; **no** se permiten cambios posteriores por ese camino. No se devuelven hashes ni contraseñas.
+- El seed principal ya tiene `upsert(update: {})` para Super Admin y usuario inicial, y exige marcador de desarrollo/staging y secretos explícitos. No se ejecuta durante startup/deploy. No se encontró una migración que reescriba hashes ni evidencia que permita atribuir una pérdida real de contraseña en producción: no se consultó esa base.
+- El comando manual `admin:replace-super-admin` sí eliminaba y recreaba la identidad de plataforma. Cambiaba ID y contraseña, podía romper referencias operativas y no revocaba explícitamente sesiones. Queda retirado y falla antes de conectar. Su sustituto de mantenimiento actualiza únicamente el hash de una cuenta activa existente, conserva identidad/correo/MFA, revoca sesiones y deja auditoría.
+- Se conservan JWT firmado, revalidación de cuentas/empresas, CSRF por origen, CORS exacto, cookies HttpOnly/Secure, rotación de refresh con gracia/detección de replay y revocación durable. No se cambian claves reales ni hashes existentes. JWT_SECRET equivocado, cookies bloqueadas, empresa suspendida o login al tenant incorrecto pueden aparentar credenciales inválidas sin cambiar la contraseña; no se certificó la configuración productiva.
+
+## Comportamiento y límites
+
+| Cuenta | Inicio de sesión | Recuperación |
+|---|---|---|
+| Super Admin | Tabla independiente, contraseña + TOTP o código de emergencia | Correo verificado + token + TOTP/código de emergencia; MFA se conserva |
+| ADMIN | Empresa resuelta + contraseña; MFA después de enrolarlo | Correo verificado + MFA configurado + token; alternativamente enlace emitido por Super Admin o por otro ADMIN con MFA del mismo tenant |
+| Empleado | Usuario/código/correo + contraseña en su empresa | Sin correo automático; enlace emitido por ADMIN autorizado de su empresa o Super Admin |
+
+Todos pueden cambiar su propia clave aportando la actual; cuentas con MFA deben aportar también el segundo factor. Las sesiones de soporte no gestionan credenciales. Ningún administrador puede leer contraseñas. Los enlaces de empleado son credenciales temporales: entregarlos únicamente al titular por un canal privado y no abrirlos en el dispositivo del administrador. El receptor elige su contraseña. Quien posea un enlace puede usarlo; la entrega privada y comprobación presencial de identidad forman parte del procedimiento administrativo.
+
+Los tokens tienen 256 bits aleatorios, se guardan como SHA-256, duran 10 minutos y se consumen con bloqueo por cuenta y transacción PostgreSQL. Están ligados a cuenta/tipo/empresa, correo y hash actual. La expiración, cambio de correo/clave, un segundo consumo o una cuenta/empresa desactivada impiden usarlos. Un nuevo token del mismo propósito invalida el anterior. El reset elimina otras acciones pendientes y revoca access/refresh mediante la tabla de sesiones. Emitir un enlace administrativo revoca las sesiones del empleado de inmediato. Cambiar la contraseña de Super Admin cierra además todas las sesiones de soporte; es una medida conservadora porque las filas históricas de soporte no conservan el ID de origen.
+
+TOTP sigue RFC 6238, SHA-1, seis dígitos, pasos de 30 segundos y tolerancia de un paso. El paso se consume mediante actualización condicional para impedir replay entre instancias. El secreto está cifrado con AES-256-GCM y ligado a la cuenta mediante AAD. Los diez códigos de emergencia tienen 128 bits cada uno, se guardan como hash, se consumen una vez y se muestran solo al enrolar. Tras confirmar MFA hay que esperar el siguiente código TOTP (hasta 30 segundos) o usar un código de emergencia para entrar.
+
+Limitación compartida en PostgreSQL por cuenta/acción e IP, incluyendo solicitudes válidas de correo. Los límites existentes `AUTH_LOGIN_*` siguen aplicando. Los consumos públicos limitan por hash del token, evitando un bloqueo global entre usuarios. La solicitud pública devuelve el mismo mensaje con cuenta inexistente, empleado, no verificada o sin MFA; usa un suelo de respuesta de 8,5 s y el proveedor tiene timeout de 8 s. Las caídas de correo se registran con un mensaje fijo sin destinatario, token ni detalle del proveedor. No hay reintento automático: el titular puede solicitar otro enlace después del límite. El proxy debe tener límites de conexión/solicitudes para proteger también recursos antes de llegar a NestJS.
+
+Los enlaces llevan el token en el fragmento y React lo retira de la URL; no se guarda en localStorage/sessionStorage. API con `no-store`, origen fijo para enlaces y sin reconstruir URLs desde `Host`. Los endpoints de seguridad no son reintentados por el interceptor de renovación. Las nuevas contraseñas respetan la política existente y el límite de 72 bytes de bcrypt para evitar truncamiento silencioso; no se altera el hash ni el acceso de claves antiguas.
+
+## Configuración externa requerida antes de liberar
+
+| Variable backend | Uso |
+|---|---|
+| `AUTH_MFA_ENCRYPTION_KEY` | 32 bytes aleatorios expresados como 64 caracteres hexadecimales; clave dedicada distinta de JWT_SECRET |
+| `AUTH_MAIL_RESEND_API_KEY` | API key privada de Resend restringida al envío |
+| `AUTH_MAIL_FROM` | Remitente de un dominio verificado en Resend |
+| `AUTH_PUBLIC_URL` | Origen HTTPS definitivo del frontend, sin credenciales ni datos del usuario |
+| `FRONTEND_URLS`, `NODE_ENV`, `TRUST_PROXY` | Conservar CORS/orígenes exactos, modo production y número real de proxies |
+| `JWT_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN` | Conservar las claves y políticas existentes; una rotación de JWT_SECRET termina sesiones, no cambia contraseñas |
+
+No se ha creado cuenta de correo, comprado dominio, cambiado DNS, configurado secretos externos ni enviado correo real. El adaptador usa `fetch` nativo, sin SDK nuevo. Configurar y probar Resend con dominio/remitente verificado, SPF/DKIM/DMARC según el proveedor y tracking desactivado para estos enlaces. Ver [envío](https://resend.com/docs/api-reference/emails/send-email) y [dominios](https://resend.com/docs/dashboard/domains/introduction).
+
+Guardar la clave MFA y su respaldo en el gestor de secretos. Perderla impide descifrar TOTP; no cambiarla sin un plan explícito de recifrado. Reloj/NTP correcto en hosts y dispositivos. Probar la entrega real y enlaces en los dominios definitivos y cookies de Safari/PWA; preferir API en el mismo sitio para evitar cookies de terceros. Nunca copiar estos secretos a variables `VITE_*`.
+
+## Configuración de cuentas y transición
+
+1. Respaldar y ensayar restauración en una copia aislada. Revisar la migración `20261023000000_auth_recovery`, su checksum y el guard existente. Se añaden campos/tablas/índices y se permite email nulo; no se reescriben credenciales. Confirmar capacidad y duración de bloqueos de DDL en una copia representativa.
+2. **No liberar sin correo y clave MFA configurados y probados.** Las sesiones anteriores de Super Admin no llevan la prueba MFA y se rechazan desde esta versión; no hay bandera para saltarlo. Coordinar una ventana de enrolamiento con el propietario para evitar un bloqueo inesperado.
+3. Super Admin: en el login seleccionar su acceso, introducir correo/contraseña actual y pulsar «Configurar MFA inicial». Recibir el enlace en su correo registrado, abrirlo y volver a aportar la contraseña. Registrar la clave en un autenticador y confirmar el código. Esto verifica la posesión del correo, activa MFA y entrega los códigos de emergencia. No permite sustituir un MFA ya configurado.
+4. ADMIN existente: entrar normalmente, abrir «Seguridad de mi cuenta», verificar correo mediante el enlace, configurar MFA con su contraseña actual y confirmar el autenticador. Guardar códigos. Solo entonces dispone de recuperación automática. Un empleado no puede usar ese enrolamiento/recuperación.
+5. Alta general de empleado: crear usuario/código y rol, sin contraseña ni correo obligatorio; emitir enlace en «Seguridad de mi cuenta» después de seleccionar empresa/empleado y volver a verificar la identidad del administrador. El empleado lo abre en su propio dispositivo y establece su clave.
+6. Un eventual despliegue posterior corresponde al propietario; este PR no hace merge ni deploy. Vercel excluye esta rama en `vercel-ignore.sh`; Render no fue modificado. El rollback preferido conserva el esquema aditivo y revierte código mediante el proceso operativo, con la salvedad de que una versión antigua volvería a permitir login de plataforma sin MFA: no usarla como salida rutinaria a un problema de configuración.
+
+## Emergencia administrativa (no ejecutada)
+
+Primero intentar correo + autenticador o un código de emergencia. Si el propietario perdió su contraseña y aún conserva MFA, abrir un incidente, verificar su identidad fuera de la aplicación con dos responsables autorizados, respaldar y comprobar restauración, registrar aprobaciones y limitar temporalmente el acceso de mantenimiento al host/base. La aprobación de dos personas depende del control de infraestructura; una variable de entorno no la reemplaza.
+
+En una sesión de mantenimiento autorizada, fuera de CI/startup, suministrar mediante el gestor de secretos: `DATABASE_URL`, `SUPER_ADMIN_OBJETIVO_EMAIL`, `CONFIRM_SUPER_ADMIN_RECOVERY` con el mismo correo exacto, `AUTH_EMERGENCY_TICKET` con formato de ticket (por ejemplo `INC-123`), y `SUPER_ADMIN_PASSWORD` elegido privadamente por el titular. Ejecutar `npm run admin:recover-super-admin`. No registra valores sensibles, crea cuentas ni sustituye correo/ID/MFA. Revoca sesiones y acciones pendientes y registra `EMERGENCY_PASSWORD_RECOVERY` con el ticket. El titular entra con la nueva clave **y** su segundo factor; retirar variables de mantenimiento y comprobar auditoría. Nunca dejar estas variables en despliegues.
+
+Si también se perdieron autenticador y todos los códigos, **este comando no los salta**. Se requiere intervención del propietario de la base con doble aprobación e identificación documentada: contener la cuenta, verificar/restablecer el control del correo por un canal independiente, respaldar, revocar sus sesiones/códigos/acciones, y realizar un nuevo enrolamiento supervisado conservando trazabilidad y la misma identidad. No hay endpoint, contraseña maestra ni código universal para desactivar MFA. No se incluye un SQL genérico para ejecutar sin revisión de la cuenta afectada.
+
+## Web/PWA y passkeys
+
+Formularios responsive ES/EN, autocomplete de usuario/contraseña/código, enlaces de recuperación sin persistencia, bloqueo de interfaz a los cinco minutos sin interacción y cambio explícito de empleado mediante logout. En backend una sesión no se acepta tras 15 minutos sin actividad API; cada sesión conserva su vencimiento absoluto. El bloqueo local no se revierte con un PIN: exige otro login online. Se conservan el diario y la autorización offline existente del POS de contingencia; no se crea login ni recuperación offline, ni se borra una venta pendiente al cerrar sesión.
+
+**Passkeys/acceso rápido preparados como contrato de integración, no activados en este PR:** exigir WebAuthn con origen y RP ID HTTPS definitivos, challenge aleatorio de un uso/expiración corta almacenado como hash, credencial vinculada a sujeto y tenant, verificación de usuario y política de registro/revocación de dispositivos. El enrolamiento exige sesión personal y reautenticación, MFA de plataforma, auditoría y comprobación de origen. El servidor decide el tenant antes de validar la credencial. Un PIN solo puede desbloquear localmente un autenticador autorizado; nunca enviarse como autenticación suficiente desde un dispositivo desconocido. No hay botón de passkey, endpoint PIN, promesa de soporte biométrico ni almacenamiento de contraseña para «acceso rápido». Activarlo requerirá implementación y pruebas WebAuthn dedicadas; no añadir una simulación insegura.
+
+## Evidencia y criterio de revisión
+
+La matriz real está en `backend/test/auth-recovery.postgres.integration.ts`; crea exclusivamente un clúster temporal en loopback y nunca usa una URL productiva. Comprueba migración desde la versión anterior, repetición de deploy, ausencia de deriva Prisma, recuperación de Super Admin/Admin, empleados denegados, autorización/aislamiento, token vencido/reutilizado/cambio de correo o clave, concurrencia, códigos de emergencia, revocación, carrera de login y bloqueo backend. El correo es un adaptador simulado capturando destinatario/token, no una entrega real.
+
+Vectores RFC y cifrado en `backend/src/auth/mfa.spec.ts`. Persistencia/seed/startup/emergencia en `backend/scripts/auth-credentials.test.mjs`. Navegador en `frontend/e2e/auth-security.spec.ts`: 320/390/1440, identificadores/empresa/MFA, privacidad del enlace, códigos en memoria, idioma y bloqueo. Esa suite usa API simulada; no acredita iPhone físico ni proveedor real. Los resultados finales y las limitaciones del entorno se registran en el contexto maestro y en el PR, vinculados al commit publicado.
+
+Antes de producción: checks completos del SHA final, verificación real de correo y autenticador del propietario, aceptación PWA/iPhone/Safari y revisión de operaciones de emergencia. Las instalaciones actuales reportan avisos de seguridad de dependencias heredadas; no se actualizan versiones ajenas al alcance. Los access tokens siguen en localStorage conforme al contrato actual y CSP: migrarlos a memoria requiere otro cambio de sesiones/soporte/offline. No se declara el sistema certificado ni listo para desplegar por pasar pruebas locales.
+
+Referencias: [OWASP Forgot Password](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html), [RFC 6238](https://www.rfc-editor.org/rfc/rfc6238).

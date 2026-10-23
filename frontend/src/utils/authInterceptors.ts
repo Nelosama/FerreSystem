@@ -2,7 +2,7 @@ import type { AxiosInstance } from 'axios';
 
 export const SESSION_TIMEOUT_MS = 10_000; // Límite de red; la vigencia sigue siendo la emitida por el servidor.
 export const SESSION_EXPIRED_MESSAGE = 'Tu sesión ha expirado. Inicia sesión nuevamente para continuar.';
-const authEndpoint = (url: string) => /\/auth\/(login|refresh|logout)(\?|$)/.test(url);
+const authEndpoint = (url: string) => /\/auth\/(login|refresh|logout)(\?|$)|\/auth\/security(?:\/|$)/.test(url);
 
 export function tokenClaims(token: string | null): any {
   try { return JSON.parse(atob((token || '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); }

@@ -1,3 +1,5 @@
+import { requireMfa } from '../auth/mfa';
+import { missingPasswordCheck } from '../auth/password-timing';
 import { UsuariosService } from '../usuarios/usuarios.service';
 import { CreateUsuarioDto } from '../usuarios/dto/create-usuario.dto';
 import { UpdateUsuarioDto } from '../usuarios/dto/update-usuario.dto';
@@ -105,8 +107,8 @@ export class SuperAdminService {
   }
 
   // Mismo límite de intentos que el login de tenants (por cuenta y por IP).
-  async login(loginDto: { email: string; password: string }, res: Response, req?: Request) {
-    const claves = clavesDeLogin(loginDto?.email, req?.ip);
+  async login(loginDto: { email: string; password: string; mfaCode?: string }, res: Response, req?: Request) {
+    const claves = clavesDeLogin(`platform:${loginDto?.email}`, req?.ip);
     const segundos = await segundosBloqueados(this.prisma, claves);
     if (segundos > 0) {
       res.setHeader('Retry-After', String(segundos));
@@ -129,24 +131,27 @@ export class SuperAdminService {
     return new Date((decoded?.exp ?? 0) * 1000);
   }
 
-  private async autenticar(loginDto: { email: string; password: string }, res: Response) {
+  private async autenticar(loginDto: { email: string; password: string; mfaCode?: string }, res: Response) {
     const { email, password } = loginDto;
     const admin = await this.prisma.superAdmin.findUnique({
       where: { email: email.toLowerCase().trim() },
     });
     if (!admin || !admin.activo) {
+      await missingPasswordCheck(password);
       throw new UnauthorizedException('Credenciales de Super Admin inválidas');
     }
     const passwordValido = await bcrypt.compare(password, admin.passwordHash);
     if (!passwordValido) {
       throw new UnauthorizedException('Credenciales de Super Admin inválidas');
     }
+    await requireMfa(this.prisma, admin, true, loginDto.mfaCode, this.configService);
     const sid = randomUUID();
     const payload = {
       sub: admin.id,
       email: admin.email,
       rol: 'SUPER_ADMIN',
       type: 'super_admin',
+      mfa: true,
       sid,
     };
     const accessToken = this.jwtService.sign(payload, {
@@ -157,7 +162,7 @@ export class SuperAdminService {
       expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
       jwtid: refreshJti,
     });
-    await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: admin.id, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
+    await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: admin.id, passwordHash: admin.passwordHash, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
     res.cookie('superAdminRefreshToken', refreshToken, {
       ...refreshCookieOptions(this.configService, true),
       maxAge: Math.max(0, this.expiracionRefresh(refreshToken).getTime() - Date.now()),
@@ -187,7 +192,7 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Refresh token de Super Admin inválido');
     }
-    if (!decoded.sid) {
+    if (!decoded.sid || decoded.mfa !== true) {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Sesión de Super Admin cerrada o vencida');
     }
@@ -198,7 +203,7 @@ export class SuperAdminService {
     }
     // H-04: misma rotación y detección de reutilización que el refresh de negocio.
     const rotacion = await rotarRefresh(this.prisma, {
-      sid: String(decoded.sid), sujetoId: String(decoded.sub), jti: typeof decoded.jti === 'string' ? decoded.jti : undefined,
+      sid: String(decoded.sid), sujetoId: String(decoded.sub), passwordHash: admin.passwordHash, jti: typeof decoded.jti === 'string' ? decoded.jti : undefined,
       graciaMs: leerConfiguracionAuth(this.configService).graciaRefreshSegundos * 1000,
     });
     if (rotacion.estado !== 'ROTADA' && rotacion.estado !== 'GRACIA') {
@@ -206,7 +211,7 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Sesión de Super Admin cerrada o vencida');
     }
-    const payload = { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', sid: decoded.sid };
+    const payload = { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true, sid: decoded.sid };
     const accessToken = this.jwtService.sign(payload, { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any });
     const restanteMs = rotacion.expiresAt.getTime() - Date.now();
     const nuevoRefresh = this.jwtService.sign({ ...payload, typ: 'refresh' }, { expiresIn: Math.max(1, Math.floor(restanteMs / 1000)), jwtid: rotacion.jti });
@@ -460,7 +465,8 @@ export class SuperAdminService {
   }
 
   async updateTenantAdmin(tenantId: string, userId: string, dto: UpdateTenantAdminDto, actorId?: string) {
-    const passwordHash = dto.password ? await bcrypt.hash(dto.password, 10) : undefined;
+    if (dto.password) throw new BadRequestException('Use el enlace privado de restablecimiento');
+    const passwordHash = undefined;
     return this.prisma.$transaction(async tx => {
       await lockTenant(tx, tenantId);
       const current = await tx.usuario.findFirst({ where: { id: userId, tenantId, rol: 'ADMIN' } });
@@ -468,7 +474,7 @@ export class SuperAdminService {
       if (current.activo && dto.activo === false && await tx.usuario.count({ where: { tenantId, rol: 'ADMIN', activo: true } }) <= 1) throw new BadRequestException('Conserve al menos un administrador activo');
       const email = dto.email?.trim().toLowerCase();
       if (email && await tx.usuario.findFirst({ where: { tenantId, email, id: { not: userId } } })) throw new BadRequestException('Correo ya registrado en esta empresa');
-      const actualizado = await tx.usuario.update({ where: { id: userId }, data: { ...(dto.nombre !== undefined && { nombre: dto.nombre.trim() }), ...(email !== undefined && { email }), ...(dto.activo !== undefined && { activo: dto.activo }), ...(passwordHash && { passwordHash }) }, select: { id: true, tenantId: true, nombre: true, email: true, activo: true, rol: true, createdAt: true } });
+      const actualizado = await tx.usuario.update({ where: { id: userId }, data: { ...(dto.nombre !== undefined && { nombre: dto.nombre.trim() }), ...(email !== undefined && { email, emailVerifiedAt: null }), ...(dto.activo !== undefined && { activo: dto.activo }), ...(passwordHash && { passwordHash }) }, select: { id: true, tenantId: true, nombre: true, email: true, activo: true, rol: true, createdAt: true } });
       // Cambio de contraseña o desactivación: las sesiones abiertas del administrador dejan de valer.
       if (passwordHash || dto.activo === false) await revocarSesionesDeSujeto(tx, userId, passwordHash ? 'CAMBIO_CONTRASEÑA' : 'USUARIO_DESACTIVADO');
       if (actorId) await audit(tx, tenantId, actorId, dto.activo === false ? 'USUARIO_DESACTIVAR' : 'USUARIO_EDITAR', userId, { usuario: actualizado, cambioPassword: !!passwordHash, superAdminId: actorId });

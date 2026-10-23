@@ -1561,7 +1561,7 @@
   "shell": {
     "login": {
       "subtitle": "Sistema de gestión para negocios",
-      "email": "Correo electrónico",
+      "email": "Usuario, código o correo",
       "password": "Contraseña",
       "submit": "Ingresar al sistema",
       "verifying": "Verificando…",
@@ -1740,5 +1740,32 @@
       "management": "Administración",
       "finance": "Finanzas y reportes"
     }
+  },
+  "security": {
+    "platform": "Acceso de Super Admin",
+    "tenant": "Identificador de empresa",
+    "mfa": "Código MFA o código de emergencia (si está configurado)",
+    "recovery": "Recuperar acceso",
+    "employee_help": "Los empleados recuperan su acceso con un enlace privado emitido por su administrador.",
+    "accepted": "Si la cuenta cumple los requisitos, recibirá instrucciones. Contacte a su administrador si es empleado.",
+    "done": "Solicitud completada. Inicie sesión de nuevo si cambió sus credenciales.",
+    "failed": "No se pudo completar. Verifique los datos, la vigencia del enlace y su conexión.",
+    "save_codes": "Guarde estos códigos de emergencia en un lugar privado. Cada uno funciona una sola vez. No se mostrarán otra vez.",
+    "send": "Enviar recuperación",
+    "bootstrap": "Configurar MFA inicial de Super Admin",
+    "token": "Código del enlace privado",
+    "secret": "Clave para su aplicación de autenticación",
+    "current": "Contraseña actual",
+    "new_password": "Nueva contraseña (mínimo 8 caracteres, letras y números)",
+    "continue": "Continuar",
+    "account": "Seguridad de mi cuenta",
+    "switch": "Bloquear / cambiar de empleado",
+    "private_link": "Enlace privado, válido 10 minutos. Entréguelo solo al titular. Trátelo como una credencial temporal.",
+    "change": "Cambiar mi contraseña",
+    "verify": "Verificar mi correo",
+    "enroll": "Configurar MFA",
+    "load_users": "Cargar usuarios",
+    "employee": "Usuario que solicita el acceso",
+    "admin_reset": "Emitir enlace de restablecimiento privado"
   }
 }

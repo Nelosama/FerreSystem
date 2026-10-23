@@ -14,6 +14,7 @@
     "start:prod": "node scripts/migration-safe.mjs startup && node dist/main",
     "migrate:deploy": "node scripts/migration-safe.mjs deploy",
     "admin:replace-super-admin": "tsx prisma/replace-super-admin.ts",
+    "admin:recover-super-admin": "tsx prisma/recover-super-admin.ts",
     "lint": "oxlint --type-aware src/ test/",
     "test": "vitest run",
     "test:scripts": "node --test scripts/*.test.mjs",

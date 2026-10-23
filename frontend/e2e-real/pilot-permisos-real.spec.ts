@@ -53,8 +53,8 @@ for (const rol of roles) {
       expect(create.status(), 'cannot create privileged users').toBe(403);
     }
     await page.goto('/login');
-    await page.locator('input[type="email"]').fill(user.email);
-    await page.locator('input[type="password"]').fill(PASSWORD);
+    await page.locator('#login-correo').fill(user.email);
+    await page.locator('#login-clave').fill(PASSWORD);
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await page.waitForURL(url => !url.pathname.startsWith('/login'));
     await page.goto('/usuarios');

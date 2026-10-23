@@ -1,3 +1,4 @@
+import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { Test } from '@nestjs/testing';
 import { type INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -68,7 +69,7 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
       nombre: 'Soporte de recuperación', email: 'support@recovery.invalid', passwordHash,
     } });
     const superLogin = await request(app.getHttpServer()).post('/api/admin/auth/login')
-      .send({ email: 'support@recovery.invalid', password }).expect(200);
+      .send({ email: 'support@recovery.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'support@recovery.invalid') }).expect(200);
     superToken = superLogin.body.accessToken;
     const eligible = await request(app.getHttpServer()).get(`/api/admin/tenants/${tenantId}/usuarios`)
       .auth(superToken, { type: 'bearer' }).expect(200);
