@@ -15,7 +15,7 @@ export const LoginPage: React.FC = () => {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [tenantId, setTenantId] = useState('');
+  const [tenantId, setTenantId] = useState(() => new URLSearchParams(window.location.search).get('empresa') || '');
   const [platform, setPlatform] = useState(false);
   const [mfaCode, setMfaCode] = useState('');
   const [loading, setLoading] = useState(false);

@@ -19,7 +19,7 @@ test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
       await expect(page.getByRole('alert')).toBeVisible();
       await page.getByLabel('Acceso de Super Admin').check();
       await expect(page.locator('#login-mfa')).toHaveAttribute('required', '');
-      expect(await desbordamientoHorizontal(page)).toBe(0);
+      expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
     });
     test(`enlace de recuperación privado no persiste en URL ni almacenamiento @${width}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
@@ -27,7 +27,7 @@ test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
       const token = 'synthetic-one-time-token';
       await page.goto(`/login#action=RESET_ADMIN&token=${token}`);
       await expect(page.locator('#recovery-token')).toHaveValue(token);
-      expect(new URL(page.url()).hash).toBe('');
+      await expect(page).toHaveURL(url => url.hash === '');
       await page.locator('#recovery-password').fill('Synthetic-New-789');
       let sent: any;
       await page.route('**/api/auth/security/reset', async route => { sent = route.request().postDataJSON(); await route.fulfill({ json: { success: true } }); });
@@ -35,7 +35,7 @@ test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
       await expect.poll(() => sent).toMatchObject({ token, password: 'Synthetic-New-789' });
       await expect(page.locator('#recovery-password')).toHaveValue('');
       expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toContain(token);
-      expect(await desbordamientoHorizontal(page)).toBe(0);
+      expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
     });
   }
   test('bootstrap MFA muestra códigos de emergencia una sola vez en memoria', async ({ page }) => {

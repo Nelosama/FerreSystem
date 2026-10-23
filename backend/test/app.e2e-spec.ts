@@ -26,7 +26,7 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
   const userId = randomUUID(), otherUserId = randomUUID();
   const password = `Recovery-${randomBytes(16).toString('hex')}!`;
   let directory = '', port = 0, started = false;
-  const pg = (name: string, args: string[]) => execFileSync(join(bin, name), args, { stdio: 'pipe', timeout: 60000 });
+  const pg = (name: string, args: string[]) => execFileSync(join(bin, name), args, { windowsHide: true, stdio: name === 'pg_ctl' ? 'ignore' : 'pipe', timeout: 60000 });
   const start = () => {
     pg('pg_ctl', ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port} -k ${directory}`, '-w', 'start']);
     started = true;
@@ -133,7 +133,11 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
 
   it('recupera escrituras auditadas y la desactivación sigue revocando sesiones', async () => {
     const created = await request(app!.getHttpServer()).post('/api/usuarios').auth(token, { type: 'bearer' })
-      .send({ nombre: 'Cajero recuperado', email: 'cajero@recovery.invalid', password, rol: 'CAJERO' }).expect(201);
+      .send({ nombre: 'Cajero recuperado', email: 'cajero@recovery.invalid', rol: 'CAJERO' }).expect(201);
+    const invitation = await request(app!.getHttpServer()).post('/api/auth/security/admin-reset').auth(token, { type: 'bearer' })
+      .send({ usuarioId: created.body.id, currentPassword: password }).expect(201);
+    await request(app!.getHttpServer()).post('/api/auth/security/reset')
+      .send({ token: invitation.body.token, password }).expect(200);
     const login = await request(app!.getHttpServer()).post('/api/auth/login')
       .send({ tenantId, email: 'cajero@recovery.invalid', password }).expect(200);
     await request(app!.getHttpServer()).get('/api/auth/me').auth(login.body.accessToken, { type: 'bearer' }).expect(200);

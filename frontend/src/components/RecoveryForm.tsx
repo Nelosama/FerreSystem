@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
@@ -14,7 +14,7 @@ export function RecoveryForm({ email, tenantId, platform, password }: { email: s
   const [token, setToken] = useState(initial.token), [action, setAction] = useState(initial.action);
   const [nextPassword, setNextPassword] = useState(''), [code, setCode] = useState(''), [secret, setSecret] = useState('');
   const [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [codes, setCodes] = useState<string[]>(location.state?.recoveryCodes || []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (initial.token || location.state?.recoveryCodes) window.history.replaceState({ ...window.history.state, usr: null }, '', window.location.pathname + window.location.search);
   }, [initial.token, location.state]);
   const run = async (path: string, body: object) => {

@@ -522,7 +522,7 @@ export const SuperAdminPage: React.FC = () => {
     setAdminSaving(true); setErrorText(null);
     try {
       const { data } = await api.post('/auth/security/admin-reset', { tenantId: modalResetPassAdmin.tenantId, usuarioId: modalResetPassAdmin.id, currentPassword: nuevaPasswordInput, mfaCode: resetMfa });
-      const url = new URL('/login', window.location.origin); url.hash = new URLSearchParams({ action: 'RESET_ADMIN', token: data.token }).toString();
+      const url = new URL('/login', window.location.origin); url.searchParams.set('empresa', modalResetPassAdmin.tenantId); url.hash = new URLSearchParams({ action: 'RESET_ADMIN', token: data.token }).toString();
       setResetLink(url.href); setNuevaPasswordInput(''); setResetMfa('');
     } catch (error: any) { setErrorText(error.response?.data?.message || t('uxAudit.admin_message_14')); } finally { setAdminSaving(false); }
   };

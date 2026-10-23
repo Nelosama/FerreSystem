@@ -39,7 +39,7 @@ export function AccountSecurity() {
       const { data } = await api.post(`/auth/security/${path}`, body);
       if (data.secret) { setSecret(data.secret); setToken(data.token); }
       else if (data.recoveryCodes) { setCodes(data.recoveryCodes); setSecret(''); setToken(''); logout(); navigate('/login', { replace: true, state: { recoveryCodes: data.recoveryCodes } }); }
-      else if (data.token) { const url = new URL('/login', window.location.origin); url.hash = new URLSearchParams({ token: data.token, action: 'RESET_ADMIN' }).toString(); setLink(url.href); }
+      else if (data.token) { const url = new URL('/login', window.location.origin); url.searchParams.set('empresa', targetTenant); url.hash = new URLSearchParams({ token: data.token, action: 'RESET_ADMIN' }).toString(); setLink(url.href); }
       else setMessage(t('security.done'));
       setCurrent(''); setPassword(''); setCode('');
       if (path === 'change-password') logout();

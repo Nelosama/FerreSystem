@@ -1,6 +1,6 @@
 # Jowa System: acceso y recuperación de credenciales
 
-Rama dedicada `codex/auth-recovery-security`, base `main` `ed720baf`. Sin merge, despliegue ni acceso a datos de producción. Revisión de esquema y persistencia: **NEXUS**.
+Rama dedicada `codex/auth-recovery-security`, base inicial `main` `ed720baf`, sincronizada con `ba201465` (#190). Sin merge, despliegue ni acceso a datos de producción. Revisión de esquema y persistencia: **NEXUS**.
 
 ## Auditoría inicial
 
@@ -47,7 +47,7 @@ Guardar la clave MFA y su respaldo en el gestor de secretos. Perderla impide des
 ## Configuración de cuentas y transición
 
 1. Respaldar y ensayar restauración en una copia aislada. Revisar la migración `20261023000000_auth_recovery`, su checksum y el guard existente. Se añaden campos/tablas/índices y se permite email nulo; no se reescriben credenciales. Confirmar capacidad y duración de bloqueos de DDL en una copia representativa.
-2. **No liberar sin correo y clave MFA configurados y probados.** Las sesiones anteriores de Super Admin no llevan la prueba MFA y se rechazan desde esta versión; no hay bandera para saltarlo. Coordinar una ventana de enrolamiento con el propietario para evitar un bloqueo inesperado.
+2. **No liberar sin correo y clave MFA configurados y probados.** Las sesiones anteriores de Super Admin no llevan la prueba MFA y se rechazan desde esta versión; no hay bandera para saltarlo. Coordinar una ventana de enrolamiento con el propietario para evitar un bloqueo inesperado. No habilitar cambios de credenciales mientras quede una instancia con la política antigua: completar la sustitución del backend antes de abrir ese flujo.
 3. Super Admin: en el login seleccionar su acceso, introducir correo/contraseña actual y pulsar «Configurar MFA inicial». Recibir el enlace en su correo registrado, abrirlo y volver a aportar la contraseña. Registrar la clave en un autenticador y confirmar el código. Esto verifica la posesión del correo, activa MFA y entrega los códigos de emergencia. No permite sustituir un MFA ya configurado.
 4. ADMIN existente: entrar normalmente, abrir «Seguridad de mi cuenta», verificar correo mediante el enlace, configurar MFA con su contraseña actual y confirmar el autenticador. Guardar códigos. Solo entonces dispone de recuperación automática. Un empleado no puede usar ese enrolamiento/recuperación.
 5. Alta general de empleado: crear usuario/código y rol, sin contraseña ni correo obligatorio; emitir enlace en «Seguridad de mi cuenta» después de seleccionar empresa/empleado y volver a verificar la identidad del administrador. El empleado lo abre en su propio dispositivo y establece su clave.

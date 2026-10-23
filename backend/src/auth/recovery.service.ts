@@ -66,7 +66,7 @@ export class RecoveryService {
           await this.lock(tx, account.id);
           return this.action(tx, account, platform, 'RESET_EMAIL');
         });
-        await this.mail.send(account.email!, token, 'RESET_EMAIL');
+        await this.mail.send(account.email!, token, 'RESET_EMAIL', platform ? undefined : (account as any).tenantId);
       }
     } catch {
       // Never leak eligibility, mailbox/provider details, tokens or database errors.
@@ -82,7 +82,7 @@ export class RecoveryService {
     const { account, platform } = await this.account(this.prisma, identity);
     if (!account.email || (!platform && account.rol !== 'ADMIN')) throw new BadRequestException('Solo administradores con correo pueden verificarlo');
     const token = await this.prisma.$transaction(async tx => { await this.lock(tx, account.id); return this.action(tx, account, platform, 'VERIFY_EMAIL'); });
-    await this.mail.send(account.email, token, 'VERIFY_EMAIL');
+    await this.mail.send(account.email, token, 'VERIFY_EMAIL', platform ? undefined : account.tenantId);
     return accepted;
   }
 
