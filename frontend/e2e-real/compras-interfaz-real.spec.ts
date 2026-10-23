@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { confirmarAlerta } from '../e2e/helpers/alertas';
 
 // Compras y proveedores en NAVEGADOR REAL (Chromium) contra backend NestJS y PostgreSQL temporales (run.sh). Sin page.route.
 // Desde la pantalla /ordenes-compra se registra el proveedor, la factura de compra y la recepción de mercancía; también se intenta
@@ -76,8 +77,8 @@ test('compras en navegador real: proveedor, factura, recepción con costo vigent
   const tarjeta = page.locator('section.operation-card').filter({ hasText: factura });
   await expect(tarjeta).toBeVisible({ timeout: 15_000 });
   await expect(tarjeta).toContainText(nombreProveedor);
-  page.once('dialog', (dialogo) => void dialogo.accept());
   await tarjeta.getByRole('button', { name: 'Confirmar recepción' }).click();
+  await confirmarAlerta(page);
 
   // Existencias y costo vigente actualizados en PostgreSQL; el movimiento de inventario apunta a la compra y al usuario.
   await expect.poll(() => Number(sql(`SELECT stock_actual FROM productos WHERE id='${productoId}'`)), { timeout: 15_000 }).toBe(4);

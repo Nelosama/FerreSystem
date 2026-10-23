@@ -112,6 +112,8 @@ model SuperAdmin {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("super_admins")
+  guiaProgreso Json @default("{}") @map("guia_progreso")
+
 }
 
 // ============================================================
@@ -262,6 +264,8 @@ model Usuario {
   fiscalAjustes         FiscalAjuste[]        @relation("FiscalAjusteUsuario")
   contableCuentas       ContableCuenta[]      @relation("ContableCuentaUsuario")
   contableAsientos      ContableAsiento[]     @relation("ContableAsientoUsuario")
+  guiaProgreso Json @default("{}") @map("guia_progreso")
+
 }
 
 // ============================================================

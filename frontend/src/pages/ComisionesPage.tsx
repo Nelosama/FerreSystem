@@ -62,7 +62,7 @@ export const ComisionesPage: React.FC = () => {
         {/* Filtro por Fecha */}
         <div className="industrial-card" style={{ padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Calendar size={18} color="var(--color-primary)" />
+            <Calendar size={18} color="var(--color-primary-text)" />
             <span style={{ fontWeight: 800, fontSize: '13px', textTransform: 'uppercase' }}>PERÍODO DE LIQUIDACIÓN:</span>
           </div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>

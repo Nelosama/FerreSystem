@@ -50,7 +50,8 @@
       "fix/jowa-operacion-estable": false,
       "codex/fix-camera-lifecycle-ios": false,
       "codex/estabilidad-operativa": false,
-      "feat/contabilidad-honduras": false
+      "feat/contabilidad-honduras": false,
+      "codex/guia-control-modulos": false
     }
   },
   "ignoreCommand": "sh scripts/vercel-ignore.sh"

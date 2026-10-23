@@ -15,6 +15,9 @@ import { readStoredJson } from '../utils/storage';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { normalizarUnidadMedida } from '../utils/unidadMedida';
 
+// Filas de la tabla pintadas a la vez (mismo criterio que el catálogo del POS).
+const FILAS_POR_PAGINA = 200;
+
 export const InventarioPage: React.FC = () => {
   const { tenant, user } = useTenant();
   return <InventarioContent key={`${tenant.id}:${user?.id}`} />;
@@ -113,8 +116,15 @@ const InventarioContent: React.FC = () => {
     });
   }, [productos, search, filtroCategoria]);
 
+  // Con catálogos grandes solo se pintan FILAS_POR_PAGINA filas; buscar o cambiar de categoría vuelve a la primera página.
+  const [limiteFilas, setLimiteFilas] = useState(FILAS_POR_PAGINA);
+  const [filtroPaginado, setFiltroPaginado] = useState(`${search}\u0000${filtroCategoria}`);
+  if (filtroPaginado !== `${search}\u0000${filtroCategoria}`) {
+    setFiltroPaginado(`${search}\u0000${filtroCategoria}`);
+    setLimiteFilas(FILAS_POR_PAGINA);
+  }
   const filasProductos = useMemo(() => (
-    productosFiltrados.map((p) => {
+    productosFiltrados.slice(0, limiteFilas).map((p) => {
       const stockBajo = (p.stockDisponible??p.stockActual) <= p.stockMinimo;
       return (
         <tr key={p.id}>
@@ -152,7 +162,7 @@ const InventarioContent: React.FC = () => {
           <td className="numeric-cell" style={{ textAlign: 'center', fontFamily: 'var(--font-display)',
               fontWeight: 800,
               fontSize: '15px',
-              color: stockBajo ? 'var(--color-primary)' : 'inherit',
+              color: stockBajo ? 'var(--color-primary-text)' : 'inherit',
             }}
           >
             {p.stockActual} físicos
@@ -171,7 +181,7 @@ const InventarioContent: React.FC = () => {
         </tr>
       );
     })
-  ), [productosFiltrados, esAdmin, t]);
+  ), [productosFiltrados, limiteFilas, esAdmin, t]);
 
   // El editor de productos (un <select> con todo el catálogo) tampoco se repinta al escribir en el alta.
   const gestionProductos = useMemo(() => <ProductoGestion productos={productos} onSaved={fetchProductos}/>, [productos, fetchProductos]);
@@ -252,6 +262,7 @@ const InventarioContent: React.FC = () => {
               <button
                 key={cat === 'TODAS' ? t('common.all') : cat}
                 type="button"
+                aria-pressed={filtroCategoria === cat}
                 onClick={() => setFiltroCategoria(cat)}
                 style={{
                   ...styles.catButton,
@@ -323,6 +334,12 @@ const InventarioContent: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {productosFiltrados.length > limiteFilas && (
+          <div aria-live="polite" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginTop: '10px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+            <span>{t('inventory.showing_rows', { shown: limiteFilas, total: productosFiltrados.length })}</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setLimiteFilas(limiteFilas + FILAS_POR_PAGINA)}>{t('inventory.show_more')}</button>
+          </div>
+        )}
       </main>
 
       {/* Modal de Importación Masiva */}
@@ -471,9 +488,9 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   catButtonActive: {
-    backgroundColor: 'var(--color-sidebar-bg)',
-    color: 'var(--color-bg)',
-    borderColor: 'var(--color-sidebar-bg)',
+    backgroundColor: 'var(--color-selected-bg)',
+    color: 'var(--color-selected-text)',
+    borderColor: 'var(--color-selected-bg)',
   },
   modalOverlay: {
     position: 'fixed',

@@ -18,7 +18,7 @@ const CajaContext = createContext<ValorCaja | null>(null);
 /** Una sola consulta periódica por pantalla; la barra superior y el POS leen el mismo valor. */
 export const CajaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, tenant } = useTenant();
-  const habilitado = !!user && ROLES_CON_CAJA.includes(user.rol);
+  const habilitado = !!user && ROLES_CON_CAJA.includes(user.rol) && (!tenant.modulosHabilitados || tenant.modulosHabilitados.includes('arqueo_caja'));
   // La lectura solo vale para el mismo usuario, negocio y sucursal: al cambiar cualquiera se descarta.
   const clave = `${tenant.id}|${user?.id ?? ''}|${tenant.sucursal ?? ''}`;
   const [lectura, setLectura] = useState<LecturaCaja | null>(null);

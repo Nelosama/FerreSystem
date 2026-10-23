@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
+import { alertas } from '../utils/alertas';
 import { formatLempiras } from '../utils/format';
 
 // Proveedores asociados a un producto: código del proveedor, preferido y último costo recibido.
@@ -72,7 +73,7 @@ export const ProveedoresProductoPanel: React.FC<{ productoId: string; productoNo
   };
 
   const quitar = async (proveedor: string) => {
-    if (guardando || !window.confirm(t('supplier_link.confirm_remove'))) return;
+    if (guardando || !(await alertas.confirmar({ texto: t('supplier_link.confirm_remove'), peligroso: true }))) return;
     setGuardando(true); setError(''); setMensaje('');
     try {
       await api.delete(`/operaciones/productos/${productoId}/proveedores/${proveedor}`);

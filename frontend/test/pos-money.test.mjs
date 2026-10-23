@@ -37,3 +37,17 @@ test('el porcentaje no se redondea antes de calcular el descuento', () => {
   assert.equal(pos.calcularVentaPOS([{ precioUnitario: 1000000000, cantidad: 1 }], 1e-7).descuento, 100);
   assert.equal(pos.calcularVentaPOS([{ precioUnitario: 9900000050.01, cantidad: 1 }], 99.99).descuento, 989901005000);
 });
+
+test('el vuelto del POS en línea se calcula en centavos con la lectura de importes de contingencia', () => {
+  assert.deepEqual(pos.calcularVuelto('', 11500), { estado: 'VACIO' });
+  assert.deepEqual(pos.calcularVuelto('   ', 11500), { estado: 'VACIO' });
+  assert.deepEqual(pos.calcularVuelto('abc', 11500), { estado: 'INVALIDO' });
+  assert.deepEqual(pos.calcularVuelto('-5', 11500), { estado: 'INVALIDO' });
+  assert.deepEqual(pos.calcularVuelto('10.555', 11500), { estado: 'INVALIDO' });
+  assert.deepEqual(pos.calcularVuelto('100', 11500), { estado: 'FALTA', centavos: 1500 });
+  assert.deepEqual(pos.calcularVuelto('115', 11500), { estado: 'CAMBIO', recibidoCentavos: 11500, centavos: 0 });
+  assert.deepEqual(pos.calcularVuelto('200,50', 11500), { estado: 'CAMBIO', recibidoCentavos: 20050, centavos: 8550 });
+  // 0.1 + 0.2 en coma flotante no altera el cambio: todo es entero.
+  const { total } = pos.calcularVentaPOS([{ precioUnitario: 0.1, cantidad: 1 }, { precioUnitario: 0.2, cantidad: 1 }], 0);
+  assert.deepEqual(pos.calcularVuelto('1', total), { estado: 'CAMBIO', recibidoCentavos: 100, centavos: 100 - total });
+});

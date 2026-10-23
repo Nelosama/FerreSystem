@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { idDerivado } from './id-derivado';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { confirmarAlerta } from '../e2e/helpers/alertas';
 
 // QA independiente del ciclo de venta (backend NestJS real + PostgreSQL temporal, sin mocks).
 // Cada resultado de negocio se comprueba además en la base de datos. Las funciones no implementadas
@@ -171,7 +172,7 @@ test.describe('1. Venta de contado con efectivo', () => {
     expect(sql(`SELECT tipo||'|'||metodo||'|'||monto::float FROM movimientos_caja WHERE referencia='${idVenta(sid)}'`)).toBe('VENTA_POS|EFECTIVO|230');
   });
 
-  test.skip('1.2 cambio (vuelto): el cajero registra el efectivo recibido y el sistema calcula el cambio — PENDIENTE: no hay campo de efectivo recibido ni cálculo de cambio en POSPage', async () => {});
+  // Caso 1.2 activo en pos-cajeros-real.spec.ts (API y PostgreSQL reales).
 });
 
 test.describe('2. Venta con tarjeta (POS bancario externo)', () => {
@@ -260,13 +261,13 @@ test.describe('4. Abonos parciales y totales de clientes', () => {
     const res = await venta(request, cajero1.token, { solicitudId: sid, clienteId: cliente, metodoPago: 'CREDITO', tipoPago: 'CREDITO', detalles: [{ productoId: P3, cantidad: 2, precioUnitario: 100 }] });
     expect(res.status()).toBe(201);
     const cuenta = sql(`SELECT id FROM cuentas_operativas WHERE documento_id='${idVenta(sid)}' AND tipo='CXC'`);
-    page.on('dialog', (dialogo) => void dialogo.accept());
     await ingresar(page, EM.cajero1, '/cuentas');
     const seccion = page.locator('section.operation-card', { has: page.getByRole('heading', { name: new RegExp(`QA Cliente abono ${RUN}`) }) });
     await seccion.getByRole('button', { name: 'Registrar abono', exact: true }).click();
     const formulario = page.locator('form.operation-form', { has: page.getByRole('heading', { name: new RegExp(`QA Cliente abono ${RUN}`) }) });
     await formulario.getByLabel('Monto').fill('20');
     await formulario.getByRole('button', { name: 'Registrar', exact: true }).dblclick();
+    await confirmarAlerta(page);
     await expect.poll(() => num(`SELECT COUNT(*) FROM pagos_cuenta WHERE cuenta_id='${cuenta}'`), { timeout: 20000 }).toBeGreaterThanOrEqual(1);
     await page.waitForTimeout(1500);
     expect(num(`SELECT COUNT(*) FROM pagos_cuenta WHERE cuenta_id='${cuenta}' AND monto=20`)).toBe(1);
@@ -461,7 +462,7 @@ test.describe('13. Reportes de ventas', () => {
     expect(res.status()).toBe(403);
   });
 
-  test.skip('13.3 reporte por cajero: ventas agrupadas por cajero, método y fecha — PENDIENTE: /operaciones/resumen no tiene dimensión por cajero', async () => {});
+  // Caso 13.3 activo en pos-cajeros-real.spec.ts (API y PostgreSQL reales).
 });
 
 test.describe('14. Operación de la interfaz POS', () => {
@@ -471,7 +472,7 @@ test.describe('14. Operación de la interfaz POS', () => {
     await buscar.fill(COD.ui);
     await buscar.press('Enter');
     await expect(page.getByLabel(new RegExp('^Cantidad QA ' + COD.ui))).toBeVisible();
-    await page.getByRole('button', { name: 'EFECTIVO', exact: true }).click();
+    await page.getByRole('button', { name: 'Efectivo', exact: true }).click();
     await page.getByRole('button', { name: /Procesar Venta/ }).click();
     await expect.poll(() => num(`SELECT COUNT(*) FROM detalles_venta d JOIN ventas v ON v.id=d.venta_id WHERE d.producto_id='${PUI}' AND v.usuario_id='${cajero1.id}'`), { timeout: 20000 }).toBe(1);
     expect(sql(`SELECT metodo_pago||'|'||total::float FROM ventas v JOIN detalles_venta d ON d.venta_id=v.id WHERE d.producto_id='${PUI}'`)).toBe('EFECTIVO|287.5');
@@ -519,7 +520,7 @@ test.describe('14. Operación de la interfaz POS', () => {
     expect(num(`SELECT COUNT(*) FROM detalles_venta WHERE producto_id='${PUI}'`) - antes).toBe(1);
   });
 
-  test.skip('14.4 respuesta tardía del servidor: el POS no reintenta mientras la venta sigue en curso — PENDIENTE: no automatizado (requiere inyección de latencia controlada)', async () => {});
+  // Caso 14.4 activo en pos-cajeros-real.spec.ts (API y PostgreSQL reales).
 });
 
 test.describe('15. Cierre de caja', () => {

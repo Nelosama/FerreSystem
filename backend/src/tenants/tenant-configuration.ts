@@ -23,6 +23,8 @@ export function validateTenantConfiguration(value: unknown): asserts value is Re
     if ((CLAVES_VISUALES_RETIRADAS as readonly string[]).includes(key)) continue;
     if (Object.prototype.hasOwnProperty.call(options, key)) {
       if (!options[key].includes(field)) throw new BadRequestException(`Configuración inválida: ${key}`);
+    } else if (key === 'modoGuia') {
+      if (typeof field !== 'boolean') throw new BadRequestException('Modo Guía inválido');
     } else if (key === 'moneda') {
       if (!field || typeof field !== 'object' || Object.keys(field).some(k => !['simbolo', 'codigo'].includes(k)) || field.simbolo !== 'L.' || field.codigo !== 'HNL') throw new BadRequestException('Solo se admite HNL (L.); no hay conversión monetaria');
     } else if (key === 'impuesto') {
@@ -37,6 +39,7 @@ export function normalizeTenantConfiguration(value: unknown) {
   const defaults = { idioma: 'es', rubro: 'FERRETERIA', formatoImpresion: 'A4' };
   return {
     ...Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, options[key].includes(configuration[key] as string) ? configuration[key] : fallback])),
+    modoGuia: configuration.modoGuia === true,
     moneda: { simbolo: 'L.', codigo: 'HNL' }, impuesto: { nombre: 'ISV', tasa: 15 },
   };
 }

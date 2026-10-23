@@ -1,13 +1,13 @@
 import { LogotipoNegocio } from './LogotipoNegocio';
-import { PlatformSidebar } from './PlatformSidebar';
 import { availableTasks, groupNavigation } from '../utils/taskNavigation';
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronDown, MapPin, WifiOff } from 'lucide-react';
+import { ChevronDown, MapPin } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useI18n } from '../context/I18nContext';
 import { useConexion } from '../hooks/useConexion';
+import { IndicadorConexion } from './IndicadorConexion';
 import { type NavigationItem } from '../config/navigation';
 
 const CLAVE_GRUPOS = 'jowa_menu_grupos_cerrados';
@@ -18,18 +18,13 @@ const leerCerrados = (): string[] => {
   try { const valor = JSON.parse(localStorage.getItem(CLAVE_GRUPOS) || '[]'); return Array.isArray(valor) ? valor : []; } catch { return []; }
 };
 
+// El SUPERADMIN usa PlatformRail (ver AppLayout); este menú es el de los negocios.
 export const Sidebar: React.FC = () => {
-  const { user } = useTenant();
-  if (user?.rol === 'SUPERADMIN') return <PlatformSidebar />;
-  return <TenantSidebar />;
-};
-
-const TenantSidebar: React.FC = () => {
   const { tenant, user } = useTenant();
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();
   const { pathname } = useLocation();
-  const { enLinea, ventasPorEnviar } = useConexion();
+  const { enLinea } = useConexion();
   const [cerrados, setCerrados] = React.useState<string[]>(leerCerrados);
 
   const visibleItems = availableTasks(user, tenant);
@@ -65,7 +60,7 @@ const TenantSidebar: React.FC = () => {
     <aside className="desktop-sidebar-nav app-sidebar jowa-sidebar">
       {/* Identidad del negocio: su logotipo y nombre. Jowa System es el proveedor y enlaza a Inicio. */}
       <div className="jowa-sidebar-brand">
-        <NavLink to="/" aria-label="Jowa System: ir a Inicio" className="jowa-sidebar-home">
+        <NavLink to="/" aria-label={t('navigation.home_link')} className="jowa-sidebar-home">
           <LogotipoNegocio size={40} />
           <span className="jowa-sidebar-identity">
             <strong>{tenant.nombreComercial || 'Negocio'}</strong>
@@ -92,13 +87,7 @@ const TenantSidebar: React.FC = () => {
         </ul>
       </nav>
 
-      <div className={`jowa-connection${enLinea ? '' : ' offline'}`} aria-live="polite">
-        {enLinea ? <span className="jowa-connection-dot" aria-hidden="true" /> : <WifiOff size={16} aria-hidden="true" />}
-        <span>
-          <strong>{t(enLinea ? 'navigation.online' : 'navigation.offline')}</strong>
-          {ventasPorEnviar > 0 && <> · {t('navigation.pending_sales', { count: ventasPorEnviar })}</>}
-        </span>
-      </div>
+      <IndicadorConexion />
     </aside>
   );
 };

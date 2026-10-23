@@ -87,7 +87,7 @@ for (const rol of ['CAJERO', 'VENDEDOR']) {
       '../context/TenantContext': { useTenant: () => ({ tenant: { id: 'tenant-A' }, user: { id: 'user-A', rol, descuentoMaximo: 0 } }) },
     });
     page.render(); await page.effects(); page.render();
-    page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick();
+    page.find(n => n.props.className?.split(' ').includes('pos-producto') && n.props.onClick).props.onClick();
     page.render();
     await page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick();
     assert.equal(sent.length, 1);
@@ -110,16 +110,19 @@ test('Selección de cliente registrado en POS conserva clienteId y lo envía en 
   page.render(); await page.effects(); page.render();
 
   // Agregar producto al carrito
-  page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick();
+  page.find(n => n.props.className?.split(' ').includes('pos-producto') && n.props.onClick).props.onClick();
   page.render();
 
+  // El cliente está plegado (consumidor final): «Cambiar cliente» muestra el buscador de clientes registrados
+  page.find(n => n.props['aria-controls'] === 'pos-cliente-detalle' && n.props['aria-expanded'] === false).props.onClick();
+  page.render();
   // Seleccionar cliente desde ClientePicker
   const picker = page.find(n => n.props.onSelect);
   picker.props.onSelect({ id: 'client-123', nombre: 'Cliente Registrado', rtn: '08011999123456' });
   page.render();
 
   // Cambiar método de pago a CREDITO y cobrar
-  page.find(n => n.props.onClick && n.children?.includes('CREDITO')).props.onClick();
+  page.find(n => n.props.onClick && n.props['data-metodo'] === 'CREDITO').props.onClick();
   page.render();
 
   await page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick();
@@ -143,11 +146,11 @@ test('Venta a crédito sin cliente registrado es rechazada con mensaje de error'
   page.render(); await page.effects(); page.render();
 
   // Agregar producto
-  page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick();
+  page.find(n => n.props.className?.split(' ').includes('pos-producto') && n.props.onClick).props.onClick();
   page.render();
 
   // Seleccionar CREDITO sin seleccionar cliente registrado
-  page.find(n => n.props.onClick && n.children?.includes('CREDITO')).props.onClick();
+  page.find(n => n.props.onClick && n.props['data-metodo'] === 'CREDITO').props.onClick();
   page.render();
 
   await page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick();
@@ -168,7 +171,7 @@ test('Venta de contado sin cliente registrado se procesa sin clienteId', async (
   page.render(); await page.effects(); page.render();
 
   // Agregar producto y cobrar en EFECTIVO
-  page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick();
+  page.find(n => n.props.className?.split(' ').includes('pos-producto') && n.props.onClick).props.onClick();
   page.render();
 
   await page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick();
@@ -185,6 +188,9 @@ test('Desvincular cliente registrado restablece estado a Consumidor Final', asyn
   const page = harness('src/pages/POSPage.tsx', 'POSPage', {}, saved);
   page.render(); await page.effects(); page.render();
 
+  // El cliente está plegado (consumidor final): «Cambiar cliente» muestra el buscador de clientes registrados
+  page.find(n => n.props['aria-controls'] === 'pos-cliente-detalle' && n.props['aria-expanded'] === false).props.onClick();
+  page.render();
   // Seleccionar cliente
   page.find(n => n.props.onSelect).props.onSelect({ id: 'c-456', nombre: 'Constructora S.A.', rtn: '05011990000111' });
   page.render();
@@ -192,7 +198,7 @@ test('Desvincular cliente registrado restablece estado a Consumidor Final', asyn
   assert.ok(page.find(n => n.children?.includes('✓ Cliente registrado seleccionado.')));
 
   // Desvincular cliente con el botón de desvinculación
-  const desvincularBtn = page.find(n => n.type === 'button' && n.props.title?.includes('desvincular'));
+  const desvincularBtn = page.find(n => n.type === 'button' && n.props['aria-label']?.startsWith('shell.pos.client_unlink'));
   assert.ok(desvincularBtn);
   desvincularBtn.props.onClick();
   page.render();
@@ -213,7 +219,7 @@ for (const caso of [
   };
   const page = harness('src/pages/POSPage.tsx', 'POSPage', { '../utils/api': { api } });
   page.render(); await page.effects(); page.render();
-  page.find(n => n.props.className === 'industrial-card' && n.props.onClick).props.onClick(); page.render();
+  page.find(n => n.props.className?.split(' ').includes('pos-producto') && n.props.onClick).props.onClick(); page.render();
   page.find(n => n.props['aria-label'] === 'Cantidad Martillo').props.onChange({ target: { value: String(caso.cantidad) } }); page.render();
   page.find(n => n.type === 'input' && n.props.max === '100').props.onChange({ target: { value: String(caso.porcentaje) } });
   const nodes = page.render();

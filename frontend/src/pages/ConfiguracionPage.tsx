@@ -8,6 +8,7 @@ import { api } from '../utils/api';
 import { Rubro } from '../types';
 import { Button } from '../components/Button';
 import { errorColorHex } from '../utils/colorHex';
+import { AvisoColorMarca } from '../components/AvisoColorMarca';
 import { FORMATOS_IMPRESION, type FormatoImpresion } from '../utils/formatoImpresion';
 import { Palette, Building2, Check, RefreshCw, Store, Layout, Eye, Languages, Coins, Receipt, Users, Layers } from 'lucide-react';
 
@@ -30,6 +31,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   const [cargaError, setCargaError] = useState('');
   const negocio: any = datos ?? {};
 
+  const [modoGuia, setModoGuia] = useState(false);
   const [idioma, setIdioma] = useState<'es' | 'en'>('es');
   const [nombre, setNombre] = useState(negocio.nombreComercial || '');
   const [color, setColor] = useState(negocio.colorPrimario || '#EA580C');
@@ -67,6 +69,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   // Sincronizar estados cuando el negocio cargado cambie
   React.useEffect(() => {
     if (negocio && !dirty.current) {
+      setModoGuia(negocio.modoGuia === true);
       setIdioma(negocio.idioma === 'en' ? 'en' : 'es');
       setNombre(negocio.nombreComercial || '');
       setColor(negocio.colorPrimario || '#EA580C');
@@ -97,7 +100,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         email,
         colorPrimario: color,
         modoNavegacion,
-        configuracion: { idioma, rubro, formatoImpresion, moneda: updatedMoneda, impuesto: updatedImpuesto },
+        configuracion: { modoGuia, idioma, rubro, formatoImpresion, moneda: updatedMoneda, impuesto: updatedImpuesto },
       });
 
       dirty.current = false;
@@ -140,9 +143,10 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         )}
 
         <form className="negocio-settings-grid tenant-settings-grid" onSubmit={handleGuardar} onChange={() => { dirty.current = true; }} onClick={event => { if ((event.target as HTMLElement).closest('button[type="button"]')) dirty.current = true; }} aria-busy={saving} style={styles.grid}>
+<label style={{ display: 'block', margin: '16px 0' }}>{t('guide.setting')} <select className="form-input" value={String(modoGuia)} onChange={e => { dirty.current = true; setModoGuia(e.target.value === 'true'); }}><option value="false">{t('guide.disabled')}</option><option value="true">{t('guide.enabled')}</option></select></label>
           <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-business">
             <div style={styles.cardHeader}>
-              <Building2 size={20} strokeWidth={2.4} color="var(--color-primary)" />
+              <Building2 size={20} strokeWidth={2.4} color="var(--color-primary-text)" />
               <h2 id="settings-section-business" style={{ fontSize: '15px' }}>1. {t('settings.sections.business')}</h2>
             </div>
             <p className="settings-section-help">{t('settings.sections.business_help')}</p>
@@ -160,7 +164,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
             {/* Selector de Rubro Comercial */}
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Store size={14} color="var(--color-primary)" />
+                <Store size={14} color="var(--color-primary-text)" />
                 <span>{t('uxAudit.business_sector')} </span>
               </label>
               <select
@@ -187,7 +191,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
             {/* Selector de Idioma (I18n ES / EN) */}
             <div className="form-group" style={{ marginTop: '16px' }}>
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Languages size={14} color="var(--color-primary)" />
+                <Languages size={14} color="var(--color-primary-text)" />
                 <span>{t('uxAudit.system_language')} </span>
               </label>
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -200,7 +204,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
                     fontWeight: 800,
                     backgroundColor: idioma === 'es' ? 'var(--color-text-main)' : 'var(--color-surface)',
                     color: idioma === 'es' ? 'var(--color-bg)' : 'var(--color-text-main)',
-                    border: '1.5px solid var(--color-sidebar-bg)',
+                    border: '1.5px solid var(--color-text-main)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                   }}
@@ -216,7 +220,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
                     fontWeight: 800,
                     backgroundColor: idioma === 'en' ? 'var(--color-text-main)' : 'var(--color-surface)',
                     color: idioma === 'en' ? 'var(--color-bg)' : 'var(--color-text-main)',
-                    border: '1.5px solid var(--color-sidebar-bg)',
+                    border: '1.5px solid var(--color-text-main)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                   }}
@@ -233,7 +237,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
               logotipo={negocio.logotipo ?? null}
               onCambio={logotipo => setDatos((actual: any) => ({ ...actual, logotipo }))}
             />
-            <h3 style={{ fontSize: '14px', marginTop: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}><Palette size={16} color="var(--color-primary)" />{t('uxAudit.brand_color_live_preview')}</h3>
+            <h3 style={{ fontSize: '14px', marginTop: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}><Palette size={16} color="var(--color-primary-text)" />{t('uxAudit.brand_color_live_preview')}</h3>
             <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '12px' }}>{t('uxAudit.choose_the_color_used_for_your_company_in_navigation_buttons_and_documents')} </p>
 
             {/* Selector de color HEX interactivo */}
@@ -258,6 +262,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
                 {errorColor && <small id="color-hex-error" role="alert" style={{ color: 'var(--color-danger, #B91C1C)', display: 'block', marginTop: '4px' }}>{errorColor}</small>}
               </div>
             </div>
+            {!errorColor && <AvisoColorMarca color={color.trim()} />}
 
             {/* Paletas recomendadas */}
             <div style={{ marginTop: '16px' }}>
@@ -270,7 +275,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
                     onClick={() => setColor(p.hex)}
                     style={{
                       ...styles.presetBtn,
-                      borderColor: color.toUpperCase() === p.hex.toUpperCase() ? 'var(--color-sidebar-bg)' : 'var(--color-sidebar-text)',
+                      borderColor: color.toUpperCase() === p.hex.toUpperCase() ? 'var(--color-text-main)' : 'var(--color-sidebar-text)',
                       borderWidth: color.toUpperCase() === p.hex.toUpperCase() ? '2.5px' : '1.5px',
                     }}
                   >
@@ -282,7 +287,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
             </div>
 
             {/* VISTA PREVIA EN VIVO DEL TEMA Y FUENTES */}
-            <div style={{ ...styles.previewBox, marginTop: '20px', border: '2px solid var(--color-sidebar-bg)' }}>
+            <div style={{ ...styles.previewBox, marginTop: '20px', border: '2px solid var(--color-text-main)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px' }}>
                 <Eye size={14} color={color} />{t('uxAudit.live_preview')} {locale.toUpperCase()})
               </div>
@@ -302,14 +307,14 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
           </section>
           <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-sales">
             <div style={styles.cardHeader}>
-              <Receipt size={20} strokeWidth={2.4} color="var(--color-primary)" />
+              <Receipt size={20} strokeWidth={2.4} color="var(--color-primary-text)" />
               <h2 id="settings-section-sales" style={{ fontSize: '15px' }}>2. {t('settings.sections.sales')}</h2>
             </div>
             <p className="settings-section-help">{t('settings.sections.sales_help')}</p>
             {/* Formato de impresión: hoja A4 o papel de rollo térmico para facturas, recibos y tickets */}
             <div className="form-group">
               <label className="form-label" htmlFor="formato-impresion" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Receipt size={14} color="var(--color-primary)" />
+                <Receipt size={14} color="var(--color-primary-text)" />
                 <span>Formato de impresión de facturas y recibos</span>
               </label>
               <select
@@ -332,7 +337,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
             <div className="settings-fiscal-row" style={{ display: 'flex', gap: '12px' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Coins size={14} color="var(--color-primary)" />
+                  <Coins size={14} color="var(--color-primary-text)" />
                   <span>{t('uxAudit.currency_symbol')} </span>
                 </label>
                 <input
@@ -347,7 +352,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
 
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Receipt size={14} color="var(--color-primary)" />
+                  <Receipt size={14} color="var(--color-primary-text)" />
                   <span>{t('uxAudit.tax_percent')} </span>
                 </label>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -375,7 +380,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
           </section>
           <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-team">
             <div style={styles.cardHeader}>
-              <Users size={20} strokeWidth={2.4} color="var(--color-primary)" />
+              <Users size={20} strokeWidth={2.4} color="var(--color-primary-text)" />
               <h2 id="settings-section-team" style={{ fontSize: '15px' }}>3. {t('settings.sections.team')}</h2>
             </div>
             <p className="settings-section-help">{t('settings.sections.team_help')}</p>
@@ -386,14 +391,14 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
           </section>
           <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-navigation">
             <div style={styles.cardHeader}>
-              <Layout size={20} strokeWidth={2.4} color="var(--color-primary)" />
+              <Layout size={20} strokeWidth={2.4} color="var(--color-primary-text)" />
               <h2 id="settings-section-navigation" style={{ fontSize: '15px' }}>4. {t('settings.sections.navigation')}</h2>
             </div>
             <p className="settings-section-help">{t('settings.sections.navigation_help')}</p>
             {/* Modo de navegación: SIDEBAR o TOPNAV, el único elemento de distribución configurable */}
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Layout size={14} color="var(--color-primary)" />
+                <Layout size={14} color="var(--color-primary-text)" />
                 <span>{t('uxAudit.navigation_mode_and_page_structure')} </span>
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
@@ -528,7 +533,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '16px',
     height: '16px',
     borderRadius: '2px',
-    border: '1px solid var(--color-sidebar-bg)',
+    border: '1px solid var(--color-text-main)',
     flexShrink: 0,
   },
   previewBox: {

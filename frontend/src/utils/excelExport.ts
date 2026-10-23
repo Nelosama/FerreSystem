@@ -1,3 +1,5 @@
+import { alertas } from './alertas';
+
 /**
  * Utility helper to export an array of JSON objects to a downloadable Excel Spreadsheet (.xls / .xlsx XML format)
  * with UTF-8 encoding, column data types, and custom headers.
@@ -8,7 +10,7 @@ export function exportToExcel<T extends Record<string, any>>(
   headers?: { key: keyof T; label: string }[],
 ) {
   if (!data || data.length === 0) {
-    alert('No hay datos disponibles para exportar a Excel.');
+    alertas.advertencia(alertas.traducir('alerts.no_export_data', 'No hay datos disponibles para exportar.'));
     return;
   }
 

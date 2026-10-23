@@ -3,7 +3,7 @@ import { Navigate, matchPath, useLocation } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { NAVIGATION_ITEMS } from '../config/navigation';
 import { canNavigate } from '../utils/taskNavigation';
-import { CATALOGO_MODULOS, modulosPorDefecto } from '../config/modulesCatalog';
+import { modulosPorDefecto } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { Lock } from 'lucide-react';
 
@@ -70,9 +70,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Verificar si el módulo está habilitado para el Tenant
   if (requiredModule) {
     const activeModules = tenant.modulosHabilitados || modulosPorDefecto();
-    const isCore = CATALOGO_MODULOS.find(module => module.key === requiredModule)?.isCore;
 
-    if (!isCore && !activeModules.includes(requiredModule)) {
+    if (!activeModules.includes(requiredModule)) {
       return (
         <div style={styles.deniedContainer}>
           <Lock size={48} color="#EA580C" />

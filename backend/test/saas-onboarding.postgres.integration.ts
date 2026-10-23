@@ -11,6 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { GuiaController } from '../src/auth/guia.controller';
 import { AuthController } from '../src/auth/auth.controller';
 import { AuthService } from '../src/auth/auth.service';
 import { JwtStrategy } from '../src/auth/jwt.strategy';
@@ -97,7 +98,7 @@ describe('Alta SaaS, usuarios y formatos / HTTP y PostgreSQL aislado', () => {
     superAdminId = (await prisma.superAdmin.create({ data: { nombre: 'Super Admin de prueba', email: emailSuperAdmin, passwordHash: hash } })).id;
     const configService = { get: (clave: string, valorPorDefecto?: unknown) => (clave === 'JWT_SECRET' ? jwtSecret : valorPorDefecto) } as unknown as ConfigService;
     const modulo = await Test.createTestingModule({
-      controllers: [AuthController, SuperAdminController, TenantsController, UsuariosController],
+      controllers: [GuiaController, AuthController, SuperAdminController, TenantsController, UsuariosController],
       providers: [
         AuthService, SuperAdminService, TenantsService, TenantLogoService, UsuariosService, JwtStrategy,
         { provide: PrismaService, useValue: prisma },
@@ -323,4 +324,71 @@ describe('Alta SaaS, usuarios y formatos / HTTP y PostgreSQL aislado', () => {
     expect(auditoria.datos).toMatchObject({ superAdminId, readOnly: true, motivo, soporteSesionId: payload.soporteSesionId });
     expect((await http('GET', '/api/tenant/settings', soporte.accessToken)).status).toBe(200);
   });
+  it('Modo Guía conservador, control exclusivo y progreso PostgreSQL por usuario/negocio', async () => {
+    const sa = (await loginSuperAdmin()).accessToken;
+    const a = (await loginNegocio(adminA, A)).accessToken;
+    const b = (await loginNegocio(adminB, B)).accessToken;
+    expect(await (await http('GET', '/api/auth/guia', a)).json()).toEqual({ enabled: false });
+    expect((await http('PUT', '/api/auth/guia', a, { status: 'completed', step: '' })).status).toBe(403);
+    expect((await http('PUT', `/api/admin/tenants/${A}/settings`, a, { configuracion: { modoGuia: true } })).status).toBe(403);
+    expect((await http('PUT', '/api/tenant/settings', a, { configuracion: { modoGuia: true } })).status).toBe(403);
+    expect((await http('PUT', `/api/admin/tenants/${A}/settings`, sa, { configuracion: { modoGuia: 'true' } })).status).toBe(400);
+    expect((await http('PUT', `/api/admin/tenants/${A}/settings`, sa, { configuracion: { modoGuia: true } })).status).toBe(200);
+    for (const status of ['active', 'dismissed', 'completed', 'pending']) {
+      expect((await http('PUT', '/api/auth/guia', a, { status, step: 'inventario', tenantId: B })).status).toBe(200);
+      const loaded = await (await http('GET', '/api/auth/guia', a)).json();
+      expect(loaded.progress.status).toBe(status);
+      expect(loaded.progress.step).toBe('inventario');
+      const user = await prisma.usuario.findFirstOrThrow({ where: { tenantId: A, email: adminA } });
+      expect((user.guiaProgreso as any).status).toBe(status);
+      expect(await (await http('GET', '/api/auth/guia', b)).json()).toEqual({ enabled: false });
+    }
+    expect((await http('PUT', '/api/auth/guia', a, { status: 'invalid', step: '' })).status).toBe(400);
+    expect((await http('PUT', '/api/auth/guia', a, { status: 'active', step: 'x'.repeat(81) })).status).toBe(400);
+    const c = (await loginNegocio(cajeroA, A)).accessToken;
+    expect((await (await http('GET', '/api/auth/guia', c)).json()).progress).toEqual({});
+    expect((await http('PUT', '/api/auth/guia', sa, { status: 'completed', step: 'status' })).status).toBe(200);
+    expect((await (await http('GET', '/api/auth/guia', sa)).json()).progress.status).toBe('completed');
+    expect((await http('PUT', `/api/admin/tenants/${A}/settings`, sa, { configuracion: { modoGuia: false } })).status).toBe(200);
+    expect((await http('PUT', '/api/auth/guia', a, { status: 'active', step: '' })).status).toBe(403);
+  });
+
+  it('16 módulos configurables: persistencia, recuperación, dependencias, historial y tenant aislado', async () => {
+    const sa = (await loginSuperAdmin()).accessToken;
+    const a = (await loginNegocio(adminA, A)).accessToken;
+    const c = (await loginNegocio(cajeroA, A)).accessToken;
+    const bBefore = await prisma.tenantModule.findMany({ where: { tenantId: B } });
+    const product = await prisma.producto.create({ data: { tenantId: A, codigo: 'GUIA-HIST', nombre: 'Histórico', precioVenta: 12, precioCosto: 8, stockActual: 7 } });
+    const off = DEFAULT_TENANT_MODULES.map(moduleKey => ({ moduleKey, enabled: false }));
+    const put = (modules: unknown, token = sa) => http('PUT', `/api/admin/tenants/${A}/modules`, token, { modules });
+    expect((await put(off, a)).status).toBe(403);
+    expect((await put(off, c)).status).toBe(403);
+    for (const invalid of [null, [{ moduleKey: 'inventado', enabled: true }], [{ moduleKey: 'pos', enabled: 'false' }], [off[0], off[0]]]) expect((await put(invalid)).status).toBe(400);
+    expect((await put([{ moduleKey: 'inventario', enabled: false }])).status).toBe(400);
+    expect((await put(off)).status).toBe(200);
+    expect((await (await http('GET', '/api/tenant/settings', a)).json()).modulosHabilitados).toEqual([]);
+    expect((await http('GET', '/api/usuarios', a)).status).toBe(403);
+    expect((await http('GET', `/api/admin/tenants/${A}/usuarios?gestion=true`, sa)).status).toBe(200);
+    // Each module can be activated and disabled; operational dependencies are activated together.
+    const dependencies: Record<string, string[]> = { pos: ['inventario','arqueo_caja','clientes'], cotizaciones: ['inventario','clientes'], levantamiento: ['inventario'], ordenes_compra: ['inventario'], comisiones_venta: ['pos','usuarios','inventario','arqueo_caja','clientes'] };
+    for (const key of DEFAULT_TENANT_MODULES) {
+      const enabled = [key, ...(dependencies[key] || [])];
+      expect((await put(off.map(item => ({ ...item, enabled: enabled.includes(item.moduleKey) })))).status).toBe(200);
+      const persisted = await (await http('GET', '/api/tenant/settings', a)).json();
+      expect(persisted.modulosHabilitados.sort()).toEqual(enabled.sort());
+      expect((await put(off)).status).toBe(200);
+      expect((await (await http('GET', '/api/tenant/settings', a)).json()).modulosHabilitados).toEqual([]);
+    }
+    expect(await prisma.producto.findUnique({ where: { id: product.id } })).toEqual(product);
+    expect(await prisma.tenantModule.findMany({ where: { tenantId: B } })).toEqual(bBefore);
+    const audit = await prisma.auditoriaOperacion.findFirstOrThrow({ where: { tenantId: A, operacion: 'ACTUALIZAR_SERVICIOS' }, orderBy: { createdAt: 'desc' } });
+    const auditHttp = await (await http('GET', `/api/admin/tenants/${A}/auditoria`, sa)).json();
+    expect(auditHttp.find((row: any) => row.id === audit.id).usuario_nombre).toBe('Super Admin de prueba');
+    expect(audit.usuarioId).toBe(superAdminId); expect(audit.createdAt).toBeInstanceOf(Date);
+    expect((audit.datos as any).before).toHaveLength(16); expect((audit.datos as any).modules).toHaveLength(16);
+    expect((await put(off.map(item => ({ ...item, enabled: true })))).status).toBe(200);
+    expect((await http('GET', '/api/usuarios', a)).status).toBe(200);
+    expect((await http('GET', '/api/usuarios', c)).status).toBe(403);
+  }, 30000);
+
 });

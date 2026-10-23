@@ -1,3 +1,4 @@
+import { RequiredModule } from '../common/decorators/required-module.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
@@ -12,6 +13,7 @@ import { UpdateCreditoClienteDto } from './dto/cliente.dto';
 import { CreateAbonoClienteDto } from './dto/abono.dto';
 
 @Controller('clientes')
+@RequiredModule('clientes')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Roles(Rol.ADMIN)
 export class ClientesController {

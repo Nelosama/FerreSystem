@@ -5,6 +5,7 @@ import { startSessionValidation, profileRequestConfig, type SessionStatus } from
 import { clearSessionStorage, clearSessionExpiredNotice } from '../utils/authInterceptors';
 import { readStoredJson } from '../utils/storage';
 import { normalizeTenantSettings, TenantSettingsReads } from '../utils/tenantSettings';
+import { variantesMarca } from '../utils/colorMarca';
 
 interface TenantContextType {
   tenant: TenantInfo;
@@ -124,17 +125,22 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     void refresh();
     window.addEventListener('focus', refresh);
-    return () => { active = false; window.removeEventListener('focus', refresh); };
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 30000);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
   }, [user?.id, tenant.id, authStatus]);
 
   // Diseño único de Jowa System: solo el color de marca cambia por negocio; tipografía y estilo son fijos.
+  // El color se usa tal cual en fondos; el texto encima y el texto de marca sobre fondo claro se derivan legibles.
   useEffect(() => {
     const root = document.documentElement;
-    const color = tenant.colorPrimario || '#EA580C';
-    root.style.setProperty('--color-primary', color);
-    root.style.setProperty('--color-primary-hover', adjustColorBrightness(color, -15));
-    root.style.setProperty('--color-primary-active', adjustColorBrightness(color, -30));
-    root.style.setProperty('--color-primary-light', `${color}1F`);
+    const marca = variantesMarca(tenant.colorPrimario || '#EA580C');
+    root.style.setProperty('--color-primary', marca.primario);
+    root.style.setProperty('--color-primary-hover', marca.hover);
+    root.style.setProperty('--color-primary-active', marca.activo);
+    root.style.setProperty('--color-primary-light', marca.tinte);
+    root.style.setProperty('--color-primary-border', marca.borde);
+    root.style.setProperty('--color-on-primary', marca.sobrePrimario);
+    root.style.setProperty('--color-primary-text', marca.texto);
   }, [user?.id, tenant.id, tenant.colorPrimario]);
 
   const updateBranding = (colorPrimario: string, nombreComercial: string) => {
@@ -322,23 +328,3 @@ export const useTenant = () => {
   }
   return context;
 };
-
-// Helper para calcular hover/active colors a partir del HEX primario
-function adjustColorBrightness(hex: string, percent: number): string {
-  const num = parseInt(hex.replace('#', ''), 16);
-  const amt = Math.round(2.55 * percent);
-  const R = (num >> 16) + amt;
-  const G = ((num >> 8) & 0x00ff) + amt;
-  const B = (num & 0x0000ff) + amt;
-  return (
-    '#' +
-    (
-      0x1000000 +
-      (R < 255 ? (R < 1 ? 0 : R) : 255) * 0x10000 +
-      (G < 255 ? (G < 1 ? 0 : G) : 255) * 0x100 +
-      (B < 255 ? (B < 1 ? 0 : B) : 255)
-    )
-      .toString(16)
-      .slice(1)
-  );
-}

@@ -1,6 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './styles/tema.css'
+import './styles/plataforma.css'
+import './styles/cajero.css'
 import App from './App.tsx'
 
 // Service worker: solo en producción. Permite abrir el POS sin conexión; no cachea la API.

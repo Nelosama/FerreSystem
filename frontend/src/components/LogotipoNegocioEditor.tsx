@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, ImageUp, Trash2 } from 'lucide-react';
 import { api } from '../utils/api';
+import { alertas } from '../utils/alertas';
 import { useLogotipoNegocio } from '../hooks/useLogotipoNegocio';
 import {
   invalidarLogotipo,
@@ -76,7 +77,7 @@ export const LogotipoNegocioEditor: React.FC<LogotipoNegocioEditorProps> = ({ ne
 
   const eliminar = async () => {
     if (ocupado || !logotipo) return;
-    if (!window.confirm(`¿Quitar el logotipo de ${nombreNegocio}? El negocio volverá a ver el ícono predeterminado.`)) return;
+    if (!(await alertas.confirmar({ texto: `¿Quitar el logotipo de ${nombreNegocio}? El negocio volverá a ver el ícono predeterminado.`, confirmar: 'Quitar', peligroso: true }))) return;
     setOcupado(true); setError(''); setEstado('');
     try {
       await api.delete(endpoint);
@@ -104,7 +105,7 @@ export const LogotipoNegocioEditor: React.FC<LogotipoNegocioEditorProps> = ({ ne
         <div aria-label="Vista previa del logotipo" style={{ width: 160, height: 90, border: '1px dashed var(--color-border-subtle, #D6D3D1)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#FFFFFF' }}>
           {mostrado
             ? <img src={mostrado} alt={`Logotipo de ${nombreNegocio}`} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-            : <Box size={36} strokeWidth={2.2} color="var(--color-primary)" aria-hidden="true" />}
+            : <Box size={36} strokeWidth={2.2} color="var(--color-primary-text)" aria-hidden="true" />}
         </div>
         <div style={{ fontSize: 13, display: 'grid', gap: 4 }}>
           <strong>{vistaPrevia ? 'Vista previa (sin guardar)' : logotipo ? 'Logotipo actual' : 'Sin logotipo: se muestra el ícono predeterminado'}</strong>

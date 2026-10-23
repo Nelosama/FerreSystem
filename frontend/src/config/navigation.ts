@@ -99,7 +99,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   },
 
     {key:'devoluciones',labelKey:'menu.returns',defaultLabel:'DEVOLUCIONES',route:'/devoluciones',moduleKey:'pos',icon:PackageSearch,allowedRoles:['ADMIN','CAJERO','VENDEDOR'],category:'VENTAS'},
-  {key:'cuentas',labelKey:'menu.accounts',defaultLabel:'CUENTAS Y ABONOS',route:'/cuentas',icon:DollarSign,allowedRoles:['ADMIN','CAJERO'],category:'CLIENTES'},
+  {key:'cuentas',moduleKey:'arqueo_caja',labelKey:'menu.accounts',defaultLabel:'CUENTAS Y ABONOS',route:'/cuentas',icon:DollarSign,allowedRoles:['ADMIN','CAJERO'],category:'CLIENTES'},
   {key:'entregas',labelKey:'menu.deliveries',defaultLabel:'ENTREGAS',route:'/entregas',moduleKey:'pos',icon:Truck,allowedRoles:['ADMIN','CAJERO','BODEGUERO'],category:'VENTAS'},
   // Revisión de ventas sin conexión: misma ruta y autorización que ya existían (solo ADMIN, módulo POS; el backend autoriza cada acción).
   {key:'contingencia_admin',labelKey:'menu.offline_review',defaultLabel:'VENTAS SIN CONEXIÓN',route:'/contingencia-admin',moduleKey:'pos',icon:ShieldAlert,allowedRoles:['ADMIN'],category:'VENTAS'},
@@ -107,6 +107,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   // INVENTARIO
   {
     key: 'inventario',
+    requiredPermiso: 'inventario.ver',
     labelKey: 'menu.inventory',
     defaultLabel: 'INVENTARIO',
     route: '/inventario',
@@ -117,6 +118,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   },
   {
     key: 'precios',
+    moduleKey: 'inventario',
     labelKey: 'menu.prices',
     defaultLabel: 'PRECIOS Y APROBACIÓN',
     route: '/precios',
@@ -136,6 +138,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   },
   {
     key: 'ordenes_compra',
+    requiredPermiso: 'inventario.ver',
     labelKey: 'menu.purchase_orders',
     defaultLabel: 'ÓRDENES DE COMPRA',
     route: '/ordenes-compra',
@@ -188,6 +191,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   },
   {
     key: 'clientes',
+    moduleKey: 'clientes',
     labelKey: 'menu.clients',
     defaultLabel: 'CLIENTES',
     route: '/clientes',
@@ -229,6 +233,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   },
   {
     key: 'arqueo_caja',
+    moduleKey: 'arqueo_caja',
     labelKey: 'menu.cash_drawer',
     defaultLabel: 'ARQUEO DE CAJA',
     route: '/arqueo-caja',

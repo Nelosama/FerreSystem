@@ -1,0 +1,522 @@
+{
+ "inicio-1440": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 5,
+   "peores": [
+    {
+     "texto": "Inicio",
+     "ratio": 3.07,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Jowa System",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Nueva venta",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Ver cotizaciones",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Ver inventario",
+     "ratio": 3.56,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "inicio-390": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 3,
+   "peores": [
+    {
+     "texto": "Ver cotizaciones",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Ver inventario",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Nueva venta",
+     "ratio": 3.56,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "inventario-1440": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 10,
+   "peores": [
+    {
+     "texto": "TODAS",
+     "ratio": 1.09,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Herramientas y Materiales",
+     "ratio": 3.07,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Jowa System",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "NUEVO PRODUCTO",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "1  físicos",
+     "ratio": 3.56,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "inventario-390": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 8,
+   "peores": [
+    {
+     "texto": "TODAS",
+     "ratio": 1.09,
+     "minimo": 4.5
+    },
+    {
+     "texto": "NUEVO PRODUCTO",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "1  físicos",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "0  reservados ·  1  disponibles",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "1  físicos",
+     "ratio": 3.56,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "login-1440": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 3,
+   "peores": [
+    {
+     "texto": "Jowa",
+     "ratio": 1,
+     "minimo": 3
+    },
+    {
+     "texto": "Honduras • SAR Compliance ISV 15% • Multi-Tenant",
+     "ratio": 2.52,
+     "minimo": 4.5
+    },
+    {
+     "texto": "INGRESAR AL SISTEMA",
+     "ratio": 3.56,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "login-390": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 3,
+   "peores": [
+    {
+     "texto": "Jowa",
+     "ratio": 1,
+     "minimo": 3
+    },
+    {
+     "texto": "Honduras • SAR Compliance ISV 15% • Multi-Tenant",
+     "ratio": 2.52,
+     "minimo": 4.5
+    },
+    {
+     "texto": "INGRESAR AL SISTEMA",
+     "ratio": 3.56,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "pos-1024": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 21,
+   "peores": [
+    {
+     "texto": "EFECTIVO",
+     "ratio": 1,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Abrir o revisar mi caja",
+     "ratio": 2.83,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Cuentas y abonos",
+     "ratio": 2.83,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Entregas",
+     "ratio": 2.83,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Punto de venta",
+     "ratio": 3.07,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "pos-1440": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 21,
+   "peores": [
+    {
+     "texto": "EFECTIVO",
+     "ratio": 1,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Abrir o revisar mi caja",
+     "ratio": 2.83,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Cuentas y abonos",
+     "ratio": 2.83,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Entregas",
+     "ratio": 2.83,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Punto de venta",
+     "ratio": 3.07,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "pos-390": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 19,
+   "peores": [
+    {
+     "texto": "EFECTIVO",
+     "ratio": 1,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Abrir o revisar mi caja",
+     "ratio": 2.83,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Cuentas y abonos",
+     "ratio": 2.83,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Entregas",
+     "ratio": 2.83,
+     "minimo": 4.5
+    },
+    {
+     "texto": "L. 85.50",
+     "ratio": 3.56,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "pos-marca-clara-1440": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 22,
+   "peores": [
+    {
+     "texto": "EFECTIVO",
+     "ratio": 1,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Abrir o revisar mi caja",
+     "ratio": 1.43,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Cuentas y abonos",
+     "ratio": 1.43,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Entregas",
+     "ratio": 1.43,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Punto de venta",
+     "ratio": 1.54,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "superadmin-1440": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 3,
+   "peores": [
+    {
+     "texto": "FR",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Iniciar soporte",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Iniciar soporte",
+     "ratio": 3.56,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "superadmin-390": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 3,
+   "peores": [
+    {
+     "texto": "FR",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Iniciar soporte",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Iniciar soporte",
+     "ratio": 3.56,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "topnav-1024": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 5,
+   "peores": [
+    {
+     "texto": "Jowa System",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Inicio",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Nueva venta",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Ver cotizaciones",
+     "ratio": 3.56,
+     "minimo": 4.5
+    },
+    {
+     "texto": "Ver inventario",
+     "ratio": 3.56,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "usuarios-modal-1440": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 16,
+   "peores": [
+    {
+     "texto": "pos.aplicar_descuento",
+     "ratio": 1.09,
+     "minimo": 4.5
+    },
+    {
+     "texto": "caja.movimientos_manuales",
+     "ratio": 1.09,
+     "minimo": 4.5
+    },
+    {
+     "texto": "inventario.ver",
+     "ratio": 1.09,
+     "minimo": 4.5
+    },
+    {
+     "texto": "inventario.editar",
+     "ratio": 1.09,
+     "minimo": 4.5
+    },
+    {
+     "texto": "cotizaciones.aprobar",
+     "ratio": 1.09,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ },
+ "usuarios-modal-390": {
+  "antes": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 14,
+   "peores": [
+    {
+     "texto": "pos.aplicar_descuento",
+     "ratio": 1.09,
+     "minimo": 4.5
+    },
+    {
+     "texto": "caja.movimientos_manuales",
+     "ratio": 1.09,
+     "minimo": 4.5
+    },
+    {
+     "texto": "inventario.ver",
+     "ratio": 1.09,
+     "minimo": 4.5
+    },
+    {
+     "texto": "inventario.editar",
+     "ratio": 1.09,
+     "minimo": 4.5
+    },
+    {
+     "texto": "cotizaciones.aprobar",
+     "ratio": 1.09,
+     "minimo": 4.5
+    }
+   ]
+  },
+  "despues": {
+   "desborde_px": 0,
+   "textos_bajo_minimo": 0,
+   "peores": []
+  }
+ }
+}

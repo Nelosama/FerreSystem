@@ -60,8 +60,12 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
     await setup(page, role, mode, language, []);
     await page.goto(role === 'SUPERADMIN' ? '/admin' : '/');
-    const navigation = page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
+    // El SUPERADMIN usa siempre el rail de plataforma (el modo del negocio no le aplica).
+    // El cajero en modo lateral usa el rail de iconos; sus accesos secundarios quedan en «Más».
+    const cajeroRail = role === 'CAJERO' && mode === 'SIDEBAR';
+    const navigation = role === 'SUPERADMIN' ? page.getByRole('navigation', { name: 'Áreas de la plataforma' }) : cajeroRail ? page.locator('nav.cajero-rail') : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
     await expect(navigation).toBeVisible();
+    if (cajeroRail && await navigation.getByRole('button', { name: 'Más' }).count()) await navigation.getByRole('button', { name: 'Más' }).click();
     await expect(navigation.locator('a[href="/pos"]')).toHaveCount(0);
     await expect(navigation.locator('a[href="/apartados"]')).toHaveCount(0);
     // La configuración se abre por negocio desde el panel del SUPERADMIN; no hay entrada global en el menú.
@@ -70,11 +74,20 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
       expect(await page.locator('.daily-tasks .task-link').count()).toBeLessThanOrEqual(4);
       if (['CAJERO', 'VENDEDOR'].includes(role)) {
         if (mode === 'TOPNAV') { const submenu = navigation.locator('a[href="/arqueo-caja"]').locator('xpath=ancestor::details'); if (await submenu.count()) await submenu.locator('summary').click(); }
-        await expect(navigation.locator('a[href="/arqueo-caja"]')).toBeVisible();
+        await expect(navigation.locator('a[href="/arqueo-caja"]')).toHaveCount(0);
       }
       if (role !== 'ADMIN') await expect(navigation.locator('a[href="/usuarios"]')).toHaveCount(0);
     }
     await page.setViewportSize({ width: 390, height: 844 });
+    if (role === 'SUPERADMIN') {
+      // En móvil el rail es la barra inferior de cuatro áreas; no hay botón «Más».
+      await expect(navigation).toBeVisible();
+      await expect(navigation.getByRole('link')).toHaveCount(4); // En móvil el logotipo del rail queda oculto.
+      await page.goto('/inventario');
+      await expect(page.getByRole('heading', { name: language === 'es' ? /Acceso Denegado/i : /Access Denied/i, exact: true })).toBeVisible();
+      expect(errors).toEqual([]);
+      return;
+    }
     await expect(page.locator('.mobile-bottom-nav')).toBeVisible();
     const more = page.locator('.mobile-bottom-nav button');
     await more.click();
@@ -95,8 +108,10 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
   test(`POS ${enabled} ${role} ${mode}: menús, buscador, accesos, móvil y URL`, async ({ page }) => {
     await setup(page, role, mode, 'es', enabled ? ['pos'] : []);
     await page.goto('/');
-    const nav = page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
+    const cajeroRail = role === 'CAJERO' && mode === 'SIDEBAR';
+    const nav = cajeroRail ? page.locator('nav.cajero-rail') : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
     await expect(nav).toBeVisible();
+    if (cajeroRail && await nav.getByRole('button', { name: 'Más' }).count()) await nav.getByRole('button', { name: 'Más' }).click();
     const salesMenu = nav.getByRole('button', { name: 'Ventas y caja' });
     if (mode === 'TOPNAV' && await salesMenu.count()) await salesMenu.click();
     for (const route of ['entregas', 'devoluciones']) {
@@ -108,11 +123,11 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
     }
     if (role === 'BODEGUERO') await expect(page.locator('.daily-tasks a[href="/entregas"]')).toHaveCount(enabled ? 1 : 0);
     if (['ADMIN', 'CAJERO'].includes(role)) {
-      await expect(nav.locator('a[href="/arqueo-caja"]')).toHaveCount(1);
+      await expect(nav.locator('a[href="/arqueo-caja"]')).toHaveCount(0);
       // FS-14: el cajero ya no tiene Clientes; con un solo ítem la categoría puede no mostrarse como grupo.
       const grupoCobros = nav.getByRole('button', { name: 'Clientes y cobros' });
       if (mode === 'TOPNAV' && await grupoCobros.count()) await grupoCobros.click();
-      await expect(nav.locator('a[href="/cuentas"]')).toHaveCount(1);
+      await expect(nav.locator('a[href="/cuentas"]')).toHaveCount(0);
     }
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('.mobile-bottom-nav button').click();
@@ -137,7 +152,7 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
 test('settings: valores fiscales soportados, guardado, reload, errores y capturas', async ({ page }) => {
   const api = await setup(page, 'SUPERADMIN', 'TOPNAV');
   await page.goto('/admin/negocios/ux-company/configuracion');
-  await expect(page.locator('.app-top-navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' })).toBeVisible();
   await expect(page.locator('#task-search')).toHaveCount(0);
   await expect(page.locator('#tax-rate')).toHaveValue('15');
   for (const id of ['currency-code', 'currency-symbol', 'tax-name', 'tax-rate']) await expect(page.locator('#' + id)).toHaveAttribute('readonly', '');
@@ -147,7 +162,7 @@ test('settings: valores fiscales soportados, guardado, reload, errores y captura
   expect(api.writes[0]).toMatchObject({ modoNavegacion: 'TOPNAV', configuracion: { impuesto: { tasa: 15 }, moneda: { codigo: 'HNL' } } });
   await page.reload();
   await expect(page.locator('input[type="number"]')).toHaveValue('15');
-  await expect(page.locator('.app-top-navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' })).toBeVisible();
   await page.screenshot({ path: 'artifacts/ux-settings-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'artifacts/ux-settings-mobile.png', fullPage: true });
@@ -216,13 +231,8 @@ for (const language of ['es', 'en']) test(`inicio ADMIN: pendientes traducidos y
 for (const language of ['es', 'en']) test(`configuración del negocio traducida ${language}`, async ({ page }) => {
   await setup(page, 'SUPERADMIN', 'TOPNAV', language);
   await page.goto('/admin/negocios/ux-company/configuracion');
-  // The accessible label comes from the shared translation, not its icon.
-  const toggle=page.locator('.task-finder-toggle');
-  await toggle.click(); await expect(page.locator('#task-search')).toBeFocused();
-  await page.locator('#task-search').fill(language==='es'?'ventas':'sales');
-  await page.keyboard.press('Escape'); await expect(toggle).toBeFocused();
+  // La plataforma no muestra el buscador de tareas de los negocios.
   await expect(page.locator('#task-search')).toHaveCount(0);
-  await expect(page.getByRole('heading',{ name:language==='es'?'CONFIGURACIÓN Y MARCA':'SETTINGS AND BRANDING',exact:true })).toBeVisible();
   await expect(page.locator('#fiscal-limit')).toContainText(language==='es'?'solo lectura':'read-only');
 });
 

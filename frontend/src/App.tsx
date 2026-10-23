@@ -1,3 +1,4 @@
+import { Guide } from './components/Guide';
 import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -5,6 +6,10 @@ import { TenantProvider } from './context/TenantContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { I18nProvider } from './context/I18nContext';
 import { Sidebar } from './components/Sidebar';
+import { PlatformRail } from './components/PlatformRail';
+import { PlatformTopbar } from './components/PlatformTopbar';
+import { CajeroRail } from './components/CajeroRail';
+import { PlatformShellContext } from './context/PlatformShellContext';
 import { TopNavigation } from './components/TopNavigation';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -138,8 +143,9 @@ const HomeRoute: React.FC = () => {
 
 // Layout principal que admite modo Sidebar lateral o modo TopNav horizontal
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { tenant } = useTenant();
+  const { tenant, user } = useTenant();
   const isTopNav = tenant.modoNavegacion === 'TOPNAV';
+
   const [isMobile, setIsMobile] = React.useState(
     typeof window !== 'undefined' ? window.innerWidth <= 768 : false
   );
@@ -153,11 +159,29 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Super Admin: layout híbrido de plataforma (rail de iconos, topbar y pestañas), sin depender del modo del negocio.
+  if (user?.rol === 'SUPERADMIN') {
+    return (
+      <CajaProvider>
+        <PlatformShellContext.Provider value={true}>
+          <div className="platform-shell">
+            <PlatformRail />
+            <div data-guide-content className="platform-main">
+              <PlatformTopbar />
+              <Guide />
+              {children}
+            </div>
+          </div>
+        </PlatformShellContext.Provider>
+      </CajaProvider>
+    );
+  }
+
   return (
     <CajaProvider>
     <div className={isTopNav ? "app-container-topnav" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
-      {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : <Sidebar />}
-      <div
+      {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : user?.rol === 'CAJERO' ? <CajeroRail /> : <Sidebar />}
+      <div data-guide-content
         className="main-content"
         style={{
           ...(isTopNav ? { flex: 1, width: '100%' } : {}),
@@ -165,6 +189,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         }}
       >
         {(!isTopNav || isMobile) && <TaskFinder />}
+        <Guide />
         {children}
       </div>
       <BottomNavigation />
@@ -184,9 +209,9 @@ export const App: React.FC = () => {
                 <Route path="/pos-contingencia" element={<ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="pos" requiredPermiso="pos.vender"><PosContingenciaPage /></ProtectedRoute>} />
                 <Route path="/contingencia-admin" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="pos"><AppLayout><ContingenciaAdminPage /></AppLayout></ProtectedRoute>} />
                 <Route path="/contabilidad" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage /></AppLayout></ProtectedRoute>} />
-                <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','VENDEDOR']}><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
+                <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','VENDEDOR']} requiredModule="pos"><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
                   <Route path="/auditoria" element={<Navigate to="/admin" replace />} />
-                  <Route path="/precios" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><PreciosPage/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/precios" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="inventario"><AppLayout><PreciosPage/></AppLayout></ProtectedRoute>}/>
                   <Route path="/admin/negocios/:tenantId" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><NegocioDetalleRoute /></AppLayout></ProtectedRoute>} />
                   <Route path="/admin/negocios/:tenantId/servicios" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><NegocioDetalleRoute tab="servicios" /></AppLayout></ProtectedRoute>} />
                   <Route path="/admin/negocios/:tenantId/usuarios" element={<ProtectedRoute allowedRoles={['SUPERADMIN']}><AppLayout><NegocioDetalleRoute tab="usuarios" /></AppLayout></ProtectedRoute>} />
@@ -209,7 +234,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/clientes"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                      <ProtectedRoute allowedRoles={['ADMIN']} requiredModule="clientes">
                         <AppLayout>
                           <ClientesPage />
                         </AppLayout>
@@ -239,7 +264,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/conciliacion-bancaria"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                      <ProtectedRoute allowedRoles={['ADMIN']} requiredModule="inventario">
                         <AppLayout>
                           <ConciliacionBancariaPage />
                         </AppLayout>
@@ -249,7 +274,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/estado-cuenta-clientes"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                      <ProtectedRoute allowedRoles={['ADMIN']} requiredModule="clientes">
                         <AppLayout>
                           <EstadoCuentaClientesPage />
                         </AppLayout>
@@ -321,7 +346,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/arqueo-caja"
                     element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']}>
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="arqueo_caja">
                         <AppLayout>
                           <ArqueoCajaPage />
                         </AppLayout>
@@ -422,8 +447,8 @@ export const App: React.FC = () => {
                     }
                   />
 
-                  <Route path="/cuentas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO']}><AppLayout><OperacionesPage modo="cuentas"/></AppLayout></ProtectedRoute>}/>
-                  <Route path="/entregas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','BODEGUERO']}><AppLayout><EntregasPage/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/cuentas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO']} requiredModule="arqueo_caja"><AppLayout><OperacionesPage modo="cuentas"/></AppLayout></ProtectedRoute>}/>
+                  <Route path="/entregas" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','BODEGUERO']} requiredModule="pos"><AppLayout><EntregasPage/></AppLayout></ProtectedRoute>}/>
                   {/* Fallback */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
