@@ -1,6 +1,6 @@
 # Jowa System: acceso y recuperación de credenciales
 
-Rama dedicada `codex/auth-recovery-security`, base inicial `main` `ed720baf`, sincronizada con `ba201465` (#190). Sin merge, despliegue ni acceso a datos de producción. Revisión de esquema y persistencia: **NEXUS**.
+[PR dedicado #192](https://github.com/Nelosama/FerreSystem/pull/192) en borrador. Rama `codex/auth-recovery-security`, base inicial `main` `ed720baf`, sincronizada con `ba201465` (#190). Sin merge, despliegue ni acceso a datos de producción. Revisión de esquema y persistencia: **NEXUS**.
 
 ## Auditoría inicial
 
