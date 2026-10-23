@@ -1,3 +1,4 @@
+import { enabledTenantModules } from '../common/tenant-modules';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
@@ -10,7 +11,19 @@ const COTIZACION_VIGENTE = ['BORRADOR', 'ENVIADA', 'APROBADA'] as const;
 export class DashboardService {
   constructor(private prisma: PrismaService) {}
 
-  async getDashboardData(tenantId: string, zona = ZONA_HORARIA_NEGOCIO) {
+  async getAuthorizedDashboard(tenantId: string, usuario: { rol?: string; permisosConfigurados?: boolean; permisos?: string[] }) {
+    const records = await this.prisma.tenantModule.findMany({ where: { tenantId } });
+    const modules = enabledTenantModules(records);
+    const permission = (key: string) => usuario.rol === 'ADMIN' || !usuario.permisosConfigurados || usuario.permisos?.includes(key);
+    const allowed = modules.filter(key => key !== 'inventario' || permission('inventario.ver'));
+    if (!permission('reportes.ver')) { const i = allowed.indexOf('reportes'); if (i >= 0) allowed.splice(i, 1); }
+    if (!permission('pos.vender')) { const i = allowed.indexOf('pos'); if (i >= 0) allowed.splice(i, 1); }
+    if (usuario.rol === 'BODEGUERO') return this.getResumenOperativo(tenantId, ZONA_HORARIA_NEGOCIO, allowed);
+    return this.getDashboardData(tenantId, ZONA_HORARIA_NEGOCIO, allowed);
+  }
+
+  async getDashboardData(tenantId: string, zona = ZONA_HORARIA_NEGOCIO, modules?: string[]) {
+    if (modules && !modules.includes('pos') && !modules.includes('reportes')) return this.getResumenOperativo(tenantId, zona, modules);
     const ahora = new Date();
     // "Hoy" y "ayer" son días calendario de la zona del negocio, no del servidor (UTC en producción).
     const diaHoy = diaCalendario(ahora, zona);
@@ -47,7 +60,7 @@ export class DashboardService {
       devolucionesEntre(inicioHoy, finHoy),
       devolucionesEntre(inicioAyer, finAyer),
       // 2 y 3. Alertas de stock bajo y cotizaciones pendientes
-      this.existenciasYCotizaciones(tenantId, diaHoy),
+      this.existenciasYCotizaciones(tenantId, diaHoy, modules),
       Promise.all(diasTendencia.map(({ dia }) => {
         const { inicio, fin } = rangoDiasEnZona(dia, dia, zona);
         return ventasEntre({ gte: inicio, lt: fin });
@@ -169,8 +182,8 @@ export class DashboardService {
    * Resumen operativo sin cifras de ventas, para BODEGUERO (no lee ventas: mismo criterio que GET /ventas).
    * Conserva la forma de la respuesta: las secciones de ventas van vacías.
    */
-  async getResumenOperativo(tenantId: string, zona = ZONA_HORARIA_NEGOCIO) {
-    const { productosBajoStock, cotizaciones, porVencerHoy } = await this.existenciasYCotizaciones(tenantId, diaCalendario(new Date(), zona));
+  async getResumenOperativo(tenantId: string, zona = ZONA_HORARIA_NEGOCIO, modules?: string[]) {
+    const { productosBajoStock, cotizaciones, porVencerHoy } = await this.existenciasYCotizaciones(tenantId, diaCalendario(new Date(), zona), modules);
     return {
       ventasDelDia: null,
       alertasStock: this.alertas(productosBajoStock),
@@ -194,9 +207,9 @@ export class DashboardService {
     };
   }
 
-  private async existenciasYCotizaciones(tenantId: string, diaHoy: string) {
+  private async existenciasYCotizaciones(tenantId: string, diaHoy: string, modules?: string[]) {
     // Alertas de stock bajo
-    const [productos, cotizaciones] = await Promise.all([this.prisma.producto.findMany({
+    const [productos, cotizaciones] = await Promise.all([modules && !modules.includes('inventario') ? Promise.resolve([]) : this.prisma.producto.findMany({
       where: { tenantId, activo: true },
       // Seleccionar únicamente datos del resumen evita depender de columnas de otros módulos.
       select: {
@@ -206,7 +219,7 @@ export class DashboardService {
       orderBy: { stockActual: 'asc' },
     }),
     // Cotizaciones pendientes y por vencer hoy
-    this.prisma.cotizacion.findMany({
+    modules && !modules.includes('cotizaciones') ? Promise.resolve([]) : this.prisma.cotizacion.findMany({
       select: { fechaValidez: true },
       where: {
         tenantId,

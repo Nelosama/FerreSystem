@@ -1018,7 +1018,7 @@
     "select_the_customer_s_enabled_modules_changes_apply_only_after_clicking": "Marque los módulos que el cliente tiene habilitados. Los cambios no se aplican hasta pulsar",
     "save_changes": "GUARDAR CAMBIOS",
     "enable_all": "ACTIVAR TODOS",
-    "disable_optional_modules": "DESACTIVAR OPCIONALES",
+    "disable_optional_modules": "Desactivar todos",
     "cancel": "CANCELAR",
     "save_service_changes": "GUARDAR CAMBIOS DE SERVICIO",
     "navigation_settings": "CONFIGURACIÓN DE NAVEGACIÓN",
@@ -1143,7 +1143,7 @@
   "pending": {
     "label": "Pendiente",
     "title": "Funciones pendientes",
-    "help": "Apartados, transferencias entre sucursales, garantías, pedidos especiales y listas de precio todavía no registran operaciones. Su habilitación en una suscripción no los hace operativos.",
+    "help": "Apartados, transferencias entre sucursales, pedidos especiales y listas de precio todavía no registran operaciones. Su habilitación en una suscripción no los hace operativos.",
     "branches": "Administración de sucursales pendiente: requiere un modelo y una API con autorización.",
     "subtitle": "Módulo pendiente de implementación operativa",
     "details": "Este módulo todavía no registra operaciones del negocio. Sus datos de demostración anteriores se conservan para revisión.",
@@ -1278,7 +1278,6 @@
     "camera": "Cámara",
     "default_camera": "Cámara predeterminada",
     "camera_number": "Cámara {number}",
-
     "manual": "Introducir código manualmente",
     "manual_hint": "Introduzca el código en el campo del formulario.",
     "interrupted": "Cámara detenida al salir de la aplicación. Pulse Leer código con cámara para continuar.",
@@ -1684,6 +1683,62 @@
       "go_to_checkout": "Ir a cobrar",
       "more_actions": "Más acciones de venta",
       "pending_items": "{count} artículos"
+    }
+  },
+  "guide": {
+    "title": "Modo Guía",
+    "help": "Ayuda · Modo Guía",
+    "setting": "Modo Guía para usuarios",
+    "disabled": "Desactivado",
+    "enabled": "Activado",
+    "invite": "¿Es tu primera vez en Jowa System?",
+    "intro": "Te mostramos las funciones principales para comenzar.",
+    "start": "Iniciar guía",
+    "later": "Ahora no",
+    "restart": "Reiniciar",
+    "complete": "Marcar como completada",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "exit": "Salir",
+    "show": "Ver pantalla",
+    "saveError": "No se pudo guardar el progreso. Vuelva a intentar.",
+    "steps": {
+      "search": "Busque por nombre o escanee el código del producto. La guía no agrega productos ni realiza ventas.",
+      "cart": "Seleccione el producto para agregarlo a una venta y revise las cantidades antes de cobrar.",
+      "total": "Verifique productos, cantidades, impuestos y total antes de continuar.",
+      "payment": "Seleccione el método de pago. Solo confirme el cobro cuando haya revisado el total y recibido el pago. La guía nunca confirma cobros.",
+      "receipt": "Después de confirmar su venta, consulte o descargue el comprobante que aparece en el POS.",
+      "dashboard": "Consulte el inicio para encontrar sus tareas disponibles y pendientes.",
+      "inventario": "Busque productos y revise existencias. Use el registro de productos solo cuando tenga autorización y datos verificados.",
+      "inventoryRead": "Consulte productos y existencias. Su acceso de consulta no autoriza a modificar el inventario.",
+      "levantamiento": "Registre conteos físicos y revise diferencias antes de aplicar un levantamiento autorizado.",
+      "clientes": "Consulte el directorio y registre clientes con sus datos de contacto y fiscales.",
+      "ordenes_compra": "Consulte proveedores y compras. La recepción de mercadería requiere autorización y actualiza existencias.",
+      "reportes": "Consulte ventas y resultados en el período que necesite; revise los filtros antes de exportar.",
+      "arqueo_caja": "Revise su caja y movimientos. Cuente el efectivo antes de confirmar un cierre.",
+      "usuarios": "Administre el personal y revise los roles y permisos antes de guardar cambios.",
+      "cotizaciones": "Consulte y prepare presupuestos. Crear o convertir una cotización requiere sus permisos correspondientes.",
+      "entregas": "Consulte entregas pendientes. Confirme movimientos solo cuando estén autorizados y verificados.",
+      "pos": "Busque o escanee productos, agréguelos a la venta y revise total y método de pago antes de cobrar. Consulte el comprobante al finalizar.",
+      "businesses": "Cree y administre los negocios desde el panel global; cada negocio conserva sus usuarios y datos separados.",
+      "modules": "Abra Servicios en el negocio para habilitar o deshabilitar módulos; revise las dependencias y confirme el impacto.",
+      "branding": "Abra Marca o Configurar negocio para definir identidad, navegación y el Modo Guía.",
+      "subscriptions": "Consulte el plan y las configuraciones disponibles de cada negocio.",
+      "status": "Revise el estado activo o suspendido de sus clientes y consulte la auditoría para ver quién hizo cambios.",
+      "contacts": "Registre clientes en este directorio. Para proveedores y recepción autorizada de mercadería, abra Órdenes de compra desde el menú.",
+      "quoteRead": "Consulte las cotizaciones disponibles. Crear presupuestos requiere un permiso adicional."
+    }
+  },
+  "modules": {
+    "impact": "Desactivar bloquea el acceso a la función y conserva su historial. Usuarios se recupera desde Super Admin. Las funciones pendientes no se implementan al activarlas.",
+    "dependencies": "Requiere",
+    "confirm": "¿Guardar la desactivación de módulos? Se bloquearán sus pantallas y operaciones por API. Se conservan datos y cuentas. Revise las dependencias antes de continuar.",
+    "audit": "Ver quién cambió la configuración y cuándo",
+    "groups": {
+      "sales": "Ventas",
+      "stock": "Inventario y compras",
+      "management": "Administración",
+      "finance": "Finanzas y reportes"
     }
   }
 }

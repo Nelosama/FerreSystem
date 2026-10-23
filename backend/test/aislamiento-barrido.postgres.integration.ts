@@ -210,7 +210,8 @@ describe('Barrido de aislamiento entre empresas y de roles / PostgreSQL aislado'
 
   it('Super Admin: ninguna ruta de negocio acepta su token (no lleva tenantId) ni devuelve datos de A', async () => {
     const aceptadas: string[] = [];
-    const tareas = rutas.filter(r => !PUBLICAS.has(r.ruta) && !r.ruta.startsWith('/api/admin/') && !r.ruta.startsWith('/api/maintenance') && r.ruta !== '/api/auth/me')
+    // /auth/guia, como /auth/me, es recurso propio de la identidad: Super Admin solo recibe su progreso global.
+    const tareas = rutas.filter(r => !PUBLICAS.has(r.ruta) && !r.ruta.startsWith('/api/admin/') && !r.ruta.startsWith('/api/maintenance') && r.ruta !== '/api/auth/me' && r.ruta !== '/api/auth/guia')
       .map(r => async () => {
         const ruta = sustituir(r.ruta, idsDeA[0]);
         const res = await enviar(r.metodo, ruta, tokens.superAdmin);

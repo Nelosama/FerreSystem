@@ -1,0 +1,5 @@
+-- NEXUS: reversión manual de emergencia, ejecutar solo con respaldo y backend anterior.
+-- El backend anterior ignora estas columnas: revertir código no requiere borrarlas.
+-- Descartar las columnas eliminaría únicamente el progreso de las guías, nunca operaciones.
+-- ALTER TABLE usuarios DROP COLUMN guia_progreso;
+-- ALTER TABLE super_admins DROP COLUMN guia_progreso;

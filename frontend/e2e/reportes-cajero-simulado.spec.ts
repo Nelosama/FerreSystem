@@ -84,6 +84,19 @@ test('sin ventas confirmadas por cajero no se anuncia falta de datos', async ({ 
   await expect(page.getByRole('region', { name: 'Ventas por cajero' })).toContainText('Sin ventas completadas en el rango.');
 });
 
+test('Reportes conserva ventas históricas sin consultar Inventario deshabilitado', async ({ page, baseURL }) => {
+  await simular(page, baseURL, { ...resumenBase, cajeros: [] });
+  await page.route('**/api/tenant/settings', route => route.fulfill({ json: { ...tenant, idioma: 'es', modulosHabilitados: ['reportes'] } }));
+  let consultasInventario = 0;
+  await page.route('**/api/productos**', route => { consultasInventario++; return route.fulfill({ status: 403, json: { message: 'Inventario deshabilitado' } }); });
+  await abrirReportes(page);
+  await expect(page.getByRole('heading', { name: /170\.30/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Ventas por cajero' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Stock|Existencias/i })).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(consultasInventario).toBe(0);
+});
+
 test('inglés: métodos traducidos y CSV con los mismos importes y encabezados', async ({ page, baseURL }) => {
   await simular(page, baseURL, { ...resumenBase, cajeros: [
     { usuario_id: 'u1', usuario_nombre: 'Ana', metodo_pago: 'EFECTIVO', cantidad: 1, total: '30.10' },

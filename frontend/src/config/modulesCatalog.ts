@@ -73,7 +73,6 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
   },
   {
     key: 'clientes',
-    isCore: true,
     labelKey: 'menu.clients',
     nombre: 'Directorio de Clientes & RTN',
     descripcion: 'Gestión de clientes, datos fiscales, RTN y clasificación comercial',
@@ -102,7 +101,6 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
   },
   {
     key: 'arqueo_caja',
-    isCore: true,
     labelKey: 'menu.cash_drawer',
     nombre: 'Arqueo & Cierre de Caja',
     descripcion: 'Conteo físico de efectivo, cierres por turno y discrepancias',
@@ -121,8 +119,12 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
     nombre: 'Configuración / Marca',
     descripcion: 'Personalización de colores, logos, datos fiscales y estilos de UI',
     categoria: 'CONFIGURACION',
-    isCore: true,
   },
 ];
 
-export const PENDING_MODULES = new Set(['apartados', 'transferencias_sucursal', 'garantias', 'pedidos_especiales', 'listas_precio']);
+export const PENDING_MODULES = new Set(['apartados', 'transferencias_sucursal', 'pedidos_especiales', 'listas_precio']);
+
+export const MODULE_DEPENDENCIES: Record<string, string[]> = {
+  pos: ['inventario', 'arqueo_caja', 'clientes'], cotizaciones: ['inventario', 'clientes'],
+  levantamiento: ['inventario'], ordenes_compra: ['inventario'], comisiones_venta: ['pos', 'usuarios'],
+};

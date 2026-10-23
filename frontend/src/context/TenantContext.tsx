@@ -125,7 +125,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     void refresh();
     window.addEventListener('focus', refresh);
-    return () => { active = false; window.removeEventListener('focus', refresh); };
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 30000);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
   }, [user?.id, tenant.id, authStatus]);
 
   // Diseño único de Jowa System: solo el color de marca cambia por negocio; tipografía y estilo son fijos.

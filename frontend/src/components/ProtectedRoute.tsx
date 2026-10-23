@@ -68,9 +68,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Verificar si el módulo está habilitado para el Tenant
   if (requiredModule) {
     const activeModules = tenant.modulosHabilitados || CATALOGO_MODULOS.map(module => module.key);
-    const isCore = CATALOGO_MODULOS.find(module => module.key === requiredModule)?.isCore;
 
-    if (!isCore && !activeModules.includes(requiredModule)) {
+    if (!activeModules.includes(requiredModule)) {
       return (
         <div style={styles.deniedContainer}>
           <Lock size={48} color="#EA580C" />

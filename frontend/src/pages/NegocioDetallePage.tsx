@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { TopBar } from '../components/TopBar';
 import { NegocioNavigation } from '../components/NegocioNavigation';
 import { api } from '../utils/api';
-import { CATALOGO_MODULOS, PENDING_MODULES } from '../config/modulesCatalog';
+import { ModuleControls } from '../components/ModuleControls';
+import { CATALOGO_MODULOS } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
 import { LogotipoNegocioEditor } from '../components/LogotipoNegocioEditor';
@@ -90,10 +91,13 @@ export function NegocioDetallePage({ negocioId, tab = 'resumen' }: { negocioId: 
     return () => { active = false; };
   }, [negocioId]);
   const guardar = async (e: React.FormEvent) => {
-    e.preventDefault(); if (busy) return; setBusy(true); setError(''); setEstado('');
+    e.preventDefault(); if (busy) return;
+    if (tab === 'servicios' && negocio.modulosHabilitados?.some((key: string) => !modulos.includes(key)) && !window.confirm(t('modules.confirm'))) return;
+    setBusy(true); setError(''); setEstado('');
     try {
-      if (tab === 'servicios') await api.put(`/admin/tenants/${negocioId}/modules`, { modules: CATALOGO_MODULOS.map(m => ({ moduleKey: m.key, enabled: m.isCore || modulos.includes(m.key) })) });
+      if (tab === 'servicios') await api.put(`/admin/tenants/${negocioId}/modules`, { modules: CATALOGO_MODULOS.map(m => ({ moduleKey: m.key, enabled: modulos.includes(m.key) })) });
       else { const { data } = await api.put(`/admin/tenants/${negocioId}/settings`, marca); setNegocio(data); }
+      const { data: updated } = await api.get(`/admin/tenants/${negocioId}/settings`); setNegocio(updated); setModulos(updated.modulosHabilitados || []);
       setEstado('Cambios guardados.');
     } catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
   };
@@ -102,7 +106,7 @@ export function NegocioDetallePage({ negocioId, tab = 'resumen' }: { negocioId: 
     {error && <p role="alert">{error}</p>}{estado && <p role="status">{estado}</p>}
     {negocio && tab === 'resumen' && <><section className="industrial-card negocio-management"><h1>{negocio.nombreComercial}</h1><p>Estado: {negocio.estado} · Plan: {negocio.plan}</p><p>{negocio.direccion} · {negocio.telefono} · {negocio.email}</p><p>Idioma: {negocio.idioma === 'en' ? 'English' : 'Español'} · Navegación: {negocio.modoNavegacion}</p></section><GestionRegistros key={negocioId} negocioId={negocioId} tipo="sucursales" /></>}
     {negocio && tab === 'usuarios' && <GestionRegistros key={negocioId} negocioId={negocioId} tipo="usuarios" />}
-    {negocio && tab === 'servicios' && <form onSubmit={guardar} className="industrial-card negocio-management"><h1>Servicios del negocio</h1>{CATALOGO_MODULOS.map(m => <label key={m.key} className="negocio-module"><input type="checkbox" checked={m.isCore || modulos.includes(m.key)} disabled={m.isCore || PENDING_MODULES.has(m.key) || busy} onChange={e => setModulos(e.target.checked ? [...modulos, m.key] : modulos.filter(key => key !== m.key))} /> {t(m.labelKey)}{m.isCore ? ' · Esencial' : PENDING_MODULES.has(m.key) ? ' · Pendiente' : ''}</label>)}<button className="btn btn-primary" disabled={busy}>Guardar servicios</button></form>}
+    {negocio && tab === 'servicios' && <form onSubmit={guardar} className="industrial-card negocio-management"><h1>Servicios del negocio</h1><ModuleControls value={modulos} onChange={setModulos} disabled={busy} /><Link to={`/admin/negocios/${negocioId}/auditoria`}>{t('modules.audit')}</Link><button className="btn btn-primary" disabled={busy}>Guardar servicios</button></form>}
     {negocio && tab === 'marca' && <><LogotipoNegocioEditor negocioId={negocioId} nombreNegocio={negocio.nombreComercial} logotipo={negocio.logotipo} onCambio={logotipo => setNegocio({ ...negocio, logotipo })} /><form className="industrial-card negocio-management negocio-form" onSubmit={guardar}><h1>Marca y navegación</h1><label>Nombre comercial<input className="form-input" required value={marca.nombreComercial} onChange={e => setMarca({ ...marca, nombreComercial: e.target.value })} /></label><div className="jowa-brand-grid"><div className="jowa-brand-controls"><label>{t('shell.brand.primary_color')}<span className="jowa-color-input"><input type="color" aria-label={t('shell.brand.primary_color')} value={marca.colorPrimario} onChange={e => setMarca({ ...marca, colorPrimario: e.target.value })} /><code>{marca.colorPrimario}</code></span></label><AvisoColorMarca color={marca.colorPrimario} /><label>{t('shell.brand.navigation')}<select className="form-input" value={marca.modoNavegacion} onChange={e => setMarca({ ...marca, modoNavegacion: e.target.value })}><option value="SIDEBAR">{t('shell.brand.sidebar')}</option><option value="TOPNAV">{t('shell.brand.topnav')}</option></select></label><button className="btn btn-primary" disabled={busy}>Guardar marca y navegación</button></div><aside className="jowa-brand-preview" aria-label={t('shell.brand.preview')} style={estiloMarcaNegocio(marca.colorPrimario)}><small>{t('shell.brand.preview')}</small><div className="jowa-preview-shell"><div className="jowa-preview-menu"><strong>{marca.nombreComercial || negocio.nombreComercial}</strong><span className="on">{t('shell.brand.point_of_sale')}</span><span>{t('shell.brand.cash_drawer')}</span><span>{t('shell.brand.quotations')}</span></div><div className="jowa-preview-main"><b>{t('shell.brand.point_of_sale')}</b><div className="jowa-preview-search" /><div className="jowa-preview-cards"><i /><i /><i /><i /></div><div className="jowa-preview-cobrar">{t('shell.brand.charge')}</div></div></div><p>{t('shell.brand.preview_help')}</p></aside></div></form></>}
   </main></div>;
 }

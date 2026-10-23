@@ -49,7 +49,8 @@
       "codex/fix-expired-sessions": false,
       "fix/jowa-operacion-estable": false,
       "codex/fix-camera-lifecycle-ios": false,
-      "codex/estabilidad-operativa": false
+      "codex/estabilidad-operativa": false,
+      "codex/guia-control-modulos": false
     }
   },
   "ignoreCommand": "sh scripts/vercel-ignore.sh"

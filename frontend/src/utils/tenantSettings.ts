@@ -12,6 +12,7 @@ export function normalizeTenantSettings(data: any, local?: Pick<TenantInfo, 'suc
     direccion: data.direccion ?? '', telefono: data.telefono ?? '', email: data.email ?? '',
     modoNavegacion: data.modoNavegacion ?? 'SIDEBAR',
     modulosHabilitados: data.modulosHabilitados,
+    modoGuia: configuration.modoGuia === true,
     ...Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, configuration[key] ?? fallback])),
     moneda: { simbolo: 'L.', codigo: 'HNL' }, impuesto: { nombre: 'ISV', tasa: 15 },
     updatedAt: data.updatedAt, sucursal: local?.sucursal ?? data.sucursal ?? 'Sucursal Principal',

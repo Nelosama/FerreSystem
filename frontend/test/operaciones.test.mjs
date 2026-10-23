@@ -81,7 +81,7 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
     ...overrides,
   };
   const component = evaluate(file, mocks, { localStorage: sharedStorage, sessionStorage: storage(), crypto: webcrypto, alert() {},
-    window: { addEventListener: (name, fn) => windowListeners.set(name, fn), removeEventListener: (name) => windowListeners.delete(name) },
+    window: { setInterval: (fn, delay) => setInterval(fn, delay).unref(), clearInterval, addEventListener: (name, fn) => windowListeners.set(name, fn), removeEventListener: (name) => windowListeners.delete(name) },
     document: { documentElement: { dataset: {}, classList: { add() {}, remove() {} }, style: { setProperty() {} } } },
     setTimeout: (fn, delay) => setTimeout(fn, delay).unref(), clearTimeout })[name];
   const nodes = () => {

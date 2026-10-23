@@ -1,3 +1,5 @@
+import { ClientesController } from '../clientes/clientes.controller';
+import { ClientesService } from '../clientes/clientes.service';
 import { INestApplication } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
@@ -13,6 +15,12 @@ import { CotizacionesController } from '../cotizaciones/cotizaciones.controller'
 import { CotizacionesService } from '../cotizaciones/cotizaciones.service';
 
 const cases: [string, string, string[]][] = [
+  ['get','/clientes',['clientes']], ['post','/clientes',['clientes']],
+  ['get','/operaciones/caja',['arqueo_caja']], ['get','/operaciones/caja/cierres',['arqueo_caja']],
+  ['post','/operaciones/caja/abrir',['arqueo_caja']], ['post','/operaciones/caja/id/cerrar',['arqueo_caja']],
+  ['post','/operaciones/caja/id/movimientos',['arqueo_caja']], ['get','/operaciones/cuentas',['arqueo_caja']],
+  ['post','/operaciones/cuentas/id/pagos',['arqueo_caja']], ['get','/operaciones/clientes/id/estado-cuenta',['clientes']],
+
 ['post','/operaciones/proveedores',['ordenes_compra']],
   ['get','/operaciones/compras',['ordenes_compra']], ['post','/operaciones/compras',['ordenes_compra']],
   ['post','/operaciones/compras/id/recepciones',['ordenes_compra','inventario']],
@@ -31,7 +39,7 @@ describe('Module restrictions through HTTP (mock services/database)', () => {
   let app: INestApplication;
   const disabled = new Set<string>();
   const invoked = vi.fn((tenantId: string) => ({ tenantId }));
-  const services = Object.fromEntries(['proveedores','proveedor','compras','compra','recibir','historial','ajustar','entregas','entregar','resumen','buscarVenta','devolver','solicitarDevolucion','solicitudesDevolucion','consultarDevolucion','decidirDevolucion','ejecutarAutorizada','consultarDevolucionDirecta','create','findAll','findById','addPayment','productHistory','update','deactivate','convertirAVenta','caja','cuentas','auditoria'].map(key => [key, invoked]));
+  const services = Object.fromEntries(['cierresCaja','abrir','cerrar','movimientoCaja','pagar','estadoCuentaCliente','proveedores','proveedor','compras','compra','recibir','historial','ajustar','entregas','entregar','resumen','buscarVenta','devolver','solicitarDevolucion','solicitudesDevolucion','consultarDevolucion','decidirDevolucion','ejecutarAutorizada','consultarDevolucionDirecta','create','findAll','findById','addPayment','productHistory','update','deactivate','convertirAVenta','caja','cuentas','auditoria'].map(key => [key, invoked]));
   const findUnique = vi.fn(async ({ where }) => ({ enabled: !disabled.has(`${where.tenantId_moduleKey.tenantId}:${where.tenantId_moduleKey.moduleKey}`) }));
   beforeAll(async () => {
     vi.spyOn(JwtAuthGuard.prototype, 'canActivate').mockImplementation(async (context) => {
@@ -40,8 +48,8 @@ describe('Module restrictions through HTTP (mock services/database)', () => {
       return true;
     });
     const module = await Test.createTestingModule({
-      controllers:[OperacionesController, ProveedoresController, CotizacionesController],
-      providers:[...([OperacionesService, ProveedoresService, CotizacionesService].map(provide => ({ provide, useValue:services }))),
+      controllers:[ClientesController, OperacionesController, ProveedoresController, CotizacionesController],
+      providers:[...([ClientesService, OperacionesService, ProveedoresService, CotizacionesService].map(provide => ({ provide, useValue:services }))),
         { provide:PrismaService, useValue:{ tenantModule:{ findUnique } } }, { provide:APP_GUARD, useClass:TenantModuleGuard }],
     }).compile();
     app=module.createNestApplication(); await app.init();

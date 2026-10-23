@@ -54,7 +54,8 @@ WITH esperado(nombre, sha_lf, sha_crlf) AS (VALUES
   ('20261017000000_contingencia_rechazos_importe_incoherente','d177422a73e5ceab163285c22e3ecdcf353292aa13bbbd79547e63460281f3cf','d6d61a6f9c0e97e4c1f3f6ea87144ddda1e96b8cebb7e82b3d0b1a55e640347d'),
   ('20261018000000_tenant_logotipo_privado','64305c584ed8c8eaf2e4a1ca7dd1f62e4adb3672697e0ec43551877c5bf7faf1','95822f1b6f6af1bc6be5d84c9c12944b68e9560b8309aaab2b8c638137c70c21'),
   ('20261019000000_cloud_branding_sucursales','eb24fb6acdec8a08b6bee9edd0d597609097b479b723f966f49dd7af724d4cc8','1b9df1f791278b71c1bdfdbdd4e748d881e5d4455be7fc175ca97339c26b0ef6'),
-  ('20261021000000_sesiones_auth_rotacion_refresh','aa16c2564b5038f8d22fa8dcfa556dd69cc93bcb973094bf22dd66e9a7ba642c','b8deb775549361ffc4178475ba5c986d98f2192978107e04e0d1ba7b56931a32')
+  ('20261021000000_sesiones_auth_rotacion_refresh','aa16c2564b5038f8d22fa8dcfa556dd69cc93bcb973094bf22dd66e9a7ba642c','b8deb775549361ffc4178475ba5c986d98f2192978107e04e0d1ba7b56931a32'),
+  ('20261022000000_guia_progreso','8a54b71f422354c313919ed8a24ef4d684befb2c36f2b45d88b871e382c795e5','62b332fb1c0221e21778b78db89a8f41e41feea9a75c3219f3cefdf7702f9d2e')
 ), aplicada AS (
   SELECT migration_name, checksum, finished_at, rolled_back_at FROM _prisma_migrations
 )

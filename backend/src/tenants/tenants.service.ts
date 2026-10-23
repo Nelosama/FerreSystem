@@ -56,6 +56,7 @@ export class TenantsService {
     const configuracion = data.configuracion;
     if (configuracion !== undefined) {
       validateTenantConfiguration(configuracion);
+      if (configuracion.modoGuia !== undefined && !opciones.esSuperAdmin) throw new ForbiddenException('Solo Super Admin puede configurar el Modo Guía');
       if (configuracion.idioma !== undefined && !opciones.esSuperAdmin) throw new ForbiddenException('El idioma del negocio solo lo configura el Super Admin');
       // FS-10: el rubro del negocio define plantillas y catálogo; solo lo cambia el Super Admin (ruta de soporte).
       // Reenviar el valor vigente sigue permitido, así un guardado de apariencia no falla.

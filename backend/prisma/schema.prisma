@@ -111,6 +111,8 @@ model SuperAdmin {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("super_admins")
+  guiaProgreso Json @default("{}") @map("guia_progreso")
+
 }
 
 // ============================================================
@@ -239,6 +241,8 @@ model Usuario {
   productosProveedoresActualizados ProductoProveedor[] @relation("ProductoProveedorActualizado")
   @@unique([tenantId, id], map: "usuarios_tenant_id_id_key")
   eventosEntrega EntregaEvento[] @relation("EventoUsuario")
+  guiaProgreso Json @default("{}") @map("guia_progreso")
+
 }
 
 // ============================================================

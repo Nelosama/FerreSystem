@@ -8,7 +8,6 @@ import { Reflector } from '@nestjs/core';
 import { REQUIRED_MODULE_KEY } from '../decorators/required-module.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import { CORE_TENANT_MODULES } from '../tenant-modules';
 
 @Injectable()
 export class TenantModuleGuard extends JwtAuthGuard implements CanActivate {
@@ -46,10 +45,6 @@ export class TenantModuleGuard extends JwtAuthGuard implements CanActivate {
     const anyOf = typeof requiredModule === 'object' && !Array.isArray(requiredModule) ? requiredModule.anyOf : null;
     const requiredModules = anyOf ?? (Array.isArray(requiredModule) ? requiredModule : [requiredModule as string]);
     for (const moduleKey of requiredModules) {
-      if (CORE_TENANT_MODULES.includes(moduleKey)) {
-        if (anyOf) return true;
-        continue;
-      }
       const tenantModule = await this.prisma.tenantModule.findUnique({
         where: { tenantId_moduleKey: { tenantId, moduleKey } },
       });
