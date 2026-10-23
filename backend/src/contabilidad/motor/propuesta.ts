@@ -25,10 +25,10 @@ export type Propuesta =
 
 export function proponer(d: DatosPropuesta, mapeos: readonly MapeoVigencia[], cuentas: readonly CuentaCatalogo[]): Propuesta {
   const base = { origen: d.origen, fecha: d.fecha, concepto: d.concepto, regla: d.resultado.regla };
-  if (!d.resultado.ok) return { estado: 'ERROR', ...base, errores: d.resultado.errores };
+  if (d.resultado.ok === false) return { estado: 'ERROR', ...base, errores: d.resultado.errores };
   // Operación válida sin importe contabilizable (p. ej. venta solo de líneas sin inventario para el costo): no genera asiento.
   if (d.resultado.lineas.length === 0) return { estado: 'SIN_ASIENTO', ...base };
   const r = resolverCuentas(d.resultado.lineas, d.fecha, mapeos, cuentas);
-  if (!r.ok) return { estado: 'FALTA_MAPEO', ...base, faltantes: r.faltantes, invalidas: r.invalidas };
+  if (r.ok === false) return { estado: 'FALTA_MAPEO', ...base, faltantes: r.faltantes, invalidas: r.invalidas };
   return { estado: 'LISTA', ...base, version: d.resultado.version, huella: huellaOrigen({ fuente: d.fuente, origen: d.origen, regla: d.resultado.regla, version: d.resultado.version }), lineas: r.lineas, totalCentavos: d.resultado.totalCentavos };
 }
