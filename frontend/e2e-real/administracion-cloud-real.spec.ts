@@ -72,7 +72,11 @@ test('Super Admin crea y edita un administrador; desactivar revoca acceso y cons
   await form.getByLabel('Nombre', { exact: true }).fill(`Admin ${run}`);
   await form.getByLabel('Correo electrónico', { exact: true }).fill(`nuevo-${run}@e2e.invalid`);
   await form.getByLabel('Rol', { exact: true }).selectOption('ADMIN');
+  // Passwordless creation still hashes a private unusable credential on the real server.
+  // Wait for the actual POST before checking the refreshed row (bcrypt can exceed 5 s under load).
+  const createdResponse = page.waitForResponse(res => new URL(res.url()).pathname === `/api/admin/tenants/${A}/usuarios` && res.request().method() === 'POST');
   await form.getByRole('button', { name: 'Guardar', exact: true }).click();
+  expect((await createdResponse).status()).toBe(201);
   const row = page.getByRole('row').filter({ hasText: `nuevo-${run}@e2e.invalid` });
   await expect(row).toContainText('ADMIN');
   const fresh = await prisma.usuario.findFirstOrThrow({ where: { tenantId: A, email: `nuevo-${run}@e2e.invalid` } });

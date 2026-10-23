@@ -131,6 +131,7 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
       .auth(token, { type: 'bearer' }).expect(404);
   });
 
+  // Multiple real HTTP calls and bcrypt(12) need the same finite budget as PostgreSQL integration.
   it('recupera escrituras auditadas y la desactivación sigue revocando sesiones', async () => {
     const created = await request(app!.getHttpServer()).post('/api/usuarios').auth(token, { type: 'bearer' })
       .send({ nombre: 'Cajero recuperado', email: 'cajero@recovery.invalid', rol: 'CAJERO' }).expect(201);
@@ -148,7 +149,7 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
       tenantId, usuarioId: userId, entidadId: created.body.id, operacion: 'USUARIO_DESACTIVAR',
     } })).toBe(1);
     await request(app!.getHttpServer()).get('/api/auth/me').auth(login.body.accessToken, { type: 'bearer' }).expect(401);
-  });
+  }, 15000);
 
   it('el soporte anterior a la caída conserva solo lectura y puede revocarse con trazabilidad real', async () => {
     await request(app!.getHttpServer()).get('/api/usuarios').auth(supportToken, { type: 'bearer' }).expect(200);

@@ -15,8 +15,16 @@ export function RecoveryForm({ email, tenantId, platform, password }: { email: s
   const [nextPassword, setNextPassword] = useState(''), [code, setCode] = useState(''), [secret, setSecret] = useState('');
   const [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [codes, setCodes] = useState<string[]>(location.state?.recoveryCodes || []);
   useLayoutEffect(() => {
-    if (initial.token || location.state?.recoveryCodes) window.history.replaceState({ ...window.history.state, usr: null }, '', window.location.pathname + window.location.search);
-  }, [initial.token, location.state]);
+    // A second private link to the same login page is a fragment navigation:
+    // React keeps this form mounted, so its initial state is no longer enough.
+    const params = new URLSearchParams(location.hash.slice(1));
+    const incoming = params.get('token');
+    if (incoming) {
+      setToken(incoming); setAction(params.get('action') || 'RESET_ADMIN');
+      setNextPassword(''); setCode(''); setSecret(''); setCodes([]); setMessage('');
+    }
+    if (incoming || location.state?.recoveryCodes) window.history.replaceState({ ...window.history.state, usr: null }, '', window.location.pathname + window.location.search);
+  }, [location]);
   const run = async (path: string, body: object) => {
     if (busy) return;
     setBusy(true); setMessage('');
@@ -28,7 +36,7 @@ export function RecoveryForm({ email, tenantId, platform, password }: { email: s
     } catch { setMessage(t('security.failed')); }
     finally { setBusy(false); }
   };
-  return <details open={!!initial.token || codes.length > 0} style={{ marginTop: 20 }}>
+  return <details open={!!initial.token || !!token || codes.length > 0} style={{ marginTop: 20 }}>
     <summary>{t('security.recovery')}</summary>
     <p>{t('security.employee_help')}</p>
     {message && <p role="status">{message}</p>}

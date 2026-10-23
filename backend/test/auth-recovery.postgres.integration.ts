@@ -127,7 +127,7 @@ describe('Authentication recovery on disposable PostgreSQL', () => {
     await expect(service.reset({ token, password: replacement, mfaCode: code(a) })).rejects.toThrow();
     expect(await db.authEvent.count({ where: { sujetoId: a.id, event: 'RESET_EMAIL' } })).toBe(1);
   });
-  it.each(['CAJERO', 'VENDEDOR', 'BODEGUERO'])('denies automatic recovery to %s even with an issued email token', async rol => {
+  it.each(['CAJERO', 'VENDEDOR', 'BODEGUERO', 'CONTADOR'])('denies automatic recovery to %s even with an issued email token', async rol => {
     const a = await account(false, rol), token = await action(a);
     await expect(service.reset({ token, password: replacement, mfaCode: code(a) })).rejects.toThrow();
     expect((await db.usuario.findUniqueOrThrow({ where: { id: a.id } })).passwordHash).toBe(a.passwordHash);
@@ -146,8 +146,8 @@ describe('Authentication recovery on disposable PostgreSQL', () => {
     await db.usuario.update({ where: { id: a.id }, data: { emailVerifiedAt: null } });
     await expect(service.reset({ token, password: replacement, mfaCode: code(a) })).rejects.toThrow();
   });
-  it('issues a private employee reset, revokes sessions immediately and rejects foreign tenants and non-admin actors', async () => {
-    const admin = await account(false, 'ADMIN', 'A', false), employee = await account(false, 'CAJERO', 'A', false), outsider = await account(false, 'CAJERO', 'B', false);
+  it.each(['CAJERO', 'CONTADOR'])('issues a private %s reset, revokes sessions immediately and rejects foreign tenants and non-admin actors', async rol => {
+    const admin = await account(false, 'ADMIN', 'A', false), employee = await account(false, rol, 'A', false), outsider = await account(false, 'CAJERO', 'B', false);
     const payload = await session(employee);
     await expect(service.adminReset(employee.identity, { usuarioId: admin.id, currentPassword: password })).rejects.toThrow();
     await expect(service.adminReset(admin.identity, { usuarioId: outsider.id, currentPassword: password })).rejects.toThrow();

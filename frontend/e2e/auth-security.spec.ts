@@ -38,6 +38,23 @@ test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
       expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
     });
   }
+  test('un segundo enlace privado en la misma pestaña reemplaza el token consumido', async ({ page }) => {
+    await prepararSesion(page, 'ADMIN', { sinSesion: true });
+    let sent: any;
+    await page.route('**/api/auth/security/reset', async route => {
+      sent = route.request().postDataJSON(); await route.fulfill({ json: { success: true } });
+    });
+    for (const token of ['synthetic-first-link', 'synthetic-second-link']) {
+      await page.goto(`/login?empresa=empresa-A#action=RESET_ADMIN&token=${token}`);
+      await expect(page.locator('#recovery-token')).toHaveValue(token);
+      await expect(page).toHaveURL(url => !url.hash && url.searchParams.get('empresa') === 'empresa-A');
+      await page.locator('#recovery-password').fill('Synthetic-New-789');
+      await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+      await expect.poll(() => sent).toMatchObject({ token, password: 'Synthetic-New-789' });
+      await expect(page.locator('#recovery-token')).toHaveValue('');
+      expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage, history: history.state }))).not.toContain(token);
+    }
+  });
   test('bootstrap MFA muestra códigos de emergencia una sola vez en memoria', async ({ page }) => {
     await prepararSesion(page, 'ADMIN', { sinSesion: true });
     await page.goto('/login#action=BOOTSTRAP_MFA&token=synthetic-mail-proof');
