@@ -215,3 +215,32 @@ describe('SuperAdminService', () => {
     expect(result).toEqual({ id: 'admin-A' });
   });
 });
+
+describe('SuperAdminService.updateTenantModules (Contabilidad)', () => {
+  const crear = (previos: { moduleKey: string; enabled: boolean }[] = []) => {
+    const tx: any = {
+      tenant: { update: vi.fn().mockResolvedValue({}) },
+      tenantModule: { findMany: vi.fn().mockResolvedValue(previos), upsert: vi.fn().mockResolvedValue({}) },
+      $executeRaw: vi.fn().mockResolvedValue(0), $queryRaw: vi.fn().mockResolvedValue([]), $queryRawUnsafe: vi.fn().mockResolvedValue([]), $executeRawUnsafe: vi.fn().mockResolvedValue(0),
+      auditoriaSoporte: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const prisma: any = { tenant: { findUnique: vi.fn().mockResolvedValue({ id: 't-1' }) }, $transaction: vi.fn(async (fn: any) => fn(tx)) };
+    return { tx, service: new SuperAdminService(prisma, {} as any, { get: vi.fn() } as any) };
+  };
+
+  it('acepta habilitar y deshabilitar contabilidad por tenant', async () => {
+    for (const enabled of [true, false]) {
+      const { service, tx } = crear();
+      await service.updateTenantModules('t-1', [{ moduleKey: 'contabilidad', enabled }]);
+      expect(tx.tenantModule.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { tenantId_moduleKey: { tenantId: 't-1', moduleKey: 'contabilidad' } }, update: { enabled },
+      }));
+    }
+  });
+
+  it('sigue rechazando claves fuera del catálogo y duplicados', async () => {
+    const { service } = crear();
+    await expect(service.updateTenantModules('t-1', [{ moduleKey: 'inexistente', enabled: true }])).rejects.toThrow('Módulos inválidos');
+    await expect(service.updateTenantModules('t-1', [{ moduleKey: 'contabilidad', enabled: true }, { moduleKey: 'contabilidad', enabled: false }])).rejects.toThrow('Módulos inválidos');
+  });
+});
