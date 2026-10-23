@@ -111,3 +111,34 @@ Firma: **NEXUS**.
 10. **Moneda extranjera** (tasa de cambio a la fecha de emisión).
 11. Cálculo de costos/valuación de inventario para contabilidad (el rol CONTADOR no recibe costos por la regla existente `canReadProductFinancials`).
 12. Sucursal en documentos (el esquema operativo no asigna operaciones a sucursales).
+
+## 10. Continuación (2026-10-23): motor contable, navegación del CONTADOR y libro mayor
+
+### 10.1 Estado por etapa
+| Etapa | Estado |
+|---|---|
+| A — compatibilidad con `main` (24ae784) | Hecha. Contabilidad apagada por defecto; Super Admin puede encenderla (corregida la validación de #189) |
+| B — motor de reglas puro | Hecha (`src/contabilidad/motor/`, 36 pruebas) |
+| C — persistencia (lotes, origen, mapeo) | **Bloqueada** por autorización de esquema: propuesta NEXUS en `prisma/propuestas/contabilidad-asientos-automaticos/` |
+| D — interfaz del CONTADOR | Hecha para lo que funciona (sin «Por contabilizar») |
+| E — reportes | Libro mayor y balanza con saldo inicial hechos; estados financieros e importación Excel pendientes |
+
+### 10.2 Motor de reglas (sin cuentas ni políticas inventadas)
+- Entrada: importes ya registrados en centavos; salida: líneas por **concepto** (`CAJA_EFECTIVO`, `VENTAS`, `ISV_POR_PAGAR`…). El contador asocia concepto→cuenta con vigencia.
+- Venta: `total = subtotal − descuento + ISV` se verifica; con `BRUTO` el descuento tiene su propio concepto y con `NETO` se resta de ventas. **Política pendiente del contador, sin valor por defecto.**
+- Compra: `FACTURA` lleva el inventario al registrar la factura; `RECEPCION` usa «mercadería en tránsito» hasta recibir. **Pendiente.**
+- Devolución: el monto incluye ISV; el ISV se separa proporcionalmente a la venta (mitad hacia arriba) y la base es el resto; con `BRUTO` se revierte la parte proporcional del descuento. **Regla de reparto pendiente de aprobación.**
+- Un descuadre nunca se corrige: la propuesta queda en `ERROR`. Sin mapeo vigente queda en `FALTA_MAPEO`.
+- Defecto de SICOFI evitado: el descuento descuadraba la factura y el costo de la nota de crédito iba en sentido contrario.
+
+### 10.3 Navegación del CONTADOR
+`/contabilidad` (Inicio), `/contabilidad/asientos`, `/reportes` (balanza, libro mayor, libros de ventas y compras, ISV y conciliación), `/cierre`, y en «Más»: `/catalogo`, `/documentos`, `/configuracion`, `/excel`, `/auditoria`. El servidor sigue aplicando rol, permiso y módulo en cada ruta; ocultar un enlace no concede ni quita acceso.
+
+### 10.4 Libro mayor y balanza
+`GET /contabilidad/mayor?cuentaId&anio&mes`: saldo inicial (todo lo anterior al período), movimientos con saldo acumulado según la naturaleza de la cuenta y saldo final. Los asientos revertidos aparecen junto con su reversión. `exportar/mayor?cuentaId=…` genera Excel, CSV o PDF. La balanza incorpora `saldoInicial` (aditivo; la huella de cierre de libros no cambia).
+
+### 10.5 Qué falta y qué lo desbloquea
+1. **Autorización del dueño + firma de NEXUS** para convertir la propuesta de esquema en migración (pasos en su `README.md`) → permite «Por contabilizar», lotes idempotentes y mapeo de cuentas.
+2. **Decisiones del contador** (descuento, inventario en compras, valuación, tarjeta/banco, devoluciones, período cerrado) → permiten activar la contabilización de cada operación.
+3. **Clasificación de cuentas para estados financieros** (`grupo_reporte`) → balance general y estado de resultados.
+4. **Importación Excel** con vista previa, confirmación y huella SHA-256 del archivo (tabla de importaciones; requiere esquema).
