@@ -34,6 +34,12 @@ export class VentasController {
     return this.ventasService.findSolicitud(tenantId, usuarioId, id);
   }
 
+  @Post('solicitudes/:id/descartar')
+  @RequiredPermission('pos.vender')
+  async descartarSolicitud(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.ventasService.descartarSolicitud(tenantId, usuarioId, id);
+  }
+
   @Get(':id')
   async findById(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser() user?: any) {
     return this.ventasService.findById(tenantId, id, user?.rol === 'CAJERO' ? user.sub : undefined);

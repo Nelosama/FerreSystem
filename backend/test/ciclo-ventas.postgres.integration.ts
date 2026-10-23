@@ -328,8 +328,12 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     await http('post', `/operaciones/ventas/${venta.body.id}/devoluciones`, devolucion, login.body.accessToken).expect(403);
     expect(await prisma.devolucion.count({ where: { tenantId } })).toBe(0);
     expect((await prisma.venta.findUniqueOrThrow({ where: { id: venta.body.id } })).estado).toBe('COMPLETADA');
-    // El mismo cuerpo es válido: el administrador sí registra la devolución.
-    await http('post', `/operaciones/ventas/${venta.body.id}/devoluciones`, { ...devolucion, solicitudId: randomUUID() }).expect(201);
+    // Tampoco ADMIN puede saltarse la solicitud y la autorización independiente.
+    await http('post', `/operaciones/ventas/${venta.body.id}/devoluciones`, { ...devolucion, solicitudId: randomUUID() }).expect(403);
+    await http('post', `/operaciones/ventas/${venta.body.id}/solicitudes-devolucion`, devolucion, login.body.accessToken).expect(201);
+    await http('post', `/operaciones/solicitudes-devolucion/${devolucion.solicitudId}/decision`, { decision: 'AUTORIZADA', motivo: 'Documento revisado' }).expect(201);
+    await http('post', '/operaciones/caja/abrir', { solicitudId: randomUUID(), monto: 200 }, login.body.accessToken).expect(201);
+    await http('post', `/operaciones/solicitudes-devolucion/${devolucion.solicitudId}/ejecutar`, {}, login.body.accessToken).expect(201);
     expect(await prisma.devolucion.count({ where: { tenantId } })).toBe(1);
   });
 

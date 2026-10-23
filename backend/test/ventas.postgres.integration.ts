@@ -1,3 +1,4 @@
+import { devolucionAutorizada } from './helpers/devolucion-autorizada';
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -622,7 +623,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     await ops.entregar(tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),receptorNombre:'Cliente de prueba'});
     const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
     const command={solicitudId:randomUUID(),motivo:'Producto equivocado',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'INVENTARIO'}]};
-    await Promise.all([ops.devolver(tenantId,usuarioId,sale.id,command),ops.devolver(tenantId,usuarioId,sale.id,command)]);
+    await Promise.all([devolucionAutorizada(prisma, ops, tenantId,usuarioId,sale.id,command),devolucionAutorizada(prisma, ops, tenantId,usuarioId,sale.id,command)]);
     expect(Number((await prisma.producto.findUniqueOrThrow({where:{id:productoId}})).stockActual)).toBe(1.75);
     expect((await ops.caja(tenantId,usuarioId))[0].efectivoEsperado).toBe(1011.5);
     expect(await prisma.devolucion.count({where:{tenantId}})).toBe(1);
@@ -634,7 +635,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     await prisma.cliente.update({ where: { id: client.id }, data: { creditoHabilitado: true } });
     const sale=await ventas.create(tenantId,usuarioId,{...request(2),metodoPago:'CREDITO',clienteId:client.id});
     const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
-    await ops.devolver(tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),motivo:'Cancelación parcial',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'NO_ENTREGADO'}]});
+    await devolucionAutorizada(prisma, ops, tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),motivo:'Cancelación parcial',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'NO_ENTREGADO'}]});
     expect(Number((await ops.cuentas(tenantId,usuarioId,'CXC'))[0].saldo)).toBe(11.5);
     expect((await ops.caja(tenantId,usuarioId))[0].efectivoEsperado).toBe(1000);
     await ops.entregar(tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),receptorNombre:'Cliente de prueba'});
@@ -649,7 +650,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const debt=(await ops.cuentas(tenantId,usuarioId,'CXC'))[0];
     await ops.pagar(tenantId,usuarioId,debt.id,{solicitudId:randomUUID(),monto:5,metodo:'EFECTIVO'});
     const original=await ops.buscarVenta(tenantId,String(sale.numeroVenta));
-    const result=await ops.devolver(tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),motivo:'Cancelación',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'NO_ENTREGADO'}]});
+    const result=await devolucionAutorizada(prisma, ops, tenantId,usuarioId,sale.id,{solicitudId:randomUUID(),motivo:'Cancelación',metodo:'EFECTIVO',items:[{detalleId:original.items[0].id,cantidad:1,destino:'NO_ENTREGADO'}]});
     expect(Number(result.credito_cancelado)).toBe(6.5);expect(Number(result.reembolso)).toBe(5);
     expect(Number((await ops.cuentas(tenantId,usuarioId,'CXC'))[0].saldo)).toBe(0);
     expect((await ops.caja(tenantId,usuarioId))[0].efectivoEsperado).toBe(1000);
@@ -800,7 +801,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     await ops.decidirDevolucion(tenantId,adminId,command.solicitudId,{decision:'AUTORIZADA',motivo:'OK'});
     await expect(ops.devolver(tenantId,adminId,sale.id,command)).rejects.toThrow('solicitud');
     await ops.abrir(tenantId,adminId,{solicitudId:randomUUID(),monto:100});
-    await ops.devolver(tenantId,adminId,sale.id,{...command,solicitudId:randomUUID()});
+    await devolucionAutorizada(prisma, ops, tenantId,adminId,sale.id,{...command,solicitudId:randomUUID()});
     await expect(ops.ejecutarAutorizada(tenantId,usuarioId,command.solicitudId)).rejects.toThrow('supera');
     expect(await prisma.devolucion.count({where:{tenantId}})).toBe(1);
     expect((await ops.consultarDevolucion(tenantId,usuarioId,command.solicitudId)).estado).toBe('AUTORIZADA');

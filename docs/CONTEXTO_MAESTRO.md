@@ -8,6 +8,15 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 
 ---
 
+## Cancelación POS y anulación administrativa — 2026-10-23 UTC
+
+- **Rama única:** `codex/pos-cancelacion-autorizada`, base `main` `b60b49b3`. #180 y #192 inspeccionados y no modificados. Sin merge, despliegue, producción, dependencias nuevas ni migraciones.
+- **Estado:** borradores con cancelar/continuar/descartar; solicitudes enviadas con descarte durable y auditable bajo los mismos bloqueos del cobro. Una venta confirmada se recupera, no se elimina. Anulación total por solicitud/devolución compensatoria existente y otro ADMIN autenticado; autoautorización y bypass directo total rechazados por backend.
+- **Evidencia:** backend 581/581; frontend 523/523; PostgreSQL dirigido 194 aprobadas y una omitida opt-in; POS simulado 12/12; navegador/API/PostgreSQL reales 5/5; FARO real 28 aprobadas/2 omitidas heredadas. Builds/lint/guard correctos y deriva vacía en base temporal. Regresión PostgreSQL completa y checks del SHA final se registran en el PR al terminar.
+- **Pendientes reales:** conexión necesaria para resolver un cobro incierto; PWA física/Safari no certificados; recuperación local corrupta requiere conciliación; fiscalidad de #180 separada. Preservar marcas `VENTA_DESCARTAR` y evitar convivencia con backend antiguo. Detalle de archivos, reglas, pruebas y límites en [POS_CANCELACION_AUTORIZADA_20261023.md](POS_CANCELACION_AUTORIZADA_20261023.md).
+- **Bitácora:** inspección de POS, commit de venta, permisos/auditoría y PR actuales; rama desde main; cancelación transaccional sin esquema; flujo de anulación con dos cuentas; pruebas de carrera, idempotencia, rechazo, aislamiento, reservas, crédito y caja; adaptación de fixtures históricos; verificación de navegador real y documentación. **NEXUS** firma la evidencia PostgreSQL temporal.
+
+
 ## ADMIN — integración del prototipo Figma — 2026-10-23 UTC (rama `codex/figma-admin-integration`, base `main` `24ae784`, sin merge ni despliegue)
 - **Alcance:** rail 84 px, barra superior e Inicio del ADMIN (solo SIDEBAR, sin impersonación). Detalle, fuentes de datos, diferencias con Figma y riesgos en `docs/ADMIN_FIGMA_20261023.md`; evidencia en `docs/evidencias/admin-figma/`.
 - **Código:** `frontend/src/components/{IconRail,AdminRail,AdminTopbar}.tsx`, `pages/admin/AdminHomePage.tsx`, `utils/movilAdmin.ts`, `App.tsx` (AppLayout). Pruebas: `frontend/e2e/admin-shell-simulado.spec.ts` y especificaciones actualizadas.

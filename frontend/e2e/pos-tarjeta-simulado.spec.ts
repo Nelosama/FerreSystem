@@ -11,10 +11,10 @@ const producto = { id: 'prod-1', codigo: 'TAL-1', nombre: 'Taladro', codigoBarra
   margen: null, stockActual: 10, stockReservado: 0, stockDisponible: 10, stockFisico: 10, stockMinimo: 1, activo: true, imagenUrl: null, marca: null, version: 1 };
 
 // retrasoVentaMs: retrasa la respuesta de POST /ventas. perderRespuesta: el servidor registra la venta pero la respuesta no llega.
-type Sim = { ventas: any[]; errores: string[]; inesperados: string[]; retrasoVentaMs: number; perderRespuesta: boolean; consultas: string[]; clientes: any[] };
+type Sim = { ventas: any[]; errores: string[]; inesperados: string[]; retrasoVentaMs: number; perderRespuesta: boolean; consultas: string[]; clientes: any[]; descartes: string[]; fallarDescarte: boolean };
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
-    const sim: Sim = { ventas: [], errores: [], inesperados: [], retrasoVentaMs: 0, perderRespuesta: false, consultas: [], clientes: [] };
+    const sim: Sim = { ventas: [], errores: [], inesperados: [], retrasoVentaMs: 0, perderRespuesta: false, consultas: [], clientes: [], descartes: [], fallarDescarte: false };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
     page.on('pageerror', e => sim.errores.push(e.message));
@@ -44,6 +44,12 @@ const test = base.extend<{ sim: Sim }>({
         if (sim.retrasoVentaMs) await new Promise(r => setTimeout(r, sim.retrasoVentaMs));
         if (sim.perderRespuesta) { await route.abort('connectionreset'); return; }
         return responder(route, 201, ventaRegistrada(body, sim.ventas.length));
+      }
+      if (method === 'POST' && path.endsWith('/descartar')) {
+        const id = path.split('/')[3]; sim.descartes.push(id);
+        if (sim.fallarDescarte) return route.abort('connectionreset');
+        const index = sim.ventas.findIndex(v => v.solicitudId === id);
+        return responder(route, 201, index < 0 ? { estado: 'DESCARTADA' } : { estado: 'REGISTRADA', venta: ventaRegistrada(sim.ventas[index], index + 1) });
       }
       if (method === 'GET' && path.startsWith('/ventas/solicitudes/')) {
         const id = path.split('/').pop()!; sim.consultas.push(id);
@@ -179,4 +185,85 @@ test.describe('Cobro con tarjeta en el POS (simulado)', () => {
     await expect(page.getByText(/TOTAL PAGADO/)).toHaveCount(0);
     await expect(page.getByText(/Método de Pago: Crédito/)).toBeVisible();
   });
+});
+
+const pendingKey = `ferre_pending_sale:${tenant.id}:${cajero.id}`;
+const draftKey = `ferre_sale_draft:${tenant.id}:${cajero.id}`;
+const pendiente = { solicitudId: '3f2b8c1e-9a4d-4e6b-8c7a-1d2e3f4a5b6c', cart: [{ productoId: producto.id, codigo: producto.codigo, nombre: producto.nombre, precioUnitario: 100, cantidad: 1 }], clienteNombre: 'Consumidor Final', clienteRtn: '', metodoPago: 'EFECTIVO', descuentoPorcentaje: 0 };
+const confirmarDescarte = async (page: Page) => {
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Descartar venta', exact: true }).click();
+};
+
+test('cancelar antes del cobro exige confirmación y limpia cliente, pago y almacenamiento sin enviar venta', async ({ page, sim }) => {
+  await abrirPos(page);
+  await page.getByText('Taladro').first().click();
+  await page.getByRole('button', { name: 'Tarjeta', exact: true }).click();
+  await page.getByLabel('Autorización bancaria').fill('AUT-ABANDONADA');
+  await page.getByLabel('Terminal POS').fill('POS-01');
+  await page.getByRole('button', { name: 'Cancelar venta', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(page.locator('.swal2-container')).toHaveCount(0);
+  await expect(page.getByLabel('Autorización bancaria')).toHaveValue('AUT-ABANDONADA');
+  await page.getByRole('button', { name: 'Cancelar venta', exact: true }).click();
+  await confirmarDescarte(page);
+  expect(await page.evaluate(key => localStorage.getItem(key), draftKey)).toBeNull();
+  await expect(page.getByRole('button', { name: 'Efectivo', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByText('Taladro').first().click();
+  await page.getByRole('button', { name: 'Tarjeta', exact: true }).click();
+  await expect(page.getByLabel('Autorización bancaria')).toHaveValue('');
+  expect(sim.ventas).toHaveLength(0); expect(sim.descartes).toHaveLength(0);
+});
+
+test('borrador abandonado se recupera después de recarga y permite continuar o descartar sin conexión', async ({ page, sim }) => {
+  await abrirPos(page); await page.getByText('Taladro').first().click(); await page.reload();
+  await page.getByRole('button', { name: 'Continuar venta', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Cancelar venta', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Descartar venta', exact: true })).toBeVisible();
+  await page.context().setOffline(true);
+  await page.getByRole('button', { name: 'Descartar venta', exact: true }).click();
+  await confirmarDescarte(page);
+  expect(await page.evaluate(key => localStorage.getItem(key), draftKey)).toBeNull();
+  expect(sim.ventas).toHaveLength(0);
+});
+
+test('pendiente enviado sin confirmación se descarta por el servidor y no reaparece al reiniciar la página', async ({ page, sim }) => {
+  await abrirPos(page);
+  await page.evaluate(({ key, sale }) => localStorage.setItem(key, JSON.stringify(sale)), { key: pendingKey, sale: pendiente });
+  await page.reload();
+  await page.getByRole('button', { name: 'Descartar venta', exact: true }).click(); await confirmarDescarte(page);
+  await expect.poll(() => sim.descartes.length).toBe(1);
+  await expect.poll(() => page.evaluate(key => localStorage.getItem(key), pendingKey)).toBeNull();
+  await page.reload();
+  await expect(page.getByText('Había una venta en proceso.')).toHaveCount(0);
+  await page.getByText('Taladro').first().click();
+  await expect(page.getByRole('button', { name: /Procesar Venta/ }).last()).toBeEnabled();
+  expect(sim.ventas).toHaveLength(0);
+});
+
+test('pérdida de conexión al descartar conserva la identidad y permite reintentar al recuperar red', async ({ page, sim }) => {
+  await abrirPos(page); sim.fallarDescarte = true;
+  await page.evaluate(({ key, sale }) => localStorage.setItem(key, JSON.stringify(sale)), { key: pendingKey, sale: pendiente });
+  await page.reload();
+  await page.getByRole('button', { name: 'Descartar venta', exact: true }).click(); await confirmarDescarte(page);
+  await expect.poll(() => sim.descartes.length).toBe(1);
+  await expect(page.getByRole('button', { name: 'Descartar venta', exact: true })).toBeEnabled();
+  expect(JSON.parse((await page.evaluate(key => localStorage.getItem(key), pendingKey))!).solicitudId).toBe(pendiente.solicitudId);
+  sim.fallarDescarte = false;
+  await page.reload(); await page.getByRole('button', { name: 'Descartar venta', exact: true }).click(); await confirmarDescarte(page);
+  await expect.poll(() => page.evaluate(key => localStorage.getItem(key), pendingKey)).toBeNull();
+  expect(sim.descartes).toEqual([pendiente.solicitudId, pendiente.solicitudId]); expect(sim.ventas).toHaveLength(0);
+});
+
+test('descartar una respuesta perdida recupera el comprobante de la venta confirmada', async ({ page, sim }) => {
+  await abrirPos(page); sim.perderRespuesta = true;
+  await page.getByText('Taladro').first().click(); await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+  await expect(page.getByText('Había una venta en proceso.')).toBeVisible(); await page.reload();
+  await page.getByRole('button', { name: 'Descartar venta', exact: true }).click(); await confirmarDescarte(page);
+  await expect(page.getByRole('status').filter({ hasText: 'Venta registrada' })).toBeVisible();
+  expect(sim.ventas).toHaveLength(1);
+  expect(await page.evaluate(key => localStorage.getItem(key), pendingKey)).not.toBeNull();
+  await page.getByRole('button', { name: /Nueva venta/i }).click();
+  await expect.poll(() => page.evaluate(key => localStorage.getItem(key), pendingKey)).toBeNull();
 });

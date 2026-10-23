@@ -1,3 +1,4 @@
+import { devolucionAutorizada } from './helpers/devolucion-autorizada';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -223,7 +224,7 @@ describe('Crédito de clientes / PostgreSQL aislado', () => {
 
   it('P0-C devolver una venta a crédito sin abonos cancela la deuda del cliente y de la venta', async () => {
     const venta = await ventaCredito();
-    await ops.devolver(tenantId, adminId, venta.id, {
+    await devolucionAutorizada(prisma, ops, tenantId, adminId, venta.id, {
       solicitudId: randomUUID(), motivo: 'Cliente desistió', metodo: 'EFECTIVO',
       items: [{ detalleId: (await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: venta.id } })).id, cantidad: 1, destino: 'NO_ENTREGADO' }],
     } as any);
@@ -235,7 +236,7 @@ describe('Crédito de clientes / PostgreSQL aislado', () => {
   it('P0-C devolver una venta a crédito con abonos previos cancela el crédito pendiente y reembolsa el excedente pagado', async () => {
     const venta = await ventaCredito();
     await pagoCuenta((await cuentaDe(venta.id)).id, 50);
-    const resultado = await ops.devolver(tenantId, adminId, venta.id, {
+    const resultado = await devolucionAutorizada(prisma, ops, tenantId, adminId, venta.id, {
       solicitudId: randomUUID(), motivo: 'Cancelación', metodo: 'EFECTIVO',
       items: [{ detalleId: (await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: venta.id } })).id, cantidad: 1, destino: 'NO_ENTREGADO' }],
     } as any) as any;
@@ -287,7 +288,7 @@ describe('Crédito de clientes / PostgreSQL aislado', () => {
     const venta = await ventaCredito();
     const cuenta = await cuentaDe(venta.id);
     const resultados = await Promise.allSettled([
-      ops.devolver(tenantId, adminId, venta.id, { solicitudId: randomUUID(), motivo: 'Desistió', metodo: 'EFECTIVO', items: [{ detalleId: (await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: venta.id } })).id, cantidad: 1, destino: 'NO_ENTREGADO' }] } as any),
+      devolucionAutorizada(prisma, ops, tenantId, adminId, venta.id, { solicitudId: randomUUID(), motivo: 'Desistió', metodo: 'EFECTIVO', items: [{ detalleId: (await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: venta.id } })).id, cantidad: 1, destino: 'NO_ENTREGADO' }] } as any),
       pagoCuenta(cuenta.id, 50),
     ]);
     const devolucionOk = resultados[0].status === 'fulfilled';
@@ -354,10 +355,10 @@ describe('Crédito de clientes / PostgreSQL aislado', () => {
   const auditoriaDevolucion = () => sql("SELECT COUNT(*)::int AS n FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='VENTA_DEVOLVER'", tenantId);
   const devolverTodo = async (ventaId: string, solicitudId = randomUUID(), usuario = adminId): Promise<any> => {
     const detalle = await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId } });
-    return ops.devolver(tenantId, usuario, ventaId, {
-      solicitudId, motivo: 'Cancelación', metodo: 'EFECTIVO',
-      items: [{ detalleId: detalle.id, cantidad: 1, destino: 'NO_ENTREGADO' }],
-    } as any);
+    const dto = { solicitudId, motivo: 'Cancelación', metodo: 'EFECTIVO', items: [{ detalleId: detalle.id, cantidad: 1, destino: 'NO_ENTREGADO' }] };
+    // El caso negativo sigue probando la ruta directa del cajero, sin autorizarlo en el arnés.
+    if (usuario !== adminId) return ops.devolver(tenantId, usuario, ventaId, dto);
+    return devolucionAutorizada(prisma, ops, tenantId, usuario, ventaId, dto);
   };
 
   it('Escenario A (sin abonos): cancela la deuda, restablece el crédito disponible y no registra reembolso ni movimiento de caja', async () => {
@@ -497,7 +498,7 @@ describe('Crédito de clientes / PostgreSQL aislado', () => {
     const cuenta = await cuentaDe(venta.id);
     await pagoCuenta(cuenta.id, 69);
     const detalle = await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: venta.id } });
-    const devolverUna = () => ops.devolver(tenantId, adminId, venta.id, {
+    const devolverUna = () => devolucionAutorizada(prisma, ops, tenantId, adminId, venta.id, {
       solicitudId: randomUUID(), motivo: 'Parcial', metodo: 'EFECTIVO',
       items: [{ detalleId: detalle.id, cantidad: 1, destino: 'NO_ENTREGADO' }],
     } as any) as Promise<any>;

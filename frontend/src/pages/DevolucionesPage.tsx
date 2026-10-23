@@ -37,6 +37,7 @@ export const DevolucionesPage: React.FC = () => {
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [targets, setTargets] = useState<Record<string, string>>({});
   const [motivo, setMotivo] = useState('');
+  const [anulacion, setAnulacion] = useState(false);
   const [method, setMethod] = useState('EFECTIVO');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -51,7 +52,7 @@ export const DevolucionesPage: React.FC = () => {
   const isAdmin = user?.rol === 'ADMIN';
 
   useEffect(() => {
-    setSale(null); setQuantities({}); setTargets({}); setResult(null); setNumero(''); setMotivo(''); setMethod('EFECTIVO'); setNotice(''); setError(''); setDecisionNotes({}); setPage(0); setRequests([]); setPending(null); setCorrectionId(null); setCorrupt(false);
+    setAnulacion(false); setSale(null); setQuantities({}); setTargets({}); setResult(null); setNumero(''); setMotivo(''); setMethod('EFECTIVO'); setNotice(''); setError(''); setDecisionNotes({}); setPage(0); setRequests([]); setPending(null); setCorrectionId(null); setCorrupt(false);
     try { setPending(readCommand(key)); } catch { setCorrupt(true); setError('No se puede leer la operación pendiente. Conserva este navegador y pide ayuda al administrador antes de registrar otra devolución.'); }
   }, [key]);
 
@@ -71,7 +72,7 @@ export const DevolucionesPage: React.FC = () => {
     try {
       const response = await api.get('/operaciones/ventas/buscar', { params: { numero: numeroVentaDesdeIdentificador(numero) } });
       if (scope.current !== startedKey) return;
-      setSale(response.data); setQuantities({}); setTargets({});
+      setAnulacion(false); setSale(response.data); setQuantities({}); setTargets({});
     } catch (e) { if (scope.current === startedKey) setError(errorMessage(e)); }
     finally { sending.current = false; setBusy(false); }
   };
@@ -182,7 +183,7 @@ export const DevolucionesPage: React.FC = () => {
   };
 
   const blocked = busy || (!!pending && !correctionId) || corrupt || isReadOnly;
-  return <div><TopBar title="Devoluciones y autorizaciones" subtitle="Solicitar → revisar → autorizar → confirmar devolución" />
+  return <div><TopBar title="Devoluciones y anulaciones" subtitle="Solicitar → revisar → autorizar → confirmar devolución" />
     <main className="operation-page">
       <section className="operation-card"><h2>{isAdmin ? 'Revisar devoluciones' : 'Solicitar una devolución'}</h2>
         <p>{isAdmin ? 'Revisa la venta, los productos, las cantidades y el motivo antes de decidir. Autorizar no realiza el reembolso: el solicitante debe confirmarlo desde su caja.' : 'Busca el número del comprobante, selecciona los productos e indica el motivo. Después de la autorización, confirma la devolución para registrar el reembolso.'}</p>
@@ -215,21 +216,26 @@ export const DevolucionesPage: React.FC = () => {
         const items = sale.items.map((item: any) => ({ detalleId: item.id, cantidad: Number(quantities[item.id] || 0), destino: targets[item.id] || (item.sin_inventario ? 'PROVEEDOR' : sale.reserva_pendiente ? 'NO_ENTREGADO' : 'INVENTARIO') })).filter((item: any) => item.cantidad > 0);
         if (!items.length) { setError('Selecciona al menos un producto y la cantidad a devolver.'); return; }
         const requestId = correctionId || crypto.randomUUID();
-        void run({ kind: 'SOLICITAR', requestId, saleId: sale.id, dto: { solicitudId: requestId, motivo, metodo: method, items } });
+        void run({ kind: 'SOLICITAR', requestId, saleId: sale.id, dto: { solicitudId: requestId, motivo, metodo: method, items, ...(anulacion ? { anulacion: true } : {}) } });
       }}>
         <h2>Venta {sale.numero_venta} · {sale.cliente_nombre || 'Consumidor final'}</h2>
         <p>{sale.metodo_pago} · Total {formatLempiras(Number(sale.total))} · {sale.reserva_pendiente ? 'Productos pendientes de entregar' : 'Productos entregados o documento histórico'}</p>
+        <button type="button" className="btn btn-secondary" disabled={blocked || sale.devoluciones.length > 0} onClick={() => {
+          setAnulacion(value => !value);
+          setQuantities(anulacion ? {} : Object.fromEntries(sale.items.map((item: any) => [item.id, String(Number(item.cantidad))])));
+        }}>{anulacion ? 'Volver a devolución parcial' : 'Solicitar anulación de toda la venta'}</button>
+        {anulacion && <p role="status">Anulación total: requiere el motivo y la autorización de otro administrador desde su propia sesión. El documento original se conserva y se genera una devolución compensatoria. Revise el destino físico de cada producto.</p>}
         <fieldset disabled={blocked}><legend>Productos que se devolverán</legend>
           <div className="operation-table"><table><thead><tr><th>Producto</th><th>Disponible para devolver</th><th>Cantidad a devolver</th><th>Qué pasará con el producto</th></tr></thead><tbody>
             {sale.items.map((item: any) => {
               const rest = Number(item.cantidad) - Number(item.devuelto);
               const choices = item.sin_inventario ? ['PROVEEDOR', 'DAÑADO'] : sale.reserva_pendiente ? ['NO_ENTREGADO'] : ['INVENTARIO', 'DAÑADO', 'PROVEEDOR'];
               return <tr key={item.id}><td>{item.codigo} · {item.nombre}</td><td>{rest} (ya devuelto: {Number(item.devuelto)})</td>
-                <td><input aria-label={`Devolver ${item.nombre}`} type="number" step=".01" min="0" max={rest} disabled={rest <= 0} value={quantities[item.id] || '0'} onChange={e => setQuantities({ ...quantities, [item.id]: e.target.value })} /></td>
+                <td><input aria-label={`Devolver ${item.nombre}`} type="number" step=".01" min="0" max={rest} disabled={rest <= 0 || anulacion} value={quantities[item.id] || '0'} onChange={e => setQuantities({ ...quantities, [item.id]: e.target.value })} /></td>
                 <td><select aria-label={`Destino de ${item.nombre}`} value={targets[item.id] || choices[0]} onChange={e => setTargets({ ...targets, [item.id]: e.target.value })}>{choices.map(value => <option key={value} value={value}>{destinations[value]}</option>)}</select></td></tr>;
             })}
           </tbody></table></div>
-          <div className="operation-form"><label>Motivo de la devolución<input className="form-input" required maxLength={500} value={motivo} onChange={e => setMotivo(e.target.value)} /></label>
+          <div className="operation-form"><label>{anulacion ? 'Motivo de la anulación' : 'Motivo de la devolución'}<input className="form-input" required maxLength={500} value={motivo} onChange={e => setMotivo(e.target.value)} /></label>
             <label>Método del reembolso<select className="form-input" value={method} onChange={e => setMethod(e.target.value)}>{['EFECTIVO', 'TARJETA', 'TRANSFERENCIA'].map(value => <option key={value}>{value}</option>)}</select></label></div>
           <p>Se reduce primero el crédito pendiente; el excedente se registra como reembolso desde tu caja abierta. Solo los productos que vuelven a existencias vendibles aumentan el inventario. El reembolso con tarjeta o transferencia se registra aquí; el sistema no lo procesa en el banco.</p>
           <button className="btn btn-primary">Enviar solicitud de autorización</button>
@@ -242,14 +248,14 @@ export const DevolucionesPage: React.FC = () => {
         {listError && <p role="alert">{listError}</p>}
         {!loading && !listError && !requests.length && <p>No hay solicitudes en esta página.</p>}
         {!loading && !listError && requests.map(request => <article className="operation-card" key={request.id}>
-          <h3>Venta {request.numero_venta} · {statuses[request.estado] || request.estado}</h3>
+          <h3>{request.comando.anulacion ? 'Anulación' : 'Venta'} {request.numero_venta} · {statuses[request.estado] || request.estado}</h3>
           <p>Solicita: {request.solicitante_nombre} · {formatInstanteNegocio(request.created_at)}</p>
           <p>Motivo: {request.comando.motivo} · Método propuesto: {request.comando.metodo}</p>
           <p>Importe estimado a devolver: {formatLempiras(Number(request.monto_estimado))}. El crédito pendiente y el reembolso se calculan al confirmar.</p>
           <p>Total de la venta original: {formatLempiras(Number(request.total_venta))} · Pago original: {request.metodo_pago}</p>
           <ul>{request.items?.map((item: any, index: number) => <li key={index}>{item.codigo} · {item.nombre}: {item.cantidad} · {destinations[item.destino]}</li>)}</ul>
           {request.administrador_nombre && <p>Decidió: {request.administrador_nombre} · {request.motivo_decision}</p>}
-          {isAdmin && request.estado === 'PENDIENTE' && <form className="operation-form" onSubmit={e => {
+          {isAdmin && request.solicitante_id !== user?.id && request.estado === 'PENDIENTE' && <form className="operation-form" onSubmit={e => {
             e.preventDefault(); if (blocked) return;
             void run({ kind: 'DECIDIR', requestId: request.id, dto: { decision: 'AUTORIZADA', motivo: decisionNotes[request.id] || '' } });
           }}><label>Motivo de la decisión<input className="form-input" required maxLength={500} disabled={blocked} value={decisionNotes[request.id] || ''} onChange={e => setDecisionNotes({ ...decisionNotes, [request.id]: e.target.value })} /></label>
@@ -258,6 +264,7 @@ export const DevolucionesPage: React.FC = () => {
               if (!decisionNotes[request.id]?.trim()) { setError('Indica el motivo de la decisión.'); return; }
               void run({ kind: 'DECIDIR', requestId: request.id, dto: { decision: 'RECHAZADA', motivo: decisionNotes[request.id] } });
             }}>Rechazar solicitud</button></form>}
+          {isAdmin && request.solicitante_id === user?.id && request.estado === 'PENDIENTE' && <p>Otro administrador debe revisar esta solicitud.</p>}
           {request.estado === 'AUTORIZADA' && request.solicitante_id === user?.id && <button className="btn btn-primary" disabled={blocked} onClick={() => void run({ kind: 'EJECUTAR', requestId: request.id })}>Confirmar devolución y reembolso</button>}
           {request.estado === 'EJECUTADA' && <button className="btn btn-secondary" disabled={busy || (!!pending && !correctionId) || corrupt} onClick={async () => {
             const startedKey = key;
