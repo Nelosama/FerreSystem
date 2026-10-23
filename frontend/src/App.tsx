@@ -9,7 +9,9 @@ import { Sidebar } from './components/Sidebar';
 import { PlatformRail } from './components/PlatformRail';
 import { PlatformTopbar } from './components/PlatformTopbar';
 import { CajeroRail } from './components/CajeroRail';
-import { PlatformShellContext } from './context/PlatformShellContext';
+import { AdminRail } from './components/AdminRail';
+import { AdminTopbar } from './components/AdminTopbar';
+import { ShellTopbarContext } from './context/ShellTopbarContext';
 import { TopNavigation } from './components/TopNavigation';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -143,8 +145,11 @@ const HomeRoute: React.FC = () => {
 
 // Layout principal que admite modo Sidebar lateral o modo TopNav horizontal
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { tenant, user } = useTenant();
+  const { tenant, user, isImpersonating } = useTenant();
   const isTopNav = tenant.modoNavegacion === 'TOPNAV';
+  // Shell del administrador (rail + barra superior) solo en modo lateral. En soporte remoto se conserva el layout con el
+  // aviso de soporte de TopBar, que es la única forma de salir de ese modo.
+  const esAdminLateral = user?.rol === 'ADMIN' && !isTopNav && !isImpersonating;
 
   const [isMobile, setIsMobile] = React.useState(
     typeof window !== 'undefined' ? window.innerWidth <= 768 : false
@@ -163,7 +168,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   if (user?.rol === 'SUPERADMIN') {
     return (
       <CajaProvider>
-        <PlatformShellContext.Provider value={true}>
+        <ShellTopbarContext.Provider value={true}>
           <div className="platform-shell">
             <PlatformRail />
             <div data-guide-content className="platform-main">
@@ -172,15 +177,16 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               {children}
             </div>
           </div>
-        </PlatformShellContext.Provider>
+        </ShellTopbarContext.Provider>
       </CajaProvider>
     );
   }
 
   return (
     <CajaProvider>
-    <div className={isTopNav ? "app-container-topnav" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
-      {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : user?.rol === 'CAJERO' ? <CajeroRail /> : <Sidebar />}
+    <ShellTopbarContext.Provider value={esAdminLateral}>
+    <div className={isTopNav ? "app-container-topnav" : esAdminLateral ? "app-container admin-shell" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
+      {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : user?.rol === 'CAJERO' ? <CajeroRail /> : esAdminLateral ? <AdminRail /> : <Sidebar />}
       <div data-guide-content
         className="main-content"
         style={{
@@ -188,12 +194,14 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           ...(isMobile ? { paddingBottom: '72px' } : {}),
         }}
       >
+        {esAdminLateral && <AdminTopbar />}
         {(!isTopNav || isMobile) && <TaskFinder />}
         <Guide />
         {children}
       </div>
       <BottomNavigation />
     </div>
+    </ShellTopbarContext.Provider>
     </CajaProvider>
   );
 };

@@ -22,6 +22,9 @@ const load = (file) => {
     if (name.endsWith('TenantContext')) return { useTenant: () => ({ user, tenant }) };
     if (name.endsWith('navigation')) return load('src/config/navigation.ts');
     if (name.endsWith('taskNavigation')) return load('src/utils/taskNavigation.ts');
+    if (name.endsWith('ShellTopbarContext')) return { ShellTopbarContext: React.createContext(false) };
+    if (name.endsWith('useMediaQuery')) return { useMediaQuery: () => false };
+    if (name.endsWith('movilAdmin')) return load('src/utils/movilAdmin.ts');
     throw new Error(`Unexpected import ${name}`);
   };
   const source = fs.readFileSync(file, 'utf8');

@@ -29,6 +29,8 @@ export function canNavigate(item: NavigationItem, user: UserInfo | null, tenant:
 const ordenMenu = (key: string) => { const i = NAVIGATION_ORDER.indexOf(key); return i < 0 ? NAVIGATION_ORDER.length : i; };
 export const availableTasks = (user: UserInfo | null, tenant: TenantInfo) =>
   NAVIGATION_ITEMS.filter(item => (!item.moduleKey || !PENDING_MODULES.has(item.moduleKey)) && canNavigate(item, user, tenant)).sort((a,b) => NAVIGATION_CATEGORIES.indexOf(a.category) - NAVIGATION_CATEGORIES.indexOf(b.category) || ordenMenu(a.key) - ordenMenu(b.key));
+// Sin red solo sigue operando el POS (contingencia en efectivo); el resto necesita el servidor. Solo informa en los menús.
+export const DISPONIBLE_SIN_RED: ReadonlySet<string> = new Set(['pos']);
 const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 export function searchTasks(items: NavigationItem[], query: string, translate?: (key: string) => string): NavigationItem[] {
   const words = normalize(query).trim().split(/\s+/).filter(Boolean);

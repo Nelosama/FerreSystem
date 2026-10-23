@@ -10,6 +10,11 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 
 ---
 
+## ADMIN — integración del prototipo Figma — 2026-10-23 UTC (rama `codex/figma-admin-integration`, base `main` `24ae784`, sin merge ni despliegue)
+- **Alcance:** rail 84 px, barra superior e Inicio del ADMIN (solo SIDEBAR, sin impersonación). Detalle, fuentes de datos, diferencias con Figma y riesgos en `docs/ADMIN_FIGMA_20261023.md`; evidencia en `docs/evidencias/admin-figma/`.
+- **Código:** `frontend/src/components/{IconRail,AdminRail,AdminTopbar}.tsx`, `pages/admin/AdminHomePage.tsx`, `utils/movilAdmin.ts`, `App.tsx` (AppLayout). Pruebas: `frontend/e2e/admin-shell-simulado.spec.ts` y especificaciones actualizadas.
+- **Pendientes reales:** endpoint agregado para CxC/CxP; selector de sucursal informativo; decisión de tema global del tenant; TOPNAV e impersonación sin el nuevo shell; aceptación del cliente y merge/despliegue no realizados.
+
 ## Super Admin — layout híbrido (rail, topbar y pestañas) — 2026-10-23 UTC (rama `claude/amazing-bohr-9e5bpj`, sin PR, merge ni despliegue)
 
 - **Origen y alcance:** brief «Rediseño de navegación del Super Admin» (rail de iconos + topbar + pestañas contextuales). Solo reorganiza navegación y aplica el tema visual; no cambia rutas, permisos, consultas de negocio ni backend. Sin dependencias nuevas (React + CSS tradicional + lucide-react).

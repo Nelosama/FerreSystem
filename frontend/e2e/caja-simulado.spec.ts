@@ -54,6 +54,7 @@ const test = base.extend<{ sim: Sim }>({
       const vacias: Record<string, unknown> = {
         '/dashboard': { ventasDelDia: { total: 0 }, alertasStock: { items: [] }, cotizacionesPendientes: { cantidad: 0 } },
         '/dashboard/pendientes': { generadoAt: '2026-10-18T00:00:00.000Z', indicadores: [] },
+          '/operaciones/cuentas': [],
         '/maintenance/backup': { configured: false }, '/productos/comercial': [], '/clientes': [], '/caja': [], '/operaciones/entregas': [],
         '/operaciones/solicitudes-devolucion': [], '/operaciones/auditoria': [],
       };
@@ -116,7 +117,7 @@ async function ingresar(page: Page, ruta: string) {
   await page.locator('input[type="email"]').fill('usuario@prueba.invalid');
   await page.locator('input[type="password"]').fill('solo-para-esta-prueba');
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
-  await expect(page.getByRole('heading', { name: 'Administrar el negocio', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Hola, /, level: 1 })).toBeVisible();
   await page.goto(ruta);
 }
 

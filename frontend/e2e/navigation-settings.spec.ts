@@ -61,17 +61,19 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
     await setup(page, role, mode, language, []);
     await page.goto(role === 'SUPERADMIN' ? '/admin' : '/');
     // El SUPERADMIN usa siempre el rail de plataforma (el modo del negocio no le aplica).
-    // El cajero en modo lateral usa el rail de iconos; sus accesos secundarios quedan en «Más».
-    const cajeroRail = role === 'CAJERO' && mode === 'SIDEBAR';
-    const navigation = role === 'SUPERADMIN' ? page.getByRole('navigation', { name: 'Áreas de la plataforma' }) : cajeroRail ? page.locator('nav.cajero-rail') : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
+    // Cajero y administrador en modo lateral usan el rail de iconos; sus accesos secundarios quedan en paneles («Más»).
+    const rail = ['CAJERO', 'ADMIN'].includes(role) && mode === 'SIDEBAR';
+    const navigation = role === 'SUPERADMIN' ? page.getByRole('navigation', { name: 'Áreas de la plataforma' }) : rail ? page.locator('nav.app-rail') : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
     await expect(navigation).toBeVisible();
-    if (cajeroRail && await navigation.getByRole('button', { name: 'Más' }).count()) await navigation.getByRole('button', { name: 'Más' }).click();
+    if (rail && await navigation.getByRole('button', { name: 'Más' }).count()) await navigation.getByRole('button', { name: 'Más' }).click();
     await expect(navigation.locator('a[href="/pos"]')).toHaveCount(0);
     await expect(navigation.locator('a[href="/apartados"]')).toHaveCount(0);
     // La configuración se abre por negocio desde el panel del SUPERADMIN; no hay entrada global en el menú.
     await expect(navigation.locator('a[href="/configuracion"]')).toHaveCount(0);
     if (role !== 'SUPERADMIN') {
-      expect(await page.locator('.daily-tasks .task-link').count()).toBeLessThanOrEqual(4);
+      // Acciones principales del inicio: como máximo cuatro (el administrador las ve como «Acciones frecuentes»).
+      const accionesInicio = role === 'ADMIN' ? page.getByRole('navigation', { name: 'Accesos rápidos' }).getByRole('link') : page.locator('.daily-tasks .task-link');
+      expect(await accionesInicio.count()).toBeLessThanOrEqual(4);
       if (['CAJERO', 'VENDEDOR'].includes(role)) {
         if (mode === 'TOPNAV') { const submenu = navigation.locator('a[href="/arqueo-caja"]').locator('xpath=ancestor::details'); if (await submenu.count()) await submenu.locator('summary').click(); }
         await expect(navigation.locator('a[href="/arqueo-caja"]')).toHaveCount(0);
@@ -109,9 +111,18 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
     await setup(page, role, mode, 'es', enabled ? ['pos'] : []);
     await page.goto('/');
     const cajeroRail = role === 'CAJERO' && mode === 'SIDEBAR';
-    const nav = cajeroRail ? page.locator('nav.cajero-rail') : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
+    const adminRail = role === 'ADMIN' && mode === 'SIDEBAR';
+    const nav = cajeroRail || adminRail ? page.locator('nav.app-rail') : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
     await expect(nav).toBeVisible();
     if (cajeroRail && await nav.getByRole('button', { name: 'Más' }).count()) await nav.getByRole('button', { name: 'Más' }).click();
+    // El buscador de pantallas está plegado dentro del shell del administrador (se abre antes: pulsar fuera cierra el panel del rail).
+    if (adminRail) await page.locator('.task-finder-toggle').click();
+    // El administrador agrupa Entregas y Devoluciones en el panel «Ventas» del rail (solo existe con el módulo POS).
+    if (adminRail) {
+      const ventas = nav.getByRole('button', { name: 'Ventas', exact: true });
+      if (enabled) { await expect(ventas).toBeVisible(); await ventas.click(); }
+      else await expect(ventas).toHaveCount(0);
+    }
     const salesMenu = nav.getByRole('button', { name: 'Ventas y caja' });
     if (mode === 'TOPNAV' && await salesMenu.count()) await salesMenu.click();
     for (const route of ['entregas', 'devoluciones']) {
@@ -134,7 +145,9 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
     const mobile = page.locator('.mobile-bottom-nav, [role="dialog"]');
     for (const route of ['entregas', 'devoluciones']) {
       const allowed = enabled && (route === 'entregas' ? role !== 'VENDEDOR' : role !== 'BODEGUERO');
-      expect(await mobile.locator(`a[href="/${route}"]`).count()).toBe(allowed ? 1 : 0);
+      // En móvil el administrador no recibe devoluciones (regla de la interfaz móvil administrativa).
+      const ofrecidoEnMovil = allowed && !(role === 'ADMIN' && route === 'devoluciones');
+      expect(await mobile.locator(`a[href="/${route}"]`).count()).toBe(ofrecidoEnMovil ? 1 : 0);
     }
     await page.keyboard.press('Escape');
     for (const route of ['entregas', 'devoluciones']) for (const url of [`/${route}`, `/${route.toUpperCase()}/`]) {
@@ -222,9 +235,9 @@ for (const language of ['es', 'en']) test(`inicio ADMIN: pendientes traducidos y
   await page.goto('/configuracion');
   await expect(page.getByRole('heading', { name: language === 'es' ? 'Acceso Denegado' : 'Access Denied', exact: true })).toBeVisible();
   await page.goto('/');
-  await page.locator('.daily-tasks details summary').click();
-  await expect(page.locator('.daily-tasks details p')).toContainText(language==='es'?'todavía no registran':'do not record');
-  await expect(page.locator('.daily-tasks details a')).toHaveCount(0);
+  await page.locator('.admin-home__nota summary').click();
+  await expect(page.locator('.admin-home__nota p')).toContainText(language==='es'?'todavía no registran':'do not record');
+  await expect(page.locator('.admin-home__nota a')).toHaveCount(0);
   await expect(page.locator('a[href="/apartados"]')).toHaveCount(0);
 });
 

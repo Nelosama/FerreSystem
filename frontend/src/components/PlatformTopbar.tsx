@@ -23,18 +23,18 @@ export const PlatformTopbar: React.FC = () => {
   };
 
   return (
-    <header className="platform-topbar">
-      <div className="platform-topbar-area">
+    <header className="shell-topbar">
+      <div className="shell-topbar-area">
         <strong>{area?.etiqueta ?? 'Inicio'}</strong>
-        <span className="platform-pill">Super Admin</span>
+        <span className="shell-pill">Super Admin</span>
       </div>
-      <div className="platform-topbar-actions">
+      <div className="shell-topbar-actions">
         <NotificacionesBell />
-        <div aria-label="Idioma de la plataforma" className="platform-topbar-idioma" style={{ display: 'flex', gap: 4 }}>
+        <div aria-label="Idioma de la plataforma" className="shell-topbar-idioma" style={{ display: 'flex', gap: 4 }}>
           {(['es', 'en'] as const).map(lang => <button key={lang} type="button" aria-pressed={locale === lang} onClick={() => setLocale(lang)} className="btn-sm">{lang.toUpperCase()}</button>)}
         </div>
-        {user && <span className="platform-topbar-user" title={user.nombre}><UserCheck size={14} aria-hidden="true" /> {user.nombre}</span>}
-        <button type="button" onClick={handleLogout} className="platform-topbar-logout" title={t('topbar.logout_title')}>
+        {user && <span className="shell-topbar-user" title={user.nombre}><UserCheck size={14} aria-hidden="true" /> {user.nombre}</span>}
+        <button type="button" onClick={handleLogout} className="shell-topbar-logout" title={t('topbar.logout_title')}>
           <LogOut size={14} strokeWidth={2.4} aria-hidden="true" />
           <span>{t('topbar.logout')}</span>
         </button>

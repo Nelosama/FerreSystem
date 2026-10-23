@@ -97,7 +97,6 @@ export const AdminMovilPage: React.FC = () => {
       <section className="admin-movil-tarjeta" aria-labelledby="admin-movil-caja">
         <h2 id="admin-movil-caja">{t('admin_mobile.cash')}</h2>
         {aviso(cajas)}
-        <Link className="admin-movil-enlace" to="/arqueo-caja">{t('admin_mobile.open_cash')}</Link>
         {cajas.datos && (
           cajas.datos.length === 0
             ? <p>{t('admin_mobile.no_open_cash')}</p>
@@ -148,7 +147,6 @@ export const AdminMovilPage: React.FC = () => {
       <section className="admin-movil-tarjeta" aria-labelledby="admin-movil-cxp">
         <h2 id="admin-movil-cxp">{t('admin_mobile.supplier_bills_due')}</h2>
         {aviso(cxp)}
-        <Link className="admin-movil-enlace" to="/cuentas">{t('admin_mobile.open_accounts')}</Link>
         {cxp.datos && (
           porVencer.length === 0
             ? <p>{t('admin_mobile.no_supplier_bills_due')}</p>

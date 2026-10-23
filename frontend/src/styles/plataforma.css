@@ -34,12 +34,6 @@
   background: var(--bg);
 }
 
-/* La topbar de cada página se sustituye por la del shell (que conserva idioma, usuario y cierre de sesión). */
-/* Encabezado de página (TopBar dentro del shell): título de 22 px y subtítulo en tono secundario. */
-.platform-page-header { padding: 28px 28px 18px; }
-.platform-page-header h1 { font-size: 22px; font-weight: 600; line-height: 1.25; color: var(--ink); margin: 0; letter-spacing: normal; }
-.platform-page-header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
-
 .platform-main {
   flex: 1;
   min-width: 0;
@@ -128,83 +122,6 @@
   color: var(--plat-ink);
   font-size: 12px;
   font-weight: 700;
-}
-
-/* ---------- Topbar ---------- */
-.platform-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 28px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-}
-
-.platform-topbar-area {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.platform-topbar-area strong {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.platform-pill {
-  flex: 0 0 auto;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.platform-topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.platform-topbar-actions .btn-sm,
-.platform-topbar-logout {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.platform-topbar-actions [aria-pressed='true'] {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  border-color: transparent;
-}
-
-.platform-topbar-user {
-  color: var(--muted);
-  font-size: 12px;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ---------- Pestañas del área ---------- */
@@ -341,8 +258,6 @@
 
 /* ---------- Tablet (≤1024 px) ---------- */
 @media (max-width: 1024px) {
-  .platform-topbar,
-  .platform-page-header { padding: 24px 22px 14px; }
   .platform-tabs,
   .platform-shell .platform-content { padding-left: 22px; padding-right: 22px; }
   .platform-content > .platform-tabs { margin: 0 -22px 20px; }
@@ -393,20 +308,6 @@
 
   .platform-main { padding-bottom: 84px; }
 
-  .platform-topbar {
-    height: auto;
-    min-height: 52px;
-    padding: 10px 16px;
-    flex-wrap: wrap;
-  }
-
-  .platform-topbar-area strong { font-size: 14px; }
-  .platform-topbar-user,
-  .platform-topbar-idioma { display: none; }
-  .platform-topbar-logout span { display: none; }
-
-  .platform-page-header { padding: 20px 16px 12px; }
-  .platform-page-header h1 { font-size: 19px; }
   .platform-tabs { padding: 0 16px; }
   .platform-content > .platform-tabs { margin: 0 -16px 16px; }
   .platform-shell .platform-content { padding: 20px 16px 32px; }

@@ -1,8 +1,8 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
 // E2E CON BACKEND SIMULADO del panel administrativo (AdminHomePage). Verifica: cifras que llegan de
-// /dashboard, indicadores sin datos y sin secciones «En preparación», ausencia de botones «Actualizar», botón
-// flotante en móvil sin desbordamiento horizontal, y que un fallo del resumen no muestra cifras falsas.
+// /dashboard, indicadores sin datos y sin secciones «En preparación», ausencia de botones «Actualizar», móvil sin
+// botón de venta y sin desbordamiento horizontal, y que un fallo del resumen no muestra cifras falsas.
 // Datos de simulación; no sustituye la prueba con datos reales ni la comparación visual con Figma.
 
 const tenant = { id: 'tenant-home-e2e', nombreComercial: 'Ferretería de prueba', colorPrimario: '#EA580C' };
@@ -68,10 +68,13 @@ test.describe('Panel administrativo (simulado)', () => {
   test.describe('móvil', () => {
     test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
-    test('muestra el botón flotante de nueva venta sin desbordamiento horizontal', async ({ page, baseURL }) => {
+    test('no ofrece ventas desde el teléfono (sin botón de nueva venta) y no desborda horizontalmente', async ({ page, baseURL }) => {
       await simular(page, baseURL, { dashboardFalla: false });
       await ingresar(page);
-      await expect(page.getByRole('link', { name: 'Nueva venta' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /Hola, / })).toBeVisible();
+      // La interfaz móvil administrativa es de supervisión: ni botón flotante ni acceso a vender.
+      await expect(page.getByRole('link', { name: 'Nueva venta' })).toHaveCount(0);
+      await expect(page.locator('a[href="/pos"]')).toHaveCount(0);
       const desbordamiento = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(desbordamiento).toBeLessThanOrEqual(0);
       await page.screenshot({ path: 'test-results/admin-home-movil.png', fullPage: true });

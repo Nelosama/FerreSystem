@@ -32,29 +32,51 @@ async function setup(page: Page, role: string, mode = 'SIDEBAR') {
 
 const hrefs = (nav: ReturnType<Page['locator']>) => nav.locator('a').evaluateAll(links => links.map(a => a.getAttribute('href')));
 
-test('ADMIN: orden por uso, grupos desplegables que se recuerdan y diseño único con el color del negocio', async ({ page }) => {
+test('ADMIN: rail ordenado por uso, paneles por orden de uso, color del negocio y estado de conexión', async ({ page }) => {
   await setup(page, 'ADMIN');
   await page.goto('/');
   await expect(page.locator('html')).not.toHaveAttribute('data-template');
-  const nav = page.locator('aside.jowa-sidebar');
-  await expect(nav.getByRole('button', { name: 'Ventas y caja' })).toBeVisible();
-  const orden = await hrefs(nav);
-  expect(orden[0]).toBe('/');
-  expect(orden.indexOf('/pos')).toBeLessThan(orden.indexOf('/arqueo-caja'));
-  expect(orden.indexOf('/arqueo-caja')).toBeLessThan(orden.indexOf('/cotizaciones'));
-  expect(orden.indexOf('/clientes')).toBeLessThan(orden.indexOf('/cuentas'));
-  expect(orden.indexOf('/inventario')).toBeLessThan(orden.indexOf('/levantamiento'));
-  expect(orden.indexOf('/reportes')).toBeLessThan(orden.indexOf('/usuarios'));
-  expect(await nav.getByRole('button').allTextContents()).toEqual(['Ventas y caja', 'Clientes y cobros', 'Inventario y compras', 'Administración']);
+  const rail = page.locator('nav.admin-rail');
+  await expect(rail.getByRole('button', { name: 'Ventas' })).toBeVisible();
+  expect(await rail.locator('ul.app-rail-list > li').allInnerTexts()).toEqual(['Inicio', 'Ventas', 'Inventario', 'Compras', 'Clientes', 'Más']);
+  const panel = async (nombre: string, id: string) => { await rail.getByRole('button', { name: nombre }).click(); return hrefs(page.locator(`#app-rail-panel-${id}`)); };
+  const ventas = await panel('Ventas', 'ventas');
+  expect(ventas.indexOf('/pos')).toBeGreaterThanOrEqual(0);
+  expect(ventas.indexOf('/pos')).toBeLessThan(ventas.indexOf('/cotizaciones'));
+  expect(ventas.indexOf('/cotizaciones')).toBeLessThan(ventas.indexOf('/arqueo-caja'));
+  const clientes = await panel('Clientes', 'clientes');
+  expect(clientes.indexOf('/clientes')).toBeLessThan(clientes.indexOf('/cuentas'));
+  const inventario = await panel('Inventario', 'inventario');
+  expect(inventario.indexOf('/inventario')).toBeLessThan(inventario.indexOf('/levantamiento'));
+  const mas = await panel('Más', 'mas');
+  expect(mas.indexOf('/reportes')).toBeLessThan(mas.indexOf('/usuarios'));
 
-  const inventario = nav.getByRole('button', { name: 'Inventario y compras' });
-  await inventario.click();
-  await expect(inventario).toHaveAttribute('aria-expanded', 'false');
-  await expect(nav.locator('a[href="/levantamiento"]')).toBeHidden();
+  // El estado activo toma el color del negocio (#1D4ED8, azul), no un color fijo de la plataforma.
+  const activo = rail.getByRole('link', { name: 'Inicio', exact: true });
+  await expect(activo).toHaveClass(/is-active/);
+  const icono = await activo.locator('svg').evaluate(nodo => {
+    const lienzo = document.createElement('canvas'); lienzo.width = lienzo.height = 1;
+    const g = lienzo.getContext('2d')!; g.fillStyle = getComputedStyle(nodo).color; g.fillRect(0, 0, 1, 1);
+    return [...g.getImageData(0, 0, 1, 1).data];
+  });
+  expect(icono[2]).toBeGreaterThan(icono[0]);
+  expect(icono[2]).toBeGreaterThan(icono[1]);
+  await expect(page.locator('.jowa-connection')).toContainText('En línea');
+});
+
+test('VENDEDOR: el menú lateral conserva grupos desplegables que se recuerdan y el color del negocio', async ({ page }) => {
+  await setup(page, 'VENDEDOR');
+  await page.goto('/');
+  const nav = page.locator('aside.jowa-sidebar');
+  const grupo = nav.getByRole('button', { name: 'Ventas y caja' });
+  await expect(grupo).toHaveAttribute('aria-expanded', 'true');
+  await grupo.click();
+  await expect(grupo).toHaveAttribute('aria-expanded', 'false');
+  await expect(nav.locator('a[href="/pos"]')).toBeHidden();
   await page.reload();
-  await expect(nav.getByRole('button', { name: 'Inventario y compras' })).toHaveAttribute('aria-expanded', 'false');
-  await nav.getByRole('button', { name: 'Inventario y compras' }).click();
-  await expect(nav.locator('a[href="/levantamiento"]')).toBeVisible();
+  await expect(nav.getByRole('button', { name: 'Ventas y caja' })).toHaveAttribute('aria-expanded', 'false');
+  await nav.getByRole('button', { name: 'Ventas y caja' }).click();
+  await expect(nav.locator('a[href="/pos"]')).toBeVisible();
 
   const activo = nav.locator('a.jowa-nav-item[href="/"]');
   await expect(activo).toHaveClass(/active/);

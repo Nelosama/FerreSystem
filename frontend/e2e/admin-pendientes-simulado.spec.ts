@@ -77,6 +77,20 @@ async function preparar(page: Page, baseURL: string | undefined, o: Opciones = {
   return registro;
 }
 
+// Abre cada panel de los rails (administrador y cajero) y reúne todos sus enlaces: ausente de verdad, no solo plegado.
+async function enlacesDeTodosLosPaneles(page: Page) {
+  const rail = page.locator('nav.app-rail');
+  await expect(rail).toBeVisible();
+  const reunidos = new Set<string>(await rail.locator('a[href]').evaluateAll(links => links.map(a => a.getAttribute('href') || '')));
+  const botones = rail.locator('button.app-rail-item');
+  for (let i = 0; i < await botones.count(); i++) {
+    await botones.nth(i).click();
+    for (const href of await rail.locator('.app-rail-panel a[href]').evaluateAll(links => links.map(a => a.getAttribute('href') || ''))) reunidos.add(href);
+    await botones.nth(i).click();
+  }
+  return [...reunidos];
+}
+
 test.describe('Inicio del administrador: pendientes reales', () => {
   test('muestra las cifras del servidor, agrupa lo que está al día y cada fila conduce a su pantalla', async ({ page, baseURL }) => {
     const r = await preparar(page, baseURL);
@@ -96,18 +110,19 @@ test.describe('Inicio del administrador: pendientes reales', () => {
     expect(r.errores).toEqual([]);
   });
 
-  test('como máximo cuatro acciones principales y sin botones redundantes', async ({ page, baseURL }) => {
+  test('como máximo cuatro acciones principales, sin botones redundantes y con la cifra de cotizaciones', async ({ page, baseURL }) => {
     await preparar(page, baseURL);
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Hola, Ana' })).toBeVisible();
-    const cabecera = page.getByRole('navigation', { name: 'Accesos rápidos' }).getByRole('link');
-    const tareas = page.locator('.daily-tasks .task-link');
-    expect((await cabecera.count()) + (await tareas.count())).toBe(4);
-    const destinos = [...await cabecera.evaluateAll(a => a.map(x => x.getAttribute('href'))), ...await tareas.evaluateAll(a => a.map(x => x.getAttribute('href')))];
+    const acciones = page.getByRole('navigation', { name: 'Accesos rápidos' }).getByRole('link');
+    expect(await acciones.count()).toBeLessThanOrEqual(4);
+    expect(await acciones.count()).toBeGreaterThan(0);
+    const destinos = await acciones.evaluateAll(a => a.map(x => x.getAttribute('href')));
     expect(new Set(destinos).size).toBe(destinos.length);
-    // La tarjeta de cotizaciones duplicada ya no existe: la cifra queda en su métrica con enlace.
-    await expect(page.getByRole('heading', { name: 'Cotizaciones pendientes' })).toHaveCount(0);
-    await expect(page.getByText('Cotizaciones pendientes', { exact: true })).toBeVisible();
+    // El total de cotizaciones pendientes no se pierde: queda en su acción, que lleva a la pantalla de cotizaciones.
+    await expect(page.locator('[data-accion="cotizaciones"]')).toHaveAttribute('href', '/cotizaciones');
+    await expect(page.locator('[data-accion="cotizaciones"]')).toContainText(/pendiente\(s\) · \d+ vence\(n\) hoy/);
+    await expect(page.getByRole('button', { name: /Actualizar/ })).toHaveCount(0);
   });
 
   test('carga: no muestra ceros mientras el servidor no responde', async ({ page, baseURL }) => {
@@ -140,7 +155,7 @@ test.describe('Inicio del administrador: pendientes reales', () => {
     await preparar(page, baseURL, { idioma: 'en' });
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Hello, Ana' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: "Today's pending items" })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Needs your attention' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Prices to approve: 3' })).toBeVisible();
     await expect(page.getByText("Today's sales (net of returns)")).toBeVisible();
     await expect(page.getByText('Up to date: Quotes expiring · Low stock')).toBeVisible();
@@ -164,7 +179,9 @@ test.describe('Ventas sin conexión: acceso desde ambos menús y permisos', () =
   test('SIDEBAR: ADMIN accede desde el menú lateral', async ({ page, baseURL }) => {
     await preparar(page, baseURL);
     await page.goto('/');
-    const enlace = page.locator('aside.jowa-sidebar a[href="/contingencia-admin"]');
+    // En el rail del administrador, «Ventas sin conexión» vive en el panel «Ventas».
+    await page.locator('nav.admin-rail').getByRole('button', { name: 'Ventas', exact: true }).click();
+    const enlace = page.locator('#app-rail-panel-ventas a[href="/contingencia-admin"]');
     await expect(enlace).toHaveText(/Ventas sin conexión/);
     await enlace.click();
     await expect(page.getByRole('heading', { name: /Contingencia offline/ })).toBeVisible();
@@ -182,12 +199,14 @@ test.describe('Ventas sin conexión: acceso desde ambos menús y permisos', () =
     await preparar(page, baseURL, { modulos: MODULOS.filter(m => m !== 'pos') });
     await page.goto('/');
     await expect(page.locator('a[href="/contingencia-admin"]')).toHaveCount(0);
+    expect(await enlacesDeTodosLosPaneles(page)).not.toContain('/contingencia-admin');
   });
 
   test('CAJERO no ve la revisión offline', async ({ page, baseURL }) => {
     await preparar(page, baseURL, { rol: 'CAJERO' });
     await page.goto('/');
     await expect(page.locator('a[href="/contingencia-admin"]')).toHaveCount(0);
+    expect(await enlacesDeTodosLosPaneles(page)).not.toContain('/contingencia-admin');
   });
 
   test('una venta aplicada con observación se puede marcar como revisada con la acción existente', async ({ page, baseURL }) => {
