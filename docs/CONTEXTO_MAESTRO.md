@@ -8,6 +8,13 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 
 ---
 
+## Seguimiento del piloto PR #192 — 2026-10-23 UTC
+
+- Misma rama `codex/auth-recovery-security`, PR en borrador. Los siete fallos de [run 39884731901](https://github.com/Nelosama/FerreSystem/actions/runs/39884731901) son regresiones nuevas del arnés por asignación administrativa directa de contraseñas; no fallos heredados ni razón para relajar el backend. Los siete fixtures usan ahora enlaces privados y verifican consumo único; acceso latente de Super Admin actualizado con MFA sintético.
+- Matriz PostgreSQL 18 local: **19/19**, incluida conservación del hash previo, deploy repetido, ausencia de deriva, MFA/recuperación/sesiones/tenants y límites compartidos por cuenta/IP. **NEXUS**: sin cambios nuevos de esquema ni de migraciones en esta corrección. CI del piloto ejecuta esta matriz explícitamente. El piloto masivo usa umbrales finitos mayores solo en su clúster efímero; la matriz conserva y prueba los umbrales productivos.
+- Primera pasada local de los siete archivos: 67 aprobadas, 3 fallidas, 4 omitidas y 41 sin ejecutar. Dos fallos adicionales de entorno Windows (codificación de argumentos SQL y zona horaria de PostgreSQL) y contingencia deshabilitada en navegador están en investigación; no se atribuyen todavía como heredados sin reproducción. Sin nuevos 400 de alta privada en los escenarios ejecutados. Repetición completa y diagnóstico final por SHA/enlaces se registran en [PR #192](https://github.com/Nelosama/FerreSystem/pull/192) y AUTH_RECOVERY_SECURITY.md. Ningún resultado parcial se considera aceptación final.
+- Sin merge ni despliegue. Continúan pendientes CI final y revisión de seguridad.
+
 ## Autenticación, MFA y recuperación privada — 2026-10-22 (America/Tegucigalpa)
 
 - **Rama y PR únicos:** `codex/auth-recovery-security`, [PR #192](https://github.com/Nelosama/FerreSystem/pull/192) en borrador, base inicial `ed720baf` (#189), sincronizada mediante merge normal con `ba201465` (#190). Conflictos exclusivamente en los dos JSON de idioma: se conservaron `alerts.*` de main y `security.*`/identificador del login de esta rama. Se mantienen notificaciones/confirmaciones de #190. Sin cambios funcionales en POS, inventario, caja ni contabilidad; selectores de login de sus pruebas se adaptan al identificador de texto. Sin merge a main ni deploy. La rama se excluye de preview Vercel.
