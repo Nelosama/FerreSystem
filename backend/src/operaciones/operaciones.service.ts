@@ -1,6 +1,6 @@
 import { aCentavos } from '../common/redondeo-monetario';
 import { calcularTotalesCompra } from './compra-totales';
-import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { consultarAuditoria } from './auditoria-consulta';
@@ -360,6 +360,11 @@ export class OperacionesService {
    const [v]=await query(tx,"SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado='COMPLETADA' FOR UPDATE",ventaId,tenantId);if(!v)throw new NotFoundException('Venta no encontrada');
    if(!dto.items?.length||new Set(dto.items.map(i=>i.detalleId)).size!==dto.items.length)throw new BadRequestException('Seleccione líneas distintas');
    const details=await query(tx,'SELECT d.*,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d WHERE d.venta_id=$1',v.id);
+   const completa = details.every(d => {
+    const item = dto.items.find(i => i.detalleId === d.id);
+    return Number(d.devuelto) === Number(d.cantidad) || !!item && cent(item.cantidad) === cent(d.cantidad) - cent(d.devuelto);
+   });
+   if (dto.anulacion && (!completa || details.some(d => Number(d.devuelto) > 0))) throw new ConflictException('La anulación debe cubrir toda la venta sin devoluciones previas; revise los documentos existentes');
    const entero=(valor:unknown)=>BigInt(aCentavos(Number(valor)));
    // Conservar el reparto proporcional acumulado existente, con pesos exactos en diezmilésimas.
    let gross=0n,before=0n,added=0n;
@@ -383,7 +388,7 @@ export class OperacionesService {
    const acumulado=gross>0n?(entero(v.total)*(before+added)*2n+gross)/(gross*2n):0n;
    const pendiente=acumulado-entero(old.monto);
    const monto=Number(pendiente>0n?pendiente:0n)/100;
-   return {v,details,monto};
+   return {v,details,monto,completa};
  }
  async devolver(tenantId:string,userId:string,ventaId:string,dto:DevolucionDto){
   return this.prisma.$transaction(async tx=>{
@@ -405,10 +410,14 @@ export class OperacionesService {
    if(previous){if(previous.tenant_id!==tenantId||previous.solicitante_id!==userId||previous.solicitud_hash!==hash)throw new ConflictException('Solicitud utilizada para otra devolución');return previous;}
    const [used]=await query(tx,'SELECT id FROM devoluciones WHERE id IN ($1,$3) AND tenant_id=$2',idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
    if(used)throw new ConflictException('Identificador ya utilizado');
+   if(dto.anulacion){
+    const [pendiente]=await query(tx,"SELECT id FROM solicitudes_devolucion WHERE tenant_id=$1 AND venta_id=$2 AND estado IN ('PENDIENTE','AUTORIZADA') AND comando->>'anulacion'='true' LIMIT 1",tenantId,ventaId);
+    if(pendiente)throw new ConflictException('La venta ya tiene una solicitud de anulación pendiente');
+   }
    const {monto}=await this.planDevolucion(tx,tenantId,ventaId,dto);
    text(dto.motivo,'Motivo');paymentMethod(dto.metodo);
    const [result]=await query(tx,'INSERT INTO solicitudes_devolucion(id,tenant_id,venta_id,solicitante_id,solicitud_hash,comando,monto_estimado) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,ventaId,userId,hash,JSON.stringify(dto),monto);
-   await audit(tx,tenantId,userId,'DEVOLUCION_SOLICITAR',result.id,{ventaId,items:dto.items,motivo:dto.motivo});return result;
+   await audit(tx,tenantId,userId,'DEVOLUCION_SOLICITAR',result.id,{ventaId,items:dto.items,motivo:dto.motivo,anulacion:!!dto.anulacion});return result;
   },{timeout:60000});
  }
  async solicitudesDevolucion(tenantId:string,userId:string,page=0){
@@ -435,22 +444,31 @@ export class OperacionesService {
   const [result]=await query(this.prisma,'SELECT * FROM devoluciones WHERE id IN ($1,$3) AND tenant_id=$2',request.id,tenantId,idRecurso(tenantId,String(request.comando?.solicitudId??requestId)));
   return {...request,resultado:result||null};
  }
- async decidirDevolucion(tenantId:string,userId:string,requestId:string,dto:DecisionDevolucionDto){
+ async decidirDevolucion(tenantId:string,userId:string,requestId:string,dto:DecisionDevolucionDto,sesionHttp?:{sid?:string}){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
    const user=await actor(tx,tenantId,userId);
    if(user.rol!=='ADMIN')throw new ForbiddenException('La autorización requiere administrador');
+   // El controlador siempre entrega el sid validado del JWT, nunca un dato del cuerpo.
+   // Revalidar DESPUÉS del bloqueo del tenant: logout puede haber ocurrido en la cola.
+   // FOR SHARE serializa la decisión con la revocación, incluso durante la gracia sin sid.
+   if(sesionHttp){
+    if(!sesionHttp.sid)throw new UnauthorizedException('La decisión requiere una sesión administrativa vigente');
+    const [sesion]=await query(tx,"SELECT id FROM sesiones_auth WHERE id=$1 AND sujeto_id=$2 AND tenant_id=$3 AND tipo='TENANT' AND revoked_at IS NULL AND expires_at>clock_timestamp() FOR SHARE",sesionHttp.sid,userId,tenantId);
+    if(!sesion)throw new UnauthorizedException('Sesión cerrada o vencida. Inicie sesión de nuevo.');
+   }
    const motivo=text(dto.motivo,'Motivo de la decisión');
    if(!['AUTORIZADA','RECHAZADA'].includes(dto.decision))throw new BadRequestException('Decisión inválida');
    const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$3) AND tenant_id=$2 FOR UPDATE',idRecurso(tenantId,requestId),tenantId,requestId);
    if(!request)throw new NotFoundException('Solicitud no encontrada');
+   if(request.solicitante_id===userId)throw new ForbiddenException('El solicitante no puede autorizar ni rechazar su propia solicitud');
    if(request.estado!=='PENDIENTE'){
     if(request.administrador_id===userId&&request.motivo_decision===motivo&&(request.estado===dto.decision||(request.estado==='EJECUTADA'&&dto.decision==='AUTORIZADA')))return request;
     throw new ConflictException('La solicitud ya tiene una decisión');
    }
    if(dto.decision==='AUTORIZADA')await this.planDevolucion(tx,tenantId,request.venta_id,request.comando);
    const [result]=await query(tx,'UPDATE solicitudes_devolucion SET estado=$1,administrador_id=$2,motivo_decision=$3,decidida_at=NOW() WHERE id=$4 RETURNING *',dto.decision,userId,motivo,request.id);
-   await audit(tx,tenantId,userId,'DEVOLUCION_DECIDIR',request.id,{decision:dto.decision,motivo,solicitanteId:request.solicitante_id});return result;
+   await audit(tx,tenantId,userId,'DEVOLUCION_DECIDIR',request.id,{decision:dto.decision,motivo,solicitanteId:request.solicitante_id,ventaId:request.venta_id,sesionId:sesionHttp?.sid??null});return result;
   },{timeout:60000});
  }
  async ejecutarAutorizada(tenantId:string,userId:string,requestId:string){
@@ -461,23 +479,25 @@ export class OperacionesService {
    const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$4) AND tenant_id=$2 AND solicitante_id=$3 FOR UPDATE',idRecurso(tenantId,requestId),tenantId,userId,requestId);
    if(!request)throw new NotFoundException('Solicitud no encontrada');
    if(!['AUTORIZADA','EJECUTADA'].includes(request.estado))throw new ForbiddenException('La solicitud debe estar autorizada antes de ejecutar');
+   if(request.administrador_id===userId)throw new ForbiddenException('La autorización requiere otra cuenta administrativa');
    if(request.estado!=='EJECUTADA'){
     const admin=await actor(tx,tenantId,request.administrador_id);
     if(admin.rol!=='ADMIN')throw new ForbiddenException('El autorizador ya no es administrador');
    }
-   const result=await this.ejecutarDevolucion(tx,tenantId,userId,request.venta_id,request.comando);
+   const result=await this.ejecutarDevolucion(tx,tenantId,userId,request.venta_id,request.comando,true);
    if(request.estado!=='EJECUTADA'){
     await query(tx,"UPDATE solicitudes_devolucion SET estado='EJECUTADA' WHERE id=$1 RETURNING id",request.id);
-    await audit(tx,tenantId,userId,'DEVOLUCION_EJECUTAR_AUTORIZADA',request.id,{administradorId:request.administrador_id,ventaId:request.venta_id});
+    await audit(tx,tenantId,userId,'DEVOLUCION_EJECUTAR_AUTORIZADA',request.id,{administradorId:request.administrador_id,solicitanteId:userId,ventaId:request.venta_id,motivo:request.comando.motivo,anulacion:!!request.comando.anulacion});
    }
    return result;
   },{timeout:60000});
  }
- private async ejecutarDevolucion(tx:Tx,tenantId:string,userId:string,ventaId:string,dto:DevolucionDto){
+ private async ejecutarDevolucion(tx:Tx,tenantId:string,userId:string,ventaId:string,dto:DevolucionDto,autorizada=false){
    const hash=fingerprint({userId,ventaId,dto});
    const [previous]=await query(tx,'SELECT * FROM devoluciones WHERE id IN ($1,$3) AND tenant_id=$2',idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
    if(previous){if(previous.tenant_id!==tenantId||previous.solicitud_hash!==hash)throw new ConflictException('Solicitud utilizada para otra devolución');return previous;}
-   const {v,details,monto}=await this.planDevolucion(tx,tenantId,ventaId,dto);
+   const {v,details,monto,completa}=await this.planDevolucion(tx,tenantId,ventaId,dto);
+   if(!autorizada && (completa || dto.anulacion))throw new ForbiddenException('Anular el total de una venta requiere solicitud y autorización de otro administrador');
    let credito=0;
    if(v.metodo_pago==='CREDITO'){
     const [c]=await query(tx,"SELECT * FROM cuentas_operativas WHERE tenant_id=$1 AND tipo='CXC' AND documento_id=$2 FOR UPDATE",tenantId,v.id);

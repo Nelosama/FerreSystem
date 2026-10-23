@@ -1,3 +1,4 @@
+import { devolucionAutorizada } from './helpers/devolucion-autorizada';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -279,7 +280,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
       const venta = await ventaEnLinea(e);
       const detalle = await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: venta.id } });
       await operaciones.abrir(e.tenantId, e.admin, { solicitudId: randomUUID(), monto: 100 } as any); // caja abierta con fondo para el reembolso en efectivo
-      await operaciones.devolver(e.tenantId, e.admin, venta.id, {
+      await devolucionAutorizada(prisma, operaciones, e.tenantId, e.admin, venta.id, {
         solicitudId: randomUUID(), motivo: 'Cliente no recibe la mercancía', metodo: 'EFECTIVO',
         items: [{ detalleId: detalle.id, cantidad: 2, destino: 'NO_ENTREGADO' }],
       } as any);
@@ -293,7 +294,7 @@ describe('Piloto: flujo completo POS offline con PostgreSQL aislado', () => {
       const venta = await ventaEnLinea(e);
       const detalle = await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: venta.id } });
       await operaciones.abrir(e.tenantId, e.admin, { solicitudId: randomUUID(), monto: 100 } as any); // caja abierta con fondo para el reembolso en efectivo
-      await operaciones.devolver(e.tenantId, e.admin, venta.id, {
+      await devolucionAutorizada(prisma, operaciones, e.tenantId, e.admin, venta.id, {
         solicitudId: randomUUID(), motivo: 'Cliente no recibe la mercancía', metodo: 'EFECTIVO',
         items: [{ detalleId: detalle.id, cantidad: 2, destino: 'NO_ENTREGADO' }],
       } as any);

@@ -89,7 +89,7 @@ test('una decisión concurrente recupera al ganador y permite revisar otras soli
   saved.setItem(key, JSON.stringify({ kind: 'DECIDIR', requestId: 'request-A', dto: { decision: 'AUTORIZADA', motivo: 'Aprobar' } }));
   let posts = 0;
   const page = harness(saved, {
-    get: async url => ({ data: url.endsWith('/request-A') ? { ...request(), administrador_id: 'other-admin' } : [request('request-B', 'PENDIENTE')] }),
+    get: async url => ({ data: url.endsWith('/request-A') ? { ...request(), administrador_id: 'other-admin' } : [{ ...request('request-B', 'PENDIENTE'), solicitante_id: 'other-user' }] }),
     post: async () => { posts++; throw rejected(409); },
   });
   await page.settle(); await page.click('Consultar y confirmar pendiente');
@@ -103,7 +103,7 @@ test('una decisión inválida comprobada permite corregir el motivo con el mismo
   saved.setItem(key, JSON.stringify({ kind: 'DECIDIR', requestId: 'request-A', dto: { decision: 'AUTORIZADA', motivo: ' ' } }));
   const urls = [];
   const page = harness(saved, {
-    get: async url => ({ data: url.endsWith('/request-A') ? request('request-A', 'PENDIENTE') : [request('request-A', 'PENDIENTE')] }),
+    get: async url => ({ data: url.endsWith('/request-A') ? request('request-A', 'PENDIENTE') : [{ ...request('request-A', 'PENDIENTE'), solicitante_id: 'other-user' }] }),
     post: async url => { urls.push(url); throw rejected(400); },
   });
   await page.settle(); await page.click('Consultar y confirmar pendiente');
@@ -152,7 +152,7 @@ test('si la consulta posterior no permite comprobar el estado conserva el comand
     saved.setItem(key, JSON.stringify(command));
     let posts = 0;
     const page = harness(saved, {
-      get: async url => { if (url.endsWith('/request-A')) throw rejected(status); return { data: [request('other', 'PENDIENTE')] }; },
+      get: async url => { if (url.endsWith('/request-A')) throw rejected(status); return { data: [{ ...request('other', 'PENDIENTE'), solicitante_id: 'other-user' }] }; },
       post: async () => { posts++; throw rejected(409); },
     });
     await page.settle(); await page.click('Consultar y confirmar pendiente');
@@ -209,4 +209,11 @@ test('cerrar un comprobante no borra el comando que otra pestaña guardó despu�
   await page.click('Cerrar comprobante');
   assert.equal(saved.getItem(key), JSON.stringify(other));
   assert.ok(page.find('Consultar y confirmar pendiente'));
+});
+
+ test('un administrador no ve controles para decidir su propia solicitud', async () => {
+  const page = harness(storage(), { get: async () => ({ data: [request('request-A', 'PENDIENTE')] }) });
+  await page.settle();
+  assert.equal(page.find('Autorizar estos productos y cantidades'), undefined);
+  assert.ok(page.find('Otro administrador debe revisar esta solicitud.'));
 });

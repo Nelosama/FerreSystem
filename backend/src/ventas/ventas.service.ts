@@ -1,4 +1,4 @@
-import { account, authorizedActor, audit, cashMovement, decimal, fingerprint, id as nuevoId, esIdInterno, idSolicitud, candidatosSolicitud, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { type Tx, account, authorizedActor, audit, cashMovement, decimal, fingerprint, id as nuevoId, esIdInterno, idSolicitud, candidatosSolicitud, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { diaCalendario, sumarDias } from '../common/zona-horaria';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 import { aCentesimas, huellaCanonica, normalizarTexto } from '../common/huella-solicitud';
@@ -34,9 +34,35 @@ export class VentasService {
         where: { id: { in: candidatosSolicitud(tenantId, solicitudId) }, tenantId, usuarioId },
         include: { cliente: true, detalles: { include: { producto: true } } },
       });
+      if (!venta && await this.solicitudDescartada(tx, tenantId, solicitudId)) return { estado: 'DESCARTADA' as const };
       return venta
         ? { estado: 'REGISTRADA' as const, venta: this.formatVentaCreada(venta) }
         : { estado: 'NO_REGISTRADA' as const };
+    }, { timeout: 30000 });
+  }
+
+  private async solicitudDescartada(tx: Tx, tenantId: string, solicitudId: string) {
+    const [descarte] = await query(tx, "SELECT id FROM auditoria_operaciones WHERE tenant_id=$1 AND entidad_id=$2 AND operacion='VENTA_DESCARTAR' LIMIT 1", tenantId, idSolicitud(tenantId, solicitudId));
+    return !!descarte;
+  }
+
+  async descartarSolicitud(tenantId: string, usuarioId: string, solicitudId: string) {
+    return this.prisma.$transaction(async tx => {
+      await lockTenant(tx, tenantId);
+      await authorizedActor(tx, tenantId, usuarioId, ['ADMIN', 'CAJERO', 'VENDEDOR'], 'pos.vender');
+      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + tenantId + ':' + solicitudId}, 0))`;
+      // Buscar sin filtrar por usuario: nunca invalidar una venta de otro actor con la misma solicitud.
+      const venta = await tx.venta.findFirst({ where: { tenantId, id: { in: candidatosSolicitud(tenantId, solicitudId) } }, include: { cliente: true, detalles: { include: { producto: true } } } });
+      if (venta) {
+        if (venta.usuarioId !== usuarioId) throw new ConflictException('La solicitud pertenece a otra operación');
+        return { estado: 'REGISTRADA' as const, venta: this.formatVentaCreada(venta) };
+      }
+      // La auditoría es también la marca durable de descarte. El mismo bloqueo protege create,
+      // consulta y descarte; una petición retrasada nunca podrá confirmar esta identidad después.
+      if (!await this.solicitudDescartada(tx, tenantId, solicitudId)) {
+        await audit(tx, tenantId, usuarioId, 'VENTA_DESCARTAR', idSolicitud(tenantId, solicitudId), { solicitudId, motivo: 'Descarte de venta no confirmada' });
+      }
+      return { estado: 'DESCARTADA' as const };
     }, { timeout: 30000 });
   }
 
@@ -219,6 +245,8 @@ export class VentasService {
           return this.formatVentaCreada(anterior);
         }
       }
+
+      if (await this.solicitudDescartada(tx, tenantId, dto.solicitudId)) throw new ConflictException('La venta fue descartada; inicie una venta nueva');
 
       if (!['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].includes(metodo)) throw new BadRequestException('Método de pago inválido');
       if (tipoPago === 'CREDITO' && !dto.clienteId) throw new BadRequestException('Seleccione un cliente registrado para vender a crédito');
