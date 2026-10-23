@@ -390,7 +390,7 @@ describe('Contabilidad Honduras / PostgreSQL aislado', () => {
   });
 
   it('el ADMIN crea usuarios CONTADOR de su empresa; el CONTADOR no administra usuarios', async () => {
-    const nuevo = await como(u.adminA).post('/usuarios', { nombre: 'Contador Nuevo', email: 'contador.nuevo@example.invalid', password: 'Contador-2026-seguro', rol: 'CONTADOR' }).expect(201);
+    const nuevo = await como(u.adminA).post('/usuarios', { nombre: 'Contador Nuevo', email: 'contador.nuevo@example.invalid', rol: 'CONTADOR' }).expect(201);
     expect(nuevo.body).toMatchObject({ rol: 'CONTADOR', permisos: ['contabilidad.ver'], permisosConfigurados: true });
     // Mínimo privilegio: el nuevo contador solo consulta; registrar, configurar o cerrar exigen concesión.
     tenantDe[nuevo.body.id] = A; rolDe[nuevo.body.id] = 'CONTADOR';
@@ -398,8 +398,8 @@ describe('Contabilidad Honduras / PostgreSQL aislado', () => {
     await como(nuevo.body.id).get('/contabilidad/configuracion').expect(200);
     await como(nuevo.body.id).put('/contabilidad/configuracion', { razonSocial: 'X', agenteRetencion: false, motivo: 'intento' }).expect(403);
     await como(nuevo.body.id).post('/contabilidad/periodos/2026/9/cerrar', { motivo: 'intento' }).expect(403);
-    await como(u.contadorA).post('/usuarios', { nombre: 'Otro', email: 'otro@example.invalid', password: 'Contador-2026-seguro', rol: 'CONTADOR' }).expect(403);
-    await como(u.cajeroA).post('/usuarios', { nombre: 'Otro', email: 'otro2@example.invalid', password: 'Contador-2026-seguro', rol: 'CONTADOR' }).expect(403);
+    await como(u.contadorA).post('/usuarios', { nombre: 'Otro', email: 'otro@example.invalid', rol: 'CONTADOR' }).expect(403);
+    await como(u.cajeroA).post('/usuarios', { nombre: 'Otro', email: 'otro2@example.invalid', rol: 'CONTADOR' }).expect(403);
     // Un CONTADOR de la empresa B no aparece en la lista de la empresa A.
     const lista = await como(u.adminA).get('/usuarios').expect(200);
     expect(lista.body.some((x: any) => x.id === u.adminB)).toBe(false);
