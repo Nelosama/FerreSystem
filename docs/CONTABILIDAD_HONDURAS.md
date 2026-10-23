@@ -142,3 +142,20 @@ Firma: **NEXUS**.
 2. **Decisiones del contador** (descuento, inventario en compras, valuación, tarjeta/banco, devoluciones, período cerrado) → permiten activar la contabilización de cada operación.
 3. **Clasificación de cuentas para estados financieros** (`grupo_reporte`) → balance general y estado de resultados.
 4. **Importación Excel** con vista previa, confirmación y huella SHA-256 del archivo (tabla de importaciones; requiere esquema).
+
+## 11. Parámetros fiscales que requieren validación externa (sin cambios de cálculo)
+
+Ningún cálculo fiscal se ha modificado en esta revisión. Lo siguiente debe validarlo un contador o la fuente oficial del SAR antes de usarse con clientes reales.
+
+| Parámetro | Dónde está | Situación |
+|---|---|---|
+| Catálogo de tipos de documento (01, 04–07, 09–12) | `backend/src/contabilidad/fiscal-hn.ts` (`TIPOS_DOCUMENTO`) | Fuentes secundarias; sin texto oficial verificado. |
+| Formato del número `NNN-NNN-NN-NNNNNNNN` y su alcance | `fiscal-hn.ts` | Confirmado solo por fuentes secundarias. |
+| Validación del CAI (6–60 caracteres alfanuméricos) | `fiscal-hn.ts`, `CAI_*` | Longitud oficial no publicada; el formato no se valida estructuralmente. |
+| Vigencia y rango del CAI (`CAI_VENCIDO`, `CAI_PUNTO_DISTINTO`) | `fiscal-hn.ts` | Regla de fecha límite y rango según Acuerdo 481-2017; validar. |
+| RTN de 14 dígitos sin dígito verificador | `normalizarRtn` | No hay algoritmo oficial publicado en las fuentes consultadas. |
+| Tolerancia de 1 centavo en la verificación de ISV | `verificarIsv` | Criterio interno de redondeo; validar con el contador. |
+| Ventas del POS siempre gravadas al 15 % | `reglas.ts` / política de venta | Sin exentos, exonerados ni tasa del 18 %: limitación funcional conocida. |
+| Política de descuento (BRUTO/NETO) y momento del inventario en compras | motor de asientos (`motor/reglas.ts`) | Decisión pendiente del contador; sin valor por defecto. |
+| Tasas, reglas de retención y base legal | configuración por empresa (`fiscal_tasas`, `fiscal_reglas_retencion`) | No precargadas; cada empresa debe registrar la base legal. |
+| Resumen de ISV | `libros.ts` | Se presenta como cálculo de trabajo, no como declaración. |
