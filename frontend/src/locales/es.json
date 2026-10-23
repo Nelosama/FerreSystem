@@ -1776,7 +1776,12 @@
       "configuracion": "Configuración fiscal",
       "periodos": "Períodos",
       "partida": "Partida doble",
-      "ajustes": "Bitácora de ajustes"
+      "ajustes": "Bitácora de ajustes",
+      "asientos": "Asientos",
+      "catalogo": "Catálogo de cuentas",
+      "balanza": "Balanza",
+      "mayor": "Libro mayor",
+      "excel": "Excel"
     },
     "ok": "Sin observaciones",
     "isv_summary": "ISV del período (cálculo de trabajo)",
@@ -1883,7 +1888,8 @@
       "aceptaMovimientos": "Admite movimientos",
       "debePeriodo": "Debe del período",
       "haberPeriodo": "Haber del período",
-      "saldo": "Saldo acumulado"
+      "saldo": "Saldo final",
+      "saldoInicial": "Saldo inicial"
     },
     "closed_by": "Cerrado por",
     "close": "Cerrar período",
@@ -1972,6 +1978,50 @@
       "periodos": "Períodos y cierres",
       "ajustes": "Ajustes y trazabilidad",
       "mensual": "Libro contable del mes"
-    }
+    },
+    "nav": {
+      "label": "Contabilidad",
+      "sections": "Secciones de Contabilidad",
+      "home": "Inicio",
+      "entries": "Asientos",
+      "reports": "Reportes",
+      "closing": "Cierre",
+      "chart": "Catálogo de cuentas",
+      "documents": "Documentos fiscales",
+      "tax_settings": "Configuración fiscal",
+      "excel": "Excel",
+      "audit": "Auditoría",
+      "home_link": "Ir al inicio de Contabilidad"
+    },
+    "home_help": "Resumen del período, alertas y accesos frecuentes. Esta pantalla solo consulta: no modifica ventas, cobros, inventario ni caja.",
+    "card": {
+      "period": "Estado del período",
+      "balance": "Balanza de comprobación",
+      "alerts": "Alertas contables",
+      "isv": "ISV del período"
+    },
+    "check_findings_n": "{n} hallazgo(s) por revisar",
+    "without_doc_n": "{n} operación(es) sin documento fiscal",
+    "quick_actions": "Acciones frecuentes",
+    "download_balance": "Descargar balanza (Excel)",
+    "close_month": "Cerrar mes",
+    "more_in_reports": "Vea el detalle completo en",
+    "revert": "Revertir",
+    "revert_entry": "Revertir el asiento {n}",
+    "revert_confirm": "Se creará un asiento inverso del asiento {n} y el original quedará como revertido. Esta acción queda en la bitácora.",
+    "revert_confirm_button": "Revertir asiento",
+    "entry_reverted": "Asiento {n} revertido",
+    "close_confirm": "¿Cerrar el período {period}? Ya no se podrán registrar documentos, retenciones ni asientos con fecha en ese mes.",
+    "reopen_confirm": "¿Reabrir el período {period}? Quedará registrado quién lo reabrió y el motivo.",
+    "checks_title": "Validaciones previas al cierre",
+    "check_findings": "Hallazgos de conciliación",
+    "check_balance": "Balanza de comprobación",
+    "checks_hint": "Estas validaciones informan, no bloquean: el cierre lo decide y confirma el contador.",
+    "excel_title": "Descargas en Excel",
+    "excel_help": "Libros del período seleccionado, generados por el servidor. La importación desde Excel se habilitará más adelante.",
+    "pick_account": "Seleccione una cuenta",
+    "pick_account_hint": "Elija una cuenta para ver su saldo inicial, sus movimientos del período y su saldo final.",
+    "no_movements": "La cuenta no tiene movimientos en el período.",
+    "reverted": "revertido"
   }
 }

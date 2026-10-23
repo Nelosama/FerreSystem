@@ -1,7 +1,8 @@
 // Utilidades puras de la pantalla de Contabilidad. Los cálculos fiscales los hace el servidor; aquí solo se
 // presenta lo que devuelve y se arma lo que se envía.
 
-export type Pestana = 'resumen' | 'ventas' | 'compras' | 'documentos' | 'retenciones' | 'configuracion' | 'periodos' | 'partida' | 'ajustes';
+export type Pestana = 'resumen' | 'ventas' | 'compras' | 'documentos' | 'retenciones' | 'configuracion' | 'periodos' | 'partida' | 'ajustes'
+  | 'asientos' | 'catalogo' | 'balanza' | 'mayor' | 'excel';
 export const PESTANAS: Pestana[] = ['resumen', 'ventas', 'compras', 'documentos', 'retenciones', 'configuracion', 'periodos', 'partida', 'ajustes'];
 
 /** Mes anterior al día dado (AAAA-MM-DD): es el período que normalmente se revisa y declara. */

@@ -9,7 +9,7 @@ import { query } from '../operaciones/ledger';
 import { aCentavos } from '../common/redondeo-monetario';
 import { Celda, Hoja, Libro } from './excel';
 import { TIPOS_DOCUMENTO, limitesPeriodo } from './fiscal-hn';
-import { balanza, conciliacion, libroCompras, libroVentas, resumenIsv, retencionesPeriodo, zonaDeEmpresa } from './libros';
+import { balanza, conciliacion, libroMayor, libroCompras, libroVentas, resumenIsv, retencionesPeriodo, zonaDeEmpresa } from './libros';
 
 /** Filas de identificación que llevan todas las hojas (empresa, RTN, período, estado, generación, aviso). */
 export const LINEAS_IDENTIFICACION = 6;
@@ -18,7 +18,7 @@ export const PRIMERA_FILA_DATOS = 1 + LINEAS_IDENTIFICACION + 2 + 1;
 
 export const NOTA_TRABAJO = 'Libro de trabajo generado desde los registros de Jowa System. No sustituye las declaraciones ni los formatos oficiales del SAR; las reglas tributarias aplicadas dependen de la configuración de la empresa y deben ser validadas por el profesional responsable.';
 
-export const REPORTES = ['ventas', 'compras', 'isv', 'retenciones', 'documentos', 'conciliacion', 'hallazgos', 'catalogo', 'diario', 'balanza', 'periodos', 'ajustes', 'mensual'] as const;
+export const REPORTES = ['ventas', 'compras', 'isv', 'retenciones', 'documentos', 'conciliacion', 'hallazgos', 'catalogo', 'diario', 'mayor', 'balanza', 'periodos', 'ajustes', 'mensual'] as const;
 export type Reporte = typeof REPORTES[number];
 
 export interface Contexto {
@@ -366,19 +366,38 @@ export async function hojaDiario(db: Tx, ctx: Contexto): Promise<Hoja> {
 export async function hojaBalanza(db: Tx, ctx: Contexto): Promise<Hoja> {
   const b = await balanza(db, ctx.tenantId, ctx.anio, ctx.mes);
   const fin = PRIMERA_FILA_DATOS + b.cuentas.length;
-  const filas: Celda[][] = b.cuentas.map(k => [k.codigo, k.nombre, k.tipo, k.naturaleza, k.debePeriodo, k.haberPeriodo, k.saldo]);
+  const filas: Celda[][] = b.cuentas.map(k => [k.codigo, k.nombre, k.tipo, k.naturaleza, k.saldoInicial, k.debePeriodo, k.haberPeriodo, k.saldo]);
   return hoja(ctx, 'Balanza de comprobación', 'Balanza de comprobación', [
     { titulo: 'Código', tipo: 'codigo', ancho: 16 }, { titulo: 'Cuenta', tipo: 'texto', ancho: 40 }, { titulo: 'Tipo', tipo: 'texto', ancho: 14 },
-    { titulo: 'Naturaleza', tipo: 'texto', ancho: 12 }, { titulo: 'Debe del período (L)', tipo: 'monto' }, { titulo: 'Haber del período (L)', tipo: 'monto' },
-    { titulo: 'Saldo acumulado (L)', tipo: 'monto' }, { titulo: 'Cuadre', tipo: 'texto', ancho: 12 },
+    { titulo: 'Naturaleza', tipo: 'texto', ancho: 12 }, { titulo: 'Saldo inicial (L)', tipo: 'monto' }, { titulo: 'Debe del período (L)', tipo: 'monto' }, { titulo: 'Haber del período (L)', tipo: 'monto' },
+    { titulo: 'Saldo final (L)', tipo: 'monto' }, { titulo: 'Cuadre', tipo: 'texto', ancho: 12 },
   ], filas.map(f => [...f, undefined]), {
     totales: {
-      etiqueta: 'Totales del período', sumar: [4, 5],
-      extra: { 7: { formula: `IF(ROUND(E${fin}-F${fin},2)=0,"Cuadra","No cuadra")`, resultado: b.totales.cuadra ? 'Cuadra' : 'No cuadra' } },
+      etiqueta: 'Totales del período', sumar: [5, 6],
+      extra: { 8: { formula: `IF(ROUND(F${fin}-G${fin},2)=0,"Cuadra","No cuadra")`, resultado: b.totales.cuadra ? 'Cuadra' : 'No cuadra' } },
     },
     notas: [
       b.cuentas.length === 0 ? 'No hay cuentas en el catálogo. La balanza se genera cuando existan asientos.' : '',
-      'El saldo acumulado se calcula con la naturaleza de cada cuenta (deudora: debe − haber; acreedora: haber − debe).',
+      'El saldo inicial es lo acumulado antes del período y el saldo final lo acumulado al cierre; ambos usan la naturaleza de cada cuenta (deudora: debe − haber; acreedora: haber − debe).',
+      NOTA_TRABAJO,
+    ].filter(Boolean),
+  });
+}
+
+export async function hojaMayor(db: Tx, ctx: Contexto, cuentaId: string): Promise<Hoja> {
+  const m = await libroMayor(db, ctx.tenantId, cuentaId, ctx.anio, ctx.mes);
+  const filas: Celda[][] = m.movimientos.map(x => [
+    x.numero, x.fecha, x.concepto, x.origen === 'REVERSION' ? 'Reversión' : 'Manual', x.estado === 'REVERTIDO' ? 'Revertido' : 'Contabilizado', x.debe, x.haber, x.saldo,
+  ]);
+  return hoja(ctx, `Mayor ${m.cuenta.codigo}`, `Libro mayor · ${m.cuenta.codigo} ${m.cuenta.nombre}`, [
+    { titulo: 'N.º asiento', tipo: 'entero', ancho: 12 }, { titulo: 'Fecha', tipo: 'fecha' }, { titulo: 'Concepto', tipo: 'texto', ancho: 44 }, { titulo: 'Origen', tipo: 'texto', ancho: 12 },
+    { titulo: 'Estado', tipo: 'texto', ancho: 14 }, { titulo: 'Debe (L)', tipo: 'monto' }, { titulo: 'Haber (L)', tipo: 'monto' }, { titulo: 'Saldo (L)', tipo: 'monto' },
+  ], filas, {
+    totales: { etiqueta: 'Totales del período', sumar: [5, 6] },
+    notas: [
+      `Cuenta ${m.cuenta.codigo} ${m.cuenta.nombre} (${m.cuenta.naturaleza === 'DEUDORA' ? 'deudora' : 'acreedora'}). Saldo inicial: L ${m.saldoInicial.toFixed(2)}. Saldo final: L ${m.saldoFinal.toFixed(2)}.`,
+      m.movimientos.length === 0 ? 'La cuenta no tiene movimientos en el período.' : '',
+      'El saldo se acumula según la naturaleza de la cuenta. Los asientos revertidos se conservan junto con su reversión.',
       NOTA_TRABAJO,
     ].filter(Boolean),
   });
@@ -473,7 +492,7 @@ export async function hojaResumen(db: Tx, ctx: Contexto): Promise<Hoja> {
 }
 
 // ---------- Ensamblado por reporte ----------
-export interface OpcionesReporte { direccion?: string }
+export interface OpcionesReporte { direccion?: string; cuentaId?: string }
 
 /** Hojas de un informe. Para CSV y PDF se usa la primera; el libro mensual solo se entrega en Excel. */
 export async function hojasDeReporte(db: Tx, ctx: Contexto, reporte: Reporte, opciones: OpcionesReporte = {}): Promise<Hoja[]> {
@@ -492,6 +511,10 @@ export async function hojasDeReporte(db: Tx, ctx: Contexto, reporte: Reporte, op
     case 'hallazgos': return [await hojaHallazgos(db, ctx)];
     case 'catalogo': return [await hojaCatalogo(db, ctx)];
     case 'diario': return [await hojaDiario(db, ctx)];
+    case 'mayor': {
+      if (!opciones.cuentaId) throw new BadRequestException('Indique la cuenta del libro mayor');
+      return [await hojaMayor(db, ctx, opciones.cuentaId)];
+    }
     case 'balanza': return [await hojaBalanza(db, ctx)];
     case 'periodos': return [await hojaPeriodos(db, ctx)];
     case 'ajustes': return [await hojaAjustes(db, ctx)];

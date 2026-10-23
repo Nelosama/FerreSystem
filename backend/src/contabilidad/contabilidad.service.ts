@@ -8,7 +8,7 @@ import {
   limitesPeriodo, normalizarCai, normalizarRtn, periodoDeFecha, periodoValido, seSolapan, tasaVigente, tipoDocumentoValido,
   totalDocumentoCentavos, validarContraCai, verificarIsv,
 } from './fiscal-hn';
-import { balanza as balanzaLibro, conciliacion, huellaLibros, libroCompras, libroVentas, resumenIsv, retencionesPeriodo, zonaDeEmpresa } from './libros';
+import { balanza as balanzaLibro, conciliacion, huellaLibros, libroCompras, libroMayor, libroVentas, resumenIsv, retencionesPeriodo, zonaDeEmpresa } from './libros';
 import { aCsv, aExcel, aPdf, FORMATOS_ADMITIDOS, TIPO_MIME } from './exportacion';
 import { libroExcel, contexto, hojasDeReporte, nombreArchivo, REPORTES, Reporte } from './reportes';
 import { PERMISOS_CONTABILIDAD as P, ROLES_CONTABILIDAD, ROLES_REAPERTURA } from './permisos';
@@ -534,10 +534,11 @@ export class ContabilidadService {
     });
   }
 
+  mayor(tenantId: string, cuentaId: string, anio: number, mes: number) { const p = periodoValido(anio, mes); return libroMayor(this.prisma as unknown as Tx, tenantId, cuentaId, p.anio, p.mes); }
   balanza(tenantId: string, anio: number, mes: number) { const p = periodoValido(anio, mes); return balanzaLibro(this.prisma as unknown as Tx, tenantId, p.anio, p.mes); }
 
   // ---------- Exportación (Excel principal; CSV y PDF secundarios). No modifica la información contable. ----------
-  async exportar(tenantId: string, usuarioId: string, reporte: string, anio: number, mes: number | undefined, formato: string, direccion?: string) {
+  async exportar(tenantId: string, usuarioId: string, reporte: string, anio: number, mes: number | undefined, formato: string, direccion?: string, cuentaId?: string) {
     if (!(REPORTES as readonly string[]).includes(reporte)) throw new BadRequestException('Reporte no admitido');
     if (!(FORMATOS_ADMITIDOS as string[]).includes(formato)) throw new BadRequestException('Formato no admitido (xlsx, csv o pdf)');
     if (direccion !== undefined && !['EMITIDO', 'RECIBIDO'].includes(direccion)) throw new BadRequestException('Dirección inválida');
@@ -548,7 +549,7 @@ export class ContabilidadService {
       // Una sola instantánea: todas las hojas del archivo muestran el mismo estado de la base.
       await tx.$executeRawUnsafe("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
       const ctx = await contexto(tx, tenantId, periodo.anio, periodo.mes, usuarioId);
-      const hojas = await hojasDeReporte(tx, ctx, reporte as Reporte, { direccion });
+      const hojas = await hojasDeReporte(tx, ctx, reporte as Reporte, { direccion, cuentaId });
       await audit(tx, tenantId, usuarioId, 'CONTABILIDAD_EXPORTACION', reporte, { reporte, periodo: `${periodo.anio}-${String(periodo.mes).padStart(2, '0')}`, formato, direccion: direccion ?? null, hojas: hojas.map(h => h.nombre) });
       const nombre = nombreArchivo(reporte, periodo.anio, periodo.mes, formato);
       if (formato === 'xlsx') return { contenido: aExcel(libroExcel(ctx, hojas, `${reporte} ${periodo.anio}-${periodo.mes}`)), tipo: TIPO_MIME.xlsx, nombre };

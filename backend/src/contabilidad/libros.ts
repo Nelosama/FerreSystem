@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { NotFoundException } from '@nestjs/common';
 import { query, Tx } from '../operaciones/ledger';
 import { ZONA_HORARIA_NEGOCIO } from '../common/zona-horaria';
 import { aCentavos } from '../common/redondeo-monetario';
@@ -307,6 +308,8 @@ export async function conciliacion(db: Db, tenantId: string, anio: number, mes: 
 export async function balanza(db: Tx, tenantId: string, anio: number, mes: number) {
   const { desde, hasta } = limitesPeriodo(anio, mes);
   const filas = await query(db, `SELECT k.id, k.codigo, k.nombre, k.tipo, k.naturaleza,
+      COALESCE(sum(l.debe) FILTER (WHERE a.fecha < $2::date),0) AS debe_previo,
+      COALESCE(sum(l.haber) FILTER (WHERE a.fecha < $2::date),0) AS haber_previo,
       COALESCE(sum(l.debe) FILTER (WHERE a.fecha BETWEEN $2::date AND $3::date),0) AS debe_periodo,
       COALESCE(sum(l.haber) FILTER (WHERE a.fecha BETWEEN $2::date AND $3::date),0) AS haber_periodo,
       COALESCE(sum(l.debe) FILTER (WHERE a.fecha <= $3::date),0) AS debe_acumulado,
@@ -319,7 +322,37 @@ export async function balanza(db: Tx, tenantId: string, anio: number, mes: numbe
     const d = c(k.debe_acumulado), h = c(k.haber_acumulado);
     td += c(k.debe_periodo); th += c(k.haber_periodo);
     const saldo = k.naturaleza === 'DEUDORA' ? d - h : h - d;
-    return { id: k.id as string, codigo: k.codigo as string, nombre: k.nombre as string, tipo: k.tipo as string, naturaleza: k.naturaleza as string, debePeriodo: c(k.debe_periodo) / 100, haberPeriodo: c(k.haber_periodo) / 100, saldo: saldo / 100 };
+    const previo = k.naturaleza === 'DEUDORA' ? c(k.debe_previo) - c(k.haber_previo) : c(k.haber_previo) - c(k.debe_previo);
+    return { id: k.id as string, codigo: k.codigo as string, nombre: k.nombre as string, tipo: k.tipo as string, naturaleza: k.naturaleza as string, saldoInicial: previo / 100, debePeriodo: c(k.debe_periodo) / 100, haberPeriodo: c(k.haber_periodo) / 100, saldo: saldo / 100 };
   });
   return { periodo: { anio, mes, desde, hasta }, cuentas, totales: { debe: td / 100, haber: th / 100, cuadra: td === th } };
+}
+
+/**
+ * Libro mayor de una cuenta en un período: saldo inicial (todo lo anterior), movimientos con saldo acumulado y saldo final.
+ * El saldo respeta la naturaleza de la cuenta. Los asientos revertidos y sus reversiones aparecen ambos: la suma es cero.
+ */
+export async function libroMayor(db: Tx, tenantId: string, cuentaId: string, anio: number, mes: number) {
+  const { desde, hasta } = limitesPeriodo(anio, mes);
+  const [cuenta] = await query(db, 'SELECT id, codigo, nombre, tipo, naturaleza FROM contable_cuentas WHERE tenant_id=$1 AND id=$2', tenantId, cuentaId);
+  if (!cuenta) throw new NotFoundException('Cuenta no encontrada');
+  const signo = cuenta.naturaleza === 'DEUDORA' ? 1 : -1;
+  const [previo] = await query(db, `SELECT COALESCE(sum(l.debe),0) AS debe, COALESCE(sum(l.haber),0) AS haber
+    FROM contable_asiento_lineas l JOIN contable_asientos a ON a.tenant_id=l.tenant_id AND a.id=l.asiento_id
+    WHERE l.tenant_id=$1 AND l.cuenta_id=$2 AND a.fecha < $3::date`, tenantId, cuentaId, desde);
+  const movs = await query(db, `SELECT a.id AS asiento_id, a.numero, a.fecha, a.concepto, a.origen, a.estado, l.debe, l.haber, l.descripcion
+    FROM contable_asiento_lineas l JOIN contable_asientos a ON a.tenant_id=l.tenant_id AND a.id=l.asiento_id
+    WHERE l.tenant_id=$1 AND l.cuenta_id=$2 AND a.fecha BETWEEN $3::date AND $4::date ORDER BY a.fecha, a.numero, l.id`, tenantId, cuentaId, desde, hasta);
+  const inicial = signo * (c(previo.debe) - c(previo.haber));
+  let saldo = inicial, td = 0, th = 0;
+  const movimientos = movs.map(m => {
+    const d = c(m.debe), h = c(m.haber);
+    saldo += signo * (d - h); td += d; th += h;
+    return { asientoId: m.asiento_id as string, numero: Number(m.numero), fecha: dia(m.fecha), concepto: m.concepto as string, origen: m.origen as string, estado: m.estado as string, descripcion: (m.descripcion ?? null) as string | null, debe: d / 100, haber: h / 100, saldo: saldo / 100 };
+  });
+  return {
+    periodo: { anio, mes, desde, hasta },
+    cuenta: { id: cuenta.id as string, codigo: cuenta.codigo as string, nombre: cuenta.nombre as string, tipo: cuenta.tipo as string, naturaleza: cuenta.naturaleza as string },
+    saldoInicial: inicial / 100, movimientos, totales: { debe: td / 100, haber: th / 100 }, saldoFinal: saldo / 100,
+  };
 }

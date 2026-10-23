@@ -30,6 +30,11 @@ const fila = (o: Record<string, unknown>) => ({
 });
 const totales = { documentos: 1, importeExento: '0.00', importeExonerado: '0.00', importeGravadoGeneral: '1000.00', importeGravadoEspecial: '0.00', isvGeneral: '150.00', isvEspecial: '0.00', total: '1150.00', sinDocumento: { cantidad: 1, base: '200.00', isv: '30.00', total: '230.00' } };
 
+// Capturas de la interfaz para la revisión: solo se guardan si se define CAPTURAS_DIR (no se versionan).
+async function capturar(page: Page, nombre: string) {
+  if (process.env.CAPTURAS_DIR) await page.screenshot({ path: `${process.env.CAPTURAS_DIR}/${nombre}.png`, fullPage: false });
+}
+
 type Registro = { documentos: unknown[]; errores: string[]; rutas: string[] };
 
 async function preparar(page: Page, baseURL: string | undefined, rol = 'CONTADOR', modulos = MODULOS): Promise<Registro> {
@@ -71,6 +76,11 @@ async function preparar(page: Page, baseURL: string | undefined, rol = 'CONTADOR
       if (formato === 'xlsx') return route.fulfill({ status: 200, body: XLSX_MUESTRA, headers: { 'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } });
       return route.fulfill({ status: 200, body: '\uFEFFLibro de ventas 2026-09\r\n', headers: { 'content-type': 'text/csv; charset=utf-8' } });
     }
+    if (path === '/contabilidad/balanza') return responder(route, 200, { periodo: {}, cuentas: [{ id: 'k1', codigo: '1.1', nombre: 'Caja', debePeriodo: 1150, haberPeriodo: 0, saldo: 1150 }, { id: 'k2', codigo: '4.1', nombre: 'Ventas', debePeriodo: 0, haberPeriodo: 1150, saldo: 1150 }], totales: { debe: 1150, haber: 1150, cuadra: true } });
+    if (path === '/contabilidad/mayor') return responder(route, 200, { periodo: {}, cuenta: { id: 'k1', codigo: '1.1', nombre: 'Caja', tipo: 'ACTIVO', naturaleza: 'DEUDORA' }, saldoInicial: 200, movimientos: [{ asientoId: 'a1', numero: 1, fecha: '2026-09-10', concepto: 'Venta de prueba', origen: 'MANUAL', estado: 'CONTABILIZADO', debe: 1150, haber: 0, saldo: 1350 }], totales: { debe: 1150, haber: 0 }, saldoFinal: 1350 });
+    if (path === '/contabilidad/cuentas') return responder(route, 200, [{ id: 'k1', codigo: '1.1', nombre: 'Caja', tipo: 'ACTIVO', naturaleza: 'DEUDORA', aceptaMovimientos: true, activa: true }, { id: 'k2', codigo: '4.1', nombre: 'Ventas', tipo: 'INGRESO', naturaleza: 'ACREEDORA', aceptaMovimientos: true, activa: true }]);
+    if (path === '/contabilidad/asientos' && method === 'GET') return responder(route, 200, [{ id: 'a1', numero: 1, fecha: '2026-09-10', concepto: 'Venta de prueba', origen: 'MANUAL', estado: 'CONTABILIZADO', lineas: [{ codigo: '1.1', nombre: 'Caja', debe: '1150.00', haber: '0.00' }, { codigo: '4.1', nombre: 'Ventas', debe: '0.00', haber: '1150.00' }] }]);
+    if (/^\/contabilidad\/(asientos\/a1\/revertir|periodos\/2026\/\d+\/cerrar)$/.test(path) && method === 'POST') { registro.documentos.push({ ruta: path, ...request.postDataJSON() }); return responder(route, 201, {}); }
     if (path === '/contabilidad/periodos') return responder(route, 200, Array.from({ length: 12 }, (_, i) => ({ anio: 2026, mes: i + 1, estado: i === 7 ? 'CERRADO' : 'ABIERTO', cerradoPor: i === 7 ? 'Carla' : null })));
     if (path.startsWith('/contabilidad/')) return responder(route, 200, []);
     // Cualquier otra consulta del CONTADOR sería un acceso operativo inesperado.
@@ -84,7 +94,7 @@ test.describe('Contabilidad y Control Tributario (simulado)', () => {
     const r = await preparar(page, baseURL);
     await page.goto('/');
     await expect(page).toHaveURL(/\/contabilidad$/);
-    await expect(page.getByRole('heading', { name: 'Contabilidad y control tributario' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible();
     await expect(page.getByText('Resultado: a pagar')).toBeVisible();
     await expect(page.getByRole('cell', { name: 'Salto en la numeración' })).toBeVisible();
     const menu = page.locator('aside, nav').first();
@@ -95,7 +105,7 @@ test.describe('Contabilidad y Control Tributario (simulado)', () => {
 
   test('Exportar a Excel descarga un .xlsx real con sus hojas, aunque no se pueda leer la cabecera del nombre', async ({ page, baseURL }) => {
     await preparar(page, baseURL);
-    await page.goto('/contabilidad');
+    await page.goto('/contabilidad/reportes');
     await page.getByRole('tab', { name: 'Libro de ventas' }).click();
     const descarga = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Exportar a Excel' }).click();
@@ -117,7 +127,7 @@ test.describe('Contabilidad y Control Tributario (simulado)', () => {
 
   test('libro de ventas con hallazgos, registro de documento con error explicado y exportación CSV', async ({ page, baseURL }) => {
     const r = await preparar(page, baseURL);
-    await page.goto('/contabilidad');
+    await page.goto('/contabilidad/reportes');
     await page.getByRole('tab', { name: 'Libro de ventas' }).click();
     await expect(page.getByRole('cell', { name: /000-001-01-00000001/ })).toBeVisible();
     await expect(page.getByText('Sin documento fiscal').first()).toBeVisible();
@@ -125,6 +135,7 @@ test.describe('Contabilidad y Control Tributario (simulado)', () => {
     await page.getByRole('button', { name: 'Exportar CSV' }).click();
     expect((await descarga).suggestedFilename()).toBe('ventas-2026-09.csv');
 
+    await page.goto('/contabilidad/documentos');
     await page.getByRole('tab', { name: 'Documentos fiscales' }).click();
     const form = page.getByRole('form', { name: 'Registrar documento fiscal' });
     const guardar = form.getByRole('button', { name: 'Guardar' });
@@ -143,14 +154,12 @@ test.describe('Contabilidad y Control Tributario (simulado)', () => {
 
   test('períodos: el CONTADOR no ve «Reabrir»; el ADMIN sí', async ({ page, baseURL }) => {
     await preparar(page, baseURL);
-    await page.goto('/contabilidad');
-    await page.getByRole('tab', { name: 'Períodos' }).click();
+    await page.goto('/contabilidad/cierre');
     await expect(page.getByRole('cell', { name: 'Cerrado' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Reabrir' })).toHaveCount(0);
     const admin = await page.context().newPage();
     await preparar(admin, baseURL, 'ADMIN');
-    await admin.goto('/contabilidad');
-    await admin.getByRole('tab', { name: 'Períodos' }).click();
+    await admin.goto('/contabilidad/cierre');
     await expect(admin.getByRole('button', { name: 'Reabrir' })).toHaveCount(1);
   });
 
@@ -168,10 +177,120 @@ test.describe('Contabilidad y Control Tributario (simulado)', () => {
   test('móvil 390 px sin desbordamiento horizontal de la página', async ({ page, baseURL }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await preparar(page, baseURL);
-    await page.goto('/contabilidad');
+    await page.goto('/contabilidad/reportes');
     await page.getByRole('tab', { name: 'Libro de ventas' }).click();
     await expect(page.getByRole('cell', { name: /000-001-01-00000001/ })).toBeVisible();
     const desborda = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     expect(desborda).toBe(false);
+  });
+
+  test('el CONTADOR ve el rail con Inicio, Asientos, Reportes, Cierre y Más, y Más abre las secciones ocasionales', async ({ page, baseURL }) => {
+    await preparar(page, baseURL);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/contabilidad');
+    const rail = page.getByTestId('contador-rail');
+    for (const nombre of ['Inicio', 'Asientos', 'Reportes', 'Cierre']) await expect(rail.getByRole('link', { name: nombre, exact: true })).toBeVisible();
+    await rail.getByRole('button', { name: 'Más' }).click();
+    for (const nombre of ['Catálogo de cuentas', 'Documentos fiscales', 'Configuración fiscal', 'Excel', 'Auditoría']) await expect(page.getByRole('link', { name: nombre, exact: true }).first()).toBeVisible();
+    await rail.getByRole('link', { name: 'Reportes', exact: true }).click();
+    await expect(page).toHaveURL(/\/contabilidad\/reportes$/);
+    await rail.getByRole('link', { name: 'Inicio', exact: true }).click();
+    await expect(page).toHaveURL(/\/contabilidad$/);
+    await capturar(page, 'contador-inicio-1366');
+  });
+
+  test('el ADMIN no recibe el rail del contador pero sí las secciones, con Inicio primero', async ({ page, baseURL }) => {
+    await preparar(page, baseURL, 'ADMIN');
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/contabilidad/cierre');
+    await expect(page.getByTestId('contador-rail')).toHaveCount(0);
+    const secciones = page.getByRole('navigation', { name: 'Secciones de Contabilidad' });
+    await expect(secciones.getByRole('link').first()).toHaveText('Inicio');
+  });
+
+  test('móvil: secciones en píldoras con Inicio primero, sin rail ni desbordamiento', async ({ page, baseURL }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await preparar(page, baseURL);
+    await page.goto('/contabilidad/asientos');
+    await expect(page.getByTestId('contador-rail')).toBeHidden();
+    const secciones = page.getByRole('navigation', { name: 'Secciones de Contabilidad' });
+    await expect(secciones.getByRole('link').first()).toHaveText('Inicio');
+    // El contenedor principal recorta en silencio (overflow-y:auto): se comprueba él y no solo el documento.
+    expect(await page.evaluate(() => { const m = document.querySelector('.main-content')!; return m.scrollWidth > m.clientWidth + 1; })).toBe(false);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
+    await capturar(page, 'contador-asientos-390');
+  });
+
+  test('revertir un asiento pide motivo y confirmación; cancelar no envía nada', async ({ page, baseURL }) => {
+    const r = await preparar(page, baseURL);
+    await page.goto('/contabilidad/asientos');
+    await page.getByRole('button', { name: 'Revertir', exact: true }).click();
+    const form = page.getByRole('form', { name: 'Revertir el asiento 1' });
+    await form.getByLabel('Motivo').fill('Registrado por error');
+    await form.getByRole('button', { name: 'Revertir asiento' }).click();
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(page.locator('.swal2-container')).toHaveCount(0);
+    expect(r.documentos).toEqual([]);
+  });
+
+  test('revertir un asiento confirmado envía la reversión con su motivo', async ({ page, baseURL }) => {
+    const r = await preparar(page, baseURL);
+    await page.goto('/contabilidad/asientos');
+    await page.getByRole('button', { name: 'Revertir', exact: true }).click();
+    const form = page.getByRole('form', { name: 'Revertir el asiento 1' });
+    await form.getByLabel('Motivo').fill('Registrado por error');
+    await form.getByRole('button', { name: 'Revertir asiento' }).click();
+    await page.getByRole('button', { name: 'Confirmar' }).click();
+    await expect(page.getByRole('status')).toContainText('Asiento 1 revertido');
+    expect(r.documentos.at(-1)).toMatchObject({ ruta: '/contabilidad/asientos/a1/revertir', motivo: 'Registrado por error' });
+    await capturar(page, 'contador-asientos-1366');
+  });
+
+  test('cerrar un período: muestra validaciones previas y cancelar no envía nada', async ({ page, baseURL }) => {
+    const r = await preparar(page, baseURL);
+    await page.goto('/contabilidad/cierre');
+    await expect(page.getByTestId('validaciones-cierre')).toContainText('Cuadra');
+    await page.getByLabel('Motivo').fill('Cierre mensual');
+    await page.getByRole('button', { name: 'Cerrar período', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(page.locator('.swal2-container')).toHaveCount(0);
+    expect(r.documentos).toEqual([]);
+    await capturar(page, 'contador-cierre-1366');
+  });
+
+  test('cerrar un período confirmado envía el motivo', async ({ page, baseURL }) => {
+    const r = await preparar(page, baseURL);
+    await page.goto('/contabilidad/cierre');
+    await page.getByLabel('Motivo').fill('Cierre mensual');
+    await page.getByRole('button', { name: 'Cerrar período', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Confirmar' }).click();
+    await expect(page.getByRole('status')).toBeVisible();
+    expect(r.documentos.at(-1)).toMatchObject({ motivo: 'Cierre mensual' });
+  });
+
+  test('libro mayor: elegir una cuenta muestra saldo inicial, movimientos y saldo final, y descarga su Excel', async ({ page, baseURL }) => {
+    const r = await preparar(page, baseURL);
+    await page.goto('/contabilidad/reportes');
+    await expect(page.getByRole('columnheader', { name: 'Saldo inicial' })).toBeVisible();   // balanza
+    await page.getByRole('tab', { name: 'Libro mayor' }).click();
+    await expect(page.getByText('Elija una cuenta para ver su saldo inicial')).toBeVisible();
+    await page.getByLabel('Cuenta').selectOption({ label: '1.1 Caja' });
+    await expect(page.getByRole('row', { name: /Saldo inicial.*L\. 200\.00/ })).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'Venta de prueba' })).toBeVisible();
+    await expect(page.getByRole('row', { name: /Totales.*L\. 1,350\.00/ })).toBeVisible();
+    const descarga = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Exportar a Excel' }).last().click();
+    expect((await descarga).suggestedFilename()).toBe('mayor-2026-09.xlsx');
+    expect(r.rutas.some(x => x.includes('/contabilidad/exportar/mayor'))).toBe(true);
+    await capturar(page, 'contador-mayor-1366');
+  });
+
+  test('centro Excel: descarga el libro del mes y avisa que la importación llegará después', async ({ page, baseURL }) => {
+    await preparar(page, baseURL);
+    await page.goto('/contabilidad/excel');
+    await expect(page.getByText('La importación desde Excel se habilitará más adelante')).toBeVisible();
+    const descarga = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Balanza de comprobación · Excel' }).click();
+    expect((await descarga).suggestedFilename()).toBe('balanza-2026-09.xlsx');
   });
 });

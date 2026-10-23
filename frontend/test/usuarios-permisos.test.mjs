@@ -8,7 +8,9 @@ import fs from 'node:fs';
 const src = fs.readFileSync(fs.existsSync('src/pages/UsuariosPage.tsx') ? 'src/pages/UsuariosPage.tsx' : 'frontend/src/pages/UsuariosPage.tsx', 'utf8');
 
 test('JW-09: la lista de permisos asignables no incluye pos.anular_venta', () => {
-  const lista = src.slice(src.indexOf('const TODOS_LOS_PERMISOS'), src.indexOf('];', src.indexOf('const TODOS_LOS_PERMISOS')));
+  // La lista asignable es PERMISOS_BASE (+ PERMISOS_CONTABILIDAD solo con el módulo contratado); se revisan ambas.
+  const bloque = (nombre) => src.slice(src.indexOf(`const ${nombre}`), src.indexOf('];', src.indexOf(`const ${nombre}`)));
+  const lista = bloque('PERMISOS_BASE') + bloque('PERMISOS_CONTABILIDAD');
   assert.ok(lista.length > 0);
   assert.doesNotMatch(lista, /clave: 'pos\.anular_venta'/);
   assert.match(lista, /clave: 'pos\.vender'/);

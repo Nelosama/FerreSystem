@@ -47,8 +47,8 @@ export class ContabilidadController {
   @Get('ajustes') @RequiredPermission(P.ver) ajustes(@TenantId() t: string, @Query('anio', ParseIntPipe) anio: number, @Query('mes', ParseIntPipe) mes: number) { return this.service.ajustes(t, anio, mes); }
   // Formato por defecto: Excel. CSV y PDF son alternativas; el libro del mes solo existe en Excel.
   @Get('exportar/:reporte') @RequiredPermission(P.ver)
-  async exportar(@TenantId() t: string, @CurrentUser('sub') u: string, @Param('reporte') reporte: string, @Query('anio', ParseIntPipe) anio: number, @Query('mes') mes: string | undefined, @Query('formato') formato: string | undefined, @Query('direccion') direccion: string | undefined, @Res() res: Response) {
-    const archivo = await this.service.exportar(t, u, reporte, anio, mes === undefined || mes === '' ? undefined : Number(mes), formato || 'xlsx', direccion || undefined);
+  async exportar(@TenantId() t: string, @CurrentUser('sub') u: string, @Param('reporte') reporte: string, @Query('anio', ParseIntPipe) anio: number, @Query('mes') mes: string | undefined, @Query('formato') formato: string | undefined, @Query('direccion') direccion: string | undefined, @Query('cuentaId') cuentaId: string | undefined, @Res() res: Response) {
+    const archivo = await this.service.exportar(t, u, reporte, anio, mes === undefined || mes === '' ? undefined : Number(mes), formato || 'xlsx', direccion || undefined, cuentaId || undefined);
     res.setHeader('Content-Type', archivo.tipo);
     res.setHeader('Content-Disposition', `attachment; filename="${archivo.nombre}"`);
     // Sin esto, un navegador en otro origen no puede leer el nombre del archivo.
@@ -66,5 +66,6 @@ export class ContabilidadController {
   @Get('asientos') @RequiredPermission(P.ver) asientos(@TenantId() t: string, @Query('anio', ParseIntPipe) anio: number, @Query('mes', ParseIntPipe) mes: number) { return this.service.asientos(t, anio, mes); }
   @Post('asientos') @RequiredPermission(P.registrar) crearAsiento(@TenantId() t: string, @CurrentUser('sub') u: string, @Body() dto: AsientoDto) { return this.service.crearAsiento(t, u, dto); }
   @Post('asientos/:id/revertir') @RequiredPermission(P.registrar) revertirAsiento(@TenantId() t: string, @CurrentUser('sub') u: string, @Param('id') id: string, @Body() dto: ReversionDto) { return this.service.revertirAsiento(t, u, id, dto); }
+  @Get('mayor') @RequiredPermission(P.ver) mayor(@TenantId() t: string, @Query('cuentaId') cuentaId: string, @Query('anio', ParseIntPipe) anio: number, @Query('mes', ParseIntPipe) mes: number) { return this.service.mayor(t, cuentaId, anio, mes); }
   @Get('balanza') @RequiredPermission(P.ver) balanza(@TenantId() t: string, @Query('anio', ParseIntPipe) anio: number, @Query('mes', ParseIntPipe) mes: number) { return this.service.balanza(t, anio, mes); }
 }
