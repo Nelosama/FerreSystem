@@ -1741,6 +1741,12 @@
       "finance": "Finanzas y reportes"
     }
   },
+  "alerts": {
+    "confirm_title": "¿Está seguro?",
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "no_export_data": "No hay datos disponibles para exportar."
+  },
   "security": {
     "platform": "Acceso de Super Admin",
     "tenant": "Identificador de empresa",

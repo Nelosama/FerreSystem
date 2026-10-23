@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../utils/api';
+import { alertas } from '../utils/alertas';
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { exportToCSV } from '../utils/csvExport';
@@ -342,8 +343,8 @@ export const LevantamientoPage: React.FC = () => {
               <div className="operation-actions">
                 {!closed && (
                   <button className="btn btn-secondary" disabled={busy || isReadOnly || !active.items.length}
-                    onClick={() => {
-                      if (window.confirm(t('stocktaking.finish_confirm')))
+                    onClick={async () => {
+                      if (await alertas.confirmar({ texto: t('stocktaking.finish_confirm') }))
                         void action(async () => { await api.patch(`/levantamientos/${activeId}`, { estado: 'FINALIZADO' }); });
                     }}>{t('stocktaking.finish')}</button>
                 )}
@@ -486,8 +487,8 @@ export const LevantamientoPage: React.FC = () => {
                         {!closed && (
                           <>
                             <button disabled={busy || isReadOnly} onClick={() => editarItem(i)}>{t('stocktaking.correct')}</button>
-                            <button disabled={busy || isReadOnly} onClick={() => {
-                              if (window.confirm(t('stocktaking.delete_confirm')))
+                            <button disabled={busy || isReadOnly} onClick={async () => {
+                              if (await alertas.confirmar({ texto: t('stocktaking.delete_confirm'), peligroso: true }))
                                 void action(async () => {
                                   await api.delete(`/levantamientos/${activeId}/items/${i.id}`, { params: { version: i.version } });
                                   setPreview(null);
@@ -526,8 +527,8 @@ export const LevantamientoPage: React.FC = () => {
                   <button
                     className="btn btn-primary"
                     disabled={busy || isReadOnly || active.estado !== 'FINALIZADO' || !preview.rows.length || preview.rows.some((r: any) => r.errores.length)}
-                    onClick={() => {
-                      if (window.confirm(t('stocktaking.apply_confirm')))
+                    onClick={async () => {
+                      if (await alertas.confirmar({ texto: t('stocktaking.apply_confirm') }))
                         void action(async () => {
                           await api.post(`/levantamientos/${activeId}/aplicar`, { token: preview.token });
                           setPreview(null);

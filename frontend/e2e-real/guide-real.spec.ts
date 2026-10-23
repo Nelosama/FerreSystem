@@ -3,6 +3,7 @@ import { test, expect, request, type Page } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { CATALOGO_MODULOS, MODULE_DEPENDENCIES, PENDING_MODULES } from '../src/config/modulesCatalog';
+import { confirmarAlerta } from '../e2e/helpers/alertas';
 const { PrismaClient } = createRequire(resolve('../backend/package.json'))('@prisma/client');
 const prisma = new PrismaClient();
 const BASE = `${process.env.E2E_API_URL!.replace(/\/$/, '')}/`;
@@ -46,8 +47,9 @@ test('Modo Guía y módulos: navegador → NestJS → PostgreSQL, sin mocks', as
   const users = page.getByRole('checkbox', { name: /^Personal ·/ });
   const commissions = page.getByRole('checkbox', { name: /^Comisiones de venta ·/ });
   await commissions.uncheck();
-  await users.uncheck(); page.once('dialog', d => d.accept());
+  await users.uncheck();
   await page.getByRole('button', { name: 'Guardar servicios' }).click();
+  await confirmarAlerta(page);
   await expect(page.getByRole('status')).toContainText('Cambios guardados');
   await page.reload(); await expect(users).not.toBeChecked();
   const adminLogin = await api.post('auth/login', { data: { email: 'admin.a@e2e.invalid', password: PASSWORD } });

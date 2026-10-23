@@ -2,6 +2,7 @@ import { fillPlatformMfa, syntheticMfaFor } from './mfa.fixture';
 import { expect, test, request, type Page, type APIRequestContext } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+import { confirmarAlerta } from '../e2e/helpers/alertas';
 
 // E2E REAL (backend NestJS + PostgreSQL temporal + almacenamiento PostgreSQL persistente; sin mocks).
 // Flujo de logotipo por negocio: carga, persistencia, visualización en ambos modos de navegación,
@@ -96,8 +97,8 @@ test.describe.serial('Logotipo por negocio (backend real)', () => {
     await expect(page.getByRole('status').filter({ hasText: 'Logotipo guardado' })).toBeVisible();
     expect(Buffer.from((await objetoActual()).datos).equals(WEBP)).toBe(true);
 
-    page.once('dialog', (d) => d.accept());
     await page.getByRole('button', { name: 'Quitar logotipo' }).click();
+    await confirmarAlerta(page, 'Quitar');
     await expect(page.getByRole('status').filter({ hasText: 'Logotipo eliminado' })).toBeVisible();
     await expect(page.getByText('Sin logotipo: se muestra el ícono predeterminado')).toBeVisible();
     expect(await objetoActual()).toBeNull();

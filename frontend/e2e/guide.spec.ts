@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { confirmarAlerta } from './helpers/alertas';
 
 async function setup(page: Page, rol: string, options: { enabled?: boolean; modules?: string[]; completed?: boolean; permissions?: string[]; language?: string } = {}) {
   let settings: any = { id: 'guide-company', nombreComercial: 'Guía Test', modoNavegacion: 'SIDEBAR', idioma: options.language || 'es', colorPrimario: '#EA580C', modoGuia: options.enabled !== false, modulosHabilitados: options.modules };
@@ -95,8 +96,8 @@ test('Super Admin puede cambiar cada interruptor y conservarlos tras recarga', a
   expect(api.settings().modulosHabilitados).toHaveLength(16);
   await page.reload(); await expect(form.locator('input:checked')).toHaveCount(16);
   for (const input of await form.locator('input[type="checkbox"]').all()) await input.uncheck();
-  page.once('dialog', dialog => dialog.accept());
   await form.getByRole('button', { name: 'Guardar servicios' }).click();
+  await confirmarAlerta(page);
   await expect(page.getByRole('status')).toContainText('Cambios guardados');
   await page.reload(); await expect(form.locator('input:checked')).toHaveCount(0);
 });
@@ -164,8 +165,8 @@ for (const width of [1280, 768, 390]) {
     const overlaps = guideBox!.x < buttonBox!.x + buttonBox!.width && guideBox!.x + guideBox!.width > buttonBox!.x
       && guideBox!.y < buttonBox!.y + buttonBox!.height && guideBox!.y + guideBox!.height > buttonBox!.y;
     expect(overlaps, 'La guía debe dejar libres las acciones operativas').toBe(false);
-    page.once('dialog', dialog => dialog.accept());
     await deactivate.click();
+    await confirmarAlerta(page, 'Desactivar');
     await expect(row).toContainText('Inactivo');
   });
 }

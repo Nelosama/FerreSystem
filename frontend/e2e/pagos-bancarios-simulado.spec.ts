@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { confirmarAlerta } from './helpers/alertas';
 
 // E2E CON BACKEND SIMULADO: abono de crédito con tarjeta (autorización y terminal obligatorias) y conciliación del POS
 // bancario (solo ADMIN; diferencia con motivo). Valida interfaz, contrato de payloads y permisos en pantalla. NO prueba
@@ -73,7 +74,6 @@ async function ingresar(page: Page, ruta: string) {
 test2.describe('Abono de crédito con tarjeta (simulado)', () => {
   test2.use({ rol: 'ADMIN' });
   test2('no se registra sin autorización y terminal; con ambas, el payload lleva pagoElectronico', async ({ page, sim }) => {
-    page.on('dialog', d => d.accept());
     await ingresar(page, '/cuentas');
     await page.getByRole('button', { name: 'Registrar abono' }).first().click();
     const form = page.locator('form').filter({ has: page.getByRole('heading', { name: /Registrar abono · Constructora/ }) });
@@ -85,6 +85,7 @@ test2.describe('Abono de crédito con tarjeta (simulado)', () => {
     await form.getByLabel('Terminal POS').fill('POS-02');
     await expect(registrar).toBeEnabled();
     await registrar.click();
+    await confirmarAlerta(page);
     await expect.poll(() => sim.abonos.length).toBe(1);
     expect(sim.abonos[0]).toMatchObject({ cuenta: 'cu-1', body: { metodo: 'TARJETA', monto: 300, pagoElectronico: { referencia: 'AUT-9988', terminal: 'POS-02' } } });
   });

@@ -3,6 +3,7 @@ import { ProveedoresProductoPanel } from './ProveedoresProductoPanel';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
+import { alertas } from '../utils/alertas';
 import { formatLempiras } from '../utils/format';
 import { construirCambiosProducto, formularioDesde, validarFormularioProducto, type FormularioProducto } from '../utils/productoEdicion';
 import '../pages/OperacionesPage.css';
@@ -90,7 +91,7 @@ export const ProductoGestion: React.FC<{ productos: any[]; onSaved: () => Promis
       setError(t('product_edit.errors.motivo'));
       return;
     }
-    if (sensibles.length && !window.confirm(t('product_edit.confirm_sensitive', { campos: sensibles.map(c => t(`product_edit.sensitive.${c}`)).join(', ') }))) return;
+    if (sensibles.length && !(await alertas.confirmar({ texto: t('product_edit.confirm_sensitive', { campos: sensibles.map(c => t(`product_edit.sensitive.${c}`)).join(', ') }) }))) return;
 
     enviando.current = true; setBusy(true);
     try {

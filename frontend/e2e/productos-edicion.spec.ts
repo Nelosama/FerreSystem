@@ -1,5 +1,6 @@
 import { installScannerCamera } from './scanner-camera.fixture';
 import { expect, test as base, type Page, type Route } from '@playwright/test';
+import { confirmarAlerta } from './helpers/alertas';
 
 // Edición de productos (FS-07). Todas las llamadas API se interceptan con un servidor simulado
 // en memoria por prueba que aplica la misma regla de versión que el backend real.
@@ -208,8 +209,8 @@ test.describe('Edición de productos (FS-07)', () => {
     await expect(page.getByRole('alert').filter({ hasText: 'Indique el motivo del cambio de existencias' })).toBeVisible();
     expect(sim.puts).toHaveLength(0);
     await page.getByLabel(/^Motivo del cambio de existencias/).fill('Merma verificada');
-    page.once('dialog', d => d.accept());
     await page.getByRole('button', { name: 'Guardar cambios' }).click();
+    await confirmarAlerta(page);
     await expect(page.getByRole('status').filter({ hasText: 'Producto guardado' })).toBeVisible();
     expect(sim.puts[0].body).toEqual({ stockActual: 35, stockAnterior: 40, motivo: 'Merma verificada', version: 1 });
   });
@@ -222,8 +223,8 @@ test.describe('Edición de productos (FS-07)', () => {
     await page.getByLabel('Mostrar productos inactivos').check();
     await elegirProducto(page, inactivo.id);
     await page.getByRole('checkbox', { name: /Producto activo/ }).check();
-    page.once('dialog', d => d.accept());
     await page.getByRole('button', { name: 'Guardar cambios' }).click();
+    await confirmarAlerta(page);
     await expect(page.getByRole('status').filter({ hasText: 'Producto guardado' })).toBeVisible();
     expect(sim.puts[0].body).toEqual({ activo: true, version: 1 });
   });
@@ -318,8 +319,8 @@ test.describe('Inventario para entrega al cliente / API simulada', () => {
     cable.stockActual = 45; // Recepción: mismo version, distinta cantidad física.
     await page.getByLabel('Nuevas existencias', { exact: true }).fill('39');
     await page.getByLabel(/^Motivo del cambio/).fill('Conteo antiguo');
-    page.once('dialog', d => d.accept());
     await page.getByRole('button', { name: 'Guardar cambios' }).click();
+    await confirmarAlerta(page);
     await expect(page.getByRole('alert').filter({ hasText: 'Otro usuario modificó este producto' })).toBeVisible();
     expect(cable.stockActual).toBe(45);
     expect(sim.puts[0].body.stockAnterior).toBe(40);

@@ -1,4 +1,5 @@
 import { expect, test as base, type Page, type Route } from '@playwright/test';
+import { confirmarAlerta } from './helpers/alertas';
 
 // E2E CON BACKEND SIMULADO: valida la interfaz del ciclo de compras (confirmaciones, doble envío,
 // reintentos con la misma solicitud, nota de caja, estado de cuenta pagada). NO sustituye la validación
@@ -122,20 +123,21 @@ test.describe('Ciclo de compras — interfaz con backend simulado (E2E simulado)
   test('recibir mercancía exige confirmación: cancelar no envía nada; aceptar envía una sola recepción', async ({ page, sim }) => {
     await ingresar(page, '/ordenes-compra');
     await expect(page.getByRole('button', { name: 'Confirmar recepción' })).toBeVisible();
-    page.once('dialog', d => { expect(d.message()).toMatch(/aumentará las existencias/i); void d.dismiss(); });
     await page.getByRole('button', { name: 'Confirmar recepción' }).click();
+    await expect(page.locator('.ferre-alerta')).toContainText(/aumentará las existencias/i);
+    await confirmarAlerta(page, 'Cancelar');
     await page.waitForTimeout(150);
     expect(sim.recepciones).toHaveLength(0);
-    page.once('dialog', d => d.accept());
     await page.getByRole('button', { name: 'Confirmar recepción' }).click();
+    await confirmarAlerta(page);
     await expect.poll(() => sim.recepciones.length).toBe(1);
     expect(sim.stock).toBe(300);
   });
 
   test('un doble clic en Confirmar recepción envía una sola recepción', async ({ page, sim }) => {
     await ingresar(page, '/ordenes-compra');
-    page.on('dialog', d => void d.accept());
     await page.getByRole('button', { name: 'Confirmar recepción' }).dblclick();
+    await confirmarAlerta(page);
     await expect.poll(() => sim.recepciones.length).toBeGreaterThanOrEqual(1);
     await page.waitForTimeout(200);
     expect(sim.recepciones).toHaveLength(1);
@@ -144,9 +146,9 @@ test.describe('Ciclo de compras — interfaz con backend simulado (E2E simulado)
 
   test('si se pierde la respuesta, la recepción queda pendiente y el reintento usa la misma solicitud', async ({ page, sim }) => {
     await ingresar(page, '/ordenes-compra');
-    page.on('dialog', d => void d.accept());
     sim.fallarSiguienteRecepcion = true;
     await page.getByRole('button', { name: 'Confirmar recepción' }).click();
+    await confirmarAlerta(page);
     await expect(page.getByText('Hay una operación pendiente de confirmar')).toBeVisible();
     // El reintento reenvía exactamente la misma operación pendiente, con su misma solicitud.
     await page.getByRole('button', { name: 'Confirmar operación pendiente' }).click();
@@ -174,12 +176,13 @@ test.describe('Ciclo de compras — interfaz con backend simulado (E2E simulado)
     await page.getByRole('button', { name: 'Proveedores · Por pagar' }).click();
     await page.getByRole('button', { name: 'Registrar pago' }).click();
     await expect(page.getByText('no afectan la caja POS', { exact: false })).toBeVisible();
-    page.once('dialog', d => { expect(d.message()).toContain('Registrar un pago'); void d.dismiss(); });
     await page.getByRole('button', { name: 'Registrar', exact: true }).click();
+    await expect(page.locator('.ferre-alerta')).toContainText('Registrar un pago');
+    await confirmarAlerta(page, 'Cancelar');
     await page.waitForTimeout(150);
     expect(sim.pagos).toHaveLength(0);
-    page.once('dialog', d => d.accept());
     await page.getByRole('button', { name: 'Registrar', exact: true }).click();
+    await confirmarAlerta(page);
     await expect.poll(() => sim.pagos.length).toBe(1);
     expect(sim.pagos[0].body).toMatchObject({ metodo: 'EFECTIVO' });
     expect(sim.cuenta.saldo).toBe(0);

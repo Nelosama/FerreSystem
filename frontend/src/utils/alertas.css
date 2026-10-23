@@ -1,0 +1,106 @@
+/* ==========================================================================
+   Notificaciones SweetAlert2 (utils/alertas.ts)
+   Usan los mismos tokens que el resto de la app: el color de marca de cada negocio se aplica igual.
+   ========================================================================== */
+
+.ferre-alerta,
+.ferre-toast {
+  font-family: var(--font-body);
+  color: var(--color-text-main);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+}
+
+.ferre-alerta .swal2-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--color-text-main);
+}
+
+.ferre-alerta .swal2-html-container {
+  color: var(--color-text-muted);
+  font-size: 15px;
+}
+
+.ferre-alerta .swal2-actions {
+  gap: 10px;
+}
+
+.ferre-alerta button,
+.ferre-toast-cerrar {
+  min-height: 44px;
+  min-width: 120px;
+  padding: 0 18px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ferre-alerta-confirmar {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: 1px solid var(--color-primary-active);
+}
+
+.ferre-alerta-confirmar:hover {
+  background: var(--color-primary-hover);
+}
+
+.ferre-alerta-peligro {
+  background: var(--color-danger);
+  color: var(--color-text-inverted);
+  border: 1px solid var(--color-danger);
+}
+
+.ferre-alerta-cancelar {
+  background: var(--color-surface);
+  color: var(--color-text-main);
+  border: 1px solid var(--color-border);
+}
+
+.ferre-alerta-cancelar:hover {
+  background: var(--color-surface-hover);
+}
+
+.ferre-alerta button:focus-visible,
+.ferre-toast button:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Toast: ocupa el ancho disponible en teléfonos y deja margen de 16px a cada lado. */
+.ferre-toast {
+  width: min(380px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-left: 4px solid var(--color-primary);
+}
+
+.ferre-toast .swal2-title {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-main);
+  text-align: left;
+}
+
+.ferre-toast-cerrar {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ferre-alerta.swal2-show,
+  .ferre-alerta.swal2-hide,
+  .ferre-toast.swal2-show,
+  .ferre-toast.swal2-hide {
+    animation: none;
+  }
+}

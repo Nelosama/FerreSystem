@@ -1,4 +1,5 @@
 import { expect, test as base, type Page, type Route } from '@playwright/test';
+import { confirmarAlerta } from './helpers/alertas';
 
 // E2E CON BACKEND SIMULADO: valida la interfaz de caja (apertura, movimiento autorizado, diferencia que exige
 // explicación, comprobante, historial del administrador y reintentos con la misma solicitud).
@@ -149,14 +150,14 @@ test.describe('Caja y arqueo — interfaz con backend simulado (E2E simulado)', 
     await expect(explicacion).toBeVisible();
     await expect(explicacion).toHaveAttribute('required', '');
 
-    page.once('dialog', d => void d.dismiss());
     await explicacion.fill('Cambio mal dado');
     await page.getByRole('button', { name: 'Cerrar caja' }).click();
+    await confirmarAlerta(page, 'Cancelar');
     await page.waitForTimeout(150);
     expect(sim.cajas[0].estado).toBe('ABIERTA');
 
-    page.once('dialog', d => d.accept());
     await page.getByRole('button', { name: 'Cerrar caja' }).click();
+    await confirmarAlerta(page);
     await expect.poll(() => sim.cajas[0].estado).toBe('CERRADA');
     await expect(page.getByRole('heading', { name: 'Comprobante de cierre' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Comprobante de cierre' })).toContainText('Cambio mal dado');

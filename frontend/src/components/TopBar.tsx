@@ -7,6 +7,7 @@ import { useI18n } from '../context/I18nContext';
 import { useSucursales } from '../hooks/useSucursales';
 import { useNavigate } from 'react-router-dom';
 import { formatLempiras } from '../utils/format';
+import { alertas } from '../utils/alertas';
 import { useEstadoCaja } from '../hooks/useEstadoCaja';
 
 interface TopBarProps {
@@ -138,7 +139,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     setModalConfirmEditMode(false);
                     setMotivoEdicion('');
                   } catch {
-                    alert(t('topbar.edit_failed'));
+                    alertas.error(t('topbar.edit_failed'));
                   }
                 }}
               >
