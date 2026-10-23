@@ -1,0 +1,169 @@
+/* ==========================================================================
+   Jowa System — navegación híbrida única (panel lateral compacto + barra superior contextual).
+   Piezas de la barra superior de los roles del negocio: búsqueda de tareas y aviso de soporte.
+   Solo organiza espacio y comportamiento; los colores salen de los tokens y del color del negocio.
+   ========================================================================== */
+
+/* ---------- Búsqueda de tareas dentro de la barra superior ---------- */
+header.shell-topbar .task-finder {
+  position: relative;
+  flex: 1 1 320px;
+  max-width: 520px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+header.shell-topbar .task-finder-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  min-height: 0;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+header.shell-topbar .task-finder-toggle:hover { border-color: var(--color-primary); }
+header.shell-topbar .task-finder-toggle span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+header.shell-topbar .task-finder-toggle kbd {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 11px;
+}
+
+header.shell-topbar .task-finder-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(15 26 32 / 0.12);
+}
+header.shell-topbar .task-finder-panel label { margin-bottom: 8px; }
+
+/* ---------- Sucursal de los roles que no la cambian ---------- */
+.admin-topbar-sucursal { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+/* ---------- Aviso del modo de soporte técnico ---------- */
+.soporte-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 28px;
+  background: #ffedd5;
+  border-bottom: 2px solid #ea580c;
+  color: #9a3412;
+}
+.soporte-banner-texto { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.soporte-banner-acciones { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.soporte-banner-editar { background: #dc2626; border: 1px solid #991b1b; color: #ffffff; font-size: 11px; font-weight: 800; }
+.soporte-banner-salir { background: #c2410c; border: 1px solid #c2410c; color: #ffffff; font-size: 11px; font-weight: 800; }
+
+.soporte-modal-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 0.65);
+}
+.soporte-modal { width: 100%; max-width: 450px; padding: 20px; background: #ffffff; }
+.soporte-modal-titulo { padding-bottom: 10px; border-bottom: 2px solid var(--color-border); font-family: var(--font-display); font-weight: 800; font-size: 15px; }
+.soporte-modal-ayuda { padding: 16px 0; font-size: 13px; color: #444444; }
+.soporte-modal-motivo { display: block; margin-bottom: 12px; font-size: 12px; }
+.soporte-modal-botones { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* ---------- Tableta (≤1024 px): la búsqueda se reduce a su icono y se abre como panel a la derecha ---------- */
+@media (max-width: 1024px) {
+  .soporte-banner { padding-inline: 22px; }
+  header.shell-topbar .task-finder { flex: 0 0 auto; max-width: none; margin: 0 0 0 auto; }
+  header.shell-topbar .task-finder-toggle { width: 36px; justify-content: center; padding: 0; }
+  header.shell-topbar .task-finder-toggle span,
+  header.shell-topbar .task-finder-toggle kbd { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  header.shell-topbar .task-finder-panel { left: auto; right: 0; width: min(420px, calc(100vw - 120px)); }
+  .shell-topbar .admin-topbar-perfil-texto { display: none; }
+  .shell-topbar-logout span { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+}
+
+/* ---------- Móvil (≤768 px): la búsqueda baja a su propia fila, con su texto ---------- */
+@media (max-width: 768px) {
+  header.shell-topbar .task-finder { order: 3; flex: 1 1 100%; margin: 0; }
+  header.shell-topbar .task-finder-toggle { width: 100%; justify-content: flex-start; padding: 0 12px; }
+  header.shell-topbar .task-finder-toggle span { position: static; width: auto; height: auto; margin: 0; overflow: hidden; clip: auto; }
+  header.shell-topbar .task-finder-panel { left: 0; right: 0; width: auto; }
+  .soporte-banner { padding-inline: 16px; }
+}
+
+/* ---------- Menú desplegable (portal en body: no depende de ningún contenedor) ---------- */
+.menu-desplegable-boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.menu-desplegable-boton:hover,
+.menu-desplegable-boton[aria-expanded='true'] { background: var(--surface-2); }
+
+.menu-desplegable-panel {
+  position: fixed;
+  z-index: 1200;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(15 26 32 / 0.16);
+}
+
+.menu-desplegable-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-desplegable-item:hover,
+.menu-desplegable-item:focus-visible { background: var(--surface-2); outline-offset: -2px; }

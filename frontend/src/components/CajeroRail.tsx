@@ -50,7 +50,7 @@ export const CajeroRail: React.FC = () => {
     <IconRail
       className="cajero-rail"
       ariaLabel={t('navigation.main')}
-      marca={<LogotipoNegocio size={36} />}
+      marca={<LogotipoNegocio size={56} encuadre />}
       marcaEtiqueta={t('navigation.home_link')}
       entradas={entradas}
       pie={<IndicadorConexion compacto />}

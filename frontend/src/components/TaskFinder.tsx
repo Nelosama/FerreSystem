@@ -4,10 +4,13 @@ import { Search } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { availableTasks, priorityTasks, searchTasks } from '../utils/taskNavigation';
-import { ShellTopbarContext } from '../context/ShellTopbarContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { filtrarAccesosMovilAdmin } from '../utils/movilAdmin';
 
+/**
+ * Búsqueda de tareas de la barra superior. Es un campo plegado que se abre con clic o Ctrl+K y muestra sus resultados
+ * en un panel flotante bajo la barra; solo ofrece lo que el rol, los permisos y los módulos habilitados permiten.
+ */
 export const TaskFinder: React.FC = () => {
   const { user, tenant } = useTenant();
   const { t } = useI18n();
@@ -16,16 +19,25 @@ export const TaskFinder: React.FC = () => {
   const [expanded, setExpanded] = React.useState(false);
   const input = React.useRef<HTMLInputElement>(null);
   const toggle = React.useRef<HTMLButtonElement>(null);
-  // En un shell con barra superior propia el buscador queda plegado también en Inicio: la portada es de tareas, no de búsqueda.
-  const enShell = React.useContext(ShellTopbarContext);
-  const compact = enShell || pathname !== '/';
+  const raiz = React.useRef<HTMLElement>(null);
   React.useEffect(() => { setQuery(''); setExpanded(false); }, [pathname, user?.id, tenant.id]);
   React.useEffect(() => { if (expanded) input.current?.focus(); }, [expanded]);
+  React.useEffect(() => {
+    const atajo = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setExpanded(true); }
+    };
+    const fuera = (event: MouseEvent) => { if (raiz.current && !raiz.current.contains(event.target as Node)) setExpanded(false); };
+    document.addEventListener('keydown', atajo);
+    document.addEventListener('mousedown', fuera);
+    return () => { document.removeEventListener('keydown', atajo); document.removeEventListener('mousedown', fuera); };
+  }, []);
   const movil = useMediaQuery('(max-width: 768px)');
   const results = searchTasks(filtrarAccesosMovilAdmin(availableTasks(user, tenant), user, movil), query, t);
-  return <section className="task-finder" aria-label={t('tasks.finder')}>
-    {compact && <button type="button" ref={toggle} className="task-finder-toggle" aria-expanded={expanded} aria-controls="task-search-panel" onClick={() => setExpanded(!expanded)}><Search size={18} aria-hidden="true" />{t('tasks.finder')}</button>}
-    {(!compact || expanded) && <div id="task-search-panel" onKeyDown={event => { if (event.key === 'Escape') { setExpanded(false); setQuery(''); if (compact) toggle.current?.focus(); else input.current?.focus(); } }}>
+  return <section ref={raiz} className="task-finder" aria-label={t('tasks.finder')}>
+    <button type="button" ref={toggle} className="task-finder-toggle" aria-expanded={expanded} aria-controls="task-search-panel" onClick={() => setExpanded(!expanded)}>
+      <Search size={16} aria-hidden="true" /><span>{t('tasks.finder')}</span><kbd aria-hidden="true">Ctrl K</kbd>
+    </button>
+    {expanded && <div id="task-search-panel" className="task-finder-panel" onKeyDown={event => { if (event.key === 'Escape') { setExpanded(false); setQuery(''); toggle.current?.focus(); } }}>
       <label htmlFor="task-search"><Search size={18} aria-hidden="true" />{t('tasks.question')}</label>
       <div className="task-search-row">
         <input ref={input} id="task-search" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={t('tasks.placeholder')} aria-describedby="task-search-help" />

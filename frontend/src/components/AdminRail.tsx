@@ -1,5 +1,5 @@
 import React from 'react';
-import { Boxes, Home, MoreHorizontal, ShoppingCart, Truck, Users, type LucideIcon } from 'lucide-react';
+import { Boxes, Home, MoreHorizontal, PackageCheck, ShoppingCart, Truck, Users, type LucideIcon } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { useConexion } from '../hooks/useConexion';
@@ -21,7 +21,17 @@ const GRUPOS: { key: string; etiqueta: string; icono: LucideIcon; accesos: strin
   { key: 'clientes', etiqueta: 'navigation.rail_customers', icono: Users, accesos: ['clientes', 'cuentas', 'estado_cuenta_clientes', 'listas_precio'] },
 ];
 
-/** Rail de iconos del administrador (solo en modo barra lateral): Inicio, Ventas, Inventario, Compras, Clientes y Más. */
+/** Fuera del administrador, las entregas son logística y no una venta: tienen su propio acceso en el rail. */
+const GRUPOS_OPERATIVOS: typeof GRUPOS = [
+  ...GRUPOS.map(g => g.key === 'ventas' ? { ...g, accesos: g.accesos.filter(a => a !== 'entregas') } : g),
+  { key: 'logistica', etiqueta: 'navigation.rail_logistics', icono: PackageCheck, accesos: ['entregas'] },
+];
+
+/**
+ * Rail de iconos de la navegación híbrida para los roles con menú propio (administrador, vendedor, bodeguero y los que se
+ * incorporen): Inicio, agrupaciones de módulos y Más. Cada rol ve solo lo que `availableTasks` le autoriza.
+ * El cajero usa CajeroRail, enfocado en venta y caja.
+ */
 export const AdminRail: React.FC = () => {
   const { tenant, user } = useTenant();
   const { t } = useI18n();
@@ -30,7 +40,7 @@ export const AdminRail: React.FC = () => {
 
   const visibles = availableTasks(user, tenant);
   const inicio = visibles.find(item => item.key === 'dashboard');
-  const agrupadas = new Set(GRUPOS.flatMap(g => g.accesos).concat('dashboard'));
+  const agrupadas = new Set(GRUPOS_OPERATIVOS.flatMap(g => g.accesos).concat(GRUPOS.flatMap(g => g.accesos), 'dashboard'));
 
   const enlace = (item: NavigationItem): RailLink => ({
     key: item.key, label: etiqueta(item), to: item.route, icon: item.icon, end: item.exact,
@@ -42,7 +52,7 @@ export const AdminRail: React.FC = () => {
     key: 'inicio', label: inicio ? etiqueta(inicio) : t('menu.dashboard'), icon: Home, to: '/', end: true,
   }];
 
-  for (const grupo of GRUPOS) {
+  for (const grupo of user?.rol === 'ADMIN' ? GRUPOS : GRUPOS_OPERATIVOS) {
     const items = grupo.accesos.flatMap(key => visibles.filter(item => item.key === key));
     if (items.length === 0) continue;
     if (items.length === 1) {
@@ -64,9 +74,9 @@ export const AdminRail: React.FC = () => {
 
   return (
     <IconRail
-      className="admin-rail"
+      className={`hybrid-rail rail-${(user?.rol || 'admin').toLowerCase()}${user?.rol === 'ADMIN' ? ' admin-rail' : ''}`}
       ariaLabel={t('navigation.main')}
-      marca={<LogotipoNegocio size={36} />}
+      marca={<LogotipoNegocio size={56} encuadre />}
       marcaEtiqueta={t('navigation.home_link')}
       entradas={entradas}
       pie={<IndicadorConexion compacto />}
