@@ -1,6 +1,6 @@
 # Cancelación POS y anulación administrativa — 2026-10-23
 
-Rama independiente `codex/pos-cancelacion-autorizada`, creada desde `main` `b60b49b309cbdadf522a87e773fd6241323f864a`. Sin merge, despliegue, cambios de dependencias, esquema o migraciones. No se escribe en producción. PR ajenos #180 y #192 inspeccionados y conservados.
+Rama independiente `codex/pos-cancelacion-autorizada`, creada desde `main` `b60b49b309cbdadf522a87e773fd6241323f864a`. Sin merge, despliegue, cambios de dependencias, esquema o migraciones. No se escribe en producción. PR [#194](https://github.com/Nelosama/FerreSystem/pull/194), en borrador. PR ajenos #180 y #192 inspeccionados y conservados.
 
 ## Causa comprobada y punto de confirmación
 
@@ -57,8 +57,10 @@ Documentación: este informe y `docs/CONTEXTO_MAESTRO.md`.
 | Backend y frontend: build y lint | Correctos; avisos heredados |
 | Guard de migraciones | Correcto, 0 migraciones nuevas |
 | Deriva Prisma/PostgreSQL del arnés real | Sin deriva |
+| PostgreSQL general, primera pasada | 1050 aprobadas / 1 fallo, 63 archivos; fixture histórico de reversión total directa |
+| Repetición final tras corregir ese fixture | 65/65 en entregas CENTINELA, crédito y auditoría de crédito |
 
-La regresión PostgreSQL general se registra al terminar en el PR y en el contexto maestro. No se confunde una pasada inicial fallida con aprobación completa.
+La pasada general detectó el fixture de `centinela-entregas-148` que esperaba revertir directamente el remanente completo. Se adaptó a solicitud por cajero, decisión ADMIN y ejecución por cajero, conservando la prueba explícita de 403 para la ruta directa. La repetición final de las tres suites seleccionadas pasó 65/65. No se afirma que la primera pasada general fuera limpia ni se suman repeticiones como casos nuevos.
 
 Entorno: PostgreSQL 17.11 extraído fuera del repositorio y ejecutado por el usuario sin privilegios; bases temporales en loopback. Cliente Prisma regenerado localmente. Chromium del sistema, porque la descarga del navegador Playwright previsto devuelve 403 por política de red. Sin modificar emulación, permisos ni controles de negocio para hacer pasar las pruebas.
 
@@ -73,6 +75,6 @@ Las primeras pasadas detectaron fixtures que aún esperaban reversión total dir
 5. La marca durable de descarte vive en la auditoría. No debe purgarse `VENTA_DESCARTAR` mientras pueda reintentarse su identidad. La consulta usa el índice de tenant existente; medir crecimiento antes de incorporar un índice específico. Un rollback o convivencia con backend antiguo no respeta la marca: evitar versiones mixtas cuando se habilite el flujo.
 6. Si un ADMIN solicita una anulación, necesita otro ADMIN del mismo negocio; no se permite aprobarse a sí mismo ni usar Super Admin como atajo. Las credenciales compartidas por personas no se pueden detectar técnicamente: el sistema exige identidades/sesiones separadas y conserva ambas.
 
-Recomendación final y checks del SHA publicado: ver PR. Sin merge ni despliegue.
+**Recomendación: NO MERGE hasta completar los checks del SHA final y la revisión técnica del [PR #194](https://github.com/Nelosama/FerreSystem/pull/194).** El código y las regresiones dirigidas están terminados; no se atribuyen checks de un SHA previo al último commit documental. Sin merge ni despliegue.
 
 Firma de integridad PostgreSQL: **NEXUS**.
