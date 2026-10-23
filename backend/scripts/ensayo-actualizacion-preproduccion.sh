@@ -16,6 +16,11 @@ PP="$(libre)"; API=3391
 PRODURL="postgresql://postgres@127.0.0.1:$PP/postgres"
 export JWT_SECRET="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 48)"
 export CONTINGENCIA_CLAVE_OPERACIONES="$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 48)"
+# Configuración de auth exigida en producción: valores efímeros de esta copia aislada, nunca productivos.
+export AUTH_MFA_ENCRYPTION_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+export AUTH_MAIL_RESEND_API_KEY="re_ensayo_$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)"
+export AUTH_MAIL_FROM="ensayo@example.test"
+export AUTH_PUBLIC_URL="https://ferreteria.example.test"
 PW="Ens-$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 18)"
 API_PID=""; RES=(); FALLOS=0
 fin() { [[ -n "$API_PID" ]] && kill "$API_PID" 2>/dev/null; for d in prod q; do "${AS[@]}" "$PG_BIN/pg_ctl" -D "$WORK/$d" -m immediate stop >/dev/null 2>&1; done; if [[ "${FERRE_ENSAYO_CONSERVAR:-}" == SI ]]; then echo "Registros conservados en $WORK (contienen datos de PRUEBA, no del cliente)"; else rm -rf "$WORK"; fi; }
@@ -114,7 +119,7 @@ if espera; then ok "El backend reinicia solo con el procedimiento de producción
 [[ "$(foto)" == "$SNAP1" ]] && ok "Datos idénticos tras el reinicio" "$SNAP1" || ko "Persistencia tras reinicio" "$(foto)"
 API_URL="http://127.0.0.1:$API/api" ADMIN_EMAIL=admin@piloto.invalid ADMIN_PASSWORD="$PW" CAJERO_EMAIL=cajero@piloto.invalid CAJERO_PASSWORD="$PW" SUPERADMIN_EMAIL=superadmin@piloto.invalid SUPERADMIN_PASSWORD="$PW" SUPERADMIN_MFA_CODE="$(mfa_ensayo)" node "$ROOT/backend/scripts/humo-preproduccion.mjs" > "$WORK/humo2.log" 2>&1 && ok "Humo de solo lectura tras el reinicio" "$(tail -1 "$WORK/humo2.log")" || ko "Humo tras el reinicio" "$(grep FAIL "$WORK/humo2.log" | head -2 | tr '\n' ' ')"
 kill "$API_PID" 2>/dev/null; API_PID=""
-FUGAS=0; for f in "$WORK"/api-*.log "$WORK"/humo*.log "$WORK"/verif.log "$WORK"/respaldo.log "$WORK"/deploy.err; do for v in "$CONTINGENCIA_CLAVE_OPERACIONES" "$JWT_SECRET" "$PW"; do grep -qF -- "$v" "$f" 2>/dev/null && FUGAS=$((FUGAS+1)); done; done
+FUGAS=0; for f in "$WORK"/api-*.log "$WORK"/humo*.log "$WORK"/verif.log "$WORK"/respaldo.log "$WORK"/deploy.err; do for v in "$CONTINGENCIA_CLAVE_OPERACIONES" "$AUTH_MFA_ENCRYPTION_KEY" "$JWT_SECRET" "$PW"; do grep -qF -- "$v" "$f" 2>/dev/null && FUGAS=$((FUGAS+1)); done; done
 [[ "$FUGAS" == 0 ]] && ok "Ningún secreto en registros ni salidas" "ni la clave de contingencia, ni JWT_SECRET, ni las contraseñas aparecen en los registros del backend, el humo, el respaldo o la verificación" || ko "Secretos en registros" "$FUGAS coincidencias"
 
 echo "== 7. Reversión simulada: restaurar el respaldo y proteger contra el código nuevo sobre el esquema viejo"
