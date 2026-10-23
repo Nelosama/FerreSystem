@@ -84,6 +84,7 @@ export class DevolucionItemDto {
  @IsIn(['INVENTARIO','DAÑADO','PROVEEDOR','NO_ENTREGADO']) destino!:string;
 }
 export class DevolucionDto {
+ @IsOptional() @IsBoolean() anulacion?: boolean;
  @IsUUID('4') solicitudId!:string;
  @IsString() @IsNotEmpty() @MaxLength(500) motivo!:string;
  @IsIn(['EFECTIVO','TARJETA','TRANSFERENCIA']) metodo!:string;

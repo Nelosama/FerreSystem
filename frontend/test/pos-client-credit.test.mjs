@@ -35,7 +35,7 @@ const evaluate = (file, mocks, globals = {}) => {
 const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
   let cursor = 0, root;
   const windowListeners = new Map();
-  const states = [], dependencies = [], effects = [];
+  const states = [], dependencies = [], effects = [], cleanups = [];
   const react = {
     createContext() { return { Provider: 'ContextProvider' }; },
     useState(initial) { const i = cursor++; if (!(i in states)) states[i] = typeof initial === 'function' ? initial() : initial; return [states[i], (next) => { states[i] = typeof next === 'function' ? next(states[i]) : next; }]; },
@@ -69,7 +69,8 @@ const harness = (file, name, overrides = {}, sharedStorage = storage()) => {
   return {
     render(props = {}) { cursor = 0; root = component(props); return nodes(); },
     find(predicate) { return nodes().find(predicate); },
-    async effects() { const queued = effects.splice(0); for (const [, fn] of queued) { await fn(); } await new Promise((resolve) => setImmediate(resolve)); },
+    async effects() { const queued = effects.splice(0); for (const [i, fn] of queued) { cleanups[i]?.(); cleanups[i] = await fn(); } await new Promise((resolve) => setImmediate(resolve)); },
+    unmount() { for (const dispose of cleanups) if (typeof dispose === 'function') dispose(); },
   };
 };
 
@@ -230,4 +231,29 @@ for (const caso of [
   await page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick();
   assert.equal(sent.length, 1);
   assert.equal(sent[0].descuento, caso.descuento);
+});
+
+
+test('una confirmación de descarte abierta no actúa después de desmontar el POS y cambiar de sesión', async () => {
+  const saved = storage();
+  const pendingKey = 'ferre_pending_sale:tenant-A:user-A';
+  const pending = { solicitudId: '3f2b8c1e-9a4d-4e6b-8c7a-1d2e3f4a5b6c', cart: [{ productoId: 'p1', codigo: 'P1', nombre: 'Martillo', cantidad: 1, precioUnitario: 100 }], clienteNombre: 'Consumidor Final', clienteRtn: '', metodoPago: 'EFECTIVO', descuentoPorcentaje: 0 };
+  saved.setItem(pendingKey, JSON.stringify(pending));
+  let resolver;
+  const confirmacion = new Promise(resolve => { resolver = resolve; });
+  let sesionActual = 'tenant-A:user-A';
+  const enviadas = [];
+  const page = harness('src/pages/POSPage.tsx', 'POSPage', {
+    '../utils/alertas': { alertas: { confirmar: () => confirmacion } },
+    '../utils/api': { api: { get: async () => ({ data: [] }), post: async url => { enviadas.push({ url, sesionActual }); return { data: { estado: 'DESCARTADA' } }; } } },
+  }, saved);
+  page.render(); await page.effects(); page.render();
+  page.find(n => n.type === 'button' && n.children.includes('Descartar venta')).props.onClick();
+  // Auth/sessionValidation retira el POS al cambiar de cuenta en otra pestaña.
+  // Axios usaría las nuevas credenciales al enviar una petición posterior.
+  page.unmount(); sesionActual = 'tenant-B:user-B';
+  resolver(true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(enviadas.length, 0, 'la confirmación antigua no puede consultar otro tenant y borrar la recuperación original');
+  assert.equal(saved.getItem(pendingKey), JSON.stringify(pending));
 });

@@ -1,3 +1,4 @@
+import { alertas } from '../utils/alertas';
 import { calcularVentaPOS, calcularVuelto } from '../utils/posMoney';
 import { buscarPorCodigo, filtrarCatalogo, indexarCatalogo } from '../utils/posCatalogo';
 import { Link } from 'react-router-dom';
@@ -93,6 +94,12 @@ export const POSPage: React.FC = () => {
   const pendingKey = `ferre_pending_sale:${tenant.id}:${user?.id || ''}`;
   const activeKey = useRef(pendingKey);
   activeKey.current = pendingKey;
+  useEffect(() => {
+    activeKey.current = pendingKey;
+    // Una confirmación global puede sobrevivir al POS (navegación/cambio de cuenta).
+    // Sus callbacks antiguos no deben enviar con otra sesión ni borrar su recuperación.
+    return () => { activeKey.current = ''; };
+  }, [pendingKey]);
   const draftKey = `ferre_sale_draft:${tenant.id}:${user?.id || ''}`;
   const initialRecovery = useRef(readRecovery(pendingKey, draftKey));
   const initialSale = initialRecovery.current.pending || initialRecovery.current.draft;
@@ -225,6 +232,11 @@ export const POSPage: React.FC = () => {
     setVencimiento(sale?.vencimiento || '');
     setMetodoPago(sale?.metodoPago || 'EFECTIVO');
     setEfectivoRecibido('');
+    setAutorizacionBancaria({ referencia: '', terminal: '' });
+    setSearch('');
+    setAvisoExistencia(null);
+    setClienteAbierto(false);
+    setNumeroVentaGenerado(null);
     setDescuentoPorcentaje(sale?.descuentoPorcentaje || 0);
     setSpecial(!!sale?.cart[0]?.sinInventario);
     setSpecialProvider(sale?.cart[0]?.proveedorId || '');
@@ -261,7 +273,7 @@ export const POSPage: React.FC = () => {
           setDraftError('La venta pendiente debe conservar al menos un producto. Agregue el producto correcto para continuar.');
           return;
         }
-        localStorage.setItem(pendingKey, JSON.stringify({ ...sale, solicitudId: ventaPendiente.solicitudId }));
+        localStorage.setItem(pendingKey, JSON.stringify({ ...ventaPendiente, ...sale, solicitudId: ventaPendiente.solicitudId }));
       } else saveDraft(draftKey, sale);
       setDraftError(null);
     } catch {
@@ -419,6 +431,54 @@ export const POSPage: React.FC = () => {
     setModalTicket(true);
   };
 
+  const limpiarDescarte = (requestKey: string, solicitudId?: string, expectedDraft?: string | null) => {
+    if (activeKey.current !== requestKey) return;
+    const stored = readRecovery(requestKey, draftKey);
+    if (stored.error) throw new Error(stored.error);
+    if (solicitudId ? stored.pending?.solicitudId !== solicitudId : !!stored.pending) {
+      restoreRecovery();
+      throw new Error('La venta cambió en otra pestaña. Revise la recuperación actual.');
+    }
+    if (expectedDraft !== undefined && localStorage.getItem(draftKey) !== expectedDraft) {
+      restoreRecovery();
+      throw new Error('El borrador cambió en otra pestaña. Revíselo antes de descartarlo.');
+    }
+    localStorage.removeItem(draftKey);
+    if (solicitudId) localStorage.removeItem(requestKey);
+    pendingIdentityRef.current = null;
+    restoreRecovery();
+    setErrorText(null);
+  };
+
+  const cancelarVenta = async () => {
+    if (cobrandoRef.current || comprobandoRef.current || modalTicket || storageError || loadedKey !== pendingKey) return;
+    const requestKey = pendingKey;
+    const solicitudId = ventaPendiente?.solicitudId;
+    comprobandoRef.current = true;
+    setComprobando(true);
+    try {
+      const expectedDraft = localStorage.getItem(draftKey);
+      const confirma = await alertas.confirmar({
+        titulo: solicitudId ? 'Descartar venta interrumpida' : 'Cancelar venta',
+        texto: solicitudId ? 'Se comprobará el servidor. Si la venta ya fue confirmada, se conservará y se mostrará su comprobante. Revise cualquier pago recibido antes de continuar.' : 'Se descartarán los productos y los datos de esta venta en preparación.',
+        confirmar: 'Descartar venta', peligroso: true,
+      });
+      if (!confirma || activeKey.current !== requestKey) return;
+      if (solicitudId) {
+        const { data } = await api.post(`/ventas/solicitudes/${solicitudId}/descartar`, {});
+        if (!isCurrentPending(requestKey, solicitudId)) return;
+        if (data.estado === 'REGISTRADA') { mostrarVenta(data.venta, solicitudId); return; }
+        if (data.estado !== 'DESCARTADA') throw new Error('No se pudo confirmar el descarte.');
+      }
+      limpiarDescarte(requestKey, solicitudId, expectedDraft);
+    } catch (err: any) {
+      if (activeKey.current === requestKey) setErrorText(err.response?.data?.message || err.message || 'No se pudo descartar. Revise la conexión y vuelva a intentarlo; la recuperación se conserva.');
+    } finally {
+      comprobandoRef.current = false;
+      if (activeKey.current === requestKey) setComprobando(false);
+    }
+  };
+
   const comprobarVenta = async () => {
     if (!ventaPendiente || comprobandoRef.current || cobrandoRef.current) return;
     const requestKey = pendingKey;
@@ -431,6 +491,7 @@ export const POSPage: React.FC = () => {
       if (!isCurrentPending(requestKey, solicitudId)) return;
       if (data.estado === 'REGISTRADA') mostrarVenta(data.venta, solicitudId);
       else if (data.estado === 'NO_REGISTRADA') setRecoveryStatus('NO_REGISTRADA');
+      else if (data.estado === 'DESCARTADA') limpiarDescarte(requestKey, solicitudId);
       else throw new Error('Estado inesperado');
     } catch {
       if (isCurrentPending(requestKey, solicitudId)) {
@@ -476,6 +537,7 @@ export const POSPage: React.FC = () => {
         const { data: status } = await api.get(`/ventas/solicitudes/${pendingIdentity}`);
         if (!isCurrentPending(requestKey, pendingIdentity)) return;
         if (status.estado === 'REGISTRADA') { mostrarVenta(status.venta, pendingIdentity); return; }
+        if (status.estado === 'DESCARTADA') { limpiarDescarte(requestKey, pendingIdentity); return; }
         if (status.estado !== 'NO_REGISTRADA') throw new Error('No se pudo comprobar el estado de la venta.');
       }
       const pending = stored.pending || {
@@ -548,13 +610,15 @@ export const POSPage: React.FC = () => {
 
       <main ref={contenidoRef} style={styles.content} className="ferre-pos-main">
         {(storageError || draftError) && <div role="alert" className="ferre-pos-recovery">{storageError || draftError}</div>}
-        {borradorRecuperado && !ventaPendiente && cart.length > 0 && <div role="status" className="ferre-pos-recovery">Recuperamos los productos de su venta en preparación. Revise cantidades y precios antes de cobrar. Todavía no se ha registrado.</div>}
+        {borradorRecuperado && !ventaPendiente && cart.length > 0 && <div role="status" className="ferre-pos-recovery">Recuperamos los productos de su venta en preparación. Revise cantidades y precios antes de cobrar. Todavía no se ha registrado. <button className="btn btn-secondary" disabled={comprobando || procesandoVenta} onClick={() => setBorradorRecuperado(false)}>Continuar venta</button></div>}
+        {cart.length > 0 && !ventaPendiente && !modalTicket && !storageError && <button type="button" className="btn btn-secondary" disabled={comprobando || procesandoVenta} onClick={() => void cancelarVenta()}>{borradorRecuperado ? 'Descartar venta' : 'Cancelar venta'}</button>}
         {cart.length > 0 && !ventaPendiente && !modalTicket && !storageError && !draftError && <p role="status">Borrador guardado en este equipo. Todavía no se ha registrado una venta.</p>}
         {ventaPendiente && !modalTicket && (
           <div role="status" className="ferre-pos-recovery">
             <strong>Había una venta en proceso.</strong>
             <p>{recoveryStatus === 'NO_REGISTRADA' ? 'La venta todavía no aparece registrada. Antes de continuar, compruebe si ya recibió el efectivo o si la terminal cobró. Continuar guarda esta misma venta; no vuelva a cobrar al cliente si ya pagó.' : 'Primero revise si quedó registrada. No vuelva a cobrar al cliente mientras no se confirme el resultado.'}</p>
             <button type="button" className="btn btn-primary" onClick={comprobarVenta} disabled={comprobando || procesandoVenta}>{comprobando ? 'Revisando…' : 'Revisar venta y continuar'}</button>
+            <button type="button" className="btn btn-secondary" onClick={() => void cancelarVenta()} disabled={comprobando || procesandoVenta || !!storageError}>Descartar venta</button>
             {recoveryStatus === 'NO_REGISTRADA' && !corrigiendoPendiente && <button type="button" className="btn btn-secondary" disabled={procesandoVenta || comprobando} onClick={() => setCorrigiendoPendiente(true)}>Corregir datos de esta venta</button>}
             {recoveryStatus === 'NO_REGISTRADA' && <button type="button" className="btn btn-secondary" onClick={handleCobrar} disabled={procesandoVenta || comprobando || !!storageError || !!draftError}>Ya revisé el pago: continuar registro</button>}
           </div>

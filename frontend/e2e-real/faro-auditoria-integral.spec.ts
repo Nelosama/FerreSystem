@@ -153,10 +153,11 @@ test.describe('1. Matriz de roles: costos, márgenes y permisos por endpoint', (
     expect([200, 201], await cot.text()).toContain(cot.status());
     const cotId = (await cot.json()).id;
     const numeroVenta = `FARO-M-${RU}`;
-    const vr = await venta(request, cajero, { solicitudId: randomUUID(), metodoPago: 'EFECTIVO', detalles: [{ productoId: pAprob, cantidad: 1, precioUnitario: 100 }] });
+    const vr = await venta(request, cajero, { solicitudId: randomUUID(), metodoPago: 'EFECTIVO', detalles: [{ productoId: pAprob, cantidad: 2, precioUnitario: 100 }] });
     expect(vr.status()).toBe(201);
     const ventaId = (await vr.json()).id;
     const numero = sql(`SELECT numero_venta FROM ventas WHERE id='${ventaId}'`);
+    // Fixture parcial: conserva cobertura de la ruta directa ADMIN. La anulación total exige dos cuentas (pos-cancelacion-real).
     const dev = await request.post(`${API}/operaciones/ventas/${ventaId}/devoluciones`, {
       headers: auth(admin.token),
       data: { solicitudId: randomUUID(), motivo: numeroVenta, metodo: 'EFECTIVO', items: [{ detalleId: sql(`SELECT id FROM detalles_venta WHERE venta_id='${ventaId}'`), cantidad: 1, destino: 'NO_ENTREGADO' }] },
