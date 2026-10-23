@@ -1,12 +1,57 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-23 UTC** — rama `claude/admiring-albattani-n1ruvp` con notificaciones SweetAlert2 (sección siguiente, sin merge ni despliegue). PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Resueltos los conflictos en controles de módulos/marca y contexto; validación del nuevo commit en curso. Sin merge a main, despliegue ni cambios en producción.
+Última revisión: **2026-10-23 UTC** — rediseño de navegación del Super Admin y del cajero (layout híbrido) en la rama `claude/amazing-bohr-9e5bpj`, sincronizada con `main` `ba201465` (PR #190, SweetAlert2); ver las secciones siguientes, sin merge ni despliegue. PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Sin cambios en producción.
 
 Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorporó la ronda de UX, marca y navegación. Se conservan sus bitácoras y evidencias a continuación. Detalle de seguridad: [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
 ---
+
+## Super Admin — layout híbrido (rail, topbar y pestañas) — 2026-10-23 UTC (rama `claude/amazing-bohr-9e5bpj`, sin PR, merge ni despliegue)
+
+- **Origen y alcance:** brief «Rediseño de navegación del Super Admin» (rail de iconos + topbar + pestañas contextuales). Solo reorganiza navegación y aplica el tema visual; no cambia rutas, permisos, consultas de negocio ni backend. Sin dependencias nuevas (React + CSS tradicional + lucide-react).
+- **Tema:** `frontend/src/styles/tema.css` define una sola vez los tokens del brief en `:root` (`--bg`, `--surface`, `--accent`, `--plat`…), `color-scheme: light`, `body` y `:focus-visible`. `frontend/src/styles/plataforma.css` aplica el shell; sus alias de neutros (`--color-bg`, `--color-text-main`…) y de marca se declaran solo dentro de `.platform-shell`, de modo que el teal no depende del negocio.
+- **Estructura implementada:**
+  - Rail de 84 px con cuatro áreas (Inicio, Clientes, Servicios, Seguridad) en `components/PlatformRail.tsx`; `<nav aria-label="Áreas de la plataforma">`, `aria-current`, etiquetas visibles de 11 px.
+  - Topbar de 56 px en `components/PlatformTopbar.tsx` con el área y la pill «Super Admin»; a la derecha, idioma, usuario y cierre de sesión existentes.
+  - Pestañas del área en `components/PlatformTabs.tsx` (`role="tablist"`/`tab`, `aria-selected`, flechas), solo si el área tiene más de una sección: Clientes → Negocios · Administradores; Seguridad → Auditoría · Soporte remoto · Respaldos.
+  - Detalle de negocio: breadcrumb «Negocios › Nombre», cabecera con insignia de 44 px y métricas, y cinco pestañas tipo píldora en `components/NegocioNavigation.tsx`, que también usan Configuración y Auditoría.
+  - `App.tsx`: el SUPERADMIN usa siempre el shell de plataforma, sin depender de `modoNavegacion`. `PlatformSidebar.tsx` se elimina.
+- **Rutas y datos:** `?seccion=` y todas las rutas `/admin/negocios/:id/...` se conservan. `config/platformNavigation.ts` añade áreas y etiquetas. La cabecera del negocio pide sucursales y usuarios con los listados que ya existen (si falla, muestra «—»).
+- **Responsive:** tableta (≤1024 px) con padding de 22 px, etiquetas cortas («Resumen», «Configuración», «Soporte») y métricas secundarias ocultas. Móvil (≤640 px) con el rail como barra inferior fija de cuatro iconos con etiqueta, topbar compacta y pestañas con desplazamiento horizontal sin barra visible.
+- **Pruebas:**
+  - Unitarias frontend **502/502**; `tsc -b` sin errores; lint con 117 avisos, igual que `main`.
+  - Playwright con Chromium 1194 del entorno: menu-jowa-v3, diseno-unico, navigation-settings, ux-ronda1-regresion, guide, arranque y admin-home. Resultado: la suite de cuatro archivos clave pasa **80/80** tras corregir la regresión de contraste del POS (ver abajo), y el conjunto ampliado **119/119** antes del último ajuste de test; la suite completa queda registrada en el PR cuando exista, no en este documento.
+  - Regresión detectada y corregida: aplicar `--color-bg` a todo el sistema bajaba el contraste del aviso de caja del POS (4.35:1 < 4.5:1). Los alias de neutros se limitaron a `.platform-shell`; los negocios mantienen sus colores actuales.
+  - Actualizados selectores y expectativas de navegación del SUPERADMIN en cuatro e2e (estructura nueva; las aserciones de acceso, idioma y formularios se mantienen).
+- **Evidencia visual local:** capturas de escritorio 1280, tableta 1024 y móvil 390 revisadas; no se guardan en el repositorio.
+- **Pendientes reales:**
+  - **Decisión del dueño:** el brief pide el mismo tema para todos los usuarios, pero `TenantContext` sigue aplicando el color del negocio a `--color-primary` en la app de los negocios. Hasta confirmar, no se ha cambiado ese comportamiento.
+  - La topbar de página (`TopBar`) queda oculta en el shell del Super Admin, así que Configuración y Auditoría ya no muestran su título visible. Hace falta un título de página en el shell.
+  - «Configuración y marca» enlaza a `/configuracion`; `/marca` sigue siendo una página aparte. La fusión de contenido no se hizo porque cambia lógica de formularios.
+  - La tabla de negocios no se convirtió en filas con chevron ni en dos líneas en móvil; conserva su estructura de tabla.
+  - Sin prueba en Safari, iPhone ni tableta física.
+- **Bitácora:** lectura de AGENTS y del contexto; revisión del brief y del código del Super Admin; implementación por capas (tema, shell, pestañas, negocio); corrección de TopBar con `!important` por estilo en línea; regresión de contraste en POS corregida; ajuste de e2e y capturas.
+
+## PR #191 — fallos del piloto real y duplicados de navegación — 2026-10-23 UTC (rama `claude/amazing-bohr-9e5bpj`, sin merge ni despliegue)
+
+- **Origen:** el piloto con API y PostgreSQL reales del CI (run 39883743640, job 120186955723) dio 154 aprobadas, 4 fallidas y 4 omitidas, todas en `e2e-real/administracion-cloud-real.spec.ts`.
+- **Diagnóstico (log del job):** tres fallos eran un **control duplicado real**: `getByTitle('Cerrar Sesión')` resolvía a `platform-topbar-logout` y al botón de cierre de la `TopBar` de la página, que solo estaba oculta con CSS pero seguía en el DOM (con idioma, usuario y campana también duplicados). El cuarto era un **selector desactualizado**: buscaba el menú lateral antiguo («Menú de plataforma», lista «Administración del negocio»).
+- **Corrección de la causa (sin `.first()`):** `context/PlatformShellContext.ts` marca que la página está dentro del shell del Super Admin; ahí `TopBar` solo pinta el encabezado de página (título y subtítulo, 22 px) y no renderiza idioma, usuario, caja ni cierre de sesión. La campana de notificaciones se extrajo de `TopBar` a `components/NotificacionesBell.tsx` (misma lógica y JSX) y la usan ambas barras, así que el Super Admin la conserva. `NegocioDetallePage` ya no repite su título (la cabecera del negocio lo ofrece). Resultado: un solo cierre de sesión por contexto.
+- **Pruebas reales actualizadas:** la prueba de sucursales usa el rail (áreas), las pestañas del área y las del negocio con `useInnerText`; la de visita inicial comprueba `toHaveCount(1)` del cierre de sesión antes de usarlo. Las otras dos no necesitaron cambios de selector.
+- **Cajero:** etiquetas cortas del rail «Caja» y «Mi caja» (`navigation.rail_pos`/`rail_cash`, ES/EN; el nombre completo queda como ayuda). Contraste del estado activo cubierto con contorno de 1 px (`box-shadow` inset con el color del negocio aclarado) y prueba con #F5C400, #FDE68A, #FFFFFF, #EA580C, #0F172A y #000000: icono 3:1 sobre su pastilla, etiqueta 4.5:1 sobre el rail y contorno 3:1 sobre el rail. La prueba falla sin el contorno (comprobado).
+- **Nueva `e2e/cajero-rail-simulado.spec.ts` (13 casos):** 1366×768, 1920×1080 y 1920×1080 al 125 % y 150 % (rail de 84 px, etiquetas ≥ 12 px, sin desborde, «Más» dentro de pantalla); «Más» solo con accesos existentes; un único cierre de sesión que funciona en CAJERO y SUPERADMIN; contraste con seis colores de negocio.
+- **Cerrado respecto a la sección anterior:** título de página visible en Configuración y Auditoría (encabezado del shell). Siguen pendientes los demás puntos de ese PR.
+- **Pruebas y SHA:** los resultados de cada ejecución y el SHA final se registran en el PR #191.
+
+## Cajero — rail de iconos (Inicio, Caja, Mi caja, Más) — 2026-10-23 UTC (rama `claude/amazing-bohr-9e5bpj`, sin merge ni despliegue)
+
+- **Origen:** referencia de Lovable (capturas y estructura del menú del cajero, no accesible desde el entorno) y contexto del dueño: interfaz sencilla, opciones visibles que funcionen y respeten permisos, PWA en 1366×768 y 1920×1080, texto legible, colores y logotipo del negocio. React y CSS tradicional; sin alertas nuevas (el rail no usa `confirm` ni SweetAlert2).
+- **Implementado:** `components/CajeroRail.tsx` y `styles/cajero.css`. Rail de 84 px con el logotipo del negocio, tres accesos fijos (Inicio, Caja, Mi caja, según los módulos y permisos del rol) y «Más», que abre el resto de accesos autorizados agrupados. Etiquetas de 12 px. El estado activo usa el color configurado por el negocio (`--color-primary`, aclarado para leerse sobre el fondo oscuro). Conserva el indicador de conexión con las ventas de contingencia pendientes y la atenuación «en línea» de los módulos que necesitan red, que no formaban parte de la referencia. `App.tsx` lo usa solo para CAJERO en modo barra lateral; modo barra superior, móvil (barra inferior existente), rutas y permisos sin cambios. «Más» se omite si no queda ningún acceso.
+- **Sincronización:** merge normal de `main` `ba201465` (PR #190, SweetAlert2) sobre la rama; único conflicto en este documento, resuelto conservando ambas bitácoras. Sin rebase ni force push.
+- **Pruebas:** unitarias 513/513; `tsc -b` sin errores; lint 117 avisos (= `main`). E2E de navegación y POS ajustados a la estructura nueva del cajero (resultado en el PR). Sin prueba en Windows con escalado ni en equipo físico.
+- **Pendientes reales:** la topbar de página sigue siendo la existente (no se rediseñó); el catálogo a la izquierda y carrito a la derecha del POS no se tocaron porque cambian la pantalla de cobro y sus reglas; verificar contraste del estado activo con marcas muy claras; `ADMIN`, `VENDEDOR` y `BODEGUERO` conservan el menú lateral actual.
 
 ## Notificaciones y confirmaciones con SweetAlert2 — 2026-10-23 UTC (rama `claude/admiring-albattani-n1ruvp`, sin merge ni despliegue)
 

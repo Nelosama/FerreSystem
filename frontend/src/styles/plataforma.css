@@ -1,0 +1,416 @@
+/* ==========================================================================
+   Jowa System — shell del Super Admin (layout híbrido).
+   Rail de iconos (84 px) · topbar (56 px) · pestañas del área · detalle de negocio.
+   Solo usa tokens de tema.css; no define colores propios.
+   ========================================================================== */
+
+/* El shell de plataforma usa el tema global (tema.css). Los negocios conservan sus neutros actuales,
+   así que los alias de neutros se aplican solo dentro de esta área. */
+.platform-shell {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-2);
+  --color-border: var(--line);
+  --color-border-subtle: var(--line);
+  --color-text-main: var(--ink);
+  --color-text-muted: var(--muted);
+  --font-body: var(--font-sans);
+
+  /* Tokens de marca de esta área: el teal no depende del color del negocio administrado. */
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-strong);
+  --color-primary-active: var(--accent-strong);
+  --color-primary-light: var(--accent-soft);
+  --color-primary-border: var(--accent);
+  --color-on-primary: #ffffff;
+  --color-primary-text: var(--accent-strong);
+  --color-focus-ring: var(--accent);
+  --color-selected-bg: var(--accent);
+  --color-selected-text: #ffffff;
+
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background: var(--bg);
+}
+
+/* La topbar de cada página se sustituye por la del shell (que conserva idioma, usuario y cierre de sesión). */
+/* Encabezado de página (TopBar dentro del shell): título de 22 px y subtítulo en tono secundario. */
+.platform-page-header { padding: 28px 28px 18px; }
+.platform-page-header h1 { font-size: 22px; font-weight: 600; line-height: 1.25; color: var(--ink); margin: 0; letter-spacing: normal; }
+.platform-page-header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+
+.platform-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Rail ---------- */
+.platform-rail {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  width: 84px;
+  height: 100vh;
+  flex: 0 0 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 0;
+  background: var(--plat);
+  border-right: 1px solid var(--plat-line);
+}
+
+.platform-rail-brand {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.platform-rail-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.platform-rail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--plat-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.platform-rail-pill {
+  width: 44px;
+  height: 32px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.platform-rail-item:hover { color: #ffffff; }
+.platform-rail-item:hover .platform-rail-pill { background: var(--plat-2); }
+
+.platform-rail-item.is-active { color: #ffffff; }
+.platform-rail-item.is-active .platform-rail-pill { background: rgb(15 118 110 / 0.35); }
+.platform-rail-item.is-active .platform-rail-icon { color: var(--accent-on-dark); }
+
+.platform-rail-avatar {
+  margin-top: auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--plat-2);
+  border: 1px solid var(--plat-line);
+  color: var(--plat-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---------- Topbar ---------- */
+.platform-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.platform-topbar-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.platform-topbar-area strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.platform-pill {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.platform-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.platform-topbar-actions .btn-sm,
+.platform-topbar-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.platform-topbar-actions [aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: transparent;
+}
+
+.platform-topbar-user {
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Pestañas del área ---------- */
+.platform-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.platform-tabs::-webkit-scrollbar { display: none; }
+
+/* Dentro del contenido ocupa el ancho completo de la página, con aire hasta la sección siguiente. */
+.platform-content > .platform-tabs { margin: 0 -28px 20px; }
+
+.platform-tab {
+  flex: 0 0 auto;
+  padding: 12px 14px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.platform-tab:hover { color: var(--ink); }
+
+.platform-tab[aria-selected='true'] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.platform-tab-short { display: none; }
+
+/* ---------- Contenido ---------- */
+.platform-shell .platform-content {
+  padding: 28px 28px 48px;
+  max-width: 1400px;
+  width: 100%;
+}
+
+/* ---------- Detalle de negocio: breadcrumb, cabecera y pestañas tipo píldora ---------- */
+.platform-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.platform-breadcrumb a { color: var(--muted); text-decoration: none; }
+.platform-breadcrumb a:hover { color: var(--accent-strong); text-decoration: underline; }
+.platform-breadcrumb [aria-current='page'] { color: var(--ink); font-weight: 600; }
+
+.platform-biz-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 14px 0 16px;
+}
+
+.platform-biz-head h1 {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 0;
+}
+
+.platform-biz-metrics {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.platform-biz-metrics strong { color: var(--ink); font-weight: 600; }
+
+.platform-shell .jowa-tenant-mark-lg {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--tenant-color);
+  color: var(--tenant-on-color, #ffffff);
+  font: 800 15px var(--font-display);
+  flex: 0 0 auto;
+}
+
+.platform-shell .jowa-tenant-mark { width: 32px; height: 32px; border-radius: 8px; }
+
+.platform-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 18px;
+}
+
+.platform-pill-tab {
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.platform-pill-tab:hover { color: var(--ink); }
+
+.platform-pill-tab[aria-selected='true'],
+.platform-pill-tab[aria-current='page'] {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-strong);
+}
+
+.platform-pill-short { display: none; }
+
+/* Filas de negocios: hover sobre la superficie secundaria. */
+.platform-shell .industrial-table tbody tr:hover { background: var(--surface-2); }
+
+/* ---------- Tablet (≤1024 px) ---------- */
+@media (max-width: 1024px) {
+  .platform-topbar,
+  .platform-page-header { padding: 24px 22px 14px; }
+  .platform-tabs,
+  .platform-shell .platform-content { padding-left: 22px; padding-right: 22px; }
+  .platform-content > .platform-tabs { margin: 0 -22px 20px; }
+
+  .platform-tab-long,
+  .platform-pill-long { display: none; }
+  .platform-tab-short,
+  .platform-pill-short { display: inline; }
+
+  .platform-metric--secundaria,
+  .platform-biz-metrics .platform-metric--secundaria { display: none; }
+}
+
+/* ---------- Móvil (≤640 px): rail como barra inferior de 4 iconos ---------- */
+@media (max-width: 640px) {
+  .platform-shell { flex-direction: column; }
+
+  .platform-rail {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    width: 100%;
+    height: auto;
+    flex: none;
+    flex-direction: row;
+    justify-content: space-around;
+    gap: 0;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    border-right: 0;
+    border-top: 1px solid var(--plat-line);
+  }
+
+  .platform-rail-brand,
+  .platform-rail-avatar { display: none; }
+
+  .platform-rail-list {
+    flex-direction: row;
+    justify-content: space-around;
+    gap: 0;
+    width: 100%;
+  }
+
+  .platform-rail-item { font-size: 11px; }
+  .platform-rail-pill { width: 44px; }
+
+  .platform-main { padding-bottom: 84px; }
+
+  .platform-topbar {
+    height: auto;
+    min-height: 52px;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+  }
+
+  .platform-topbar-area strong { font-size: 14px; }
+  .platform-topbar-user,
+  .platform-topbar-idioma { display: none; }
+  .platform-topbar-logout span { display: none; }
+
+  .platform-page-header { padding: 20px 16px 12px; }
+  .platform-page-header h1 { font-size: 19px; }
+  .platform-tabs { padding: 0 16px; }
+  .platform-content > .platform-tabs { margin: 0 -16px 16px; }
+  .platform-shell .platform-content { padding: 20px 16px 32px; }
+
+  .platform-biz-head h1,
+  .platform-shell .platform-title { font-size: 19px; }
+}

@@ -19,9 +19,10 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { TopBar } from '../components/TopBar';
+import { PlatformTabs } from '../components/PlatformTabs';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { SECCIONES_PLATAFORMA, SLUG_SECCION, type SeccionPlataforma } from '../config/platformNavigation';
+import { SLUG_SECCION, seccionDePlataforma, type SeccionPlataforma } from '../config/platformNavigation';
 import { ModuleControls } from '../components/ModuleControls';
 import { CATALOGO_MODULOS } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
@@ -182,15 +183,13 @@ function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
 const iniciales = inicialesNegocio;
 
 export const SuperAdminPage: React.FC = () => {
-  const { impersonateTenantAdmin, tenant: negocioActual } = useTenant();
-  // Igual que AppLayout: en modo lateral el menú de plataforma ya ofrece estas secciones.
-  const menuSuperiorVisible = negocioActual.modoNavegacion === 'TOPNAV';
+  const { impersonateTenantAdmin } = useTenant();
   const navigate = useNavigate();
   const { t } = useI18n();
 
   // La sección vive en la URL (?seccion=) para que el menú de plataforma abra cada área directamente.
   const [parametros, setParametros] = useSearchParams();
-  const tabActiva: SeccionPlataforma = SECCIONES_PLATAFORMA[parametros.get('seccion') || ''] ?? 'tenants';
+  const tabActiva: SeccionPlataforma = seccionDePlataforma(parametros);
   const setTabActiva = (tab: SeccionPlataforma) => setParametros(actual => { const siguiente = new URLSearchParams(actual); siguiente.set('seccion', SLUG_SECCION[tab]); return siguiente; });
 
   const [tenants, setTenants] = useState<TenantItem[]>([]);
@@ -536,7 +535,7 @@ export const SuperAdminPage: React.FC = () => {
     <div style={styles.container}>
       <TopBar title={t('superadmin.title') || "PANEL SUPER-ADMIN (SAAS)"} subtitle={t('uxAudit.ferresystem_owner_portal_global_control_modules')} />
 
-      <main style={styles.content}>
+      <main className="platform-content">
         {errorText && (
           <div style={{
             marginBottom: '16px',
@@ -571,7 +570,7 @@ export const SuperAdminPage: React.FC = () => {
             <div style={styles.metricLabel}>{t('superadmin.tenants_count') || "FERRETERÍAS REGISTRADAS"}</div>
           </div>
 
-          <div className="industrial-card" style={styles.metricCard}>
+          <div className="industrial-card platform-metric--secundaria" style={styles.metricCard}>
             <UserCheck size={24} strokeWidth={2.4} color="#0284C7" />
             <div style={styles.metricValue}>{adminUsers.filter(u => u.rol === 'ADMIN').length}</div>
             <div style={styles.metricLabel}>{t('superadmin.admins_count') || "USUARIOS ADMINISTRADORES"}</div>
@@ -583,17 +582,14 @@ export const SuperAdminPage: React.FC = () => {
             <div style={styles.metricLabel}>{t('superadmin.active_subscriptions') || "SUSCRIPCIONES ACTIVAS"}</div>
           </div>
 
-          <div className="industrial-card" style={styles.metricCard}>
+          <div className="industrial-card platform-metric--secundaria" style={styles.metricCard}>
             <Server size={24} strokeWidth={2.4} color="var(--color-primary-text)" />
             <div style={styles.metricValue}>{tenants.reduce((total, tenant) => total + (tenant.sucursalesCount ?? 0), 0)}</div>
             <div style={styles.metricLabel}>{t('superadmin.total_branches') || "SUCURSALES"}</div>
           </div>
         </div>
 
-        {menuSuperiorVisible && <nav aria-label={t('shell.platform_tabs')} style={styles.tabsContainer}>
-          {([['tenants', 'Clientes y usuarios administradores'], ['modulos', 'Catálogo de servicios'], ['soporte_historial', 'Soporte'], ['auditoria', 'Auditoría'], ['mantenimiento', 'Mantenimiento']] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => setTabActiva(tab)} aria-current={tabActiva === tab || tab === 'tenants' && tabActiva === 'admins' ? 'page' : undefined} style={{ ...styles.tabBtn, ...(tabActiva === tab ? styles.tabBtnActive : {}) }}>{label}</button>)}
-        </nav>}
-        {menuSuperiorVisible && (tabActiva === 'tenants' || tabActiva === 'admins') && <nav aria-label="Clientes y administradores" className="negocio-tabs"><button className="btn btn-secondary" onClick={() => setTabActiva('tenants')}>Clientes</button><button className="btn btn-secondary" onClick={() => setTabActiva('admins')}>Usuarios administradores</button></nav>}
+        <PlatformTabs seccion={tabActiva} onSelect={setTabActiva} />
 
         {/* TAB 1: GESTIÓN DE TENANTS / CLIENTES */}
         {tabActiva === 'mantenimiento' && <BackupStatus />}

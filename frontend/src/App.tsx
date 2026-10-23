@@ -6,6 +6,10 @@ import { TenantProvider } from './context/TenantContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { I18nProvider } from './context/I18nContext';
 import { Sidebar } from './components/Sidebar';
+import { PlatformRail } from './components/PlatformRail';
+import { PlatformTopbar } from './components/PlatformTopbar';
+import { CajeroRail } from './components/CajeroRail';
+import { PlatformShellContext } from './context/PlatformShellContext';
 import { TopNavigation } from './components/TopNavigation';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -138,8 +142,9 @@ const HomeRoute: React.FC = () => {
 
 // Layout principal que admite modo Sidebar lateral o modo TopNav horizontal
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { tenant } = useTenant();
+  const { tenant, user } = useTenant();
   const isTopNav = tenant.modoNavegacion === 'TOPNAV';
+
   const [isMobile, setIsMobile] = React.useState(
     typeof window !== 'undefined' ? window.innerWidth <= 768 : false
   );
@@ -153,10 +158,28 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Super Admin: layout híbrido de plataforma (rail de iconos, topbar y pestañas), sin depender del modo del negocio.
+  if (user?.rol === 'SUPERADMIN') {
+    return (
+      <CajaProvider>
+        <PlatformShellContext.Provider value={true}>
+          <div className="platform-shell">
+            <PlatformRail />
+            <div data-guide-content className="platform-main">
+              <PlatformTopbar />
+              <Guide />
+              {children}
+            </div>
+          </div>
+        </PlatformShellContext.Provider>
+      </CajaProvider>
+    );
+  }
+
   return (
     <CajaProvider>
     <div className={isTopNav ? "app-container-topnav" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
-      {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : <Sidebar />}
+      {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : user?.rol === 'CAJERO' ? <CajeroRail /> : <Sidebar />}
       <div data-guide-content
         className="main-content"
         style={{

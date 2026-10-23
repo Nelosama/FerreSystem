@@ -29,6 +29,8 @@ test('visita inicial y aviso antiguo no muestran sesión expirada; logout tampoc
   await page.reload();
   await expect(page.getByText(/Tu sesión ha expirado/)).toHaveCount(0);
   await entrar(page);
+  // Un solo cierre de sesión accesible en el shell del Super Admin (la topbar de plataforma).
+  await expect(page.getByTitle(/^(Cerrar Sesión|Log Out)$/)).toHaveCount(1);
   await page.getByTitle(/^(Cerrar Sesión|Log Out)$/).click();
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByText(/Tu sesión ha expirado/)).toHaveCount(0);
@@ -36,12 +38,11 @@ test('visita inicial y aviso antiguo no muestran sesión expirada; logout tampoc
 
 test('Super Admin gestiona sucursales con persistencia y desactivación real', async ({ page }) => {
   await entrar(page);
-  // Modo lateral: las secciones de plataforma están en el menú lateral y no se repiten como pestañas.
-  await expect(page.getByRole('navigation', { name: 'Menú de plataforma' }).getByRole('link')).toHaveText(['Negocios', 'Usuarios administradores', 'Catálogo de servicios', 'Soporte remoto', 'Auditoría', 'Mantenimiento y respaldos']);
-  await expect(page.getByRole('navigation', { name: 'Administración de plataforma' })).toHaveCount(0);
+  // El rail ofrece las cuatro áreas; las secciones de cada área son pestañas (aquí, Clientes).
+  await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' }).getByRole('list').getByRole('link')).toHaveText(['Inicio', 'Clientes', 'Servicios', 'Seguridad']);
+  await expect(page.getByRole('tablist', { name: 'Clientes' }).getByRole('tab')).toHaveText(['Negocios', 'Administradores'], { useInnerText: true });
   await page.goto(`/admin/negocios/${A}`);
-  await expect(page.getByRole('list', { name: 'Administración del negocio' }).getByRole('link')).toHaveText(['Resumen y sucursales','Servicios','Usuarios','Marca y navegación','Configuración','Auditoría']);
-  await expect(page.getByRole('navigation', { name: 'Administración del negocio' })).toHaveCount(0);
+  await expect(page.getByRole('tablist', { name: 'Administración del negocio' }).getByRole('tab')).toHaveText(['Resumen y sucursales', 'Usuarios', 'Servicios', 'Configuración y marca', 'Auditoría'], { useInnerText: true });
   await expect(page.getByRole('heading', { name: 'Sucursales del negocio' })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('negocio-resumen.png'), fullPage: true });
   await page.getByRole('button', { name: 'Crear sucursal' }).click();

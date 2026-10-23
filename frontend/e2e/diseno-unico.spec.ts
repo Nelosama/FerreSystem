@@ -96,10 +96,11 @@ test('SUPERADMIN: todas las secciones de plataforma abren y el menú del negocio
   await preparar(page, 'SUPERADMIN', {});
   for (const seccion of ['negocios', 'administradores', 'servicios', 'soporte', 'auditoria', 'mantenimiento']) {
     await page.goto(`/admin?seccion=${seccion}`);
-    await expect(page.locator(`aside.jowa-platform-sidebar a[href="/admin?seccion=${seccion === 'servicios' ? 'servicios' : seccion}"]`)).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('.platform-rail-item.is-active')).toHaveCount(1);
+    await expect(page.locator('.platform-rail-item.is-active')).toHaveAttribute('aria-current', 'page');
   }
   await page.goto('/admin/negocios/ux-company/marca');
-  await expect(page.locator('aside.jowa-platform-sidebar .jowa-platform-context')).toBeVisible();
+  await expect(page.locator('.platform-pills')).toBeVisible();
   await expect(page.locator('.negocio-tabs')).toHaveCount(0);
   expect(errores).toEqual([]);
 });

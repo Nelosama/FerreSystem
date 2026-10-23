@@ -803,6 +803,8 @@
     "pending_sales": "{count} sales to send",
     "more_options": "More options for {name}",
     "more_short": "More",
+    "rail_pos": "Register",
+    "rail_cash": "My register",
     "home_link": "Jowa System: go to Home",
     "platform": "Platform",
     "connection_status": "Connection status",
