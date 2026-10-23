@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync, mkdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { createServer } from 'node:net';
@@ -44,7 +44,16 @@ describe('Authentication recovery on disposable PostgreSQL', () => {
     const server = createServer(); await new Promise<void>(done => server.listen(0, '127.0.0.1', done));
     const port = (server.address() as any).port; await new Promise<void>(done => server.close(() => done()));
     run(exe('initdb'), ['-D', join(directory, 'data'), '-U', 'postgres', '-A', 'trust', '--locale=C', '-E', 'UTF8']);
-    run(exe('pg_ctl'), ['-D', join(directory, 'data'), '-o', `-p ${port} -h 127.0.0.1`, '-l', join(directory, 'postgres.log'), '-w', 'start']); started = true;
+    // Linux runners cannot write the distribution's shared /var/run/postgresql
+    // socket directory. Keep sockets inside this test's disposable directory.
+    const socket = process.platform === 'win32' ? '' : ` -k ${directory}`;
+    try {
+      run(exe('pg_ctl'), ['-D', join(directory, 'data'), '-o', `-p ${port} -h 127.0.0.1${socket}`, '-l', join(directory, 'postgres.log'), '-w', 'start']); started = true;
+    } catch (error) {
+      const log = join(directory, 'postgres.log');
+      if (existsSync(log)) console.error(readFileSync(log, 'utf8'));
+      throw error;
+    }
     url = `postgresql://postgres@127.0.0.1:${port}/postgres`;
     const previous = join(directory, 'previous'); mkdirSync(previous);
     cpSync(join(root, 'prisma/schema.prisma'), join(previous, 'schema.prisma'));
