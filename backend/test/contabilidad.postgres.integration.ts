@@ -291,6 +291,39 @@ describe('Contabilidad Honduras / PostgreSQL aislado', () => {
     await como(u.contadorB).post('/contabilidad/asientos', { fecha: '2026-09-30', concepto: 'Ajeno', lineas: [{ cuentaId: efectivo.id, debe: 1 }, { cuentaId: ingresos.id, haber: 1 }] }).expect(404);
   });
 
+  it('libro mayor: saldo inicial, saldo acumulado por naturaleza, reversión, aislamiento y permisos', async () => {
+    const cuentas = (await como(u.contadorA).get('/contabilidad/cuentas').expect(200)).body;
+    const efectivo = cuentas.find((k: any) => k.codigo === '1.1'), ingresos = cuentas.find((k: any) => k.codigo === '4');
+    // Movimiento de octubre: el saldo inicial de octubre debe ser el acumulado de septiembre; septiembre ya quedó en cero por la reversión.
+    const oct = (await como(u.contadorA).post('/contabilidad/asientos', { fecha: '2026-10-05', concepto: 'Ventas de octubre', lineas: [{ cuentaId: efectivo.id, debe: 500 }, { cuentaId: ingresos.id, haber: 500 }] }).expect(201)).body;
+    expect(oct.numero).toBeGreaterThan(2);
+    const sep = (await como(u.contadorA).get(`/contabilidad/mayor?cuentaId=${efectivo.id}&${periodo}`).expect(200)).body;
+    expect(sep.cuenta).toMatchObject({ codigo: '1.1', naturaleza: 'DEUDORA' });
+    expect(sep.saldoInicial).toBe(0);
+    expect(sep.movimientos.map((m: any) => [m.debe, m.haber, m.saldo])).toEqual([[1150, 0, 1150], [0, 1150, 0]]);
+    expect(sep.totales).toEqual({ debe: 1150, haber: 1150 });
+    expect(sep.saldoFinal).toBe(0);
+    const octubre = (await como(u.contadorA).get(`/contabilidad/mayor?cuentaId=${efectivo.id}&anio=2026&mes=10`).expect(200)).body;
+    expect(octubre.saldoInicial).toBe(0);
+    expect(octubre.movimientos.map((m: any) => m.saldo)).toEqual([500]);
+    // Cuenta acreedora: el saldo crece con el haber.
+    const ing = (await como(u.contadorA).get(`/contabilidad/mayor?cuentaId=${ingresos.id}&anio=2026&mes=10`).expect(200)).body;
+    expect(ing.saldoInicial).toBe(0);
+    expect(ing.movimientos.map((m: any) => m.saldo)).toEqual([500]);
+    const nov = (await como(u.contadorA).get(`/contabilidad/mayor?cuentaId=${efectivo.id}&anio=2026&mes=11`).expect(200)).body;
+    expect(nov).toMatchObject({ saldoInicial: 500, movimientos: [], saldoFinal: 500 });
+    // La balanza de noviembre arrastra el mismo saldo inicial.
+    const bal = (await como(u.contadorA).get('/contabilidad/balanza?anio=2026&mes=11').expect(200)).body;
+    expect(bal.cuentas.find((k: any) => k.codigo === '1.1')).toMatchObject({ saldoInicial: 500, debePeriodo: 0, haberPeriodo: 0, saldo: 500 });
+    // Exportación Excel del mayor: exige la cuenta y respeta empresa y permisos.
+    await como(u.contadorA).get(`/contabilidad/exportar/mayor?${periodo}&formato=xlsx`).expect(400);
+    await descargar(`/contabilidad/exportar/mayor?${periodo}&formato=xlsx&cuentaId=${efectivo.id}`, u.contadorA).expect(200);
+    // Aislamiento: ni la cuenta ni el mayor de A son visibles para B; sin módulo o con otro rol, no hay acceso.
+    await como(u.contadorB).get(`/contabilidad/mayor?cuentaId=${efectivo.id}&${periodo}`).expect(404);
+    await como(u.cajeroA).get(`/contabilidad/mayor?cuentaId=${efectivo.id}&${periodo}`).expect(403);
+    await como(u.contadorA).get(`/contabilidad/mayor?cuentaId=${efectivo.id}&anio=2026`).expect(400);
+  });
+
   it('exportaciones CSV, Excel y PDF autorizadas en el servidor', async () => {
     const csv = await como(u.contadorA).get(`/contabilidad/exportar/ventas?${periodo}&formato=csv`).expect(200);
     expect(csv.headers['content-type']).toContain('text/csv');

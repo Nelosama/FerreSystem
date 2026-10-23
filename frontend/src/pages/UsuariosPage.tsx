@@ -95,13 +95,13 @@ export function formatUsuarioApiError(err: any, defaultMsg: string, t: (key: str
 
 export const UsuariosPage: React.FC = () => {
   const { t } = useI18n();
-  const { user: sesionActual } = useTenant();
+  const { user: sesionActual, tenant: negocioActual } = useTenant();
   // Desactivar/reactivar: confirmación explícita; la cuenta propia no se puede desactivar.
   const [usuarioPorCambiarEstado, setUsuarioPorCambiarEstado] = useState<Usuario | null>(null);
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [errorCambioEstado, setErrorCambioEstado] = useState<string | null>(null);
 
-  const TODOS_LOS_PERMISOS = [
+  const PERMISOS_BASE = [
     { clave: 'pos.vender', labelKey: 'users.perm_pos_vender' },
     // No hay «anular venta»: una venta se revierte con una devolución (directa solo ADMIN; el resto la solicita
     // y un administrador la autoriza). Un permiso que el servidor no aplica no se ofrece (JW-09).
@@ -115,11 +115,15 @@ export const UsuariosPage: React.FC = () => {
     { clave: 'reportes.ver', labelKey: 'users.perm_rep_ver' },
     { clave: 'usuarios.gestionar', labelKey: 'users.perm_usr_gestionar' },
     { clave: 'configuracion.editar', labelKey: 'users.perm_cfg_editar' },
+  ];
+  // Los permisos de Contabilidad solo se ofrecen cuando el negocio tiene el módulo contratado (Super Admin); apagado, no hay nada que conceder.
+  const PERMISOS_CONTABILIDAD = [
     { clave: 'contabilidad.ver', labelKey: 'users.perm_cont_ver' },
     { clave: 'contabilidad.registrar', labelKey: 'users.perm_cont_registrar' },
     { clave: 'contabilidad.configurar', labelKey: 'users.perm_cont_configurar' },
     { clave: 'contabilidad.cerrar_periodo', labelKey: 'users.perm_cont_cerrar' },
   ];
+  const TODOS_LOS_PERMISOS = negocioActual.modulosHabilitados?.includes('contabilidad') ? [...PERMISOS_BASE, ...PERMISOS_CONTABILIDAD] : PERMISOS_BASE;
 
   const [listaUsuarios, setListaUsuarios] = useState<Usuario[]>([]);
   const [loadingList, setLoadingList] = useState(false);

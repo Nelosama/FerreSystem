@@ -115,7 +115,7 @@ test('omitir persiste y Ayuda permite retomarla', async ({ page }) => {
 });
 
 for (const width of [1280, 390]) {
-  test(`integración #188: marca y navegación conservan los 17 controles y la guía en ${width}px`, async ({ page }) => {
+  test(`integración #188: marca y navegación conservan los 17 controles (16 + Contabilidad, de activación explícita) y la guía en ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const api = await setup(page, 'SUPERADMIN', { modules: [] });
     await page.goto('/admin/negocios/guide-company/marca');

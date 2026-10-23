@@ -1,0 +1,16 @@
+/* Navegación por secciones del módulo de Contabilidad (móvil para el CONTADOR; siempre para el ADMIN). */
+.contador-secciones ul { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+/* Sin desplazamiento horizontal: el contenedor de la página se ajusta al contenido y un listado en una sola línea lo ensancharía. */
+.contador-seccion { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--plat-line, #d6d3d1); background: var(--surface, #fff); color: var(--color-text-main, #1c1917); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.contador-seccion.is-active { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-on-primary, #fff); }
+.contador-seccion:focus-visible { outline: 2px solid var(--color-primary-text, #1c1917); outline-offset: 2px; }
+@media (min-width: 769px) { .contador-secciones.solo-movil { display: none; } }
+.contador-checks { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.contador-tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.contador-tarjeta { border: 1px solid var(--plat-line, #d6d3d1); border-radius: 12px; padding: 14px 16px; background: var(--surface, #fff); }
+.contador-tarjeta h2 { font-size: 13px; font-weight: 600; margin: 0 0 6px; color: var(--color-text-muted, #57534e); }
+.contador-tarjeta strong { display: block; font-size: 22px; line-height: 1.2; }
+.contador-tarjeta small { color: var(--color-text-muted, #57534e); }
+.contador-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.cajero-rail-panel ul { list-style: none; margin: 0; padding: 0; }

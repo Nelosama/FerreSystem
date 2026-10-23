@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../context/I18nContext';
+import { alertas } from '../utils/alertas';
+import { descargarReporte } from '../utils/descargaContabilidad';
+import { ContadorSecciones } from '../components/ContadorSecciones';
 import { useTenant } from '../context/TenantContext';
 import { api } from '../utils/api';
 import { diaCalendarioEnZona, formatLempiras } from '../utils/format';
 import type { Pestana } from '../utils/contabilidad';
 import type { FormatoDescarga } from '../utils/contabilidad';
 import {
-  PESTANAS, consultaPeriodo, etiquetaHallazgo, importeOpcional, mensajeError, mensajeErrorDescarga, nombreExportacion, numeroFiscalValido, periodoAnterior, prepararAsiento,
+  PESTANAS, consultaPeriodo, etiquetaHallazgo, importeOpcional, mensajeError, mensajeErrorDescarga, numeroFiscalValido, periodoAnterior, prepararAsiento,
 } from '../utils/contabilidad';
 import './OperacionesPage.css';
 
@@ -19,12 +22,19 @@ const TIPOS = ['01', '04', '05', '06', '07', '09', '10', '11', '12'];
 const IMPORTES = ['importeExento', 'importeExonerado', 'importeGravadoGeneral', 'importeGravadoEspecial', 'isvGeneral', 'isvEspecial'] as const;
 const L = (v: unknown) => formatLempiras(Number(v ?? 0));
 
-export const ContabilidadPage: React.FC = () => {
+interface ContabilidadPageProps {
+  /** Pestañas de la sección; con una sola no se muestra la barra de pestañas. Por defecto, todas (vista completa del ADMIN). */
+  tabs?: readonly Pestana[];
+  /** Clave de traducción del título de la sección. */
+  titleKey?: string;
+}
+
+export const ContabilidadPage: React.FC<ContabilidadPageProps> = ({ tabs = PESTANAS, titleKey = 'accounting.title' }) => {
   const { t } = useI18n();
   const { user } = useTenant();
   const puede = useCallback((permiso: string) => user?.rol === 'ADMIN' || !user?.permisosConfigurados || !!user?.permisos?.includes(permiso), [user]);
   const [periodo, setPeriodo] = useState(() => periodoAnterior(diaCalendarioEnZona()));
-  const [pestana, setPestana] = useState<Pestana>('resumen');
+  const [pestana, setPestana] = useState<Pestana>(tabs[0] ?? 'resumen');
   const [datos, setDatos] = useState<Record<string, any>>({});
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
@@ -44,9 +54,14 @@ export const ContabilidadPage: React.FC = () => {
       documentos: { documentos: `/contabilidad/documentos?${q}` },
       retenciones: { retenciones: `/contabilidad/retenciones?${q}`, documentos: `/contabilidad/documentos?${q}`, configuracion: '/contabilidad/configuracion' },
       configuracion: { configuracion: '/contabilidad/configuracion' },
-      periodos: { periodos: `/contabilidad/periodos?anio=${periodo.anio}` },
+      periodos: { periodos: `/contabilidad/periodos?anio=${periodo.anio}`, conciliacion: `/contabilidad/conciliacion?${q}`, balanza: `/contabilidad/balanza?${q}` },
       partida: { cuentas: '/contabilidad/cuentas', asientos: `/contabilidad/asientos?${q}`, balanza: `/contabilidad/balanza?${q}` },
       ajustes: { ajustes: `/contabilidad/ajustes?${q}` },
+      asientos: { cuentas: '/contabilidad/cuentas', asientos: `/contabilidad/asientos?${q}` },
+      catalogo: { cuentas: '/contabilidad/cuentas' },
+      balanza: { balanza: `/contabilidad/balanza?${q}` },
+      mayor: { cuentas: '/contabilidad/cuentas' },
+      excel: {},
     };
     try {
       const entradas = await Promise.all(Object.entries(rutas[pestana]).map(async ([k, ruta]) => [k, (await api.get(ruta)).data] as const));
@@ -70,16 +85,8 @@ export const ContabilidadPage: React.FC = () => {
   // Descarga: Excel por defecto. Las consultas de catálogo y de períodos dependen solo del año.
   const exportar = async (reporte: string, formato: FormatoDescarga, direccion?: string) => {
     setError(''); setMensaje('');
-    const alcance = reporte === 'catalogo' || reporte === 'periodos' ? `anio=${periodo.anio}` : q;
-    const nombre = nombreExportacion(reporte, periodo.anio, periodo.mes, formato);
     try {
-      const res = await api.get(`/contabilidad/exportar/${reporte}?${alcance}&formato=${formato}${direccion ? `&direccion=${direccion}` : ''}`, { responseType: 'blob' });
-      const url = URL.createObjectURL(res.data as Blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = nombre;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMensaje(t('accounting.file_ready', { name: nombre }));
+      setMensaje(t('accounting.file_ready', { name: await descargarReporte(reporte, formato, periodo, direccion) }));
     } catch (e) { setError(await mensajeErrorDescarga(e, t, t('accounting.export_error'))); }
   };
 
@@ -93,6 +100,9 @@ export const ContabilidadPage: React.FC = () => {
     periodos: { excel: ['periodos'], csvPdf: 'periodos' },
     partida: { excel: ['diario', 'balanza', 'catalogo'], csvPdf: 'balanza' },
     ajustes: { excel: ['ajustes'], csvPdf: 'ajustes' },
+    asientos: { excel: ['diario'] },
+    catalogo: { excel: ['catalogo'] },
+    balanza: { excel: ['balanza'], csvPdf: 'balanza' },
   };
   const exportacion = EXPORTACIONES[pestana];
   const dirDocumentos = pestana === 'documentos' ? direccionDocs : '';
@@ -100,8 +110,9 @@ export const ContabilidadPage: React.FC = () => {
 
   return (
     <div className="operation-page" data-testid="contabilidad-page">
-      <h1>{t('accounting.title')}</h1>
-      <p className="form-hint">{t('accounting.help')}</p>
+      <ContadorSecciones />
+      <h1>{t(titleKey)}</h1>
+      {titleKey === 'accounting.title' && <p className="form-hint">{t('accounting.help')}</p>}
       <div className="operation-card operation-actions">
         <label>{t('accounting.period')}{' '}
           <input className="form-input" type="month" aria-label={t('accounting.period')} value={mesValor} max={diaCalendarioEnZona().slice(0, 7)}
@@ -132,13 +143,13 @@ export const ContabilidadPage: React.FC = () => {
         )}
         <button type="button" className="btn btn-secondary" onClick={() => void exportar('mensual', 'xlsx')}>{t('accounting.export_month_book')}</button>
       </div>
-      <div role="tablist" aria-label={t('accounting.sections')} className="operation-actions">
-        {PESTANAS.map(p => (
+      {tabs.length > 1 && <div role="tablist" aria-label={t('accounting.sections')} className="operation-actions">
+        {tabs.map(p => (
           <button key={p} type="button" role="tab" aria-selected={pestana === p} className={`btn ${pestana === p ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setPestana(p); setMensaje(''); }}>
             {t(`accounting.tab.${p}`)}
           </button>
         ))}
-      </div>
+      </div>}
       {(errorCarga || error) && <div className="operation-error" role="alert">{errorCarga || error}</div>}
       {mensaje && <div className="operation-success" role="status">{mensaje}</div>}
       {cargando && <p aria-busy="true">{t('accounting.loading')}</p>}
@@ -149,9 +160,15 @@ export const ContabilidadPage: React.FC = () => {
           {pestana === 'documentos' && datos.documentos && <Documentos documentos={datos.documentos} puedeRegistrar={puede('contabilidad.registrar')} enviando={enviando} enviar={enviar} t={t} />}
           {pestana === 'retenciones' && datos.retenciones && <Retenciones datos={datos} puedeRegistrar={puede('contabilidad.registrar')} enviando={enviando} enviar={enviar} t={t} />}
           {pestana === 'configuracion' && datos.configuracion && <Configuracion datos={datos.configuracion} puedeConfigurar={puede('contabilidad.configurar')} enviando={enviando} enviar={enviar} t={t} />}
+          {pestana === 'periodos' && datos.periodos && <ValidacionesCierre conciliacion={datos.conciliacion} balanza={datos.balanza} t={t} />}
           {pestana === 'periodos' && datos.periodos && <Periodos periodos={datos.periodos} puedeCerrar={puede('contabilidad.cerrar_periodo')} puedeReabrir={user?.rol === 'ADMIN'} enviando={enviando} enviar={enviar} t={t} />}
-          {pestana === 'partida' && datos.cuentas && <Partida datos={datos} puedeRegistrar={puede('contabilidad.registrar')} enviando={enviando} enviar={enviar} t={t} />}
+          {pestana === 'partida' && datos.cuentas && <Partida vista="todo" datos={datos} puedeRegistrar={puede('contabilidad.registrar')} enviando={enviando} enviar={enviar} t={t} />}
           {pestana === 'ajustes' && datos.ajustes && <Ajustes ajustes={datos.ajustes} t={t} />}
+          {pestana === 'asientos' && datos.cuentas && <Partida vista="asientos" datos={datos} puedeRegistrar={puede('contabilidad.registrar')} enviando={enviando} enviar={enviar} t={t} />}
+          {pestana === 'catalogo' && datos.cuentas && <Partida vista="catalogo" datos={datos} puedeRegistrar={puede('contabilidad.registrar')} enviando={enviando} enviar={enviar} t={t} />}
+          {pestana === 'balanza' && datos.balanza && <Partida vista="balanza" datos={datos} puedeRegistrar={false} enviando={enviando} enviar={enviar} t={t} />}
+          {pestana === 'mayor' && datos.cuentas && <Mayor cuentas={datos.cuentas} periodo={periodo} q={q} t={t} />}
+          {pestana === 'excel' && <CentroExcel exportar={exportar} t={t} />}
         </>
       )}
     </div>
@@ -411,8 +428,8 @@ const Periodos: React.FC<{ periodos: Fila[]; puedeCerrar: boolean; puedeReabrir:
             <tr key={etiqueta}>
               <td>{etiqueta}</td><td>{t(`accounting.period_state.${p.estado}`)}</td><td>{p.cerradoPor ?? '—'}</td>
               <td>
-                {p.estado === 'ABIERTO' && puedeCerrar && terminado && <button type="button" className="btn btn-secondary" disabled={enviando || motivo.trim().length < 3} onClick={() => void enviar(() => api.post(`/contabilidad/periodos/${p.anio}/${p.mes}/cerrar`, { motivo: motivo.trim() }), t('accounting.period_closed'))}>{t('accounting.close')}</button>}
-                {p.estado === 'CERRADO' && puedeReabrir && <button type="button" className="btn btn-secondary" disabled={enviando || motivo.trim().length < 3} onClick={() => void enviar(() => api.post(`/contabilidad/periodos/${p.anio}/${p.mes}/reabrir`, { motivo: motivo.trim() }), t('accounting.period_reopened'))}>{t('accounting.reopen')}</button>}
+                {p.estado === 'ABIERTO' && puedeCerrar && terminado && <button type="button" className="btn btn-secondary" disabled={enviando || motivo.trim().length < 3} onClick={async () => { if (await alertas.confirmar({ texto: t('accounting.close_confirm', { period: etiqueta }), peligroso: true })) await enviar(() => api.post(`/contabilidad/periodos/${p.anio}/${p.mes}/cerrar`, { motivo: motivo.trim() }), t('accounting.period_closed')); }}>{t('accounting.close')}</button>}
+                {p.estado === 'CERRADO' && puedeReabrir && <button type="button" className="btn btn-secondary" disabled={enviando || motivo.trim().length < 3} onClick={async () => { if (await alertas.confirmar({ texto: t('accounting.reopen_confirm', { period: etiqueta }), peligroso: true })) await enviar(() => api.post(`/contabilidad/periodos/${p.anio}/${p.mes}/reabrir`, { motivo: motivo.trim() }), t('accounting.period_reopened')); }}>{t('accounting.reopen')}</button>}
               </td>
             </tr>
           );
@@ -423,16 +440,18 @@ const Periodos: React.FC<{ periodos: Fila[]; puedeCerrar: boolean; puedeReabrir:
   );
 };
 
-const Partida: React.FC<{ datos: Fila; puedeRegistrar: boolean; enviando: boolean; enviar: Enviar; t: T }> = ({ datos, puedeRegistrar, enviando, enviar, t }) => {
-  const cuentas: Fila[] = datos.cuentas;
+const Partida: React.FC<{ vista: 'todo' | 'asientos' | 'catalogo' | 'balanza'; datos: Fila; puedeRegistrar: boolean; enviando: boolean; enviar: Enviar; t: T }> = ({ vista, datos, puedeRegistrar, enviando, enviar, t }) => {
+  const cuentas: Fila[] = datos.cuentas ?? [];
+  const ver = (parte: 'catalogo' | 'asientos' | 'balanza') => vista === 'todo' || vista === parte;
   const [cuenta, setCuenta] = useState({ codigo: '', nombre: '', tipo: 'ACTIVO', naturaleza: 'DEUDORA', padreId: '' });
   const [asiento, setAsiento] = useState({ fecha: diaCalendarioEnZona(), concepto: '', lineas: [{ cuentaId: '', debe: '', haber: '' }, { cuentaId: '', debe: '', haber: '' }] });
+  const [reversion, setReversion] = useState<{ id: string; numero: number; motivo: string; fecha: string } | null>(null);
   const preparado = useMemo(() => prepararAsiento(asiento.lineas), [asiento.lineas]);
   const movibles = cuentas.filter(k => k.activa && k.aceptaMovimientos);
   const setLinea = (i: number, k: string, v: string) => setAsiento({ ...asiento, lineas: asiento.lineas.map((l, j) => (j === i ? { ...l, [k]: v } : l)) });
   return (
     <>
-      <section className="operation-card">
+      {ver('catalogo') && <section className="operation-card">
         <h2>{t('accounting.chart_of_accounts')}</h2>
         <Tabla filas={cuentas} columnas={['codigo', 'nombre', 'tipo', 'naturaleza', 'aceptaMovimientos']} t={t} />
         {puedeRegistrar && (
@@ -445,8 +464,8 @@ const Partida: React.FC<{ datos: Fila; puedeRegistrar: boolean; enviando: boolea
             <button type="submit" className="btn btn-primary" disabled={enviando}>{t('accounting.add')}</button>
           </form>
         )}
-      </section>
-      {puedeRegistrar && (
+      </section>}
+      {ver('asientos') && puedeRegistrar && (
         <form className="operation-card operation-form" aria-label={t('accounting.new_entry')} onSubmit={async e => { e.preventDefault(); await enviar(() => api.post('/contabilidad/asientos', { fecha: asiento.fecha, concepto: asiento.concepto.trim(), lineas: preparado.lineas }), t('accounting.entry_saved')); }}>
           <h2 style={{ width: '100%' }}>{t('accounting.new_entry')}</h2>
           <label>{t('accounting.date')}<input className="form-input" type="date" required value={asiento.fecha} onChange={e => setAsiento({ ...asiento, fecha: e.target.value })} /></label>
@@ -463,19 +482,34 @@ const Partida: React.FC<{ datos: Fila; puedeRegistrar: boolean; enviando: boolea
           <button type="submit" className="btn btn-primary" disabled={enviando || !preparado.cuadra}>{t('accounting.save')}</button>
         </form>
       )}
-      <section className="operation-card">
+      {ver('asientos') && <section className="operation-card">
         <h2>{t('accounting.journal')}</h2>
         {datos.asientos.length === 0 ? <p>{t('accounting.empty')}</p> : datos.asientos.map((a: Fila) => (
           <div key={a.id} className="operation-table">
-            <p><strong>#{a.numero}</strong> · {a.fecha} · {a.concepto} · {a.estado}</p>
+            <p><strong>#{a.numero}</strong> · {a.fecha} · {a.concepto} · {a.estado}
+              {puedeRegistrar && a.estado === 'CONTABILIZADO' && a.origen !== 'REVERSION' && (
+                <button type="button" className="btn btn-secondary" style={{ marginLeft: 8 }} disabled={enviando} onClick={() => setReversion(reversion?.id === a.id ? null : { id: a.id, numero: a.numero, motivo: '', fecha: diaCalendarioEnZona() })}>{t('accounting.revert')}</button>
+              )}
+            </p>
             <table><tbody>{a.lineas.map((l: Fila, i: number) => <tr key={i}><td>{l.codigo} {l.nombre}</td><td>{Number(l.debe) > 0 ? L(l.debe) : ''}</td><td>{Number(l.haber) > 0 ? L(l.haber) : ''}</td></tr>)}</tbody></table>
+            {reversion && reversion.id === a.id && (
+              <form className="operation-form" aria-label={t('accounting.revert_entry', { n: a.numero })} onSubmit={async e => {
+                e.preventDefault();
+                if (!(await alertas.confirmar({ texto: t('accounting.revert_confirm', { n: a.numero }), peligroso: true }))) return;
+                if (await enviar(() => api.post(`/contabilidad/asientos/${a.id}/revertir`, { fecha: reversion.fecha, motivo: reversion.motivo.trim() }), t('accounting.entry_reverted', { n: a.numero }))) setReversion(null);
+              }}>
+                <label>{t('accounting.date')}<input className="form-input" type="date" required min={a.fecha} value={reversion.fecha} onChange={e => setReversion({ ...reversion, fecha: e.target.value })} /></label>
+                <label>{t('accounting.reason')}<input className="form-input" required minLength={3} maxLength={400} value={reversion.motivo} onChange={e => setReversion({ ...reversion, motivo: e.target.value })} /></label>
+                <button type="submit" className="btn btn-primary" disabled={enviando || reversion.motivo.trim().length < 3}>{t('accounting.revert_confirm_button')}</button>
+              </form>
+            )}
           </div>
         ))}
-      </section>
-      <section className="operation-card">
+      </section>}
+      {ver('balanza') && <section className="operation-card">
         <h2>{t('accounting.trial_balance')} · {datos.balanza.totales.cuadra ? t('accounting.balanced') : t('accounting.unbalanced')}</h2>
-        <Tabla filas={datos.balanza.cuentas} columnas={['codigo', 'nombre', 'debePeriodo', 'haberPeriodo', 'saldo']} t={t} />
-      </section>
+        <Tabla filas={datos.balanza.cuentas} columnas={['codigo', 'nombre', 'saldoInicial', 'debePeriodo', 'haberPeriodo', 'saldo']} t={t} />
+      </section>}
     </>
   );
 };
@@ -491,3 +525,91 @@ const Ajustes: React.FC<{ ajustes: Fila[]; t: T }> = ({ ajustes, t }) => (
     )}
   </section>
 );
+
+// Centro de descargas: reúne los libros que el servidor genera en Excel. La importación desde Excel se habilitará más adelante.
+const REPORTES_EXCEL = ['mensual', 'diario', 'balanza', 'catalogo', 'ventas', 'compras', 'conciliacion', 'documentos', 'retenciones', 'periodos', 'ajustes'] as const;
+const CentroExcel: React.FC<{ exportar: (reporte: string, formato: FormatoDescarga) => Promise<void>; t: T }> = ({ exportar, t }) => (
+  <section className="operation-card" aria-label={t('accounting.nav.excel')}>
+    <h2>{t('accounting.excel_title')}</h2>
+    <p className="form-hint">{t('accounting.excel_help')}</p>
+    <div className="operation-actions">
+      {REPORTES_EXCEL.map(r => (
+        <button key={r} type="button" className={`btn ${r === 'mensual' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => void exportar(r, 'xlsx')}>
+          {r === 'mensual' ? t('accounting.export_month_book') : `${t(`accounting.report.${r}`)} · Excel`}
+        </button>
+      ))}
+    </div>
+  </section>
+);
+
+// Validaciones previas al cierre: solo informan; el cierre sigue siendo una acción autorizada y confirmada.
+const ValidacionesCierre: React.FC<{ conciliacion?: Fila; balanza?: Fila; t: T }> = ({ conciliacion, balanza, t }) => {
+  const hallazgos = Number(conciliacion?.total ?? 0);
+  const cuadra = balanza?.totales?.cuadra;
+  const filas: [string, boolean, string][] = [
+    [t('accounting.check_findings'), hallazgos === 0, hallazgos === 0 ? t('accounting.ok') : t('accounting.check_findings_n', { n: hallazgos })],
+    [t('accounting.check_balance'), cuadra === true, cuadra === undefined ? '—' : cuadra ? t('accounting.balanced') : t('accounting.unbalanced')],
+  ];
+  return (
+    <section className="operation-card" aria-label={t('accounting.checks_title')} data-testid="validaciones-cierre">
+      <h2>{t('accounting.checks_title')}</h2>
+      <ul className="contador-checks">
+        {filas.map(([nombre, bien, texto]) => <li key={nombre}><span className={`balance-estado ${bien ? 'balance-estado-PAGADA' : 'balance-estado-VENCIDA'}`}>{bien ? '✓' : '!'}</span> {nombre}: <strong>{texto}</strong></li>)}
+      </ul>
+      <p className="form-hint">{t('accounting.checks_hint')}</p>
+    </section>
+  );
+};
+
+// Libro mayor de una cuenta: saldo inicial, movimientos con saldo acumulado y saldo final. Solo lectura.
+const Mayor: React.FC<{ cuentas: Fila[]; periodo: { anio: number; mes: number }; q: string; t: T }> = ({ cuentas, periodo, q, t }) => {
+  const [cuentaId, setCuentaId] = useState('');
+  const [mayor, setMayor] = useState<Fila | null>(null);
+  const [error, setError] = useState('');
+  const [mensaje, setMensaje] = useState('');
+  const movibles = cuentas.filter(k => k.aceptaMovimientos);
+  useEffect(() => {
+    let vigente = true;
+    setMayor(null); setError(''); setMensaje('');
+    if (!cuentaId) return undefined;
+    api.get(`/contabilidad/mayor?cuentaId=${encodeURIComponent(cuentaId)}&${q}`)
+      .then(r => { if (vigente) setMayor(r.data); })
+      .catch(e => { if (vigente) setError(mensajeError(e, t, t('accounting.load_error'))); });
+    return () => { vigente = false; };
+  }, [cuentaId, q, t]);
+  const descargar = async () => {
+    setError(''); setMensaje('');
+    try { setMensaje(t('accounting.file_ready', { name: await descargarReporte('mayor', 'xlsx', periodo, undefined, cuentaId) })); }
+    catch (e) { setError(await mensajeErrorDescarga(e, t, t('accounting.export_error'))); }
+  };
+  return (
+    <section className="operation-card" aria-label={t('accounting.tab.mayor')}>
+      <h2>{t('accounting.tab.mayor')}</h2>
+      <div className="operation-actions">
+        <label>{t('accounting.account')}{' '}
+          <select className="form-input" value={cuentaId} onChange={e => setCuentaId(e.target.value)}>
+            <option value="">{t('accounting.pick_account')}</option>
+            {movibles.map(k => <option key={k.id} value={k.id}>{k.codigo} {k.nombre}</option>)}
+          </select>
+        </label>
+        {mayor && <button type="button" className="btn btn-primary" onClick={() => void descargar()}>{t('accounting.export_excel')}</button>}
+      </div>
+      {error && <div className="operation-error" role="alert">{error}</div>}
+      {mensaje && <div className="operation-success" role="status">{mensaje}</div>}
+      {!cuentaId && <p className="form-hint">{t('accounting.pick_account_hint')}</p>}
+      {mayor && (
+        <div className="operation-table"><table>
+          <thead><tr><th>{t('accounting.date')}</th><th>#</th><th>{t('accounting.concept')}</th><th>{t('accounting.debit_col')}</th><th>{t('accounting.credit_col')}</th><th>{t('accounting.col.saldo')}</th></tr></thead>
+          <tbody>
+            <tr><td colSpan={5}><strong>{t('accounting.col.saldoInicial')}</strong></td><td><strong>{L(mayor.saldoInicial)}</strong></td></tr>
+            {mayor.movimientos.length === 0 && <tr><td colSpan={6}>{t('accounting.no_movements')}</td></tr>}
+            {mayor.movimientos.map((m: Fila, i: number) => (
+              <tr key={i}><td>{m.fecha}</td><td>{m.numero}</td><td>{m.concepto}{m.estado === 'REVERTIDO' ? ` (${t('accounting.reverted')})` : ''}</td><td>{Number(m.debe) > 0 ? L(m.debe) : ''}</td><td>{Number(m.haber) > 0 ? L(m.haber) : ''}</td><td>{L(m.saldo)}</td></tr>
+            ))}
+          </tbody>
+          <tfoot><tr><th colSpan={3}>{t('accounting.totals')}</th><th>{L(mayor.totales.debe)}</th><th>{L(mayor.totales.haber)}</th><th>{L(mayor.saldoFinal)}</th></tr></tfoot>
+        </table></div>
+      )}
+    </section>
+  );
+};

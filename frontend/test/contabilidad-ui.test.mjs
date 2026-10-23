@@ -13,6 +13,7 @@ const load = (file) => {
     if (name === 'lucide-react') return icons;
     if (name.endsWith('modulesCatalog')) return load('src/config/modulesCatalog.ts');
     if (name.endsWith('navigation')) return load('src/config/navigation.ts');
+    if (name.endsWith('contabilidad')) return load('src/utils/contabilidad.ts');
     throw new Error(`Unexpected import ${name}`);
   };
   const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
@@ -119,4 +120,31 @@ test('errores de descarga (blob) muestran el mensaje del servidor', async () => 
   assert.equal(msg, 'El libro contable del mes se descarga en Excel (.xlsx)');
   assert.equal(await u.mensajeErrorDescarga({ response: { data: new Blob(['no json']) } }, t, 'respaldo'), 'respaldo');
   assert.equal(await u.mensajeErrorDescarga({}, t, 'sin red'), es.accounting.network_error);
+});
+
+// ---- Navegación del CONTADOR (secciones por tarea y frecuencia) ----
+const nav = load('src/config/contadorNavigation.ts');
+test('navegación del contador: Inicio primero, rutas únicas bajo /contabilidad y pestañas existentes', () => {
+  assert.equal(nav.SECCIONES_PRINCIPALES[0].key, 'inicio');
+  assert.equal(nav.SECCIONES_PRINCIPALES[0].route, '/contabilidad');
+  const rutas = nav.SECCIONES_CONTADOR.map(s => s.route);
+  assert.equal(new Set(rutas).size, rutas.length);
+  for (const r of rutas) assert.ok(r === '/contabilidad' || r.startsWith('/contabilidad/'), r);
+  const validas = new Set([...u.PESTANAS, 'asientos', 'catalogo', 'balanza', 'mayor', 'excel']);
+  for (const s of nav.SECCIONES_CONTADOR) for (const tab of s.tabs) assert.ok(validas.has(tab), `${s.key}:${tab}`);
+});
+test('navegación del contador: cada etiqueta existe en ES y EN y no se ofrecen pantallas sin implementar', () => {
+  const en = JSON.parse(fs.readFileSync('src/locales/en.json', 'utf8'));
+  const tr = (d, path) => path.split('.').reduce((v, k) => v?.[k], d);
+  for (const s of nav.SECCIONES_CONTADOR) { assert.ok(tr(es, s.labelKey), `es ${s.labelKey}`); assert.ok(tr(en, s.labelKey), `en ${s.labelKey}`); }
+  const claves = nav.SECCIONES_CONTADOR.map(s => s.key);
+  for (const pendiente of ['por_contabilizar', 'estados_financieros', 'importar']) assert.ok(!claves.includes(pendiente), pendiente);
+});
+test('navegación del contador: los permisos solo restringen a quien los tiene configurados (como el servidor)', () => {
+  const todas = nav.SECCIONES_CONTADOR;
+  assert.equal(nav.permitidas(todas, null).length, 0);
+  assert.equal(nav.permitidas(todas, { rol: 'CONTADOR', permisosConfigurados: false }).length, todas.length);
+  assert.equal(nav.permitidas(todas, { rol: 'ADMIN', permisosConfigurados: true, permisos: [] }).length, todas.length);
+  assert.equal(nav.permitidas(todas, { rol: 'CONTADOR', permisosConfigurados: true, permisos: [] }).length, 0);
+  assert.equal(nav.permitidas(todas, { rol: 'CONTADOR', permisosConfigurados: true, permisos: ['contabilidad.ver'] }).length, todas.length);
 });
