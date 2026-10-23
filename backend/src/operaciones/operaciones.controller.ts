@@ -74,7 +74,7 @@ export class OperacionesController {
  @RequiredModule('pos')
  @Get('solicitudes-devolucion/:id') @Roles('ADMIN','CAJERO','VENDEDOR') consultarDevolucion(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.consultarDevolucion(t,u,id);}
  @RequiredModule('pos')
- @Post('solicitudes-devolucion/:id/decision') @Roles('ADMIN') decidirDevolucion(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:DecisionDevolucionDto){return this.service.decidirDevolucion(t,u,id,dto);}
+ @Post('solicitudes-devolucion/:id/decision') @Roles('ADMIN') decidirDevolucion(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:DecisionDevolucionDto,@CurrentUser('sid') sid?:string){return this.service.decidirDevolucion(t,u,id,dto,{sid});}
  @RequiredModule('pos')
  @Post('solicitudes-devolucion/:id/ejecutar') @Roles('ADMIN','CAJERO','VENDEDOR') ejecutarAutorizada(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.ejecutarAutorizada(t,u,id);}
  @RequiredModule('pos')

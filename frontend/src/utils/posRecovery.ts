@@ -58,6 +58,13 @@ export function readRecovery(pendingKey: string, draftKey: string) {
 export function saveDraft(key: string, sale: SaleDraft) {
   if (sale.cart.length) {
     if (!validDraft(sale)) throw new Error('Datos de borrador inválidos');
+    // Restaurar otra ventana vuelve a ejecutar el autoguardado. Reescribir el mismo
+    // contenido cambia savedAt y provoca eventos storage de ida y vuelta entre ellas.
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const previous = JSON.parse(raw);
+      if (previous?.version === 1 && JSON.stringify(previous.sale) === JSON.stringify(sale)) return;
+    }
     localStorage.setItem(key, JSON.stringify({ version: 1, savedAt: new Date().toISOString(), sale }));
   }
   else localStorage.removeItem(key);

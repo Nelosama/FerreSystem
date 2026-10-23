@@ -10,6 +10,7 @@ import { ProductosService } from '../src/productos/productos.service';
 import { ProductosController } from '../src/productos/productos.controller';
 import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
 import { CotizacionesController } from '../src/cotizaciones/cotizaciones.controller';
+import { lockTenant } from '../src/operaciones/ledger';
 import { VentasService } from '../src/ventas/ventas.service';
 import { VentasController } from '../src/ventas/ventas.controller';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
@@ -328,8 +329,12 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     await http('post', `/operaciones/ventas/${venta.body.id}/devoluciones`, devolucion, login.body.accessToken).expect(403);
     expect(await prisma.devolucion.count({ where: { tenantId } })).toBe(0);
     expect((await prisma.venta.findUniqueOrThrow({ where: { id: venta.body.id } })).estado).toBe('COMPLETADA');
-    // El mismo cuerpo es válido: el administrador sí registra la devolución.
-    await http('post', `/operaciones/ventas/${venta.body.id}/devoluciones`, { ...devolucion, solicitudId: randomUUID() }).expect(201);
+    // Tampoco ADMIN puede saltarse la solicitud y la autorización independiente.
+    await http('post', `/operaciones/ventas/${venta.body.id}/devoluciones`, { ...devolucion, solicitudId: randomUUID() }).expect(403);
+    await http('post', `/operaciones/ventas/${venta.body.id}/solicitudes-devolucion`, devolucion, login.body.accessToken).expect(201);
+    await http('post', `/operaciones/solicitudes-devolucion/${devolucion.solicitudId}/decision`, { decision: 'AUTORIZADA', motivo: 'Documento revisado' }).expect(201);
+    await http('post', '/operaciones/caja/abrir', { solicitudId: randomUUID(), monto: 200 }, login.body.accessToken).expect(201);
+    await http('post', `/operaciones/solicitudes-devolucion/${devolucion.solicitudId}/ejecutar`, {}, login.body.accessToken).expect(201);
     expect(await prisma.devolucion.count({ where: { tenantId } })).toBe(1);
   });
 
@@ -428,5 +433,52 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect(Number(stock.stockReservado)).toBe(1);
     expect(Number(stock.stockActual)).toBe(8);
   }, 70000);
+  it('anular exige una sesión real del Admin incluso durante la transición sin sid', async () => {
+    const p = await producto('SESION-ANULA', 100, 5);
+    const venta = await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(201);
+    const cajero = await prisma.usuario.create({ data: { tenantId, rol: 'CAJERO', nombre: 'Solicitante', email: `${randomUUID()}@test.invalid`, passwordHash: 'sin-login' } });
+    const comando = { solicitudId: randomUUID(), anulacion: true, motivo: 'Cliente desistió', metodo: 'EFECTIVO', items: [{ detalleId: venta.body.detalles[0].id, cantidad: 1, destino: 'NO_ENTREGADO' }] };
+    await new OperacionesService(prisma).solicitarDevolucion(tenantId, cajero.id, venta.body.id, comando);
+    const sinSesion = jwt.sign({ type: 'tenant', sub: usuarioId, tenantId, rol: 'ADMIN' });
+    await http('post', `/operaciones/solicitudes-devolucion/${comando.solicitudId}/decision`, { decision: 'AUTORIZADA', motivo: 'Validado' }, sinSesion).expect(401);
+    const sid = (jwt.decode(token) as any).sid;
+    await prisma.sesionAuth.update({ where: { id: sid }, data: { revokedAt: new Date() } });
+    await http('post', `/operaciones/solicitudes-devolucion/${comando.solicitudId}/decision`, { decision: 'AUTORIZADA', motivo: 'Validado' }).expect(401);
+    expect((await new OperacionesService(prisma).consultarDevolucion(tenantId, cajero.id, comando.solicitudId)).estado).toBe('PENDIENTE');
+    expect(await prisma.devolucion.count({ where: { tenantId } })).toBe(0);
+  });
+
+  it.each(['logout', 'vencimiento'])('%s concurrente impide autorizar una solicitud que esperaba el bloqueo del tenant', async causa => {
+    const p = await producto('SESION-COLA', 100, 5);
+    const venta = await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(201);
+    const cajero = await prisma.usuario.create({ data: { tenantId, rol: 'CAJERO', nombre: 'Solicitante', email: `${randomUUID()}@test.invalid`, passwordHash: 'sin-login' } });
+    const comando = { solicitudId: randomUUID(), anulacion: true, motivo: 'Cliente desistió', metodo: 'EFECTIVO', items: [{ detalleId: venta.body.detalles[0].id, cantidad: 1, destino: 'NO_ENTREGADO' }] };
+    const ops = new OperacionesService(prisma);
+    await ops.solicitarDevolucion(tenantId, cajero.id, venta.body.id, comando);
+    const sid = (jwt.decode(token) as any).sid;
+    let avisar!: () => void, liberar!: () => void;
+    const bloqueado = new Promise<void>(resolve => { avisar = resolve; });
+    const continuar = new Promise<void>(resolve => { liberar = resolve; });
+    const holder = prisma.$transaction(async tx => {
+      await lockTenant(tx, tenantId); avisar(); await continuar;
+      await tx.sesionAuth.update({ where: { id: sid }, data: causa === 'logout' ? { revokedAt: new Date() } : { expiresAt: new Date(Date.now() - 1000) } });
+    }, { timeout: 10000 });
+    await bloqueado;
+    const decision = http('post', `/operaciones/solicitudes-devolucion/${comando.solicitudId}/decision`, { decision: 'AUTORIZADA', motivo: 'Validado' }).then(r => r);
+    try {
+      let esperando = false;
+      for (let i = 0; i < 150; i++) {
+        const [fila] = await prisma.$queryRawUnsafe<any[]>("SELECT COUNT(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%pg_advisory_xact_lock%' AND pid<>pg_backend_pid()");
+        if (fila.n > 0) { esperando = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      expect(esperando, 'la petición debe haber pasado JWT y estar esperando el bloqueo').toBe(true);
+    } finally { liberar(); await holder; }
+    expect((await decision).status).toBe(401);
+    expect((await ops.consultarDevolucion(tenantId, cajero.id, comando.solicitudId)).estado).toBe('PENDIENTE');
+    expect(await prisma.devolucion.count({ where: { tenantId } })).toBe(0);
+    expect(await prisma.auditoriaOperacion.count({ where: { tenantId, operacion: 'DEVOLUCION_DECIDIR' } })).toBe(0);
+  });
+
 });
 

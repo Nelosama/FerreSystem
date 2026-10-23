@@ -394,7 +394,11 @@ describe('CENTINELA: entregas, entregas parciales y permisos (PR #148) / Postgre
       const [tras] = await prisma.$queryRawUnsafe<any[]>('SELECT cantidad_entregada::text, cantidad_devuelta_reingresada::text FROM detalles_venta WHERE id=$1', linea);
       expect(Number(tras.cantidad_entregada)).toBe(1);
       expect(Number(tras.cantidad_devuelta_reingresada)).toBe(1);
-      const devCancel = await http('post', `/api/operaciones/ventas/${v.id}/devoluciones`, e.admin.token, { solicitudId: randomUUID(), motivo: 'Cancelación de lo pendiente', metodo: 'EFECTIVO', items: [{ detalleId: linea, cantidad: 3, destino: 'NO_ENTREGADO' }] });
+      const cancelacion = { solicitudId: randomUUID(), motivo: 'Cancelación de lo pendiente', metodo: 'EFECTIVO', items: [{ detalleId: linea, cantidad: 3, destino: 'NO_ENTREGADO' }] };
+      await http('post', `/api/operaciones/ventas/${v.id}/devoluciones`, e.admin.token, cancelacion).expect(403);
+      await http('post', `/api/operaciones/ventas/${v.id}/solicitudes-devolucion`, e.cajero.token, cancelacion).expect(201);
+      await http('post', `/api/operaciones/solicitudes-devolucion/${cancelacion.solicitudId}/decision`, e.admin.token, { decision: 'AUTORIZADA', motivo: 'Documento revisado por otro usuario' }).expect(201);
+      const devCancel = await http('post', `/api/operaciones/solicitudes-devolucion/${cancelacion.solicitudId}/ejecutar`, e.cajero.token, {});
       expect(devCancel.status, JSON.stringify(devCancel.body)).toBeLessThan(300);
       const pendiente = await http('post', `/api/entregas/ventas/${v.id}/entregas`, e.admin.token, { solicitudId: randomUUID(), receptorNombre: 'C', lineas: [{ detalleId: linea, cantidad: 0.01 }] });
       expect(pendiente.status).toBe(409);

@@ -1,3 +1,4 @@
+import { devolucionAutorizada } from './helpers/devolucion-autorizada';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -143,7 +144,7 @@ describe('Caja y arqueo / PostgreSQL aislado', () => {
     const vendida = await venta(adminId, 'EFECTIVO');
     const detalle = await prisma.detalleVenta.findFirstOrThrow({ where: { ventaId: vendida.id } });
     await ops.entregar(tenantId, adminId, vendida.id, {solicitudId:randomUUID(),receptorNombre:'Cliente de prueba'});
-    const devolucion = await ops.devolver(tenantId, adminId, vendida.id, {
+    const devolucion = await devolucionAutorizada(prisma, ops, tenantId, adminId, vendida.id, {
       solicitudId: randomUUID(), motivo: 'Producto defectuoso', metodo: 'EFECTIVO',
       items: [{ detalleId: detalle.id, cantidad: 1, destino: 'INVENTARIO' }],
     } as any) as any;

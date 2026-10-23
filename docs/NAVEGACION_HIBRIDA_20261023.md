@@ -68,3 +68,7 @@ Comparación con Stitch: misma estructura (rail + barra con negocio, sucursal, b
 - Sin prueba en Safari/iPhone ni tableta física; el menú desplegable y el logotipo se verificaron en Chromium emulado.
 - `contingencia-real` n.º 14 (service worker) falla también en `main`: pendiente ajeno a este cambio.
 - CI de GitHub Actions no consultado: no hay PR abierto para esta rama.
+
+## Sincronización con `main` `01f9110` (PR #194)
+
+Merge normal sin force push; único conflicto textual en `docs/CONTEXTO_MAESTRO.md`. Resultados de pruebas y la nota sobre `contingencia-real` n.º 14 (falla igual en `main`) en la sección homónima del contexto maestro. **Decisión pendiente de producto:** la rama elimina la elección TOPNAV/SIDEBAR; si se exige conservarla, hay que reintroducir `Sidebar.tsx`/`TopNavigation.tsx` y la lectura de `modoNavegacion` en `AppLayout` antes de fusionar.

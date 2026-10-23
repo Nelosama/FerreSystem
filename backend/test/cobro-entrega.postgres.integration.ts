@@ -1,3 +1,4 @@
+import { devolucionAutorizada } from './helpers/devolucion-autorizada';
 import { idSolicitud } from '../src/operaciones/ledger';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -101,7 +102,7 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
   const entregar = (e: Empresa, ventaId: string, lineas: { detalleId: string; cantidad: number }[], extra: { solicitudId?: string; receptor?: string; usuario?: string } = {}) =>
     entregas.entregar(e.tenantId, extra.usuario ?? e.bodeguero, ventaId, { solicitudId: extra.solicitudId ?? randomUUID(), receptorNombre: extra.receptor ?? 'María Pérez', lineas } as any);
   const devolver = (e: Empresa, ventaId: string, items: any[], motivo = 'Devolución de prueba de integración') =>
-    operaciones.devolver(e.tenantId, e.admin, ventaId, { solicitudId: randomUUID(), motivo, metodo: 'EFECTIVO', items } as any);
+    devolucionAutorizada(prisma, operaciones, e.tenantId, e.admin, ventaId, { solicitudId: randomUUID(), motivo, metodo: 'EFECTIVO', items } as any);
 
   /** Invariantes I7 (reservas) e I1–I4 (por línea) de la empresa. */
   async function verificarInvariantes(e: Empresa) {
@@ -514,8 +515,8 @@ describe('Cobro y entrega / PostgreSQL aislado', () => {
       const venta = await mostrador(e, e.p1, 3);
       const det = venta.detalles[0].id;
       const dto = { solicitudId: randomUUID(), motivo: 'Devolución de prueba de integración', metodo: 'EFECTIVO', items: [{ detalleId: det, cantidad: 1, destino: 'INVENTARIO' }] } as any;
-      await operaciones.devolver(e.tenantId, e.admin, venta.id, dto);
-      await operaciones.devolver(e.tenantId, e.admin, venta.id, dto);
+      await devolucionAutorizada(prisma, operaciones, e.tenantId, e.admin, venta.id, dto);
+      await devolucionAutorizada(prisma, operaciones, e.tenantId, e.admin, venta.id, dto);
       expect(await stock(e.p1)).toBe(18);
       expect(await movimientos(e.tenantId, venta.id, 'DEVOLUCION')).toHaveLength(1);
     });

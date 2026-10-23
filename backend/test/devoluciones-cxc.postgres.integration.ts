@@ -1,3 +1,4 @@
+import { devolucionAutorizada } from './helpers/devolucion-autorizada';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -99,7 +100,7 @@ describe('Devoluciones con crédito, saldo y reembolsos / PostgreSQL aislado', (
   const devolver = async (ventaId: string, cantidad: number, solicitudId = randomUUID(), linea?: string) => {
     const lineas = await lineasDe(ventaId);
     const destino = await destinoDe(ventaId);
-    return ops.devolver(tenantA, admin, ventaId, { solicitudId, metodo: 'EFECTIVO', motivo: 'Devolución de prueba', items: [{ detalleId: linea ?? lineas[0].id, cantidad, destino }] } as any);
+    return devolucionAutorizada(prisma, ops, tenantA, admin, ventaId, { solicitudId, metodo: 'EFECTIVO', motivo: 'Devolución de prueba', items: [{ detalleId: linea ?? lineas[0].id, cantidad, destino }] } as any);
   };
   const cuentaDe = async (ventaId: string) => (await sql("SELECT id, saldo::float AS saldo FROM cuentas_operativas WHERE documento_id=$1 AND tipo='CXC'", ventaId))[0];
   const reembolsosCaja = (ventaId: string) => sql("SELECT COALESCE(SUM(monto),0)::float AS total, COUNT(*)::int AS n FROM movimientos_caja WHERE tipo='DEVOLUCION' AND referencia IN (SELECT id FROM devoluciones WHERE venta_id=$1)", ventaId);
@@ -162,8 +163,8 @@ describe('Devoluciones con crédito, saldo y reembolsos / PostgreSQL aislado', (
       const solicitudId = randomUUID();
       // Un reintento reenvía exactamente el mismo comando: el destino se fija una vez (tras devolver todo lo pendiente la venta deja de estar reservada).
       const comando = { solicitudId, metodo: 'EFECTIVO', motivo: 'Devolución de prueba', items: [{ detalleId: (await lineasDe(v.id))[0].id, cantidad: 1, destino: await destinoDe(v.id) }] } as any;
-      const primera = await ops.devolver(tenantA, admin, v.id, comando);
-      const reintento = await ops.devolver(tenantA, admin, v.id, { ...comando });
+      const primera = await devolucionAutorizada(prisma, ops, tenantA, admin, v.id, comando);
+      const reintento = await devolucionAutorizada(prisma, ops, tenantA, admin, v.id, { ...comando });
       expect(reintento.id).toBe(primera.id);
       expect((await reembolsosCaja(v.id))[0].n).toBe(1);
       expect(await sql('SELECT COUNT(*)::int AS n FROM devoluciones WHERE venta_id=$1', v.id)).toEqual([{ n: 1 }]);
@@ -177,4 +178,111 @@ describe('Devoluciones con crédito, saldo y reembolsos / PostgreSQL aislado', (
       expect(await sql('SELECT COUNT(*)::int AS n FROM devoluciones WHERE venta_id=$1', v.id)).toEqual([{ n: 1 }]);
     });
   });
+  describe('Cancelación POS y anulación administrativa', () => {
+    const comandoAnulacion = async (v: any) => ({ solicitudId: randomUUID(), anulacion: true, motivo: 'Cliente abandonó la operación confirmada', metodo: 'EFECTIVO', items: [{ detalleId: (await lineasDe(v.id))[0].id, cantidad: 1, destino: 'NO_ENTREGADO' }] });
+    const foto = async () => ({
+      producto: await prisma.producto.findUniqueOrThrow({ where: { id: productoId } }),
+      ventas: await prisma.venta.findMany({ where: { tenantId: tenantA } }),
+      caja: await sql('SELECT * FROM movimientos_caja WHERE caja_id IN (SELECT id FROM cajas WHERE tenant_id=$1) ORDER BY id', tenantA),
+    });
+
+    it('descarte durable, idempotente y auditable sin venta, stock ni caja; bloquea un POST retrasado', async () => {
+      const solicitudId = randomUUID();
+      const antes = await foto();
+      await expect(ventas.descartarSolicitud(tenantA, admin, solicitudId)).resolves.toEqual({ estado: 'DESCARTADA' });
+      await expect(ventas.descartarSolicitud(tenantA, admin, solicitudId)).resolves.toEqual({ estado: 'DESCARTADA' });
+      await expect(ventas.findSolicitud(tenantA, admin, solicitudId)).resolves.toEqual({ estado: 'DESCARTADA' });
+      await expect(venta(admin, { solicitudId })).rejects.toMatchObject({ status: 409 });
+      expect(await foto()).toEqual(antes);
+      const auditoria = await sql("SELECT * FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='VENTA_DESCARTAR'", tenantA);
+      expect(auditoria).toHaveLength(1);
+      expect(auditoria[0]).toMatchObject({ usuario_id: admin, datos: expect.objectContaining({ solicitudId }) });
+    });
+
+    it('una venta ya confirmada se recupera sin descartarla ni alterar sus movimientos', async () => {
+      const solicitudId = randomUUID();
+      const v = await venta(admin, { solicitudId });
+      const antes = await foto();
+      expect(await ventas.descartarSolicitud(tenantA, admin, solicitudId)).toMatchObject({ estado: 'REGISTRADA', venta: { id: v.id } });
+      expect(await foto()).toEqual(antes);
+    });
+
+    it('descarte y confirmación concurrentes resuelven a una venta íntegra o a un descarte durable', async () => {
+      for (let i = 0; i < 8; i++) {
+        const solicitudId = randomUUID();
+        const tareas = [() => ventas.descartarSolicitud(tenantA, admin, solicitudId), () => venta(admin, { solicitudId })];
+        const resultados = await Promise.allSettled((i % 2 ? tareas.reverse() : tareas).map(run => run()));
+        const estado = await ventas.findSolicitud(tenantA, admin, solicitudId);
+        expect(['REGISTRADA', 'DESCARTADA']).toContain(estado.estado);
+        if (estado.estado === 'DESCARTADA') expect(resultados.some(r => r.status === 'rejected')).toBe(true);
+        else expect(resultados.every(r => r.status === 'fulfilled')).toBe(true);
+      }
+      const [conteo] = await sql("SELECT COUNT(*)::int AS n FROM ventas WHERE tenant_id=$1", tenantA);
+      const [caja] = await sql("SELECT COUNT(*)::int AS n FROM movimientos_caja WHERE tipo='VENTA_POS' AND caja_id IN (SELECT id FROM cajas WHERE tenant_id=$1)", tenantA);
+      expect(caja.n).toBe(conteo.n);
+      expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: productoId } })).stockReservado)).toBe(conteo.n);
+    });
+
+    it('el descarte respeta tenant, permisos revocados y pertenencia de ventas confirmadas', async () => {
+      const solicitudId = randomUUID();
+      await ventas.descartarSolicitud(tenantA, admin, solicitudId);
+      expect(await ventas.findSolicitud(tenantB, adminB, solicitudId)).toEqual({ estado: 'NO_REGISTRADA' });
+      await prisma.usuario.update({ where: { id: cajero }, data: { permisosConfigurados: true, permisos: [] } });
+      await expect(ventas.descartarSolicitud(tenantA, cajero, randomUUID())).rejects.toMatchObject({ status: 403 });
+      await expect(ventas.descartarSolicitud(tenantA, adminB, randomUUID())).rejects.toMatchObject({ status: 403 });
+      const otroId = randomUUID();
+      await venta(admin, { solicitudId: otroId });
+      await expect(ventas.descartarSolicitud(tenantA, vendedor, otroId)).rejects.toMatchObject({ status: 409 });
+    });
+
+    it('anulación total exige solicitud, motivo y otro Admin; no acepta ruta directa ni autoautorización', async () => {
+      const v = await venta(admin);
+      const dto = await comandoAnulacion(v);
+      await expect(ops.devolver(tenantA, admin, v.id, dto)).rejects.toMatchObject({ status: 403 });
+      const { anulacion: _flag, ...sinMarca } = dto;
+      await expect(ops.devolver(tenantA, admin, v.id, sinMarca)).rejects.toMatchObject({ status: 403 });
+      await expect(ops.solicitarDevolucion(tenantA, admin, v.id, { ...dto, motivo: ' ' })).rejects.toMatchObject({ status: 400 });
+      await ops.solicitarDevolucion(tenantA, admin, v.id, dto);
+      await expect(ops.decidirDevolucion(tenantA, admin, dto.solicitudId, { decision: 'AUTORIZADA', motivo: 'Soy el solicitante' })).rejects.toMatchObject({ status: 403 });
+      await expect(ops.decidirDevolucion(tenantA, cajero, dto.solicitudId, { decision: 'AUTORIZADA', motivo: 'Intento de cajero' })).rejects.toMatchObject({ status: 403 });
+      await expect(ops.decidirDevolucion(tenantB, adminB, dto.solicitudId, { decision: 'AUTORIZADA', motivo: 'Otra empresa' })).rejects.toMatchObject({ status: 404 });
+      await expect(ops.ejecutarAutorizada(tenantA, admin, dto.solicitudId)).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('solicitudes de anulación concurrentes no duplican el trámite; el rechazo no mueve saldos', async () => {
+      const v = await venta(admin);
+      const dto = await comandoAnulacion(v);
+      const antes = await foto();
+      const estados = await Promise.allSettled([ops.solicitarDevolucion(tenantA, admin, v.id, dto), ops.solicitarDevolucion(tenantA, admin, v.id, { ...dto, solicitudId: randomUUID() })]);
+      expect(estados.filter(r => r.status === 'fulfilled')).toHaveLength(1);
+      const solicitud = estados.find(r => r.status === 'fulfilled') as PromiseFulfilledResult<any>;
+      // Un Admin distinto decide con su sesión; la cuenta no se usa para autenticar al solicitante.
+      await prisma.usuario.update({ where: { id: vendedor }, data: { rol: 'ADMIN' } });
+      await ops.decidirDevolucion(tenantA, vendedor, solicitud.value.id, { decision: 'RECHAZADA', motivo: 'El cliente sí recibió su pedido' });
+      await expect(ops.ejecutarAutorizada(tenantA, admin, solicitud.value.id)).rejects.toMatchObject({ status: 403 });
+      expect(await foto()).toEqual(antes);
+    });
+
+    it('autorizar y ejecutar dos veces genera un solo documento compensatorio y trazabilidad completa', async () => {
+      const v = await venta(admin);
+      const dto = await comandoAnulacion(v);
+      await prisma.usuario.update({ where: { id: vendedor }, data: { rol: 'ADMIN' } });
+      await ops.solicitarDevolucion(tenantA, admin, v.id, dto);
+      await ops.decidirDevolucion(tenantA, vendedor, dto.solicitudId, { decision: 'AUTORIZADA', motivo: 'Revisé documento y mercancía' });
+      expect((await reembolsosCaja(v.id))[0].n).toBe(0);
+      const resultados = await Promise.all([ops.ejecutarAutorizada(tenantA, admin, dto.solicitudId), ops.ejecutarAutorizada(tenantA, admin, dto.solicitudId)]);
+      expect(resultados[0].id).toBe(resultados[1].id);
+      expect((await reembolsosCaja(v.id))[0]).toMatchObject({ n: 1, total: -115 });
+      const p = await prisma.producto.findUniqueOrThrow({ where: { id: productoId } });
+      expect(Number(p.stockActual)).toBe(100); expect(Number(p.stockReservado)).toBe(0);
+      expect(await prisma.venta.findUniqueOrThrow({ where: { id: v.id } })).toMatchObject({ estado: 'COMPLETADA', numeroVenta: v.numeroVenta });
+      const trace = await ops.consultarDevolucion(tenantA, admin, dto.solicitudId);
+      expect(trace).toMatchObject({ solicitante_id: admin, administrador_id: vendedor, estado: 'EJECUTADA', comando: { motivo: dto.motivo, anulacion: true }, resultado: { id: resultados[0].id } });
+      expect(trace.decidida_at).toBeTruthy(); expect(trace.created_at).toBeTruthy();
+      const [audit] = await sql("SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='DEVOLUCION_EJECUTAR_AUTORIZADA'", tenantA);
+      expect(audit.datos).toMatchObject({ administradorId: vendedor, solicitanteId: admin, ventaId: v.id, motivo: dto.motivo, anulacion: true });
+      await expect(ops.solicitarDevolucion(tenantA, admin, v.id, { ...dto, solicitudId: randomUUID() })).rejects.toThrow();
+    });
+  });
+
 });
