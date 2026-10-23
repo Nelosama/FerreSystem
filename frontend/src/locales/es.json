@@ -803,6 +803,8 @@
     "pending_sales": "{count} ventas por enviar",
     "more_options": "Más opciones de {name}",
     "more_short": "Más",
+    "rail_pos": "Caja",
+    "rail_cash": "Mi caja",
     "home_link": "Jowa System: ir a Inicio",
     "platform": "Plataforma",
     "connection_status": "Estado de la conexión",

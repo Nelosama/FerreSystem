@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { AREAS_PLATAFORMA, areaDeSeccion, seccionDePlataforma } from '../config/platformNavigation';
+import { NotificacionesBell } from './NotificacionesBell';
 
 /** Topbar del Super Admin: área actual a la izquierda; idioma, usuario y cierre de sesión a la derecha. */
 export const PlatformTopbar: React.FC = () => {
@@ -28,6 +29,7 @@ export const PlatformTopbar: React.FC = () => {
         <span className="platform-pill">Super Admin</span>
       </div>
       <div className="platform-topbar-actions">
+        <NotificacionesBell />
         <div aria-label="Idioma de la plataforma" className="platform-topbar-idioma" style={{ display: 'flex', gap: 4 }}>
           {(['es', 'en'] as const).map(lang => <button key={lang} type="button" aria-pressed={locale === lang} onClick={() => setLocale(lang)} className="btn-sm">{lang.toUpperCase()}</button>)}
         </div>

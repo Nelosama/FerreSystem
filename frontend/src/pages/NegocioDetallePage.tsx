@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TopBar } from '../components/TopBar';
 import { NegocioNavigation } from '../components/NegocioNavigation';
 import { api } from '../utils/api';
 import { alertas } from '../utils/alertas';
@@ -114,7 +113,7 @@ export function NegocioDetallePage({ negocioId, tab = 'resumen' }: { negocioId: 
     } catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
   };
   const nombre = negocio?.nombreComercial || 'Negocio';
-  return <div><TopBar title={nombre} subtitle="Super Admin" /><main className="platform-content negocio-detail">
+  return <div><main className="platform-content negocio-detail">
     <nav className="platform-breadcrumb" aria-label="Ruta de navegación">
       <Link to="/admin?seccion=negocios">Negocios</Link><span aria-hidden="true">›</span><span aria-current="page">{nombre}</span>
     </nav>

@@ -9,6 +9,7 @@ import { Sidebar } from './components/Sidebar';
 import { PlatformRail } from './components/PlatformRail';
 import { PlatformTopbar } from './components/PlatformTopbar';
 import { CajeroRail } from './components/CajeroRail';
+import { PlatformShellContext } from './context/PlatformShellContext';
 import { TopNavigation } from './components/TopNavigation';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -161,14 +162,16 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   if (user?.rol === 'SUPERADMIN') {
     return (
       <CajaProvider>
-        <div className="platform-shell">
-          <PlatformRail />
-          <div data-guide-content className="platform-main">
-            <PlatformTopbar />
-            <Guide />
-            {children}
+        <PlatformShellContext.Provider value={true}>
+          <div className="platform-shell">
+            <PlatformRail />
+            <div data-guide-content className="platform-main">
+              <PlatformTopbar />
+              <Guide />
+              {children}
+            </div>
           </div>
-        </div>
+        </PlatformShellContext.Provider>
       </CajaProvider>
     );
   }

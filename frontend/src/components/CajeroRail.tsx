@@ -36,6 +36,9 @@ export const CajeroRail: React.FC = () => {
     const traducida = t(item.labelKey);
     return traducida && traducida !== item.labelKey ? traducida : item.defaultLabel;
   };
+  // El rail es angosto (84 px): Caja y Mi caja usan etiqueta corta; el nombre completo del módulo queda como ayuda.
+  const ETIQUETA_RAIL: Record<string, string> = { pos: 'navigation.rail_pos', arqueo_caja: 'navigation.rail_cash' };
+  const etiquetaRail = (item: NavigationItem) => ETIQUETA_RAIL[item.key] ? t(ETIQUETA_RAIL[item.key]) : etiqueta(item);
 
   const inicial = (user?.nombre || 'C').trim().charAt(0).toUpperCase();
 
@@ -49,9 +52,9 @@ export const CajeroRail: React.FC = () => {
         {principales.map(item => {
           const Icon = item.icon;
           return <li key={item.key}>
-            <NavLink to={item.route} end={item.exact} title={sinRed(item) ? t('navigation.needs_connection') : undefined} className={({ isActive }) => `cajero-rail-item${isActive ? ' is-active' : ''}${sinRed(item) ? ' sin-red' : ''}`}>
+            <NavLink to={item.route} end={item.exact} title={sinRed(item) ? t('navigation.needs_connection') : etiqueta(item)} className={({ isActive }) => `cajero-rail-item${isActive ? ' is-active' : ''}${sinRed(item) ? ' sin-red' : ''}`}>
               <span className="cajero-rail-pill"><Icon size={20} strokeWidth={2} aria-hidden="true" /></span>
-              <span>{etiqueta(item)}</span>
+              <span>{etiquetaRail(item)}</span>
               {pista(item)}
             </NavLink>
           </li>;

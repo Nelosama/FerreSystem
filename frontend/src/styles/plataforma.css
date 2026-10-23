@@ -35,8 +35,10 @@
 }
 
 /* La topbar de cada página se sustituye por la del shell (que conserva idioma, usuario y cierre de sesión). */
-/* !important: TopBar fija display:flex en línea. */
-.platform-shell .platform-main .app-topbar { display: none !important; }
+/* Encabezado de página (TopBar dentro del shell): título de 22 px y subtítulo en tono secundario. */
+.platform-page-header { padding: 28px 28px 18px; }
+.platform-page-header h1 { font-size: 22px; font-weight: 600; line-height: 1.25; color: var(--ink); margin: 0; letter-spacing: normal; }
+.platform-page-header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
 
 .platform-main {
   flex: 1;
@@ -340,6 +342,7 @@
 /* ---------- Tablet (≤1024 px) ---------- */
 @media (max-width: 1024px) {
   .platform-topbar,
+  .platform-page-header { padding: 24px 22px 14px; }
   .platform-tabs,
   .platform-shell .platform-content { padding-left: 22px; padding-right: 22px; }
   .platform-content > .platform-tabs { margin: 0 -22px 20px; }
@@ -402,6 +405,8 @@
   .platform-topbar-idioma { display: none; }
   .platform-topbar-logout span { display: none; }
 
+  .platform-page-header { padding: 20px 16px 12px; }
+  .platform-page-header h1 { font-size: 19px; }
   .platform-tabs { padding: 0 16px; }
   .platform-content > .platform-tabs { margin: 0 -16px 16px; }
   .platform-shell .platform-content { padding: 20px 16px 32px; }

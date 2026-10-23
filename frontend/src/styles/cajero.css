@@ -71,7 +71,11 @@
 
 .cajero-rail-item.is-active { color: #ffffff; }
 /* El estado activo toma el color configurado por el negocio (--color-primary), aclarado para leerse sobre el rail oscuro. */
-.cajero-rail-item.is-active .cajero-rail-pill { background: color-mix(in srgb, var(--color-primary) 35%, transparent); }
+.cajero-rail-item.is-active .cajero-rail-pill {
+  background: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  /* Contorno claro: mantiene visible el estado activo (3:1 sobre el rail) aunque el color del negocio sea muy oscuro. */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 45%, #ffffff);
+}
 .cajero-rail-item.is-active .cajero-rail-pill svg { color: color-mix(in srgb, var(--color-primary) 45%, #ffffff); }
 
 /* Panel de «Más»: se abre a la derecha del rail con los accesos restantes agrupados. */
