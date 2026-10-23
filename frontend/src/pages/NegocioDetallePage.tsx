@@ -6,10 +6,9 @@ import { api } from '../utils/api';
 import { ModuleControls } from '../components/ModuleControls';
 import { CATALOGO_MODULOS } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
-import { useTenant } from '../context/TenantContext';
 import { LogotipoNegocioEditor } from '../components/LogotipoNegocioEditor';
 import { AvisoColorMarca } from '../components/AvisoColorMarca';
-import { estiloMarcaNegocio } from '../utils/identidadNegocio';
+import { estiloMarcaNegocio, inicialesNegocio } from '../utils/identidadNegocio';
 
 type Registro = { id: string; nombre: string; email?: string; rol?: string; activo?: boolean; activa?: boolean; direccion?: string; telefono?: string; permisos?: string[]; descuentoMaximo?: number };
 const mensaje = (error: any) => { const value = error.response?.data?.message; return Array.isArray(value) ? value.join(', ') : value || 'No se pudo completar la operación. Sus cambios se conservan; vuelva a intentar.'; };
@@ -76,8 +75,8 @@ function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuar
 
 export function NegocioDetallePage({ negocioId, tab = 'resumen' }: { negocioId: string; tab?: string }) {
   const { t } = useI18n();
-  const { tenant } = useTenant();
   const [negocio, setNegocio] = useState<any>(null);
+  const [conteos, setConteos] = useState<{ sucursales?: number; usuarios?: number }>({});
   const [modulos, setModulos] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [estado, setEstado] = useState('');
@@ -88,6 +87,18 @@ export function NegocioDetallePage({ negocioId, tab = 'resumen' }: { negocioId: 
     api.get(`/admin/tenants/${negocioId}/settings`).then(({ data }) => {
       if (!active) return; setNegocio(data); setMarca({ nombreComercial: data.nombreComercial, colorPrimario: data.colorPrimario, modoNavegacion: data.modoNavegacion }); setModulos(data.modulosHabilitados || []);
     }).catch(e => { if (active) setError(mensaje(e)); });
+    return () => { active = false; };
+  }, [negocioId]);
+  // Métricas de cabecera: se muestran «—» si el listado no está disponible.
+  useEffect(() => {
+    let active = true;
+    Promise.allSettled([api.get(`/admin/tenants/${negocioId}/sucursales`), api.get(`/admin/tenants/${negocioId}/usuarios`, { params: { gestion: true } })]).then(([sucursales, usuarios]) => {
+      if (!active) return;
+      setConteos({
+        sucursales: sucursales.status === 'fulfilled' && Array.isArray(sucursales.value.data) ? sucursales.value.data.length : undefined,
+        usuarios: usuarios.status === 'fulfilled' && Array.isArray(usuarios.value.data) ? usuarios.value.data.length : undefined,
+      });
+    });
     return () => { active = false; };
   }, [negocioId]);
   const guardar = async (e: React.FormEvent) => {
@@ -101,8 +112,23 @@ export function NegocioDetallePage({ negocioId, tab = 'resumen' }: { negocioId: 
       setEstado('Cambios guardados.');
     } catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
   };
-  return <div><TopBar title={negocio?.nombreComercial || 'Negocio'} subtitle="Super Admin" /><main className="negocio-detail">
-    <Link to="/admin">← Volver al panel global</Link>{/* En modo lateral, el menú de plataforma ya muestra estas pestañas. */}{tenant.modoNavegacion === 'TOPNAV' && <NegocioNavigation negocioId={negocioId} />}
+  const nombre = negocio?.nombreComercial || 'Negocio';
+  return <div><TopBar title={nombre} subtitle="Super Admin" /><main className="platform-content negocio-detail">
+    <nav className="platform-breadcrumb" aria-label="Ruta de navegación">
+      <Link to="/admin?seccion=negocios">Negocios</Link><span aria-hidden="true">›</span><span aria-current="page">{nombre}</span>
+    </nav>
+    <header className="platform-biz-head">
+      <span className="jowa-tenant-mark-lg" style={estiloMarcaNegocio(negocio?.colorPrimario)} aria-hidden="true">{inicialesNegocio(negocio?.nombreComercial)}</span>
+      <div>
+        <h1>{nombre}</h1>
+        <p className="platform-biz-metrics">
+          <span><strong>{conteos.sucursales ?? '—'}</strong> sucursales</span>
+          <span className="platform-metric--secundaria"><strong>{conteos.usuarios ?? '—'}</strong> usuarios</span>
+          <span className="platform-metric--secundaria"><strong>{modulos.length}</strong> de {CATALOGO_MODULOS.length} servicios</span>
+        </p>
+      </div>
+    </header>
+    <NegocioNavigation negocioId={negocioId} />
     {error && <p role="alert">{error}</p>}{estado && <p role="status">{estado}</p>}
     {negocio && tab === 'resumen' && <><section className="industrial-card negocio-management"><h1>{negocio.nombreComercial}</h1><p>Estado: {negocio.estado} · Plan: {negocio.plan}</p><p>{negocio.direccion} · {negocio.telefono} · {negocio.email}</p><p>Idioma: {negocio.idioma === 'en' ? 'English' : 'Español'} · Navegación: {negocio.modoNavegacion}</p></section><GestionRegistros key={negocioId} negocioId={negocioId} tipo="sucursales" /></>}
     {negocio && tab === 'usuarios' && <GestionRegistros key={negocioId} negocioId={negocioId} tipo="usuarios" />}

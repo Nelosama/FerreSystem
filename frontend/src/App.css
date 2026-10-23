@@ -163,26 +163,6 @@ html[data-session-pending="true"] [data-protected-content] {
 .jowa-connection { display:flex; align-items:center; gap:8px; margin:10px 12px 12px; padding:9px 10px; border-radius:8px; font-size:12.5px; background:var(--color-success-bg); color:#166534; }
 .jowa-connection.offline { background:var(--color-warning-bg); color:#92400E; }
 .jowa-connection-dot { width:8px; height:8px; border-radius:50%; background:currentColor; flex:0 0 auto; }
-/* Plataforma: color fijo, independiente del negocio que se administre. */
-.jowa-platform-sidebar { --plat-accent:#0F766E; background:#141c22; color:#c9d2d8; border-right-color:#26323b; }
-.jowa-platform-sidebar .jowa-sidebar-brand { border-color:#26323b; }
-.jowa-platform-sidebar .jowa-sidebar-identity strong { color:#fff; }
-.jowa-platform-sidebar .jowa-sidebar-identity small { color:#8796a0; }
-.jowa-platform-mark { width:38px; height:38px; border-radius:10px; display:grid; place-items:center; background:var(--plat-accent); color:#fff; }
-.jowa-platform-sidebar .navigation-group { color:#8796a0; }
-.jowa-platform-sidebar .jowa-nav-item { color:#c9d2d8; }
-.jowa-platform-sidebar .jowa-nav-item:hover { background:#1d272f; }
-.jowa-platform-sidebar .jowa-nav-item.active { background:#1d272f; color:#fff; box-shadow:inset 3px 0 #2bb3a3; }
-.jowa-platform-context { margin:6px 0 4px; padding:10px; border-radius:10px; background:#1d272f; border:1px solid #2b3842; }
-.jowa-platform-context-head { display:flex; align-items:center; gap:9px; padding-bottom:8px; margin-bottom:6px; border-bottom:1px solid #2b3842; color:#fff; font-size:13px; min-width:0; }
-.jowa-platform-context-head strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.jowa-platform-tenant { width:28px; height:28px; flex:0 0 auto; border-radius:8px; display:grid; place-items:center; background:var(--tenant-color); color:var(--tenant-on-color, #fff); font:800 11px var(--font-display); }
-.jowa-nav-sub { display:flex; align-items:center; gap:8px; min-height:32px; padding:4px 8px; border-radius:6px; color:#c9d2d8; text-decoration:none; font-size:13px; }
-.jowa-nav-sub::before { content:''; width:6px; height:6px; border-radius:50%; background:#51616c; }
-.jowa-nav-sub:hover { background:#2a3741; }
-.jowa-nav-sub.active { background:#2a3741; color:#fff; font-weight:700; }
-.jowa-nav-sub.active::before { background:var(--tenant-color); }
-.jowa-platform-foot { padding:12px 16px; border-top:1px solid #26323b; font-size:12px; color:#8796a0; }
 
 /* Panel del Super Admin: lista de negocios con su color. */
 .jowa-tenant-cell { display:flex; align-items:center; gap:10px; min-width:0; }

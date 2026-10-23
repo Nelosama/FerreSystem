@@ -1,0 +1,54 @@
+/* ==========================================================================
+   Jowa System — tema global (único para todos los usuarios).
+   Los tokens se definen una sola vez aquí. Los componentes solo usan var(--token).
+   Sin modo oscuro ni temas por usuario: la interfaz es clara con barra lateral oscura.
+   El color propio de cada negocio solo aparece en su insignia de iniciales.
+   ========================================================================== */
+
+:root {
+  --bg: #eef1f3;            /* fondo de la app */
+  --surface: #ffffff;       /* tarjetas, topbar */
+  --surface-2: #f6f8f9;     /* filas hover, fondos secundarios */
+  --ink: #0f1a20;           /* texto principal */
+  --muted: #5b6b75;         /* texto secundario */
+  --line: #e1e6e9;          /* bordes */
+  --plat: #141c22;          /* barra lateral (rail) */
+  --plat-2: #1b252c;        /* hover en el rail */
+  --plat-ink: #c9d2d8;
+  --plat-muted: #7d8b94;    /* iconos inactivos del rail */
+  --plat-line: #26323b;
+  --accent: #0f766e;        /* teal principal: botones, foco, activo */
+  --accent-strong: #0b5e57; /* hover / texto sobre accent-soft */
+  --accent-soft: #e5f3f1;   /* fondos de estado activo, pills */
+  --accent-on-dark: #5eead4;/* icono activo sobre el rail oscuro */
+  --radius: 10px;
+  --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  color-scheme: light;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Texto solo para lectores de pantalla (etiquetas de botones con solo icono). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -248,7 +248,7 @@ test('Super Admin: la marca de un negocio sin color guardado no rompe la pantall
   const sim = await prepararSesion(page, 'SUPERADMIN');
   await page.route('**/api/admin/tenants/ux-negocio/settings', route => route.fulfill({ json: { id: 'ux-negocio', nombreComercial: 'Ferretería El Roble', configuracion: {}, modulosHabilitados: [] } }));
   await page.goto('/admin/negocios/ux-negocio/marca');
-  await expect(page.locator('aside.jowa-platform-sidebar .jowa-platform-context')).toBeVisible();
+  await expect(page.locator('.platform-pills')).toBeVisible();
   expect(sim.errores).toEqual([]);
   await page.goto('/admin');
   await sinFallos(page);

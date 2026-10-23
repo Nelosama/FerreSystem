@@ -84,27 +84,29 @@ test('TOPNAV se conserva en el diseño único', async ({ page }) => {
   await expect(page.locator('aside.jowa-sidebar')).toHaveCount(0);
 });
 
-test('SUPERADMIN: menú de plataforma con secciones por URL y menú del negocio anidado', async ({ page }) => {
+test('SUPERADMIN: rail de áreas con pestañas por URL y pestañas del negocio', async ({ page }) => {
   await setup(page, 'SUPERADMIN');
   await page.goto('/admin');
-  const nav = page.locator('aside.jowa-platform-sidebar');
-  await expect(nav).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Negocios' })).toHaveAttribute('aria-current', 'page');
-  await nav.getByRole('link', { name: 'Auditoría' }).click();
+  const rail = page.getByRole('navigation', { name: 'Áreas de la plataforma' });
+  await expect(rail).toBeVisible();
+  await expect(rail.getByRole('link', { name: 'Clientes' })).toHaveAttribute('aria-current', 'page');
+  await rail.getByRole('link', { name: 'Seguridad' }).click();
   await expect(page).toHaveURL(/\/admin\?seccion=auditoria$/);
-  await expect(nav.getByRole('link', { name: 'Auditoría' })).toHaveAttribute('aria-current', 'page');
-  await expect(nav.getByRole('link', { name: 'Negocios' })).not.toHaveAttribute('aria-current', 'page');
+  await expect(rail.getByRole('link', { name: 'Seguridad' })).toHaveAttribute('aria-current', 'page');
+  await expect(rail.getByRole('link', { name: 'Clientes' })).not.toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('tab', { name: 'Auditoría' })).toHaveAttribute('aria-selected', 'true');
   await page.reload();
-  await expect(nav.getByRole('link', { name: 'Auditoría' })).toHaveAttribute('aria-current', 'page');
+  await expect(rail.getByRole('link', { name: 'Seguridad' })).toHaveAttribute('aria-current', 'page');
 
   await page.goto('/admin/negocios/ux-company/marca');
-  const contexto = nav.locator('.jowa-platform-context');
-  await expect(contexto).toContainText('Ferretería El Roble');
-  await expect(contexto.getByRole('link', { name: 'Marca y navegación' })).toHaveClass(/active/);
-  await contexto.getByRole('link', { name: 'Usuarios' }).click();
+  // Dentro de un negocio el área Clientes sigue activa y las pestañas del negocio están visibles.
+  await expect(rail.getByRole('link', { name: 'Clientes' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('navigation', { name: 'Ruta de navegación' })).toContainText('Ferretería El Roble');
+  await expect(page.getByRole('tab', { name: 'Configuración y marca' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Usuarios' }).click();
   await expect(page).toHaveURL(/\/admin\/negocios\/ux-company\/usuarios$/);
-  // El menú de plataforma no adopta el color del negocio administrado.
-  await expect(nav).toHaveCSS('background-color', 'rgb(20, 28, 34)');
+  // El rail de plataforma no adopta el color del negocio administrado.
+  await expect(rail).toHaveCSS('background-color', 'rgb(20, 28, 34)');
 });
 
 test('barra superior muestra el estado de la caja a quien vende', async ({ page }) => {
@@ -123,10 +125,10 @@ test('el POS muestra sus tres pasos en el ticket', async ({ page }) => {
   await expect(pasos.nth(2)).toContainText('Pago y entrega');
 });
 
-test('SUPERADMIN en modo lateral: no repite las pestañas superiores de plataforma', async ({ page }) => {
+test('SUPERADMIN: el rail sustituye al menú lateral y no hay pestañas superiores duplicadas', async ({ page }) => {
   await setup(page, 'SUPERADMIN');
   await page.goto('/admin');
-  await expect(page.locator('aside.jowa-platform-sidebar')).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Administración de plataforma' })).toHaveCount(0);
-  await expect(page.getByRole('navigation', { name: 'Menú de plataforma' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Menú de plataforma' })).toHaveCount(0);
+  await expect(page.getByRole('tablist', { name: 'Clientes' })).toBeVisible();
 });

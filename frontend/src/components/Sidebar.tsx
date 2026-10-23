@@ -1,5 +1,4 @@
 import { LogotipoNegocio } from './LogotipoNegocio';
-import { PlatformSidebar } from './PlatformSidebar';
 import { availableTasks, groupNavigation } from '../utils/taskNavigation';
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -19,13 +18,8 @@ const leerCerrados = (): string[] => {
   try { const valor = JSON.parse(localStorage.getItem(CLAVE_GRUPOS) || '[]'); return Array.isArray(valor) ? valor : []; } catch { return []; }
 };
 
+// El SUPERADMIN usa PlatformRail (ver AppLayout); este menú es el de los negocios.
 export const Sidebar: React.FC = () => {
-  const { user } = useTenant();
-  if (user?.rol === 'SUPERADMIN') return <PlatformSidebar />;
-  return <TenantSidebar />;
-};
-
-const TenantSidebar: React.FC = () => {
   const { tenant, user } = useTenant();
   const rubroConfig = useRubroConfig();
   const { t } = useI18n();

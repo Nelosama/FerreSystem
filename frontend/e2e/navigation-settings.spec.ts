@@ -60,7 +60,8 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
     await setup(page, role, mode, language, []);
     await page.goto(role === 'SUPERADMIN' ? '/admin' : '/');
-    const navigation = page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
+    // El SUPERADMIN usa siempre el rail de plataforma (el modo del negocio no le aplica).
+    const navigation = role === 'SUPERADMIN' ? page.getByRole('navigation', { name: 'Áreas de la plataforma' }) : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
     await expect(navigation).toBeVisible();
     await expect(navigation.locator('a[href="/pos"]')).toHaveCount(0);
     await expect(navigation.locator('a[href="/apartados"]')).toHaveCount(0);
@@ -75,6 +76,15 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
       if (role !== 'ADMIN') await expect(navigation.locator('a[href="/usuarios"]')).toHaveCount(0);
     }
     await page.setViewportSize({ width: 390, height: 844 });
+    if (role === 'SUPERADMIN') {
+      // En móvil el rail es la barra inferior de cuatro áreas; no hay botón «Más».
+      await expect(navigation).toBeVisible();
+      await expect(navigation.getByRole('link')).toHaveCount(4); // En móvil el logotipo del rail queda oculto.
+      await page.goto('/inventario');
+      await expect(page.getByRole('heading', { name: language === 'es' ? /Acceso Denegado/i : /Access Denied/i, exact: true })).toBeVisible();
+      expect(errors).toEqual([]);
+      return;
+    }
     await expect(page.locator('.mobile-bottom-nav')).toBeVisible();
     const more = page.locator('.mobile-bottom-nav button');
     await more.click();
@@ -137,7 +147,7 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
 test('settings: valores fiscales soportados, guardado, reload, errores y capturas', async ({ page }) => {
   const api = await setup(page, 'SUPERADMIN', 'TOPNAV');
   await page.goto('/admin/negocios/ux-company/configuracion');
-  await expect(page.locator('.app-top-navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' })).toBeVisible();
   await expect(page.locator('#task-search')).toHaveCount(0);
   await expect(page.locator('#tax-rate')).toHaveValue('15');
   for (const id of ['currency-code', 'currency-symbol', 'tax-name', 'tax-rate']) await expect(page.locator('#' + id)).toHaveAttribute('readonly', '');
@@ -147,7 +157,7 @@ test('settings: valores fiscales soportados, guardado, reload, errores y captura
   expect(api.writes[0]).toMatchObject({ modoNavegacion: 'TOPNAV', configuracion: { impuesto: { tasa: 15 }, moneda: { codigo: 'HNL' } } });
   await page.reload();
   await expect(page.locator('input[type="number"]')).toHaveValue('15');
-  await expect(page.locator('.app-top-navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' })).toBeVisible();
   await page.screenshot({ path: 'artifacts/ux-settings-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'artifacts/ux-settings-mobile.png', fullPage: true });
@@ -216,13 +226,8 @@ for (const language of ['es', 'en']) test(`inicio ADMIN: pendientes traducidos y
 for (const language of ['es', 'en']) test(`configuración del negocio traducida ${language}`, async ({ page }) => {
   await setup(page, 'SUPERADMIN', 'TOPNAV', language);
   await page.goto('/admin/negocios/ux-company/configuracion');
-  // The accessible label comes from the shared translation, not its icon.
-  const toggle=page.locator('.task-finder-toggle');
-  await toggle.click(); await expect(page.locator('#task-search')).toBeFocused();
-  await page.locator('#task-search').fill(language==='es'?'ventas':'sales');
-  await page.keyboard.press('Escape'); await expect(toggle).toBeFocused();
+  // La plataforma no muestra el buscador de tareas de los negocios.
   await expect(page.locator('#task-search')).toHaveCount(0);
-  await expect(page.getByRole('heading',{ name:language==='es'?'CONFIGURACIÓN Y MARCA':'SETTINGS AND BRANDING',exact:true })).toBeVisible();
   await expect(page.locator('#fiscal-limit')).toContainText(language==='es'?'solo lectura':'read-only');
 });
 

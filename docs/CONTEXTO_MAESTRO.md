@@ -1,12 +1,38 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-22 UTC** — PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Resueltos los conflictos en controles de módulos/marca y contexto; validación del nuevo commit en curso. Sin merge a main, despliegue ni cambios en producción.
+Última revisión: **2026-10-23 UTC** — rediseño de navegación del Super Admin (layout híbrido) en la rama `claude/amazing-bohr-9e5bpj`, sin PR, merge ni despliegue; ver la sección siguiente. PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Sin cambios en producción.
 
 Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorporó la ronda de UX, marca y navegación. Se conservan sus bitácoras y evidencias a continuación. Detalle de seguridad: [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
 ---
+
+## Super Admin — layout híbrido (rail, topbar y pestañas) — 2026-10-23 UTC (rama `claude/amazing-bohr-9e5bpj`, sin PR, merge ni despliegue)
+
+- **Origen y alcance:** brief «Rediseño de navegación del Super Admin» (rail de iconos + topbar + pestañas contextuales). Solo reorganiza navegación y aplica el tema visual; no cambia rutas, permisos, consultas de negocio ni backend. Sin dependencias nuevas (React + CSS tradicional + lucide-react).
+- **Tema:** `frontend/src/styles/tema.css` define una sola vez los tokens del brief en `:root` (`--bg`, `--surface`, `--accent`, `--plat`…), `color-scheme: light`, `body` y `:focus-visible`. `frontend/src/styles/plataforma.css` aplica el shell; sus alias de neutros (`--color-bg`, `--color-text-main`…) y de marca se declaran solo dentro de `.platform-shell`, de modo que el teal no depende del negocio.
+- **Estructura implementada:**
+  - Rail de 84 px con cuatro áreas (Inicio, Clientes, Servicios, Seguridad) en `components/PlatformRail.tsx`; `<nav aria-label="Áreas de la plataforma">`, `aria-current`, etiquetas visibles de 11 px.
+  - Topbar de 56 px en `components/PlatformTopbar.tsx` con el área y la pill «Super Admin»; a la derecha, idioma, usuario y cierre de sesión existentes.
+  - Pestañas del área en `components/PlatformTabs.tsx` (`role="tablist"`/`tab`, `aria-selected`, flechas), solo si el área tiene más de una sección: Clientes → Negocios · Administradores; Seguridad → Auditoría · Soporte remoto · Respaldos.
+  - Detalle de negocio: breadcrumb «Negocios › Nombre», cabecera con insignia de 44 px y métricas, y cinco pestañas tipo píldora en `components/NegocioNavigation.tsx`, que también usan Configuración y Auditoría.
+  - `App.tsx`: el SUPERADMIN usa siempre el shell de plataforma, sin depender de `modoNavegacion`. `PlatformSidebar.tsx` se elimina.
+- **Rutas y datos:** `?seccion=` y todas las rutas `/admin/negocios/:id/...` se conservan. `config/platformNavigation.ts` añade áreas y etiquetas. La cabecera del negocio pide sucursales y usuarios con los listados que ya existen (si falla, muestra «—»).
+- **Responsive:** tableta (≤1024 px) con padding de 22 px, etiquetas cortas («Resumen», «Configuración», «Soporte») y métricas secundarias ocultas. Móvil (≤640 px) con el rail como barra inferior fija de cuatro iconos con etiqueta, topbar compacta y pestañas con desplazamiento horizontal sin barra visible.
+- **Pruebas:**
+  - Unitarias frontend **502/502**; `tsc -b` sin errores; lint con 117 avisos, igual que `main`.
+  - Playwright con Chromium 1194 del entorno: menu-jowa-v3, diseno-unico, navigation-settings, ux-ronda1-regresion, guide, arranque y admin-home. Resultado: la suite de cuatro archivos clave pasa **80/80** tras corregir la regresión de contraste del POS (ver abajo), y el conjunto ampliado **119/119** antes del último ajuste de test; la suite completa queda registrada en el PR cuando exista, no en este documento.
+  - Regresión detectada y corregida: aplicar `--color-bg` a todo el sistema bajaba el contraste del aviso de caja del POS (4.35:1 < 4.5:1). Los alias de neutros se limitaron a `.platform-shell`; los negocios mantienen sus colores actuales.
+  - Actualizados selectores y expectativas de navegación del SUPERADMIN en cuatro e2e (estructura nueva; las aserciones de acceso, idioma y formularios se mantienen).
+- **Evidencia visual local:** capturas de escritorio 1280, tableta 1024 y móvil 390 revisadas; no se guardan en el repositorio.
+- **Pendientes reales:**
+  - **Decisión del dueño:** el brief pide el mismo tema para todos los usuarios, pero `TenantContext` sigue aplicando el color del negocio a `--color-primary` en la app de los negocios. Hasta confirmar, no se ha cambiado ese comportamiento.
+  - La topbar de página (`TopBar`) queda oculta en el shell del Super Admin, así que Configuración y Auditoría ya no muestran su título visible. Hace falta un título de página en el shell.
+  - «Configuración y marca» enlaza a `/configuracion`; `/marca` sigue siendo una página aparte. La fusión de contenido no se hizo porque cambia lógica de formularios.
+  - La tabla de negocios no se convirtió en filas con chevron ni en dos líneas en móvil; conserva su estructura de tabla.
+  - Sin prueba en Safari, iPhone ni tableta física.
+- **Bitácora:** lectura de AGENTS y del contexto; revisión del brief y del código del Super Admin; implementación por capas (tema, shell, pestañas, negocio); corrección de TopBar con `!important` por estilo en línea; regresión de contraste en POS corregida; ajuste de e2e y capturas.
 
 ## PR #189 — sincronización tras integrar #188 (2026-10-22 UTC)
 
