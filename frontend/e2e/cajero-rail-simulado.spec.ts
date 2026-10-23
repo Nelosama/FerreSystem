@@ -60,12 +60,12 @@ for (const pantalla of pantallas) {
     for (const nombre of ['Inicio', 'Caja', 'Mi caja']) await expect(rail.getByRole('link', { name: new RegExp(`^${nombre}`) })).toBeVisible();
     await expect(rail.getByRole('button', { name: 'Más' })).toBeVisible();
     // Etiquetas de al menos 12 px y sin desborde horizontal de la página.
-    const tamanos = await rail.locator('.cajero-rail-item > span:last-child').evaluateAll(nodos => nodos.map(n => parseFloat(getComputedStyle(n).fontSize)));
+    const tamanos = await rail.locator('.app-rail-item > span:last-child').evaluateAll(nodos => nodos.map(n => parseFloat(getComputedStyle(n).fontSize)));
     expect(Math.min(...tamanos)).toBeGreaterThanOrEqual(12);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     // «Más» abre el resto de accesos y el panel cabe en la pantalla.
     await rail.getByRole('button', { name: 'Más' }).click();
-    const panel = page.locator('#cajero-rail-mas-panel');
+    const panel = page.locator('#app-rail-panel-mas');
     await expect(panel).toBeVisible();
     expect(await panel.getByRole('link').count()).toBeGreaterThan(0);
     const caja = (await panel.boundingBox())!;
@@ -78,7 +78,7 @@ test('cajero: «Más» solo ofrece accesos que existen y llevan a su pantalla', 
   await setup(page, 'CAJERO');
   await page.goto('/pos');
   await page.locator('nav.cajero-rail').getByRole('button', { name: 'Más' }).click();
-  const enlaces = page.locator('#cajero-rail-mas-panel a');
+  const enlaces = page.locator('#app-rail-panel-mas a');
   const rutas = await enlaces.evaluateAll(links => links.map(a => a.getAttribute('href')));
   expect(rutas.length).toBeGreaterThan(0);
   expect(rutas).not.toContain('/pos');
@@ -86,7 +86,7 @@ test('cajero: «Más» solo ofrece accesos que existen y llevan a su pantalla', 
   // Cada acceso del panel navega a su ruta y la deja marcada como activa en una sola pantalla.
   await enlaces.first().click();
   await expect(page).toHaveURL(new RegExp(`${rutas[0]}$`));
-  await expect(page.locator('#cajero-rail-mas-panel')).toHaveCount(0);
+  await expect(page.locator('#app-rail-panel-mas')).toHaveCount(0);
 });
 
 for (const contexto of [{ rol: 'CAJERO', inicio: '/pos' }, { rol: 'SUPERADMIN', inicio: '/admin' }]) {
@@ -114,7 +114,7 @@ for (const color of ['#F5C400', '#FDE68A', '#FFFFFF', '#EA580C', '#0F172A', '#00
       const rgba = (c: string) => { g.clearRect(0, 0, 1, 1); g.fillStyle = c; g.fillRect(0, 0, 1, 1); const d = g.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
       const rail = document.querySelector('nav.cajero-rail')!;
       const activo = rail.querySelector('a.is-active')!;
-      const pastilla = activo.querySelector('.cajero-rail-pill')!;
+      const pastilla = activo.querySelector('.app-rail-pill')!;
       const icono = pastilla.querySelector('svg')!;
       const anillo = /(color\([^)]*\)|rgba?\([^)]*\))/.exec(getComputedStyle(pastilla).boxShadow)?.[1] ?? 'transparent';
       return {
