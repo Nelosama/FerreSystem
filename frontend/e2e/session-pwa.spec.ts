@@ -27,11 +27,14 @@ test('PWA real: shell cacheado no autoriza sesión expirada ni almacena API priv
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await expect.poll(() => page.evaluate(async () => !!(await caches.match('/index.html')))).toBe(true);
-  await page.clock.install();
-  await page.clock.setFixedTime(new Date(Date.now() + 86400_000));
   expired = true;
   const before = moduleReads;
-  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+  // Expire the credential without advancing the inactivity clock: these are
+  // separate policies, and the five-minute idle logout must not win this test.
+  await page.evaluate(expiredToken => {
+    localStorage.setItem('ferre_token', expiredToken);
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+  }, token(Date.now() / 1000 - 1));
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByText('Tu sesión ha expirado. Inicia sesión nuevamente para continuar.')).toBeVisible();
   await page.reload();
