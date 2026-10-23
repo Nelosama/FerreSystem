@@ -61,8 +61,11 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
     await setup(page, role, mode, language, []);
     await page.goto(role === 'SUPERADMIN' ? '/admin' : '/');
     // El SUPERADMIN usa siempre el rail de plataforma (el modo del negocio no le aplica).
-    const navigation = role === 'SUPERADMIN' ? page.getByRole('navigation', { name: 'Áreas de la plataforma' }) : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
+    // El cajero en modo lateral usa el rail de iconos; sus accesos secundarios quedan en «Más».
+    const cajeroRail = role === 'CAJERO' && mode === 'SIDEBAR';
+    const navigation = role === 'SUPERADMIN' ? page.getByRole('navigation', { name: 'Áreas de la plataforma' }) : cajeroRail ? page.locator('nav.cajero-rail') : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
     await expect(navigation).toBeVisible();
+    if (cajeroRail && await navigation.getByRole('button', { name: 'Más' }).count()) await navigation.getByRole('button', { name: 'Más' }).click();
     await expect(navigation.locator('a[href="/pos"]')).toHaveCount(0);
     await expect(navigation.locator('a[href="/apartados"]')).toHaveCount(0);
     // La configuración se abre por negocio desde el panel del SUPERADMIN; no hay entrada global en el menú.
@@ -105,8 +108,10 @@ for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode
   test(`POS ${enabled} ${role} ${mode}: menús, buscador, accesos, móvil y URL`, async ({ page }) => {
     await setup(page, role, mode, 'es', enabled ? ['pos'] : []);
     await page.goto('/');
-    const nav = page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
+    const cajeroRail = role === 'CAJERO' && mode === 'SIDEBAR';
+    const nav = cajeroRail ? page.locator('nav.cajero-rail') : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
     await expect(nav).toBeVisible();
+    if (cajeroRail && await nav.getByRole('button', { name: 'Más' }).count()) await nav.getByRole('button', { name: 'Más' }).click();
     const salesMenu = nav.getByRole('button', { name: 'Ventas y caja' });
     if (mode === 'TOPNAV' && await salesMenu.count()) await salesMenu.click();
     for (const route of ['entregas', 'devoluciones']) {

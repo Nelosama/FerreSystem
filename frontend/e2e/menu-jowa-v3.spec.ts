@@ -65,7 +65,8 @@ test('ADMIN: orden por uso, grupos desplegables que se recuerdan y diseño únic
 test('sin conexión: el menú lo indica y solo el POS sigue disponible', async ({ page, context }) => {
   await setup(page, 'CAJERO');
   await page.goto('/');
-  const nav = page.locator('aside.jowa-sidebar');
+  // El rail del cajero muestra Caja y Mi caja; el indicador de conexión queda dentro del rail.
+  const nav = page.locator('nav.cajero-rail');
   await expect(nav.locator('a[href="/pos"]')).toHaveCount(1);
   await context.setOffline(true);
   await expect(page.locator('.jowa-connection')).toContainText('Sin conexión');

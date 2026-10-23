@@ -8,6 +8,7 @@ import { I18nProvider } from './context/I18nContext';
 import { Sidebar } from './components/Sidebar';
 import { PlatformRail } from './components/PlatformRail';
 import { PlatformTopbar } from './components/PlatformTopbar';
+import { CajeroRail } from './components/CajeroRail';
 import { TopNavigation } from './components/TopNavigation';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -175,7 +176,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <CajaProvider>
     <div className={isTopNav ? "app-container-topnav" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
-      {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : <Sidebar />}
+      {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : user?.rol === 'CAJERO' ? <CajeroRail /> : <Sidebar />}
       <div data-guide-content
         className="main-content"
         style={{
