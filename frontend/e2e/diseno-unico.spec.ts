@@ -40,16 +40,29 @@ test('configuración heredada con plantillas antiguas: la app carga sin errores 
   const errores: string[] = []; page.on('pageerror', error => errores.push(error.message));
   await preparar(page, 'ADMIN', { templateVersion: 'v2', v2Mode: 'dark', estiloUI: 'MODERNO', fuenteTitulos: 'Poppins' });
   await page.goto('/');
-  await expect(page.locator('aside.app-sidebar')).toBeVisible();
+  await expect(page.locator('nav.admin-rail')).toBeVisible();
   await expect(page.locator('html')).not.toHaveAttribute('data-template');
   expect(errores).toEqual([]);
 });
 
+// El rail del administrador agrupa los accesos en paneles: se abre cada uno para reunir todos sus enlaces.
+async function enlacesDelRail(page: Page) {
+  const rail = page.locator('nav.admin-rail');
+  const reunidos = new Set<string>(await rail.locator('a[href]').evaluateAll(links => links.map(a => a.getAttribute('href') || '')));
+  const botones = rail.locator('button.app-rail-item');
+  for (let i = 0; i < await botones.count(); i++) {
+    await botones.nth(i).click();
+    for (const href of await page.locator('nav.admin-rail .app-rail-panel a[href]').evaluateAll(links => links.map(a => a.getAttribute('href') || ''))) reunidos.add(href);
+    await botones.nth(i).click();
+  }
+  return [...reunidos].filter(h => h && h !== '/').sort();
+}
+
 test('SIDEBAR y TOPNAV muestran exactamente los mismos módulos para ADMIN', async ({ page }) => {
   await preparar(page, 'ADMIN', { modoNavegacion: 'SIDEBAR' });
   await page.goto('/');
-  await expect(page.locator('aside.app-sidebar a[href="/pos"]')).toBeVisible();
-  const lateral = await enlaces(page.locator('aside.app-sidebar'));
+  await expect(page.locator('nav.admin-rail')).toBeVisible();
+  const lateral = await enlacesDelRail(page);
   const superiorPage = await page.context().newPage();
   await preparar(superiorPage, 'ADMIN', { modoNavegacion: 'TOPNAV' });
   await superiorPage.goto('/');

@@ -1,0 +1,113 @@
+/* ==========================================================================
+   Jowa System — piezas compartidas por los shells con barra superior propia
+   (Super Admin y Administrador): barra superior de 56 px y encabezado de página.
+   El acento sale de --color-primary-*: el shell del Super Admin lo fija en teal y
+   el del Administrador toma el color configurado por el negocio.
+   ========================================================================== */
+
+/* ---------- Barra superior ---------- */
+.shell-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.shell-topbar-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.shell-topbar-area strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell-pill {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-text);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.shell-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.shell-topbar-actions .btn-sm,
+.shell-topbar-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.shell-topbar-actions [aria-pressed='true'] {
+  background: var(--color-primary-light);
+  color: var(--color-primary-text);
+  border-color: transparent;
+}
+
+.shell-topbar-user {
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Encabezado de página (TopBar dentro de un shell): título de 22 px y subtítulo secundario ---------- */
+.shell-page-header { padding: 28px 28px 18px; }
+.shell-page-header h1 { font-size: 22px; font-weight: 600; line-height: 1.25; color: var(--ink); margin: 0; letter-spacing: normal; }
+.shell-page-header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+
+/* ---------- Tableta (≤1024 px) ---------- */
+@media (max-width: 1024px) {
+  .shell-topbar { padding: 0 22px; }
+  .shell-page-header { padding: 24px 22px 14px; }
+}
+
+/* ---------- Móvil (≤640 px): barra compacta y título de 19 px ---------- */
+@media (max-width: 640px) {
+  .shell-topbar {
+    height: auto;
+    min-height: 52px;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+  }
+
+  .shell-topbar-area strong { font-size: 14px; }
+  .shell-topbar-user,
+  .shell-topbar-idioma { display: none; }
+  /* Solo icono a la vista, pero el texto se conserva para lectores de pantalla (nombre accesible del botón). */
+  .shell-topbar-logout span { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
+  .shell-page-header { padding: 20px 16px 12px; }
+  .shell-page-header h1 { font-size: 19px; }
+}

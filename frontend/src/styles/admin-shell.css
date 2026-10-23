@@ -1,0 +1,66 @@
+/* ==========================================================================
+   Jowa System — shell del administrador (modo barra lateral).
+   Rail de iconos + barra superior de 56 px sobre el layout existente (.app-container / .main-content).
+   El acento es el color configurado por el negocio (--color-primary-*); nada aquí fija el teal.
+   ========================================================================== */
+
+.admin-shell .main-content { min-width: 0; }
+
+/* ---------- Barra superior del administrador ---------- */
+.admin-topbar-identidad {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.admin-topbar-identidad > strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-topbar .app-branch-select { max-width: 200px; font-size: 12px; }
+
+/* El logotipo vive en el rail de escritorio; en móvil, sin rail, pasa a la barra superior. */
+.admin-topbar-logo,
+.admin-topbar-sucursal-movil { display: none; }
+
+.admin-topbar-divisor { width: 1px; height: 26px; background: var(--line); }
+
+.admin-topbar-perfil { display: flex; align-items: center; gap: 9px; min-width: 0; }
+
+.admin-topbar-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-topbar-perfil-texto { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.admin-topbar-perfil-texto strong { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+.admin-topbar-perfil-texto small { font-size: 11px; color: var(--muted); }
+
+/* ---------- Tableta (≤1024 px): menos ruido en la barra ---------- */
+@media (max-width: 1024px) {
+  .admin-topbar-perfil-texto small { display: none; }
+}
+
+/* ---------- Móvil (≤768 px): el rail se oculta; negocio y sucursal quedan en la barra ---------- */
+@media (max-width: 768px) {
+  .admin-topbar-logo { display: block; }
+  .admin-topbar-sucursal-movil { display: inline; font-size: 12px; color: var(--muted); }
+  .admin-topbar-identidad { gap: 8px; }
+  .admin-topbar-identidad > strong { font-size: 14px; max-width: 42vw; }
+  .admin-topbar-perfil-texto { display: none; }
+  .admin-topbar-divisor { display: none; }
+}

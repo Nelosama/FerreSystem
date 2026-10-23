@@ -25,6 +25,7 @@ const test = base.extend<{ runtime: Runtime }>({
           '/auth/me': { user: role ? { sub: user(role).id, tenantId: tenant.id, rol: role, permisos: ['pos.vender'], descuentoMaximo: 0 } : null },
           '/dashboard': { ventasDelDia: { total: 0 }, alertasStock: { items: [] }, cotizacionesPendientes: { cantidad: 0 } },
           '/dashboard/pendientes': { generadoAt: '2026-10-18T00:00:00.000Z', indicadores: [] },
+          '/operaciones/cuentas': [],
           '/maintenance/backup': { configured: false },
           '/productos/comercial': [],
           '/clientes': [],
@@ -96,8 +97,11 @@ for (const role of ['ADMIN', 'CAJERO'] as const) {
     await page.locator('input[type="email"]').fill('usuario@prueba.invalid');
     await page.locator('input[type="password"]').fill('solo-para-esta-prueba');
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
-    await expect(page.getByRole('heading', { name: role === 'ADMIN' ? 'Administrar el negocio' : 'Tareas del día', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', role === 'ADMIN' ? { name: /^Hola, /, level: 1 } : { name: 'Tareas del día', exact: true })).toBeVisible();
 
+    // Dentro del shell del administrador el buscador de pantallas está plegado; se abre con su botón.
+    const alternarBuscador = page.locator('.task-finder-toggle');
+    if (await alternarBuscador.count()) await alternarBuscador.click();
     await page.locator('#task-search').fill('devolución');
     await page.getByRole('link', { name: /^Registrar una devolución/ }).click();
     await expect(page).toHaveURL(/\/devoluciones$/);

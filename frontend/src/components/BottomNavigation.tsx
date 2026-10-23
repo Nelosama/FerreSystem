@@ -7,6 +7,8 @@ import { useRubroConfig } from '../hooks/useRubroConfig';
 import { useSucursales } from '../hooks/useSucursales';
 import { useI18n } from '../context/I18nContext';
 import { type NavigationItem } from '../config/navigation';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { filtrarAccesosMovilAdmin } from '../utils/movilAdmin';
 
 export const BottomNavigation: React.FC = () => {
   const { tenant, user, switchSucursal } = useTenant();
@@ -26,9 +28,11 @@ export const BottomNavigation: React.FC = () => {
 
 
 
-  const visibleItems = availableTasks(user, tenant);
+  // Interfaz móvil del administrador: sin ventas, cobros, devoluciones ni cierres de caja (regla de presentación).
+  const movil = useMediaQuery('(max-width: 768px)');
+  const visibleItems = filtrarAccesosMovilAdmin(availableTasks(user, tenant), user, movil);
 
-  const preferred = priorityTasks(user, tenant);
+  const preferred = filtrarAccesosMovilAdmin(priorityTasks(user, tenant), user, movil);
   const home = visibleItems.find(item => item.key === 'dashboard' || item.key === 'superadmin');
   const bottomFour: NavigationItem[] = [...(home ? [home] : []), ...preferred.filter(item => item !== home)].slice(0,4);
   const selectedKeys = new Set(bottomFour.map(item => item.key));

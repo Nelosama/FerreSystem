@@ -1,68 +1,47 @@
-/* Panel administrativo. Usa los tokens del tema del negocio (marca configurable) con valores de respaldo. */
+/* ==========================================================================
+   Inicio del administrador. Todo está acotado a .admin-home (sin efecto en otras pantallas).
+   Superficies blancas sobre fondo gris claro, bordes suaves y sombras discretas. El acento es el color configurado por
+   el negocio (--color-primary-*); los estados (alerta, peligro) usan colores semánticos fijos.
+   ========================================================================== */
 .admin-home {
-  --ah-bg: var(--color-bg, #F5F5F4);
-  --ah-surface: var(--color-card, #FFFFFF);
-  --ah-border: var(--color-border, #E7E5E4);
-  --ah-text: var(--color-text-main, #1C1917);
-  --ah-muted: var(--color-text-muted, #78716C);
-  --ah-brand: var(--color-primary, #EA580C);
-  --ah-alert: #B45309;
-  --ah-alert-bg: #FFFBEB;
-  --ah-radius: 12px;
-  --ah-shadow: 0 1px 2px rgba(28, 25, 23, 0.05), 0 1px 3px rgba(28, 25, 23, 0.04);
+  --ah-bg: var(--color-bg, #F4F5F7);
+  --ah-surface: var(--surface, #FFFFFF);
+  --ah-surface-2: var(--surface-2, #F6F8F9);
+  --ah-border: var(--line, #E1E6E9);
+  --ah-text: var(--ink, #0F1A20);
+  --ah-muted: var(--muted, #5B6B75);
+  --ah-brand: var(--color-primary);
+  --ah-brand-text: var(--color-primary-text);
+  --ah-brand-soft: var(--color-primary-light);
+  --ah-alert: #92400E;
+  --ah-alert-bg: #FFF3E0;
+  --ah-radius: 13px;
+  --ah-shadow: 0 1px 2px rgba(28, 43, 50, 0.05);
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 100vh;
   background: var(--ah-bg);
   color: var(--ah-text);
-  font-family: 'DM Sans', var(--font-body, system-ui, sans-serif);
+  font-family: var(--font-body, system-ui, sans-serif);
 }
 
 .admin-home__main {
   width: 100%;
   max-width: 1280px;
-  padding: 24px 28px 96px;
+  padding: 0 28px 48px;
   box-sizing: border-box;
-}
-
-.admin-home__cabecera {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
+  flex-direction: column;
+  gap: 18px;
 }
 
-.admin-home__titulo,
-.admin-home__subtitulo,
-.admin-home__metrica-cifra {
-  font-family: 'Manrope', var(--font-display, system-ui, sans-serif);
-  margin: 0;
-}
+.admin-home__sync { display: flex; justify-content: flex-start; margin-top: -4px; }
+.admin-home__sync .sync-status { margin: 0; }
 
-.admin-home__titulo { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 4px; }
-
-.admin-home__acciones { display: flex; gap: 8px; flex-wrap: wrap; }
-
-.admin-home__acceso {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 0 14px;
-  border-radius: 8px;
-  border: 1px solid var(--ah-border);
-  background: var(--ah-surface);
-  color: var(--ah-text);
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-}
-.admin-home__acceso:hover { border-color: var(--ah-brand); color: var(--color-primary-text, var(--ah-brand)); }
+.admin-home__subtitulo { font-family: var(--font-display, var(--font-body, system-ui)); margin: 0; font-size: 16px; font-weight: 700; color: var(--ah-text); }
+.admin-home__ayuda { margin: 3px 0 14px; color: var(--ah-muted); font-size: 13px; }
 
 .admin-home__aviso {
-  margin-bottom: 16px;
   padding: 12px 14px;
   border-radius: 10px;
   background: var(--ah-alert-bg);
@@ -70,15 +49,16 @@
   color: var(--ah-alert);
   font-size: 14px;
 }
+.admin-home__aviso--compacto { margin: 4px 0 0; }
 
-.admin-home__metricas {
+/* ---------- Indicadores ---------- */
+.admin-home__kpis {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
 }
 
-.admin-home__metrica,
+.admin-home__kpi,
 .admin-home__tarjeta {
   background: var(--ah-surface);
   border: 1px solid var(--ah-border);
@@ -87,54 +67,90 @@
   box-sizing: border-box;
 }
 
-.admin-home__metrica {
+.admin-home__kpi {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px 18px;
+  align-items: flex-start;
+  gap: 13px;
   min-width: 0;
+  min-height: 108px;
+  padding: 17px;
+  color: inherit;
+  text-decoration: none;
 }
-.admin-home__metrica--alerta { border-color: #FCD34D; }
-.admin-home__metrica--pendiente { background: #FAFAF9; border-style: dashed; }
+.admin-home__kpi--enlace:hover { border-color: var(--ah-brand); }
+.admin-home__kpi--alerta { border-color: #FCD34D; }
 
-.admin-home__metrica-etiqueta {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ah-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.admin-home__icono-kpi {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
 }
+.admin-home__icono-kpi--teal { background: var(--ah-brand-soft); color: var(--ah-brand-text); }
+.admin-home__icono-kpi--blue { background: #E0ECF8; color: #285A87; }
+.admin-home__icono-kpi--amber { background: #FFF0CF; color: #8A5A06; }
+.admin-home__icono-kpi--red { background: #FBE2E2; color: #A63232; }
 
-.admin-home__metrica-cifra { font-size: 26px; font-weight: 800; color: var(--ah-text); overflow-wrap: anywhere; }
-.admin-home__metrica-cifra--pendiente { font-size: 16px; color: var(--ah-muted); font-weight: 700; }
+.admin-home__kpi-texto { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.admin-home__metrica-etiqueta { font-size: 12px; font-weight: 600; color: var(--ah-muted); }
+.admin-home__metrica-cifra { font-family: var(--font-display, var(--font-body, system-ui)); font-size: 22px; font-weight: 700; line-height: 1.2; color: var(--ah-text); overflow-wrap: anywhere; }
+.admin-home__metrica-pie { font-size: 12px; color: var(--ah-muted); }
+.admin-home__kpi--alerta .admin-home__metrica-pie { color: var(--ah-alert); }
 
-.admin-home__metrica-pie {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--ah-muted);
+/* ---------- Acciones y atención ---------- */
+.admin-home__rejilla-principal {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
 }
-.admin-home__metrica--alerta .admin-home__metrica-pie { color: var(--ah-alert); }
+.admin-home__rejilla-principal > .admin-home__tarjeta:only-child { grid-column: 1 / -1; }
 
 .admin-home__rejilla {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 18px;
 }
 
-.admin-home__tarjeta { padding: 18px 20px; min-width: 0; }
-.admin-home__tarjeta--pendiente { background: #FAFAF9; border-style: dashed; }
+.admin-home__tarjeta { padding: 18px; min-width: 0; }
 
-.admin-home__subtitulo { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+.admin-home__acciones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
 
-.admin-home__vacio,
-.admin-home__meta,
-.admin-home__pendiente { color: var(--ah-muted); font-size: 13px; margin: 0; }
+.admin-home__accion {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  min-height: 56px;
+  padding: 12px;
+  border: 1px solid var(--ah-border);
+  border-radius: 10px;
+  background: var(--ah-surface);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.admin-home__accion:hover { border-color: var(--ah-brand); background: var(--ah-surface-2); }
 
-.admin-home__pendiente { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ah-border); }
+.admin-home__accion-icono {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--ah-brand-soft);
+  color: var(--ah-brand-text);
+}
+.admin-home__accion-texto { display: flex; flex-direction: column; min-width: 0; }
+.admin-home__accion-texto strong { font-size: 14px; font-weight: 650; }
+.admin-home__accion-texto small { margin-top: 2px; font-size: 12px; color: var(--ah-muted); }
 
+/* Pendientes: cada fila conduce a la pantalla que lo resuelve. */
 .admin-home__lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.admin-home__pendientes .admin-home__lista > li { border-top: 1px solid var(--ah-border); }
+.admin-home__pendientes .admin-home__lista > li:first-child { border-top: none; }
 
 .admin-home__fila {
   display: flex;
@@ -149,108 +165,91 @@
 .admin-home__fila > div { display: flex; flex-direction: column; min-width: 0; }
 .admin-home__fila strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.admin-home__importe { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.admin-home__pendientes .admin-home__fila { justify-content: flex-start; padding: 12px 0; border-bottom: none; }
+.admin-home__pendientes .admin-home__fila > div { flex: 1; align-items: flex-start; text-align: left; }
+.admin-home__fila--enlace { color: inherit; text-decoration: none; border-radius: 8px; margin: 0 -8px; padding-left: 8px !important; padding-right: 8px !important; min-height: 44px; }
+.admin-home__fila--enlace:hover { background: var(--ah-surface-2); }
 
-.admin-home__chip {
-  white-space: nowrap;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  background: #F5F5F4;
-  color: var(--ah-muted);
-}
+.admin-home__icono { width: 36px; height: 36px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 8px; background: var(--ah-brand-soft); color: var(--ah-brand-text); }
+.admin-home__contador { min-width: 28px; text-align: center; font-weight: 700; font-size: 13px; padding: 3px 9px; border-radius: 12px; background: var(--ah-alert-bg); color: var(--ah-alert); font-variant-numeric: tabular-nums; }
+.admin-home__chevron { flex: 0 0 auto; color: var(--ah-muted); }
+.admin-home__al-dia { margin-top: 8px; }
+
+.admin-home__vacio,
+.admin-home__meta { color: var(--ah-muted); font-size: 13px; margin: 0; }
+
+.admin-home__chip { white-space: nowrap; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--ah-surface-2); color: var(--ah-muted); }
 .admin-home__chip--alerta { background: var(--ah-alert-bg); color: var(--ah-alert); }
-
-.admin-home__cotizaciones { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
-.admin-home__cotizaciones strong { font-size: 20px; font-variant-numeric: tabular-nums; margin-right: 4px; }
 
 .admin-home__enlace {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   margin-top: 8px;
-  color: var(--color-primary-text, var(--ah-brand));
+  color: var(--ah-brand-text);
   font-weight: 600;
   font-size: 13px;
   text-decoration: none;
 }
+.admin-home__enlace:hover { text-decoration: underline; }
+.admin-home__fila--enlace:focus-visible,
+.admin-home__enlace:focus-visible,
+.admin-home__accion:focus-visible,
+.admin-home__kpi:focus-visible { outline: 2px solid var(--color-focus-ring, var(--ah-brand)); outline-offset: 2px; }
 
+/* ---------- Movimiento reciente ---------- */
+.admin-home__encabezado-tarjeta { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.admin-home__encabezado-tarjeta .admin-home__enlace { margin-top: 2px; white-space: nowrap; }
 
+.admin-home__tabla-contenedor { overflow-x: auto; }
+.admin-home__tabla { width: 100%; border-collapse: collapse; }
+.admin-home__tabla th {
+  background: var(--ah-surface-2);
+  color: var(--ah-muted);
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+  white-space: nowrap;
+}
+.admin-home__tabla th:first-child { border-radius: 8px 0 0 8px; }
+.admin-home__tabla th:last-child { border-radius: 0 8px 8px 0; }
+.admin-home__tabla td { padding: 11px 12px; border-bottom: 1px solid var(--ah-border); font-size: 13px; white-space: nowrap; }
+.admin-home__tabla tbody tr:hover td { background: var(--ah-surface-2); }
+.admin-home__tabla .admin-home__num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* ---------- Tendencia semanal ---------- */
 .admin-home__grafico { margin: 0; }
 .admin-home__grafico svg { width: 100%; height: auto; display: block; }
-.admin-home__barra { fill: #E7E5E4; }
+.admin-home__barra { fill: #D5DCE0; }
 .admin-home__barra--hoy { fill: var(--ah-brand); }
-.admin-home__eje { font-size: 12px; fill: var(--ah-muted); font-family: 'DM Sans', system-ui, sans-serif; }
+.admin-home__eje { font-size: 12px; fill: var(--ah-muted); font-family: var(--font-body, system-ui, sans-serif); }
 .admin-home__grafico figcaption { margin-top: 6px; }
 
-/* Botón flotante: solo en móvil, por encima de la navegación inferior. */
-.admin-home__flotante {
-  display: none;
-  position: fixed;
-  right: 16px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
-  z-index: 40;
-  align-items: center;
-  gap: 8px;
-  min-height: 52px;
-  padding: 0 18px;
-  border-radius: 999px;
-  background: var(--ah-brand);
-  color: var(--color-on-primary, #fff);
-  font-weight: 700;
-  font-size: 14px;
-  text-decoration: none;
-  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.22);
+/* ---------- Funciones pendientes (plegado) ---------- */
+.admin-home__nota { background: var(--ah-surface); border: 1px solid var(--ah-border); border-radius: var(--ah-radius); padding: 12px 16px; font-size: 13px; color: var(--ah-muted); }
+.admin-home__nota summary { cursor: pointer; font-weight: 600; color: var(--ah-text); }
+.admin-home__nota p { margin: 8px 0 0; }
+
+/* ---------- Tableta (≤1024 px) ---------- */
+@media (max-width: 1024px) {
+  .admin-home__main { padding: 0 22px 40px; }
+  .admin-home__rejilla-principal { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Tableta: las tres métricas caben en una fila hasta 900 px; después, dos columnas. */
-@media (max-width: 900px) {
-  .admin-home__metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
+/* ---------- Móvil (≤768 px): atención primero, una columna, dos indicadores por fila ---------- */
 @media (max-width: 768px) {
-  .admin-home__main { padding: 16px 16px 120px; }
-  .admin-home__metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .admin-home__metrica { padding: 14px; }
-  .admin-home__metrica-cifra { font-size: 22px; }
-  .admin-home__metrica-cifra--pendiente { font-size: 14px; white-space: normal; }
-  .admin-home__rejilla { grid-template-columns: minmax(0, 1fr); }
-  .admin-home__tarjeta--ancha { grid-column: auto; }
-  .admin-home__acciones { display: none; }
-  .admin-home__flotante { display: inline-flex; }
+  .admin-home__main { padding: 0 16px 24px; gap: 14px; }
+  .admin-home__kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .admin-home__kpi { flex-direction: column; gap: 9px; min-height: 128px; padding: 13px; }
+  .admin-home__metrica-cifra { font-size: 19px; }
+  .admin-home__pendientes { order: -1; }
+  .admin-home__rejilla-principal,
+  .admin-home__rejilla { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .admin-home__acciones { grid-template-columns: minmax(0, 1fr); }
+  .admin-home__tarjeta { padding: 14px; }
 }
 
 @media (max-width: 380px) {
-  .admin-home__metricas { grid-template-columns: minmax(0, 1fr); }
+  .admin-home__kpis { grid-template-columns: minmax(0, 1fr); }
 }
-
-/* Inicio del administrador (rediseño): pendientes de hoy primero, acciones principales y tarjetas claras. */
-.admin-home__acceso--principal { background:var(--color-primary); border-color:var(--color-primary); color:var(--color-on-primary); }
-.admin-home__acceso--principal:hover { background:var(--color-primary-hover); color:var(--color-on-primary); }
-.admin-home__acceso--principal svg { color:currentColor; }
-.admin-home__pendientes { background:var(--color-surface); border:1px solid var(--color-border-subtle); border-radius:12px; padding:16px 18px; margin:0 0 16px; }
-.admin-home__pendientes .admin-home__lista { margin-top:6px; }
-.admin-home__pendientes .admin-home__fila { padding:12px 0; }
-.admin-home__icono { width:36px; height:36px; flex:0 0 auto; display:grid; place-items:center; border-radius:8px; background:var(--color-primary-light); color:var(--color-primary-text); }
-.admin-home__contador { min-width:28px; text-align:center; font-weight:700; font-size:13px; padding:3px 9px; border-radius:12px; background:var(--color-warning-bg); color:#92400E; font-variant-numeric:tabular-nums; }
-.admin-home__acceso { gap:8px; }
-.admin-home__pendientes .admin-home__fila { justify-content:flex-start; }
-.admin-home__pendientes .admin-home__fila > div { flex:1; min-width:0; text-align:left; }
-.admin-home__pendientes .admin-home__fila > div strong { display:block; }
-.admin-home__pendientes .admin-home__fila > div { align-items:flex-start; }
-.admin-home__pendientes .admin-home__meta { margin-left:0; text-align:left; }
-
-/* Pendientes con cifras del servidor: cada fila conduce a la pantalla que lo resuelve. */
-.admin-home__pendientes .admin-home__lista > li { border-bottom:1px solid var(--ah-border); }
-.admin-home__pendientes .admin-home__lista > li:last-child { border-bottom:none; }
-.admin-home__fila--enlace { color:inherit; text-decoration:none; border-bottom:none; border-radius:8px; margin:0 -8px; padding-left:8px !important; padding-right:8px !important; min-height:44px; }
-.admin-home__fila--enlace:hover { background:var(--color-primary-light, #FFF7ED); }
-.admin-home__fila--enlace:focus-visible, .admin-home__enlace:focus-visible { outline:2px solid var(--color-focus-ring); outline-offset:2px; }
-.admin-home__chevron { flex:0 0 auto; color:var(--ah-muted); }
-.admin-home__al-dia { margin-top:8px; }
-.admin-home__aviso--compacto { margin:4px 0 0; }
-.admin-home__tarjeta--ancha { grid-column:1 / -1; }
-.admin-home__metrica .admin-home__enlace { margin-top:2px; }
-.admin-home__pendientes .admin-home__fila--enlace { flex:1; min-width:0; }
-.admin-home__pendientes .admin-home__icono { margin-left:0; }

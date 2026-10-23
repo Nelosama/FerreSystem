@@ -1,9 +1,9 @@
 /* ==========================================================================
-   Jowa System — rail del cajero (modo barra lateral).
-   Rail de 84 px con Inicio, Caja, Mi caja y «Más». Solo usa tokens de tema.css.
+   Jowa System — rail de iconos (cajero y administrador, modo barra lateral).
+   Rail de 84 px con enlaces y paneles desplegables. Solo usa tokens de tema.css.
    ========================================================================== */
 
-.cajero-rail {
+.app-rail {
   position: sticky;
   top: 0;
   align-self: flex-start;
@@ -20,7 +20,7 @@
   z-index: 10;
 }
 
-.cajero-rail-brand {
+.app-rail-brand {
   display: grid;
   place-items: center;
   width: 40px;
@@ -30,7 +30,7 @@
   text-decoration: none;
 }
 
-.cajero-rail-list {
+.app-rail-list {
   list-style: none;
   display: flex;
   flex-direction: column;
@@ -38,9 +38,9 @@
   width: 100%;
 }
 
-.cajero-rail-mas { position: relative; }
+.app-rail-mas { position: relative; }
 
-.cajero-rail-item {
+.app-rail-item {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -57,7 +57,7 @@
   cursor: pointer;
 }
 
-.cajero-rail-pill {
+.app-rail-pill {
   width: 44px;
   height: 32px;
   border-radius: 999px;
@@ -66,20 +66,23 @@
   transition: background var(--transition-fast, 120ms ease), color var(--transition-fast, 120ms ease);
 }
 
-.cajero-rail-item:hover { color: #ffffff; }
-.cajero-rail-item:hover .cajero-rail-pill { background: var(--plat-2); }
+.app-rail-item:hover { color: #ffffff; }
+.app-rail-item:hover .app-rail-pill { background: var(--plat-2); }
 
-.cajero-rail-item.is-active { color: #ffffff; }
+.app-rail-item.is-open { color: #ffffff; }
+.app-rail-item.is-open .app-rail-pill { background: var(--plat-2); }
+
+.app-rail-item.is-active { color: #ffffff; }
 /* El estado activo toma el color configurado por el negocio (--color-primary), aclarado para leerse sobre el rail oscuro. */
-.cajero-rail-item.is-active .cajero-rail-pill {
+.app-rail-item.is-active .app-rail-pill {
   background: color-mix(in srgb, var(--color-primary) 35%, transparent);
   /* Contorno claro: mantiene visible el estado activo (3:1 sobre el rail) aunque el color del negocio sea muy oscuro. */
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 45%, #ffffff);
 }
-.cajero-rail-item.is-active .cajero-rail-pill svg { color: color-mix(in srgb, var(--color-primary) 45%, #ffffff); }
+.app-rail-item.is-active .app-rail-pill svg { color: color-mix(in srgb, var(--color-primary) 45%, #ffffff); }
 
 /* Panel de «Más»: se abre a la derecha del rail con los accesos restantes agrupados. */
-.cajero-rail-panel {
+.app-rail-panel {
   position: absolute;
   left: calc(100% + 8px);
   top: -6px;
@@ -98,7 +101,7 @@
   z-index: 20;
 }
 
-.cajero-rail-grupo-titulo {
+.app-rail-grupo-titulo {
   display: block;
   margin-bottom: 4px;
   font-size: 11px;
@@ -108,9 +111,9 @@
   color: var(--muted);
 }
 
-.cajero-rail-grupo ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.app-rail-grupo ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
 
-.cajero-rail-link {
+.app-rail-link {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -121,10 +124,10 @@
   text-decoration: none;
 }
 
-.cajero-rail-link:hover { background: var(--surface-2); }
-.cajero-rail-link.is-active { background: var(--color-primary-light); color: var(--color-primary-text); font-weight: 600; }
+.app-rail-link:hover { background: var(--surface-2); }
+.app-rail-link.is-active { background: var(--color-primary-light); color: var(--color-primary-text); font-weight: 600; }
 
-.cajero-rail-avatar {
+.app-rail-avatar {
   margin-top: auto;
   width: 34px;
   height: 34px;
@@ -138,14 +141,14 @@
   font-weight: 700;
 }
 
-.cajero-rail-item.sin-red,
-.cajero-rail-link.sin-red { opacity: 0.55; }
+.app-rail-item.sin-red,
+.app-rail-link.sin-red { opacity: 0.55; }
 
-.cajero-rail-hint { font-size: 10.5px; font-weight: 600; color: var(--muted); margin-left: auto; }
+.app-rail-hint { font-size: 10.5px; font-weight: 600; color: var(--muted); margin-left: auto; }
 
 /* Indicador de conexión dentro del rail: sigue visible con las ventas de contingencia pendientes. */
-.cajero-rail-conexion { width: 100%; padding: 0 6px; }
-.cajero-rail-conexion .jowa-connection {
+.app-rail-pie { width: 100%; padding: 0 6px; }
+.app-rail-pie .jowa-connection {
   flex-direction: column;
   align-items: center;
   gap: 4px;

@@ -4,6 +4,9 @@ import { Search } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
 import { availableTasks, priorityTasks, searchTasks } from '../utils/taskNavigation';
+import { ShellTopbarContext } from '../context/ShellTopbarContext';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { filtrarAccesosMovilAdmin } from '../utils/movilAdmin';
 
 export const TaskFinder: React.FC = () => {
   const { user, tenant } = useTenant();
@@ -13,10 +16,13 @@ export const TaskFinder: React.FC = () => {
   const [expanded, setExpanded] = React.useState(false);
   const input = React.useRef<HTMLInputElement>(null);
   const toggle = React.useRef<HTMLButtonElement>(null);
-  const compact = pathname !== '/';
+  // En un shell con barra superior propia el buscador queda plegado también en Inicio: la portada es de tareas, no de búsqueda.
+  const enShell = React.useContext(ShellTopbarContext);
+  const compact = enShell || pathname !== '/';
   React.useEffect(() => { setQuery(''); setExpanded(false); }, [pathname, user?.id, tenant.id]);
   React.useEffect(() => { if (expanded) input.current?.focus(); }, [expanded]);
-  const results = searchTasks(availableTasks(user, tenant), query, t);
+  const movil = useMediaQuery('(max-width: 768px)');
+  const results = searchTasks(filtrarAccesosMovilAdmin(availableTasks(user, tenant), user, movil), query, t);
   return <section className="task-finder" aria-label={t('tasks.finder')}>
     {compact && <button type="button" ref={toggle} className="task-finder-toggle" aria-expanded={expanded} aria-controls="task-search-panel" onClick={() => setExpanded(!expanded)}><Search size={18} aria-hidden="true" />{t('tasks.finder')}</button>}
     {(!compact || expanded) && <div id="task-search-panel" onKeyDown={event => { if (event.key === 'Escape') { setExpanded(false); setQuery(''); if (compact) toggle.current?.focus(); else input.current?.focus(); } }}>
@@ -40,7 +46,8 @@ export const TaskFinder: React.FC = () => {
 export const TaskShortcuts: React.FC<{ exclude?: string[]; limit?: number }> = ({ exclude = [], limit = 4 }) => {
   const { user, tenant } = useTenant();
   const { t } = useI18n();
-  const prioritarias = priorityTasks(user, tenant);
+  const movil = useMediaQuery('(max-width: 768px)');
+  const prioritarias = filtrarAccesosMovilAdmin(priorityTasks(user, tenant), user, movil);
   const tasks = prioritarias.filter(item => !exclude.includes(item.key)).slice(0, Math.max(0, limit));
   return <section aria-labelledby="daily-tasks-title" className="daily-tasks">
     <h2 id="daily-tasks-title">{t(user?.rol === 'ADMIN' ? 'tasks.manage' : 'tasks.daily')}</h2>

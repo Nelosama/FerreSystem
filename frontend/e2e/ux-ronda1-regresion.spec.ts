@@ -211,11 +211,11 @@ test.describe('Navegación', () => {
     }
   });
 
-  test('inicio en móvil: cabecera sin cortes, pestañas de 12 px sin «…» y el botón flotante no tapa el final', async ({ page }) => {
+  test('inicio en móvil: cabecera sin cortes, pestañas de 12 px sin «…» y la navegación inferior no tapa el final', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await prepararSesion(page, 'ADMIN');
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Pendientes de hoy' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Necesita tu atención' })).toBeVisible();
     expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
     await expect(page.getByRole('button', { name: /salir/i })).toBeInViewport({ ratio: 1 });
     const pestañas = page.locator('.mobile-bottom-nav :is(a, button) > span');
@@ -227,8 +227,11 @@ test.describe('Navegación', () => {
     await expect(page.locator('.mobile-bottom-nav a[aria-current="page"]')).toHaveCount(1);
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     const ultima = await page.locator('.admin-home__main > *').last().boundingBox();
-    const flotante = await page.locator('.admin-home__flotante').boundingBox();
-    expect(ultima!.y + ultima!.height, 'el último bloque termina por encima del botón flotante').toBeLessThanOrEqual(flotante!.y);
+    const inferior = await page.locator('.mobile-bottom-nav').boundingBox();
+    expect(ultima!.y + ultima!.height, 'el último bloque termina por encima de la navegación inferior').toBeLessThanOrEqual(inferior!.y);
+    // La interfaz móvil administrativa no ofrece vender: ni botón flotante ni acceso al punto de venta.
+    await expect(page.locator('.admin-home__flotante')).toHaveCount(0);
+    await expect(page.locator('.mobile-bottom-nav a[href="/pos"]')).toHaveCount(0);
     await sinFallos(page);
   });
 
