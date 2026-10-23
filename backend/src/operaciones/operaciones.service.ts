@@ -1,6 +1,6 @@
 import { aCentavos } from '../common/redondeo-monetario';
 import { calcularTotalesCompra } from './compra-totales';
-import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { Tx } from './ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { consultarAuditoria } from './auditoria-consulta';
@@ -444,11 +444,19 @@ export class OperacionesService {
   const [result]=await query(this.prisma,'SELECT * FROM devoluciones WHERE id IN ($1,$3) AND tenant_id=$2',request.id,tenantId,idRecurso(tenantId,String(request.comando?.solicitudId??requestId)));
   return {...request,resultado:result||null};
  }
- async decidirDevolucion(tenantId:string,userId:string,requestId:string,dto:DecisionDevolucionDto){
+ async decidirDevolucion(tenantId:string,userId:string,requestId:string,dto:DecisionDevolucionDto,sesionHttp?:{sid?:string}){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
    const user=await actor(tx,tenantId,userId);
    if(user.rol!=='ADMIN')throw new ForbiddenException('La autorización requiere administrador');
+   // El controlador siempre entrega el sid validado del JWT, nunca un dato del cuerpo.
+   // Revalidar DESPUÉS del bloqueo del tenant: logout puede haber ocurrido en la cola.
+   // FOR SHARE serializa la decisión con la revocación, incluso durante la gracia sin sid.
+   if(sesionHttp){
+    if(!sesionHttp.sid)throw new UnauthorizedException('La decisión requiere una sesión administrativa vigente');
+    const [sesion]=await query(tx,"SELECT id FROM sesiones_auth WHERE id=$1 AND sujeto_id=$2 AND tenant_id=$3 AND tipo='TENANT' AND revoked_at IS NULL AND expires_at>clock_timestamp() FOR SHARE",sesionHttp.sid,userId,tenantId);
+    if(!sesion)throw new UnauthorizedException('Sesión cerrada o vencida. Inicie sesión de nuevo.');
+   }
    const motivo=text(dto.motivo,'Motivo de la decisión');
    if(!['AUTORIZADA','RECHAZADA'].includes(dto.decision))throw new BadRequestException('Decisión inválida');
    const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$3) AND tenant_id=$2 FOR UPDATE',idRecurso(tenantId,requestId),tenantId,requestId);
@@ -460,7 +468,7 @@ export class OperacionesService {
    }
    if(dto.decision==='AUTORIZADA')await this.planDevolucion(tx,tenantId,request.venta_id,request.comando);
    const [result]=await query(tx,'UPDATE solicitudes_devolucion SET estado=$1,administrador_id=$2,motivo_decision=$3,decidida_at=NOW() WHERE id=$4 RETURNING *',dto.decision,userId,motivo,request.id);
-   await audit(tx,tenantId,userId,'DEVOLUCION_DECIDIR',request.id,{decision:dto.decision,motivo,solicitanteId:request.solicitante_id});return result;
+   await audit(tx,tenantId,userId,'DEVOLUCION_DECIDIR',request.id,{decision:dto.decision,motivo,solicitanteId:request.solicitante_id,ventaId:request.venta_id,sesionId:sesionHttp?.sid??null});return result;
   },{timeout:60000});
  }
  async ejecutarAutorizada(tenantId:string,userId:string,requestId:string){

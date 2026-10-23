@@ -207,7 +207,7 @@ test('cancelar antes del cobro exige confirmación y limpia cliente, pago y alma
   await expect(page.getByLabel('Autorización bancaria')).toHaveValue('AUT-ABANDONADA');
   await page.getByRole('button', { name: 'Cancelar venta', exact: true }).click();
   await confirmarDescarte(page);
-  expect(await page.evaluate(key => localStorage.getItem(key), draftKey)).toBeNull();
+  await expect.poll(() => page.evaluate(key => localStorage.getItem(key), draftKey)).toBeNull();
   await expect(page.getByRole('button', { name: 'Efectivo', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByText('Taladro').first().click();
   await page.getByRole('button', { name: 'Tarjeta', exact: true }).click();
@@ -224,7 +224,7 @@ test('borrador abandonado se recupera después de recarga y permite continuar o 
   await page.context().setOffline(true);
   await page.getByRole('button', { name: 'Descartar venta', exact: true }).click();
   await confirmarDescarte(page);
-  expect(await page.evaluate(key => localStorage.getItem(key), draftKey)).toBeNull();
+  await expect.poll(() => page.evaluate(key => localStorage.getItem(key), draftKey)).toBeNull();
   expect(sim.ventas).toHaveLength(0);
 });
 

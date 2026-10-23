@@ -2,6 +2,8 @@
 
 Rama independiente `codex/pos-cancelacion-autorizada`, creada desde `main` `b60b49b309cbdadf522a87e773fd6241323f864a`. Sin merge, despliegue, cambios de dependencias, esquema o migraciones. No se escribe en producción. PR [#194](https://github.com/Nelosama/FerreSystem/pull/194), en borrador. PR ajenos #180 y #192 inspeccionados y conservados.
 
+> Revisión técnica posterior, defectos reproducidos/corregidos y matriz de seguridad: [REVISION_PR194_20261023.md](REVISION_PR194_20261023.md). Los checks y el dictamen vigentes corresponden al último SHA indicado en el PR.
+
 ## Causa comprobada y punto de confirmación
 
 `POSPage` persistía dos cosas diferentes: un borrador local que nunca se envió, y una solicitud `ferre_pending_sale:<tenant>:<usuario>` guardada antes de `POST /ventas`. Solo ofrecía revisar, corregir o reintentar esa solicitud. Una validación rechazada o una operación abandonada podían dejar el POS retenido indefinidamente.

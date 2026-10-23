@@ -56,6 +56,7 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
 
   // In-memory simulated database state for multi-tenant tests
   let dbUsers: Record<string, any> = {};
+  let dbSessions: Record<string, any> = {};
   let dbSales: Record<string, any> = {};
   let dbSaleDetails: Record<string, any[]> = {};
   let dbRequests: Record<string, any> = {};
@@ -69,8 +70,14 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
   let dbAuditLogs: Record<string, any[]> = {};
 
   const mockPrisma = {
+    sesionAuth: { findUnique: vi.fn(async ({ where }: any) => dbSessions[where.id] ?? null) },
     $transaction: vi.fn(async (cb: any, _options?: any) => cb(mockPrisma)),
     $queryRawUnsafe: vi.fn(async (sql: string, ...params: any[]) => {
+      if (sql.includes('FROM sesiones_auth')) {
+        const [sid, userId, tenantId] = params;
+        const sesion = dbSessions[sid];
+        return sesion && sesion.sujetoId === userId && sesion.tenantId === tenantId && sesion.tipo === 'TENANT' && !sesion.revokedAt && sesion.expiresAt > new Date() ? [{ id: sid }] : [];
+      }
       if (sql.includes('pg_advisory_xact_lock')) {
         return [{ locked: 1 }];
       }
@@ -381,6 +388,7 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
       'caja-cajero-1': [{ id: 'm2', caja_id: 'caja-cajero-1', metodo: 'EFECTIVO', monto: 300 }],
     };
 
+    dbSessions = {};
     dbRequests = {};
     dbReturns = {};
     dbStockMovements = {};
@@ -416,7 +424,10 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
   });
 
   function createToken(sub: string, tenantId: string, rol: string) {
+    const sid = `test-session:${sub}`;
+    dbSessions[sid] = { sujetoId: sub, tenantId, tipo: 'TENANT', expiresAt: new Date(Date.now() + 3600000), revokedAt: null };
     return jwtService.sign({
+      sid,
       sub,
       tenantId,
       rol,

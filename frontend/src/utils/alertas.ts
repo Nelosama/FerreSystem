@@ -65,6 +65,10 @@ const traducir = (clave: string, respaldo: string) => textoTraducido(traductor, 
 const confirmar = async (opciones: OpcionesConfirmacion): Promise<boolean> => {
   if (confirmacionAbierta) return false;
   confirmacionAbierta = true;
+  // SweetAlert resuelve fire antes de terminar su animación de cierre. No liberar al
+  // consumidor (POS incluido) hasta que también pueda abrirse la próxima confirmación.
+  let notificarCierre!: () => void;
+  const cierre = new Promise<void>(resolve => { notificarCierre = resolve; });
   const resultado = await Swal.fire({
     ...opcionesConfirmacion(opciones, traductor),
     showCancelButton: true,
@@ -78,8 +82,10 @@ const confirmar = async (opciones: OpcionesConfirmacion): Promise<boolean> => {
     didClose: () => {
       confirmacionAbierta = false;
       vaciarPendientes();
+      notificarCierre();
     },
   });
+  await cierre;
   return resultado.isConfirmed === true;
 };
 
