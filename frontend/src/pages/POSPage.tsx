@@ -94,6 +94,12 @@ export const POSPage: React.FC = () => {
   const pendingKey = `ferre_pending_sale:${tenant.id}:${user?.id || ''}`;
   const activeKey = useRef(pendingKey);
   activeKey.current = pendingKey;
+  useEffect(() => {
+    activeKey.current = pendingKey;
+    // Una confirmación global puede sobrevivir al POS (navegación/cambio de cuenta).
+    // Sus callbacks antiguos no deben enviar con otra sesión ni borrar su recuperación.
+    return () => { activeKey.current = ''; };
+  }, [pendingKey]);
   const draftKey = `ferre_sale_draft:${tenant.id}:${user?.id || ''}`;
   const initialRecovery = useRef(readRecovery(pendingKey, draftKey));
   const initialSale = initialRecovery.current.pending || initialRecovery.current.draft;

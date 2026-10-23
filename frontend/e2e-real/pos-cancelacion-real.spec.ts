@@ -162,3 +162,34 @@ test('reinicio completo con perfil persistente y SW: borrador offline, pendiente
     expect(sql(`SELECT stock_actual::text||'|'||stock_reservado::text FROM productos WHERE id='${producto.id}'`)).toBe('10.00|1.00');
   } finally { await context?.close(); rmSync(perfil, { recursive: true, force: true }); }
 });
+
+
+test('cambio de cuenta con confirmación abierta conserva el pendiente de la empresa anterior', async ({ page, context, request }) => {
+  const { cajero, producto } = await preparar(request);
+  const solicitudId = randomUUID();
+  const venta = await request.post(`${API}/ventas`, { headers: cajero.headers, data: { solicitudId, detalles: [{ productoId: producto.id, cantidad: 1 }] } });
+  expect(venta.status()).toBe(201); const v = await venta.json();
+  const pendingKey = `ferre_pending_sale:${cajero.tenant.id}:${cajero.user.id}`;
+  const pending = { solicitudId, cart: [{ productoId: producto.id, codigo: producto.codigo, nombre: producto.nombre, cantidad: 1, precioUnitario: 100 }], clienteNombre: 'Consumidor Final', clienteRtn: '', metodoPago: 'EFECTIVO', descuentoPorcentaje: 0 };
+  await login(page, 'cajero.a@e2e.invalid'); await page.goto('/pos');
+  await page.evaluate(({ key, sale }) => localStorage.setItem(key, JSON.stringify(sale)), { key: pendingKey, sale: pending });
+  await page.reload();
+  await page.getByRole('button', { name: 'Descartar venta', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  const otra = await context.newPage(); await otra.goto('/');
+  await otra.getByTitle('Cerrar Sesión', { exact: true }).click();
+  await otra.waitForURL('**/login');
+  await login(otra, 'admin.b@e2e.invalid');
+  await expect(page.getByText('Había una venta en proceso.')).toHaveCount(0);
+  let envios = 0;
+  page.on('request', r => { if (new URL(r.url()).pathname.endsWith('/descartar')) envios++; });
+  await page.bringToFront();
+  await page.getByRole('dialog').getByRole('button', { name: 'Descartar venta', exact: true }).click();
+  await expect(page.locator('.swal2-container')).toHaveCount(0);
+  // Completar el ciclo de cierre/render: no hay petición que deba esperarse ni reintentarse.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  expect(envios).toBe(0);
+  expect(JSON.parse((await page.evaluate(key => localStorage.getItem(key), pendingKey))!)).toEqual(pending);
+  expect(sql(`SELECT COUNT(*) FROM ventas WHERE id='${v.id}'`)).toBe('1');
+  expect(sql(`SELECT COUNT(*) FROM movimientos_caja WHERE referencia='${v.id}'`)).toBe('1');
+});
