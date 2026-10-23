@@ -115,7 +115,7 @@ async function ingresar(page: Page, ruta: string) {
   await page.locator('input[type="email"]').fill('usuario@prueba.invalid');
   await page.locator('input[type="password"]').fill('solo-para-esta-prueba');
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
-  await expect(page.getByRole('heading', { name: 'Administrar el negocio', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Hola, /, level: 1 })).toBeVisible();
   await page.goto(ruta);
 }
 

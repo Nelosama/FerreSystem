@@ -226,6 +226,11 @@
 .admin-home__eje { font-size: 12px; fill: var(--ah-muted); font-family: var(--font-body, system-ui, sans-serif); }
 .admin-home__grafico figcaption { margin-top: 6px; }
 
+/* ---------- Funciones pendientes (plegado) ---------- */
+.admin-home__nota { background: var(--ah-surface); border: 1px solid var(--ah-border); border-radius: var(--ah-radius); padding: 12px 16px; font-size: 13px; color: var(--ah-muted); }
+.admin-home__nota summary { cursor: pointer; font-weight: 600; color: var(--ah-text); }
+.admin-home__nota p { margin: 8px 0 0; }
+
 /* ---------- Tableta (≤1024 px) ---------- */
 @media (max-width: 1024px) {
   .admin-home__main { padding: 0 22px 40px; }

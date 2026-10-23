@@ -60,7 +60,7 @@ test.describe('Resumen administrativo para iPhone (simulado)', () => {
   test('el administrador ve ventas, caja, existencias, cobros, pagos y solicitudes sin desbordar la pantalla', async ({ page, baseURL }) => {
     await simular(page, baseURL, { rol: 'ADMIN', cxpFalla: false });
     await ingresar(page);
-    await expect(page.getByRole('heading', { name: 'Administrar el negocio', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Hola, /, level: 1 })).toBeVisible();
     await page.goto('/admin-movil');
 
     await expect(page.getByRole('heading', { name: 'Resumen administrativo', exact: true })).toBeVisible();
@@ -80,7 +80,7 @@ test.describe('Resumen administrativo para iPhone (simulado)', () => {
   test('si falla una sección, las demás siguen visibles y solo esa muestra el aviso', async ({ page, baseURL }) => {
     await simular(page, baseURL, { rol: 'ADMIN', cxpFalla: true });
     await ingresar(page);
-    await expect(page.getByRole('heading', { name: 'Administrar el negocio', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Hola, /, level: 1 })).toBeVisible();
     await page.goto('/admin-movil');
 
     await expect(page.getByText('Tubo PVC')).toBeVisible();

@@ -109,7 +109,7 @@ test.describe('Shell del administrador (modo barra lateral)', () => {
     const rail = page.locator('nav.admin-rail');
     await expect(rail).toBeVisible();
     expect((await rail.boundingBox())!.width).toBeCloseTo(84, 0);
-    await expect(rail.getByRole('link', { name: 'Inicio' })).toHaveAttribute('href', '/');
+    await expect(rail.getByRole('link', { name: 'Inicio', exact: true })).toHaveAttribute('href', '/');
     await expect(rail.getByRole('link', { name: 'Compras' })).toHaveAttribute('href', '/ordenes-compra');
     for (const grupo of ['Ventas', 'Inventario', 'Clientes', 'Más']) await expect(rail.getByRole('button', { name: grupo })).toBeVisible();
     const tamanos = await rail.locator('.app-rail-item > span:nth-child(2)').evaluateAll(nodos => nodos.map(n => parseFloat(getComputedStyle(n).fontSize)));
@@ -135,7 +135,7 @@ test.describe('Shell del administrador (modo barra lateral)', () => {
     const rail = page.locator('nav.admin-rail');
     await expect(rail.getByRole('button', { name: 'Ventas' })).toHaveCount(0);
     await expect(rail.getByRole('link', { name: 'Compras' })).toHaveCount(0);
-    await expect(rail.getByRole('link', { name: 'Inicio' })).toBeVisible();
+    await expect(rail.getByRole('link', { name: 'Inicio', exact: true })).toBeVisible();
     // Solo se listan los accesos de módulos habilitados: sin arqueo de caja no hay «Cuentas y abonos».
     await rail.getByRole('button', { name: 'Clientes' }).click();
     await expect(page.locator('#app-rail-panel-clientes a[href="/clientes"]')).toHaveCount(1);
@@ -198,9 +198,9 @@ test.describe('Shell del administrador (modo barra lateral)', () => {
     await page.goBack();
     await expect(page).toHaveURL(/\/inventario$/);
     await expect(rail.getByRole('button', { name: 'Inventario' })).toHaveClass(/is-active/);
-    await rail.getByRole('link', { name: 'Inicio' }).click();
+    await rail.getByRole('link', { name: 'Inicio', exact: true }).click();
     await expect(page).toHaveURL(/\/$/);
-    await expect(rail.getByRole('link', { name: 'Inicio' })).toHaveClass(/is-active/);
+    await expect(rail.getByRole('link', { name: 'Inicio', exact: true })).toHaveClass(/is-active/);
   });
 
   test('barra superior: negocio, sucursal, usuario con su rol, notificaciones y un solo cierre de sesión que funciona', async ({ page }) => {
@@ -229,6 +229,7 @@ test.describe('Shell del administrador (modo barra lateral)', () => {
       await preparar(page, { color });
       await page.setViewportSize({ width: 1366, height: 768 });
       await page.goto('/inventario');
+      await expect(page.locator('nav.admin-rail .app-rail-item.is-active')).toBeVisible();
       const medidas = await page.evaluate(() => {
         const canvas = document.createElement('canvas');
         canvas.width = canvas.height = 1;

@@ -105,7 +105,8 @@
   .shell-topbar-area strong { font-size: 14px; }
   .shell-topbar-user,
   .shell-topbar-idioma { display: none; }
-  .shell-topbar-logout span { display: none; }
+  /* Solo icono a la vista, pero el texto se conserva para lectores de pantalla (nombre accesible del botón). */
+  .shell-topbar-logout span { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 
   .shell-page-header { padding: 20px 16px 12px; }
   .shell-page-header h1 { font-size: 19px; }

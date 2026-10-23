@@ -197,7 +197,7 @@ export const AdminHomePage: React.FC = () => {
                   return (
                     <Link key={a.clave} to={rutaDe(a.clave)!} className="admin-home__accion" data-accion={a.clave}>
                       <span className="admin-home__accion-icono"><Icon size={20} aria-hidden="true" /></span>
-                      <span className="admin-home__accion-texto"><strong>{t(a.titulo)}</strong><small>{t(a.ayuda)}</small></span>
+                      <span className="admin-home__accion-texto"><strong>{t(a.titulo)}</strong><small>{a.clave === 'cotizaciones' && datos ? t('shell.home.quotes_open', { count: datos.cotizacionesPendientes.cantidad, today: datos.cotizacionesPendientes.porVencerHoy }) : t(a.ayuda)}</small></span>
                       <ChevronRight size={17} aria-hidden="true" className="admin-home__chevron" />
                     </Link>
                   );
@@ -326,6 +326,12 @@ export const AdminHomePage: React.FC = () => {
               )}
           </section>
         </div>
+
+        {/* Funciones que todavía no registran operaciones: que el administrador no las dé por operativas. */}
+        <details className="admin-home__nota">
+          <summary>{t('pending.title')}</summary>
+          <p>{t('pending.help')}</p>
+        </details>
       </main>
     </div>
   );

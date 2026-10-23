@@ -1616,6 +1616,7 @@
       "receive_payment_help": "Pay down an outstanding credit",
       "create_quote": "Create quote",
       "create_quote_help": "Prepare an offer for a customer",
+      "quotes_open": "{count} open · {today} expiring today",
       "attention": "Needs your attention",
       "attention_help": "Figures confirmed by the server; items that are up to date are not listed.",
       "kpi_receivable": "Accounts receivable",

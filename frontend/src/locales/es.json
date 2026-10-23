@@ -1616,6 +1616,7 @@
       "receive_payment_help": "Abona a un crédito pendiente",
       "create_quote": "Crear cotización",
       "create_quote_help": "Prepara una oferta para un cliente",
+      "quotes_open": "{count} pendiente(s) · {today} vence(n) hoy",
       "attention": "Necesita tu atención",
       "attention_help": "Cifras confirmadas por el servidor; lo que está al día no se lista.",
       "kpi_receivable": "Cuentas por cobrar",
