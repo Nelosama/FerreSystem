@@ -63,11 +63,11 @@ test.describe('Usuarios: personalización fina de permisos', () => {
     const descuentos = dialogo.getByRole('checkbox', { name: /Aplicar descuentos/ });
     await expect(vender).toBeChecked();
     await expect(descuentos).not.toBeChecked();
-    await expect(dialogo.getByText('2 de 15 activos')).toBeVisible();
+    await expect(dialogo.getByText('2 de 11 activos')).toBeVisible();
     await descuentos.focus();
     await page.keyboard.press('Space');
     await expect(descuentos).toBeChecked();
-    await expect(dialogo.getByText('3 de 15 activos')).toBeVisible();
+    await expect(dialogo.getByText('3 de 11 activos')).toBeVisible();
     // Activo y disponible se distinguen también sin color: fondo y borde distintos.
     const estilo = (nombre: RegExp) => dialogo.locator('label.permiso-opcion', { hasText: nombre }).evaluate(el => { const c = getComputedStyle(el); return `${c.backgroundColor}|${c.borderColor}|${c.boxShadow}`; });
     expect(await estilo(/Realizar ventas/)).not.toEqual(await estilo(/Ver reportes/));
@@ -83,7 +83,7 @@ test.describe('Usuarios: personalización fina de permisos', () => {
     await prepararSesion(page, 'ADMIN');
     const dialogo = await abrirEdicion(page, 0); // María López, ADMIN
     const casillas = dialogo.getByRole('checkbox');
-    await expect(casillas).toHaveCount(15);
+    await expect(casillas).toHaveCount(11);
     for (const casilla of await casillas.all()) { await expect(casilla).toBeDisabled(); await expect(casilla).toBeChecked(); }
     await expect(dialogo.getByText('Incluido por el rol').first()).toBeVisible();
     await expect(dialogo.getByText(/El rol Administrador incluye todos los permisos/)).toBeVisible();
