@@ -95,6 +95,17 @@ describe('Authentication recovery on disposable PostgreSQL', () => {
     expect((await db.superAdmin.findUniqueOrThrow({ where: { id: 'existing-SA' } })).passwordHash).toBe(oldHash);
     run(process.execPath, [join(root,'node_modules/prisma/build/index.js'), 'migrate', 'diff', '--from-url', url, '--to-schema-datamodel', join(root,'prisma/schema.prisma'), '--exit-code']);
   });
+  it('enforces recovery abuse limits across service instances at production thresholds', async () => {
+    const limits = new ConfigService({ AUTH_LOGIN_MAX_FALLOS_CUENTA: 5, AUTH_LOGIN_MAX_FALLOS_IP: 100 });
+    const first = new RecoveryService(db as any, limits, mail as any);
+    const second = new RecoveryService(db as any, limits, mail as any);
+    const key = `activation-${randomUUID()}`;
+    for (let i = 0; i < 5; i++) await first.limit(key, '198.51.100.10');
+    await expect(second.limit(key, '198.51.100.11')).rejects.toMatchObject({ status: 429 });
+    // Distinct subjects still share the IP budget; successful calls count too.
+    for (let i = 0; i < 100; i++) await first.limit(`${key}-${i}`, '198.51.100.12');
+    await expect(second.limit(`${key}-new`, '198.51.100.12')).rejects.toMatchObject({ status: 429 });
+  });
   it.each([true, false])('requires verified email plus MFA for platform=%s recovery and revokes access and refresh', async platform => {
     const a = await account(platform), payload = await session(a), token = await action(a);
     await expect(service.reset({ token, password: replacement })).rejects.toThrow();

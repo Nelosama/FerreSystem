@@ -1,3 +1,4 @@
+import { activateTestUser } from './activation.fixture';
 import { idDerivado } from './id-derivado';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -524,9 +525,10 @@ test.describe('POS offline de contingencia — backend real', () => {
     const admin = await tokenDe(request, ADMIN);
     const email = `offline.other.${randomUUID()}@e2e.invalid`;
     const created = await request.post(`${API}/usuarios`, { headers: { Authorization: `Bearer ${admin.token}` }, data: {
-      nombre: 'Otro cajero offline', email, password: PASSWORD, rol: 'CAJERO', permisos: ['pos.vender'],
+      nombre: 'Otro cajero offline', email, rol: 'CAJERO', permisos: ['pos.vender'],
     } });
     expect(created.status()).toBe(201);
+    await activateTestUser(request, (await created.json()).id);
     // Arqueo is a lazy chunk. Cache the logout route online before queueing the
     // sale; an unvisited lazy route is not part of the service worker shell.
     await ingresar(page, CAJERO, '/arqueo-caja');

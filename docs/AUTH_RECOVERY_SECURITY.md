@@ -76,3 +76,12 @@ Vectores RFC y cifrado en `backend/src/auth/mfa.spec.ts`. Persistencia/seed/star
 Antes de producción: checks completos del SHA final, verificación real de correo y autenticador del propietario, aceptación PWA/iPhone/Safari y revisión de operaciones de emergencia. Las instalaciones actuales reportan avisos de seguridad de dependencias heredadas; no se actualizan versiones ajenas al alcance. Los access tokens siguen en localStorage conforme al contrato actual y CSP: migrarlos a memoria requiere otro cambio de sesiones/soporte/offline. No se declara el sistema certificado ni listo para desplegar por pasar pruebas locales.
 
 Referencias: [OWASP Forgot Password](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html), [RFC 6238](https://www.rfc-editor.org/rfc/rfc6238).
+
+
+## Corrección del piloto de PR #192 (2026-10-23 UTC)
+
+El run 39884731901, job 120190280620, terminó con 7 fallos, 61 aprobados, 4 omitidos y 90 sin ejecutar. Los siete fallos son regresiones del arnés: contingencia-real, faro-auditoria-integral, faro-validacion-def01, historial-auditoria-real, pilot-permisos-real, piloto-ciclo-completo-real y qa-ciclo-venta enviaban password a POST /usuarios. El 400 del backend es correcto y se conserva.
+
+Los fixtures ahora crean sin contraseña y usan activation.fixture.ts: Super Admin sintético con MFA de un uso, emisión autorizada de RESET_ADMIN, establecimiento privado por el destinatario y rechazo de reutilización. Solo loopback y tenants e2e; no se escriben hashes de empleados mediante SQL. Se completa además el MFA de un acceso de Super Admin antes oculto por las pruebas en cascada. La prueba de creación denegada por rol elimina password para comprobar exclusivamente autorización.
+
+run.sh configura límites finitos de 1000 por cuenta/IP exclusivamente en su clúster efímero: el piloto hace altas masivas desde un único emisor/IP. No cambia valores predeterminados ni configuración productiva. La matriz PostgreSQL verifica por separado bloqueo a 5 solicitudes por sujeto y 100 por IP, compartido entre instancias, además de MFA, tokens, sesiones, tenants y persistencia. Resultados finales y enlaces de CI por SHA: PR #192. Se mantiene borrador hasta CI y revisión de seguridad; sin merge ni despliegue.

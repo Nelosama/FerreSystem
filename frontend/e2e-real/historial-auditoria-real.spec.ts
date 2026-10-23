@@ -1,3 +1,4 @@
+import { activateTestUser } from './activation.fixture';
 import { fillPlatformMfa, syntheticMfaFor } from './mfa.fixture';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -34,8 +35,9 @@ const solicitudVenta = randomUUID();
 
 test.beforeAll(async ({ request }) => {
   admin = await login(request, ADMIN);
-  const alta = await request.post(`${API}/usuarios`, { headers: auth(admin.token), data: { nombre: `Hist Cajero ${RUN}`, email: CAJERO, password: PASSWORD, rol: 'CAJERO', permisos: ['pos.vender'], descuentoMaximo: 10 } });
+  const alta = await request.post(`${API}/usuarios`, { headers: auth(admin.token), data: { nombre: `Hist Cajero ${RUN}`, email: CAJERO, rol: 'CAJERO', permisos: ['pos.vender'], descuentoMaximo: 10 } });
   expect([200, 201], await alta.text()).toContain(alta.status());
+  await activateTestUser(request, (await alta.json()).id);
   sql(`UPDATE usuarios SET permisos_configurados=true, permisos=ARRAY['pos.vender']::text[] WHERE email='${CAJERO}' AND tenant_id='${TENANT}'`);
   cajero = await login(request, CAJERO);
   const caja = await request.post(`${API}/operaciones/caja/abrir`, { headers: auth(cajero.token), data: { solicitudId: randomUUID(), monto: 500 } });
