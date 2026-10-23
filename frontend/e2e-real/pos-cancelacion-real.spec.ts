@@ -1,6 +1,9 @@
-import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
+import { test, expect, chromium, type Page, type APIRequestContext, type BrowserContext } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // NestJS, JWT, migraciones, PostgreSQL y navegador reales. Sin respuestas API simuladas.
 const API = process.env.E2E_API_URL!;
@@ -36,12 +39,21 @@ test('borrador y solicitud interrumpida sobreviven al cierre de pestaña y se de
   await page.getByPlaceholder('Buscar por código o nombre de producto...').fill(producto.codigo);
   await page.getByPlaceholder('Buscar por código o nombre de producto...').press('Enter');
   await expect(page.getByLabel(`Cantidad ${producto.nombre}`, { exact: true })).toBeVisible();
+  const draftKey = `ferre_sale_draft:${cajero.tenant.id}:${cajero.user.id}`;
+  await expect.poll(() => page.evaluate(key => localStorage.getItem(key), draftKey)).not.toBeNull();
+  const guardado = await page.evaluate(key => localStorage.getItem(key), draftKey);
+  const simultanea = await context.newPage(); await simultanea.goto('/pos');
+  await expect(simultanea.getByLabel(`Cantidad ${producto.nombre}`, { exact: true })).toBeVisible();
+  expect(await simultanea.evaluate(key => localStorage.getItem(key), draftKey)).toBe(guardado);
   await page.close();
   const otra = await context.newPage(); await otra.goto('/pos');
   await expect(otra.getByRole('button', { name: 'Continuar venta', exact: true })).toBeVisible();
   await otra.getByRole('button', { name: 'Descartar venta', exact: true }).click();
   await otra.getByRole('dialog').getByRole('button', { name: 'Descartar venta', exact: true }).click();
   await expect(otra.getByRole('button', { name: 'Cancelar venta', exact: true })).toHaveCount(0);
+  await expect.poll(() => otra.evaluate(key => localStorage.getItem(key), draftKey)).toBeNull();
+  await expect(simultanea.getByLabel(`Cantidad ${producto.nombre}`, { exact: true })).toHaveCount(0);
+  await simultanea.close();
   const solicitudId = randomUUID();
   const key = `ferre_pending_sale:${cajero.tenant.id}:${cajero.user.id}`;
   await otra.evaluate(({ key, pending }) => localStorage.setItem(key, JSON.stringify(pending)), { key, pending: {
@@ -93,4 +105,60 @@ test('cajero solicita anulación total; Admin autoriza desde su sesión y cajero
   expect(sql(`SELECT stock_actual::text || '|' || stock_reservado::text FROM productos WHERE id='${producto.id}'`)).toBe('10.00|0.00');
   expect(sql(`SELECT estado::text FROM ventas WHERE id='${venta.id}'`)).toBe('COMPLETADA');
   expect(sql(`SELECT SUM(monto)::text FROM movimientos_caja WHERE referencia='${venta.id}' OR referencia IN (SELECT id FROM devoluciones WHERE venta_id='${venta.id}')`)).toBe('0.00');
+});
+
+// Cierra y relanza el proceso de Chromium con el mismo perfil; SW activo, sin API simulada.
+// No equivale a certificar una PWA instalada en iOS, cuyo almacenamiento requiere prueba física.
+test('reinicio completo con perfil persistente y SW: borrador offline, pendiente incierto y venta confirmada', async ({ request, baseURL }) => {
+  test.setTimeout(90000);
+  const { cajero, producto } = await preparar(request);
+  const nombre = producto.nombre;
+  const scope = `${cajero.tenant.id}:${cajero.user.id}`, pendingKey = `ferre_pending_sale:${scope}`, draftKey = `ferre_sale_draft:${scope}`;
+  const perfil = mkdtempSync(join(tmpdir(), 'pr194-browser-'));
+  let context!: BrowserContext;
+  const abrir = async () => {
+    context = await chromium.launchPersistentContext(perfil, { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, headless: true, baseURL, serviceWorkers: 'allow' });
+    const page = context.pages()[0]; await page.goto('/pos'); return page;
+  };
+  const confirmar = async (page: Page) => {
+    await page.getByRole('button', { name: 'Descartar venta', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Descartar venta', exact: true }).click();
+  };
+  try {
+    let page = await abrir(); await page.waitForURL('**/login');
+    await page.locator('input[type="email"]').fill('cajero.a@e2e.invalid');
+    await page.locator('input[type="password"]').fill(process.env.E2E_PASSWORD!);
+    await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
+    await page.waitForURL(url => !url.pathname.startsWith('/login')); await page.goto('/pos');
+    const buscar = page.getByPlaceholder('Buscar por código o nombre de producto...');
+    await buscar.fill(nombre); await buscar.press('Enter');
+    await expect(page.getByLabel(`Cantidad ${nombre}`, { exact: true })).toBeVisible();
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+    await context.close(); page = await abrir();
+    await expect(page.getByRole('button', { name: 'Continuar venta', exact: true })).toBeVisible();
+    await context.setOffline(true); await confirmar(page);
+    await expect.poll(() => page.evaluate(key => localStorage.getItem(key), draftKey)).toBeNull();
+    await context.setOffline(false);
+    const pendiente = { solicitudId: randomUUID(), cart: [{ productoId: producto.id, codigo: nombre, nombre, precioUnitario: 100, cantidad: 1 }], clienteNombre: 'Consumidor Final', clienteRtn: '', metodoPago: 'EFECTIVO', descuentoPorcentaje: 0 };
+    await page.evaluate(({ key, sale }) => localStorage.setItem(key, JSON.stringify(sale)), { key: pendingKey, sale: pendiente });
+    await context.close(); page = await abrir();
+    await expect(page.getByText('Había una venta en proceso.')).toBeVisible();
+    await context.setOffline(true); await confirmar(page);
+    await expect(page.getByRole('button', { name: 'Descartar venta', exact: true })).toBeEnabled();
+    expect(JSON.parse((await page.evaluate(key => localStorage.getItem(key), pendingKey))!).solicitudId).toBe(pendiente.solicitudId);
+    await context.setOffline(false); await confirmar(page);
+    await expect.poll(() => page.evaluate(key => localStorage.getItem(key), pendingKey)).toBeNull();
+    expect(await (await request.get(`${API}/ventas/solicitudes/${pendiente.solicitudId}`, { headers: cajero.headers })).json()).toEqual({ estado: 'DESCARTADA' });
+    expect(sql(`SELECT stock_actual::text||'|'||stock_reservado::text FROM productos WHERE id='${producto.id}'`)).toBe('10.00|0.00');
+    const solicitudId = randomUUID();
+    const venta = await request.post(`${API}/ventas`, { headers: cajero.headers, data: { solicitudId, detalles: [{ productoId: producto.id, cantidad: 1 }] } });
+    expect(venta.status()).toBe(201); const v = await venta.json();
+    await page.evaluate(({ key, sale }) => localStorage.setItem(key, JSON.stringify(sale)), { key: pendingKey, sale: { ...pendiente, solicitudId } });
+    await context.close(); page = await abrir(); await confirmar(page);
+    await expect(page.getByRole('status').filter({ hasText: 'Venta registrada' })).toBeVisible();
+    expect(sql(`SELECT COUNT(*) FROM ventas WHERE id='${v.id}'`)).toBe('1');
+    expect(sql(`SELECT COUNT(*) FROM movimientos_caja WHERE referencia='${v.id}'`)).toBe('1');
+    expect(sql(`SELECT stock_actual::text||'|'||stock_reservado::text FROM productos WHERE id='${producto.id}'`)).toBe('10.00|1.00');
+  } finally { await context?.close(); rmSync(perfil, { recursive: true, force: true }); }
 });

@@ -220,3 +220,21 @@ test('la sesión vive en localStorage (token de acceso) y el refresh es cookie H
   assert.match(source, /localStorage\.getItem\('ferre_token'\)/);
   assert.match(source, /api\.post\(admin \? '\/admin\/auth\/refresh' : '\/auth\/refresh'/);
 });
+
+test('restaurar el mismo borrador en otra ventana no reescribe su identidad ni genera eventos en bucle', () => {
+  const localStorage = memoryStorage();
+  let escrituras = 0;
+  const setItem = localStorage.setItem;
+  localStorage.setItem = (key, value) => { escrituras++; setItem(key, value); };
+  const { saveDraft, readRecovery } = load('src/utils/posRecovery.ts', { localStorage });
+  saveDraft('draft', sale());
+  const guardado = localStorage.getItem('draft');
+  for (let i = 0; i < 5; i++) {
+    const recovery = readRecovery('pending', 'draft');
+    saveDraft('draft', recovery.draft);
+  }
+  assert.equal(escrituras, 1, 'las otras ventanas no deben generar otro evento storage por los mismos datos');
+  assert.equal(localStorage.getItem('draft'), guardado, 'un descarte abierto no debe invalidarse solo por otro savedAt');
+  saveDraft('draft', sale({ clienteNombre: 'Cliente corregido' }));
+  assert.equal(escrituras, 2, 'un cambio real sí debe persistirse y propagarse');
+});
