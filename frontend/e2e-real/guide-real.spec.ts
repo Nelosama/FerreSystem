@@ -1,6 +1,7 @@
 import { test, expect, request, type Page } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+import { ACCESOS_NO_MOVILES_ADMIN } from '../src/utils/movilAdmin';
 import { CATALOGO_MODULOS, MODULE_DEPENDENCIES, PENDING_MODULES } from '../src/config/modulesCatalog';
 import { confirmarAlerta } from '../e2e/helpers/alertas';
 const { PrismaClient } = createRequire(resolve('../backend/package.json'))('@prisma/client');
@@ -62,6 +63,25 @@ test('Modo Guía y módulos: navegador → NestJS → PostgreSQL, sin mocks', as
   await api.dispose();
 });
 
+/** ¿El menú del administrador (rail con paneles en escritorio o menú inferior en móvil) ofrece un enlace a la ruta? */
+async function menuOfrece(page: Page, ruta: string): Promise<boolean> {
+  const enlace = `a[href="${ruta}"]`;
+  if (await page.locator('nav.app-rail').isVisible()) {
+    const rail = page.locator('nav.app-rail');
+    if (await rail.locator(enlace).count()) return true;
+    const botones = rail.locator('button[aria-expanded]');
+    for (let i = 0; i < await botones.count(); i++) {
+      await botones.nth(i).click();
+      if (await rail.locator(enlace).count()) return true;
+    }
+    return false;
+  }
+  await page.locator('.mobile-bottom-nav button').click();
+  const hallado = await page.locator(`.mobile-bottom-nav ${enlace}, [role="dialog"] ${enlace}`).count() > 0;
+  await page.keyboard.press('Escape');
+  return hallado;
+}
+
 test('16 módulos: URL, navegación y API reales, dependencias y recuperación administrativa', async ({ page }) => {
   test.setTimeout(180000);
   expect(CATALOGO_MODULOS).toHaveLength(16);
@@ -116,7 +136,8 @@ test('16 módulos: URL, navegación y API reales, dependencias y recuperación a
         await expect(page.locator('[data-protected-content]')).toBeVisible();
         await expect(page.getByRole('heading', { name: /Acceso Denegado|Módulo No Contratado/i })).toHaveCount(0);
         if (PENDING_MODULES.has(key)) await expect(page.getByRole('region', { name: 'Funciones pendientes' })).toBeVisible();
-        else await expect(page.locator(`a[href="${routes[key]}"]`).first()).toBeAttached();
+        else if (ACCESOS_NO_MOVILES_ADMIN.has(key) && !(await page.locator('nav.app-rail').isVisible())) expect(await menuOfrece(page, routes[key]), `${key} no se ofrece al administrador en móvil`).toBe(false);
+        else expect(await menuOfrece(page, routes[key]), `${key} habilitado y ofrecido en el menú`).toBe(true);
         if (key === 'reportes') {
           await expect(page.getByRole('region', { name: 'Ventas por cajero' })).toBeVisible();
           await expect(page.getByRole('alert')).toHaveCount(0);

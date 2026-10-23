@@ -471,3 +471,34 @@ test.describe('Guía inicial', () => {
     await expect(page.getByRole('navigation', { name: 'Accesos rápidos' }).getByRole('link').first()).toBeVisible();
   });
 });
+
+// Evidencia visual del PR: solo se genera si CAPTURAS_ADMIN_DIR apunta a una carpeta (no forma parte de la suite normal).
+const CARPETA_CAPTURAS = process.env.CAPTURAS_ADMIN_DIR;
+test.describe('Capturas del shell del administrador', () => {
+  test.skip(!CARPETA_CAPTURAS, 'Defina CAPTURAS_ADMIN_DIR para generar las capturas');
+  const hoy = hoyNegocio();
+  const vistas = [
+    { nombre: 'escritorio-1366x768', ancho: 1366, alto: 768 },
+    { nombre: 'tableta-820x1180', ancho: 820, alto: 1180 },
+    { nombre: 'movil-390x844', ancho: 390, alto: 844 },
+  ];
+  for (const vista of vistas) {
+    test(`inicio ${vista.nombre}`, async ({ page }) => {
+      await preparar(page, {
+        cxc: [{ saldo: 1200, vencida: false, vencimiento: sumarDias(hoy, 12) }, { saldo: 500.5, vencida: true, vencimiento: sumarDias(hoy, -3) }],
+        cxp: [{ saldo: 300, vencida: false, vencimiento: sumarDias(hoy, 1) }, { saldo: 90, vencida: true, vencimiento: sumarDias(hoy, -2) }],
+      });
+      await page.setViewportSize({ width: vista.ancho, height: vista.alto });
+      await page.goto('/');
+      await expect(page.locator('[data-kpi="por-cobrar"]')).toContainText(/1,?700\.50/);
+      await page.screenshot({ path: `${CARPETA_CAPTURAS}/implementacion-${vista.nombre}.png`, fullPage: vista.ancho > 600 });
+    });
+  }
+  test('rail con panel abierto en escritorio', async ({ page }) => {
+    await preparar(page);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/inventario');
+    await page.locator('nav.admin-rail').getByRole('button', { name: 'Ventas', exact: true }).click();
+    await page.screenshot({ path: `${CARPETA_CAPTURAS}/implementacion-rail-panel-1366x768.png` });
+  });
+});
