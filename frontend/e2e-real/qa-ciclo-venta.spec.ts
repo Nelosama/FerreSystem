@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { idDerivado } from './id-derivado';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { confirmarAlerta } from '../e2e/helpers/alertas';
 
 // QA independiente del ciclo de venta (backend NestJS real + PostgreSQL temporal, sin mocks).
 // Cada resultado de negocio se comprueba además en la base de datos. Las funciones no implementadas
@@ -260,13 +261,13 @@ test.describe('4. Abonos parciales y totales de clientes', () => {
     const res = await venta(request, cajero1.token, { solicitudId: sid, clienteId: cliente, metodoPago: 'CREDITO', tipoPago: 'CREDITO', detalles: [{ productoId: P3, cantidad: 2, precioUnitario: 100 }] });
     expect(res.status()).toBe(201);
     const cuenta = sql(`SELECT id FROM cuentas_operativas WHERE documento_id='${idVenta(sid)}' AND tipo='CXC'`);
-    page.on('dialog', (dialogo) => void dialogo.accept());
     await ingresar(page, EM.cajero1, '/cuentas');
     const seccion = page.locator('section.operation-card', { has: page.getByRole('heading', { name: new RegExp(`QA Cliente abono ${RUN}`) }) });
     await seccion.getByRole('button', { name: 'Registrar abono', exact: true }).click();
     const formulario = page.locator('form.operation-form', { has: page.getByRole('heading', { name: new RegExp(`QA Cliente abono ${RUN}`) }) });
     await formulario.getByLabel('Monto').fill('20');
     await formulario.getByRole('button', { name: 'Registrar', exact: true }).dblclick();
+    await confirmarAlerta(page);
     await expect.poll(() => num(`SELECT COUNT(*) FROM pagos_cuenta WHERE cuenta_id='${cuenta}'`), { timeout: 20000 }).toBeGreaterThanOrEqual(1);
     await page.waitForTimeout(1500);
     expect(num(`SELECT COUNT(*) FROM pagos_cuenta WHERE cuenta_id='${cuenta}' AND monto=20`)).toBe(1);
