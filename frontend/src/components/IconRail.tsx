@@ -100,7 +100,7 @@ export const IconRail: React.FC<IconRailProps> = ({ className, ariaLabel, marca,
           const idPanel = `app-rail-panel-${entrada.key}`;
           return <li key={entrada.key} className="app-rail-mas">
             <button type="button" ref={el => { botones.current[entrada.key] = el; }}
-              className={`app-rail-item${abiertoAqui || contieneRuta ? ' is-active' : ''}`}
+              className={`app-rail-item${contieneRuta ? ' is-active' : ''}${abiertoAqui ? ' is-open' : ''}`}
               aria-expanded={abiertoAqui} aria-controls={abiertoAqui ? idPanel : undefined}
               onClick={() => setAbierto(abiertoAqui ? null : { key: entrada.key, ruta: pathname })}>
               {contenido}

@@ -2,7 +2,7 @@ import React from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
-import { availableTasks, groupNavigation } from '../utils/taskNavigation';
+import { availableTasks, groupNavigation, DISPONIBLE_SIN_RED } from '../utils/taskNavigation';
 import { type NavigationItem } from '../config/navigation';
 import { LogotipoNegocio } from './LogotipoNegocio';
 import { IndicadorConexion } from './IndicadorConexion';
@@ -11,8 +11,6 @@ import { useConexion } from '../hooks/useConexion';
 
 // Accesos fijos del rail del cajero (Inicio, Caja, Mi caja). El resto queda en «Más».
 const PRINCIPALES = ['dashboard', 'pos', 'arqueo_caja'] as const;
-// Sin red solo sigue operando el POS (contingencia en efectivo); el resto necesita el servidor.
-const DISPONIBLE_SIN_RED = new Set(['pos']);
 // El rail es angosto (84 px): Caja y Mi caja usan etiqueta corta; el nombre completo del módulo queda como ayuda.
 const ETIQUETA_RAIL: Record<string, string> = { pos: 'navigation.rail_pos', arqueo_caja: 'navigation.rail_cash' };
 

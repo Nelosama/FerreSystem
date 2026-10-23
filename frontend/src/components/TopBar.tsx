@@ -1,14 +1,14 @@
 import { TenantBrand } from './TenantBrand';
 import React from 'react';
-import { Calendar, Clock, UserCheck, LogOut, ShieldAlert, GitBranch } from 'lucide-react';
+import { Calendar, Clock, UserCheck, LogOut, ShieldAlert } from 'lucide-react';
 import { useTenant } from '../context/TenantContext';
 import { useI18n } from '../context/I18nContext';
-import { useSucursales } from '../hooks/useSucursales';
 import { useNavigate } from 'react-router-dom';
 import { alertas } from '../utils/alertas';
-import { useEstadoCaja } from '../hooks/useEstadoCaja';
 import { NotificacionesBell } from './NotificacionesBell';
-import { PlatformShellContext } from '../context/PlatformShellContext';
+import { SucursalSelect } from './SucursalSelect';
+import { EstadoCajaBadge } from './EstadoCajaBadge';
+import { ShellTopbarContext } from '../context/ShellTopbarContext';
 
 interface TopBarProps {
   title: string;
@@ -19,15 +19,13 @@ export const TopBar: React.FC<TopBarProps> = ({
   title,
   subtitle,
 }) => {
-  const { user, tenant, isImpersonating, isReadOnly, enableEditMode, stopImpersonating, switchSucursal, logout } = useTenant();
+  const { user, tenant, isImpersonating, isReadOnly, enableEditMode, stopImpersonating, logout } = useTenant();
   const [modalConfirmEditMode, setModalConfirmEditMode] = React.useState(false);
   const [motivoEdicion, setMotivoEdicion] = React.useState('');
   const { locale, setLocale, t } = useI18n();
   const navigate = useNavigate();
-  const estadoCaja = useEstadoCaja();
-  const enPlataforma = React.useContext(PlatformShellContext);
+  const enShell = React.useContext(ShellTopbarContext);
 
-  const sucursalesDisponibles = useSucursales();
 
   // Formato de fecha del día de hoy generado dinámicamente en español
   const getDynamicDate = () => {
@@ -44,10 +42,10 @@ export const TopBar: React.FC<TopBarProps> = ({
     navigate('/login');
   };
 
-  // En el shell del Super Admin la topbar de plataforma ya ofrece las acciones de sesión: aquí solo va el encabezado.
-  if (enPlataforma) {
+  // Dentro de un shell con barra superior propia (Super Admin, Administrador) aquí solo va el encabezado de la página.
+  if (enShell) {
     return (
-      <header className="platform-page-header">
+      <header className="shell-page-header">
         <h1>{title}</h1>
         {subtitle && <p>{subtitle}</p>}
       </header>
@@ -151,24 +149,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
 
           {/* Selector de Sucursales (Para clientes multi-sucursal) */}
-          {user?.rol === 'ADMIN' && (
-            <div className="topbar-desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <GitBranch size={13} color="var(--color-primary-text)" />
-              <select
-                value={tenant.sucursal || 'Sucursal Principal'}
-                disabled={sucursalesDisponibles.length < 2}
-                onChange={(e) => switchSucursal(e.target.value, tenant.id)}
-                className="app-branch-select" style={styles.sucursalSelect}
-                aria-label={t('topbar.select_branch')}
-              >
-                {sucursalesDisponibles.map((s: any) => (
-                  <option key={s.id} value={s.nombre}>
-                    {s.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          {user?.rol === 'ADMIN' && <SucursalSelect />}
         </div>
       </div>
 
@@ -177,12 +158,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         {user?.rol === 'SUPERADMIN' && <div aria-label="Idioma de la plataforma" className="topbar-desktop-only" style={{ display: 'flex', gap: 4 }}>
           {(['es', 'en'] as const).map(lang => <button key={lang} type="button" aria-pressed={locale === lang} onClick={() => setLocale(lang)} className="btn btn-secondary btn-sm">{lang.toUpperCase()}</button>)}
         </div>}
-        {estadoCaja && (
-          <span className={`app-caja-estado app-caja-estado--${estadoCaja.estado}`} aria-live="polite">
-            <span className="app-caja-punto" aria-hidden="true" />
-            {t(`topbar.caja_${estadoCaja.estado}`)}
-          </span>
-        )}
+        <EstadoCajaBadge />
         {/* Badge de Fecha Oficial */}
         <div className="app-date-badge" style={styles.dateBadge}>
           <Calendar size={15} strokeWidth={2.5} />
@@ -243,16 +219,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     fontSize: '11px',
     border: '1px solid #C2410C',
-  },
-  sucursalSelect: {
-    padding: '3px 8px',
-    fontFamily: 'var(--font-display)',
-    fontWeight: 700,
-    fontSize: '11px',
-    border: '1.5px solid var(--color-border)',
-    borderRadius: 'var(--radius-xs)',
-    backgroundColor: '#FFFFFF',
-    cursor: 'pointer',
   },
   titleContainer: {
     display: 'flex',
