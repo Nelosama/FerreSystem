@@ -37,8 +37,8 @@ test('POS: los cinco casos de redondeo coinciden en pantalla, payload, factura y
   }
 
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill('admin.a@e2e.invalid');
-  await page.locator('input[type="password"]').fill(process.env.E2E_PASSWORD!);
+  await page.locator('#login-correo').fill('admin.a@e2e.invalid');
+  await page.locator('#login-clave').fill(process.env.E2E_PASSWORD!);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL(url => !url.pathname.startsWith('/login'));
   await page.goto('/pos');

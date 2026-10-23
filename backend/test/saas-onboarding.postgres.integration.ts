@@ -1,3 +1,4 @@
+import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -60,7 +61,7 @@ describe('Alta SaaS, usuarios y formatos / HTTP y PostgreSQL aislado', () => {
     return (await respuesta.json()) as { accessToken: string; tenant: Record<string, unknown> };
   };
   const loginSuperAdmin = async () => {
-    const respuesta = await http('POST', '/api/admin/auth/login', undefined, { email: emailSuperAdmin, password });
+    const respuesta = await http('POST', '/api/admin/auth/login', undefined, { email: emailSuperAdmin, password, mfaCode: await syntheticPlatformMfa(prisma, emailSuperAdmin) });
     expect(respuesta.status).toBe(200);
     return (await respuesta.json()) as { accessToken: string };
   };
@@ -233,7 +234,7 @@ describe('Alta SaaS, usuarios y formatos / HTTP y PostgreSQL aislado', () => {
     const admin = await loginNegocio(adminA, A);
     const otro = await loginNegocio(adminB, B);
     const email = `empleado-${randomUUID()}@example.test`;
-    const creado = await http('POST', '/api/usuarios', admin.accessToken, { nombre: 'Empleado', email, password, rol: 'VENDEDOR', tenantId: B });
+    const creado = await http('POST', '/api/usuarios', admin.accessToken, { nombre: 'Empleado', email, rol: 'VENDEDOR', tenantId: B });
     expect(creado.status).toBe(201);
     const usuario = await creado.json() as { id: string; tenantId: string };
     expect(usuario.tenantId).toBe(A);

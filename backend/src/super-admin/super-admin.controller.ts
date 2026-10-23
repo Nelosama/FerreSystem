@@ -12,6 +12,7 @@ import { OrigenPermitidoGuard } from '../common/guards/origen-permitido.guard';
 import type { Request, Response } from 'express';
 import { CreateTenantAdminDto, UpdateTenantAdminDto } from './tenant-admin.dto';
 import { SupportTokenDto } from './support-token.dto';
+import { LoginDto } from '../auth/dto/login.dto';
 import { PermiteSoporteSoloLectura } from '../common/decorators/soporte-solo-lectura.decorator';
 import { Query, NotFoundException } from '@nestjs/common';
 
@@ -23,7 +24,7 @@ export class SuperAdminController {
   @UseGuards(OrigenPermitidoGuard)
   @HttpCode(HttpStatus.OK)
   async login(
-    @Body() loginDto: { email: string; password: string },
+    @Body() loginDto: LoginDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {

@@ -21,6 +21,11 @@ export E2E_DIST="$WORK/dist"
 export E2E_API_TARGET="http://127.0.0.1:${API_PORT}"
 export PG_BIN
 export POS_OFFLINE_ENABLED=true
+# Synthetic bulk activation shares one issuer and one loopback IP. Keep finite
+# limits for this disposable scenario suite; abuse limits are tested separately
+# with production defaults in auth-recovery.postgres.integration.ts.
+export AUTH_LOGIN_MAX_FALLOS_CUENTA=1000
+export AUTH_LOGIN_MAX_FALLOS_IP=1000
 # El almacén predeterminado usa el PostgreSQL temporal de esta ejecución, como en la nube.
 export LOGOTIPO_ALMACEN=postgres
 export E2E_PG_PORT="$PG_PORT"

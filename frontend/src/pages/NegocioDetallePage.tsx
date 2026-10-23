@@ -10,10 +10,11 @@ import { LogotipoNegocioEditor } from '../components/LogotipoNegocioEditor';
 import { AvisoColorMarca } from '../components/AvisoColorMarca';
 import { estiloMarcaNegocio, inicialesNegocio } from '../utils/identidadNegocio';
 
-type Registro = { id: string; nombre: string; email?: string; rol?: string; activo?: boolean; activa?: boolean; direccion?: string; telefono?: string; permisos?: string[]; descuentoMaximo?: number };
+type Registro = { id: string; nombre: string; email?: string; username?: string; rol?: string; activo?: boolean; activa?: boolean; direccion?: string; telefono?: string; permisos?: string[]; descuentoMaximo?: number };
 const mensaje = (error: any) => { const value = error.response?.data?.message; return Array.isArray(value) ? value.join(', ') : value || 'No se pudo completar la operación. Sus cambios se conservan; vuelva a intentar.'; };
 
 function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuarios' | 'sucursales' }) {
+  const { t } = useI18n();
   const endpoint = `/admin/tenants/${negocioId}/${tipo}`;
   const usuarios = tipo === 'usuarios';
   const [filas, setFilas] = useState<Registro[]>([]);
@@ -31,7 +32,7 @@ function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuar
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault(); if (!form || busy) return;
     setBusy(true); setError(''); setEstado('');
-    const body = usuarios ? { nombre: form.nombre, email: form.email, rol: form.rol, activo: form.activo, ...(form.password && { password: form.password }), ...(permisosEditados && { permisos: form.permisos ?? [] }), descuentoMaximo: Number(form.descuentoMaximo || 0) } : { nombre: form.nombre, direccion: form.direccion || '', telefono: form.telefono || '', activa: form.activa };
+    const body = usuarios ? { nombre: form.nombre, ...(form.email && { email: form.email }), ...(form.username && { username: form.username }), rol: form.rol, activo: form.activo, ...(permisosEditados && { permisos: form.permisos ?? [] }), descuentoMaximo: Number(form.descuentoMaximo || 0) } : { nombre: form.nombre, direccion: form.direccion || '', telefono: form.telefono || '', activa: form.activa };
     try {
       if (form.id) await api.patch(`${endpoint}/${form.id}`, body); else await api.post(endpoint, body);
       setForm(null); setEstado('Cambios guardados.'); await cargar();
@@ -52,9 +53,10 @@ function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuar
     {form && <form onSubmit={guardar} className="negocio-form" aria-label={usuarios ? 'Datos del usuario' : 'Datos de la sucursal'}>
       <label>Nombre<input className="form-input" required maxLength={100} value={form.nombre || ''} onChange={e => setForm({ ...form, nombre: e.target.value })} /></label>
       {usuarios ? <>
-        <label>Correo electrónico<input className="form-input" required type="email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
+        <label>Correo electrónico<input className="form-input" type="email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
         <label>Rol<select aria-label="Rol" className="form-input" value={form.rol} onChange={e => setForm({ ...form, rol: e.target.value })}>{['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO', 'CONTADOR'].map(rol => <option key={rol}>{rol}</option>)}</select></label>
-        <label>{form.id ? 'Nueva contraseña (opcional)' : 'Contraseña'}<input className="form-input" autoComplete="new-password" type="password" required={!form.id} minLength={8} value={form.password || ''} onChange={e => setForm({ ...form, password: e.target.value })} /></label>
+        {!form.id && <label>Contraseña<input className="form-input" autoComplete="new-password" type="password" required minLength={8} value={form.password || ''} onChange={e => setForm({ ...form, password: e.target.value })} /></label>}
+<label>{t('shell.login.email')}<input className="form-input" value={form.username || ''} onChange={e => setForm({ ...form, username: e.target.value })} placeholder="danielcm / 44556" /></label><p>{t('security.employee_help')}</p>
         <fieldset><legend>Permisos de operación</legend><p>Los roles siguen limitando el acceso. Guarde una selección solo si desea definir permisos individuales.</p>
           {Object.entries({ 'pos.vender': 'Vender', 'pos.aplicar_descuento': 'Aplicar descuentos', 'caja.movimientos_manuales': 'Movimientos manuales de caja', 'inventario.ver': 'Consultar inventario', 'inventario.editar': 'Editar inventario', 'cotizaciones.crear': 'Crear cotizaciones', 'cotizaciones.aprobar': 'Aprobar cotizaciones', 'cotizaciones.convertir_venta': 'Convertir cotizaciones', 'reportes.ver': 'Ver reportes', 'usuarios.gestionar': 'Gestionar usuarios', 'contabilidad.ver': 'Consultar contabilidad', 'contabilidad.registrar': 'Registrar documentos y asientos', 'contabilidad.configurar': 'Configuración fiscal', 'contabilidad.cerrar_periodo': 'Cerrar períodos fiscales' }).map(([key,label]) => <label key={key}><input type="checkbox" checked={form.permisos?.includes(key) || false} onChange={e => { setPermisosEditados(true); setForm({ ...form, permisos: e.target.checked ? [...(form.permisos || []), key] : (form.permisos || []).filter(p => p !== key) }); }} />{label}</label>)}
         </fieldset>

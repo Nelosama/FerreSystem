@@ -34,8 +34,8 @@ import { Reflector } from '@nestjs/core';
 
 // Ciclo operativo HTTP con PostgreSQL temporal y todas las migraciones reales.
 // Nunca lee DATABASE_URL.
-const bin = process.env.PG_BIN || '/usr/bin';
-const exe = (name: string) => join(bin, name);
+const bin = process.env.PG_BIN || (process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/18/bin' : '/usr/bin');
+const exe = (name: string) => join(bin, name + (process.platform === 'win32' ? '.exe' : ''));
 
 // Tarjeta y transferencia exigen autorización bancaria: cada cobro recibe una referencia única.
 const autorizacion = (metodo: string) => (metodo === 'EFECTIVO' || metodo === 'CREDITO') ? {} : { pagoElectronico: { referencia: `AUT-${randomUUID().slice(0, 12)}`, ...(metodo === 'TARJETA' ? { terminal: 'POS-01' } : {}) } };
@@ -64,7 +64,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     const env = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PG'))), DATABASE_URL: url, DIRECT_URL: url, PGHOST: '127.0.0.1', PGPORT: String(port), PGDATABASE: 'postgres', PGUSER: 'postgres' };
     const options = { windowsHide: true, timeout: 30000, env, stdio: 'pipe' as const };
     execFileSync(exe('initdb'), ['-D', join(directory, 'data'), '-U', 'postgres', '-A', 'trust', '--locale=C', '-E', 'UTF8', '--no-sync'], { ...options, timeout: 60000 });
-    execFileSync(exe('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port} -k ${directory}`, '-w', 'start'], { ...options, stdio: 'ignore' });
+    execFileSync(exe('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port}${process.platform === 'win32' ? '' : ' -k ' + directory}`, '-w', 'start'], { ...options, stdio: 'ignore' });
     started = true;
     for (const migracion of readdirSync(resolve('prisma/migrations')).sort()) {
       const archivo = resolve('prisma/migrations', migracion, 'migration.sql');

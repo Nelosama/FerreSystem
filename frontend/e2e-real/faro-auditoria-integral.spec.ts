@@ -1,3 +1,4 @@
+import { activateTestUser } from './activation.fixture';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext } from '@playwright/test';
@@ -43,9 +44,10 @@ async function asegurarUsuario(request: APIRequestContext, admin: Sesion, email:
   if (num(`SELECT COUNT(*) FROM usuarios WHERE email='${email}' AND tenant_id='${TENANT_A}'`) === 0) {
     const res = await request.post(`${API}/usuarios`, {
       headers: auth(admin.token),
-      data: { nombre, email, password: PASSWORD, rol, permisos, descuentoMaximo: 10 },
+      data: { nombre, email, rol, permisos, descuentoMaximo: 10 },
     });
     expect([200, 201], `crear ${email}: ${await res.text()}`).toContain(res.status());
+    await activateTestUser(request, (await res.json()).id);
   }
   const lista = permisos.map((p) => `'${p}'`).join(',');
   sql(`UPDATE usuarios SET permisos_configurados=true, permisos=ARRAY[${lista}]::text[], activo=true WHERE email='${email}' AND tenant_id='${TENANT_A}'`);

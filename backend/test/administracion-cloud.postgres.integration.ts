@@ -1,3 +1,5 @@
+import { syntheticPlatformMfa } from './synthetic-platform-mfa';
+import { RecoveryService } from '../src/auth/recovery.service';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -65,7 +67,7 @@ describe('Administración cloud / HTTP y PostgreSQL aislado', () => {
     return (await respuesta.json()) as { accessToken: string; tenant: Record<string, unknown> };
   };
   const loginSuperAdmin = async () => {
-    const respuesta = await http('POST', '/api/admin/auth/login', undefined, { email: emailSuperAdmin, password });
+    const respuesta = await http('POST', '/api/admin/auth/login', undefined, { email: emailSuperAdmin, password, mfaCode: await syntheticPlatformMfa(prisma, emailSuperAdmin) });
     expect(respuesta.status).toBe(200);
     return (await respuesta.json()) as { accessToken: string };
   };
@@ -175,9 +177,12 @@ describe('Administración cloud / HTTP y PostgreSQL aislado', () => {
   it('Super Admin crea usuarios por rol y conserva historial y revocación al desactivar', async () => {
     for (const rol of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) {
       const email = `nuevo-${rol}@cloud.test`;
-      const response = await http('POST', endpoint(A, 'usuarios'), sa, { nombre: `Nuevo ${rol}`, email, password: 'Nueva-clave123', rol });
+      const response = await http('POST', endpoint(A, 'usuarios'), sa, { nombre: `Nuevo ${rol}`, email, rol });
       expect(response.status).toBe(201); const usuario = await response.json() as any;
       expect(usuario).not.toHaveProperty('passwordHash');
+      const security = new RecoveryService(prisma, new ConfigService(), {} as any);
+      const invitation = await security.adminReset({ sub: superAdminId, type: 'super_admin' }, { usuarioId: usuario.id, tenantId: A, currentPassword: password, mfaCode: await syntheticPlatformMfa(prisma, emailSuperAdmin) });
+      await security.reset({ token: invitation.token, password: 'Nueva-clave123' });
       const login = await http('POST', '/api/auth/login', undefined, { email, password: 'Nueva-clave123', tenantId: A });
       expect(login.status).toBe(200); const token = (await login.json() as any).accessToken;
       expect((await http('PATCH', `${endpoint(B, 'usuarios')}/${usuario.id}`, sa, { activo: false })).status).toBe(404);
@@ -193,7 +198,7 @@ describe('Administración cloud / HTTP y PostgreSQL aislado', () => {
 
   it('protege al último administrador bajo desactivaciones concurrentes y cambios de rol', async () => {
     const tenant = await prisma.tenant.create({ data: { nombreComercial: 'Concurrencia' } });
-    const crear = async (suffix: string) => (await (await http('POST', endpoint(tenant.id, 'usuarios'), sa, { nombre: suffix, email: `${suffix}@concurrencia.test`, password: 'Prueba-segura123', rol: 'ADMIN' })).json()) as any;
+    const crear = async (suffix: string) => (await (await http('POST', endpoint(tenant.id, 'usuarios'), sa, { nombre: suffix, email: `${suffix}@concurrencia.test`, rol: 'ADMIN' })).json()) as any;
     const a = await crear('primero'), b = await crear('segundo');
     const respuestas = await Promise.all([a,b].map(user => http('PATCH', `${endpoint(tenant.id, 'usuarios')}/${user.id}`, sa, { activo: false })));
     expect(respuestas.map(r => r.status).sort()).toEqual([200,409]);

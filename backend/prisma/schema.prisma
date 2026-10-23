@@ -107,6 +107,9 @@ model SuperAdmin {
   nombre       String
   email        String   @unique
   passwordHash String   @map("password_hash")
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz
+  mfaSecret String? @map("mfa_secret")
+  mfaLastStep Int? @map("mfa_last_step")
   activo       Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -224,7 +227,11 @@ model Usuario {
   id           String   @id @default(uuid())
   tenantId     String   @map("tenant_id")
   nombre       String
-  email        String
+  email        String?
+  username     String?
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz
+  mfaSecret String? @map("mfa_secret")
+  mfaLastStep Int? @map("mfa_last_step")
   passwordHash String   @map("password_hash")
   rol          Rol      @default(ADMIN)
   permisos     String[] @default([])
@@ -246,6 +253,7 @@ model Usuario {
   ordenesCompra OrdenCompra[]
   cajas         Caja[]
   @@unique([tenantId, email])
+  @@unique([tenantId, username])
   @@index([tenantId])
   aprobacionesBancarias AprobacionBancaria[]
   conciliacionesBancarias ConciliacionBancaria[]
@@ -1193,11 +1201,45 @@ model IntentoLogin {
 }
 
 // Una fila por inicio de sesión. El id viaja en el claim `sid` de access y refresh tokens.
+model AuthAction {
+  hash String @id
+  sujetoId String @map("sujeto_id")
+  tipo String
+  tenantId String? @map("tenant_id")
+  purpose String
+  email String?
+  passwordBinding String @map("password_binding")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  @@index([sujetoId])
+  @@index([expiresAt])
+  @@map("auth_actions")
+}
+model AuthRecoveryCode {
+  hash String @id
+  sujetoId String @map("sujeto_id")
+  tipo String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  @@index([sujetoId])
+  @@map("auth_recovery_codes")
+}
+model AuthEvent {
+  id String @id @default(uuid())
+  actorId String @map("actor_id")
+  sujetoId String @map("sujeto_id")
+  tenantId String? @map("tenant_id")
+  event String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  @@index([tenantId, createdAt])
+  @@map("auth_events")
+}
 model SesionAuth {
   id               String    @id @default(uuid())
   tipo             String
   sujetoId         String    @map("sujeto_id")
   tenantId         String?   @map("tenant_id")
+  credentialBinding String? @map("credential_binding")
+  lastActivityAt DateTime @default(now()) @map("last_activity_at") @db.Timestamptz
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
   expiresAt        DateTime  @map("expires_at") @db.Timestamptz
   revokedAt        DateTime? @map("revoked_at") @db.Timestamptz

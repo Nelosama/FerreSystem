@@ -48,9 +48,10 @@ describe('Autorización del rol CONTADOR en todas las rutas', () => {
     const escritura = todas.filter(r => r.controlador !== ContabilidadController.name && r.metodo !== 'GET');
     const abiertas = escritura.filter(r => r.roles?.includes('CONTADOR'));
     expect(abiertas).toEqual([]);
-    // Rutas de escritura de empresa sin @Roles: solo autenticación/sesión y las de Super Admin (protegidas por SuperAdminGuard).
+    // Rutas de escritura sin @Roles: autenticación/sesión, seguridad de cuenta propia (recuperación, MFA y cambio de
+    // contraseña que aporta la actual; no tocan datos de negocio) y las de Super Admin (protegidas por SuperAdminGuard).
     const sinRoles = escritura.filter(r => r.roles === null).map(r => `${r.controlador} ${r.metodo} ${r.ruta}`);
-    expect(sinRoles.every(r => /^(AuthController|SuperAdminController) /.test(r))).toBe(true);
+    expect(sinRoles.every(r => /^(AuthController|RecoveryController|SuperAdminController) /.test(r))).toBe(true);
   });
 
   it('ventas, cobros, inventario y caja no están al alcance del CONTADOR ni para leer con roles explícitos', () => {
