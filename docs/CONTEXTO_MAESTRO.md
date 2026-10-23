@@ -15,6 +15,20 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 - **Código:** `frontend/src/components/{IconRail,AdminRail,AdminTopbar}.tsx`, `pages/admin/AdminHomePage.tsx`, `utils/movilAdmin.ts`, `App.tsx` (AppLayout). Pruebas: `frontend/e2e/admin-shell-simulado.spec.ts` y especificaciones actualizadas.
 - **Pendientes reales:** endpoint agregado para CxC/CxP; selector de sucursal informativo; decisión de tema global del tenant; TOPNAV e impersonación sin el nuevo shell; aceptación del cliente y merge/despliegue no realizados.
 
+## Cierre de preparación a producción — PR #180 (2026-10-23 UTC, rama `feat/contabilidad-honduras`, sin merge ni despliegue)
+
+- **Dictamen: NO MERGE.** El código y las pruebas automáticas están en verde en local; falta lo que solo puede cerrar el propietario o un contador (ver pendientes).
+- **Configuración de producción (punto 1):** `AUTH_MFA_ENCRYPTION_KEY`, `AUTH_MAIL_RESEND_API_KEY`, `AUTH_MAIL_FROM` y `AUTH_PUBLIC_URL` son obligatorias con `NODE_ENV=production`; el arranque falla si faltan (`config-auth.ts`, comprobado con `dist/main.js`). No se generó ni publicó ningún secreto.
+- **MFA del Super Admin (punto 2):** enrolamiento y bootstrap, login con TOTP y código de emergencia de un solo uso, expiración de tokens e inactividad, revocación de sesiones. Pruebas: integración PostgreSQL de recuperación 19/19; unitarias de MFA y seguridad 14/14; navegador de seguridad de cuenta 9/9.
+- **Envío real de correo (punto 3):** no ejecutado. `backend/scripts/prueba-correo-resend.mjs` envía un solo mensaje de configuración solo con confirmación explícita del destinatario; comprobado que rechaza sin enviar. Pendiente: dominio verificado en Resend y autorización del propietario.
+- **POS 14.1 (punto 4):** la causa era una carrera, no una regresión. El POS indexa el catálogo al cargarlo; la prueba buscaba antes. Reproducido con retraso de 5 s: el código anterior falla y el nuevo pasa. Se sustituyó la espera por tiempo por la espera del evento de carga. No se ocultó ningún fallo.
+- **TOPNAV y SIDEBAR (punto 5):** conservados; `Sidebar.tsx` y `TopNavigation.tsx` no cambian frente a `main`. La rama `claude/sweet-davinci-vh7br4` no se integra.
+- **PR #192 (punto 6):** todos sus commits son ancestros de #180. Los archivos de auth son idénticos entre ambos. Las diferencias restantes vienen de `main` posterior a su base y de resoluciones intencionadas (Contabilidad, Super Admin). **Superado.** No cerrado: decisión del propietario.
+- **Fiscal (punto 7):** ningún cálculo modificado. Parámetros pendientes de validación externa en `docs/CONTABILIDAD_HONDURAS.md` §11.
+- **Pruebas (punto 8), sobre `ea8967c` en local:** backend build, lint, unitarias 676/676, scripts 51/51; frontend tsc, build, lint, unitarias 539/539; PostgreSQL completo 1103/1103; navegador CI 346/346; E2E real 160/161.
+- **Riesgos pendientes:** (1) correo real sin probar; (2) enrolamiento MFA del Super Admin antes de liberar, las sesiones antiguas se rechazan; (3) normativa fiscal sin verificación profesional; (4) el E2E real falla localmente en el service worker 14 y no ejecuta 13 y 15 por el bloque serial: en CI pasaban en el head anterior y debe confirmarse en el head final; (5) el arranque en producción ahora exige variables nuevas: un despliegue sin ellas no inicia; (6) Safari, PWA e iPhone sin prueba física.
+- **Bitácora:** inspección de PR y ramas; configuración y arranque; MFA y recuperación; reproducción de la carrera; comparación #192/#180; revisión fiscal; pruebas completas. Sin merge, sin despliegue, sin migraciones productivas, sin secretos reales, PR #180 en borrador y #192 abierto.
+
 ## Integración PR #180 con auth y recuperación (PR #192) — 2026-10-23 UTC (rama `feat/contabilidad-honduras`, sin merge ni despliegue)
 
 - **Base elegida:** `feat/contabilidad-honduras` (contiene `main` `b60b49b` completo, PR #180 en borrador). `codex/auth-recovery-security` se integra por merge normal; `claude/sweet-davinci-vh7br4` **no** se integra (ver pendientes).
