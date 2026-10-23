@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { api } from '../utils/api';
+import { alertas } from '../utils/alertas';
 import { CAMPOS_PROVEEDOR, cambiosProveedor, datosProveedor, type ProveedorDatos } from '../utils/proveedorEdicion';
 
 // JW-08: proveedores registrados para el administrador. Edición (nombre, RTN, contacto), desactivación y reactivación
@@ -32,6 +33,10 @@ export const ProveedoresGestion: React.FC<{ disabled?: boolean; onCambio?: (acti
     catch (e) { setError(mensajeError(e)); }
     finally { setOcupado(false); }
   };
+  const desactivar = async (p: { id: string; nombre?: string | null }) => {
+    const confirmado = await alertas.confirmar({ texto: `¿Desactivar a ${p.nombre}? Sus compras y cuentas por pagar se conservan.`, confirmar: 'Desactivar', peligroso: true });
+    if (confirmado) void ejecutar(() => api.delete(`/proveedores/${p.id}`), 'Proveedor desactivado.');
+  };
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editando) return;
@@ -54,7 +59,7 @@ export const ProveedoresGestion: React.FC<{ disabled?: boolean; onCambio?: (acti
           <td>
             <button type="button" className="btn btn-secondary btn-sm" disabled={bloqueado} onClick={() => { setEditando(p); setForm(datosProveedor(p)); setError(''); setAviso(''); }}>Editar {p.nombre}</button>{' '}
             {p.activo
-              ? <button type="button" className="btn btn-secondary btn-sm" disabled={bloqueado} onClick={() => { if (window.confirm(`¿Desactivar a ${p.nombre}? Sus compras y cuentas por pagar se conservan.`)) void ejecutar(() => api.delete(`/proveedores/${p.id}`), 'Proveedor desactivado.'); }}>Desactivar {p.nombre}</button>
+              ? <button type="button" className="btn btn-secondary btn-sm" disabled={bloqueado} onClick={() => void desactivar(p)}>Desactivar {p.nombre}</button>
               : <button type="button" className="btn btn-secondary btn-sm" disabled={bloqueado} onClick={() => void ejecutar(() => api.patch(`/proveedores/${p.id}`, { activo: true }), 'Proveedor reactivado.')}>Reactivar {p.nombre}</button>}
           </td>
         </tr>)}</tbody>

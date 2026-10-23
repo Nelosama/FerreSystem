@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { confirmarAlerta } from '../e2e/helpers/alertas';
 
 // E2E REAL (BALANCE): backend NestJS + PostgreSQL temporal + frontend real. Sin mocks.
 // Flujo: crédito con plazo → abono en pantalla → saldo actualizado; pago a proveedor con referencia e historial;
@@ -78,9 +79,9 @@ test.describe.serial('BALANCE: cuentas por cobrar y por pagar contra backend rea
     const tarjeta = page.locator('section.operation-card').filter({ hasText: `Documento ${documentoVenta}` });
     await tarjeta.getByRole('button', { name: 'Registrar abono' }).click();
     const form = page.locator('form').filter({ has: page.getByRole('heading', { name: /Registrar abono/ }) });
-    page.once('dialog', (d) => d.accept());
     await form.locator('input[type="number"]').fill('40');
     await form.getByRole('button', { name: 'Registrar', exact: true }).click();
+    await confirmarAlerta(page);
     await expect.poll(() => sql(`SELECT saldo::text FROM cuentas_operativas WHERE id='${cuentaVentaId}'`)).toBe((saldoInicialVenta - 40).toFixed(2));
     await expect(page.locator('section.operation-card').filter({ hasText: `Documento ${documentoVenta}` }).getByText('Parcial').first()).toBeVisible();
     expect(sql(`SELECT COUNT(*) FROM pagos_cuenta WHERE cuenta_id='${cuentaVentaId}'`)).toBe('1');
@@ -92,10 +93,10 @@ test.describe.serial('BALANCE: cuentas por cobrar y por pagar contra backend rea
     const tarjeta = page.locator('section.operation-card').filter({ hasText: 'FAC-BAL-9' });
     await tarjeta.getByRole('button', { name: 'Registrar pago' }).click();
     const form = page.locator('form').filter({ has: page.getByRole('heading', { name: /Registrar pago/ }) });
-    page.once('dialog', (d) => d.accept());
     await form.getByLabel('Referencia de pago (comprobante)').fill('TRF-E2E-778');
     await form.locator('input[type="number"]').fill('1000');
     await form.getByRole('button', { name: 'Registrar', exact: true }).click();
+    await confirmarAlerta(page);
     await expect.poll(() => sql(`SELECT saldo::text FROM cuentas_operativas WHERE id='${cuentaCompraId}'`)).toBe('2000.00');
     await expect(tarjeta.getByText('TRF-E2E-778')).toBeVisible();
     await expect(tarjeta.getByText('Administrador E2E')).toBeVisible();

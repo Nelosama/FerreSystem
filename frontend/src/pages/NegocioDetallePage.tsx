@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { TopBar } from '../components/TopBar';
 import { NegocioNavigation } from '../components/NegocioNavigation';
 import { api } from '../utils/api';
+import { alertas } from '../utils/alertas';
 import { ModuleControls } from '../components/ModuleControls';
 import { CATALOGO_MODULOS } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
@@ -39,7 +40,7 @@ function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuar
   };
   const toggle = async (fila: Registro) => {
     const activo = usuarios ? fila.activo : fila.activa;
-    if (!window.confirm(`¿${activo ? 'Desactivar' : 'Reactivar'} ${fila.nombre}? Se conserva su historial.`)) return;
+    if (!(await alertas.confirmar({ texto: `¿${activo ? 'Desactivar' : 'Reactivar'} ${fila.nombre}? Se conserva su historial.`, confirmar: activo ? 'Desactivar' : 'Reactivar', peligroso: activo }))) return;
     setBusy(true); setError(''); setEstado('');
     try { await api.patch(`${endpoint}/${fila.id}`, usuarios ? { activo: !activo } : { activa: !activo }); setEstado('Estado actualizado.'); await cargar(); }
     catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
@@ -103,7 +104,7 @@ export function NegocioDetallePage({ negocioId, tab = 'resumen' }: { negocioId: 
   }, [negocioId]);
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault(); if (busy) return;
-    if (tab === 'servicios' && negocio.modulosHabilitados?.some((key: string) => !modulos.includes(key)) && !window.confirm(t('modules.confirm'))) return;
+    if (tab === 'servicios' && negocio.modulosHabilitados?.some((key: string) => !modulos.includes(key)) && !(await alertas.confirmar({ texto: t('modules.confirm'), peligroso: true }))) return;
     setBusy(true); setError(''); setEstado('');
     try {
       if (tab === 'servicios') await api.put(`/admin/tenants/${negocioId}/modules`, { modules: CATALOGO_MODULOS.map(m => ({ moduleKey: m.key, enabled: modulos.includes(m.key) })) });

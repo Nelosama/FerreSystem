@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-23 UTC** — rediseño de navegación del Super Admin (layout híbrido) en la rama `claude/amazing-bohr-9e5bpj`, sin PR, merge ni despliegue; ver la sección siguiente. PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Sin cambios en producción.
+Última revisión: **2026-10-23 UTC** — rediseño de navegación del Super Admin y del cajero (layout híbrido) en la rama `claude/amazing-bohr-9e5bpj`, sincronizada con `main` `ba201465` (PR #190, SweetAlert2); ver las secciones siguientes, sin merge ni despliegue. PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Sin cambios en producción.
 
 Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorporó la ronda de UX, marca y navegación. Se conservan sus bitácoras y evidencias a continuación. Detalle de seguridad: [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
 
@@ -33,6 +33,29 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
   - La tabla de negocios no se convirtió en filas con chevron ni en dos líneas en móvil; conserva su estructura de tabla.
   - Sin prueba en Safari, iPhone ni tableta física.
 - **Bitácora:** lectura de AGENTS y del contexto; revisión del brief y del código del Super Admin; implementación por capas (tema, shell, pestañas, negocio); corrección de TopBar con `!important` por estilo en línea; regresión de contraste en POS corregida; ajuste de e2e y capturas.
+
+## Cajero — rail de iconos (Inicio, Caja, Mi caja, Más) — 2026-10-23 UTC (rama `claude/amazing-bohr-9e5bpj`, sin merge ni despliegue)
+
+- **Origen:** referencia de Lovable (capturas y estructura del menú del cajero, no accesible desde el entorno) y contexto del dueño: interfaz sencilla, opciones visibles que funcionen y respeten permisos, PWA en 1366×768 y 1920×1080, texto legible, colores y logotipo del negocio. React y CSS tradicional; sin alertas nuevas (el rail no usa `confirm` ni SweetAlert2).
+- **Implementado:** `components/CajeroRail.tsx` y `styles/cajero.css`. Rail de 84 px con el logotipo del negocio, tres accesos fijos (Inicio, Caja, Mi caja, según los módulos y permisos del rol) y «Más», que abre el resto de accesos autorizados agrupados. Etiquetas de 12 px. El estado activo usa el color configurado por el negocio (`--color-primary`, aclarado para leerse sobre el fondo oscuro). Conserva el indicador de conexión con las ventas de contingencia pendientes y la atenuación «en línea» de los módulos que necesitan red, que no formaban parte de la referencia. `App.tsx` lo usa solo para CAJERO en modo barra lateral; modo barra superior, móvil (barra inferior existente), rutas y permisos sin cambios. «Más» se omite si no queda ningún acceso.
+- **Sincronización:** merge normal de `main` `ba201465` (PR #190, SweetAlert2) sobre la rama; único conflicto en este documento, resuelto conservando ambas bitácoras. Sin rebase ni force push.
+- **Pruebas:** unitarias 513/513; `tsc -b` sin errores; lint 117 avisos (= `main`). E2E de navegación y POS ajustados a la estructura nueva del cajero (resultado en el PR). Sin prueba en Windows con escalado ni en equipo físico.
+- **Pendientes reales:** la topbar de página sigue siendo la existente (no se rediseñó); el catálogo a la izquierda y carrito a la derecha del POS no se tocaron porque cambian la pantalla de cobro y sus reglas; verificar contraste del estado activo con marcas muy claras; `ADMIN`, `VENDEDOR` y `BODEGUERO` conservan el menú lateral actual.
+
+## Notificaciones y confirmaciones con SweetAlert2 — 2026-10-23 UTC (rama `claude/admiring-albattani-n1ruvp`, sin merge ni despliegue)
+
+- **Auditoría previa:** 13 llamadas a `window.confirm` (ProductoGestion, ProveedoresProductoPanel, ProveedoresGestion, LogotipoNegocioEditor, OperacionesPage ×2, LevantamientoPage ×3, ArqueoCajaPage, NegocioDetallePage ×2, SuperAdminPage) y 3 `alert` (TopBar, csvExport, excelExport). Los mensajes inline `role="alert"/"status"` de POS, Inventario, Devoluciones, Garantías y similares se conservan: son estados de operación, no interrupciones.
+- **Servicio:** `frontend/src/utils/alertasOpciones.ts` (lógica pura: textos con respaldo, opciones de confirmación, control de duplicados) y `frontend/src/utils/alertas.ts` (SweetAlert2: `alertas.exito/error/advertencia/toast` como toast no bloqueante; `alertas.confirmar` como modal solo cuando hay que decidir). Estilos en `frontend/src/utils/alertas.css` con tokens de marca (`--color-primary`, `--color-on-primary`, `--color-danger`). El traductor activo se registra desde `I18nContext`; claves `alerts.*` en ES y EN.
+- **Reglas de uso:** acciones peligrosas (desactivar, quitar, eliminar conteo, desactivar módulos, cerrar caja con cambio) abren con foco en Cancelar; las demás, con foco en Confirmar. Una confirmación abierta bloquea otra y devuelve `false`, así que nunca se ejecuta sin confirmación. Un toast que llega con el modal abierto se encola y se muestra al cerrarlo. Mensajes idénticos en 2 s se filtran.
+- **Dependencia:** `sweetalert2@11.26.25` (versión exacta, publicada el 2026-05-23) en `frontend/package.json` y `frontend/package-lock.json`.
+- **Migrados:** las 13 confirmaciones y los 3 `alert` anteriores. Ningún `window.confirm`/`alert` queda en `frontend/src` (guard en `frontend/test/alertas-guard.test.mjs`).
+- **Fuera de alcance, sin cambios de negocio:** autenticación, sesiones, permisos, cálculos, POS y operaciones monetarias. No se añadió confirmación nueva a ventas ni anulaciones: no existían confirmaciones nativas en esos flujos y el requisito pide evitarlas en operaciones frecuentes.
+- **Pruebas:** `npm test` 513/513 (11 nuevas: `test/alertas.test.mjs` 8, `test/alertas-guard.test.mjs` 3); `npx tsc -b` sin errores; `npm run lint` con 117 avisos, igual que la base (sin avisos nuevos); `VITE_API_URL=/api npm run build` correcto. e2e simulados: se actualizaron los 13 archivos que aceptaban diálogos nativos (`e2e/` y `e2e-real/`); los 78 casos de los archivos afectados pasan con Chromium local. e2e-real no se ejecutó: requiere backend y PostgreSQL temporal.
+- **Límites:** no validado en dispositivo físico, PWA instalada, ni con lectores de pantalla (VoiceOver/NVDA). El contraste se apoya en los tokens existentes (`--color-on-primary`, `AvisoColorMarca`); no se midió con todos los colores de marca posibles.
+- **Pendientes reales:** textos de ProveedoresGestion, LogotipoNegocioEditor y del gestor de sucursales/usuarios de NegocioDetallePage siguen en español fijo (sus componentes no tienen i18n); el confirm de Super Admin para módulos ya usa `modules.confirm`. El modal propio de activación de modo edición en TopBar no se migró (requiere motivo escrito). Los mensajes inline no se convirtieron en toast para evitar duplicados.
+- **Riesgo de conflicto con otros PR:** tocan `OperacionesPage.tsx`, `LevantamientoPage.tsx`, `SuperAdminPage.tsx`, `NegocioDetallePage.tsx`, `ProductoGestion.tsx`, `I18nContext.tsx`, `locales/es.json` y `locales/en.json`, `frontend/package.json` y `package-lock.json`, y los e2e de compras, caja, levantamiento, productos, proveedores, guía y balance.
+
+---
 
 ## PR #189 — sincronización tras integrar #188 (2026-10-22 UTC)
 

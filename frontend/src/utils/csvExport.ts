@@ -1,9 +1,11 @@
+import { alertas } from './alertas';
+
 /**
  * Utility helper to export an array of JSON objects to a downloadable CSV file in UTF-8 BOM encoding.
  */
 export function exportToCSV<T extends Record<string, any>>(filename: string, data: T[], headers?: { key: keyof T; label: string }[]) {
   if (!data || data.length === 0) {
-    alert('No hay datos disponibles para exportar.');
+    alertas.advertencia(alertas.traducir('alerts.no_export_data', 'No hay datos disponibles para exportar.'));
     return;
   }
 
