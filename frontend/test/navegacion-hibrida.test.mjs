@@ -1,8 +1,7 @@
 /**
  * navegacion-hibrida.test.mjs
  *
- * La navegación oficial es una sola: panel lateral compacto + barra superior contextual. TOPNAV/SIDEBAR dejaron de ser
- * una opción: ninguna pantalla los ofrece y el valor histórico `modoNavegacion` ya no decide el layout. Además fija la
+ * TOPNAV/SIDEBAR configuran la posición del menú híbrido por negocio. Además fija la
  * regla de negocio del menú por rol (RBAC y módulos habilitados) y las funciones puras del logotipo y de los menús.
  */
 import { test } from 'node:test';
@@ -30,32 +29,20 @@ const archivos = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((
   return e.isDirectory() ? archivos(ruta) : /\.(tsx?|css)$/.test(e.name) ? [ruta] : [];
 });
 
-test('el layout no lee modoNavegacion ni ofrece TOPNAV/SIDEBAR', () => {
+test('ambos modos usan los mismos componentes híbridos y la preferencia del negocio', () => {
   const app = leer('src/App.tsx');
-  assert.doesNotMatch(app.replace(/\/\/.*$/gm, ''), /modoNavegacion|TOPNAV|isTopNav|TopNavigation|<Sidebar/);
+  assert.match(app, /tenant.modoNavegacion === 'TOPNAV'/);
   assert.match(app, /<AdminRail \/>/);
   assert.match(app, /<CajeroRail \/>/);
   assert.match(app, /<AdminTopbar \/>/);
-});
-
-test('ninguna pantalla conserva selectores ni textos de TOPNAV/SIDEBAR (solo el campo histórico de compatibilidad)', () => {
-  const permitidos = new Set(['src/types/index.ts', 'src/utils/tenantSettings.ts']);
-  const infractores = archivos('src').filter((f) => !permitidos.has(f.replaceAll('\\', '/')) && /modoNavegacion|TOPNAV|setModoNavegacion/.test(leer(f).replace(/\/\/.*$/gm, '')));
-  assert.deepEqual(infractores, []);
-  assert.ok(!fs.existsSync('src/components/Sidebar.tsx'));
-  assert.ok(!fs.existsSync('src/components/TopNavigation.tsx'));
-});
-
-test('los textos visibles no mencionan menú lateral/superior ni modo de navegación', () => {
+  const settings = leer('src/pages/ConfiguracionPage.tsx');
+  assert.match(settings, /id="navigation-mode"/);
+  assert.match(settings, /modoNavegacion,/);
   for (const idioma of ['es', 'en']) {
-    const texto = leer(`src/locales/${idioma}.json`);
-    assert.doesNotMatch(texto, /TOPNAV|SIDEBAR|menú superior|menú lateral|top menu|side menu|navigation mode|modo de navegación/i, idioma);
-  }
-});
-
-test('las configuraciones de negocio ya no envían modoNavegacion (el valor histórico no se toca)', () => {
-  for (const f of ['src/pages/ConfiguracionPage.tsx', 'src/pages/NegocioDetallePage.tsx', 'src/pages/SuperAdminPage.tsx']) {
-    assert.doesNotMatch(leer(f), /modoNavegacion/, f);
+    const textos = JSON.parse(leer(`src/locales/${idioma}.json`));
+    assert.ok(textos.settings.navigation_mode);
+    assert.ok(textos.settings.navigation_topnav);
+    assert.ok(textos.settings.navigation_sidebar);
   }
 });
 

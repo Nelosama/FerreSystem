@@ -1,10 +1,20 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-23 UTC** — rama `claude/sweet-davinci-vh7br4` sincronizada con `main` `01f9110` (PR #194) mediante merge normal; ver «Sincronización con main» abajo; **navegación híbrida única y mejoras UX/UI de Stitch** en la rama `claude/sweet-davinci-vh7br4` (base `main` `b60b49b`, con #193 ya fusionado; ver la primera sección); antes, rediseño de navegación del Super Admin y del cajero (layout híbrido) en la rama `claude/amazing-bohr-9e5bpj`, sincronizada con `main` `ba201465` (PR #190, SweetAlert2); ver las secciones siguientes, sin merge ni despliegue. PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Sin cambios en producción.
+Última revisión: **2026-10-23 America/Tegucigalpa** — revisión PR #195 con TOPNAV/SIDEBAR restaurado (ver sección vigente abajo); antecedentes:  rama `claude/sweet-davinci-vh7br4` sincronizada con `main` `01f9110` (PR #194) mediante merge normal; ver «Sincronización con main» abajo; **navegación híbrida única y mejoras UX/UI de Stitch** en la rama `claude/sweet-davinci-vh7br4` (base `main` `b60b49b`, con #193 ya fusionado; ver la primera sección); antes, rediseño de navegación del Super Admin y del cajero (layout híbrido) en la rama `claude/amazing-bohr-9e5bpj`, sincronizada con `main` `ba201465` (PR #190, SweetAlert2); ver las secciones siguientes, sin merge ni despliegue. PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Sin cambios en producción.
 
 Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorporó la ronda de UX, marca y navegación. Se conservan sus bitácoras y evidencias a continuación. Detalle de seguridad: [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
+
+
+## Revisión del PR #195 — TOPNAV/SIDEBAR restaurado (2026-10-23, America/Tegucigalpa)
+
+- **Estado vigente:** se conserva el trabajo de Claude y se corrige la eliminación de la preferencia por negocio. Esta sección sustituye la decisión de «navegación única sin selector» documentada en los bloques anteriores de la implementación original.
+- **Configuración:** Super Admin → Empresas → Configurar negocio carga/guarda `modoNavegacion` por el endpoint existente. SIDEBAR coloca el rail a la izquierda; TOPNAV coloca el mismo menú autorizado arriba. Ambos conservan barra contextual y navegación móvil. La plataforma no cambia al editar un negocio; soporte conserva el modo de destino.
+- **Alcance:** misma rama y PR #195, sin backend, reglas de negocio, rutas/permisos, dependencias nuevas, Tailwind, merge ni despliegue. Rama excluida de previews automáticas mediante el mecanismo existente.
+- **Compatibilidad y pruebas:** [REVISION_PR195_20261023.md](REVISION_PR195_20261023.md). Main `01f9110` incluye #194 y es ancestro; áreas de POS/backend sin diferencias. Ensayo aislado con catálogo real de #180: 12/12 combinaciones de CONTADOR/módulo/permiso/modo; la integración completa futura requiere resolver conflictos y conservar AccountSecurity/MFA/recuperación y el menú contable especializado. #180 no se modifica.
+- **Evidencia:** frontend inicial 538/538; build y lint sin errores; guard correcto (0 migraciones). Pruebas adicionales de exclusión de despliegue, Playwright simulado y piloto real por negocio incluidas. **Resultados finales y checks del SHA publicado: ver PR #195**; no atribuir al nuevo HEAD los checks del recibido. Chromium local 151; descarga de Chromium 153 bloqueada por política de red. Sin certificación de dispositivos físicos.
+- **Bitácora:** inspección de AGENTS/contexto, Git y PR #195/#194/#180; checkout de la rama indicada; revisión del contrato existente; restauración del selector/lectura y modo de soporte; regresiones de roles/persistencia/error/móvil; ensayo de compatibilidad; pruebas y actualización del mismo PR. El dictamen definitivo corresponde a los resultados del HEAD final publicados en el PR.
 
 ---
 

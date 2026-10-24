@@ -922,6 +922,11 @@
     }
   },
   "settings": {
+    "navigation_mode": "Navigation mode",
+    "navigation_sidebar": "SIDEBAR · Side menu",
+    "navigation_topnav": "TOPNAV · Top menu",
+    "navigation_help": "Choose the menu position for this business. Both options keep the contextual bar and authorized access. Mobile keeps bottom navigation.",
+
     "sections": {
       "business": "My business",
       "business_help": "Business name, sector, contact, language, logo and brand color.",

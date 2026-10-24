@@ -167,3 +167,29 @@ header.shell-topbar .task-finder-panel label { margin-bottom: 8px; }
 }
 .menu-desplegable-item:hover,
 .menu-desplegable-item:focus-visible { background: var(--surface-2); outline-offset: -2px; }
+
+/* TOPNAV cambia la posición del mismo menú autorizado; SIDEBAR conserva el rail de 84 px. */
+@media (min-width: 769px) {
+  .tenant-topnav { flex-direction: column; }
+  .tenant-topnav > .app-rail {
+    position: relative;
+    width: 100%;
+    height: auto;
+    flex: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-self: stretch;
+    gap: 12px;
+    padding: 10px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--plat-line);
+    z-index: 20;
+  }
+  .tenant-topnav > .app-rail .app-rail-list { flex: 1; width: auto; flex-direction: row; flex-wrap: wrap; gap: 8px; }
+  .tenant-topnav > .app-rail .app-rail-list > li { min-width: 76px; position: relative; }
+  .tenant-topnav > .app-rail .app-rail-panel { left: 0; top: calc(100% + 12px); max-height: 65vh; }
+  .tenant-topnav > .app-rail .app-rail-list > li:last-child .app-rail-panel { left: auto; right: 0; }
+  .tenant-topnav > .app-rail .app-rail-pie { width: auto; }
+  .tenant-topnav > .app-rail .app-rail-avatar { margin-top: 0; }
+  .tenant-topnav > .main-content { width: 100%; flex: 1; }
+}

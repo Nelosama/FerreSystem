@@ -55,12 +55,12 @@ async function setup(page: Page, role: string, mode: string, language = 'es', en
 }
 
 for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const language of ['es', 'en']) {
-  test(`${role} (valor histórico ${mode}) ${language}: navegación híbrida, prioridades, módulos y móvil`, async ({ page }) => {
+  test(`${role} (${mode}) ${language}: navegación híbrida, prioridades, módulos y móvil`, async ({ page }) => {
     const expectedLanguage = language;
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
     await setup(page, role, mode, language, []);
     await page.goto(role === 'SUPERADMIN' ? '/admin' : '/');
-    // Navegación híbrida única: el valor histórico del negocio (SIDEBAR/TOPNAV) no la cambia. El SUPERADMIN usa el rail
+    // SIDEBAR/TOPNAV posicionan el mismo menú autorizado. El SUPERADMIN usa el rail
     // de plataforma y el resto de roles su rail de iconos; los accesos secundarios quedan en paneles («Más»).
     const rail = role !== 'SUPERADMIN';
     const navigation = role === 'SUPERADMIN' ? page.getByRole('navigation', { name: 'Áreas de la plataforma' }) : page.locator('nav.app-rail');
@@ -107,7 +107,7 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
 }
 
 for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const enabled of [false, true]) {
-  test(`POS ${enabled} ${role} (valor histórico ${mode}): rail, buscador, accesos, móvil y URL`, async ({ page }) => {
+  test(`POS ${enabled} ${role} (${mode}): rail, buscador, accesos, móvil y URL`, async ({ page }) => {
     await setup(page, role, mode, 'es', enabled ? ['pos'] : []);
     await page.goto('/');
     const nav = page.locator('nav.app-rail');
@@ -168,23 +168,28 @@ test('settings: valores fiscales soportados, guardado, reload, errores y captura
   await expect(page.locator('#task-search')).toHaveCount(0);
   await expect(page.locator('#tax-rate')).toHaveValue('15');
   for (const id of ['currency-code', 'currency-symbol', 'tax-name', 'tax-rate']) await expect(page.locator('#' + id)).toHaveAttribute('readonly', '');
+  await expect(page.locator('#navigation-mode')).toHaveValue('TOPNAV');
+  await page.locator('#navigation-mode').selectOption('SIDEBAR');
   await page.locator('#business-name').fill('Empresa guardada');
   await page.getByRole('button', { name: 'APLICAR CAMBIOS', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'guardada correctamente' })).toBeVisible();
   expect(api.writes[0]).toMatchObject({ configuracion: { impuesto: { tasa: 15 }, moneda: { codigo: 'HNL' } } });
-  // El valor histórico de navegación ya no se edita ni se envía.
-  expect(api.writes[0]).not.toHaveProperty('modoNavegacion');
+  expect(api.writes[0]).toHaveProperty('modoNavegacion', 'SIDEBAR');
   await page.reload();
+  await expect(page.locator('#navigation-mode')).toHaveValue('SIDEBAR');
   await expect(page.locator('input[type="number"]')).toHaveValue('15');
   await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' })).toBeVisible();
   await page.screenshot({ path: 'artifacts/ux-settings-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'artifacts/ux-settings-mobile.png', fullPage: true });
   api.fail(true);
+  await page.locator('#navigation-mode').selectOption('TOPNAV');
   await page.locator('#business-name').fill('Borrador sin guardar');
   await page.getByRole('button', { name: 'APLICAR CAMBIOS', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Error de prueba al guardar');
   expect(api.settings().impuesto.tasa).toBe(15);
+  expect(api.settings().modoNavegacion).toBe('SIDEBAR');
+  await expect(page.locator('#navigation-mode')).toHaveValue('TOPNAV');
   await expect(page.locator('#business-name')).toHaveValue('Borrador sin guardar');
   await expect(page.getByRole('status').filter({ hasText: 'guardada correctamente' })).toHaveCount(0);
   await page.evaluate(() => { localStorage.removeItem('ferre_user'); localStorage.removeItem('ferre_tenant'); localStorage.removeItem('ferre_token'); });
@@ -247,6 +252,7 @@ for (const language of ['es', 'en']) test(`configuración del negocio traducida 
   await page.goto('/admin/negocios/ux-company/configuracion');
   // La plataforma no muestra el buscador de tareas de los negocios.
   await expect(page.locator('#task-search')).toHaveCount(0);
+  await expect(page.getByLabel(language === 'es' ? 'Modo de navegación' : 'Navigation mode')).toHaveValue('TOPNAV');
   await expect(page.locator('#fiscal-limit')).toContainText(language==='es'?'solo lectura':'read-only');
 });
 
@@ -258,7 +264,8 @@ test('configuración vacía del servidor sustituye apariencia vieja de la caché
   await expect(page.locator('#template-version')).toHaveCount(0);
   await expect(page.locator('#classic-style')).toHaveCount(0);
   await expect(page.locator('#heading-font')).toHaveCount(0);
-  // La navegación de la plataforma del Super Admin no depende del negocio editado; el formulario sí refleja el servidor.
+  // La plataforma permanece independiente; el selector refleja el servidor en vez de la caché.
+  await expect(page.locator('#navigation-mode')).toHaveValue('SIDEBAR');
 
   await expect(page.locator('#currency-code')).toHaveValue('HNL');
   await expect(page.locator('#tax-rate')).toHaveValue('15');

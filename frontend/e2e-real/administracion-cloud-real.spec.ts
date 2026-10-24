@@ -146,3 +146,32 @@ test('el valor histórico TOPNAV no cambia la navegación: rail y barra superior
   const sa = await page.evaluate(() => localStorage.getItem('ferre_token'));
   await page.request.put(`${API}/admin/tenants/${A}/settings`, { headers: { Authorization: `Bearer ${sa}` }, data: { modoNavegacion: 'SIDEBAR' } });
 });
+
+test('Super Admin guarda TOPNAV/SIDEBAR por negocio y el ADMIN recibe el menú híbrido persistido', async ({ page, browser }) => {
+  await entrar(page);
+  const otroAntes = await prisma.tenant.findUniqueOrThrow({ where: { id: 'e2e-empresa-b' } });
+  await page.goto(`/admin/negocios/${A}/configuracion`);
+  for (const modo of ['TOPNAV', 'SIDEBAR']) {
+    await page.locator('#navigation-mode').selectOption(modo);
+    await page.getByRole('button', { name: /APLICAR CAMBIOS/i }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'guardada correctamente' })).toBeVisible();
+    expect((await prisma.tenant.findUniqueOrThrow({ where: { id: A } })).modoNavegacion).toBe(modo);
+    expect((await prisma.tenant.findUniqueOrThrow({ where: { id: 'e2e-empresa-b' } })).modoNavegacion).toBe(otroAntes.modoNavegacion);
+    await page.reload();
+    await expect(page.locator('#navigation-mode')).toHaveValue(modo);
+    await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' })).toBeVisible();
+    const contexto = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+    try {
+      const admin = await contexto.newPage();
+      await entrar(admin, 'admin.a@e2e.invalid');
+      await expect(admin.locator('[data-navigation-mode]')).toHaveAttribute('data-navigation-mode', modo);
+      await expect(admin.locator('header.admin-topbar')).toBeVisible();
+      const menu = admin.locator('nav.app-rail');
+      await expect(menu).toBeVisible();
+      const caja = await menu.boundingBox();
+      expect(caja!.width).toBe(modo === 'TOPNAV' ? 1366 : 84);
+      await admin.goto('/configuracion');
+      await expect(admin.getByRole('heading', { name: 'Acceso Denegado', exact: true })).toBeVisible();
+    } finally { await contexto.close(); }
+  }
+});

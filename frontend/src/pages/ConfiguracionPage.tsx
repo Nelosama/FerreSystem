@@ -31,6 +31,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   const [cargaError, setCargaError] = useState('');
   const negocio: any = datos ?? {};
 
+  const [modoNavegacion, setModoNavegacion] = useState<'SIDEBAR' | 'TOPNAV'>('SIDEBAR');
   const [modoGuia, setModoGuia] = useState(false);
   const [idioma, setIdioma] = useState<'es' | 'en'>('es');
   const [nombre, setNombre] = useState(negocio.nombreComercial || '');
@@ -66,6 +67,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   // Sincronizar estados cuando el negocio cargado cambie
   React.useEffect(() => {
     if (negocio && !dirty.current) {
+      setModoNavegacion(negocio.modoNavegacion === 'TOPNAV' ? 'TOPNAV' : 'SIDEBAR');
       setModoGuia(negocio.modoGuia === true);
       setIdioma(negocio.idioma === 'en' ? 'en' : 'es');
       setNombre(negocio.nombreComercial || '');
@@ -95,6 +97,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         telefono,
         email,
         colorPrimario: color,
+        modoNavegacion,
         configuracion: { modoGuia, idioma, rubro, formatoImpresion, moneda: updatedMoneda, impuesto: updatedImpuesto },
       });
 
@@ -138,6 +141,13 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         )}
 
         <form className="negocio-settings-grid tenant-settings-grid" onSubmit={handleGuardar} onChange={() => { dirty.current = true; }} onClick={event => { if ((event.target as HTMLElement).closest('button[type="button"]')) dirty.current = true; }} aria-busy={saving} style={styles.grid}>
+<label className="form-label" htmlFor="navigation-mode">{t('settings.navigation_mode')}
+  <select id="navigation-mode" className="form-input" value={modoNavegacion} onChange={e => setModoNavegacion(e.target.value as 'SIDEBAR' | 'TOPNAV')} disabled={saving}>
+    <option value="SIDEBAR">{t('settings.navigation_sidebar')}</option>
+    <option value="TOPNAV">{t('settings.navigation_topnav')}</option>
+  </select>
+  <span className="settings-section-help">{t('settings.navigation_help')}</span>
+</label>
 <label style={{ display: 'block', margin: '16px 0' }}>{t('guide.setting')} <select className="form-input" value={String(modoGuia)} onChange={e => { dirty.current = true; setModoGuia(e.target.value === 'true'); }}><option value="false">{t('guide.disabled')}</option><option value="true">{t('guide.enabled')}</option></select></label>
           <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-business">
             <div style={styles.cardHeader}>

@@ -66,7 +66,7 @@ test.describe.serial('Logotipo por negocio (backend real)', () => {
     expect(cargada).toBe(true);
   });
 
-  test('ADMIN del negocio ve el logotipo en el rail con cualquier valor histórico de navegación (ya no decide el layout)', async ({ page }) => {
+  test('ADMIN del negocio ve el logotipo en ambos modos de navegación híbrida', async ({ page }) => {
     const api = await request.newContext({ baseURL: BASE });
     const sa = await tokenDe(api, 'superadmin.e2e@e2e.invalid');
     const modo = await api.put(`admin/tenants/${NEGOCIO_A}/settings`, { headers: { Authorization: `Bearer ${sa}` }, data: { modoNavegacion: 'SIDEBAR' } });

@@ -139,10 +139,10 @@ const HomeRoute: React.FC = () => {
   return <DashboardPage />;
 };
 
-// Layout principal: navegación híbrida única (panel lateral compacto + barra superior contextual) para todos los roles.
-// El valor histórico `modoNavegacion` (SIDEBAR/TOPNAV) ya no decide la navegación.
+// Ambos modos conservan el menú autorizado y la barra contextual de la navegación híbrida.
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useTenant();
+  const { user, tenant } = useTenant();
+  const modoNavegacion = tenant.modoNavegacion === 'TOPNAV' ? 'TOPNAV' : 'SIDEBAR';
 
   const [isMobile, setIsMobile] = React.useState(
     typeof window !== 'undefined' ? window.innerWidth <= 768 : false
@@ -176,7 +176,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Roles del negocio: el cajero tiene un rail enfocado en venta y caja; el resto, el rail por módulos autorizados.
   return (
     <CajaProvider>
-    <div className="app-container admin-shell">
+    <div className={`app-container admin-shell${modoNavegacion === 'TOPNAV' ? ' tenant-topnav' : ''}`} data-navigation-mode={modoNavegacion}>
       {user?.rol === 'CAJERO' ? <CajeroRail /> : <AdminRail />}
       <div data-guide-content
         className="main-content"

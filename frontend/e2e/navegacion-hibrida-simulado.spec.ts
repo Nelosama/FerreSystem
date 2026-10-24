@@ -1,14 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
 
-// Navegación híbrida única (panel lateral compacto + barra superior contextual) para todos los roles, sin selector de
-// TOPNAV/SIDEBAR, dashboard ADMIN fluido, logotipos en el rail, empresas del Super Admin y menú «Gestionar empresa».
+// Navegación híbrida configurable TOPNAV/SIDEBAR, dashboard ADMIN fluido, logotipos en el rail,
+// empresas del Super Admin y menú «Gestionar empresa».
 // API simulada y estricta: toda petición de escritura no prevista queda registrada y la prueba falla. Los datos son de
 // ejemplo y solo viven en este archivo.
 
 interface Escenario {
   rol: 'SUPERADMIN' | 'ADMIN' | 'CAJERO' | 'VENDEDOR' | 'BODEGUERO';
   modulos?: string[];
-  /** Valor histórico del negocio: ya no debe decidir nada. */
+  /** Preferencia del negocio: decide la posición del mismo menú híbrido. */
   modoLegado?: 'SIDEBAR' | 'TOPNAV';
   color?: string;
   /** SVG del logotipo del negocio (se sirve como el archivo privado del negocio). */
@@ -109,15 +109,20 @@ const etiquetasRail = async (page: Page) => {
   return (await page.locator('nav.app-rail ul.app-rail-list > li').allInnerTexts()).map(x => x.replace(/\s+/g, ' ').trim());
 };
 
-test.describe('Navegación híbrida única para los roles del negocio', () => {
+test.describe('Navegación híbrida configurable para los roles del negocio', () => {
   const ROLES = ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO'] as const;
 
   for (const rol of ROLES) for (const modoLegado of ['SIDEBAR', 'TOPNAV'] as const) {
-    test(`${rol} con modoNavegacion histórico ${modoLegado}: rail + barra superior, nunca menú lateral clásico ni TOPNAV`, async ({ page }) => {
+    test(`${rol} con modoNavegacion ${modoLegado}: menú híbrido y barra contextual`, async ({ page }) => {
       const sim = await preparar(page, { rol, modoLegado });
       await page.setViewportSize({ width: 1366, height: 768 });
       await page.goto('/');
       await expect(rail(page)).toBeVisible();
+      await expect(page.locator('[data-navigation-mode]')).toHaveAttribute('data-navigation-mode', modoLegado);
+      const menu = await rail(page).boundingBox();
+      expect(menu).not.toBeNull();
+      if (modoLegado === 'TOPNAV') expect(menu!.width).toBe(1366);
+      else expect(menu!.width).toBe(84);
       await expect(page.locator('header.admin-topbar')).toBeVisible();
       await expect(page.locator('aside.jowa-sidebar, header.jowa-topnav, .app-container-topnav')).toHaveCount(0);
       // Barra superior: negocio, sucursal activa, búsqueda de tareas, notificaciones, usuario y cierre de sesión (uno solo).
@@ -136,6 +141,30 @@ test.describe('Navegación híbrida única para los roles del negocio', () => {
       expect(sim.errores).toEqual([]);
     });
   }
+
+  for (const width of [820, 1024]) test(`TOPNAV ADMIN a ${width}px: paneles visibles, teclado y móvil`, async ({ page }) => {
+    await preparar(page, { rol: 'ADMIN', modoLegado: 'TOPNAV' });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/');
+    const menu = rail(page);
+    await expect(menu).toBeVisible();
+    const ventas = menu.getByRole('button', { name: 'Ventas', exact: true });
+    await ventas.click();
+    const panel = page.locator('#app-rail-panel-ventas');
+    await expect(panel).toBeVisible();
+    const bounds = await panel.boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    expect(await sinDesborde(page)).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await expect(ventas).toBeFocused();
+    await page.screenshot({ path: test.info().outputPath(`topnav-${width}.png`), fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(menu).toBeHidden();
+    await expect(page.locator('.mobile-bottom-nav')).toBeVisible();
+    expect(await sinDesborde(page)).toBe(true);
+  });
 
   test('el cajero ve un rail enfocado en venta y caja; sin costos, configuración ni administración', async ({ page }) => {
     await preparar(page, { rol: 'CAJERO' });
@@ -209,18 +238,18 @@ test.describe('Navegación híbrida única para los roles del negocio', () => {
   });
 });
 
-test.describe('Configuración de negocios sin selector de navegación', () => {
-  test('Configuración del negocio no ofrece TOPNAV/SIDEBAR ni lo envía al guardar', async ({ page }) => {
+test.describe('Configuración de navegación por negocio', () => {
+  test('Super Admin configura TOPNAV/SIDEBAR por negocio', async ({ page }) => {
     const sim = await preparar(page, { rol: 'SUPERADMIN', modoLegado: 'TOPNAV' });
     await page.goto('/admin/negocios/ux-company/configuracion');
     await expect(page.locator('#business-name')).toBeVisible();
-    const cuerpo = page.locator('body');
-    for (const texto of [/TOPNAV/, /SIDEBAR/, /menú lateral/i, /menú superior/i, /modo de navegación/i]) await expect(cuerpo).not.toContainText(texto);
+    await expect(page.locator('#navigation-mode')).toHaveValue('TOPNAV');
+    await page.locator('#navigation-mode').selectOption('SIDEBAR');
     await page.locator('#business-name').fill('Empresa guardada');
     await page.getByRole('button', { name: 'APLICAR CAMBIOS', exact: true }).click();
     await expect.poll(() => sim.escrituras.some(w => w.ruta.endsWith('/settings'))).toBe(true);
     const guardado = sim.escrituras.find(w => w.ruta.endsWith('/settings'))!.cuerpo as Record<string, unknown>;
-    expect('modoNavegacion' in guardado).toBe(false);
+    expect(guardado.modoNavegacion).toBe('SIDEBAR');
     expect(guardado.nombreComercial).toBe('Empresa guardada');
   });
 

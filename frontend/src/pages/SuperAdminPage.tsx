@@ -54,6 +54,7 @@ interface TenantItem {
   sucursalesCount?: number;
   colorPrimario: string;
   logoUrl?: string | null;
+  modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
   rubro?: Rubro | keyof typeof Rubro;
   sucursalesList?: SubSucursalItem[];
   modulosHabilitados?: string[];
@@ -139,6 +140,7 @@ interface AdminTenantApiRecord {
   telefono?: string | null;
   email?: string | null;
   logoUrl?: string | null;
+  modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
   colorPrimario?: string | null;
   plan: string;
   estado: 'ACTIVO' | 'SUSPENDIDO';
@@ -160,6 +162,7 @@ function mapAdminTenantResponse(records: AdminTenantApiRecord[]) {
     sucursalesCount: record.cantidadSucursales,
     colorPrimario: record.colorPrimario || '#EA580C',
     logoUrl: record.logoUrl,
+    modoNavegacion: record.modoNavegacion,
     modulosHabilitados: record.modulosHabilitados,
   }));
 
@@ -376,6 +379,7 @@ export const SuperAdminPage: React.FC = () => {
           sucursal: 'Sin sucursales registradas',
           colorPrimario: modalSuplantarUser.colorPrimario,
           logoUrl: modalSuplantarUser.logoUrl,
+          modoNavegacion: modalSuplantarUser.modoNavegacion || 'SIDEBAR',
           rubro: modalSuplantarUser.rubro || Rubro.FERRETERIA,
           modulosHabilitados: modalSuplantarUser.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key),
         },
@@ -440,6 +444,7 @@ export const SuperAdminPage: React.FC = () => {
         estado: data.tenant.estado,
         usuariosCount: 1,
         colorPrimario: data.tenant.colorPrimario,
+        modoNavegacion: data.tenant.modoNavegacion,
         modulosHabilitados: data.modulosHabilitados,
       };
       const createdAdmin: AdminUserItem = {

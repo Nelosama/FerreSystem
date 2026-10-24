@@ -922,6 +922,11 @@
     }
   },
   "settings": {
+    "navigation_mode": "Modo de navegación",
+    "navigation_sidebar": "SIDEBAR · Menú lateral",
+    "navigation_topnav": "TOPNAV · Menú superior",
+    "navigation_help": "Elija la ubicación del menú de este negocio. Ambas opciones conservan la barra contextual y los accesos autorizados. En móvil se mantiene la navegación inferior.",
+
     "sections": {
       "business": "Mi negocio",
       "business_help": "Nombre, rubro, contacto, idioma, logotipo y color de marca del negocio.",
