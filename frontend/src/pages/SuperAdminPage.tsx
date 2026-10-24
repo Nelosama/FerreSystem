@@ -15,11 +15,13 @@ import {
   X,
   Server,
   Layers,
-  Layout,
+  Settings,
+  History,
   AlertCircle,
 } from 'lucide-react';
 import { TopBar } from '../components/TopBar';
 import { PlatformTabs } from '../components/PlatformTabs';
+import { MenuDesplegable, type MenuItem } from '../components/MenuDesplegable';
 import { useTenant } from '../context/TenantContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SLUG_SECCION, seccionDePlataforma, type SeccionPlataforma } from '../config/platformNavigation';
@@ -138,8 +140,8 @@ interface AdminTenantApiRecord {
   telefono?: string | null;
   email?: string | null;
   logoUrl?: string | null;
-  colorPrimario?: string | null;
   modoNavegacion?: 'SIDEBAR' | 'TOPNAV';
+  colorPrimario?: string | null;
   plan: string;
   estado: 'ACTIVO' | 'SUSPENDIDO';
   cantidadUsuarios: number;
@@ -225,7 +227,6 @@ export const SuperAdminPage: React.FC = () => {
   const [modalEditarTenant, setModalEditarTenant] = useState<TenantItem | null>(null);
   const [modalModulosTenant, setModalModulosTenant] = useState<TenantItem | null>(null);
   const [tempModulosTenant, setTempModulosTenant] = useState<string[]>([]);
-  const [modalNavegacionTenant, setModalNavegacionTenant] = useState<TenantItem | null>(null);
   const [modalNuevoAdmin, setModalNuevoAdmin] = useState(false);
   const [modalEditarAdmin, setModalEditarAdmin] = useState<AdminUserItem | null>(null);
   const [modalResetPassAdmin, setModalResetPassAdmin] = useState<AdminUserItem | null>(null);
@@ -245,7 +246,6 @@ export const SuperAdminPage: React.FC = () => {
   const [editTelefono, setEditTelefono] = useState('');
   const [editPlan, setEditPlan] = useState('');
   const [editColorPrimario, setEditColorPrimario] = useState('#EA580C');
-  const [editModoNavegacion, setEditModoNavegacion] = useState<'SIDEBAR' | 'TOPNAV'>('SIDEBAR');
 
   // Formulario nuevo tenant
   const [nombreComercial, setNombreComercial] = useState('');
@@ -327,22 +327,6 @@ export const SuperAdminPage: React.FC = () => {
       setTimeout(() => setMensajeExito(null), 4000);
     } catch (err: any) {
       setErrorText(err.response?.data?.message || t('uxAudit.admin_message_2'));
-    }
-  };
-
-  const guardarNavegacionTenant = async (tenantId: string, modo: 'SIDEBAR' | 'TOPNAV') => {
-    const target = tenants.find((tItem) => tItem.id === tenantId);
-    if (!target) return;
-
-    try {
-      await api.patch(`/admin/tenants/${tenantId}`, { modoNavegacion: modo });
-      setTenants((current) => current.map((tItem) => (tItem.id === tenantId ? { ...tItem, modoNavegacion: modo } : tItem)));
-      registrarAuditoria('CAMBIO_NAVEGACION', target.nombreComercial, `Modo de navegación cambiado a ${modo}`);
-      setModalNavegacionTenant(null);
-      setMensajeExito(t('uxAudit.admin_success_2', { name: target.nombreComercial, mode: modo }));
-      setTimeout(() => setMensajeExito(null), 4000);
-    } catch (err: any) {
-      setErrorText(err.response?.data?.message || t('uxAudit.admin_message_3'));
     }
   };
 
@@ -601,7 +585,7 @@ export const SuperAdminPage: React.FC = () => {
                   {t('superadmin.tenants_header') || "ADMINISTRACIÓN DE CLIENTES & EMPRESAS (TENANTS)"}
                 </h2>
                 <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  {t('superadmin.tenants_desc') || "Aprovisionamiento de nuevos clientes, contratación de servicios y modo de navegación."}
+                  {t('superadmin.tenants_desc') || "Aprovisionamiento de nuevos clientes y contratación de servicios."}
                 </p>
               </div>
 
@@ -616,124 +600,69 @@ export const SuperAdminPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="table-container" style={{ marginTop: '20px' }}>
-              <table className="industrial-table">
-                <thead>
-                  <tr>
-                    <th>{t('uxAudit.company_customer')} </th>
-                    <th style={{ textAlign: 'center' }}>{t('shell.tenant_color')}</th>
-                    <th style={{ textAlign: 'center' }}>PLAN</th>
-                    <th style={{ textAlign: 'center' }}>{t('uxAudit.navigation')} </th>
-                    <th style={{ textAlign: 'center' }}>{t('uxAudit.enabled_services')} </th>
-                    <th style={{ textAlign: 'center' }}>{t('uxAudit.status')} </th>
-                    <th style={{ textAlign: 'center' }}>{t('uxAudit.saas_actions')} </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tenants.map((tItem) => {
-                    const activeMods = tItem.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key);
-                    const modCount = activeMods.length;
-                    const modoNav = tItem.modoNavegacion || 'SIDEBAR';
+            <ul className="empresas-grid" aria-label={t('uxAudit.company_customer')}>
+              {tenants.map((tItem) => {
+                const activeMods = tItem.modulosHabilitados || CATALOGO_MODULOS.map((m) => m.key);
+                const modCount = activeMods.length;
+                const opcionesEmpresa: MenuItem[] = [
+                  { key: 'servicios', label: t('uxAudit.services'), title: t('uxAudit.manage_subscribed_services'), icono: <Layers size={15} aria-hidden="true" />, onSelect: () => abrirModalModulos(tItem), guia: 'modules' },
+                  { key: 'resumen', label: 'Resumen y sucursales', icono: <Building size={15} aria-hidden="true" />, onSelect: () => navigate(`/admin/negocios/${tItem.id}`) },
+                  { key: 'usuarios', label: 'Usuarios del negocio', icono: <UserCheck size={15} aria-hidden="true" />, onSelect: () => navigate(`/admin/negocios/${tItem.id}/usuarios`) },
+                  { key: 'configuracion', label: 'Configurar negocio', icono: <Settings size={15} aria-hidden="true" />, onSelect: () => navigate(`/admin/negocios/${tItem.id}/configuracion`), guia: 'branding' },
+                  { key: 'auditoria', label: 'Auditoría', icono: <History size={15} aria-hidden="true" />, onSelect: () => navigate(`/admin/negocios/${tItem.id}/auditoria`) },
+                  {
+                    key: 'marca', label: t('uxAudit.branding'), title: t('uxAudit.edit_branding_and_company_details'), icono: <Edit2 size={15} aria-hidden="true" />,
+                    onSelect: () => {
+                      setModalEditarTenant(tItem);
+                      setEditNombreComercial(tItem.nombreComercial);
+                      setEditTelefono(tItem.telefono);
+                      setEditPlan(tItem.plan);
+                      setEditColorPrimario(tItem.colorPrimario);
+                    },
+                  },
+                  { key: 'estado', label: tItem.estado === 'ACTIVO' ? t('uxAudit.admin_message_17') : t('uxAudit.admin_message_18'), icono: <Power size={15} strokeWidth={2.5} aria-hidden="true" />, onSelect: () => toggleEstadoTenant(tItem.id) },
+                ];
 
-                    return (
-                      <tr key={tItem.id}>
-                        <td>
-                          <div className="jowa-tenant-cell">
-                            <span className="jowa-tenant-mark" style={estiloMarcaNegocio(tItem.colorPrimario)}>{iniciales(tItem.nombreComercial)}</span>
-                            <div>
-                              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>{tItem.nombreComercial}</div>
-                              <small>{tItem.contacto}{tItem.telefono ? ` · ${tItem.telefono}` : ''}</small>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className="jowa-color-chip"><i style={{ background: tItem.colorPrimario || '#EA580C' }} />{tItem.colorPrimario || '#EA580C'}</span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span data-guide="subscriptions" className="badge badge-dark" style={{ fontSize: '11px' }}>{tItem.plan || 'Plan Pro'}</span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-secondary"
-                            onClick={() => setModalNavegacionTenant(tItem)}
-                            style={{ fontWeight: 800, fontSize: '10px' }}
-                            title={t('uxAudit.switch_between_side_menu_and_top_menu')}
-                          >
-                            <Layout size={12} color="var(--color-primary-text)" /> {modoNav}
-                          </button>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-secondary"
-                            onClick={() => abrirModalModulos(tItem)}
-                            data-guide="modules"
-                            title={t('uxAudit.manage_subscribed_services_and_modules')}
-                            style={{ fontWeight: 800 }}
-                          >
-                            <Layers size={13} color="var(--color-primary-text)" /> {modCount} / {CATALOGO_MODULOS.length} {t('uxAudit.services')} </button>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          {tItem.estado === 'ACTIVO' ? (
-                            <span data-guide="status" className="badge badge-success">{t('uxAudit.active')} </span>
-                          ) : (
-                            <span data-guide="status" className="badge badge-danger">{t('uxAudit.suspended')} </span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: "inline-flex", gap: "6px" }}>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-primary"
-                              onClick={() => abrirModalSuplantar(tItem)}
-                              title={t('uxAudit.enter_as_an_administrator_or_user_for_remote_support')}
-                              style={{ fontWeight: 800 }}
-                            >
-                              <ExternalLink size={13} /> {t('navigation.support')}
-                            </button>
-<details className="tenant-context-actions"><summary>{t('navigation.company')}</summary><div>                            <button
-                              type="button"
-                              className="btn btn-sm btn-secondary"
-                              onClick={() => abrirModalModulos(tItem)}
-                              title={t('uxAudit.manage_subscribed_services')}
-                            >{t('uxAudit.services')} </button>
-                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}`)}>Resumen y sucursales</button>
-                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}/usuarios`)}>Usuarios del negocio</button>
-                            <button type="button" className="btn btn-sm btn-secondary" data-guide="branding" onClick={() => navigate(`/admin/negocios/${tItem.id}/configuracion`)}>Configurar negocio</button>
-                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => navigate(`/admin/negocios/${tItem.id}/auditoria`)}>Auditoría</button>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-secondary"
-                              onClick={() => {
-                                setModalEditarTenant(tItem);
-                                setEditNombreComercial(tItem.nombreComercial);
-                                setEditTelefono(tItem.telefono);
-                                setEditPlan(tItem.plan);
-                                setEditColorPrimario(tItem.colorPrimario);
-                                setEditModoNavegacion(tItem.modoNavegacion || 'SIDEBAR');
-                              }}
-                              title={t('uxAudit.edit_branding_and_company_details')}
-                            >
-                              <Edit2 size={13} />{t('uxAudit.branding')} </button>
-
-                            <button
-                              type="button"
-                              className={`btn btn-sm ${tItem.estado === 'ACTIVO' ? 'btn-secondary' : 'btn-primary'}`}
-                              onClick={() => toggleEstadoTenant(tItem.id)}
-                            >
-                              <Power size={13} strokeWidth={2.5} />
-                              {tItem.estado === 'ACTIVO' ? t('uxAudit.admin_message_17') : t('uxAudit.admin_message_18')}
-                            </button>
-</div></details>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                return (
+                  <li key={tItem.id} className="empresa-card">
+                    <div className="empresa-card-cabecera">
+                      <span className="jowa-tenant-mark" style={estiloMarcaNegocio(tItem.colorPrimario)}>{iniciales(tItem.nombreComercial)}</span>
+                      <div className="empresa-card-titulo">
+                        <h3>{tItem.nombreComercial}</h3>
+                        <small>{tItem.contacto}{tItem.telefono ? ` · ${tItem.telefono}` : ''}</small>
+                      </div>
+                      <MenuDesplegable etiqueta={t('navigation.company')} nombreAccesible={`${t('navigation.company')}: ${tItem.nombreComercial}`} items={opcionesEmpresa} />
+                    </div>
+                    <div className="empresa-card-datos">
+                      {tItem.estado === 'ACTIVO'
+                        ? <span data-guide="status" className="badge badge-success">{t('uxAudit.active')} </span>
+                        : <span data-guide="status" className="badge badge-danger">{t('uxAudit.suspended')} </span>}
+                      <span data-guide="subscriptions" className="badge badge-dark">{tItem.plan || 'Plan Pro'}</span>
+                      <span className="jowa-color-chip"><i style={{ background: tItem.colorPrimario || '#EA580C' }} />{tItem.colorPrimario || '#EA580C'}</span>
+                    </div>
+                    <div className="empresa-card-pie">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary empresa-card-servicios"
+                        onClick={() => abrirModalModulos(tItem)}
+                        data-guide="modules"
+                        title={t('uxAudit.manage_subscribed_services_and_modules')}
+                      >
+                        <Layers size={13} color="var(--color-primary-text)" aria-hidden="true" /> {modCount} / {CATALOGO_MODULOS.length} {t('uxAudit.services')}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={() => abrirModalSuplantar(tItem)}
+                        title={t('uxAudit.enter_as_an_administrator_or_user_for_remote_support')}
+                      >
+                        <ExternalLink size={13} aria-hidden="true" /> {t('navigation.support')}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         )}
 
@@ -1031,81 +960,6 @@ export const SuperAdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 2: CONFIGURAR TIPO DE NAVEGACIÓN */}
-      {modalNavegacionTenant && (
-        <div style={styles.modalOverlay}>
-          <div className="industrial-card" style={{ ...styles.modalContent, maxWidth: '480px' }}>
-            <div style={styles.modalHeader}>
-              <h2 style={{ fontSize: '16px', textTransform: 'uppercase' }}>{t('uxAudit.navigation_settings')} </h2>
-              <div style={{ fontSize: '12px', color: 'var(--color-primary-text)', fontWeight: 800, marginTop: '2px' }}>{t('uxAudit.company')} {modalNavegacionTenant.nombreComercial}
-              </div>
-            </div>
-
-            <div style={{ marginTop: '16px' }}>
-              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{t('uxAudit.select_the_menu_format_for_this_company_s_users')} </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '14px' }}>
-                <button
-                  type="button"
-                  onClick={() => guardarNavegacionTenant(modalNavegacionTenant.id, 'SIDEBAR')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '14px 18px',
-                    backgroundColor: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? 'var(--color-text-main)' : 'var(--color-bg)',
-                    color: (modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' ? '#FFFFFF' : 'var(--color-text-main)',
-                    border: '2px solid var(--color-text-main)',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-display)',
-                    fontWeight: 800,
-                  }}
-                >
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '13px' }}>{t('uxAudit.circle_side_menu_sidebar')} </div>
-                    <div style={{ fontSize: '11px', opacity: 0.8, fontWeight: 400 }}>{t('uxAudit.traditional_left_side_panel')} </div>
-                  </div>
-                  {(modalNavegacionTenant.modoNavegacion || 'SIDEBAR') === 'SIDEBAR' && <CheckCircle size={18} color="var(--color-primary-text)" aria-hidden="true" />}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => guardarNavegacionTenant(modalNavegacionTenant.id, 'TOPNAV')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '14px 18px',
-                    backgroundColor: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? 'var(--color-text-main)' : 'var(--color-bg)',
-                    color: modalNavegacionTenant.modoNavegacion === 'TOPNAV' ? '#FFFFFF' : 'var(--color-text-main)',
-                    border: '2px solid var(--color-text-main)',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-display)',
-                    fontWeight: 800,
-                  }}
-                >
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '13px' }}>{t('uxAudit.circle_top_menu_topnav')} </div>
-                    <div style={{ fontSize: '11px', opacity: 0.8, fontWeight: 400 }}>{t('uxAudit.horizontal_top_navigation_bar')} </div>
-                  </div>
-                  {modalNavegacionTenant.modoNavegacion === 'TOPNAV' && <CheckCircle size={18} color="var(--color-primary-text)" aria-hidden="true" />}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setModalNavegacionTenant(null)}
-                >{t('uxAudit.close')} </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* MODAL 4: EDITAR TENANT MARCA */}
       {modalEditarTenant && (
         <div style={styles.modalOverlay}>
@@ -1123,7 +977,6 @@ export const SuperAdminPage: React.FC = () => {
                   const { data } = await api.patch(`/admin/tenants/${modalEditarTenant.id}`, {
                     nombreComercial: editNombreComercial.trim(), telefono: editTelefono,
                     plan: editPlan, colorPrimario: editColorPrimario,
-                    modoNavegacion: editModoNavegacion,
                   });
                   setTenants(current => current.map(item => item.id === modalEditarTenant.id ? { ...item, ...data } : item));
                   setModalEditarTenant(null);
@@ -1147,40 +1000,6 @@ export const SuperAdminPage: React.FC = () => {
               </div>
 
               <p style={{ fontSize: 13, margin: '0 0 12px' }}>El logotipo se carga como archivo en <strong>Configurar negocio</strong>.</p>
-
-              <div className="form-group">
-                <label className="form-label">{t('uxAudit.navigation_mode')} </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setEditModoNavegacion('SIDEBAR')}
-                    style={{
-                      padding: '8px',
-                      fontWeight: 800,
-                      fontSize: '11px',
-                      backgroundColor: editModoNavegacion === 'SIDEBAR' ? 'var(--color-text-main)' : 'var(--color-bg)',
-                      color: editModoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-text-main)',
-                      border: editModoNavegacion === 'SIDEBAR' ? '2px solid #EA580C' : '1px solid var(--color-sidebar-text)',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >{t('uxAudit.side_menu_sidebar')} </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditModoNavegacion('TOPNAV')}
-                    style={{
-                      padding: '8px',
-                      fontWeight: 800,
-                      fontSize: '11px',
-                      backgroundColor: editModoNavegacion === 'TOPNAV' ? 'var(--color-text-main)' : 'var(--color-bg)',
-                      color: editModoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-text-main)',
-                      border: editModoNavegacion === 'TOPNAV' ? '2px solid #EA580C' : '1px solid var(--color-sidebar-text)',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >{t('uxAudit.top_menu_topnav')} </button>
-                </div>
-              </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="form-group" style={{ flex: 1 }}>

@@ -29,6 +29,7 @@ for (const [branch, expected] of [
   ['codex/fix-camera-lifecycle-ios', 0], ['codex/fix-camera-lifecycle-ios-extra', 1],
   ['codex/estabilidad-operativa', 0], ['codex/estabilidad-operativa-extra', 1],
   ['codex/guia-control-modulos', 0], ['codex/guia-control-modulos-extra', 1],
+  ['claude/sweet-davinci-vh7br4', 0], ['claude/sweet-davinci-vh7br4-extra', 1],
   ['main', 1], ['fix/auditoria-admin', 1], ['fix/pilot-readiness-extra', 1],
   ['claude/revision-seguridad-jowa-20261020', 0], ['claude/revision-seguridad-jowa-20261020-extra', 1],
 ]) {
@@ -45,4 +46,8 @@ test('operational stability branch is excluded from Git previews', () => {
 
 test('security review branch is excluded from automatic previews', () => {
   assert.equal(configuration.git.deploymentEnabled['claude/revision-seguridad-jowa-20261020'], false);
+});
+
+test('PR 195 no genera despliegues automáticos', () => {
+  assert.equal(configuration.git.deploymentEnabled['claude/sweet-davinci-vh7br4'], false);
 });

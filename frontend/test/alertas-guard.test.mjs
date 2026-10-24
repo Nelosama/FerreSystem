@@ -37,7 +37,7 @@ test('los puntos migrados importan el servicio de alertas', () => {
     'src/components/ProveedoresProductoPanel.tsx',
     'src/components/ProveedoresGestion.tsx',
     'src/components/LogotipoNegocioEditor.tsx',
-    'src/components/TopBar.tsx',
+    'src/components/SoporteBanner.tsx',
     'src/pages/OperacionesPage.tsx',
     'src/pages/LevantamientoPage.tsx',
     'src/pages/ArqueoCajaPage.tsx',

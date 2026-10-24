@@ -10,7 +10,7 @@ export const PlatformRail: React.FC = () => {
   const [parametros] = useSearchParams();
   const { user } = useTenant();
   // Un negocio abierto pertenece al área Clientes aunque la URL no tenga ?seccion=.
-  const area: AreaPlataforma = pathname.startsWith('/admin/negocios') ? 'clientes' : areaDeSeccion(seccionDePlataforma(parametros));
+  const area: AreaPlataforma = pathname.startsWith('/admin/negocios') ? 'empresas' : areaDeSeccion(seccionDePlataforma(parametros));
   const inicial = (user?.nombre || 'S').trim().charAt(0).toUpperCase();
 
   return (

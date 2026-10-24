@@ -5,14 +5,12 @@ import { Loader2 } from 'lucide-react';
 import { TenantProvider } from './context/TenantContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { I18nProvider } from './context/I18nContext';
-import { Sidebar } from './components/Sidebar';
 import { PlatformRail } from './components/PlatformRail';
 import { PlatformTopbar } from './components/PlatformTopbar';
 import { CajeroRail } from './components/CajeroRail';
 import { AdminRail } from './components/AdminRail';
 import { AdminTopbar } from './components/AdminTopbar';
-import { ShellTopbarContext } from './context/ShellTopbarContext';
-import { TopNavigation } from './components/TopNavigation';
+import { SoporteBanner } from './components/SoporteBanner';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import PosContingenciaPage from './pages/PosContingenciaPage';
@@ -20,7 +18,6 @@ import ContingenciaAdminPage from './pages/ContingenciaAdminPage';
 
 import { CajaProvider } from './hooks/useEstadoCaja';
 import './App.css';
-import { TaskFinder } from './components/TaskFinder';
 import { ModuloPendiente } from './components/ModuloPendiente';
 
 import { useTenant } from './context/TenantContext';
@@ -142,13 +139,10 @@ const HomeRoute: React.FC = () => {
   return <DashboardPage />;
 };
 
-// Layout principal que admite modo Sidebar lateral o modo TopNav horizontal
+// Ambos modos conservan el menú autorizado y la barra contextual de la navegación híbrida.
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { tenant, user, isImpersonating } = useTenant();
-  const isTopNav = tenant.modoNavegacion === 'TOPNAV';
-  // Shell del administrador (rail + barra superior) solo en modo lateral. En soporte remoto se conserva el layout con el
-  // aviso de soporte de TopBar, que es la única forma de salir de ese modo.
-  const esAdminLateral = user?.rol === 'ADMIN' && !isTopNav && !isImpersonating;
+  const { user, tenant } = useTenant();
+  const modoNavegacion = tenant.modoNavegacion === 'TOPNAV' ? 'TOPNAV' : 'SIDEBAR';
 
   const [isMobile, setIsMobile] = React.useState(
     typeof window !== 'undefined' ? window.innerWidth <= 768 : false
@@ -163,44 +157,38 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Super Admin: layout híbrido de plataforma (rail de iconos, topbar y pestañas), sin depender del modo del negocio.
+  // Super Admin: rail y barra superior de plataforma (herramientas globales), con pestañas contextuales.
   if (user?.rol === 'SUPERADMIN') {
     return (
       <CajaProvider>
-        <ShellTopbarContext.Provider value={true}>
-          <div className="platform-shell">
-            <PlatformRail />
-            <div data-guide-content className="platform-main">
-              <PlatformTopbar />
-              <Guide />
-              {children}
-            </div>
+        <div className="platform-shell">
+          <PlatformRail />
+          <div data-guide-content className="platform-main">
+            <PlatformTopbar />
+            <Guide />
+            {children}
           </div>
-        </ShellTopbarContext.Provider>
+        </div>
       </CajaProvider>
     );
   }
 
+  // Roles del negocio: el cajero tiene un rail enfocado en venta y caja; el resto, el rail por módulos autorizados.
   return (
     <CajaProvider>
-    <ShellTopbarContext.Provider value={esAdminLateral}>
-    <div className={isTopNav ? "app-container-topnav" : esAdminLateral ? "app-container admin-shell" : "app-container"} style={isTopNav ? { display: 'flex', flexDirection: 'column', minHeight: '100vh' } : undefined}>
-      {isTopNav ? <TopNavigation showTaskFinder={!isMobile} /> : user?.rol === 'CAJERO' ? <CajeroRail /> : esAdminLateral ? <AdminRail /> : <Sidebar />}
+    <div className={`app-container admin-shell${modoNavegacion === 'TOPNAV' ? ' tenant-topnav' : ''}`} data-navigation-mode={modoNavegacion}>
+      {user?.rol === 'CAJERO' ? <CajeroRail /> : <AdminRail />}
       <div data-guide-content
         className="main-content"
-        style={{
-          ...(isTopNav ? { flex: 1, width: '100%' } : {}),
-          ...(isMobile ? { paddingBottom: '72px' } : {}),
-        }}
+        style={isMobile ? { paddingBottom: '72px' } : undefined}
       >
-        {esAdminLateral && <AdminTopbar />}
-        {(!isTopNav || isMobile) && <TaskFinder />}
+        <SoporteBanner />
+        <AdminTopbar />
         <Guide />
         {children}
       </div>
       <BottomNavigation />
     </div>
-    </ShellTopbarContext.Provider>
     </CajaProvider>
   );
 };
@@ -226,7 +214,7 @@ export const App: React.FC = () => {
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/admin/login" element={<Navigate to="/login" replace />} />
 
-                  {/* Rutas con Sidebar institucional y autenticación protegida */}
+                  {/* Rutas con navegación híbrida y autenticación protegida */}
                   <Route
                     path="/"
                     element={

@@ -41,6 +41,7 @@
   ],
   "git": {
     "deploymentEnabled": {
+      "claude/sweet-davinci-vh7br4": false,
       "claude/revision-seguridad-jowa-20261020": false,
       "nexus/*": false,
       "fix/pilot-readiness": false,
