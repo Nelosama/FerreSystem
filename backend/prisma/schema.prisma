@@ -1583,7 +1583,7 @@ model Sucursal {
 }
 
 // ============================================================
-// CONTABILIDAD Y CONTROL TRIBUTARIO (Honduras, fase 1) — migración 20261020000100_contabilidad_honduras.
+// CONTABILIDAD Y CONTROL TRIBUTARIO (Honduras, fase 1) — migración 20261022000200_contabilidad_honduras.
 // Los libros se leen de ventas, devoluciones y ordenes_compra; aquí solo vive lo que la operación no guarda.
 // Restricciones CHECK, índices parciales y disparadores de inmutabilidad/cuadre están en la migración.
 // ============================================================

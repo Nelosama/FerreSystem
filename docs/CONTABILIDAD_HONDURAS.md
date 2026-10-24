@@ -6,7 +6,7 @@ Rama `feat/contabilidad-honduras`. Estado: implementado y probado localmente; **
 
 | Objetivo | Implementado |
 |---|---|
-| Rol CONTADOR asignable por empresa | Enum `Rol` + migración `20261020000000_rol_contador`. Lo asignan ADMIN (Usuarios) y Super Admin (detalle del negocio). |
+| Rol CONTADOR asignable por empresa | Enum `Rol` + migración `20261022000100_rol_contador`. Lo asignan ADMIN (Usuarios) y Super Admin (detalle del negocio). |
 | Módulo para ADMIN y CONTADOR con permisos | Módulo opcional `contabilidad` (apagado sin registro explícito). Permisos `contabilidad.ver`, `.registrar`, `.configurar`, `.cerrar_periodo`; reabrir período solo ADMIN. |
 | Libros fiscales de ventas y compras sobre operaciones reales | `GET /contabilidad/libros/ventas|compras`: se leen de `ventas`, `devoluciones` y `ordenes_compra`, más los documentos fiscales que las respaldan. Nada se copia. |
 | ISV, retenciones, RTN, CAI, documentos fiscales y períodos | Tasas con vigencia, reglas de retención con vigencia y base legal, validación de RTN (14 dígitos), CAI por establecimiento/punto/tipo/rango/fecha límite, documentos emitidos y recibidos, notas de crédito/débito, períodos mensuales con cierre y huella. |
@@ -33,7 +33,7 @@ El sitio del SAR (`sar.gob.hn`) y la biblioteca del TSC no son accesibles desde 
 | Declaraciones y plazos | ISV mensual; DMC con plazos que cambiaron en 2024 | EY, Deloitte, Commenda (versiones distintas) | **No se implementan formularios ni calendarios**: el resumen de ISV es un cálculo de trabajo con aviso explícito. |
 | Facturación electrónica | Fuentes contradictorias sobre su obligatoriedad | Varias | Fuera de alcance; ver pendientes. |
 
-## 3. Diseño de datos (migración `20261020000100_contabilidad_honduras`)
+## 3. Diseño de datos (migración `20261022000200_contabilidad_honduras`)
 
 - `fiscal_configuraciones` (1 por empresa: RTN, razón social, agente de retención, zona horaria).
 - `fiscal_tasas`, `fiscal_reglas_retencion`: vigencia `[desde, hasta]` sin solape (disparador `fiscal_vigencia_sin_solape`).
@@ -83,7 +83,7 @@ Cobertura de integración: módulo opcional por empresa; CAJERO sin acceso; CONT
 ## 7. Despliegue (no ejecutado; requiere autorización)
 
 1. Respaldo verificado de la base.
-2. `npm run migrate:deploy` aplica `20261020000000_rol_contador` y `20261020000100_contabilidad_honduras` (aditivas). Sin ellas, `start:prod` **no arranca** (control existente de `migration-safe.mjs`): desplegar el código antes de migrar detiene el servicio, no corrompe datos.
+2. `npm run migrate:deploy` aplica `20261022000100_rol_contador` y `20261022000200_contabilidad_honduras` (aditivas). Sin ellas, `start:prod` **no arranca** (control existente de `migration-safe.mjs`): desplegar el código antes de migrar detiene el servicio, no corrompe datos.
 3. El módulo queda apagado en todas las empresas. El Super Admin lo habilita por empresa en «Servicios».
 4. El contador configura RTN, tasas, reglas y CAI con su base legal antes de registrar documentos.
 5. `scripts/estado-base-solo-lectura.sql` ya incluye ambas migraciones con sus checksums.

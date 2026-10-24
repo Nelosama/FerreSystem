@@ -134,6 +134,21 @@ describe('Arranque seguro: migration-safe verify/startup no migra salvo orden ex
     expect(seguro(c, 'verify').status).toBe(0);
   }, 300000);
 
+  it('base con las migraciones de main (hasta guia_progreso): las de Contabilidad y autenticación quedan pendientes, no como hueco de historial, y migran', () => {
+    const ultimaMain = '20261022000000_guia_progreso';
+    expect(prisma(c, ['migrate', 'deploy'], proyecto(c, (n) => n <= ultimaMain)).status).toBe(0);
+    const r = seguro(c, 'startup');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('faltan');
+    expect(r.stderr).toContain('rol_contador');
+    expect(r.stderr).not.toContain('HISTORIAL_CON_HUECOS');
+    const d = seguro(c, 'deploy');
+    expect(d.status, d.stderr).toBe(0);
+    expect(d.stdout).not.toContain('HISTORIAL_CON_HUECOS');
+    expect(seguro(c, 'startup').status).toBe(0);
+    expect(sql(c, "SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL")).toBe(String(todas.length));
+  }, 300000);
+
   it('conflicto de 20261011150000: un entorno que aplicó la otra variante queda BLOQUEADO (CHECKSUM_DISTINTO) y no arranca ni migra', () => {
     const variante = readFileSync(resolve('test/fixtures/20261011150000_variante_keen.sql.txt'), 'utf8');
     expect(prisma(c, ['migrate', 'deploy'], proyecto(c, () => true, { [M_PRECIO]: variante })).status).toBe(0);

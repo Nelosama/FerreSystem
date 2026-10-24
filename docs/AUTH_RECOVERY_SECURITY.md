@@ -51,7 +51,7 @@ Guardar la clave MFA y su respaldo en el gestor de secretos. Perderla impide des
 3. Super Admin: en el login seleccionar su acceso, introducir correo/contraseña actual y pulsar «Configurar MFA inicial». Recibir el enlace en su correo registrado, abrirlo y volver a aportar la contraseña. Registrar la clave en un autenticador y confirmar el código. Esto verifica la posesión del correo, activa MFA y entrega los códigos de emergencia. No permite sustituir un MFA ya configurado.
 4. ADMIN existente: entrar normalmente, abrir «Seguridad de mi cuenta», verificar correo mediante el enlace, configurar MFA con su contraseña actual y confirmar el autenticador. Guardar códigos. Solo entonces dispone de recuperación automática. Un empleado no puede usar ese enrolamiento/recuperación.
 5. Alta general de empleado: crear usuario/código y rol, sin contraseña ni correo obligatorio; emitir enlace en «Seguridad de mi cuenta» después de seleccionar empresa/empleado y volver a verificar la identidad del administrador. El empleado lo abre en su propio dispositivo y establece su clave.
-6. Un eventual despliegue posterior corresponde al propietario; este PR no hace merge ni deploy. Vercel excluye esta rama en `vercel-ignore.sh`; Render no fue modificado. El rollback preferido conserva el esquema aditivo y revierte código mediante el proceso operativo, con la salvedad de que una versión antigua volvería a permitir login de plataforma sin MFA: no usarla como salida rutinaria a un problema de configuración.
+6. Un eventual despliegue posterior corresponde al propietario; este PR no hace merge ni deploy. Vercel excluye esta rama en `vercel-ignore.sh`; Render no fue modificado. **Corrección (2026-10-24):** revertir solo el código hacia `main` NO es viable tras migrar: `migration-safe.mjs` rechaza migraciones desconocidas (`MIGRACION_DESCONOCIDA`) y el backend anterior no arranca; el rollback real exige restaurar el respaldo previo o una reversión revisada (ver `PREPARACION_PRODUCCION_PR180.md` §4). Además, una versión antigua volvería a permitir login de plataforma sin MFA: no usarla como salida rutinaria a un problema de configuración.
 
 ## Emergencia administrativa (no ejecutada)
 
@@ -111,7 +111,7 @@ Solo el propietario ejecuta estos pasos, en el panel de Render del servicio de p
 4. **En Render → Environment**, añadir como *secret*: `AUTH_MFA_ENCRYPTION_KEY`, `AUTH_MAIL_RESEND_API_KEY`, `AUTH_MAIL_FROM` (`Nombre <correo@dominio-verificado>`) y `AUTH_PUBLIC_URL` (origen HTTPS del frontend, sin ruta). Confirmar que `NODE_ENV=production`, `FRONTEND_URLS`, `TRUST_PROXY` y `JWT_SECRET` siguen definidos y no son valores públicos de ejemplo.
 5. **Desplegar** con el comando de inicio existente (`prisma migrate deploy` antes de `node dist/main.js`). Si falta una variable, el log indica solo su nombre: «Configuración de seguridad incompleta en producción: …». Corregir la variable y redesplegar; no relajar la validación.
 6. **Verificar:** `GET /api/health` responde OK; la página de acceso carga; no hay errores de arranque en el log.
-7. **Rollback:** revertir el código manteniendo el esquema aditivo. Una versión anterior no exige MFA de plataforma; no usarla como salida rutinaria.
+7. **Rollback:** ver `PREPARACION_PRODUCCION_PR180.md` §4. Revertir solo el código hacia `main` no arranca tras migrar; se decide antes de la ventana y depende del respaldo verificado. Una versión anterior no exige MFA de plataforma; no usarla como salida rutinaria.
 
 ## Prueba de envío real por Resend (preparada, NO ejecutada)
 
