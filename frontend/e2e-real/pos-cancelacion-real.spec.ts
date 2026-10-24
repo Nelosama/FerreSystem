@@ -11,8 +11,8 @@ const sql = (q: string) => execFileSync(`${process.env.PG_BIN}/psql`, ['-X', '-A
   `postgresql://postgres@127.0.0.1:${process.env.E2E_PG_PORT}/postgres`, '-c', q], { encoding: 'utf8' }).trim();
 const login = async (page: Page, email: string) => {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(email);
-  await page.locator('input[type="password"]').fill(process.env.E2E_PASSWORD!);
+  await page.locator('#login-correo').fill(email);
+  await page.locator('#login-clave').fill(process.env.E2E_PASSWORD!);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL(url => !url.pathname.startsWith('/login'));
 };
@@ -126,8 +126,8 @@ test('reinicio completo con perfil persistente y SW: borrador offline, pendiente
   };
   try {
     let page = await abrir(); await page.waitForURL('**/login');
-    await page.locator('input[type="email"]').fill('cajero.a@e2e.invalid');
-    await page.locator('input[type="password"]').fill(process.env.E2E_PASSWORD!);
+    await page.locator('#login-correo').fill('cajero.a@e2e.invalid');
+    await page.locator('#login-clave').fill(process.env.E2E_PASSWORD!);
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await page.waitForURL(url => !url.pathname.startsWith('/login')); await page.goto('/pos');
     const buscar = page.getByPlaceholder('Buscar por código o nombre de producto...');

@@ -1,4 +1,4 @@
-import { CORE_TENANT_MODULES } from '../common/tenant-modules';
+import { moduleEnabled } from '../common/tenant-modules';
 
 /**
  * Pendientes del inicio: qué indicadores puede ver cada usuario. Cada regla replica la autorización del
@@ -50,8 +50,7 @@ export interface UsuarioPendientes {
 
 /** Módulo habilitado con el mismo criterio que TenantModuleGuard: un registro deshabilitado explícito manda. */
 export function moduloHabilitado(modulo: string, registros: { moduleKey: string; enabled: boolean }[]) {
-  if (CORE_TENANT_MODULES.includes(modulo)) return true;
-  return registros.find((r) => r.moduleKey === modulo)?.enabled !== false;
+  return moduleEnabled(modulo, registros.find((r) => r.moduleKey === modulo));
 }
 
 /** Permiso con el mismo criterio que RolesGuard: ADMIN no se restringe; sin permisos configurados, se respeta el rol. */

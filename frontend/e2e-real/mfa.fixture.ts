@@ -1,0 +1,22 @@
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
+import { createHash, randomBytes } from 'node:crypto';
+import type { Page } from '@playwright/test';
+const { PrismaClient } = createRequire(resolve('../backend/package.json'))('@prisma/client');
+const platformEmail = 'superadmin.e2e@e2e.invalid';
+export async function syntheticMfaFor(email: string) {
+  if (email !== platformEmail) return undefined;
+  const url = new URL(process.env.DATABASE_URL || 'https://invalid');
+  if (!['127.0.0.1', 'localhost'].includes(url.hostname) || !process.env.E2E_API_URL?.includes('127.0.0.1')) throw new Error('Synthetic MFA fixture requires the disposable local E2E environment');
+  const db = new PrismaClient();
+  try {
+    const account = await db.superAdmin.update({ where: { email }, data: { mfaSecret: 'synthetic-emergency-code-fixture', emailVerifiedAt: new Date() } });
+    const code = randomBytes(16).toString('hex');
+    await db.authRecoveryCode.create({ data: { sujetoId: account.id, tipo: 'SUPER_ADMIN', hash: createHash('sha256').update(code).digest('hex') } });
+    return code;
+  } finally { await db.$disconnect(); }
+}
+export async function fillPlatformMfa(page: Page, email: string) {
+  const code = await syntheticMfaFor(email);
+  if (code) { await page.getByLabel('Acceso de Super Admin').check(); await page.locator('#login-mfa').fill(code); }
+}

@@ -33,4 +33,29 @@ describe('TenantModuleGuard', () => {
     reflector.getAllAndOverride.mockReturnValue('pos');
     await expect(guard.canActivate(context)).rejects.toThrow('no está habilitado');
   });
+
+  describe('módulo de activación explícita (contabilidad)', () => {
+    const contexto = (request: any) => ({ switchToHttp: () => ({ getRequest: () => request }), getHandler: () => null, getClass: () => null }) as unknown as ExecutionContext;
+    const guardia = (findUnique: any, modulo = 'contabilidad') => new TenantModuleGuard({ getAllAndOverride: () => modulo } as unknown as Reflector, { tenantModule: { findUnique } } as unknown as PrismaService);
+    const request = () => ({ user: { tenantId: 'tenant-1', type: 'tenant', rol: 'ADMIN' } });
+
+    it('rechaza cuando no existe ningún registro del módulo', async () => {
+      await expect(guardia(vi.fn().mockResolvedValue(null)).canActivate(contexto(request()))).rejects.toThrow('no está habilitado');
+    });
+    it('rechaza cuando el registro existe pero está deshabilitado', async () => {
+      await expect(guardia(vi.fn().mockResolvedValue({ enabled: false })).canActivate(contexto(request()))).rejects.toThrow('no está habilitado');
+    });
+    it('permite solo con registro explícito habilitado', async () => {
+      await expect(guardia(vi.fn().mockResolvedValue({ enabled: true })).canActivate(contexto(request()))).resolves.toBe(true);
+    });
+    it('un módulo heredado sigue permitido sin registro', async () => {
+      await expect(guardia(vi.fn().mockResolvedValue(null), 'pos').canActivate(contexto(request()))).resolves.toBe(true);
+    });
+    it('el Super Admin conserva el acceso sin consultar módulos', async () => {
+      const findUnique = vi.fn();
+      const superAdmin = { user: { type: 'super_admin', rol: 'SUPER_ADMIN' } };
+      await expect(guardia(findUnique).canActivate(contexto(superAdmin))).resolves.toBe(true);
+      expect(findUnique).not.toHaveBeenCalled();
+    });
+  });
 });

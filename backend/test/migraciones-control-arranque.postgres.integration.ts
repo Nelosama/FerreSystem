@@ -6,8 +6,8 @@ import { createServer } from 'node:net';
 
 // Preproducción: arranque seguro (verify/startup) y comportamiento de las migraciones 20261011150000 y 20261017000000 sobre datos.
 // Cada escenario usa su propio clúster PostgreSQL temporal. Nunca lee DATABASE_URL ni toca producción.
-const bin = process.env.PG_BIN || '/usr/bin';
-const exe = (name: string) => join(bin, name);
+const bin = process.env.PG_BIN || (process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/18/bin' : '/usr/bin');
+const exe = (name: string) => join(bin, name + (process.platform === 'win32' ? '.exe' : ''));
 const M_PRECIO = '20261011150000_precio_aprobacion_producto';
 const M_F5 = '20261017000000_contingencia_rechazos_importe_incoherente';
 const todas = readdirSync(resolve('prisma/migrations')).filter((n) => /^\d{14}_/.test(n)).sort();
@@ -21,7 +21,7 @@ async function iniciar(): Promise<Cl> {
   await new Promise<void>((ok) => l.close(() => ok()));
   const opts = { timeout: 60000, stdio: 'pipe' as const };
   execFileSync(exe('initdb'), ['-D', join(dir, 'data'), '-U', 'postgres', '-A', 'trust', '--locale=C', '-E', 'UTF8', '--no-sync'], opts);
-  execFileSync(exe('pg_ctl'), ['-D', join(dir, 'data'), '-l', join(dir, 'pg.log'), '-o', `-h 127.0.0.1 -p ${port} -k ${dir}`, '-w', 'start'], { ...opts, stdio: 'ignore' });
+  execFileSync(exe('pg_ctl'), ['-D', join(dir, 'data'), '-l', join(dir, 'pg.log'), '-o', `-h 127.0.0.1 -p ${port}${process.platform === 'win32' ? '' : ' -k ' + dir}`, '-w', 'start'], { ...opts, stdio: 'ignore' });
   return { dir, port, url: `postgresql://postgres@127.0.0.1:${port}/postgres` };
 }
 const detener = (c: Cl) => {
@@ -70,9 +70,12 @@ describe('Arranque seguro: migration-safe verify/startup no migra salvo orden ex
       INSERT INTO productos (id, tenant_id, codigo, nombre, precio_costo, precio_venta, stock_actual, updated_at)
         VALUES ('guia-producto', 'guia-a', 'HIST-01', 'Existencias anteriores', 8.25, 12.50, 7, now());
     `);
+    // Project every historical column; additive auth columns must not hide hash/data changes.
+    const columnas = (tabla: string) => sql(c, `SELECT string_agg(quote_ident(column_name), ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='public' AND table_name='${tabla}'`);
+    const usuariosPrevios = columnas('usuarios'), plataformaPrevia = columnas('super_admins');
     const cuentas = () => sql(c, `SELECT jsonb_build_object(
-      'usuarios', (SELECT jsonb_agg(to_jsonb(u) - 'guia_progreso' ORDER BY id) FROM usuarios u),
-      'plataforma', (SELECT jsonb_agg(to_jsonb(s) - 'guia_progreso' ORDER BY id) FROM super_admins s),
+      'usuarios', (SELECT jsonb_agg(to_jsonb(u) ORDER BY id) FROM (SELECT ${usuariosPrevios} FROM usuarios) u),
+      'plataforma', (SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM (SELECT ${plataformaPrevia} FROM super_admins) s),
       'negocios', (SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tenants t),
       'productos', (SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM productos p)
     )`);
@@ -129,6 +132,21 @@ describe('Arranque seguro: migration-safe verify/startup no migra salvo orden ex
     expect(d.status, d.stderr).toBe(0);
     expect(sql(c, `SELECT count(*) FROM _prisma_migrations WHERE migration_name='${M_F5}' AND finished_at IS NOT NULL`)).toBe('1');
     expect(seguro(c, 'verify').status).toBe(0);
+  }, 300000);
+
+  it('base con las migraciones de main (hasta guia_progreso): las de Contabilidad y autenticación quedan pendientes, no como hueco de historial, y migran', () => {
+    const ultimaMain = '20261022000000_guia_progreso';
+    expect(prisma(c, ['migrate', 'deploy'], proyecto(c, (n) => n <= ultimaMain)).status).toBe(0);
+    const r = seguro(c, 'startup');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('faltan');
+    expect(r.stderr).toContain('rol_contador');
+    expect(r.stderr).not.toContain('HISTORIAL_CON_HUECOS');
+    const d = seguro(c, 'deploy');
+    expect(d.status, d.stderr).toBe(0);
+    expect(d.stdout).not.toContain('HISTORIAL_CON_HUECOS');
+    expect(seguro(c, 'startup').status).toBe(0);
+    expect(sql(c, "SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL")).toBe(String(todas.length));
   }, 300000);
 
   it('conflicto de 20261011150000: un entorno que aplicó la otra variante queda BLOQUEADO (CHECKSUM_DISTINTO) y no arranca ni migra', () => {

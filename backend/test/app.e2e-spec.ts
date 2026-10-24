@@ -1,3 +1,4 @@
+import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { Test } from '@nestjs/testing';
 import { type INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -25,7 +26,7 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
   const userId = randomUUID(), otherUserId = randomUUID();
   const password = `Recovery-${randomBytes(16).toString('hex')}!`;
   let directory = '', port = 0, started = false;
-  const pg = (name: string, args: string[]) => execFileSync(join(bin, name), args, { stdio: 'pipe', timeout: 60000 });
+  const pg = (name: string, args: string[]) => execFileSync(join(bin, name), args, { windowsHide: true, stdio: name === 'pg_ctl' ? 'ignore' : 'pipe', timeout: 60000 });
   const start = () => {
     pg('pg_ctl', ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port} -k ${directory}`, '-w', 'start']);
     started = true;
@@ -68,7 +69,7 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
       nombre: 'Soporte de recuperación', email: 'support@recovery.invalid', passwordHash,
     } });
     const superLogin = await request(app.getHttpServer()).post('/api/admin/auth/login')
-      .send({ email: 'support@recovery.invalid', password }).expect(200);
+      .send({ email: 'support@recovery.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'support@recovery.invalid') }).expect(200);
     superToken = superLogin.body.accessToken;
     const eligible = await request(app.getHttpServer()).get(`/api/admin/tenants/${tenantId}/usuarios`)
       .auth(superToken, { type: 'bearer' }).expect(200);
@@ -130,9 +131,14 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
       .auth(token, { type: 'bearer' }).expect(404);
   });
 
+  // Multiple real HTTP calls and bcrypt(12) need the same finite budget as PostgreSQL integration.
   it('recupera escrituras auditadas y la desactivación sigue revocando sesiones', async () => {
     const created = await request(app!.getHttpServer()).post('/api/usuarios').auth(token, { type: 'bearer' })
-      .send({ nombre: 'Cajero recuperado', email: 'cajero@recovery.invalid', password, rol: 'CAJERO' }).expect(201);
+      .send({ nombre: 'Cajero recuperado', email: 'cajero@recovery.invalid', rol: 'CAJERO' }).expect(201);
+    const invitation = await request(app!.getHttpServer()).post('/api/auth/security/admin-reset').auth(token, { type: 'bearer' })
+      .send({ usuarioId: created.body.id, currentPassword: password }).expect(201);
+    await request(app!.getHttpServer()).post('/api/auth/security/reset')
+      .send({ token: invitation.body.token, password }).expect(200);
     const login = await request(app!.getHttpServer()).post('/api/auth/login')
       .send({ tenantId, email: 'cajero@recovery.invalid', password }).expect(200);
     await request(app!.getHttpServer()).get('/api/auth/me').auth(login.body.accessToken, { type: 'bearer' }).expect(200);
@@ -143,7 +149,7 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
       tenantId, usuarioId: userId, entidadId: created.body.id, operacion: 'USUARIO_DESACTIVAR',
     } })).toBe(1);
     await request(app!.getHttpServer()).get('/api/auth/me').auth(login.body.accessToken, { type: 'bearer' }).expect(401);
-  });
+  }, 15000);
 
   it('el soporte anterior a la caída conserva solo lectura y puede revocarse con trazabilidad real', async () => {
     await request(app!.getHttpServer()).get('/api/usuarios').auth(supportToken, { type: 'bearer' }).expect(200);

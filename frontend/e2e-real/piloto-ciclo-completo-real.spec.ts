@@ -1,3 +1,5 @@
+import { syntheticMfaFor } from './mfa.fixture';
+import { activateTestUser } from './activation.fixture';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext } from '@playwright/test';
@@ -49,8 +51,9 @@ test('1. el administrador inicia sesión y registra un producto con código, des
   admin = await login(request, ADMIN);
   adminB = await login(request, ADMIN_B);
   expect(admin.rol).toBe('ADMIN');
-  const alta = await request.post(`${API}/usuarios`, { headers: auth(admin.token), data: { nombre: `Cajero piloto ${RUN}`, email: CAJERO, password: PASSWORD, rol: 'CAJERO', permisos: ['pos.vender'], descuentoMaximo: 0 } });
+  const alta = await request.post(`${API}/usuarios`, { headers: auth(admin.token), data: { nombre: `Cajero piloto ${RUN}`, email: CAJERO, rol: 'CAJERO', permisos: ['pos.vender'], descuentoMaximo: 0 } });
   expect([200, 201], await alta.text()).toContain(alta.status());
+  await activateTestUser(request, (await alta.json()).id);
   sql(`UPDATE usuarios SET permisos_configurados=true, permisos=ARRAY['pos.vender']::text[] WHERE email='${CAJERO}' AND tenant_id='${TENANT}'`);
   cajero = await login(request, CAJERO);
   expect(cajero.rol).toBe('CAJERO');
@@ -61,8 +64,8 @@ test('1. el administrador inicia sesión y registra un producto con código, des
   expect(sql(`SELECT precio_aprobado FROM productos WHERE id='${productoId}'`)).toBe('f');
   const movimientosAntes = sql(`SELECT COUNT(*) FROM movimientos_inventario WHERE producto_id='${productoId}'`);
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(ADMIN);
-  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator('#login-correo').fill(ADMIN);
+  await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL(url => !url.pathname.startsWith('/login'));
   await page.goto('/precios');
@@ -209,7 +212,7 @@ test('8. el administrador consulta las ventas y la auditoría; cada operación e
   for (const v of [ventas.EFECTIVO, ventas.TARJETA, ventas.TRANSFERENCIA]) expect(texto).toContain(v.id);
   // La auditoría es exclusiva del SUPERADMIN: el administrador del negocio recibe 403 y la consulta se hace por negocio.
   expect((await request.get(`${API}/operaciones/auditoria?page=0`, { headers: auth(admin.token) })).status()).toBe(403);
-  const saRes = await request.post(`${API}/auth/login`, { data: { email: 'superadmin.e2e@e2e.invalid', password: process.env.E2E_PASSWORD } });
+  const saRes = await request.post(`${API}/auth/login`, { data: { email: 'superadmin.e2e@e2e.invalid', password: process.env.E2E_PASSWORD, mfaCode: await syntheticMfaFor('superadmin.e2e@e2e.invalid') } });
   expect(saRes.status()).toBe(200);
   const aud = await request.get(`${API}/admin/tenants/${TENANT}/auditoria?page=0`, { headers: auth((await saRes.json()).accessToken) });
   expect(aud.status()).toBe(200);

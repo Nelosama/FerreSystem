@@ -13,7 +13,7 @@ describe('Migración de autenticación / PostgreSQL con datos previos', () => {
   const exe = (name: string) => join(bin, name + (process.platform === 'win32' ? '.exe' : ''));
   const NUEVA = '20261012000000_autenticacion_sesiones_intentos';
   // Migraciones posteriores que alteran tablas creadas por NUEVA: se aplican justo después de ella.
-  const DEPENDIENTES = ['20261021000000_sesiones_auth_rotacion_refresh'];
+  const DEPENDIENTES = ['20261021000000_sesiones_auth_rotacion_refresh', '20261023000000_auth_recovery'];
   let directory: string;
   let started = false;
   let prisma: PrismaService;
@@ -30,7 +30,7 @@ describe('Migración de autenticación / PostgreSQL con datos previos', () => {
     url = `postgresql://postgres@127.0.0.1:${port}/postgres`;
     const options = { windowsHide: true, timeout: 30000, env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PG'))) }, stdio: 'pipe' as const };
     execFileSync(exe('initdb'), ['-D', join(directory, 'data'), '-U', 'postgres', '-A', 'trust', '--locale=C', '-E', 'UTF8', '--no-sync'], { ...options, timeout: 60000 });
-    execFileSync(exe('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port} -k ${directory}`, '-w', 'start'], { ...options, stdio: 'ignore' });
+    execFileSync(exe('pg_ctl'), ['-D', join(directory, 'data'), '-l', join(directory, 'postgres.log'), '-o', `-h 127.0.0.1 -p ${port}${process.platform === 'win32' ? '' : ' -k ' + directory}`, '-w', 'start'], { ...options, stdio: 'ignore' });
     started = true;
     // Estado previo: todas las migraciones anteriores a la nueva, en orden.
     for (const migracion of readdirSync(resolve('prisma/migrations')).sort()) {
@@ -53,13 +53,15 @@ describe('Migración de autenticación / PostgreSQL con datos previos', () => {
     const tenant = randomUUID();
     psql(`INSERT INTO tenants (id, nombre_comercial, updated_at, configuracion) VALUES ('${tenant}', 'Previa', now(), '{}')`);
     psql(`INSERT INTO usuarios (id, tenant_id, nombre, email, password_hash, rol, activo, updated_at) VALUES ('${randomUUID()}', '${tenant}', 'Admin previo', 'previo@test.invalid', 'x', 'ADMIN', true, now())`);
-    const antes = psql(`SELECT md5((SELECT string_agg(u::text, '|' ORDER BY u::text) FROM usuarios u) || (SELECT string_agg(t::text, '|' ORDER BY t::text) FROM tenants t))`);
+    // Compare every pre-existing field, including the password hash, across additive DDL.
+    const snapshot = () => psql(`SELECT md5((SELECT string_agg((to_jsonb(u) - ARRAY['username','email_verified_at','mfa_secret','mfa_last_step'])::text, '|' ORDER BY u.id) FROM usuarios u) || (SELECT string_agg(t::text, '|' ORDER BY t::text) FROM tenants t))`);
+    const antes = snapshot();
 
     for (const migracion of [NUEVA, ...DEPENDIENTES]) {
       execFileSync(exe('psql'), ['-X', '-q', '-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations', migracion, 'migration.sql')], { windowsHide: true, timeout: 60000, stdio: 'pipe' });
     }
 
-    const despues = psql(`SELECT md5((SELECT string_agg(u::text, '|' ORDER BY u::text) FROM usuarios u) || (SELECT string_agg(t::text, '|' ORDER BY t::text) FROM tenants t))`);
+    const despues = snapshot();
     expect(despues).toBe(antes);
     expect(psql(`SELECT to_regclass('public.sesiones_auth') IS NOT NULL AND to_regclass('public.intentos_login') IS NOT NULL`)).toMatch(/\bt\b/);
   });

@@ -28,8 +28,8 @@ async function existencias() {
 }
 async function entrar(page: Page, email: string, ruta: string) {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(email);
-  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator('#login-correo').fill(email);
+  await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
   await page.goto(ruta);

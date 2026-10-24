@@ -67,8 +67,8 @@ const test = base.extend<{ sim: Sim }>({
 
 async function ingresarYAbrirPos(page: Page) {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(usuario.email);
-  await page.locator('input[type="password"]').fill('clave-de-prueba');
+  await page.locator('#login-correo').fill(usuario.email);
+  await page.locator('#login-clave').fill('clave-de-prueba');
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
   await page.goto('/pos-contingencia');

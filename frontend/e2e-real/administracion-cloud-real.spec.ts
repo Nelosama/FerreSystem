@@ -1,3 +1,4 @@
+import { fillPlatformMfa, syntheticMfaFor } from './mfa.fixture';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -17,8 +18,8 @@ test.beforeEach(restablecerPreferencias);
 test.afterEach(restablecerPreferencias);
 async function entrar(page: Page, email = 'superadmin.e2e@e2e.invalid') {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(email);
-  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator('#login-correo').fill(email); await fillPlatformMfa(page, email);
+  await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await expect(page).not.toHaveURL(/\/login$/);
 }
@@ -71,11 +72,17 @@ test('Super Admin crea y edita un administrador; desactivar revoca acceso y cons
   await form.getByLabel('Nombre', { exact: true }).fill(`Admin ${run}`);
   await form.getByLabel('Correo electrónico', { exact: true }).fill(`nuevo-${run}@e2e.invalid`);
   await form.getByLabel('Rol', { exact: true }).selectOption('ADMIN');
-  await form.getByLabel('Contraseña', { exact: true }).fill(PASSWORD);
+  // Passwordless creation still hashes a private unusable credential on the real server.
+  // Wait for the actual POST before checking the refreshed row (bcrypt can exceed 5 s under load).
+  const createdResponse = page.waitForResponse(res => new URL(res.url()).pathname === `/api/admin/tenants/${A}/usuarios` && res.request().method() === 'POST');
   await form.getByRole('button', { name: 'Guardar', exact: true }).click();
+  expect((await createdResponse).status()).toBe(201);
   const row = page.getByRole('row').filter({ hasText: `nuevo-${run}@e2e.invalid` });
   await expect(row).toContainText('ADMIN');
-  const login = await page.request.post(`${API}/auth/login`, { data: { email: `nuevo-${run}@e2e.invalid`, password: PASSWORD } });
+  const fresh = await prisma.usuario.findFirstOrThrow({ where: { tenantId: A, email: `nuevo-${run}@e2e.invalid` } });
+  const platformToken = await page.evaluate(() => localStorage.getItem('ferre_token'));
+  await setPrivatePassword(page, platformToken!, fresh.id);
+  const login = await page.request.post(`${API}/auth/login`, { data: { email: `nuevo-${run}@e2e.invalid`, tenantId: A, password: PASSWORD } });
   expect(login.status()).toBe(200); const token = (await login.json()).accessToken;
   await row.getByRole('button', { name: 'Editar', exact: true }).click();
   await form.getByLabel('Nombre', { exact: true }).fill(`Editado ${run}`);
@@ -94,8 +101,9 @@ test('idioma se guarda por negocio; todos sus roles lo heredan sin selector en e
   await entrar(page);
   const platformToken = await page.evaluate(() => localStorage.getItem('ferre_token'));
   const vendedorEmail = `vendedor-${run}@e2e.invalid`;
-  const creado = await page.request.post(`${API}/admin/tenants/${A}/usuarios`, { headers: { Authorization: `Bearer ${platformToken}` }, data: { nombre: 'Vendedor idioma', email: vendedorEmail, rol: 'VENDEDOR', password: PASSWORD } });
+  const creado = await page.request.post(`${API}/admin/tenants/${A}/usuarios`, { headers: { Authorization: `Bearer ${platformToken}` }, data: { nombre: 'Vendedor idioma', email: vendedorEmail, rol: 'VENDEDOR' } });
   expect(creado.status()).toBe(201);
+  await setPrivatePassword(page, platformToken!, (await creado.json()).id);
   await page.goto(`/admin/negocios/${A}/configuracion`);
   await page.getByRole('button', { name: 'English (EN)', exact: true }).click();
   expect((await prisma.tenant.findUniqueOrThrow({ where: { id: A } })).configuracion.idioma).not.toBe('en');
@@ -140,3 +148,10 @@ test('TOPNAV conserva el orden aprobado y toda la marca enlaza a Inicio', async 
   const sa = await page.evaluate(() => localStorage.getItem('ferre_token'));
   await page.request.put(`${API}/admin/tenants/${A}/settings`, { headers: { Authorization: `Bearer ${sa}` }, data: { modoNavegacion: 'SIDEBAR' } });
 });
+
+async function setPrivatePassword(page: Page, platformToken: string, userId: string) {
+  const issued = await page.request.post(`${API}/auth/security/admin-reset`, { headers: { Authorization: `Bearer ${platformToken}` }, data: { usuarioId: userId, tenantId: A, currentPassword: PASSWORD, mfaCode: await syntheticMfaFor('superadmin.e2e@e2e.invalid') } });
+  expect(issued.status()).toBe(201);
+  const reset = await page.request.post(`${API}/auth/security/reset`, { data: { token: (await issued.json()).token, password: PASSWORD } });
+  expect(reset.status()).toBe(200);
+}

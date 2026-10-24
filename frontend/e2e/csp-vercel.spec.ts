@@ -50,7 +50,7 @@ test.describe('service worker y modo sin conexión bajo la CSP', () => {
     await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), { timeout: 15_000 }).toBe(true);
     await context.setOffline(true);
     await page.reload();
-    await expect(page.locator('input[type="email"]')).toBeVisible();
+    await expect(page.locator('#login-correo')).toBeVisible();
     await context.setOffline(false);
     expect(await violaciones()).toEqual([]);
   });

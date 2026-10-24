@@ -14,8 +14,8 @@ try {
   browser = await chromium.launch({ ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH && { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }) });
   const page = await browser.newPage({ timezoneId: 'America/Tegucigalpa' });
   await page.goto(`${origin}/login`);
-  await page.locator('input[type="email"]').fill(process.env.CYCLE_EMAIL);
-  await page.locator('input[type="password"]').fill(process.env.CYCLE_PASSWORD);
+  await page.locator('#login-correo').fill(process.env.CYCLE_EMAIL);
+  await page.locator('#login-clave').fill(process.env.CYCLE_PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await expect(page).toHaveURL(`${origin}/`);
   await page.goto(`${origin}/cotizaciones`);
