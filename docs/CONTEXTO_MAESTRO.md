@@ -24,6 +24,19 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 
 ---
 
+## Consolidación `claude/charming-planck-vmn1y4` + `feat/contabilidad-honduras` — 2026-10-24 UTC (sin merge, despliegue ni migraciones en producción)
+
+- **Comparación real:** `claude/charming-planck-vmn1y4` contiene `main` `01f9110a` (#194) y `feat/contabilidad-honduras` `c9a2a376` como ascendientes; 0 commits exclusivos de `main` y 0 de `feat`. Solo aporta dos commits: `a332d33` (renombra `20261020000000_rol_contador` y `20261020000100_contabilidad_honduras` a `20261022000100` y `20261022000200`, ordenándolas tras `main`; documentación de despliegue/rollback) y `10761e7` (verificación en CONTEXTO). No hay implementaciones duplicadas entre ramas: no se eliminó código.
+- **Migraciones frente a `main`:** tres nuevas, todas posteriores a `20261022000000_guia_progreso`: `20261022000100_rol_contador` (`ALTER TYPE "Rol" ADD VALUE`, en migración propia), `20261022000200_contabilidad_honduras` (tablas fiscales y contables, triggers de vigencia, cuadre y solo-inserción, RLS) y `20261023000000_auth_recovery` (MFA, enlaces de acción, eventos de auth; `usuarios.email` pasa a opcional con restricción de identificador). Sin migraciones duplicadas.
+- **Pruebas locales** (PostgreSQL 16 efímero en Linux, usuario no root; no es producción):
+  - Backend: `prisma validate` válido (requiere `DIRECT_URL` en el entorno); `prisma generate`, build, lint sin errores (solo avisos previos), unitarias 676/676, scripts 51/51.
+  - Integración PostgreSQL completa: 66 archivos, 1119 aprobadas, 1 omitida opt-in, 0 fallos. Incluye `migraciones-control-arranque` 16/16, `migrations` 10/10, `esquema-deriva` 3/3, `migracion-autenticacion` 2/2, `auth-recovery` y cancelación/ventas/caja/CXC/CXP.
+  - Frontend: build con `VITE_API_URL` de prueba (la guarda exige HTTPS fuera de localhost; valor igual al del CI), lint sin errores (solo avisos previos), unitarias 544/544, Playwright simulado de autenticación y Contabilidad 26/26.
+- **Revisión de seguridad:** endpoints de Contabilidad protegidos por `JwtAuthGuard`, `TenantGuard`, `RolesGuard` (ADMIN/CONTADOR) y permisos por ruta; recuperación con correo verificado, MFA, propósito y tenant comprobados, consumo transaccional por cuenta y revocación de sesiones al restablecer.
+- **No ejecutado aquí:** `frontend/e2e-real` (harness completo con navegador oficial), Playwright completo, PWA/Safari/iPhone físicos, y CI del SHA publicado.
+- **Pendientes reales (sin cambios):** Resend y variables de Render, enrolamiento MFA del Super Admin, `/api/health`, validación fiscal del contador, y bases preview con nombres antiguos de migración.
+- **PR #180:** su head `feat/contabilidad-honduras` (`c9a2a376`) **no** incluía `a332d33`; sin esa corrección el PR no es desplegable. Se actualiza por avance rápido (sin force) al SHA `10761e7`. Sigue en borrador y **NO MERGE** hasta aprobación del propietario.
+
 ## PR #180 — preparación técnica para producción — 2026-10-24 UTC (sin merge, despliegue ni migraciones en producción)
 
 - **Base:** `feat/contabilidad-honduras` `c9a2a376` ya contenía `main` `01f9110a` (0 commits de retraso). CI de ese SHA verde (test, validate, guard-base-datos).
