@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Length, Matches, Max, Min, ValidateNested } from 'class-validator';
+import { MAX_IMPORTE_CONTABLE } from './fiscal-hn';
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const importe = () => IsNumber({ maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false });
@@ -52,12 +53,12 @@ export class MotivoDto {
 }
 
 export class ImportesDto {
-  @IsOptional() @importe() @Min(0) importeExento?: number;
-  @IsOptional() @importe() @Min(0) importeExonerado?: number;
-  @IsOptional() @importe() @Min(0) importeGravadoGeneral?: number;
-  @IsOptional() @importe() @Min(0) importeGravadoEspecial?: number;
-  @IsOptional() @importe() @Min(0) isvGeneral?: number;
-  @IsOptional() @importe() @Min(0) isvEspecial?: number;
+  @IsOptional() @importe() @Min(0) @Max(MAX_IMPORTE_CONTABLE) importeExento?: number;
+  @IsOptional() @importe() @Min(0) @Max(MAX_IMPORTE_CONTABLE) importeExonerado?: number;
+  @IsOptional() @importe() @Min(0) @Max(MAX_IMPORTE_CONTABLE) importeGravadoGeneral?: number;
+  @IsOptional() @importe() @Min(0) @Max(MAX_IMPORTE_CONTABLE) importeGravadoEspecial?: number;
+  @IsOptional() @importe() @Min(0) @Max(MAX_IMPORTE_CONTABLE) isvGeneral?: number;
+  @IsOptional() @importe() @Min(0) @Max(MAX_IMPORTE_CONTABLE) isvEspecial?: number;
 }
 
 export class DocumentoFiscalDto extends ImportesDto {
@@ -101,8 +102,8 @@ export class CuentaDto {
 
 export class LineaAsientoDto {
   @IsString() @Length(1, 64) cuentaId!: string;
-  @IsOptional() @importe() @Min(0) debe?: number;
-  @IsOptional() @importe() @Min(0) haber?: number;
+  @IsOptional() @importe() @Min(0) @Max(MAX_IMPORTE_CONTABLE) debe?: number;
+  @IsOptional() @importe() @Min(0) @Max(MAX_IMPORTE_CONTABLE) haber?: number;
   @IsOptional() @IsString() @Length(0, 200) descripcion?: string;
 }
 

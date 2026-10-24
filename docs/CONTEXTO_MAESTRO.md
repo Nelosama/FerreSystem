@@ -1,6 +1,19 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-23 UTC** — actualización de `feat/contabilidad-honduras` (PR #180) con `main` `01f9110a` (#194), corrección de enlaces sucesivos de recuperación y regresión completa. Los resultados definitivos por SHA se mantienen en [PR #180](https://github.com/Nelosama/FerreSystem/pull/180). Sin merge del PR ni despliegue.
+Última revisión: **2026-10-24 UTC** — auditoría contable acotada del PR #180, conservando la consolidación de Planck hasta `74f455de`. Sin merge ni despliegue.
+
+## PR #180 — auditoría contable de ferretería hondureña (2026-10-24 UTC)
+
+- **Base y coordinación:** inicio en `c9a2a376`; detectados `a332d33a`, `10761e7a` y `74f455de` durante la ejecución. Avance local a ese head remoto preservando los cambios contables; sin merge, rebase ni reescritura remota. Avisos para Planck en [#180](https://github.com/Nelosama/FerreSystem/pull/180#issuecomment-6379746498). Sus migraciones reordenadas, esquema y documentación se conservan íntegros. Esta auditoría no modifica autenticación/recuperación, POS, caja/inventario/CxC/CxP, dependencias ni despliegue.
+- **Seis correcciones verificadas:** límite acumulado de notas de crédito también al corregir notas/originales; cobertura de devoluciones por importe y al corte del período; porcentaje y costo por cantidad exactos con BigInt en importes altos; adaptador sin redondeo silencioso; límites DECIMAL(14,2) y sumas seguras antes de escribir; rechazo de cuadre aparente en el motor al exceder enteros seguros. Todo dentro de `backend/src/contabilidad/`.
+- **Evidencia contable:** suite PostgreSQL contable de 26 a **31/31**; jornada con ventas contado/crédito, descuento, compra/recepción, abonos/pagos parciales con reintento, documentos, asientos, reversión y Excel. Caja, inventario, clientes/proveedores, cuentas/pagos y operaciones idénticos antes/después de contabilizar. CxC L 168.49 y CxP L 474.99 conciliadas para los asientos registrados. Navegador/API/BD reales: CONTADOR lector a 1440/390, mayor, diario y descarga, sin permisos de operación.
+- **Pruebas:** backend **679/679**, frontend **544/544**, scripts **51/51**, E2E backend **6/6**; tipos/build/lint correctos con avisos heredados; navegador contable simulado **16/16**; piloto dirigido real **14/14**. PostgreSQL completo inicial **1123 aprobadas/1 omitida opt-in**, 66 archivos, sobre nombres anteriores. Resultados de repetición tras conservar la reordenación de Planck: **1124 aprobadas/1 omitida opt-in/0 fallidas**, 66 archivos. Prisma válido, guard sin migraciones propias y piloto con deriva nula. Los checks del SHA final se registran en el PR.
+- **Dictamen y pendientes:** **NO MERGE para contabilidad completa**. Catálogo, diario/mayor/balanza, libros fiscales, cierre y exportación operan como fase 1 manual. No existen estados financieros/cierre anual ni asientos automáticos persistentes; no se activa la propuesta de esquema. Pendientes: validación profesional del ISV/retenciones/CAI/documentos y criterios contables, integración final de Planck, Safari/iPhone físicos y controles productivos ya documentados por sus responsables. Ninguna producción ni correo real se tocó.
+- **Informe/bitácora:** [AUDITORIA_CONTABLE_HONDURAS_20261024.md](AUDITORIA_CONTABLE_HONDURAS_20261024.md) contiene causas, regresiones rojas/verdes, matriz automático/manual, jornada, comandos, limitaciones y entrega a Planck. **NEXUS** firma exclusivamente la evidencia PostgreSQL temporal; sin cambios propios de esquema/migraciones. PR #180 permanece en borrador; SHA final en el PR.
+
+---
+
+Revisión anterior: **2026-10-23 UTC** — actualización de `feat/contabilidad-honduras` (PR #180) con `main` `01f9110a` (#194), corrección de enlaces sucesivos de recuperación y regresión completa. Los resultados definitivos por SHA se mantienen en [PR #180](https://github.com/Nelosama/FerreSystem/pull/180). Sin merge del PR ni despliegue.
 
 ## PR #180 — sincronización y verificación de contabilidad/recuperación (2026-10-23 UTC)
 

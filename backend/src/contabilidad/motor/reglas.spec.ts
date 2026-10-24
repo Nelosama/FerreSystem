@@ -10,6 +10,12 @@ const porConcepto = (r: ResultadoAsiento, c: string) => ok(r).lineas.filter((l) 
 const venta = (extra: Partial<VentaEntrada> = {}): VentaEntrada => ({ subtotalCentavos: 10000, descuentoCentavos: 0, isvCentavos: 1500, totalCentavos: 11500, tipoPago: 'CONTADO', metodoPago: 'EFECTIVO', ...extra });
 const linea = (concepto: any, debeCentavos: number, haberCentavos: number): LineaPropuesta => ({ concepto, debeCentavos, haberCentavos, descripcion: '' });
 
+it('rechaza totales fuera del rango exacto de centavos aunque cada línea sea un entero seguro', () => {
+  const max = Number.MAX_SAFE_INTEGER;
+  const lineas = [linea('CAJA_EFECTIVO', max, 0), linea('CAJA_EFECTIVO', 2, 0), linea('VENTAS', 0, max), linea('VENTAS', 0, 1)];
+  expect(validarCuadre(lineas)).toEqual([expect.objectContaining({ codigo: 'IMPORTE_INVALIDO' })]);
+});
+
 describe('asientoVenta', () => {
   it('contado en efectivo sin descuento cuadra con los conceptos esperados', () => {
     for (const descuento of ['BRUTO', 'NETO'] as const) {
@@ -84,6 +90,11 @@ describe('asientoVenta', () => {
 });
 
 describe('asientoCostoVenta', () => {
+  it('no pierde centavos en el producto de costo por cantidad aunque el producto intermedio sea grande', () => {
+    const entrada = [{ cantidadCentesimas: 251, costoUnitarioCentavos: 99999999999999 }];
+    expect(ok(asientoCostoVenta(entrada)).totalCentavos).toBe(250999999999997);
+    expect(ok(asientoCostoDevolucion(entrada)).totalCentavos).toBe(250999999999997);
+  });
   it('2.5 × L 25.99 coincide con subtotalLinea y excluye líneas sin inventario', () => {
     const r = ok(asientoCostoVenta([
       { cantidadCentesimas: 250, costoUnitarioCentavos: 2599 },

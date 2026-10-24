@@ -6,12 +6,13 @@ import type { CompraEntrada, DevolucionEntrada, LineaCostoEntrada, PagoEntrada, 
 
 /** Decimal exacto («115.5», «115.50», Decimal de Prisma) → centavos enteros, sin coma flotante. */
 export function centavosDeFila(valor: unknown, etiqueta = 'importe'): number {
-  const texto = typeof valor === 'number' ? (Number.isFinite(valor) ? valor.toFixed(2) : 'x') : String(valor ?? '').trim();
+  // String conserva los decimales significativos; toFixed(2) ocultaba entradas como 1.005.
+  const texto = String(valor ?? '').trim();
   const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(texto);
   if (!m) throw new RangeError(`${etiqueta}: valor no numérico`);
   const decimales = m[3] ?? '';
   if (/[1-9]/.test(decimales.slice(2))) throw new RangeError(`${etiqueta}: más de dos decimales`);
-  const centavos = Number(m[2]) * 100 + Number((decimales + '00').slice(0, 2));
+  const centavos = Number(BigInt(m[2]) * 100n + BigInt((decimales + '00').slice(0, 2)));
   if (!Number.isSafeInteger(centavos)) throw new RangeError(`${etiqueta}: fuera de rango`);
   return m[1] === '-' && centavos !== 0 ? -centavos : centavos;
 }

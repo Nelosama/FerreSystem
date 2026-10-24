@@ -4,7 +4,7 @@ import { audit, authorizedActor, id, lockTenant, query, Tx } from '../operacione
 import { aCentavos } from '../common/redondeo-monetario';
 import { diaCalendario } from '../common/zona-horaria';
 import {
-  CAMPOS_IMPORTE, ImportesDocumento, TIPOS_CON_REFERENCIA, analizarNumero, calcularRetencion, centavosAImporte, fechaValida,
+  CAMPOS_IMPORTE, ImportesDocumento, MAX_CENTAVOS_CONTABLES, TIPOS_CON_REFERENCIA, analizarNumero, calcularRetencion, centavosAImporte, fechaValida,
   limitesPeriodo, normalizarCai, normalizarRtn, periodoDeFecha, periodoValido, seSolapan, tasaVigente, tipoDocumentoValido,
   totalDocumentoCentavos, validarContraCai, verificarIsv,
 } from './fiscal-hn';
@@ -234,6 +234,14 @@ export class ContabilidadService {
     return cai;
   }
 
+  /** La misma invariante en altas y correcciones, bajo el bloqueo de la empresa. */
+  private async validarNotasCredito(tx: Tx, tenantId: string, referenciaId: string, limiteCentavos: number, nuevaNotaCentavos = 0, excluirId: string | null = null) {
+    const [{ acreditado }] = await query(tx, `SELECT COALESCE(sum(total),0) AS acreditado FROM fiscal_documentos
+      WHERE tenant_id=$1 AND documento_referencia_id=$2 AND tipo_documento='06' AND estado='VIGENTE'
+      AND ($3::text IS NULL OR id<>$3)`, tenantId, referenciaId, excluirId);
+    if (c(acreditado) + nuevaNotaCentavos > limiteCentavos) throw new BadRequestException('Las notas de crédito superan el total del documento original');
+  }
+
   crearDocumento(tenantId: string, usuarioId: string, dto: DocumentoFiscalDto) {
     return this.escribir(tenantId, usuarioId, P.registrar, async tx => {
       const direccion = dto.direccion;
@@ -279,8 +287,7 @@ export class ContabilidadService {
         if (!referencia) throw new NotFoundException('Documento de referencia no encontrado');
         if (referencia.direccion !== direccion || referencia.estado !== 'VIGENTE') throw new BadRequestException('El documento de referencia debe estar vigente y ser de la misma dirección');
         if (tipo === '06') {
-          const [{ acreditado }] = await query(tx, "SELECT COALESCE(sum(total),0) AS acreditado FROM fiscal_documentos WHERE tenant_id=$1 AND documento_referencia_id=$2 AND tipo_documento='06' AND estado='VIGENTE'", tenantId, referencia.id);
-          if (c(acreditado) + total > c(referencia.total)) throw new BadRequestException('Las notas de crédito superan el total del documento original');
+          await this.validarNotasCredito(tx, tenantId, referencia.id, c(referencia.total), total);
         }
       } else if (dto.documentoReferenciaId) throw new BadRequestException('Solo las notas de crédito o débito llevan documento de referencia');
       let caiId: string | null = null, caiTexto: string | null = null;
@@ -319,6 +326,14 @@ export class ContabilidadService {
       const importes = this.importes(Object.fromEntries(CAMPOS_IMPORTE.map(k => [k, dto[k] ?? Number(actual[k])])) as any);
       const total = totalDocumentoCentavos(importes);
       if (total <= 0) throw new BadRequestException('El documento no tiene importes');
+      if (tocaImportes) {
+        // No reducir un documento por debajo de las notas que ya lo modifican.
+        await this.validarNotasCredito(tx, tenantId, documentoId, total);
+        if (d.tipo_documento === '06' && d.documento_referencia_id) {
+          const [referencia] = await query(tx, 'SELECT total FROM fiscal_documentos WHERE tenant_id=$1 AND id=$2', tenantId, d.documento_referencia_id);
+          await this.validarNotasCredito(tx, tenantId, d.documento_referencia_id, c(referencia.total), total, documentoId);
+        }
+      }
       const rtn = dto.rtnContraparte !== undefined ? (dto.rtnContraparte.trim() ? normalizarRtn(dto.rtnContraparte, 'RTN de la contraparte') : null) : d.rtn_contraparte;
       const nombre = dto.nombreContraparte !== undefined ? texto(dto.nombreContraparte, 'Nombre de la contraparte', 1, 200) : d.nombre_contraparte;
       if (d.direccion === 'EMITIDO') {
@@ -496,12 +511,14 @@ export class ContabilidadService {
     return this.escribir(tenantId, usuarioId, P.registrar, async tx => {
       const fecha = fechaValida(dto.fecha, 'Fecha');
       await this.exigirPeriodoAbierto(tx, tenantId, fecha);
-      if (!Array.isArray(dto.lineas) || dto.lineas.length < 2) throw new BadRequestException('Un asiento requiere al menos dos líneas');
+      if (!Array.isArray(dto.lineas) || dto.lineas.length < 2 || dto.lineas.length > 200) throw new BadRequestException('Un asiento requiere entre 2 y 200 líneas');
       let debe = 0, haber = 0;
       const lineas = dto.lineas.map(l => {
         const d = c(l.debe ?? 0), h = c(l.haber ?? 0);
+        if (d > MAX_CENTAVOS_CONTABLES || h > MAX_CENTAVOS_CONTABLES) throw new BadRequestException('Importe de la línea fuera de rango');
         if (d < 0 || h < 0 || (d > 0) === (h > 0)) throw new BadRequestException('Cada línea lleva un importe en el debe o en el haber, no en ambos');
         debe += d; haber += h;
+        if (!Number.isSafeInteger(debe) || !Number.isSafeInteger(haber)) throw new BadRequestException('Total del asiento fuera del rango exacto de centavos');
         return { cuentaId: l.cuentaId, debe: d / 100, haber: h / 100, descripcion: l.descripcion?.trim() || null };
       });
       if (debe !== haber) throw new BadRequestException(`El asiento no cuadra: debe L ${centavosAImporte(debe)} / haber L ${centavosAImporte(haber)}`);

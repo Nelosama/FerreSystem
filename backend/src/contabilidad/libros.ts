@@ -159,18 +159,24 @@ export async function libroVentas(db: Db, tenantId: string, anio: number, mes: n
   filas.sort((a, b) => a.fecha.localeCompare(b.fecha) || String(a.numero ?? a.referenciaInterna).localeCompare(String(b.numero ?? b.referenciaInterna)));
 
   const devoluciones = (await query(db as Tx, `SELECT d.id, d.venta_id, d.monto, ${fechaLocal('d.created_at', '$2')} AS fecha, v.numero_venta,
+      (SELECT COALESCE(sum(d2.monto),0) FROM devoluciones d2 WHERE d2.tenant_id=d.tenant_id AND d2.venta_id=d.venta_id
+        AND ${fechaLocal('d2.created_at', '$2')} <= $4::date) AS total_devuelto,
       (SELECT f.id FROM fiscal_documentos f WHERE f.tenant_id=d.tenant_id AND f.venta_id=d.venta_id AND f.estado='VIGENTE' AND f.tipo_documento='01' LIMIT 1) AS factura_id
     FROM devoluciones d JOIN ventas v ON v.id=d.venta_id AND v.tenant_id=d.tenant_id
     WHERE d.tenant_id=$1 AND ${fechaLocal('d.created_at', '$2')} BETWEEN $3::date AND $4::date ORDER BY fecha`, tenantId, zona, desde, hasta));
-  const notas = devoluciones.some(d => d.factura_id) ? await query(db as Tx, "SELECT documento_referencia_id FROM fiscal_documentos WHERE tenant_id=$1 AND tipo_documento='06' AND estado='VIGENTE' AND documento_referencia_id = ANY($2::text[])", tenantId, devoluciones.map(d => d.factura_id).filter(Boolean)) : [];
-  const conNota = new Set(notas.map(n => n.documento_referencia_id));
+  // Cobertura acumulada por venta al corte: una sola nota no respalda todas las devoluciones,
+  // ni una nota de un mes posterior resuelve retrospectivamente la conciliación del mes anterior.
+  const notas = devoluciones.some(d => d.factura_id) ? await query(db as Tx, `SELECT documento_referencia_id, sum(total) AS total FROM fiscal_documentos
+    WHERE tenant_id=$1 AND tipo_documento='06' AND estado='VIGENTE' AND documento_referencia_id = ANY($2::text[]) AND fecha_emision <= $3::date
+    GROUP BY documento_referencia_id`, tenantId, devoluciones.map(d => d.factura_id).filter(Boolean), hasta) : [];
+  const totalNotas = new Map(notas.map(n => [n.documento_referencia_id, c(n.total)]));
   return {
     periodo: { anio, mes, desde, hasta, zona },
     filas,
     totales: totalizar(filas),
     devoluciones: devoluciones.map(d => ({
       id: d.id, ventaId: d.venta_id, referenciaInterna: `V-${d.numero_venta}`, fecha: dia(d.fecha), monto: centavosAImporte(c(d.monto)),
-      hallazgos: d.factura_id && conNota.has(d.factura_id) ? [] : ['DEVOLUCION_SIN_NOTA_CREDITO'],
+      hallazgos: d.factura_id && (totalNotas.get(d.factura_id) ?? 0) >= c(d.total_devuelto) ? [] : ['DEVOLUCION_SIN_NOTA_CREDITO'],
     })),
   };
 }

@@ -8,7 +8,6 @@
  * - No hay cuentas, tasas ni porcentajes fiscales: el ISV llega calculado por la operación.
  * - Las políticas contables aún no aprobadas por el contador son parámetros OBLIGATORIOS, sin valor por defecto.
  */
-import { subtotalLinea } from '../../common/dinero';
 import { CONCEPTO_DE_METODO, esMetodoCobro, type Concepto } from './conceptos';
 
 export const REGLAS_VERSION = 1;
@@ -66,6 +65,7 @@ export function validarCuadre(lineas: readonly LineaPropuesta[]): ErrorMotor[] {
     haber += l.haberCentavos;
   }
   if (errores.length) return errores;
+  if (!Number.isSafeInteger(debe) || !Number.isSafeInteger(haber)) return [error('IMPORTE_INVALIDO', 'El total excede el rango exacto de centavos')];
   if (debe !== haber) errores.push(error('DESCUADRE', `El asiento no cuadra: debe ${debe} ≠ haber ${haber} (centavos)`));
   else if (debe === 0) errores.push(error('MONTO_CERO', 'El asiento no tiene importe'));
   return errores;
@@ -143,7 +143,7 @@ export function asientoCostoVenta(lineas: readonly LineaCostoEntrada[]): Resulta
   for (const l of lineas ?? []) {
     if (l.sinInventario) continue;
     if (!esCentavos(l.cantidadCentesimas) || !esCentavos(l.costoUnitarioCentavos)) return fallo(regla, error('IMPORTE_INVALIDO', 'Cantidad o costo inválido'));
-    total += subtotalLinea(l.costoUnitarioCentavos, l.cantidadCentesimas);
+    total += proporcion(l.costoUnitarioCentavos, l.cantidadCentesimas, 100);
   }
   if (total === 0) return { ok: true, regla, version: REGLAS_VERSION, lineas: [], totalCentavos: 0 };
   return construir(regla, [debe('COSTO_VENTA', total, 'Costo de la mercadería vendida'), haber('INVENTARIO', total, 'Salida de inventario')]);

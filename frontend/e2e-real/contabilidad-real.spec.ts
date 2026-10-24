@@ -116,3 +116,46 @@ test('5. descargar no altera la información contable', async ({ request }) => {
   }
   expect(sql(conteo)).toBe(antes);
 });
+
+for (const ancho of [1440, 390]) {
+  test(`6. CONTADOR lector consulta diario, mayor y Excel desde el navegador (${ancho}px)`, async ({ page, request }) => {
+    await page.setViewportSize({ width: ancho, height: 900 });
+    const errores: string[] = [];
+    page.on('pageerror', e => errores.push(e.message));
+    const crearCuenta = async (codigo: string, nombre: string, tipo: string, naturaleza: string) => {
+      const res = await request.post(`${API}/contabilidad/cuentas`, { headers: auth(admin), data: { codigo, nombre, tipo, naturaleza } });
+      expect(res.status()).toBe(201);
+      return (await res.json()).id as string;
+    };
+    const caja = await crearCuenta(`${ancho}.1`, `Caja web ${ancho}`, 'ACTIVO', 'DEUDORA');
+    const ventas = await crearCuenta(`${ancho}.2`, `Ventas web ${ancho}`, 'INGRESO', 'ACREEDORA');
+    const impuesto = await crearCuenta(`${ancho}.3`, `ISV web ${ancho}`, 'PASIVO', 'ACREEDORA');
+    const concepto = `Venta manual auditada ${ancho}`;
+    const alta = await request.post(`${API}/contabilidad/asientos`, { headers: auth(admin), data: { fecha: '2026-09-30', concepto, lineas: [{ cuentaId: caja, debe: 115.01 }, { cuentaId: ventas, haber: 100.01 }, { cuentaId: impuesto, haber: 15 }] } });
+    expect(alta.status()).toBe(201);
+    const antes = sql(conteo);
+    await page.goto('/login');
+    await page.locator('#login-correo').fill(CONTADOR);
+    await page.locator('#login-clave').fill(CLAVE_CONTADOR);
+    await page.locator('form').filter({ has: page.locator('#login-clave') }).getByRole('button', { name: /INGRESAR AL SISTEMA|SIGN IN/i }).click();
+    await page.waitForURL(url => url.pathname.startsWith('/contabilidad'));
+    await page.goto('/contabilidad/asientos');
+    await page.locator('input[type=month]').fill('2026-09');
+    await expect(page.getByTestId('contabilidad-page').getByText(new RegExp(concepto))).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Nuevo asiento' })).toHaveCount(0); // lector, sin permiso de registrar
+    await page.goto('/contabilidad/reportes');
+    await page.locator('input[type=month]').fill('2026-09');
+    await page.getByRole('tab', { name: 'Libro mayor', exact: true }).click();
+    const mayor = page.getByRole('region', { name: 'Libro mayor', exact: true });
+    await mayor.getByRole('combobox').selectOption(caja);
+    await expect(mayor.getByRole('cell', { name: concepto, exact: true })).toBeVisible();
+    await expect(mayor.locator('tfoot')).toContainText('115.01');
+    const descarga = page.waitForEvent('download');
+    await mayor.getByRole('button', { name: 'Exportar a Excel', exact: true }).click();
+    const archivo = await descarga;
+    expect(archivo.suggestedFilename()).toBe('mayor-2026-09.xlsx');
+    expect(await archivo.failure()).toBeNull();
+    expect(sql(conteo)).toBe(antes);
+    expect(errores).toEqual([]);
+  });
+}

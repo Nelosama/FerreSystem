@@ -50,6 +50,12 @@ describe('Reglas fiscales de Honduras (puras)', () => {
     expect(verificarIsv({ ...vacio, importeExento: 500 }, null, null)).toEqual([]);
   });
 
+  it('conserva el centavo de mitad hacia arriba en importes DECIMAL(14,2) altos', () => {
+    expect(aplicarPorcentaje(99999999999990, 15)).toBe(14999999999999);
+    expect(calcularRetencion({ ...vacio, total: 999999999999.90 }, 'TOTAL', 15))
+      .toEqual({ baseCentavos: 99999999999990, montoCentavos: 14999999999999 });
+  });
+
   it('tasa vigente por fecha y detección de solapes', () => {
     const tasas = [
       { categoria: 'GENERAL', porcentaje: 12, vigenteDesde: '2010-01-01', vigenteHasta: '2013-12-31' },
@@ -73,6 +79,7 @@ describe('Reglas fiscales de Honduras (puras)', () => {
 
   it('total del documento: suma exacta en centavos', () => {
     expect(totalDocumentoCentavos({ ...vacio, importeGravadoGeneral: 0.1, isvGeneral: 0.2, importeExento: 64.98 })).toBe(6528);
+    expect(() => totalDocumentoCentavos({ ...vacio, importeExento: 999999999999.99, importeExonerado: 0.01 })).toThrow();
   });
 
   it('concilia un documento emitido contra la venta real', () => {

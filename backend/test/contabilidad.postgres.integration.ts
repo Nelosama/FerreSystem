@@ -531,4 +531,155 @@ describe('Contabilidad Honduras / PostgreSQL aislado', () => {
     tenantDe[sinPermiso] = A; rolDe[sinPermiso] = 'CONTADOR'; permisosDe[sinPermiso] = { permisos: [], permisosConfigurados: true };
     await como(sinPermiso).get(`/contabilidad/exportar/ventas?${periodo}`).expect(403);
   });
+  describe('Auditoría contable: correcciones y jornada operativa', () => {
+    // Cada escenario tiene su propia empresa: no depende de los saldos del recorrido anterior.
+    const empresa = async () => {
+      const tenant = randomUUID(), contador = randomUUID(), admin = randomUUID();
+      await sql('INSERT INTO tenants (id,nombre_comercial,updated_at) VALUES ($1,$2,NOW())', tenant, 'Ferretería auditoría');
+      for (const [usuario, rol] of [[contador, 'CONTADOR'], [admin, 'ADMIN']]) {
+        tenantDe[usuario] = tenant; rolDe[usuario] = rol;
+        await sql('INSERT INTO usuarios (id,tenant_id,nombre,email,password_hash,rol,updated_at) VALUES ($1,$2,$3,$4,$5,$6::"Rol",NOW())', usuario, tenant, rol, `${usuario}@example.invalid`, 'x', rol);
+      }
+      await sql("INSERT INTO tenant_modules (id,tenant_id,module_key,enabled,updated_at) VALUES ($1,$2,'contabilidad',true,NOW())", randomUUID(), tenant);
+      await como(contador).post('/contabilidad/tasas', { categoria: 'GENERAL', porcentaje: 15, vigenteDesde: '2026-01-01', baseLegal: 'Tasa de prueba; no acredita normativa' }).expect(201);
+      for (const tipo of ['01', '06']) await como(contador).post('/contabilidad/cai', { cai: `CAI-PRUEBA-${tipo}`, tipoDocumento: tipo, establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 999, fechaLimiteEmision: '2026-12-31' }).expect(201);
+      return { tenant, contador, admin };
+    };
+    const importes = (base: number) => ({ importeGravadoGeneral: base, isvGeneral: base * 0.15 });
+
+    it.each(['EMITIDO', 'RECIBIDO'])('corregir notas %s respeta el límite acumulado, con rollback y aislamiento', async direccion => {
+      const { tenant, contador } = await empresa();
+      const documento = async (tipo: string, numero: number, base: number, referencia?: string) =>
+        (await como(contador).post('/contabilidad/documentos', { direccion, tipoDocumento: tipo, numero: `000-001-${tipo}-${String(numero).padStart(8, '0')}`, fechaEmision: '2026-09-15', rtnContraparte: '08011990123456', nombreContraparte: 'Contraparte', ...importes(base), documentoReferenciaId: referencia }).expect(201)).body;
+      const factura = await documento('01', 1, 1000);
+      const nota = await documento('06', 1, 100, factura.id);
+      await documento('06', 2, 800, factura.id);
+      const antes = await sql('SELECT id,total FROM fiscal_documentos WHERE tenant_id=$1 ORDER BY id', tenant);
+      const ajustes = (await sql('SELECT count(*)::int AS n FROM fiscal_ajustes WHERE tenant_id=$1', tenant))[0].n;
+      // 800 + 300 excedería la factura de 1000; el alta ya lo rechazaba, la corrección también debe hacerlo.
+      await como(contador).post(`/contabilidad/documentos/${nota.id}/correccion`, { ...importes(300), motivo: 'Intento que excede el documento' }).expect(400);
+      expect(await sql('SELECT id,total FROM fiscal_documentos WHERE tenant_id=$1 ORDER BY id', tenant)).toEqual(antes);
+      expect((await sql('SELECT count(*)::int AS n FROM fiscal_ajustes WHERE tenant_id=$1', tenant))[0].n).toBe(ajustes);
+      // Tampoco se puede reducir la factura por debajo de sus notas vigentes.
+      await como(contador).post(`/contabilidad/documentos/${factura.id}/correccion`, { ...importes(500), motivo: 'Reducir sin ajustar las notas' }).expect(400);
+      await como(u.contadorB).post(`/contabilidad/documentos/${nota.id}/correccion`, { ...importes(200), motivo: 'Intento de otra empresa' }).expect(404);
+      // Al excluir la propia nota del acumulado, sí permite completar exactamente el límite.
+      await como(contador).post(`/contabilidad/documentos/${nota.id}/correccion`, { ...importes(200), motivo: 'Completar el límite del documento' }).expect(201);
+      const [otraNota] = await sql("SELECT id FROM fiscal_documentos WHERE tenant_id=$1 AND tipo_documento='06' AND id<>$2", tenant, nota.id);
+      await como(contador).post(`/contabilidad/documentos/${otraNota.id}/anular`, { motivo: 'Anular nota registrada por error' }).expect(201);
+      await como(contador).post(`/contabilidad/documentos/${nota.id}/correccion`, { ...importes(1000), motivo: 'Las notas anuladas no consumen el límite' }).expect(201);
+    });
+
+    it('una nota parcial no concilia dos devoluciones y una nota del mes siguiente no sanea el cierre anterior', async () => {
+      const { tenant, contador, admin } = await empresa();
+      const ventaId = randomUUID();
+      await sql("INSERT INTO ventas (id,tenant_id,numero_venta,usuario_id,subtotal,isv,total,estado,created_at) VALUES ($1,$2,1,$3,1000,150,1150,'COMPLETADA','2026-09-10 12:00:00')", ventaId, tenant, admin);
+      for (const [monto, fecha] of [[115, '2026-09-15'], [230, '2026-09-20']] as const) {
+        await sql("INSERT INTO devoluciones (id,tenant_id,venta_id,usuario_id,solicitud_hash,motivo,monto,credito_cancelado,reembolso,metodo,created_at) VALUES ($1,$2,$3,$4,$5,'Prueba de cobertura',$6,0,$6,'EFECTIVO',$7::timestamp)", randomUUID(), tenant, ventaId, admin, randomUUID(), monto, `${fecha} 12:00:00`);
+      }
+      const factura = (await como(contador).post('/contabilidad/documentos', { direccion: 'EMITIDO', tipoDocumento: '01', numero: '000-001-01-00000001', fechaEmision: '2026-09-10', ventaId }).expect(201)).body;
+      const nota = (n: number, base: number, fecha: string) => como(contador).post('/contabilidad/documentos', { direccion: 'EMITIDO', tipoDocumento: '06', numero: `000-001-06-${String(n).padStart(8, '0')}`, fechaEmision: fecha, documentoReferenciaId: factura.id, ...importes(base) }).expect(201);
+      await nota(1, 100, '2026-09-15');
+      const libro = async () => (await como(contador).get('/contabilidad/libros/ventas?anio=2026&mes=9').expect(200)).body;
+      expect((await libro()).devoluciones.every((d: any) => d.hallazgos.includes('DEVOLUCION_SIN_NOTA_CREDITO'))).toBe(true);
+      await como(contador).post('/contabilidad/periodos/2026/9/cerrar', { motivo: 'Cierre de trabajo con pendientes' }).expect(201);
+      await nota(2, 200, '2026-10-01');
+      expect((await libro()).devoluciones.every((d: any) => d.hallazgos.includes('DEVOLUCION_SIN_NOTA_CREDITO'))).toBe(true);
+      const conc = (await como(contador).get('/contabilidad/conciliacion?anio=2026&mes=9').expect(200)).body;
+      expect(conc.porCodigo.LIBRO_CAMBIO_TRAS_CIERRE).toBeUndefined();
+      // Corrección legítima en período abierto: la cobertura total de septiembre queda en 345.
+      await como(admin).post('/contabilidad/periodos/2026/9/reabrir', { motivo: 'Corregir fecha de la nota real' }).expect(201);
+      const notas = (await como(contador).get('/contabilidad/documentos?anio=2026&mes=10').expect(200)).body;
+      await como(contador).post(`/contabilidad/documentos/${notas[0].id}/correccion`, { fechaEmision: '2026-09-20', motivo: 'Corregir fecha de la nota real' }).expect(201);
+      expect((await libro()).devoluciones.every((d: any) => d.hallazgos.length === 0)).toBe(true);
+    });
+
+    it('rechaza importes fuera de DECIMAL(14,2) y sumas inseguras con 400, sin escrituras parciales', async () => {
+      const { tenant, contador } = await empresa();
+      const cuenta = async (codigo: string) => (await como(contador).post('/contabilidad/cuentas', { codigo, nombre: `Cuenta ${codigo}`, tipo: 'ACTIVO', naturaleza: 'DEUDORA' }).expect(201)).body.id;
+      const debe = await cuenta('1'), haber = await cuenta('2');
+      await como(contador).post('/contabilidad/documentos', { direccion: 'RECIBIDO', tipoDocumento: '01', numero: '000-001-01-00000001', fechaEmision: '2026-09-01', rtnContraparte: '08011990123456', importeExento: 1000000000000 }).expect(400);
+      await como(contador).post('/contabilidad/documentos', { direccion: 'RECIBIDO', tipoDocumento: '01', numero: '000-001-01-00000001', fechaEmision: '2026-09-01', rtnContraparte: '08011990123456', importeExento: 999999999999.99, importeExonerado: 0.01 }).expect(400);
+      for (const monto of [1.005, 1000000000000]) await como(contador).post('/contabilidad/asientos', { fecha: '2026-09-01', concepto: 'Importe inválido', lineas: [{ cuentaId: debe, debe: monto }, { cuentaId: haber, haber: monto }] }).expect(400);
+      const lineas = Array.from({ length: 92 }, () => [{ cuentaId: debe, debe: 999999999999.99 }, { cuentaId: haber, haber: 999999999999.99 }]).flat();
+      await como(contador).post('/contabilidad/asientos', { fecha: '2026-09-01', concepto: 'Suma fuera del rango exacto', lineas }).expect(400);
+      expect((await sql('SELECT count(*)::int AS n FROM contable_asientos WHERE tenant_id=$1', tenant))[0].n).toBe(0);
+      expect((await sql('SELECT count(*)::int AS n FROM fiscal_documentos WHERE tenant_id=$1', tenant))[0].n).toBe(0);
+    });
+    it('jornada real: ventas, compras, abonos y pagos se concilian manualmente sin volver a mover auxiliares', async () => {
+      const { tenant, contador, admin } = await empresa();
+      const producto = await prisma.producto.create({ data: { tenantId: tenant, codigo: 'AUD-01', nombre: 'Tornillo auditoría', precioCosto: 50, precioVenta: 100, stockActual: 0, precioAprobado: true } });
+      const cliente = await prisma.cliente.create({ data: { tenantId: tenant, nombre: 'Cliente con crédito', creditoHabilitado: true, limiteCredito: 1000, saldoPendiente: 0 } });
+      const proveedor = await prisma.proveedor.create({ data: { tenantId: tenant, nombre: 'Proveedor auditoría', rtn: '08019000000001' } });
+      await como(admin).post('/operaciones/caja/abrir', { solicitudId: randomUUID(), monto: 1000 }).expect(201);
+      const compra = (await como(admin).post('/operaciones/compras', { solicitudId: randomUUID(), proveedorId: proveedor.id, numeroFactura: '000-001-01-00000020', isv: 75, items: [{ productoId: producto.id, cantidad: 10, costo: 50 }] }).expect(201)).body;
+      const [detalle] = await sql('SELECT id FROM detalles_orden_compra WHERE orden_id=$1', compra.id);
+      await como(admin).post(`/operaciones/compras/${compra.id}/recepciones`, { solicitudId: randomUUID(), items: [{ detalleId: detalle.id, cantidad: 10 }] }).expect(201);
+      const venta = async (tipoPago: string, cantidad: number, descuento = 0) => (await como(admin).post('/ventas', {
+        solicitudId: randomUUID(), tipoPago, metodoPago: tipoPago === 'CREDITO' ? 'CREDITO' : 'EFECTIVO', clienteId: cliente.id, descuento,
+        detalles: [{ productoId: producto.id, cantidad, modoEntrega: 'MOSTRADOR' }],
+      }).expect(res => expect(res.status, JSON.stringify(res.body)).toBe(201))).body;
+      const contado = await venta('CONTADO', 1);
+      const credito = await venta('CREDITO', 2, 10);
+      const [cxc] = await sql("SELECT id FROM cuentas_operativas WHERE tenant_id=$1 AND documento_id=$2 AND tipo='CXC'", tenant, credito.id);
+      const [cxp] = await sql("SELECT id FROM cuentas_operativas WHERE tenant_id=$1 AND documento_id=$2 AND tipo='CXP'", tenant, compra.id);
+      const abono = { solicitudId: randomUUID(), monto: 50.01, metodo: 'EFECTIVO' };
+      await como(admin).post(`/operaciones/cuentas/${cxc.id}/pagos`, abono).expect(201);
+      await como(admin).post(`/operaciones/cuentas/${cxc.id}/pagos`, abono).expect(201); // reintento
+      const pago = { solicitudId: randomUUID(), monto: 100.01, metodo: 'TRANSFERENCIA', pagoElectronico: { referencia: 'AUD-TRANSFERENCIA-1' } };
+      await como(admin).post(`/operaciones/cuentas/${cxp.id}/pagos`, pago).expect(201);
+      await como(admin).post(`/operaciones/cuentas/${cxp.id}/pagos`, pago).expect(201);
+      // Compra al contado: liquidada desde el alta, sin recepción ni salida de caja POS.
+      const otraCompra = (await como(admin).post('/operaciones/compras', { solicitudId: randomUUID(), proveedorId: proveedor.id, numeroFactura: '000-001-01-00000021', isv: 7.5, pagoContado: { metodo: 'EFECTIVO' }, items: [{ productoId: producto.id, cantidad: 1, costo: 50 }] }).expect(201)).body;
+      expect(Number((await sql('SELECT saldo FROM cuentas_operativas WHERE documento_id=$1', otraCompra.id))[0].saldo)).toBe(0);
+      expect(Number((await prisma.producto.findUniqueOrThrow({ where: { id: producto.id } })).stockActual)).toBe(7);
+      expect(Number((await prisma.cliente.findUniqueOrThrow({ where: { id: cliente.id } })).saldoPendiente)).toBe(168.49);
+      expect(Number((await sql('SELECT saldo FROM cuentas_operativas WHERE id=$1', cxp.id))[0].saldo)).toBe(474.99);
+      expect((await sql('SELECT count(*)::int AS n FROM contable_asientos WHERE tenant_id=$1', tenant))[0].n).toBe(0); // sin automatismo persistente
+
+      const foto = async () => (await sql(`SELECT
+        (SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM productos p WHERE p.tenant_id=$1) AS productos,
+        (SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM clientes c WHERE c.tenant_id=$1) AS clientes,
+        (SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM proveedores p WHERE p.tenant_id=$1) AS proveedores,
+        (SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM cuentas_operativas c WHERE c.tenant_id=$1) AS cuentas,
+        (SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM pagos_cuenta p WHERE p.tenant_id=$1) AS pagos,
+        (SELECT jsonb_agg(to_jsonb(v) ORDER BY v.id) FROM ventas v WHERE v.tenant_id=$1) AS ventas,
+        (SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM ordenes_compra o WHERE o.tenant_id=$1) AS compras,
+        (SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM cajas c WHERE c.tenant_id=$1) AS cajas,
+        (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id WHERE c.tenant_id=$1) AS movimientos_caja,
+        (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM movimientos_inventario m WHERE m.tenant_id=$1) AS inventario`, tenant))[0];
+      const antes = await foto();
+      // Documentos tomados de la operación: no vuelven a facturar, cobrar ni recibir mercadería.
+      const fecha = '2026-10-01';
+      for (const [n, v] of [[1, contado], [2, credito]] as const) await como(contador).post('/contabilidad/documentos', { direccion: 'EMITIDO', tipoDocumento: '01', numero: `000-001-01-${String(n).padStart(8, '0')}`, fechaEmision: fecha, ventaId: v.id }).expect(201);
+      for (const [n, o] of [[20, compra], [21, otraCompra]] as const) await como(contador).post('/contabilidad/documentos', { direccion: 'RECIBIDO', tipoDocumento: '01', numero: `000-001-01-${String(n).padStart(8, '0')}`, fechaEmision: fecha, ordenCompraId: o.id }).expect(201);
+      const cuentas: Record<string, string> = {};
+      for (const [codigo, nombre, tipo, naturaleza] of [
+        ['1.1', 'Caja', 'ACTIVO', 'DEUDORA'], ['1.2', 'CXC', 'ACTIVO', 'DEUDORA'], ['1.3', 'Inventario', 'ACTIVO', 'DEUDORA'], ['1.4', 'ISV crédito', 'ACTIVO', 'DEUDORA'],
+        ['1.5', 'Banco', 'ACTIVO', 'DEUDORA'], ['2.1', 'CXP', 'PASIVO', 'ACREEDORA'], ['2.2', 'ISV débito', 'PASIVO', 'ACREEDORA'], ['4', 'Ventas', 'INGRESO', 'ACREEDORA'],
+      ]) cuentas[nombre] = (await como(contador).post('/contabilidad/cuentas', { codigo, nombre, tipo, naturaleza }).expect(201)).body.id;
+      const asiento = (concepto: string, lineas: [string, number, number][]) => como(contador).post('/contabilidad/asientos', { fecha, concepto, lineas: lineas.map(([nombre, debe, haber]) => ({ cuentaId: cuentas[nombre], debe, haber })) }).expect(201);
+      await asiento('Factura compra a crédito', [['Inventario', 500, 0], ['ISV crédito', 75, 0], ['CXP', 0, 575]]);
+      await asiento('Venta contado', [['Caja', 115, 0], ['Ventas', 0, 100], ['ISV débito', 0, 15]]);
+      await asiento('Venta crédito neta de descuento', [['CXC', 218.5, 0], ['Ventas', 0, 190], ['ISV débito', 0, 28.5]]);
+      await asiento('Cobro parcial', [['Caja', 50.01, 0], ['CXC', 0, 50.01]]);
+      await asiento('Pago parcial por transferencia', [['CXP', 100.01, 0], ['Banco', 0, 100.01]]);
+      const balance = (await como(contador).get('/contabilidad/balanza?anio=2026&mes=10').expect(200)).body;
+      expect(balance.totales.cuadra).toBe(true);
+      expect(balance.cuentas.find((c: any) => c.nombre === 'CXC').saldo).toBe(168.49);
+      expect(balance.cuentas.find((c: any) => c.nombre === 'CXP').saldo).toBe(474.99);
+      const isv = (await como(contador).get('/contabilidad/resumen-isv?anio=2026&mes=10').expect(200)).body;
+      expect(isv).toMatchObject({ debitoFiscal: '43.50', creditoFiscal: '82.50', resultado: '39.00', tipoResultado: 'A_FAVOR' });
+      const ajuste = (await asiento('Corrección manual reversible', [['Caja', 0.01, 0], ['Banco', 0, 0.01]])).body;
+      await como(contador).post(`/contabilidad/asientos/${ajuste.id}/revertir`, { fecha, motivo: 'Reversión de prueba trazable' }).expect(201);
+      await como(contador).get(`/contabilidad/mayor?cuentaId=${cuentas.CXC}&anio=2026&mes=10`).expect(200);
+      await descargar('/contabilidad/exportar/mensual?anio=2026&mes=10', contador).expect(200);
+      expect(await foto()).toEqual(antes);
+      const rastros = await sql("SELECT operacion,usuario_id FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion LIKE 'CONTABILIDAD_%'", tenant);
+      expect(rastros.filter(r => r.operacion === 'CONTABILIDAD_ASIENTO_CREAR')).toHaveLength(6);
+      expect(rastros.every(r => r.usuario_id === contador)).toBe(true);
+    });
+
+  });
+
 });

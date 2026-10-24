@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
+import { aCentavos } from '../common/redondeo-monetario';
 
 /**
  * Reglas fiscales de Honduras usadas por Contabilidad (fase 1). Funciones puras: sin base de datos.
@@ -91,8 +91,11 @@ export function tasaVigente<T extends Vigencia & { categoria: string }>(tasas: T
 /** Porcentaje (hasta dos decimales) aplicado a un importe en centavos, mitad hacia arriba. */
 export function aplicarPorcentaje(baseCentavos: number, porcentaje: number): number {
   const centesimas = aCentavos(porcentaje, 'Porcentaje');
-  if (baseCentavos < 0 || centesimas < 0) throw new BadRequestException('Importe o porcentaje negativo');
-  return divisionMitadArriba(baseCentavos * centesimas, 10000);
+  if (!Number.isSafeInteger(baseCentavos) || baseCentavos < 0 || centesimas < 0) throw new BadRequestException('Importe o porcentaje inválido');
+  // El producto de dos enteros seguros puede exceder la precisión de Number aun con DECIMAL(14,2).
+  const resultado = Number((BigInt(baseCentavos) * BigInt(centesimas) * 2n + 10000n) / 20000n);
+  if (!Number.isSafeInteger(resultado)) throw new BadRequestException('Importe fuera de rango');
+  return resultado;
 }
 
 export interface ImportesDocumento {
@@ -100,10 +103,15 @@ export interface ImportesDocumento {
   isvGeneral: number; isvEspecial: number;
 }
 export const CAMPOS_IMPORTE: (keyof ImportesDocumento)[] = ['importeExento', 'importeExonerado', 'importeGravadoGeneral', 'importeGravadoEspecial', 'isvGeneral', 'isvEspecial'];
+/** Capacidad real de las columnas monetarias contables DECIMAL(14,2), no un límite fiscal. */
+export const MAX_IMPORTE_CONTABLE = 999999999999.99;
+export const MAX_CENTAVOS_CONTABLES = 99999999999999;
 
 /** Total en centavos del documento: suma exacta de sus importes. */
 export function totalDocumentoCentavos(d: ImportesDocumento): number {
-  return CAMPOS_IMPORTE.reduce((suma, campo) => suma + aCentavos(Number(d[campo]), campo), 0);
+  const total = CAMPOS_IMPORTE.reduce((suma, campo) => suma + aCentavos(Number(d[campo]), campo), 0);
+  if (!Number.isSafeInteger(total) || total > MAX_CENTAVOS_CONTABLES) throw new BadRequestException('Total del documento fuera de rango');
+  return total;
 }
 
 /**

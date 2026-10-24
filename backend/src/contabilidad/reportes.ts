@@ -105,7 +105,7 @@ export async function hojaVentas(db: Tx, ctx: Contexto): Promise<Hoja> {
   const notas = [
     libro.filas.length === 0 ? SIN_REGISTROS : '',
     `Ventas sin documento fiscal (no suman al libro): ${libro.totales.sinDocumento.cantidad} por L ${libro.totales.sinDocumento.total}.`,
-    ...libro.devoluciones.map(d => `Devolución ${d.referenciaInterna} del ${d.fecha} por L ${d.monto}: ${d.hallazgos.length ? 'SIN nota de crédito registrada' : 'con nota de crédito'}.`),
+    ...libro.devoluciones.map(d => `Devolución ${d.referenciaInterna} del ${d.fecha} por L ${d.monto}: ${d.hallazgos.length ? 'sin cobertura completa de notas de crédito al corte' : 'con cobertura de notas de crédito al corte'}.`),
     NOTA_TRABAJO,
   ].filter(Boolean);
   return hoja(ctx, 'Ventas', 'Libro de ventas', columnas, filas, {

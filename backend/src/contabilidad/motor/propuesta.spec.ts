@@ -29,7 +29,7 @@ describe('adaptadores', () => {
     expect(centavosDeFila('9007199254740.99')).toBe(900719925474099);
   });
   it('rechazan valores no numéricos, con más de dos decimales o fuera de rango', () => {
-    for (const malo of ['abc', '', null, undefined, '1.005', NaN, '99999999999999999.99']) expect(() => centavosDeFila(malo)).toThrow(RangeError);
+    for (const malo of ['abc', '', null, undefined, '1.005', 1.005, 0.001, NaN, Infinity, '99999999999999999.99']) expect(() => centavosDeFila(malo)).toThrow(RangeError);
   });
   it('arman las entradas del motor desde filas de la base', () => {
     expect(ventaDesdeFila(filaVenta)).toEqual({ subtotalCentavos: 10000, descuentoCentavos: 0, isvCentavos: 1500, totalCentavos: 11500, tipoPago: 'CONTADO', metodoPago: 'EFECTIVO' });
