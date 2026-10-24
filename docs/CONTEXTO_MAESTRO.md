@@ -8,6 +8,16 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 
 ---
 
+## Preparación de producción: infraestructura, BD y despliegue — 2026-10-24 UTC (rama `claude/gallant-knuth-c68iv1`, sin merge ni despliegue)
+
+- **Alcance:** solo infraestructura, base de datos y confiabilidad del despliegue (Vercel, Render, Supabase). Sin cambios en POS, interfaz, contabilidad ni lógica comercial. No se tocó #180 ni #194.
+- **Corregido:** `NODE_ENV` se comparaba sin normalizar en las cookies de renovación (`auth/refresh-cookie.ts`) y en las cabeceras de seguridad, mientras `jwt-secret.ts` y `auth-config.ts` sí normalizan. Un valor pegado con espacios o en mayúsculas dejaba las cookies sin `Secure`/`SameSite=None` y el login desde Vercel fallaba. Ahora todo usa `common/entorno.ts` (`esProduccion`). Pruebas: `auth/refresh-cookie.spec.ts` (nueva: `" production "` y `"Production"`) y `common/entorno.spec.ts`.
+- **Documentación corregida:** el runbook afirmaba que sin `NODE_ENV` `JWT_SECRET` caía a un secreto público; el código actual lo rechaza fuera de development/test. Añadida la sección 5b de reversión por capa (frontend, backend, base) con su orden y sus límites.
+- **Verificado sin cambios:** migraciones de `backend/prisma/migrations` son aditivas (sin `DROP TABLE/COLUMN`, `TRUNCATE` ni `DELETE`; solo recrean CHECK constraints). `migration-safe.mjs` no migra al arrancar y bloquea con historial o checksum incompatibles. CORS exige orígenes exactos. `TRUST_PROXY`, `FRONTEND_URLS` y el arranque sin `JWT_SECRET` se validan al iniciar.
+- **Pruebas:** backend `npm ci` + `npm run build` OK; `tsc -p tsconfig.build.json` OK; `vitest run` 584/584 en 58 archivos tras la corrección (581 antes, incluido el spec nuevo); `node --test scripts/*.test.mjs` 48/48 tras compilar `dist/` (sin `dist/` fallaban 5 por entorno, no por código). Lint: sin errores; avisos preexistentes en specs.
+- **Pendientes reales (no verificables desde el entorno):** panel de Render (Start Command, Pre-Deploy vacío, variables), Supabase (planes de respaldo y restauración real), Vercel (variables de Preview/Production). Destino remoto del respaldo FS-41 sin configurar: no declarar respaldo de producción activo. Backend anterior contra base ya migrada: sigue sin verificar y la reversión de código requiere restaurar si hay migraciones nuevas. Sin ensayo de restauración en Supabase real.
+- **Bitácora:** lectura de AGENTS, contexto, NEXUS y runbook; revisión de migraciones, CORS, cookies, JWT y respaldos; ejecución de pruebas; corrección de `NODE_ENV`; documentación de reversión. **NEXUS:** sin cambios de esquema ni migraciones.
+
 ## Cancelación POS y anulación administrativa — 2026-10-23 UTC
 
 - **Rama única y PR:** `codex/pos-cancelacion-autorizada`, [#194](https://github.com/Nelosama/FerreSystem/pull/194), base `main` `b60b49b3`. #180 y #192 inspeccionados y no modificados. Sin merge, despliegue, producción, dependencias nuevas ni migraciones.
