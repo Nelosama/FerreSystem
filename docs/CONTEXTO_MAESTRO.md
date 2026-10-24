@@ -30,7 +30,7 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 - **Defecto corregido:** las migraciones `20261020000000_rol_contador` y `20261020000100_contabilidad_honduras` se ordenaban antes de `20261021…/20261022…` de `main`: una base con `main` quedaba `BLOQUEADA` (`HISTORIAL_CON_HUECOS`). Renombradas a `20261022000100_rol_contador` y `20261022000200_contabilidad_honduras` (mismo contenido/checksum, nunca aplicadas en producción); prueba de regresión en `migraciones-control-arranque.postgres.integration.ts`. Guardia sin relajar.
 - **Corrección documental:** revertir solo el código hacia `main` tras migrar NO arranca (`MIGRACION_DESCONOCIDA`, reproducido); el rollback real requiere respaldo previo/reversión revisada.
 - **Detalle:** `docs/PREPARACION_PRODUCCION_PR180.md` (disponibilidad, cuatro variables de Render, orden de despliegue, rollback, checklist del contador, no aprobado).
-- **Verificado localmente:** backend 676/676, frontend 544/544, scripts 51/51, builds y lint sin errores; migraciones main→PR sobre PostgreSQL 16 efímero. Suite PostgreSQL completa y Playwright: ver PR.
+- **Verificado localmente:** backend 676/676, frontend 544/544, scripts 51/51, builds y lint sin errores; migraciones main→PR sobre PostgreSQL 16 efímero. PostgreSQL completo 1119 aprobadas/1 omitida opt-in/0 fallos (66 archivos, PG 16 efímero); Playwright auth-security + contabilidad-simulado 26/26. Piloto real y navegador completo: solo en CI del SHA publicado.
 - **Pendientes del propietario:** Resend/variables, envío real autorizado, enrolamiento MFA, health check `/api/health`, validación fiscal del contador, bases preview con nombres antiguos de migración.
 
 ## Cancelación POS y anulación administrativa — 2026-10-23 UTC
