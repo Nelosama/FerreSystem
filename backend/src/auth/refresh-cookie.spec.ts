@@ -9,6 +9,11 @@ describe('cookie de renovación: misma política al emitir y borrar', () => {
       expect(refreshCookieOptions({ get: () => 'production' }, admin)).toEqual({ httpOnly: true, secure: true, sameSite: 'none', path: admin ? '/api/admin/auth' : '/' });
     });
   }
+  it('NODE_ENV con espacios o mayúsculas (pegado en Render) sigue siendo producción', () => {
+    for (const valor of [' production ', 'Production']) {
+      expect(refreshCookieOptions({ get: () => valor })).toMatchObject({ secure: true, sameSite: 'none' });
+    }
+  });
   it('la vida de la cookie sigue JWT_REFRESH_EXPIRES_IN en vez de siete días fijos', async () => {
     const clock = new Date('2026-10-16T08:00:00Z');
     const spy = vi.spyOn(Date, 'now').mockReturnValue(clock.getTime());
