@@ -175,8 +175,8 @@ test.describe('Inicio del administrador: pendientes reales', () => {
   });
 });
 
-test.describe('Ventas sin conexión: acceso desde ambos menús y permisos', () => {
-  test('SIDEBAR: ADMIN accede desde el menú lateral', async ({ page, baseURL }) => {
+test.describe('Ventas sin conexión: acceso desde el rail y permisos', () => {
+  test('ADMIN accede desde el rail', async ({ page, baseURL }) => {
     await preparar(page, baseURL);
     await page.goto('/');
     // En el rail del administrador, «Ventas sin conexión» vive en el panel «Ventas».
@@ -187,11 +187,12 @@ test.describe('Ventas sin conexión: acceso desde ambos menús y permisos', () =
     await expect(page.getByRole('heading', { name: /Contingencia offline/ })).toBeVisible();
   });
 
-  test('TOPNAV: ADMIN accede desde las opciones del punto de venta', async ({ page, baseURL }) => {
+  test('con el valor histórico TOPNAV el acceso es el mismo: el rail es la única navegación', async ({ page, baseURL }) => {
     await preparar(page, baseURL, { modo: 'TOPNAV' });
     await page.goto('/');
-    await page.locator('header.jowa-topnav .topnav-entry:has(a[href="/pos"]) summary').click();
-    await page.locator('header.jowa-topnav a[href="/contingencia-admin"]').click();
+    await expect(page.locator('header.jowa-topnav')).toHaveCount(0);
+    await page.locator('nav.admin-rail').getByRole('button', { name: 'Ventas', exact: true }).click();
+    await page.locator('#app-rail-panel-ventas a[href="/contingencia-admin"]').click();
     await expect(page).toHaveURL(/\/contingencia-admin$/);
   });
 
@@ -234,16 +235,16 @@ test.describe('Ventas sin conexión: acceso desde ambos menús y permisos', () =
   });
 });
 
-test('Configuración del negocio: cuatro secciones, solo Super Admin y compatible con configuraciones antiguas', async ({ page, baseURL }) => {
+test('Configuración del negocio: tres secciones, sin selector de navegación, solo Super Admin y compatible con configuraciones antiguas', async ({ page, baseURL }) => {
   await preparar(page, baseURL, { rol: 'SUPERADMIN', ajustes: { configuracion: { templateVersion: 'v2', estiloVisual: 'INDUSTRIAL', tipografia: 'Inter' }, formatoImpresion: 'ROLLO_80MM' } });
   await page.goto('/admin/negocios/pend-company/configuracion');
   const titulos = page.locator('form h2');
-  await expect(titulos).toHaveText(['1. Mi negocio', '2. Venta e impresión', '3. Equipo y permisos', '4. Navegación']);
+  await expect(titulos).toHaveText(['1. Mi negocio', '2. Venta e impresión', '3. Equipo y permisos']);
   await expect(page.locator('#business-name')).toHaveValue('Ferretería Pendientes');
   await expect(page.getByLabel('Formato de impresión de facturas y recibos')).toHaveValue('ROLLO_80MM');
   await expect(page.locator('#tax-rate')).toHaveValue('15');
   await expect(page.getByRole('link', { name: 'Usuarios, roles y permisos' })).toHaveAttribute('href', '/admin/negocios/pend-company/usuarios');
-  await expect(page.getByRole('button', { name: /MENÚ LATERAL/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: /MENÚ LATERAL|MENÚ SUPERIOR/ })).toHaveCount(0);
 });
 
 test('ADMIN no obtiene la configuración del negocio', async ({ page, baseURL }) => {

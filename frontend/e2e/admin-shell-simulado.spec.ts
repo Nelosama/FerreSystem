@@ -101,7 +101,7 @@ const contraste = (a: number[], b: number[]) => {
 
 const sinDesborde = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
-test.describe('Shell del administrador (modo barra lateral)', () => {
+test.describe('Shell del administrador (navegación híbrida)', () => {
   test('rail con Inicio, Ventas, Inventario, Compras, Clientes y Más, con módulos reales', async ({ page }) => {
     const sim = await preparar(page);
     await page.setViewportSize({ width: 1366, height: 768 });
@@ -248,22 +248,23 @@ test.describe('Shell del administrador (modo barra lateral)', () => {
     });
   }
 
-  test('modo barra superior: se conserva el layout anterior, sin rail ni barra del shell', async ({ page }) => {
+  test('el valor histórico TOPNAV ya no cambia el layout: rail y barra superior del shell híbrido', async ({ page }) => {
     await preparar(page, { modo: 'TOPNAV' });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    await expect(page.locator('header.jowa-topnav')).toBeVisible();
-    await expect(page.locator('nav.admin-rail')).toHaveCount(0);
-    await expect(page.locator('header.admin-topbar')).toHaveCount(0);
+    await expect(page.locator('nav.admin-rail')).toBeVisible();
+    await expect(page.locator('header.admin-topbar')).toBeVisible();
+    await expect(page.locator('header.jowa-topnav')).toHaveCount(0);
     await expect(page.getByTitle(/^(Cerrar Sesión|Log Out)$/)).toHaveCount(1);
   });
 
-  test('otros roles no reciben el shell del administrador', async ({ page }) => {
+  test('el cajero conserva su rail propio (venta y caja), con la misma barra superior', async ({ page }) => {
     await preparar(page, { rol: 'CAJERO' });
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/pos');
     await expect(page.locator('nav.admin-rail')).toHaveCount(0);
     await expect(page.locator('nav.cajero-rail')).toBeVisible();
+    await expect(page.locator('header.admin-topbar')).toBeVisible();
   });
 });
 

@@ -186,145 +186,148 @@ export const AdminHomePage: React.FC = () => {
             ayuda={datos ? t('shell.home.below_minimum') : t('shell.home.loading')} alerta={alertas.length > 0} />
         </section>
 
-        <div className="admin-home__rejilla-principal">
-          {acciones.length > 0 && (
-            <section className="admin-home__tarjeta" aria-labelledby="home-acciones">
-              <h2 id="home-acciones" className="admin-home__subtitulo">{t('shell.home.frequent')}</h2>
-              <p className="admin-home__ayuda">{t('shell.home.frequent_help')}</p>
-              <nav className="admin-home__acciones" aria-label={t('shell.home.actions')}>
-                {acciones.map(a => {
-                  const Icon = a.icono;
-                  return (
-                    <Link key={a.clave} to={rutaDe(a.clave)!} className="admin-home__accion" data-accion={a.clave}>
-                      <span className="admin-home__accion-icono"><Icon size={20} aria-hidden="true" /></span>
-                      <span className="admin-home__accion-texto"><strong>{t(a.titulo)}</strong><small>{a.clave === 'cotizaciones' && datos ? t('shell.home.quotes_open', { count: datos.cotizacionesPendientes.cantidad, today: datos.cotizacionesPendientes.porVencerHoy }) : t(a.ayuda)}</small></span>
-                      <ChevronRight size={17} aria-hidden="true" className="admin-home__chevron" />
-                    </Link>
-                  );
-                })}
-              </nav>
-            </section>
-          )}
-
-          {/* Lo que requiere una acción hoy. Cifras confirmadas por GET /dashboard/pendientes y por las cuentas vencidas. */}
-          <section className="admin-home__tarjeta admin-home__pendientes" aria-labelledby="home-pendientes" aria-busy={estado.tipo === 'cargando'} data-estado={estado.tipo}>
-            <h2 id="home-pendientes" className="admin-home__subtitulo">{t('shell.home.attention')}</h2>
-            <p className="admin-home__ayuda">{t('shell.home.attention_help')}</p>
-            {estado.tipo === 'cargando' && <p className="admin-home__vacio" role="status">{t('shell.home.pending_loading')}</p>}
-            {estado.tipo === 'error' && <p className="admin-home__aviso admin-home__aviso--compacto" role="alert">{t('shell.home.pending_error')}</p>}
-            {estado.tipo === 'sin_indicadores' && !hayExtras && <p className="admin-home__vacio">{t('shell.home.pending_unavailable')}</p>}
-            {estado.tipo === 'al_dia' && !hayExtras && <p className="admin-home__vacio admin-home__al-dia" role="status">{t('shell.home.pending_none')}</p>}
-            {(estado.tipo === 'con_pendientes' || hayExtras) && (
-              <>
-                <ul className="admin-home__lista">
-                  {estado.tipo === 'con_pendientes' && estado.activos.map(i => (
-                    <li key={i.clave}>
-                      <Link to={i.ruta} className="admin-home__fila admin-home__fila--enlace" data-pendiente={i.clave} aria-label={`${titulo(i)}: ${i.cantidad}`}>
-                        <span className="admin-home__icono">{PRESENTACION[i.clave].icono}</span>
-                        <div>
-                          <strong>{titulo(i)}</strong>
-                          <span className="admin-home__meta">{t(i.alcance === 'PROPIAS' && i.clave === 'entregas_pendientes' ? 'shell.home.deliveries_own' : PRESENTACION[i.clave].detalle)}</span>
-                        </div>
-                        <span className="admin-home__contador">{i.cantidad}</span>
-                        <ChevronRight size={16} aria-hidden="true" className="admin-home__chevron" />
-                      </Link>
-                    </li>
-                  ))}
-                  {extras.map(e => {
-                    const contenido = (
-                      <>
-                        <span className="admin-home__icono">{e.icono}</span>
-                        <div>
-                          <strong>{e.titulo}</strong>
-                          <span className="admin-home__meta">{e.detalle}</span>
-                        </div>
-                        <span className="admin-home__contador">{e.cantidad}</span>
-                      </>
-                    );
-                    return (
-                      <li key={e.clave}>
-                        {rutaCuentas
-                          ? <Link to={rutaCuentas} className="admin-home__fila admin-home__fila--enlace" data-pendiente={e.clave} aria-label={`${e.titulo}: ${e.cantidad}`}>{contenido}<ChevronRight size={16} aria-hidden="true" className="admin-home__chevron" /></Link>
-                          : <div className="admin-home__fila" data-pendiente={e.clave} aria-label={`${e.titulo}: ${e.cantidad}`}>{contenido}</div>}
-                      </li>
-                    );
-                  })}
-                </ul>
-                {estado.tipo === 'con_pendientes' && estado.alDia.length > 0 && (
-                  <p className="admin-home__meta admin-home__al-dia">{t('shell.home.up_to_date', { list: estado.alDia.map(titulo).join(' · ') })}</p>
-                )}
-              </>
-            )}
-          </section>
-        </div>
-
-        <section className="admin-home__tarjeta" aria-labelledby="home-ventas">
-          <div className="admin-home__encabezado-tarjeta">
-            <div>
-              <h2 id="home-ventas" className="admin-home__subtitulo">{t('shell.home.recent_sales')}</h2>
-              <p className="admin-home__ayuda">{t('shell.home.recent_help')}</p>
-            </div>
-            {puedeReportes && <Link to={rutaDe('reportes')!} className="admin-home__enlace">{t('shell.home.see_reports')} <ArrowUpRight size={14} aria-hidden="true" /></Link>}
-          </div>
-          {!datos ? <p className="admin-home__vacio" role="status">{t('shell.home.sales_loading')}</p>
-            : datos.ultimasVentas.length === 0 ? <p className="admin-home__vacio">{t('shell.home.sales_empty')}</p>
-            : (
-              <div className="admin-home__tabla-contenedor">
-                <table className="admin-home__tabla">
-                  <thead>
-                    <tr>
-                      <th scope="col">{t('shell.home.col_time')}</th>
-                      <th scope="col">{t('shell.home.col_sale')}</th>
-                      <th scope="col">{t('shell.home.col_customer')}</th>
-                      <th scope="col">{t('shell.home.col_cashier')}</th>
-                      <th scope="col">{t('shell.home.col_method')}</th>
-                      <th scope="col" className="admin-home__num">{t('shell.home.col_total')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {datos.ultimasVentas.map(v => (
-                      <tr key={v.id}>
-                        <td>{v.hora}</td>
-                        <td>#{v.numeroVenta}</td>
-                        <td>{v.cliente}</td>
-                        <td>{v.cajero}</td>
-                        <td>{etiquetaMetodo[v.metodoPago] ?? v.metodoPago}</td>
-                        <td className="admin-home__num">{formatLempiras(v.total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-        </section>
-
-        <div className="admin-home__rejilla">
-          <section className="admin-home__tarjeta" aria-labelledby="home-tendencia">
-            <h2 id="home-tendencia" className="admin-home__subtitulo">{t('shell.home.trend')}</h2>
-            {datos ? <TendenciaSemanal dias={datos.tendenciaSemanal} /> : <p className="admin-home__vacio" role="status">{t('shell.home.trend_loading')}</p>}
-          </section>
-
-          <section className="admin-home__tarjeta" aria-labelledby="home-alertas">
-            <h2 id="home-alertas" className="admin-home__subtitulo">{t('shell.home.stock_alerts')}</h2>
-            {!datos ? <p className="admin-home__vacio" role="status">{t('shell.home.alerts_loading')}</p>
-              : alertas.length === 0 ? <p className="admin-home__vacio">{t('shell.home.alerts_empty')}</p>
-              : (
+        {/* Distribución fluida: columna principal (atención y últimas ventas) y columna lateral (acciones, alertas, tendencia). */}
+        <div className="admin-home__cuerpo">
+          <div className="admin-home__columna admin-home__columna--principal">
+            {/* Lo que requiere una acción hoy. Cifras confirmadas por GET /dashboard/pendientes y por las cuentas vencidas. */}
+            <section className="admin-home__tarjeta admin-home__pendientes" aria-labelledby="home-pendientes" aria-busy={estado.tipo === 'cargando'} data-estado={estado.tipo}>
+              <h2 id="home-pendientes" className="admin-home__subtitulo">{t('shell.home.attention')}</h2>
+              <p className="admin-home__ayuda">{t('shell.home.attention_help')}</p>
+              {estado.tipo === 'cargando' && <p className="admin-home__vacio" role="status">{t('shell.home.pending_loading')}</p>}
+              {estado.tipo === 'error' && <p className="admin-home__aviso admin-home__aviso--compacto" role="alert">{t('shell.home.pending_error')}</p>}
+              {estado.tipo === 'sin_indicadores' && !hayExtras && <p className="admin-home__vacio">{t('shell.home.pending_unavailable')}</p>}
+              {estado.tipo === 'al_dia' && !hayExtras && <p className="admin-home__vacio admin-home__al-dia" role="status">{t('shell.home.pending_none')}</p>}
+              {(estado.tipo === 'con_pendientes' || hayExtras) && (
                 <>
                   <ul className="admin-home__lista">
-                    {alertas.slice(0, 5).map(p => (
-                      <li key={p.id} className="admin-home__fila">
-                        <div>
-                          <strong>{p.nombre}</strong>
-                          <span className="admin-home__meta">{p.codigo}</span>
+                    {estado.tipo === 'con_pendientes' && estado.activos.map(i => (
+                      <li key={i.clave}>
+                        <Link to={i.ruta} className="admin-home__fila admin-home__fila--enlace" data-pendiente={i.clave} aria-label={`${titulo(i)}: ${i.cantidad}`}>
+                          <span className="admin-home__icono">{PRESENTACION[i.clave].icono}</span>
+                          <div>
+                            <strong>{titulo(i)}</strong>
+                            <span className="admin-home__meta">{t(i.alcance === 'PROPIAS' && i.clave === 'entregas_pendientes' ? 'shell.home.deliveries_own' : PRESENTACION[i.clave].detalle)}</span>
                         </div>
-                        <span className="admin-home__chip admin-home__chip--alerta">{String(p.stockActual)} / {t('shell.home.minimum')} {String(p.stockMinimo)} {p.unidadMedida}</span>
+                          <span className="admin-home__contador">{i.cantidad}</span>
+                          <ChevronRight size={16} aria-hidden="true" className="admin-home__chevron" />
+                        </Link>
                       </li>
                     ))}
+                    {extras.map(e => {
+                      const contenido = (
+                        <>
+                          <span className="admin-home__icono">{e.icono}</span>
+                          <div>
+                            <strong>{e.titulo}</strong>
+                            <span className="admin-home__meta">{e.detalle}</span>
+                        </div>
+                          <span className="admin-home__contador">{e.cantidad}</span>
+                        </>
+                      );
+                      return (
+                        <li key={e.clave}>
+                          {rutaCuentas
+                            ? <Link to={rutaCuentas} className="admin-home__fila admin-home__fila--enlace" data-pendiente={e.clave} aria-label={`${e.titulo}: ${e.cantidad}`}>{contenido}<ChevronRight size={16} aria-hidden="true" className="admin-home__chevron" /></Link>
+                            : <div className="admin-home__fila" data-pendiente={e.clave} aria-label={`${e.titulo}: ${e.cantidad}`}>{contenido}</div>}
+                        </li>
+                      );
+                    })}
                   </ul>
-                  {puedeInventario && <Link to={rutaDe('inventario')!} className="admin-home__enlace">{t('shell.home.see_inventory')} <ArrowUpRight size={14} aria-hidden="true" /></Link>}
+                  {estado.tipo === 'con_pendientes' && estado.alDia.length > 0 && (
+                    <p className="admin-home__meta admin-home__al-dia">{t('shell.home.up_to_date', { list: estado.alDia.map(titulo).join(' · ') })}</p>
+                  )}
                 </>
               )}
-          </section>
+            </section>
+
+            <section className="admin-home__tarjeta" aria-labelledby="home-ventas">
+              <div className="admin-home__encabezado-tarjeta">
+                <div>
+                  <h2 id="home-ventas" className="admin-home__subtitulo">{t('shell.home.recent_sales')}</h2>
+                  <p className="admin-home__ayuda">{t('shell.home.recent_help')}</p>
+                </div>
+                {puedeReportes && <Link to={rutaDe('reportes')!} className="admin-home__enlace">{t('shell.home.see_reports')} <ArrowUpRight size={14} aria-hidden="true" /></Link>}
+              </div>
+              {!datos ? <p className="admin-home__vacio" role="status">{t('shell.home.sales_loading')}</p>
+                : datos.ultimasVentas.length === 0 ? <p className="admin-home__vacio">{t('shell.home.sales_empty')}</p>
+                : (
+                  <div className="admin-home__tabla-contenedor">
+                    <table className="admin-home__tabla">
+                      <thead>
+                        <tr>
+                          <th scope="col">{t('shell.home.col_time')}</th>
+                          <th scope="col">{t('shell.home.col_sale')}</th>
+                          <th scope="col">{t('shell.home.col_customer')}</th>
+                          <th scope="col">{t('shell.home.col_cashier')}</th>
+                          <th scope="col">{t('shell.home.col_method')}</th>
+                          <th scope="col" className="admin-home__num">{t('shell.home.col_total')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {datos.ultimasVentas.map(v => (
+                          <tr key={v.id}>
+                            <td>{v.hora}</td>
+                            <td>#{v.numeroVenta}</td>
+                            <td>{v.cliente}</td>
+                            <td>{v.cajero}</td>
+                            <td>{etiquetaMetodo[v.metodoPago] ?? v.metodoPago}</td>
+                            <td className="admin-home__num">{formatLempiras(v.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+            </section>
+          </div>
+
+          <div className="admin-home__columna admin-home__columna--lateral">
+            {acciones.length > 0 && (
+              <section className="admin-home__tarjeta" aria-labelledby="home-acciones">
+                <h2 id="home-acciones" className="admin-home__subtitulo">{t('shell.home.frequent')}</h2>
+                <p className="admin-home__ayuda">{t('shell.home.frequent_help')}</p>
+                <nav className="admin-home__acciones" aria-label={t('shell.home.actions')}>
+                  {acciones.map(a => {
+                    const Icon = a.icono;
+                    return (
+                      <Link key={a.clave} to={rutaDe(a.clave)!} className="admin-home__accion" data-accion={a.clave}>
+                        <span className="admin-home__accion-icono"><Icon size={20} aria-hidden="true" /></span>
+                        <span className="admin-home__accion-texto"><strong>{t(a.titulo)}</strong><small>{a.clave === 'cotizaciones' && datos ? t('shell.home.quotes_open', { count: datos.cotizacionesPendientes.cantidad, today: datos.cotizacionesPendientes.porVencerHoy }) : t(a.ayuda)}</small></span>
+                        <ChevronRight size={17} aria-hidden="true" className="admin-home__chevron" />
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </section>
+            )}
+
+            <section className="admin-home__tarjeta" aria-labelledby="home-alertas">
+              <h2 id="home-alertas" className="admin-home__subtitulo">{t('shell.home.stock_alerts')}</h2>
+              {!datos ? <p className="admin-home__vacio" role="status">{t('shell.home.alerts_loading')}</p>
+                : alertas.length === 0 ? <p className="admin-home__vacio">{t('shell.home.alerts_empty')}</p>
+                : (
+                  <>
+                    <ul className="admin-home__lista">
+                      {alertas.slice(0, 5).map(p => (
+                        <li key={p.id} className="admin-home__fila">
+                          <div>
+                            <strong>{p.nombre}</strong>
+                            <span className="admin-home__meta">{p.codigo}</span>
+                        </div>
+                          <span className="admin-home__chip admin-home__chip--alerta">{String(p.stockActual)} / {t('shell.home.minimum')} {String(p.stockMinimo)} {p.unidadMedida}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {puedeInventario && <Link to={rutaDe('inventario')!} className="admin-home__enlace">{t('shell.home.see_inventory')} <ArrowUpRight size={14} aria-hidden="true" /></Link>}
+                  </>
+                )}
+            </section>
+
+            <section className="admin-home__tarjeta" aria-labelledby="home-tendencia">
+              <h2 id="home-tendencia" className="admin-home__subtitulo">{t('shell.home.trend')}</h2>
+              {datos ? <TendenciaSemanal dias={datos.tendenciaSemanal} /> : <p className="admin-home__vacio" role="status">{t('shell.home.trend_loading')}</p>}
+            </section>
+          </div>
         </div>
 
         {/* Funciones que todavía no registran operaciones: que el administrador no las dé por operativas. */}

@@ -10,7 +10,7 @@ import { Button } from '../components/Button';
 import { errorColorHex } from '../utils/colorHex';
 import { AvisoColorMarca } from '../components/AvisoColorMarca';
 import { FORMATOS_IMPRESION, type FormatoImpresion } from '../utils/formatoImpresion';
-import { Palette, Building2, Check, RefreshCw, Store, Layout, Eye, Languages, Coins, Receipt, Users, Layers } from 'lucide-react';
+import { Palette, Building2, Check, RefreshCw, Store, Eye, Languages, Coins, Receipt, Users, Layers } from 'lucide-react';
 
 const PRESET_COLORS = [
   { name: 'uxAudit.color_0', hex: '#EA580C' },
@@ -31,6 +31,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   const [cargaError, setCargaError] = useState('');
   const negocio: any = datos ?? {};
 
+  const [modoNavegacion, setModoNavegacion] = useState<'SIDEBAR' | 'TOPNAV'>('SIDEBAR');
   const [modoGuia, setModoGuia] = useState(false);
   const [idioma, setIdioma] = useState<'es' | 'en'>('es');
   const [nombre, setNombre] = useState(negocio.nombreComercial || '');
@@ -38,9 +39,6 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   const errorColor = errorColorHex(color);
   const [rubro, setRubro] = useState<Rubro>((negocio.rubro || Rubro.FERRETERIA) as Rubro);
   const [formatoImpresion, setFormatoImpresion] = useState<FormatoImpresion>((negocio.formatoImpresion || 'A4') as FormatoImpresion);
-  const [modoNavegacion, setModoNavegacion] = useState<'SIDEBAR' | 'TOPNAV'>(
-    (negocio.modoNavegacion || 'SIDEBAR') as any,
-  );
 
   // Moneda e Impuesto
   const monedaSimbolo = 'L.';
@@ -69,13 +67,13 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   // Sincronizar estados cuando el negocio cargado cambie
   React.useEffect(() => {
     if (negocio && !dirty.current) {
+      setModoNavegacion(negocio.modoNavegacion === 'TOPNAV' ? 'TOPNAV' : 'SIDEBAR');
       setModoGuia(negocio.modoGuia === true);
       setIdioma(negocio.idioma === 'en' ? 'en' : 'es');
       setNombre(negocio.nombreComercial || '');
       setColor(negocio.colorPrimario || '#EA580C');
       setRubro((negocio.rubro || Rubro.FERRETERIA) as Rubro);
       setFormatoImpresion((negocio.formatoImpresion || 'A4') as FormatoImpresion);
-      setModoNavegacion((negocio.modoNavegacion || 'SIDEBAR') as any);
 
       setDireccion(negocio.direccion || '');
       setTelefono(negocio.telefono || '');
@@ -143,6 +141,13 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         )}
 
         <form className="negocio-settings-grid tenant-settings-grid" onSubmit={handleGuardar} onChange={() => { dirty.current = true; }} onClick={event => { if ((event.target as HTMLElement).closest('button[type="button"]')) dirty.current = true; }} aria-busy={saving} style={styles.grid}>
+<label className="form-label" htmlFor="navigation-mode">{t('settings.navigation_mode')}
+  <select id="navigation-mode" className="form-input" value={modoNavegacion} onChange={e => setModoNavegacion(e.target.value as 'SIDEBAR' | 'TOPNAV')} disabled={saving}>
+    <option value="SIDEBAR">{t('settings.navigation_sidebar')}</option>
+    <option value="TOPNAV">{t('settings.navigation_topnav')}</option>
+  </select>
+  <span className="settings-section-help">{t('settings.navigation_help')}</span>
+</label>
 <label style={{ display: 'block', margin: '16px 0' }}>{t('guide.setting')} <select className="form-input" value={String(modoGuia)} onChange={e => { dirty.current = true; setModoGuia(e.target.value === 'true'); }}><option value="false">{t('guide.disabled')}</option><option value="true">{t('guide.enabled')}</option></select></label>
           <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-business">
             <div style={styles.cardHeader}>
@@ -389,57 +394,6 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
               <li><Link to={`/admin/negocios/${negocioId}/servicios`}><Layers size={16} aria-hidden="true" />{t('settings.sections.team_services')}</Link></li>
             </ul>
           </section>
-          <section className="industrial-card settings-section" style={styles.card} aria-labelledby="settings-section-navigation">
-            <div style={styles.cardHeader}>
-              <Layout size={20} strokeWidth={2.4} color="var(--color-primary-text)" />
-              <h2 id="settings-section-navigation" style={{ fontSize: '15px' }}>4. {t('settings.sections.navigation')}</h2>
-            </div>
-            <p className="settings-section-help">{t('settings.sections.navigation_help')}</p>
-            {/* Modo de navegación: SIDEBAR o TOPNAV, el único elemento de distribución configurable */}
-            <div className="form-group">
-              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Layout size={14} color="var(--color-primary-text)" />
-                <span>{t('uxAudit.navigation_mode_and_page_structure')} </span>
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
-                <button
-                  type="button"
-                  aria-pressed={modoNavegacion === 'SIDEBAR'} onClick={() => setModoNavegacion('SIDEBAR')}
-                  style={{
-                    padding: '10px',
-                    backgroundColor: modoNavegacion === 'SIDEBAR' ? 'var(--color-text-main)' : 'var(--color-surface)',
-                    color: modoNavegacion === 'SIDEBAR' ? 'var(--color-bg)' : 'var(--color-text-main)',
-                    border: modoNavegacion === 'SIDEBAR' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
-                >
-                  <div style={{ fontWeight: 900, fontSize: '11px' }}>{t('uxAudit.side_menu_sidebar')} </div>
-                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>{t('uxAudit.vertical_panel_on_the_left')} </div>
-                </button>
-
-                <button
-                  type="button"
-                  aria-pressed={modoNavegacion === 'TOPNAV'} onClick={() => setModoNavegacion('TOPNAV')}
-                  style={{
-                    padding: '10px',
-                    backgroundColor: modoNavegacion === 'TOPNAV' ? 'var(--color-text-main)' : 'var(--color-surface)',
-                    color: modoNavegacion === 'TOPNAV' ? 'var(--color-bg)' : 'var(--color-text-main)',
-                    border: modoNavegacion === 'TOPNAV' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-sidebar-text)',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
-                >
-                  <div style={{ fontWeight: 900, fontSize: '11px' }}>{t('uxAudit.top_menu_topnav')} </div>
-                  <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px' }}>{t('uxAudit.full_horizontal_navigation')} </div>
-                </button>
-              </div>
-            </div>
-
-          </section>
-
           <div className="settings-save-bar">
             <div className="settings-save-actions" style={{ display: 'flex', gap: '10px' }}>
               <button

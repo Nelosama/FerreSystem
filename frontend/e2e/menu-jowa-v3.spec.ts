@@ -64,23 +64,24 @@ test('ADMIN: rail ordenado por uso, paneles por orden de uso, color del negocio 
   await expect(page.locator('.jowa-connection')).toContainText('En línea');
 });
 
-test('VENDEDOR: el menú lateral conserva grupos desplegables que se recuerdan y el color del negocio', async ({ page }) => {
+test('VENDEDOR: rail de la navegación híbrida con panel de ventas, color del negocio y estado de conexión', async ({ page }) => {
   await setup(page, 'VENDEDOR');
   await page.goto('/');
-  const nav = page.locator('aside.jowa-sidebar');
-  const grupo = nav.getByRole('button', { name: 'Ventas y caja' });
-  await expect(grupo).toHaveAttribute('aria-expanded', 'true');
-  await grupo.click();
-  await expect(grupo).toHaveAttribute('aria-expanded', 'false');
-  await expect(nav.locator('a[href="/pos"]')).toBeHidden();
-  await page.reload();
-  await expect(nav.getByRole('button', { name: 'Ventas y caja' })).toHaveAttribute('aria-expanded', 'false');
-  await nav.getByRole('button', { name: 'Ventas y caja' }).click();
-  await expect(nav.locator('a[href="/pos"]')).toBeVisible();
+  const rail = page.locator('nav.app-rail');
+  await expect(page.locator('aside.jowa-sidebar')).toHaveCount(0);
+  const ventas = rail.getByRole('button', { name: 'Ventas', exact: true });
+  await expect(ventas).toHaveAttribute('aria-expanded', 'false');
+  await ventas.click();
+  await expect(ventas).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#app-rail-panel-ventas a[href="/pos"]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(ventas).toHaveAttribute('aria-expanded', 'false');
+  await expect(ventas).toBeFocused();
 
-  const activo = nav.locator('a.jowa-nav-item[href="/"]');
-  await expect(activo).toHaveClass(/active/);
-  await expect(activo).toHaveCSS('box-shadow', /rgb\(29, 78, 216\)/);
+  // El estado activo toma el color del negocio (#1D4ED8, azul).
+  const activo = rail.getByRole('link', { name: 'Inicio', exact: true });
+  await expect(activo).toHaveClass(/is-active/);
+  await expect(activo.locator('.app-rail-pill')).toHaveCSS('box-shadow', /inset/);
   await expect(page.locator('.jowa-connection')).toContainText('En línea');
 });
 
@@ -100,10 +101,12 @@ test('sin conexión: el menú lo indica y solo el POS sigue disponible', async (
   await expect(nav.locator('a[href="/arqueo-caja"]')).not.toHaveClass(/sin-red/);
 });
 
-test('TOPNAV se conserva en el diseño único', async ({ page }) => {
+test('el valor histórico TOPNAV ya no decide la navegación: todos usan rail y barra superior', async ({ page }) => {
   await setup(page, 'ADMIN', 'TOPNAV');
   await page.goto('/');
-  await expect(page.locator('header.jowa-topnav')).toBeVisible();
+  await expect(page.locator('nav.admin-rail')).toBeVisible();
+  await expect(page.locator('header.admin-topbar')).toBeVisible();
+  await expect(page.locator('header.jowa-topnav')).toHaveCount(0);
   await expect(page.locator('aside.jowa-sidebar')).toHaveCount(0);
 });
 
@@ -112,18 +115,18 @@ test('SUPERADMIN: rail de áreas con pestañas por URL y pestañas del negocio',
   await page.goto('/admin');
   const rail = page.getByRole('navigation', { name: 'Áreas de la plataforma' });
   await expect(rail).toBeVisible();
-  await expect(rail.getByRole('link', { name: 'Clientes' })).toHaveAttribute('aria-current', 'page');
-  await rail.getByRole('link', { name: 'Seguridad' }).click();
+  await expect(rail.getByRole('link', { name: 'Empresas' })).toHaveAttribute('aria-current', 'page');
+  await rail.getByRole('link', { name: 'Auditoría' }).click();
   await expect(page).toHaveURL(/\/admin\?seccion=auditoria$/);
-  await expect(rail.getByRole('link', { name: 'Seguridad' })).toHaveAttribute('aria-current', 'page');
-  await expect(rail.getByRole('link', { name: 'Clientes' })).not.toHaveAttribute('aria-current', 'page');
+  await expect(rail.getByRole('link', { name: 'Auditoría' })).toHaveAttribute('aria-current', 'page');
+  await expect(rail.getByRole('link', { name: 'Empresas' })).not.toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('tab', { name: 'Auditoría' })).toHaveAttribute('aria-selected', 'true');
   await page.reload();
-  await expect(rail.getByRole('link', { name: 'Seguridad' })).toHaveAttribute('aria-current', 'page');
+  await expect(rail.getByRole('link', { name: 'Auditoría' })).toHaveAttribute('aria-current', 'page');
 
   await page.goto('/admin/negocios/ux-company/marca');
-  // Dentro de un negocio el área Clientes sigue activa y las pestañas del negocio están visibles.
-  await expect(rail.getByRole('link', { name: 'Clientes' })).toHaveAttribute('aria-current', 'page');
+  // Dentro de un negocio el área Empresas sigue activa y las pestañas del negocio están visibles.
+  await expect(rail.getByRole('link', { name: 'Empresas' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('navigation', { name: 'Ruta de navegación' })).toContainText('Ferretería El Roble');
   await expect(page.getByRole('tab', { name: 'Configuración y marca' })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'Usuarios' }).click();
@@ -150,8 +153,8 @@ test('el POS muestra sus tres pasos en el ticket', async ({ page }) => {
 
 test('SUPERADMIN: el rail sustituye al menú lateral y no hay pestañas superiores duplicadas', async ({ page }) => {
   await setup(page, 'SUPERADMIN');
-  await page.goto('/admin');
+  await page.goto('/admin?seccion=auditoria');
   await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Menú de plataforma' })).toHaveCount(0);
-  await expect(page.getByRole('tablist', { name: 'Clientes' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Auditoría' })).toBeVisible();
 });
