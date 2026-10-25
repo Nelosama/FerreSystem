@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-23 UTC** — rediseño de navegación del Super Admin y del cajero (layout híbrido) en la rama `claude/amazing-bohr-9e5bpj`, sincronizada con `main` `ba201465` (PR #190, SweetAlert2); ver las secciones siguientes, sin merge ni despliegue. PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Sin cambios en producción.
+Última revisión: **2026-10-24 UTC** — auditoría de preparación para piloto (solo pruebas, sin cambios de producto) en `claude/kind-pasteur-ilo43m`; ver la primera sección. Anterior: **2026-10-23 UTC** — rediseño de navegación del Super Admin y del cajero (layout híbrido) en la rama `claude/amazing-bohr-9e5bpj`, sincronizada con `main` `ba201465` (PR #190, SweetAlert2); ver las secciones siguientes, sin merge ni despliegue. PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Sin cambios en producción.
 
 Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorporó la ronda de UX, marca y navegación. Se conservan sus bitácoras y evidencias a continuación. Detalle de seguridad: [REVISION_SEGURIDAD_20261020.md](REVISION_SEGURIDAD_20261020.md).
 
@@ -17,6 +17,16 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 - **Pruebas:** backend `npm ci` + `npm run build` OK; `tsc -p tsconfig.build.json` OK; `vitest run` 584/584 en 58 archivos tras la corrección (581 antes, incluido el spec nuevo); `node --test scripts/*.test.mjs` 48/48 tras compilar `dist/` (sin `dist/` fallaban 5 por entorno, no por código). Lint: sin errores; avisos preexistentes en specs.
 - **Pendientes reales (no verificables desde el entorno):** panel de Render (Start Command, Pre-Deploy vacío, variables), Supabase (planes de respaldo y restauración real), Vercel (variables de Preview/Production). Destino remoto del respaldo FS-41 sin configurar: no declarar respaldo de producción activo. Backend anterior contra base ya migrada: sigue sin verificar y la reversión de código requiere restaurar si hay migraciones nuevas. Sin ensayo de restauración en Supabase real.
 - **Bitácora:** lectura de AGENTS, contexto, NEXUS y runbook; revisión de migraciones, CORS, cookies, JWT y respaldos; ejecución de pruebas; corrección de `NODE_ENV`; documentación de reversión. **NEXUS:** sin cambios de esquema ni migraciones.
+
+## Auditoría de preparación para piloto de ferretería — 2026-10-24 UTC
+
+- **Rama y alcance:** `claude/kind-pasteur-ilo43m` desde `main` `01f9110a` (incluye #194). Solo pruebas e informe: sin cambios de código de producto, interfaz, infraestructura, esquema ni reglas comerciales. #180 y Codex sin tocar. Sin merge ni despliegue. Informe completo: [AUDITORIA_PILOTO_PRODUCCION_20261024.md](AUDITORIA_PILOTO_PRODUCCION_20261024.md).
+- **Pruebas nuevas:** `backend/test/auditoria-piloto-ferreteria.postgres.integration.ts` (40) y `frontend/e2e-real/auditoria-jornada-piloto-real.spec.ts` (8).
+- **Resultados:** integración PostgreSQL 64 archivos, 1093 aprobadas / 0 fallidas / 1 omitida (línea base de `main`: 1053/0/1); unitarias backend 581/581; piloto real 162 aprobadas / 0 fallidas / 4 omitidas heredadas. No se ejecutaron suites de frontend/navegador simulado (sin cambios de frontend) ni hardware físico.
+- **Defectos del producto:** ninguno confirmado. Observaciones: sucursales son solo catálogo (sin aislamiento operativo por sucursal); compras con costo 0 permitidas por DTO; el cierre de caja solo lo hace su titular (caja huérfana si el cajero se desactiva).
+- **Dictamen:** APTO CON CONDICIONES para piloto acotado (una sucursal, cierre diario por titular, revisión de cierres por ADMIN, respaldo previo a desplegar). No certifica producción general: hardware/Safari, variables de Render/Vercel, fiscalidad de #180 y aceptación del cliente siguen pendientes.
+- **Entorno (no código):** como root, `initdb`/`pg_ctl` exigen envolturas con `runuser -u nobody` y `TMPDIR` 1777; `e2e-real/run.sh` ya usa `runuser` y necesita `PG_BIN` real (no las envolturas) y un `mktemp` fuera de `/tmp` si `chown` falla.
+- **Bitácora:** lectura de AGENTS/contexto/NEXUS; línea base completa; revisión de ventas, caja, compras y controladores; escritura de escenarios con conciliación en enteros; corrección de nueve errores de la propia prueba; ejecución completa final; informe.
 
 ## Cancelación POS y anulación administrativa — 2026-10-23 UTC
 
