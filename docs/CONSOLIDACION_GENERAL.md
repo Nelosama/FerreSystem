@@ -64,11 +64,11 @@ Resultados obtenidos localmente en esta sesión (no son los de CI de GitHub).
 | Frontend `npm run lint` | Sin errores; avisos heredados | |
 | Playwright navegación (10 archivos: navegacion-hibrida, navigation-settings, menu-jowa-v3, diseno-unico, ux-ronda1-regresion, admin-home, admin-shell, cajero-rail, arranque, guide) | **159 aprobadas / 0 fallos / 4 omitidas** | Chromium del entorno |
 | PostgreSQL 16 `ventas.postgres.integration.ts` | **46/46** | Requiere envoltura no root (ver §6) |
-| PostgreSQL suite completa de integración | Ver §4.1 | |
+| PostgreSQL suite completa de integración | **1112 aprobadas / 1 omitida / 0 fallos** (65 archivos) | Ver §4.1 |
 
 ### 4.1 Suite completa PostgreSQL
 
-Pendiente de cierre en esta sesión; se actualiza al terminar.
+Resultado local en PostgreSQL 16 efímero (`PG_BIN` con envoltura no root): **65 archivos, 1112 aprobadas, 1 omitida, 0 fallidas** (`npx vitest run --config ./vitest.config.integration.ts`).
 
 ## 5. Pendientes reales
 

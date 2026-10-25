@@ -57,6 +57,16 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 - **Pruebas (Chromium del entorno):** unitarias 536/536; `tsc -b` y build limpios; lint 111 avisos (= `main`); Playwright simulado completo 359 aprobadas / 0 fallidas / 26 omitidas; piloto real NestJS+PostgreSQL 155 aprobadas / 1 fallida / 2 sin ejecutar / 4 omitidas — la fallida (`contingencia-real` n.º 14, service worker) **falla igual en `origin/main` `b60b49b`**. Intermitente una vez: `session-lifecycle` logout (pasa al repetir). Sin prueba en Safari/iPhone/tableta física; CI de GitHub no consultado (sin PR). Detalle en el documento enlazado.
 - **Pendientes reales:** rol Contador y su rail (PR #180); POS/contabilidad/inventario móvil de Stitch fuera de alcance; aceptación del cliente, merge y despliegue no realizados.
 
+## Consolidación general — 2026-10-25 UTC (rama `consolidacion/jowa-20261025`, base `main` `01f9110a`, sin merge ni despliegue)
+
+- **Detalle, matriz y pendientes:** [CONSOLIDACION_GENERAL.md](CONSOLIDACION_GENERAL.md).
+- **Integrado:** #192 (autenticación por empresa, MFA y recuperación; cerrada sin merge y recuperada desde `15f63571`), #196 (`NODE_ENV`), #197 (pruebas del piloto) y #195 (navegación híbrida). Conflictos resueltos uniendo ambos lados.
+- **No integrado:** #180 contabilidad Honduras (7 conflictos con el shell híbrido; dictamen propio NO MERGE). `claude/charming-planck-vmn1y4` está contenida en #180.
+- **Pruebas locales:** backend 595/595; scripts 51/51; frontend 542/542; `tsc` y builds correctos; Playwright de navegación 159 aprobadas / 0 fallos / 4 omitidas; PostgreSQL 16 integración completa 1112 aprobadas / 1 omitida / 0 fallos (65 archivos).
+- **Pendientes:** configurar #192 antes de cualquier despliegue (`AUTH_MFA_ENCRYPTION_KEY`, Resend, `AUTH_PUBLIC_URL`, enrolamiento MFA del propietario); reconciliar #180; validación en dispositivos físicos. No listo para producción.
+
+---
+
 ## Cancelación POS y anulación administrativa — 2026-10-23 UTC
 
 - **Rama única y PR:** `codex/pos-cancelacion-autorizada`, [#194](https://github.com/Nelosama/FerreSystem/pull/194), base `main` `b60b49b3`. #180 y #192 inspeccionados y no modificados. Sin merge, despliegue, producción, dependencias nuevas ni migraciones.
