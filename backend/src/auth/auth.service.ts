@@ -1,3 +1,5 @@
+import { requireMfa } from './mfa';
+import { missingPasswordCheck } from './password-timing';
 import { refreshCookieOptions } from './refresh-cookie';
 import { normalizeTenantConfiguration } from '../tenants/tenant-configuration';
 import { Injectable, UnauthorizedException, InternalServerErrorException, Logger } from '@nestjs/common';
@@ -26,7 +28,7 @@ export class AuthService {
 
   // Límite de intentos por cuenta y por IP. Un fallo cuenta aunque la cuenta no exista.
   async login(loginDto: LoginDto, res: Response, req?: Request) {
-    const claves = clavesDeLogin(loginDto?.email, req?.ip);
+    const claves = clavesDeLogin(`${loginDto.tenantId || 'platform'}:${loginDto?.email}`, req?.ip);
     const segundos = await segundosBloqueados(this.prisma, claves);
     if (segundos > 0) {
       res.setHeader('Retry-After', String(segundos));
@@ -57,7 +59,7 @@ export class AuthService {
     const normalizedEmail = email?.toLowerCase().trim();
     let superAdmin: any = null;
     try {
-      superAdmin = await this.prisma.superAdmin.findUnique({ where: { email: normalizedEmail } });
+      if (!targetTenantId) superAdmin = await this.prisma.superAdmin.findUnique({ where: { email: normalizedEmail } });
     } catch (error: any) {
       const errorCode = typeof error?.code === 'string' && /^P\d{4}$/.test(error.code) ? error.code : 'N/A';
       this.logger.error(`[LOGIN_DIAGNOSTIC] Error consultando SuperAdmin. Código: ${errorCode}`);
@@ -70,16 +72,18 @@ export class AuthService {
     }
 
     if (superAdmin) {
-      if (!superAdmin.activo || !(await bcrypt.compare(password, superAdmin.passwordHash))) {
+      if (!(await bcrypt.compare(password, superAdmin.passwordHash)) || !superAdmin.activo) {
         throw new UnauthorizedException('Credenciales inválidas');
       }
 
+      await requireMfa(this.prisma, superAdmin, true, loginDto.mfaCode, this.configService);
       const sid = randomUUID();
       const payload = {
         sub: superAdmin.id,
         email: superAdmin.email,
         rol: 'SUPER_ADMIN',
         type: 'super_admin',
+        mfa: true,
         sid,
       };
       const accessToken = this.jwtService.sign(payload, {
@@ -90,7 +94,7 @@ export class AuthService {
         expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
         jwtid: refreshJti,
       });
-      await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: superAdmin.id, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
+      await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: superAdmin.id, passwordHash: superAdmin.passwordHash, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
       res.cookie('superAdminRefreshToken', refreshToken, {
         ...refreshCookieOptions(this.configService, true),
         maxAge: Math.max(0, this.expiracionRefresh(refreshToken).getTime() - Date.now()),
@@ -115,43 +119,15 @@ export class AuthService {
     let usuario: any = null;
     try {
       if (targetTenantId) {
-        this.logger.log(
-          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Buscando usuario específico en tenant: "${targetTenantId}"`,
-        );
         usuario = await this.prisma.usuario.findFirst({
-          where: { tenantId: targetTenantId, email: normalizedEmail },
+          where: { tenantId: targetTenantId, ...(normalizedEmail.includes('@') ? { email: normalizedEmail } : { username: normalizedEmail }) },
           include: { tenant: true },
         });
-      } else {
-        this.logger.log(
-          `[LOGIN_DIAGNOSTIC] [ETAPA 3] Consultando usuarios globales con el correo indicado`,
-        );
-        const matchingUsers = await this.prisma.usuario.findMany({
-          where: { email: normalizedEmail },
-          include: { tenant: true },
-        });
-
-        if (matchingUsers.length === 1) {
-          usuario = matchingUsers[0];
-        } else if (matchingUsers.length > 1) {
-          this.logger.log(
-            `[LOGIN_DIAGNOSTIC] Se encontraron ${matchingUsers.length} usuarios con el mismo email en diferentes tenants. Identificando por credenciales.`,
-          );
-          const validUsers: any[] = [];
-          for (const u of matchingUsers) {
-            if (u.passwordHash && (await bcrypt.compare(password, u.passwordHash))) {
-              validUsers.push(u);
-            }
-          }
-
-          if (validUsers.length === 1) {
-            usuario = validUsers[0];
-          } else if (validUsers.length > 1) {
-            throw new UnauthorizedException(
-              'Existen múltiples cuentas con este correo. Debe especificar el identificador de la empresa (Tenant ID).',
-            );
-          }
-        }
+      } else if (normalizedEmail.includes('@')) {
+        // Compatibility: a globally unambiguous email resolves the tenant BEFORE checking any password.
+        // Never compare passwords across tenants. Shared emails must supply the business identifier.
+        const matches = await this.prisma.usuario.findMany({ where: { email: normalizedEmail }, take: 2, include: { tenant: true } });
+        if (matches?.length === 1) usuario = matches[0];
       }
     } catch (error: any) {
       if (error instanceof UnauthorizedException) {
@@ -170,6 +146,7 @@ export class AuthService {
     }
 
     if (!usuario) {
+      await missingPasswordCheck(password);
       // El correo no se registra en claro: los intentos fallidos ya se guardan solo como hash (login-rate-limit).
       this.logger.warn('[LOGIN_DIAGNOSTIC] [CASO A] Usuario NO encontrado para el correo indicado');
       throw new UnauthorizedException('Credenciales inválidas');
@@ -213,6 +190,8 @@ export class AuthService {
       throw new UnauthorizedException('La suscripción de la ferretería se encuentra suspendida');
     }
 
+    if (usuario.mfaSecret) await requireMfa(this.prisma, usuario, false, loginDto.mfaCode, this.configService);
+
     // Etapa 8: Generación de JWT
     this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 8] Generando tokens JWT para usuario ID: ${usuario.id}`);
     const sid = randomUUID();
@@ -235,7 +214,7 @@ export class AuthService {
       jwtid: refreshJti,
     });
 
-    await crearSesion(this.prisma, { id: sid, tipo: 'TENANT', sujetoId: usuario.id, tenantId: usuario.tenantId, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
+    await crearSesion(this.prisma, { id: sid, tipo: 'TENANT', sujetoId: usuario.id, passwordHash: usuario.passwordHash, tenantId: usuario.tenantId, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
 
     // Guardar refresh token en cookie httpOnly + secure
     res.cookie('refreshToken', refreshToken, {
@@ -315,7 +294,7 @@ export class AuthService {
 
       // H-04: cada refresh sustituye la cookie; presentar una ya sustituida fuera de la gracia revoca la sesión.
       const rotacion = await rotarRefresh(this.prisma, {
-        sid: String(decoded.sid), sujetoId: String(decoded.sub), jti: typeof decoded.jti === 'string' ? decoded.jti : undefined,
+        sid: String(decoded.sid), sujetoId: String(decoded.sub), passwordHash: usuario.passwordHash, jti: typeof decoded.jti === 'string' ? decoded.jti : undefined,
         graciaMs: leerConfiguracionAuth(this.configService).graciaRefreshSegundos * 1000,
       });
       if (rotacion.estado === 'REUTILIZADA') {

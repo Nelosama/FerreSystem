@@ -1,3 +1,4 @@
+import { activateTestUser } from './activation.fixture';
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 
@@ -25,10 +26,11 @@ test.beforeAll(async ({ request }) => {
   for (const rol of roles) {
     const email = `pilot.${rol.toLowerCase()}.${randomUUID()}@e2e.invalid`;
     const created = await request.post(`${API}/usuarios`, { headers: headers(admin), data: {
-      nombre: `Pilot permissions ${rol}`, email, password: PASSWORD, rol,
+      nombre: `Pilot permissions ${rol}`, email, rol,
       permisos: ['inventario.ver', 'inventario.editar', 'pos.vender', 'usuarios.gestionar', 'reportes.ver'],
     } });
     expect(created.status(), await created.text()).toBe(201);
+    await activateTestUser(request, (await created.json()).id);
     const authenticated = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
     expect(authenticated.status()).toBe(200);
     const body = await authenticated.json();
@@ -48,13 +50,13 @@ for (const rol of roles) {
       const response = await request.patch(`${API}/contingencia/configuracion`, { headers: headers(user.token), data: { habilitada: true } });
       expect(response.status(), 'a permission cannot grant ADMIN configuration rights').toBe(403);
       const create = await request.post(`${API}/usuarios`, { headers: headers(user.token), data: {
-        nombre: 'Unauthorized user', email: `denied.${randomUUID()}@e2e.invalid`, password: PASSWORD, rol: 'ADMIN',
+        nombre: 'Unauthorized user', email: `denied.${randomUUID()}@e2e.invalid`, rol: 'ADMIN',
       } });
       expect(create.status(), 'cannot create privileged users').toBe(403);
     }
     await page.goto('/login');
-    await page.locator('input[type="email"]').fill(user.email);
-    await page.locator('input[type="password"]').fill(PASSWORD);
+    await page.locator('#login-correo').fill(user.email);
+    await page.locator('#login-clave').fill(PASSWORD);
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await page.waitForURL(url => !url.pathname.startsWith('/login'));
     await page.goto('/usuarios');

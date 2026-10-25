@@ -188,8 +188,8 @@ test('settings: valores fiscales soportados, guardado, reload, errores y captura
   await expect(page.getByRole('status').filter({ hasText: 'guardada correctamente' })).toHaveCount(0);
   await page.evaluate(() => { localStorage.removeItem('ferre_user'); localStorage.removeItem('ferre_tenant'); localStorage.removeItem('ferre_token'); });
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill('test@example.invalid');
-  await page.locator('input[type="password"]').fill('test-only-password');
+  await page.locator('#login-correo').fill('test@example.invalid');
+  await page.locator('#login-clave').fill('test-only-password');
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await expect(page).toHaveURL(/\/(admin)?$/);
   await page.goto('/admin/negocios/ux-company/configuracion');

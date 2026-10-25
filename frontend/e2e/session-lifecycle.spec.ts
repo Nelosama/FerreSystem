@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 const tenant = { id: 'session-t1', nombreComercial: 'Empresa sesión', colorPrimario: '#EA580C' };
 const user = { id: 'session-u1', nombre: 'Operador', email: 'session@example.invalid', rol: 'ADMIN' };
 const token = (exp = Date.now() / 1000 + 900) => `e30.${Buffer.from(JSON.stringify({ sub: user.id, tenantId: tenant.id, type: 'tenant', sid: 's1', exp })).toString('base64url')}.test`;
-async function scenario(page: Page, expired = false) {
+async function scenario(page: Page, expired = false, lifetimeSeconds = 900) {
   const state = { me: 200, refresh: 200, modules: 200, hold: false, calls: [] as string[], refreshes: 0 };
   await page.addInitScript(({ user, tenant, accessToken }) => {
     if (!localStorage.getItem('session-test-seeded')) {
@@ -12,7 +12,7 @@ async function scenario(page: Page, expired = false) {
       localStorage.setItem('ferre_tenant', JSON.stringify(tenant));
       localStorage.setItem('session-test-seeded', '1');
     }
-  }, { user, tenant, accessToken: token(expired ? Date.now() / 1000 - 86400 : undefined) });
+  }, { user, tenant, accessToken: token(expired ? Date.now() / 1000 - 86400 : Date.now() / 1000 + lifetimeSeconds) });
   await page.context().route('**/api/**', async route => {
     const headers = { 'access-control-allow-origin': route.request().headers().origin || new URL(page.url()).origin, 'access-control-allow-credentials': 'true', 'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS', 'access-control-allow-headers': 'Content-Type,Authorization' };
     if (route.request().method() === 'OPTIONS') { await route.fulfill({ headers, status: 204 }); return; }
@@ -94,12 +94,12 @@ test('restaurar pestaña/PWA tras horas exige renovación y rechaza la sesión i
 });
 
 test('formulario abierto conserva datos no enviados al renovar; no escribe automáticamente', async ({ page }) => {
-  const state = await scenario(page);
+  const state = await scenario(page, false, 60);
   await page.clock.install();
   await page.goto('/levantamiento');
   const name = page.locator('.operation-form input').first();
   await name.fill('Conteo sin enviar');
-  await page.clock.setFixedTime(new Date(Date.now() + 3600_000));
+  await page.clock.setFixedTime(new Date(Date.now() + 120_000));
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(name).toBeVisible();
   await expect(name).toHaveValue('Conteo sin enviar');

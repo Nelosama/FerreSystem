@@ -1,3 +1,4 @@
+import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -107,6 +108,7 @@ describe('Seguridad fase 2 / PostgreSQL aislado', () => {
       tokens[key] = jwt.sign({ sub: user.id, tenantId: user.tenantId, type: 'tenant', rol: user.rol });
     }
     await prisma.superAdmin.create({ data: { id: superAdminId, nombre: 'Plataforma', email: 'plataforma@test.invalid', passwordHash } });
+    await syntheticPlatformMfa(prisma, 'plataforma@test.invalid');
 
     productoId = (await prisma.producto.create({ data: { tenantId: tenantA, codigo: 'SEG-1', nombre: 'Cable', precioVenta: 100, precioCosto: 50, stockActual: 1000, stockMinimo: 0, precioAprobado: true } })).id;
     await operaciones.abrir(tenantA, users.cajeroA.id, { solicitudId: randomUUID(), monto: 500 } as any);
@@ -218,7 +220,7 @@ describe('Seguridad fase 2 / PostgreSQL aislado', () => {
     });
 
     it('un Super Admin desactivado pierde acceso antes de que expire su token', async () => {
-      const token = jwt.sign({ sub: superAdminId, email: 'plataforma@test.invalid', rol: 'SUPER_ADMIN', type: 'super_admin' });
+      const token = jwt.sign({ sub: superAdminId, email: 'plataforma@test.invalid', rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true });
       await get('/auth/me', token).expect(200);
       await prisma.superAdmin.update({ where: { id: superAdminId }, data: { activo: false } });
       try {

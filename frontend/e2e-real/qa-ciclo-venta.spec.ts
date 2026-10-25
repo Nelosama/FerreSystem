@@ -1,3 +1,4 @@
+import { activateTestUser } from './activation.fixture';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -58,9 +59,10 @@ async function login(request: APIRequestContext, email: string): Promise<Sesion>
 async function crearCajero(request: APIRequestContext, admin: Sesion, email: string, nombre: string, permisos: string[]): Promise<Sesion> {
   const res = await request.post(`${API}/usuarios`, {
     headers: auth(admin.token),
-    data: { nombre, email, password: PASSWORD, rol: 'CAJERO', permisos, descuentoMaximo: 10 },
+    data: { nombre, email, rol: 'CAJERO', permisos, descuentoMaximo: 10 },
   });
   expect([200, 201], `crear ${email}: ${await res.text()}`).toContain(res.status());
+  await activateTestUser(request, (await res.json()).id);
   // El permiso efectivo se fija en base de datos, igual que la prueba de contingencia existente.
   const lista = permisos.map((p) => `'${p}'`).join(',');
   sql(`UPDATE usuarios SET permisos_configurados=true, permisos=ARRAY[${lista}]::text[], descuento_maximo=10 WHERE email='${email}' AND tenant_id='${TENANT_A}'`);
@@ -95,8 +97,8 @@ function venta(request: APIRequestContext, token: string, data: unknown) {
 
 async function ingresar(page: Page, email: string, ruta: string) {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(email);
-  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator('#login-correo').fill(email);
+  await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
   await page.goto(ruta);

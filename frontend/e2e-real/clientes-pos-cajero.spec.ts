@@ -8,8 +8,8 @@ const CAJERO = 'cajero.a@e2e.invalid';
 
 async function ingresarCajero(page: Page, ruta: string) {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(CAJERO);
-  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator('#login-correo').fill(CAJERO);
+  await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
   await page.goto(ruta);

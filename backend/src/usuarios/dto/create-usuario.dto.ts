@@ -1,13 +1,16 @@
-import { IsString, IsEmail, IsEnum, IsBoolean, IsOptional, IsArray, IsNumber, Min, Max, ArrayMaxSize } from 'class-validator';
+import { IsString, IsEmail, IsEnum, IsBoolean, IsOptional, IsArray, IsNumber, Min, Max, ArrayMaxSize, Matches, MaxLength } from 'class-validator';
 import { IsAllowedPassword } from '../../common/password-policy';
 import { Rol } from '../../types/prisma-enums';
 
 export class CreateUsuarioDto {
+  @IsOptional() @IsString() @MaxLength(64) @Matches(/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,63}$/)
+  username?: string;
   @IsString()
   nombre!: string;
 
+  @IsOptional()
   @IsEmail()
-  email!: string;
+  email?: string;
 
   @IsOptional()
   @IsString()
