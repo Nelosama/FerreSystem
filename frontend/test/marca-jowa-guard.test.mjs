@@ -24,8 +24,9 @@ test('no quedan referencias comerciales a FerreSystem en la interfaz', () => {
   const archivos = [
     'index.html',
     'public/manifest.webmanifest',
-    'src/components/Sidebar.tsx',
-    'src/components/TopNavigation.tsx',
+    'src/components/AdminRail.tsx',
+    'src/components/CajeroRail.tsx',
+    'src/components/AdminTopbar.tsx',
     'src/components/TenantBrand.tsx',
     'src/components/ReciboPDF.tsx',
     'src/context/TenantContext.tsx',
@@ -44,10 +45,12 @@ test('el panel del negocio no incluye la sección «En preparación» ni indicad
   assert.doesNotMatch(home, /En preparación|Próximamente|PROXIMAMENTE/);
 });
 
-test('el logotipo de la marca enlaza a Inicio en Sidebar y TopNav', () => {
+test('el logotipo de la marca enlaza a Inicio en los rails de la navegación híbrida', () => {
   // El nombre accesible se traduce (navigation.home_link) y sigue nombrando a Jowa System en ES y EN.
-  assert.match(read('src/components/Sidebar.tsx'), /<NavLink to="\/" aria-label=\{t\('navigation.home_link'\)\}/);
-  assert.match(read('src/components/TopNavigation.tsx'), /<NavLink to="\/" aria-label=\{t\('navigation.home_link'\)\}/);
+  assert.match(read('src/components/IconRail.tsx'), /<Link to="\/" aria-label=\{marcaEtiqueta\}/);
+  for (const rail of ['AdminRail', 'CajeroRail']) {
+    assert.match(read(`src/components/${rail}.tsx`), /marcaEtiqueta=\{t\('navigation.home_link'\)\}/, rail);
+  }
   assert.equal(JSON.parse(read('src/locales/es.json')).navigation.home_link, 'Jowa System: ir a Inicio');
   assert.match(JSON.parse(read('src/locales/en.json')).navigation.home_link, /^Jowa System: /);
 });

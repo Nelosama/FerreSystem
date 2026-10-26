@@ -514,7 +514,7 @@
     "tab_admins": "ADMIN USERS",
     "tab_audit": "SAAS AUDIT",
     "tenants_header": "CLIENT & TENANT MANAGEMENT",
-    "tenants_desc": "New client provisioning, service contracts and navigation modes."
+    "tenants_desc": "New client provisioning and service contracts."
   },
   "topbar": {
     "guidance": "Choose a task or use the finder to search for one",
@@ -818,7 +818,14 @@
     "home_link": "Jowa System: go to Home",
     "platform": "Platform",
     "connection_status": "Connection status",
-    "more_menu": "More sections"
+    "more_menu": "More sections",
+    "rail_logistics": "Logistics",
+    "role_cajero": "Cashier",
+    "role_vendedor": "Salesperson",
+    "role_bodeguero": "Warehouse",
+    "role_contador": "Accountant",
+    "role_superadmin": "Super Admin",
+    "branch_active": "Active branch"
   },
   "tasks": {
     "finder": "Find a screen or task",
@@ -920,6 +927,11 @@
     }
   },
   "settings": {
+    "navigation_mode": "Navigation mode",
+    "navigation_sidebar": "SIDEBAR · Side menu",
+    "navigation_topnav": "TOPNAV · Top menu",
+    "navigation_help": "Choose the menu position for this business. Both options keep the contextual bar and authorized access. Mobile keeps bottom navigation.",
+
     "sections": {
       "business": "My business",
       "business_help": "Business name, sector, contact, language, logo and brand color.",
@@ -928,9 +940,7 @@
       "team": "Team and permissions",
       "team_help": "Users, their roles and permissions, and enabled services are managed in their own tabs; no new powers are granted here.",
       "team_users": "Users, roles and permissions",
-      "team_services": "Enabled services (modules)",
-      "navigation": "Navigation",
-      "navigation_help": "Side or top menu. Both show only the modules each role is authorized for."
+      "team_services": "Enabled services (modules)"
     },
     "name": "Trade Name",
     "logo": "Company Logo",
@@ -958,11 +968,6 @@
     "business_sector": "TRADE SECTOR (MULTI-SECTOR ENGINE)",
     "currency_symbol": "CURRENCY SYMBOL",
     "tax": ") • Tax:",
-    "navigation_mode_and_page_structure": "NAVIGATION MODE AND PAGE STRUCTURE",
-    "side_menu_sidebar": "SIDE MENU (SIDEBAR)",
-    "vertical_panel_on_the_left": "Vertical panel on the left",
-    "top_menu_topnav": "TOP MENU (TOPNAV)",
-    "full_horizontal_navigation": "Full horizontal navigation",
     "brand_color_live_preview": "BRAND COLOR & LIVE PREVIEW",
     "choose_the_color_used_for_your_company_in_navigation_buttons_and_documents": "Choose the color that identifies your company in navigation, buttons and documents.",
     "hex_code": "HEXADECIMAL CODE",
@@ -978,12 +983,10 @@
     "new_customer_tenant": "NEW CUSTOMER / TENANT",
     "company_customer": "COMPANY / CUSTOMER",
     "main_contact": "MAIN CONTACT",
-    "navigation": "NAVIGATION",
     "enabled_services": "ENABLED SERVICES",
     "status": "STATUS",
     "saas_actions": "SAAS ACTIONS",
     "connected_branch_es": "Connected Branch(es)",
-    "switch_between_side_menu_and_top_menu": "Switch between Side Menu or Top Menu",
     "manage_subscribed_services_and_modules": "MANAGE SUBSCRIBED SERVICES AND MODULES",
     "services": "SERVICES",
     "active": "Active",
@@ -1033,15 +1036,10 @@
     "disable_optional_modules": "Disable all",
     "cancel": "CANCEL",
     "save_service_changes": "SAVE SERVICE CHANGES",
-    "navigation_settings": "NAVIGATION SETTINGS",
     "company": "COMPANY:",
-    "select_the_menu_format_for_this_company_s_users": "Select the menu format for users of this customer:",
-    "traditional_left_side_panel": "Traditional left side panel",
-    "horizontal_top_navigation_bar": "Horizontal top navigation bar",
     "close": "CLOSE",
     "configure_branding_and_company_details": "CONFIGURE BRANDING AND COMPANY DETAILS",
     "business_name": "TRADE NAME OF STORE",
-    "navigation_mode": "NAVIGATION MODE",
     "contact_phone": "CONTACT PHONE",
     "subscription_plan": "SUBSCRIPTION PLAN",
     "business_color_hex": "ASSIGNED STORE COLOR (HEX)",
@@ -1118,8 +1116,6 @@
     "admin_success_1": "Services and modules for \"{name}\" saved successfully!",
     "admin_success_2": "Navigation type for \"{name}\" changed to {mode}!",
     "admin_success_3": "Store \"{name}\" and Admin user created successfully!",
-    "circle_side_menu_sidebar": "○ SIDE MENU (SIDEBAR)",
-    "circle_top_menu_topnav": "○ TOP MENU (TOPNAV)",
     "tax_percent": "TAX (%)"
   },
   "sectors": {
@@ -1699,9 +1695,6 @@
       "primary_color": "Primary color",
       "preview": "Preview",
       "preview_help": "This is how the business staff will see it. The Super Admin panel always uses its own color.",
-      "sidebar": "Side menu",
-      "topnav": "Top menu",
-      "navigation": "Navigation",
       "point_of_sale": "Point of sale",
       "cash_drawer": "Cash drawer",
       "quotations": "Quotations",

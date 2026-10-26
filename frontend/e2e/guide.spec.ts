@@ -121,10 +121,10 @@ for (const width of [1280, 390]) {
     await page.goto('/admin/negocios/guide-company/marca');
     await page.locator('input[type="color"]').fill('#F5C400');
     await expect(page.locator('.aviso-color-marca')).toBeVisible();
-    await page.locator('select').selectOption('TOPNAV');
-    await page.getByRole('button', { name: 'Guardar marca y navegación' }).click();
+    await expect(page.locator('select')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Guardar marca', exact: true }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Cambios guardados' })).toBeVisible();
-    expect(api.settings()).toMatchObject({ colorPrimario: '#f5c400', modoNavegacion: 'TOPNAV', modoGuia: true, modulosHabilitados: [] });
+    expect(api.settings()).toMatchObject({ colorPrimario: '#f5c400', modoGuia: true, modulosHabilitados: [] });
     await page.reload();
     await expect(page.locator('input[type="color"]')).toHaveValue('#f5c400');
     const preview = page.locator('.jowa-brand-preview');

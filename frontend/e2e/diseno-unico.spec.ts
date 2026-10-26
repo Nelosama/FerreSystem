@@ -58,29 +58,29 @@ async function enlacesDelRail(page: Page) {
   return [...reunidos].filter(h => h && h !== '/').sort();
 }
 
-test('SIDEBAR y TOPNAV muestran exactamente los mismos módulos para ADMIN', async ({ page }) => {
+test('el valor histórico SIDEBAR/TOPNAV no cambia los módulos que ve el ADMIN: siempre el mismo rail', async ({ page }) => {
   await preparar(page, 'ADMIN', { modoNavegacion: 'SIDEBAR' });
   await page.goto('/');
   await expect(page.locator('nav.admin-rail')).toBeVisible();
-  const lateral = await enlacesDelRail(page);
-  const superiorPage = await page.context().newPage();
-  await preparar(superiorPage, 'ADMIN', { modoNavegacion: 'TOPNAV' });
-  await superiorPage.goto('/');
-  await expect(superiorPage.locator('header.app-top-navigation a[href="/pos"]')).toBeAttached();
-  const superior = await enlaces(superiorPage.locator('header.app-top-navigation'));
-  expect(superior).toEqual(lateral);
-  expect(lateral).toContain('/pos');
-  expect(lateral).toContain('/inventario');
+  const historicoSidebar = await enlacesDelRail(page);
+  const otra = await page.context().newPage();
+  await preparar(otra, 'ADMIN', { modoNavegacion: 'TOPNAV' });
+  await otra.goto('/');
+  await expect(otra.locator('nav.admin-rail')).toBeVisible();
+  await expect(otra.locator('header.app-top-navigation')).toHaveCount(0);
+  expect(await enlacesDelRail(otra)).toEqual(historicoSidebar);
+  expect(historicoSidebar).toContain('/pos');
+  expect(historicoSidebar).toContain('/inventario');
 });
 
-test('el modo de navegación del negocio persiste al volver a entrar', async ({ page }) => {
+test('el valor TOPNAV del negocio no cambia la navegación al volver a entrar', async ({ page }) => {
   await preparar(page, 'CAJERO', { modoNavegacion: 'TOPNAV' });
   await page.goto('/');
-  await expect(page.locator('header.app-top-navigation')).toBeVisible();
+  await expect(page.locator('nav.cajero-rail')).toBeVisible();
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await expect(page.locator('header.app-top-navigation')).toBeVisible();
-  await expect(page.locator('aside.app-sidebar')).toHaveCount(0);
+  await expect(page.locator('nav.cajero-rail')).toBeVisible();
+  await expect(page.locator('header.app-top-navigation, aside.app-sidebar')).toHaveCount(0);
 });
 
 test('caja: sin verificar sin respuesta válida, abierta o cerrada según el servidor, y una sola consulta en el POS', async ({ page }) => {

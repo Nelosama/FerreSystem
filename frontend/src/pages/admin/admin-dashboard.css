@@ -25,10 +25,12 @@
   font-family: var(--font-body, system-ui, sans-serif);
 }
 
+/* Contenedor fluido: crece con el monitor (hasta 1920 px, centrado) en vez de quedar en una columna fija a la izquierda. */
 .admin-home__main {
   width: 100%;
-  max-width: 1280px;
-  padding: 0 28px 48px;
+  max-width: 1920px;
+  margin-inline: auto;
+  padding: 0 clamp(20px, 2.2vw, 40px) 48px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -54,8 +56,8 @@
 /* ---------- Indicadores ---------- */
 .admin-home__kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .admin-home__kpi,
@@ -99,20 +101,14 @@
 .admin-home__metrica-pie { font-size: 12px; color: var(--ah-muted); }
 .admin-home__kpi--alerta .admin-home__metrica-pie { color: var(--ah-alert); }
 
-/* ---------- Acciones y atención ---------- */
-.admin-home__rejilla-principal {
+/* ---------- Cuerpo: columna principal (atención, últimas ventas) y lateral (acciones, alertas, tendencia) ---------- */
+.admin-home__cuerpo {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
   gap: 18px;
   align-items: start;
 }
-.admin-home__rejilla-principal > .admin-home__tarjeta:only-child { grid-column: 1 / -1; }
-
-.admin-home__rejilla {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
+.admin-home__columna { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 
 .admin-home__tarjeta { padding: 18px; min-width: 0; }
 
@@ -220,7 +216,7 @@
 
 /* ---------- Tendencia semanal ---------- */
 .admin-home__grafico { margin: 0; }
-.admin-home__grafico svg { width: 100%; height: auto; display: block; }
+.admin-home__grafico svg { width: 100%; height: auto; max-height: 220px; display: block; }
 .admin-home__barra { fill: #D5DCE0; }
 .admin-home__barra--hoy { fill: var(--ah-brand); }
 .admin-home__eje { font-size: 12px; fill: var(--ah-muted); font-family: var(--font-body, system-ui, sans-serif); }
@@ -231,21 +227,25 @@
 .admin-home__nota summary { cursor: pointer; font-weight: 600; color: var(--ah-text); }
 .admin-home__nota p { margin: 8px 0 0; }
 
-/* ---------- Tableta (≤1024 px) ---------- */
-@media (max-width: 1024px) {
+/* ---------- Tableta (≤1100 px): una columna; indicadores 2×2; orden por prioridad de uso ---------- */
+@media (max-width: 1100px) {
   .admin-home__main { padding: 0 22px 40px; }
-  .admin-home__rejilla-principal { grid-template-columns: minmax(0, 1fr); }
+  .admin-home__kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-home__cuerpo { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+  .admin-home__columna { display: contents; }
+  .admin-home__pendientes { order: 1; }
+  .admin-home__cuerpo [aria-labelledby='home-acciones'] { order: 2; }
+  .admin-home__cuerpo [aria-labelledby='home-ventas'] { order: 3; }
+  .admin-home__cuerpo [aria-labelledby='home-alertas'] { order: 4; }
+  .admin-home__cuerpo [aria-labelledby='home-tendencia'] { order: 5; }
 }
 
-/* ---------- Móvil (≤768 px): atención primero, una columna, dos indicadores por fila ---------- */
+/* ---------- Móvil (≤768 px): una columna, dos indicadores por fila ---------- */
 @media (max-width: 768px) {
   .admin-home__main { padding: 0 16px 24px; gap: 14px; }
-  .admin-home__kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .admin-home__kpis { gap: 10px; }
   .admin-home__kpi { flex-direction: column; gap: 9px; min-height: 128px; padding: 13px; }
   .admin-home__metrica-cifra { font-size: 19px; }
-  .admin-home__pendientes { order: -1; }
-  .admin-home__rejilla-principal,
-  .admin-home__rejilla { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .admin-home__acciones { grid-template-columns: minmax(0, 1fr); }
   .admin-home__tarjeta { padding: 14px; }
 }

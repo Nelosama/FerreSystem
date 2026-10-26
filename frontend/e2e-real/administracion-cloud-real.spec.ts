@@ -39,9 +39,11 @@ test('visita inicial y aviso antiguo no muestran sesión expirada; logout tampoc
 
 test('Super Admin gestiona sucursales con persistencia y desactivación real', async ({ page }) => {
   await entrar(page);
-  // El rail ofrece las cuatro áreas; las secciones de cada área son pestañas (aquí, Clientes).
-  await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' }).getByRole('list').getByRole('link')).toHaveText(['Inicio', 'Clientes', 'Servicios', 'Seguridad']);
-  await expect(page.getByRole('tablist', { name: 'Clientes' }).getByRole('tab')).toHaveText(['Negocios', 'Administradores'], { useInnerText: true });
+  // El rail ofrece las cinco áreas de herramientas globales; las secciones de cada área son pestañas (aquí, Usuarios y soporte).
+  const areas = page.getByRole('navigation', { name: 'Áreas de la plataforma' });
+  await expect(areas.getByRole('list').getByRole('link')).toHaveText(['Inicio', 'Empresas', 'Módulos', 'Usuarios y soporte', 'Auditoría']);
+  await areas.getByRole('link', { name: 'Usuarios y soporte' }).click();
+  await expect(page.getByRole('tablist', { name: 'Usuarios y soporte' }).getByRole('tab')).toHaveText(['Administradores', 'Soporte remoto'], { useInnerText: true });
   await page.goto(`/admin/negocios/${A}`);
   await expect(page.getByRole('tablist', { name: 'Administración del negocio' }).getByRole('tab')).toHaveText(['Resumen y sucursales', 'Usuarios', 'Servicios', 'Configuración y marca', 'Auditoría'], { useInnerText: true });
   await expect(page.getByRole('heading', { name: 'Sucursales del negocio' })).toBeVisible();
@@ -130,18 +132,22 @@ test('idioma se guarda por negocio; todos sus roles lo heredan sin selector en e
   expect((await page.request.put(`${API}/admin/tenants/${A}/settings`, { headers: { Authorization: `Bearer ${bearer}` }, data: { configuracion: { idioma: 'es' } } })).status()).toBe(200);
 });
 
-test('TOPNAV conserva el orden aprobado y toda la marca enlaza a Inicio', async ({ page }) => {
+test('el valor histórico TOPNAV no cambia la navegación: rail y barra superior, y la marca enlaza a Inicio', async ({ page }) => {
   await entrar(page);
   const bearer = await page.evaluate(() => localStorage.getItem('ferre_token'));
+  // El backend sigue aceptando el valor histórico (compatibilidad), pero ya no decide la navegación.
   await page.request.put(`${API}/admin/tenants/${A}/settings`, { headers: { Authorization: `Bearer ${bearer}` }, data: { modoNavegacion: 'TOPNAV' } });
   await page.getByTitle(/^(Cerrar Sesión|Log Out)$/).click();
   await entrar(page, 'admin.a@e2e.invalid');
-  const nav = page.getByRole('navigation', { name: 'Navegación principal' });
-  await expect(nav.locator(':scope > .topnav-entry > a')).toHaveText(['Inicio','Punto de venta','Cotizaciones','Clientes','Cuentas y abonos','Entregas','Inventario','Compras','Personal']);
-  await page.screenshot({ path: test.info().outputPath('topnav-real.png'), fullPage: true });
-  await nav.getByRole('link', { name: 'Inventario', exact: true }).click();
+  const rail = page.locator('nav.admin-rail');
+  await expect(rail).toBeVisible();
+  await expect(page.locator('header.admin-topbar')).toBeVisible();
+  await expect(page.locator('header.jowa-topnav')).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('navegacion-hibrida-real.png'), fullPage: true });
+  await rail.getByRole('button', { name: 'Inventario', exact: true }).click();
+  await page.locator('#app-rail-panel-inventario a[href="/inventario"]').click();
   await expect(page).toHaveURL(/\/inventario$/);
-  await page.getByRole('link', { name: 'Jowa System: ir a Inicio' }).click({ position: { x: 12, y: 12 } });
+  await rail.getByRole('link', { name: 'Jowa System: ir a Inicio' }).click();
   await expect(page).toHaveURL(/\/$/);
   await page.getByTitle(/^(Cerrar Sesión|Log Out)$/).click();
   await entrar(page);
@@ -155,3 +161,32 @@ async function setPrivatePassword(page: Page, platformToken: string, userId: str
   const reset = await page.request.post(`${API}/auth/security/reset`, { data: { token: (await issued.json()).token, password: PASSWORD } });
   expect(reset.status()).toBe(200);
 }
+
+test('Super Admin guarda TOPNAV/SIDEBAR por negocio y el ADMIN recibe el menú híbrido persistido', async ({ page, browser }) => {
+  await entrar(page);
+  const otroAntes = await prisma.tenant.findUniqueOrThrow({ where: { id: 'e2e-empresa-b' } });
+  await page.goto(`/admin/negocios/${A}/configuracion`);
+  for (const modo of ['TOPNAV', 'SIDEBAR']) {
+    await page.locator('#navigation-mode').selectOption(modo);
+    await page.getByRole('button', { name: /APLICAR CAMBIOS/i }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'guardada correctamente' })).toBeVisible();
+    expect((await prisma.tenant.findUniqueOrThrow({ where: { id: A } })).modoNavegacion).toBe(modo);
+    expect((await prisma.tenant.findUniqueOrThrow({ where: { id: 'e2e-empresa-b' } })).modoNavegacion).toBe(otroAntes.modoNavegacion);
+    await page.reload();
+    await expect(page.locator('#navigation-mode')).toHaveValue(modo);
+    await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' })).toBeVisible();
+    const contexto = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+    try {
+      const admin = await contexto.newPage();
+      await entrar(admin, 'admin.a@e2e.invalid');
+      await expect(admin.locator('[data-navigation-mode]')).toHaveAttribute('data-navigation-mode', modo);
+      await expect(admin.locator('header.admin-topbar')).toBeVisible();
+      const menu = admin.locator('nav.app-rail');
+      await expect(menu).toBeVisible();
+      const caja = await menu.boundingBox();
+      expect(caja!.width).toBe(modo === 'TOPNAV' ? 1366 : 84);
+      await admin.goto('/configuracion');
+      await expect(admin.getByRole('heading', { name: 'Acceso Denegado', exact: true })).toBeVisible();
+    } finally { await contexto.close(); }
+  }
+});
