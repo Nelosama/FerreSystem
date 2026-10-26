@@ -10,7 +10,7 @@ import { LogotipoNegocioEditor } from '../components/LogotipoNegocioEditor';
 import { AvisoColorMarca } from '../components/AvisoColorMarca';
 import { estiloMarcaNegocio, inicialesNegocio } from '../utils/identidadNegocio';
 
-type Registro = { id: string; nombre: string; email?: string; username?: string; rol?: string; activo?: boolean; activa?: boolean; direccion?: string; telefono?: string; permisos?: string[]; descuentoMaximo?: number };
+type Registro = { id: string; nombre: string; email?: string; username?: string; rol?: string; activo?: boolean; activa?: boolean; direccion?: string; telefono?: string; permisos?: string[]; descuentoMaximo?: number; bloqueadoAt?: string | null };
 const mensaje = (error: any) => { const value = error.response?.data?.message; return Array.isArray(value) ? value.join(', ') : value || 'No se pudo completar la operación. Sus cambios se conservan; vuelva a intentar.'; };
 
 function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuarios' | 'sucursales' }) {
@@ -45,6 +45,13 @@ function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuar
     try { await api.patch(`${endpoint}/${fila.id}`, usuarios ? { activo: !activo } : { activa: !activo }); setEstado('Estado actualizado.'); await cargar(); }
     catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
   };
+  // Cuenta bloqueada por intentos fallidos: el Super Admin la reactiva en cualquier negocio. No cambia la contraseña.
+  const desbloquear = async (fila: Registro) => {
+    if (!(await alertas.confirmar({ texto: `¿Reactivar a ${fila.nombre}? Podrá volver a iniciar sesión con su contraseña actual.`, confirmar: 'Reactivar' }))) return;
+    setBusy(true); setError(''); setEstado('');
+    try { await api.post('/auth/security/unlock', { usuarioId: fila.id, tenantId: negocioId }); setEstado('Cuenta reactivada.'); await cargar(); }
+    catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
+  };
   return <section className="industrial-card negocio-management">
     <h2>{usuarios ? 'Usuarios del negocio' : 'Sucursales del negocio'}</h2>
     <p>{usuarios ? 'Administre cuentas, roles y acceso. El último administrador activo está protegido.' : 'Administre los datos y el estado de las sucursales.'} La desactivación conserva la trazabilidad.</p>
@@ -68,7 +75,7 @@ function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuar
       <div><button className="btn btn-primary" disabled={busy}>Guardar</button> <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setForm(null)}>Cancelar</button></div>
     </form>}
     <div className="table-container"><table className="industrial-table"><thead><tr><th>Nombre</th><th>{usuarios ? 'Correo / rol' : 'Dirección / teléfono'}</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
-      {filas.map(fila => <tr key={fila.id}><td>{fila.nombre}</td><td>{usuarios ? `${fila.email} · ${fila.rol}` : `${fila.direccion} · ${fila.telefono}`}</td><td>{(usuarios ? fila.activo : fila.activa) ? 'Activo' : 'Inactivo'}</td><td><button className="btn btn-secondary" disabled={busy} onClick={() => { setPermisosEditados(false); setForm({ ...fila }); setError(''); }}>Editar</button> <button className="btn btn-secondary" disabled={busy} onClick={() => void toggle(fila)}>{(usuarios ? fila.activo : fila.activa) ? 'Desactivar' : 'Reactivar'}</button></td></tr>)}
+      {filas.map(fila => <tr key={fila.id}><td>{fila.nombre}</td><td>{usuarios ? `${fila.email || fila.username || ''} · ${fila.rol}` : `${fila.direccion} · ${fila.telefono}`}</td><td>{(usuarios ? fila.activo : fila.activa) ? 'Activo' : 'Inactivo'}{usuarios && fila.bloqueadoAt ? ' · Bloqueada por intentos fallidos' : ''}</td><td><button className="btn btn-secondary" disabled={busy} onClick={() => { setPermisosEditados(false); setForm({ ...fila }); setError(''); }}>Editar</button> <button className="btn btn-secondary" disabled={busy} onClick={() => void toggle(fila)}>{(usuarios ? fila.activo : fila.activa) ? 'Desactivar' : 'Reactivar'}</button>{usuarios && fila.bloqueadoAt && <> <button className="btn btn-primary" disabled={busy} onClick={() => void desbloquear(fila)}>Desbloquear</button></>}</td></tr>)}
       {!filas.length && <tr><td colSpan={4}>No hay registros.</td></tr>}
     </tbody></table></div>
   </section>;

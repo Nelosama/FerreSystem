@@ -1,4 +1,5 @@
 import { expect, type APIRequestContext } from '@playwright/test';
+import { syntheticMfaFor } from './mfa.fixture';
 
 // Only synthetic users in the disposable pilot cluster may receive these links.
 // Creation remains passwordless; the recipient redeems the private token separately.
@@ -10,11 +11,11 @@ export async function activateTestUser(request: APIRequestContext, usuarioId: st
   }
   const email = 'superadmin.e2e@e2e.invalid';
   const password = process.env.E2E_PASSWORD!;
-  const login = await request.post(`${api}/auth/login`, { data: { email, password } });
+  const login = await request.post(`${api}/auth/login`, { data: { email, password, mfaCode: await syntheticMfaFor(email) } });
   expect(login.status(), 'synthetic platform issuer authenticates with MFA').toBe(200);
   const issued = await request.post(`${api}/auth/security/admin-reset`, {
     headers: { Authorization: `Bearer ${(await login.json()).accessToken}` },
-    data: { usuarioId, tenantId, currentPassword: password },
+    data: { usuarioId, tenantId, currentPassword: password, mfaCode: await syntheticMfaFor(email) },
   });
   expect(issued.status(), 'authorized issuer creates a private activation link').toBe(201);
   const { token, expiresIn } = await issued.json();

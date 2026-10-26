@@ -1,3 +1,4 @@
+import { syntheticMfaFor } from './mfa.fixture';
 import { activateTestUser } from './activation.fixture';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -211,7 +212,7 @@ test('8. el administrador consulta las ventas y la auditoría; cada operación e
   for (const v of [ventas.EFECTIVO, ventas.TARJETA, ventas.TRANSFERENCIA]) expect(texto).toContain(v.id);
   // La auditoría es exclusiva del SUPERADMIN: el administrador del negocio recibe 403 y la consulta se hace por negocio.
   expect((await request.get(`${API}/operaciones/auditoria?page=0`, { headers: auth(admin.token) })).status()).toBe(403);
-  const saRes = await request.post(`${API}/auth/login`, { data: { email: 'superadmin.e2e@e2e.invalid', password: process.env.E2E_PASSWORD } });
+  const saRes = await request.post(`${API}/auth/login`, { data: { email: 'superadmin.e2e@e2e.invalid', password: process.env.E2E_PASSWORD, mfaCode: await syntheticMfaFor('superadmin.e2e@e2e.invalid') } });
   expect(saRes.status()).toBe(200);
   const aud = await request.get(`${API}/admin/tenants/${TENANT}/auditoria?page=0`, { headers: auth((await saRes.json()).accessToken) });
   expect(aud.status()).toBe(200);

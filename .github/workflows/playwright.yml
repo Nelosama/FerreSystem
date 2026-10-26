@@ -36,7 +36,7 @@ jobs:
     - name: Install Playwright Browsers
       working-directory: frontend
       run: npx playwright install --with-deps chromium
-    - name: Login único, recuperación por contraseña temporal, bloqueo, límites, sesiones, tenants y preservación de credenciales
+    - name: MFA, recuperación, límites, sesiones, tenants y preservación de credenciales
       working-directory: backend
       run: npx vitest run --config vitest.config.integration.ts test/auth-recovery.postgres.integration.ts
     - name: Respaldo cifrado, fallos de restauración y snapshot concurrente

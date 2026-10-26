@@ -3,7 +3,7 @@ import { prepararSesion, desbordamientoHorizontal } from './ux-auditoria.fixture
 
 test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
   for (const width of [320, 390, 1440]) {
-    test(`login de dos campos: sin empresa, rol, idioma, Super Admin ni MFA; recuperación oculta hasta el tercer fallo @${width}`, async ({ page }) => {
+    test(`login de dos campos: sin empresa, rol, idioma ni casilla de Super Admin; recuperación oculta hasta el tercer fallo @${width}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await prepararSesion(page, 'ADMIN', { sinSesion: true });
       await page.goto('/login');
@@ -23,7 +23,8 @@ test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
       await page.route('**/api/auth/login', async route => {
         sent.push(route.request().postDataJSON());
         intentos++;
-        await route.fulfill({ status: 401, json: { message: 'Credenciales inválidas', ...(intentos >= 3 && { recuperacionDisponible: true }) } });
+        // El servidor responde siempre lo mismo: no anuncia si la cuenta puede recuperarse (sin enumeración).
+        await route.fulfill({ status: 401, json: { statusCode: 401, message: 'Credenciales inválidas', error: 'Unauthorized' } });
       });
       for (let i = 1; i <= 2; i++) {
         await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
@@ -33,25 +34,90 @@ test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
       }
       await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
       await expect(page.getByText('Recuperar acceso', { exact: true })).toBeVisible();
+      expect(intentos).toBe(3);
       expect(sent[0]).toEqual({ usuario: '44556', password: 'Synthetic-Password-456' });
+      // Cambiar el identificador reinicia el contador de la pantalla.
+      await page.getByLabel('Usuario', { exact: true }).fill('otro');
+      await expect(page.getByText('Recuperar acceso', { exact: true })).toHaveCount(0);
+      await page.getByLabel('Usuario', { exact: true }).fill('44556');
+      for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+      await expect(page.getByText('Recuperar acceso', { exact: true })).toBeVisible();
       let solicitud: any;
       await page.route('**/api/auth/security/request', async route => { solicitud = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { message: 'ok' } }); });
       await page.getByRole('button', { name: 'Enviar contraseña temporal por correo' }).click();
       await expect.poll(() => solicitud).toEqual({ usuario: '44556' });
       expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
     });
-    test(`usuario bloqueado: mensaje de contacto con el Admin y sin recuperación pública @${width}`, async ({ page }) => {
+    test(`cuenta operativa: el bloqueo no se revela, pero el login orienta a pedir la reactivación al Admin @${width}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await prepararSesion(page, 'ADMIN', { sinSesion: true });
       await page.goto('/login');
+      await expect(page.getByText(/seis intentos fallidos/)).toHaveCount(0);
       await page.getByLabel('Usuario', { exact: true }).fill('cajero1');
       await page.locator('#login-clave').fill('Synthetic-Password-456');
-      await page.route('**/api/auth/login', route => route.fulfill({ status: 403, json: { statusCode: 403, code: 'CUENTA_BLOQUEADA', message: 'Cuenta bloqueada por intentos fallidos. Contacte al Admin o Super Admin de su empresa para reactivarla o cambiar su contraseña.' } }));
+      await page.route('**/api/auth/login', route => route.fulfill({ status: 401, json: { statusCode: 401, message: 'Credenciales inválidas', error: 'Unauthorized' } }));
       await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
-      await expect(page.getByRole('alert')).toContainText('Contacte al Admin o Super Admin');
+      await expect(page.getByRole('alert')).toContainText('Credenciales inválidas');
+      await expect(page.getByText(/seis intentos fallidos.*Admin de su empresa/)).toBeVisible();
       await expect(page.getByText('Recuperar acceso', { exact: true })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: 'Enviar contraseña temporal por correo' })).toHaveCount(0);
       expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
+    });
+    test(`Super Admin: el código MFA aparece solo tras la contraseña correcta y se envía en el segundo paso @${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await prepararSesion(page, 'ADMIN', { sinSesion: true });
+      await page.goto('/login');
+      await expect(page.locator('#login-mfa')).toHaveCount(0);
+      await page.getByLabel('Usuario', { exact: true }).fill('root@jowa.test');
+      await page.locator('#login-clave').fill('Synthetic-Password-456');
+      const sent: any[] = [];
+      await page.route('**/api/auth/login', async route => {
+        const body = route.request().postDataJSON(); sent.push(body);
+        if (!body.mfaCode) return route.fulfill({ status: 401, json: { statusCode: 401, code: 'MFA_REQUERIDO', message: 'Ingrese el código de su aplicación de autenticación' } });
+        return route.fulfill({ status: 401, json: { statusCode: 401, message: 'Credenciales o verificación inválidas' } });
+      });
+      await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+      await expect(page.locator('#login-mfa')).toBeVisible();
+      await expect(page.locator('#login-mfa')).toBeFocused();
+      await expect(page.getByRole('alert')).toHaveCount(0);
+      await page.locator('#login-mfa').fill('123456');
+      await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+      await expect.poll(() => sent.length).toBe(2);
+      expect(sent[0]).toEqual({ usuario: 'root@jowa.test', password: 'Synthetic-Password-456' });
+      expect(sent[1]).toEqual({ usuario: 'root@jowa.test', password: 'Synthetic-Password-456', mfaCode: '123456' });
+      // Un código erróneo conserva el paso MFA (la contraseña ya fue validada) y vacía el campo.
+      await expect(page.locator('#login-mfa')).toHaveValue('');
+      // Cambiar de usuario vuelve al formulario de dos campos.
+      await page.getByLabel('Usuario', { exact: true }).fill('otra@jowa.test');
+      await expect(page.locator('#login-mfa')).toHaveCount(0);
+      expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
+    });
+    test(`Super Admin sin MFA: no entra y puede pedir el enrolamiento inicial por correo @${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await prepararSesion(page, 'ADMIN', { sinSesion: true });
+      await page.goto('/login');
+      await page.getByLabel('Usuario', { exact: true }).fill('root@jowa.test');
+      await page.locator('#login-clave').fill('Synthetic-Password-456');
+      await page.route('**/api/auth/login', route => route.fulfill({ status: 401, json: { statusCode: 401, code: 'MFA_ENROLAMIENTO_REQUERIDO', message: 'Configure el segundo factor' } }));
+      let solicitud: any;
+      await page.route('**/api/auth/security/mfa/bootstrap-request', async route => { solicitud = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { message: 'ok' } }); });
+      await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+      await expect(page.getByRole('alert')).toContainText('segundo factor');
+      await page.getByRole('button', { name: 'Configurar MFA inicial de Super Admin' }).click();
+      await expect.poll(() => solicitud).toEqual({ usuario: 'root@jowa.test', password: 'Synthetic-Password-456' });
+      await expect(page.getByRole('status')).toContainText('enlace de un solo uso');
+      expect(await page.evaluate(() => localStorage.getItem('ferre_token'))).toBeNull();
+    });
+    test(`enlace de empresa: acota el login sin mostrar ningún campo de empresa @${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await prepararSesion(page, 'ADMIN', { sinSesion: true });
+      await page.goto('/login?empresa=tenant-heredado');
+      await expect(page.locator('form input:not([type=hidden])')).toHaveCount(2);
+      let sent: any;
+      await page.route('**/api/auth/login', async route => { sent = route.request().postDataJSON(); await route.fulfill({ status: 401, json: { message: 'Credenciales inválidas' } }); });
+      await page.getByLabel('Usuario', { exact: true }).fill('44556');
+      await page.locator('#login-clave').fill('Synthetic-Password-456');
+      await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+      await expect.poll(() => sent).toEqual({ usuario: '44556', password: 'Synthetic-Password-456', tenantId: 'tenant-heredado' });
     });
     test(`contraseña temporal: cambio obligatorio antes de cualquier acceso al sistema @${width}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });

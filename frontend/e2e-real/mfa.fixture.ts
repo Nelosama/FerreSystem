@@ -16,7 +16,13 @@ export async function syntheticMfaFor(email: string) {
     return code;
   } finally { await db.$disconnect(); }
 }
-export async function fillPlatformMfa(page: Page, email: string) {
+/**
+ * Segundo paso del login de plataforma: tras la contraseña correcta la pantalla muestra el campo MFA (no hay casilla de
+ * Super Admin). Llamar después de pulsar «Ingresar»; para cuentas de negocio no hace nada.
+ */
+export async function completePlatformMfa(page: Page, email: string) {
   const code = await syntheticMfaFor(email);
-  if (code) { await page.getByLabel('Acceso de Super Admin').check(); await page.locator('#login-mfa').fill(code); }
+  if (!code) return;
+  await page.locator('#login-mfa').fill(code);
+  await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
 }
