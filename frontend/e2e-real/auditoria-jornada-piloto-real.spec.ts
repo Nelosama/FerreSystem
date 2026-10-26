@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { confirmarAlerta } from '../e2e/helpers/alertas';
+import { activateTestUser } from './activation.fixture';
 
 // AUDITORÍA DE PILOTO — jornada completa de una ferretería contra backend NestJS y PostgreSQL temporales (run.sh), sin mocks.
 // Login en el navegador → apertura de caja en la pantalla → ventas de contado (con descuento), tarjeta y crédito → abonos parciales →
@@ -38,8 +39,10 @@ const post = (request: APIRequestContext, token: string, ruta: string, data: unk
 
 test('1. preparación: administrador crea cajero, productos aprobados y cliente con crédito', async ({ request }) => {
   admin = await login(request, ADMIN); adminB = await login(request, ADMIN_B);
-  const alta = await post(request, admin.token, '/usuarios', { nombre: `Cajero jornada ${RUN}`, email: CAJERO, password: PASSWORD, rol: 'CAJERO', permisos: ['pos.vender', 'pos.aplicar_descuento'], descuentoMaximo: 10 });
+  // Alta sin contraseña: el usuario la establece con su enlace privado (fixture compartido con el resto del piloto).
+  const alta = await post(request, admin.token, '/usuarios', { nombre: `Cajero jornada ${RUN}`, email: CAJERO, rol: 'CAJERO', permisos: ['pos.vender', 'pos.aplicar_descuento'], descuentoMaximo: 10 });
   expect([200, 201], await alta.text()).toContain(alta.status());
+  await activateTestUser(request, (await alta.json()).id);
   sql(`UPDATE usuarios SET permisos_configurados=true, permisos=ARRAY['pos.vender','pos.aplicar_descuento']::text[], descuento_maximo=10 WHERE email='${CAJERO}' AND tenant_id='${TENANT}'`);
   cajero = await login(request, CAJERO);
   for (const [clave, codigo, nombre, stock] of [['p', `JOR-${RUN}-A`, 'Martillo jornada', 40], ['c', `JOR-${RUN}-B`, 'Cable jornada', 10]] as const) {
@@ -58,8 +61,8 @@ test('1. preparación: administrador crea cajero, productos aprobados y cliente 
 
 test('2. el cajero inicia sesión en el navegador y abre caja desde la pantalla (fondo 300)', async ({ page }) => {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(CAJERO);
-  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator('#login-correo').fill(CAJERO);
+  await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
   await page.goto('/arqueo-caja');
@@ -163,8 +166,9 @@ test('6. ataques HTTP: sin sesión, asignación masiva, otra empresa y roles ins
   expect((await post(request, cajero.token, `/operaciones/ventas/${ventaCredito}/devoluciones`, { solicitudId: randomUUID(), items: [] })).status()).toBe(403);
   // Entre cajeros de la misma empresa: cada uno ve solo sus ventas y su caja; el bodeguero no ve ventas.
   const CAJERO2 = `jornada2.${RUN}@e2e.invalid`;
-  const alta2 = await post(request, admin.token, '/usuarios', { nombre: `Cajero 2 ${RUN}`, email: CAJERO2, password: PASSWORD, rol: 'CAJERO', permisos: ['pos.vender'], descuentoMaximo: 0 });
+  const alta2 = await post(request, admin.token, '/usuarios', { nombre: `Cajero 2 ${RUN}`, email: CAJERO2, rol: 'CAJERO', permisos: ['pos.vender'], descuentoMaximo: 0 });
   expect([200, 201], await alta2.text()).toContain(alta2.status());
+  await activateTestUser(request, (await alta2.json()).id);
   const cajero2 = await login(request, CAJERO2);
   const visibles = await (await request.get(`${API}/ventas`, { headers: auth(cajero2.token) })).json() as any[];
   expect(visibles.filter((v) => v.usuarioId === cajero.id)).toEqual([]);
@@ -185,8 +189,8 @@ test('7. arqueo en pantalla: el faltante exige explicación; con nota la caja ci
   expect(sql(`SELECT (monto_apertura + COALESCE((SELECT SUM(monto) FROM movimientos_caja WHERE caja_id=c.id AND metodo='EFECTIVO'),0))::float FROM cajas c WHERE id='${cajaId}'`)).toBe('722.5');
 
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(CAJERO);
-  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator('#login-correo').fill(CAJERO);
+  await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
   await page.goto('/arqueo-caja');
