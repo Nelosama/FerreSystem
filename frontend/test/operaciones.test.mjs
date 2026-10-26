@@ -37,6 +37,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name.endsWith('/colorMarca')) return evaluate('src/utils/colorMarca.ts', {});
     if (name.endsWith('/posMoney')) return evaluate('src/utils/posMoney.ts', {}, globals);
     if (name.endsWith('/posCatalogo')) return evaluate('src/utils/posCatalogo.ts', {}, globals);
+    if (name.endsWith('/preciosCarrito')) return evaluate('src/utils/preciosCarrito.ts', {}, globals);
     if (name.endsWith('/posRecovery')) return evaluate('src/utils/posRecovery.ts', {}, globals);
     if (name.endsWith('/cotizacionesFilters')) return evaluate('src/utils/cotizacionesFilters.ts', {});
     if (name.endsWith('/numeroVenta')) return evaluate('src/utils/numeroVenta.ts', {});
@@ -574,6 +575,8 @@ test('respuesta tardía del POST no reemplaza una venta pendiente posterior de l
     await settlePOS(page);
     page.find(n => n.props.className?.split(' ').includes('pos-producto') && n.props.onClick).props.onClick(); page.render();
     const charging = page.find(n => n.props.onClick?.name === 'handleCobrar').props.onClick();
+    // El cobro valida antes el precio vigente (lectura asíncrona del catálogo); la otra pestaña escribe con el POST en vuelo.
+    while (!finish) await new Promise(resolve => setImmediate(resolve));
     saved.setItem(recoveryKeys.pending, JSON.stringify(newer));
     if (notifyStorage) page.fireStorage(recoveryKeys.pending);
     page.render();
