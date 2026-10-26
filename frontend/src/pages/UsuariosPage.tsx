@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { generatePassword } from '../utils/generatePassword';
 import { TopBar } from '../components/TopBar';
 
 export interface Usuario {
   id: string;
   nombre: string;
   email: string;
+  username?: string;
   rolBase: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR';
   permisos: string[];
   descuentoMaximo: number;
@@ -124,8 +124,7 @@ export const UsuariosPage: React.FC = () => {
   // Form states & field-level errors
   const [formNombre, setFormNombre] = useState('');
   const [formEmail, setFormEmail] = useState('');
-  const [formPassword, setFormPassword] = useState('');
-  const [mostrarPassword, setMostrarPassword] = useState(false);
+  const [formUsername, setFormUsername] = useState('');
   const [formRolBase, setFormRolBase] = useState<'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR'>('CAJERO');
   const [formPermisos, setFormPermisos] = useState<string[]>([]);
   const [formDescuentoMaximo, setFormDescuentoMaximo] = useState<number>(10);
@@ -150,7 +149,8 @@ export const UsuariosPage: React.FC = () => {
           const apiUsers: Usuario[] = response.data.map((u: any) => ({
             id: u.id,
             nombre: u.nombre,
-            email: u.email,
+            email: u.email || '',
+            username: u.username,
             rolBase: u.rol as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR',
             permisos: u.permisosConfigurados ? u.permisos : PERMISOS_DEFAULT_POR_ROL[u.rol as keyof typeof PERMISOS_DEFAULT_POR_ROL]?.permisos || [],
             descuentoMaximo: Number(u.descuentoMaximo || 0),
@@ -178,8 +178,7 @@ export const UsuariosPage: React.FC = () => {
     setUsuarioEditando(null);
     setFormNombre('');
     setFormEmail('');
-    setFormPassword('');
-    setMostrarPassword(false);
+    setFormUsername('');
     setFormRolBase('CAJERO');
     setFormPermisos(PERMISOS_DEFAULT_POR_ROL.CAJERO.permisos);
     setFormDescuentoMaximo(PERMISOS_DEFAULT_POR_ROL.CAJERO.descuentoMaximo);
@@ -192,8 +191,8 @@ export const UsuariosPage: React.FC = () => {
   const abrirEditarUsuario = (usr: Usuario) => {
     setUsuarioEditando(usr);
     setFormNombre(usr.nombre);
-    setFormEmail(usr.email);
-    setFormPassword('');
+    setFormEmail(usr.email || '');
+    setFormUsername(usr.username || '');
     setFormRolBase(usr.rolBase);
     setFormPermisos(usr.permisos);
     setFormDescuentoMaximo(usr.descuentoMaximo);
@@ -210,18 +209,14 @@ export const UsuariosPage: React.FC = () => {
       errors.nombre = t('validation.required_field');
     }
 
-    if (!formEmail.trim()) {
-      errors.email = t('validation.required_field');
-    } else {
+    if (!formEmail.trim() && !formUsername.trim()) errors.email = t('validation.required_field');
+    if (formEmail.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formEmail.trim())) {
         errors.email = t('validation.invalid_email');
       }
     }
 
-    if (!usuarioEditando && (!formPassword || formPassword.length < 8 || !/[A-Za-z]/.test(formPassword) || !/\d/.test(formPassword))) {
-      errors.password = 'Mínimo 8 caracteres, con letras y números';
-    }
 
     if (formDescuentoMaximo < 0 || formDescuentoMaximo > 100 || isNaN(formDescuentoMaximo)) {
       errors.descuentoMaximo = t('validation.number_range', { min: 0, max: 100 });
@@ -270,12 +265,12 @@ export const UsuariosPage: React.FC = () => {
 
     const payload = {
       nombre: formNombre.trim(),
-      email: formEmail.trim(),
+      ...(formEmail.trim() && { email: formEmail.trim() }),
+      ...(formUsername.trim() && { username: formUsername.trim() }),
       rol: formRolBase,
       permisos: formPermisos,
       descuentoMaximo: formDescuentoMaximo,
       activo: formActivo,
-      ...(formPassword ? { password: formPassword } : {}),
     };
 
     try {
@@ -288,6 +283,7 @@ export const UsuariosPage: React.FC = () => {
           id: updatedData.id || usuarioEditando.id,
           nombre: updatedData.nombre || formNombre.trim(),
           email: updatedData.email || formEmail.trim(),
+          username: updatedData.username,
           rolBase: formRolBase,
           permisos: formPermisos,
           descuentoMaximo: formDescuentoMaximo,
@@ -307,6 +303,7 @@ export const UsuariosPage: React.FC = () => {
           id: newData.id,
           nombre: newData.nombre || formNombre.trim(),
           email: newData.email || formEmail.trim(),
+          username: newData.username,
           rolBase: formRolBase,
           permisos: formPermisos,
           descuentoMaximo: formDescuentoMaximo,
@@ -528,7 +525,6 @@ export const UsuariosPage: React.FC = () => {
                   <input
                     id="usuario-correo"
                     type="email"
-                    required
                     placeholder={t('users.placeholder_email')}
                     value={formEmail}
                     onChange={(e) => {
@@ -544,30 +540,7 @@ export const UsuariosPage: React.FC = () => {
                 </div>
               </div>
 
-              {!usuarioEditando && (
-                <div className="form-group">
-                  <label className="form-label" htmlFor="usuario-clave">{t('users.temp_password')}</label>
-                  <input
-                    id="usuario-clave"
-                    type={mostrarPassword ? 'text' : 'password'}
-                    required
-                    disabled={submitting}
-                    placeholder="Mínimo 8 caracteres"
-                    autoComplete="new-password"
-                    value={formPassword}
-                    onChange={(e) => {
-                      setFormPassword(e.target.value);
-                      if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: '' });
-                    }}
-                    className="form-input"
-                    style={fieldErrors.password ? styles.inputError : {}}
-                  />
-                  <button type="button" className="btn btn-secondary" disabled={submitting} style={{ marginTop: 6 }} onClick={() => { setFormPassword(generatePassword()); setMostrarPassword(true); }}>Generar contraseña segura</button>
-                  {fieldErrors.password && (
-                    <span style={styles.fieldErrorText}>{fieldErrors.password}</span>
-                  )}
-                </div>
-              )}
+<div className="form-group"><label className="form-label" htmlFor="usuario-identificador">{t('shell.login.email')}</label><input id="usuario-identificador" className="form-input" value={formUsername} onChange={e => setFormUsername(e.target.value)} placeholder="danielcm / 44556" autoCapitalize="none" /><p>{t('security.employee_help')}</p></div>
 
               <div style={styles.formRow} className="usuario-modal-fila">
 

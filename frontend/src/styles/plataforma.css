@@ -257,6 +257,47 @@
 .platform-shell .industrial-table tbody tr:hover { background: var(--surface-2); }
 
 /* ---------- Tablet (≤1024 px) ---------- */
+/* ---------- Empresas (tarjetas compactas): altura según su contenido, sin espacios vacíos ---------- */
+.empresas-grid {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.empresa-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 2px rgb(28 43 50 / 0.05);
+}
+
+.empresa-card-cabecera { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.empresa-card-cabecera .jowa-tenant-mark { width: 40px; height: 40px; border-radius: 10px; }
+.empresa-card-titulo { flex: 1; min-width: 0; }
+.empresa-card-titulo h3 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.25; color: var(--ink); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.empresa-card-titulo small { display: block; margin-top: 1px; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.empresa-card-datos { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
+
+.empresa-card-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
 @media (max-width: 1024px) {
   .platform-tabs,
   .platform-shell .platform-content { padding-left: 22px; padding-right: 22px; }

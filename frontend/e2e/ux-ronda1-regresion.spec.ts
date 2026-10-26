@@ -22,8 +22,8 @@ test.describe('Inicio de sesión', () => {
       // «Jowa» y «System» se leen sobre el fondo de la tarjeta (antes «Jowa» era blanco sobre blanco).
       await sinFallos(page);
       expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
-      await expect(page.getByLabel('Correo electrónico')).toHaveAttribute('type', 'email');
-      await expect(page.getByLabel('Contraseña')).toHaveAttribute('type', 'password');
+      await expect(page.getByLabel('Usuario, código o correo')).toHaveAttribute('type', 'text');
+      await expect(page.getByLabel('Contraseña', { exact: true })).toHaveAttribute('type', 'password');
       await expect(page.getByRole('button', { name: 'Ingresar al sistema' })).toBeVisible();
     });
   }
@@ -188,26 +188,27 @@ test.describe('POS: método de pago, colores de marca y cobro', () => {
 });
 
 test.describe('Navegación', () => {
-  test('TOPNAV muestra la conexión, no duplica enlaces y agrupa en «Más» por debajo de 1200 px', async ({ page }) => {
+  test('con el valor histórico TOPNAV la navegación es la híbrida: conexión en el rail, sin enlaces duplicados ni desborde', async ({ page }) => {
     await prepararSesion(page, 'ADMIN', { negocio: { modoNavegacion: 'TOPNAV' } });
     for (const ancho of [1440, 1024]) {
       await page.setViewportSize({ width: ancho, height: 800 });
       await page.goto('/');
-      const barra = page.locator('header.app-top-navigation');
-      await expect(barra.locator('.jowa-connection')).toContainText('En línea');
-      // El logotipo también enlaza a Inicio (como en main); la barra de módulos no repite ningún destino.
-      const enlaces = await barra.locator('nav a[href]').evaluateAll(as => as.map(a => a.getAttribute('href')));
-      expect(enlaces.length, 'cada destino una sola vez').toBe(new Set(enlaces).size);
-      expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
-      const usuarios = barra.locator('a[href="/usuarios"]');
-      if (ancho < 1200) {
-        await expect(usuarios).toBeHidden();
-        await barra.getByRole('button', { name: /más|More/i }).or(barra.locator('summary[aria-label]').last()).last().click();
-        await expect(usuarios).toBeVisible();
-      } else {
-        await expect(usuarios).toBeVisible();
+      const rail = page.locator('nav.admin-rail');
+      await expect(rail).toBeVisible();
+      await expect(page.locator('header.app-top-navigation, header.jowa-topnav')).toHaveCount(0);
+      await expect(rail.locator('.jowa-connection')).toContainText('En línea');
+      // El rail no repite ningún destino ni siquiera con todos sus paneles abiertos.
+      const destinos: string[] = await rail.locator('ul.app-rail-list a[href]').evaluateAll(as => as.map(a => a.getAttribute('href') || ''));
+      const botones = rail.locator('button.app-rail-item');
+      for (let i = 0; i < await botones.count(); i++) {
+        await botones.nth(i).click();
+        destinos.push(...await page.locator('nav.admin-rail .app-rail-panel a[href]').evaluateAll(as => as.map(a => a.getAttribute('href') || '')));
+        await botones.nth(i).click();
       }
-      await sinFallos(page, 'header.app-top-navigation');
+      expect(destinos.length, 'cada destino una sola vez').toBe(new Set(destinos).size);
+      expect(destinos).toContain('/usuarios');
+      expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
+      await sinFallos(page, 'nav.admin-rail');
     }
   });
 

@@ -509,7 +509,7 @@
     "tab_admins": "ADMIN USERS",
     "tab_audit": "SAAS AUDIT",
     "tenants_header": "CLIENT & TENANT MANAGEMENT",
-    "tenants_desc": "New client provisioning, service contracts and navigation modes."
+    "tenants_desc": "New client provisioning and service contracts."
   },
   "topbar": {
     "guidance": "Choose a task or use the finder to search for one",
@@ -813,7 +813,14 @@
     "home_link": "Jowa System: go to Home",
     "platform": "Platform",
     "connection_status": "Connection status",
-    "more_menu": "More sections"
+    "more_menu": "More sections",
+    "rail_logistics": "Logistics",
+    "role_cajero": "Cashier",
+    "role_vendedor": "Salesperson",
+    "role_bodeguero": "Warehouse",
+    "role_contador": "Accountant",
+    "role_superadmin": "Super Admin",
+    "branch_active": "Active branch"
   },
   "tasks": {
     "finder": "Find a screen or task",
@@ -915,6 +922,11 @@
     }
   },
   "settings": {
+    "navigation_mode": "Navigation mode",
+    "navigation_sidebar": "SIDEBAR · Side menu",
+    "navigation_topnav": "TOPNAV · Top menu",
+    "navigation_help": "Choose the menu position for this business. Both options keep the contextual bar and authorized access. Mobile keeps bottom navigation.",
+
     "sections": {
       "business": "My business",
       "business_help": "Business name, sector, contact, language, logo and brand color.",
@@ -923,9 +935,7 @@
       "team": "Team and permissions",
       "team_help": "Users, their roles and permissions, and enabled services are managed in their own tabs; no new powers are granted here.",
       "team_users": "Users, roles and permissions",
-      "team_services": "Enabled services (modules)",
-      "navigation": "Navigation",
-      "navigation_help": "Side or top menu. Both show only the modules each role is authorized for."
+      "team_services": "Enabled services (modules)"
     },
     "name": "Trade Name",
     "logo": "Company Logo",
@@ -953,11 +963,6 @@
     "business_sector": "TRADE SECTOR (MULTI-SECTOR ENGINE)",
     "currency_symbol": "CURRENCY SYMBOL",
     "tax": ") • Tax:",
-    "navigation_mode_and_page_structure": "NAVIGATION MODE AND PAGE STRUCTURE",
-    "side_menu_sidebar": "SIDE MENU (SIDEBAR)",
-    "vertical_panel_on_the_left": "Vertical panel on the left",
-    "top_menu_topnav": "TOP MENU (TOPNAV)",
-    "full_horizontal_navigation": "Full horizontal navigation",
     "brand_color_live_preview": "BRAND COLOR & LIVE PREVIEW",
     "choose_the_color_used_for_your_company_in_navigation_buttons_and_documents": "Choose the color that identifies your company in navigation, buttons and documents.",
     "hex_code": "HEXADECIMAL CODE",
@@ -973,12 +978,10 @@
     "new_customer_tenant": "NEW CUSTOMER / TENANT",
     "company_customer": "COMPANY / CUSTOMER",
     "main_contact": "MAIN CONTACT",
-    "navigation": "NAVIGATION",
     "enabled_services": "ENABLED SERVICES",
     "status": "STATUS",
     "saas_actions": "SAAS ACTIONS",
     "connected_branch_es": "Connected Branch(es)",
-    "switch_between_side_menu_and_top_menu": "Switch between Side Menu or Top Menu",
     "manage_subscribed_services_and_modules": "MANAGE SUBSCRIBED SERVICES AND MODULES",
     "services": "SERVICES",
     "active": "Active",
@@ -1028,15 +1031,10 @@
     "disable_optional_modules": "Disable all",
     "cancel": "CANCEL",
     "save_service_changes": "SAVE SERVICE CHANGES",
-    "navigation_settings": "NAVIGATION SETTINGS",
     "company": "COMPANY:",
-    "select_the_menu_format_for_this_company_s_users": "Select the menu format for users of this customer:",
-    "traditional_left_side_panel": "Traditional left side panel",
-    "horizontal_top_navigation_bar": "Horizontal top navigation bar",
     "close": "CLOSE",
     "configure_branding_and_company_details": "CONFIGURE BRANDING AND COMPANY DETAILS",
     "business_name": "TRADE NAME OF STORE",
-    "navigation_mode": "NAVIGATION MODE",
     "contact_phone": "CONTACT PHONE",
     "subscription_plan": "SUBSCRIPTION PLAN",
     "business_color_hex": "ASSIGNED STORE COLOR (HEX)",
@@ -1113,8 +1111,6 @@
     "admin_success_1": "Services and modules for \"{name}\" saved successfully!",
     "admin_success_2": "Navigation type for \"{name}\" changed to {mode}!",
     "admin_success_3": "Store \"{name}\" and Admin user created successfully!",
-    "circle_side_menu_sidebar": "○ SIDE MENU (SIDEBAR)",
-    "circle_top_menu_topnav": "○ TOP MENU (TOPNAV)",
     "tax_percent": "TAX (%)"
   },
   "sectors": {
@@ -1568,7 +1564,7 @@
   "shell": {
     "login": {
       "subtitle": "Business management system",
-      "email": "Email",
+      "email": "Username, code or email",
       "password": "Password",
       "submit": "Sign in",
       "verifying": "Verifying…",
@@ -1694,9 +1690,6 @@
       "primary_color": "Primary color",
       "preview": "Preview",
       "preview_help": "This is how the business staff will see it. The Super Admin panel always uses its own color.",
-      "sidebar": "Side menu",
-      "topnav": "Top menu",
-      "navigation": "Navigation",
       "point_of_sale": "Point of sale",
       "cash_drawer": "Cash drawer",
       "quotations": "Quotations",
@@ -1791,5 +1784,32 @@
     "confirm": "Confirm",
     "cancel": "Cancel",
     "no_export_data": "There is no data available to export."
+  },
+  "security": {
+    "platform": "Super Admin sign-in",
+    "tenant": "Business identifier",
+    "mfa": "MFA code or emergency code (if configured)",
+    "recovery": "Recover access",
+    "employee_help": "Employees recover access with a private link issued by their administrator.",
+    "accepted": "If the account is eligible, instructions will be sent. Employees should contact their administrator.",
+    "done": "Request completed. Sign in again if you changed your credentials.",
+    "failed": "Unable to complete. Check your details, link expiration and connection.",
+    "save_codes": "Store these emergency codes privately. Each works once. They will not be shown again.",
+    "send": "Send recovery instructions",
+    "bootstrap": "Set up initial Super Admin MFA",
+    "token": "Private link code",
+    "secret": "Key for your authenticator application",
+    "current": "Current password",
+    "new_password": "New password (at least 8 characters, letters and numbers)",
+    "continue": "Continue",
+    "account": "My account security",
+    "switch": "Lock / switch employee",
+    "private_link": "Private link, valid for 10 minutes. Share only with its owner. Treat it as a temporary credential.",
+    "change": "Change my password",
+    "verify": "Verify my email",
+    "enroll": "Set up MFA",
+    "load_users": "Load users",
+    "employee": "User requesting access",
+    "admin_reset": "Issue private reset link"
   }
 }

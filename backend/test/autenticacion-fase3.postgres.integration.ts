@@ -1,3 +1,5 @@
+import { RecoveryService } from '../src/auth/recovery.service';
+import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { noStore } from '../src/common/no-store.middleware';
 import { idSolicitud } from '../src/operaciones/ledger';
 import { execFileSync } from 'node:child_process';
@@ -237,7 +239,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
 
     it('el Super Admin también tiene límite de intentos', async () => {
       for (let i = 0; i < 3; i++) await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password: 'mala-clave' }).expect(401);
-      await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password }).expect(429);
+      await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'plataforma@auth.test.invalid') }).expect(429);
     });
 
     it('los fallos se guardan como hash, sin correo en claro', async () => {
@@ -310,7 +312,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     });
 
     it('el logout del Super Admin revoca su sesión y su refresh', async () => {
-      const res = await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password }).expect(200);
+      const res = await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'plataforma@auth.test.invalid') }).expect(200);
       const access = res.body.accessToken as string;
       const cookie = (res.headers['set-cookie'] as unknown as string[]).find(c => c.startsWith('superAdminRefreshToken='))!.split(';')[0];
       await get('/auth/me', access).expect(200);
@@ -329,7 +331,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     it('cambiar la contraseña revoca todas las sesiones del usuario', async () => {
       const sesion = await login('otro@auth.test.invalid').expect(200);
       await get('/auth/me', sesion.body.accessToken).expect(200);
-      await usuarios.update(tenantId, otroCajeroId, { password: 'Nueva-Clave-2026!' } as any, adminId);
+      await new RecoveryService(prisma, new ConfigService(env), {} as any).change({ sub: otroCajeroId, type: 'tenant', tenantId }, { currentPassword: password, password: 'Nueva-Clave-2026!' });
       await get('/auth/me', sesion.body.accessToken).expect(401);
       await login('otro@auth.test.invalid', password).expect(401);
       await login('otro@auth.test.invalid', 'Nueva-Clave-2026!').expect(200);
@@ -346,7 +348,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     it('sesionVigente exige el mismo sujeto, sesión no revocada y no vencida', async () => {
       const res = await login('admin@auth.test.invalid').expect(200);
       const sid = await sesionDe(res.body.accessToken);
-      expect(await sesionVigente(prisma, sid, adminId)).toBe(true);
+      expect(await sesionVigente(prisma, sid, adminId, (await prisma.usuario.findUniqueOrThrow({ where: { id: adminId } })).passwordHash)).toBe(true);
       expect(await sesionVigente(prisma, sid, cajeroId)).toBe(false);
       expect(await sesionVigente(prisma, randomUUID(), adminId)).toBe(false);
     });
@@ -458,7 +460,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
 
     it('el refresh del Super Admin rota y detecta la reutilización', async () => {
       const cookieDe = (r: request.Response) => (r.headers['set-cookie'] as unknown as string[]).find(c => c.startsWith('superAdminRefreshToken='))!.split(';')[0];
-      const res = await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password }).expect(200);
+      const res = await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'plataforma@auth.test.invalid') }).expect(200);
       const sid = await sesionDe(res.body.accessToken);
       const original = cookieDe(res);
       const r1 = await request(app.getHttpServer()).post('/api/admin/auth/refresh').set('Cookie', original).expect(200);
@@ -478,7 +480,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     it('login, refresh y logout desde otro origen responden 403 sin crear, rotar ni cerrar sesiones', async () => {
       const antes = await prisma.sesionAuth.count();
       await request(app.getHttpServer()).post('/api/auth/login').set('Origin', ajeno).send({ email: 'admin@auth.test.invalid', password, tenantId }).expect(403);
-      await request(app.getHttpServer()).post('/api/admin/auth/login').set('Origin', ajeno).send({ email: 'plataforma@auth.test.invalid', password }).expect(403);
+      await request(app.getHttpServer()).post('/api/admin/auth/login').set('Origin', ajeno).send({ email: 'plataforma@auth.test.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'plataforma@auth.test.invalid') }).expect(403);
       expect(await prisma.sesionAuth.count()).toBe(antes);
 
       const res = await login('admin@auth.test.invalid').set('Origin', local).expect(200);

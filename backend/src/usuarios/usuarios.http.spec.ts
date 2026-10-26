@@ -41,7 +41,7 @@ describe('Matriz de permisos · módulo de usuarios (HTTP)', () => {
           return u ? { ...u, permisos: [], permisosConfigurados: false, descuentoMaximo: 0, tenant: { estado: 'ACTIVO' } } : null;
         }),
       },
-      superAdmin: { findUnique: vi.fn(async () => ({ activo: true })) },
+      superAdmin: { findUnique: vi.fn(async () => ({ activo: true, mfaSecret: 'fixture-enrolled' })) },
       sesionAuth: { findUnique: vi.fn(async ({ where }: any) => (sesiones.has(where.id) ? { sujetoId: where.id.replace(/^s-/, ''), revokedAt: null, expiresAt: new Date(Date.now() + 600_000) } : null)) },
     };
     service = {
@@ -92,7 +92,7 @@ describe('Matriz de permisos · módulo de usuarios (HTTP)', () => {
 
   it('Super Admin con token de plataforma: no administra usuarios de empresa (403)', async () => {
     sesiones.add('s-sa-1');
-    const tokenSA = jwt.sign({ sub: 'sa-1', email: 'sa@p.test', type: 'super_admin', sid: 's-sa-1' }, { expiresIn: '5m' });
+    const tokenSA = jwt.sign({ sub: 'sa-1', email: 'sa@p.test', type: 'super_admin', mfa: true, sid: 's-sa-1' }, { expiresIn: '5m' });
     for (const [, llamada] of llamadas) expect((await llamada(tokenSA)).status).toBe(403);
   });
 

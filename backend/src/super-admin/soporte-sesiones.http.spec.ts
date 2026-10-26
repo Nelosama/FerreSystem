@@ -25,7 +25,7 @@ describe('Soporte remoto · usuarios reales, fin de sesión y trazabilidad (HTTP
   let prisma: any;
   let usuarioFindManyArgs: any;
 
-  const SA = () => jwt.sign({ sub: 'sa-1', email: 'sa@ferresystem.test', type: 'super_admin' }, { expiresIn: '5m' });
+  const SA = () => jwt.sign({ sub: 'sa-1', email: 'sa@ferresystem.test', type: 'super_admin', mfa: true }, { expiresIn: '5m' });
   const tenantAdmin = () => jwt.sign({ sub: 'u-admin', tenantId: 't1', email: 'admin@t1.hn', type: 'tenant', sid: 's-admin' }, { expiresIn: '5m' });
   const soporteToken = (sid = 's-soporte', readOnly = true) => jwt.sign({
     sub: 'u-admin', tenantId: 't1', email: 'admin@t1.hn', type: 'tenant', impersonatedBy: 'sa-1', soporteSesionId: 'ses-1', readOnly, sid,
@@ -48,7 +48,7 @@ describe('Soporte remoto · usuarios reales, fin de sesión y trazabilidad (HTTP
         findFirst: vi.fn(async ({ where }: any) => usuarios.find(u => u.id === where.id && u.tenantId === where.tenantId && u.activo === (where.activo ?? u.activo)) ?? null),
         findMany: vi.fn(async (args: any) => { usuarioFindManyArgs = args; return usuarios.filter(u => u.tenantId === args.where.tenantId && u.activo).map(({ id, nombre, email, rol }) => ({ id, nombre, email, rol })); }),
       },
-      superAdmin: { findUnique: vi.fn(async ({ where }: any) => (where.id === 'sa-1' ? { id: 'sa-1', email: 'sa@ferresystem.test', activo: true } : null)) },
+      superAdmin: { findUnique: vi.fn(async ({ where }: any) => (where.id === 'sa-1' ? { id: 'sa-1', email: 'sa@ferresystem.test', mfaSecret: 'fixture-enrolled', activo: true } : null)) },
       sesionAuth: {
         create: vi.fn(async ({ data }: any) => { sesiones.set(data.id, { sujetoId: data.sujetoId, revokedAt: null, revocationMotivo: null, expiresAt: data.expiresAt }); return data; }),
         findUnique: vi.fn(async ({ where }: any) => { const s = sesiones.get(where.id); return s ? { sujetoId: s.sujetoId, revokedAt: s.revokedAt, expiresAt: s.expiresAt } : null; }),

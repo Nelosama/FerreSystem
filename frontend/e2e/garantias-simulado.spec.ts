@@ -76,8 +76,8 @@ const test = base.extend<{ sim: Sim; rol: 'ADMIN' | 'CAJERO' }>({
 
 async function ingresar(page: Page, ruta: string) {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill('usuario@prueba.invalid');
-  await page.locator('input[type="password"]').fill('solo-para-esta-prueba');
+  await page.locator('#login-correo').fill('usuario@prueba.invalid');
+  await page.locator('#login-clave').fill('solo-para-esta-prueba');
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   // Espera a salir de /login: la pantalla de inicio depende del rol.
   await page.waitForURL(url => !url.pathname.startsWith('/login'));

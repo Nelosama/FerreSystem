@@ -35,7 +35,7 @@ test('PWA real: shell cacheado no autoriza sesión expirada ni almacena API priv
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByText('Tu sesión ha expirado. Inicia sesión nuevamente para continuar.')).toBeVisible();
   await page.reload();
-  await expect(page.locator('input[type="password"]')).toBeVisible();
+  await expect(page.locator('#login-clave')).toBeVisible();
   expect(moduleReads).toBe(before);
   const privateCache = await page.evaluate(async () => {
     const requests = (await Promise.all((await caches.keys()).map(async name => (await caches.open(name)).keys()))).flat();

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { tokenHash } from './mfa';
 import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -9,17 +10,23 @@ export type TipoSesion = 'TENANT' | 'SOPORTE' | 'SUPER_ADMIN';
 
 export async function crearSesion(
   prisma: Pick<PrismaService, 'sesionAuth'>,
-  datos: { id: string; tipo: TipoSesion; sujetoId: string; tenantId?: string | null; expiresAt: Date; refreshJti?: string },
+  datos: { id: string; tipo: TipoSesion; sujetoId: string; tenantId?: string | null; expiresAt: Date; refreshJti?: string; passwordHash?: string },
 ): Promise<void> {
   await prisma.sesionAuth.create({
-    data: { id: datos.id, tipo: datos.tipo, sujetoId: datos.sujetoId, tenantId: datos.tenantId ?? null, expiresAt: datos.expiresAt, refreshJti: datos.refreshJti ?? null },
+    data: { id: datos.id, tipo: datos.tipo, sujetoId: datos.sujetoId, tenantId: datos.tenantId ?? null, expiresAt: datos.expiresAt, refreshJti: datos.refreshJti ?? null, credentialBinding: datos.passwordHash ? tokenHash(datos.passwordHash) : null },
   });
 }
 
 /** La sesión existe, pertenece al sujeto del token, no está revocada y no ha vencido. */
-export async function sesionVigente(prisma: Pick<PrismaService, 'sesionAuth'>, sid: string, sujetoId: string): Promise<boolean> {
-  const sesion = await prisma.sesionAuth.findUnique({ where: { id: sid }, select: { sujetoId: true, revokedAt: true, expiresAt: true } });
-  return !!sesion && sesion.sujetoId === sujetoId && !sesion.revokedAt && sesion.expiresAt.getTime() > Date.now();
+export async function sesionVigente(prisma: Pick<PrismaService, 'sesionAuth'>, sid: string, sujetoId: string, passwordHash?: string): Promise<boolean> {
+  const sesion = await prisma.sesionAuth.findUnique({ where: { id: sid }, select: { sujetoId: true, revokedAt: true, expiresAt: true, credentialBinding: true, lastActivityAt: true } });
+  if (!sesion || sesion.sujetoId !== sujetoId || sesion.revokedAt || sesion.expiresAt.getTime() <= Date.now()) return false;
+  if (sesion.credentialBinding && (!passwordHash || sesion.credentialBinding !== tokenHash(passwordHash))) return false;
+  if (sesion.lastActivityAt) {
+    const result = await prisma.sesionAuth.updateMany({ where: { id: sid, revokedAt: null, lastActivityAt: { gt: new Date(Date.now() - 900000) } }, data: { lastActivityAt: new Date() } });
+    if (result.count !== 1) return false;
+  }
+  return true;
 }
 
 export async function revocarSesion(prisma: Pick<PrismaService, 'sesionAuth'>, sid: string, motivo: string): Promise<void> {
@@ -60,18 +67,21 @@ export type ResultadoRotacion =
  */
 export async function rotarRefresh(
   prisma: Pick<PrismaService, '$transaction'>,
-  datos: { sid: string; sujetoId: string; jti?: string; graciaMs: number },
+  datos: { sid: string; sujetoId: string; jti?: string; graciaMs: number; passwordHash?: string },
   ahora = new Date(),
 ): Promise<ResultadoRotacion> {
   return prisma.$transaction(async (tx) => {
     const [sesion] = await tx.$queryRaw<{
       sujeto_id: string; revoked_at: Date | null; expires_at: Date;
       refresh_jti: string | null; refresh_jti_anterior: string | null; refresh_rotado_at: Date | null;
+      credential_binding: string | null; last_activity_at: Date;
     }[]>`SELECT sujeto_id, revoked_at, expires_at, refresh_jti, refresh_jti_anterior, refresh_rotado_at
-           FROM sesiones_auth WHERE id = ${datos.sid} FOR UPDATE`;
+           , credential_binding, last_activity_at FROM sesiones_auth WHERE id = ${datos.sid} FOR UPDATE`;
     if (!sesion || sesion.sujeto_id !== datos.sujetoId || sesion.revoked_at || sesion.expires_at.getTime() <= ahora.getTime()) {
       return { estado: 'NO_VIGENTE' as const };
     }
+    if (sesion.credential_binding && (!datos.passwordHash || sesion.credential_binding !== tokenHash(datos.passwordHash))) return { estado: 'NO_VIGENTE' as const };
+    if (sesion.last_activity_at && sesion.last_activity_at.getTime() <= ahora.getTime() - 900000) return { estado: 'NO_VIGENTE' as const };
     const presentado = datos.jti || SIN_JTI;
     const vigente = sesion.refresh_jti ?? SIN_JTI;
     if (presentado === vigente) {

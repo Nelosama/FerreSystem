@@ -55,15 +55,16 @@ async function setup(page: Page, role: string, mode: string, language = 'es', en
 }
 
 for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const language of ['es', 'en']) {
-  test(`${role} ${mode} ${language}: navegación, prioridades, módulos y móvil`, async ({ page }) => {
+  test(`${role} (${mode}) ${language}: navegación híbrida, prioridades, módulos y móvil`, async ({ page }) => {
     const expectedLanguage = language;
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
     await setup(page, role, mode, language, []);
     await page.goto(role === 'SUPERADMIN' ? '/admin' : '/');
-    // El SUPERADMIN usa siempre el rail de plataforma (el modo del negocio no le aplica).
-    // Cajero y administrador en modo lateral usan el rail de iconos; sus accesos secundarios quedan en paneles («Más»).
-    const rail = ['CAJERO', 'ADMIN'].includes(role) && mode === 'SIDEBAR';
-    const navigation = role === 'SUPERADMIN' ? page.getByRole('navigation', { name: 'Áreas de la plataforma' }) : rail ? page.locator('nav.app-rail') : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
+    // SIDEBAR/TOPNAV posicionan el mismo menú autorizado. El SUPERADMIN usa el rail
+    // de plataforma y el resto de roles su rail de iconos; los accesos secundarios quedan en paneles («Más»).
+    const rail = role !== 'SUPERADMIN';
+    const navigation = role === 'SUPERADMIN' ? page.getByRole('navigation', { name: 'Áreas de la plataforma' }) : page.locator('nav.app-rail');
+    await expect(page.locator('header.jowa-topnav, aside.jowa-sidebar')).toHaveCount(0);
     await expect(navigation).toBeVisible();
     if (rail && await navigation.getByRole('button', { name: 'Más' }).count()) await navigation.getByRole('button', { name: 'Más' }).click();
     await expect(navigation.locator('a[href="/pos"]')).toHaveCount(0);
@@ -75,16 +76,15 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
       const accionesInicio = role === 'ADMIN' ? page.getByRole('navigation', { name: 'Accesos rápidos' }).getByRole('link') : page.locator('.daily-tasks .task-link');
       expect(await accionesInicio.count()).toBeLessThanOrEqual(4);
       if (['CAJERO', 'VENDEDOR'].includes(role)) {
-        if (mode === 'TOPNAV') { const submenu = navigation.locator('a[href="/arqueo-caja"]').locator('xpath=ancestor::details'); if (await submenu.count()) await submenu.locator('summary').click(); }
         await expect(navigation.locator('a[href="/arqueo-caja"]')).toHaveCount(0);
       }
       if (role !== 'ADMIN') await expect(navigation.locator('a[href="/usuarios"]')).toHaveCount(0);
     }
     await page.setViewportSize({ width: 390, height: 844 });
     if (role === 'SUPERADMIN') {
-      // En móvil el rail es la barra inferior de cuatro áreas; no hay botón «Más».
+      // En móvil el rail es la barra inferior de cinco áreas; no hay botón «Más».
       await expect(navigation).toBeVisible();
-      await expect(navigation.getByRole('link')).toHaveCount(4); // En móvil el logotipo del rail queda oculto.
+      await expect(navigation.getByRole('link')).toHaveCount(5); // En móvil el logotipo del rail queda oculto.
       await page.goto('/inventario');
       await expect(page.getByRole('heading', { name: language === 'es' ? /Acceso Denegado/i : /Access Denied/i, exact: true })).toBeVisible();
       expect(errors).toEqual([]);
@@ -107,38 +107,37 @@ for (const role of roles) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const l
 }
 
 for (const role of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) for (const mode of ['SIDEBAR', 'TOPNAV']) for (const enabled of [false, true]) {
-  test(`POS ${enabled} ${role} ${mode}: menús, buscador, accesos, móvil y URL`, async ({ page }) => {
+  test(`POS ${enabled} ${role} (${mode}): rail, buscador, accesos, móvil y URL`, async ({ page }) => {
     await setup(page, role, mode, 'es', enabled ? ['pos'] : []);
     await page.goto('/');
-    const cajeroRail = role === 'CAJERO' && mode === 'SIDEBAR';
-    const adminRail = role === 'ADMIN' && mode === 'SIDEBAR';
-    const nav = cajeroRail || adminRail ? page.locator('nav.app-rail') : page.locator(mode === 'SIDEBAR' ? 'aside.desktop-sidebar-nav' : 'header.desktop-sidebar-nav');
+    const nav = page.locator('nav.app-rail');
     await expect(nav).toBeVisible();
-    if (cajeroRail && await nav.getByRole('button', { name: 'Más' }).count()) await nav.getByRole('button', { name: 'Más' }).click();
-    // El buscador de pantallas está plegado dentro del shell del administrador (se abre antes: pulsar fuera cierra el panel del rail).
-    if (adminRail) await page.locator('.task-finder-toggle').click();
-    // El administrador agrupa Entregas y Devoluciones en el panel «Ventas» del rail (solo existe con el módulo POS).
-    if (adminRail) {
-      const ventas = nav.getByRole('button', { name: 'Ventas', exact: true });
-      if (enabled) { await expect(ventas).toBeVisible(); await ventas.click(); }
-      else await expect(ventas).toHaveCount(0);
-    }
-    const salesMenu = nav.getByRole('button', { name: 'Ventas y caja' });
-    if (mode === 'TOPNAV' && await salesMenu.count()) await salesMenu.click();
+    await expect(page.locator('header.jowa-topnav, aside.jowa-sidebar')).toHaveCount(0);
+    // Accesos reales del rail: se recorren todos sus paneles (solo uno abierto a la vez).
+    const hrefsDelRail = async () => {
+      const reunidos = new Set<string>(await nav.locator('a[href]').evaluateAll(links => links.map(a => a.getAttribute('href') || '')));
+      const botones = nav.locator('button.app-rail-item');
+      for (let i = 0; i < await botones.count(); i++) {
+        await botones.nth(i).click();
+        for (const href of await page.locator('nav.app-rail .app-rail-panel a[href]').evaluateAll(links => links.map(a => a.getAttribute('href') || ''))) reunidos.add(href);
+        await botones.nth(i).click();
+      }
+      return reunidos;
+    };
+    const enRail = await hrefsDelRail();
+    // La búsqueda de tareas está en la barra superior, plegada: se abre antes de escribir.
+    await page.locator('.task-finder-toggle').click();
     for (const route of ['entregas', 'devoluciones']) {
       const allowed = enabled && (route === 'entregas' ? role !== 'VENDEDOR' : role !== 'BODEGUERO');
-      await expect(nav.locator(`a[href="/${route}"]`)).toHaveCount(allowed ? 1 : 0);
+      expect(enRail.has(`/${route}`)).toBe(allowed);
       await page.locator('#task-search').fill(route === 'entregas' ? 'entregar' : 'devolución');
       await expect(page.locator(`.task-search-results a[href="/${route}"]`)).toHaveCount(allowed ? 1 : 0);
       if (!allowed) await expect(page.locator(`.daily-tasks a[href="/${route}"]`)).toHaveCount(0);
     }
     if (role === 'BODEGUERO') await expect(page.locator('.daily-tasks a[href="/entregas"]')).toHaveCount(enabled ? 1 : 0);
     if (['ADMIN', 'CAJERO'].includes(role)) {
-      await expect(nav.locator('a[href="/arqueo-caja"]')).toHaveCount(0);
-      // FS-14: el cajero ya no tiene Clientes; con un solo ítem la categoría puede no mostrarse como grupo.
-      const grupoCobros = nav.getByRole('button', { name: 'Clientes y cobros' });
-      if (mode === 'TOPNAV' && await grupoCobros.count()) await grupoCobros.click();
-      await expect(nav.locator('a[href="/cuentas"]')).toHaveCount(0);
+      expect(enRail.has('/arqueo-caja')).toBe(false);
+      expect(enRail.has('/cuentas')).toBe(false);
     }
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('.mobile-bottom-nav button').click();
@@ -169,27 +168,34 @@ test('settings: valores fiscales soportados, guardado, reload, errores y captura
   await expect(page.locator('#task-search')).toHaveCount(0);
   await expect(page.locator('#tax-rate')).toHaveValue('15');
   for (const id of ['currency-code', 'currency-symbol', 'tax-name', 'tax-rate']) await expect(page.locator('#' + id)).toHaveAttribute('readonly', '');
+  await expect(page.locator('#navigation-mode')).toHaveValue('TOPNAV');
+  await page.locator('#navigation-mode').selectOption('SIDEBAR');
   await page.locator('#business-name').fill('Empresa guardada');
   await page.getByRole('button', { name: 'APLICAR CAMBIOS', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'guardada correctamente' })).toBeVisible();
-  expect(api.writes[0]).toMatchObject({ modoNavegacion: 'TOPNAV', configuracion: { impuesto: { tasa: 15 }, moneda: { codigo: 'HNL' } } });
+  expect(api.writes[0]).toMatchObject({ configuracion: { impuesto: { tasa: 15 }, moneda: { codigo: 'HNL' } } });
+  expect(api.writes[0]).toHaveProperty('modoNavegacion', 'SIDEBAR');
   await page.reload();
+  await expect(page.locator('#navigation-mode')).toHaveValue('SIDEBAR');
   await expect(page.locator('input[type="number"]')).toHaveValue('15');
   await expect(page.getByRole('navigation', { name: 'Áreas de la plataforma' })).toBeVisible();
   await page.screenshot({ path: 'artifacts/ux-settings-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'artifacts/ux-settings-mobile.png', fullPage: true });
   api.fail(true);
+  await page.locator('#navigation-mode').selectOption('TOPNAV');
   await page.locator('#business-name').fill('Borrador sin guardar');
   await page.getByRole('button', { name: 'APLICAR CAMBIOS', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Error de prueba al guardar');
   expect(api.settings().impuesto.tasa).toBe(15);
+  expect(api.settings().modoNavegacion).toBe('SIDEBAR');
+  await expect(page.locator('#navigation-mode')).toHaveValue('TOPNAV');
   await expect(page.locator('#business-name')).toHaveValue('Borrador sin guardar');
   await expect(page.getByRole('status').filter({ hasText: 'guardada correctamente' })).toHaveCount(0);
   await page.evaluate(() => { localStorage.removeItem('ferre_user'); localStorage.removeItem('ferre_tenant'); localStorage.removeItem('ferre_token'); });
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill('test@example.invalid');
-  await page.locator('input[type="password"]').fill('test-only-password');
+  await page.locator('#login-correo').fill('test@example.invalid');
+  await page.locator('#login-clave').fill('test-only-password');
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await expect(page).toHaveURL(/\/(admin)?$/);
   await page.goto('/admin/negocios/ux-company/configuracion');
@@ -210,9 +216,9 @@ test('marca de Super Admin guarda por API, permanece al recargar y no anuncia é
   });
   await page.goto('/admin');
   async function openBrand(name: string) {
-    const row = page.getByRole('row').filter({ hasText: name });
-    await row.locator('summary').click();
-    await row.getByRole('button', { name: 'MARCA', exact: true }).click();
+    const card = page.locator('.empresa-card').filter({ hasText: name });
+    await card.getByRole('button', { name: /Gestionar empresa/ }).click();
+    await page.getByRole('menuitem', { name: 'MARCA', exact: true }).click();
   }
   await openBrand('Empresa de prueba');
   const modal = page.locator('.industrial-card').filter({ has: page.getByRole('heading', { name: 'CONFIGURAR MARCA Y DATOS DE EMPRESA', exact: true }) });
@@ -246,6 +252,7 @@ for (const language of ['es', 'en']) test(`configuración del negocio traducida 
   await page.goto('/admin/negocios/ux-company/configuracion');
   // La plataforma no muestra el buscador de tareas de los negocios.
   await expect(page.locator('#task-search')).toHaveCount(0);
+  await expect(page.getByLabel(language === 'es' ? 'Modo de navegación' : 'Navigation mode')).toHaveValue('TOPNAV');
   await expect(page.locator('#fiscal-limit')).toContainText(language==='es'?'solo lectura':'read-only');
 });
 
@@ -257,7 +264,8 @@ test('configuración vacía del servidor sustituye apariencia vieja de la caché
   await expect(page.locator('#template-version')).toHaveCount(0);
   await expect(page.locator('#classic-style')).toHaveCount(0);
   await expect(page.locator('#heading-font')).toHaveCount(0);
-  // La navegación de la plataforma del Super Admin no depende del negocio editado; el formulario sí refleja el servidor.
+  // La plataforma permanece independiente; el selector refleja el servidor en vez de la caché.
+  await expect(page.locator('#navigation-mode')).toHaveValue('SIDEBAR');
 
   await expect(page.locator('#currency-code')).toHaveValue('HNL');
   await expect(page.locator('#tax-rate')).toHaveValue('15');

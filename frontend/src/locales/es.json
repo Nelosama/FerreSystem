@@ -509,7 +509,7 @@
     "tab_admins": "USUARIOS ADMIN",
     "tab_audit": "AUDITORÍA SAAS",
     "tenants_header": "ADMINISTRACIÓN DE CLIENTES & EMPRESAS (TENANTS)",
-    "tenants_desc": "Aprovisionamiento de nuevos clientes, contratación de servicios y modo de navegación."
+    "tenants_desc": "Aprovisionamiento de nuevos clientes, contratación de servicios."
   },
   "topbar": {
     "guidance": "Elige una tarea o usa el buscador para encontrarla",
@@ -813,7 +813,14 @@
     "home_link": "Jowa System: ir a Inicio",
     "platform": "Plataforma",
     "connection_status": "Estado de la conexión",
-    "more_menu": "Más secciones"
+    "more_menu": "Más secciones",
+    "rail_logistics": "Logística",
+    "role_cajero": "Cajero",
+    "role_vendedor": "Vendedor",
+    "role_bodeguero": "Bodeguero",
+    "role_contador": "Contador",
+    "role_superadmin": "Super Admin",
+    "branch_active": "Sucursal activa"
   },
   "tasks": {
     "finder": "Buscar una pantalla o tarea",
@@ -915,6 +922,11 @@
     }
   },
   "settings": {
+    "navigation_mode": "Modo de navegación",
+    "navigation_sidebar": "SIDEBAR · Menú lateral",
+    "navigation_topnav": "TOPNAV · Menú superior",
+    "navigation_help": "Elija la ubicación del menú de este negocio. Ambas opciones conservan la barra contextual y los accesos autorizados. En móvil se mantiene la navegación inferior.",
+
     "sections": {
       "business": "Mi negocio",
       "business_help": "Nombre, rubro, contacto, idioma, logotipo y color de marca del negocio.",
@@ -923,9 +935,7 @@
       "team": "Equipo y permisos",
       "team_help": "Los usuarios, sus roles y permisos, y los servicios habilitados se gestionan en sus pestañas; aquí no se conceden facultades nuevas.",
       "team_users": "Usuarios, roles y permisos",
-      "team_services": "Servicios (módulos) habilitados",
-      "navigation": "Navegación",
-      "navigation_help": "Menú lateral o superior. Ambos muestran solo los módulos autorizados para cada rol."
+      "team_services": "Servicios (módulos) habilitados"
     },
     "name": "Nombre comercial",
     "logo": "Logo de empresa",
@@ -948,16 +958,11 @@
     "business_details_and_appearance": "Datos del negocio y apariencia",
     "business_details_and_language": "DATOS COMERCIALES Y LOCALE",
     "system_language": "IDIOMA DEL SISTEMA / SYSTEM LANGUAGE",
-    "business_name_shown_in_navigation_and_receipts": "NOMBRE COMERCIAL (APARECE EN SIDEBAR Y FACTURAS)",
+    "business_name_shown_in_navigation_and_receipts": "NOMBRE COMERCIAL (APARECE EN LA NAVEGACIÓN Y FACTURAS)",
     "custom_logo_url_company_image": "URL LOGO PERSONALIZADO (IMAGEN CORPORATIVA)",
     "business_sector": "RUBRO / GIRO COMERCIAL (MOTOR MULTI-RUBRO)",
     "currency_symbol": "SÍMBOLO MONEDA",
     "tax": ") • Impuesto:",
-    "navigation_mode_and_page_structure": "MODO DE NAVEGACIÓN Y ESTRUCTURA DE PÁGINA",
-    "side_menu_sidebar": "MENÚ LATERAL (SIDEBAR)",
-    "vertical_panel_on_the_left": "Panel vertical a la izquierda",
-    "top_menu_topnav": "MENÚ SUPERIOR (TOPNAV)",
-    "full_horizontal_navigation": "Navegación horizontal completa",
     "brand_color_live_preview": "COLOR DE MARCA & VISTA PREVIA EN VIVO",
     "choose_the_color_used_for_your_company_in_navigation_buttons_and_documents": "Elige el color que identificará tu empresa en la navegación, los botones y los documentos.",
     "hex_code": "CÓDIGO HEXADECIMAL",
@@ -973,12 +978,10 @@
     "new_customer_tenant": "NUEVO CLIENTE / TENANT",
     "company_customer": "EMPRESA / CLIENTE",
     "main_contact": "CONTACTO PRINCIPAL",
-    "navigation": "NAVEGACIÓN",
     "enabled_services": "SERVICIOS HABILITADOS",
     "status": "ESTADO",
     "saas_actions": "ACCIONES SAAS",
     "connected_branch_es": "Sucursal(es) Conectada(s)",
-    "switch_between_side_menu_and_top_menu": "Cambiar entre Menú Lateral o Menú Superior",
     "manage_subscribed_services_and_modules": "ADMINISTRAR SERVICIOS Y MÓDULOS CONTRATADOS",
     "services": "SERVICIOS",
     "active": "Activo",
@@ -1028,15 +1031,10 @@
     "disable_optional_modules": "Desactivar todos",
     "cancel": "CANCELAR",
     "save_service_changes": "GUARDAR CAMBIOS DE SERVICIO",
-    "navigation_settings": "CONFIGURACIÓN DE NAVEGACIÓN",
     "company": "EMPRESA:",
-    "select_the_menu_format_for_this_company_s_users": "Seleccione el formato de menú visual con el que interactuarán los usuarios de este cliente:",
-    "traditional_left_side_panel": "Panel lateral izquierdo tradicional",
-    "horizontal_top_navigation_bar": "Barra de navegación horizontal superior",
     "close": "CERRAR",
     "configure_branding_and_company_details": "CONFIGURAR MARCA Y DATOS DE EMPRESA",
     "business_name": "NOMBRE COMERCIAL DEL NEGOCIO",
-    "navigation_mode": "MODO DE NAVEGACIÓN",
     "contact_phone": "TELÉFONO DE CONTACTO",
     "subscription_plan": "PLAN DE SUSCRIPCIÓN",
     "business_color_hex": "COLOR ASIGNADO AL NEGOCIO (HEX)",
@@ -1113,8 +1111,6 @@
     "admin_success_1": "¡Servicios y módulos para \"{name}\" guardados correctamente!",
     "admin_success_2": "¡Tipo de navegación para \"{name}\" cambiado a {mode}!",
     "admin_success_3": "¡Negocio \"{name}\" y su usuario Admin creados exitosamente!",
-    "circle_side_menu_sidebar": "○ MENÚ LATERAL (SIDEBAR)",
-    "circle_top_menu_topnav": "○ MENÚ SUPERIOR (TOPNAV)",
     "tax_percent": "IMPUESTO (%)"
   },
   "sectors": {
@@ -1568,7 +1564,7 @@
   "shell": {
     "login": {
       "subtitle": "Sistema de gestión para negocios",
-      "email": "Correo electrónico",
+      "email": "Usuario, código o correo",
       "password": "Contraseña",
       "submit": "Ingresar al sistema",
       "verifying": "Verificando…",
@@ -1694,9 +1690,6 @@
       "primary_color": "Color principal",
       "preview": "Vista previa",
       "preview_help": "Así verá el personal del negocio. El panel del Super Admin siempre usa su color propio.",
-      "sidebar": "Menú lateral",
-      "topnav": "Menú superior",
-      "navigation": "Navegación",
       "point_of_sale": "Punto de venta",
       "cash_drawer": "Arqueo de caja",
       "quotations": "Cotizaciones",
@@ -1791,5 +1784,32 @@
     "confirm": "Confirmar",
     "cancel": "Cancelar",
     "no_export_data": "No hay datos disponibles para exportar."
+  },
+  "security": {
+    "platform": "Acceso de Super Admin",
+    "tenant": "Identificador de empresa",
+    "mfa": "Código MFA o código de emergencia (si está configurado)",
+    "recovery": "Recuperar acceso",
+    "employee_help": "Los empleados recuperan su acceso con un enlace privado emitido por su administrador.",
+    "accepted": "Si la cuenta cumple los requisitos, recibirá instrucciones. Contacte a su administrador si es empleado.",
+    "done": "Solicitud completada. Inicie sesión de nuevo si cambió sus credenciales.",
+    "failed": "No se pudo completar. Verifique los datos, la vigencia del enlace y su conexión.",
+    "save_codes": "Guarde estos códigos de emergencia en un lugar privado. Cada uno funciona una sola vez. No se mostrarán otra vez.",
+    "send": "Enviar recuperación",
+    "bootstrap": "Configurar MFA inicial de Super Admin",
+    "token": "Código del enlace privado",
+    "secret": "Clave para su aplicación de autenticación",
+    "current": "Contraseña actual",
+    "new_password": "Nueva contraseña (mínimo 8 caracteres, letras y números)",
+    "continue": "Continuar",
+    "account": "Seguridad de mi cuenta",
+    "switch": "Bloquear / cambiar de empleado",
+    "private_link": "Enlace privado, válido 10 minutos. Entréguelo solo al titular. Trátelo como una credencial temporal.",
+    "change": "Cambiar mi contraseña",
+    "verify": "Verificar mi correo",
+    "enroll": "Configurar MFA",
+    "load_users": "Cargar usuarios",
+    "employee": "Usuario que solicita el acceso",
+    "admin_reset": "Emitir enlace de restablecimiento privado"
   }
 }

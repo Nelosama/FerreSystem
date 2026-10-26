@@ -15,7 +15,7 @@ export const PlatformTopbar: React.FC = () => {
   const [parametros] = useSearchParams();
 
   const enNegocio = pathname.startsWith('/admin/negocios');
-  const area = AREAS_PLATAFORMA.find(item => item.id === (enNegocio ? 'clientes' : areaDeSeccion(seccionDePlataforma(parametros))));
+  const area = AREAS_PLATAFORMA.find(item => item.id === (enNegocio ? 'empresas' : areaDeSeccion(seccionDePlataforma(parametros))));
 
   const handleLogout = () => {
     logout();

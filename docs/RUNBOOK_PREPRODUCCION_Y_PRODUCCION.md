@@ -15,7 +15,7 @@ Origen: lectura del código (`process.env` / `ConfigService`), no de documentaci
 ### Render (servicio del backend)
 | Variable | ¿Obligatoria? | Valor / regla |
 |---|---|---|
-| `NODE_ENV` | **Sí** | `production`. **Sin esto `JWT_SECRET` cae en un valor de desarrollo PÚBLICO** (`jwt-secret.ts`) y las cookies no son `Secure`. Verifíquelo antes de todo |
+| `NODE_ENV` | **Sí** | `production`. Sin esto las cookies de sesión no son `Secure` ni `SameSite=None` y el inicio de sesión desde Vercel falla. Se normaliza (espacios y mayúsculas se aceptan, `common/entorno.ts`). **No hay secreto público por defecto:** fuera de `development`/`test` el arranque exige `JWT_SECRET` (`jwt-secret.ts`). Verifíquelo antes de todo |
 | `DATABASE_URL` | **Sí** | Conexión de la aplicación (puede ser el pooler de Supabase) |
 | `DIRECT_URL` | **Sí** | Conexión **directa** (o *session pooler*, puerto 5432) para Prisma y para `migration-safe`; **no** el pooler en modo transacción |
 | `JWT_SECRET` | **Sí** | Aleatorio, largo (≥ 48 caracteres recomendado); único por entorno |
@@ -100,6 +100,20 @@ Resultado: `verificacion.txt`, `estado-restaurada.txt` y `manifest.json.verifica
 | Respaldo → verificación → restauración con datos idénticos → arranque sobre la restaurada | Despliegue y variables de Vercel; el dominio real y CORS |
 | Humo de API con escritura (20/20) y de solo lectura (9/9); reinicio con datos y sesión intactos | Safari/iPhone, impresora, lector de códigos, Wi-Fi local, corte de internet (ver checklist) |
 | Entrega de la venta histórica pendiente; venta del producto heredado con precio; rechazo del producto heredado sin precio | Backend anterior contra la base ya migrada |
+
+## 5b. Reversión (rollback) por capa
+
+Procedimiento preparado; **no ejecutado** contra servicios reales. Cada paso requiere su orden expresa.
+
+| Capa | Cómo revertir | Qué no revierte | Condición |
+|---|---|---|---|
+| **Frontend (Vercel)** | *Deployments* → seleccionar el despliegue de producción anterior → *Promote to Production* (o *Instant Rollback*). Confirmar que su `VITE_API_URL` apunta a la API vigente | Datos. Solo el JavaScript servido | Solo si el contrato de API del despliegue anterior sigue siendo compatible con el backend actual |
+| **Backend (Render)** | *Manual Deploy* del commit anterior. **Solo si la base NO tiene migraciones posteriores.** | Esquema y datos | El código anterior usa `migration-safe.mjs`: si la base tiene migraciones que ese código no conoce (`MIGRACION_DESCONOCIDA`), se niega a arrancar. Es el comportamiento esperado, no un fallo |
+| **Base de datos (Supabase)** | Restaurar el respaldo verificado de la sección 4 en una base nueva y apuntar `DATABASE_URL`/`DIRECT_URL` a ella | Toda venta, cobro o movimiento posterior al respaldo | Ventana de mantenimiento, servicio de Render detenido o en pausa, caja cerrada |
+
+**Orden de reversión** cuando hay migraciones aplicadas: (1) detener el backend nuevo; (2) restaurar la base desde respaldo verificado; (3) desplegar el backend anterior; (4) revertir el frontend si hace falta; (5) humo de solo lectura (`humo-preproduccion.mjs` sin `--escribe`). Nunca `prisma migrate reset` ni `db push` sobre Supabase.
+
+Las migraciones de `backend/prisma/rollback-manual/` son SQL de reversión documentado para casos excepcionales; no son automáticas y deben revisarse contra los datos antes de ejecutarlas.
 
 ## 6. Autorizaciones que NO se dan por este documento
 Merge a `main`, despliegue, migración productiva, lectura de la base productiva, cambio de variables en Render/Vercel/Supabase y habilitación de la contingencia requieren su orden expresa.

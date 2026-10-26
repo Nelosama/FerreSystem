@@ -1,10 +1,11 @@
+import { fillPlatformMfa, syntheticMfaFor } from './mfa.fixture';
 import { expect, test, request, type Page, type APIRequestContext } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { confirmarAlerta } from '../e2e/helpers/alertas';
 
 // E2E REAL (backend NestJS + PostgreSQL temporal + almacenamiento PostgreSQL persistente; sin mocks).
-// Flujo de logotipo por negocio: carga, persistencia, visualización en ambos modos de navegación,
+// Flujo de logotipo por negocio: carga, persistencia, visualización en el rail (el valor histórico de navegación ya no cambia el layout),
 // reemplazo, eliminación y autorización directa por API. Supabase Storage no forma parte de esta prueba
 // (no hay proyecto real autorizado en el entorno); ver docs/CONTEXTO_MAESTRO.md.
 
@@ -28,14 +29,14 @@ const WEBP = Buffer.from('UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAwA0JaQAA3AA/v
 
 async function ingresar(page: Page, email: string) {
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(email);
-  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator('#login-correo').fill(email); await fillPlatformMfa(page, email);
+  await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
 
 async function tokenDe(api: APIRequestContext, email: string) {
-  const r = await api.post('auth/login', { data: { email, password: PASSWORD } });
+  const r = await api.post('auth/login', { data: { email, password: PASSWORD, mfaCode: await syntheticMfaFor(email) } });
   expect(r.status()).toBe(200);
   return (await r.json()).accessToken as string;
 }
@@ -45,9 +46,9 @@ const logoVisible = (page: Page, alt: string) => page.locator(`img[alt="${alt}"]
 test.describe.serial('Logotipo por negocio (backend real)', () => {
   test('SUPERADMIN carga, ve persistencia tras recargar y el archivo queda en almacenamiento privado', async ({ page }) => {
     await ingresar(page, 'superadmin.e2e@e2e.invalid');
-    const fila = page.getByRole('row').filter({ hasText: NOMBRE_A });
-    await fila.locator('summary').click();
-    await fila.getByRole('button', { name: 'Configurar negocio' }).click();
+    const empresa = page.locator('.empresa-card').filter({ hasText: NOMBRE_A });
+    await empresa.getByRole('button', { name: /Gestionar empresa/ }).click();
+    await page.getByRole('menuitem', { name: 'Configurar negocio' }).click();
     await expect(page).toHaveURL(new RegExp(`/admin/negocios/${NEGOCIO_A}/configuracion$`));
     await expect(page.getByRole('heading', { name: 'Logotipo del negocio' })).toBeVisible();
     await expect(page.getByText('Sin logotipo: se muestra el ícono predeterminado')).toBeVisible();
@@ -66,7 +67,7 @@ test.describe.serial('Logotipo por negocio (backend real)', () => {
     expect(cargada).toBe(true);
   });
 
-  test('ADMIN del negocio ve el logotipo en SIDEBAR y en TOPNAV; el cambio de modo se guarda por API del SUPERADMIN', async ({ page }) => {
+  test('ADMIN del negocio ve el logotipo en ambos modos de navegación híbrida', async ({ page }) => {
     const api = await request.newContext({ baseURL: BASE });
     const sa = await tokenDe(api, 'superadmin.e2e@e2e.invalid');
     const modo = await api.put(`admin/tenants/${NEGOCIO_A}/settings`, { headers: { Authorization: `Bearer ${sa}` }, data: { modoNavegacion: 'SIDEBAR' } });
@@ -74,16 +75,16 @@ test.describe.serial('Logotipo por negocio (backend real)', () => {
 
     await ingresar(page, 'admin.a@e2e.invalid');
     const mobile = (page.viewportSize()?.width || 1280) <= 768;
-    await expect(page.locator(mobile ? '.app-tenant-brand' : 'nav.admin-rail').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
+    await expect(page.locator(mobile ? '.admin-topbar-logo' : 'nav.admin-rail').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
 
     const topo = await api.put(`admin/tenants/${NEGOCIO_A}/settings`, { headers: { Authorization: `Bearer ${sa}` }, data: { modoNavegacion: 'TOPNAV' } });
     expect(topo.status()).toBe(200);
     await page.reload();
-    await expect(page.locator(mobile ? '.app-tenant-brand' : 'header.desktop-sidebar-nav').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
-    await expect(page.locator('nav.admin-rail')).toHaveCount(0);
+    await expect(page.locator(mobile ? '.admin-topbar-logo' : 'nav.admin-rail').locator(`img[alt="${NOMBRE_A}"]`)).toBeVisible();
+    await expect(page.locator('header.jowa-topnav')).toHaveCount(0);
 
     // La marca del negocio enlaza a Inicio; Jowa System es el proveedor y también enlaza a Inicio.
-    await expect(page.getByRole('link', { name: mobile ? 'Ir a Inicio del negocio' : 'Jowa System: ir a Inicio' }).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Jowa System: ir a Inicio' }).first()).toBeVisible();
     await api.put(`admin/tenants/${NEGOCIO_A}/settings`, { headers: { Authorization: `Bearer ${sa}` }, data: { modoNavegacion: 'SIDEBAR' } });
     await api.dispose();
   });

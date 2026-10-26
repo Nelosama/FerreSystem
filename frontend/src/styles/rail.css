@@ -20,15 +20,34 @@
   z-index: 10;
 }
 
+/* Marca del negocio: cuadrado de 56 px dentro de los 84 px del rail. El encuadre (.logo-marco) contiene el logotipo entero. */
 .app-rail-brand {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  overflow: hidden;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  border-radius: 12px;
   text-decoration: none;
 }
+
+/* Marco neutro del logotipo: superficie del tema (clara u oscura según el contraste del logotipo), sin deformar ni recortar. */
+.logo-marco {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  flex: none;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  overflow: hidden;
+}
+.logo-marco[data-fondo='oscuro'] { background: var(--plat-2); border-color: var(--plat-ink); }
+.logo-marco[data-fondo='iniciales'] { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.logo-marco-imagen { display: block; width: 100%; height: 100%; object-fit: contain; }
+.logo-marco-iniciales { width: 100%; height: 100%; border-radius: 12px; }
 
 .app-rail-list {
   list-style: none;

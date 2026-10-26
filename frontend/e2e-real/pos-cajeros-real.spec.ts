@@ -24,11 +24,14 @@ async function preparar(request: APIRequestContext, page: Page) {
   expect(alta.status(), await alta.text()).toBe(201);
   const producto = await alta.json();
   await page.goto('/login');
-  await page.locator('input[type="email"]').fill(email);
-  await page.locator('input[type="password"]').fill(process.env.E2E_PASSWORD!);
+  await page.locator('#login-correo').fill(email);
+  await page.locator('#login-clave').fill(process.env.E2E_PASSWORD!);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL(url => !url.pathname.startsWith('/login'));
+  // Enter solo agrega si el catálogo ya está cargado: se espera la respuesta antes de buscar.
+  const catalogo = page.waitForResponse(r => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith('/productos/comercial') && r.ok());
   await page.goto('/pos');
+  await catalogo;
   const buscar = page.getByPlaceholder('Buscar por código o nombre de producto...');
   await buscar.fill(nombre);
   await buscar.press('Enter');
