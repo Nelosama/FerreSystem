@@ -11,10 +11,10 @@ const producto = { id: 'prod-1', codigo: 'TAL-1', nombre: 'Taladro', codigoBarra
   margen: null, stockActual: 10, stockReservado: 0, stockDisponible: 10, stockFisico: 10, stockMinimo: 1, activo: true, imagenUrl: null, marca: null, version: 1 };
 
 // retrasoVentaMs: retrasa la respuesta de POST /ventas. perderRespuesta: el servidor registra la venta pero la respuesta no llega.
-type Sim = { precio: number; lecturasCatalogo: number; fallosCatalogo: number; ventas: any[]; errores: string[]; inesperados: string[]; retrasoVentaMs: number; perderRespuesta: boolean; consultas: string[]; clientes: any[]; descartes: string[]; fallarDescarte: boolean };
+type Sim = { precio: number; lecturasCatalogo: number; fallosCatalogo: number; ventas: any[]; errores: string[]; inesperados: string[]; retrasoVentaMs: number; perderRespuesta: boolean; consultas: string[]; clientes: any[]; descartes: string[]; fallarDescarte: boolean; sinProducto: boolean };
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
-    const sim: Sim = { precio: 100, lecturasCatalogo: 0, fallosCatalogo: 0, ventas: [], errores: [], inesperados: [], retrasoVentaMs: 0, perderRespuesta: false, consultas: [], clientes: [], descartes: [], fallarDescarte: false };
+    const sim: Sim = { precio: 100, lecturasCatalogo: 0, fallosCatalogo: 0, ventas: [], errores: [], inesperados: [], retrasoVentaMs: 0, perderRespuesta: false, consultas: [], clientes: [], descartes: [], fallarDescarte: false, sinProducto: false };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
     page.on('pageerror', e => sim.errores.push(e.message));
@@ -39,7 +39,7 @@ const test = base.extend<{ sim: Sim }>({
       if (method === 'GET' && path === '/productos/comercial') {
         sim.lecturasCatalogo++;
         if (sim.fallosCatalogo > 0) { sim.fallosCatalogo--; return route.abort('connectionreset'); }
-        return responder(route, 200, [{ ...producto, precioVenta: sim.precio }]);
+        return responder(route, 200, sim.sinProducto ? [] : [{ ...producto, precioVenta: sim.precio }]);
       }
       if (method === 'GET' && path === '/operaciones/caja') return responder(route, 200, [{ id: 'caja-1', codigo: 'CAJA-1', estado: 'ABIERTA', usuario_id: cajero.id, monto_apertura: 500, efectivo_esperado: 500, totales: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0, CREDITO: 0 }, movimientos: [] }]);
       const ventaRegistrada = (body: any, n: number) => ({ id: `v-${n}`, numeroVenta: n, subtotal: 100, isv: 15, descuento: 0, total: 115, metodoPago: body.metodoPago, createdAt: new Date().toISOString(), detalles: [], estado: 'COMPLETADA' });
@@ -80,6 +80,13 @@ async function abrirPos(page: Page) {
 }
 
 
+// Sincronización imperceptible: ningún aviso de actualización, modal, diálogo ni botón de «Entendido»/«Actualizar».
+async function sinAvisosDeActualizacion(page: Page) {
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Entendido|Actualizar/ })).toHaveCount(0);
+  await expect(page.getByText(/Precio actualizado|precio anterior|→|Revise el total/)).toHaveCount(0);
+}
+
 const cobrar = (page: Page) => page.getByRole('button', { name: /Procesar Venta/ }).last();
 
 test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
@@ -89,7 +96,8 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     await abrirPos(page);
     await expect(page.getByRole('button', { name: /Actualizar catálogo/ })).toHaveCount(0);
     await page.getByText('Taladro').first().click();
-    await expect(page.getByText(/1 x L\.? ?100\.00/)).toBeVisible();
+    await page.getByText('Taladro').first().click();
+    await expect(page.getByText(/2 x L\.? ?100\.00/)).toBeVisible();
 
     // El Admin aprueba un precio nuevo mientras el cajero atiende.
     sim.precio = 120;
@@ -98,12 +106,13 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     // Siguiente interacción del cajero: el catálogo y el carrito se actualizan en segundo plano.
     await page.getByLabel('Efectivo recibido').click();
     await expect.poll(() => sim.lecturasCatalogo).toBeGreaterThan(lecturas);
-    await expect(page.getByText(/1 x L\.? ?120\.00/)).toBeVisible();
-    await expect(page.getByRole('status').filter({ hasText: 'Precio actualizado por el administrador' })).toContainText('Taladro');
+    // La cantidad se conserva y el total ya refleja el precio nuevo, sin ningún aviso.
+    await expect(page.getByText(/2 x L\.? ?120\.00/)).toBeVisible();
+    await sinAvisosDeActualizacion(page);
 
     await cobrar(page).click();
     await expect.poll(() => sim.ventas.length).toBe(1);
-    expect(sim.ventas[0].detalles).toEqual([expect.objectContaining({ productoId: 'prod-1', cantidad: 1, precioUnitario: 120 })]);
+    expect(sim.ventas[0].detalles).toEqual([expect.objectContaining({ productoId: 'prod-1', cantidad: 2, precioUnitario: 120 })]);
   });
 
   test('si el precio cambia justo antes de cobrar, actualiza el total y no envía con el precio anterior', async ({ page, sim }) => {
@@ -113,7 +122,8 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     sim.precio = 130;
     await cobrar(page).click();
     await expect(page.getByText(/1 x L\.? ?130\.00/)).toBeVisible();
-    await expect(page.getByRole('status').filter({ hasText: 'Revise el total con el cliente y vuelva a cobrar' })).toBeVisible();
+    // Sin aviso: el total visible cambió y la venta no se envió con el total anterior.
+    await sinAvisosDeActualizacion(page);
     expect(sim.ventas).toEqual([]);
     await cobrar(page).click();
     await expect.poll(() => sim.ventas.length).toBe(1);
@@ -138,5 +148,32 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     await page.clock.fastForward(1000);
     await expect(page.getByText('No se pudo confirmar el precio vigente de los productos')).toBeVisible();
     expect(sim.ventas).toHaveLength(1);
+  });
+
+  test('un producto que deja de estar disponible bloquea el cobro y conserva el carrito', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    sim.sinProducto = true;
+    await cobrar(page).click();
+    await expect(page.getByText(/Ya no se puede vender: Taladro/)).toBeVisible();
+    expect(sim.ventas).toEqual([]);
+    await expect(page.getByText(/1 x L\.? ?100\.00/)).toBeVisible();
+  });
+
+  test('sin conexión (red caída) no se cobra con un precio sin validar; al volver la red se vende al precio vigente', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    sim.fallosCatalogo = 5;
+    await cobrar(page).click();
+    await page.clock.fastForward(1000);
+    await expect(page.getByText('No se pudo confirmar el precio vigente de los productos')).toBeVisible();
+    expect(sim.ventas).toEqual([]);
+    sim.fallosCatalogo = 0; sim.precio = 140;
+    await cobrar(page).click();
+    await expect(page.getByText(/1 x L\.? ?140\.00/)).toBeVisible();
+    await sinAvisosDeActualizacion(page);
+    await cobrar(page).click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(sim.ventas[0].detalles[0].precioUnitario).toBe(140);
   });
 });

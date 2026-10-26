@@ -12,7 +12,7 @@ import { useTenant } from '../context/TenantContext';
 import type { ProductItem } from '../types';
 import { api } from '../utils/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import { aplicarPreciosVigentes, type CambioPrecio } from '../utils/preciosCarrito';
+import { aplicarPreciosVigentes } from '../utils/preciosCarrito';
 import { readRecovery, saveDraft, type PendingSale, type CartItem } from '../utils/posRecovery';
 import { useI18n } from '../context/I18nContext';
 import {
@@ -134,7 +134,7 @@ export const POSPage: React.FC = () => {
   const [special,setSpecial]=useState(!!initialSale?.cart[0]?.sinInventario);
   const [specialProvider,setSpecialProvider]=useState(initialSale?.cart[0]?.proveedorId || '');
   // Catálogo y precios del carrito se sincronizan solos: cada 60 s y en la siguiente interacción del cajero
-  // (con un mínimo entre lecturas). Un cambio de precio hecho por el Admin actualiza el carrito y el total sin botón.
+  // (con un mínimo entre lecturas). Un cambio de precio hecho por el Admin actualiza el carrito y el total sin botón ni aviso.
   // No se toca un carrito ya enviado (venta pendiente sin corregir) ni se muestran errores sobre una venta en curso.
   useAutoRefresh<ProductItem[]>({
     load: signal => api.get('/productos/comercial', { signal }).then(r => r.data.map(mapearProductoPOS)),
@@ -160,14 +160,12 @@ export const POSPage: React.FC = () => {
   const [ventaRegistrada, setVentaRegistrada] = useState<any>(null);
   const edicionBloqueada = procesandoVenta || comprobando || (!!ventaPendiente && !corrigiendoPendiente) || modalTicket || !!storageError || loadedKey !== pendingKey;
   // Sincronización de precios: el carrito solo cambia cuando el cajero podría editarlo.
-  const [avisoPrecios, setAvisoPrecios] = useState<string | null>(null);
   const cartRef = useRef(cart);
   cartRef.current = cart;
   const carritoEditableRef = useRef(false);
   carritoEditableRef.current = !edicionBloqueada;
   const ultimaSincronizacion = useRef(0);
   const lecturaCatalogo = useRef<Promise<ProductItem[] | null> | null>(null);
-  const describirCambios = (cambios: CambioPrecio[]) => `Precio actualizado por el administrador: ${cambios.map(c => `${c.nombre} ${formatLempiras(c.anterior)} → ${formatLempiras(c.nuevo)}`).join('; ')}. El total ya incluye el cambio.`;
   const aplicarCatalogo = (data: ProductItem[]) => {
     ultimaSincronizacion.current = Date.now();
     setProductos(data);
@@ -176,7 +174,6 @@ export const POSPage: React.FC = () => {
     if (!vigente.cambios.length) return;
     cartRef.current = vigente.carrito;
     setCart(vigente.carrito);
-    setAvisoPrecios(describirCambios(vigente.cambios));
   };
   const aplicarCatalogoRef = useRef(aplicarCatalogo);
   aplicarCatalogoRef.current = aplicarCatalogo;
@@ -596,8 +593,8 @@ export const POSPage: React.FC = () => {
         const vigente = aplicarPreciosVigentes(carritoAEnviar, catalogo);
         if (vigente.noDisponibles.length) { setErrorText(`Ya no se puede vender: ${vigente.noDisponibles.join(', ')}. Quítelo del ticket o consulte al administrador; la venta no se registró.`); return; }
         if (vigente.cambios.length) {
+          // Sin avisos ni botones: la línea y el total ya muestran el importe vigente y el cajero cobra ese total.
           cartRef.current = vigente.carrito; setCart(vigente.carrito);
-          setAvisoPrecios(`${describirCambios(vigente.cambios)} Revise el total con el cliente y vuelva a cobrar.`);
           return;
         }
       }
@@ -700,12 +697,6 @@ export const POSPage: React.FC = () => {
             <button type="button" className="btn btn-secondary" onClick={() => void cancelarVenta()} disabled={comprobando || procesandoVenta || !!storageError}>Descartar venta</button>
             {recoveryStatus === 'NO_REGISTRADA' && !corrigiendoPendiente && <button type="button" className="btn btn-secondary" disabled={procesandoVenta || comprobando} onClick={() => setCorrigiendoPendiente(true)}>Corregir datos de esta venta</button>}
             {recoveryStatus === 'NO_REGISTRADA' && <button type="button" className="btn btn-secondary" onClick={handleCobrar} disabled={procesandoVenta || comprobando || !!storageError || !!draftError}>Ya revisé el pago: continuar registro</button>}
-          </div>
-        )}
-        {avisoPrecios && (
-          <div role="status" className="ferre-pos-precios" style={{ marginBottom: '16px', padding: '10px 14px', backgroundColor: '#EFF6FF', border: '1px solid #3B82F6', borderRadius: '4px', color: '#1E3A8A', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-            <span>{avisoPrecios}</span>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAvisoPrecios(null)}>Entendido</button>
           </div>
         )}
         {avisoExistencia && (
