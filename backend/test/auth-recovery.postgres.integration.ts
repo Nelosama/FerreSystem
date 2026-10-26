@@ -332,6 +332,17 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
       await service.request({ usuario: a.email }, nextIp().ip);
       expect(temporals.length).toBe(before);
     }, 30000);
+    it('defensa en profundidad: una cuenta bloqueada no autoriza ni renueva aunque conserve una sesión sin revocar', async () => {
+      const a = await account(false, 'CAJERO');
+      await bloquear(a);
+      // Sesión creada después del bloqueo (no la alcanzó la revocación): aun así se rechaza.
+      const sesion = await session(a);
+      await expect(strategy.validate(sesion)).rejects.toThrow();
+      const refresh = jwt.sign({ ...sesion, rol: 'CAJERO', typ: 'refresh' });
+      const res = newRes();
+      await expect(auth.refresh(refresh, res)).rejects.toMatchObject({ status: 401 });
+      expect(res.cookie).not.toHaveBeenCalled();
+    });
     it('Admin y Super Admin nunca se bloquean de forma permanente (los frena el límite temporal y recuperan por correo)', async () => {
       const admin = await account(false, 'ADMIN'), sa = await account(true);
       for (let i = 0; i < 8; i++) { await failure(login(admin.email, 'mala')); await failure(login(sa.email, 'mala')); }

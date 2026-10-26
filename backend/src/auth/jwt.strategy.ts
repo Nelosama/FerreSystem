@@ -69,7 +69,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.typ === 'refresh') throw new UnauthorizedException('Token inválido');
 
     if (payload.type === 'tenant') {
-      const user=await this.prisma.usuario.findFirst({where:{id:payload.sub,tenantId:payload.tenantId,activo:true},include:{tenant:true}});
+      // Una cuenta bloqueada por intentos fallidos no autoriza nada, aunque conserve un token (p. ej. sin sesión revocable).
+      const user=await this.prisma.usuario.findFirst({where:{id:payload.sub,tenantId:payload.tenantId,activo:true,bloqueadoAt:null},include:{tenant:true}});
       if(!user || user.tenant.estado !== 'ACTIVO') throw new UnauthorizedException('Usuario o empresa no disponible');
       await this.exigirSesion(payload, user.passwordHash);
       // Una sesión de soporte solo es válida si el Super Admin que la originó sigue activo y el token trae su sesión auditada.

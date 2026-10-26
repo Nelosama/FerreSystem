@@ -332,7 +332,7 @@ export class AuthService {
         include: { tenant: true },
       });
 
-      if (!usuario || usuario.tenantId !== decoded.tenantId || !usuario.activo || usuario.tenant.estado !== 'ACTIVO') {
+      if (!usuario || usuario.tenantId !== decoded.tenantId || !usuario.activo || usuario.bloqueadoAt || usuario.tenant.estado !== 'ACTIVO') {
         throw new UnauthorizedException('Usuario o ferretería no autorizados');
       }
 
