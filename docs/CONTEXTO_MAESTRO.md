@@ -9,6 +9,20 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
 
+## Validación del HEAD `03ef20aa` de PR #180 — 2026-10-26 UTC (rama `feat/contabilidad-honduras`, draft, sin merge, despliegue ni migraciones en producción)
+
+- **Estado Git:** local y remoto en `03ef20aa` (merge de `origin/main` `2f6168d`, PR #198). Árbol limpio tras las pruebas; `frontend/artifacts` restaurado.
+- **CI en GitHub para `03ef20aa`:** `Operación de ferretería` run 40276085240 — éxito; `Piloto con API y PostgreSQL reales` run 40276085305 — éxito (incluye E2E real del piloto).
+- **Local, mismo HEAD:**
+  - Backend: build correcto; lint correcto; unitarias 66 ficheros, 682/682.
+  - Frontend: build correcto con `VITE_API_URL=/api` (sin esa variable la guarda de build falla, esperado; CI usa `https://api.example.test/api`); lint correcto; `node --test` 558/558.
+  - Integración PostgreSQL: 67 ficheros, 1164 aprobados, 1 omitido. Requirió `PG_BIN=/usr/lib/postgresql/16/bin` y ejecución con usuario sin privilegios, porque `initdb` se niega a correr como root. Sin fallos.
+  - Navegador simulado: 392 aprobados, 26 omitidos, 0 fallos. Requirió `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium`; la configuración por defecto espera Chromium 1243 (el de CI), no el 1194 instalado en el sandbox. Incluye los specs de sesión/PWA, emulación offline y ventas sin conexión.
+  - E2E real con backend: no ejecutado en local; queda cubierto por el CI de este SHA.
+- **Navegación:** TOPNAV y SIDEBAR siguen presentes según `tenant.modoNavegacion` (`App.tsx`, `data-navigation-mode`).
+- **Bloqueos fuera del alcance del asistente:** configurar variables de auth en Render sin exponer secretos; autorizar y ejecutar el correo real de Resend con destinatario confirmado (no ejecutado); enrolamiento MFA del Super Admin; validación contable externa de los parámetros fiscales (§11 de `docs/CONTABILIDAD_HONDURAS.md`); confirmar que los nombres de migración antiguos no están aplicados en ningún entorno; prueba física en Safari/iPhone.
+- **Dictamen:** **NO MERGE.** El HEAD está validado técnicamente, pero los bloqueos anteriores siguen abiertos. PR #192 no se cierra; PR #180 sigue en draft.
+
 ## Revisión del PR #195 — TOPNAV/SIDEBAR restaurado (2026-10-23, America/Tegucigalpa)
 
 - **Estado vigente:** se conserva el trabajo de Claude y se corrige la eliminación de la preferencia por negocio. Esta sección sustituye la decisión de «navegación única sin selector» documentada en los bloques anteriores de la implementación original.
