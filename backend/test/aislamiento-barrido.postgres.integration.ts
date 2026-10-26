@@ -164,7 +164,7 @@ describe('Barrido de aislamiento entre empresas y de roles / PostgreSQL aislado'
     }
   });
 
-  const PUBLICAS = new Set(['/api/auth/security/request', '/api/auth/security/reset', '/api/auth/security/verify-email', '/api/auth/security/mfa/bootstrap-request', '/api/auth/security/mfa/bootstrap', '/api/auth/security/mfa/confirm', '/api/auth/login', '/api/auth/refresh', '/api/auth/logout', '/api/admin/auth/login', '/api/admin/auth/refresh', '/api/admin/auth/logout', '/api', '/api/health', '/api/health/db']);
+  const PUBLICAS = new Set(['/api/auth/security/request', '/api/auth/security/reset', '/api/auth/security/verify-email', '/api/auth/security/mfa/bootstrap-request', '/api/auth/security/mfa/bootstrap', '/api/auth/security/mfa/confirm', '/api/auth/security/forced-change', '/api/auth/login', '/api/auth/refresh', '/api/auth/logout', '/api/admin/auth/login', '/api/admin/auth/refresh', '/api/admin/auth/logout', '/api', '/api/health', '/api/health/db']);
   const exitosa = (status: number) => status >= 200 && status < 300;
   const enviar = (metodo: string, ruta: string, token: string) =>
     (request(app.getHttpServer()) as any)[metodo](ruta).auth(token, { type: 'bearer' }).send(metodo === 'get' || metodo === 'delete' ? undefined : {});
@@ -265,5 +265,7 @@ const EXCEPCIONES_REVISADAS: string[] = [
   'POST /api/auth/security/change-password', // current password required, own identity only
   'POST /api/auth/security/admin-reset', // fresh administrator and tenant revalidation in service
   'POST /api/auth/security/mfa/enroll', // current password and verified mailbox required
+  'POST /api/auth/security/unlock', // Admin (own tenant, non-Admin targets) or Super Admin; service revalidates actor, tenant and target
+  'GET /api/auth/security/locked', // tenant Admin of own company only (Super Admin uses /admin/seguridad/bloqueos); no credentials returned
   'POST /api/admin/support/finalizar', // solo actúa sobre la propia sesión de soporte; sin ella responde 403
 ].sort();

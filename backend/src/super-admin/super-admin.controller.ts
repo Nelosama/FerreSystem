@@ -58,6 +58,13 @@ export class SuperAdminController {
     return this.superAdminService.supportToken(req.user.sub, dto.tenantId, dto.usuarioId, dto.readOnly ?? true, { motivo: dto.motivo, confirmarEscritura: dto.confirmarEscritura === true });
   }
 
+  /** Cuentas bloqueadas por intentos fallidos en todas las empresas (o en una). Se reactivan con POST /auth/security/unlock. */
+  @Get('seguridad/bloqueos')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  cuentasBloqueadas(@Query('tenantId') tenantId?: string) {
+    return this.superAdminService.cuentasBloqueadas(tenantId);
+  }
+
   @Get('tenants/:id/usuarios')
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   async listSoporteUsuarios(@Param('id') id: string, @Query('gestion') gestion?: string) {

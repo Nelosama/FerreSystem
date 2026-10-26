@@ -410,9 +410,14 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
       expect(propios.map(u => u.id)).toContain(own.id);
       expect(propios.every(u => u.tenantId === 'A')).toBe(true);
       await expect(service.locked(cajero.identity)).rejects.toThrow();
-      const globales = (await service.locked(sa.identity)).map(u => u.id);
+      // El Super Admin no usa la ruta de negocio: su vista global vive bajo /admin con SuperAdminGuard.
+      await expect(service.locked(sa.identity)).rejects.toThrow();
+      const { SuperAdminService } = await import('../src/super-admin/super-admin.service');
+      const plataforma = new SuperAdminService(db as any, jwt, config, {} as any, {} as any);
+      const globales = (await plataforma.cuentasBloqueadas()).map(u => u.id);
       expect(globales).toEqual(expect.arrayContaining([own.id, foreign.id]));
-      expect(JSON.stringify(await service.locked(sa.identity))).not.toMatch(/password|mfa/i);
+      expect((await plataforma.cuentasBloqueadas('B')).map(u => u.id)).not.toContain(own.id);
+      expect(JSON.stringify(await plataforma.cuentasBloqueadas())).not.toMatch(/password|mfa/i);
       await expect(service.unlock(admin.identity, { usuarioId: own.id })).resolves.toMatchObject({ desbloqueada: true });
       expect(((await login(own.email)) as any).user.id).toBe(own.id);
       // Super Admin: alcance global, cualquier empresa. No reactiva cuentas desactivadas.
@@ -680,6 +685,7 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
     await http.post('/api/auth/security/admin-reset').auth(access, { type: 'bearer' }).send({ usuarioId: a.id, currentPassword: password }).expect(403);
     await http.post('/api/auth/security/unlock').auth(access, { type: 'bearer' }).send({ usuarioId: a.id }).expect(403);
     await http.get('/api/auth/security/locked').auth(access, { type: 'bearer' }).expect(403);
+    await http.get('/api/auth/security/locked').auth(jwt.sign(await session(await account(true))), { type: 'bearer' }).expect(403);
     // El contrato del login: usuario y contraseña. Rol, empresa visible o casilla de plataforma no existen (el pipe prohíbe extras).
     await http.post('/api/auth/login').send({ usuario: a.email, password, rol: 'ADMIN' }).expect(400);
     await http.post('/api/auth/login').send({ usuario: a.email, password, superAdmin: true }).expect(400);

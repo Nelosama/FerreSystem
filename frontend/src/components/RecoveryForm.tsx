@@ -17,10 +17,20 @@ export function RecoveryForm() {
   const [token, setToken] = useState(initial.token), [action, setAction] = useState(initial.action);
   const [nextPassword, setNextPassword] = useState(''), [code, setCode] = useState(''), [secret, setSecret] = useState('');
   const [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [codes, setCodes] = useState<string[]>(location.state?.recoveryCodes || []);
+  // Visible desde que llega un enlace (al cargar o en una navegación posterior) y hasta salir del login.
+  const [abierto, setAbierto] = useState(!!initial.token);
   useLayoutEffect(() => {
-    if (initial.token || location.state?.recoveryCodes) window.history.replaceState({ ...window.history.state, usr: null }, '', window.location.pathname + window.location.search);
-  }, [initial.token, location.state]);
-  if (!initial.token && codes.length === 0) return null;
+    // Corrección de #180: un segundo enlace privado a la misma página es una navegación por fragmento; React conserva el
+    // formulario montado, así que el estado inicial ya no basta.
+    const params = new URLSearchParams(location.hash.slice(1));
+    const incoming = params.get('token');
+    if (incoming) {
+      setToken(incoming); setAction(params.get('action') || 'RESET_ADMIN'); setAbierto(true);
+      setNextPassword(''); setCode(''); setSecret(''); setCodes([]); setMessage('');
+    }
+    if (incoming || location.state?.recoveryCodes) window.history.replaceState({ ...window.history.state, usr: null }, '', window.location.pathname + window.location.search);
+  }, [location]);
+  if (!abierto && codes.length === 0) return null;
   const run = async (path: string, body: object) => {
     if (busy) return;
     setBusy(true); setMessage('');

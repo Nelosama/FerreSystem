@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards, HttpCode } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards, HttpCode } from '@nestjs/common';
 import type { Request } from 'express';
 import { RecoveryService } from './recovery.service';
 import { OrigenPermitidoGuard } from '../common/guards/origen-permitido.guard';
@@ -47,7 +47,7 @@ export class RecoveryController {
     await this.service.limit(`unlock:${req.user.sub}`, req.ip); return this.service.unlock(req.user, dto);
   }
   @Get('locked') @UseGuards(JwtAuthGuard)
-  locked(@Query('tenantId') tenantId: string | undefined, @Req() req: Request & { user: any }) { return this.service.locked(req.user, tenantId); }
+  locked(@Req() req: Request & { user: any }) { return this.service.locked(req.user); }
   @Post('mfa/enroll') @UseGuards(JwtAuthGuard)
   async enroll(@Body() dto: EnrollMfaDto, @Req() req: Request & { user: any }) {
     await this.service.limit(`enroll:${req.user.sub}`, req.ip); return this.service.enroll(req.user, dto.currentPassword);

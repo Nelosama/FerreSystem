@@ -254,14 +254,13 @@ export class RecoveryService {
       return { success: true, desbloqueada: true };
     });
   }
-  /** Cuentas bloqueadas: el Super Admin las ve en todas las empresas (o en una); el Admin solo en la suya. */
-  async locked(identity: Identity, tenantIdSolicitado?: string) {
-    const { platform } = await this.account(this.prisma, identity);
-    if (!platform && identity.rol !== 'ADMIN') throw new ForbiddenException('Solo un Admin o Super Admin puede gestionar accesos');
-    const tenantId = platform ? tenantIdSolicitado || undefined : identity.tenantId;
+  /** Cuentas bloqueadas de la empresa del Admin. La vista global del Super Admin vive en GET /admin/seguridad/bloqueos. */
+  async locked(identity: Identity) {
+    const { account, platform } = await this.account(this.prisma, identity);
+    if (platform || account.rol !== 'ADMIN') throw new ForbiddenException('Solo el Admin de la empresa consulta sus cuentas bloqueadas');
     return this.prisma.usuario.findMany({
-      where: { bloqueadoAt: { not: null }, ...(tenantId && { tenantId }) },
-      select: { id: true, tenantId: true, nombre: true, username: true, email: true, rol: true, bloqueadoAt: true, intentosFallidos: true, tenant: { select: { nombreComercial: true } } },
+      where: { tenantId: account.tenantId, bloqueadoAt: { not: null } },
+      select: { id: true, tenantId: true, nombre: true, username: true, email: true, rol: true, bloqueadoAt: true, intentosFallidos: true },
       orderBy: { bloqueadoAt: 'desc' }, take: 500,
     });
   }

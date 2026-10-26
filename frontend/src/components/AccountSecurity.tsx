@@ -57,7 +57,7 @@ export function AccountSecurity() {
     }
   };
   const cargarBloqueadas = async () => {
-    try { const { data } = await api.get('/auth/security/locked'); setBloqueadas(data); }
+    try { const { data } = await api.get(platform ? '/admin/seguridad/bloqueos' : '/auth/security/locked'); setBloqueadas(data); }
     catch { setMessage(t('security.failed')); }
   };
   if (!user || isImpersonating) return null;

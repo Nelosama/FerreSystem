@@ -49,6 +49,14 @@ export class SuperAdminService {
   desactivarUsuarioNegocio(tenantId: string, id: string, actor: string) {
     return new UsuariosService(this.prisma).update(tenantId, id, { activo: false }, actor, true);
   }
+  /** Vista global de bloqueos para la plataforma: sin contraseñas, secretos ni contadores de MFA. */
+  cuentasBloqueadas(tenantId?: string) {
+    return this.prisma.usuario.findMany({
+      where: { bloqueadoAt: { not: null }, ...(tenantId && { tenantId }) },
+      select: { id: true, tenantId: true, nombre: true, username: true, email: true, rol: true, bloqueadoAt: true, intentosFallidos: true, tenant: { select: { nombreComercial: true } } },
+      orderBy: { bloqueadoAt: 'desc' }, take: 500,
+    });
+  }
   async sucursalesNegocio(tenantId: string) {
     await this.existeNegocio(tenantId);
     return this.prisma.sucursal.findMany({ where: { tenantId }, orderBy: { createdAt: 'asc' } });

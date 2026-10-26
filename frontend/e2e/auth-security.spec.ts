@@ -169,6 +169,22 @@ test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
       expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
     });
   }
+  test('un segundo enlace privado abierto en la misma pestaña usa su propio token (corrección de #180)', async ({ page }) => {
+    await prepararSesion(page, 'ADMIN', { sinSesion: true });
+    const enviados: any[] = [];
+    await page.route('**/api/auth/security/reset', async route => { enviados.push(route.request().postDataJSON()); await route.fulfill({ json: { success: true } }); });
+    await page.goto('/login#action=RESET_ADMIN&token=primer-token-sintetico');
+    await expect(page.locator('#recovery-token')).toHaveValue('primer-token-sintetico');
+    await page.locator('#recovery-password').fill('Synthetic-New-789');
+    await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+    await expect.poll(() => enviados.length).toBe(1);
+    await page.evaluate(() => { window.location.hash = 'action=RESET_ADMIN&token=segundo-token-sintetico'; });
+    await expect(page.locator('#recovery-token')).toHaveValue('segundo-token-sintetico');
+    await expect(page).toHaveURL(url => url.hash === '');
+    await page.locator('#recovery-password').fill('Synthetic-Other-789');
+    await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+    await expect.poll(() => enviados[1]).toEqual({ token: 'segundo-token-sintetico', password: 'Synthetic-Other-789' });
+  });
   test('el login no ofrece cambio de idioma y conserva el idioma predeterminado', async ({ page }) => {
     await prepararSesion(page, 'ADMIN', { sinSesion: true }); await page.goto('/login');
     await expect(page.getByRole('button', { name: 'English', exact: true })).toHaveCount(0);
