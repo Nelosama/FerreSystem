@@ -36,16 +36,22 @@ export async function registrarFalloCuenta(prisma: Pick<PrismaService, '$queryRa
 }
 
 /**
- * Éxito: reinicia el contador. Para usuarios el reinicio es condicional a que la cuenta NO esté bloqueada, así un bloqueo
- * que se confirme en paralelo nunca queda deshecho por un acceso. Devuelve false si la cuenta está bloqueada.
+ * Éxito: reinicia el contador. Solo escribe si hay algo que reiniciar (un acceso normal no debe tocar `updated_at` del usuario).
+ * Para usuarios el reinicio es condicional a que la cuenta NO esté bloqueada, así un bloqueo que se confirme en paralelo nunca
+ * queda deshecho por un acceso. Devuelve false si la cuenta está bloqueada.
  */
 export async function reiniciarFallosCuenta(prisma: Pick<PrismaService, 'usuario' | 'superAdmin'>, tipo: TipoCuenta, id: string): Promise<boolean> {
+  const pendiente = { OR: [{ intentosFallidos: { gt: 0 } }, { ultimoFalloAt: { not: null } }] };
+  const datos = { intentosFallidos: 0, ultimoFalloAt: null };
   if (tipo === 'SUPER_ADMIN') {
-    await prisma.superAdmin.updateMany({ where: { id }, data: { intentosFallidos: 0, ultimoFalloAt: null } });
+    await prisma.superAdmin.updateMany({ where: { id, ...pendiente }, data: datos });
     return true;
   }
-  const { count } = await prisma.usuario.updateMany({ where: { id, bloqueadoAt: null }, data: { intentosFallidos: 0, ultimoFalloAt: null } });
-  return count === 1;
+  const { count } = await prisma.usuario.updateMany({ where: { id, bloqueadoAt: null, ...pendiente }, data: datos });
+  if (count === 1) return true;
+  // Nada que reiniciar, o la cuenta está bloqueada: solo el estado real de bloqueo decide.
+  const fila = await prisma.usuario.findUnique({ where: { id }, select: { bloqueadoAt: true } });
+  return !fila?.bloqueadoAt;
 }
 
 export const puedeRecuperar = (fallos: number) => fallos >= FALLOS_PARA_RECUPERACION;

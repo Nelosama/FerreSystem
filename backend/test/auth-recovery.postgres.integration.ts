@@ -158,6 +158,13 @@ describe('Inicio de sesión único, recuperación por contraseña temporal y blo
       await expect(strategy.validate(claims)).resolves.toMatchObject({ sub: a.id });
       expect(res.cookie).toHaveBeenCalledWith('superAdminRefreshToken', expect.any(String), expect.any(Object));
     });
+    it('un acceso correcto sin fallos pendientes no modifica la fila del usuario ni la del Super Admin', async () => {
+      const u = await account(false, 'CAJERO'), sa = await account(true);
+      const [antesU, antesSa] = [await fresh(u), await fresh(sa)];
+      await login(u.email); await login(sa.email);
+      expect(await fresh(u)).toEqual(antesU);
+      expect(await fresh(sa)).toEqual(antesSa);
+    });
     it('un código repetido en dos empresas no entra con la contraseña correcta de ninguna y no crea sesiones', async () => {
       const a = await account(false, 'CAJERO', 'A'), b = await account(false, 'CAJERO', 'B');
       await db.usuario.update({ where: { id: a.id }, data: { email: null, username: '44556' } });

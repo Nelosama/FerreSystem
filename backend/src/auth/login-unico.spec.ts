@@ -101,9 +101,19 @@ describe('bloqueo de usuarios que no son Admin', () => {
     const { service, prisma, res } = montar();
     prisma.usuario.findMany.mockResolvedValue([cuenta()]);
     prisma.usuario.updateMany.mockResolvedValue({ count: 0 });
+    prisma.usuario.findUnique = vi.fn().mockResolvedValue({ bloqueadoAt: new Date() });
     await expect(service.login({ usuario: 'u1', password: claveCorrecta }, res)).rejects.toBeInstanceOf(ForbiddenException);
     expect(res.cookie).not.toHaveBeenCalled();
     expect(prisma.sesionAuth.create).not.toHaveBeenCalled();
+  });
+
+  it('un acceso correcto sin fallos pendientes no escribe en el usuario (updated_at intacto)', async () => {
+    const { service, prisma, res } = montar();
+    prisma.usuario.findMany.mockResolvedValue([cuenta()]);
+    prisma.usuario.updateMany.mockResolvedValue({ count: 0 });
+    prisma.usuario.findUnique = vi.fn().mockResolvedValue({ bloqueadoAt: null });
+    await expect(service.login({ usuario: 'u1', password: claveCorrecta }, res)).resolves.toMatchObject({ type: 'tenant' });
+    expect(prisma.usuario.updateMany).toHaveBeenCalledWith({ where: { id: 'u-1', bloqueadoAt: null, OR: [{ intentosFallidos: { gt: 0 } }, { ultimoFalloAt: { not: null } }] }, data: { intentosFallidos: 0, ultimoFalloAt: null } });
   });
 
   it('un usuario no Admin no puede entrar con una contraseña temporal', async () => {
