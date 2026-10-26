@@ -1,4 +1,3 @@
-import { sealSecret, totp } from './mfa';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,7 +14,9 @@ describe('AuthService', () => {
       findFirst: vi.fn(),
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
+    authTempPassword: { findUnique: vi.fn().mockResolvedValue(null), deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     superAdmin: {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       findUnique: vi.fn(),
@@ -41,7 +42,7 @@ describe('AuthService', () => {
 
   beforeEach(async () => {
     mockPrisma.superAdmin.findUnique.mockReset();
-    mockConfigService.get.mockImplementation((key, defaultVal) => key === 'AUTH_MFA_ENCRYPTION_KEY' ? 'ab'.repeat(32) : defaultVal);
+    mockConfigService.get.mockImplementation((key, defaultVal) => defaultVal);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -69,10 +70,10 @@ describe('AuthService', () => {
     });
     mockPrisma.superAdmin.findUnique.mockResolvedValue(null);
     if (model === 'superAdmin') mockPrisma.superAdmin.findUnique.mockRejectedValueOnce(failure);
-    else mockPrisma.usuario.findFirst.mockRejectedValueOnce(failure);
+    else mockPrisma.usuario.findMany.mockRejectedValueOnce(failure);
     const log = vi.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
     try {
-      await service.login({ email: 'security@test.invalid', password: marker, ...(model === 'usuario' && { tenantId: 'tenant-1' }) }, mockResponse);
+      await service.login({ usuario: 'security@test.invalid', password: marker }, mockResponse);
       expect.fail('Debe responder con error');
     } catch (error: any) {
       expect(error.getStatus()).toBe(500);
@@ -90,11 +91,11 @@ describe('AuthService', () => {
     const logger = (service as any).logger;
     const espias = (['log', 'warn', 'error'] as const).map(nivel => vi.spyOn(logger, nivel).mockImplementation(() => undefined));
     mockPrisma.superAdmin.findUnique.mockResolvedValue(null);
-    mockPrisma.usuario.findFirst.mockResolvedValueOnce(null);
-    await expect(service.login({ tenantId: 't-1', email: correo, password: 'incorrecta' }, mockResponse)).rejects.toThrow(UnauthorizedException);
+    mockPrisma.usuario.findMany.mockResolvedValueOnce([]);
+    await expect(service.login({ email: correo, password: 'incorrecta' }, mockResponse)).rejects.toThrow(UnauthorizedException);
     const passwordHash = await bcrypt.hash('correcta', 4);
-    mockPrisma.usuario.findFirst.mockResolvedValueOnce({ id: 'u-1', tenantId: 't-1', email: correo, passwordHash, activo: true, rol: 'ADMIN', tenant: { id: 't-1', estado: 'ACTIVO' } });
-    await service.login({ tenantId: 't-1', email: correo, password: 'correcta' }, mockResponse);
+    mockPrisma.usuario.findMany.mockResolvedValueOnce([{ id: 'u-1', tenantId: 't-1', email: correo, passwordHash, activo: true, rol: 'ADMIN', tenant: { id: 't-1', estado: 'ACTIVO' } }]);
+    await service.login({ email: correo, password: 'correcta' }, mockResponse);
     const registrado = JSON.stringify(espias.flatMap(e => e.mock.calls));
     expect(registrado.length).toBeGreaterThan(50);
     expect(registrado).not.toContain(correo);
@@ -108,21 +109,20 @@ describe('AuthService', () => {
       mockPrisma.superAdmin.findUnique.mockResolvedValue({
         id: 'sa-1',
         nombre: 'Platform Admin',
-        mfaSecret: sealSecret('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 'sa-1', mockConfigService as any),
         email: 'admin@example.com',
         activo: true,
         passwordHash,
       });
 
       const result = await service.login(
-        { email: ' ADMIN@example.com ', password: 'super-admin-test-password', mfaCode: totp('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', Math.floor(Date.now()/30000)) },
+        { usuario: ' ADMIN@example.com ', password: 'super-admin-test-password' },
         mockResponse,
       );
 
       expect(result.type).toBe('super_admin');
       expect(result.superAdmin.id).toBe('sa-1');
       expect(mockJwtService.sign).toHaveBeenCalledWith(
-        { sub: 'sa-1', email: 'admin@example.com', rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true, sid: expect.any(String) },
+        { sub: 'sa-1', email: 'admin@example.com', rol: 'SUPER_ADMIN', type: 'super_admin', sid: expect.any(String) },
         expect.any(Object),
       );
       expect(mockResponse.cookie).toHaveBeenCalledWith(
@@ -169,10 +169,10 @@ describe('AuthService', () => {
         },
       };
 
-      mockPrisma.usuario.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.usuario.findMany.mockResolvedValue([mockUser]);
 
       const res = await service.login(
-        { tenantId: 'tenant-1', email: 'cajero@lamundial.hn', password: 'Ferre2026!' },
+        { usuario: 'cajero@lamundial.hn', password: 'Ferre2026!' },
         mockResponse,
       );
 
@@ -198,11 +198,11 @@ describe('AuthService', () => {
         tenant: { estado: 'ACTIVO' },
       };
 
-      mockPrisma.usuario.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.usuario.findMany.mockResolvedValue([mockUser]);
 
       await expect(
         service.login(
-          { tenantId: 'tenant-1', email: 'cajero@lamundial.hn', password: 'PasswordErroneo!' },
+          { usuario: 'cajero@lamundial.hn', password: 'PasswordErroneo!' },
           mockResponse,
         ),
       ).rejects.toThrow(UnauthorizedException);
@@ -219,11 +219,11 @@ describe('AuthService', () => {
         tenant: { estado: 'ACTIVO' },
       };
 
-      mockPrisma.usuario.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.usuario.findMany.mockResolvedValue([mockUser]);
 
       await expect(
         service.login(
-          { tenantId: 'tenant-1', email: 'inactivo@lamundial.hn', password: 'Ferre2026!' },
+          { usuario: 'inactivo@lamundial.hn', password: 'Ferre2026!' },
           mockResponse,
         ),
       ).rejects.toThrow('Este usuario ha sido desactivado');
@@ -240,11 +240,11 @@ describe('AuthService', () => {
         tenant: { estado: 'SUSPENDIDO' },
       };
 
-      mockPrisma.usuario.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.usuario.findMany.mockResolvedValue([mockUser]);
 
       await expect(
         service.login(
-          { tenantId: 'tenant-1', email: 'cajero@lamundial.hn', password: 'Ferre2026!' },
+          { usuario: 'cajero@lamundial.hn', password: 'Ferre2026!' },
           mockResponse,
         ),
       ).rejects.toThrow('La suscripción de la ferretería se encuentra suspendida');
@@ -257,7 +257,7 @@ describe('AuthService', () => {
       expect(mockPrisma.usuario.findFirst).not.toHaveBeenCalled();
     });
 
-    it('debe usar el tenantId explícito cuando es provisto en loginDto', async () => {
+    it('determina la empresa y el rol solo con las credenciales, sin tenantId ni selector de rol', async () => {
       const passwordHash = await bcrypt.hash('ClaveTenant2!', 10);
       const userTenant2 = {
         id: 'u-2',
@@ -269,18 +269,20 @@ describe('AuthService', () => {
         tenant: { id: 'tenant-2', estado: 'ACTIVO', nombreComercial: 'Ferretería 2' },
       };
 
-      mockPrisma.usuario.findFirst.mockResolvedValue(userTenant2);
+      mockPrisma.usuario.findMany.mockResolvedValue([userTenant2]);
 
       const res = await service.login(
-        { email: 'usuario@empresa.com', password: 'ClaveTenant2!', tenantId: 'tenant-2' },
+        { usuario: 'usuario@empresa.com', password: 'ClaveTenant2!' },
         mockResponse,
       );
 
-      expect(mockPrisma.usuario.findFirst).toHaveBeenCalledWith({
-        where: { tenantId: 'tenant-2', email: 'usuario@empresa.com' },
-        include: { tenant: true },
+      expect(mockPrisma.usuario.findMany).toHaveBeenCalledWith({
+        where: { email: 'usuario@empresa.com' }, take: 2, include: { tenant: true },
       });
+      expect(mockPrisma.usuario.findFirst).not.toHaveBeenCalled();
       expect(res.user.id).toBe('u-2');
+      expect(res.user.rol).toBe('ADMIN');
+      expect(res.tenant.id).toBe('tenant-2');
     });
   });
 
@@ -334,8 +336,8 @@ describe('AuthService', () => {
   it('emite cookie segura cross-site en producción para frontend y API en dominios distintos', async () => {
     mockConfigService.get.mockImplementation((key, defaultVal) => key === 'NODE_ENV' ? 'production' : defaultVal);
     const passwordHash = await bcrypt.hash('test-password', 4);
-    mockPrisma.usuario.findFirst.mockResolvedValue({ id: 'u-1', tenantId: 'tenant-1', email: 'test@example.test', passwordHash, activo: true, tenant: { id: 'tenant-1', estado: 'ACTIVO' } });
-    await service.login({ tenantId: 'tenant-1', email: 'test@example.test', password: 'test-password' }, mockResponse);
+    mockPrisma.usuario.findMany.mockResolvedValue([{ id: 'u-1', tenantId: 'tenant-1', email: 'test@example.test', passwordHash, activo: true, tenant: { id: 'tenant-1', estado: 'ACTIVO' } }]);
+    await service.login({ email: 'test@example.test', password: 'test-password' }, mockResponse);
     expect(mockResponse.cookie).toHaveBeenCalledWith('refreshToken', 'mock-jwt-token', expect.objectContaining({ httpOnly: true, secure: true, sameSite: 'none', path: '/' }));
   });
 });

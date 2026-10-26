@@ -1,4 +1,3 @@
-import { requireMfa } from '../auth/mfa';
 import { missingPasswordCheck } from '../auth/password-timing';
 import { UsuariosService } from '../usuarios/usuarios.service';
 import { CreateUsuarioDto } from '../usuarios/dto/create-usuario.dto';
@@ -20,6 +19,10 @@ import * as bcrypt from 'bcrypt';
 import type { Request, Response } from 'express';
 import { leerConfiguracionAuth } from '../auth/auth-config';
 import { clavesDeLogin, excepcionLimiteLogin, registrarExitoLogin, registrarFalloLogin, segundosBloqueados } from '../auth/login-rate-limit';
+import { normalizarIdentificador } from '../auth/identidad-login';
+import { puedeRecuperar, registrarFalloCuenta, reiniciarFallosCuenta } from '../auth/bloqueo-cuenta';
+import { consumirContrasenaTemporal } from '../auth/contrasena-temporal';
+import { crearAccionAuth, registrarEventoAuth, VIGENCIA_ACCION_MS } from '../auth/auth-actions';
 import { crearSesion, revocarSesion, revocarSesionesDeSujeto, rotarRefresh, sidDeToken } from '../auth/sesiones-auth';
 import { isPasswordAllowed, PASSWORD_POLICY_MESSAGE } from '../common/password-policy';
 
@@ -106,16 +109,17 @@ export class SuperAdminService {
     return this.tenantLogoService.eliminar(tenantId, superAdminId);
   }
 
-  // Mismo límite de intentos que el login de tenants (por cuenta y por IP).
-  async login(loginDto: { email: string; password: string; mfaCode?: string }, res: Response, req?: Request) {
-    const claves = clavesDeLogin(`platform:${loginDto?.email}`, req?.ip);
+  // Mismo límite de intentos que el login unificado (por identificador y por IP) y mismo contador persistente por cuenta.
+  async login(loginDto: { usuario?: string; email?: string; password: string }, res: Response, req?: Request) {
+    const identificador = normalizarIdentificador(loginDto?.usuario ?? loginDto?.email);
+    const claves = clavesDeLogin(`login:${identificador}`, req?.ip);
     const segundos = await segundosBloqueados(this.prisma, claves);
     if (segundos > 0) {
       res.setHeader('Retry-After', String(segundos));
       throw excepcionLimiteLogin(segundos);
     }
     try {
-      const resultado = await this.autenticar(loginDto, res);
+      const resultado = await this.autenticar(identificador, loginDto.password, res);
       await registrarExitoLogin(this.prisma, claves);
       return resultado;
     } catch (error) {
@@ -131,27 +135,34 @@ export class SuperAdminService {
     return new Date((decoded?.exp ?? 0) * 1000);
   }
 
-  private async autenticar(loginDto: { email: string; password: string; mfaCode?: string }, res: Response) {
-    const { email, password } = loginDto;
-    const admin = await this.prisma.superAdmin.findUnique({
-      where: { email: email.toLowerCase().trim() },
-    });
+  private async autenticar(identificador: string, password: string, res: Response) {
+    const admin = identificador.includes('@') ? await this.prisma.superAdmin.findUnique({ where: { email: identificador } }) : null;
     if (!admin || !admin.activo) {
       await missingPasswordCheck(password);
       throw new UnauthorizedException('Credenciales de Super Admin inválidas');
     }
     const passwordValido = await bcrypt.compare(password, admin.passwordHash);
     if (!passwordValido) {
-      throw new UnauthorizedException('Credenciales de Super Admin inválidas');
+      if (await consumirContrasenaTemporal(this.prisma as any, admin.id, 'SUPER_ADMIN', password)) {
+        // La temporal es de un solo uso y no abre sesión: solo permite definir la contraseña nueva.
+        const cambioToken = await this.prisma.$transaction(async (tx) => {
+          const token = await crearAccionAuth(tx, admin, true, 'FORCED_CHANGE');
+          await registrarEventoAuth(tx, admin.id, admin, true, 'TEMP_PASSWORD_USED');
+          return token;
+        });
+        return { type: 'password_change_required' as const, requiereCambioPassword: true as const, cambioToken, expiresIn: VIGENCIA_ACCION_MS / 1000 };
+      }
+      const fallo = await registrarFalloCuenta(this.prisma, 'SUPER_ADMIN', admin.id);
+      const recuperacionDisponible = puedeRecuperar(fallo.fallos) && !!admin.emailVerifiedAt;
+      throw new UnauthorizedException({ statusCode: 401, message: 'Credenciales de Super Admin inválidas', error: 'Unauthorized', ...(recuperacionDisponible && { recuperacionDisponible: true }) });
     }
-    await requireMfa(this.prisma, admin, true, loginDto.mfaCode, this.configService);
+    await reiniciarFallosCuenta(this.prisma, 'SUPER_ADMIN', admin.id);
     const sid = randomUUID();
     const payload = {
       sub: admin.id,
       email: admin.email,
       rol: 'SUPER_ADMIN',
       type: 'super_admin',
-      mfa: true,
       sid,
     };
     const accessToken = this.jwtService.sign(payload, {
@@ -192,7 +203,7 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Refresh token de Super Admin inválido');
     }
-    if (!decoded.sid || decoded.mfa !== true) {
+    if (!decoded.sid) {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Sesión de Super Admin cerrada o vencida');
     }
@@ -211,7 +222,7 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Sesión de Super Admin cerrada o vencida');
     }
-    const payload = { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true, sid: decoded.sid };
+    const payload = { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', sid: decoded.sid };
     const accessToken = this.jwtService.sign(payload, { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any });
     const restanteMs = rotacion.expiresAt.getTime() - Date.now();
     const nuevoRefresh = this.jwtService.sign({ ...payload, typ: 'refresh' }, { expiresIn: Math.max(1, Math.floor(restanteMs / 1000)), jwtid: rotacion.jti });

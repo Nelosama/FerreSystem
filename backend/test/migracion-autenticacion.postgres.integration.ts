@@ -13,7 +13,7 @@ describe('Migración de autenticación / PostgreSQL con datos previos', () => {
   const exe = (name: string) => join(bin, name + (process.platform === 'win32' ? '.exe' : ''));
   const NUEVA = '20261012000000_autenticacion_sesiones_intentos';
   // Migraciones posteriores que alteran tablas creadas por NUEVA: se aplican justo después de ella.
-  const DEPENDIENTES = ['20261021000000_sesiones_auth_rotacion_refresh', '20261023000000_auth_recovery'];
+  const DEPENDIENTES = ['20261021000000_sesiones_auth_rotacion_refresh', '20261023000000_auth_recovery', '20261026000000_login_unico_bloqueo_recuperacion'];
   let directory: string;
   let started = false;
   let prisma: PrismaService;
@@ -54,7 +54,7 @@ describe('Migración de autenticación / PostgreSQL con datos previos', () => {
     psql(`INSERT INTO tenants (id, nombre_comercial, updated_at, configuracion) VALUES ('${tenant}', 'Previa', now(), '{}')`);
     psql(`INSERT INTO usuarios (id, tenant_id, nombre, email, password_hash, rol, activo, updated_at) VALUES ('${randomUUID()}', '${tenant}', 'Admin previo', 'previo@test.invalid', 'x', 'ADMIN', true, now())`);
     // Compare every pre-existing field, including the password hash, across additive DDL.
-    const snapshot = () => psql(`SELECT md5((SELECT string_agg((to_jsonb(u) - ARRAY['username','email_verified_at','mfa_secret','mfa_last_step'])::text, '|' ORDER BY u.id) FROM usuarios u) || (SELECT string_agg(t::text, '|' ORDER BY t::text) FROM tenants t))`);
+    const snapshot = () => psql(`SELECT md5((SELECT string_agg((to_jsonb(u) - ARRAY['username','email_verified_at','mfa_secret','mfa_last_step','intentos_fallidos','ultimo_fallo_at','bloqueado_at'])::text, '|' ORDER BY u.id) FROM usuarios u) || (SELECT string_agg(t::text, '|' ORDER BY t::text) FROM tenants t))`);
     const antes = snapshot();
 
     for (const migracion of [NUEVA, ...DEPENDIENTES]) {

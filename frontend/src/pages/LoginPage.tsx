@@ -7,17 +7,21 @@ import { useNavigate } from 'react-router-dom';
 import { SESSION_EXPIRED_MESSAGE, hasSessionExpiredNotice, clearSessionExpiredNotice } from '../utils/authInterceptors';
 import { api } from '../utils/api';
 import { RecoveryForm } from '../components/RecoveryForm';
+import { ForcedPasswordChange } from '../components/ForcedPasswordChange';
 
 export const LoginPage: React.FC = () => {
   const { login } = useTenant();
-  const { t, locale, setLocale } = useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('');
+  const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
-  const [tenantId, setTenantId] = useState(() => new URLSearchParams(window.location.search).get('empresa') || '');
-  const [platform, setPlatform] = useState(false);
-  const [mfaCode, setMfaCode] = useState('');
+  // Recuperación: la ofrece el servidor solo tras el tercer fallo de una cuenta válida de Admin o Super Admin.
+  const [recuperacion, setRecuperacion] = useState(false);
+  const [recuperacionMensaje, setRecuperacionMensaje] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  // Token de cambio obligatorio (contraseña temporal): mientras exista no se muestra el formulario ni ningún módulo.
+  const [cambioToken, setCambioToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(() => hasSessionExpiredNotice() ? SESSION_EXPIRED_MESSAGE : null);
 
@@ -30,8 +34,13 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/login', { email, password, ...(!platform && tenantId ? { tenantId } : {}), ...(mfaCode && { mfaCode }) });
-      const { type, accessToken, user, tenant, superAdmin } = response.data;
+      const response = await api.post('/auth/login', { usuario, password });
+      const { type, accessToken, user, tenant, superAdmin, cambioToken: cambio } = response.data;
+
+      if (type === 'password_change_required' && typeof cambio === 'string' && cambio) {
+        setCambioToken(cambio); setPassword(''); setRecuperacion(false);
+        return;
+      }
 
       if (typeof accessToken !== 'string' || !accessToken) {
         setError(t('shell.login.invalid_session'));
@@ -82,6 +91,7 @@ export const LoginPage: React.FC = () => {
       }
     } catch (err: any) {
       if (err.response) {
+        if (err.response.data?.recuperacionDisponible === true) setRecuperacion(true);
         const message = err.response.data?.message;
         setError(
           Array.isArray(message)
@@ -96,6 +106,16 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const solicitarRecuperacion = async () => {
+    if (enviando || !usuario) return;
+    setEnviando(true); setRecuperacionMensaje('');
+    try {
+      await api.post('/auth/security/request', { usuario });
+      setRecuperacionMensaje(t('security.accepted'));
+    } catch { setRecuperacionMensaje(t('security.failed')); }
+    finally { setEnviando(false); }
+  };
+
   const sesionExpirada = error === SESSION_EXPIRED_MESSAGE;
 
   return (
@@ -106,7 +126,6 @@ export const LoginPage: React.FC = () => {
           <MarcaJowa size={52} />
           <h1 className="login-titulo">Jowa System</h1>
           <p className="login-subtitulo">{t('shell.login.subtitle')}</p>
-          <button type="button" className="btn btn-secondary" onClick={() => setLocale(locale === 'es' ? 'en' : 'es')}>{locale === 'es' ? 'English' : 'Español'}</button>
         </header>
 
         {error && (
@@ -116,9 +135,11 @@ export const LoginPage: React.FC = () => {
           </div>
         )}
 
+        {cambioToken ? (
+          <ForcedPasswordChange token={cambioToken} onDone={() => { setCambioToken(''); setPassword(''); setError(null); setRecuperacionMensaje(t('security.forced_done')); }} />
+        ) : (
+          <>
         <form onSubmit={handleSubmit} className="login-formulario" aria-busy={loading}>
-          <label><input type="checkbox" checked={platform} onChange={e => setPlatform(e.target.checked)} /> {t('security.platform')}</label>
-          {!platform && <div className="form-group"><label htmlFor="login-tenant">{t('security.tenant')}</label><input id="login-tenant" className="form-input" value={tenantId} onChange={e => setTenantId(e.target.value.trim())} required={!email.includes('@')} autoComplete="organization" /></div>}
           <div className="form-group">
             <label className="form-label" htmlFor="login-correo">{t('shell.login.email')}</label>
             <div className="login-campo">
@@ -129,9 +150,8 @@ export const LoginPage: React.FC = () => {
                 required
                 autoComplete="username"
                 autoCapitalize="none"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="danielcm / 44556 / correo@empresa.com"
+                value={usuario}
+                onChange={(e) => setUsuario(e.target.value)}
                 className="form-input"
               />
             </div>
@@ -153,14 +173,23 @@ export const LoginPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="form-group"><label htmlFor="login-mfa">{t('security.mfa')}</label><input id="login-mfa" className="form-input" value={mfaCode} onChange={e => setMfaCode(e.target.value.trim())} autoComplete="one-time-code" required={platform} /></div>
           <button type="submit" disabled={loading} className="btn btn-primary login-entrar">
             {loading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : null}
             <span>{loading ? t('shell.login.verifying') : t('shell.login.submit')}</span>
             {!loading && <ArrowRight size={18} strokeWidth={2.4} aria-hidden="true" />}
           </button>
         </form>
-        <RecoveryForm email={email} tenantId={tenantId} platform={platform} password={password} />
+        {recuperacion && (
+          <section aria-labelledby="login-recuperacion" style={{ marginTop: 20 }}>
+            <h2 id="login-recuperacion" className="login-subtitulo">{t('security.recovery')}</h2>
+            <p>{t('security.recovery_offer')}</p>
+            <button type="button" className="btn btn-secondary" disabled={enviando || !usuario} onClick={() => void solicitarRecuperacion()}>{t('security.send')}</button>
+          </section>
+        )}
+        {recuperacionMensaje && <p role="status">{recuperacionMensaje}</p>}
+        <RecoveryForm />
+          </>
+        )}
       </div>
     </main>
   );

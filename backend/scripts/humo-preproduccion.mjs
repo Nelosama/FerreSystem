@@ -5,7 +5,7 @@
 //   ... CAJERO_EMAIL=... CAJERO_PASSWORD=... SUPERADMIN_EMAIL=... SUPERADMIN_PASSWORD=... node backend/scripts/humo-preproduccion.mjs --escribe
 // La auditoría es exclusiva del SUPERADMIN (/admin/tenants/:id/auditoria): ADMIN y CAJERO reciben 403 en /operaciones/auditoria.
 // Las credenciales se leen del entorno; no se guardan. Código de salida 1 si algo falla.
-// Super Admin exige SUPERADMIN_MFA_CODE (TOTP vigente o código de emergencia de un uso).
+// El Super Admin entra solo con su correo y contraseña: el login no solicita MFA.
 import { randomUUID } from 'node:crypto';
 
 const API = (process.env.API_URL || '').replace(/\/$/, '');
@@ -22,7 +22,7 @@ async function llamar(metodo, ruta, token, cuerpo) {
   return { s: res.status, b: json, cookie: res.headers.get('set-cookie') };
 }
 const entrar = async (email, password) => { const r = await llamar('POST', '/auth/login', null, { email, password }); return r.s === 200 ? { token: r.b.accessToken, id: r.b.user?.id, rol: r.b.user?.rol, tenantId: r.b.tenant?.id, cookie: r.cookie } : null; };
-const entrarSuperAdmin = async (email, password) => { const r = await llamar('POST', '/admin/auth/login', null, { email, password, ...(process.env.SUPERADMIN_MFA_CODE ? { mfaCode: process.env.SUPERADMIN_MFA_CODE } : {}) }); return r.s === 200 ? { token: r.b.accessToken } : null; };
+const entrarSuperAdmin = async (email, password) => { const r = await llamar('POST', '/admin/auth/login', null, { email, password }); return r.s === 200 ? { token: r.b.accessToken } : null; };
 
 const salud = await llamar('GET', '/health');
 registrar('El servicio responde y la base está conectada (/api/health = 200)', salud.s === 200, `HTTP ${salud.s}`);

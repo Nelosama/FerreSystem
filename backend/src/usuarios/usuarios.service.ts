@@ -6,7 +6,8 @@ import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { authorizedActor,audit,lockTenant } from '../operaciones/ledger';
 import * as bcrypt from 'bcrypt';
 import { revocarSesionesDeSujeto } from '../auth/sesiones-auth';
-const select={id:true,tenantId:true,nombre:true,email:true,username:true,rol:true,activo:true,permisos:true,permisosConfigurados:true,descuentoMaximo:true,createdAt:true,updatedAt:true} as const;
+import { identificadorEnUso } from '../auth/identidad-login';
+const select={id:true,tenantId:true,nombre:true,email:true,username:true,rol:true,activo:true,bloqueadoAt:true,permisos:true,permisosConfigurados:true,descuentoMaximo:true,createdAt:true,updatedAt:true} as const;
 @Injectable()
 export class UsuariosService {
  constructor(private readonly prisma:PrismaService){}
@@ -28,6 +29,8 @@ export class UsuariosService {
    await this.authorize(tx,tenantId,actorId,plataforma);
    if(email && await tx.usuario.findFirst({where:{tenantId,email}}))throw new ConflictException('Ya existe un usuario con este correo electrónico');
    if(username && await tx.usuario.findFirst({where:{tenantId,username}}))throw new ConflictException('Identificador ya registrado');
+   // El inicio de sesión no pide empresa: usuario, código y correo deben ser únicos en toda la plataforma.
+   if(await identificadorEnUso(tx,{email,username}))throw new ConflictException('Identificador ya registrado');
    const user=await tx.usuario.create({data:{tenantId,nombre:dto.nombre.trim(),email,username,passwordHash,rol:dto.rol||'CAJERO',permisos:dto.permisos||[],permisosConfigurados:dto.permisos!==undefined,descuentoMaximo:dto.descuentoMaximo??0,activo:dto.activo??true},select});
    await audit(tx,tenantId,actorId,'USUARIO_CREAR',user.id,{usuario:user});return user;
   });
@@ -46,8 +49,9 @@ export class UsuariosService {
     if(await tx.usuario.count({where:{tenantId,rol:'ADMIN',activo:true}})<=1)throw new ConflictException('Conserve al menos un administrador activo');
    }
    const email=dto.email?.toLowerCase().trim();if(email&&await tx.usuario.findFirst({where:{tenantId,email,id:{not:id}}}))throw new ConflictException('Correo electrónico ya registrado');
+   if(email&&email!==old.email&&await identificadorEnUso(tx,{email,exceptoUsuarioId:id}))throw new ConflictException('Correo electrónico ya registrado');
    const data:any={};
-   if(dto.username!==undefined){if(typeof dto.username!=='string')throw new BadRequestException('Identificador inválido');const username=dto.username.toLowerCase().trim();if(await tx.usuario.findFirst({where:{tenantId,username,id:{not:id}}}))throw new ConflictException('Identificador ya registrado');data.username=username;}
+   if(dto.username!==undefined){if(typeof dto.username!=='string')throw new BadRequestException('Identificador inválido');const username=dto.username.toLowerCase().trim();if(await tx.usuario.findFirst({where:{tenantId,username,id:{not:id}}}))throw new ConflictException('Identificador ya registrado');if(username!==old.username&&await identificadorEnUso(tx,{username,exceptoUsuarioId:id}))throw new ConflictException('Identificador ya registrado');data.username=username;}
    if(email!==undefined && email!==old.email)data.emailVerifiedAt=null;
    if(dto.nombre!==undefined)data.nombre=dto.nombre.trim();if(email!==undefined)data.email=email;if(passwordHash)data.passwordHash=passwordHash;
    if(dto.rol!==undefined)data.rol=dto.rol;if(dto.activo!==undefined)data.activo=dto.activo;

@@ -1,3 +1,5 @@
+> **Actualización 2026-10-26:** el límite temporal por cuenta (5 fallos → 15 min) sigue vigente para Admin, Super Admin e identificadores sin cuenta; los demás roles se bloquean de forma persistente en el 6.º fallo. Ver [LOGIN_UNICO_RECUPERACION_20261026.md](LOGIN_UNICO_RECUPERACION_20261026.md).
+
 # Autenticación fase 3 — límite de intentos, sesiones revocables y rotación (2026-10-10)
 
 **Base:** `claude/security-audit-fase-2` (PR #132) + merge de `origin/claude/integracion-pos-offline-p1` `58941e5d`. Rama: `claude/security-audit-fase-3`. No se modificaron PR existentes. No hay merge, despliegue ni migraciones productivas.

@@ -9,7 +9,8 @@ import { PrismaService } from '../prisma/prisma.service';
 describe('AuthService / oráculo de cuentas', () => {
   let service: AuthService;
   const mockPrisma = {
-    usuario: { findFirst: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
+    usuario: { findFirst: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    authTempPassword: { findUnique: vi.fn().mockResolvedValue(null), deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     superAdmin: { findUnique: vi.fn().mockResolvedValue(null) },
     sesionAuth: { create: vi.fn().mockResolvedValue({}), findUnique: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) }, $queryRaw: vi.fn().mockResolvedValue([{ segundos: 0 }]), $executeRaw: vi.fn().mockResolvedValue(0),
   };
@@ -39,17 +40,17 @@ describe('AuthService / oráculo de cuentas', () => {
   });
 
   it('una cuenta inactiva con contraseña incorrecta responde como credenciales inválidas', async () => {
-    mockPrisma.usuario.findFirst.mockResolvedValue({ id: 'u-1', tenantId: 't-1', email: 'inactivo@test.invalid', passwordHash, activo: false, tenant: { estado: 'ACTIVO' } });
-    await expect(service.login({ tenantId: 't-1', email: 'inactivo@test.invalid', password: 'otra-clave' }, res)).rejects.toThrow('Credenciales inválidas');
+    mockPrisma.usuario.findMany.mockResolvedValue([{ id: 'u-1', tenantId: 't-1', email: 'inactivo@test.invalid', passwordHash, activo: false, tenant: { estado: 'ACTIVO' } }]);
+    await expect(service.login({ email: 'inactivo@test.invalid', password: 'otra-clave' }, res)).rejects.toThrow('Credenciales inválidas');
   });
 
   it('una empresa suspendida con contraseña incorrecta responde como credenciales inválidas', async () => {
-    mockPrisma.usuario.findFirst.mockResolvedValue({ id: 'u-1', tenantId: 't-1', email: 'suspendido@test.invalid', passwordHash, activo: true, tenant: { estado: 'SUSPENDIDO' } });
-    await expect(service.login({ tenantId: 't-1', email: 'suspendido@test.invalid', password: 'otra-clave' }, res)).rejects.toThrow('Credenciales inválidas');
+    mockPrisma.usuario.findMany.mockResolvedValue([{ id: 'u-1', tenantId: 't-1', email: 'suspendido@test.invalid', passwordHash, activo: true, tenant: { estado: 'SUSPENDIDO' } }]);
+    await expect(service.login({ email: 'suspendido@test.invalid', password: 'otra-clave' }, res)).rejects.toThrow('Credenciales inválidas');
   });
 
   it('con la contraseña correcta sigue informando el estado de la cuenta', async () => {
-    mockPrisma.usuario.findFirst.mockResolvedValue({ id: 'u-1', tenantId: 't-1', email: 'inactivo@test.invalid', passwordHash, activo: false, tenant: { estado: 'ACTIVO' } });
-    await expect(service.login({ tenantId: 't-1', email: 'inactivo@test.invalid', password: 'Clave-Correcta-2026!' }, res)).rejects.toThrow('Este usuario ha sido desactivado');
+    mockPrisma.usuario.findMany.mockResolvedValue([{ id: 'u-1', tenantId: 't-1', email: 'inactivo@test.invalid', passwordHash, activo: false, tenant: { estado: 'ACTIVO' } }]);
+    await expect(service.login({ email: 'inactivo@test.invalid', password: 'Clave-Correcta-2026!' }, res)).rejects.toThrow('Este usuario ha sido desactivado');
   });
 });

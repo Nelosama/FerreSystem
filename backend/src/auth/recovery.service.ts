@@ -2,16 +2,19 @@ import { Injectable, UnauthorizedException, ForbiddenException, BadRequestExcept
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { RecoveryMailService } from './recovery-mail.service';
-import { newTotpSecret, opaqueToken, requireMfa, sealSecret, tokenHash, validStep } from './mfa';
+import { tokenHash } from './mfa';
+import { crearAccionAuth, registrarEventoAuth } from './auth-actions';
+import { emitirContrasenaTemporal } from './contrasena-temporal';
+import { FALLOS_PARA_RECUPERACION } from './bloqueo-cuenta';
+import { normalizarIdentificador, resolverCuenta } from './identidad-login';
 import { clavesDeLogin, excepcionLimiteLogin, registrarFalloLogin, segundosBloqueados } from './login-rate-limit';
 import { leerConfiguracionAuth } from './auth-config';
 import { revocarSesionesDeSujeto } from './sesiones-auth';
-import { AdminResetDto, ChangePasswordDto, ConfirmMfaDto, RecoveryRequestDto, ResetDto } from './dto/recovery.dto';
+import { AdminResetDto, ChangePasswordDto, ForcedChangeDto, RecoveryRequestDto, ResetDto, UnlockDto } from './dto/recovery.dto';
 
-const accepted = { message: 'Si la cuenta cumple los requisitos, recibirá instrucciones. Los empleados deben contactar a su administrador.' };
+const accepted = { message: 'Si la cuenta cumple los requisitos, recibirá instrucciones en su correo verificado. Los demás usuarios deben contactar al Admin o Super Admin.' };
 const invalid = () => new UnauthorizedException('Solicitud vencida o verificación inválida');
 type Identity = { sub: string; type: string; tenantId?: string; impersonatedBy?: string; rol?: string };
 
@@ -32,13 +35,10 @@ export class RecoveryService {
     await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${`AUTH:${id}`}, 0))`;
   }
   private async event(tx: any, actor: string, account: any, platform: boolean, event: string) {
-    await tx.authEvent.create({ data: { actorId: actor, sujetoId: account.id, tenantId: platform ? null : account.tenantId, event } });
+    await registrarEventoAuth(tx, actor, account, platform, event);
   }
-  private async action(tx: any, account: any, platform: boolean, purpose: string, binding = tokenHash(account.passwordHash)) {
-    const token = opaqueToken();
-    await tx.authAction.deleteMany({ where: { sujetoId: account.id, purpose } });
-    await tx.authAction.create({ data: { hash: tokenHash(token), sujetoId: account.id, tipo: platform ? 'SUPER_ADMIN' : 'TENANT', tenantId: platform ? null : account.tenantId, purpose, email: account.email, passwordBinding: binding, expiresAt: new Date(Date.now() + 600000) } });
-    return token;
+  private action(tx: any, account: any, platform: boolean, purpose: string, binding?: string) {
+    return crearAccionAuth(tx, account, platform, purpose, binding);
   }
   private async account(tx: any, identity: Identity) {
     if (identity.impersonatedBy) throw new ForbiddenException('Use su sesión personal para gestionar credenciales');
@@ -47,29 +47,53 @@ export class RecoveryService {
     if (!account) throw invalid();
     return { account, platform };
   }
-  private async current(tx: any, account: any, platform: boolean, password: string, code?: string) {
+  private async current(account: any, password: string) {
     if (!await bcrypt.compare(password, account.passwordHash)) throw invalid();
-    if (platform || account.mfaSecret) await requireMfa(tx, account, platform, code, this.config);
+  }
+  /** Contraseña nueva definida por el titular: reinicia contadores y bloqueo, invalida temporales y cierra las demás sesiones. */
+  private async aplicarPassword(tx: any, account: any, platform: boolean, passwordHash: string, motivo: string) {
+    const datos: any = { passwordHash, intentosFallidos: 0, ultimoFalloAt: null, ...(!platform && { bloqueadoAt: null }) };
+    await this.table(tx, platform).update({ where: { id: account.id }, data: datos });
+    await revocarSesionesDeSujeto(tx, account.id, motivo);
+    if (platform) await this.revokeSupport(tx);
+    await tx.authAction.deleteMany({ where: { sujetoId: account.id } });
+    await tx.authTempPassword.deleteMany({ where: { sujetoId: account.id } });
   }
 
+  /**
+   * Recuperación de Admin/Super Admin: contraseña temporal por correo. Solo se atiende si el identificador resuelve a UNA cuenta
+   * activa de Admin o Super Admin con correo verificado que ya acumula 3 intentos fallidos. La respuesta es idéntica y tarda
+   * lo mismo (8,5 s) haya o no envío: no revela si la cuenta existe ni si cumple los requisitos.
+   */
   async request(dto: RecoveryRequestDto, ip?: string) {
     const started = Date.now();
-    await this.limit(`request:${dto.scope}:${dto.tenantId || ''}:${dto.email}`, ip);
+    const identificador = normalizarIdentificador(dto.usuario);
+    await this.limit(`request:${identificador}`, ip);
     try {
-      const platform = dto.scope === 'super_admin';
-      const email = dto.email.toLowerCase().trim();
-      const account = platform
-        ? await this.prisma.superAdmin.findFirst({ where: { email, activo: true } })
-        : dto.tenantId ? await this.prisma.usuario.findFirst({ where: { tenantId: dto.tenantId, email, activo: true, rol: 'ADMIN', tenant: { estado: 'ACTIVO' } } }) : null;
-      if (account?.emailVerifiedAt && account.mfaSecret) {
-        const token = await this.prisma.$transaction(async tx => {
+      const resuelta = await resolverCuenta(this.prisma, identificador);
+      const platform = resuelta.estado === 'SUPER_ADMIN';
+      const account: any = resuelta.estado === 'SUPER_ADMIN' || resuelta.estado === 'TENANT' ? resuelta.cuenta : null;
+      const elegible = !!account && account.activo && !!account.email && !!account.emailVerifiedAt
+        && account.intentosFallidos >= FALLOS_PARA_RECUPERACION
+        && (platform || (account.rol === 'ADMIN' && account.tenant?.estado === 'ACTIVO'));
+      if (elegible) {
+        const tipo = platform ? 'SUPER_ADMIN' : 'TENANT';
+        const password = await this.prisma.$transaction(async tx => {
           await this.lock(tx, account.id);
-          return this.action(tx, account, platform, 'RESET_EMAIL');
+          const emitida = await emitirContrasenaTemporal(tx, account, tipo);
+          await this.event(tx, account.id, account, platform, 'TEMP_PASSWORD_ISSUED');
+          return emitida;
         });
-        await this.mail.send(account.email!, token, 'RESET_EMAIL', platform ? undefined : (account as any).tenantId);
+        try {
+          await this.mail.sendTemporaryPassword(account.email, password);
+        } catch (error) {
+          // Sin entrega no debe quedar una temporal vigente que nadie recibió.
+          await this.prisma.authTempPassword.deleteMany({ where: { sujetoId: account.id, tipo } });
+          throw error;
+        }
       }
     } catch {
-      // Never leak eligibility, mailbox/provider details, tokens or database errors.
+      // Never leak eligibility, mailbox/provider details, passwords or database errors.
       this.logger.error('Solicitud de recuperación no entregada; revisar infraestructura de correo');
     } finally {
       // Provider has an 8 s deadline. Equal response floor covers eligible and ineligible accounts.
@@ -84,32 +108,6 @@ export class RecoveryService {
     const token = await this.prisma.$transaction(async tx => { await this.lock(tx, account.id); return this.action(tx, account, platform, 'VERIFY_EMAIL'); });
     await this.mail.send(account.email, token, 'VERIFY_EMAIL', platform ? undefined : account.tenantId);
     return accepted;
-  }
-
-  async requestBootstrap(email: string, password: string, ip?: string) {
-    const started = Date.now();
-    await this.limit(`bootstrap:${email}`, ip);
-    try {
-      const account = await this.prisma.superAdmin.findFirst({ where: { email: email.toLowerCase().trim(), activo: true } });
-      if (account && !account.mfaSecret && await bcrypt.compare(password, account.passwordHash)) {
-        const token = await this.prisma.$transaction(async tx => {
-          await this.lock(tx, account.id); return this.action(tx, account, true, 'BOOTSTRAP_MFA');
-        });
-        await this.mail.send(account.email, token, 'BOOTSTRAP_MFA');
-      }
-    } catch { this.logger.error('Enrolamiento inicial no entregado; revisar infraestructura de correo'); }
-    finally { await delay(Math.max(0, 8500 - (Date.now() - started))); }
-    return accepted;
-  }
-  bootstrapMfa(token: string, currentPassword: string) {
-    return this.consume(token, ['BOOTSTRAP_MFA'], async (tx, a, account, platform) => {
-      if (!platform || account.mfaSecret || a.passwordBinding !== tokenHash(account.passwordHash) || !await bcrypt.compare(currentPassword, account.passwordHash)) throw invalid();
-      await tx.superAdmin.update({ where: { id: account.id }, data: { emailVerifiedAt: new Date() } });
-      const secret = newTotpSecret();
-      const enrollment = await this.action(tx, account, true, 'MFA_ENROLL', tokenHash(account.passwordHash + secret));
-      await this.event(tx, account.id, account, true, 'MFA_BOOTSTRAP_EMAIL_VERIFIED');
-      return { token: enrollment, secret };
-    });
   }
 
   // All consumers serialize per account, then re-read and delete the token in the same transaction.
@@ -138,21 +136,24 @@ export class RecoveryService {
       return { success: true };
     });
   }
+  /** Enlace privado de un solo uso entregado por un Admin/Super Admin (alta o restablecimiento): el titular define su contraseña. */
   async reset(dto: ResetDto) {
     const passwordHash = await bcrypt.hash(dto.password, 12);
-    return this.consume(dto.token, ['RESET_EMAIL', 'RESET_ADMIN'], async (tx, a, account, platform) => {
-      if (a.passwordBinding !== tokenHash(account.passwordHash)) throw invalid();
-      if (a.purpose === 'RESET_EMAIL') {
-        if (!account.emailVerifiedAt || (!platform && account.rol !== 'ADMIN')) throw invalid();
-        await requireMfa(tx, account, platform, dto.mfaCode, this.config);
-      }
-      if (platform && a.purpose !== 'RESET_EMAIL') throw invalid();
-      await this.table(tx, platform).update({ where: { id: account.id }, data: { passwordHash } });
-      await revocarSesionesDeSujeto(tx, account.id, 'PASSWORD_RESET');
-      // Support access originating from this Super Admin must also stop.
-      if (platform) await this.revokeSupport(tx);
-      await tx.authAction.deleteMany({ where: { sujetoId: account.id } });
+    return this.consume(dto.token, ['RESET_ADMIN'], async (tx, a, account, platform) => {
+      if (a.passwordBinding !== tokenHash(account.passwordHash) || platform) throw invalid();
+      await this.aplicarPassword(tx, account, platform, passwordHash, 'PASSWORD_RESET');
       await this.event(tx, account.id, account, platform, a.purpose);
+      return { success: true };
+    });
+  }
+  /** Cambio obligatorio tras entrar con la contraseña temporal. Hasta completarlo no existe sesión ni acceso a ningún módulo. */
+  async forcedChange(dto: ForcedChangeDto) {
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+    return this.consume(dto.token, ['FORCED_CHANGE'], async (tx, a, account, platform) => {
+      if (a.passwordBinding !== tokenHash(account.passwordHash) || (!platform && account.rol !== 'ADMIN')) throw invalid();
+      if (await bcrypt.compare(dto.password, account.passwordHash)) throw new BadRequestException('Defina una contraseña distinta de la actual');
+      await this.aplicarPassword(tx, account, platform, passwordHash, 'PASSWORD_FORCED_CHANGE');
+      await this.event(tx, account.id, account, platform, 'PASSWORD_FORCED_CHANGE');
       return { success: true };
     });
   }
@@ -165,26 +166,30 @@ export class RecoveryService {
     return this.prisma.$transaction(async tx => {
       await this.lock(tx, identity.sub);
       const { account, platform } = await this.account(tx, identity);
-      await this.current(tx, account, platform, dto.currentPassword, dto.mfaCode);
-      await this.table(tx, platform).update({ where: { id: account.id }, data: { passwordHash } });
-      await revocarSesionesDeSujeto(tx, account.id, 'PASSWORD_CHANGE');
-      if (platform) await this.revokeSupport(tx);
-      await tx.authAction.deleteMany({ where: { sujetoId: account.id } });
+      await this.current(account, dto.currentPassword);
+      await this.aplicarPassword(tx, account, platform, passwordHash, 'PASSWORD_CHANGE');
       await this.event(tx, account.id, account, platform, 'PASSWORD_CHANGE');
       return { success: true };
     });
   }
+  /** Valida quién actúa y sobre qué usuario. Admin: solo usuarios de su empresa que no sean Admin. Super Admin: cualquier empresa. */
+  private async objetivo(tx: any, identity: Identity, usuarioId: string, tenantIdSolicitado?: string) {
+    const { account: actor, platform } = await this.account(tx, identity);
+    if (!platform && actor.rol !== 'ADMIN') throw new ForbiddenException('Solo un Admin o Super Admin puede gestionar accesos');
+    const tenantId = platform ? tenantIdSolicitado : identity.tenantId;
+    if (!tenantId || (!platform && tenantIdSolicitado && tenantIdSolicitado !== tenantId)) throw new ForbiddenException('Empresa no autorizada');
+    if (usuarioId !== actor.id) await this.lock(tx, usuarioId);
+    const target = await tx.usuario.findFirst({ where: { id: usuarioId, tenantId, tenant: { estado: 'ACTIVO' } } });
+    // Un Admin no gestiona a otro Admin (se recupera por correo o lo gestiona el Super Admin) ni a sí mismo (use el cambio de contraseña).
+    if (!target || target.id === actor.id || (!platform && target.rol === 'ADMIN')) throw new ForbiddenException('Operación no autorizada');
+    return { actor, platform, target };
+  }
   async adminReset(identity: Identity, dto: AdminResetDto) {
     return this.prisma.$transaction(async tx => {
       await this.lock(tx, identity.sub);
-      const { account: actor, platform } = await this.account(tx, identity);
-      if (!platform && actor.rol !== 'ADMIN') throw new ForbiddenException('Solo un administrador puede restablecer accesos');
-      const tenantId = platform ? dto.tenantId : identity.tenantId;
-      if (!tenantId || (!platform && dto.tenantId && dto.tenantId !== tenantId)) throw new ForbiddenException('Empresa no autorizada');
-      await this.current(tx, actor, platform, dto.currentPassword, dto.mfaCode);
-      if (dto.usuarioId !== actor.id) await this.lock(tx, dto.usuarioId);
-      const target = await tx.usuario.findFirst({ where: { id: dto.usuarioId, tenantId, activo: true, tenant: { estado: 'ACTIVO' } } });
-      if (!target || target.id === actor.id || (!platform && target.rol === 'ADMIN' && !actor.mfaSecret)) throw new ForbiddenException('Restablecimiento no autorizado');
+      const { actor, platform, target } = await this.objetivo(tx, identity, dto.usuarioId, dto.tenantId);
+      await this.current(actor, dto.currentPassword);
+      if (!target.activo) throw new ForbiddenException('Operación no autorizada');
       const token = await this.action(tx, target, false, 'RESET_ADMIN');
       await revocarSesionesDeSujeto(tx, target.id, 'ADMIN_RESET_REQUEST');
       await this.event(tx, actor.id, target, false, 'ADMIN_RESET_REQUEST');
@@ -192,27 +197,14 @@ export class RecoveryService {
       return { token, expiresIn: 600 };
     });
   }
-  async enroll(identity: Identity, currentPassword: string) {
+  /** Reactiva una cuenta bloqueada por intentos fallidos. No cambia la contraseña ni devuelve ninguna credencial. */
+  async unlock(identity: Identity, dto: UnlockDto) {
     return this.prisma.$transaction(async tx => {
       await this.lock(tx, identity.sub);
-      const { account, platform } = await this.account(tx, identity);
-      if (account.mfaSecret || !account.emailVerifiedAt || (!platform && account.rol !== 'ADMIN') || !await bcrypt.compare(currentPassword, account.passwordHash)) throw invalid();
-      const secret = newTotpSecret();
-      const token = await this.action(tx, account, platform, 'MFA_ENROLL', tokenHash(account.passwordHash + secret));
-      return { secret, token, uri: `otpauth://totp/Jowa:${encodeURIComponent(account.email)}?secret=${secret}&issuer=Jowa&algorithm=SHA1&digits=6&period=30` };
-    });
-  }
-  confirmMfa(dto: ConfirmMfaDto) {
-    return this.consume(dto.token, ['MFA_ENROLL'], async (tx, a, account, platform) => {
-      const step = /^[A-Z2-7]{32}$/.test(dto.secret) ? validStep(dto.secret, dto.mfaCode || '') : null;
-      if (account.mfaSecret || step === null || a.passwordBinding !== tokenHash(account.passwordHash + dto.secret)) throw invalid();
-      await this.table(tx, platform).update({ where: { id: account.id }, data: { mfaSecret: sealSecret(dto.secret, account.id, this.config), mfaLastStep: step } });
-      const codes = Array.from({ length: 10 }, () => randomBytes(16).toString('hex'));
-      await tx.authRecoveryCode.deleteMany({ where: { sujetoId: account.id, tipo: a.tipo } });
-      await tx.authRecoveryCode.createMany({ data: codes.map(code => ({ hash: tokenHash(code), sujetoId: account.id, tipo: a.tipo })) });
-      await revocarSesionesDeSujeto(tx, account.id, 'MFA_ENROLLED');
-      await this.event(tx, account.id, account, platform, 'MFA_ENROLLED');
-      return { recoveryCodes: codes };
+      const { actor, target } = await this.objetivo(tx, identity, dto.usuarioId, dto.tenantId);
+      await tx.usuario.update({ where: { id: target.id }, data: { bloqueadoAt: null, intentosFallidos: 0, ultimoFalloAt: null } });
+      await this.event(tx, actor.id, target, false, 'ACCOUNT_UNLOCKED');
+      return { success: true };
     });
   }
 }

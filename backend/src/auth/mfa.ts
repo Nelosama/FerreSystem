@@ -1,3 +1,6 @@
+// RETIRADO DEL FLUJO: el login, la recuperación y la renovación de sesión ya no solicitan MFA (ni Super Admin ni usuarios).
+// Se conservan las primitivas (hash de token, token opaco, TOTP, cifrado) porque otras piezas usan tokenHash/opaqueToken y para
+// no borrar datos existentes (columnas mfa_* y auth_recovery_codes). Ningún controlador ni servicio llama a requireMfa.
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { UnauthorizedException, ServiceUnavailableException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';

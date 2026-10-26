@@ -10,6 +10,8 @@ export interface Usuario {
   permisos: string[];
   descuentoMaximo: number;
   activo: boolean;
+  /** Bloqueada por intentos fallidos (solo usuarios que no son Admin); la reactiva un Admin o el Super Admin. */
+  bloqueado?: boolean;
 }
 
 export const PERMISOS_DEFAULT_POR_ROL = {
@@ -155,6 +157,7 @@ export const UsuariosPage: React.FC = () => {
             permisos: u.permisosConfigurados ? u.permisos : PERMISOS_DEFAULT_POR_ROL[u.rol as keyof typeof PERMISOS_DEFAULT_POR_ROL]?.permisos || [],
             descuentoMaximo: Number(u.descuentoMaximo || 0),
             activo: u.activo,
+            bloqueado: !!u.bloqueadoAt,
             }));
           setListaUsuarios(apiUsers);
         }
@@ -323,6 +326,16 @@ export const UsuariosPage: React.FC = () => {
     }
   };
 
+  const reactivarCuentaBloqueada = async (objetivo: Usuario) => {
+    try {
+      await api.post('/auth/security/unlock', { usuarioId: objetivo.id });
+      setListaUsuarios((prev) => prev.map((u) => (u.id === objetivo.id ? { ...u, bloqueado: false } : u)));
+      showSuccess(t('users.unlocked', { name: objetivo.nombre }));
+    } catch (err: any) {
+      setErrorBanner(err.response?.data?.message || t('security.failed'));
+    }
+  };
+
   const cambiarEstadoUsuario = async () => {
     const objetivo = usuarioPorCambiarEstado;
     if (!objetivo) return;
@@ -441,6 +454,7 @@ export const UsuariosPage: React.FC = () => {
                           <XCircle size={11} /> {t('users.inactive')}
                         </span>
                       )}
+                      {u.bloqueado && <span className="badge badge-danger" style={{ marginLeft: 6 }}>{t('users.locked')}</span>}
                     </td>
                     <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <button
@@ -450,6 +464,11 @@ export const UsuariosPage: React.FC = () => {
                       >
                         <Edit2 size={13} /> {t('users.edit')}
                       </button>
+                      {u.bloqueado && u.rolBase !== 'ADMIN' && (
+                        <button type="button" className="btn btn-primary btn-sm" style={{ marginLeft: 6 }} onClick={() => void reactivarCuentaBloqueada(u)}>
+                          {t('users.unlock')}
+                        </button>
+                      )}
                       {u.id !== sesionActual?.id && (
                         <button
                           type="button"

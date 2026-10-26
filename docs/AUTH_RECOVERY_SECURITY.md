@@ -1,3 +1,5 @@
+> **ACTUALIZADO 2026-10-26 (NEXUS):** el MFA (TOTP, códigos de emergencia, enrolamiento inicial) y la recuperación por enlace de correo descritos abajo **ya no forman parte del flujo vigente**. El login pide solo «Usuario» y «Contraseña»; la recuperación de Admin/Super Admin es una contraseña temporal por correo verificado y los demás roles se bloquean en el sexto fallo. El diseño vigente, la política de identificadores únicos, el plan de migración y las pruebas están en [LOGIN_UNICO_RECUPERACION_20261026.md](LOGIN_UNICO_RECUPERACION_20261026.md). Este documento se conserva como histórico del diseño anterior (las columnas `mfa_*` y la tabla `auth_recovery_codes` siguen en la base sin uso).
+
 # Jowa System: acceso y recuperación de credenciales
 
 [PR dedicado #192](https://github.com/Nelosama/FerreSystem/pull/192) en borrador. Rama `codex/auth-recovery-security`, base inicial `main` `ed720baf`, sincronizada con `ba201465` (#190). Sin merge, despliegue ni acceso a datos de producción. Revisión de esquema y persistencia: **NEXUS**.

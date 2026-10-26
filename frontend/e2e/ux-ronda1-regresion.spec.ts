@@ -22,7 +22,7 @@ test.describe('Inicio de sesión', () => {
       // «Jowa» y «System» se leen sobre el fondo de la tarjeta (antes «Jowa» era blanco sobre blanco).
       await sinFallos(page);
       expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
-      await expect(page.getByLabel('Usuario, código o correo')).toHaveAttribute('type', 'text');
+      await expect(page.getByLabel('Usuario', { exact: true })).toHaveAttribute('type', 'text');
       await expect(page.getByLabel('Contraseña', { exact: true })).toHaveAttribute('type', 'password');
       await expect(page.getByRole('button', { name: 'Ingresar al sistema' })).toBeVisible();
     });
