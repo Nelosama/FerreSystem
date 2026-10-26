@@ -386,6 +386,29 @@ describe('AuthService', () => {
       expect(mockPrisma.sesionAuth.updateMany.mock.invocationCallOrder[0]).toBeLessThan(mockPrisma.sesionAuth.create.mock.invocationCallOrder[0]);
     });
 
+    it('dos usos simultáneos de la misma clave temporal: solo uno obtiene sesión', async () => {
+      const admin = await cuenta({ rol: 'ADMIN', email: 'admin@ferre.test', loginFallos: 3 });
+      const { tokenHash } = await import('./mfa');
+      const accion = { hash: tokenHash('Abcd-Efgh-Jkmn-Pqrs'), purpose: 'TEMP_PASSWORD', sujetoId: 'u-9', tipo: 'TENANT', email: 'admin@ferre.test', passwordBinding: tokenHash(admin.passwordHash), expiresAt: new Date(Date.now() + 60_000) };
+      mockPrisma.usuario.findMany.mockResolvedValue([admin]);
+      mockPrisma.usuario.findUnique.mockResolvedValue(admin);
+      mockPrisma.authAction.findUnique.mockResolvedValue(accion);
+      // La primera transacción borra la clave; la segunda ya no encuentra nada que borrar.
+      mockPrisma.authAction.deleteMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+      try {
+        const resultados = await Promise.allSettled([
+          service.login({ email: 'admin@ferre.test', password: 'Abcd-Efgh-Jkmn-Pqrs' }, mockResponse),
+          service.login({ email: 'admin@ferre.test', password: 'Abcd-Efgh-Jkmn-Pqrs' }, mockResponse),
+        ]);
+        expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+        expect(resultados.filter((r) => r.status === 'rejected')).toHaveLength(1);
+      } finally {
+        mockPrisma.usuario.findMany.mockResolvedValue([]);
+        mockPrisma.usuario.findUnique.mockReset();
+        mockPrisma.authAction.deleteMany.mockResolvedValue({ count: 1 });
+      }
+    });
+
     it.each([
       ['vencida', { expiresAt: new Date(Date.now() - 1) }],
       ['emitida antes de un cambio de contraseña', { passwordBinding: 'otro-hash' }],
