@@ -1,3 +1,4 @@
+import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { RecoveryService } from '../src/auth/recovery.service';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -66,7 +67,7 @@ describe('Administración cloud / HTTP y PostgreSQL aislado', () => {
     return (await respuesta.json()) as { accessToken: string; tenant: Record<string, unknown> };
   };
   const loginSuperAdmin = async () => {
-    const respuesta = await http('POST', '/api/admin/auth/login', undefined, { email: emailSuperAdmin, password });
+    const respuesta = await http('POST', '/api/admin/auth/login', undefined, { email: emailSuperAdmin, password, mfaCode: await syntheticPlatformMfa(prisma, emailSuperAdmin) });
     expect(respuesta.status).toBe(200);
     return (await respuesta.json()) as { accessToken: string };
   };
@@ -180,7 +181,7 @@ describe('Administración cloud / HTTP y PostgreSQL aislado', () => {
       expect(response.status).toBe(201); const usuario = await response.json() as any;
       expect(usuario).not.toHaveProperty('passwordHash');
       const security = new RecoveryService(prisma, new ConfigService(), {} as any);
-      const invitation = await security.adminReset({ sub: superAdminId, type: 'super_admin' }, { usuarioId: usuario.id, tenantId: A, currentPassword: password });
+      const invitation = await security.adminReset({ sub: superAdminId, type: 'super_admin' }, { usuarioId: usuario.id, tenantId: A, currentPassword: password, mfaCode: await syntheticPlatformMfa(prisma, emailSuperAdmin) });
       await security.reset({ token: invitation.token, password: 'Nueva-clave123' });
       const login = await http('POST', '/api/auth/login', undefined, { email, password: 'Nueva-clave123', tenantId: A });
       expect(login.status).toBe(200); const token = (await login.json() as any).accessToken;

@@ -13,7 +13,7 @@ describe('Migración de autenticación / PostgreSQL con datos previos', () => {
   const exe = (name: string) => join(bin, name + (process.platform === 'win32' ? '.exe' : ''));
   const NUEVA = '20261012000000_autenticacion_sesiones_intentos';
   // Migraciones posteriores que alteran tablas creadas por NUEVA: se aplican justo después de ella.
-  const DEPENDIENTES = ['20261021000000_sesiones_auth_rotacion_refresh', '20261023000000_auth_recovery', '20261026000000_login_unico_bloqueo_recuperacion'];
+  const DEPENDIENTES = ['20261021000000_sesiones_auth_rotacion_refresh', '20261023000000_auth_recovery', '20261026000000_auth_login_unico_bloqueo'];
   let directory: string;
   let started = false;
   let prisma: PrismaService;

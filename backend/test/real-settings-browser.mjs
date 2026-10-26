@@ -8,6 +8,7 @@ const server = await createServer({
   server: { host: '127.0.0.1', port: 0, proxy: { '/api': { target: process.env.SETTINGS_API.replace(/\/api$/, ''), changeOrigin: true } } },
 });
 let browser;
+const mfaCodes = (process.env.SETTINGS_MFA_CODES || '').split(',');
 try {
   await server.listen();
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -18,6 +19,8 @@ try {
     await page.goto(`${origin}/login`);
     await page.locator('#login-correo').fill(process.env.SETTINGS_EMAIL);
     await page.locator('#login-clave').fill(process.env.SETTINGS_PASSWORD);
+    await page.getByLabel('Acceso de Super Admin').check();
+    await page.locator('#login-mfa').fill(mfaCodes.shift());
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await page.waitForURL((url) => !url.pathname.startsWith('/login'));
     // La configuración del negocio es exclusiva del SUPERADMIN y se edita por negocio seleccionado.

@@ -1,15 +1,21 @@
-import { Body, Controller, Post, Req, UseGuards, HttpCode } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req, UseGuards, HttpCode } from '@nestjs/common';
 import type { Request } from 'express';
 import { RecoveryService } from './recovery.service';
 import { OrigenPermitidoGuard } from '../common/guards/origen-permitido.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { ActionDto, AdminResetDto, ChangePasswordDto, ForcedChangeDto, RecoveryRequestDto, ResetDto, UnlockDto } from './dto/recovery.dto';
+import { ActionDto, AdminResetDto, BootstrapMfaDto, BootstrapRequestDto, ChangePasswordDto, ConfirmMfaDto, EnrollMfaDto, ForcedChangeDto, RecoveryRequestDto, ResetDto, UnlockDto } from './dto/recovery.dto';
 import { tokenHash } from './mfa';
 
 @Controller('auth/security')
 @UseGuards(OrigenPermitidoGuard)
 export class RecoveryController {
   constructor(private readonly service: RecoveryService) {}
+  @Post('mfa/bootstrap-request') @HttpCode(202)
+  bootstrapRequest(@Body() dto: BootstrapRequestDto, @Req() req: Request) { return this.service.requestBootstrap(dto.usuario ?? dto.email ?? '', dto.password, req.ip); }
+  @Post('mfa/bootstrap')
+  async bootstrap(@Body() dto: BootstrapMfaDto, @Req() req: Request) {
+    await this.service.limit(`bootstrap-confirm:${tokenHash(dto.token)}`, req.ip); return this.service.bootstrapMfa(dto.token, dto.currentPassword);
+  }
   @Post('request') @HttpCode(202)
   request(@Body() dto: RecoveryRequestDto, @Req() req: Request) { return this.service.request(dto, req.ip); }
   @Post('reset') @HttpCode(200)
@@ -39,5 +45,15 @@ export class RecoveryController {
   @Post('unlock') @UseGuards(JwtAuthGuard) @HttpCode(200)
   async unlock(@Body() dto: UnlockDto, @Req() req: Request & { user: any }) {
     await this.service.limit(`unlock:${req.user.sub}`, req.ip); return this.service.unlock(req.user, dto);
+  }
+  @Get('locked') @UseGuards(JwtAuthGuard)
+  locked(@Query('tenantId') tenantId: string | undefined, @Req() req: Request & { user: any }) { return this.service.locked(req.user, tenantId); }
+  @Post('mfa/enroll') @UseGuards(JwtAuthGuard)
+  async enroll(@Body() dto: EnrollMfaDto, @Req() req: Request & { user: any }) {
+    await this.service.limit(`enroll:${req.user.sub}`, req.ip); return this.service.enroll(req.user, dto.currentPassword);
+  }
+  @Post('mfa/confirm')
+  async confirm(@Body() dto: ConfirmMfaDto, @Req() req: Request) {
+    await this.service.limit(`mfa-confirm:${tokenHash(dto.token)}`, req.ip); return this.service.confirmMfa(dto);
   }
 }

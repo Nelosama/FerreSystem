@@ -1,11 +1,15 @@
 import type { PrismaService } from '../prisma/prisma.service';
+import { revocarSesionesDeSujeto } from './sesiones-auth';
+import { registrarEventoAuth } from './auth-actions';
 
 // Contadores de intentos fallidos por cuenta, llevados SOLO en el servidor y actualizados con una única sentencia SQL
 // (el bloqueo de fila de PostgreSQL serializa las solicitudes concurrentes: ninguna se pierde ni se cuenta dos veces).
+// Las cuentas operativas (todo rol distinto de ADMIN, incluido CONTADOR) se bloquean de forma permanente en el sexto fallo
+// consecutivo. Admin y Super Admin no se bloquean: los frenan los límites temporales por cuenta e IP y recuperan por correo.
 
 /** Fallos tolerados antes del bloqueo: el bloqueo ocurre en el intento número MAX_FALLOS_BLOQUEO + 1 (el sexto). */
 export const MAX_FALLOS_BLOQUEO = 5;
-/** Fallos tras los cuales Admin/Super Admin ven la opción de recuperación. */
+/** Fallos consecutivos con los que Admin/Super Admin pueden pedir una contraseña temporal. */
 export const FALLOS_PARA_RECUPERACION = 3;
 
 export type TipoCuenta = 'TENANT' | 'SUPER_ADMIN';
@@ -36,6 +40,18 @@ export async function registrarFalloCuenta(prisma: Pick<PrismaService, '$queryRa
 }
 
 /**
+ * Efectos del bloqueo, una sola vez (solo el intento que bloqueó llega aquí): cierra las sesiones abiertas y anula enlaces y
+ * contraseñas temporales pendientes, para que nadie siga operando con una cuenta que está bajo ataque. Auditado sin credenciales.
+ */
+export async function aplicarBloqueo(prisma: Pick<PrismaService, '$transaction'>, cuenta: { id: string; tenantId: string }) {
+  await prisma.$transaction(async (tx: any) => {
+    await revocarSesionesDeSujeto(tx, cuenta.id, 'CUENTA_BLOQUEADA');
+    await tx.authAction.deleteMany({ where: { sujetoId: cuenta.id } });
+    await registrarEventoAuth(tx, 'sistema', cuenta, false, 'ACCOUNT_LOCKED');
+  });
+}
+
+/**
  * Éxito: reinicia el contador. Solo escribe si hay algo que reiniciar (un acceso normal no debe tocar `updated_at` del usuario).
  * Para usuarios el reinicio es condicional a que la cuenta NO esté bloqueada, así un bloqueo que se confirme en paralelo nunca
  * queda deshecho por un acceso. Devuelve false si la cuenta está bloqueada.
@@ -53,5 +69,3 @@ export async function reiniciarFallosCuenta(prisma: Pick<PrismaService, 'usuario
   const fila = await prisma.usuario.findUnique({ where: { id }, select: { bloqueadoAt: true } });
   return !fila?.bloqueadoAt;
 }
-
-export const puedeRecuperar = (fallos: number) => fallos >= FALLOS_PARA_RECUPERACION;

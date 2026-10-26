@@ -1,3 +1,4 @@
+import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
@@ -18,7 +19,7 @@ export async function checkSettingsHttp(prisma: PrismaService, base: string) {
     ...(body !== undefined && { body: JSON.stringify(body) }),
   });
   async function login(user: { email: string; tenantId?: string }, admin = false) {
-    const response = await call(admin ? '/admin/auth/login' : '/auth/login', undefined, 'POST', { email: user.email, password, ...(user.tenantId && { tenantId: user.tenantId }) });
+    const response = await call(admin ? '/admin/auth/login' : '/auth/login', undefined, 'POST', { email: user.email, password, ...(admin && { mfaCode: await syntheticPlatformMfa(prisma, user.email) }), ...(user.tenantId && { tenantId: user.tenantId }) });
     expect(response.status).toBe(200);
     return response.json() as Promise<any>;
   }
@@ -79,9 +80,10 @@ export async function checkSettingsHttp(prisma: PrismaService, base: string) {
     }
   }
   if (process.env.REAL_SETTINGS_BROWSER === '1') {
+    const browserCodes: string[] = []; for (let i = 0; i < 10; i++) browserCodes.push(await syntheticPlatformMfa(prisma, superadmin.email));
     execFileSync(process.execPath, [resolve('test/real-settings-browser.mjs')], {
       timeout: 60000, windowsHide: true, stdio: 'inherit',
-      env: { ...process.env, VITE_API_URL: '/api', SETTINGS_API: base, SETTINGS_EMAIL: superadmin.email, SETTINGS_TENANT: a.id, SETTINGS_PASSWORD: password },
+      env: { ...process.env, VITE_API_URL: '/api', SETTINGS_API: base, SETTINGS_EMAIL: superadmin.email, SETTINGS_TENANT: a.id, SETTINGS_PASSWORD: password, SETTINGS_MFA_CODES: browserCodes.join(',') },
     });
     expect((await settings(token)).nombreComercial).toBe('Marca navegador real');
     expect(await settings(adminB.accessToken)).toEqual(bBefore);

@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class RecoveryMailService {
   constructor(private readonly config: ConfigService) {}
-  async send(to: string, token: string, purpose: string, _tenantId?: string) {
+  async send(to: string, token: string, purpose: string, tenantId?: string) {
     const apiKey = this.config.get<string>('AUTH_MAIL_RESEND_API_KEY');
     const from = this.config.get<string>('AUTH_MAIL_FROM');
     const base = this.config.get<string>('AUTH_PUBLIC_URL');
@@ -13,6 +13,8 @@ export class RecoveryMailService {
     try { origin = new URL(base); } catch { throw new ServiceUnavailableException('URL de seguridad inválida'); }
     if (origin.username || origin.password || origin.search || origin.hash || origin.pathname !== '/') throw new ServiceUnavailableException('URL de seguridad inválida');
     const url = new URL('/login', origin);
+    // El enlace de empresa acota el login a ese negocio sin mostrar ningún campo (cuentas heredadas con identificador repetido).
+    if (tenantId) url.searchParams.set('empresa', tenantId);
     if (url.protocol !== 'https:' && this.config.get('NODE_ENV') !== 'test') throw new ServiceUnavailableException('URL de seguridad inválida');
     // Fragment avoids tokens in proxy/server logs and Referer headers.
     url.hash = new URLSearchParams({ token, action: purpose }).toString();

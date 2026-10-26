@@ -57,7 +57,7 @@ WITH esperado(nombre, sha_lf, sha_crlf) AS (VALUES
   ('20261021000000_sesiones_auth_rotacion_refresh','aa16c2564b5038f8d22fa8dcfa556dd69cc93bcb973094bf22dd66e9a7ba642c','b8deb775549361ffc4178475ba5c986d98f2192978107e04e0d1ba7b56931a32'),
   ('20261022000000_guia_progreso','8a54b71f422354c313919ed8a24ef4d684befb2c36f2b45d88b871e382c795e5','62b332fb1c0221e21778b78db89a8f41e41feea9a75c3219f3cefdf7702f9d2e'),
   ('20261023000000_auth_recovery','e009c647ae01d72ecea42da2224505143707ba93aea1f5dd81b2e211442ea6ad','b7330abd33861e9b4bb1c9e5e6a99714a17fc2266f3a1474fc67e97473e87f70'),
-  ('20261026000000_login_unico_bloqueo_recuperacion','88c19f69d78d2134a0dd9d74b51f1a8ae28e0fcc72aa94a6186e4dffaeb18089','f4de2424d4c6d18444b036ea99b81472e2b18945bd6ea6436c98aed18a6727b7')
+  ('20261026000000_auth_login_unico_bloqueo','7b449fdefd00200fb315a4c2ff897d061bb40350b0f28c4409cd91a72c6601c4','0a11fcda13c0bfeb6772fc59ae7e22ebefa0def5ed6a62497438f9d0842a22c2')
 ), aplicada AS (
   SELECT migration_name, checksum, finished_at, rolled_back_at FROM _prisma_migrations
 )

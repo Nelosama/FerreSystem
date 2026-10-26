@@ -1,3 +1,4 @@
+import { sealSecret, totp } from './mfa';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,7 +17,7 @@ describe('AuthService', () => {
       findUnique: vi.fn(),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
-    authTempPassword: { findUnique: vi.fn().mockResolvedValue(null), deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    authAction: { findUnique: vi.fn().mockResolvedValue(null), deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     superAdmin: {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       findUnique: vi.fn(),
@@ -42,7 +43,7 @@ describe('AuthService', () => {
 
   beforeEach(async () => {
     mockPrisma.superAdmin.findUnique.mockReset();
-    mockConfigService.get.mockImplementation((key, defaultVal) => defaultVal);
+    mockConfigService.get.mockImplementation((key, defaultVal) => key === 'AUTH_MFA_ENCRYPTION_KEY' ? 'ab'.repeat(32) : defaultVal);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -109,20 +110,21 @@ describe('AuthService', () => {
       mockPrisma.superAdmin.findUnique.mockResolvedValue({
         id: 'sa-1',
         nombre: 'Platform Admin',
+        mfaSecret: sealSecret('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 'sa-1', mockConfigService as any),
         email: 'admin@example.com',
         activo: true,
         passwordHash,
       });
 
       const result = await service.login(
-        { usuario: ' ADMIN@example.com ', password: 'super-admin-test-password' },
+        { usuario: ' ADMIN@example.com ', password: 'super-admin-test-password', mfaCode: totp('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', Math.floor(Date.now()/30000)) },
         mockResponse,
       );
 
       expect(result.type).toBe('super_admin');
       expect(result.superAdmin.id).toBe('sa-1');
       expect(mockJwtService.sign).toHaveBeenCalledWith(
-        { sub: 'sa-1', email: 'admin@example.com', rol: 'SUPER_ADMIN', type: 'super_admin', sid: expect.any(String) },
+        { sub: 'sa-1', email: 'admin@example.com', rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true, sid: expect.any(String) },
         expect.any(Object),
       );
       expect(mockResponse.cookie).toHaveBeenCalledWith(

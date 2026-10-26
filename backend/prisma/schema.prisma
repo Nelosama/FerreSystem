@@ -1196,20 +1196,6 @@ model AuthAction {
   @@index([expiresAt])
   @@map("auth_actions")
 }
-// Contraseña temporal de recuperación (Admin/Super Admin): solo el hash, un uso, 10 minutos. Una fila por cuenta.
-model AuthTempPassword {
-  id String @id @default(uuid())
-  sujetoId String @map("sujeto_id")
-  tipo String
-  tenantId String? @map("tenant_id")
-  passwordHash String @map("password_hash")
-  expiresAt DateTime @map("expires_at") @db.Timestamptz
-  usedAt DateTime? @map("used_at") @db.Timestamptz
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  @@unique([sujetoId, tipo], map: "auth_temp_passwords_sujeto_tipo_key")
-  @@index([expiresAt])
-  @@map("auth_temp_passwords")
-}
 model AuthRecoveryCode {
   hash String @id
   sujetoId String @map("sujeto_id")

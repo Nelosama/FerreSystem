@@ -22,7 +22,7 @@ describe('cookie de renovación: misma política al emitir y borrar', () => {
       const prisma = {
         superAdmin: { findUnique: vi.fn().mockResolvedValue(null) },
         usuario: { findMany: vi.fn().mockResolvedValue([{ id: 'u', tenantId: 't', activo: true, rol: 'ADMIN', passwordHash: bcrypt.hashSync('Test-Password-123', 4), tenant: { id: 't', estado: 'ACTIVO' } }]), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
-        authTempPassword: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        authAction: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
         sesionAuth: { create: vi.fn().mockResolvedValue({}) },
         $queryRaw: vi.fn().mockResolvedValue([{ segundos: 0 }]), $executeRaw: vi.fn(),
       } as any;
