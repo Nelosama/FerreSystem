@@ -100,3 +100,20 @@ Resultado local en PostgreSQL 16 efímero (`PG_BIN` con envoltura no root): **65
 - `8c25f10` — integración de #196 (`NODE_ENV`).
 - `5625c82` — integración de #197 (pruebas del piloto).
 - `b90b8dc` — integración de #195 (navegación híbrida).
+
+## 10. CI del PR #198 (SHA probado `07e2727`)
+
+| Workflow | Run | Resultado |
+|---|---|---|
+| Piloto con API y PostgreSQL reales | [40272501662](https://github.com/Nelosama/FerreSystem/actions/runs/40272501662) | **success** (job `test`) |
+| Operación de ferretería | [40272501636](https://github.com/Nelosama/FerreSystem/actions/runs/40272501636) | **success** (jobs `validate` y `guard-base-datos`) |
+
+Correcciones que llevaron a este resultado sobre el run previo `40178257336` (commit `eb00efe`, fallaba) y `40271794354` (commit `e71b5e2`, fallaba en 1 prueba):
+
+- `frontend/e2e-real/auditoria-jornada-piloto-real.spec.ts`: los cajeros se crean sin contraseña y se activan con `activateTestUser` (enlace privado); login por `#login-correo` / `#login-clave`.
+- `frontend/e2e-real/pos-cancelacion-real.spec.ts`: login por `#login-correo` / `#login-clave`.
+- `frontend/e2e-real/pos-cajeros-real.spec.ts`: el helper `preparar` espera la respuesta de `GET /productos/comercial` antes de buscar. El fallo de CI era intermitente y no se reprodujo en local antes del cambio; el run `40272501662` lo confirma pasando.
+
+Pruebas locales de las tres especificaciones afectadas: 12/12 (auditoría + cancelación) y 3/3 (cajeros), con `frontend/e2e-real/run.sh`.
+
+Pendiente: otros tests con el mismo patrón de búsqueda sin esperar catálogo (`qa-ciclo-venta.spec.ts`, `pos-cancelacion-real.spec.ts` líneas de búsqueda). No han fallado; aplicar la misma espera si aparecen fallos.
