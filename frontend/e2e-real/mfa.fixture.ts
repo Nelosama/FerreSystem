@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 const { PrismaClient } = createRequire(resolve('../backend/package.json'))('@prisma/client');
 const platformEmail = 'superadmin.e2e@e2e.invalid';
 export async function syntheticMfaFor(email: string) {
@@ -18,11 +18,20 @@ export async function syntheticMfaFor(email: string) {
 }
 /**
  * Segundo paso del login de plataforma: tras la contraseña correcta la pantalla muestra el campo MFA (no hay casilla de
- * Super Admin). Llamar después de pulsar «Ingresar»; para cuentas de negocio no hace nada.
+ * Super Admin). Llamar después de pulsar «Ingresar»; para cuentas de negocio no hace nada. La cuenta sintética recibe su
+ * código de emergencia aquí; si al enviar la contraseña aún no tenía MFA, el servidor pidió enrolarlo (comportamiento
+ * correcto) y se repite el paso de contraseña ya con el segundo factor configurado.
  */
 export async function completePlatformMfa(page: Page, email: string) {
   const code = await syntheticMfaFor(email);
   if (!code) return;
-  await page.locator('#login-mfa').fill(code);
+  const campo = page.locator('#login-mfa');
+  const enrolar = page.getByRole('button', { name: 'Configurar MFA inicial de Super Admin' });
+  await expect(campo.or(enrolar)).toBeVisible();
+  if (await enrolar.isVisible()) {
+    await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
+    await expect(campo).toBeVisible();
+  }
+  await campo.fill(code);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
 }

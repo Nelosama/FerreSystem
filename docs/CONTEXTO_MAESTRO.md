@@ -1,5 +1,7 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+Última revisión: **2026-10-26 UTC** — consolidación de autenticación #200 + #201 en `claude/consolidate-auth-pr200-201-xz1q5m` (sin merge ni despliegue); ver la primera sección.
+
 Última revisión: **2026-10-24 UTC** — auditoría de preparación para piloto (solo pruebas, sin cambios de producto) en `claude/kind-pasteur-ilo43m`; ver la primera sección. Anterior: **2026-10-23 UTC** — rediseño de navegación del Super Admin y del cajero (layout híbrido) en la rama `claude/amazing-bohr-9e5bpj`, sincronizada con `main` `ba201465` (PR #190, SweetAlert2); ver las secciones siguientes, sin merge ni despliegue. PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Sin cambios en producción.
 
 Última revisión: **2026-10-23 America/Tegucigalpa** — revisión PR #195 con TOPNAV/SIDEBAR restaurado (ver sección vigente abajo); antecedentes:  rama `claude/sweet-davinci-vh7br4` sincronizada con `main` `01f9110` (PR #194) mediante merge normal; ver «Sincronización con main» abajo; **navegación híbrida única y mejoras UX/UI de Stitch** en la rama `claude/sweet-davinci-vh7br4` (base `main` `b60b49b`, con #193 ya fusionado; ver la primera sección); antes, rediseño de navegación del Super Admin y del cajero (layout híbrido) en la rama `claude/amazing-bohr-9e5bpj`, sincronizada con `main` `ba201465` (PR #190, SweetAlert2); ver las secciones siguientes, sin merge ni despliegue. PR #189 sincronizado mediante merge normal con `main` `86bd1d74`, que ya incorpora #185 y #188. Sin cambios en producción.
@@ -8,6 +10,19 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
+
+## Autenticación consolidada #200 + #201 — 2026-10-26 UTC (rama `claude/consolidate-auth-pr200-201-xz1q5m`, base `main` `2f6168d`; sin merge ni despliegue)
+
+- **Estado vigente de autenticación** (sustituye a las descripciones de #200 y #201, que siguen abiertos solo como referencia): diseño, comparación, vulnerabilidades, migración, detección de duplicados, corrección y reversión en [AUTH_CONSOLIDACION_20261026.md](AUTH_CONSOLIDACION_20261026.md). Resultados por SHA y dictamen en el PR de la rama.
+- **Login:** solo «Usuario» y «Contraseña»; empresa y rol por el identificador (`backend/src/auth/identidad-login.ts`); identificador repetido = 401 genérico; `?empresa=` oculto para cuentas heredadas. **MFA del Super Admin obligatorio** (ambos PR lo habían retirado): login, recuperación, refresh y JWT; el código aparece tras la contraseña correcta (`MFA_REQUERIDO`).
+- **Bloqueo:** roles operativos (no ADMIN, incluido CONTADOR de #180) se bloquean en el 6.º fallo con SQL atómico (`bloqueo-cuenta.ts`); revoca sesiones y enlaces; sin oráculo ni enumeración; la JWT y el refresh rechazan cuentas bloqueadas. Límite por identificador e IP uniforme. Reactivación `POST /auth/security/unlock` (Admin: su empresa; Super Admin: global, auditado); listados `GET /auth/security/locked` (Admin) y `GET /admin/seguridad/bloqueos` (Super Admin).
+- **Recuperación:** Admin/Super Admin tras 3 fallos y con correo verificado: temporal de un uso, 10 min, SHA-256 en `auth_actions`, MFA obligatorio para el Super Admin, revoca sesiones y obliga a cambiarla sin sesión (`forced-change`). Roles operativos: enlace privado del Admin. Cambio propio con la contraseña actual.
+- **NEXUS:** migración única aditiva `20261026000000_auth_login_unico_bloqueo` (columnas de contador/bloqueo, CHECK ≥ 0, índices no únicos; sin tabla nueva). Script de solo lectura `backend/scripts/auth-identificadores-duplicados.sql`. Reversión y compatibilidad con las migraciones de #180 verificadas en PostgreSQL 16 efímero. Nunca producción.
+- **Coordinación:** #180 sin modificar; ensayo local de merge con 5 conflictos textuales resueltos (unitarias 708/708, contabilidad + autenticación PostgreSQL 93/93 con CONTADOR). Se portó a esta rama la corrección de `RecoveryForm` de #180 (segundo enlace en la misma pestaña). #202 se fusiona sin conflictos. Rama excluida de previews de Vercel.
+- **Pendientes reales:** ejecutar el script de duplicados en producción y corregir; índice único global posterior; configurar `AUTH_MFA_ENCRYPTION_KEY`, Resend y `AUTH_PUBLIC_URL`; enrolar el MFA del propietario; entrega real de correo, WebKit/Safari/iPhone físicos y CI del SHA final no verificados aquí; aceptación del cliente.
+- **Bitácora:** lectura de AGENTS/contexto/NEXUS; auditoría de #200/#201/#180/#202; base #201 por fast-forward; consolidación backend/frontend/pruebas; integración PostgreSQL completa, Playwright escritorio/móvil, piloto real; correcciones de arnés documentadas en el PR. Firma de esquema: **NEXUS**.
+
+---
 
 ## Revisión del PR #195 — TOPNAV/SIDEBAR restaurado (2026-10-23, America/Tegucigalpa)
 
@@ -152,6 +167,8 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 - Sin merge ni despliegue. Continúan pendientes CI final y revisión de seguridad.
 
 ## Autenticación, MFA y recuperación privada — 2026-10-22 (America/Tegucigalpa)
+
+> **Actualizado el 2026-10-26** por «Autenticación consolidada #200 + #201» (arriba): MFA, cifrado TOTP y enrolamiento siguen vigentes; cambian el login (sin empresa), la recuperación de Admin/Super Admin (contraseña temporal en lugar de `RESET_EMAIL`) y el bloqueo de cuentas operativas.
 
 - **Rama y PR únicos:** `codex/auth-recovery-security`, [PR #192](https://github.com/Nelosama/FerreSystem/pull/192) en borrador, base inicial `ed720baf` (#189), sincronizada mediante merge normal con `ba201465` (#190). Conflictos exclusivamente en los dos JSON de idioma: se conservaron `alerts.*` de main y `security.*`/identificador del login de esta rama. Se mantienen notificaciones/confirmaciones de #190. Sin cambios funcionales en POS, inventario, caja ni contabilidad; selectores de login de sus pruebas se adaptan al identificador de texto. Sin merge a main ni deploy. La rama se excluye de preview Vercel.
 - **Auditoría y decisión:** se elimina la elección de empresa comparando contraseñas entre tenants. Usuario/código y correo compartido requieren empresa; correo globalmente único conserva compatibilidad y resuelve empresa antes del password. `username` normalizado único por tenant; correo opcional en empleados. Super Admin conserva tabla y acceso independientes, con MFA obligatorio en ambas entradas y refresh/validación. No se atribuye una pérdida real de contraseña a producción: no se consultó esa base. Seed actual ya conserva hashes y está bloqueado en producción. El comando explícito de reemplazo sí borraba/recreaba Super Admin; se retira y sustituye por recuperación de mantenimiento sobre la misma identidad, sin bypass de MFA.

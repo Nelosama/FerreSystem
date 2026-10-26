@@ -111,7 +111,7 @@ export const LoginPage: React.FC = () => {
         const code = err.response.data?.code;
         if (code === 'MFA_REQUERIDO') {
           // Contraseña correcta de una cuenta con MFA: solo entonces aparece el código.
-          setMfaRequerido(true); setMfaCode(''); setError(null);
+          setMfaRequerido(true); setMfaCode(''); setEnrolar(false); setError(null);
           return;
         }
         if (code === 'MFA_ENROLAMIENTO_REQUERIDO') { setEnrolar(true); setError(t('security.mfa_enroll_prompt')); return; }
