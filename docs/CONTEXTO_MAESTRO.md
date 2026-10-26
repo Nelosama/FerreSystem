@@ -71,6 +71,17 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 - **Pruebas (Chromium del entorno):** unitarias 536/536; `tsc -b` y build limpios; lint 111 avisos (= `main`); Playwright simulado completo 359 aprobadas / 0 fallidas / 26 omitidas; piloto real NestJS+PostgreSQL 155 aprobadas / 1 fallida / 2 sin ejecutar / 4 omitidas — la fallida (`contingencia-real` n.º 14, service worker) **falla igual en `origin/main` `b60b49b`**. Intermitente una vez: `session-lifecycle` logout (pasa al repetir). Sin prueba en Safari/iPhone/tableta física; CI de GitHub no consultado (sin PR). Detalle en el documento enlazado.
 - **Pendientes reales:** rol Contador y su rail (PR #180); POS/contabilidad/inventario móvil de Stitch fuera de alcance; aceptación del cliente, merge y despliegue no realizados.
 
+## Contabilidad (#180) actualizada con main #198 — 2026-10-25 UTC (rama `feat/contabilidad-honduras`, SHA `03ef20a`, borrador, sin merge ni despliegue)
+
+- **Origen:** merge normal de `origin/main` `2f6168d` (PR #198) en la rama de #180. Sin rebase ni force push.
+- **Conflictos resueltos:** `App.tsx` (shell híbrido de main + `ContadorRail` para CONTADOR; se retiran `TopNavigation`, `Sidebar` y `ShellTopbarContext`, ya eliminados en main), `SuperAdminPage.tsx` (tabla de empresas de main; módulos por defecto con `modulosPorDefecto()`, sin contabilidad), `guide.spec.ts` (17 controles: 16 + contabilidad apagada), `main.tsx` (`contador.css` + `hybrid.css`), `vercel-ignore.sh` (unión de exclusiones), `ventas.postgres.integration.ts` (ambos imports) y este documento (ambas bitácoras).
+- **Sin duplicar migraciones:** `rol_contador` y `contabilidad_honduras` de #180 y `auth_recovery` de #198 conviven en orden cronológico. Contabilidad sigue opt-in y apagada por defecto.
+- **Pruebas en `03ef20a`:** backend unitarias 682/682; scripts 51/51; frontend unitarias 558/558; `tsc -b` y build (`VITE_API_URL=/api`) correctos; guard de migraciones correcto (43 archivos, 2 nuevas); PostgreSQL integración completa 67 archivos, 1164 aprobadas, 1 omitida, 0 fallos; Playwright navegación/auth/sesiones/contabilidad 200 aprobadas, 4 omitidas; e2e-real completo local 180 aprobadas, 4 omitidas, 0 fallos. CI: «Piloto con API y PostgreSQL reales» success (job `test`); «Operación de ferretería» success (jobs `validate` y `guard-base-datos`).
+- **Pendientes contables (sin implementar, requieren revisión del contador):** asientos automáticos persistentes (ventas, compras, cobros, pagos, costos, devoluciones); estados financieros y cierre anual; ISV por producto, exentos y tasas especiales; acreditación de compras; retenciones; tipos documentales; CAI/RTN; redondeo; criterios contables. Sin reglas fiscales nuevas ni certificación SAR.
+- **Otros pendientes:** entrega real de correo (Resend) y variables de #198 antes de desplegar; validación física de Safari/iPhone/PWA; dictamen del propietario.
+
+---
+
 ## Consolidación general — 2026-10-25 UTC (rama `consolidacion/jowa-20261025`, base `main` `01f9110a`, sin merge ni despliegue)
 
 - **Detalle, matriz y pendientes:** [CONSOLIDACION_GENERAL.md](CONSOLIDACION_GENERAL.md).
