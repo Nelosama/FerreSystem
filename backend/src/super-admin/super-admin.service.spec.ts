@@ -1,4 +1,4 @@
-import { sealSecret, totp } from '../auth/mfa';
+import { sealSecret } from '../auth/mfa';
 import { SuperAdminService } from './super-admin.service';
 import * as bcrypt from 'bcrypt';
 
@@ -38,6 +38,7 @@ describe('SuperAdminService', () => {
   });
 
   it('refreshes only active super-admin sessions', async () => {
+    // Un refresh emitido antes de retirar el MFA (con mfa: true) sigue siendo válido; el nuevo ya no lo declara.
     jwt.verify.mockReturnValue({ sub: admin.id, rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true, typ: 'refresh', sid: 's-1', jti: 'jti-1' });
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ sujeto_id: admin.id, revoked_at: null, expires_at: new Date(Date.now() + 60_000), refresh_jti: 'jti-1', refresh_jti_anterior: null, refresh_rotado_at: null }]),
@@ -48,15 +49,17 @@ describe('SuperAdminService', () => {
 
     await expect(service.refresh('refresh-token', response)).resolves.toEqual({ accessToken: 'signed-token' });
     expect(jwt.sign).toHaveBeenCalledWith(
-      { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true, sid: 's-1' },
+      { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', sid: 's-1' },
       expect.any(Object),
     );
     expect(response.cookie).toHaveBeenCalledWith('superAdminRefreshToken', 'signed-token', expect.objectContaining({ path: '/api/admin/auth', httpOnly: true }));
   });
 
-  it('sets a refresh cookie usable by the deployed admin API', async () => {
-    prisma.superAdmin.findUnique.mockResolvedValue({ ...admin, passwordHash: await bcrypt.hash('test-password', 4) });
-    await service.login({ email: admin.email, password: 'test-password', mfaCode: totp('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', Math.floor(Date.now()/30000)) }, response);
+  it('sets a refresh cookie usable by the deployed admin API (sin MFA para el Super Admin)', async () => {
+    prisma.superAdmin.findUnique.mockResolvedValue({ ...admin, loginFallos: 0, passwordHash: await bcrypt.hash('test-password', 4) });
+    prisma.authAction = { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) };
+    const result: any = await service.login({ email: admin.email, password: 'test-password' }, response);
+    expect(result.superAdmin.debeCambiarPassword).toBe(false);
     expect(response.cookie).toHaveBeenCalledWith('superAdminRefreshToken', 'signed-token', expect.objectContaining({
       path: '/api/admin/auth', sameSite: 'none', secure: true, httpOnly: true,
     }));
@@ -158,10 +161,13 @@ describe('SuperAdminService', () => {
       createdAt: new Date(),
     };
     const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      superAdmin: { findUnique: vi.fn().mockResolvedValue(null) },
       tenant: { create: vi.fn().mockResolvedValue(tenant) },
       secuenciaTenant: { createMany: vi.fn().mockResolvedValue({ count: 2 }) },
       tenantModule: { createMany: vi.fn().mockResolvedValue({ count: 14 }) },
       usuario: {
+        findFirst: vi.fn().mockResolvedValue(null),
         create: vi.fn(async ({ data }) => ({ id: 'user-1', ...data })),
       },
     };
@@ -175,6 +181,9 @@ describe('SuperAdminService', () => {
     });
 
     expect(prisma.$transaction).toHaveBeenCalledOnce();
+    // El correo del administrador no puede existir en otra empresa ni ser el del Super Admin (login sin empresa).
+    expect(tx.usuario.findFirst).toHaveBeenCalledWith({ where: { email: 'admin@ferreteria.test' }, select: { id: true } });
+    expect(tx.superAdmin.findUnique).toHaveBeenCalledWith({ where: { email: 'admin@ferreteria.test' }, select: { id: true } });
     expect(tx.secuenciaTenant.createMany).toHaveBeenCalledWith({
       data: [
         { tenantId: tenant.id, tipo: 'VENTA', ultimoNumero: 0 },
@@ -209,5 +218,17 @@ describe('SuperAdminService', () => {
   it('rejects administrator-chosen replacement passwords; uses private recovery flow', async () => {
     await expect(service.updateTenantAdmin('company-A', 'admin-A', { password: 'new-password-123' })).rejects.toThrow('enlace privado');
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+  it('rechaza un administrador nuevo cuyo correo ya existe en otra empresa, antes de crear el negocio', async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      superAdmin: { findUnique: vi.fn().mockResolvedValue(null) },
+      usuario: { findFirst: vi.fn().mockResolvedValue({ id: 'u-otra-empresa' }), create: vi.fn() },
+      tenant: { create: vi.fn() },
+    };
+    prisma.$transaction.mockImplementation((callback: (tx: any) => unknown) => callback(tx));
+    await expect(service.createTenant({ nombreComercial: 'Dos', adminNombre: 'A', adminEmail: 'repetido@ferre.test', adminPassword: 'TenantPassword123!' })).rejects.toMatchObject({ status: 409 });
+    expect(tx.tenant.create).not.toHaveBeenCalled();
+    expect(tx.usuario.create).not.toHaveBeenCalled();
   });
 });

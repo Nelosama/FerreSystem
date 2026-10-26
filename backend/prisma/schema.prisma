@@ -109,6 +109,9 @@ model SuperAdmin {
   emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz
   mfaSecret String? @map("mfa_secret")
   mfaLastStep Int? @map("mfa_last_step")
+  // Fallos consecutivos de inicio de sesión; con 3 o más puede pedir una clave temporal.
+  loginFallos  Int      @default(0) @map("login_fallos")
+  debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")
   activo       Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -221,6 +224,11 @@ model Usuario {
   mfaLastStep Int? @map("mfa_last_step")
   passwordHash String   @map("password_hash")
   rol          Rol      @default(ADMIN)
+  // Fallos consecutivos de inicio de sesión. Los roles distintos de ADMIN se bloquean al sexto.
+  loginFallos  Int      @default(0) @map("login_fallos")
+  bloqueadoAt  DateTime? @map("bloqueado_at") @db.Timestamptz
+  // Tras una clave temporal o una contraseña asignada: solo puede cambiar su contraseña.
+  debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")
   permisos     String[] @default([])
   permisosConfigurados Boolean @default(false) @map("permisos_configurados")
   descuentoMaximo Decimal @default(0) @map("descuento_maximo") @db.Decimal(5,2)
@@ -242,6 +250,8 @@ model Usuario {
   @@unique([tenantId, email])
   @@unique([tenantId, username])
   @@index([tenantId])
+  @@index([username])
+  @@index([email])
   aprobacionesBancarias AprobacionBancaria[]
   conciliacionesBancarias ConciliacionBancaria[]
   @@map("usuarios")

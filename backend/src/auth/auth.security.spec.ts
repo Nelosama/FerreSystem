@@ -8,9 +8,12 @@ import { PrismaService } from '../prisma/prisma.service';
 // SEC fase 2: el estado de la cuenta solo se revela a quien ya demostró la contraseña.
 describe('AuthService / oráculo de cuentas', () => {
   let service: AuthService;
-  const mockPrisma = {
-    usuario: { findFirst: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
+  const mockPrisma: any = {
+    usuario: { findFirst: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(async () => ({ id: 'u-1', loginFallos: 0, rol: 'CAJERO' })), update: vi.fn().mockResolvedValue({}) },
     superAdmin: { findUnique: vi.fn().mockResolvedValue(null) },
+    authAction: { findUnique: vi.fn().mockResolvedValue(null), deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    authEvent: { create: vi.fn().mockResolvedValue({}) },
+    $transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(mockPrisma)),
     sesionAuth: { create: vi.fn().mockResolvedValue({}), findUnique: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) }, $queryRaw: vi.fn().mockResolvedValue([{ segundos: 0 }]), $executeRaw: vi.fn().mockResolvedValue(0),
   };
   const res = { cookie: vi.fn(), clearCookie: vi.fn(), setHeader: vi.fn() } as any;

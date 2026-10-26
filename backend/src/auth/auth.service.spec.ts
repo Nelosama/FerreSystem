@@ -10,16 +10,21 @@ import * as bcrypt from 'bcrypt';
 describe('AuthService', () => {
   let service: AuthService;
 
-  const mockPrisma = {
+  const mockPrisma: any = {
     usuario: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn(async ({ data }: any) => data),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     superAdmin: {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      update: vi.fn(async ({ data }: any) => data),
       findUnique: vi.fn(),
     },
+    authAction: { findUnique: vi.fn().mockResolvedValue(null), deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    authEvent: { create: vi.fn().mockResolvedValue({}) },
     sesionAuth: { create: vi.fn().mockResolvedValue({}), findUnique: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) }, $queryRaw: vi.fn().mockResolvedValue([{ segundos: 0 }]), $executeRaw: vi.fn().mockResolvedValue(0),
   };
 
@@ -41,6 +46,10 @@ describe('AuthService', () => {
 
   beforeEach(async () => {
     mockPrisma.superAdmin.findUnique.mockReset();
+    mockPrisma.usuario.findMany.mockResolvedValue([]);
+    mockPrisma.authAction.findUnique.mockResolvedValue(null);
+    // Las transacciones de credenciales (fallos, clave temporal) operan sobre el mismo cliente simulado.
+    mockPrisma.$transaction = vi.fn((fn: (tx: any) => unknown) => fn(mockPrisma));
     mockConfigService.get.mockImplementation((key, defaultVal) => key === 'AUTH_MFA_ENCRYPTION_KEY' ? 'ab'.repeat(32) : defaultVal);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -103,7 +112,7 @@ describe('AuthService', () => {
   });
 
   describe('login unificado de Super Admin', () => {
-    it('autentica Super Admin desde el mismo servicio y emite el tipo de sesión correcto', async () => {
+    it('autentica Super Admin sin MFA aunque tenga un secreto configurado y emite el tipo de sesión correcto', async () => {
       const passwordHash = await bcrypt.hash('super-admin-test-password', 4);
       mockPrisma.superAdmin.findUnique.mockResolvedValue({
         id: 'sa-1',
@@ -114,15 +123,16 @@ describe('AuthService', () => {
         passwordHash,
       });
 
-      const result = await service.login(
-        { email: ' ADMIN@example.com ', password: 'super-admin-test-password', mfaCode: totp('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', Math.floor(Date.now()/30000)) },
+      const result: any = await service.login(
+        { email: ' ADMIN@example.com ', password: 'super-admin-test-password' },
         mockResponse,
       );
 
       expect(result.type).toBe('super_admin');
       expect(result.superAdmin.id).toBe('sa-1');
+      expect(result.superAdmin.debeCambiarPassword).toBe(false);
       expect(mockJwtService.sign).toHaveBeenCalledWith(
-        { sub: 'sa-1', email: 'admin@example.com', rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true, sid: expect.any(String) },
+        { sub: 'sa-1', email: 'admin@example.com', rol: 'SUPER_ADMIN', type: 'super_admin', sid: expect.any(String) },
         expect.any(Object),
       );
       expect(mockResponse.cookie).toHaveBeenCalledWith(
@@ -130,7 +140,21 @@ describe('AuthService', () => {
         'mock-jwt-token',
         expect.objectContaining({ path: '/api/admin/auth', httpOnly: true }),
       );
-      expect(mockPrisma.usuario.findMany).not.toHaveBeenCalled();
+      // Solo se consulta si el correo también existe en un negocio (ambigüedad); nunca se compara su contraseña.
+      expect(mockPrisma.usuario.findMany).toHaveBeenCalledWith({ where: { email: 'admin@example.com' }, take: 2, include: { tenant: true } });
+      expect(mockPrisma.usuario.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('un correo compartido por el Super Admin y un usuario de negocio falla sin probar contraseñas', async () => {
+      // Con la contraseña correcta de ambas cuentas el intento sigue fallando: no se elige ninguna por contraseña.
+      const passwordHash = await bcrypt.hash('clave-compartida-1', 4);
+      mockPrisma.superAdmin.findUnique.mockResolvedValue({ id: 'sa-1', email: 'admin@example.com', activo: true, loginFallos: 0, passwordHash });
+      mockPrisma.usuario.findMany.mockResolvedValueOnce([{ id: 'u-1', tenantId: 'A', activo: true, rol: 'ADMIN', loginFallos: 0, passwordHash, tenant: { estado: 'ACTIVO' } }]);
+      await expect(service.login({ email: 'admin@example.com', password: 'clave-compartida-1' }, mockResponse)).rejects.toMatchObject({ response: { code: 'IDENTIFICADOR_AMBIGUO' } });
+      expect(mockPrisma.authAction.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.superAdmin.update).not.toHaveBeenCalled();
+      expect(mockPrisma.usuario.update).not.toHaveBeenCalled();
+      expect(mockResponse.cookie).not.toHaveBeenCalled();
     });
 
     it('no intenta autenticación tenant si falla la contraseña de un email Super Admin existente', async () => {
@@ -139,13 +163,17 @@ describe('AuthService', () => {
         id: 'sa-1',
         email: 'admin@example.com',
         activo: true,
+        loginFallos: 0,
         passwordHash,
       });
 
       await expect(
         service.login({ email: 'admin@example.com', password: 'incorrect-password' }, mockResponse),
       ).rejects.toThrow(UnauthorizedException);
-      expect(mockPrisma.usuario.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.usuario.findFirst).not.toHaveBeenCalled();
+      // El fallo se cuenta para la cuenta del Super Admin, que no se bloquea.
+      expect(mockPrisma.superAdmin.update).toHaveBeenCalledWith({ where: { id: 'sa-1' }, data: { loginFallos: 1 } });
+      expect(mockResponse.cookie).not.toHaveBeenCalled();
     });
   });
 
@@ -252,7 +280,7 @@ describe('AuthService', () => {
 
     it('no selecciona una empresa mediante la contraseña si el correo pertenece a varias', async () => {
       mockPrisma.usuario.findMany.mockResolvedValueOnce([{ tenantId: 'A' }, { tenantId: 'B' }]);
-      await expect(service.login({ email: 'usuario@empresa.com', password: 'ClaveTenant2!' }, mockResponse)).rejects.toThrow(UnauthorizedException);
+      await expect(service.login({ email: 'usuario@empresa.com', password: 'ClaveTenant2!' }, mockResponse)).rejects.toMatchObject({ status: 401, response: { code: 'IDENTIFICADOR_AMBIGUO' } });
       expect(mockPrisma.usuario.findMany).toHaveBeenCalledWith({ where: { email: 'usuario@empresa.com' }, take: 2, include: { tenant: true } });
       expect(mockPrisma.usuario.findFirst).not.toHaveBeenCalled();
     });
@@ -281,6 +309,115 @@ describe('AuthService', () => {
         include: { tenant: true },
       });
       expect(res.user.id).toBe('u-2');
+    });
+  });
+
+  describe('identificador único, fallos por cuenta y clave temporal', () => {
+    const tenant = { id: 't-1', estado: 'ACTIVO', nombreComercial: 'Ferretería' };
+    const cuenta = async (extra: Record<string, unknown> = {}) => ({
+      id: 'u-9', tenantId: 't-1', nombre: 'Cajera', email: null, username: 'cajera1', passwordHash: await bcrypt.hash('Correcta2026', 4),
+      rol: 'CAJERO', activo: true, loginFallos: 0, bloqueadoAt: null, debeCambiarPassword: false, tenant, ...extra,
+    });
+
+    it('resuelve usuario o código sin empresa cuando existe una sola cuenta', async () => {
+      const usuario = await cuenta();
+      mockPrisma.usuario.findMany.mockResolvedValueOnce([usuario]);
+      const res: any = await service.login({ email: ' CAJERA1 ', password: 'Correcta2026' }, mockResponse);
+      expect(mockPrisma.usuario.findMany).toHaveBeenCalledWith({ where: { username: 'cajera1' }, take: 2, include: { tenant: true } });
+      expect(mockPrisma.superAdmin.findUnique).not.toHaveBeenCalled();
+      expect(res.type).toBe('tenant');
+      expect(res.tenant.id).toBe('t-1');
+      expect(res.user.debeCambiarPassword).toBe(false);
+    });
+
+    it('el sexto fallo consecutivo bloquea a un rol distinto de ADMIN y revoca sus sesiones', async () => {
+      const usuario = await cuenta({ loginFallos: 5 });
+      mockPrisma.usuario.findMany.mockResolvedValueOnce([usuario]);
+      mockPrisma.usuario.findUnique.mockResolvedValueOnce(usuario);
+      await expect(service.login({ email: 'cajera1', password: 'Incorrecta1' }, mockResponse)).rejects.toThrow('Credenciales inválidas');
+      expect(mockPrisma.usuario.update).toHaveBeenCalledWith({ where: { id: 'u-9' }, data: { loginFallos: 6, bloqueadoAt: expect.any(Date) } });
+      expect(mockPrisma.sesionAuth.updateMany).toHaveBeenCalledWith({ where: { sujetoId: 'u-9', revokedAt: null }, data: expect.objectContaining({ revocationMotivo: 'CUENTA_BLOQUEADA' }) });
+      expect(mockPrisma.authEvent.create).toHaveBeenCalledWith({ data: { actorId: 'u-9', sujetoId: 'u-9', tenantId: 't-1', event: 'ACCOUNT_LOCKED' } });
+    });
+
+    it('el quinto fallo de un empleado todavía no lo bloquea', async () => {
+      const usuario = await cuenta({ loginFallos: 4 });
+      mockPrisma.usuario.findMany.mockResolvedValueOnce([usuario]);
+      mockPrisma.usuario.findUnique.mockResolvedValueOnce(usuario);
+      await expect(service.login({ email: 'cajera1', password: 'Incorrecta1' }, mockResponse)).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.usuario.update).toHaveBeenCalledWith({ where: { id: 'u-9' }, data: { loginFallos: 5 } });
+      expect(mockPrisma.authEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('un ADMIN no queda bloqueado por fallos consecutivos', async () => {
+      const usuario = await cuenta({ rol: 'ADMIN', loginFallos: 9 });
+      mockPrisma.usuario.findMany.mockResolvedValueOnce([usuario]);
+      mockPrisma.usuario.findUnique.mockResolvedValueOnce(usuario);
+      await expect(service.login({ email: 'cajera1', password: 'Incorrecta1' }, mockResponse)).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.usuario.update).toHaveBeenCalledWith({ where: { id: 'u-9' }, data: { loginFallos: 10 } });
+    });
+
+    it('una cuenta bloqueada no entra ni con la contraseña correcta, y con una incorrecta no revela el bloqueo', async () => {
+      const bloqueada = await cuenta({ loginFallos: 6, bloqueadoAt: new Date() });
+      mockPrisma.usuario.findMany.mockResolvedValueOnce([bloqueada]);
+      await expect(service.login({ email: 'cajera1', password: 'Correcta2026' }, mockResponse)).rejects.toMatchObject({ status: 401, response: { code: 'CUENTA_BLOQUEADA' } });
+      mockPrisma.usuario.findMany.mockResolvedValueOnce([bloqueada]);
+      mockPrisma.usuario.findUnique.mockResolvedValueOnce(bloqueada);
+      const incorrecta = service.login({ email: 'cajera1', password: 'Incorrecta1' }, mockResponse);
+      await expect(incorrecta).rejects.toThrow('Credenciales inválidas');
+      await expect(incorrecta).rejects.not.toMatchObject({ response: { code: 'CUENTA_BLOQUEADA' } });
+      expect(mockResponse.cookie).not.toHaveBeenCalled();
+    });
+
+    it('una clave temporal vigente se consume una vez, revoca sesiones y obliga a cambiar la contraseña', async () => {
+      const admin = await cuenta({ rol: 'ADMIN', email: 'admin@ferre.test', loginFallos: 3 });
+      const { tokenHash } = await import('./mfa');
+      const accion = { hash: tokenHash('Abcd-Efgh-Jkmn-Pqrs'), purpose: 'TEMP_PASSWORD', sujetoId: 'u-9', tipo: 'TENANT', email: 'admin@ferre.test', passwordBinding: tokenHash(admin.passwordHash), expiresAt: new Date(Date.now() + 60_000) };
+      mockPrisma.usuario.findMany.mockResolvedValueOnce([admin]);
+      mockPrisma.usuario.findUnique.mockResolvedValueOnce(admin);
+      mockPrisma.authAction.findUnique.mockResolvedValue(accion);
+      const res: any = await service.login({ email: 'admin@ferre.test', password: 'Abcd-Efgh-Jkmn-Pqrs' }, mockResponse);
+      expect(res.user.debeCambiarPassword).toBe(true);
+      expect(mockPrisma.authAction.deleteMany).toHaveBeenCalledWith({ where: { hash: accion.hash } });
+      expect(mockPrisma.usuario.update).toHaveBeenCalledWith({ where: { id: 'u-9' }, data: { debeCambiarPassword: true, loginFallos: 0 } });
+      expect(mockPrisma.sesionAuth.updateMany).toHaveBeenCalledWith({ where: { sujetoId: 'u-9', revokedAt: null }, data: expect.objectContaining({ revocationMotivo: 'CLAVE_TEMPORAL' }) });
+      expect(mockPrisma.authEvent.create).toHaveBeenCalledWith({ data: expect.objectContaining({ event: 'TEMP_PASSWORD_USED', sujetoId: 'u-9' }) });
+      // La sesión nueva se crea después de revocar las anteriores.
+      expect(mockPrisma.sesionAuth.updateMany.mock.invocationCallOrder[0]).toBeLessThan(mockPrisma.sesionAuth.create.mock.invocationCallOrder[0]);
+    });
+
+    it.each([
+      ['vencida', { expiresAt: new Date(Date.now() - 1) }],
+      ['emitida antes de un cambio de contraseña', { passwordBinding: 'otro-hash' }],
+      ['de otra cuenta', { sujetoId: 'u-otra' }],
+    ])('rechaza una clave temporal %s y cuenta el fallo', async (_caso, cambio) => {
+      const admin = await cuenta({ rol: 'ADMIN', email: 'admin@ferre.test' });
+      const { tokenHash } = await import('./mfa');
+      mockPrisma.usuario.findMany.mockResolvedValueOnce([admin]);
+      mockPrisma.usuario.findUnique.mockResolvedValueOnce(admin);
+      mockPrisma.authAction.findUnique.mockResolvedValue({ hash: 'h', purpose: 'TEMP_PASSWORD', sujetoId: 'u-9', tipo: 'TENANT', email: 'admin@ferre.test', passwordBinding: tokenHash(admin.passwordHash), expiresAt: new Date(Date.now() + 60_000), ...cambio });
+      await expect(service.login({ email: 'admin@ferre.test', password: 'Abcd-Efgh-Jkmn-Pqrs' }, mockResponse)).rejects.toThrow('Credenciales inválidas');
+      expect(mockPrisma.usuario.update).toHaveBeenCalledWith({ where: { id: 'u-9' }, data: { loginFallos: 1 } });
+      expect(mockPrisma.authAction.deleteMany).not.toHaveBeenCalled();
+      expect(mockResponse.cookie).not.toHaveBeenCalled();
+    });
+
+    it('un acceso correcto reinicia los fallos y descarta la clave temporal pendiente', async () => {
+      const admin = await cuenta({ rol: 'ADMIN', email: 'admin@ferre.test', loginFallos: 3 });
+      mockPrisma.usuario.findMany.mockResolvedValueOnce([admin]);
+      await service.login({ email: 'admin@ferre.test', password: 'Correcta2026' }, mockResponse);
+      expect(mockPrisma.usuario.updateMany).toHaveBeenCalledWith({ where: { id: 'u-9', loginFallos: { gt: 0 } }, data: { loginFallos: 0 } });
+      expect(mockPrisma.authAction.deleteMany).toHaveBeenCalledWith({ where: { sujetoId: 'u-9', purpose: 'TEMP_PASSWORD' } });
+    });
+
+    it('pide el código MFA a una cuenta de negocio que lo configuró, sin contarlo como intento fallido', async () => {
+      const secreto = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+      const usuario = await cuenta({ mfaSecret: sealSecret(secreto, 'u-9', mockConfigService as any), mfaLastStep: null });
+      mockPrisma.usuario.findMany.mockResolvedValue([usuario]);
+      await expect(service.login({ email: 'cajera1', password: 'Correcta2026' }, mockResponse)).rejects.toMatchObject({ response: { code: 'MFA_REQUERIDO' } });
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
+      const res: any = await service.login({ email: 'cajera1', password: 'Correcta2026', mfaCode: totp(secreto, Math.floor(Date.now() / 30000)) }, mockResponse);
+      expect(res.type).toBe('tenant');
     });
   });
 

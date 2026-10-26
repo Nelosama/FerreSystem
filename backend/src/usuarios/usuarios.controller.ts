@@ -50,6 +50,13 @@ export class UsuariosController {
     return this.usuariosService.update(tenantId, id, dto,actorId);
   }
 
+  /** Reactiva una cuenta bloqueada por intentos fallidos. */
+  @Post(':id/desbloquear')
+  @Roles('ADMIN')
+  async desbloquear(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser('sub') actorId: string) {
+    return this.usuariosService.desbloquear(tenantId, id, actorId);
+  }
+
   @Delete(':id')
   @Roles('ADMIN')
   async remove(@TenantId() tenantId: string, @Param('id') id: string,@CurrentUser('sub') actorId:string) {

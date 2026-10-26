@@ -1,4 +1,5 @@
 import { CreateUsuarioDto } from '../usuarios/dto/create-usuario.dto';
+import { AsignarPasswordDto } from '../usuarios/dto/asignar-password.dto';
 import { UpdateUsuarioDto } from '../usuarios/dto/update-usuario.dto';
 import { SucursalDto, EditarSucursalDto } from './sucursal.dto';
 import { Controller, Post, Get, Put, Patch, Delete, Body, Param, UseGuards, Req, Res, HttpCode, HttpStatus, UploadedFile, UseInterceptors, BadRequestException, StreamableFile } from '@nestjs/common';
@@ -74,6 +75,16 @@ export class SuperAdminController {
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   editarUsuario(@Param('id') tenantId: string, @Param('userId') id: string, @Body() dto: UpdateUsuarioDto, @Req() req: Request & { user: { sub: string } }) {
     return this.superAdminService.editarUsuarioNegocio(tenantId, id, dto, req.user.sub);
+  }
+  @Post('tenants/:id/usuarios/:userId/desbloquear')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  desbloquearUsuario(@Param('id') tenantId: string, @Param('userId') id: string, @Req() req: Request & { user: { sub: string } }) {
+    return this.superAdminService.desbloquearUsuarioNegocio(tenantId, id, req.user.sub);
+  }
+  @Post('tenants/:id/usuarios/:userId/password')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  asignarPassword(@Param('id') tenantId: string, @Param('userId') id: string, @Body() dto: AsignarPasswordDto, @Req() req: Request & { user: { sub: string } }) {
+    return this.superAdminService.asignarPasswordUsuarioNegocio(tenantId, id, dto, req.user.sub);
   }
   @Delete('tenants/:id/usuarios/:userId')
   @UseGuards(JwtAuthGuard, SuperAdminGuard)

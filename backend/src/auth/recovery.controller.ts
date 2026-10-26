@@ -3,7 +3,8 @@ import type { Request } from 'express';
 import { RecoveryService } from './recovery.service';
 import { OrigenPermitidoGuard } from '../common/guards/origen-permitido.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { ActionDto, AdminResetDto, BootstrapMfaDto, ChangePasswordDto, ConfirmMfaDto, EnrollMfaDto, RecoveryRequestDto, ResetDto } from './dto/recovery.dto';
+import { ActionDto, AdminResetDto, BootstrapMfaDto, ChangePasswordDto, ConfirmMfaDto, EnrollMfaDto, RecoveryRequestDto, RequiredChangeDto, ResetDto } from './dto/recovery.dto';
+import { PermiteCambioPendiente } from '../common/decorators/permite-cambio-pendiente.decorator';
 import { LoginDto } from './dto/login.dto';
 import { tokenHash } from './mfa';
 
@@ -30,6 +31,10 @@ export class RecoveryController {
   @Post('verification') @UseGuards(JwtAuthGuard)
   async verification(@Req() req: Request & { user: any }) {
     await this.service.limit(`verification:${req.user.sub}`, req.ip); return this.service.requestVerification(req.user);
+  }
+  @Post('required-change') @UseGuards(JwtAuthGuard) @PermiteCambioPendiente()
+  async requiredChange(@Body() dto: RequiredChangeDto, @Req() req: Request & { user: any }) {
+    await this.service.limit(`required-change:${req.user.sub}`, req.ip); return this.service.completeRequiredChange(req.user, dto.password);
   }
   @Post('change-password') @UseGuards(JwtAuthGuard)
   async change(@Body() dto: ChangePasswordDto, @Req() req: Request & { user: any }) {

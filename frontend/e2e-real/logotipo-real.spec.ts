@@ -1,4 +1,3 @@
-import { fillPlatformMfa, syntheticMfaFor } from './mfa.fixture';
 import { expect, test, request, type Page, type APIRequestContext } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
@@ -29,14 +28,14 @@ const WEBP = Buffer.from('UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAwA0JaQAA3AA/v
 
 async function ingresar(page: Page, email: string) {
   await page.goto('/login');
-  await page.locator('#login-correo').fill(email); await fillPlatformMfa(page, email);
+  await page.locator('#login-correo').fill(email);
   await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
 
 async function tokenDe(api: APIRequestContext, email: string) {
-  const r = await api.post('auth/login', { data: { email, password: PASSWORD, mfaCode: await syntheticMfaFor(email) } });
+  const r = await api.post('auth/login', { data: { email, password: PASSWORD } });
   expect(r.status()).toBe(200);
   return (await r.json()).accessToken as string;
 }

@@ -20,6 +20,8 @@ export interface JwtValidatedPayload {
   permisos?:string[];
   permisosConfigurados?:boolean;
   descuentoMaximo?:number;
+  /** Entró con una clave temporal o una contraseña asignada: solo puede establecer una contraseña nueva. */
+  debeCambiarPassword?: boolean;
 }
 
 @Injectable()
@@ -85,6 +87,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         permisos:user.permisos,
         permisosConfigurados:user.permisosConfigurados,
         descuentoMaximo:Number(user.descuentoMaximo),
+        debeCambiarPassword: user.debeCambiarPassword,
         type: 'tenant',
         tenantId: payload.tenantId,
         sid: typeof payload.sid === 'string' ? payload.sid : undefined,
@@ -94,14 +97,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (payload.type === 'super_admin') {
       // Revalidar en cada petición: un Super Admin desactivado no conserva acceso hasta que expire el token.
-      const superAdmin = await this.prisma.superAdmin.findUnique({ where: { id: String(payload.sub) }, select: { activo: true, mfaSecret: true, passwordHash: true } });
-      if (!superAdmin?.activo || !superAdmin.mfaSecret || payload.mfa !== true) throw new UnauthorizedException('Super Admin no autorizado');
+      // El Super Admin no requiere MFA; su sesión sigue ligada a la contraseña vigente y revocable.
+      const superAdmin = await this.prisma.superAdmin.findUnique({ where: { id: String(payload.sub) }, select: { activo: true, passwordHash: true, debeCambiarPassword: true } });
+      if (!superAdmin?.activo) throw new UnauthorizedException('Super Admin no autorizado');
       await this.exigirSesion(payload, superAdmin.passwordHash);
       return {
         sub: payload.sub,
         email: payload.email,
         rol: 'SUPER_ADMIN',
         type: 'super_admin',
+        debeCambiarPassword: superAdmin.debeCambiarPassword,
       };
     }
 

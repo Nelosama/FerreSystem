@@ -1,5 +1,4 @@
 import { activateTestUser } from './activation.fixture';
-import { fillPlatformMfa, syntheticMfaFor } from './mfa.fixture';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext } from '@playwright/test';
@@ -19,7 +18,7 @@ const CAJERO = `hist.cajero.${RUN}@e2e.invalid`;
 const TENANT = 'e2e-empresa-a';
 
 async function login(request: APIRequestContext, email: string) {
-  const res = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD, mfaCode: await syntheticMfaFor(email) } });
+  const res = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
   expect(res.status(), `login ${email}`).toBe(200);
   const body = await res.json();
   return { token: body.accessToken as string, id: body.user.id as string };
@@ -69,7 +68,7 @@ test('el cajero vende de contado y el administrador entrega: la venta aparece en
 
 // La auditoría es exclusiva del SUPERADMIN (ruta por negocio). Un ADMIN recibe 403 en la ruta de tenant.
 async function tokenSuperAdmin(request: any): Promise<string> {
-  const r = await request.post(`${API}/auth/login`, { data: { email: 'superadmin.e2e@e2e.invalid', password: process.env.E2E_PASSWORD, mfaCode: await syntheticMfaFor('superadmin.e2e@e2e.invalid') } });
+  const r = await request.post(`${API}/auth/login`, { data: { email: 'superadmin.e2e@e2e.invalid', password: process.env.E2E_PASSWORD } });
   expect(r.status()).toBe(200);
   return (await r.json()).accessToken as string;
 }
@@ -105,7 +104,7 @@ for (const [nombre, vista] of [['escritorio', { width: 1280, height: 800 }], ['m
 
     // El SUPERADMIN consulta la auditoría del negocio desde el panel por negocio.
     await page.goto('/login');
-    await page.locator('#login-correo').fill('superadmin.e2e@e2e.invalid'); await fillPlatformMfa(page, 'superadmin.e2e@e2e.invalid');
+    await page.locator('#login-correo').fill('superadmin.e2e@e2e.invalid');
     await page.locator('#login-clave').fill(PASSWORD);
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await page.waitForURL((url) => !url.pathname.startsWith('/login'));

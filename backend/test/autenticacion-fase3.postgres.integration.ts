@@ -141,6 +141,10 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
   // Cada prueba empieza sin contadores de intentos. Las sesiones se conservan: cada prueba crea las suyas.
   beforeEach(async () => {
     await prisma.$executeRawUnsafe('DELETE FROM intentos_login');
+    // Cada caso parte sin fallos acumulados por cuenta: el bloqueo permanente al sexto fallo de un empleado
+    // (que sí sumarían los casos del límite temporal) se prueba en auth-recovery.postgres.integration.ts.
+    await prisma.$executeRawUnsafe('UPDATE usuarios SET login_fallos = 0, bloqueado_at = NULL');
+    await prisma.$executeRawUnsafe('UPDATE super_admins SET login_fallos = 0');
   });
 
   it('las respuestas privadas y los rechazos de autenticación llevan no-store', async () => {

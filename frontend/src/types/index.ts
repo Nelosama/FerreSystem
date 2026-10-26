@@ -71,6 +71,8 @@ export interface UserInfo {
   permisosConfigurados?: boolean;
   descuentoMaximo?: number;
   activo?: boolean;
+  /** Entró con una clave temporal o una contraseña asignada: debe establecer una propia antes de operar. */
+  debeCambiarPassword?: boolean;
 }
 
 export interface ProductItem {

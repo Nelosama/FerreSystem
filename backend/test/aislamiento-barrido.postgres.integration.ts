@@ -263,6 +263,7 @@ const EXCEPCIONES_REVISADAS: string[] = [
   'GET /api/tenant/settings',
   'POST /api/auth/security/verification', // own verified mailbox; service rejects employees/support
   'POST /api/auth/security/change-password', // current password required, own identity only
+  'POST /api/auth/security/required-change', // only the account flagged for a forced change, own identity only
   'POST /api/auth/security/admin-reset', // fresh administrator and tenant revalidation in service
   'POST /api/auth/security/mfa/enroll', // current password and verified mailbox required
   'POST /api/admin/support/finalizar', // solo actúa sobre la propia sesión de soporte; sin ella responde 403

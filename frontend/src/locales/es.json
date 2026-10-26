@@ -179,7 +179,8 @@
     "save_error": "No se pudo guardar el usuario.",
     "saved_success": "Usuario {name} guardado correctamente.",
     "updated_success": "Usuario {name} actualizado correctamente.",
-    "perm_caja_manual": "Registrar entradas y salidas de caja"
+    "perm_caja_manual": "Registrar entradas y salidas de caja",
+    "locked": "BLOQUEADO"
   },
   "clients": {
     "new_client": "NUEVO CLIENTE",
@@ -926,7 +927,6 @@
     "navigation_sidebar": "SIDEBAR · Menú lateral",
     "navigation_topnav": "TOPNAV · Menú superior",
     "navigation_help": "Elija la ubicación del menú de este negocio. Ambas opciones conservan la barra contextual y los accesos autorizados. En móvil se mantiene la navegación inferior.",
-
     "sections": {
       "business": "Mi negocio",
       "business_help": "Nombre, rubro, contacto, idioma, logotipo y color de marca del negocio.",
@@ -1786,17 +1786,14 @@
     "no_export_data": "No hay datos disponibles para exportar."
   },
   "security": {
-    "platform": "Acceso de Super Admin",
-    "tenant": "Identificador de empresa",
-    "mfa": "Código MFA o código de emergencia (si está configurado)",
-    "recovery": "Recuperar acceso",
+    "mfa": "Código de su aplicación de autenticación o código de emergencia",
+    "recovery": "Enlace privado",
     "employee_help": "Los empleados recuperan su acceso con un enlace privado emitido por su administrador.",
     "accepted": "Si la cuenta cumple los requisitos, recibirá instrucciones. Contacte a su administrador si es empleado.",
     "done": "Solicitud completada. Inicie sesión de nuevo si cambió sus credenciales.",
     "failed": "No se pudo completar. Verifique los datos, la vigencia del enlace y su conexión.",
     "save_codes": "Guarde estos códigos de emergencia en un lugar privado. Cada uno funciona una sola vez. No se mostrarán otra vez.",
     "send": "Enviar recuperación",
-    "bootstrap": "Configurar MFA inicial de Super Admin",
     "token": "Código del enlace privado",
     "secret": "Clave para su aplicación de autenticación",
     "current": "Contraseña actual",
@@ -1810,6 +1807,24 @@
     "enroll": "Configurar MFA",
     "load_users": "Cargar usuarios",
     "employee": "Usuario que solicita el acceso",
-    "admin_reset": "Emitir enlace de restablecimiento privado"
+    "admin_reset": "Emitir enlace de restablecimiento privado",
+    "mfa_prompt": "Su cuenta usa verificación en dos pasos. Ingrese el código de su aplicación de autenticación.",
+    "temporary": {
+      "title": "¿Olvidó su contraseña?",
+      "help": "Si es administrador o Super Admin con correo verificado, le enviaremos una contraseña temporal. Funciona una sola vez durante 10 minutos y al entrar deberá crear una nueva.",
+      "send": "Enviar contraseña temporal",
+      "accepted": "Si la cuenta cumple los requisitos, recibirá una contraseña temporal por correo.",
+      "employees": "Cajeros, vendedores y demás usuarios: contacten a su administrador. La cuenta se bloquea al sexto intento fallido."
+    },
+    "required": {
+      "title": "Cree una contraseña nueva",
+      "help": "{nombre}, ingresó con una contraseña temporal o asignada. Antes de continuar, cree una contraseña propia. Se cerrarán todas sus sesiones.",
+      "confirm": "Repita la contraseña nueva",
+      "mismatch": "Las contraseñas no coinciden.",
+      "submit": "Guardar contraseña nueva",
+      "logout": "Cerrar sesión",
+      "done": "Contraseña actualizada. Inicie sesión con su contraseña nueva."
+    },
+    "tenant": "Identificador de empresa"
   }
 }

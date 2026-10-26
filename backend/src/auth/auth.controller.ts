@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OrigenPermitidoGuard } from '../common/guards/origen-permitido.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
+import { PermiteCambioPendiente } from '../common/decorators/permite-cambio-pendiente.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -41,6 +42,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @PermiteCambioPendiente()
   async getProfile(@CurrentUser() user: any) {
     return { user };
   }

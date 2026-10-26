@@ -23,6 +23,7 @@ describe('cookie de renovación: misma política al emitir y borrar', () => {
         superAdmin: { findUnique: vi.fn().mockResolvedValue(null) },
         usuario: { findFirst: vi.fn().mockResolvedValue({ id: 'u', tenantId: 't', activo: true, rol: 'ADMIN', passwordHash: bcrypt.hashSync('Test-Password-123', 4), tenant: { id: 't', estado: 'ACTIVO' } }) },
         sesionAuth: { create: vi.fn().mockResolvedValue({}) },
+        authAction: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
         $queryRaw: vi.fn().mockResolvedValue([{ segundos: 0 }]), $executeRaw: vi.fn(),
       } as any;
       const config = { get: (key: string, fallback?: any) => key === 'JWT_REFRESH_EXPIRES_IN' ? '1h' : fallback } as any;

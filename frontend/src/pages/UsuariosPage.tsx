@@ -10,6 +10,8 @@ export interface Usuario {
   permisos: string[];
   descuentoMaximo: number;
   activo: boolean;
+  /** Bloqueado al sexto intento fallido; el Admin lo reactiva. */
+  bloqueado?: boolean;
 }
 
 export const PERMISOS_DEFAULT_POR_ROL = {
@@ -155,6 +157,7 @@ export const UsuariosPage: React.FC = () => {
             permisos: u.permisosConfigurados ? u.permisos : PERMISOS_DEFAULT_POR_ROL[u.rol as keyof typeof PERMISOS_DEFAULT_POR_ROL]?.permisos || [],
             descuentoMaximo: Number(u.descuentoMaximo || 0),
             activo: u.activo,
+            bloqueado: !!u.bloqueadoAt,
             }));
           setListaUsuarios(apiUsers);
         }
@@ -329,9 +332,13 @@ export const UsuariosPage: React.FC = () => {
     setCambiandoEstado(true);
     setErrorCambioEstado(null);
     try {
-      const { data } = await api.put(`/usuarios/${objetivo.id}`, { activo: !objetivo.activo });
-      setListaUsuarios((prev) => prev.map((u) => (u.id === objetivo.id ? { ...u, activo: data?.activo ?? !objetivo.activo } : u)));
-      showSuccess(`${objetivo.nombre}: ${objetivo.activo ? 'desactivado' : 'reactivado'}`);
+      // Una cuenta bloqueada por intentos fallidos se reactiva con su propia operación auditada.
+      const desactivar = objetivo.activo && !objetivo.bloqueado;
+      const { data } = objetivo.bloqueado
+        ? await api.post(`/usuarios/${objetivo.id}/desbloquear`)
+        : await api.put(`/usuarios/${objetivo.id}`, { activo: !objetivo.activo });
+      setListaUsuarios((prev) => prev.map((u) => (u.id === objetivo.id ? { ...u, activo: data?.activo ?? !desactivar, bloqueado: !!data?.bloqueadoAt } : u)));
+      showSuccess(`${objetivo.nombre}: ${desactivar ? 'desactivado' : 'reactivado'}`);
       setUsuarioPorCambiarEstado(null);
     } catch (err: any) {
       // Motivos del servidor (último administrador, cuenta propia, otra empresa) se muestran tal cual.
@@ -349,19 +356,21 @@ export const UsuariosPage: React.FC = () => {
           <div className="industrial-card" role="dialog" aria-modal="true" aria-labelledby="confirmar-estado-usuario" style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <h2 id="confirmar-estado-usuario" style={{ fontSize: '16px', textTransform: 'uppercase' }}>
-                {usuarioPorCambiarEstado.activo ? 'Desactivar usuario' : 'Reactivar usuario'}
+                {usuarioPorCambiarEstado.activo && !usuarioPorCambiarEstado.bloqueado ? 'Desactivar usuario' : 'Reactivar usuario'}
               </h2>
             </div>
             <p style={{ marginTop: 12 }}>
-              {usuarioPorCambiarEstado.activo
+              {usuarioPorCambiarEstado.bloqueado
+                ? `${usuarioPorCambiarEstado.nombre} se bloqueó por intentos fallidos. Al reactivarlo podrá iniciar sesión de nuevo con su contraseña; si no la recuerda, emita un enlace privado de restablecimiento.`
+                : usuarioPorCambiarEstado.activo
                 ? `${usuarioPorCambiarEstado.nombre} dejará de poder iniciar sesión y se cerrarán sus sesiones abiertas. Sus ventas, cajas y registros se conservan.`
                 : `${usuarioPorCambiarEstado.nombre} volverá a poder iniciar sesión con sus permisos actuales.`}
             </p>
             {errorCambioEstado && <div role="alert" style={{ color: '#B91C1C', fontWeight: 600, marginTop: 8 }}>{errorCambioEstado}</div>}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <button type="button" className="btn btn-secondary" disabled={cambiandoEstado} onClick={() => setUsuarioPorCambiarEstado(null)}>Cancelar</button>
-              <button type="button" className={`btn ${usuarioPorCambiarEstado.activo ? 'btn-danger' : 'btn-primary'}`} disabled={cambiandoEstado} onClick={cambiarEstadoUsuario}>
-                {cambiandoEstado ? 'Guardando…' : usuarioPorCambiarEstado.activo ? 'Sí, desactivar' : 'Sí, reactivar'}
+              <button type="button" className={`btn ${usuarioPorCambiarEstado.activo && !usuarioPorCambiarEstado.bloqueado ? 'btn-danger' : 'btn-primary'}`} disabled={cambiandoEstado} onClick={cambiarEstadoUsuario}>
+                {cambiandoEstado ? 'Guardando…' : usuarioPorCambiarEstado.activo && !usuarioPorCambiarEstado.bloqueado ? 'Sí, desactivar' : 'Sí, reactivar'}
               </button>
             </div>
           </div>
@@ -432,7 +441,11 @@ export const UsuariosPage: React.FC = () => {
                       <span className="badge badge-neutral">{t('users.permissions_count', { count: (u.permisos || []).length })}</span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      {u.activo ? (
+                      {u.bloqueado ? (
+                        <span className="badge badge-danger">
+                          <XCircle size={11} /> {t('users.locked')}
+                        </span>
+                      ) : u.activo ? (
                         <span className="badge badge-success">
                           <CheckCircle2 size={11} /> {t('users.active')}
                         </span>
@@ -453,11 +466,11 @@ export const UsuariosPage: React.FC = () => {
                       {u.id !== sesionActual?.id && (
                         <button
                           type="button"
-                          className={`btn btn-sm ${u.activo ? 'btn-secondary' : 'btn-primary'}`}
+                          className={`btn btn-sm ${u.activo && !u.bloqueado ? 'btn-secondary' : 'btn-primary'}`}
                           style={{ marginLeft: 6 }}
                           onClick={() => { setErrorCambioEstado(null); setUsuarioPorCambiarEstado(u); }}
                         >
-                          {u.activo ? 'Desactivar' : 'Reactivar'}
+                          {u.activo && !u.bloqueado ? 'Desactivar' : 'Reactivar'}
                         </button>
                       )}
                     </td>

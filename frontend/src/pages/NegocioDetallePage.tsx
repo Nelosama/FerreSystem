@@ -10,7 +10,7 @@ import { LogotipoNegocioEditor } from '../components/LogotipoNegocioEditor';
 import { AvisoColorMarca } from '../components/AvisoColorMarca';
 import { estiloMarcaNegocio, inicialesNegocio } from '../utils/identidadNegocio';
 
-type Registro = { id: string; nombre: string; email?: string; username?: string; rol?: string; activo?: boolean; activa?: boolean; direccion?: string; telefono?: string; permisos?: string[]; descuentoMaximo?: number };
+type Registro = { id: string; nombre: string; email?: string; username?: string; rol?: string; activo?: boolean; activa?: boolean; direccion?: string; telefono?: string; permisos?: string[]; descuentoMaximo?: number; bloqueadoAt?: string | null };
 const mensaje = (error: any) => { const value = error.response?.data?.message; return Array.isArray(value) ? value.join(', ') : value || 'No se pudo completar la operación. Sus cambios se conservan; vuelva a intentar.'; };
 
 function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuarios' | 'sucursales' }) {
@@ -23,6 +23,8 @@ function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuar
   const [estado, setEstado] = useState('');
   const [busy, setBusy] = useState(false);
   const [permisosEditados, setPermisosEditados] = useState(false);
+  // Contraseña asignada por el Super Admin: el usuario deberá cambiarla al entrar. Requiere confirmar la propia.
+  const [asignar, setAsignar] = useState<{ fila: Registro; password: string; actual: string } | null>(null);
   const cargar = async () => { const { data } = await api.get(endpoint, { params: usuarios ? { gestion: true } : {} }); setFilas(data); };
   useEffect(() => {
     let vigente = true;
@@ -44,6 +46,20 @@ function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuar
     setBusy(true); setError(''); setEstado('');
     try { await api.patch(`${endpoint}/${fila.id}`, usuarios ? { activo: !activo } : { activa: !activo }); setEstado('Estado actualizado.'); await cargar(); }
     catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
+  };
+  const desbloquear = async (fila: Registro) => {
+    if (!(await alertas.confirmar({ texto: `¿Reactivar a ${fila.nombre}? Podrá volver a iniciar sesión.`, confirmar: 'Reactivar' }))) return;
+    setBusy(true); setError(''); setEstado('');
+    try { await api.post(`${endpoint}/${fila.id}/desbloquear`); setEstado('Usuario reactivado.'); await cargar(); }
+    catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
+  };
+  const guardarPassword = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!asignar || busy) return;
+    setBusy(true); setError(''); setEstado('');
+    try {
+      await api.post(`${endpoint}/${asignar.fila.id}/password`, { password: asignar.password, currentPassword: asignar.actual });
+      setAsignar(null); setEstado('Contraseña asignada. El usuario deberá cambiarla al iniciar sesión; sus sesiones abiertas se cerraron.'); await cargar();
+    } catch (e) { setError(mensaje(e)); } finally { setBusy(false); }
   };
   return <section className="industrial-card negocio-management">
     <h2>{usuarios ? 'Usuarios del negocio' : 'Sucursales del negocio'}</h2>
@@ -67,8 +83,17 @@ function GestionRegistros({ negocioId, tipo }: { negocioId: string; tipo: 'usuar
       <label><input type="checkbox" checked={usuarios ? form.activo : form.activa} onChange={e => setForm({ ...form, ...(usuarios ? { activo: e.target.checked } : { activa: e.target.checked }) })} /> {usuarios ? 'Usuario activo' : 'Sucursal activa'}</label>
       <div><button className="btn btn-primary" disabled={busy}>Guardar</button> <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setForm(null)}>Cancelar</button></div>
     </form>}
+    {asignar && <form onSubmit={guardarPassword} className="negocio-form" aria-label="Asignar contraseña">
+      <p>Nueva contraseña para <strong>{asignar.fila.nombre}</strong>. No se muestra ni se registra en la auditoría.</p>
+      <label>Nueva contraseña<input className="form-input" type="password" autoComplete="new-password" required value={asignar.password} onChange={e => setAsignar({ ...asignar, password: e.target.value })} /></label>
+      <label>Su contraseña de Super Admin<input className="form-input" type="password" autoComplete="current-password" required value={asignar.actual} onChange={e => setAsignar({ ...asignar, actual: e.target.value })} /></label>
+      <div><button className="btn btn-primary" disabled={busy}>Asignar contraseña</button> <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setAsignar(null)}>Cancelar</button></div>
+    </form>}
     <div className="table-container"><table className="industrial-table"><thead><tr><th>Nombre</th><th>{usuarios ? 'Correo / rol' : 'Dirección / teléfono'}</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
-      {filas.map(fila => <tr key={fila.id}><td>{fila.nombre}</td><td>{usuarios ? `${fila.email} · ${fila.rol}` : `${fila.direccion} · ${fila.telefono}`}</td><td>{(usuarios ? fila.activo : fila.activa) ? 'Activo' : 'Inactivo'}</td><td><button className="btn btn-secondary" disabled={busy} onClick={() => { setPermisosEditados(false); setForm({ ...fila }); setError(''); }}>Editar</button> <button className="btn btn-secondary" disabled={busy} onClick={() => void toggle(fila)}>{(usuarios ? fila.activo : fila.activa) ? 'Desactivar' : 'Reactivar'}</button></td></tr>)}
+      {filas.map(fila => <tr key={fila.id}><td>{fila.nombre}</td><td>{usuarios ? `${fila.email || fila.username || ''} · ${fila.rol}` : `${fila.direccion} · ${fila.telefono}`}</td><td>{usuarios && fila.bloqueadoAt ? 'Bloqueado por intentos fallidos' : (usuarios ? fila.activo : fila.activa) ? 'Activo' : 'Inactivo'}</td><td><button className="btn btn-secondary" disabled={busy} onClick={() => { setPermisosEditados(false); setForm({ ...fila }); setError(''); }}>Editar</button> {usuarios && fila.bloqueadoAt
+        ? <button className="btn btn-secondary" disabled={busy} onClick={() => void desbloquear(fila)}>Reactivar</button>
+        : <button className="btn btn-secondary" disabled={busy} onClick={() => void toggle(fila)}>{(usuarios ? fila.activo : fila.activa) ? 'Desactivar' : 'Reactivar'}</button>}
+        {usuarios && <> <button className="btn btn-secondary" disabled={busy} onClick={() => { setError(''); setAsignar({ fila, password: '', actual: '' }); }}>Asignar contraseña</button></>}</td></tr>)}
       {!filas.length && <tr><td colSpan={4}>No hay registros.</td></tr>}
     </tbody></table></div>
   </section>;

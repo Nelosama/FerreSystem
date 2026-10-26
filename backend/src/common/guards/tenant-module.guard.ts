@@ -12,9 +12,9 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 @Injectable()
 export class TenantModuleGuard extends JwtAuthGuard implements CanActivate {
   constructor(
-    private reflector: Reflector,
+    reflector: Reflector,
     private prisma: PrismaService,
-  ) { super(); }
+  ) { super(reflector); }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const requiredModule = this.reflector.getAllAndOverride<string | string[] | { anyOf: string[] }>(

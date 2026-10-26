@@ -6,13 +6,16 @@ import { Injectable, UnauthorizedException, InternalServerErrorException, Logger
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import * as bcrypt from 'bcrypt';
 import type { Request, Response } from 'express';
 import { LoginDto } from './dto/login.dto';
 import { randomUUID } from 'node:crypto';
 import { leerConfiguracionAuth } from './auth-config';
 import { clavesDeLogin, excepcionLimiteLogin, registrarExitoLogin, registrarFalloLogin, segundosBloqueados } from './login-rate-limit';
 import { crearSesion, revocarSesion, rotarRefresh, sidDeToken } from './sesiones-auth';
+import { consumirClaveTemporal, CuentaResuelta, registrarExitoCuenta, registrarFalloCuenta, resolverCuenta, verificarClave } from './credenciales';
+
+export const MENSAJE_AMBIGUO = 'Este usuario corresponde a más de una cuenta. Ingrese con su correo o con el enlace de su empresa, o pida ayuda a su administrador.';
+export const MENSAJE_BLOQUEADA = 'Cuenta bloqueada por intentos fallidos. Contacte a su administrador para reactivarla.';
 
 const bearerDe = (req?: Request) => req?.headers?.authorization?.replace(/^Bearer /, '') || undefined;
 
@@ -28,7 +31,7 @@ export class AuthService {
 
   // Límite de intentos por cuenta y por IP. Un fallo cuenta aunque la cuenta no exista.
   async login(loginDto: LoginDto, res: Response, req?: Request) {
-    const claves = clavesDeLogin(`${loginDto.tenantId || 'platform'}:${loginDto?.email}`, req?.ip);
+    const claves = clavesDeLogin(`${loginDto.tenantId || 'global'}:${loginDto?.email}`, req?.ip);
     const segundos = await segundosBloqueados(this.prisma, claves);
     if (segundos > 0) {
       res.setHeader('Retry-After', String(segundos));
@@ -39,7 +42,8 @@ export class AuthService {
       await registrarExitoLogin(this.prisma, claves);
       return resultado;
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
+      // Pedir el segundo factor tras una contraseña correcta no es un intento fallido.
+      if (error instanceof UnauthorizedException && (error.getResponse() as any)?.code !== 'MFA_REQUERIDO') {
         await registrarFalloLogin(this.prisma, claves, leerConfiguracionAuth(this.configService));
       }
       throw error;
@@ -53,16 +57,15 @@ export class AuthService {
 
   private async autenticar(loginDto: LoginDto, res: Response, req?: Request) {
     const { email, password } = loginDto;
+    // Solo un enlace de empresa aporta tenantId; el formulario de login no pide empresa.
     const targetTenantId = loginDto.tenantId || (req?.headers['x-tenant-id'] as string) || undefined;
 
-    // Etapa 1 & 2: Recepción de petición y normalización de email
-    const normalizedEmail = email?.toLowerCase().trim();
-    let superAdmin: any = null;
+    let resolucion: CuentaResuelta;
     try {
-      if (!targetTenantId) superAdmin = await this.prisma.superAdmin.findUnique({ where: { email: normalizedEmail } });
+      resolucion = await resolverCuenta(this.prisma, email, targetTenantId);
     } catch (error: any) {
       const errorCode = typeof error?.code === 'string' && /^P\d{4}$/.test(error.code) ? error.code : 'N/A';
-      this.logger.error(`[LOGIN_DIAGNOSTIC] Error consultando SuperAdmin. Código: ${errorCode}`);
+      this.logger.error(`[LOGIN_DIAGNOSTIC] Error consultando la cuenta. Código: ${errorCode}`);
       throw new InternalServerErrorException({
         statusCode: 500,
         message: 'Error de conexión o consulta con la base de datos al autenticar',
@@ -71,126 +74,67 @@ export class AuthService {
       });
     }
 
-    if (superAdmin) {
-      if (!(await bcrypt.compare(password, superAdmin.passwordHash)) || !superAdmin.activo) {
-        throw new UnauthorizedException('Credenciales inválidas');
-      }
-
-      await requireMfa(this.prisma, superAdmin, true, loginDto.mfaCode, this.configService);
-      const sid = randomUUID();
-      const payload = {
-        sub: superAdmin.id,
-        email: superAdmin.email,
-        rol: 'SUPER_ADMIN',
-        type: 'super_admin',
-        mfa: true,
-        sid,
-      };
-      const accessToken = this.jwtService.sign(payload, {
-        expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
-      });
-      const refreshJti = randomUUID();
-      const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
-        expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
-        jwtid: refreshJti,
-      });
-      await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: superAdmin.id, passwordHash: superAdmin.passwordHash, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
-      res.cookie('superAdminRefreshToken', refreshToken, {
-        ...refreshCookieOptions(this.configService, true),
-        maxAge: Math.max(0, this.expiracionRefresh(refreshToken).getTime() - Date.now()),
-      });
-
-      return {
-        type: 'super_admin' as const,
-        accessToken,
-        superAdmin: {
-          id: superAdmin.id,
-          nombre: superAdmin.nombre,
-          email: superAdmin.email,
-        },
-      };
-    }
-
-    this.logger.log(
-      `[LOGIN_DIAGNOSTIC] [ETAPA 1-2] Inicio de intento de login (TenantId objetivo: ${targetTenantId || 'autodetect'})`,
-    );
-
-    // Etapa 3 & 4: Búsqueda en BD considerando multi-tenancy (@@unique([tenantId, email]))
-    let usuario: any = null;
-    try {
-      if (targetTenantId) {
-        usuario = await this.prisma.usuario.findFirst({
-          where: { tenantId: targetTenantId, ...(normalizedEmail.includes('@') ? { email: normalizedEmail } : { username: normalizedEmail }) },
-          include: { tenant: true },
-        });
-      } else if (normalizedEmail.includes('@')) {
-        // Compatibility: a globally unambiguous email resolves the tenant BEFORE checking any password.
-        // Never compare passwords across tenants. Shared emails must supply the business identifier.
-        const matches = await this.prisma.usuario.findMany({ where: { email: normalizedEmail }, take: 2, include: { tenant: true } });
-        if (matches?.length === 1) usuario = matches[0];
-      }
-    } catch (error: any) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      const errorCode = typeof error?.code === 'string' && /^P\d{4}$/.test(error.code) ? error.code : 'N/A';
-      this.logger.error(
-        `[LOGIN_DIAGNOSTIC] [CASO E] ERROR DE BD/PRISMA durante consulta de usuario. Código: ${errorCode}`,
-      );
-      throw new InternalServerErrorException({
-        statusCode: 500,
-        message: 'Error de conexión o consulta con la base de datos al autenticar',
-        error: 'DatabaseQueryError',
-        code: errorCode,
-      });
-    }
-
-    if (!usuario) {
+    if (resolucion.estado !== 'UNICA') {
       await missingPasswordCheck(password);
       // El correo no se registra en claro: los intentos fallidos ya se guardan solo como hash (login-rate-limit).
-      this.logger.warn('[LOGIN_DIAGNOSTIC] [CASO A] Usuario NO encontrado para el correo indicado');
+      this.logger.warn(`[LOGIN_DIAGNOSTIC] Identificador sin cuenta única (${resolucion.estado})`);
+      if (resolucion.estado === 'AMBIGUA') {
+        // Nunca se compara la contraseña contra varias cuentas: el intento falla sin elegir ninguna.
+        throw new UnauthorizedException({ statusCode: 401, code: 'IDENTIFICADOR_AMBIGUO', message: MENSAJE_AMBIGUO });
+      }
       throw new UnauthorizedException('Credenciales inválidas');
     }
+    const { cuenta, plataforma } = resolucion;
 
-    this.logger.log(
-      `[LOGIN_DIAGNOSTIC] [ETAPA 4] Usuario encontrado - ID: ${usuario.id}, TenantID: ${usuario.tenantId}, Rol: ${usuario.rol}, Activo: ${usuario.activo}`,
-    );
-
-    // Etapa 5: Validación de contraseña con bcrypt. Va antes del estado de la cuenta para no revelar
-    // si un correo existe como cuenta inactiva o empresa suspendida sin conocer la contraseña.
-    let passwordValido = false;
+    // La contraseña se valida antes del estado de la cuenta para no revelar si existe una cuenta inactiva,
+    // bloqueada o de una empresa suspendida sin conocer la contraseña.
+    let clave: 'PASSWORD' | 'TEMPORAL' | null;
     try {
-      this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 5] Comparando contraseña con bcrypt.compare()`);
-      passwordValido = await bcrypt.compare(password, usuario.passwordHash);
+      clave = await verificarClave(this.prisma, cuenta, plataforma, password);
     } catch {
-      this.logger.error(
-        '[LOGIN_DIAGNOSTIC] [CASO F] Error de ejecución en bcrypt.compare()',
-      );
+      this.logger.error('[LOGIN_DIAGNOSTIC] [CASO F] Error al validar la contraseña');
       throw new InternalServerErrorException('Error al validar credenciales de seguridad');
     }
-
-    this.logger.log(`[LOGIN_DIAGNOSTIC] Resultado de bcrypt.compare(): ${passwordValido}`);
-    if (!passwordValido) {
-      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO B] Contraseña INCORRECTA para usuario ID: ${usuario.id}`);
+    if (!clave) {
+      const { fallos, bloqueada } = await registrarFalloCuenta(this.prisma, cuenta, plataforma);
+      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO B] Contraseña incorrecta para la cuenta ${cuenta.id} (fallos consecutivos: ${fallos}${bloqueada ? ', bloqueada' : ''})`);
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    // Etapa 6: Validación de usuario.activo
-    if (!usuario.activo) {
-      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO C] Usuario encontrado pero INACTIVO - ID: ${usuario.id}`);
-      throw new UnauthorizedException('Este usuario ha sido desactivado');
+    if (!cuenta.activo) {
+      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO C] Cuenta INACTIVA - ID: ${cuenta.id}`);
+      throw new UnauthorizedException(plataforma ? 'Credenciales inválidas' : 'Este usuario ha sido desactivado');
     }
-    this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 6] Estado del usuario verificado: ACTIVO`);
-
-    // Etapa 7: Validación de usuario.tenant.estado
-    const tenantEstado = usuario.tenant?.estado;
-    this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 7] Verificando estado del tenant (${usuario.tenantId}): ${tenantEstado}`);
-    if (tenantEstado !== 'ACTIVO') {
-      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO D] Tenant NO está ACTIVO (${usuario.tenantId}) - Estado actual: ${tenantEstado}`);
+    if (!plataforma && cuenta.bloqueadoAt) {
+      this.logger.warn(`[LOGIN_DIAGNOSTIC] Cuenta BLOQUEADA por intentos fallidos - ID: ${cuenta.id}`);
+      throw new UnauthorizedException({ statusCode: 401, code: 'CUENTA_BLOQUEADA', message: MENSAJE_BLOQUEADA });
+    }
+    if (!plataforma && cuenta.tenant?.estado !== 'ACTIVO') {
+      this.logger.warn(`[LOGIN_DIAGNOSTIC] [CASO D] Tenant NO está ACTIVO (${cuenta.tenantId}) - Estado actual: ${cuenta.tenant?.estado}`);
       throw new UnauthorizedException('La suscripción de la ferretería se encuentra suspendida');
     }
 
-    if (usuario.mfaSecret) await requireMfa(this.prisma, usuario, false, loginDto.mfaCode, this.configService);
+    // MFA opcional de cuentas de negocio que lo configuraron. El Super Admin no lo requiere.
+    if (!plataforma && cuenta.mfaSecret) {
+      if (!loginDto.mfaCode) throw new UnauthorizedException({ statusCode: 401, code: 'MFA_REQUERIDO', message: 'Ingrese el código de su aplicación de autenticación' });
+      await requireMfa(this.prisma, cuenta, false, loginDto.mfaCode, this.configService);
+    }
+
+    let vigente = cuenta;
+    if (clave === 'TEMPORAL') {
+      vigente = await consumirClaveTemporal(this.prisma, cuenta, plataforma, password);
+      if (!vigente) {
+        await registrarFalloCuenta(this.prisma, cuenta, plataforma);
+        throw new UnauthorizedException('Credenciales inválidas');
+      }
+      this.logger.log(`[LOGIN_DIAGNOSTIC] Clave temporal usada por la cuenta ${cuenta.id}; debe cambiar su contraseña`);
+    } else {
+      await registrarExitoCuenta(this.prisma, cuenta, plataforma);
+    }
+    const debeCambiarPassword = !!vigente.debeCambiarPassword;
+
+    if (plataforma) return this.emitirSuperAdmin(cuenta, debeCambiarPassword, res);
+    const usuario = cuenta;
 
     // Etapa 8: Generación de JWT
     this.logger.log(`[LOGIN_DIAGNOSTIC] [ETAPA 8] Generando tokens JWT para usuario ID: ${usuario.id}`);
@@ -237,6 +181,7 @@ export class AuthService {
         permisos: usuario.permisos,
         permisosConfigurados:usuario.permisosConfigurados,
         descuentoMaximo: Number(usuario.descuentoMaximo),
+        debeCambiarPassword,
       },
       tenant: {
         ...normalizeTenantConfiguration(usuario.tenant.configuracion),
@@ -253,6 +198,29 @@ export class AuthService {
         telefono: usuario.tenant.telefono,
         email: usuario.tenant.email,
       },
+    };
+  }
+
+  private async emitirSuperAdmin(superAdmin: any, debeCambiarPassword: boolean, res: Response) {
+    const sid = randomUUID();
+    const payload = { sub: superAdmin.id, email: superAdmin.email, rol: 'SUPER_ADMIN', type: 'super_admin', sid };
+    const accessToken = this.jwtService.sign(payload, {
+      expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any,
+    });
+    const refreshJti = randomUUID();
+    const refreshToken = this.jwtService.sign({ ...payload, typ: 'refresh' }, {
+      expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d') as any,
+      jwtid: refreshJti,
+    });
+    await crearSesion(this.prisma, { id: sid, tipo: 'SUPER_ADMIN', sujetoId: superAdmin.id, passwordHash: superAdmin.passwordHash, expiresAt: this.expiracionRefresh(refreshToken), refreshJti });
+    res.cookie('superAdminRefreshToken', refreshToken, {
+      ...refreshCookieOptions(this.configService, true),
+      maxAge: Math.max(0, this.expiracionRefresh(refreshToken).getTime() - Date.now()),
+    });
+    return {
+      type: 'super_admin' as const,
+      accessToken,
+      superAdmin: { id: superAdmin.id, nombre: superAdmin.nombre, email: superAdmin.email, debeCambiarPassword },
     };
   }
 

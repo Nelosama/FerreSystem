@@ -9,9 +9,10 @@ import { newTotpSecret, opaqueToken, requireMfa, sealSecret, tokenHash, validSte
 import { clavesDeLogin, excepcionLimiteLogin, registrarFalloLogin, segundosBloqueados } from './login-rate-limit';
 import { leerConfiguracionAuth } from './auth-config';
 import { revocarSesionesDeSujeto } from './sesiones-auth';
+import { FALLOS_PARA_RECUPERAR, PROPOSITO_CLAVE_TEMPORAL, VIGENCIA_CLAVE_TEMPORAL_MS, generarClaveTemporal, normalizarIdentificador, resolverCuenta } from './credenciales';
 import { AdminResetDto, ChangePasswordDto, ConfirmMfaDto, RecoveryRequestDto, ResetDto } from './dto/recovery.dto';
 
-const accepted = { message: 'Si la cuenta cumple los requisitos, recibirá instrucciones. Los empleados deben contactar a su administrador.' };
+const accepted = { message: 'Si la cuenta es de un administrador con correo verificado y tiene tres intentos fallidos, recibirá una contraseña temporal válida por 10 minutos. Los demás usuarios deben contactar a su administrador.' };
 const invalid = () => new UnauthorizedException('Solicitud vencida o verificación inválida');
 type Identity = { sub: string; type: string; tenantId?: string; impersonatedBy?: string; rol?: string };
 
@@ -49,33 +50,48 @@ export class RecoveryService {
   }
   private async current(tx: any, account: any, platform: boolean, password: string, code?: string) {
     if (!await bcrypt.compare(password, account.passwordHash)) throw invalid();
-    if (platform || account.mfaSecret) await requireMfa(tx, account, platform, code, this.config);
+    // El Super Admin no requiere MFA. Una cuenta de negocio que lo configuró lo sigue usando.
+    if (!platform && account.mfaSecret) await requireMfa(tx, account, platform, code, this.config);
   }
 
+  // Admin y Super Admin con correo verificado y al menos tres fallos consecutivos reciben una clave temporal:
+  // aleatoria, de un solo uso, válida 10 minutos y guardada solo como hash. Su contraseña actual sigue valiendo
+  // hasta que use la clave temporal, de modo que una solicitud ajena no le impide entrar.
+  // Los demás roles no tienen recuperación pública. La respuesta y el tiempo son iguales para todas las cuentas.
   async request(dto: RecoveryRequestDto, ip?: string) {
     const started = Date.now();
-    await this.limit(`request:${dto.scope}:${dto.tenantId || ''}:${dto.email}`, ip);
+    await this.limit(`request:${dto.tenantId || ''}:${normalizarIdentificador(dto.email)}`, ip);
+    let emitida: { id: string; hash: string } | undefined;
     try {
-      const platform = dto.scope === 'super_admin';
-      const email = dto.email.toLowerCase().trim();
-      const account = platform
-        ? await this.prisma.superAdmin.findFirst({ where: { email, activo: true } })
-        : dto.tenantId ? await this.prisma.usuario.findFirst({ where: { tenantId: dto.tenantId, email, activo: true, rol: 'ADMIN', tenant: { estado: 'ACTIVO' } } }) : null;
-      if (account?.emailVerifiedAt && account.mfaSecret) {
-        const token = await this.prisma.$transaction(async tx => {
-          await this.lock(tx, account.id);
-          return this.action(tx, account, platform, 'RESET_EMAIL');
+      const resolucion = await resolverCuenta(this.prisma, dto.email, dto.tenantId);
+      if (resolucion.estado === 'UNICA' && this.puedeRecuperar(resolucion.cuenta, resolucion.plataforma)) {
+        const { cuenta, plataforma } = resolucion;
+        const clave = generarClaveTemporal();
+        await this.prisma.$transaction(async tx => {
+          await this.lock(tx, cuenta.id);
+          const actual = await this.table(tx, plataforma).findUnique({ where: { id: cuenta.id } });
+          if (!actual || !this.puedeRecuperar({ ...actual, tenant: cuenta.tenant }, plataforma)) throw new Error('no elegible');
+          await tx.authAction.deleteMany({ where: { sujetoId: cuenta.id, purpose: PROPOSITO_CLAVE_TEMPORAL } });
+          await tx.authAction.create({ data: { hash: tokenHash(clave), sujetoId: cuenta.id, tipo: plataforma ? 'SUPER_ADMIN' : 'TENANT', tenantId: plataforma ? null : cuenta.tenantId, purpose: PROPOSITO_CLAVE_TEMPORAL, email: actual.email, passwordBinding: tokenHash(actual.passwordHash), expiresAt: new Date(Date.now() + VIGENCIA_CLAVE_TEMPORAL_MS) } });
+          await this.event(tx, cuenta.id, cuenta, plataforma, 'TEMP_PASSWORD_ISSUED');
         });
-        await this.mail.send(account.email!, token, 'RESET_EMAIL', platform ? undefined : (account as any).tenantId);
+        emitida = { id: cuenta.id, hash: tokenHash(clave) };
+        await this.mail.sendTemporaryPassword(cuenta.email, clave);
       }
     } catch {
-      // Never leak eligibility, mailbox/provider details, tokens or database errors.
+      // Never leak eligibility, mailbox/provider details, credentials or database errors.
+      // Una clave que no se pudo entregar no debe quedar vigente.
+      if (emitida) await this.prisma.authAction.deleteMany({ where: { hash: emitida.hash } }).catch(() => undefined);
       this.logger.error('Solicitud de recuperación no entregada; revisar infraestructura de correo');
     } finally {
       // Provider has an 8 s deadline. Equal response floor covers eligible and ineligible accounts.
       await delay(Math.max(0, 8500 - (Date.now() - started)));
     }
     return accepted;
+  }
+  private puedeRecuperar(cuenta: any, plataforma: boolean) {
+    const rolPermitido = plataforma || (cuenta.rol === 'ADMIN' && cuenta.tenant?.estado === 'ACTIVO');
+    return rolPermitido && cuenta.activo && !!cuenta.email && !!cuenta.emailVerifiedAt && cuenta.loginFallos >= FALLOS_PARA_RECUPERAR;
   }
 
   async requestVerification(identity: Identity) {
@@ -140,14 +156,10 @@ export class RecoveryService {
   }
   async reset(dto: ResetDto) {
     const passwordHash = await bcrypt.hash(dto.password, 12);
-    return this.consume(dto.token, ['RESET_EMAIL', 'RESET_ADMIN'], async (tx, a, account, platform) => {
-      if (a.passwordBinding !== tokenHash(account.passwordHash)) throw invalid();
-      if (a.purpose === 'RESET_EMAIL') {
-        if (!account.emailVerifiedAt || (!platform && account.rol !== 'ADMIN')) throw invalid();
-        await requireMfa(tx, account, platform, dto.mfaCode, this.config);
-      }
-      if (platform && a.purpose !== 'RESET_EMAIL') throw invalid();
-      await this.table(tx, platform).update({ where: { id: account.id }, data: { passwordHash } });
+    // Solo los enlaces privados emitidos por un Admin o Super Admin. La recuperación por correo usa la clave temporal.
+    return this.consume(dto.token, ['RESET_ADMIN'], async (tx, a, account, platform) => {
+      if (platform || a.passwordBinding !== tokenHash(account.passwordHash)) throw invalid();
+      await this.table(tx, platform).update({ where: { id: account.id }, data: { passwordHash, loginFallos: 0, bloqueadoAt: null, debeCambiarPassword: false } });
       await revocarSesionesDeSujeto(tx, account.id, 'PASSWORD_RESET');
       // Support access originating from this Super Admin must also stop.
       if (platform) await this.revokeSupport(tx);
@@ -166,11 +178,28 @@ export class RecoveryService {
       await this.lock(tx, identity.sub);
       const { account, platform } = await this.account(tx, identity);
       await this.current(tx, account, platform, dto.currentPassword, dto.mfaCode);
-      await this.table(tx, platform).update({ where: { id: account.id }, data: { passwordHash } });
+      await this.table(tx, platform).update({ where: { id: account.id }, data: { passwordHash, loginFallos: 0, debeCambiarPassword: false } });
       await revocarSesionesDeSujeto(tx, account.id, 'PASSWORD_CHANGE');
       if (platform) await this.revokeSupport(tx);
       await tx.authAction.deleteMany({ where: { sujetoId: account.id } });
       await this.event(tx, account.id, account, platform, 'PASSWORD_CHANGE');
+      return { success: true };
+    });
+  }
+  // Cambio obligatorio tras una clave temporal o una contraseña asignada. La sesión recién abierta con esa
+  // credencial acredita al titular; la contraseña nueva debe ser distinta de la vigente. Revoca todas las sesiones.
+  async completeRequiredChange(identity: Identity, password: string) {
+    const passwordHash = await bcrypt.hash(password, 12);
+    return this.prisma.$transaction(async tx => {
+      await this.lock(tx, identity.sub);
+      const { account, platform } = await this.account(tx, identity);
+      if (!account.debeCambiarPassword) throw new BadRequestException('Use el cambio de contraseña con su contraseña actual');
+      if (await bcrypt.compare(password, account.passwordHash)) throw new BadRequestException('Elija una contraseña distinta de la anterior');
+      await this.table(tx, platform).update({ where: { id: account.id }, data: { passwordHash, loginFallos: 0, debeCambiarPassword: false } });
+      await revocarSesionesDeSujeto(tx, account.id, 'PASSWORD_CHANGE');
+      if (platform) await this.revokeSupport(tx);
+      await tx.authAction.deleteMany({ where: { sujetoId: account.id } });
+      await this.event(tx, account.id, account, platform, 'PASSWORD_CHANGE_REQUIRED');
       return { success: true };
     });
   }

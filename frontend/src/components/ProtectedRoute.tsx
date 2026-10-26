@@ -6,6 +6,7 @@ import { canNavigate } from '../utils/taskNavigation';
 import { CATALOGO_MODULOS } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { Lock } from 'lucide-react';
+import { CambioObligatorio } from './CambioObligatorio';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -28,6 +29,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+  // Clave temporal o contraseña asignada: ningún módulo hasta establecer una contraseña propia.
+  if (user.debeCambiarPassword) return <CambioObligatorio />;
 
   const ready = authStatus === 'ready' || (authStatus === 'offline' && pathname === '/pos-contingencia');
   const identity = `${user.id}:${tenant.id}`;

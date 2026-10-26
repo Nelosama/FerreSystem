@@ -92,10 +92,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       onStatus: setAuthStatus,
       onChanged: resetIdentity,
       onProfile: profile => {
-        if (user.rol === 'SUPERADMIN') return;
         setUser(previous => {
           if (!previous || previous.id !== profile.sub) return previous;
-          const next = { ...previous, rol: profile.rol, permisos: profile.permisos, permisosConfigurados: profile.permisosConfigurados, descuentoMaximo: profile.descuentoMaximo };
+          // El backend decide si la cuenta debe cambiar su contraseña; el perfil lo confirma en cada validación.
+          // Una sesión de soporte no depende de la contraseña del usuario atendido.
+          const debeCambiarPassword = !!profile.debeCambiarPassword && !profile.impersonatedBy;
+          const next = user.rol === 'SUPERADMIN'
+            ? { ...previous, debeCambiarPassword }
+            : { ...previous, rol: profile.rol, permisos: profile.permisos, permisosConfigurados: profile.permisosConfigurados, descuentoMaximo: profile.descuentoMaximo, debeCambiarPassword };
           if (JSON.stringify(previous) === JSON.stringify(next)) return previous;
           localStorage.setItem('ferre_user', JSON.stringify(next));
           return next;
@@ -105,7 +109,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [user?.id, tenant.id, !!originalSuperAdminUser, resetIdentity, sessionGeneration]);
 
   useEffect(() => {
-    if (authStatus !== 'ready' || !user || user.rol === 'SUPERADMIN' || !tenant.id) return;
+    if (authStatus !== 'ready' || !user || user.rol === 'SUPERADMIN' || user.debeCambiarPassword || !tenant.id) return;
     let active = true;
     const refresh = () => {
       const revision = configRevision.current;
@@ -127,7 +131,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     window.addEventListener('focus', refresh);
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 30000);
     return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
-  }, [user?.id, tenant.id, authStatus]);
+  }, [user?.id, user?.debeCambiarPassword, tenant.id, authStatus]);
 
   // Diseño único de Jowa System: solo el color de marca cambia por negocio; tipografía y estilo son fijos.
   // El color se usa tal cual en fondos; el texto encima y el texto de marca sobre fondo claro se derivan legibles.

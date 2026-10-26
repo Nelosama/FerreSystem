@@ -179,7 +179,8 @@
     "save_error": "The user could not be saved.",
     "saved_success": "User {name} saved successfully.",
     "updated_success": "User {name} updated successfully.",
-    "perm_caja_manual": "Record cash in and out"
+    "perm_caja_manual": "Record cash in and out",
+    "locked": "LOCKED"
   },
   "clients": {
     "new_client": "NEW CUSTOMER",
@@ -926,7 +927,6 @@
     "navigation_sidebar": "SIDEBAR · Side menu",
     "navigation_topnav": "TOPNAV · Top menu",
     "navigation_help": "Choose the menu position for this business. Both options keep the contextual bar and authorized access. Mobile keeps bottom navigation.",
-
     "sections": {
       "business": "My business",
       "business_help": "Business name, sector, contact, language, logo and brand color.",
@@ -1786,17 +1786,14 @@
     "no_export_data": "There is no data available to export."
   },
   "security": {
-    "platform": "Super Admin sign-in",
-    "tenant": "Business identifier",
-    "mfa": "MFA code or emergency code (if configured)",
-    "recovery": "Recover access",
-    "employee_help": "Employees recover access with a private link issued by their administrator.",
+    "mfa": "Authenticator app code or emergency code",
+    "recovery": "Private link",
+    "employee_help": "Employees regain access with a private link issued by their administrator.",
     "accepted": "If the account is eligible, instructions will be sent. Employees should contact their administrator.",
     "done": "Request completed. Sign in again if you changed your credentials.",
     "failed": "Unable to complete. Check your details, link expiration and connection.",
     "save_codes": "Store these emergency codes privately. Each works once. They will not be shown again.",
     "send": "Send recovery instructions",
-    "bootstrap": "Set up initial Super Admin MFA",
     "token": "Private link code",
     "secret": "Key for your authenticator application",
     "current": "Current password",
@@ -1810,6 +1807,24 @@
     "enroll": "Set up MFA",
     "load_users": "Load users",
     "employee": "User requesting access",
-    "admin_reset": "Issue private reset link"
+    "admin_reset": "Issue private reset link",
+    "mfa_prompt": "Your account uses two-step verification. Enter the code from your authenticator app.",
+    "temporary": {
+      "title": "Forgot your password?",
+      "help": "If you are an administrator or Super Admin with a verified email, we will send you a temporary password. It works once for 10 minutes and you must create a new one when you sign in.",
+      "send": "Send temporary password",
+      "accepted": "If the account meets the requirements, you will receive a temporary password by email.",
+      "employees": "Cashiers, sellers and other users: contact your administrator. The account locks on the sixth failed attempt."
+    },
+    "required": {
+      "title": "Create a new password",
+      "help": "{nombre}, you signed in with a temporary or assigned password. Create your own password before continuing. All your sessions will be closed.",
+      "confirm": "Repeat the new password",
+      "mismatch": "Passwords do not match.",
+      "submit": "Save new password",
+      "logout": "Sign out",
+      "done": "Password updated. Sign in with your new password."
+    },
+    "tenant": "Business identifier"
   }
 }

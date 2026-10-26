@@ -55,12 +55,13 @@ export function AccountSecurity() {
     {link && <div><p>{t('security.private_link')}</p><input className="form-input" aria-label={t('security.private_link')} readOnly value={link} onFocus={e => e.target.select()} /><button type="button" className="btn btn-secondary" onClick={() => setLink('')}>{t('common.close')}</button></div>}
     <form className="login-formulario" style={{ maxWidth: 440 }} onSubmit={e => { e.preventDefault(); void run('change-password', { currentPassword, password, mfaCode }); }}>
       <label htmlFor="security-current">{t('security.current')}</label><input id="security-current" className="form-input" type="password" autoComplete="current-password" value={currentPassword} onChange={e => setCurrent(e.target.value)} required />
-      <label htmlFor="security-code">{t('security.mfa')}</label><input id="security-code" className="form-input" autoComplete="one-time-code" value={mfaCode} onChange={e => setCode(e.target.value.trim())} />
+      {!platform && <><label htmlFor="security-code">{t('security.mfa')}</label><input id="security-code" className="form-input" autoComplete="one-time-code" value={mfaCode} onChange={e => setCode(e.target.value.trim())} /></>}
       <label htmlFor="security-new">{t('security.new_password')}</label><input id="security-new" className="form-input" type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} required />
       <button className="btn btn-primary" disabled={busy}>{t('security.change')}</button>
       {admin && <>
         <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => run('verification', {})}>{t('security.verify')}</button>
-        <button type="button" className="btn btn-secondary" disabled={busy || !currentPassword} onClick={() => run('mfa/enroll', { currentPassword })}>{t('security.enroll')}</button>
+        {/* MFA opcional para administradores de negocio; el Super Admin no lo usa. */}
+        {!platform && <button type="button" className="btn btn-secondary" disabled={busy || !currentPassword} onClick={() => run('mfa/enroll', { currentPassword })}>{t('security.enroll')}</button>}
         {secret && <><p style={{ overflowWrap: 'anywhere' }}>{t('security.secret')}: {secret}</p><button type="button" className="btn btn-primary" disabled={busy || !mfaCode} onClick={() => run('mfa/confirm', { token, secret, mfaCode })}>{t('security.continue')}</button></>}
         {codes.length > 0 && <><p>{t('security.save_codes')}</p><pre style={{ whiteSpace: 'pre-wrap' }}>{codes.join('\n')}</pre></>}
         {platform && <><label htmlFor="security-tenant">{t('security.tenant')}</label><input id="security-tenant" className="form-input" value={targetTenant} onChange={e => setTargetTenant(e.target.value)} /></>}

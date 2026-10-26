@@ -2,9 +2,14 @@ import { IsString, IsOptional, MaxLength, IsIn, IsNotEmpty } from 'class-validat
 import { IsAllowedPassword } from '../../common/password-policy';
 
 export class RecoveryRequestDto {
+  /** Usuario, código o correo: el mismo identificador del inicio de sesión. */
   @IsString() @IsNotEmpty() @MaxLength(254) email: string;
   @IsOptional() @IsString() @MaxLength(100) tenantId?: string;
-  @IsIn(['tenant', 'super_admin']) scope: 'tenant' | 'super_admin';
+  /** Compatibilidad con clientes anteriores: la cuenta se resuelve por el identificador. */
+  @IsOptional() @IsIn(['tenant', 'super_admin']) scope?: 'tenant' | 'super_admin';
+}
+export class RequiredChangeDto {
+  @IsAllowedPassword() password: string;
 }
 export class ActionDto {
   @IsString() @IsNotEmpty() @MaxLength(100) token: string;

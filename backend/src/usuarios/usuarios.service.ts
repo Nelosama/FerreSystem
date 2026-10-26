@@ -6,7 +6,9 @@ import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { authorizedActor,audit,lockTenant } from '../operaciones/ledger';
 import * as bcrypt from 'bcrypt';
 import { revocarSesionesDeSujeto } from '../auth/sesiones-auth';
-const select={id:true,tenantId:true,nombre:true,email:true,username:true,rol:true,activo:true,permisos:true,permisosConfigurados:true,descuentoMaximo:true,createdAt:true,updatedAt:true} as const;
+import { exigirIdentificadorUnico } from '../auth/credenciales';
+import { AsignarPasswordDto } from './dto/asignar-password.dto';
+const select={id:true,tenantId:true,nombre:true,email:true,username:true,rol:true,activo:true,bloqueadoAt:true,loginFallos:true,debeCambiarPassword:true,permisos:true,permisosConfigurados:true,descuentoMaximo:true,createdAt:true,updatedAt:true} as const;
 @Injectable()
 export class UsuariosService {
  constructor(private readonly prisma:PrismaService){}
@@ -28,6 +30,7 @@ export class UsuariosService {
    await this.authorize(tx,tenantId,actorId,plataforma);
    if(email && await tx.usuario.findFirst({where:{tenantId,email}}))throw new ConflictException('Ya existe un usuario con este correo electrónico');
    if(username && await tx.usuario.findFirst({where:{tenantId,username}}))throw new ConflictException('Identificador ya registrado');
+   await exigirIdentificadorUnico(tx,{email,username});
    const user=await tx.usuario.create({data:{tenantId,nombre:dto.nombre.trim(),email,username,passwordHash,rol:dto.rol||'CAJERO',permisos:dto.permisos||[],permisosConfigurados:dto.permisos!==undefined,descuentoMaximo:dto.descuentoMaximo??0,activo:dto.activo??true},select});
    await audit(tx,tenantId,actorId,'USUARIO_CREAR',user.id,{usuario:user});return user;
   });
@@ -49,6 +52,7 @@ export class UsuariosService {
    const data:any={};
    if(dto.username!==undefined){if(typeof dto.username!=='string')throw new BadRequestException('Identificador inválido');const username=dto.username.toLowerCase().trim();if(await tx.usuario.findFirst({where:{tenantId,username,id:{not:id}}}))throw new ConflictException('Identificador ya registrado');data.username=username;}
    if(email!==undefined && email!==old.email)data.emailVerifiedAt=null;
+   await exigirIdentificadorUnico(tx,{email:email&&email!==old.email?email:null,username:data.username&&data.username!==old.username?data.username:null,excluirId:id});
    if(dto.nombre!==undefined)data.nombre=dto.nombre.trim();if(email!==undefined)data.email=email;if(passwordHash)data.passwordHash=passwordHash;
    if(dto.rol!==undefined)data.rol=dto.rol;if(dto.activo!==undefined)data.activo=dto.activo;
    if(dto.permisos!==undefined){data.permisos=dto.permisos;data.permisosConfigurados=true;}
@@ -59,6 +63,39 @@ export class UsuariosService {
    // Operación explícita para desactivar/reactivar: queda en la auditoría con quién lo hizo y el estado anterior.
    const operacion=dto.activo===false&&old.activo?'USUARIO_DESACTIVAR':dto.activo===true&&!old.activo?'USUARIO_REACTIVAR':'USUARIO_EDITAR';
    await audit(tx,tenantId,actorId,operacion,id,{anterior:old,nuevo:user,cambioPassword:!!passwordHash});return user;
+  });
+ }
+ /** Reactiva una cuenta bloqueada por intentos fallidos o desactivada. Admin de la empresa o Super Admin. */
+ async desbloquear(tenantId:string,id:string,actorId:string,plataforma=false){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   await this.authorize(tx,tenantId,actorId,plataforma);
+   const old=await tx.usuario.findFirst({where:{tenantId,id},select});if(!old)throw new NotFoundException('Usuario no encontrado');
+   if(id===actorId)throw new ConflictException('Otro administrador o el Super Admin debe reactivar su cuenta');
+   const user=await tx.usuario.update({where:{id},data:{activo:true,bloqueadoAt:null,loginFallos:0},select});
+   await audit(tx,tenantId,actorId,'USUARIO_REACTIVAR',id,{anterior:{activo:old.activo,bloqueadoAt:old.bloqueadoAt,loginFallos:old.loginFallos},nuevo:{activo:true,bloqueadoAt:null},desbloqueo:true,...(plataforma&&{superAdminId:actorId})});
+   await tx.authEvent.create({data:{actorId,sujetoId:id,tenantId,event:'ACCOUNT_UNLOCKED'}});
+   return user;
+  });
+ }
+ /**
+  * Super Admin asigna una contraseña a un usuario de cualquier empresa tras confirmar la suya. El usuario debe
+  * cambiarla al entrar; se revocan sus sesiones y enlaces pendientes. La contraseña no se registra en ninguna auditoría.
+  */
+ async asignarPassword(tenantId:string,id:string,dto:AsignarPasswordDto,actorId:string){
+  const passwordHash=await bcrypt.hash(dto.password,12);
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   await this.authorize(tx,tenantId,actorId,true);
+   const actor=await tx.superAdmin.findFirst({where:{id:actorId,activo:true}});
+   if(!actor||!await bcrypt.compare(dto.currentPassword,actor.passwordHash))throw new ForbiddenException('Confirme con su contraseña de Super Admin');
+   const old=await tx.usuario.findFirst({where:{tenantId,id},select});if(!old)throw new NotFoundException('Usuario no encontrado');
+   const user=await tx.usuario.update({where:{id},data:{passwordHash,debeCambiarPassword:true,loginFallos:0,bloqueadoAt:null},select});
+   await revocarSesionesDeSujeto(tx,id,'CAMBIO_CONTRASEÑA');
+   await tx.authAction.deleteMany({where:{sujetoId:id}});
+   await audit(tx,tenantId,actorId,'USUARIO_CAMBIO_PASSWORD',id,{cambioPassword:true,debeCambiarPassword:true,desbloqueo:!!old.bloqueadoAt,superAdminId:actorId});
+   await tx.authEvent.create({data:{actorId,sujetoId:id,tenantId,event:'PASSWORD_SET_BY_SUPER_ADMIN'}});
+   return user;
   });
  }
  /** Eliminación lógica: no se borra ninguna fila (el historial de ventas, caja y auditoría la referencia). Desactiva y revoca sesiones. */

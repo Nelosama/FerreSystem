@@ -1,4 +1,5 @@
-import { requireMfa } from '../auth/mfa';
+import { consumirClaveTemporal, exigirIdentificadorUnico, registrarExitoCuenta, registrarFalloCuenta, verificarClave } from '../auth/credenciales';
+import { AsignarPasswordDto } from '../usuarios/dto/asignar-password.dto';
 import { missingPasswordCheck } from '../auth/password-timing';
 import { UsuariosService } from '../usuarios/usuarios.service';
 import { CreateUsuarioDto } from '../usuarios/dto/create-usuario.dto';
@@ -48,6 +49,12 @@ export class SuperAdminService {
   }
   desactivarUsuarioNegocio(tenantId: string, id: string, actor: string) {
     return new UsuariosService(this.prisma).update(tenantId, id, { activo: false }, actor, true);
+  }
+  desbloquearUsuarioNegocio(tenantId: string, id: string, actor: string) {
+    return new UsuariosService(this.prisma).desbloquear(tenantId, id, actor, true);
+  }
+  asignarPasswordUsuarioNegocio(tenantId: string, id: string, dto: AsignarPasswordDto, actor: string) {
+    return new UsuariosService(this.prisma).asignarPassword(tenantId, id, dto, actor);
   }
   async sucursalesNegocio(tenantId: string) {
     await this.existeNegocio(tenantId);
@@ -140,18 +147,25 @@ export class SuperAdminService {
       await missingPasswordCheck(password);
       throw new UnauthorizedException('Credenciales de Super Admin inválidas');
     }
-    const passwordValido = await bcrypt.compare(password, admin.passwordHash);
-    if (!passwordValido) {
+    // Sin MFA: contraseña vigente o clave temporal de un solo uso, con los mismos fallos por cuenta que /auth/login.
+    const clave = await verificarClave(this.prisma, admin, true, password);
+    if (!clave) {
+      await registrarFalloCuenta(this.prisma, admin, true);
       throw new UnauthorizedException('Credenciales de Super Admin inválidas');
     }
-    await requireMfa(this.prisma, admin, true, loginDto.mfaCode, this.configService);
+    let vigente: any = admin;
+    if (clave === 'TEMPORAL') {
+      vigente = await consumirClaveTemporal(this.prisma, admin, true, password);
+      if (!vigente) throw new UnauthorizedException('Credenciales de Super Admin inválidas');
+    } else {
+      await registrarExitoCuenta(this.prisma, admin, true);
+    }
     const sid = randomUUID();
     const payload = {
       sub: admin.id,
       email: admin.email,
       rol: 'SUPER_ADMIN',
       type: 'super_admin',
-      mfa: true,
       sid,
     };
     const accessToken = this.jwtService.sign(payload, {
@@ -173,6 +187,7 @@ export class SuperAdminService {
         id: admin.id,
         nombre: admin.nombre,
         email: admin.email,
+        debeCambiarPassword: !!vigente.debeCambiarPassword,
       },
     };
   }
@@ -192,7 +207,7 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Refresh token de Super Admin inválido');
     }
-    if (!decoded.sid || decoded.mfa !== true) {
+    if (!decoded.sid) {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Sesión de Super Admin cerrada o vencida');
     }
@@ -211,7 +226,7 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Sesión de Super Admin cerrada o vencida');
     }
-    const payload = { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true, sid: decoded.sid };
+    const payload = { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', sid: decoded.sid };
     const accessToken = this.jwtService.sign(payload, { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any });
     const restanteMs = rotacion.expiresAt.getTime() - Date.now();
     const nuevoRefresh = this.jwtService.sign({ ...payload, typ: 'refresh' }, { expiresIn: Math.max(1, Math.floor(restanteMs / 1000)), jwtid: rotacion.jti });
@@ -458,6 +473,7 @@ export class SuperAdminService {
       if (!await tx.tenant.findUnique({ where: { id: tenantId } })) throw new NotFoundException('Empresa no encontrada');
       const email = dto.email.trim().toLowerCase();
       if (await tx.usuario.findFirst({ where: { tenantId, email } })) throw new BadRequestException('Correo ya registrado en esta empresa');
+      await exigirIdentificadorUnico(tx, { email });
       const creado = await tx.usuario.create({ data: { tenantId, nombre: dto.nombre.trim(), email, passwordHash, rol: 'ADMIN', activo: dto.activo ?? true }, select: { id: true, tenantId: true, nombre: true, email: true, activo: true, rol: true, createdAt: true } });
       if (actorId) await audit(tx, tenantId, actorId, 'USUARIO_CREAR', creado.id, { usuario: creado, superAdminId: actorId });
       return creado;
@@ -474,6 +490,7 @@ export class SuperAdminService {
       if (current.activo && dto.activo === false && await tx.usuario.count({ where: { tenantId, rol: 'ADMIN', activo: true } }) <= 1) throw new BadRequestException('Conserve al menos un administrador activo');
       const email = dto.email?.trim().toLowerCase();
       if (email && await tx.usuario.findFirst({ where: { tenantId, email, id: { not: userId } } })) throw new BadRequestException('Correo ya registrado en esta empresa');
+      if (email && email !== current.email) await exigirIdentificadorUnico(tx, { email, excluirId: userId });
       const actualizado = await tx.usuario.update({ where: { id: userId }, data: { ...(dto.nombre !== undefined && { nombre: dto.nombre.trim() }), ...(email !== undefined && { email, emailVerifiedAt: null }), ...(dto.activo !== undefined && { activo: dto.activo }), ...(passwordHash && { passwordHash }) }, select: { id: true, tenantId: true, nombre: true, email: true, activo: true, rol: true, createdAt: true } });
       // Cambio de contraseña o desactivación: las sesiones abiertas del administrador dejan de valer.
       if (passwordHash || dto.activo === false) await revocarSesionesDeSujeto(tx, userId, passwordHash ? 'CAMBIO_CONTRASEÑA' : 'USUARIO_DESACTIVADO');
@@ -495,6 +512,7 @@ export class SuperAdminService {
     if (!isPasswordAllowed(dto.adminPassword)) throw new BadRequestException(PASSWORD_POLICY_MESSAGE);
     const emailNormalizado = dto.adminEmail.toLowerCase().trim();
     return this.prisma.$transaction(async (tx) => {
+      await exigirIdentificadorUnico(tx, { email: emailNormalizado });
       const tenant = await tx.tenant.create({
         data: {
           nombreComercial: dto.nombreComercial,

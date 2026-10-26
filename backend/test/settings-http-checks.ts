@@ -80,10 +80,9 @@ export async function checkSettingsHttp(prisma: PrismaService, base: string) {
     }
   }
   if (process.env.REAL_SETTINGS_BROWSER === '1') {
-    const browserCodes: string[] = []; for (let i = 0; i < 10; i++) browserCodes.push(await syntheticPlatformMfa(prisma, superadmin.email));
     execFileSync(process.execPath, [resolve('test/real-settings-browser.mjs')], {
       timeout: 60000, windowsHide: true, stdio: 'inherit',
-      env: { ...process.env, VITE_API_URL: '/api', SETTINGS_API: base, SETTINGS_EMAIL: superadmin.email, SETTINGS_TENANT: a.id, SETTINGS_PASSWORD: password, SETTINGS_MFA_CODES: browserCodes.join(',') },
+      env: { ...process.env, VITE_API_URL: '/api', SETTINGS_API: base, SETTINGS_EMAIL: superadmin.email, SETTINGS_TENANT: a.id, SETTINGS_PASSWORD: password },
     });
     expect((await settings(token)).nombreComercial).toBe('Marca navegador real');
     expect(await settings(adminB.accessToken)).toEqual(bBefore);
