@@ -19,7 +19,9 @@ try {
     await page.goto(`${origin}/login`);
     await page.locator('#login-correo').fill(process.env.SETTINGS_EMAIL);
     await page.locator('#login-clave').fill(process.env.SETTINGS_PASSWORD);
-    await page.getByLabel('Acceso de Super Admin').check();
+    // Login de dos campos: no hay casilla de Super Admin. Tras la contraseña correcta el servidor responde MFA_REQUERIDO
+    // y la pantalla muestra el campo del código (MFA obligatorio del Super Admin).
+    await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await page.locator('#login-mfa').fill(mfaCodes.shift());
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await page.waitForURL((url) => !url.pathname.startsWith('/login'));
