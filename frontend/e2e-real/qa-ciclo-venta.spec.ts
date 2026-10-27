@@ -95,6 +95,12 @@ function venta(request: APIRequestContext, token: string, data: unknown) {
   return request.post(`${API}/ventas`, { headers: auth(token), data });
 }
 
+// El POS indexa el catálogo al cargarlo (/productos/comercial). Buscar antes de esa respuesta no encuentra nada y
+// la prueba fallaba por una carrera, no por una regresión: se espera el evento de carga, sin esperas por tiempo.
+function catalogoPOSCargado(page: Page) {
+  return page.waitForResponse((r) => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith('/productos/comercial') && r.ok(), { timeout: 30000 });
+}
+
 async function ingresar(page: Page, email: string, ruta: string) {
   await page.goto('/login');
   await page.locator('#login-correo').fill(email);
@@ -469,7 +475,9 @@ test.describe('13. Reportes de ventas', () => {
 
 test.describe('14. Operación de la interfaz POS', () => {
   test('14.1 contado en el POS: cobra en efectivo y la venta queda en base de datos', async ({ page }) => {
+    const catalogo = catalogoPOSCargado(page);
     await ingresar(page, EM.cajero1, '/pos');
+    await catalogo;
     const buscar = page.getByPlaceholder('Buscar por código o nombre de producto...');
     await buscar.fill(COD.ui);
     await expect(page.locator('.pos-producto').filter({ hasText: COD.ui })).toBeVisible();
@@ -488,7 +496,9 @@ test.describe('14. Operación de la interfaz POS', () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       await route.fulfill({ response });
     });
+    const catalogo = catalogoPOSCargado(page);
     await ingresar(page, EM.cajero1, '/pos');
+    await catalogo;
     const buscar = page.getByPlaceholder('Buscar por código o nombre de producto...');
     await buscar.fill(COD.dbl);
     await expect(page.locator('.pos-producto').filter({ hasText: COD.dbl })).toBeVisible();
@@ -514,7 +524,9 @@ test.describe('14. Operación de la interfaz POS', () => {
       }
       return route.continue();
     });
+    const catalogo = catalogoPOSCargado(page);
     await ingresar(page, EM.cajero1, '/pos');
+    await catalogo;
     const buscar = page.getByPlaceholder('Buscar por código o nombre de producto...');
     await buscar.fill(COD.ui);
     await expect(page.locator('.pos-producto').filter({ hasText: COD.ui })).toBeVisible();

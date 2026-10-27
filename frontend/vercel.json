@@ -41,6 +41,7 @@
   ],
   "git": {
     "deploymentEnabled": {
+      "claude/pos-sincronizacion-precios": false,
       "codex/pr202-auditoria-precios": false,
       "claude/sweet-davinci-vh7br4": false,
       "claude/revision-seguridad-jowa-20261020": false,

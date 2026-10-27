@@ -1,5 +1,5 @@
 #!/bin/sh
-if [ "$VERCEL_GIT_COMMIT_REF" = "codex/pr202-auditoria-precios" ]; then
+if [ "$VERCEL_GIT_COMMIT_REF" = "codex/pr202-auditoria-precios" ] || [ "$VERCEL_GIT_COMMIT_REF" = "claude/pos-sincronizacion-precios" ]; then
   exit 0
 fi
 
