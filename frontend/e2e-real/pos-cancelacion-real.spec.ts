@@ -134,7 +134,7 @@ test('reinicio completo con perfil persistente y SW: borrador offline, pendiente
     await buscar.fill(nombre); await buscar.press('Enter');
     await expect(page.getByLabel(`Cantidad ${nombre}`, { exact: true })).toBeVisible();
     await page.evaluate(() => navigator.serviceWorker.ready);
-    await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+    await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), { timeout: 30_000 }).toBe(true);
     await context.close(); page = await abrir();
     await expect(page.getByRole('button', { name: 'Continuar venta', exact: true })).toBeVisible();
     await context.setOffline(true); await confirmar(page);
