@@ -2193,6 +2193,13 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 
 ---
 
+## Consolidación autorizada POS #202 + #204 — 2026-10-27 UTC
+
+- El usuario autorizó expresamente el merge normal de #204 en la rama de #202, sin rebase/force push, ni merge a main o despliegue. #204 `ca54c775` no era ancestro de #202 `cf194ee7`; merge normal `8a3d07b8`, sin conflictos y árbol idéntico al validado.
+- Se conservan catálogo/borradores/excepción/idempotencia y total silencioso/segundo clic. Se bloquean previews de la rama principal del POS antes de publicar.
+- Compatibilidad revisada contra #180 `3c84a7a`, #203 `5269b99` y #205 `2e20f9f`. #180/#205 comparten una espera de catálogo: combinación temporal resuelta conservando espera HTTP, tarjeta visible y latencia de la regresión; no se integran sus funcionalidades en #202 ni se modifican sus ramas. Resultados de builds, unitarias, PostgreSQL y E2E de las combinaciones, CI del HEAD final y dictamen actualizado: #202.
+- NEXUS: cero migraciones/esquema propios y bases de prueba efímeras. Las condiciones físicas y fiscales del informe anterior no certifican producción; el dictamen técnico de esta consolidación corresponde a los checks del nuevo HEAD de #202.
+
 **FIN DEL CONTEXTO VIGENTE**
 
 
