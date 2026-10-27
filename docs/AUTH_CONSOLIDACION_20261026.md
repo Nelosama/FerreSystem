@@ -122,3 +122,5 @@ Verificado en PostgreSQL 16 efímero: sobre una base con esta migración, `migra
 ## 7. Pruebas
 
 Código `5443672`, PostgreSQL 16 efímero y Chromium 1243: backend 621/621, integración completa 65 archivos 1141/0/1, frontend 542/542, Playwright 390/0/26 + móvil 16/16 y 48/48, piloto real 171/0/4. Detalle, primeras pasadas fallidas y limitaciones: ver la descripción del PR y la bitácora de `CONTEXTO_MAESTRO.md`. Matriz principal: `backend/test/auth-recovery.postgres.integration.ts`; unitarias: `backend/src/auth/login-unico.spec.ts`; navegador: `frontend/e2e/auth-security.spec.ts`.
+
+Corrección posterior (2026-10-27): el fixture `backend/test/real-settings-browser.mjs`, que solo corre con `REAL_SETTINGS_BROWSER=1` (CI), usaba la casilla de Super Admin del login antiguo; ahora sigue el flujo de dos pasos con MFA. Con esa variable, integración completa local 1142/1142 sin omisiones.
