@@ -8,6 +8,17 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
+## Auditoría contable e integración #180 · #202 · #203 — 2026-10-27 UTC (rama `claude/jowa-production-audit-integration-mvd8vl`, sin merge ni despliegue)
+
+- **Ramas:** trabajo derivado de #180 `3c84a7a` → `claude/jowa-production-audit-integration-mvd8vl`; ensayo #180 + correcciones + #203 `6d23eec` + #202 `59e739d` → `claude/jowa-production-audit-integration-mvd8vl-ensayo`. No se modificaron las ramas de #180, #202 ni #203. Informe completo, matriz de conflictos y P0/P1/P2: [AUDITORIA_INTEGRACION_JOWA_20261027.md](AUDITORIA_INTEGRACION_JOWA_20261027.md).
+- **Corregido:** AI-01 (P0) migraciones de Contabilidad ordenadas antes de `20261023000000_auth_recovery` de `main` → base actualizada con `main` quedaba `BLOQUEADA`; renombradas a `20261027000100/200` (mismo checksum). AI-02 guard de CI con regla de orden (`verificar-migraciones.mjs`). AI-03 cartera CxC/CxP de solo lectura para el CONTADOR (`contabilidad/cartera.ts`, `GET /contabilidad/cartera`, Excel «cartera», ruta `/contabilidad/cartera`) con integridad frente a `cuentas_operativas` y `clientes.saldo_pendiente`. AI-04 exento/gravado al documentar ventas convertidas de cotización.
+- **Conflictos:** #203 → 8 textuales resueltos en el ensayo y AI-05 semántico (#180 exige Resend en producción; #203 usa Gmail SMTP): resuelto en el ensayo con las variables Gmail; política pendiente del dueño. #202 → sin conflictos; P1 de política de precios (permiso `pos.excepcion_precio` sin interfaz; cotizaciones con precio distinto).
+- **Pruebas:** rama de trabajo: backend 689/689, scripts 52/52, frontend 559/559, PostgreSQL 1165 + 1 fallo de entorno repetido en verde, contabilidad 33/33, navegador contabilidad 17/17. Ensayo: backend 725/725, frontend 562/562, PostgreSQL 1198/0 (1 omitida), navegador simulado 416/0 (26 omitidas). Actualización desde base en estado `main`: LISTA, sin deriva. No ejecutado: `e2e-real` local, dispositivos físicos.
+- **Orden recomendado:** #203 → #202 → #180 (+ esta rama, sincronizada con `main` y con AI-05). **Dictamen:** producción NO APTA hasta cerrar los P0 de configuración, identificadores duplicados, MFA del Super Admin, respaldo restaurable y AI-05.
+- **NEXUS:** renombrado de migraciones sin cambio de contenido; verificado con `migration-safe` y `migrate diff` en clústeres efímeros. Confirmar en producción (solo lectura) que no existen los nombres antiguos antes de desplegar.
+- **Entorno (no código):** como root, `initdb` necesita envolturas `runuser -u nobody` y un `TMPDIR` recorrible por `nobody` (p. ej. `/var/tmp/...`); `PG_BIN` debe incluir también `pg_restore`/`pg_dump`/`createdb`.
+
+
 
 ## Validación del HEAD `03ef20aa` de PR #180 — 2026-10-26 UTC (rama `feat/contabilidad-honduras`, draft, sin merge, despliegue ni migraciones en producción)
 
