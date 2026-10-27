@@ -117,7 +117,32 @@ Verificado en PostgreSQL 16 efímero: sobre una base con esta migración, `migra
 
 ## 6. Configuración antes de producción
 
-`AUTH_MFA_ENCRYPTION_KEY` (64 hex, respaldada), `AUTH_MAIL_RESEND_API_KEY`, `AUTH_MAIL_FROM` y `AUTH_PUBLIC_URL` (HTTPS); enrolar el MFA del Super Admin propietario (sin él no entra); los Admin deben verificar su correo para poder recuperar; ejecutar el script de duplicados. No se envió ningún correo real.
+| Variable | Requerida | Uso |
+|---|---|---|
+| `AUTH_MFA_ENCRYPTION_KEY` | Sí | 64 hex, respaldada en el gestor de secretos. Sin ella ningún Super Admin entra |
+| `AUTH_MAIL_GMAIL_USER` | Sí (correo) | Dirección completa de la cuenta Gmail **dedicada** a Jowa System; también es el remitente |
+| `AUTH_MAIL_GMAIL_APP_PASSWORD` | Sí (correo) | Contraseña de aplicación de esa cuenta (16 caracteres). Nunca la contraseña normal |
+| `AUTH_MAIL_FROM_NAME` | No | Nombre visible del remitente; por defecto «Jowa System» |
+| `AUTH_PUBLIC_URL` | Sí (correo) | Origen HTTPS del frontend para los enlaces |
+
+`AUTH_MAIL_RESEND_API_KEY` y `AUTH_MAIL_FROM` ya no se usan; si siguen definidas, el arranque avisa (sin valores) y no hay respaldo con Resend. Las tres variables de correo van juntas: una configuración parcial o mal escrita impide arrancar; sin ninguna, el correo de seguridad queda desactivado y la recuperación responde igual sin emitir credenciales.
+
+**Correo: Gmail SMTP con contraseña de aplicación** (decisión del propietario, 2026-10-27, para no depender de Resend):
+- **Implementación:** `backend/src/auth/recovery-mail.service.ts`, `nodemailer` 10.0.16 (versión exacta, sin dependencias). Servidor fijo `smtp.gmail.com:465`, TLS implícito con mínimo TLS 1.2 y certificado verificado, plazo de 8 s, sin registros del transporte. Los errores del servidor nunca se reenvían ni se registran. Si un envío falla se borra la credencial o el enlace emitido (temporal, verificación de correo, enrolamiento MFA), así que nada queda utilizable sin haberse recibido.
+- **Requisitos de Google** (documentación oficial, consultada el 2026-10-27 mediante búsqueda en `support.google.com`; el entorno de trabajo bloquea el acceso directo a esos dominios):
+  - Las contraseñas de aplicación exigen la verificación en dos pasos activa.
+  - No están disponibles si la cuenta tiene la verificación en dos pasos solo con llaves de seguridad, usa Protección Avanzada o es de trabajo/escuela y el administrador no lo permite.
+  - Cambiar la contraseña de la cuenta las revoca.
+  - Google las desaconseja frente a OAuth, pero siguen documentadas para SMTP en `smtp.gmail.com` (465 SSL / 587 TLS).
+  - Desde 2025 Google rechaza el acceso con la contraseña normal («apps menos seguras»), que este backend no usa ni admite.
+- **Límites:** Gmail personal, alrededor de 500 mensajes al día; Google Workspace, 2000 al día por SMTP. Son ventanas móviles de 24 h y suficientes para correos de seguridad. Si la cuenta se bloquea por superar el límite, la recuperación por correo se detiene hasta que se libere, sin exponer credenciales.
+- **Pasos del propietario:**
+  1. Crear una cuenta Gmail dedicada (no personal) y activar la verificación en dos pasos con un método distinto a «solo llaves».
+  2. Generar una contraseña de aplicación solo para este backend y guardarla en el gestor de secretos de Render. Nunca en el repositorio, en commits ni en variables `VITE_*`.
+  3. Definir las variables y probar una entrega real en un entorno no productivo antes de liberar.
+- **Si las contraseñas de aplicación no están disponibles** para esa cuenta (llaves de seguridad, Protección Avanzada o política de Workspace), la alternativa es Gmail API con OAuth 2.0. No está implementada; requiere un cliente OAuth y un refresh token de la cuenta dedicada.
+
+Además: enrolar el MFA del Super Admin propietario (sin él no entra); los Admin deben verificar su correo para poder recuperar; ejecutar el script de duplicados. No se envió ningún correo real.
 
 ## 7. Pruebas
 

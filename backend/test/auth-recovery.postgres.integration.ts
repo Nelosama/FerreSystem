@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { RecoveryService } from '../src/auth/recovery.service';
+import { RecoveryMailService } from '../src/auth/recovery-mail.service';
 import { AuthService } from '../src/auth/auth.service';
 import { JwtStrategy } from '../src/auth/jwt.strategy';
 import { tokenHash, opaqueToken, sealSecret, totp } from '../src/auth/mfa';
@@ -607,6 +608,46 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
       await service.request({ usuario: a.email }, nextIp().ip);
       expect(await db.authAction.count({ where: { sujetoId: a.id, purpose: 'TEMP_PASSWORD' } })).toBe(0);
     }, 30000);
+  });
+
+  describe('correo por Gmail SMTP (transporte simulado, sin envío real)', () => {
+    const correo = new ConfigService({ ...values, AUTH_MAIL_GMAIL_USER: 'seguridad.jowa@example.test', AUTH_MAIL_GMAIL_APP_PASSWORD: 'abcdwxyzabcdwxyz', AUTH_PUBLIC_URL: 'https://jowa.example.test' });
+    const servicioCon = (sendMail: any) => {
+      const fabrica = vi.fn(() => ({ sendMail, close: vi.fn() }));
+      return { svc: new RecoveryService(db as any, correo, new RecoveryMailService(correo, fabrica)), fabrica };
+    };
+    it('recuperación de extremo a extremo: la temporal llega por SMTP a smtp.gmail.com:465 y entra una sola vez', async () => {
+      const a = await account();
+      for (let i = 0; i < 3; i++) await failure(login(a.email, 'mala'));
+      const enviados: any[] = [];
+      const { svc, fabrica } = servicioCon(vi.fn(async (m: any) => { enviados.push(m); return { messageId: 'sintetico' }; }));
+      await svc.request({ usuario: a.email }, nextIp().ip);
+      expect(fabrica).toHaveBeenCalledWith(expect.objectContaining({ host: 'smtp.gmail.com', port: 465, secure: true }));
+      expect(enviados).toHaveLength(1);
+      expect(enviados[0]).toMatchObject({ to: a.email, from: '"Jowa System" <seguridad.jowa@example.test>' });
+      const temporal = /Temporary password: (\S+)/.exec(enviados[0].text)![1];
+      expect(((await login(a.email, temporal)) as any).type).toBe('password_change_required');
+      expect((await failure(login(a.email, temporal))).getStatus()).toBe(401);
+    }, 30000);
+    it('si Gmail rechaza el envío, no queda ninguna temporal ni enlace utilizable y la respuesta no cambia', async () => {
+      const a = await account(), sa = await account(true);
+      await db.superAdmin.update({ where: { id: sa.id }, data: { mfaSecret: null } });
+      for (let i = 0; i < 3; i++) await failure(login(a.email, 'mala'));
+      const rechazo = vi.fn().mockRejectedValue(Object.assign(new Error('535-5.7.8 Username and Password not accepted abcdwxyzabcdwxyz'), { responseCode: 535 }));
+      const { svc } = servicioCon(rechazo);
+      const elegible = await svc.request({ usuario: a.email }, nextIp().ip);
+      expect(elegible).toEqual(await svc.request({ usuario: `nadie-${randomUUID()}@example.invalid` }, nextIp().ip));
+      expect(await db.authAction.count({ where: { sujetoId: a.id } })).toBe(0);
+      // Verificación de correo: 503 genérico y el token no entregado se borra.
+      const verificacion: any = await svc.requestVerification(a.identity).catch(e => e);
+      expect(verificacion.getStatus()).toBe(503);
+      expect(JSON.stringify(verificacion.getResponse())).not.toMatch(/535|abcdwxyz/);
+      expect(await db.authAction.count({ where: { sujetoId: a.id, purpose: 'VERIFY_EMAIL' } })).toBe(0);
+      // Enrolamiento MFA inicial del Super Admin: tampoco queda el enlace.
+      await svc.requestBootstrap(sa.email, password, nextIp().ip);
+      expect(await db.authAction.count({ where: { sujetoId: sa.id, purpose: 'BOOTSTRAP_MFA' } })).toBe(0);
+      expect(rechazo).toHaveBeenCalledTimes(3);
+    }, 60000);
   });
 
   it.each(['CAJERO', 'VENDEDOR', 'BODEGUERO', 'ADMIN'] as Rol[])('ya no acepta el token heredado RESET_EMAIL (%s): la recuperación por correo es la temporal', async rol => {

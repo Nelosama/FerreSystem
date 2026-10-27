@@ -36,13 +36,14 @@ Los enlaces llevan el token en el fragmento y React lo retira de la URL; no se g
 | Variable backend | Uso |
 |---|---|
 | `AUTH_MFA_ENCRYPTION_KEY` | 32 bytes aleatorios expresados como 64 caracteres hexadecimales; clave dedicada distinta de JWT_SECRET |
-| `AUTH_MAIL_RESEND_API_KEY` | API key privada de Resend restringida al envío |
-| `AUTH_MAIL_FROM` | Remitente de un dominio verificado en Resend |
+| `AUTH_MAIL_GMAIL_USER` | Dirección completa de la cuenta Gmail **dedicada** a Jowa System (también es el remitente) |
+| `AUTH_MAIL_GMAIL_APP_PASSWORD` | Contraseña de aplicación de Google de esa cuenta (16 caracteres; requiere verificación en dos pasos). Nunca la contraseña normal |
+| `AUTH_MAIL_FROM_NAME` | Opcional: nombre visible del remitente (por defecto «Jowa System») |
 | `AUTH_PUBLIC_URL` | Origen HTTPS definitivo del frontend, sin credenciales ni datos del usuario |
 | `FRONTEND_URLS`, `NODE_ENV`, `TRUST_PROXY` | Conservar CORS/orígenes exactos, modo production y número real de proxies |
 | `JWT_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN` | Conservar las claves y políticas existentes; una rotación de JWT_SECRET termina sesiones, no cambia contraseñas |
 
-No se ha creado cuenta de correo, comprado dominio, cambiado DNS, configurado secretos externos ni enviado correo real. El adaptador usa `fetch` nativo, sin SDK nuevo. Configurar y probar Resend con dominio/remitente verificado, SPF/DKIM/DMARC según el proveedor y tracking desactivado para estos enlaces. Ver [envío](https://resend.com/docs/api-reference/emails/send-email) y [dominios](https://resend.com/docs/dashboard/domains/introduction).
+No se ha creado ninguna cuenta de correo, configurado secretos externos ni enviado correo real. **Proveedor (2026-10-27): Gmail SMTP** (`smtp.gmail.com:465`, TLS implícito ≥ 1.2, certificado verificado) con contraseña de aplicación, mediante `nodemailer` (versión exacta). Resend se retiró por decisión del propietario y no queda como respaldo. Detalle, requisitos de la cuenta y límites de envío: [AUTH_CONSOLIDACION_20261026.md](AUTH_CONSOLIDACION_20261026.md) §6.
 
 Guardar la clave MFA y su respaldo en el gestor de secretos. Perderla impide descifrar TOTP; no cambiarla sin un plan explícito de recifrado. Reloj/NTP correcto en hosts y dispositivos. Probar la entrega real y enlaces en los dominios definitivos y cookies de Safari/PWA; preferir API en el mismo sitio para evitar cookies de terceros. Nunca copiar estos secretos a variables `VITE_*`.
 

@@ -1,6 +1,7 @@
 import { noStore } from './common/no-store.middleware';
 import { crearCabecerasSeguridad } from './common/cabeceras-seguridad.middleware';
 import { NestFactory } from '@nestjs/core';
+import { Logger } from '@nestjs/common';
 import * as express from 'express';
 import { AppModule } from './app.module';
 import * as cookieParserImport from 'cookie-parser';
@@ -8,6 +9,7 @@ import { configurarPipesGlobales } from './common/pipes/profundidad-maxima.pipe'
 import { errorDeConfiguracionContingencia } from './contingencia/clave-operaciones';
 import { createFrontendCorsOptions } from './common/frontend-cors';
 import { leerTrustProxy, validarConfiguracionAuth } from './auth/auth-config';
+import { validarConfiguracionCorreo } from './auth/recovery-mail.service';
 
 const cookieParser = (cookieParserImport as any).default || cookieParserImport;
 
@@ -29,6 +31,8 @@ async function bootstrap() {
 
   // Falla al arrancar si la configuración de autenticación es inválida.
   validarConfiguracionAuth(process.env);
+  // Correo de seguridad (Gmail SMTP): configuración parcial o mal escrita impide arrancar; los avisos no incluyen valores.
+  for (const aviso of validarConfiguracionCorreo(process.env)) new Logger('Correo').warn(aviso);
   // Detrás de un proxy (Render), req.ip solo es el cliente real si el número de proxies confiables está configurado.
   const trustProxy = leerTrustProxy(process.env.TRUST_PROXY);
   if (trustProxy) app.getHttpAdapter().getInstance().set('trust proxy', trustProxy);

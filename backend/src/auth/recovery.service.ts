@@ -110,11 +110,20 @@ export class RecoveryService {
     return accepted;
   }
 
+  /** Un enlace que no se pudo entregar no debe quedar vigente: se borra antes de propagar el error genérico. */
+  private async enviarEnlace(to: string, token: string, purpose: string, tenantId?: string) {
+    try { await this.mail.send(to, token, purpose, tenantId); }
+    catch (error) {
+      await this.prisma.authAction.deleteMany({ where: { hash: tokenHash(token) } }).catch(() => undefined);
+      throw error;
+    }
+  }
+
   async requestVerification(identity: Identity) {
     const { account, platform } = await this.account(this.prisma, identity);
     if (!account.email || (!platform && account.rol !== 'ADMIN')) throw new BadRequestException('Solo administradores con correo pueden verificarlo');
     const token = await this.prisma.$transaction(async tx => { await this.lock(tx, account.id); return this.action(tx, account, platform, 'VERIFY_EMAIL'); });
-    await this.mail.send(account.email, token, 'VERIFY_EMAIL', platform ? undefined : account.tenantId);
+    await this.enviarEnlace(account.email, token, 'VERIFY_EMAIL', platform ? undefined : account.tenantId);
     return accepted;
   }
 
@@ -129,7 +138,7 @@ export class RecoveryService {
         const token = await this.prisma.$transaction(async tx => {
           await this.lock(tx, account.id); return this.action(tx, account, true, 'BOOTSTRAP_MFA');
         });
-        await this.mail.send(account.email, token, 'BOOTSTRAP_MFA');
+        await this.enviarEnlace(account.email, token, 'BOOTSTRAP_MFA');
       }
     } catch { this.logger.error('Enrolamiento inicial no entregado; revisar infraestructura de correo'); }
     finally { await delay(Math.max(0, 8500 - (Date.now() - started))); }
