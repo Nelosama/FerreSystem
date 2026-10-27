@@ -148,6 +148,30 @@ export function calcularRetencion(d: ImportesDocumento & { total: number }, base
 /** Importes de una venta tal como los guarda el POS (ISV sobre subtotal − descuento). */
 export interface VentaFiscal { subtotal: number; descuento: number; isv: number; total: number }
 
+/** Origen de una venta convertida desde cotización: tasa aplicada y líneas (subtotal tras su descuento) exentas o gravadas. */
+export interface OrigenCotizacion { porcentajeIsv: number; lineas: { subtotal: number; exento: boolean }[] }
+
+/**
+ * Importes fiscales de una venta. La venta directa del POS siempre grava todo al 15 %; una venta convertida desde
+ * cotización (solo ADMIN) puede llevar líneas exentas o una tasa distinta, que la venta no guarda desglosadas. La parte
+ * exenta se reconstruye de las líneas de la cotización, prorrateando el descuento general como lo hace la cotización
+ * (centavos enteros, mitad hacia arriba). Si la tasa aplicada no es la tasa general configurada, no se adivina la
+ * categoría: el desglose debe registrarse a mano.
+ */
+export function importesDeVenta(v: VentaFiscal, origen: OrigenCotizacion | null, tasaGeneral: number | null): ImportesDocumento {
+  const cv = (x: number) => aCentavos(Number(x));
+  const base = cv(v.subtotal) - cv(v.descuento), isv = cv(v.isv);
+  const lineas = origen?.lineas ?? [];
+  const exentas = lineas.filter(l => l.exento).reduce((s, l) => s + cv(l.subtotal), 0);
+  const brutoLineas = lineas.reduce((s, l) => s + cv(l.subtotal), 0);
+  const exento = exentas > 0 && brutoLineas > 0 ? Number((BigInt(exentas) * BigInt(base) * 2n + BigInt(brutoLineas)) / (BigInt(brutoLineas) * 2n)) : 0;
+  const gravado = base - exento;
+  if (origen && gravado > 0 && tasaGeneral !== null && cv(origen.porcentajeIsv) !== cv(tasaGeneral)) {
+    throw new BadRequestException(`La venta se facturó con ISV de ${Number(origen.porcentajeIsv).toFixed(2)} % y la tasa general configurada es ${Number(tasaGeneral).toFixed(2)} %: registre el desglose del documento manualmente`);
+  }
+  return { importeExento: exento / 100, importeExonerado: 0, importeGravadoGeneral: gravado / 100, importeGravadoEspecial: 0, isvGeneral: isv / 100, isvEspecial: 0 };
+}
+
 /**
  * Diferencias entre un documento emitido y la venta real que respalda. Las ventas del POS no registran
  * importes exentos ni con tasa especial: todo lo que el documento declare así es una diferencia a revisar.

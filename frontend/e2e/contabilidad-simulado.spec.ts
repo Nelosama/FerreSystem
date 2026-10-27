@@ -81,6 +81,14 @@ async function preparar(page: Page, baseURL: string | undefined, rol = 'CONTADOR
     if (path === '/contabilidad/cuentas') return responder(route, 200, [{ id: 'k1', codigo: '1.1', nombre: 'Caja', tipo: 'ACTIVO', naturaleza: 'DEUDORA', aceptaMovimientos: true, activa: true }, { id: 'k2', codigo: '4.1', nombre: 'Ventas', tipo: 'INGRESO', naturaleza: 'ACREEDORA', aceptaMovimientos: true, activa: true }]);
     if (path === '/contabilidad/asientos' && method === 'GET') return responder(route, 200, [{ id: 'a1', numero: 1, fecha: '2026-09-10', concepto: 'Venta de prueba', origen: 'MANUAL', estado: 'CONTABILIZADO', lineas: [{ codigo: '1.1', nombre: 'Caja', debe: '1150.00', haber: '0.00' }, { codigo: '4.1', nombre: 'Ventas', debe: '0.00', haber: '1150.00' }] }]);
     if (/^\/contabilidad\/(asientos\/a1\/revertir|periodos\/2026\/\d+\/cerrar)$/.test(path) && method === 'POST') { registro.documentos.push({ ruta: path, ...request.postDataJSON() }); return responder(route, 201, {}); }
+    if (path === '/contabilidad/cartera') {
+      const tipo = url.searchParams.get('tipo');
+      registro.rutas.push(`corte ${url.searchParams.get('corte')}`);
+      const cuenta = { id: `c-${tipo}`, contraparteId: 'p1', contraparte: tipo === 'CXC' ? 'Cliente crédito' : 'Proveedor uno', rtn: '08011990000777', documentoId: 'v1', documento: tipo === 'CXC' ? '15' : '000-001-01-00000077', fecha: '2026-09-02', vencimiento: '2026-09-15', responsable: 'Ana', monto: '218.50', pagado: '50.01', devoluciones: '0.00', saldo: '168.49', estado: 'VENCIDA', tramo: 'VENCIDA_1_30', diasVencida: 15, pagos: 1 };
+      return responder(route, 200, { tipo, corte: url.searchParams.get('corte'), zona: 'America/Tegucigalpa', integridadVerificada: false, cuentas: [cuenta], hallazgos: [],
+        movimientos: [{ cuentaId: cuenta.id, tipo: 'CARGO', fecha: '2026-09-02', hora: '10:00:00', importe: '218.50', metodo: null, referencia: cuenta.documento, responsable: 'Ana', detalle: null }, { cuentaId: cuenta.id, tipo: 'PAGO', fecha: '2026-09-10', hora: '11:00:00', importe: '50.01', metodo: 'TRANSFERENCIA', referencia: 'REF-77', responsable: 'Luis', detalle: null }],
+        totales: { cuentas: 1, abiertas: 1, monto: '218.50', pagado: '50.01', devoluciones: '0.00', saldo: '168.49', antiguedad: { SIN_VENCIMIENTO: '0.00', AL_DIA: '0.00', VENCIDA_1_30: '168.49', VENCIDA_31_60: '0.00', VENCIDA_61_90: '0.00', VENCIDA_MAS_90: '0.00' } } });
+    }
     if (path === '/contabilidad/periodos') return responder(route, 200, Array.from({ length: 12 }, (_, i) => ({ anio: 2026, mes: i + 1, estado: i === 7 ? 'CERRADO' : 'ABIERTO', cerradoPor: i === 7 ? 'Carla' : null })));
     if (path.startsWith('/contabilidad/')) return responder(route, 200, []);
     // Cualquier otra consulta del CONTADOR sería un acceso operativo inesperado.
@@ -292,5 +300,24 @@ test.describe('Contabilidad y Control Tributario (simulado)', () => {
     const descarga = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Balanza de comprobación · Excel' }).click();
     expect((await descarga).suggestedFilename()).toBe('balanza-2026-09.xlsx');
+  });
+
+  test('cartera CxC/CxP del CONTADOR: saldos al corte del período, historial con responsable y Excel, sin rutas operativas', async ({ page, baseURL }) => {
+    const r = await preparar(page, baseURL);
+    await page.goto('/contabilidad/cartera');
+    await expect(page.getByRole('heading', { name: 'Cuentas por cobrar y pagar' })).toBeVisible();
+    const cxc = page.getByTestId('cartera-cxc');
+    await expect(cxc.getByRole('heading', { name: /Cuentas por cobrar · Saldos al 2026-09-30/ })).toBeVisible();
+    await expect(cxc.getByRole('row', { name: /Cliente crédito.*L\. 168\.49.*Vencida/ })).toBeVisible();
+    await expect(page.getByTestId('cartera-cxp').getByRole('cell', { name: 'Proveedor uno RTN' })).toBeVisible();
+    await cxc.getByText('Historial de movimientos (2)').click();
+    await expect(cxc.getByRole('row', { name: /Pago \/ abono.*REF-77.*Luis/ })).toBeVisible();
+    expect(r.rutas).toContain('corte 2026-09-30');
+    const descarga = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Exportar a Excel' }).click();
+    expect((await descarga).suggestedFilename()).toBe('cartera-2026-09.xlsx');
+    expect(r.rutas.filter(x => x.startsWith('POST') || x.includes('/operaciones/'))).toEqual([]);
+    expect(r.errores).toEqual([]);
+    await capturar(page, 'contador-cartera-1366');
   });
 });

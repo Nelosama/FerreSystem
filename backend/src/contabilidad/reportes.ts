@@ -10,6 +10,8 @@ import { aCentavos } from '../common/redondeo-monetario';
 import { Celda, Hoja, Libro } from './excel';
 import { TIPOS_DOCUMENTO, limitesPeriodo } from './fiscal-hn';
 import { balanza, conciliacion, libroMayor, libroCompras, libroVentas, resumenIsv, retencionesPeriodo, zonaDeEmpresa } from './libros';
+import { carteraAlCorte, tipoCartera, TipoCartera } from './cartera';
+import { diaCalendario } from '../common/zona-horaria';
 
 /** Filas de identificación que llevan todas las hojas (empresa, RTN, período, estado, generación, aviso). */
 export const LINEAS_IDENTIFICACION = 6;
@@ -18,7 +20,7 @@ export const PRIMERA_FILA_DATOS = 1 + LINEAS_IDENTIFICACION + 2 + 1;
 
 export const NOTA_TRABAJO = 'Libro de trabajo generado desde los registros de Jowa System. No sustituye las declaraciones ni los formatos oficiales del SAR; las reglas tributarias aplicadas dependen de la configuración de la empresa y deben ser validadas por el profesional responsable.';
 
-export const REPORTES = ['ventas', 'compras', 'isv', 'retenciones', 'documentos', 'conciliacion', 'hallazgos', 'catalogo', 'diario', 'mayor', 'balanza', 'periodos', 'ajustes', 'mensual'] as const;
+export const REPORTES = ['ventas', 'compras', 'isv', 'retenciones', 'documentos', 'conciliacion', 'hallazgos', 'catalogo', 'diario', 'mayor', 'balanza', 'periodos', 'ajustes', 'mensual', 'cartera'] as const;
 export type Reporte = typeof REPORTES[number];
 
 export interface Contexto {
@@ -492,7 +494,7 @@ export async function hojaResumen(db: Tx, ctx: Contexto): Promise<Hoja> {
 }
 
 // ---------- Ensamblado por reporte ----------
-export interface OpcionesReporte { direccion?: string; cuentaId?: string }
+export interface OpcionesReporte { direccion?: string; cuentaId?: string; tipo?: string }
 
 /** Hojas de un informe. Para CSV y PDF se usa la primera; el libro mensual solo se entrega en Excel. */
 export async function hojasDeReporte(db: Tx, ctx: Contexto, reporte: Reporte, opciones: OpcionesReporte = {}): Promise<Hoja[]> {
@@ -519,8 +521,61 @@ export async function hojasDeReporte(db: Tx, ctx: Contexto, reporte: Reporte, op
     case 'periodos': return [await hojaPeriodos(db, ctx)];
     case 'ajustes': return [await hojaAjustes(db, ctx)];
     case 'mensual': return hojasLibroMensual(db, ctx);
+    case 'cartera': {
+      const tipos: TipoCartera[] = opciones.tipo ? [tipoCartera(opciones.tipo)] : ['CXC', 'CXP'];
+      const hojas: Hoja[] = [];
+      for (const t of tipos) hojas.push(...await hojasCartera(db, ctx, t));
+      return hojas;
+    }
     default: throw new BadRequestException('Reporte no admitido');
   }
+}
+
+// ---------- Cartera CxC / CxP al corte ----------
+const ETIQUETA_TRAMO: Record<string, string> = {
+  SIN_VENCIMIENTO: 'Sin vencimiento', AL_DIA: 'Al día', VENCIDA_1_30: 'Vencida 1–30 días', VENCIDA_31_60: 'Vencida 31–60 días', VENCIDA_61_90: 'Vencida 61–90 días', VENCIDA_MAS_90: 'Vencida más de 90 días',
+};
+const ETIQUETA_ESTADO: Record<string, string> = { PAGADA: 'Pagada', VENCIDA: 'Vencida', PARCIAL: 'Abono parcial', PENDIENTE: 'Pendiente' };
+
+/** Cartera al último día del período (o a hoy si el período no ha terminado) y su historial de movimientos. */
+export async function hojasCartera(db: Tx, ctx: Contexto, tipo: TipoCartera): Promise<Hoja[]> {
+  const hoy = diaCalendario(new Date(), ctx.zona);
+  const corte = ctx.hasta < hoy ? ctx.hasta : hoy;
+  const r = await carteraAlCorte(db, ctx.tenantId, tipo, corte);
+  const nombre = tipo === 'CXC' ? 'Cuentas por cobrar' : 'Cuentas por pagar';
+  const corto = tipo === 'CXC' ? 'CxC' : 'CxP';
+  const contraparte = tipo === 'CXC' ? 'Cliente' : 'Proveedor';
+  const filas: Celda[][] = r.cuentas.map(k => [
+    k.fecha, k.documento ?? undefined, k.contraparte ?? undefined, k.rtn ?? undefined, k.vencimiento ?? undefined, monto(k.monto), monto(k.pagado), monto(k.devoluciones), monto(k.saldo),
+    ETIQUETA_ESTADO[k.estado] ?? k.estado, k.tramo ? ETIQUETA_TRAMO[k.tramo] : undefined, k.diasVencida || undefined, k.responsable ?? undefined,
+  ]);
+  const cartera = hoja(ctx, `${corto} al corte`, `${nombre} al ${corte}`, [
+    { titulo: 'Fecha', tipo: 'fecha' }, { titulo: tipo === 'CXC' ? 'Venta n.º' : 'Factura del proveedor', tipo: 'codigo', ancho: 18 }, { titulo: contraparte, tipo: 'texto', ancho: 30 },
+    { titulo: 'RTN', tipo: 'codigo', ancho: 18 }, { titulo: 'Vencimiento', tipo: 'fecha' }, { titulo: 'Monto original', tipo: 'monto' }, { titulo: 'Pagos y abonos', tipo: 'monto' },
+    { titulo: 'Crédito cancelado por devolución', tipo: 'monto' }, { titulo: 'Saldo al corte', tipo: 'monto' }, { titulo: 'Estado', tipo: 'texto', ancho: 14 },
+    { titulo: 'Antigüedad', tipo: 'texto', ancho: 22 }, { titulo: 'Días vencida', tipo: 'entero', ancho: 12 }, { titulo: 'Registrada por', tipo: 'texto', ancho: 24 },
+  ], filas, {
+    totales: { etiqueta: 'Total de la cartera', sumar: [5, 6, 7, 8] },
+    notas: [
+      r.cuentas.length === 0 ? SIN_REGISTROS : '',
+      `Saldo = monto original − pagos y abonos − crédito cancelado por devoluciones, registrados hasta el fin del ${corte} (zona ${r.zona}).`,
+      ...Object.entries(r.totales.antiguedad).filter(([, v]) => Number(v) !== 0).map(([t, v]) => `${ETIQUETA_TRAMO[t]}: L ${v}.`),
+      r.integridadVerificada
+        ? (r.hallazgos.length ? `Hallazgos de integridad (${r.hallazgos.length}): ${r.hallazgos.map(h => h.detalle).join(' | ')}` : 'Integridad verificada: los saldos reconstruidos coinciden con los saldos registrados por la operación.')
+        : 'Corte histórico: la comparación con los saldos registrados solo se hace en el corte de hoy.',
+      NOTA_TRABAJO,
+    ].filter(Boolean),
+  });
+  const movimientos = hoja(ctx, `Movimientos ${corto}`, `Movimientos de ${nombre.toLowerCase()} hasta el ${corte}`, [
+    { titulo: 'Fecha', tipo: 'fecha' }, { titulo: 'Hora', tipo: 'texto', ancho: 10 }, { titulo: 'Movimiento', tipo: 'texto', ancho: 16 }, { titulo: 'Documento', tipo: 'codigo', ancho: 18 },
+    { titulo: contraparte, tipo: 'texto', ancho: 30 }, { titulo: 'Importe', tipo: 'monto' }, { titulo: 'Método', tipo: 'texto', ancho: 14 }, { titulo: 'Referencia', tipo: 'codigo', ancho: 22 },
+    { titulo: 'Responsable', tipo: 'texto', ancho: 24 }, { titulo: 'Detalle', tipo: 'largo', ancho: 40 },
+  ], r.movimientos.map(m => {
+    const k = r.cuentas.find(x => x.id === m.cuentaId);
+    return [m.fecha, m.hora, m.tipo === 'CARGO' ? 'Cargo' : m.tipo === 'PAGO' ? 'Pago / abono' : 'Devolución', k?.documento ?? undefined, k?.contraparte ?? undefined,
+      monto(m.importe), m.metodo ?? undefined, m.referencia ?? undefined, m.responsable ?? undefined, m.detalle ?? undefined];
+  }), { notas: [r.movimientos.length === 0 ? SIN_REGISTROS : '', 'Historial de solo lectura tomado de la operación; los importes no se recalculan.', NOTA_TRABAJO].filter(Boolean) });
+  return [cartera, movimientos];
 }
 
 /** Libro contable del mes: un único archivo con una hoja por bloque, en el orden del contador. */

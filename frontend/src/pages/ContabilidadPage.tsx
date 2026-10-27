@@ -9,7 +9,7 @@ import { diaCalendarioEnZona, formatLempiras } from '../utils/format';
 import type { Pestana } from '../utils/contabilidad';
 import type { FormatoDescarga } from '../utils/contabilidad';
 import {
-  PESTANAS, consultaPeriodo, etiquetaHallazgo, importeOpcional, mensajeError, mensajeErrorDescarga, numeroFiscalValido, periodoAnterior, prepararAsiento,
+  PESTANAS, consultaPeriodo, cortePeriodo, etiquetaHallazgo, importeOpcional, mensajeError, mensajeErrorDescarga, numeroFiscalValido, periodoAnterior, prepararAsiento,
 } from '../utils/contabilidad';
 import './OperacionesPage.css';
 
@@ -62,6 +62,7 @@ export const ContabilidadPage: React.FC<ContabilidadPageProps> = ({ tabs = PESTA
       balanza: { balanza: `/contabilidad/balanza?${q}` },
       mayor: { cuentas: '/contabilidad/cuentas' },
       excel: {},
+      cartera: { cxc: `/contabilidad/cartera?tipo=CXC&corte=${cortePeriodo(periodo, diaCalendarioEnZona())}`, cxp: `/contabilidad/cartera?tipo=CXP&corte=${cortePeriodo(periodo, diaCalendarioEnZona())}` },
     };
     try {
       const entradas = await Promise.all(Object.entries(rutas[pestana]).map(async ([k, ruta]) => [k, (await api.get(ruta)).data] as const));
@@ -70,7 +71,7 @@ export const ContabilidadPage: React.FC<ContabilidadPageProps> = ({ tabs = PESTA
       setDatos({});
       setErrorCarga(mensajeError(e, t, t('accounting.load_error')));
     } finally { setCargando(false); }
-  }, [pestana, q, periodo.anio, t]);
+  }, [pestana, q, periodo, t]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -103,6 +104,7 @@ export const ContabilidadPage: React.FC<ContabilidadPageProps> = ({ tabs = PESTA
     asientos: { excel: ['diario'] },
     catalogo: { excel: ['catalogo'] },
     balanza: { excel: ['balanza'], csvPdf: 'balanza' },
+    cartera: { excel: ['cartera'] },
   };
   const exportacion = EXPORTACIONES[pestana];
   const dirDocumentos = pestana === 'documentos' ? direccionDocs : '';
@@ -169,6 +171,7 @@ export const ContabilidadPage: React.FC<ContabilidadPageProps> = ({ tabs = PESTA
           {pestana === 'balanza' && datos.balanza && <Partida vista="balanza" datos={datos} puedeRegistrar={false} enviando={enviando} enviar={enviar} t={t} />}
           {pestana === 'mayor' && datos.cuentas && <Mayor cuentas={datos.cuentas} periodo={periodo} q={q} t={t} />}
           {pestana === 'excel' && <CentroExcel exportar={exportar} t={t} />}
+          {pestana === 'cartera' && datos.cxc && datos.cxp && <><Cartera datos={datos.cxc} t={t} /><Cartera datos={datos.cxp} t={t} /></>}
         </>
       )}
     </div>
@@ -210,6 +213,57 @@ const Resumen: React.FC<{ isv: Fila; conciliacion: Fila; t: T }> = ({ isv, conci
     </section>
   </>
 );
+
+// Cartera CxC/CxP al corte: solo lectura. Los saldos, estados y hallazgos los calcula el servidor.
+const Cartera: React.FC<{ datos: Fila; t: T }> = ({ datos, t }) => {
+  const tipo = datos.tipo === 'CXC' ? 'cxc' : 'cxp';
+  const cuentas = new Map<string, Fila>(datos.cuentas.map((k: Fila) => [k.id, k]));
+  return (
+    <section className="operation-card" aria-label={t(`accounting.cartera.${tipo}`)} data-testid={`cartera-${tipo}`}>
+      <h2>{t(`accounting.cartera.${tipo}`)} · {t('accounting.cartera.cut_off', { date: datos.corte })}</h2>
+      <p className="form-hint">{t('accounting.cartera.help')}</p>
+      {datos.cuentas.length === 0 ? <p>{t('accounting.cartera.empty')}</p> : (
+        <div className="operation-table"><table>
+          <thead><tr>
+            <th>{t('accounting.date')}</th><th>{t('accounting.cartera.document')}</th><th>{t(`accounting.cartera.counterparty_${tipo}`)}</th><th>{t('accounting.cartera.due')}</th>
+            <th>{t('accounting.cartera.original')}</th><th>{t('accounting.cartera.paid')}</th><th>{t('accounting.cartera.returns')}</th><th>{t('accounting.cartera.balance')}</th>
+            <th>{t('accounting.cartera.state')}</th><th>{t('accounting.cartera.aging')}</th><th>{t('accounting.cartera.registered_by')}</th>
+          </tr></thead>
+          <tbody>{datos.cuentas.map((k: Fila) => (
+            <tr key={k.id}>
+              <td>{k.fecha}</td><td>{k.documento ?? '—'}</td><td>{k.contraparte ?? '—'}{k.rtn ? <><br /><small>RTN {k.rtn}</small></> : null}</td><td>{k.vencimiento ?? '—'}</td>
+              <td>{L(k.monto)}</td><td>{L(k.pagado)}</td><td>{L(k.devoluciones)}</td><td><strong>{L(k.saldo)}</strong></td>
+              <td><span className={`balance-estado balance-estado-${k.estado}`}>{t(`accounting.cartera.state_${k.estado}`)}</span></td>
+              <td>{k.tramo ? t(`accounting.cartera.aging_${k.tramo}`) : '—'}{k.diasVencida ? ` (${k.diasVencida})` : ''}</td><td>{k.responsable ?? '—'}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      )}
+      <p><strong>{t('accounting.cartera.totals', { n: datos.totales.cuentas, open: datos.totales.abiertas, balance: L(datos.totales.saldo) })}</strong></p>
+      <ul>{Object.entries(datos.totales.antiguedad as Record<string, string>).filter(([, v]) => Number(v) !== 0).map(([k, v]) => <li key={k}>{t(`accounting.cartera.aging_${k}`)}: {L(v)}</li>)}</ul>
+      {!datos.integridadVerificada ? <p className="form-hint">{t('accounting.cartera.integrity_historic')}</p>
+        : datos.hallazgos.length === 0 ? <p className="balance-estado balance-estado-PAGADA">{t('accounting.cartera.integrity_ok')}</p>
+          : <div className="operation-error" role="alert"><strong>{t('accounting.cartera.integrity_findings')}</strong><ul>{datos.hallazgos.map((h: Fila, i: number) => <li key={i}>{h.detalle}</li>)}</ul></div>}
+      {datos.movimientos.length > 0 && (
+        <details>
+          <summary>{t('accounting.cartera.movements', { n: datos.movimientos.length })}</summary>
+          <div className="operation-table"><table>
+            <thead><tr>
+              <th>{t('accounting.date')}</th><th>{t('accounting.cartera.move_type')}</th><th>{t('accounting.cartera.document')}</th><th>{t(`accounting.cartera.counterparty_${tipo}`)}</th>
+              <th>{t('accounting.cartera.amount')}</th><th>{t('accounting.cartera.method')}</th><th>{t('accounting.cartera.reference')}</th><th>{t('accounting.cartera.responsible')}</th><th>{t('accounting.cartera.detail')}</th>
+            </tr></thead>
+            <tbody>{datos.movimientos.map((m: Fila, i: number) => (
+              <tr key={i}>
+                <td>{m.fecha} {m.hora}</td><td>{t(`accounting.cartera.move_${m.tipo}`)}</td><td>{cuentas.get(m.cuentaId)?.documento ?? '—'}</td><td>{cuentas.get(m.cuentaId)?.contraparte ?? '—'}</td>
+                <td>{m.tipo === 'CARGO' ? '' : '−'}{L(m.importe)}</td><td>{m.metodo ?? '—'}</td><td>{m.referencia ?? '—'}</td><td>{m.responsable ?? '—'}</td><td>{m.detalle ?? '—'}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </details>
+      )}
+    </section>
+  );
+};
 
 const Libro: React.FC<{ libro: Fila; ventas: boolean; t: T }> = ({ libro, ventas, t }) => (
   <section className="operation-card" aria-label={t(ventas ? 'accounting.tab.ventas' : 'accounting.tab.compras')}>

@@ -680,6 +680,97 @@ describe('Contabilidad Honduras / PostgreSQL aislado', () => {
       expect(rastros.every(r => r.usuario_id === contador)).toBe(true);
     });
 
+    it('cartera CxC/CxP: abonos parciales, devolución, responsables y referencias; solo lectura, integridad y aislamiento', async () => {
+      const { tenant, contador, admin } = await empresa();
+      const otra = await empresa();
+      const producto = await prisma.producto.create({ data: { tenantId: tenant, codigo: 'CAR-01', nombre: 'Clavo cartera', precioCosto: 50, precioVenta: 100, stockActual: 0, precioAprobado: true } });
+      const cliente = await prisma.cliente.create({ data: { tenantId: tenant, nombre: 'Cliente cartera', rtn: '08011990000777', creditoHabilitado: true, limiteCredito: 1000, saldoPendiente: 0 } });
+      const proveedor = await prisma.proveedor.create({ data: { tenantId: tenant, nombre: 'Proveedor cartera', rtn: '08019000000002' } });
+      await como(admin).post('/operaciones/caja/abrir', { solicitudId: randomUUID(), monto: 1000 }).expect(201);
+      const compra = (await como(admin).post('/operaciones/compras', { solicitudId: randomUUID(), proveedorId: proveedor.id, numeroFactura: '000-001-01-00000077', isv: 75, items: [{ productoId: producto.id, cantidad: 10, costo: 50 }] }).expect(201)).body;
+      const [detalleCompra] = await sql('SELECT id FROM detalles_orden_compra WHERE orden_id=$1', compra.id);
+      await como(admin).post(`/operaciones/compras/${compra.id}/recepciones`, { solicitudId: randomUUID(), items: [{ detalleId: detalleCompra.id, cantidad: 10 }] }).expect(201);
+      const credito = (await como(admin).post('/ventas', { solicitudId: randomUUID(), tipoPago: 'CREDITO', metodoPago: 'CREDITO', clienteId: cliente.id, descuento: 10, detalles: [{ productoId: producto.id, cantidad: 2, modoEntrega: 'MOSTRADOR' }] })
+        .expect(res => expect(res.status, JSON.stringify(res.body)).toBe(201))).body;
+      const [cxc] = await sql("SELECT id FROM cuentas_operativas WHERE tenant_id=$1 AND documento_id=$2 AND tipo='CXC'", tenant, credito.id);
+      const [cxp] = await sql("SELECT id FROM cuentas_operativas WHERE tenant_id=$1 AND documento_id=$2 AND tipo='CXP'", tenant, compra.id);
+      await como(admin).post(`/operaciones/cuentas/${cxc.id}/pagos`, { solicitudId: randomUUID(), monto: 50.01, metodo: 'EFECTIVO', notas: 'Abono semana 1' }).expect(201);
+      await como(admin).post(`/operaciones/cuentas/${cxp.id}/pagos`, { solicitudId: randomUUID(), monto: 100.01, metodo: 'TRANSFERENCIA', pagoElectronico: { referencia: 'CAR-TRANSF-1' } }).expect(201);
+      const [linea] = await sql('SELECT id FROM detalles_venta WHERE venta_id=$1', credito.id);
+      await como(admin).post(`/operaciones/ventas/${credito.id}/devoluciones`, { solicitudId: randomUUID(), motivo: 'Una unidad defectuosa', metodo: 'EFECTIVO', items: [{ detalleId: linea.id, cantidad: 1, destino: 'DAÑADO' }] })
+        .expect(res => expect(res.status, JSON.stringify(res.body)).toBe(201));
+      const [dev] = await sql('SELECT credito_cancelado FROM devoluciones WHERE tenant_id=$1 AND venta_id=$2', tenant, credito.id);
+      const cancelado = Math.round(Number(dev.credito_cancelado) * 100);
+      expect(cancelado).toBeGreaterThan(0);
+      const foto = async () => (await sql(`SELECT (SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM cuentas_operativas c WHERE c.tenant_id=$1) AS cuentas,
+        (SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM pagos_cuenta p WHERE p.tenant_id=$1) AS pagos, (SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM clientes c WHERE c.tenant_id=$1) AS clientes`, tenant))[0];
+      const antes = await foto();
+
+      const cxcRes = (await como(contador).get('/contabilidad/cartera?tipo=CXC').expect(200)).body;
+      expect(cxcRes).toMatchObject({ tipo: 'CXC', integridadVerificada: true, hallazgos: [] });
+      expect(cxcRes.cuentas).toHaveLength(1);
+      const saldoEsperado = 21850 - 5001 - cancelado;
+      expect(cxcRes.cuentas[0]).toMatchObject({ contraparte: 'Cliente cartera', rtn: '08011990000777', documento: String(credito.numeroVenta), monto: '218.50', pagado: '50.01',
+        devoluciones: (cancelado / 100).toFixed(2), saldo: (saldoEsperado / 100).toFixed(2), estado: 'PARCIAL', responsable: 'ADMIN', pagos: 1 });
+      expect(Math.round(Number((await prisma.cliente.findUniqueOrThrow({ where: { id: cliente.id } })).saldoPendiente) * 100)).toBe(saldoEsperado);
+      expect(cxcRes.movimientos.map((m: any) => m.tipo)).toEqual(['CARGO', 'PAGO', 'DEVOLUCION']);
+      expect(cxcRes.movimientos[1]).toMatchObject({ importe: '50.01', metodo: 'EFECTIVO', responsable: 'ADMIN', detalle: 'Abono semana 1' });
+      expect(cxcRes.movimientos[2]).toMatchObject({ responsable: 'ADMIN', detalle: 'Una unidad defectuosa' });
+      const cxpRes = (await como(contador).get('/contabilidad/cartera?tipo=CXP').expect(200)).body;
+      expect(cxpRes.cuentas[0]).toMatchObject({ contraparte: 'Proveedor cartera', documento: '000-001-01-00000077', monto: '575.00', pagado: '100.01', saldo: '474.99', estado: 'PARCIAL' });
+      expect(cxpRes.movimientos.find((m: any) => m.tipo === 'PAGO')).toMatchObject({ referencia: 'CAR-TRANSF-1', metodo: 'TRANSFERENCIA', responsable: 'ADMIN' });
+      expect(cxpRes.totales).toMatchObject({ cuentas: 1, abiertas: 1, saldo: '474.99' });
+
+      // Corte anterior al alta: nada en cartera. Corte futuro: rechazado. Tipo inválido: 400.
+      expect((await como(contador).get('/contabilidad/cartera?tipo=CXC&corte=2026-01-01').expect(200)).body).toMatchObject({ cuentas: [], integridadVerificada: false });
+      await como(contador).get('/contabilidad/cartera?tipo=CXC&corte=2100-01-01').expect(400);
+      await como(contador).get('/contabilidad/cartera?tipo=XYZ').expect(400);
+      // Aislamiento: la otra empresa no ve la cartera de esta; sin módulo o sin rol contable, 403.
+      expect((await como(otra.contador).get('/contabilidad/cartera?tipo=CXC').expect(200)).body.cuentas).toEqual([]);
+      await como(u.cajeroA).get('/contabilidad/cartera?tipo=CXC').expect(403);
+      expect((await como(u.contadorB).get('/contabilidad/cartera?tipo=CXC').expect(200)).body.cuentas.every((k: any) => k.id !== cxc.id)).toBe(true);
+
+      // Excel: dos hojas por cartera; CSV/PDF exigen el tipo. Las consultas y descargas no tocan la operación.
+      const hoy = (await como(contador).get('/contabilidad/cartera?tipo=CXC').expect(200)).body.corte as string;
+      const periodoHoy = `anio=${hoy.slice(0, 4)}&mes=${Number(hoy.slice(5, 7))}`;
+      const xlsx = await descargar(`/contabilidad/exportar/cartera?${periodoHoy}`, contador).expect(200);
+      expect(nombresHojas(leerZipXlsx(xlsx.body))).toEqual(['CxC al corte', 'Movimientos CxC', 'CxP al corte', 'Movimientos CxP']);
+      await como(contador).get(`/contabilidad/exportar/cartera?${periodoHoy}&formato=csv`).expect(400);
+      const csv = await descargar(`/contabilidad/exportar/cartera?${periodoHoy}&formato=csv&tipo=CXP`, contador).expect(200);
+      expect(csv.body.toString('utf8')).toContain('474.99');
+      expect(await foto()).toEqual(antes);
+
+      // Integridad: un saldo alterado fuera de la operación se informa (no se corrige).
+      await sql('UPDATE cuentas_operativas SET saldo=saldo-1 WHERE id=$1 RETURNING id', cxc.id);
+      const alterada = (await como(contador).get('/contabilidad/cartera?tipo=CXC').expect(200)).body;
+      expect(alterada.hallazgos.map((h: any) => h.codigo).sort()).toEqual(['SALDO_NO_CONCILIA']);
+      await sql('UPDATE clientes SET saldo_pendiente=saldo_pendiente+5 WHERE id=$1 RETURNING id', cliente.id);
+      expect((await como(contador).get('/contabilidad/cartera?tipo=CXC').expect(200)).body.hallazgos.map((h: any) => h.codigo).sort()).toEqual(['SALDO_CLIENTE_NO_CONCILIA', 'SALDO_NO_CONCILIA']);
+    });
+
+    it('documento desde una venta convertida de cotización con líneas exentas: separa exento y gravado', async () => {
+      const { tenant, contador, admin } = await empresa();
+      const producto = await prisma.producto.create({ data: { tenantId: tenant, codigo: 'EXE-01', nombre: 'Producto exento', precioCosto: 1, precioVenta: 400, stockActual: 0, precioAprobado: true } });
+      const ventaId = randomUUID(), cotId = randomUUID();
+      // Cotización convertida por el ADMIN: 600 gravado al 15 % + 400 exento → ISV 90.
+      await sql("INSERT INTO ventas (id,tenant_id,numero_venta,usuario_id,subtotal,descuento,isv,total,estado,created_at) VALUES ($1,$2,1,$3,1000,0,90,1090,'COMPLETADA','2026-09-10 12:00:00')", ventaId, tenant, admin);
+      await sql("INSERT INTO cotizaciones (id,tenant_id,numero_cotizacion,usuario_id,subtotal,porcentaje_isv,isv,total,estado,fecha_validez,venta_id,updated_at) VALUES ($1,$2,1,$3,1000,15,90,1090,'CONVERTIDA','2026-09-30',$4,NOW())", cotId, tenant, admin, ventaId);
+      for (const [sub, exento] of [[600, false], [400, true]] as const) await sql('INSERT INTO detalles_cotizacion (id,cotizacion_id,producto_id,cantidad,precio_unitario,subtotal,exento) VALUES ($1,$2,$3,1,$4,$4,$5)', randomUUID(), cotId, producto.id, sub, exento);
+      const doc = (await como(contador).post('/contabilidad/documentos', { direccion: 'EMITIDO', tipoDocumento: '01', numero: '000-001-01-00000001', fechaEmision: '2026-09-10', ventaId })
+        .expect(res => expect(res.status, JSON.stringify(res.body)).toBe(201))).body;
+      expect(doc).toMatchObject({ importeExento: '400.00', importeGravadoGeneral: '600.00', isvGeneral: '90.00', total: '1090.00' });
+      const libro = (await como(contador).get('/contabilidad/libros/ventas?anio=2026&mes=9').expect(200)).body;
+      expect(libro.filas.find((f: any) => f.numero === '000-001-01-00000001').hallazgos).toEqual([]);
+      // Tasa distinta de la general configurada: no se adivina la categoría.
+      const venta18 = randomUUID(), cot18 = randomUUID();
+      await sql("INSERT INTO ventas (id,tenant_id,numero_venta,usuario_id,subtotal,descuento,isv,total,estado,created_at) VALUES ($1,$2,2,$3,100,0,18,118,'COMPLETADA','2026-09-11 12:00:00')", venta18, tenant, admin);
+      await sql("INSERT INTO cotizaciones (id,tenant_id,numero_cotizacion,usuario_id,subtotal,porcentaje_isv,isv,total,estado,fecha_validez,venta_id,updated_at) VALUES ($1,$2,2,$3,100,18,18,118,'CONVERTIDA','2026-09-30',$4,NOW())", cot18, tenant, admin, venta18);
+      await sql('INSERT INTO detalles_cotizacion (id,cotizacion_id,producto_id,cantidad,precio_unitario,subtotal,exento) VALUES ($1,$2,$3,1,100,100,false)', randomUUID(), cot18, producto.id);
+      const tasa = await como(contador).post('/contabilidad/documentos', { direccion: 'EMITIDO', tipoDocumento: '01', numero: '000-001-01-00000002', fechaEmision: '2026-09-11', ventaId: venta18 }).expect(400);
+      expect(JSON.stringify(tasa.body)).toMatch(/desglose/);
+      await como(contador).post('/contabilidad/documentos', { direccion: 'EMITIDO', tipoDocumento: '01', numero: '000-001-01-00000002', fechaEmision: '2026-09-11', ventaId: venta18, importeGravadoEspecial: 100, isvEspecial: 18 }).expect(400); // sin tasa especial configurada
+    });
+
   });
 
 });

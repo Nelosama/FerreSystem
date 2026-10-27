@@ -2,7 +2,7 @@
 // presenta lo que devuelve y se arma lo que se envía.
 
 export type Pestana = 'resumen' | 'ventas' | 'compras' | 'documentos' | 'retenciones' | 'configuracion' | 'periodos' | 'partida' | 'ajustes'
-  | 'asientos' | 'catalogo' | 'balanza' | 'mayor' | 'excel';
+  | 'asientos' | 'catalogo' | 'balanza' | 'mayor' | 'excel' | 'cartera';
 export const PESTANAS: Pestana[] = ['resumen', 'ventas', 'compras', 'documentos', 'retenciones', 'configuracion', 'periodos', 'partida', 'ajustes'];
 
 /** Mes anterior al día dado (AAAA-MM-DD): es el período que normalmente se revisa y declara. */
@@ -12,6 +12,12 @@ export function periodoAnterior(hoy: string): { anio: number; mes: number } {
 }
 
 export const consultaPeriodo = (p: { anio: number; mes: number }) => `anio=${p.anio}&mes=${p.mes}`;
+
+/** Día de corte de la cartera: último día del período, o hoy si el período aún no termina (el servidor rechaza fechas futuras). */
+export function cortePeriodo(p: { anio: number; mes: number }, hoy: string): string {
+  const fin = new Date(Date.UTC(p.anio, p.mes, 0)).toISOString().slice(0, 10);
+  return fin < hoy ? fin : hoy;
+}
 
 /** Clave de traducción de un hallazgo; los desconocidos se muestran con su código. */
 export const CODIGOS_HALLAZGO = [

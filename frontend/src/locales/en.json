@@ -1817,7 +1817,8 @@
       "catalogo": "Chart of accounts",
       "balanza": "Trial balance",
       "mayor": "General ledger",
-      "excel": "Excel"
+      "excel": "Excel",
+      "cartera": "AR/AP ledger"
     },
     "ok": "No findings",
     "isv_summary": "Period ISV (working calculation)",
@@ -2013,7 +2014,8 @@
       "catalogo": "Chart of accounts",
       "periodos": "Periods and closings",
       "ajustes": "Adjustments and audit trail",
-      "mensual": "Monthly accounting book"
+      "mensual": "Monthly accounting book",
+      "cartera": "Receivables and payables"
     },
     "nav": {
       "label": "Accounting",
@@ -2027,7 +2029,8 @@
       "tax_settings": "Tax settings",
       "excel": "Excel",
       "audit": "Audit",
-      "home_link": "Go to Accounting home"
+      "home_link": "Go to Accounting home",
+      "receivables": "Receivables and payables"
     },
     "home_help": "Period summary, alerts and frequent actions. This screen is read-only: it never changes sales, payments, inventory or cash.",
     "card": {
@@ -2058,7 +2061,49 @@
     "pick_account": "Select an account",
     "pick_account_hint": "Pick an account to see its opening balance, the period movements and its closing balance.",
     "no_movements": "The account has no movements in the period.",
-    "reverted": "reversed"
+    "reverted": "reversed",
+    "cartera": {
+      "cxc": "Accounts receivable",
+      "cxp": "Accounts payable",
+      "cut_off": "Balances as of {date}",
+      "help": "Read-only view of operations: original amount, payments, credit cancelled by returns and balance at the cut-off date. This screen does not record collections or payments.",
+      "counterparty_cxc": "Customer",
+      "counterparty_cxp": "Supplier",
+      "document": "Document",
+      "due": "Due date",
+      "original": "Amount",
+      "paid": "Payments",
+      "returns": "Returns",
+      "balance": "Balance",
+      "state": "Status",
+      "aging": "Aging",
+      "registered_by": "Recorded by",
+      "movements": "Movement history ({n})",
+      "move_type": "Movement",
+      "amount": "Amount",
+      "method": "Method",
+      "reference": "Reference",
+      "responsible": "Responsible",
+      "detail": "Detail",
+      "empty": "No accounts recorded up to the cut-off date.",
+      "totals": "Total: {n} account(s), {open} open · Balance {balance}",
+      "integrity_ok": "Integrity verified: balances match operations.",
+      "integrity_historic": "Historical cut-off: integrity is verified with today's cut-off.",
+      "integrity_findings": "Integrity findings to review",
+      "state_PAGADA": "Paid",
+      "state_VENCIDA": "Overdue",
+      "state_PARCIAL": "Partially paid",
+      "state_PENDIENTE": "Pending",
+      "move_CARGO": "Charge",
+      "move_PAGO": "Payment",
+      "move_DEVOLUCION": "Return",
+      "aging_SIN_VENCIMIENTO": "No due date",
+      "aging_AL_DIA": "Current",
+      "aging_VENCIDA_1_30": "1–30 days overdue",
+      "aging_VENCIDA_31_60": "31–60 days overdue",
+      "aging_VENCIDA_61_90": "61–90 days overdue",
+      "aging_VENCIDA_MAS_90": "Over 90 days overdue"
+    }
   },
   "security": {
     "platform": "Super Admin sign-in",

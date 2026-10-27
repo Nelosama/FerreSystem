@@ -1817,7 +1817,8 @@
       "catalogo": "Catálogo de cuentas",
       "balanza": "Balanza",
       "mayor": "Libro mayor",
-      "excel": "Excel"
+      "excel": "Excel",
+      "cartera": "Cartera CxC/CxP"
     },
     "ok": "Sin observaciones",
     "isv_summary": "ISV del período (cálculo de trabajo)",
@@ -2013,7 +2014,8 @@
       "catalogo": "Catálogo de cuentas",
       "periodos": "Períodos y cierres",
       "ajustes": "Ajustes y trazabilidad",
-      "mensual": "Libro contable del mes"
+      "mensual": "Libro contable del mes",
+      "cartera": "Cartera CxC y CxP"
     },
     "nav": {
       "label": "Contabilidad",
@@ -2027,7 +2029,8 @@
       "tax_settings": "Configuración fiscal",
       "excel": "Excel",
       "audit": "Auditoría",
-      "home_link": "Ir al inicio de Contabilidad"
+      "home_link": "Ir al inicio de Contabilidad",
+      "receivables": "Cuentas por cobrar y pagar"
     },
     "home_help": "Resumen del período, alertas y accesos frecuentes. Esta pantalla solo consulta: no modifica ventas, cobros, inventario ni caja.",
     "card": {
@@ -2058,7 +2061,49 @@
     "pick_account": "Seleccione una cuenta",
     "pick_account_hint": "Elija una cuenta para ver su saldo inicial, sus movimientos del período y su saldo final.",
     "no_movements": "La cuenta no tiene movimientos en el período.",
-    "reverted": "revertido"
+    "reverted": "revertido",
+    "cartera": {
+      "cxc": "Cuentas por cobrar",
+      "cxp": "Cuentas por pagar",
+      "cut_off": "Saldos al {date}",
+      "help": "Lectura de la operación: monto original, pagos y abonos, crédito cancelado por devoluciones y saldo al corte. Esta pantalla no registra cobros ni pagos.",
+      "counterparty_cxc": "Cliente",
+      "counterparty_cxp": "Proveedor",
+      "document": "Documento",
+      "due": "Vencimiento",
+      "original": "Monto",
+      "paid": "Pagos y abonos",
+      "returns": "Devoluciones",
+      "balance": "Saldo",
+      "state": "Estado",
+      "aging": "Antigüedad",
+      "registered_by": "Registrada por",
+      "movements": "Historial de movimientos ({n})",
+      "move_type": "Movimiento",
+      "amount": "Importe",
+      "method": "Método",
+      "reference": "Referencia",
+      "responsible": "Responsable",
+      "detail": "Detalle",
+      "empty": "No hay cuentas registradas hasta el corte.",
+      "totals": "Total: {n} cuenta(s), {open} abierta(s) · Saldo {balance}",
+      "integrity_ok": "Integridad verificada: los saldos coinciden con la operación.",
+      "integrity_historic": "Corte histórico: la verificación de integridad se hace con el corte de hoy.",
+      "integrity_findings": "Hallazgos de integridad por revisar",
+      "state_PAGADA": "Pagada",
+      "state_VENCIDA": "Vencida",
+      "state_PARCIAL": "Abono parcial",
+      "state_PENDIENTE": "Pendiente",
+      "move_CARGO": "Cargo",
+      "move_PAGO": "Pago / abono",
+      "move_DEVOLUCION": "Devolución",
+      "aging_SIN_VENCIMIENTO": "Sin vencimiento",
+      "aging_AL_DIA": "Al día",
+      "aging_VENCIDA_1_30": "Vencida 1–30 días",
+      "aging_VENCIDA_31_60": "Vencida 31–60 días",
+      "aging_VENCIDA_61_90": "Vencida 61–90 días",
+      "aging_VENCIDA_MAS_90": "Vencida más de 90 días"
+    }
   },
   "security": {
     "platform": "Acceso de Super Admin",

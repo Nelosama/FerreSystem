@@ -130,7 +130,7 @@ test('navegación del contador: Inicio primero, rutas únicas bajo /contabilidad
   const rutas = nav.SECCIONES_CONTADOR.map(s => s.route);
   assert.equal(new Set(rutas).size, rutas.length);
   for (const r of rutas) assert.ok(r === '/contabilidad' || r.startsWith('/contabilidad/'), r);
-  const validas = new Set([...u.PESTANAS, 'asientos', 'catalogo', 'balanza', 'mayor', 'excel']);
+  const validas = new Set([...u.PESTANAS, 'asientos', 'catalogo', 'balanza', 'mayor', 'excel', 'cartera']);
   for (const s of nav.SECCIONES_CONTADOR) for (const tab of s.tabs) assert.ok(validas.has(tab), `${s.key}:${tab}`);
 });
 test('navegación del contador: cada etiqueta existe en ES y EN y no se ofrecen pantallas sin implementar', () => {
@@ -147,4 +147,11 @@ test('navegación del contador: los permisos solo restringen a quien los tiene c
   assert.equal(nav.permitidas(todas, { rol: 'ADMIN', permisosConfigurados: true, permisos: [] }).length, todas.length);
   assert.equal(nav.permitidas(todas, { rol: 'CONTADOR', permisosConfigurados: true, permisos: [] }).length, 0);
   assert.equal(nav.permitidas(todas, { rol: 'CONTADOR', permisosConfigurados: true, permisos: ['contabilidad.ver'] }).length, todas.length);
+});
+
+test('cartera: el corte es el último día del período o hoy si el período no ha terminado', () => {
+  assert.equal(u.cortePeriodo({ anio: 2026, mes: 9 }, '2026-10-27'), '2026-09-30');
+  assert.equal(u.cortePeriodo({ anio: 2024, mes: 2 }, '2026-10-27'), '2024-02-29');
+  assert.equal(u.cortePeriodo({ anio: 2026, mes: 10 }, '2026-10-27'), '2026-10-27');
+  assert.equal(u.cortePeriodo({ anio: 2026, mes: 12 }, '2026-10-27'), '2026-10-27');
 });

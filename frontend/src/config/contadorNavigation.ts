@@ -24,6 +24,7 @@ export const SECCIONES_PRINCIPALES: readonly SeccionContador[] = [
 /** Uso ocasional: dentro de «Más». */
 export const SECCIONES_MAS: readonly SeccionContador[] = [
   { key: 'catalogo', route: '/contabilidad/catalogo', labelKey: 'accounting.nav.chart', tabs: ['catalogo'], permiso: 'contabilidad.ver' },
+  { key: 'cartera', route: '/contabilidad/cartera', labelKey: 'accounting.nav.receivables', tabs: ['cartera'], permiso: 'contabilidad.ver' },
   { key: 'documentos', route: '/contabilidad/documentos', labelKey: 'accounting.nav.documents', tabs: ['documentos', 'retenciones'], permiso: 'contabilidad.ver' },
   { key: 'configuracion', route: '/contabilidad/configuracion', labelKey: 'accounting.nav.tax_settings', tabs: ['configuracion'], permiso: 'contabilidad.ver' },
   { key: 'excel', route: '/contabilidad/excel', labelKey: 'accounting.nav.excel', tabs: ['excel'], permiso: 'contabilidad.ver' },
