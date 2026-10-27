@@ -12,7 +12,7 @@ import { useTenant } from '../context/TenantContext';
 import type { ProductItem } from '../types';
 import { api } from '../utils/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import { aplicarPreciosVigentes, type CambioPrecio } from '../utils/preciosCarrito';
+import { aplicarPreciosVigentes } from '../utils/preciosCarrito';
 import { readRecovery, saveDraft, type PendingSale, type CartItem } from '../utils/posRecovery';
 import { useI18n } from '../context/I18nContext';
 import {
@@ -169,10 +169,6 @@ export const POSPage: React.FC = () => {
   carritoEditableRef.current = !edicionBloqueada;
   const ultimaSincronizacion = useRef(0);
   const lecturaCatalogo = useRef<Promise<ProductItem[] | null> | null>(null);
-  // Cambio de precio detectado al cobrar: se informa en el POS y el cobro exige un segundo clic con ese total visible.
-  const [avisoCobro, setAvisoCobro] = useState<{ cambios: CambioPrecio[] } | null>(null);
-  const avisoCobroRef = useRef(avisoCobro);
-  avisoCobroRef.current = avisoCobro;
   const aplicarCatalogo = (data: ProductItem[], secuencia: number) => {
     if (secuencia <= secuenciaAplicada.current) return;
     secuenciaAplicada.current = secuencia;
@@ -183,8 +179,6 @@ export const POSPage: React.FC = () => {
     if (!vigente.cambios.length) return;
     cartRef.current = vigente.carrito;
     setCart(vigente.carrito);
-    // Silencioso salvo que haya un aviso de cobro abierto: entonces el aviso refleja también este cambio.
-    if (avisoCobroRef.current) setAvisoCobro({ cambios: [...avisoCobroRef.current.cambios.filter(c => !vigente.cambios.some(n => n.productoId === c.productoId)), ...vigente.cambios] });
   };
   const aplicarCatalogoRef = useRef(aplicarCatalogo);
   aplicarCatalogoRef.current = aplicarCatalogo;
@@ -259,7 +253,6 @@ export const POSPage: React.FC = () => {
     setBorradorRecuperado(!!recovery.draft);
     setRecoveryStatus('SIN_COMPROBAR');
     setCorrigiendoPendiente(false);
-    setAvisoCobro(null);
     setCart(sale?.cart || []);
     setClienteNombre(sale?.clienteNombre || 'Consumidor Final');
     setClienteRtn(sale?.clienteRtn || '');
@@ -402,13 +395,6 @@ export const POSPage: React.FC = () => {
   const isv = totalesCentavos.isv / 100;
   const total = totalesCentavos.total / 100;
   const vuelto = calcularVuelto(efectivoRecibido, totalesCentavos.total);
-  // Aviso en el propio POS (sin ventana modal): precio cambiado durante el intento de cobro y total vigente en vivo.
-  const avisoCobroUI = avisoCobro && (
-    <div role="alert" data-testid="pos-aviso-cobro" className="ferre-pos-aviso-cobro" style={{ margin: '8px 0', padding: '10px 14px', backgroundColor: '#FFF7ED', border: '2px solid #EA580C', borderRadius: '4px', color: '#7C2D12', fontSize: '14px', fontWeight: 600 }}>
-      <p style={{ margin: 0 }}>El precio cambió al cobrar: {avisoCobro.cambios.map(c => `${c.nombre} ${formatLempiras(c.anterior)} → ${formatLempiras(c.nuevo)}`).join('; ')}.</p>
-      <p style={{ margin: '4px 0 0' }}>Nuevo total: <strong>{formatLempiras(total)}</strong>. No se registró la venta. Confirme este total con el cliente y pulse de nuevo «{ventaPendiente ? 'Ya revisé el pago: continuar registro' : t('pos.checkout')}» para cobrarlo.</p>
-    </div>
-  );
   const etiquetaMetodo = (m: string) => t(`pos.${m === 'EFECTIVO' ? 'cash' : m === 'TARJETA' ? 'card' : m === 'TRANSFERENCIA' ? 'transfer' : 'credit'}`);
 
   const agregarAlCarrito = (prod: ProductItem) => {
@@ -619,10 +605,10 @@ export const POSPage: React.FC = () => {
         if (!catalogo) { setErrorText('No se pudo confirmar el precio vigente de los productos. Revise la conexión y vuelva a cobrar; la venta no se registró.'); return; }
         const vigente = aplicarPreciosVigentes(carritoAEnviar, catalogo);
         if (vigente.noDisponibles.length) { setErrorText(`Ya no se puede vender: ${vigente.noDisponibles.join(', ')}. Quítelo del ticket o consulte al administrador; la venta no se registró.`); return; }
-        // Precio distinto durante este intento: se actualiza el total, se informa y no se envía hasta un segundo clic.
+        // Precio distinto durante este intento: la línea y el total se actualizan en silencio (sin aviso, alerta ni mensaje)
+        // y la venta no se envía; el cajero vuelve a pulsar Cobrar con el total nuevo ya visible.
         if (vigente.cambios.length) {
           cartRef.current = vigente.carrito; setCart(vigente.carrito);
-          setAvisoCobro({ cambios: vigente.cambios });
           return;
         }
         carritoValidado = vigente.carrito;
@@ -657,7 +643,6 @@ export const POSPage: React.FC = () => {
       setVentaPendiente(pending);
       setRecoveryStatus('SIN_COMPROBAR');
       const descuentoPendiente = calcularVentaPOS(pending.cart, pending.descuentoPorcentaje).descuento / 100;
-      setAvisoCobro(null);
       enviado = true;
       const { data } = await api.post('/ventas', {
         solicitudId: pending.solicitudId, clienteId: pending.clienteId, vencimiento: pending.vencimiento || undefined,
@@ -730,7 +715,6 @@ export const POSPage: React.FC = () => {
             <button type="button" className="btn btn-secondary" onClick={() => void cancelarVenta()} disabled={comprobando || procesandoVenta || !!storageError}>Descartar venta</button>
             {recoveryStatus === 'NO_REGISTRADA' && !corrigiendoPendiente && <button type="button" className="btn btn-secondary" disabled={procesandoVenta || comprobando} onClick={() => setCorrigiendoPendiente(true)}>Corregir datos de esta venta</button>}
             {recoveryStatus === 'NO_REGISTRADA' && <button type="button" className="btn btn-secondary" onClick={handleCobrar} disabled={procesandoVenta || comprobando || !!storageError || !!draftError}>Ya revisé el pago: continuar registro</button>}
-            {avisoCobroUI}
           </div>
         )}
         {avisoExistencia && (
@@ -1041,7 +1025,6 @@ export const POSPage: React.FC = () => {
               </div>
             )}
 
-            {!ventaPendiente && avisoCobroUI}
             {/* Botón de Cobro o Solicitar Autorización */}
             {esDescuentoExcedido ? (
               <p role="alert">El descuento supera su límite. Un administrador debe registrar esta venta.</p>

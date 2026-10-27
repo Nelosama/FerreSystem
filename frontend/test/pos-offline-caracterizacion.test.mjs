@@ -156,7 +156,7 @@ test('los precios del carrito se sincronizan solos y se validan antes de cobrar;
   assert.doesNotMatch(source, /Actualizar catálogo y precios del carrito/);
   assert.match(source, /onPointerDownCapture=\{sincronizarAlInteractuar\} onKeyDownCapture=\{sincronizarAlInteractuar\}/);
   // Imperceptible: sin aviso, modal ni botón de actualización de precios.
-  assert.doesNotMatch(source, /avisoPrecios|Precio actualizado por el administrador|ferre-pos-precios|describirCambios/);
+  assert.doesNotMatch(source, /avisoPrecios|avisoCobro|pos-aviso-cobro|El precio cambió al cobrar|Precio actualizado por el administrador|ferre-pos-precios|describirCambios/);
   assert.match(source, /aplicarPreciosVigentes\(carritoAEnviar, catalogo\)/);
   assert.match(source, /No se pudo confirmar el precio vigente/);
   // La validación ocurre antes de crear la venta pendiente y de enviarla.

@@ -93,18 +93,14 @@ async function sinAvisosDeActualizacion(page: Page) {
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Entendido|Actualizar/ })).toHaveCount(0);
   await expect(page.getByText(/Precio actualizado|precio anterior|→|Revise el total/)).toHaveCount(0);
-  await expect(page.getByTestId('pos-aviso-cobro')).toHaveCount(0);
 }
 
-// Cambio detectado durante el intento de cobro: aviso dentro del POS (no modal) con el importe nuevo.
-async function avisoDeCobro(page: Page, anterior: string, nuevo: string, total: string) {
-  const aviso = page.getByTestId('pos-aviso-cobro');
-  await expect(aviso).toBeVisible();
-  await expect(aviso).toHaveAttribute('role', 'alert');
-  await expect(aviso).toContainText(`Taladro L. ${anterior} → L. ${nuevo}`);
-  await expect(aviso).toContainText(`Nuevo total: L. ${total}`);
-  await expect(aviso).toContainText('No se registró la venta');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+// Cambio detectado durante el intento de cobro: la línea y el total ya muestran el importe vigente, la venta no se envió y
+// no hay alerta, aviso ni mensaje con precios anterior/nuevo. El cajero vuelve a pulsar Cobrar con ese total visible.
+async function totalActualizadoSinEnviar(page: Page, total: string) {
+  await expect(cobrar(page)).toContainText(`L. ${total}`);
+  await sinAvisosDeActualizacion(page);
+  await expect(page.getByRole('alert')).toHaveCount(0);
 }
 
 const cobrar = (page: Page) => page.getByRole('button', { name: /Procesar Venta/ }).last();
@@ -135,16 +131,16 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     expect(sim.ventas[0].detalles).toEqual([expect.objectContaining({ productoId: 'prod-1', cantidad: 2, precioUnitario: 120 })]);
   });
 
-  test('si el precio cambia justo antes de cobrar, actualiza el total, lo informa en el POS y exige un segundo clic', async ({ page, sim }) => {
+  test('si el precio cambia justo antes de cobrar, el primer clic actualiza el total en silencio sin enviar y el segundo envía el precio vigente', async ({ page, sim }) => {
     await abrirPos(page);
     await page.getByText('Taladro').first().click();
     // Sin esperar el mínimo entre lecturas: la interacción no vuelve a leer, pero el cobro siempre valida.
     sim.precio = 130;
     await cobrar(page).click();
     await expect(page.getByText(/1 x L\.? ?130\.00/)).toBeVisible();
-    await avisoDeCobro(page, '100.00', '130.00', '149.50');
+    await totalActualizadoSinEnviar(page, '149.50');
     expect(sim.intentos).toEqual([]);
-    // Segundo clic con el total nuevo visible: se registra y el aviso desaparece.
+    // Segundo clic con el total nuevo visible: se registra con el precio vigente.
     await cobrar(page).click();
     await expect.poll(() => sim.ventas.length).toBe(1);
     expect(sim.ventas[0].detalles[0].precioUnitario).toBe(130);
@@ -192,7 +188,7 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     sim.fallosCatalogo = 0; sim.precio = 140;
     await cobrar(page).click();
     await expect(page.getByText(/1 x L\.? ?140\.00/)).toBeVisible();
-    await avisoDeCobro(page, '100.00', '140.00', '161.00');
+    await totalActualizadoSinEnviar(page, '161.00');
     expect(sim.intentos).toEqual([]);
     await cobrar(page).click();
     await expect.poll(() => sim.ventas.length).toBe(1);
@@ -219,9 +215,9 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     await page.getByLabel('Cantidad Taladro').fill('2');
     await expect(page.getByText(/2 x L\.? ?100\.00/)).toBeVisible();
     await page.getByRole('button', { name: 'Ya revisé el pago: continuar registro' }).click();
-    // Se valida el carrito corregido: precio nuevo con la cantidad corregida, aviso en el POS y sin envío.
+    // Se valida el carrito corregido: precio nuevo con la cantidad corregida, total actualizado en silencio y sin envío.
     await expect(page.getByText(/2 x L\.? ?120\.00/)).toBeVisible();
-    await avisoDeCobro(page, '100.00', '120.00', '276.00');
+    await totalActualizadoSinEnviar(page, '276.00');
     expect(sim.intentos).toHaveLength(2);
     await page.getByRole('button', { name: 'Ya revisé el pago: continuar registro' }).click();
     await expect.poll(() => sim.ventas.length).toBe(1);
@@ -246,7 +242,7 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     // El cobro inició su propia lectura y detectó el precio vigente: no envía el precio anterior.
     await expect(page.getByText(/1 x L\.? ?120\.00/)).toBeVisible();
     expect(sim.lecturasCatalogo).toBeGreaterThanOrEqual(antes + 2);
-    await avisoDeCobro(page, '100.00', '120.00', '138.00');
+    await totalActualizadoSinEnviar(page, '138.00');
     expect(sim.intentos).toEqual([]);
     // La lectura antigua termina después con el precio 100: no debe revertir el carrito.
     await page.waitForTimeout(6500);
@@ -270,8 +266,8 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     sim.precio = 120; sim.retrasoCatalogoMs = 0;
     await cobrar(page).click();
     await expect(page.getByText(/1 x L\.? ?120\.00/)).toBeVisible();
-    // Cambio detectado durante el intento de cobro: aviso en el POS y segundo clic (requisito vigente).
-    await avisoDeCobro(page, '100.00', '120.00', '138.00');
+    // Cambio detectado durante el intento de cobro: total actualizado en silencio y segundo clic (requisito vigente).
+    await totalActualizadoSinEnviar(page, '138.00');
     expect(sim.intentos).toEqual([]);
     await cobrar(page).click();
     await expect.poll(() => sim.ventas.length).toBe(1);
