@@ -1,5 +1,8 @@
 # Jowa System: acceso y recuperación de credenciales
 
+> **Vigente desde 2026-10-27 (PR #205, alineado con #203):** el correo de seguridad sale por **Gmail SMTP** (`AUTH_MAIL_GMAIL_USER`, `AUTH_MAIL_GMAIL_APP_PASSWORD`, `AUTH_MAIL_FROM_NAME` opcional, `AUTH_PUBLIC_URL`). Resend y `AUTH_MAIL_RESEND_API_KEY`/`AUTH_MAIL_FROM` ya no se usan; las menciones a Resend de este documento son históricas. En producción, `config-auth.ts` impide arrancar si el correo Gmail está incompleto o es inválido y ya **no** exige `AUTH_MFA_ENCRYPTION_KEY` (decisión del propietario de no usar MFA; su retiro del código de autenticación se coordina sobre #203). La prueba real de envío es `backend/scripts/smtp-staging-check.mjs` (opt-in, solo staging); `prueba-correo-resend.mjs` se retiró.
+
+
 [PR dedicado #192](https://github.com/Nelosama/FerreSystem/pull/192) en borrador. Rama `codex/auth-recovery-security`, base inicial `main` `ed720baf`, sincronizada con `ba201465` (#190). Sin merge, despliegue ni acceso a datos de producción. Revisión de esquema y persistencia: **NEXUS**.
 
 ## Auditoría inicial

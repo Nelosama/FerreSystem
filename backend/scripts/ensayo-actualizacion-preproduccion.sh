@@ -18,8 +18,8 @@ export JWT_SECRET="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | hea
 export CONTINGENCIA_CLAVE_OPERACIONES="$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 48)"
 # Configuración de auth exigida en producción: valores efímeros de esta copia aislada, nunca productivos.
 export AUTH_MFA_ENCRYPTION_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
-export AUTH_MAIL_RESEND_API_KEY="re_ensayo_$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)"
-export AUTH_MAIL_FROM="ensayo@example.test"
+export AUTH_MAIL_GMAIL_USER="ensayo@example.test"
+export AUTH_MAIL_GMAIL_APP_PASSWORD="$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 16)"
 export AUTH_PUBLIC_URL="https://ferreteria.example.test"
 PW="Ens-$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 18)"
 API_PID=""; RES=(); FALLOS=0

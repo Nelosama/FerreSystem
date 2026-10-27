@@ -1,62 +1,104 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { RecoveryMailService } from './recovery-mail.service';
+import { GMAIL_SMTP_HOST, GMAIL_SMTP_PORT, PLAZO_CORREO_MS, RecoveryMailService, validarConfiguracionCorreo } from './recovery-mail.service';
 
-// Contrato del correo de seguridad: fallo cerrado sin configuración, origen público sin ruta, token solo en el fragmento
-// y ninguna clave en mensajes de error. Resend se sustituye por fetch simulado; no se envía correo real.
-function servicio(valores: Record<string, string | undefined>) {
-  const config = { get: (clave: string) => valores[clave] } as any;
-  return new RecoveryMailService(config);
+// Transporte SMTP simulado: ninguna prueba abre conexiones ni envía correo real. Valores sintéticos, nunca credenciales reales.
+const CLAVE = 'abcdwxyzabcdwxyz';
+const entorno = (extra: Record<string, string | undefined> = {}) => ({
+  NODE_ENV: 'production', AUTH_MAIL_GMAIL_USER: 'seguridad.jowa@example.test', AUTH_MAIL_GMAIL_APP_PASSWORD: 'abcd wxyz abcd wxyz',
+  AUTH_PUBLIC_URL: 'https://jowa.example.test', ...extra,
+});
+function montar(extra: Record<string, string | undefined> = {}, sendMail = vi.fn().mockResolvedValue({ messageId: 'sintetico' })) {
+  const valores = entorno(extra);
+  const config: any = { get: (clave: string) => (valores as any)[clave] };
+  const close = vi.fn();
+  const fabrica = vi.fn(() => ({ sendMail, close }));
+  return { servicio: new RecoveryMailService(config, fabrica), fabrica, sendMail, close };
 }
-const completa = {
-  AUTH_MAIL_RESEND_API_KEY: 're_clave_sintetica_no_real',
-  AUTH_MAIL_FROM: 'Jowa <seguridad@example.test>',
-  AUTH_PUBLIC_URL: 'https://app.example.test',
-  NODE_ENV: 'production',
-};
 
-describe('RecoveryMailService', () => {
-  let fetchSimulado: ReturnType<typeof vi.fn>;
-  beforeEach(() => {
-    fetchSimulado = vi.fn(async () => new Response(JSON.stringify({ id: 'sintetico' }), { status: 200 }));
-    vi.stubGlobal('fetch', fetchSimulado);
-  });
-  afterEach(() => vi.unstubAllGlobals());
+describe('RecoveryMailService (Gmail SMTP con contraseña de aplicación)', () => {
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
-  it('falla cerrado sin clave, remitente o URL pública y no intenta enviar', async () => {
-    for (const quitar of ['AUTH_MAIL_RESEND_API_KEY', 'AUTH_MAIL_FROM', 'AUTH_PUBLIC_URL']) {
-      const valores = { ...completa, [quitar]: undefined };
-      await expect(servicio(valores).send('a@example.test', 'tok', 'RESET')).rejects.toThrow(ServiceUnavailableException);
-    }
-    expect(fetchSimulado).not.toHaveBeenCalled();
-  });
-
-  it('rechaza una URL pública con ruta, credenciales, consulta o HTTP en producción', async () => {
-    for (const url of ['https://app.example.test/panel', 'https://u:p@app.example.test', 'https://app.example.test?x=1', 'http://app.example.test']) {
-      await expect(servicio({ ...completa, AUTH_PUBLIC_URL: url }).send('a@example.test', 'tok', 'RESET')).rejects.toThrow(ServiceUnavailableException);
-    }
-    expect(fetchSimulado).not.toHaveBeenCalled();
+  it('usa smtp.gmail.com:465 con TLS implícito verificado, la contraseña de aplicación sin espacios y el remitente de la cuenta dedicada', async () => {
+    const fetchEspia = vi.spyOn(globalThis, 'fetch');
+    const { servicio, fabrica, sendMail, close } = montar();
+    await servicio.sendTemporaryPassword('admin@negocio.test', 'AbCd-EfGh-JkMn-PqRs');
+    expect(fabrica).toHaveBeenCalledWith(expect.objectContaining({
+      host: GMAIL_SMTP_HOST, port: GMAIL_SMTP_PORT, secure: true,
+      auth: { user: 'seguridad.jowa@example.test', pass: CLAVE },
+      tls: { minVersion: 'TLSv1.2', rejectUnauthorized: true, servername: 'smtp.gmail.com' },
+      logger: false, debug: false, disableFileAccess: true, disableUrlAccess: true,
+      connectionTimeout: PLAZO_CORREO_MS, greetingTimeout: PLAZO_CORREO_MS, socketTimeout: PLAZO_CORREO_MS,
+    }));
+    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ from: '"Jowa System" <seguridad.jowa@example.test>', to: 'admin@negocio.test' }));
+    expect(sendMail.mock.calls[0][0].text).toContain('AbCd-EfGh-JkMn-PqRs');
+    expect(sendMail.mock.calls[0][0].text).toContain('https://jowa.example.test/login');
+    expect(close).toHaveBeenCalled();
+    // Ningún otro proveedor: no hay llamadas HTTP (Resend ni ningún otro).
+    expect(fetchEspia).not.toHaveBeenCalled();
   });
 
-  it('envía a Resend con la clave en cabecera y el token solo en el fragmento del enlace', async () => {
-    await servicio(completa).send('a@example.test', 'tok123', 'RESET', 't-1');
-    expect(fetchSimulado).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchSimulado.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('https://api.resend.com/emails');
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_clave_sintetica_no_real');
-    const cuerpo = JSON.parse(String(init.body));
-    expect(cuerpo.to).toEqual(['a@example.test']);
-    const enlace = new URL(cuerpo.text.match(/https:\/\/\S+/)![0]);
-    expect(enlace.pathname).toBe('/login');
-    expect(enlace.searchParams.get('empresa')).toBe('t-1');
-    expect(enlace.search).not.toContain('tok123');
-    expect(new URLSearchParams(enlace.hash.slice(1)).get('token')).toBe('tok123');
+  it('los enlaces llevan el token en el fragmento (no en la consulta) y el negocio como ?empresa=', async () => {
+    const { servicio, sendMail } = montar();
+    await servicio.send('admin@negocio.test', 'token-sintetico', 'VERIFY_EMAIL', 'tenant-1');
+    const enlace = String(sendMail.mock.calls[0][0].text).split('\n')[1];
+    const url = new URL(enlace);
+    expect(url.origin + url.pathname).toBe('https://jowa.example.test/login');
+    expect(url.searchParams.get('empresa')).toBe('tenant-1');
+    expect(url.searchParams.get('token')).toBeNull();
+    expect(new URLSearchParams(url.hash.slice(1)).get('token')).toBe('token-sintetico');
   });
 
-  it('un rechazo de Resend se convierte en 503 sin exponer la clave ni el destinatario', async () => {
-    fetchSimulado.mockResolvedValueOnce(new Response('denegado', { status: 403 }));
-    const error = await servicio(completa).send('a@example.test', 'tok', 'RESET').catch(e => e);
+  it('un fallo del servidor SMTP responde 503 genérico, sin reenviar la respuesta del servidor ni la contraseña', async () => {
+    const fallo = Object.assign(new Error(`535-5.7.8 Username and Password not accepted for seguridad.jowa@example.test ${CLAVE}`), { response: `535 ${CLAVE}` });
+    const { servicio, close } = montar({}, vi.fn().mockRejectedValue(fallo));
+    const error: any = await servicio.sendTemporaryPassword('admin@negocio.test', 'AbCd-EfGh-JkMn-PqRs').catch(e => e);
     expect(error).toBeInstanceOf(ServiceUnavailableException);
-    expect(JSON.stringify(error.getResponse())).not.toContain('re_clave');
-    expect(JSON.stringify(error.getResponse())).not.toContain('a@example.test');
+    expect(error.message).toBe('Correo de seguridad temporalmente no disponible');
+    expect(JSON.stringify(error.getResponse())).not.toMatch(new RegExp(`${CLAVE}|535|seguridad\\.jowa|AbCd-EfGh`));
+    expect(error.cause).toBeUndefined();
+    expect(close).toHaveBeenCalled();
+  });
+
+  it('un servidor que no responde se corta a los 8 s con el mismo error genérico', async () => {
+    vi.useFakeTimers();
+    const { servicio } = montar({}, vi.fn(() => new Promise(() => undefined)));
+    const promesa = servicio.send('admin@negocio.test', 'token-sintetico', 'BOOTSTRAP_MFA').catch(e => e);
+    await vi.advanceTimersByTimeAsync(PLAZO_CORREO_MS);
+    expect(await promesa).toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it.each([
+    ['sin usuario', { AUTH_MAIL_GMAIL_USER: undefined }],
+    ['sin contraseña de aplicación', { AUTH_MAIL_GMAIL_APP_PASSWORD: undefined }],
+    ['contraseña que no es de aplicación', { AUTH_MAIL_GMAIL_APP_PASSWORD: 'mi-clave-normal' }],
+    ['usuario que no es una dirección', { AUTH_MAIL_GMAIL_USER: 'seguridad' }],
+    ['origen público sin HTTPS', { AUTH_PUBLIC_URL: 'http://jowa.example.test' }],
+    ['nombre con salto de línea (inyección de cabeceras)', { AUTH_MAIL_FROM_NAME: 'Jowa\r\nBcc: x@y.z' }],
+  ])('%s: no intenta enviar y responde «no configurado»', async (_n, extra) => {
+    const { servicio, fabrica } = montar(extra);
+    await expect(servicio.send('a@b.test', 't', 'VERIFY_EMAIL')).rejects.toMatchObject({ message: 'Correo de seguridad no configurado' });
+    expect(fabrica).not.toHaveBeenCalled();
+  });
+});
+
+describe('validarConfiguracionCorreo (arranque)', () => {
+  it('configuración completa: correcta y sin avisos', () => {
+    expect(validarConfiguracionCorreo(entorno())).toEqual([]);
+  });
+  it('sin ninguna variable en producción: el correo queda desactivado con un aviso que no incluye valores', () => {
+    const avisos = validarConfiguracionCorreo({ NODE_ENV: 'production' });
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]).toMatch(/desactivado/);
+  });
+  it('configuración parcial o mal escrita impide arrancar; el error nombra variables, nunca valores', () => {
+    expect(() => validarConfiguracionCorreo(entorno({ AUTH_MAIL_GMAIL_APP_PASSWORD: undefined }))).toThrow('AUTH_MAIL_GMAIL_APP_PASSWORD');
+    let mensaje = '';
+    try { validarConfiguracionCorreo(entorno({ AUTH_MAIL_GMAIL_APP_PASSWORD: 'contraseña-normal-123' })); } catch (e: any) { mensaje = e.message; }
+    expect(mensaje).toMatch(/contraseña de aplicación/);
+    expect(mensaje).not.toContain('contraseña-normal-123');
+    expect(() => validarConfiguracionCorreo(entorno({ AUTH_PUBLIC_URL: 'https://jowa.example.test/ruta' }))).toThrow('AUTH_PUBLIC_URL');
+  });
+  it('una clave de Resend heredada se ignora con aviso: no hay proveedor de respaldo', () => {
+    expect(validarConfiguracionCorreo(entorno({ AUTH_MAIL_RESEND_API_KEY: 're_sintetica' })).join(' ')).toMatch(/AUTH_MAIL_RESEND_API_KEY ya no se usa/);
   });
 });
