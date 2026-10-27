@@ -2179,6 +2179,20 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 
 ---
 
+## Auditoría adicional POS #202 — 2026-10-27 UTC (rama propia `codex/pr202-auditoria-precios`)
+
+- **Publicación:** [#204](https://github.com/Nelosama/FerreSystem/pull/204), PR de correcciones dirigido a la rama de #202. [#202 actualizado](https://github.com/Nelosama/FerreSystem/pull/202#issuecomment-6445129453). Sus ramas y la de #180 no se modificaron; sin merge, despliegue ni producción. Informe: [AUDITORIA_POS_PR202_20261027.md](AUDITORIA_POS_PR202_20261027.md). Base `main` `2f6168dc`, #202 `59e739da`, #180 `3c84a7a`.
+- **Cambio concurrente de base:** #202 avanzó a `cf194ee7` (retiro del aviso de cobro). Incorporado como ancestro mediante rebase solo de la rama propia, con respaldo y `--force-with-lease`, sin merge ni escritura en rama ajena. Contenido antes/después del rebase idéntico. Total silencioso/segundo clic conservados: builds/lint, 545 unitarias y 11 regresiones POS repetidas y aprobadas. CI por SHA en #204.
+- **Corregido:** respuesta de cobro antigua consumida pese a existir un catálogo posterior; borrador externo sustituido durante la lectura; motivos vacíos/espacios o sin validar desde el servicio; reintentos que cambiaban/omitían el motivo auditado. Lecturas compartidas ligadas a empresa/usuario. Se conservan huellas v2 e idempotencia, permisos explícitos, transacciones y documentos históricos.
+- **Evidencia terminada al preparar el informe:** backend 602 unitarias, 51 scripts, 6 E2E, Python 10; frontend 545 unitarias; builds/lint correctos; POS simulado 11/11; dos cajas/API/PG reales 1/1; devolución histórica PG 1/1. Combinación temporal de código con #180: 105 PG + 70 unitarias contables, builds de ambos paquetes correctos. **Resultados extensivos finales y CI por SHA, con fallos/omisiones/reintentos: #204**. Los verdes anteriores de #202 no acreditan estos cambios.
+- **Validación extensa y sesión:** PostgreSQL local completo 65 archivos / **1117/1117**; navegador local 384 aprobadas, 2 fallidas y 26 omitidas. Además de la emulación offline, la prueba de recuperación leía el índice de la llamada al módulo antes de que existiera. Corregida solo la espera de la prueba, conservando orden y renovación única: escritorio **3/3**; móvil **16/16**. CI de `d99dab0f` completo verde (386 navegador + 26 omisiones, 16 móvil, 172 piloto real + 4 omisiones, backend/PG/E2E/scripts). La revisión posterior repite CI; **checks definitivos por SHA en #204**, no heredar los del SHA anterior.
+- **Piloto, espera de catálogo:** run 419 de `33c8c36c` falló en la preparación del doble clic (171 aprobadas, 1 fallida, 4 omitidas): Enter salió ~110 ms antes de recibir el catálogo, según la traza. Se espera la tarjeta antes de Enter en los tests reales de ciclo/cajeros/cancelación/precios; el doble clic introduce latencia contra la API real y conserva venta/reserva únicas. Regresión dirigida **11/11** API/PG/navegador. Sin cambios del producto ni timeouts mayores. Nuevos checks por SHA en #204.
+- **Límite de entorno demostrado:** Chromium 151 al recargar desde SW cambia `navigator.onLine` a true aunque fetch falle por red; reproducido en sonda sin Jowa. No se elimina/relaja la prueba ni se cambia la contingencia para ocultarlo. Incidencias de preparación, pasada roja e integración inicial bajo carga documentadas en el informe.
+- **Dictamen:** #202 **NO MERGE** hasta incorporar las correcciones y validar el SHA resultante. Pendientes físicos: protocolo en caja/catálogo grande, dispositivos/impresora y aceptación del propietario. Offline mantiene la instantánea aprobada y revisión de revocación posterior; #180 conserva sus límites contables/fiscales. **NEXUS:** sin esquema/migraciones propias; pruebas sobre bases efímeras.
+- **Bitácora:** inspección remota y CI; reproducción de carreras; correcciones; regresiones PostgreSQL/navegador; compatibilidad temporal #180; diagnóstico de emulación offline; commit/push solo en rama propia, PR #204, seguimiento en #202 y actualización de este contexto.
+
+---
+
 **FIN DEL CONTEXTO VIGENTE**
 
 

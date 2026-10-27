@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum, IsIn, IsUUID, IsBoolean, IsDateString, ArrayMinSize, ArrayMaxSize, MaxLength, MinLength } from 'class-validator';
 import { EmptyToUndefined } from '../../common/empty-to-undefined';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { TipoPago } from '../../types/prisma-enums';
 import { PagoElectronicoDto } from '../../common/pago-electronico.dto';
 
@@ -33,6 +33,7 @@ export class DetalleVentaItemDto {
 
 /** Excepción administrativa de precio: exige el permiso «pos.excepcion_precio» y un motivo que queda auditado. */
 export class ExcepcionPrecioDto {
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString() @MinLength(10, { message: 'Explique el motivo de la excepción de precio (mínimo 10 caracteres)' }) @MaxLength(300)
   motivo!: string;
 }

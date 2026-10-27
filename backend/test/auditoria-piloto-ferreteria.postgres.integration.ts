@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { VentasService } from '../src/ventas/ventas.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
 import { ClientesService } from '../src/clientes/clientes.service';
+import { ProductosService } from '../src/productos/productos.service';
 
 // Auditoría de preparación para piloto en una ferretería real (ventas, inventario, caja, compras, crédito,
 // aislamiento e integridad). Escenarios de jornada completa con conciliación en centavos contra PostgreSQL
@@ -331,6 +332,62 @@ describe('Auditoría de piloto: jornada de ferretería / PostgreSQL aislado', ()
       // Al precio vigente no hay excepción que auditar aunque se envíe el motivo.
       const vigente = await vender(e, e.admin, { detalles: [{ productoId: e.martillo, cantidad: 1 }], excepcionPrecio: motivo });
       expect(await sql("SELECT count(*)::int AS n FROM auditoria_operaciones WHERE entidad_id=$1 AND operacion='VENTA_EXCEPCION_PRECIO'", vigente.id)).toEqual([{ n: 0 }]);
+    });
+
+    it('PR202: la excepción rechaza motivos vacíos, espacios, cortos o inválidos también desde el servicio, sin efectos', async () => {
+      const e = await negocio();
+      await prisma.usuario.update({ where: { id: e.admin }, data: { permisos: ['pos.excepcion_precio'] } });
+      const antes = await huella(e);
+      for (const motivo of ['', ' '.repeat(20), '  corto  ', 'x'.repeat(301), null, 123, undefined]) {
+        await expect(vender(e, e.admin, { excepcionPrecio: { motivo }, detalles: [{ productoId: e.martillo, cantidad: 1, precioUnitario: 90 }] })).rejects.toMatchObject({ status: 400 });
+        expect(await huella(e)).toEqual(antes);
+      }
+    });
+
+    it('PR202: el motivo de excepción pertenece a la identidad del reintento y no se puede sustituir', async () => {
+      const e = await negocio();
+      await prisma.usuario.update({ where: { id: e.admin }, data: { permisos: ['pos.excepcion_precio'] } });
+      const dto = { solicitudId: randomUUID(), excepcionPrecio: { motivo: 'Precio convenido con cliente' }, detalles: [{ productoId: e.martillo, cantidad: 1, precioUnitario: 90 }] };
+      const primera = await vender(e, e.admin, dto);
+      const antes = await huella(e);
+      expect((await vender(e, e.admin, dto)).id).toBe(primera.id);
+      await expect(vender(e, e.admin, { ...dto, excepcionPrecio: { motivo: 'Una justificación diferente' } })).rejects.toMatchObject({ status: 409 });
+      await expect(vender(e, e.admin, { ...dto, excepcionPrecio: undefined })).rejects.toMatchObject({ status: 409 });
+      expect(await huella(e)).toEqual(antes);
+    });
+
+    it('PR202: dos cajas y un cambio aprobado concurrentes solo registran el precio vigente bajo el bloqueo', async () => {
+      const e = await negocio();
+      let precioEscrito!: () => void, liberar!: () => void;
+      const escrito = new Promise<void>(r => { precioEscrito = r; });
+      const liberado = new Promise<void>(r => { liberar = r; });
+      // Barrera sobre una transacción PostgreSQL real: el precio está escrito, pero aún no está confirmado.
+      const productos = new ProductosService({ usuario: prisma.usuario, $transaction: (work: any) => prisma.$transaction(async tx => {
+        const resultado = await work(tx); precioEscrito(); await liberado; return resultado;
+      }, { timeout: 15000 }) } as PrismaService);
+      const cambio = productos.cambiarPrecios(e.tenantId, e.martillo, { version: 1, precioVenta: 120, aprobar: true } as any, e.admin);
+      await Promise.race([escrito, cambio]);
+      const ventasEnCurso = Promise.allSettled([
+        vender(e, e.cajero, { detalles: [{ productoId: e.martillo, cantidad: 1, precioUnitario: 100 }] }),
+        vender(e, e.admin, { detalles: [{ productoId: e.martillo, cantidad: 1, precioUnitario: 100 }] }),
+      ]);
+      try {
+        await expect.poll(async () => (await sql("SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory'"))[0].n).toBe(2);
+      } finally { liberar(); }
+      await cambio;
+      for (const r of await ventasEnCurso) {
+        expect(r.status).toBe('rejected');
+        if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409 });
+      }
+      const antes = await huella(e);
+      await expect(vender(e, e.cajero, { detalles: [{ productoId: e.martillo, cantidad: 1, precioUnitario: 100 }] })).rejects.toMatchObject({ status: 409 });
+      expect(await huella(e)).toEqual(antes);
+      const dto = { solicitudId: randomUUID(), detalles: [{ productoId: e.martillo, cantidad: 1, precioUnitario: 120 }] };
+      const [a, b] = await Promise.all([vender(e, e.cajero, dto), vender(e, e.cajero, dto)]);
+      expect(a.id).toBe(b.id);
+      const otra = await vender(e, e.admin, { detalles: [{ productoId: e.martillo, cantidad: 1, precioUnitario: 120 }] });
+      expect(otra.id).not.toBe(a.id);
+      expect([a.total, otra.total]).toEqual([138, 138]);
     });
 
     it('ciclo: cobro reserva → entrega descuenta físico una sola vez, con kardex, aunque se repita', async () => {

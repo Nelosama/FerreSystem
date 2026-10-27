@@ -176,6 +176,11 @@ export class VentasService {
     }
 
     if(new Set(dto.detalles.map(d=>d.productoId)).size!==dto.detalles.length) throw new BadRequestException('Agrupe las líneas del mismo producto');
+    // También protege a consumidores internos del servicio, que no pasan por ValidationPipe.
+    const motivoExcepcion = dto.excepcionPrecio?.motivo;
+    if (dto.excepcionPrecio != null && (typeof motivoExcepcion !== 'string' || motivoExcepcion.trim().length < 10 || motivoExcepcion.trim().length > 300)) {
+      throw new BadRequestException('Explique el motivo de la excepción de precio (entre 10 y 300 caracteres)');
+    }
     const tipoPago = dto.tipoPago || (dto.metodoPago === 'CREDITO' ? 'CREDITO' : 'CONTADO');
     if (dto.tipoPago && dto.metodoPago && ((dto.tipoPago === 'CREDITO') !== (dto.metodoPago === 'CREDITO'))) {
       throw new BadRequestException('El tipo de pago y el método de pago no coinciden');
@@ -228,6 +233,12 @@ export class VentasService {
           if (heredada && heredada.tenantId === tenantId) anterior = heredada;
         }
         if (anterior) {
+          // El motivo auditado es parte del contenido del reintento. Se consulta la traza durable para conservar
+          // compatibilidad con las huellas v2 ya emitidas por #202, que no incluían excepcionPrecio.
+          const [excepcionAnterior] = await query(tx, "SELECT datos->>'motivo' AS motivo FROM auditoria_operaciones WHERE tenant_id=$1 AND entidad_id=$2 AND operacion='VENTA_EXCEPCION_PRECIO' LIMIT 1", tenantId, anterior.id);
+          if (excepcionAnterior && excepcionAnterior.motivo !== motivoExcepcion?.trim()) {
+            throw new ConflictException('La solicitud ya fue utilizada para otra venta');
+          }
           const restantes = [...anterior.detalles];
           const mismosDetalles = anterior.detalles.length === dto.detalles.length &&
             dto.detalles.every((item) => {

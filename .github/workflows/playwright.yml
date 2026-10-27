@@ -3,7 +3,8 @@ on:
   push:
     branches: [ main, master ]
   pull_request:
-    branches: [ main, master ]
+    # También valida las correcciones apiladas de #202 sin escribir en su rama ni fusionarla.
+    branches: [ main, master, 'claude/pos-sincronizacion-precios' ]
 permissions:
   contents: read
 concurrency:
