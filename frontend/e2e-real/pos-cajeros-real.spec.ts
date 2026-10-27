@@ -34,6 +34,7 @@ async function preparar(request: APIRequestContext, page: Page) {
   await catalogo;
   const buscar = page.getByPlaceholder('Buscar por código o nombre de producto...');
   await buscar.fill(nombre);
+  await expect(page.locator('.pos-producto').filter({ hasText: nombre })).toBeVisible();
   await buscar.press('Enter');
   await expect(page.getByLabel(`Cantidad ${nombre}`, { exact: true })).toBeVisible();
   return { headers, user, producto };
@@ -62,6 +63,7 @@ test('1.2 / 13.3 efectivo, comprobante, caja y reporte por cajero concilian con 
   verificarVenta(venta, producto);
   await page.getByRole('button', { name: 'NUEVA VENTA' }).click();
   await page.getByPlaceholder('Buscar por código o nombre de producto...').fill(producto.codigo);
+  await expect(page.locator('.pos-producto').filter({ hasText: producto.codigo })).toBeVisible();
   await page.getByPlaceholder('Buscar por código o nombre de producto...').press('Enter');
   await expect(page.getByLabel('Efectivo recibido')).toHaveValue('');
   const dia = new Date(venta.createdAt).toLocaleDateString('en-CA', { timeZone: 'America/Tegucigalpa' });

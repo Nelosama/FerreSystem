@@ -472,6 +472,7 @@ test.describe('14. Operación de la interfaz POS', () => {
     await ingresar(page, EM.cajero1, '/pos');
     const buscar = page.getByPlaceholder('Buscar por código o nombre de producto...');
     await buscar.fill(COD.ui);
+    await expect(page.locator('.pos-producto').filter({ hasText: COD.ui })).toBeVisible();
     await buscar.press('Enter');
     await expect(page.getByLabel(new RegExp('^Cantidad QA ' + COD.ui))).toBeVisible();
     await page.getByRole('button', { name: 'Efectivo', exact: true }).click();
@@ -481,9 +482,16 @@ test.describe('14. Operación de la interfaz POS', () => {
   });
 
   test('14.2 doble clic en Procesar Venta registra una sola venta', async ({ page }) => {
+    // Transporte lento, datos de la API real: el código no debe buscarse antes de cargar el catálogo.
+    await page.route('**/api/productos/comercial', async route => {
+      const response = await route.fetch();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await route.fulfill({ response });
+    });
     await ingresar(page, EM.cajero1, '/pos');
     const buscar = page.getByPlaceholder('Buscar por código o nombre de producto...');
     await buscar.fill(COD.dbl);
+    await expect(page.locator('.pos-producto').filter({ hasText: COD.dbl })).toBeVisible();
     await buscar.press('Enter');
     await expect(page.getByLabel(new RegExp('^Cantidad QA ' + COD.dbl))).toBeVisible();
     const antes = num(`SELECT stock_reservado::float FROM productos WHERE id='${P5}'`);
@@ -509,6 +517,7 @@ test.describe('14. Operación de la interfaz POS', () => {
     await ingresar(page, EM.cajero1, '/pos');
     const buscar = page.getByPlaceholder('Buscar por código o nombre de producto...');
     await buscar.fill(COD.ui);
+    await expect(page.locator('.pos-producto').filter({ hasText: COD.ui })).toBeVisible();
     await buscar.press('Enter');
     await expect(page.getByLabel(new RegExp('^Cantidad QA ' + COD.ui))).toBeVisible();
     const antes = num(`SELECT COUNT(*) FROM detalles_venta WHERE producto_id='${PUI}'`);

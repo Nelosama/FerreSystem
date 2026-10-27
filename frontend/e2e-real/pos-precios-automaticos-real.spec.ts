@@ -31,7 +31,9 @@ test('PR202: dos cajas sincronizan el precio aprobado sin refrescar y concilian 
     const catalogo = p.waitForResponse(r => r.url().endsWith('/productos/comercial') && r.ok());
     await p.goto('/pos'); await catalogo;
     const buscar = p.getByPlaceholder('Buscar por código o nombre de producto...');
-    await buscar.fill(nombre); await buscar.press('Enter');
+    await buscar.fill(nombre);
+    await expect(p.locator('.pos-producto').filter({ hasText: nombre })).toBeVisible();
+    await buscar.press('Enter');
     await p.getByLabel(`Cantidad ${nombre}`, { exact: true }).fill(cantidad);
   };
   const otroContexto = await browser.newContext({ baseURL });
