@@ -256,4 +256,53 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     expect(sim.intentos).toHaveLength(1);
     expect(sim.ventas[0].detalles[0].precioUnitario).toBe(120);
   });
+
+  test('el cobro no reutiliza una lectura del catálogo iniciada antes del cambio de precio', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    await page.clock.fastForward(4000);
+    // Una interacción inicia una lectura lenta que viaja con el precio anterior (100).
+    sim.retrasoCatalogoMs = 1500;
+    const lecturas = sim.lecturasCatalogo;
+    await page.getByLabel('Efectivo recibido').click();
+    await expect.poll(() => sim.lecturasCatalogo).toBeGreaterThan(lecturas);
+    // El Admin cambia el precio mientras esa lectura sigue en vuelo y el cajero cobra de inmediato.
+    sim.precio = 120; sim.retrasoCatalogoMs = 0;
+    await cobrar(page).click();
+    await expect(page.getByText(/1 x L\.? ?120\.00/)).toBeVisible();
+    // Cambio detectado durante el intento de cobro: aviso en el POS y segundo clic (requisito vigente).
+    await avisoDeCobro(page, '100.00', '120.00', '138.00');
+    expect(sim.intentos).toEqual([]);
+    await cobrar(page).click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(sim.ventas[0].detalles[0].precioUnitario).toBe(120);
+  });
+
+  test('una venta pendiente corregida tras un cambio de precio se envía con el precio vigente', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    // 1. La respuesta del cobro se pierde antes de registrarse: queda una venta pendiente.
+    sim.cortarSinRegistrar = true;
+    await cobrar(page).click();
+    await expect.poll(() => sim.intentos.length).toBe(1);
+    await expect(page.getByText('Había una venta en proceso.')).toBeVisible();
+    sim.cortarSinRegistrar = false;
+    // 2. El Admin cambia el precio; el servidor rechaza el precio anterior (409).
+    sim.precio = 120;
+    await page.getByRole('button', { name: 'Revisar venta y continuar' }).click();
+    await page.getByRole('button', { name: 'Ya revisé el pago: continuar registro' }).click();
+    await expect.poll(() => sim.intentos.length).toBe(2);
+    expect(sim.ventas).toEqual([]);
+    // 3. Corregir la venta: la siguiente interacción sincroniza el precio y el cobro la envía.
+    await page.getByRole('button', { name: 'Revisar venta y continuar' }).click();
+    await page.getByRole('button', { name: 'Corregir datos de esta venta' }).click();
+    await page.clock.fastForward(4000);
+    await page.getByRole('heading', { name: /punto de venta/i }).click();
+    await expect(page.getByText(/1 x L\.? ?120\.00/)).toBeVisible();
+    await sinAvisosDeActualizacion(page);
+    await page.getByRole('button', { name: 'Ya revisé el pago: continuar registro' }).click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(sim.ventas[0].detalles[0].precioUnitario).toBe(120);
+    expect(sim.ventas[0].solicitudId).toBe(sim.intentos[0].solicitudId);
+  });
 });
