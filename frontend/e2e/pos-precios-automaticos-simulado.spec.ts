@@ -11,10 +11,10 @@ const producto = { id: 'prod-1', codigo: 'TAL-1', nombre: 'Taladro', codigoBarra
   margen: null, stockActual: 10, stockReservado: 0, stockDisponible: 10, stockFisico: 10, stockMinimo: 1, activo: true, imagenUrl: null, marca: null, version: 1 };
 
 // retrasoVentaMs: retrasa la respuesta de POST /ventas. perderRespuesta: el servidor registra la venta pero la respuesta no llega.
-type Sim = { precio: number; lecturasCatalogo: number; fallosCatalogo: number; ventas: any[]; errores: string[]; inesperados: string[]; retrasoVentaMs: number; perderRespuesta: boolean; consultas: string[]; clientes: any[]; descartes: string[]; fallarDescarte: boolean; sinProducto: boolean };
+type Sim = { precio: number; lecturasCatalogo: number; fallosCatalogo: number; ventas: any[]; errores: string[]; inesperados: string[]; retrasoVentaMs: number; perderRespuesta: boolean; consultas: string[]; clientes: any[]; descartes: string[]; fallarDescarte: boolean; sinProducto: boolean; intentos: any[]; retrasoCatalogoUnaVez: number; rechazarPrecioViejo: boolean; perderSinRegistrar: boolean };
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
-    const sim: Sim = { precio: 100, lecturasCatalogo: 0, fallosCatalogo: 0, ventas: [], errores: [], inesperados: [], retrasoVentaMs: 0, perderRespuesta: false, consultas: [], clientes: [], descartes: [], fallarDescarte: false, sinProducto: false };
+    const sim: Sim = { precio: 100, lecturasCatalogo: 0, fallosCatalogo: 0, ventas: [], errores: [], inesperados: [], retrasoVentaMs: 0, perderRespuesta: false, consultas: [], clientes: [], descartes: [], fallarDescarte: false, sinProducto: false, intentos: [], retrasoCatalogoUnaVez: 0, rechazarPrecioViejo: false, perderSinRegistrar: false };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
     page.on('pageerror', e => sim.errores.push(e.message));
@@ -39,12 +39,20 @@ const test = base.extend<{ sim: Sim }>({
       if (method === 'GET' && path === '/productos/comercial') {
         sim.lecturasCatalogo++;
         if (sim.fallosCatalogo > 0) { sim.fallosCatalogo--; return route.abort('connectionreset'); }
-        return responder(route, 200, sim.sinProducto ? [] : [{ ...producto, precioVenta: sim.precio }]);
+        // El precio se fija al recibir la petición: una lectura lenta trae el precio de cuando empezó.
+        const precioAlPedir = sim.precio, retraso = sim.retrasoCatalogoUnaVez; sim.retrasoCatalogoUnaVez = 0;
+        if (retraso) await new Promise(r => setTimeout(r, retraso));
+        return responder(route, 200, sim.sinProducto ? [] : [{ ...producto, precioVenta: precioAlPedir }]);
       }
       if (method === 'GET' && path === '/operaciones/caja') return responder(route, 200, [{ id: 'caja-1', codigo: 'CAJA-1', estado: 'ABIERTA', usuario_id: cajero.id, monto_apertura: 500, efectivo_esperado: 500, totales: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0, CREDITO: 0 }, movimientos: [] }]);
       const ventaRegistrada = (body: any, n: number) => ({ id: `v-${n}`, numeroVenta: n, subtotal: 100, isv: 15, descuento: 0, total: 115, metodoPago: body.metodoPago, createdAt: new Date().toISOString(), detalles: [], estado: 'COMPLETADA' });
       if (method === 'POST' && path === '/ventas') {
-        const body = request.postDataJSON(); sim.ventas.push(body);
+        const body = request.postDataJSON();
+        // Regla del servidor para CAJERO/VENDEDOR: un precio distinto del vigente se rechaza con 409 y no se registra.
+        if (sim.rechazarPrecioViejo && body.detalles.some((d: any) => d.precioUnitario !== sim.precio)) { sim.intentos.push(body); return responder(route, 409, { message: 'El precio cambió' }); }
+        sim.intentos.push(body);
+        if (sim.perderSinRegistrar) { await route.abort('connectionreset'); return; }
+        sim.ventas.push(body);
         if (sim.retrasoVentaMs) await new Promise(r => setTimeout(r, sim.retrasoVentaMs));
         if (sim.perderRespuesta) { await route.abort('connectionreset'); return; }
         return responder(route, 201, ventaRegistrada(body, sim.ventas.length));
@@ -175,5 +183,53 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     await cobrar(page).click();
     await expect.poll(() => sim.ventas.length).toBe(1);
     expect(sim.ventas[0].detalles[0].precioUnitario).toBe(140);
+  });
+
+  test('el cobro no reutiliza una lectura del catálogo iniciada antes del cambio de precio', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    await page.clock.fastForward(4000);
+    // Una interacción inicia una lectura lenta que viaja con el precio anterior (100).
+    sim.retrasoCatalogoUnaVez = 1500;
+    const lecturas = sim.lecturasCatalogo;
+    await page.getByLabel('Efectivo recibido').click();
+    await expect.poll(() => sim.lecturasCatalogo).toBeGreaterThan(lecturas);
+    // El Admin cambia el precio mientras esa lectura sigue en vuelo y el cajero cobra de inmediato.
+    sim.precio = 120;
+    await cobrar(page).click();
+    await expect(page.getByText(/1 x L\.? ?120\.00/)).toBeVisible();
+    await sinAvisosDeActualizacion(page);
+    expect(sim.intentos).toEqual([]);
+    await cobrar(page).click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(sim.ventas[0].detalles[0].precioUnitario).toBe(120);
+  });
+
+  test('una venta pendiente corregida tras un cambio de precio se envía con el precio vigente', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    // 1. La respuesta del cobro se pierde antes de registrarse: queda una venta pendiente.
+    sim.perderSinRegistrar = true; sim.rechazarPrecioViejo = true;
+    await cobrar(page).click();
+    await expect.poll(() => sim.intentos.length).toBe(1);
+    await expect(page.getByText('Había una venta en proceso.')).toBeVisible();
+    sim.perderSinRegistrar = false;
+    // 2. El Admin cambia el precio; el servidor rechaza el precio anterior (409).
+    sim.precio = 120;
+    await page.getByRole('button', { name: 'Revisar venta y continuar' }).click();
+    await page.getByRole('button', { name: 'Ya revisé el pago: continuar registro' }).click();
+    await expect.poll(() => sim.intentos.length).toBe(2);
+    expect(sim.ventas).toEqual([]);
+    // 3. Corregir la venta: la siguiente interacción sincroniza el precio y el cobro la envía.
+    await page.getByRole('button', { name: 'Revisar venta y continuar' }).click();
+    await page.getByRole('button', { name: 'Corregir datos de esta venta' }).click();
+    await page.clock.fastForward(4000);
+    await page.getByRole('heading', { name: /punto de venta/i }).click();
+    await expect(page.getByText(/1 x L\.? ?120\.00/)).toBeVisible();
+    await sinAvisosDeActualizacion(page);
+    await page.getByRole('button', { name: 'Ya revisé el pago: continuar registro' }).click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(sim.ventas[0].detalles[0].precioUnitario).toBe(120);
+    expect(sim.ventas[0].solicitudId).toBe(sim.intentos[0].solicitudId);
   });
 });

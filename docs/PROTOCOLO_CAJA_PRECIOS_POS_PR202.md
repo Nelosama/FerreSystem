@@ -1,5 +1,7 @@
 # PR #202 — Auditoría y protocolo de prueba en caja real (sincronización automática de precios)
 
+> **Actualización 2026-10-27:** D1 y D2 quedaron corregidos después de esta auditoría (ver `CONTEXTO_MAESTRO.md`); los casos 11 y 12 deben ahora dar OK en la caja real. El resto del documento describe el SHA `42f154f` auditado.
+
 Revisión de `claude/pos-sincronizacion-precios` en el SHA `42f154f`, base `main` `2f6168d`. **Este documento no registra ninguna prueba física: describe cómo hacerla.** El PR sigue en borrador, sin merge ni despliegue.
 
 ## 1. Lo demostrado y lo que falta

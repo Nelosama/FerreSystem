@@ -319,8 +319,15 @@ export const POSPage: React.FC = () => {
 
   // Una sola lectura del catálogo a la vez, con un reintento ante fallos de red o del servidor.
   // Devuelve null si la sesión o la venta cambiaron mientras tanto.
-  const leerCatalogo = useCallback((): Promise<ProductItem[] | null> => {
-    if (lecturaCatalogo.current) return lecturaCatalogo.current;
+  // `fresca`: el cobro no reutiliza una lectura iniciada antes de pulsar Cobrar (podría traer un precio anterior al cambio del Admin):
+  // espera a que termine y pide otra, salvo que ya haya una iniciada después del clic.
+  const leerCatalogo = useCallback(async (fresca = false): Promise<ProductItem[] | null> => {
+    if (lecturaCatalogo.current) {
+      if (!fresca) return lecturaCatalogo.current;
+      const anterior = lecturaCatalogo.current;
+      await anterior.catch(() => undefined);
+      if (lecturaCatalogo.current && lecturaCatalogo.current !== anterior) return lecturaCatalogo.current;
+    }
     const requestKey = activeKey.current;
     const lectura = (async () => {
       for (let intento = 1; ; intento++) {
@@ -336,7 +343,7 @@ export const POSPage: React.FC = () => {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
-    })().finally(() => { lecturaCatalogo.current = null; });
+    })().finally(() => { if (lecturaCatalogo.current === lectura) lecturaCatalogo.current = null; });
     lecturaCatalogo.current = lectura;
     return lectura;
   }, []);
@@ -586,10 +593,12 @@ export const POSPage: React.FC = () => {
       // Una venta pendiente sin corregir se reenvía idéntica (el servidor rechaza un precio antiguo con 409).
       if (!ventaPendiente || corrigiendoPendiente) {
         let catalogo: ProductItem[] | null = null;
-        try { catalogo = await leerCatalogo(); } catch { catalogo = null; }
+        try { catalogo = await leerCatalogo(true); } catch { catalogo = null; }
         if (activeKey.current !== requestKey) return;
         if (!catalogo) { setErrorText('No se pudo confirmar el precio vigente de los productos. Revise la conexión y vuelva a cobrar; la venta no se registró.'); return; }
-        const carritoAEnviar = ventaPendiente?.cart || cart;
+        // El carrito editable es el que se enviará: en modo corrección el efecto del borrador ya lo guarda en la venta pendiente.
+        // (`ventaPendiente.cart` conserva el carrito original y no refleja las correcciones.)
+        const carritoAEnviar = cart;
         const vigente = aplicarPreciosVigentes(carritoAEnviar, catalogo);
         if (vigente.noDisponibles.length) { setErrorText(`Ya no se puede vender: ${vigente.noDisponibles.join(', ')}. Quítelo del ticket o consulte al administrador; la venta no se registró.`); return; }
         if (vigente.cambios.length) {
