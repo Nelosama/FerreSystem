@@ -69,4 +69,12 @@ NEXUS: cero cambios propios de esquema o migraciones; todas las escrituras de va
 
 ## Cambio concurrente de base durante la auditoría
 
-#202 avanzó de `59e739da` a `cf194ee7` (retirar aviso visible, actualización silenciosa). Se incorporó ese commit por cherry-pick únicamente en la rama propia (`5ea8f6e3`), conservando las correcciones de concurrencia y el comportamiento nuevo, sin merge ni escritura en la rama ajena. La nueva regresión se adapta al total silencioso y al segundo clic. El navegador general inicial se interrumpió para no validar un bundle anterior contra las pruebas cambiadas; sus resultados parciales no acreditan el nuevo HEAD. Frontend y CI se verifican de nuevo sobre la revisión sincronizada; los conteos y SHA definitivos están en #204.
+#202 avanzó de `59e739da` a `cf194ee7` (retirar aviso visible, actualización silenciosa). Se sincronizó únicamente la rama propia mediante rebase sobre `cf194ee7`, con respaldo local y publicación protegida por `--force-with-lease`. `cf194ee7` queda como ancestro real; no hubo merge ni escritura en la rama ajena. Una comparación de árboles antes/después del rebase confirmó contenido idéntico. Las regresiones conservan el total silencioso y el segundo clic.
+
+Tras esa sincronización: build/lint frontend correctos, **545/545** unitarias y **11/11** regresiones de precios. Las comprobaciones de backend no cambian con el retiro de un aviso del frontend.
+
+Pasadas extensivas locales antes de esa sincronización (no acreditan por sí solas el nuevo HEAD):
+
+- Piloto API/PG/navegador completo: **158 aprobadas, 1 fallida, 13 no ejecutadas por dependencia serial y 4 omitidas**. Falla la prueba 2 de recarga offline, reproducida por la sonda independiente. Incluye las dos cajas, los cinco vectores monetarios, cancelación, recuperación y aislamiento. La falla serial impide los casos posteriores de ese archivo; no se cuentan como aprobados.
+- Navegador simulado general: **292 aprobadas, 1 fallida (sonda de emulación offline existente), 2 interrumpidas, 11 omitidas y 106 no ejecutadas**. Se interrumpió al cambiar #202 para no validar un bundle anterior contra pruebas nuevas. Las once regresiones del POS se repitieron después y pasaron íntegramente.
+- El CI de los SHA anteriores se distingue del CI definitivo. #204 enlaza los workflows del último SHA sincronizado y sus resultados completos.
