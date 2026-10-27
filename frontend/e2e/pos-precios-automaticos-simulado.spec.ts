@@ -290,7 +290,7 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     await page.clock.fastForward(60_000);
     await expect.poll(() => sim.lecturasCatalogo).toBeGreaterThan(lecturas);
     await expect(page.locator('.pos-producto').first()).toContainText('120.00');
-    await retenida!.fulfill({ status: 200, json: [{ ...producto, precioVenta: 110 }] });
+    await retenida!.fulfill({ status: 200, json: [producto] });
     await avisoDeCobro(page, '100.00', '120.00', '138.00');
     await expect(page.getByText(/1 x L\.? ?120\.00/)).toBeVisible();
     expect(sim.intentos).toEqual([]);
