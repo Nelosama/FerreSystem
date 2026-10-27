@@ -1,6 +1,6 @@
 -- PROPUESTA NEXUS — asientos automáticos de Contabilidad (NO es una migración; no se aplica con `migrate deploy`).
 -- Aditiva: columnas nulas nuevas, dos tablas nuevas y la ampliación de un CHECK. No modifica filas existentes.
--- Requiere: migraciones 20261022000100_rol_contador y 20261022000200_contabilidad_honduras (PR #180).
+-- Requiere: migraciones 20261027000100_rol_contador y 20261027000200_contabilidad_honduras (PR #180).
 -- Autorización pendiente del dueño y firma de NEXUS antes de convertirla en migración (ver README.md).
 BEGIN;
 
