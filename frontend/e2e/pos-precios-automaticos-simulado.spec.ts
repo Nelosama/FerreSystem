@@ -274,6 +274,52 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     expect(sim.ventas[0].detalles[0].precioUnitario).toBe(120);
   });
 
+  test('una lectura de cobro retrasada no revierte un catálogo posterior ni envía el precio obsoleto', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    let retenida: Route | undefined;
+    // Retener solo la lectura del cobro. La sincronización periódica posterior confirma 120 primero.
+    await page.route('**/api/productos/comercial', async route => {
+      retenida = route;
+      await page.unroute('**/api/productos/comercial');
+    }, { times: 1 });
+    await cobrar(page).click();
+    await expect.poll(() => !!retenida).toBe(true);
+    sim.precio = 120;
+    const lecturas = sim.lecturasCatalogo;
+    await page.clock.fastForward(60_000);
+    await expect.poll(() => sim.lecturasCatalogo).toBeGreaterThan(lecturas);
+    await expect(page.locator('.pos-producto').first()).toContainText('120.00');
+    await retenida!.fulfill({ status: 200, json: [{ ...producto, precioVenta: 110 }] });
+    await avisoDeCobro(page, '100.00', '120.00', '138.00');
+    await expect(page.getByText(/1 x L\.? ?120\.00/)).toBeVisible();
+    expect(sim.intentos).toEqual([]);
+    await cobrar(page).click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(sim.ventas[0].detalles[0].precioUnitario).toBe(120);
+  });
+
+  test('un borrador cambiado en otra caja durante la validación no se sobrescribe ni se cobra', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    let retenida: Route | undefined;
+    await page.route('**/api/productos/comercial', route => { retenida = route; }, { times: 1 });
+    await cobrar(page).click();
+    await expect.poll(() => !!retenida).toBe(true);
+    const borrador = await page.evaluate(() => {
+      const key = Object.keys(localStorage).find(k => k.startsWith('ferre_sale_draft:'))!;
+      const draft = JSON.parse(localStorage.getItem(key)!);
+      draft.sale.cart[0].cantidad = 3;
+      const value = JSON.stringify(draft);
+      localStorage.setItem(key, value); // misma escritura que haría otra pestaña antes de recibir storage
+      return { key, value };
+    });
+    await retenida!.fulfill({ status: 200, json: [producto] });
+    await expect(page.getByText(/El ticket cambió mientras se validaba el precio/)).toBeVisible();
+    expect(sim.intentos).toEqual([]);
+    expect(await page.evaluate(key => localStorage.getItem(key), borrador.key)).toBe(borrador.value);
+  });
+
   test('una venta pendiente corregida tras un cambio de precio se envía con el precio vigente', async ({ page, sim }) => {
     await abrirPos(page);
     await page.getByText('Taladro').first().click();

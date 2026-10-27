@@ -136,6 +136,7 @@ export const POSPage: React.FC = () => {
   // Cada lectura recibe un número al iniciarse; solo se aplica si es más reciente que la última aplicada.
   const secuenciaLecturas = useRef(0);
   const secuenciaAplicada = useRef(0);
+  const ultimoCatalogo = useRef<{ key: string; data: ProductItem[] } | null>(null);
   // Catálogo y precios del carrito se sincronizan solos: cada 60 s y en la siguiente interacción del cajero
   // (con un mínimo entre lecturas). Un cambio de precio hecho por el Admin actualiza el carrito y el total sin botón ni aviso.
   // No se toca un carrito ya enviado (venta pendiente sin corregir) ni se muestran errores sobre una venta en curso.
@@ -168,10 +169,11 @@ export const POSPage: React.FC = () => {
   const carritoEditableRef = useRef(false);
   carritoEditableRef.current = !edicionBloqueada;
   const ultimaSincronizacion = useRef(0);
-  const lecturaCatalogo = useRef<Promise<ProductItem[] | null> | null>(null);
+  const lecturaCatalogo = useRef<{ key: string; promesa: Promise<ProductItem[] | null> } | null>(null);
   const aplicarCatalogo = (data: ProductItem[], secuencia: number) => {
     if (secuencia <= secuenciaAplicada.current) return;
     secuenciaAplicada.current = secuencia;
+    ultimoCatalogo.current = { key: activeKey.current, data };
     ultimaSincronizacion.current = Date.now();
     setProductos(data);
     if (!carritoEditableRef.current) return;
@@ -333,8 +335,11 @@ export const POSPage: React.FC = () => {
         if (requestKey !== activeKey.current) return null;
         const data: ProductItem[] = response.data.map(mapearProductoPOS);
         aplicarCatalogoRef.current(data, secuencia);
-        return data;
+        // También el consumidor (cobro) debe recibir la última respuesta aplicada. Descartar la respuesta
+        // antigua solo al pintar el catálogo permitía que handleCobrar revirtiera el carrito con ella.
+        return ultimoCatalogo.current?.key === requestKey ? ultimoCatalogo.current.data : null;
       } catch (err: any) {
+        if (requestKey !== activeKey.current) return null;
         const status = err?.response?.status;
         if (intento >= 2 || status === 401 || status === 403) throw err;
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -343,10 +348,13 @@ export const POSPage: React.FC = () => {
   }, []);
   // Lecturas en segundo plano: una a la vez; las interacciones seguidas comparten la que está en curso.
   const leerCatalogo = useCallback((): Promise<ProductItem[] | null> => {
-    if (lecturaCatalogo.current) return lecturaCatalogo.current;
-    const lectura = consultarCatalogo().finally(() => { lecturaCatalogo.current = null; });
+    const key = activeKey.current;
+    if (lecturaCatalogo.current?.key === key) return lecturaCatalogo.current.promesa;
+    const lectura = { key, promesa: consultarCatalogo().finally(() => {
+      if (lecturaCatalogo.current === lectura) lecturaCatalogo.current = null;
+    }) };
     lecturaCatalogo.current = lectura;
-    return lectura;
+    return lectura.promesa;
   }, [consultarCatalogo]);
 
   // En segundo plano: un fallo no interrumpe al cajero; el cobro vuelve a validar los precios antes de enviar.
@@ -588,6 +596,7 @@ export const POSPage: React.FC = () => {
     let enviado = false;
     let requestIdentity = ventaPendiente?.solicitudId;
     try {
+      const borradorAntes = localStorage.getItem(draftKey);
       // Precio vigente antes de enviar: sin confirmarlo no se cobra. Va antes de leer la recuperación para no abrir
       // una espera entre esa lectura y la escritura del pendiente (otra pestaña podría haberlo cambiado). Si cambió, el total
       // se actualiza en pantalla y la venta no se envía hasta que el cajero vea y cobre el total nuevo.
@@ -602,6 +611,10 @@ export const POSPage: React.FC = () => {
         let catalogo: ProductItem[] | null = null;
         try { catalogo = await consultarCatalogo(); } catch { catalogo = null; }
         if (activeKey.current !== requestKey) return;
+        if (!ventaPendiente && localStorage.getItem(draftKey) !== borradorAntes) {
+          restoreRecovery();
+          setErrorText('El ticket cambió mientras se validaba el precio. Revíselo y vuelva a cobrar; la venta no se registró.'); return;
+        }
         if (!catalogo) { setErrorText('No se pudo confirmar el precio vigente de los productos. Revise la conexión y vuelva a cobrar; la venta no se registró.'); return; }
         const vigente = aplicarPreciosVigentes(carritoAEnviar, catalogo);
         if (vigente.noDisponibles.length) { setErrorText(`Ya no se puede vender: ${vigente.noDisponibles.join(', ')}. Quítelo del ticket o consulte al administrador; la venta no se registró.`); return; }
@@ -615,6 +628,10 @@ export const POSPage: React.FC = () => {
       }
       const stored = readRecovery(pendingKey, draftKey);
       if (stored.error) throw new Error(stored.error);
+      if (!ventaPendiente && localStorage.getItem(draftKey) !== borradorAntes) {
+        restoreRecovery();
+        setErrorText('El ticket cambió mientras se validaba el precio. Revíselo y vuelva a cobrar; la venta no se registró.'); return;
+      }
       if (stored.pending && stored.pending.solicitudId !== ventaPendiente?.solicitudId) {
         throw new Error('Hay una venta pendiente en otra pestaña. Recargue y revise esa venta antes de cobrar.');
       }
@@ -633,7 +650,7 @@ export const POSPage: React.FC = () => {
         if (status.estado !== 'NO_REGISTRADA') throw new Error('No se pudo comprobar el estado de la venta.');
       }
       const pending = stored.pending || {
-        solicitudId: pendingIdentity || crypto.randomUUID(), cart, clienteNombre, clienteRtn, clienteId,
+        solicitudId: pendingIdentity || crypto.randomUUID(), cart: carritoValidado || cart, clienteNombre, clienteRtn, clienteId,
         vencimiento: vencimiento || undefined, metodoPago, descuentoPorcentaje, modoEntrega,
         pagoElectronico: pagoElectronicoDesde(metodoPago, autorizacionBancaria),
       };
