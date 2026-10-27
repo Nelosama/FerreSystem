@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum, IsIn, IsUUID, IsBoolean, IsDateString, ArrayMinSize, ArrayMaxSize, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsEnum, IsIn, IsUUID, IsBoolean, IsDateString, ArrayMinSize, ArrayMaxSize, MaxLength, MinLength } from 'class-validator';
 import { EmptyToUndefined } from '../../common/empty-to-undefined';
 import { Type } from 'class-transformer';
 import { TipoPago } from '../../types/prisma-enums';
@@ -31,6 +31,12 @@ export class DetalleVentaItemDto {
   @IsOptional() @IsString() ordenCompraId?: string;
 }
 
+/** Excepción administrativa de precio: exige el permiso «pos.excepcion_precio» y un motivo que queda auditado. */
+export class ExcepcionPrecioDto {
+  @IsString() @MinLength(10, { message: 'Explique el motivo de la excepción de precio (mínimo 10 caracteres)' }) @MaxLength(300)
+  motivo!: string;
+}
+
 export class CreateVentaDto {
   /** Obligatoria (DEF-03): sin ella un reintento por pérdida de respuesta crearía otra venta. UUID v4 generado por el cliente. */
   @IsUUID('4', { message: 'solicitudId es obligatorio y debe ser un UUID v4 generado por el cliente' })
@@ -60,6 +66,8 @@ export class CreateVentaDto {
   @IsString()
   @IsOptional()
   notas?: string;
+
+  @IsOptional() @ValidateNested() @Type(() => ExcepcionPrecioDto) excepcionPrecio?: ExcepcionPrecioDto;
 
   @IsArray()
   @ArrayMinSize(1)

@@ -308,11 +308,29 @@ describe('Auditoría de piloto: jornada de ferretería / PostgreSQL aislado', ()
       expect((await stock(otro.martillo)).reservado).toBe(0);
     });
 
-    it('el cajero no puede cambiar el precio; el ADMIN puede, y queda el precio cobrado', async () => {
+    it('nadie registra en silencio un precio distinto del vigente; ADMIN solo con permiso explícito, motivo y auditoría', async () => {
       const e = await negocio();
+      const distinto = { detalles: [{ productoId: e.martillo, cantidad: 1, precioUnitario: 90 }] };
       await expect(vender(e, e.cajero, { detalles: [{ productoId: e.martillo, cantidad: 1, precioUnitario: 1 }] })).rejects.toThrow('precio cambió');
-      const v = await vender(e, e.admin, { detalles: [{ productoId: e.martillo, cantidad: 1, precioUnitario: 90 }] });
+      // El rol ADMIN ya no basta: sin excepción explícita también recibe 409.
+      await expect(vender(e, e.admin, distinto)).rejects.toThrow('precio cambió');
+      const motivo = { motivo: 'Precio negociado con el cliente mayorista' };
+      // Con motivo pero sin el permiso explícito asignado: rechazo.
+      await expect(vender(e, e.admin, { ...distinto, excepcionPrecio: motivo })).rejects.toThrow('permiso explícito');
+      // Un CAJERO con el permiso tampoco puede: la excepción es administrativa.
+      await prisma.usuario.update({ where: { id: e.cajero }, data: { permisos: ['pos.vender', 'pos.excepcion_precio'], permisosConfigurados: true } });
+      await expect(vender(e, e.cajero, { ...distinto, excepcionPrecio: motivo })).rejects.toThrow('permiso explícito');
+      expect(await sql("SELECT count(*)::int AS n FROM ventas WHERE tenant_id=$1", e.tenantId)).toEqual([{ n: 0 }]);
+      await prisma.usuario.update({ where: { id: e.admin }, data: { permisos: ['pos.excepcion_precio'], permisosConfigurados: true } });
+      const v = await vender(e, e.admin, { ...distinto, excepcionPrecio: motivo });
       expect(v.subtotal).toBe(90);
+      const [traza] = await sql("SELECT usuario_id, datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='VENTA_EXCEPCION_PRECIO' AND entidad_id=$2", e.tenantId, v.id);
+      expect(traza.usuario_id).toBe(e.admin);
+      expect(traza.datos).toMatchObject({ motivo: motivo.motivo, lineas: [{ productoId: e.martillo, precioCobrado: 90 }] });
+      expect(traza.datos.lineas[0].precioVigente).not.toBe(90);
+      // Al precio vigente no hay excepción que auditar aunque se envíe el motivo.
+      const vigente = await vender(e, e.admin, { detalles: [{ productoId: e.martillo, cantidad: 1 }], excepcionPrecio: motivo });
+      expect(await sql("SELECT count(*)::int AS n FROM auditoria_operaciones WHERE entidad_id=$1 AND operacion='VENTA_EXCEPCION_PRECIO'", vigente.id)).toEqual([{ n: 0 }]);
     });
 
     it('ciclo: cobro reserva → entrega descuenta físico una sola vez, con kardex, aunque se repita', async () => {

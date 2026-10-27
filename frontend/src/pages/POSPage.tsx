@@ -12,7 +12,7 @@ import { useTenant } from '../context/TenantContext';
 import type { ProductItem } from '../types';
 import { api } from '../utils/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import { aplicarPreciosVigentes } from '../utils/preciosCarrito';
+import { aplicarPreciosVigentes, type CambioPrecio } from '../utils/preciosCarrito';
 import { readRecovery, saveDraft, type PendingSale, type CartItem } from '../utils/posRecovery';
 import { useI18n } from '../context/I18nContext';
 import {
@@ -133,12 +133,15 @@ export const POSPage: React.FC = () => {
   const [providers,setProviders]=useState<any[]>([]);
   const [special,setSpecial]=useState(!!initialSale?.cart[0]?.sinInventario);
   const [specialProvider,setSpecialProvider]=useState(initialSale?.cart[0]?.proveedorId || '');
+  // Cada lectura recibe un número al iniciarse; solo se aplica si es más reciente que la última aplicada.
+  const secuenciaLecturas = useRef(0);
+  const secuenciaAplicada = useRef(0);
   // Catálogo y precios del carrito se sincronizan solos: cada 60 s y en la siguiente interacción del cajero
   // (con un mínimo entre lecturas). Un cambio de precio hecho por el Admin actualiza el carrito y el total sin botón ni aviso.
   // No se toca un carrito ya enviado (venta pendiente sin corregir) ni se muestran errores sobre una venta en curso.
-  useAutoRefresh<ProductItem[]>({
-    load: signal => api.get('/productos/comercial', { signal }).then(r => r.data.map(mapearProductoPOS)),
-    apply: data => aplicarCatalogoRef.current(data),
+  useAutoRefresh<{ secuencia: number; data: ProductItem[] }>({
+    load: signal => { const secuencia = ++secuenciaLecturas.current; return api.get('/productos/comercial', { signal }).then(r => ({ secuencia, data: r.data.map(mapearProductoPOS) as ProductItem[] })); },
+    apply: ({ secuencia, data }) => aplicarCatalogoRef.current(data, secuencia),
     intervalMs: 60_000,
     immediate: false,
     deps: [tenant.id, user?.id],
@@ -166,7 +169,13 @@ export const POSPage: React.FC = () => {
   carritoEditableRef.current = !edicionBloqueada;
   const ultimaSincronizacion = useRef(0);
   const lecturaCatalogo = useRef<Promise<ProductItem[] | null> | null>(null);
-  const aplicarCatalogo = (data: ProductItem[]) => {
+  // Cambio de precio detectado al cobrar: se informa en el POS y el cobro exige un segundo clic con ese total visible.
+  const [avisoCobro, setAvisoCobro] = useState<{ cambios: CambioPrecio[] } | null>(null);
+  const avisoCobroRef = useRef(avisoCobro);
+  avisoCobroRef.current = avisoCobro;
+  const aplicarCatalogo = (data: ProductItem[], secuencia: number) => {
+    if (secuencia <= secuenciaAplicada.current) return;
+    secuenciaAplicada.current = secuencia;
     ultimaSincronizacion.current = Date.now();
     setProductos(data);
     if (!carritoEditableRef.current) return;
@@ -174,6 +183,8 @@ export const POSPage: React.FC = () => {
     if (!vigente.cambios.length) return;
     cartRef.current = vigente.carrito;
     setCart(vigente.carrito);
+    // Silencioso salvo que haya un aviso de cobro abierto: entonces el aviso refleja también este cambio.
+    if (avisoCobroRef.current) setAvisoCobro({ cambios: [...avisoCobroRef.current.cambios.filter(c => !vigente.cambios.some(n => n.productoId === c.productoId)), ...vigente.cambios] });
   };
   const aplicarCatalogoRef = useRef(aplicarCatalogo);
   aplicarCatalogoRef.current = aplicarCatalogo;
@@ -248,6 +259,7 @@ export const POSPage: React.FC = () => {
     setBorradorRecuperado(!!recovery.draft);
     setRecoveryStatus('SIN_COMPROBAR');
     setCorrigiendoPendiente(false);
+    setAvisoCobro(null);
     setCart(sale?.cart || []);
     setClienteNombre(sale?.clienteNombre || 'Consumidor Final');
     setClienteRtn(sale?.clienteRtn || '');
@@ -317,29 +329,32 @@ export const POSPage: React.FC = () => {
     }
   }, []);
 
-  // Una sola lectura del catálogo a la vez, con un reintento ante fallos de red o del servidor.
-  // Devuelve null si la sesión o la venta cambiaron mientras tanto.
+  // Lectura del catálogo con un reintento ante fallos de red o del servidor. Devuelve null si la sesión o la venta
+  // cambiaron mientras tanto. El número de secuencia se toma al iniciar cada intento.
+  const consultarCatalogo = useCallback(async (): Promise<ProductItem[] | null> => {
+    const requestKey = activeKey.current;
+    for (let intento = 1; ; intento++) {
+      const secuencia = ++secuenciaLecturas.current;
+      try {
+        const response = await api.get('/productos/comercial');
+        if (requestKey !== activeKey.current) return null;
+        const data: ProductItem[] = response.data.map(mapearProductoPOS);
+        aplicarCatalogoRef.current(data, secuencia);
+        return data;
+      } catch (err: any) {
+        const status = err?.response?.status;
+        if (intento >= 2 || status === 401 || status === 403) throw err;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+  }, []);
+  // Lecturas en segundo plano: una a la vez; las interacciones seguidas comparten la que está en curso.
   const leerCatalogo = useCallback((): Promise<ProductItem[] | null> => {
     if (lecturaCatalogo.current) return lecturaCatalogo.current;
-    const requestKey = activeKey.current;
-    const lectura = (async () => {
-      for (let intento = 1; ; intento++) {
-        try {
-          const response = await api.get('/productos/comercial');
-          if (requestKey !== activeKey.current) return null;
-          const data: ProductItem[] = response.data.map(mapearProductoPOS);
-          aplicarCatalogoRef.current(data);
-          return data;
-        } catch (err: any) {
-          const status = err?.response?.status;
-          if (intento >= 2 || status === 401 || status === 403) throw err;
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-    })().finally(() => { lecturaCatalogo.current = null; });
+    const lectura = consultarCatalogo().finally(() => { lecturaCatalogo.current = null; });
     lecturaCatalogo.current = lectura;
     return lectura;
-  }, []);
+  }, [consultarCatalogo]);
 
   // En segundo plano: un fallo no interrumpe al cajero; el cobro vuelve a validar los precios antes de enviar.
   const sincronizarAlInteractuar = useCallback(() => {
@@ -387,6 +402,13 @@ export const POSPage: React.FC = () => {
   const isv = totalesCentavos.isv / 100;
   const total = totalesCentavos.total / 100;
   const vuelto = calcularVuelto(efectivoRecibido, totalesCentavos.total);
+  // Aviso en el propio POS (sin ventana modal): precio cambiado durante el intento de cobro y total vigente en vivo.
+  const avisoCobroUI = avisoCobro && (
+    <div role="alert" data-testid="pos-aviso-cobro" className="ferre-pos-aviso-cobro" style={{ margin: '8px 0', padding: '10px 14px', backgroundColor: '#FFF7ED', border: '2px solid #EA580C', borderRadius: '4px', color: '#7C2D12', fontSize: '14px', fontWeight: 600 }}>
+      <p style={{ margin: 0 }}>El precio cambió al cobrar: {avisoCobro.cambios.map(c => `${c.nombre} ${formatLempiras(c.anterior)} → ${formatLempiras(c.nuevo)}`).join('; ')}.</p>
+      <p style={{ margin: '4px 0 0' }}>Nuevo total: <strong>{formatLempiras(total)}</strong>. No se registró la venta. Confirme este total con el cliente y pulse de nuevo «{ventaPendiente ? 'Ya revisé el pago: continuar registro' : t('pos.checkout')}» para cobrarlo.</p>
+    </div>
+  );
   const etiquetaMetodo = (m: string) => t(`pos.${m === 'EFECTIVO' ? 'cash' : m === 'TARJETA' ? 'card' : m === 'TRANSFERENCIA' ? 'transfer' : 'credit'}`);
 
   const agregarAlCarrito = (prod: ProductItem) => {
@@ -584,24 +606,34 @@ export const POSPage: React.FC = () => {
       // una espera entre esa lectura y la escritura del pendiente (otra pestaña podría haberlo cambiado). Si cambió, el total
       // se actualiza en pantalla y la venta no se envía hasta que el cajero vea y cobre el total nuevo.
       // Una venta pendiente sin corregir se reenvía idéntica (el servidor rechaza un precio antiguo con 409).
+      // El carrito que se valida es el que se enviará: al corregir una venta pendiente, el carrito corregido (el efecto
+      // del borrador lo guarda en el pendiente), no el que tenía el pendiente al crearse.
+      let carritoValidado: CartItem[] | null = null;
       if (!ventaPendiente || corrigiendoPendiente) {
+        // Carrito tomado antes de la lectura: un cambio aplicado durante la espera no puede pasar inadvertido.
+        const carritoAEnviar = cartRef.current;
+        // Lectura propia de este intento: nunca se reutiliza una consulta que empezó antes del clic.
         let catalogo: ProductItem[] | null = null;
-        try { catalogo = await leerCatalogo(); } catch { catalogo = null; }
+        try { catalogo = await consultarCatalogo(); } catch { catalogo = null; }
         if (activeKey.current !== requestKey) return;
         if (!catalogo) { setErrorText('No se pudo confirmar el precio vigente de los productos. Revise la conexión y vuelva a cobrar; la venta no se registró.'); return; }
-        const carritoAEnviar = ventaPendiente?.cart || cart;
         const vigente = aplicarPreciosVigentes(carritoAEnviar, catalogo);
         if (vigente.noDisponibles.length) { setErrorText(`Ya no se puede vender: ${vigente.noDisponibles.join(', ')}. Quítelo del ticket o consulte al administrador; la venta no se registró.`); return; }
+        // Precio distinto durante este intento: se actualiza el total, se informa y no se envía hasta un segundo clic.
         if (vigente.cambios.length) {
-          // Sin avisos ni botones: la línea y el total ya muestran el importe vigente y el cajero cobra ese total.
           cartRef.current = vigente.carrito; setCart(vigente.carrito);
+          setAvisoCobro({ cambios: vigente.cambios });
           return;
         }
+        carritoValidado = vigente.carrito;
       }
       const stored = readRecovery(pendingKey, draftKey);
       if (stored.error) throw new Error(stored.error);
       if (stored.pending && stored.pending.solicitudId !== ventaPendiente?.solicitudId) {
         throw new Error('Hay una venta pendiente en otra pestaña. Recargue y revise esa venta antes de cobrar.');
+      }
+      if (carritoValidado && stored.pending && JSON.stringify(stored.pending.cart) !== JSON.stringify(carritoValidado)) {
+        setErrorText('El ticket cambió mientras se validaba el precio. Revíselo y vuelva a cobrar; la venta no se registró.'); return;
       }
       // Una consulta previa puede haberse quedado antigua o venir de otra pestaña.
       // Consultar cada reintento evita reenviar una venta que ya está registrada.
@@ -625,6 +657,7 @@ export const POSPage: React.FC = () => {
       setVentaPendiente(pending);
       setRecoveryStatus('SIN_COMPROBAR');
       const descuentoPendiente = calcularVentaPOS(pending.cart, pending.descuentoPorcentaje).descuento / 100;
+      setAvisoCobro(null);
       enviado = true;
       const { data } = await api.post('/ventas', {
         solicitudId: pending.solicitudId, clienteId: pending.clienteId, vencimiento: pending.vencimiento || undefined,
@@ -697,6 +730,7 @@ export const POSPage: React.FC = () => {
             <button type="button" className="btn btn-secondary" onClick={() => void cancelarVenta()} disabled={comprobando || procesandoVenta || !!storageError}>Descartar venta</button>
             {recoveryStatus === 'NO_REGISTRADA' && !corrigiendoPendiente && <button type="button" className="btn btn-secondary" disabled={procesandoVenta || comprobando} onClick={() => setCorrigiendoPendiente(true)}>Corregir datos de esta venta</button>}
             {recoveryStatus === 'NO_REGISTRADA' && <button type="button" className="btn btn-secondary" onClick={handleCobrar} disabled={procesandoVenta || comprobando || !!storageError || !!draftError}>Ya revisé el pago: continuar registro</button>}
+            {avisoCobroUI}
           </div>
         )}
         {avisoExistencia && (
@@ -1007,6 +1041,7 @@ export const POSPage: React.FC = () => {
               </div>
             )}
 
+            {!ventaPendiente && avisoCobroUI}
             {/* Botón de Cobro o Solicitar Autorización */}
             {esDescuentoExcedido ? (
               <p role="alert">El descuento supera su límite. Un administrador debe registrar esta venta.</p>

@@ -8,6 +8,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { calcularTotales, centavosADecimal } from '../common/dinero';
 import { aCentavos } from '../common/redondeo-monetario';
 
+/** Permiso explícito (no implícito por rol) para cobrar un precio distinto del vigente, con motivo y auditoría. */
+export const PERMISO_EXCEPCION_PRECIO = 'pos.excepcion_precio';
+
 /**
  * Facturado, cobrado y saldo pendiente de una venta. Al contado se cobra el total. En crédito el saldo lo mantienen
  * los abonos (operaciones: saldo_credito y cuenta CXC); cobrado = facturado − saldo. No inventa plazos ni vencimientos.
@@ -154,6 +157,7 @@ export class VentasService {
       tipoPago?: 'CONTADO' | 'CREDITO';
       descuento?: number;
       notas?: string;
+      excepcionPrecio?: { motivo: string };
       detalles: {
         productoId: string;
         cantidad: number;
@@ -285,6 +289,8 @@ export class VentasService {
         stockAntes: number;
       }[] = [];
 
+      // Líneas cobradas a un precio distinto del vigente con excepción administrativa explícita (se auditan).
+      const excepcionesPrecio: { productoId: string; producto: string; precioVigente: number; precioCobrado: number }[] = [];
       for (const item of dto.detalles) {
         decimal(item.cantidad, 'Cantidad', true);
         await query(tx, 'SELECT id FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',item.productoId,tenantId);
@@ -319,7 +325,15 @@ export class VentasService {
         const precioUnitario = item.precioUnitario !== undefined ? item.precioUnitario : Number(prod.precioVenta);
         decimal(precioUnitario,'Precio unitario');
         if (!(precioUnitario > 0)) throw new BadRequestException('El precio unitario debe ser mayor que cero');
-        if (user.rol !== 'ADMIN' && precioUnitario !== Number(prod.precioVenta)) throw new ConflictException('El precio cambió; actualice el catálogo o solicite al administrador');
+        // Ningún rol registra en silencio un precio distinto del vigente (tampoco ADMIN). La única salida es una
+        // excepción administrativa explícita: rol ADMIN + permiso «pos.excepcion_precio» asignado + motivo, y queda auditada.
+        if (precioUnitario !== Number(prod.precioVenta)) {
+          if (!dto.excepcionPrecio) throw new ConflictException('El precio cambió; actualice el catálogo o solicite al administrador');
+          if (user.rol !== 'ADMIN' || !(user.permisos ?? []).includes(PERMISO_EXCEPCION_PRECIO)) {
+            throw new ForbiddenException('Cobrar un precio distinto del vigente requiere el permiso explícito de excepción de precio');
+          }
+          excepcionesPrecio.push({ productoId: prod.id, producto: prod.nombre, precioVigente: Number(prod.precioVenta), precioCobrado: precioUnitario });
+        }
         if (item.sinInventario) {
           const [provider] = await query(tx,'SELECT id FROM proveedores WHERE id=$1 AND tenant_id=$2',item.proveedorId || '',tenantId);
           if (!provider) throw new BadRequestException('Venta sin inventario requiere proveedor registrado');
@@ -441,6 +455,7 @@ export class VentasService {
       });
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',total,metodo,venta.id,`Venta ${numeroVenta}`);
       await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id,aprobacion:autorizacion});
+      if (excepcionesPrecio.length) await audit(tx,tenantId,usuarioId,'VENTA_EXCEPCION_PRECIO',venta.id,{motivo:dto.excepcionPrecio!.motivo.trim(),lineas:excepcionesPrecio});
       return this.formatVentaCreada(venta);
     },{timeout:30000});
   }

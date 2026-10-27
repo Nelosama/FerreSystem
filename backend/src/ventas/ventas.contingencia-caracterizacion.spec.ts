@@ -19,11 +19,12 @@ const ventaCreada = (extra = {}) => ({
 describe('VentasService.create — contrato vigente para contingencia', () => {
   let service: VentasService;
   let rol = 'CAJERO';
+  let permisos: string[] = [];
   let cajaAbierta = true;
   const prisma: any = {
     $transaction: vi.fn((cb) => cb(prisma)),
     $queryRawUnsafe: vi.fn(async (sql: string) => {
-      if (sql.includes('SELECT u.rol')) return [{ rol, descuento_maximo: 0 }];
+      if (sql.includes('SELECT u.rol')) return [{ rol, permisos, descuento_maximo: 0 }];
       if (sql.includes('SELECT * FROM cajas')) return cajaAbierta ? [{ id: 'caja-1' }] : [];
       return [];
     }),
@@ -35,7 +36,7 @@ describe('VentasService.create — contrato vigente para contingencia', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    rol = 'CAJERO'; cajaAbierta = true;
+    rol = 'CAJERO'; permisos = []; cajaAbierta = true;
     prisma.producto.findFirst.mockResolvedValue(PRODUCTO);
     prisma.producto.updateMany.mockResolvedValue({ count: 1 });
     prisma.venta.findUnique.mockResolvedValue(null);
@@ -53,12 +54,21 @@ describe('VentasService.create — contrato vigente para contingencia', () => {
     expect(prisma.producto.updateMany).not.toHaveBeenCalled();
   });
 
-  it('ADMIN puede vender con un precio distinto al vigente y queda guardado el enviado', async () => {
+  // Cambio intencional (PR #202): el rol ADMIN ya no exime de la validación del precio vigente.
+  it('ADMIN con un precio distinto al vigente recibe 409 sin excepción explícita; con permiso y motivo queda guardado el enviado y auditado', async () => {
     rol = 'ADMIN';
-    await service.create('T', 'U', dto({ detalles: [{ productoId: 'p1', cantidad: 2, precioUnitario: 9 }] }));
+    const distinto = { detalles: [{ productoId: 'p1', cantidad: 2, precioUnitario: 9 }] };
+    await expect(service.create('T', 'U', dto(distinto))).rejects.toMatchObject({ status: 409 });
+    await expect(service.create('T', 'U', dto({ ...distinto, excepcionPrecio: { motivo: 'Precio negociado con el cliente' } }))).rejects.toMatchObject({ status: 403 });
+    expect(prisma.venta.create).not.toHaveBeenCalled();
+    expect(prisma.producto.updateMany).not.toHaveBeenCalled();
+    permisos = ['pos.excepcion_precio'];
+    await service.create('T', 'U', dto({ ...distinto, excepcionPrecio: { motivo: 'Precio negociado con el cliente' } }));
     const data = prisma.venta.create.mock.calls[0][0].data;
     expect(data.detalles.create[0].precioUnitario).toBe(9);
     expect(data.subtotal).toBe(18);
+    const auditoria = prisma.$queryRawUnsafe.mock.calls.find(([sql, ...args]: any[]) => sql.includes('INSERT INTO auditoria_operaciones') && args.includes('VENTA_EXCEPCION_PRECIO'));
+    expect(JSON.parse(auditoria.at(-1))).toMatchObject({ motivo: 'Precio negociado con el cliente', lineas: [{ productoId: 'p1', precioVigente: 10, precioCobrado: 9 }] });
   });
 
   it('sin caja abierta responde 409: la venta no existe sin una caja abierta en el servidor', async () => {
