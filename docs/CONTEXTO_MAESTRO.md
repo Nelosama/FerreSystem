@@ -2179,6 +2179,17 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 
 ---
 
+## Auditoría adicional POS #202 — 2026-10-27 UTC (rama propia `codex/pr202-auditoria-precios`)
+
+- **Publicación:** [#204](https://github.com/Nelosama/FerreSystem/pull/204), PR de correcciones dirigido a la rama de #202. [#202 actualizado](https://github.com/Nelosama/FerreSystem/pull/202#issuecomment-6445129453). Sus ramas y la de #180 no se modificaron; sin merge, despliegue ni producción. Informe: [AUDITORIA_POS_PR202_20261027.md](AUDITORIA_POS_PR202_20261027.md). Base `main` `2f6168dc`, #202 `59e739da`, #180 `3c84a7a`.
+- **Corregido:** respuesta de cobro antigua consumida pese a existir un catálogo posterior; borrador externo sustituido durante la lectura; motivos vacíos/espacios o sin validar desde el servicio; reintentos que cambiaban/omitían el motivo auditado. Lecturas compartidas ligadas a empresa/usuario. Se conservan huellas v2 e idempotencia, permisos explícitos, transacciones y documentos históricos.
+- **Evidencia terminada al preparar el informe:** backend 602 unitarias, 51 scripts, 6 E2E, Python 10; frontend 545 unitarias; builds/lint correctos; POS simulado 11/11; dos cajas/API/PG reales 1/1; devolución histórica PG 1/1. Combinación temporal de código con #180: 105 PG + 70 unitarias contables, builds de ambos paquetes correctos. **Resultados extensivos finales y CI por SHA, con fallos/omisiones/reintentos: #204**. Los verdes anteriores de #202 no acreditan estos cambios.
+- **Límite de entorno demostrado:** Chromium 151 al recargar desde SW cambia `navigator.onLine` a true aunque fetch falle por red; reproducido en sonda sin Jowa. No se elimina/relaja la prueba ni se cambia la contingencia para ocultarlo. Incidencias de preparación, pasada roja e integración inicial bajo carga documentadas en el informe.
+- **Dictamen:** #202 **NO MERGE** hasta incorporar las correcciones y validar el SHA resultante. Pendientes físicos: protocolo en caja/catálogo grande, dispositivos/impresora y aceptación del propietario. Offline mantiene la instantánea aprobada y revisión de revocación posterior; #180 conserva sus límites contables/fiscales. **NEXUS:** sin esquema/migraciones propias; pruebas sobre bases efímeras.
+- **Bitácora:** inspección remota y CI; reproducción de carreras; correcciones; regresiones PostgreSQL/navegador; compatibilidad temporal #180; diagnóstico de emulación offline; commit/push solo en rama propia, PR #204, seguimiento en #202 y actualización de este contexto.
+
+---
+
 **FIN DEL CONTEXTO VIGENTE**
 
 
