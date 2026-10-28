@@ -23,6 +23,7 @@ import { ProveedoresModule } from './proveedores/proveedores.module';
 import { GarantiasModule } from './garantias/garantias.module';
 import { ContingenciaModule } from './contingencia/contingencia.module';
 import { ContabilidadModule } from './contabilidad/contabilidad.module';
+import { IaModule } from './ia/ia.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { ContabilidadModule } from './contabilidad/contabilidad.module';
     GarantiasModule,
     ContingenciaModule,
     ContabilidadModule,
+    IaModule,
   ],
   controllers: [HealthController, BackupStatusController],
   providers: [

@@ -375,6 +375,14 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
+## SDK de OpenAI (ChatGPT) en el backend — 2026-10-28 UTC (rama `claude/zen-johnson-xwrqlv`, sin merge ni despliegue)
+
+- **Base:** `53e2cc9` (merge de #209). Pedido del dueño: «instalar ChatGPT» → instalar el SDK de OpenAI en el backend.
+- **Hecho:** dependencia `openai@^6.49.0` (`backend/package.json` y lock). `backend/src/ia/openai.service.ts` (`OpenAIService.responder(mensaje, instrucciones?)`, Responses API) y `ia.module.ts` registrado en `app.module.ts`. Clave solo en `OPENAI_API_KEY` del entorno; modelo opcional `OPENAI_MODEL` (por defecto `gpt-4o-mini`). Sin clave responde 503 sin llamar a la API; plazo 20 s, sin reintentos; los errores del proveedor no se reenvían ni registran. `main.ts` avisa al arrancar en producción si falta la clave. `.env.example` documentado.
+- **Aún no hay ningún endpoint ni pantalla que use el servicio**: solo queda disponible para inyectar en otros módulos. Sin cambios de esquema, migraciones, autenticación ni frontend.
+- **Pruebas:** `src/ia/openai.service.spec.ts` 5/5 (cliente simulado, sin llamadas reales); backend unitarias 736/736; build OK; lint sin errores nuevos.
+- **Pendientes reales:** definir qué función de negocio usará ChatGPT (endpoint, permisos por rol/tenant, límites de costo); cargar `OPENAI_API_KEY` en Render si se usa; no se probó contra la API real.
+
 ## UX ronda 1 (P0+P1) — PR #188 terminado, 2026-10-22 UTC (rama `claude/ux-ronda1-pos-marca`, sin merge ni despliegue)
 
 - **Origen y alcance:** crítica Impeccable (`.impeccable/critique/2026-10-20T02-15-53Z__frontend-src.md`, 25/40), P0+P1, más dos defectos confirmados por el dueño (login y permisos). P2 y la auditoría integral del resto de módulos quedan para otra ronda. Sin cambios en cálculos monetarios, ISV, descuentos, crédito, caja, permisos efectivos, autenticación, backend ni migraciones (`git diff origin/main -- backend frontend/src/utils/posMoney.ts frontend/src/offline` vacío).
