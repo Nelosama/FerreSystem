@@ -174,4 +174,21 @@ describe('FUNC-001 / HTTP and isolated PostgreSQL', () => {
     await post(cotizacionId, { metodoPago: 'INVALIDO' }).expect(400);
     expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
   });
+  it('política de precio en la conversión: sin excepción 409; ADMIN sin permiso 403; con permiso y motivo convierte y audita', async () => {
+    const producto = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'EXC-PRECIO', nombre: 'Clavo excepción', precioVenta: 10, precioCosto: 2, stockActual: 100 } });
+    const cot = await prisma.cotizacion.create({ data: {
+      tenantId, numeroCotizacion: 9001, usuarioId, subtotal: 9, isv: 0, total: 9, estado: 'APROBADA', fechaValidez: new Date(Date.now() + 86400000 * 5), diasValidez: 5,
+      detalles: { create: [{ productoId: producto.id, codigoProducto: 'EXC-PRECIO', descripcionProducto: 'Clavo excepción', cantidad: 1, totalMedida: 1, precioLista: 10, precioUnitario: 9, subtotal: 9, isv: 0, totalLinea: 9 }] },
+    } });
+    const motivo = 'Precio negociado con el cliente';
+    await post(cot.id, {}).expect(409);
+    await post(cot.id, { excepcionPrecio: { motivo } }).expect(403); // ADMIN sin permiso asignado: el rol no concede la excepción
+    await prisma.usuario.update({ where: { id: usuarioId }, data: { permisos: ['pos.excepcion_precio'], permisosConfigurados: true } });
+    await post(cot.id, { excepcionPrecio: { motivo: 'corto' } }).expect(400);
+    const ok = await post(cot.id, { excepcionPrecio: { motivo } }).expect(201);
+    const [audit] = await prisma.$queryRawUnsafe<any[]>("SELECT datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='VENTA_EXCEPCION_PRECIO' AND entidad_id=$2", tenantId, ok.body.ventaId);
+    expect(audit.datos).toMatchObject({ motivo, lineas: [{ productoId: producto.id, precioVigente: 10, precioCobrado: 9 }] });
+    await prisma.usuario.update({ where: { id: usuarioId }, data: { permisos: [], permisosConfigurados: false } });
+    expect((await prisma.cotizacion.findUniqueOrThrow({ where: { id: cot.id } })).estado).toBe('CONVERTIDA');
+  });
 });
