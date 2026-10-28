@@ -128,7 +128,8 @@ test('el service worker existe, no cachea la API y el POS base sigue sin persist
   assert.match(sw, /url\.pathname\.startsWith\('\/api'\)/);
   assert.doesNotMatch(sw.replace(/\/\/.*$/gm, ''), /skipWaiting\(/);
   const hits = [];
-  for (const file of [...walk('src'), 'index.html', 'vite.config.ts']) {
+  // path.join usa barra invertida en Windows; se normaliza a barra para comparar con la lista esperada en cualquier plataforma.
+  for (const file of [...walk('src'), 'index.html', 'vite.config.ts'].map((f) => f.split(path.sep).join('/'))) {
     if (!/\.(tsx?|html)$/.test(file)) continue;
     if (/offline|PosContingencia|ContingenciaAdmin/.test(file)) continue;
     const text = fs.readFileSync(file, 'utf8');
