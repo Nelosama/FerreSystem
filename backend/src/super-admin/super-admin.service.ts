@@ -47,7 +47,7 @@ export class SuperAdminService {
     return new UsuariosService(this.prisma).update(tenantId, id, dto, actor, true);
   }
   desactivarUsuarioNegocio(tenantId: string, id: string, actor: string) {
-    return new UsuariosService(this.prisma).update(tenantId, id, { activo: false }, actor, true);
+    return new UsuariosService(this.prisma).remove(tenantId, id, actor, true);
   }
   /** Vista global de bloqueos para la plataforma: sin contraseñas ni secretos. */
   cuentasBloqueadas(tenantId?: string) {

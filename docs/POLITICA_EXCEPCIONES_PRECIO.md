@@ -25,7 +25,7 @@ Principios:
 
 - **ISV distinto del 15 % o líneas exentas al convertir una cotización.** Es un asunto fiscal, no de precio. Hoy solo ADMIN lo puede convertir y sin auditoría específica. Queda pendiente de decisión del propietario (P1): o se aplica el mismo mecanismo (permiso + motivo + auditoría) o se mantiene con una justificación escrita.
 - **Interfaz de uso (resuelto el 2026-10-28, rama `claude/stoic-gates-sxbg8u`).** El POS y la conversión de cotizaciones capturan el motivo y envían `excepcionPrecio`; ver «Interfaz» abajo.
-- **Concesión del permiso (bloqueado, decisión del propietario).** Un ADMIN nuevo no tiene el permiso (`permisosConfigurados: false`) y la pantalla de Usuarios **no** lo ofrece a propósito; ver «Quién concede el permiso» abajo.
+- **Concesión del permiso (política aprobada, 2026-10-28).** Solo SUPERADMIN de plataforma gestiona cuentas ADMIN y sus permisos. La interfaz de Usuarios aún no ofrece el interruptor; la API exclusiva sí admite el permiso.
 
 ## Interfaz (2026-10-28, rama `claude/stoic-gates-sxbg8u`)
 
@@ -38,15 +38,14 @@ Utilidad común: `frontend/src/utils/excepcionPrecio.ts` (`puedeExcepcionPrecio`
 - **Cotizaciones (`CotizacionesPage.tsx`).** En el diálogo de conversión se listan las líneas cuyo precio cotizado difiere del catálogo cargado, o se muestra la sección tras un 409 de precio (reconocido por su mensaje: el servidor también responde 409 por caja cerrada). ADMIN con el permiso: motivo obligatorio (el botón se habilita con 10–300 caracteres) y se envía `excepcionPrecio: { motivo }`. Resto: aviso; el servidor decide y su 409 se muestra. 400/403 se muestran y la cotización sigue sin convertir.
 - **Fuera de alcance:** el ISV distinto de 15 % y las líneas exentas no cambian (asunto fiscal, pendiente del propietario). Ningún flujo de supervisor ni de autorización a distancia: la excepción la usa quien hace la operación con su propia sesión.
 
-## Quién concede el permiso (bloqueo documentado, sin cambio)
+## Quién concede el permiso (política aprobada, 2026-10-28)
 
-No se añadió el permiso a la pantalla de Usuarios porque hoy no se puede conceder de forma segura:
-
-1. `PUT /usuarios/:id` y `POST /usuarios` (`backend/src/usuarios/usuarios.service.ts`, `update`/`create`) aceptan cualquier lista de cadenas en `permisos` (`UpdateUsuarioDto`: `@IsString({each:true})`, sin lista cerrada) de cualquier ADMIN, **incluido sobre su propia cuenta**. `authorizedActor` deja pasar al ADMIN sin comprobar `usuarios.gestionar`.
-2. Por tanto, un interruptor en Usuarios permitiría a cualquier ADMIN concedérselo a sí mismo con un clic, y el permiso explícito equivaldría al rol: se perdería la separación que la política pretende. El mismo riesgo existe ya por API (un ADMIN puede enviar el permiso en su propio `PUT`); no se corrigió porque cambia reglas de usuarios y requiere decisión.
-3. La pantalla de Usuarios muestra los permisos del ADMIN como «por rol» y bloqueados; al cambiar el rol de una cuenta se restablecen los permisos por defecto (el permiso se pierde). Editar un ADMIN sin cambiar su rol conserva la lista, así que un permiso concedido fuera de la pantalla sobrevive a esas ediciones.
-
-Decisión pendiente del propietario: quién lo concede (¿solo el Super Admin de la plataforma, un ADMIN distinto del beneficiario, el dueño de la empresa?), si se permite la autoconcesión y si la concesión se audita aparte. Hasta entonces el permiso solo puede asignarse por API o base de datos y la interfaz de uso queda inactiva para todos.
+- Solo el SUPERADMIN de plataforma puede crear, editar, desactivar, promover a ADMIN o modificar sus permisos. Un ADMIN de tenant gestiona cuentas no ADMIN y no modifica su propia cuenta mediante gestión de usuarios; el perfil privado de Mi cuenta conserva su flujo independiente.
+- La ruta exclusiva `POST/PATCH/DELETE /admin/tenants/:id/usuarios[/:userId]` usa el mismo servicio y exige un SUPERADMIN activo. Se conserva la protección existente del último ADMIN activo.
+- Nadie puede concederse `pos.excepcion_precio`. El backend valida contra los 17 permisos existentes en `usuarios/permisos.ts`, incluidos Contabilidad y el histórico `pos.anular_venta` (conservarlo no habilita operaciones nuevas).
+- Cada cambio de pertenencia a la lista de permisos genera, en la misma transacción, `USUARIO_PERMISO_CONCEDER` o `USUARIO_PERMISO_REVOCAR`, con actor, beneficiario, permiso y acción. Se conservan los eventos generales de usuario.
+- Todo cambio real de rol elimina `pos.excepcion_precio`, aunque el cuerpo lo reenvíe, y audita la revocación. Editar sin cambiar el rol conserva el permiso.
+- Sin cambios de cálculos, ISV, precios, motivos, autorización de la venta o reintentos de #211; sin esquema ni migraciones.
 
 ## Pruebas
 

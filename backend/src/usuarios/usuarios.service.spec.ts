@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UsuariosService } from './usuarios.service';
 import { audit, authorizedActor, lockTenant } from '../operaciones/ledger';
 
@@ -27,11 +27,15 @@ describe('UsuariosService · desactivar, reactivar y eliminación lógica', () =
     ];
     sesiones = [];
     const tx: any = {
+      superAdmin: { findFirst: vi.fn(async ({where}: any) => where.id === "sa" ? {id:"sa",activo:true} : null) },
+      tenant: { findUnique: vi.fn(async () => ({id:"t1"})) },
+      $queryRaw: vi.fn(async () => []),
       usuario: {
         findFirst: vi.fn(async ({ where, select }: any) => {
           const u = usuarios.find(x => x.id === where.id && x.tenantId === where.tenantId && (where.email === undefined || x.email === where.email));
           return u ? { ...u } : null;
         }),
+        create: vi.fn(async ({data}: any) => {const u={id:'new-user',...data};usuarios.push(u);return {...u};}),
         count: vi.fn(async ({ where }: any) => usuarios.filter(x => x.tenantId === where.tenantId && x.rol === where.rol && x.activo === where.activo).length),
         update: vi.fn(async ({ where, data }: any) => {
           const u = usuarios.find(x => x.id === where.id);
@@ -47,6 +51,55 @@ describe('UsuariosService · desactivar, reactivar y eliminación lógica', () =
       _tx: tx,
     };
     service = new UsuariosService(prisma);
+  });
+
+  it.each([
+    ['adm-2', {nombre:'Otro'}], ['adm-2', {activo:false}],
+    ['adm-2', {permisos:['pos.excepcion_precio']}], ['caj-1', {rol:'ADMIN'}],
+    ['adm-1', {nombre:'Yo'}], ['adm-1', {permisos:['pos.excepcion_precio']}],
+    ['adm-1', {descuentoMaximo:100}],
+  ])('ADMIN no puede gestionar %s con %j', async (id, dto) => {
+    await expect(service.update('t1',id,dto as any,'adm-1')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma._tx.usuario.update).not.toHaveBeenCalled();
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  it('ADMIN no crea ADMIN ni desactiva ADMIN ya inactivo', async () => {
+    await expect(service.create('t1',{nombre:'Admin',email:'new@t.hn',rol:'ADMIN' as any},'adm-1')).rejects.toBeInstanceOf(ForbiddenException);
+    usuario('adm-2').activo=false;
+    await expect(service.remove('t1','adm-2','adm-1')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('SUPERADMIN crea ADMIN con auditoría del permiso inicial', async () => {
+    const user=await service.create('t1',{nombre:'Admin',email:'new@t.hn',rol:'ADMIN' as any,permisos:['pos.excepcion_precio']},'sa',true);
+    expect(user.rol).toBe('ADMIN');
+    expect(audit).toHaveBeenCalledWith(expect.anything(),'t1','sa','USUARIO_PERMISO_CONCEDER',user.id,expect.objectContaining({actorId:'sa',beneficiarioId:user.id,permiso:'pos.excepcion_precio',accion:'CONCEDER'}));
+  });
+
+  it('SUPERADMIN concede y revoca con eventos diferenciados; repetir no duplica concesión', async () => {
+    await service.update('t1','adm-2',{permisos:['pos.excepcion_precio','pos.excepcion_precio']},'sa',true);
+    await service.update('t1','adm-2',{permisos:['pos.excepcion_precio']},'sa',true);
+    await service.update('t1','adm-2',{permisos:[]},'sa',true);
+    const eventos=vi.mocked(audit).mock.calls.filter(c=>c[3].startsWith('USUARIO_PERMISO_'));
+    expect(eventos.map(c=>c[3])).toEqual(['USUARIO_PERMISO_CONCEDER','USUARIO_PERMISO_REVOCAR']);
+    expect(eventos[1][5]).toMatchObject({actorId:'sa',beneficiarioId:'adm-2',permiso:'pos.excepcion_precio',accion:'REVOCAR'});
+  });
+
+  it.each([undefined, ['pos.excepcion_precio','pos.vender']])('cambiar rol revoca la excepción aunque se reenvíe en %j', async permisos => {
+    usuario('adm-2').permisos=['pos.excepcion_precio','pos.vender'];
+    const user=await service.update('t1','adm-2',{rol:'VENDEDOR' as any,permisos},'sa',true);
+    expect(user.permisos).toEqual(['pos.vender']);
+    expect(audit).toHaveBeenCalledWith(expect.anything(),'t1','sa','USUARIO_PERMISO_REVOCAR','adm-2',expect.objectContaining({permiso:'pos.excepcion_precio',accion:'REVOCAR'}));
+  });
+
+  it('rechaza permisos desconocidos en creación y edición también sin DTO HTTP', async () => {
+    await expect(service.create('t1',{nombre:'x',email:'new@t.hn',permisos:['inventado']},'sa',true)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.update('t1','adm-2',{permisos:['inventado']},'sa',true)).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma._tx.usuario.update).not.toHaveBeenCalled();
+  });
+
+  it('no basta el indicador plataforma sin SUPERADMIN activo', async () => {
+    await expect(service.update('t1','adm-2',{nombre:'x'},'adm-1',true)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   const usuario = (id: string) => usuarios.find(u => u.id === id);
@@ -86,21 +139,21 @@ describe('UsuariosService · desactivar, reactivar y eliminación lógica', () =
   });
 
   it('desactivar un administrador deja de permitirse cuando es el último activo', async () => {
-    await service.remove('t1', 'adm-2', 'adm-1');
+    await service.remove('t1', 'adm-2', 'sa', true);
     expect(usuario('adm-2').activo).toBe(false);
-    await expect(service.remove('t1', 'adm-1', 'adm-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.remove('t1', 'adm-1', 'sa', true)).rejects.toBeInstanceOf(ConflictException);
     expect(usuario('adm-1').activo).toBe(true);
   });
 
   it('no permite que un administrador desactive su propia cuenta', async () => {
-    await expect(service.remove('t1', 'adm-1', 'adm-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.remove('t1', 'adm-1', 'adm-1')).rejects.toBeInstanceOf(ForbiddenException);
     expect(usuario('adm-1').activo).toBe(true);
     expect(sesiones).toEqual([]);
   });
 
   it('quitar el rol ADMIN al último administrador activo también se rechaza', async () => {
-    await expect(service.update('t1', 'adm-1', { rol: 'CAJERO' as any }, 'adm-2')).resolves.toBeDefined();
-    await expect(service.update('t1', 'adm-2', { rol: 'CAJERO' as any }, 'adm-2')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.update('t1', 'adm-1', { rol: 'CAJERO' as any }, 'sa', true)).resolves.toBeDefined();
+    await expect(service.update('t1', 'adm-2', { rol: 'CAJERO' as any }, 'sa', true)).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('no encuentra ni modifica usuarios de otra empresa', async () => {

@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { CotizacionesService } from '../cotizaciones/cotizaciones.service';
 import { LevantamientosService } from '../levantamientos/levantamientos.service';
@@ -276,7 +276,7 @@ describe('Autorización vigente después de esperar el bloqueo del tenant', () =
   });
 
   it.each([{ activo: false }, { rol: 'CAJERO' as const }])(
-    'protege al último ADMIN activo ante %j',
+    'rechaza gestionar otro ADMIN ante %j',
     async (dto) => {
       const f = fixture();
       f.current.rol = 'ADMIN';
@@ -289,12 +289,10 @@ describe('Autorización vigente después de esperar el bloqueo del tenant', () =
       );
       await f.entered.promise;
       const rejected =
-        expect(pending).rejects.toBeInstanceOf(ConflictException);
+        expect(pending).rejects.toBeInstanceOf(ForbiddenException);
       f.release.resolve();
       await rejected;
-      expect(f.tx.usuario.count).toHaveBeenCalledWith({
-        where: { tenantId, rol: 'ADMIN', activo: true },
-      });
+      expect(f.tx.usuario.count).not.toHaveBeenCalled();
       f.expectNoEffects();
     },
   );

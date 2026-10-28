@@ -79,14 +79,19 @@ describe('Administración · usuarios, soporte y tenant cruzado / PostgreSQL ais
   // Qué administrador de T1 sigue activo depende del orden de la prueba concurrente: las pruebas usan el que quede.
   const adminActivo = async (tenantId: string) => (await prisma.usuario.findFirstOrThrow({ where: { tenantId, rol: 'ADMIN', activo: true } })).id;
 
-  it('concurrencia: dos administradores que se desactivan entre sí a la vez no dejan la empresa sin administrador', async () => {
+  it('ADMIN no puede desactivar otro ADMIN, tampoco en peticiones concurrentes', async () => {
     const resultados = await Promise.allSettled([usuarios.remove(T1, A2, A1), usuarios.remove(T1, A1, A2)]);
     const ok = resultados.filter(r => r.status === 'fulfilled');
     const rechazados = resultados.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
-    expect(ok).toHaveLength(1);
-    expect(rechazados).toHaveLength(1);
-    // La segunda operación pierde la autorización de su actor (ya desactivado por la primera) o el último administrador: ambas son rechazos válidos.
-    expect(rechazados[0].reason instanceof ForbiddenException || rechazados[0].reason instanceof ConflictException).toBe(true);
+    expect(ok).toHaveLength(0);
+    expect(rechazados).toHaveLength(2);
+    expect(rechazados.every(r => r.reason instanceof ForbiddenException)).toBe(true);
+    expect(await activos(T1)).toBe(2);
+  });
+
+  it('SUPERADMIN desactiva ADMIN; el último administrador sigue protegido', async () => {
+    await usuarios.remove(T1,A2,SA,true);
+    await expect(usuarios.remove(T1,A1,SA,true)).rejects.toBeInstanceOf(ConflictException);
     expect(await activos(T1)).toBe(1);
   });
 
@@ -101,7 +106,7 @@ describe('Administración · usuarios, soporte y tenant cruzado / PostgreSQL ais
 
   it('un administrador no puede desactivar su propia cuenta', async () => {
     const restante = await adminActivo(T1);
-    await expect(usuarios.remove(T1, restante, restante)).rejects.toBeInstanceOf(ConflictException);
+    await expect(usuarios.remove(T1, restante, restante)).rejects.toBeInstanceOf(ForbiddenException);
     expect(await activos(T1)).toBe(1);
   });
 
