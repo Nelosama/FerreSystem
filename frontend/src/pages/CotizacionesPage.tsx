@@ -24,6 +24,7 @@ import {
   Download,
 } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
+import { MOTIVO_EXCEPCION_MAX, MOTIVO_EXCEPCION_MIN, esRechazoPorPrecio, motivoExcepcionValido, puedeExcepcionPrecio } from '../utils/excepcionPrecio';
 import { useI18n } from '../context/I18nContext';
 import { descargarReciboPDF, precargarGeneradorPDF } from '../components/descargarRecibo';
 import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
@@ -138,6 +139,21 @@ export const CotizacionesPage: React.FC = () => {
   const autorizacionConversionValida = !conversionElectronica || (autConversion.referencia.trim().length >= 3 && (metodoConversion === 'TRANSFERENCIA' || autConversion.terminal.trim().length > 0));
   const conversionEnCurso = useRef(false);
   const [convirtiendo, setConvirtiendo] = useState(false);
+  // Excepción de precio al convertir (misma política que el POS): una línea con precio distinto del vigente exige motivo,
+  // rol ADMIN y el permiso explícito «pos.excepcion_precio». Se ofrece si el catálogo cargado ya muestra la diferencia o si
+  // el servidor la rechazó con 409; el servidor decide en cualquier caso.
+  const puedeExcepcion = puedeExcepcionPrecio(user);
+  const [motivoConversion, setMotivoConversion] = useState('');
+  const [rechazoPrecioConversion, setRechazoPrecioConversion] = useState(false);
+  const lineasPrecioDistinto = useMemo(() => {
+    if (!modalConvertir) return [];
+    const vigentes = new Map(productos.map(p => [p.id, Number(p.precioVenta)]));
+    return (modalConvertir.detalles || []).filter(d => vigentes.has(d.productoId) && Math.round(Number(d.precioUnitario) * 100) !== Math.round(vigentes.get(d.productoId)! * 100))
+      .map(d => ({ id: d.id || d.productoId, nombre: d.descripcionProducto, cotizado: Number(d.precioUnitario), vigente: vigentes.get(d.productoId)! }));
+  }, [modalConvertir, productos]);
+  const excepcionConversionVisible = !!modalConvertir && (rechazoPrecioConversion || lineasPrecioDistinto.length > 0);
+  const excepcionConversion = puedeExcepcion && excepcionConversionVisible ? motivoConversion.trim() : null;
+  const motivoConversionValido = excepcionConversion === null || motivoExcepcionValido(excepcionConversion);
   const [modalProductoPicker, setModalProductoPicker] = useState<boolean>(false);
   const [mensajeNotificacion, setMensajeNotificacion] = useState<{ texto: string; tipo: 'exito' | 'error' } | null>(null);
 
@@ -249,13 +265,14 @@ export const CotizacionesPage: React.FC = () => {
 
   // Convertir A Venta
   const handleConfirmarConvertir = async (cot: QuotationItem) => {
-    if (conversionEnCurso.current || cot.estado === 'CONVERTIDA') return;
+    if (conversionEnCurso.current || cot.estado === 'CONVERTIDA' || !motivoConversionValido) return;
     conversionEnCurso.current = true;
     setConvirtiendo(true);
     try {
       await api.post(`/cotizaciones/${cot.id}/convertir`, {
         metodoPago: metodoConversion,
         ...(conversionElectronica ? { pagoElectronico: { referencia: autConversion.referencia.trim(), terminal: metodoConversion === 'TARJETA' ? autConversion.terminal.trim() : undefined } } : {}),
+        ...(excepcionConversion ? { excepcionPrecio: { motivo: excepcionConversion } } : {}),
       });
       setCotizaciones(actuales => actuales.map(actual => actual.id === cot.id ? { ...actual, estado: 'CONVERTIDA' } : actual));
       setModalConvertir(null);
@@ -265,6 +282,7 @@ export const CotizacionesPage: React.FC = () => {
       );
     } catch (err: any) {
       console.error('Error al convertir cotización a venta:', err);
+      if (esRechazoPorPrecio(err)) setRechazoPrecioConversion(true);
       mostrarNotificacion(err.response?.data?.message || 'Error al convertir cotización en el servidor', 'error');
     } finally {
       conversionEnCurso.current = false;
@@ -818,7 +836,7 @@ export const CotizacionesPage: React.FC = () => {
                             type="button"
                             className="btn btn-primary btn-sm"
                             disabled={isReadOnly}
-                            onClick={() => { setMetodoConversion('EFECTIVO'); setAutConversion({ referencia: '', terminal: '' }); setModalConvertir(c); }}
+                            onClick={() => { setMetodoConversion('EFECTIVO'); setAutConversion({ referencia: '', terminal: '' }); setMotivoConversion(''); setRechazoPrecioConversion(false); setModalConvertir(c); }}
                             title={isReadOnly ? 'Modo solo lectura — soporte activo' : 'Convertir a Factura/Venta POS'}
                           >
                             <ArrowRightCircle size={13} /> {t('operational.a_venta')}
@@ -1373,6 +1391,25 @@ export const CotizacionesPage: React.FC = () => {
                   {metodoConversion === 'TARJETA' && <label>Terminal POS<input className="form-input" maxLength={40} value={autConversion.terminal} disabled={convirtiendo} onChange={event => setAutConversion({ ...autConversion, terminal: event.target.value })} /></label>}
                 </>
               )}
+              {excepcionConversionVisible && (
+                <div role="status" style={{ marginTop: '12px' }}>
+                  <strong>Precio distinto del vigente</strong>
+                  {lineasPrecioDistinto.length > 0 && (
+                    <ul>
+                      {lineasPrecioDistinto.map(l => <li key={l.id}>{l.nombre}: cotizado {formatLempiras(l.cotizado)} · vigente {formatLempiras(l.vigente)}</li>)}
+                    </ul>
+                  )}
+                  {puedeExcepcion ? (
+                    <>
+                      <label htmlFor="quotation-price-exception">Motivo de la excepción de precio (quedará auditado)</label>
+                      <textarea id="quotation-price-exception" className="form-input" rows={3} maxLength={MOTIVO_EXCEPCION_MAX} value={motivoConversion} disabled={convirtiendo} onChange={event => setMotivoConversion(event.target.value)} aria-describedby="quotation-price-exception-help" />
+                      <p id="quotation-price-exception-help">{motivoConversion.trim().length}/{MOTIVO_EXCEPCION_MAX} · mínimo {MOTIVO_EXCEPCION_MIN} caracteres</p>
+                    </>
+                  ) : (
+                    <p>Convertir con un precio distinto del vigente solo lo puede autorizar un administrador con el permiso de excepción de precio. Actualice la cotización con los precios vigentes o solicítelo al administrador.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
@@ -1387,7 +1424,7 @@ export const CotizacionesPage: React.FC = () => {
                 type="button"
                 className="btn btn-primary"
                 onClick={() => handleConfirmarConvertir(modalConvertir)}
-                disabled={convirtiendo || !autorizacionConversionValida}
+                disabled={convirtiendo || !autorizacionConversionValida || !motivoConversionValido}
               >
                 {t('operational.confirmar_y_convertir_a_venta')}
               </button>
