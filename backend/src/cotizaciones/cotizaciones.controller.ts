@@ -81,8 +81,9 @@ export class CotizacionesController {
     @Param('id') cotizacionId: string,
     @Body('metodoPago') metodoPago?: string,
     @Body('pagoElectronico') pagoElectronico?: { referencia?: string; terminal?: string },
+    @Body('excepcionPrecio') excepcionPrecio?: { motivo?: string },
   ) {
-    return this.cotizacionesService.convertirAVenta(tenantId, usuarioId, cotizacionId, metodoPago, pagoElectronico);
+    return this.cotizacionesService.convertirAVenta(tenantId, usuarioId, cotizacionId, metodoPago, pagoElectronico, excepcionPrecio);
   }
 }
 

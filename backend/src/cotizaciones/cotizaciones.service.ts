@@ -1,4 +1,5 @@
 import { account, authorizedActor, audit, cashMovement, id, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { exigirPoliticaPrecio } from '../ventas/politica-precio';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
@@ -437,6 +438,7 @@ export class CotizacionesService {
     cotizacionId: string,
     metodoPago: any = 'EFECTIVO',
     pagoElectronico?: { referencia?: string | null; terminal?: string | null },
+    excepcionPrecio?: { motivo?: string | null },
   ) {
     return this.prisma.$transaction(async (tx) => {
       await lockTenant(tx,tenantId);
@@ -500,7 +502,8 @@ export class CotizacionesService {
       const brutoLinea=(d:{totalMedida:unknown;precioUnitario:unknown})=>subtotalLinea(aCentavos(Number(d.precioUnitario),'Precio unitario'),Math.round(Number(d.totalMedida)*100));
       const bruto=centavosADecimal(cotizacion.detalles.reduce((sum,d)=>sum+brutoLinea(d),0));
       validateDiscount(user,bruto,Number(cotizacion.descuento));
-      if(user.rol !== 'ADMIN' && cotizacion.detalles.some(d=>Number(d.precioUnitario)!==Number(d.producto.precioVenta))) throw new BadRequestException('La cotización requiere validación del precio por administrador');
+      // Misma política que la venta directa (ventas/politica-precio.ts): sin excepción 409, sin permiso 403, con permiso y motivo se audita.
+      const excepcionPolitica = exigirPoliticaPrecio(user, cotizacion.detalles.map(d => ({ productoId: d.productoId, producto: d.producto.nombre, precioVigente: Number(d.producto.precioVenta), precioCobrado: Number(d.precioUnitario) })), excepcionPrecio);
       // La venta directa siempre aplica ISV 15 % sin exenciones. Igual que un precio modificado, una tasa distinta o una
       // línea exenta en la cotización cambia el impuesto facturado: solo el administrador la convierte.
       if(user.rol !== 'ADMIN' && (Number(cotizacion.porcentajeIsv)!==15 || cotizacion.detalles.some(d=>d.exento))) throw new BadRequestException('La cotización tiene ISV distinto de 15 % o líneas exentas: requiere validación del administrador');
@@ -574,6 +577,7 @@ export class CotizacionesService {
       if (autorizacion) await registrarAprobacion(tx,tenantId,usuarioId,autorizacion,Number(venta.total),'VENTA',venta.id);
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',Number(venta.total),metodoPago,venta.id,'Venta desde cotización');
       await audit(tx,tenantId,usuarioId,'COTIZACION_VENDER',venta.id,{cotizacionId,total:Number(venta.total),aprobacion:autorizacion});
+      if (excepcionPolitica) await audit(tx,tenantId,usuarioId,'VENTA_EXCEPCION_PRECIO',venta.id,excepcionPolitica);
       // Actualizar estado de la cotización
       await tx.cotizacion.update({
         where: { id: cotizacion.id },
