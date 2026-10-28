@@ -166,8 +166,8 @@ test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
   });
   test('bloqueo por inactividad y cambio de empleado cierran identidad', async ({ page }) => {
     await prepararSesion(page, 'ADMIN');
-    await page.goto('/usuarios');
-    await page.getByText('Seguridad de mi cuenta', { exact: true }).click();
+    await page.goto('/mi-cuenta');
+    await page.locator('details > summary').filter({ hasText: 'Seguridad de mi cuenta' }).click();
     await expect(page.getByRole('button', { name: 'Bloquear / cambiar de empleado', exact: true })).toBeVisible();
     await page.clock.install();
     await page.clock.fastForward(300001);
