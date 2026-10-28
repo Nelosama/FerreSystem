@@ -16,6 +16,15 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
 
+## Mantenimiento de ramas #211 / #212 / #213 — 2026-10-28 UTC
+
+- Referencias remotas actualizadas antes de actuar. #212 ya fusionado por otra sesión (head `96965076`, merge `4c9ec9bc`); ambos workflows success. Revisado diff: dos pruebas de portabilidad y documentación, sin lógica de producto ni aserciones debilitadas.
+- #213 `e79f29eb`: ambos workflows success, abierto/no borrador/mergeable. Se integra `main` `4c9ec9bc` por merge normal en su rama y se añade actualización al informe: distingue historial de CI rojo frente a consultas actuales, registra política ya aprobada y conserva NO-GO. **El nuevo head requiere sus propios checks antes del merge.** Sin verificación de respaldos/restauración productivos, configuración/salud de servicios, fiscalidad, dispositivos ni aceptación del cliente. Detalle: `PREPARACION_PRODUCCION_20261028.md`.
+- #211 `171de34c`: abierto, borrador, mergeable; ambos workflows en curso al consultar. No se declara listo ni se fusiona hasta CI verde y revisión final. Política aprobada sin cambios; revisión local previa de backend no equivale a CI.
+- Auxiliar `claude/pr-211-permissions-analysis-6nwjcg` `210e0091` conservada: contiene recomendaciones históricas D1–D6 no íntegramente incorporadas; no cumple la condición de duplicación total para borrarla. No se adopta su recomendación de otro ADMIN: prevalece SUPERADMIN aprobado por el dueño.
+- `claude/optimistic-lamport-88ljko` `4f3f0483` eliminada remotamente con push normal de borrado; head comprobado antes y ausencia después. No se instaló ni ejecutó la skill. SDK `claude/zen-johnson-xwrqlv` `a5c78773` intacto/aparcado, sin llamadas externas habilitadas.
+- Bitácora: Git/fetch y heads reales; conector GitHub para estados/CI tras bloqueo de gh; revisión de diffs; borrado autorizado comprobado; informe actualizado. Sin force push ni acciones de despliegue. **NEXUS:** sin cambios de esquema/migraciones ni escrituras productivas.
+
 ## Preparación de producción — revisión contra GitHub (2026-10-28 UTC, rama `claude/preparacion-produccion-20261028`, PR #213, sin merge ni despliegue)
 
 - **Estado vigente:** decisión **NO-GO**. Detalle y fuentes en [docs/PREPARACION_PRODUCCION_20261028.md](PREPARACION_PRODUCCION_20261028.md).

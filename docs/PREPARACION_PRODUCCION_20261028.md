@@ -4,6 +4,22 @@ Revisión contra GitHub realizada el 2026-10-28 (UTC) sobre `main` `848758b` (me
 
 Hora de las observaciones: los datos de GitHub corresponden a consultas del 2026-10-28 entre 14:10 y 15:50 UTC, según los `completed_at` citados.
 
+## Actualización de mantenimiento — 2026-10-28 UTC
+
+Esta sección sustituye como estado vigente las observaciones de 14:10–15:50 UTC que se conservan abajo como historial. Fuente: conector GitHub (`get_pr_info`, `fetch_commit_workflow_runs`) y referencias Git remotas, consultados durante el mantenimiento posterior a las 18:21 UTC.
+
+| Elemento | Observación nueva |
+| --- | --- |
+| #212 | Ya fusionado por otra sesión: head `96965076`, merge `4c9ec9bc`. Ambos workflows requeridos completados en **success**: Operación de ferretería, run 40722117098; Piloto con API y PostgreSQL reales, run 40722116982. Diff limitado a pruebas de portabilidad y documentación, sin cambiar lógica de producto ni debilitar aserciones. |
+| #213 | Head revisado `e79f29eb`: ambos workflows completados en **success** (40720390929 y 40720391335), PR abierto, no borrador y mergeable antes de esta actualización. Estos verdes **no validan el nuevo commit documental**. Su merge requiere ambos workflows del head final completados y aprobados; no autoriza despliegue. |
+| #211 | Head `171de34c`: PR abierto, borrador y mergeable en la consulta. Ambos workflows **en curso**, runs 40744094950 y 40744094946. No se declara listo ni se fusiona: faltan CI completo y revisión final. |
+| Política del dueño | **Aprobada**: SUPERADMIN de plataforma es el único que gestiona cuentas ADMIN; ADMIN gestiona no ADMIN y no sus propios permisos; nadie se concede `pos.excepcion_precio`; catálogo backend de permisos reales, auditoría diferenciada y revocación al cambiar rol. Implementación publicada en #211; pendiente de CI y revisión, sin cambiar la política. |
+| Producción | No se verificaron respaldos/restauración reales, configuración ni salud actual de Render/Vercel, aceptación del cliente, validación fiscal ni dispositivos físicos en este mantenimiento. Los tests de CI sobre entornos efímeros no prueban esos puntos en producción. |
+
+**Estado vigente: NO-GO.** Los resultados rojos y la decisión de permisos pendiente descritos en el historial ya no son el estado actual de todos los PRs. Permanecen bloqueos de producción: respaldo/restauración, configuración y salud de servicios, fiscalidad, alcance de módulos, validación física y aceptación del cliente. El merge documental no levanta esos bloqueos ni autoriza despliegue. No se ejecutaron acciones de despliegue ni se cambió configuración de servicios.
+
+## Historial de observaciones de 14:10–15:50 UTC (no es estado vigente)
+
 ## 1. Estado verificado
 
 Cada fila indica la fecha y la fuente de la observación. Lo que no aparece aquí figura en la sección 1.2 como no verificado.
@@ -81,4 +97,4 @@ Ninguna de estas ejecuciones valida el SHA final de la salida. Antes de cualquie
 - **GO** solo si: los bloqueos 1 y 2 están resueltos o excluidos por decisión escrita; hay respaldo verificado; los checks del SHA final pasan; la prueba de humo pasa en producción.
 - **NO-GO** si queda cualquier bloqueo crítico abierto, si falta el respaldo verificado, o si algún check falla.
 
-Estado actual: **NO-GO**. Motivos verificados hoy: `validate` en rojo en #211, #212 y #213; respaldo no verificado; aceptación del cliente sin evidencia.
+Estado al cierre de la observación histórica: **NO-GO**. Motivos registrados entonces: `validate` en rojo en #211, #212 y #213; respaldo no verificado; aceptación del cliente sin evidencia.
