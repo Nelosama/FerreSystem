@@ -48,6 +48,23 @@ No se añadió el permiso a la pantalla de Usuarios porque hoy no se puede conce
 
 Decisión pendiente del propietario: quién lo concede (¿solo el Super Admin de la plataforma, un ADMIN distinto del beneficiario, el dueño de la empresa?), si se permite la autoconcesión y si la concesión se audita aparte. Hasta entonces el permiso solo puede asignarse por API o base de datos y la interfaz de uso queda inactiva para todos.
 
+### Decisiones pendientes y recomendación (2026-10-28, sin implementar)
+
+Ninguna de estas decisiones está tomada. El código no cambia quién puede conceder el permiso, ni la autoconcesión, ni su auditoría.
+
+| # | Decisión | Estado actual en el código | Recomendación |
+|---|---|---|---|
+| D1 | ¿Quién concede `pos.excepcion_precio`? | Cualquier ADMIN con acceso a `PUT /usuarios/:id` (`usuarios.service.ts` `update`, `@Roles('ADMIN')`). | **Otro ADMIN activo distinto del beneficiario** (separación de funciones). El Super Admin de plataforma no interviene en la operación diaria del negocio; el dueño de la empresa, si no es ADMIN, no tiene cuenta con el permiso. |
+| D2 | ¿Se permite la autoconcesión? | Sí, sin ninguna guarda: un ADMIN puede enviar el permiso sobre su propia cuenta. | **No.** El servidor debe rechazar cualquier cambio de `permisos` sobre el propio `sub` cuando agrega o quita `pos.excepcion_precio` (403). Sin esta guarda, el permiso equivale al rol. |
+| D3 | ¿Cómo se audita la concesión? | Solo `USUARIO_EDITAR` con `anterior`/`nuevo` completos (`audit(...)` en `update`). `VENTA_EXCEPCION_PRECIO` registra quién **usó** la excepción, no quién la concedió. | Acción propia `USUARIO_PERMISO_EXCEPCION_CONCEDIDO` y `..._REVOCADO`, con `actorId`, beneficiario, motivo obligatorio (10–300) y fecha. Así una venta con excepción puede rastrearse hasta su concesión. |
+| D4 | ¿Se cierra la lista de permisos? | No: `UpdateUsuarioDto.permisos` acepta cualquier cadena (`@IsString({each:true})`, máximo 30). | **Sí**, contra la lista de `Permiso` de `frontend/src/types/index.ts` en backend (lista blanca). Es una corrección de integridad, independiente de D1–D3, pero cambia el contrato de la API: confirmar antes. |
+| D5 | ¿Se revoca al cambiar de rol o desactivar? | Cambiar el rol restablece permisos por defecto (se pierde). Desactivar revoca sesiones, no el permiso. | Mantener la pérdida al cambiar de rol. Desactivar no necesita tocar el permiso: la cuenta ya no entra. |
+| D6 | ¿Dónde aparece el interruptor? | No aparece en Usuarios. | Solo tras D1–D3. Mostrarlo al ADMIN beneficiario o a su propia cuenta queda prohibido por D2. |
+
+Orden propuesto: D2 y D3 (guarda y auditoría) antes que cualquier interfaz; D4 en la misma tanda porque la lista blanca protege la guarda de D2; D1 y D6 solo cuando el propietario decida.
+
+Qué no cambia con esta recomendación: la regla de la venta y de la cotización, el 409/400/403 y la auditoría `VENTA_EXCEPCION_PRECIO` siguen igual.
+
 ## Pruebas
 
 - Unitarias de la política: `backend/src/ventas/politica-precio.spec.ts` (7 casos: sin cambio, comparación en centavos, 409, 400, 403 por rol, 403 sin permiso, excepción con líneas que cambian).
