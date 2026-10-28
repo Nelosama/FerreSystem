@@ -260,6 +260,7 @@ describe('Admin y Super Admin: recuperación con contraseña temporal', () => {
     });
     const resultados = await Promise.allSettled([service.login({ usuario: 'u1', password: temporal }, res), service.login({ usuario: 'u1', password: temporal }, res)]);
     expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(resultados.filter((r) => r.status === 'rejected')).toHaveLength(1);
   });
 
   it('durante la pausa por intentos del identificador solo entra una temporal vigente; cualquier otra cosa responde 429', async () => {
