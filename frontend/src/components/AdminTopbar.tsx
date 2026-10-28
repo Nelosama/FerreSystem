@@ -47,7 +47,7 @@ export const AdminTopbar: React.FC = () => {
         <NotificacionesBell />
         <span className="admin-topbar-divisor" aria-hidden="true" />
         {user && (
-          <Link to="/mi-cuenta" aria-label={t('security.account')} title={t('security.account')} className="admin-topbar-perfil" style={{ color: 'inherit', textDecoration: 'none' }}>
+          <Link to="/mi-cuenta" title={t('security.account')} className="admin-topbar-perfil" style={{ color: 'inherit', textDecoration: 'none' }}>
             <span className="admin-topbar-avatar" aria-hidden="true">{iniciales}</span>
             <span className="admin-topbar-perfil-texto">
               <strong>{user.nombre}</strong>
