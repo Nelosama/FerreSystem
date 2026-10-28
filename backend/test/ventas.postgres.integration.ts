@@ -293,6 +293,7 @@ describe('Ventas / PostgreSQL aislado', () => {
       env: { ...process.env, NODE_ENV: 'production', NODE_PATH: resolve('node_modules'),
         DATABASE_URL: databaseUrl, DIRECT_URL: databaseUrl, PORT: String(port),
         JWT_SECRET: 'isolated-production-smoke-secret-not-for-real-use',
+        AUTH_MAIL_GMAIL_USER: 'smoke@example.test', AUTH_MAIL_GMAIL_APP_PASSWORD: 'smokeisolated000', AUTH_PUBLIC_URL: 'https://smoke.example.test',
         FRONTEND_URL: 'https://frontend.example.test' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });

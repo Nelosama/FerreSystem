@@ -97,7 +97,7 @@ describe('Login único, recuperación por contraseña temporal y bloqueo en Post
     const target = resolve(directory);
     if (directory && target.startsWith(resolve(tmpdir()) + sep) && target.includes('jowa-auth-test-')) rmSync(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
-  type Rol = 'ADMIN' | 'CAJERO' | 'VENDEDOR' | 'BODEGUERO';
+  type Rol = 'ADMIN' | 'CAJERO' | 'VENDEDOR' | 'BODEGUERO' | 'CONTADOR';
   const account = async (platform = false, rol: Rol = 'ADMIN', tenantId = 'A', verified = true) => {
     const id = randomUUID(), email = `${id}@example.invalid`;
     const data = { id, nombre: id, email, passwordHash: await bcrypt.hash(password, 4), emailVerifiedAt: verified ? new Date() : null };
@@ -160,7 +160,7 @@ describe('Login único, recuperación por contraseña temporal y bloqueo en Post
   });
 
   describe('login de un solo campo con detección automática de empresa y rol', () => {
-    it.each(['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO'] as Rol[])('%s entra con usuario, código o correo y el servidor fija su empresa y rol', async rol => {
+    it.each(['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO', 'CONTADOR'] as Rol[])('%s entra con usuario, código o correo y el servidor fija su empresa y rol', async rol => {
       const a = await account(false, rol, 'B');
       await db.usuario.update({ where: { id: a.id }, data: { username: `44${randomUUID().slice(0, 6)}` } });
       const row = await db.usuario.findUniqueOrThrow({ where: { id: a.id } });
@@ -219,6 +219,29 @@ describe('Login único, recuperación por contraseña temporal y bloqueo en Post
       const propio = await account(false, 'CAJERO', 'A');
       await expect(usuarios.update('A', propio.id, { username: (b as any).username } as any, admin.id)).rejects.toThrow('no está disponible');
     });
+    it('el mismo correo escrito con otras mayúsculas en dos empresas es ambiguo: 401 genérico, sin contadores ni sesiones; el enlace privado acota la búsqueda', async () => {
+      const a = await account(false, 'CAJERO', 'A'), b = await account(false, 'CAJERO', 'B');
+      const base = `Mixto-${randomUUID().slice(0, 8)}@example.invalid`;
+      await db.usuario.update({ where: { id: a.id }, data: { email: base } });
+      await db.usuario.update({ where: { id: b.id }, data: { email: base.toLowerCase() } });
+      const before = await db.sesionAuth.count();
+      const res = newRes();
+      const error = await failure(login(base.toUpperCase(), password, nextIp(), res));
+      const inexistente = await failure(login(`nadie-${randomUUID()}@example.invalid`, password));
+      expect(error.getStatus()).toBe(401);
+      expect(error.getResponse()).toEqual(inexistente.getResponse());
+      expect(res.cookie).not.toHaveBeenCalled();
+      expect(await db.sesionAuth.count()).toBe(before);
+      expect((await fresh(a) as any).intentosFallidos).toBe(0);
+      expect((await fresh(b) as any).intentosFallidos).toBe(0);
+      // Con el enlace privado de la empresa B, la misma escritura resuelve solo su cuenta.
+      expect(((await login(base, password, nextIp(), newRes(), { tenantId: 'B' })) as any).user?.id).toBe(b.id);
+      // Un correo de Super Admin no lo puede usar un negocio: en el login sin empresa gana la cuenta de plataforma.
+      const sa = await account(true);
+      await db.usuario.update({ where: { id: a.id }, data: { email: sa.email } });
+      expect(await failure(login(sa.email, 'Clave-Incorrecta-1'))).toBeDefined();
+      expect(((await loginSa(sa)) as any).type).toBe('super_admin');
+    });
     it('dos altas simultáneas con el mismo identificador en empresas distintas: solo una gana', async () => {
       const usuarios = new UsuariosService(db as any);
       const adminA = await account(false, 'ADMIN', 'A'), adminB = await account(false, 'ADMIN', 'B');
@@ -261,7 +284,7 @@ describe('Login único, recuperación por contraseña temporal y bloqueo en Post
   });
 
   describe('bloqueo de cuentas operativas', () => {
-    it.each(['CAJERO', 'VENDEDOR', 'BODEGUERO'] as Rol[])('%s: los fallos 1 a 5 no bloquean, el sexto sí; la respuesta nunca revela el bloqueo', async rol => {
+    it.each(['CAJERO', 'VENDEDOR', 'BODEGUERO', 'CONTADOR'] as Rol[])('%s: los fallos 1 a 5 no bloquean, el sexto sí; la respuesta nunca revela el bloqueo', async rol => {
       const a = await account(false, rol);
       const sesion = await session(a);
       const respuestas: any[] = [];
@@ -592,13 +615,13 @@ describe('Login único, recuperación por contraseña temporal y bloqueo en Post
     }, 60000);
   });
 
-  it.each(['CAJERO', 'VENDEDOR', 'BODEGUERO', 'ADMIN'] as Rol[])('ya no acepta el token heredado RESET_EMAIL (%s): la recuperación por correo es la temporal', async rol => {
+  it.each(['CAJERO', 'VENDEDOR', 'BODEGUERO', 'CONTADOR', 'ADMIN'] as Rol[])('ya no acepta el token heredado RESET_EMAIL (%s): la recuperación por correo es la temporal', async rol => {
     const a = await account(false, rol), token = await action(a, 'RESET_EMAIL');
     await expect(service.reset({ token, password: replacement })).rejects.toThrow();
     expect((await db.usuario.findUniqueOrThrow({ where: { id: a.id } })).passwordHash).toBe(a.passwordHash);
   });
-  it('issues a private employee reset, revokes sessions immediately and rejects foreign tenants and non-admin actors', async () => {
-    const admin = await account(false, 'ADMIN', 'A'), employee = await account(false, 'CAJERO', 'A'), outsider = await account(false, 'CAJERO', 'B');
+  it.each(['CAJERO', 'CONTADOR'] as Rol[])('issues a private %s reset, revokes sessions immediately and rejects foreign tenants and non-admin actors', async rol => {
+    const admin = await account(false, 'ADMIN', 'A'), employee = await account(false, rol, 'A'), outsider = await account(false, 'CAJERO', 'B');
     const payload = await session(employee);
     await expect(service.adminReset(employee.identity, { usuarioId: admin.id, currentPassword: password })).rejects.toThrow();
     await expect(service.adminReset(admin.identity, { usuarioId: outsider.id, currentPassword: password })).rejects.toThrow();

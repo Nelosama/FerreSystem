@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analizarMigracion, buscarComandosProhibidos, comprobarInmutables } from './verificar-migraciones.mjs';
+import { analizarMigracion, buscarComandosProhibidos, comprobarInmutables, comprobarOrden } from './verificar-migraciones.mjs';
 
 test('detecta comandos destructivos de Prisma en archivos ejecutables', () => {
   const hallazgos = buscarComandosProhibidos([
@@ -68,4 +68,13 @@ test('una migración no puede crear la tabla de marca de entorno', () => {
   const a = analizarMigracion('m', 'CREATE TABLE "entorno_ferresystem" ("id" INTEGER);');
   assert.equal(a.bloqueada, true);
   assert.ok(a.operaciones.includes('tabla de marca de entorno'));
+});
+
+test('una migración nueva ordenada antes de la última de la base se bloquea (HISTORIAL_CON_HUECOS)', () => {
+  const base = ['20261022000000_guia_progreso', '20261023000000_auth_recovery'];
+  assert.deepEqual(comprobarOrden(['20261022000100_rol_contador', '20261027000100_rol_contador'], base),
+    [{ nombre: '20261022000100_rol_contador', ultimaBase: '20261023000000_auth_recovery' }]);
+  assert.deepEqual(comprobarOrden(['20261026000000_auth_login_unico_bloqueo'], base), []);
+  assert.deepEqual(comprobarOrden(['20261023000000_auth_recovery'], base).length, 1);
+  assert.deepEqual(comprobarOrden(['20261001000000_x'], []), []);
 });

@@ -2,6 +2,9 @@
 
 # Jowa System: acceso y recuperación de credenciales
 
+> **Vigente desde 2026-10-27 (PR #205, alineado con #203):** el correo de seguridad sale por **Gmail SMTP** (`AUTH_MAIL_GMAIL_USER`, `AUTH_MAIL_GMAIL_APP_PASSWORD`, `AUTH_MAIL_FROM_NAME` opcional, `AUTH_PUBLIC_URL`). Resend y `AUTH_MAIL_RESEND_API_KEY`/`AUTH_MAIL_FROM` ya no se usan; las menciones a Resend de este documento son históricas. En producción, `config-auth.ts` impide arrancar si el correo Gmail está incompleto o es inválido y ya **no** exige `AUTH_MFA_ENCRYPTION_KEY` (decisión del propietario de no usar MFA; su retiro del código de autenticación se coordina sobre #203). La prueba real de envío es `backend/scripts/smtp-staging-check.mjs` (opt-in, solo staging); `prueba-correo-resend.mjs` se retiró.
+
+
 [PR dedicado #192](https://github.com/Nelosama/FerreSystem/pull/192) en borrador. Rama `codex/auth-recovery-security`, base inicial `main` `ed720baf`, sincronizada con `ba201465` (#190). Sin merge, despliegue ni acceso a datos de producción. Revisión de esquema y persistencia: **NEXUS**.
 
 ## Auditoría inicial
@@ -53,7 +56,7 @@ Reloj/NTP correcto en hosts y dispositivos. Probar la entrega real y enlaces en 
 3. Super Admin: entra con su usuario o correo y su contraseña, sin segundo factor. Si olvidó la contraseña, pide la temporal al correo verificado de la cuenta (ver recuperación); usarla obliga a definir una contraseña nueva.
 4. ADMIN existente: entrar normalmente y verificar su correo desde «Seguridad de mi cuenta» (enlace de un solo uso). Sin correo verificado no dispone de recuperación automática; el Super Admin puede emitirle un enlace.
 5. Alta general de empleado: crear usuario/código y rol, sin contraseña ni correo obligatorio; emitir enlace en «Seguridad de mi cuenta» después de seleccionar empresa/empleado y volver a verificar la identidad del administrador. El empleado lo abre en su propio dispositivo y establece su clave.
-6. Un eventual despliegue posterior corresponde al propietario; este PR no hace merge ni deploy. Vercel excluye esta rama en `vercel-ignore.sh`; Render no fue modificado. El rollback preferido conserva el esquema aditivo y revierte código mediante el proceso operativo, con la salvedad de que una versión antigua volvería a permitir login de plataforma sin MFA: no usarla como salida rutinaria a un problema de configuración.
+6. Un eventual despliegue posterior corresponde al propietario; este PR no hace merge ni deploy. Vercel excluye esta rama en `vercel-ignore.sh`; Render no fue modificado. **Corrección (2026-10-24):** revertir solo el código hacia `main` NO es viable tras migrar: `migration-safe.mjs` rechaza migraciones desconocidas (`MIGRACION_DESCONOCIDA`) y el backend anterior no arranca; el rollback real exige restaurar el respaldo previo o una reversión revisada (ver `PREPARACION_PRODUCCION_PR180.md` §4). Además, una versión antigua volvería a permitir login de plataforma sin MFA: no usarla como salida rutinaria a un problema de configuración.
 
 ## Emergencia administrativa (no ejecutada)
 
@@ -93,3 +96,45 @@ Portabilidad del arnés: la matriz PostgreSQL usa socket propio en Linux (no /va
 El simulacro de actualización también contenía un acceso de Super Admin sin MFA, antes oculto por el fallo temprano del piloto. Se adapta humo-preproduccion.mjs a SUPERADMIN_MFA_CODE; el ensayo aislado genera un código sintético distinto por login mediante test/synthetic-upgrade-mfa.cjs, sin modificar la contraseña. Se comprueba el hash histórico antes de inicializar MFA. Esta es otra incompatibilidad nueva del arnés con MFA obligatorio, no un fallo heredado del backend.
 
 La validación general cf8f4550 descubrió además 5 suites de integración incompatibles (72 fallos / 989 aprobadas / 2 omitidas): ventas y reportes omitían auth_recovery; migracion-autenticacion la aplicaba antes de sesiones_auth; la foto de Modo Guía incluía columnas nuevas; real-ciclo-ventas-browser conservaba input[type=email]. Se corrigen exclusivamente fixtures: orden/listas de migración, proyección de TODOS los campos históricos (hash incluido), MFA sintético para un login adicional de plataforma y selector estable. Primeras tres suites locales: 72/72; se repiten las restantes y CI. Son regresiones nuevas del arnés de esta rama, no fallos heredados del negocio.
+
+## Verificación previa a producción (2026-10-23 UTC, rama `feat/contabilidad-honduras`)
+
+- **Arranque:** con `NODE_ENV=production`, `validarConfiguracionAuth` (`backend/src/auth/config-auth.ts`) impide iniciar el servicio si falta o es inválido `AUTH_MFA_ENCRYPTION_KEY` (64 hex), `AUTH_MAIL_RESEND_API_KEY`, `AUTH_MAIL_FROM` o `AUTH_PUBLIC_URL` (origen HTTPS sin ruta, consulta ni credenciales). El mensaje nombra variables, nunca valores. Comprobado con `dist/main.js`: salida con código 1 y lista de variables. Fuera de producción no se exige nada.
+- **Correo sin configuración:** `RecoveryMailService` responde 503 y no llama a Resend; un 4xx/5xx de Resend también es 503 sin revelar clave ni destinatario (`recovery-mail.service.spec.ts`).
+- **Prueba real de entrega (no ejecutada):** `backend/scripts/prueba-correo-resend.mjs` envía un único mensaje de configuración sin enlaces a un destinatario confirmado explícitamente con `CONFIRM_ENVIO_REAL`. Sin esa confirmación o con una URL no válida rechaza sin enviar (comprobado). Requisitos: dominio del remitente verificado en Resend, clave de envío restringida, registros SPF/DKIM según el proveedor. Resultado a registrar: estado HTTP e identificador devuelto; la ejecución requiere autorización del propietario.
+- **Secretos:** ninguna clave, dominio o token de producción se ha generado, leído ni publicado. Los valores de prueba son sintéticos y viven solo en pruebas.
+- **MFA del Super Admin verificado en pruebas:** enrolamiento y bootstrap (`auth-recovery.postgres.integration.ts`, 19/19), login con código TOTP y código de emergencia de un solo uso (`mfa.spec.ts`), expiración de tokens y de sesión por inactividad, y revocación de sesiones tras cambio o restablecimiento de contraseña.
+- **Vías de recuperación:** Super Admin y ADMIN con correo verificado, token de 10 minutos y MFA; empleados con enlace privado emitido por un ADMIN de su empresa. Ningún administrador asigna contraseñas ajenas.
+
+## Procedimiento seguro: variables de autenticación en Render (no ejecutado)
+
+Solo el propietario ejecuta estos pasos, en el panel de Render del servicio de producción. Ningún valor se pega en chat, repositorio, issues, logs ni variables `VITE_*`.
+
+1. **Antes:** respaldo verificado de la base y ensayo de restauración en una copia aislada (`npm run backup:verify-restore`). Confirmar que el despliegue de este PR corresponde al SHA aprobado.
+2. **Generar la clave MFA en una máquina del propietario:** `openssl rand -hex 32` (64 caracteres hexadecimales). Guardarla en el gestor de contraseñas junto con una copia de seguridad. Perderla impide descifrar el TOTP de todos los administradores; cambiarla exige recifrado planificado.
+3. **Crear la cuenta de envío en Resend** con un dominio o subdominio propio verificado (SPF y DKIM publicados). Crear una clave restringida solo a envío. Desactivar el seguimiento de enlaces para estos correos.
+4. **En Render → Environment**, añadir como *secret*: `AUTH_MFA_ENCRYPTION_KEY`, `AUTH_MAIL_RESEND_API_KEY`, `AUTH_MAIL_FROM` (`Nombre <correo@dominio-verificado>`) y `AUTH_PUBLIC_URL` (origen HTTPS del frontend, sin ruta). Confirmar que `NODE_ENV=production`, `FRONTEND_URLS`, `TRUST_PROXY` y `JWT_SECRET` siguen definidos y no son valores públicos de ejemplo.
+5. **Desplegar** con el comando de inicio existente (`prisma migrate deploy` antes de `node dist/main.js`). Si falta una variable, el log indica solo su nombre: «Configuración de seguridad incompleta en producción: …». Corregir la variable y redesplegar; no relajar la validación.
+6. **Verificar:** `GET /api/health` responde OK; la página de acceso carga; no hay errores de arranque en el log.
+7. **Rollback:** ver `PREPARACION_PRODUCCION_PR180.md` §4. Revertir solo el código hacia `main` no arranca tras migrar; se decide antes de la ventana y depende del respaldo verificado. Una versión anterior no exige MFA de plataforma; no usarla como salida rutinaria.
+
+## Prueba de envío real por Resend (preparada, NO ejecutada)
+
+Requiere autorización explícita del propietario y el destinatario confirmado por escrito. El script `backend/scripts/prueba-correo-resend.mjs` envía **un** mensaje de configuración, sin enlaces ni tokens, y rechaza cualquier ejecución sin `CONFIRM_ENVIO_REAL` con el correo exacto.
+
+Procedimiento: ejecutar desde una máquina del propietario con las cuatro variables en el entorno local de la sesión (no en ficheros), comprobar la salida (`estado`, `ok`, `id`), revisar la bandeja de entrada y los encabezados (SPF/DKIM = pass) y anotar el resultado aquí. Un resultado distinto de `ok: true` bloquea la liberación.
+
+## Checklist de enrolamiento MFA del Super Admin
+
+Marcar cada punto; los pasos 3 y 4 dependen de la entrega de correo.
+
+- [ ] Correo de prueba recibido y enlace funcional (Resend verificado).
+- [ ] Inicio de sesión con correo y contraseña actual; elegir «Configurar MFA inicial».
+- [ ] Abrir el enlace del correo **en el dispositivo del titular** y volver a introducir la contraseña.
+- [ ] Registrar la clave en un autenticador (no en el mismo navegador que el administrador de contraseñas, si es posible) y confirmar un código de seis dígitos.
+- [ ] Guardar los diez códigos de emergencia fuera del equipo; se muestran una sola vez.
+- [ ] Iniciar sesión de nuevo con TOTP. Comprobar que un código de emergencia funciona una sola vez.
+- [ ] Probar que la sesión caduca tras el periodo de inactividad y que «cerrar sesión» revoca la sesión en otra pestaña.
+- [ ] Probar el restablecimiento: solicitar enlace, abrirlo, fijar contraseña nueva y comprobar que las sesiones previas dejan de valer.
+- [ ] Confirmar que no hay MFA de respaldo sin custodia: al menos un código de emergencia conservado.
+- [ ] Registrar la fecha y el responsable del enrolamiento en `CONTEXTO_MAESTRO.md`. No registrar códigos ni claves.

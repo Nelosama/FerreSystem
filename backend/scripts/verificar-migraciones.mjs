@@ -7,6 +7,8 @@
 // 2. Una migración nueva o modificada con SQL destructivo (DROP, TRUNCATE, DELETE, cambio de tipo, RENAME)
 //    exige la línea `-- APROBACION-DESTRUCTIVA: <ticket> <responsable>` y revisión de CODEOWNERS.
 // 3. Las migraciones ya publicadas son inmutables: solo se permiten archivos nuevos.
+// 4. Una migración nueva debe ordenarse después de la última de la base: si queda antes, una base ya migrada con la
+//    rama base queda BLOQUEADA por migration-safe (HISTORIAL_CON_HUECOS) y el backend no arranca.
 // Las migraciones aditivas y revisadas no se bloquean.
 //
 // Uso: node scripts/verificar-migraciones.mjs [--base origin/main]
@@ -66,6 +68,13 @@ export function comprobarInmutables(cambios) {
   return cambios.filter(({ estado }) => !estado.startsWith('A')).map(({ estado, ruta }) => ({ estado, ruta }));
 }
 
+/** Migraciones nuevas que se ordenan antes de (o igual que) la última migración de la base. Recibe nombres de carpeta. */
+export function comprobarOrden(nuevas, base) {
+  const ultima = [...base].sort().at(-1);
+  if (!ultima) return [];
+  return nuevas.filter((nombre) => nombre <= ultima).map((nombre) => ({ nombre, ultimaBase: ultima }));
+}
+
 function git(args) {
   return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
 }
@@ -90,10 +99,14 @@ function principal() {
   const nuevas = cambios.filter(({ estado, ruta }) => estado.startsWith('A') && ruta.endsWith('migration.sql'));
   const analisis = nuevas.map(({ ruta }) => analizarMigracion(ruta, readFileSync(join(raiz, ruta), 'utf8')));
   const bloqueadas = analisis.filter((a) => a.bloqueada);
+  const carpeta = (ruta) => ruta.split('/').at(-2);
+  const enBase = git(['-C', raiz, 'ls-tree', '--name-only', `${base}:backend/prisma/migrations`]).split('\n').filter((n) => /^\d{14}_/.test(n));
+  const desordenadas = comprobarOrden(nuevas.map(({ ruta }) => carpeta(ruta)), enBase);
 
   let codigo = 0;
   if (prohibidos.length) { codigo = 1; console.error('Comandos destructivos prohibidos:'); for (const h of prohibidos) console.error(`  ${h.ruta}:${h.linea}`); }
   if (inmutables.length) { codigo = 1; console.error('Migraciones publicadas modificadas o eliminadas (solo se permiten archivos nuevos):'); for (const h of inmutables) console.error(`  ${h.estado} ${h.ruta}`); }
+  if (desordenadas.length) { codigo = 1; console.error('Migraciones nuevas ordenadas antes de la última de la base (renómbrelas con una marca de tiempo posterior):'); for (const d of desordenadas) console.error(`  ${d.nombre} <= ${d.ultimaBase}`); }
   if (bloqueadas.length) { codigo = 1; console.error('Migraciones con SQL destructivo sin marca APROBACION-DESTRUCTIVA:'); for (const a of bloqueadas) console.error(`  ${a.ruta}: ${a.operaciones.join(', ')}`); }
   for (const a of analisis.filter((x) => x.aprobada)) console.log(`Aprobada explícitamente (requiere CODEOWNERS): ${a.ruta}`);
   console.log(codigo === 0 ? `Control de migraciones: correcto (${archivos.length} archivos ejecutables, ${nuevas.length} migraciones nuevas).` : 'Control de migraciones: FALLO.');

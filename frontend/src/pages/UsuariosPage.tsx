@@ -6,7 +6,7 @@ export interface Usuario {
   nombre: string;
   email: string;
   username?: string;
-  rolBase: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR';
+  rolBase: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR' | 'CONTADOR';
   permisos: string[];
   descuentoMaximo: number;
   activo: boolean;
@@ -41,6 +41,12 @@ export const PERMISOS_DEFAULT_POR_ROL = {
   VENDEDOR: {
     permisos: ['pos.vender', 'cotizaciones.crear'],
     descuentoMaximo: 10,
+  },
+  // Solo Contabilidad y Control Tributario: el servidor no le permite modificar ventas, cobros, inventario ni caja.
+  // Por defecto consulta y registra documentos; configurar tasas y cerrar períodos exigen concesión expresa.
+  CONTADOR: {
+    permisos: ['contabilidad.ver', 'contabilidad.registrar'],
+    descuentoMaximo: 0,
   },
 };
 
@@ -91,13 +97,13 @@ export function formatUsuarioApiError(err: any, defaultMsg: string, t: (key: str
 
 export const UsuariosPage: React.FC = () => {
   const { t } = useI18n();
-  const { user: sesionActual } = useTenant();
+  const { user: sesionActual, tenant: negocioActual } = useTenant();
   // Desactivar/reactivar: confirmación explícita; la cuenta propia no se puede desactivar.
   const [usuarioPorCambiarEstado, setUsuarioPorCambiarEstado] = useState<Usuario | null>(null);
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [errorCambioEstado, setErrorCambioEstado] = useState<string | null>(null);
 
-  const TODOS_LOS_PERMISOS = [
+  const PERMISOS_BASE = [
     { clave: 'pos.vender', labelKey: 'users.perm_pos_vender' },
     // No hay «anular venta»: una venta se revierte con una devolución (directa solo ADMIN; el resto la solicita
     // y un administrador la autoriza). Un permiso que el servidor no aplica no se ofrece (JW-09).
@@ -112,6 +118,14 @@ export const UsuariosPage: React.FC = () => {
     { clave: 'usuarios.gestionar', labelKey: 'users.perm_usr_gestionar' },
     { clave: 'configuracion.editar', labelKey: 'users.perm_cfg_editar' },
   ];
+  // Los permisos de Contabilidad solo se ofrecen cuando el negocio tiene el módulo contratado (Super Admin); apagado, no hay nada que conceder.
+  const PERMISOS_CONTABILIDAD = [
+    { clave: 'contabilidad.ver', labelKey: 'users.perm_cont_ver' },
+    { clave: 'contabilidad.registrar', labelKey: 'users.perm_cont_registrar' },
+    { clave: 'contabilidad.configurar', labelKey: 'users.perm_cont_configurar' },
+    { clave: 'contabilidad.cerrar_periodo', labelKey: 'users.perm_cont_cerrar' },
+  ];
+  const TODOS_LOS_PERMISOS = negocioActual.modulosHabilitados?.includes('contabilidad') ? [...PERMISOS_BASE, ...PERMISOS_CONTABILIDAD] : PERMISOS_BASE;
 
   const [listaUsuarios, setListaUsuarios] = useState<Usuario[]>([]);
   const [loadingList, setLoadingList] = useState(false);
@@ -127,7 +141,7 @@ export const UsuariosPage: React.FC = () => {
   const [formNombre, setFormNombre] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formUsername, setFormUsername] = useState('');
-  const [formRolBase, setFormRolBase] = useState<'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR'>('CAJERO');
+  const [formRolBase, setFormRolBase] = useState<'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR' | 'CONTADOR'>('CAJERO');
   const [formPermisos, setFormPermisos] = useState<string[]>([]);
   const [formDescuentoMaximo, setFormDescuentoMaximo] = useState<number>(10);
   const [formActivo, setFormActivo] = useState(true);
@@ -153,7 +167,7 @@ export const UsuariosPage: React.FC = () => {
             nombre: u.nombre,
             email: u.email || '',
             username: u.username,
-            rolBase: u.rol as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR',
+            rolBase: u.rol as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR' | 'CONTADOR',
             permisos: u.permisosConfigurados ? u.permisos : PERMISOS_DEFAULT_POR_ROL[u.rol as keyof typeof PERMISOS_DEFAULT_POR_ROL]?.permisos || [],
             descuentoMaximo: Number(u.descuentoMaximo || 0),
             activo: u.activo,
@@ -236,7 +250,7 @@ export const UsuariosPage: React.FC = () => {
     }, 4000);
   };
 
-  const handleCambioRolBase = (nuevoRol: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR') => {
+  const handleCambioRolBase = (nuevoRol: 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR' | 'CONTADOR') => {
     setFormRolBase(nuevoRol);
     const defaults = PERMISOS_DEFAULT_POR_ROL[nuevoRol];
     setFormPermisos(defaults.permisos);
@@ -570,7 +584,7 @@ export const UsuariosPage: React.FC = () => {
                     value={formRolBase}
                     disabled={submitting}
                     onChange={(e) =>
-                      handleCambioRolBase(e.target.value as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR')
+                      handleCambioRolBase(e.target.value as 'ADMIN' | 'CAJERO' | 'BODEGUERO' | 'VENDEDOR' | 'CONTADOR')
                     }
                     className="form-select"
                   >
@@ -578,6 +592,7 @@ export const UsuariosPage: React.FC = () => {
                     <option value="CAJERO">CAJERO</option>
                     <option value="BODEGUERO">BODEGUERO</option>
                     <option value="VENDEDOR">VENDEDOR</option>
+                    <option value="CONTADOR">CONTADOR</option>
                   </select>
                 </div>
               </div>

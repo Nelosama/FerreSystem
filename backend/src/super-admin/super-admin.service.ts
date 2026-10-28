@@ -6,7 +6,7 @@ import { CreateUsuarioDto } from '../usuarios/dto/create-usuario.dto';
 import { UpdateUsuarioDto } from '../usuarios/dto/update-usuario.dto';
 import { EditarSucursalDto } from './sucursal.dto';
 import { refreshCookieOptions } from '../auth/refresh-cookie';
-import { DEFAULT_TENANT_MODULES, enabledTenantModules, moduleDependencyErrors } from '../common/tenant-modules';
+import { CONFIGURABLE_TENANT_MODULES, DEFAULT_TENANT_MODULES, enabledTenantModules, moduleDependencyErrors } from '../common/tenant-modules';
 import { audit, lockTenant } from '../operaciones/ledger';
 import { consultarAuditoria } from '../operaciones/auditoria-consulta';
 import { TenantsService } from '../tenants/tenants.service';
@@ -326,7 +326,7 @@ export class SuperAdminService {
     if (!tenant) {
       throw new NotFoundException('Ferretería no encontrada');
     }
-    if (!Array.isArray(modules) || modules.length > DEFAULT_TENANT_MODULES.length || modules.some(item => !item || !DEFAULT_TENANT_MODULES.includes(item.moduleKey) || typeof item.enabled !== 'boolean') || new Set(modules.map(item => item.moduleKey)).size !== modules.length) {
+    if (!Array.isArray(modules) || modules.length > CONFIGURABLE_TENANT_MODULES.length || modules.some(item => !item || !CONFIGURABLE_TENANT_MODULES.includes(item.moduleKey) || typeof item.enabled !== 'boolean') || new Set(modules.map(item => item.moduleKey)).size !== modules.length) {
       throw new BadRequestException('Módulos inválidos: use claves del catálogo, booleanos y sin duplicados');
     }
     return this.prisma.$transaction(async (tx) => {

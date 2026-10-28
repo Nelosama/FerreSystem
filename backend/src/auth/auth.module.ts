@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { getJwtSecret } from './jwt-secret';
+import { AUTH_CONFIG_CHECK, validarConfiguracionAuth } from './config-auth';
 import { AuthService } from './auth.service';
 import { GuiaController } from './guia.controller';
 import { AuthController } from './auth.controller';
@@ -26,7 +27,11 @@ import { RecoveryMailService } from './recovery-mail.service';
     }),
   ],
   controllers: [AuthController, GuiaController, RecoveryController],
-  providers: [AuthService, JwtStrategy, RecoveryService, RecoveryMailService],
+  providers: [
+    AuthService, JwtStrategy, RecoveryService, RecoveryMailService,
+    // Se evalúa al arrancar: en producción, una configuración incompleta impide iniciar el servicio.
+    { provide: AUTH_CONFIG_CHECK, inject: [ConfigService], useFactory: (configService: ConfigService) => { validarConfiguracionAuth(configService); return true; } },
+  ],
   exports: [AuthService, JwtModule, PassportModule],
 })
 export class AuthModule {}

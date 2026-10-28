@@ -11,6 +11,7 @@ import { PlatformTopbar } from './components/PlatformTopbar';
 import { CajeroRail } from './components/CajeroRail';
 import { AdminRail } from './components/AdminRail';
 import { AdminTopbar } from './components/AdminTopbar';
+import { ContadorRail } from './components/ContadorRail';
 import { SoporteBanner } from './components/SoporteBanner';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -30,6 +31,8 @@ const PreciosPage=React.lazy(()=>import('./pages/PreciosPage').then(m=>({default
 const GarantiasPage=React.lazy(()=>import('./pages/GarantiasPage').then(m=>({default:m.GarantiasPage})));
 const EntregasPage=React.lazy(()=>import('./pages/EntregasPage').then(m=>({default:m.EntregasPage})));
 const OperacionesPage=React.lazy(()=>import('./pages/OperacionesPage').then(m=>({default:m.OperacionesPage})));
+const ContadorInicioPage=React.lazy(()=>import('./pages/ContadorInicioPage').then(m=>({default:m.ContadorInicioPage})));
+const ContabilidadPage=React.lazy(()=>import('./pages/ContabilidadPage').then(m=>({default:m.ContabilidadPage})));
 
 // Dynamic page imports with React.lazy
 const DashboardPage = React.lazy(() =>
@@ -178,7 +181,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <CajaProvider>
     <div className={`app-container admin-shell${modoNavegacion === 'TOPNAV' ? ' tenant-topnav' : ''}`} data-navigation-mode={modoNavegacion}>
-      {user?.rol === 'CAJERO' ? <CajeroRail /> : <AdminRail />}
+      {user?.rol === 'CAJERO' ? <CajeroRail /> : user?.rol === 'CONTADOR' ? <ContadorRail /> : <AdminRail />}
       <div data-guide-content
         className="main-content"
         style={isMobile ? { paddingBottom: '72px' } : undefined}
@@ -205,6 +208,16 @@ export const App: React.FC = () => {
                 <Routes>
                 <Route path="/pos-contingencia" element={<ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="pos" requiredPermiso="pos.vender"><PosContingenciaPage /></ProtectedRoute>} />
                 <Route path="/contingencia-admin" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="pos"><AppLayout><ContingenciaAdminPage /></AppLayout></ProtectedRoute>} />
+                <Route path="/contabilidad" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContadorInicioPage /></AppLayout></ProtectedRoute>} />
+                <Route path="/contabilidad/asientos" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage key="entries" tabs={['asientos']} titleKey="accounting.nav.entries" /></AppLayout></ProtectedRoute>} />
+                <Route path="/contabilidad/reportes" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage key="reports" tabs={['balanza', 'mayor', 'ventas', 'compras', 'resumen']} titleKey="accounting.nav.reports" /></AppLayout></ProtectedRoute>} />
+                <Route path="/contabilidad/cierre" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage key="closing" tabs={['periodos']} titleKey="accounting.nav.closing" /></AppLayout></ProtectedRoute>} />
+                <Route path="/contabilidad/catalogo" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage key="chart" tabs={['catalogo']} titleKey="accounting.nav.chart" /></AppLayout></ProtectedRoute>} />
+                <Route path="/contabilidad/documentos" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage key="documents" tabs={['documentos', 'retenciones']} titleKey="accounting.nav.documents" /></AppLayout></ProtectedRoute>} />
+                <Route path="/contabilidad/configuracion" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage key="tax_settings" tabs={['configuracion']} titleKey="accounting.nav.tax_settings" /></AppLayout></ProtectedRoute>} />
+                <Route path="/contabilidad/cartera" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage key="receivables" tabs={['cartera']} titleKey="accounting.nav.receivables" /></AppLayout></ProtectedRoute>} />
+                <Route path="/contabilidad/excel" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage key="excel" tabs={['excel']} titleKey="accounting.nav.excel" /></AppLayout></ProtectedRoute>} />
+                <Route path="/contabilidad/auditoria" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage key="audit" tabs={['ajustes']} titleKey="accounting.nav.audit" /></AppLayout></ProtectedRoute>} />
                 <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['ADMIN','CAJERO','VENDEDOR']} requiredModule="pos"><AppLayout><DevolucionesPage/></AppLayout></ProtectedRoute>}/>
                   <Route path="/auditoria" element={<Navigate to="/admin" replace />} />
                   <Route path="/precios" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="inventario"><AppLayout><PreciosPage/></AppLayout></ProtectedRoute>}/>

@@ -82,9 +82,9 @@ async function menuOfrece(page: Page, ruta: string): Promise<boolean> {
   return hallado;
 }
 
-test('16 módulos: URL, navegación y API reales, dependencias y recuperación administrativa', async ({ page }) => {
+test('17 módulos: URL, navegación y API reales, dependencias y recuperación administrativa', async ({ page }) => {
   test.setTimeout(180000);
-  expect(CATALOGO_MODULOS).toHaveLength(16);
+  expect(CATALOGO_MODULOS).toHaveLength(17);
   const api = await request.newContext({ baseURL: BASE });
   const platform = await api.post('auth/login', { data: { email: 'superadmin.e2e@e2e.invalid', password: PASSWORD } });
   expect(platform.status()).toBe(200);
@@ -102,7 +102,7 @@ test('16 módulos: URL, navegación y API reales, dependencias y recuperación a
     inventario: '/inventario', levantamiento: '/levantamiento', ordenes_compra: '/ordenes-compra',
     transferencias_sucursal: '/transferencias', garantias: '/garantias', clientes: '/clientes',
     listas_precio: '/listas-precio', usuarios: '/usuarios', comisiones_venta: '/comisiones',
-    arqueo_caja: '/arqueo-caja', reportes: '/reportes', configuracion: '/configuracion',
+    arqueo_caja: '/arqueo-caja', reportes: '/reportes', configuracion: '/configuracion', contabilidad: '/contabilidad',
   };
   // Las cuatro claves pendientes no tienen operaciones propias.
   // Comisiones consume Usuarios/POS; Configuración conserva su recuperación exclusiva de plataforma.
@@ -111,6 +111,7 @@ test('16 módulos: URL, navegación y API reales, dependencias y recuperación a
     pos: 'ventas', cotizaciones: 'cotizaciones', inventario: 'productos', levantamiento: 'levantamientos',
     ordenes_compra: 'operaciones/compras', garantias: 'garantias/coberturas', clientes: 'clientes',
     usuarios: 'usuarios', arqueo_caja: 'operaciones/caja', reportes: `operaciones/resumen?desde=${today}&hasta=${today}`,
+    contabilidad: 'contabilidad/configuracion',
   };
   const historical = () => Promise.all([
     prisma.producto.findMany({ where: { tenantId: company }, orderBy: { id: 'asc' } }),

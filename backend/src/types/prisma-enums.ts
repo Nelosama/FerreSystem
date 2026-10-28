@@ -8,6 +8,7 @@ export enum Rol {
   CAJERO = 'CAJERO',
   BODEGUERO = 'BODEGUERO',
   VENDEDOR = 'VENDEDOR',
+  CONTADOR = 'CONTADOR',
 }
 
 export enum UnidadMedida {

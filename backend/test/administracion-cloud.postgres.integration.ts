@@ -173,25 +173,27 @@ describe('Administración cloud / HTTP y PostgreSQL aislado', () => {
     expect((await http('POST', endpoint(A, 'sucursales'), sa, { nombre: '   ' })).status).toBe(400);
   });
 
-  it('Super Admin crea usuarios por rol y conserva historial y revocación al desactivar', async () => {
-    for (const rol of ['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO']) {
-      const email = `nuevo-${rol}@cloud.test`;
-      const response = await http('POST', endpoint(A, 'usuarios'), sa, { nombre: `Nuevo ${rol}`, email, rol });
-      expect(response.status).toBe(201); const usuario = await response.json() as any;
-      expect(usuario).not.toHaveProperty('passwordHash');
-      const security = new RecoveryService(prisma, new ConfigService(), {} as any);
-      const invitation = await security.adminReset({ sub: superAdminId, type: 'super_admin' }, { usuarioId: usuario.id, tenantId: A, currentPassword: password });
-      await security.reset({ token: invitation.token, password: 'Nueva-clave123' });
-      const login = await http('POST', '/api/auth/login', undefined, { email, password: 'Nueva-clave123', tenantId: A });
-      expect(login.status).toBe(200); const token = (await login.json() as any).accessToken;
-      expect((await http('PATCH', `${endpoint(B, 'usuarios')}/${usuario.id}`, sa, { activo: false })).status).toBe(404);
-      expect((await http('PATCH', `${endpoint(A, 'usuarios')}/${usuario.id}`, sa, { nombre: 'Editado', permisos: ['inventario.ver'], descuentoMaximo: 5 })).status).toBe(200);
-      expect((await http('DELETE', `${endpoint(A, 'usuarios')}/${usuario.id}`, sa)).status).toBe(200);
-      expect((await http('GET', '/api/auth/me', token)).status).toBe(401);
-      expect(await prisma.usuario.findUniqueOrThrow({ where: { id: usuario.id } })).toMatchObject({ activo: false, nombre: 'Editado', permisos: ['inventario.ver'] });
-      expect((await http('PATCH', `${endpoint(A, 'usuarios')}/${usuario.id}`, sa, { activo: true })).status).toBe(200);
-      expect(await prisma.auditoriaOperacion.count({ where: { tenantId: A, entidadId: usuario.id, usuarioId: superAdminId } })).toBe(4);
-    }
+  // One complete HTTP/recovery lifecycle per role keeps each case within the integration budget.
+  it.each(['ADMIN', 'CAJERO', 'VENDEDOR', 'BODEGUERO'])('Super Admin crea %s y conserva historial y revocación al desactivar', async rol => {
+    const email = `nuevo-${rol}@cloud.test`;
+    const response = await http('POST', endpoint(A, 'usuarios'), sa, { nombre: `Nuevo ${rol}`, email, rol });
+    expect(response.status).toBe(201); const usuario = await response.json() as any;
+    expect(usuario).not.toHaveProperty('passwordHash');
+    const security = new RecoveryService(prisma, new ConfigService(), {} as any);
+    const invitation = await security.adminReset({ sub: superAdminId, type: 'super_admin' }, { usuarioId: usuario.id, tenantId: A, currentPassword: password });
+    await security.reset({ token: invitation.token, password: 'Nueva-clave123' });
+    const login = await http('POST', '/api/auth/login', undefined, { email, password: 'Nueva-clave123', tenantId: A });
+    expect(login.status).toBe(200); const token = (await login.json() as any).accessToken;
+    expect((await http('PATCH', `${endpoint(B, 'usuarios')}/${usuario.id}`, sa, { activo: false })).status).toBe(404);
+    expect((await http('PATCH', `${endpoint(A, 'usuarios')}/${usuario.id}`, sa, { nombre: 'Editado', permisos: ['inventario.ver'], descuentoMaximo: 5 })).status).toBe(200);
+    expect((await http('DELETE', `${endpoint(A, 'usuarios')}/${usuario.id}`, sa)).status).toBe(200);
+    expect((await http('GET', '/api/auth/me', token)).status).toBe(401);
+    expect(await prisma.usuario.findUniqueOrThrow({ where: { id: usuario.id } })).toMatchObject({ activo: false, nombre: 'Editado', permisos: ['inventario.ver'] });
+    expect((await http('PATCH', `${endpoint(A, 'usuarios')}/${usuario.id}`, sa, { activo: true })).status).toBe(200);
+    expect(await prisma.auditoriaOperacion.count({ where: { tenantId: A, entidadId: usuario.id, usuarioId: superAdminId } })).toBe(4);
+  });
+
+  it('rechaza el alta con una contraseña elegida por el administrador', async () => {
     expect((await http('POST', endpoint(A, 'usuarios'), sa, { nombre: 'Inválido', email: 'bad@cloud.test', password: '123', rol: 'ADMIN' })).status).toBe(400);
   });
 
