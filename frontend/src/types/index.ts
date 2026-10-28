@@ -4,6 +4,8 @@ export type Permiso =
   | 'pos.vender'
   | 'pos.anular_venta'
   | 'pos.aplicar_descuento'
+  // Solo con rol ADMIN; no se concede desde Usuarios (ver docs/POLITICA_EXCEPCIONES_PRECIO.md).
+  | 'pos.excepcion_precio'
   | 'caja.movimientos_manuales'
   | 'inventario.ver'
   | 'inventario.editar'

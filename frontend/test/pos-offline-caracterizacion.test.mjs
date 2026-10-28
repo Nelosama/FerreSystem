@@ -142,7 +142,9 @@ test('el catálogo del POS vive solo en estado React: no se persiste', () => {
   const source = fs.readFileSync('src/pages/POSPage.tsx', 'utf8');
   assert.match(source, /api\.get\('\/productos\/comercial'\)/);
   const writes = [...source.matchAll(/localStorage\.setItem\(([^,]+),/g)].map((m) => m[1].trim());
-  assert.deepEqual(writes.sort(), ['pendingKey', 'pendingKey'].sort());
+  // Todas son la venta pendiente (requestKey es la clave del pendiente capturada al cobrar); dos de ellas guardan o quitan
+  // el motivo de la excepción de precio en ese mismo pendiente.
+  assert.deepEqual(writes.sort(), ['pendingKey', 'pendingKey', 'pendingKey', 'requestKey'].sort());
 });
 
 test('el cliente HTTP acota la espera de red sin cambiar vigencia de sesión', () => {

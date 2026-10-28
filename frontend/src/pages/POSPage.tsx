@@ -13,6 +13,7 @@ import type { ProductItem } from '../types';
 import { api } from '../utils/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { aplicarPreciosVigentes } from '../utils/preciosCarrito';
+import { MOTIVO_EXCEPCION_MAX, MOTIVO_EXCEPCION_MIN, motivoExcepcionValido, puedeExcepcionPrecio } from '../utils/excepcionPrecio';
 import { readRecovery, saveDraft, type PendingSale, type CartItem } from '../utils/posRecovery';
 import { useI18n } from '../context/I18nContext';
 import {
@@ -168,6 +169,12 @@ export const POSPage: React.FC = () => {
   cartRef.current = cart;
   const carritoEditableRef = useRef(false);
   carritoEditableRef.current = !edicionBloqueada;
+  // Excepción de precio: solo ADMIN con el permiso explícito «pos.excepcion_precio» puede registrar una venta pendiente
+  // con un precio distinto del vigente, y siempre con motivo. El servidor la vuelve a validar y la audita.
+  const puedeExcepcion = puedeExcepcionPrecio(user);
+  const [modalExcepcion, setModalExcepcion] = useState(false);
+  const [motivoExcepcion, setMotivoExcepcion] = useState('');
+  const cambiosPendiente = useMemo(() => ventaPendiente ? aplicarPreciosVigentes(ventaPendiente.cart, productos).cambios : [], [ventaPendiente, productos]);
   const ultimaSincronizacion = useRef(0);
   const lecturaCatalogo = useRef<{ key: string; promesa: Promise<ProductItem[] | null> } | null>(null);
   const aplicarCatalogo = (data: ProductItem[], secuencia: number) => {
@@ -594,6 +601,7 @@ export const POSPage: React.FC = () => {
     setProcesandoVenta(true);
     setErrorText(null);
     let enviado = false;
+    let excepcionEnviada = false;
     let requestIdentity = ventaPendiente?.solicitudId;
     try {
       const borradorAntes = localStorage.getItem(draftKey);
@@ -661,10 +669,12 @@ export const POSPage: React.FC = () => {
       setRecoveryStatus('SIN_COMPROBAR');
       const descuentoPendiente = calcularVentaPOS(pending.cart, pending.descuentoPorcentaje).descuento / 100;
       enviado = true;
+      excepcionEnviada = !!pending.excepcionPrecio;
       const { data } = await api.post('/ventas', {
         solicitudId: pending.solicitudId, clienteId: pending.clienteId, vencimiento: pending.vencimiento || undefined,
         clienteNombre: pending.clienteNombre, clienteRtn: pending.clienteRtn || undefined,
         metodoPago: pending.metodoPago, pagoElectronico: pending.pagoElectronico, descuento: descuentoPendiente,
+        ...(pending.excepcionPrecio ? { excepcionPrecio: pending.excepcionPrecio } : {}),
         detalles: pending.cart.map(i => ({ productoId: i.productoId, cantidad: i.cantidad,
           precioUnitario: i.precioUnitario, sinInventario: i.sinInventario, proveedorId: i.proveedorId,
           modoEntrega: i.sinInventario ? undefined : (pending.modoEntrega ?? 'MOSTRADOR') })),
@@ -685,11 +695,42 @@ export const POSPage: React.FC = () => {
         setErrorText(err.response?.data?.message || 'No recibimos confirmación. Revise la venta pendiente antes de cobrar otra vez.');
         // El servidor rechazó un precio antiguo: el catálogo se actualiza para la corrección.
         if (err.response?.status === 409) void leerCatalogo().catch(() => undefined);
+        // Excepción rechazada (400 motivo, 403 sin permiso): nada se registró. Se quita del pendiente para que un
+        // reintento no repita el mismo rechazo; el cajero corrige la venta o la decide de nuevo quien tenga el permiso.
+        if (excepcionEnviada && (err.response?.status === 400 || err.response?.status === 403) && requestIdentity) {
+          try {
+            const actual = readRecovery(requestKey, draftKey).pending;
+            if (actual?.solicitudId === requestIdentity && actual.excepcionPrecio) {
+              const { excepcionPrecio: _rechazada, ...sinExcepcion } = actual;
+              localStorage.setItem(requestKey, JSON.stringify(sinExcepcion));
+              setVentaPendiente(sinExcepcion);
+            }
+          } catch { /* el pendiente se conserva tal cual; el siguiente reintento obtendrá el mismo rechazo */ }
+        }
       }
     } finally {
       cobrandoRef.current = false;
       if (activeKey.current === requestKey) setProcesandoVenta(false);
     }
+  };
+
+  // Guarda el motivo en el pendiente (misma solicitud) y lo envía: los reintentos posteriores llevan el mismo motivo.
+  const confirmarExcepcion = () => {
+    const motivo = motivoExcepcion.trim();
+    if (!puedeExcepcion || !motivoExcepcionValido(motivo) || !ventaPendiente || procesandoVenta || comprobando) return;
+    try {
+      const stored = readRecovery(pendingKey, draftKey);
+      if (stored.error || stored.pending?.solicitudId !== ventaPendiente.solicitudId) { restoreRecovery(); return; }
+      const conExcepcion: PendingSale = { ...stored.pending, excepcionPrecio: { motivo } };
+      localStorage.setItem(pendingKey, JSON.stringify(conExcepcion));
+      setVentaPendiente(conExcepcion);
+    } catch {
+      setErrorText('No se pudo guardar el motivo en este equipo. La venta no se envió.');
+      return;
+    }
+    setModalExcepcion(false);
+    setMotivoExcepcion('');
+    void handleCobrar();
   };
 
   const cerrarComprobante = () => {
@@ -730,8 +771,30 @@ export const POSPage: React.FC = () => {
             <p>{recoveryStatus === 'NO_REGISTRADA' ? 'La venta todavía no aparece registrada. Antes de continuar, compruebe si ya recibió el efectivo o si la terminal cobró. Continuar guarda esta misma venta; no vuelva a cobrar al cliente si ya pagó.' : 'Primero revise si quedó registrada. No vuelva a cobrar al cliente mientras no se confirme el resultado.'}</p>
             <button type="button" className="btn btn-primary" onClick={comprobarVenta} disabled={comprobando || procesandoVenta}>{comprobando ? 'Revisando…' : 'Revisar venta y continuar'}</button>
             <button type="button" className="btn btn-secondary" onClick={() => void cancelarVenta()} disabled={comprobando || procesandoVenta || !!storageError}>Descartar venta</button>
-            {recoveryStatus === 'NO_REGISTRADA' && !corrigiendoPendiente && <button type="button" className="btn btn-secondary" disabled={procesandoVenta || comprobando} onClick={() => setCorrigiendoPendiente(true)}>Corregir datos de esta venta</button>}
+            {recoveryStatus === 'NO_REGISTRADA' && !corrigiendoPendiente && <button type="button" className="btn btn-secondary" disabled={procesandoVenta || comprobando} onClick={() => { setCorrigiendoPendiente(true); setVentaPendiente(v => { if (!v?.excepcionPrecio) return v; const { excepcionPrecio: _corregida, ...resto } = v; return resto; }); }}>Corregir datos de esta venta</button>}
             {recoveryStatus === 'NO_REGISTRADA' && <button type="button" className="btn btn-secondary" onClick={handleCobrar} disabled={procesandoVenta || comprobando || !!storageError || !!draftError}>Ya revisé el pago: continuar registro</button>}
+            {ventaPendiente.excepcionPrecio && <p>Se registrará con excepción de precio. Motivo: «{ventaPendiente.excepcionPrecio.motivo}»</p>}
+            {recoveryStatus === 'NO_REGISTRADA' && !corrigiendoPendiente && !ventaPendiente.excepcionPrecio && cambiosPendiente.length > 0 && (puedeExcepcion
+              ? <button type="button" className="btn btn-secondary" disabled={procesandoVenta || comprobando || !!storageError || !!draftError} onClick={() => { setMotivoExcepcion(''); setModalExcepcion(true); }}>Mantener el precio de esta venta (excepción)</button>
+              : <p>El precio de {cambiosPendiente.map(c => c.nombre).join(', ')} cambió. Corrija la venta para cobrar el precio vigente. Mantener el precio anterior solo lo puede autorizar un administrador con el permiso de excepción de precio.</p>)}
+          </div>
+        )}
+        {modalExcepcion && ventaPendiente && (
+          <div style={styles.modalOverlay}>
+            <div className="industrial-card" style={styles.ticketModal} role="dialog" aria-modal="true" aria-labelledby="pos-excepcion-titulo">
+              <h2 id="pos-excepcion-titulo" style={{ fontSize: '16px' }}>Excepción de precio</h2>
+              <p>Esta venta conserva un precio distinto del vigente. Quedará auditada con su usuario y el motivo.</p>
+              <ul>
+                {cambiosPendiente.map(c => <li key={c.productoId}>{c.nombre}: en la venta {formatLempiras(c.anterior)} · vigente {formatLempiras(c.nuevo)}</li>)}
+              </ul>
+              <label htmlFor="pos-excepcion-motivo">Motivo de la excepción</label>
+              <textarea id="pos-excepcion-motivo" className="form-input" rows={3} maxLength={MOTIVO_EXCEPCION_MAX} value={motivoExcepcion} onChange={e => setMotivoExcepcion(e.target.value)} aria-describedby="pos-excepcion-ayuda" />
+              <p id="pos-excepcion-ayuda">{motivoExcepcion.trim().length}/{MOTIVO_EXCEPCION_MAX} · mínimo {MOTIVO_EXCEPCION_MIN} caracteres</p>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setModalExcepcion(false)}>Cancelar</button>
+                <button type="button" className="btn btn-primary" disabled={!motivoExcepcionValido(motivoExcepcion) || procesandoVenta || comprobando} onClick={confirmarExcepcion}>Registrar con excepción</button>
+              </div>
+            </div>
           </div>
         )}
         {avisoExistencia && (
