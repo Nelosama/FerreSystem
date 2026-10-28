@@ -189,7 +189,6 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <SoporteBanner />
         <AdminTopbar />
         <Guide />
-        <AccountSecurity />
         {children}
       </div>
       <BottomNavigation />
@@ -236,6 +235,16 @@ export const App: React.FC = () => {
                       <ProtectedRoute>
                         <AppLayout>
                           <HomeRoute />
+                        </AppLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/mi-cuenta"
+                    element={
+                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'BODEGUERO', 'VENDEDOR', 'CONTADOR']}>
+                        <AppLayout>
+                          <AccountSecurity />
                         </AppLayout>
                       </ProtectedRoute>
                     }
