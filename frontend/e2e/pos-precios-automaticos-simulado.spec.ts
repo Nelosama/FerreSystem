@@ -147,6 +147,26 @@ test.describe('POS: precios sincronizados automáticamente (simulado)', () => {
     expect(sim.intentos).toHaveLength(1);
   });
 
+  test('si el precio vuelve a cambiar entre el primer y el segundo clic, el segundo tampoco registra: exige otra confirmación con el total nuevo', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    sim.precio = 130;
+    await cobrar(page).click();
+    await totalActualizadoSinEnviar(page, '149.50');
+    // Nuevo cambio antes de la confirmación: el segundo clic actualiza otra vez y no envía.
+    sim.precio = 140;
+    await cobrar(page).click();
+    await expect(page.getByText(/1 x L\.? ?140\.00/)).toBeVisible();
+    await totalActualizadoSinEnviar(page, '161.00');
+    expect(sim.ventas).toHaveLength(0);
+    expect(sim.intentos).toEqual([]);
+    // Tercer clic con el total visible: se registra con el precio vigente.
+    await cobrar(page).click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(sim.ventas[0].detalles[0].precioUnitario).toBe(140);
+    expect(sim.intentos).toHaveLength(1);
+  });
+
   test('reintenta una lectura fallida y, si no puede confirmar el precio vigente, no cobra', async ({ page, sim }) => {
     await abrirPos(page);
     await page.getByText('Taladro').first().click();
