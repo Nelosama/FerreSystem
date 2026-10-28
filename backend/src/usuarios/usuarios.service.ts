@@ -1,4 +1,4 @@
-import { opaqueToken } from '../auth/mfa';
+import { opaqueToken } from '../auth/tokens-auth';
 import { Injectable,NotFoundException,BadRequestException,ConflictException,ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';

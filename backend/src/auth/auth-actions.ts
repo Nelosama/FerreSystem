@@ -1,4 +1,4 @@
-import { tokenHash, opaqueToken } from './mfa';
+import { tokenHash, opaqueToken } from './tokens-auth';
 
 export const VIGENCIA_ACCION_MS = 10 * 60 * 1000;
 

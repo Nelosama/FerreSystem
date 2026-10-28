@@ -49,7 +49,7 @@ export class SuperAdminService {
   desactivarUsuarioNegocio(tenantId: string, id: string, actor: string) {
     return new UsuariosService(this.prisma).update(tenantId, id, { activo: false }, actor, true);
   }
-  /** Vista global de bloqueos para la plataforma: sin contraseñas, secretos ni contadores de MFA. */
+  /** Vista global de bloqueos para la plataforma: sin contraseñas ni secretos. */
   cuentasBloqueadas(tenantId?: string) {
     return this.prisma.usuario.findMany({
       where: { bloqueadoAt: { not: null }, ...(tenantId && { tenantId }) },
@@ -114,8 +114,8 @@ export class SuperAdminService {
     return this.tenantLogoService.eliminar(tenantId, superAdminId);
   }
 
-  // Login heredado de la plataforma: el mismo flujo que /auth/login (límites, contador por cuenta, contraseña temporal y MFA
-  // obligatorio), restringido a cuentas de Super Admin. Cualquier otra cuenta falla igual que una inexistente.
+  // Login heredado de la plataforma: el mismo flujo que /auth/login (límites, contador por cuenta y contraseña temporal),
+  // restringido a cuentas de Super Admin. Cualquier otra cuenta falla igual que una inexistente.
   async login(loginDto: LoginDto, res: Response, req?: Request) {
     const resultado: any = await new AuthService(this.prisma, this.jwtService, this.configService).login(loginDto, res, req, { soloPlataforma: true });
     if (resultado?.type === 'super_admin') return { accessToken: resultado.accessToken, superAdmin: resultado.superAdmin };
@@ -137,7 +137,7 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Refresh token de Super Admin inválido');
     }
-    if (!decoded.sid || decoded.mfa !== true) {
+    if (!decoded.sid) {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Sesión de Super Admin cerrada o vencida');
     }
@@ -156,7 +156,7 @@ export class SuperAdminService {
       res.clearCookie('superAdminRefreshToken', refreshCookieOptions(this.configService, true));
       throw new UnauthorizedException('Sesión de Super Admin cerrada o vencida');
     }
-    const payload = { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true, sid: decoded.sid };
+    const payload = { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', sid: decoded.sid };
     const accessToken = this.jwtService.sign(payload, { expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN', '15m') as any });
     const restanteMs = rotacion.expiresAt.getTime() - Date.now();
     const nuevoRefresh = this.jwtService.sign({ ...payload, typ: 'refresh' }, { expiresIn: Math.max(1, Math.floor(restanteMs / 1000)), jwtid: rotacion.jti });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Mail, ArrowRight, AlertCircle, Clock, Loader2, KeyRound, ShieldCheck } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, Clock, Loader2, KeyRound } from 'lucide-react';
 import { MarcaJowa } from '../components/MarcaJowa';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
@@ -22,10 +22,6 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   // Un enlace privado de empresa (?empresa=) acota la búsqueda a ese negocio; no se muestra ni se pide.
   const [tenantId] = useState(() => new URLSearchParams(window.location.search).get('empresa') || '');
-  // El código MFA aparece solo después de una contraseña correcta (obligatorio para el Super Admin).
-  const [mfaRequerido, setMfaRequerido] = useState(false);
-  const [mfaCode, setMfaCode] = useState('');
-  const [enrolar, setEnrolar] = useState(false);
   // Fallos contados en el navegador: el servidor nunca informa si la cuenta es elegible (no hay enumeración).
   const [fallos, setFallos] = useState(0);
   const [recuperacionMensaje, setRecuperacionMensaje] = useState('');
@@ -40,8 +36,8 @@ export const LoginPage: React.FC = () => {
 
   const cambiarIdentificador = (valor: string) => {
     setUsuario(valor);
-    // Los fallos, el segundo factor y la recuperación pertenecen al identificador escrito.
-    setFallos(0); setMfaRequerido(false); setMfaCode(''); setEnrolar(false); setRecuperacionMensaje('');
+    // Los fallos y la recuperación pertenecen al identificador escrito.
+    setFallos(0); setRecuperacionMensaje('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,11 +47,11 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/login', { usuario, password, ...(tenantId && { tenantId }), ...(mfaRequerido && mfaCode && { mfaCode }) });
+      const response = await api.post('/auth/login', { usuario, password, ...(tenantId && { tenantId }) });
       const { type, accessToken, user, tenant, superAdmin, cambioToken: cambio } = response.data;
 
       if (type === 'password_change_required' && typeof cambio === 'string' && cambio) {
-        setCambioToken(cambio); setPassword(''); setMfaCode(''); setMfaRequerido(false); setFallos(0);
+        setCambioToken(cambio); setPassword(''); setFallos(0);
         return;
       }
 
@@ -108,14 +104,7 @@ export const LoginPage: React.FC = () => {
       }
     } catch (err: any) {
       if (err.response) {
-        const code = err.response.data?.code;
-        if (code === 'MFA_REQUERIDO') {
-          // Contraseña correcta de una cuenta con MFA: solo entonces aparece el código.
-          setMfaRequerido(true); setMfaCode(''); setEnrolar(false); setError(null);
-          return;
-        }
-        if (code === 'MFA_ENROLAMIENTO_REQUERIDO') { setEnrolar(true); setError(t('security.mfa_enroll_prompt')); return; }
-        if (err.response.status === 401) { setFallos(previo => previo + 1); setMfaCode(''); }
+        if (err.response.status === 401) setFallos(previo => previo + 1);
         const message = err.response.data?.message;
         setError(
           Array.isArray(message)
@@ -136,17 +125,6 @@ export const LoginPage: React.FC = () => {
     try {
       await api.post('/auth/security/request', { usuario, ...(tenantId && { tenantId }) });
       setRecuperacionMensaje(t('security.accepted'));
-    } catch { setRecuperacionMensaje(t('security.failed')); }
-    finally { setEnviando(false); }
-  };
-
-  // Enrolamiento inicial del MFA del Super Admin: un enlace al correo de la cuenta, nunca un acceso sin segundo factor.
-  const solicitarEnrolamiento = async () => {
-    if (enviando || !usuario.trim() || !password) return;
-    setEnviando(true); setRecuperacionMensaje('');
-    try {
-      await api.post('/auth/security/mfa/bootstrap-request', { usuario, password });
-      setRecuperacionMensaje(t('security.bootstrap_sent'));
     } catch { setRecuperacionMensaje(t('security.failed')); }
     finally { setEnviando(false); }
   };
@@ -208,16 +186,6 @@ export const LoginPage: React.FC = () => {
             </div>
           </div>
 
-          {mfaRequerido && (
-            <div className="form-group">
-              <label className="form-label" htmlFor="login-mfa">{t('security.mfa')}</label>
-              <div className="login-campo">
-                <ShieldCheck size={16} strokeWidth={2.2} aria-hidden="true" />
-                <input id="login-mfa" className="form-input" value={mfaCode} onChange={e => setMfaCode(e.target.value.trim())} autoComplete="one-time-code" inputMode="numeric" required autoFocus aria-describedby="login-mfa-ayuda" />
-              </div>
-              <p id="login-mfa-ayuda" className="login-ayuda">{t('security.mfa_prompt')}</p>
-            </div>
-          )}
           <button type="submit" disabled={loading} className="btn btn-primary login-entrar">
             {loading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : null}
             <span>{loading ? t('shell.login.verifying') : t('shell.login.submit')}</span>
@@ -225,13 +193,6 @@ export const LoginPage: React.FC = () => {
           </button>
         </form>
         {fallos > 0 && <p className="login-ayuda">{t('security.lock_hint')}</p>}
-        {enrolar && (
-          <section aria-labelledby="login-enrolar" style={{ marginTop: 20 }}>
-            <h2 id="login-enrolar" className="form-label"><ShieldCheck size={16} aria-hidden="true" /> {t('security.bootstrap')}</h2>
-            <p>{t('security.bootstrap_help')}</p>
-            <button type="button" className="btn btn-secondary" disabled={enviando || !usuario.trim() || !password} onClick={() => void solicitarEnrolamiento()}>{t('security.bootstrap')}</button>
-          </section>
-        )}
         {fallos >= FALLOS_PARA_RECUPERAR && (
           <section aria-labelledby="login-recuperacion" style={{ marginTop: 20 }}>
             <h2 id="login-recuperacion" className="form-label"><KeyRound size={16} aria-hidden="true" /> {t('security.recovery')}</h2>

@@ -1,8 +1,7 @@
-import { requireMfa } from './mfa';
 import { missingPasswordCheck } from './password-timing';
 import { refreshCookieOptions } from './refresh-cookie';
 import { normalizeTenantConfiguration } from '../tenants/tenant-configuration';
-import { Injectable, UnauthorizedException, ForbiddenException, HttpException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,13 +20,6 @@ import { crearAccionAuth, registrarEventoAuth, VIGENCIA_ACCION_MS } from './auth
 const bearerDe = (req?: Request) => req?.headers?.authorization?.replace(/^Bearer /, '') || undefined;
 
 export const MENSAJE_CREDENCIALES = 'Credenciales inválidas';
-/** Pasos del segundo factor tras una contraseña correcta: no son intentos fallidos. */
-export const CODIGO_MFA_REQUERIDO = 'MFA_REQUERIDO';
-export const CODIGO_MFA_ENROLAMIENTO = 'MFA_ENROLAMIENTO_REQUERIDO';
-const esPasoMfa = (error: unknown) => {
-  const codigo = error instanceof HttpException ? (error.getResponse() as any)?.code : undefined;
-  return codigo === CODIGO_MFA_REQUERIDO || codigo === CODIGO_MFA_ENROLAMIENTO;
-};
 
 export interface OpcionesLogin {
   /** /admin/auth/login: solo cuentas de Super Admin. Cualquier otra cuenta falla igual que una inexistente. */
@@ -69,7 +61,6 @@ export class AuthService {
       await registrarExitoLogin(this.prisma, claves);
       return resultado;
     } catch (error) {
-      if (esPasoMfa(error)) throw error;
       const credencial = error instanceof UnauthorizedException;
       if (soloTemporal && (credencial || error instanceof ForbiddenException)) {
         // El intento cuenta para la IP aunque el identificador ya esté en pausa.
@@ -97,19 +88,6 @@ export class AuthService {
       error: 'DatabaseQueryError',
       code: errorCode,
     });
-  }
-
-  /**
-   * Segundo factor. Obligatorio para el Super Admin (también al entrar con una contraseña temporal) y para las cuentas de
-   * negocio que lo configuraron. El campo del código solo aparece después de una contraseña correcta.
-   */
-  private async exigirSegundoFactor(cuenta: any, plataforma: boolean, mfaCode?: string) {
-    if (!plataforma && !cuenta.mfaSecret) return;
-    if (plataforma && !cuenta.mfaSecret) {
-      throw new UnauthorizedException({ statusCode: 401, code: CODIGO_MFA_ENROLAMIENTO, message: 'Configure el segundo factor del Super Admin antes de continuar' });
-    }
-    if (!mfaCode) throw new UnauthorizedException({ statusCode: 401, code: CODIGO_MFA_REQUERIDO, message: 'Ingrese el código de su aplicación de autenticación' });
-    await requireMfa(this.prisma, cuenta, plataforma, mfaCode, this.configService);
   }
 
   /**
@@ -198,9 +176,6 @@ export class AuthService {
       throw new UnauthorizedException('La suscripción de la ferretería se encuentra suspendida');
     }
 
-    // MFA del Super Admin obligatorio también durante la recuperación: la temporal se consume solo después del segundo factor.
-    await this.exigirSegundoFactor(cuenta, plataforma, loginDto.mfaCode);
-
     if (via === 'TEMPORAL') return this.exigirCambioDePassword(tipo, cuenta, password);
 
     // El reinicio es condicional a que no haya un bloqueo confirmado en paralelo.
@@ -218,7 +193,6 @@ export class AuthService {
       email: superAdmin.email,
       rol: 'SUPER_ADMIN',
       type: 'super_admin',
-      mfa: true,
       sid,
     };
     const accessToken = this.jwtService.sign(payload, {

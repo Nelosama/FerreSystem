@@ -1,4 +1,3 @@
-import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -117,7 +116,7 @@ describe('Barrido de aislamiento entre empresas y de roles / PostgreSQL aislado'
     tokens.cajeroB = await entrar('cajero@b.barrido.invalid', B);
     tokens.cajeroA = await entrar('cajero@a.barrido.invalid', A);
     await prisma.superAdmin.create({ data: { nombre: 'Plataforma', email: 'plataforma@barrido.invalid', passwordHash } });
-    tokens.superAdmin = (await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@barrido.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'plataforma@barrido.invalid') }).expect(200)).body.accessToken;
+    tokens.superAdmin = (await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@barrido.invalid', password }).expect(200)).body.accessToken;
 
     // ---------- Identificadores reales de A en todas las tablas con tenant_id, más números de documento.
     const tablas = await prisma.$queryRawUnsafe<{ t: string }[]>(
@@ -164,7 +163,7 @@ describe('Barrido de aislamiento entre empresas y de roles / PostgreSQL aislado'
     }
   });
 
-  const PUBLICAS = new Set(['/api/auth/security/request', '/api/auth/security/reset', '/api/auth/security/verify-email', '/api/auth/security/mfa/bootstrap-request', '/api/auth/security/mfa/bootstrap', '/api/auth/security/mfa/confirm', '/api/auth/security/forced-change', '/api/auth/login', '/api/auth/refresh', '/api/auth/logout', '/api/admin/auth/login', '/api/admin/auth/refresh', '/api/admin/auth/logout', '/api', '/api/health', '/api/health/db']);
+  const PUBLICAS = new Set(['/api/auth/security/request', '/api/auth/security/reset', '/api/auth/security/verify-email', '/api/auth/security/forced-change', '/api/auth/login', '/api/auth/refresh', '/api/auth/logout', '/api/admin/auth/login', '/api/admin/auth/refresh', '/api/admin/auth/logout', '/api', '/api/health', '/api/health/db']);
   const exitosa = (status: number) => status >= 200 && status < 300;
   const enviar = (metodo: string, ruta: string, token: string) =>
     (request(app.getHttpServer()) as any)[metodo](ruta).auth(token, { type: 'bearer' }).send(metodo === 'get' || metodo === 'delete' ? undefined : {});
@@ -264,7 +263,6 @@ const EXCEPCIONES_REVISADAS: string[] = [
   'POST /api/auth/security/verification', // own verified mailbox; service rejects employees/support
   'POST /api/auth/security/change-password', // current password required, own identity only
   'POST /api/auth/security/admin-reset', // fresh administrator and tenant revalidation in service
-  'POST /api/auth/security/mfa/enroll', // current password and verified mailbox required
   'POST /api/auth/security/unlock', // Admin (own tenant, non-Admin targets) or Super Admin; service revalidates actor, tenant and target
   'GET /api/auth/security/locked', // tenant Admin of own company only (Super Admin uses /admin/seguridad/bloqueos); no credentials returned
   'POST /api/admin/support/finalizar', // solo actúa sobre la propia sesión de soporte; sin ella responde 403

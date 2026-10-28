@@ -1,4 +1,3 @@
-import { completePlatformMfa, syntheticMfaFor } from './mfa.fixture';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -21,7 +20,6 @@ async function entrar(page: Page, email = 'superadmin.e2e@e2e.invalid') {
   await page.locator('#login-correo').fill(email);
   await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
-  await completePlatformMfa(page, email);
   await expect(page).not.toHaveURL(/\/login$/);
 }
 
@@ -153,7 +151,7 @@ test('el valor histórico TOPNAV no cambia la navegación: rail y barra superior
 });
 
 async function setPrivatePassword(page: Page, platformToken: string, userId: string) {
-  const issued = await page.request.post(`${API}/auth/security/admin-reset`, { headers: { Authorization: `Bearer ${platformToken}` }, data: { usuarioId: userId, tenantId: A, currentPassword: PASSWORD, mfaCode: await syntheticMfaFor('superadmin.e2e@e2e.invalid') } });
+  const issued = await page.request.post(`${API}/auth/security/admin-reset`, { headers: { Authorization: `Bearer ${platformToken}` }, data: { usuarioId: userId, tenantId: A, currentPassword: PASSWORD } });
   expect(issued.status()).toBe(201);
   const reset = await page.request.post(`${API}/auth/security/reset`, { data: { token: (await issued.json()).token, password: PASSWORD } });
   expect(reset.status()).toBe(200);

@@ -2,7 +2,7 @@ import { Inject, Injectable, Optional, ServiceUnavailableException } from '@nest
 import { ConfigService } from '@nestjs/config';
 import { createTransport } from 'nodemailer';
 
-// Correo de seguridad (verificación, enrolamiento MFA y contraseña temporal) por Gmail SMTP con contraseña de aplicación.
+// Correo de seguridad (verificación de correo y contraseña temporal) por Gmail SMTP con contraseña de aplicación.
 // - Cuenta Gmail DEDICADA a Jowa System, con verificación en dos pasos. Nunca la contraseña normal de la cuenta.
 // - Servidor fijo smtp.gmail.com:465 con TLS implícito (mínimo TLS 1.2) y certificado verificado. Sin otro proveedor de respaldo.
 // - Los errores no se reenvían ni se registran: pueden contener la respuesta del servidor. Quien llama responde de forma genérica.
@@ -62,7 +62,7 @@ export function validarConfiguracionCorreo(env: Record<string, string | undefine
   if (texto(env.AUTH_MAIL_RESEND_API_KEY)) avisos.push('AUTH_MAIL_RESEND_API_KEY ya no se usa: el correo de seguridad sale por Gmail SMTP. Retírela del entorno.');
   const presentes = VARIABLES.filter(v => texto(env[v]));
   if (presentes.length === 0) {
-    if (String(env.NODE_ENV ?? '').trim().toLowerCase() === 'production') avisos.push(`Correo de seguridad desactivado: faltan ${VARIABLES.join(', ')}. La recuperación por correo y el enrolamiento MFA inicial no enviarán mensajes.`);
+    if (String(env.NODE_ENV ?? '').trim().toLowerCase() === 'production') avisos.push(`Correo de seguridad desactivado: faltan ${VARIABLES.join(', ')}. La recuperación por correo y la verificación de correo no enviarán mensajes.`);
     return avisos;
   }
   if (presentes.length < VARIABLES.length) throw new Error(`Configuración de correo incompleta: faltan ${VARIABLES.filter(v => !presentes.includes(v)).join(', ')}`);

@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { tokenHash } from './mfa';
+import { tokenHash } from './tokens-auth';
 import { crearAccionAuth, VIGENCIA_ACCION_MS } from './auth-actions';
 
 // Contraseña temporal de recuperación (solo Admin y Super Admin con correo verificado).
@@ -33,7 +33,7 @@ function esTemporalDe(accion: any, cuenta: any, plataforma: boolean) {
     && accion.expiresAt.getTime() > Date.now();
 }
 
-/** Comprueba sin consumir: el consumo ocurre solo cuando el resto del acceso (MFA incluido) también es válido. */
+/** Comprueba sin consumir: el consumo ocurre solo cuando el resto del acceso (cuenta activa, empresa activa) también es válido. */
 export async function temporalVigente(prisma: any, cuenta: any, plataforma: boolean, contrasena: string): Promise<boolean> {
   const accion = await prisma.authAction.findUnique({ where: { hash: tokenHash(contrasena) } });
   return esTemporalDe(accion, cuenta, plataforma);

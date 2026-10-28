@@ -62,7 +62,7 @@ describe('RecoveryMailService (Gmail SMTP con contraseña de aplicación)', () =
   it('un servidor que no responde se corta a los 8 s con el mismo error genérico', async () => {
     vi.useFakeTimers();
     const { servicio } = montar({}, vi.fn(() => new Promise(() => undefined)));
-    const promesa = servicio.send('admin@negocio.test', 'token-sintetico', 'BOOTSTRAP_MFA').catch(e => e);
+    const promesa = servicio.send('admin@negocio.test', 'token-sintetico', 'VERIFY_EMAIL').catch(e => e);
     await vi.advanceTimersByTimeAsync(PLAZO_CORREO_MS);
     expect(await promesa).toBeInstanceOf(ServiceUnavailableException);
   });

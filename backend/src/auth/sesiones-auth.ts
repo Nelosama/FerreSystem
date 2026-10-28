@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { tokenHash } from './mfa';
+import { tokenHash } from './tokens-auth';
 import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '../prisma/prisma.service';
 

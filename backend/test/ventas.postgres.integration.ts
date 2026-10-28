@@ -1,5 +1,4 @@
 import { devolucionAutorizada } from './helpers/devolucion-autorizada';
-import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -319,7 +318,7 @@ describe('Ventas / PostgreSQL aislado', () => {
       const admin = await prisma.superAdmin.create({ data: { nombre: 'Superadmin prueba', email: `${randomUUID()}@test.local`, passwordHash: await bcrypt.hash(password, 4) } });
       const base = `http://127.0.0.1:${port}/api`;
       await checkSettingsHttp(prisma, base);
-      const login = await fetch(`${base}/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: admin.email, password, mfaCode: await syntheticPlatformMfa(prisma, admin.email) }) });
+      const login = await fetch(`${base}/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: admin.email, password }) });
       expect(login.status).toBe(200);
       expect(login.headers.get('set-cookie')).toContain('Path=/api/admin/auth');
       expect(login.headers.get('set-cookie')).toContain('SameSite=None');

@@ -12,7 +12,6 @@ test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
       await expect(page.locator('form input:not([type=hidden])')).toHaveCount(2);
       await expect(page.getByLabel('Identificador de empresa')).toHaveCount(0);
       await expect(page.getByLabel('Acceso de Super Admin')).toHaveCount(0);
-      await expect(page.locator('#login-mfa')).toHaveCount(0);
       await expect(page.locator('select')).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'English', exact: true })).toHaveCount(0);
       await expect(page.getByText('Recuperar acceso', { exact: true })).toHaveCount(0);
@@ -62,50 +61,23 @@ test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
       await expect(page.getByText('Recuperar acceso', { exact: true })).toHaveCount(0);
       expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
     });
-    test(`Super Admin: el código MFA aparece solo tras la contraseña correcta y se envía en el segundo paso @${width}`, async ({ page }) => {
+    test(`Super Admin: la contraseña correcta abre la sesión sin segundo factor ni campo adicional @${width}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await prepararSesion(page, 'ADMIN', { sinSesion: true });
       await page.goto('/login');
-      await expect(page.locator('#login-mfa')).toHaveCount(0);
+      await expect(page.locator('form input:not([type=hidden])')).toHaveCount(2);
       await page.getByLabel('Usuario', { exact: true }).fill('root@jowa.test');
       await page.locator('#login-clave').fill('Synthetic-Password-456');
       const sent: any[] = [];
       await page.route('**/api/auth/login', async route => {
-        const body = route.request().postDataJSON(); sent.push(body);
-        if (!body.mfaCode) return route.fulfill({ status: 401, json: { statusCode: 401, code: 'MFA_REQUERIDO', message: 'Ingrese el código de su aplicación de autenticación' } });
-        return route.fulfill({ status: 401, json: { statusCode: 401, message: 'Credenciales o verificación inválidas' } });
+        sent.push(route.request().postDataJSON());
+        await route.fulfill({ json: { type: 'super_admin', accessToken: 'synthetic-access', superAdmin: { id: 'sa-1', nombre: 'Root', email: 'root@jowa.test' } } });
       });
       await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
-      await expect(page.locator('#login-mfa')).toBeVisible();
-      await expect(page.locator('#login-mfa')).toBeFocused();
-      await expect(page.getByRole('alert')).toHaveCount(0);
-      await page.locator('#login-mfa').fill('123456');
-      await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
-      await expect.poll(() => sent.length).toBe(2);
+      await expect.poll(() => sent.length).toBe(1);
       expect(sent[0]).toEqual({ usuario: 'root@jowa.test', password: 'Synthetic-Password-456' });
-      expect(sent[1]).toEqual({ usuario: 'root@jowa.test', password: 'Synthetic-Password-456', mfaCode: '123456' });
-      // Un código erróneo conserva el paso MFA (la contraseña ya fue validada) y vacía el campo.
-      await expect(page.locator('#login-mfa')).toHaveValue('');
-      // Cambiar de usuario vuelve al formulario de dos campos.
-      await page.getByLabel('Usuario', { exact: true }).fill('otra@jowa.test');
-      await expect(page.locator('#login-mfa')).toHaveCount(0);
+      await expect(page).toHaveURL(/\/admin/);
       expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
-    });
-    test(`Super Admin sin MFA: no entra y puede pedir el enrolamiento inicial por correo @${width}`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 });
-      await prepararSesion(page, 'ADMIN', { sinSesion: true });
-      await page.goto('/login');
-      await page.getByLabel('Usuario', { exact: true }).fill('root@jowa.test');
-      await page.locator('#login-clave').fill('Synthetic-Password-456');
-      await page.route('**/api/auth/login', route => route.fulfill({ status: 401, json: { statusCode: 401, code: 'MFA_ENROLAMIENTO_REQUERIDO', message: 'Configure el segundo factor' } }));
-      let solicitud: any;
-      await page.route('**/api/auth/security/mfa/bootstrap-request', async route => { solicitud = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { message: 'ok' } }); });
-      await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
-      await expect(page.getByRole('alert')).toContainText('segundo factor');
-      await page.getByRole('button', { name: 'Configurar MFA inicial de Super Admin' }).click();
-      await expect.poll(() => solicitud).toEqual({ usuario: 'root@jowa.test', password: 'Synthetic-Password-456' });
-      await expect(page.getByRole('status')).toContainText('enlace de un solo uso');
-      expect(await page.evaluate(() => localStorage.getItem('ferre_token'))).toBeNull();
     });
     test(`enlace de empresa: acota el login sin mostrar ningún campo de empresa @${width}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });

@@ -1,4 +1,5 @@
 import { refreshCookieOptions } from './refresh-cookie';
+import { simularIdentidad } from '../../test/helpers/identidad-simulada';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import * as bcrypt from 'bcrypt';
@@ -21,11 +22,12 @@ describe('cookie de renovación: misma política al emitir y borrar', () => {
       const jwt = new JwtService({ secret: 'test-cookie-policy-secret' });
       const prisma = {
         superAdmin: { findUnique: vi.fn().mockResolvedValue(null) },
-        usuario: { findMany: vi.fn().mockResolvedValue([{ id: 'u', tenantId: 't', activo: true, rol: 'ADMIN', passwordHash: bcrypt.hashSync('Test-Password-123', 4), tenant: { id: 't', estado: 'ACTIVO' } }]), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+        usuario: { findMany: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
         authAction: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
         sesionAuth: { create: vi.fn().mockResolvedValue({}) },
         $queryRaw: vi.fn().mockResolvedValue([{ segundos: 0 }]), $executeRaw: vi.fn(),
       } as any;
+      simularIdentidad(prisma, { usuarios: [{ id: 'u', tenantId: 't', email: 'u@example.invalid', activo: true, rol: 'ADMIN', passwordHash: bcrypt.hashSync('Test-Password-123', 4), tenant: { id: 't', estado: 'ACTIVO' } }] });
       const config = { get: (key: string, fallback?: any) => key === 'JWT_REFRESH_EXPIRES_IN' ? '1h' : fallback } as any;
       const service = new AuthService(prisma, jwt, config);
       const response = { cookie: vi.fn(), setHeader: vi.fn() } as any;

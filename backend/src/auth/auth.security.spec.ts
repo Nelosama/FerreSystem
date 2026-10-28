@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { simularIdentidad } from '../../test/helpers/identidad-simulada';
 
 // SEC fase 2: el estado de la cuenta solo se revela a quien ya demostró la contraseña.
 describe('AuthService / oráculo de cuentas', () => {
@@ -40,17 +41,17 @@ describe('AuthService / oráculo de cuentas', () => {
   });
 
   it('una cuenta inactiva con contraseña incorrecta responde como credenciales inválidas', async () => {
-    mockPrisma.usuario.findMany.mockResolvedValue([{ id: 'u-1', tenantId: 't-1', email: 'inactivo@test.invalid', passwordHash, activo: false, tenant: { estado: 'ACTIVO' } }]);
+    simularIdentidad(mockPrisma, { usuarios: [{ id: 'u-1', tenantId: 't-1', email: 'inactivo@test.invalid', passwordHash, activo: false, tenant: { estado: 'ACTIVO' } }] });
     await expect(service.login({ email: 'inactivo@test.invalid', password: 'otra-clave' }, res)).rejects.toThrow('Credenciales inválidas');
   });
 
   it('una empresa suspendida con contraseña incorrecta responde como credenciales inválidas', async () => {
-    mockPrisma.usuario.findMany.mockResolvedValue([{ id: 'u-1', tenantId: 't-1', email: 'suspendido@test.invalid', passwordHash, activo: true, tenant: { estado: 'SUSPENDIDO' } }]);
+    simularIdentidad(mockPrisma, { usuarios: [{ id: 'u-1', tenantId: 't-1', email: 'suspendido@test.invalid', passwordHash, activo: true, tenant: { estado: 'SUSPENDIDO' } }] });
     await expect(service.login({ email: 'suspendido@test.invalid', password: 'otra-clave' }, res)).rejects.toThrow('Credenciales inválidas');
   });
 
   it('con la contraseña correcta sigue informando el estado de la cuenta', async () => {
-    mockPrisma.usuario.findMany.mockResolvedValue([{ id: 'u-1', tenantId: 't-1', email: 'inactivo@test.invalid', passwordHash, activo: false, tenant: { estado: 'ACTIVO' } }]);
+    simularIdentidad(mockPrisma, { usuarios: [{ id: 'u-1', tenantId: 't-1', email: 'inactivo@test.invalid', passwordHash, activo: false, tenant: { estado: 'ACTIVO' } }] });
     await expect(service.login({ email: 'inactivo@test.invalid', password: 'Clave-Correcta-2026!' }, res)).rejects.toThrow('Este usuario ha sido desactivado');
   });
 });
