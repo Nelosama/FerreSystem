@@ -6,6 +6,7 @@ import './styles/shell.css'
 import './styles/plataforma.css'
 import './styles/rail.css'
 import './styles/admin-shell.css'
+import './styles/contador.css'
 import './styles/hybrid.css'
 import App from './App.tsx'
 

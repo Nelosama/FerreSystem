@@ -63,6 +63,5 @@
   .pos-barra-movil-total strong { font:800 20px var(--font-display); font-variant-numeric:tabular-nums; }
   .pos-barra-movil .btn { min-height:48px; padding:0 18px; font-size:15px; }
 }
-.pos-actualizar { align-self:flex-start; }
 .pos-ticket-pie .pos-paso { padding:6px 0 2px; }
 .pos-ticket-pie .pos-metodos { margin:4px 0 10px; }

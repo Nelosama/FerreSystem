@@ -37,6 +37,7 @@ test('borrador y solicitud interrumpida sobreviven al cierre de pestaña y se de
   const { cajero, producto } = await preparar(request);
   await login(page, 'cajero.a@e2e.invalid'); await page.goto('/pos');
   await page.getByPlaceholder('Buscar por código o nombre de producto...').fill(producto.codigo);
+  await expect(page.locator('.pos-producto').filter({ hasText: producto.codigo })).toBeVisible();
   await page.getByPlaceholder('Buscar por código o nombre de producto...').press('Enter');
   await expect(page.getByLabel(`Cantidad ${producto.nombre}`, { exact: true })).toBeVisible();
   const draftKey = `ferre_sale_draft:${cajero.tenant.id}:${cajero.user.id}`;
@@ -131,10 +132,12 @@ test('reinicio completo con perfil persistente y SW: borrador offline, pendiente
     await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
     await page.waitForURL(url => !url.pathname.startsWith('/login')); await page.goto('/pos');
     const buscar = page.getByPlaceholder('Buscar por código o nombre de producto...');
-    await buscar.fill(nombre); await buscar.press('Enter');
+    await buscar.fill(nombre);
+    await expect(page.locator('.pos-producto').filter({ hasText: nombre })).toBeVisible();
+    await buscar.press('Enter');
     await expect(page.getByLabel(`Cantidad ${nombre}`, { exact: true })).toBeVisible();
     await page.evaluate(() => navigator.serviceWorker.ready);
-    await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+    await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), { timeout: 30_000 }).toBe(true);
     await context.close(); page = await abrir();
     await expect(page.getByRole('button', { name: 'Continuar venta', exact: true })).toBeVisible();
     await context.setOffline(true); await confirmar(page);

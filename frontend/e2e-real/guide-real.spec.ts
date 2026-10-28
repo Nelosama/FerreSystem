@@ -1,4 +1,3 @@
-import { fillPlatformMfa, syntheticMfaFor } from './mfa.fixture';
 import { test, expect, request, type Page } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
@@ -11,7 +10,7 @@ const BASE = `${process.env.E2E_API_URL!.replace(/\/$/, '')}/`;
 const PASSWORD = process.env.E2E_PASSWORD!;
 const company = 'e2e-empresa-a';
 async function login(page: Page, email: string) {
-  await page.goto('/login'); await page.locator('#login-correo').fill(email); await fillPlatformMfa(page, email);
+  await page.goto('/login'); await page.locator('#login-correo').fill(email);
   await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await page.waitForURL(url => !url.pathname.startsWith('/login'));
@@ -19,7 +18,7 @@ async function login(page: Page, email: string) {
 test.afterAll(() => prisma.$disconnect());
 test('Modo Guía y módulos: navegador → NestJS → PostgreSQL, sin mocks', async ({ page }) => {
   const api = await request.newContext({ baseURL: BASE });
-  const response = await api.post('auth/login', { data: { email: 'superadmin.e2e@e2e.invalid', password: PASSWORD, mfaCode: await syntheticMfaFor('superadmin.e2e@e2e.invalid') } });
+  const response = await api.post('auth/login', { data: { email: 'superadmin.e2e@e2e.invalid', password: PASSWORD } });
   expect(response.status()).toBe(200); const sa = (await response.json()).accessToken;
   const auth = { Authorization: `Bearer ${sa}` };
   await login(page, 'superadmin.e2e@e2e.invalid');
@@ -83,11 +82,11 @@ async function menuOfrece(page: Page, ruta: string): Promise<boolean> {
   return hallado;
 }
 
-test('16 módulos: URL, navegación y API reales, dependencias y recuperación administrativa', async ({ page }) => {
+test('17 módulos: URL, navegación y API reales, dependencias y recuperación administrativa', async ({ page }) => {
   test.setTimeout(180000);
-  expect(CATALOGO_MODULOS).toHaveLength(16);
+  expect(CATALOGO_MODULOS).toHaveLength(17);
   const api = await request.newContext({ baseURL: BASE });
-  const platform = await api.post('auth/login', { data: { email: 'superadmin.e2e@e2e.invalid', password: PASSWORD, mfaCode: await syntheticMfaFor('superadmin.e2e@e2e.invalid') } });
+  const platform = await api.post('auth/login', { data: { email: 'superadmin.e2e@e2e.invalid', password: PASSWORD } });
   expect(platform.status()).toBe(200);
   const auth = { Authorization: `Bearer ${(await platform.json()).accessToken}` };
   const admin = await api.post('auth/login', { data: { email: 'admin.a@e2e.invalid', password: PASSWORD } });
@@ -103,7 +102,7 @@ test('16 módulos: URL, navegación y API reales, dependencias y recuperación a
     inventario: '/inventario', levantamiento: '/levantamiento', ordenes_compra: '/ordenes-compra',
     transferencias_sucursal: '/transferencias', garantias: '/garantias', clientes: '/clientes',
     listas_precio: '/listas-precio', usuarios: '/usuarios', comisiones_venta: '/comisiones',
-    arqueo_caja: '/arqueo-caja', reportes: '/reportes', configuracion: '/configuracion',
+    arqueo_caja: '/arqueo-caja', reportes: '/reportes', configuracion: '/configuracion', contabilidad: '/contabilidad',
   };
   // Las cuatro claves pendientes no tienen operaciones propias.
   // Comisiones consume Usuarios/POS; Configuración conserva su recuperación exclusiva de plataforma.
@@ -112,6 +111,7 @@ test('16 módulos: URL, navegación y API reales, dependencias y recuperación a
     pos: 'ventas', cotizaciones: 'cotizaciones', inventario: 'productos', levantamiento: 'levantamientos',
     ordenes_compra: 'operaciones/compras', garantias: 'garantias/coberturas', clientes: 'clientes',
     usuarios: 'usuarios', arqueo_caja: 'operaciones/caja', reportes: `operaciones/resumen?desde=${today}&hasta=${today}`,
+    contabilidad: 'contabilidad/configuracion',
   };
   const historical = () => Promise.all([
     prisma.producto.findMany({ where: { tenantId: company }, orderBy: { id: 'asc' } }),

@@ -1,3 +1,5 @@
+> **Actualización 2026-10-26:** el límite temporal por identificador e IP sigue vigente para toda cuenta (exista o no). Además, las cuentas operativas (todo rol distinto de ADMIN) tienen un contador persistente y se bloquean de forma permanente en el sexto fallo consecutivo. Ver [AUTH_CONSOLIDACION_20261026.md](AUTH_CONSOLIDACION_20261026.md).
+
 # Autenticación fase 3 — límite de intentos, sesiones revocables y rotación (2026-10-10)
 
 **Base:** `claude/security-audit-fase-2` (PR #132) + merge de `origin/claude/integracion-pos-offline-p1` `58941e5d`. Rama: `claude/security-audit-fase-3`. No se modificaron PR existentes. No hay merge, despliegue ni migraciones productivas.

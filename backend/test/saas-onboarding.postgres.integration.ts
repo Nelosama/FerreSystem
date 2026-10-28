@@ -1,4 +1,3 @@
-import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -61,7 +60,7 @@ describe('Alta SaaS, usuarios y formatos / HTTP y PostgreSQL aislado', () => {
     return (await respuesta.json()) as { accessToken: string; tenant: Record<string, unknown> };
   };
   const loginSuperAdmin = async () => {
-    const respuesta = await http('POST', '/api/admin/auth/login', undefined, { email: emailSuperAdmin, password, mfaCode: await syntheticPlatformMfa(prisma, emailSuperAdmin) });
+    const respuesta = await http('POST', '/api/admin/auth/login', undefined, { email: emailSuperAdmin, password });
     expect(respuesta.status).toBe(200);
     return (await respuesta.json()) as { accessToken: string };
   };
@@ -266,7 +265,7 @@ describe('Alta SaaS, usuarios y formatos / HTTP y PostgreSQL aislado', () => {
     expect(await prisma.usuario.count({ where: { email } })).toBe(0);
   });
 
-  it('el mismo correo en dos negocios genera JWT y sesiones ligados al usuario y tenant correctos', async () => {
+  it('el mismo correo heredado en dos negocios solo entra con el enlace de su empresa; sin él no se resuelve y las altas nuevas no pueden repetirlo', async () => {
     const email = `compartido-${randomUUID()}@example.test`;
     // La misma contraseña impide que el test pase identificando por contraseña en lugar de tenantId.
     const hash = await bcrypt.hash(password, 4);
@@ -280,6 +279,12 @@ describe('Alta SaaS, usuarios y formatos / HTTP y PostgreSQL aislado', () => {
     }
     expect((await http('POST', '/api/auth/login', undefined, { email, password })).status).toBe(401);
     expect((await http('POST', '/api/auth/login', undefined, { email, password, tenantId: randomUUID() })).status).toBe(401);
+    // Las altas nuevas ya no pueden repetir un identificador de otro negocio: el login sin empresa resuelve una sola cuenta.
+    const plataforma = (await prisma.superAdmin.findUniqueOrThrow({ where: { email: emailSuperAdmin } })).id;
+    await prisma.usuario.update({ where: { id: usuarios[1].id }, data: { email: `b-${randomUUID()}@example.test` } });
+    // En B el correo ya no existe localmente, pero sigue usado en A: el alta global lo rechaza (409) sin decir dónde.
+    await expect(app.get(UsuariosService).create(B, { nombre: 'Otro', email: email.toUpperCase(), rol: 'CAJERO' } as any, plataforma, true)).rejects.toMatchObject({ status: 409, message: expect.stringContaining('no está disponible') });
+    await expect(app.get(UsuariosService).create(B, { nombre: 'Otro', email: `nuevo-${randomUUID()}@example.test`, rol: 'CAJERO' } as any, plataforma, true)).resolves.toMatchObject({ tenantId: B });
   });
 
   it('usuario desactivado y negocio suspendido no obtienen sesión nueva ni conservan acceso con su JWT', async () => {

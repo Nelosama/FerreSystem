@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Mail, ArrowRight, AlertCircle, Clock, Loader2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, Clock, Loader2, KeyRound } from 'lucide-react';
 import { MarcaJowa } from '../components/MarcaJowa';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
@@ -7,31 +7,53 @@ import { useNavigate } from 'react-router-dom';
 import { SESSION_EXPIRED_MESSAGE, hasSessionExpiredNotice, clearSessionExpiredNotice } from '../utils/authInterceptors';
 import { api } from '../utils/api';
 import { RecoveryForm } from '../components/RecoveryForm';
+import { ForcedPasswordChange } from '../components/ForcedPasswordChange';
+
+/** Fallos seguidos (en esta pantalla) tras los que se ofrece la contraseña temporal. El servidor decide en secreto si aplica. */
+const FALLOS_PARA_RECUPERAR = 3;
 
 export const LoginPage: React.FC = () => {
   const { login } = useTenant();
-  const { t, locale, setLocale } = useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('');
+  // Solo «Usuario» (usuario, código o correo) y «Contraseña». El sistema determina empresa y rol.
+  const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
-  const [tenantId, setTenantId] = useState(() => new URLSearchParams(window.location.search).get('empresa') || '');
-  const [platform, setPlatform] = useState(false);
-  const [mfaCode, setMfaCode] = useState('');
+  // Un enlace privado de empresa (?empresa=) acota la búsqueda a ese negocio; no se muestra ni se pide.
+  const [tenantId] = useState(() => new URLSearchParams(window.location.search).get('empresa') || '');
+  // Fallos contados en el navegador: el servidor nunca informa si la cuenta es elegible (no hay enumeración).
+  const [fallos, setFallos] = useState(0);
+  const [recuperacionMensaje, setRecuperacionMensaje] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  // Token de cambio obligatorio (contraseña temporal): mientras exista no se muestra el formulario ni ningún módulo.
+  const [cambioToken, setCambioToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(() => hasSessionExpiredNotice() ? SESSION_EXPIRED_MESSAGE : null);
 
   // El aviso pertenece a la redirección actual, no a visitas futuras al login.
   useEffect(() => { clearSessionExpiredNotice(); }, []);
 
+  const cambiarIdentificador = (valor: string) => {
+    setUsuario(valor);
+    // Los fallos y la recuperación pertenecen al identificador escrito.
+    setFallos(0); setRecuperacionMensaje('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setRecuperacionMensaje('');
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/login', { email, password, ...(!platform && tenantId ? { tenantId } : {}), ...(mfaCode && { mfaCode }) });
-      const { type, accessToken, user, tenant, superAdmin } = response.data;
+      const response = await api.post('/auth/login', { usuario, password, ...(tenantId && { tenantId }) });
+      const { type, accessToken, user, tenant, superAdmin, cambioToken: cambio } = response.data;
+
+      if (type === 'password_change_required' && typeof cambio === 'string' && cambio) {
+        setCambioToken(cambio); setPassword(''); setFallos(0);
+        return;
+      }
 
       if (typeof accessToken !== 'string' || !accessToken) {
         setError(t('shell.login.invalid_session'));
@@ -82,6 +104,7 @@ export const LoginPage: React.FC = () => {
       }
     } catch (err: any) {
       if (err.response) {
+        if (err.response.status === 401) setFallos(previo => previo + 1);
         const message = err.response.data?.message;
         setError(
           Array.isArray(message)
@@ -96,6 +119,16 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const solicitarRecuperacion = async () => {
+    if (enviando || !usuario.trim()) return;
+    setEnviando(true); setRecuperacionMensaje('');
+    try {
+      await api.post('/auth/security/request', { usuario, ...(tenantId && { tenantId }) });
+      setRecuperacionMensaje(t('security.accepted'));
+    } catch { setRecuperacionMensaje(t('security.failed')); }
+    finally { setEnviando(false); }
+  };
+
   const sesionExpirada = error === SESSION_EXPIRED_MESSAGE;
 
   return (
@@ -106,7 +139,6 @@ export const LoginPage: React.FC = () => {
           <MarcaJowa size={52} />
           <h1 className="login-titulo">Jowa System</h1>
           <p className="login-subtitulo">{t('shell.login.subtitle')}</p>
-          <button type="button" className="btn btn-secondary" onClick={() => setLocale(locale === 'es' ? 'en' : 'es')}>{locale === 'es' ? 'English' : 'Español'}</button>
         </header>
 
         {error && (
@@ -116,9 +148,11 @@ export const LoginPage: React.FC = () => {
           </div>
         )}
 
+        {cambioToken ? (
+          <ForcedPasswordChange token={cambioToken} onDone={() => { setCambioToken(''); setPassword(''); setError(null); setFallos(0); setRecuperacionMensaje(t('security.forced_done')); }} />
+        ) : (
+          <>
         <form onSubmit={handleSubmit} className="login-formulario" aria-busy={loading}>
-          <label><input type="checkbox" checked={platform} onChange={e => setPlatform(e.target.checked)} /> {t('security.platform')}</label>
-          {!platform && <div className="form-group"><label htmlFor="login-tenant">{t('security.tenant')}</label><input id="login-tenant" className="form-input" value={tenantId} onChange={e => setTenantId(e.target.value.trim())} required={!email.includes('@')} autoComplete="organization" /></div>}
           <div className="form-group">
             <label className="form-label" htmlFor="login-correo">{t('shell.login.email')}</label>
             <div className="login-campo">
@@ -129,9 +163,8 @@ export const LoginPage: React.FC = () => {
                 required
                 autoComplete="username"
                 autoCapitalize="none"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="danielcm / 44556 / correo@empresa.com"
+                value={usuario}
+                onChange={(e) => cambiarIdentificador(e.target.value)}
                 className="form-input"
               />
             </div>
@@ -153,14 +186,25 @@ export const LoginPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="form-group"><label htmlFor="login-mfa">{t('security.mfa')}</label><input id="login-mfa" className="form-input" value={mfaCode} onChange={e => setMfaCode(e.target.value.trim())} autoComplete="one-time-code" required={platform} /></div>
           <button type="submit" disabled={loading} className="btn btn-primary login-entrar">
             {loading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : null}
             <span>{loading ? t('shell.login.verifying') : t('shell.login.submit')}</span>
             {!loading && <ArrowRight size={18} strokeWidth={2.4} aria-hidden="true" />}
           </button>
         </form>
-        <RecoveryForm email={email} tenantId={tenantId} platform={platform} password={password} />
+        {fallos > 0 && <p className="login-ayuda">{t('security.lock_hint')}</p>}
+        {fallos >= FALLOS_PARA_RECUPERAR && (
+          <section aria-labelledby="login-recuperacion" style={{ marginTop: 20 }}>
+            <h2 id="login-recuperacion" className="form-label"><KeyRound size={16} aria-hidden="true" /> {t('security.recovery')}</h2>
+            <p>{t('security.recovery_offer')}</p>
+            <button type="button" className="btn btn-secondary" disabled={enviando || !usuario.trim()} onClick={() => void solicitarRecuperacion()}>{enviando ? t('shell.login.verifying') : t('security.send')}</button>
+            <p>{t('security.employee_help')}</p>
+          </section>
+        )}
+        {recuperacionMensaje && <p role="status">{recuperacionMensaje}</p>}
+        <RecoveryForm />
+          </>
+        )}
       </div>
     </main>
   );

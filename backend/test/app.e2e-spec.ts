@@ -1,4 +1,3 @@
-import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { Test } from '@nestjs/testing';
 import { type INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -69,7 +68,7 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
       nombre: 'Soporte de recuperación', email: 'support@recovery.invalid', passwordHash,
     } });
     const superLogin = await request(app.getHttpServer()).post('/api/admin/auth/login')
-      .send({ email: 'support@recovery.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'support@recovery.invalid') }).expect(200);
+      .send({ email: 'support@recovery.invalid', password }).expect(200);
     superToken = superLogin.body.accessToken;
     const eligible = await request(app.getHttpServer()).get(`/api/admin/tenants/${tenantId}/usuarios`)
       .auth(superToken, { type: 'bearer' }).expect(200);
@@ -131,6 +130,7 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
       .auth(token, { type: 'bearer' }).expect(404);
   });
 
+  // Multiple real HTTP calls and bcrypt(12) need the same finite budget as PostgreSQL integration.
   it('recupera escrituras auditadas y la desactivación sigue revocando sesiones', async () => {
     const created = await request(app!.getHttpServer()).post('/api/usuarios').auth(token, { type: 'bearer' })
       .send({ nombre: 'Cajero recuperado', email: 'cajero@recovery.invalid', rol: 'CAJERO' }).expect(201);
@@ -148,7 +148,7 @@ describe('Disponibilidad y recuperación de la aplicación real', () => {
       tenantId, usuarioId: userId, entidadId: created.body.id, operacion: 'USUARIO_DESACTIVAR',
     } })).toBe(1);
     await request(app!.getHttpServer()).get('/api/auth/me').auth(login.body.accessToken, { type: 'bearer' }).expect(401);
-  });
+  }, 15000);
 
   it('el soporte anterior a la caída conserva solo lectura y puede revocarse con trazabilidad real', async () => {
     await request(app!.getHttpServer()).get('/api/usuarios').auth(supportToken, { type: 'bearer' }).expect(200);

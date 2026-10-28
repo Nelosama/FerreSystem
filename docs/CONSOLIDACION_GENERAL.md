@@ -73,7 +73,7 @@ Resultado local en PostgreSQL 16 efímero (`PG_BIN` con envoltura no root): **65
 ## 5. Pendientes reales
 
 1. **#180 contabilidad Honduras sin integrar.** Reconciliar `App.tsx` y `main.tsx` con el shell híbrido (rail del CONTADOR sobre `AdminRail`/`CajeroRail`), revisar `SuperAdminPage.tsx`, `guide.spec.ts`, la prueba de ventas y el contexto. Después, revisión fiscal profesional (ISV por producto, exentos, retenciones, CAI/RTN, redondeo). El propio PR declara NO MERGE para la contabilidad completa.
-2. **#192 requiere configuración antes de cualquier despliegue**: `AUTH_MFA_ENCRYPTION_KEY` (respaldada), Resend con remitente y dominio verificados (`AUTH_MAIL_RESEND_API_KEY`, `AUTH_MAIL_FROM`), `AUTH_PUBLIC_URL`, y enrolamiento MFA del propietario del Super Admin (las sesiones antiguas de plataforma no acreditan MFA). Detalle en `docs/AUTH_RECOVERY_SECURITY.md`.
+2. **#192 requiere configuración antes de cualquier despliegue** (*superado el 2026-10-27: sin MFA y con Gmail SMTP en vez de Resend; ver [AUTH_CONSOLIDACION_20261026.md](AUTH_CONSOLIDACION_20261026.md)*): `AUTH_MFA_ENCRYPTION_KEY` (respaldada), Resend con remitente y dominio verificados (`AUTH_MAIL_RESEND_API_KEY`, `AUTH_MAIL_FROM`), `AUTH_PUBLIC_URL`, y enrolamiento MFA del propietario del Super Admin (las sesiones antiguas de plataforma no acreditan MFA). Detalle en `docs/AUTH_RECOVERY_SECURITY.md`.
 3. Pasarelas de correo reales, validación física de iPhone/Safari/PWA, lector físico y tickets 58/80 mm (sin cambios desde los informes previos).
 4. Pendientes de UX heredados de #195: decisión del dueño sobre el tema global del negocio frente a `--color-primary`; tabla de negocios en móvil.
 5. Passkeys de #192: contrato documentado, implementación WebAuthn pendiente.

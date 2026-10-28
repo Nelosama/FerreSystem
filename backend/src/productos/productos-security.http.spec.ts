@@ -44,7 +44,7 @@ describe('SEC-005 product HTTP responses (real JWT, guards, service; mocked pers
       findFirst: vi.fn(async ({ where }: any) => rows.find(p => matches(p, where)) ?? null),
     },
     superAdmin: {
-      findUnique: vi.fn(async ({ where }: any) => ({ mfaSecret: 'fixture-enrolled', activo: where.id === 'platform' })),
+      findUnique: vi.fn(async ({ where }: any) => ({ activo: where.id === 'platform' })),
     },
   };
   const token = (rol: string, permisos: string[] = [], configured = true, tenantId = 'tenant-a') => {
@@ -138,7 +138,7 @@ describe('SEC-005 product HTTP responses (real JWT, guards, service; mocked pers
     await request(app.getHttpServer()).get('/productos').expect(401);
     const auth = token('ADMIN');
     await get('/productos', jwt.sign({ sub: auth.sub, type: 'tenant', tenantId: 'tenant-b' })).expect(401);
-    await get('/productos', jwt.sign({ sub: 'platform', type: 'super_admin', mfa: true })).expect(403);
+    await get('/productos', jwt.sign({ sub: 'platform', type: 'super_admin' })).expect(403);
     users.get(auth.sub).tenant.estado = 'SUSPENDIDO';
     await get('/productos', auth.value).expect(401);
   });

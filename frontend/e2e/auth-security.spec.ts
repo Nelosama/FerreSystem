@@ -3,22 +3,125 @@ import { prepararSesion, desbordamientoHorizontal } from './ux-auditoria.fixture
 
 test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
   for (const width of [320, 390, 1440]) {
-    test(`usuario y código requieren empresa; acceso de plataforma pide MFA @${width}`, async ({ page }) => {
+    test(`login de dos campos: sin empresa, rol, idioma ni casilla de Super Admin; recuperación oculta hasta el tercer fallo @${width}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await prepararSesion(page, 'ADMIN', { sinSesion: true });
       await page.goto('/login');
-      const identifier = page.getByLabel('Usuario, código o correo');
-      await identifier.fill('44556');
-      await expect(page.getByLabel('Identificador de empresa')).toHaveAttribute('required', '');
-      await page.getByLabel('Identificador de empresa').fill('empresa-A');
+      await expect(page.getByLabel('Usuario', { exact: true })).toBeVisible();
+      await expect(page.getByLabel('Contraseña', { exact: true })).toBeVisible();
+      await expect(page.locator('form input:not([type=hidden])')).toHaveCount(2);
+      await expect(page.getByLabel('Identificador de empresa')).toHaveCount(0);
+      await expect(page.getByLabel('Acceso de Super Admin')).toHaveCount(0);
+      await expect(page.locator('select')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'English', exact: true })).toHaveCount(0);
+      await expect(page.getByText('Recuperar acceso', { exact: true })).toHaveCount(0);
+      await page.getByLabel('Usuario', { exact: true }).fill('44556');
       await page.locator('#login-clave').fill('Synthetic-Password-456');
+      const sent: any[] = [];
+      let intentos = 0;
+      await page.route('**/api/auth/login', async route => {
+        sent.push(route.request().postDataJSON());
+        intentos++;
+        // El servidor responde siempre lo mismo: no anuncia si la cuenta puede recuperarse (sin enumeración).
+        await route.fulfill({ status: 401, json: { statusCode: 401, message: 'Credenciales inválidas', error: 'Unauthorized' } });
+      });
+      for (let i = 1; i <= 2; i++) {
+        await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+        await expect.poll(() => sent.length).toBe(i);
+        await expect(page.getByRole('alert')).toBeVisible();
+        await expect(page.getByText('Recuperar acceso', { exact: true })).toHaveCount(0);
+      }
+      await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+      await expect(page.getByText('Recuperar acceso', { exact: true })).toBeVisible();
+      expect(intentos).toBe(3);
+      expect(sent[0]).toEqual({ usuario: '44556', password: 'Synthetic-Password-456' });
+      // Cambiar el identificador reinicia el contador de la pantalla.
+      await page.getByLabel('Usuario', { exact: true }).fill('otro');
+      await expect(page.getByText('Recuperar acceso', { exact: true })).toHaveCount(0);
+      await page.getByLabel('Usuario', { exact: true }).fill('44556');
+      for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+      await expect(page.getByText('Recuperar acceso', { exact: true })).toBeVisible();
+      let solicitud: any;
+      await page.route('**/api/auth/security/request', async route => { solicitud = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { message: 'ok' } }); });
+      await page.getByRole('button', { name: 'Enviar contraseña temporal por correo' }).click();
+      await expect.poll(() => solicitud).toEqual({ usuario: '44556' });
+      expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
+    });
+    test(`cuenta operativa: el bloqueo no se revela, pero el login orienta a pedir la reactivación al Admin @${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await prepararSesion(page, 'ADMIN', { sinSesion: true });
+      await page.goto('/login');
+      await expect(page.getByText(/seis intentos fallidos/)).toHaveCount(0);
+      await page.getByLabel('Usuario', { exact: true }).fill('cajero1');
+      await page.locator('#login-clave').fill('Synthetic-Password-456');
+      await page.route('**/api/auth/login', route => route.fulfill({ status: 401, json: { statusCode: 401, message: 'Credenciales inválidas', error: 'Unauthorized' } }));
+      await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+      await expect(page.getByRole('alert')).toContainText('Credenciales inválidas');
+      await expect(page.getByText(/seis intentos fallidos.*Admin de su empresa/)).toBeVisible();
+      await expect(page.getByText('Recuperar acceso', { exact: true })).toHaveCount(0);
+      expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
+    });
+    test(`Super Admin: la contraseña correcta abre la sesión sin segundo factor ni campo adicional @${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await prepararSesion(page, 'ADMIN', { sinSesion: true });
+      await page.goto('/login');
+      await expect(page.locator('form input:not([type=hidden])')).toHaveCount(2);
+      await page.getByLabel('Usuario', { exact: true }).fill('root@jowa.test');
+      await page.locator('#login-clave').fill('Synthetic-Password-456');
+      const sent: any[] = [];
+      await page.route('**/api/auth/login', async route => {
+        sent.push(route.request().postDataJSON());
+        await route.fulfill({ json: { type: 'super_admin', accessToken: 'synthetic-access', superAdmin: { id: 'sa-1', nombre: 'Root', email: 'root@jowa.test' } } });
+      });
+      await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+      await expect.poll(() => sent.length).toBe(1);
+      expect(sent[0]).toEqual({ usuario: 'root@jowa.test', password: 'Synthetic-Password-456' });
+      await expect(page).toHaveURL(/\/admin/);
+      expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
+    });
+    test(`enlace de empresa: acota el login sin mostrar ningún campo de empresa @${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await prepararSesion(page, 'ADMIN', { sinSesion: true });
+      await page.goto('/login?empresa=tenant-heredado');
+      await expect(page.locator('form input:not([type=hidden])')).toHaveCount(2);
       let sent: any;
       await page.route('**/api/auth/login', async route => { sent = route.request().postDataJSON(); await route.fulfill({ status: 401, json: { message: 'Credenciales inválidas' } }); });
+      await page.getByLabel('Usuario', { exact: true }).fill('44556');
+      await page.locator('#login-clave').fill('Synthetic-Password-456');
       await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
-      await expect.poll(() => sent).toMatchObject({ email: '44556', tenantId: 'empresa-A' });
-      await expect(page.getByRole('alert')).toBeVisible();
-      await page.getByLabel('Acceso de Super Admin').check();
-      await expect(page.locator('#login-mfa')).toHaveAttribute('required', '');
+      await expect.poll(() => sent).toEqual({ usuario: '44556', password: 'Synthetic-Password-456', tenantId: 'tenant-heredado' });
+    });
+    test(`contraseña temporal: cambio obligatorio antes de cualquier acceso al sistema @${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await prepararSesion(page, 'ADMIN', { sinSesion: true });
+      await page.goto('/login');
+      await page.getByLabel('Usuario', { exact: true }).fill('admin@ferreteria.test');
+      await page.locator('#login-clave').fill('TemporalSynthetic16');
+      await page.route('**/api/auth/login', route => route.fulfill({ json: { type: 'password_change_required', requiereCambioPassword: true, cambioToken: 'synthetic-change-token', expiresIn: 600 } }));
+      await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+      await expect(page.getByRole('heading', { name: 'Defina su contraseña nueva' })).toBeVisible();
+      // Sin sesión: ni el formulario de acceso, ni módulos, ni token de sesión.
+      await expect(page.locator('#login-clave')).toHaveCount(0);
+      await expect(page).toHaveURL(/\/login/);
+      expect(await page.evaluate(() => localStorage.getItem('ferre_token'))).toBeNull();
+      await page.goto('/');
+      await expect(page).toHaveURL(/\/login/);
+      await page.getByLabel('Usuario', { exact: true }).fill('admin@ferreteria.test');
+      await page.locator('#login-clave').fill('TemporalSynthetic16');
+      await page.getByRole('button', { name: 'Ingresar al sistema' }).click();
+      await expect(page.getByRole('heading', { name: 'Defina su contraseña nueva' })).toBeVisible();
+      await page.locator('#forced-password').fill('Synthetic-New-789');
+      await page.locator('#forced-confirm').fill('Synthetic-Other-789');
+      await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+      await expect(page.getByRole('alert')).toContainText('no coinciden');
+      let sentChange: any;
+      await page.route('**/api/auth/security/forced-change', async route => { sentChange = route.request().postDataJSON(); await route.fulfill({ json: { success: true } }); });
+      await page.locator('#forced-confirm').fill('Synthetic-New-789');
+      await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+      await expect.poll(() => sentChange).toEqual({ token: 'synthetic-change-token', password: 'Synthetic-New-789' });
+      await expect(page.locator('#login-clave')).toBeVisible();
+      await expect(page.getByRole('status')).toContainText('Contraseña actualizada');
+      expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toMatch(/synthetic-change-token|Synthetic-New-789|TemporalSynthetic16/);
       expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
     });
     test(`enlace de recuperación privado no persiste en URL ni almacenamiento @${width}`, async ({ page }) => {
@@ -38,24 +141,28 @@ test.describe('Seguridad web/PWA · interfaz con API simulada', () => {
       expect(await desbordamientoHorizontal(page)).toBeLessThanOrEqual(0);
     });
   }
-  test('bootstrap MFA muestra códigos de emergencia una sola vez en memoria', async ({ page }) => {
+  test('un segundo enlace privado abierto en la misma pestaña usa su propio token (corrección de #180)', async ({ page }) => {
     await prepararSesion(page, 'ADMIN', { sinSesion: true });
-    await page.goto('/login#action=BOOTSTRAP_MFA&token=synthetic-mail-proof');
-    await page.locator('#recovery-password').fill('Synthetic-Current-456');
-    await page.route('**/api/auth/security/mfa/bootstrap', route => route.fulfill({ json: { secret: 'SYNTHETICSETUPSECRET', token: 'synthetic-enrollment' } }));
+    const enviados: any[] = [];
+    await page.route('**/api/auth/security/reset', async route => { enviados.push(route.request().postDataJSON()); await route.fulfill({ json: { success: true } }); });
+    await page.goto('/login#action=RESET_ADMIN&token=primer-token-sintetico');
+    await expect(page.locator('#recovery-token')).toHaveValue('primer-token-sintetico');
+    await page.locator('#recovery-password').fill('Synthetic-New-789');
     await page.getByRole('button', { name: 'Continuar', exact: true }).click();
-    await expect(page.getByText('SYNTHETICSETUPSECRET', { exact: true })).toBeVisible();
-    await page.locator('#recovery-code').fill('123456');
-    await page.route('**/api/auth/security/mfa/confirm', route => route.fulfill({ json: { recoveryCodes: ['synthetic-emergency-code'] } }));
+    await expect.poll(() => enviados.length).toBe(1);
+    await page.evaluate(() => { window.location.hash = 'action=RESET_ADMIN&token=segundo-token-sintetico'; });
+    await expect(page.locator('#recovery-token')).toHaveValue('segundo-token-sintetico');
+    await expect(page).toHaveURL(url => url.hash === '');
+    await page.locator('#recovery-password').fill('Synthetic-Other-789');
     await page.getByRole('button', { name: 'Continuar', exact: true }).click();
-    await expect(page.getByText('synthetic-emergency-code', { exact: true })).toBeVisible();
-    expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toContain('synthetic-emergency-code');
+    await expect.poll(() => enviados[1]).toEqual({ token: 'segundo-token-sintetico', password: 'Synthetic-Other-789' });
   });
-  test('idioma de login se puede cambiar a inglés sin sesión', async ({ page }) => {
+  test('el login no ofrece cambio de idioma y conserva el idioma predeterminado', async ({ page }) => {
     await prepararSesion(page, 'ADMIN', { sinSesion: true }); await page.goto('/login');
-    await page.getByRole('button', { name: 'English', exact: true }).click();
-    await expect(page.getByLabel('Username, code or email')).toBeVisible();
-    await expect(page.getByText('Recover access', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'English', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Español', exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('Usuario', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Ingresar al sistema' })).toBeVisible();
   });
   test('bloqueo por inactividad y cambio de empleado cierran identidad', async ({ page }) => {
     await prepararSesion(page, 'ADMIN');

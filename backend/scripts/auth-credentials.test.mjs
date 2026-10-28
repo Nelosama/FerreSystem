@@ -21,7 +21,7 @@ test('published migrations contain no credential rewriting or embedded credentia
     assert.doesNotMatch(sql, /\$2[aby]\$\d\d\$/, name);
   }
 });
-test('retired replacement fails without connecting; emergency recovery preserves identity and MFA', () => {
+test('retired replacement fails without connecting; emergency recovery preserves identity', () => {
   assert.doesNotMatch(read('prisma/replace-super-admin.ts'), /new PrismaClient|\.deleteMany\(/);
   const emergency = read('prisma/recover-super-admin.ts');
   assert.doesNotMatch(emergency, /superAdmin\.(deleteMany|create)|mfaSecret:\s*null/);

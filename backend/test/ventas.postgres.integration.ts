@@ -1,5 +1,4 @@
 import { devolucionAutorizada } from './helpers/devolucion-autorizada';
-import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -67,7 +66,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261002000000_add_customer_numbers/migration.sql')], { windowsHide: true, timeout: 30000 });
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261004000000_operacion_ferreteria/migration.sql')], {timeout:30000});
     execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve('prisma/migrations/20261005000000_autorizaciones_devolucion/migration.sql')], {timeout:30000});
-    for (const migration of ['20261005000000_compras_proveedor_y_costo_vigente', '20261006000000_clientes_credito', '20261006000100_tenant_configuration', '20261009000000_levantamiento_multiusuario', '20261009120000_fs06_marca_idempotencia_levantamiento', '20261009130000_fs07_version_producto', '20261010120000_coberturas_garantia', '20261010140000_productos_proveedores', '20261011000000_pos_contingencia_offline', '20261011150000_precio_aprobacion_producto', '20261012000000_autenticacion_sesiones_intentos', '20261012000000_conciliacion_pagos_bancarios', '20261012000000_entrega_eventos_y_cantidades', '20261013000000_balance_referencia_pagos', '20261014000000_cliente_plazo_credito', '20261015000000_contingencia_revocar_ventanas_anteriores', '20261018000000_tenant_logotipo_privado', '20261019000000_cloud_branding_sucursales', '20261021000000_sesiones_auth_rotacion_refresh', '20261022000000_guia_progreso', '20261023000000_auth_recovery']) {
+    for (const migration of ['20261005000000_compras_proveedor_y_costo_vigente', '20261006000000_clientes_credito', '20261006000100_tenant_configuration', '20261009000000_levantamiento_multiusuario', '20261009120000_fs06_marca_idempotencia_levantamiento', '20261009130000_fs07_version_producto', '20261010120000_coberturas_garantia', '20261010140000_productos_proveedores', '20261011000000_pos_contingencia_offline', '20261011150000_precio_aprobacion_producto', '20261012000000_autenticacion_sesiones_intentos', '20261012000000_conciliacion_pagos_bancarios', '20261012000000_entrega_eventos_y_cantidades', '20261013000000_balance_referencia_pagos', '20261014000000_cliente_plazo_credito', '20261015000000_contingencia_revocar_ventanas_anteriores', '20261018000000_tenant_logotipo_privado', '20261019000000_cloud_branding_sucursales', '20261021000000_sesiones_auth_rotacion_refresh', '20261022000000_guia_progreso', '20261023000000_auth_recovery', '20261026000000_auth_login_unico_bloqueo']) {
       execFileSync(executable('psql'), ['-h', '127.0.0.1', '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-f', resolve(`prisma/migrations/${migration}/migration.sql`)], { timeout: 30000 });
     }
     databaseUrl = `postgresql://postgres@127.0.0.1:${port}/postgres?connection_limit=8`;
@@ -294,6 +293,7 @@ describe('Ventas / PostgreSQL aislado', () => {
       env: { ...process.env, NODE_ENV: 'production', NODE_PATH: resolve('node_modules'),
         DATABASE_URL: databaseUrl, DIRECT_URL: databaseUrl, PORT: String(port),
         JWT_SECRET: 'isolated-production-smoke-secret-not-for-real-use',
+        AUTH_MAIL_GMAIL_USER: 'smoke@example.test', AUTH_MAIL_GMAIL_APP_PASSWORD: 'smokeisolated000', AUTH_PUBLIC_URL: 'https://smoke.example.test',
         FRONTEND_URL: 'https://frontend.example.test' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -319,7 +319,7 @@ describe('Ventas / PostgreSQL aislado', () => {
       const admin = await prisma.superAdmin.create({ data: { nombre: 'Superadmin prueba', email: `${randomUUID()}@test.local`, passwordHash: await bcrypt.hash(password, 4) } });
       const base = `http://127.0.0.1:${port}/api`;
       await checkSettingsHttp(prisma, base);
-      const login = await fetch(`${base}/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: admin.email, password, mfaCode: await syntheticPlatformMfa(prisma, admin.email) }) });
+      const login = await fetch(`${base}/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: admin.email, password }) });
       expect(login.status).toBe(200);
       expect(login.headers.get('set-cookie')).toContain('Path=/api/admin/auth');
       expect(login.headers.get('set-cookie')).toContain('SameSite=None');
@@ -361,6 +361,9 @@ describe('Ventas / PostgreSQL aislado', () => {
       const commercial=await fetch(`${base}/productos/comercial`,{headers:cashierHeaders});expect(commercial.status).toBe(200);
       const catalog=await commercial.json() as any[];expect(catalog[0].precioVenta).toBe(10);expect(catalog[0].precioCosto).toBeUndefined();
       expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify({solicitudId:randomUUID(),detalles:[{productoId,cantidad:1,precioUnitario:1}]})})).status).toBe(409);
+      // Excepción de precio por HTTP: motivo validado por el DTO; un cajero no la obtiene aunque envíe un motivo.
+      expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify({solicitudId:randomUUID(),excepcionPrecio:{motivo:'corto'},detalles:[{productoId,cantidad:1,precioUnitario:1}]})})).status).toBe(400);
+      expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify({solicitudId:randomUUID(),excepcionPrecio:{motivo:'Precio negociado con el cliente'},detalles:[{productoId,cantidad:1,precioUnitario:1}]})})).status).toBe(403);
 
       const recoveryId = randomUUID();
       expect((await fetch(`${base}/ventas/solicitudes/${recoveryId}`, { headers: cashierHeaders })).status).toBe(200);

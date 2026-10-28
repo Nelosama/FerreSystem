@@ -11,7 +11,8 @@ const MENSAJE = 'Demasiados intentos de inicio de sesión. Espere antes de volve
 const hash = (valor: string) => createHash('sha256').update(valor).digest('hex');
 
 export interface ClavesLogin {
-  cuenta: string;
+  /** Ausente cuando la cuenta tiene su propio contador persistente (usuarios que no son Admin se bloquean en el sexto fallo). */
+  cuenta?: string;
   ip: string;
 }
 
@@ -25,7 +26,7 @@ export async function segundosBloqueados(prisma: PrismaService, claves: ClavesLo
   const [fila] = await prisma.$queryRaw<{ segundos: number | null }[]>`
     SELECT CEIL(EXTRACT(EPOCH FROM (MAX(bloqueado_hasta) - now())))::int AS segundos
     FROM intentos_login
-    WHERE clave IN (${claves.cuenta}, ${claves.ip}) AND bloqueado_hasta > now()`;
+    WHERE clave IN (${claves.cuenta ?? claves.ip}, ${claves.ip}) AND bloqueado_hasta > now()`;
   return Number(fila?.segundos ?? 0);
 }
 
@@ -50,7 +51,7 @@ export async function registrarFalloLogin(prisma: PrismaService, claves: ClavesL
           THEN now() + make_interval(secs => ${cfg.bloqueoSegundos}::double precision)
         ELSE NULL END,
       actualizado_at = now()`;
-  await contar(claves.cuenta, cfg.maxFallosCuenta);
+  if (claves.cuenta) await contar(claves.cuenta, cfg.maxFallosCuenta);
   await contar(claves.ip, cfg.maxFallosIp);
   // Limpieza de filas antiguas y no bloqueadas (acotada por el índice de actualizado_at).
   await prisma.$executeRaw`DELETE FROM intentos_login WHERE actualizado_at < now() - interval '1 day' AND (bloqueado_hasta IS NULL OR bloqueado_hasta < now())`;
@@ -58,5 +59,5 @@ export async function registrarFalloLogin(prisma: PrismaService, claves: ClavesL
 
 /** Un inicio correcto reinicia solo el contador de la cuenta; el de la IP sigue vigente. */
 export async function registrarExitoLogin(prisma: PrismaService, claves: ClavesLogin): Promise<void> {
-  await prisma.$executeRaw`DELETE FROM intentos_login WHERE clave = ${claves.cuenta}`;
+  if (claves.cuenta) await prisma.$executeRaw`DELETE FROM intentos_login WHERE clave = ${claves.cuenta}`;
 }

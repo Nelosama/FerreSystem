@@ -54,6 +54,8 @@ test('sesión de ayer se recupera con una sola renovación válida antes de abri
   const state = await scenario(page, true);
   await page.goto('/levantamiento');
   await expect(page.locator('.operation-page')).toBeVisible();
+  // El render puede preceder al efecto que inicia la consulta; esperar la solicitud antes de comparar su orden.
+  await expect.poll(() => state.calls).toContain('/levantamientos');
   expect(state.calls.indexOf('/auth/me')).toBeLessThan(state.calls.indexOf('/levantamientos'));
   expect(state.refreshes).toBe(1);
 });

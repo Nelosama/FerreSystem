@@ -1,5 +1,4 @@
 import { RecoveryService } from '../src/auth/recovery.service';
-import { syntheticPlatformMfa } from './synthetic-platform-mfa';
 import { noStore } from '../src/common/no-store.middleware';
 import { idSolicitud } from '../src/operaciones/ledger';
 import { execFileSync } from 'node:child_process';
@@ -138,9 +137,12 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     }
   });
 
-  // Cada prueba empieza sin contadores de intentos. Las sesiones se conservan: cada prueba crea las suyas.
+  // Cada prueba empieza sin contadores de intentos (los temporales por identificador/IP y el persistente por cuenta, que bloquea
+  // a los roles operativos en el sexto fallo y se prueba en auth-recovery). Las sesiones se conservan: cada prueba crea las suyas.
   beforeEach(async () => {
     await prisma.$executeRawUnsafe('DELETE FROM intentos_login');
+    await prisma.$executeRawUnsafe('UPDATE usuarios SET intentos_fallidos = 0, ultimo_fallo_at = NULL, bloqueado_at = NULL WHERE intentos_fallidos > 0 OR bloqueado_at IS NOT NULL');
+    await prisma.$executeRawUnsafe('UPDATE super_admins SET intentos_fallidos = 0, ultimo_fallo_at = NULL WHERE intentos_fallidos > 0');
   });
 
   it('las respuestas privadas y los rechazos de autenticación llevan no-store', async () => {
@@ -239,7 +241,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
 
     it('el Super Admin también tiene límite de intentos', async () => {
       for (let i = 0; i < 3; i++) await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password: 'mala-clave' }).expect(401);
-      await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'plataforma@auth.test.invalid') }).expect(429);
+      await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password }).expect(429);
     });
 
     it('los fallos se guardan como hash, sin correo en claro', async () => {
@@ -312,7 +314,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     });
 
     it('el logout del Super Admin revoca su sesión y su refresh', async () => {
-      const res = await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'plataforma@auth.test.invalid') }).expect(200);
+      const res = await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password }).expect(200);
       const access = res.body.accessToken as string;
       const cookie = (res.headers['set-cookie'] as unknown as string[]).find(c => c.startsWith('superAdminRefreshToken='))!.split(';')[0];
       await get('/auth/me', access).expect(200);
@@ -460,7 +462,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
 
     it('el refresh del Super Admin rota y detecta la reutilización', async () => {
       const cookieDe = (r: request.Response) => (r.headers['set-cookie'] as unknown as string[]).find(c => c.startsWith('superAdminRefreshToken='))!.split(';')[0];
-      const res = await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'plataforma@auth.test.invalid') }).expect(200);
+      const res = await request(app.getHttpServer()).post('/api/admin/auth/login').send({ email: 'plataforma@auth.test.invalid', password }).expect(200);
       const sid = await sesionDe(res.body.accessToken);
       const original = cookieDe(res);
       const r1 = await request(app.getHttpServer()).post('/api/admin/auth/refresh').set('Cookie', original).expect(200);
@@ -480,7 +482,7 @@ describe('Autenticación fase 3 / PostgreSQL aislado', () => {
     it('login, refresh y logout desde otro origen responden 403 sin crear, rotar ni cerrar sesiones', async () => {
       const antes = await prisma.sesionAuth.count();
       await request(app.getHttpServer()).post('/api/auth/login').set('Origin', ajeno).send({ email: 'admin@auth.test.invalid', password, tenantId }).expect(403);
-      await request(app.getHttpServer()).post('/api/admin/auth/login').set('Origin', ajeno).send({ email: 'plataforma@auth.test.invalid', password, mfaCode: await syntheticPlatformMfa(prisma, 'plataforma@auth.test.invalid') }).expect(403);
+      await request(app.getHttpServer()).post('/api/admin/auth/login').set('Origin', ajeno).send({ email: 'plataforma@auth.test.invalid', password }).expect(403);
       expect(await prisma.sesionAuth.count()).toBe(antes);
 
       const res = await login('admin@auth.test.invalid').set('Origin', local).expect(200);

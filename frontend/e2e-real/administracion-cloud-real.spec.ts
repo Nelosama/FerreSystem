@@ -1,4 +1,3 @@
-import { fillPlatformMfa, syntheticMfaFor } from './mfa.fixture';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -18,7 +17,7 @@ test.beforeEach(restablecerPreferencias);
 test.afterEach(restablecerPreferencias);
 async function entrar(page: Page, email = 'superadmin.e2e@e2e.invalid') {
   await page.goto('/login');
-  await page.locator('#login-correo').fill(email); await fillPlatformMfa(page, email);
+  await page.locator('#login-correo').fill(email);
   await page.locator('#login-clave').fill(PASSWORD);
   await page.getByRole('button', { name: 'INGRESAR AL SISTEMA' }).click();
   await expect(page).not.toHaveURL(/\/login$/);
@@ -74,7 +73,11 @@ test('Super Admin crea y edita un administrador; desactivar revoca acceso y cons
   await form.getByLabel('Nombre', { exact: true }).fill(`Admin ${run}`);
   await form.getByLabel('Correo electrónico', { exact: true }).fill(`nuevo-${run}@e2e.invalid`);
   await form.getByLabel('Rol', { exact: true }).selectOption('ADMIN');
+  // Passwordless creation still hashes a private unusable credential on the real server.
+  // Wait for the actual POST before checking the refreshed row (bcrypt can exceed 5 s under load).
+  const createdResponse = page.waitForResponse(res => new URL(res.url()).pathname === `/api/admin/tenants/${A}/usuarios` && res.request().method() === 'POST');
   await form.getByRole('button', { name: 'Guardar', exact: true }).click();
+  expect((await createdResponse).status()).toBe(201);
   const row = page.getByRole('row').filter({ hasText: `nuevo-${run}@e2e.invalid` });
   await expect(row).toContainText('ADMIN');
   const fresh = await prisma.usuario.findFirstOrThrow({ where: { tenantId: A, email: `nuevo-${run}@e2e.invalid` } });
@@ -152,7 +155,7 @@ test('el valor histórico TOPNAV no cambia la navegación: rail y barra superior
 });
 
 async function setPrivatePassword(page: Page, platformToken: string, userId: string) {
-  const issued = await page.request.post(`${API}/auth/security/admin-reset`, { headers: { Authorization: `Bearer ${platformToken}` }, data: { usuarioId: userId, tenantId: A, currentPassword: PASSWORD, mfaCode: await syntheticMfaFor('superadmin.e2e@e2e.invalid') } });
+  const issued = await page.request.post(`${API}/auth/security/admin-reset`, { headers: { Authorization: `Bearer ${platformToken}` }, data: { usuarioId: userId, tenantId: A, currentPassword: PASSWORD } });
   expect(issued.status()).toBe(201);
   const reset = await page.request.post(`${API}/auth/security/reset`, { data: { token: (await issued.json()).token, password: PASSWORD } });
   expect(reset.status()).toBe(200);
