@@ -13,7 +13,7 @@ import { RecoveryService } from '../src/auth/recovery.service';
 import { RecoveryMailService } from '../src/auth/recovery-mail.service';
 import { AuthService } from '../src/auth/auth.service';
 import { JwtStrategy } from '../src/auth/jwt.strategy';
-import { tokenHash, opaqueToken, sealSecret, totp } from '../src/auth/mfa';
+import { tokenHash, opaqueToken } from '../src/auth/mfa';
 import { emitirContrasenaTemporal, generarContrasenaTemporal } from '../src/auth/contrasena-temporal';
 import { MAX_FALLOS_BLOQUEO } from '../src/auth/bloqueo-cuenta';
 import { Logger } from '@nestjs/common';
@@ -98,13 +98,11 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
     if (directory && target.startsWith(resolve(tmpdir()) + sep) && target.includes('jowa-auth-test-')) rmSync(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
   type Rol = 'ADMIN' | 'CAJERO' | 'VENDEDOR' | 'BODEGUERO';
-  const SECRETO_TOTP = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
   const account = async (platform = false, rol: Rol = 'ADMIN', tenantId = 'A', verified = true) => {
     const id = randomUUID(), email = `${id}@example.invalid`;
     const data = { id, nombre: id, email, passwordHash: await bcrypt.hash(password, 4), emailVerifiedAt: verified ? new Date() : null };
-    // Todo Super Admin de esta matriz tiene MFA configurado (cifrado real), salvo que una prueba lo retire.
     const row = platform
-      ? await db.superAdmin.create({ data: { ...data, mfaSecret: sealSecret(SECRETO_TOTP, id, config) } })
+      ? await db.superAdmin.create({ data })
       : await db.usuario.create({ data: { ...data, tenantId, rol, username: 'u-' + id } });
     return { ...row, platform, identity: { sub: id, type: platform ? 'super_admin' : 'tenant', ...(!platform && { tenantId, rol }) } as any };
   };
@@ -119,8 +117,8 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
   const nextIp = () => ({ ip: `198.18.${Math.floor(ipSeq / 250)}.${(ipSeq++ % 250) + 1}` }) as any;
   const newRes = () => ({ cookie: vi.fn(), setHeader: vi.fn(), clearCookie: vi.fn() }) as any;
   const login = (usuario: string, pass = password, req = nextIp(), res = newRes(), extra: Record<string, string> = {}) => auth.login({ usuario, password: pass, ...extra }, res, req);
-  /** Login completo de un Super Admin: contraseña + código de emergencia. */
-  const loginSa = async (a: any, pass = password, req = nextIp(), res = newRes()) => auth.login({ usuario: a.email, password: pass, mfaCode: await codigo(a) }, res, req);
+  /** Login de un Super Admin con su contraseña (sin segundo factor). */
+  const loginSa = (a: any, pass = password, req = nextIp(), res = newRes()) => auth.login({ usuario: a.email, password: pass }, res, req);
   const failure = async (promise: Promise<any>) => promise.then(() => { throw new Error('Debía fallar'); }, (error: any) => error);
   const action = async (a: any, purpose = 'RESET_ADMIN', expiresAt = new Date(Date.now()+600000)) => {
     const token = opaqueToken(); await db.authAction.create({ data: { hash: tokenHash(token), sujetoId: a.id, tipo: a.platform ? 'SUPER_ADMIN' : 'TENANT', tenantId: a.platform ? null : a.tenantId, email: a.email, passwordBinding: tokenHash(a.passwordHash), purpose, expiresAt } }); return token;
@@ -134,7 +132,7 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
   };
   const session = async (a: any) => {
     const sid = randomUUID(); await crearSesion(db, { id: sid, tipo: a.platform ? 'SUPER_ADMIN' : 'TENANT', sujetoId: a.id, tenantId: a.tenantId, expiresAt: new Date(Date.now()+600000), passwordHash: a.passwordHash });
-    return { sid, sub: a.id, type: a.platform ? 'super_admin' : 'tenant', tenantId: a.tenantId, ...(a.platform && { mfa: true }) };
+    return { sid, sub: a.id, type: a.platform ? 'super_admin' : 'tenant', tenantId: a.tenantId };
   };
   const fresh = (a: any) => a.platform ? db.superAdmin.findUniqueOrThrow({ where: { id: a.id } }) : db.usuario.findUniqueOrThrow({ where: { id: a.id } });
   const bloquear = async (a: any) => {
@@ -227,6 +225,29 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
       const propio = await account(false, 'CAJERO', 'A');
       await expect(usuarios.update('A', propio.id, { username: (b as any).username } as any, admin.id)).rejects.toThrow('no está disponible');
     });
+    it('el mismo correo escrito con otras mayúsculas en dos empresas es ambiguo: 401 genérico, sin contadores ni sesiones; el enlace privado acota la búsqueda', async () => {
+      const a = await account(false, 'CAJERO', 'A'), b = await account(false, 'CAJERO', 'B');
+      const base = `Mixto-${randomUUID().slice(0, 8)}@example.invalid`;
+      await db.usuario.update({ where: { id: a.id }, data: { email: base } });
+      await db.usuario.update({ where: { id: b.id }, data: { email: base.toLowerCase() } });
+      const before = await db.sesionAuth.count();
+      const res = newRes();
+      const error = await failure(login(base.toUpperCase(), password, nextIp(), res));
+      const inexistente = await failure(login(`nadie-${randomUUID()}@example.invalid`, password));
+      expect(error.getStatus()).toBe(401);
+      expect(error.getResponse()).toEqual(inexistente.getResponse());
+      expect(res.cookie).not.toHaveBeenCalled();
+      expect(await db.sesionAuth.count()).toBe(before);
+      expect((await fresh(a) as any).intentosFallidos).toBe(0);
+      expect((await fresh(b) as any).intentosFallidos).toBe(0);
+      // Con el enlace privado de la empresa B, la misma escritura resuelve solo su cuenta.
+      expect(((await login(base, password, nextIp(), newRes(), { tenantId: 'B' })) as any).user?.id).toBe(b.id);
+      // Un correo de Super Admin no lo puede usar un negocio: en el login sin empresa gana la cuenta de plataforma.
+      const sa = await account(true);
+      await db.usuario.update({ where: { id: a.id }, data: { email: sa.email } });
+      expect(await failure(login(sa.email, 'Clave-Incorrecta-1'))).toBeDefined();
+      expect(((await loginSa(sa)) as any).type).toBe('super_admin');
+    });
     it('dos altas simultáneas con el mismo identificador en empresas distintas: solo una gana', async () => {
       const usuarios = new UsuariosService(db as any);
       const adminA = await account(false, 'ADMIN', 'A'), adminB = await account(false, 'ADMIN', 'B');
@@ -240,66 +261,43 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
     });
   });
 
-  describe('MFA obligatorio del Super Admin', () => {
-    it('la contraseña correcta sola no abre sesión: el servidor pide el código y no cuenta un fallo', async () => {
+  describe('Super Admin sin segundo factor (decisión del propietario: MFA retirado)', () => {
+    it('la contraseña correcta abre sesión de Super Admin sin pedir código, y un mfaCode heredado se ignora', async () => {
       const sa = await account(true);
       const res = newRes();
-      const paso = await failure(login(sa.email, password, nextIp(), res));
-      expect(paso.getStatus()).toBe(401);
-      expect(paso.getResponse()).toMatchObject({ code: 'MFA_REQUERIDO' });
-      expect(res.cookie).not.toHaveBeenCalled();
-      expect((await fresh(sa) as any).intentosFallidos).toBe(0);
-      expect(await db.sesionAuth.count({ where: { sujetoId: sa.id } })).toBe(0);
-    });
-    it('TOTP real: entra una vez; el mismo código no se reutiliza; la sesión exige mfa y un Super Admin sin MFA no conserva acceso', async () => {
-      const sa = await account(true);
-      const step = Math.floor(Date.now() / 30000);
-      const res = newRes();
-      const result: any = await auth.login({ usuario: sa.email.toUpperCase(), password, mfaCode: totp(SECRETO_TOTP, step) }, res, nextIp());
+      const result: any = await auth.login({ usuario: sa.email.toUpperCase(), password, mfaCode: '000000' }, res, nextIp());
       expect(result.type).toBe('super_admin');
       const claims: any = jwt.decode(result.accessToken);
-      expect(claims).toMatchObject({ mfa: true, type: 'super_admin' });
+      expect(claims).toMatchObject({ type: 'super_admin' });
+      expect(claims.mfa).toBeUndefined();
       await expect(strategy.validate(claims)).resolves.toMatchObject({ sub: sa.id, type: 'super_admin' });
       expect(res.cookie).toHaveBeenCalledWith('superAdminRefreshToken', expect.any(String), expect.any(Object));
-      // Anti-replay: el mismo paso TOTP no vuelve a servir.
-      const replay = await failure(auth.login({ usuario: sa.email, password, mfaCode: totp(SECRETO_TOTP, step) }, newRes(), nextIp()));
-      expect(replay.getStatus()).toBe(401);
-      // Un token sin el reclamo mfa no autoriza, y retirar el secreto corta las sesiones existentes.
-      await expect(strategy.validate({ ...claims, mfa: undefined })).rejects.toThrow();
-      await db.superAdmin.update({ where: { id: sa.id }, data: { mfaSecret: null } });
+    });
+
+    it('una contraseña incorrecta cuenta para los límites y responde el 401 genérico, sin código ni reclamo MFA', async () => {
+      const sa = await account(true);
+      const error: any = await failure(login(sa.email, 'Clave-Incorrecta-1'));
+      expect(error.getStatus()).toBe(401);
+      expect(error.getResponse()).toEqual({ statusCode: 401, message: 'Credenciales inválidas', error: 'Unauthorized' });
+      expect((await fresh(sa) as any).intentosFallidos).toBe(1); // Admin y Super Admin no se bloquean; el contador de fallos sí cuenta.
+      expect(await db.sesionAuth.count({ where: { sujetoId: sa.id } })).toBe(0);
+    });
+
+    it('un token sin reclamos de Super Admin, o con la cuenta desactivada, no autoriza', async () => {
+      const sa = await account(true);
+      const result: any = await auth.login({ usuario: sa.email, password }, newRes(), nextIp());
+      const claims: any = jwt.decode(result.accessToken);
+      await expect(strategy.validate({ ...claims, type: 'tenant' })).rejects.toThrow();
+      await db.superAdmin.update({ where: { id: sa.id }, data: { activo: false } });
       await expect(strategy.validate(claims)).rejects.toThrow();
     });
-    it('un código incorrecto cuenta para los límites; un Super Admin sin MFA debe enrolarlo antes de entrar', async () => {
-      const sa = await account(true);
-      expect((await failure(auth.login({ usuario: sa.email, password, mfaCode: '000000' }, newRes(), nextIp()))).getStatus()).toBe(401);
-      const sinMfa = await account(true);
-      await db.superAdmin.update({ where: { id: sinMfa.id }, data: { mfaSecret: null } });
-      const enrolar = await failure(auth.login({ usuario: sinMfa.email, password, mfaCode: '123456' }, newRes(), nextIp()));
-      expect(enrolar.getResponse()).toMatchObject({ code: 'MFA_ENROLAMIENTO_REQUERIDO' });
-      expect(await db.sesionAuth.count({ where: { sujetoId: sinMfa.id } })).toBe(0);
-      // Enrolamiento inicial: contraseña + control del correo de la cuenta, luego TOTP; nunca un atajo sin MFA.
-      const enviados = deliveries.length;
-      await service.requestBootstrap(sinMfa.email, password, nextIp().ip);
-      expect(deliveries.length).toBe(enviados + 1);
-      const { secret, token } = await service.bootstrapMfa(deliveries.at(-1)!.token, password);
-      const { recoveryCodes } = await service.confirmMfa({ token, secret, mfaCode: totp(secret, Math.floor(Date.now() / 30000)) });
-      expect(recoveryCodes).toHaveLength(10);
-      expect(((await auth.login({ usuario: sinMfa.email, password, mfaCode: recoveryCodes[0] }, newRes(), nextIp())) as any).type).toBe('super_admin');
-    }, 30000);
-    it('una cuenta de negocio con MFA configurado también lo exige solo después de su contraseña', async () => {
-      const admin = await account(false, 'ADMIN');
-      await db.usuario.update({ where: { id: admin.id }, data: { mfaSecret: sealSecret(SECRETO_TOTP, admin.id, config) } });
-      expect((await failure(login(admin.email, 'mala-clave'))).getResponse()).not.toHaveProperty('code');
-      expect((await failure(login(admin.email))).getResponse()).toMatchObject({ code: 'MFA_REQUERIDO' });
-      expect(((await login(admin.email, password, nextIp(), newRes(), { mfaCode: await codigo(admin) })) as any).type).toBe('tenant');
-    });
-    it('/admin/auth/login exige el mismo MFA y no acepta cuentas de negocio', async () => {
+
+    it('/admin/auth/login no acepta cuentas de negocio y entrega sesión solo al Super Admin', async () => {
       const sa = await account(true), admin = await account(false, 'ADMIN');
       // El controlador de plataforma no está montado en esta matriz: se usa el servicio, igual que en producción.
       const { SuperAdminService } = await import('../src/super-admin/super-admin.service');
       const plataforma = new SuperAdminService(db as any, jwt, config, {} as any, {} as any);
-      expect((await failure(plataforma.login({ email: sa.email, password }, newRes(), nextIp()))).getResponse()).toMatchObject({ code: 'MFA_REQUERIDO' });
-      expect(await plataforma.login({ email: sa.email, password, mfaCode: await codigo(sa) }, newRes(), nextIp())).toMatchObject({ accessToken: expect.any(String), superAdmin: { id: sa.id } });
+      expect(await plataforma.login({ email: sa.email, password }, newRes(), nextIp())).toMatchObject({ accessToken: expect.any(String), superAdmin: { id: sa.id } });
       expect((await failure(plataforma.login({ email: admin.email, password }, newRes(), nextIp()))).getStatus()).toBe(401);
     });
   });
@@ -449,14 +447,14 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
       const payload = await session(u);
       await bloquear(u);
       await expect(service.adminReset(admin.identity, { usuarioId: u.id, currentPassword: 'equivocada' })).rejects.toThrow();
-      // El Super Admin se reautentica con contraseña Y segundo factor.
-      await expect(service.adminReset(sa.identity, { usuarioId: u.id, tenantId: 'A', currentPassword: password })).rejects.toThrow();
-      for (const actor of [{ identity: admin.identity, tenantId: undefined, mfa: undefined }, { identity: sa.identity, tenantId: 'A', mfa: await codigo(sa) }]) {
-        const result = await service.adminReset(actor.identity, { usuarioId: u.id, tenantId: actor.tenantId, currentPassword: password, mfaCode: actor.mfa });
+      // Reautenticación con la contraseña del actor; sin contraseña correcta no hay enlace.
+      await expect(service.adminReset(sa.identity, { usuarioId: u.id, tenantId: 'A', currentPassword: 'equivocada' })).rejects.toThrow();
+      for (const actor of [{ identity: admin.identity, tenantId: undefined }, { identity: sa.identity, tenantId: 'A' }]) {
+        const result = await service.adminReset(actor.identity, { usuarioId: u.id, tenantId: actor.tenantId, currentPassword: password });
         expect(result).not.toHaveProperty('password');
         await expect(strategy.validate(payload)).rejects.toThrow();
       }
-      const link = await service.adminReset(sa.identity, { usuarioId: u.id, tenantId: 'A', currentPassword: password, mfaCode: await codigo(sa) });
+      const link = await service.adminReset(sa.identity, { usuarioId: u.id, tenantId: 'A', currentPassword: password });
       const concurrent = await Promise.allSettled([service.reset({ token: link.token, password: replacement }), service.reset({ token: link.token, password: replacement })]);
       expect(concurrent.filter(r => r.status === 'fulfilled')).toHaveLength(1);
       const after: any = await fresh(u);
@@ -468,7 +466,7 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
   });
 
   describe('recuperación de Admin y Super Admin por contraseña temporal', () => {
-    it.each([true, false])('platform=%s: tras el tercer fallo llega por correo verificado, exige MFA al Super Admin y contraseña nueva antes de operar', async platform => {
+    it.each([true, false])('platform=%s: tras el tercer fallo llega por correo verificado, entra con la temporal sin segundo factor y exige contraseña nueva antes de operar', async platform => {
       const a = await account(platform), old = await session(a);
       const logs: string[] = [];
       const spies = (['log', 'warn', 'error', 'debug', 'verbose'] as const).map(level => vi.spyOn(Logger.prototype, level).mockImplementation((...args: any[]) => { logs.push(JSON.stringify(args)); }));
@@ -493,16 +491,8 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
         expect(stored.expiresAt.getTime() - Date.now()).toBeGreaterThan(590000);
         // Pedirla no invalida la contraseña actual (un tercero no deja fuera al titular)... pero no la usamos aquí.
         const sessions = await db.sesionAuth.count({ where: { sujetoId: a.id } });
-        if (platform) {
-          // MFA obligatorio también en la recuperación: sin código, la temporal no se consume.
-          const paso = await failure(login(a.email, temporal));
-          expect(paso.getResponse()).toMatchObject({ code: 'MFA_REQUERIDO' });
-          expect(await db.authAction.count({ where: { hash: tokenHash(temporal) } })).toBe(1);
-          expect((await failure(login(a.email, temporal, nextIp(), newRes(), { mfaCode: '000000' }))).getStatus()).toBe(401);
-          expect(await db.authAction.count({ where: { hash: tokenHash(temporal) } })).toBe(1);
-        }
         const res = newRes();
-        const entrada: any = await login(a.email, temporal, nextIp(), res, platform ? { mfaCode: await codigo(a) } : {});
+        const entrada: any = await login(a.email, temporal, nextIp(), res);
         expect(entrada).toMatchObject({ type: 'password_change_required', requiereCambioPassword: true, expiresIn: 600 });
         expect(entrada).not.toHaveProperty('accessToken');
         expect(res.cookie).not.toHaveBeenCalled();
@@ -511,17 +501,17 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
         // Usarla revoca de inmediato las sesiones anteriores, aunque aún no defina la nueva.
         await expect(strategy.validate(old)).rejects.toThrow();
         // Un solo uso: la misma temporal ya no sirve.
-        expect((await failure(login(a.email, temporal, nextIp(), newRes(), platform ? { mfaCode: await codigo(a) } : {}))).getStatus()).toBe(401);
+        expect((await failure(login(a.email, temporal))).getStatus()).toBe(401);
         // Contraseña nueva obligatoria, con la política de contraseñas; igual a la actual se rechaza.
         const http = request(app.getHttpServer());
         await http.post('/api/auth/security/forced-change').send({ token: entrada.cambioToken, password: 'weak' }).expect(400);
         await expect(service.forcedChange({ token: entrada.cambioToken, password })).rejects.toThrow();
         const [ok, dup] = await Promise.allSettled([service.forcedChange({ token: entrada.cambioToken, password: replacement }), service.forcedChange({ token: entrada.cambioToken, password: replacement })]);
         expect([ok, dup].filter(r => r.status === 'fulfilled')).toHaveLength(1);
-        // La contraseña anterior ya no sirve; la nueva funciona (con MFA para el Super Admin) y reinicia contadores.
+        // La contraseña anterior ya no sirve; la nueva funciona y reinicia contadores.
         expect((await failure(login(a.email, password))).getStatus()).toBe(401);
         expect(await db.authAction.count({ where: { sujetoId: a.id } })).toBe(0);
-        const ingreso: any = platform ? await loginSa(a, replacement) : await login(a.email, replacement);
+        const ingreso: any = await login(a.email, replacement);
         expect(ingreso.type).toBe(platform ? 'super_admin' : 'tenant');
         expect((await fresh(a) as any).intentosFallidos).toBe(0);
         expect(await db.authEvent.count({ where: { sujetoId: a.id, event: { in: ['TEMP_PASSWORD_ISSUED', 'TEMP_PASSWORD_USED', 'PASSWORD_FORCED_CHANGE'] } } })).toBe(3);
@@ -578,11 +568,9 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
       // Probar la temporal prueba el correo: la pausa por identificador se levanta y la contraseña vigente vuelve a servir.
       expect(((await authProd.login({ usuario: a.email, password }, newRes(), nextIp())) as any).type).toBe('tenant');
     });
-    it('responde igual, y no envía nada, para cuentas que no cumplen: antes del tercer fallo, sin correo verificado, empleado, Super Admin sin MFA, inexistente o ambiguo', async () => {
+    it('responde igual, y no envía nada, para cuentas que no cumplen: antes del tercer fallo, sin correo verificado, empleado, inexistente o ambiguo', async () => {
       const antes = await account(), sinCorreo = await account(false, 'ADMIN', 'A', false), empleado = await account(false, 'CAJERO'), elegible = await account();
-      const saSinMfa = await account(true);
-      await db.superAdmin.update({ where: { id: saSinMfa.id }, data: { mfaSecret: null } });
-      for (const a of [sinCorreo, empleado, elegible, saSinMfa]) for (let i = 0; i < 3; i++) await failure(login(a.email, 'mala'));
+      for (const a of [sinCorreo, empleado, elegible]) for (let i = 0; i < 3; i++) await failure(login(a.email, 'mala'));
       const ambiguo = [await account(false, 'ADMIN', 'A'), await account(false, 'ADMIN', 'B')];
       const comun = `repetido-${randomUUID()}@example.invalid`;
       for (const a of ambiguo) {
@@ -594,7 +582,7 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
       const uno = await service.request({ usuario: elegible.email }, nextIp().ip);
       expect(Date.now() - inicio).toBeGreaterThanOrEqual(8400);
       expect(temporals.length).toBe(before + 1);
-      for (const usuario of [antes.email, sinCorreo.email, empleado.email, saSinMfa.email, 'absent@example.invalid', comun]) {
+      for (const usuario of [antes.email, sinCorreo.email, empleado.email, 'absent@example.invalid', comun]) {
         const t0 = Date.now();
         expect(await service.request({ usuario }, nextIp().ip)).toEqual(uno);
         expect(Date.now() - t0).toBeGreaterThanOrEqual(8400);
@@ -631,8 +619,8 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
     }, 30000);
     it('si Gmail rechaza el envío, no queda ninguna temporal ni enlace utilizable y la respuesta no cambia', async () => {
       const a = await account(), sa = await account(true);
-      await db.superAdmin.update({ where: { id: sa.id }, data: { mfaSecret: null } });
       for (let i = 0; i < 3; i++) await failure(login(a.email, 'mala'));
+      for (let i = 0; i < 3; i++) await failure(login(sa.email, 'mala'));
       const rechazo = vi.fn().mockRejectedValue(Object.assign(new Error('535-5.7.8 Username and Password not accepted abcdwxyzabcdwxyz'), { responseCode: 535 }));
       const { svc } = servicioCon(rechazo);
       const elegible = await svc.request({ usuario: a.email }, nextIp().ip);
@@ -643,9 +631,9 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
       expect(verificacion.getStatus()).toBe(503);
       expect(JSON.stringify(verificacion.getResponse())).not.toMatch(/535|abcdwxyz/);
       expect(await db.authAction.count({ where: { sujetoId: a.id, purpose: 'VERIFY_EMAIL' } })).toBe(0);
-      // Enrolamiento MFA inicial del Super Admin: tampoco queda el enlace.
-      await svc.requestBootstrap(sa.email, password, nextIp().ip);
-      expect(await db.authAction.count({ where: { sujetoId: sa.id, purpose: 'BOOTSTRAP_MFA' } })).toBe(0);
+      // Recuperación del Super Admin por la misma vía: tampoco queda la temporal.
+      await svc.request({ usuario: sa.email }, nextIp().ip);
+      expect(await db.authAction.count({ where: { sujetoId: sa.id, purpose: 'TEMP_PASSWORD' } })).toBe(0);
       expect(rechazo).toHaveBeenCalledTimes(3);
     }, 60000);
   });
@@ -668,11 +656,10 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
     expect(concurrent.filter(r => r.status === 'fulfilled')).toHaveLength(1);
     expect((await db.usuario.findUniqueOrThrow({ where: { id: outsider.id } })).passwordHash).toBe(outsider.passwordHash);
   });
-  it('un Admin sin segundo factor no restablece a otro Admin; con MFA sí', async () => {
-    const admin = await account(false, 'ADMIN', 'A'), peer = await account(false, 'ADMIN', 'A');
+  it('un Admin no restablece a otro Admin de su empresa (sin segundo factor); el Super Admin sí puede', async () => {
+    const admin = await account(false, 'ADMIN', 'A'), peer = await account(false, 'ADMIN', 'A'), sa = await account(true);
     await expect(service.adminReset(admin.identity, { usuarioId: peer.id, currentPassword: password })).rejects.toThrow('no autorizado');
-    await db.usuario.update({ where: { id: admin.id }, data: { mfaSecret: sealSecret(SECRETO_TOTP, admin.id, config) } });
-    await expect(service.adminReset(admin.identity, { usuarioId: peer.id, currentPassword: password, mfaCode: await codigo(admin) })).resolves.toMatchObject({ token: expect.any(String) });
+    await expect(service.adminReset(sa.identity, { usuarioId: peer.id, tenantId: 'A', currentPassword: password })).resolves.toMatchObject({ token: expect.any(String) });
   });
   it('rejects expired tokens, changed-email tokens and changed-password tokens', async () => {
     const a = await account(false, 'CAJERO');
@@ -696,12 +683,13 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
       expect(((await login(a.email, replacement)) as any).type).toBe('tenant');
     }
   });
-  it('Super Admin cambia su contraseña con la actual y su segundo factor, y cierra las sesiones de soporte que originó', async () => {
+  it('Super Admin cambia su contraseña con la actual y cierra las sesiones de soporte que originó', async () => {
     const sa = await account(true), payload = await session(sa);
     const soporte = randomUUID();
     await db.sesionAuth.create({ data: { id: soporte, tipo: 'SOPORTE', sujetoId: 'algun-usuario', tenantId: 'A', expiresAt: new Date(Date.now() + 600000) } });
-    await expect(service.change(sa.identity, { currentPassword: password, password: replacement })).rejects.toThrow();
-    await service.change(sa.identity, { currentPassword: password, password: replacement, mfaCode: await codigo(sa) });
+    await expect(service.change(sa.identity, { currentPassword: 'Clave-Incorrecta-1', password: replacement })).rejects.toThrow();
+    expect((await db.sesionAuth.findUniqueOrThrow({ where: { id: soporte } })).revokedAt).toBeNull();
+    await service.change(sa.identity, { currentPassword: password, password: replacement });
     await expect(strategy.validate(payload)).rejects.toThrow();
     expect((await db.sesionAuth.findUniqueOrThrow({ where: { id: soporte } })).revokedAt).toBeInstanceOf(Date);
   });
@@ -765,12 +753,12 @@ describe('Login único, MFA del Super Admin, recuperación por contraseña tempo
     expect(entrada.headers['set-cookie']).toBeUndefined();
     await http.post('/api/auth/security/forced-change').send({ token: entrada.body.cambioToken, password: 'Nueva-Clave-2026' }).expect(200);
     await http.post('/api/auth/login').send({ usuario: admin.email, password: 'Nueva-Clave-2026' }).expect(200);
-    // Super Admin por HTTP: 401 con MFA_REQUERIDO tras la contraseña; con código, 200 y cookie de plataforma.
+    // Super Admin por HTTP: con su contraseña, 200 y cookie de plataforma (sin segundo factor).
     const sa = await account(true);
-    const paso = await http.post('/api/auth/login').send({ usuario: sa.email, password }).expect(401);
-    expect(paso.body).toMatchObject({ code: 'MFA_REQUERIDO' });
-    expect(paso.headers['set-cookie']).toBeUndefined();
-    const plataforma = await http.post('/api/auth/login').send({ usuario: sa.email, password, mfaCode: await codigo(sa) }).expect(200);
+    const fallo = await http.post('/api/auth/login').send({ usuario: sa.email, password: 'Clave-Incorrecta-1' }).expect(401);
+    expect(fallo.body).toEqual({ statusCode: 401, message: 'Credenciales inválidas', error: 'Unauthorized' });
+    expect(fallo.headers['set-cookie']).toBeUndefined();
+    const plataforma = await http.post('/api/auth/login').send({ usuario: sa.email, password }).expect(200);
     expect(plataforma.body.type).toBe('super_admin');
     expect(String(plataforma.headers['set-cookie'])).toContain('superAdminRefreshToken=');
   }, 60000);
