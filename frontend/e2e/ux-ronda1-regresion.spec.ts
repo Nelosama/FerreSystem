@@ -134,8 +134,11 @@ test.describe('POS: método de pago, colores de marca y cobro', () => {
       await boton.click();
       await expect(boton).toHaveAttribute('aria-pressed', 'true');
       await expect(page.locator('.pos-metodo[aria-pressed="true"]')).toHaveCount(1);
-      const [elegido, otro] = await Promise.all([boton, page.locator('.pos-metodo[aria-pressed="false"]').first()].map(b => b.evaluate(el => getComputedStyle(el).backgroundColor)));
-      expect(elegido).not.toEqual(otro);
+      // El color cambia con una transición de 120 ms: se espera a que se asiente en vez de leerlo en mitad de la animación.
+      await expect.poll(async () => {
+        const [elegido, otro] = await Promise.all([boton, page.locator('.pos-metodo[aria-pressed="false"]').first()].map(b => b.evaluate(el => getComputedStyle(el).backgroundColor)));
+        return elegido !== otro;
+      }).toBe(true);
     }
   });
 
