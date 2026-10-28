@@ -47,13 +47,13 @@ export const AdminTopbar: React.FC = () => {
         <NotificacionesBell />
         <span className="admin-topbar-divisor" aria-hidden="true" />
         {user && (
-          <div className="admin-topbar-perfil">
+          <Link to="/mi-cuenta" aria-label={t('security.account')} title={t('security.account')} className="admin-topbar-perfil" style={{ color: 'inherit', textDecoration: 'none' }}>
             <span className="admin-topbar-avatar" aria-hidden="true">{iniciales}</span>
             <span className="admin-topbar-perfil-texto">
               <strong>{user.nombre}</strong>
               <small>{etiquetaRol}</small>
             </span>
-          </div>
+          </Link>
         )}
         <button type="button" onClick={cerrarSesion} className="shell-topbar-logout" title={t('topbar.logout_title')}>
           <LogOut size={14} strokeWidth={2.4} aria-hidden="true" />
