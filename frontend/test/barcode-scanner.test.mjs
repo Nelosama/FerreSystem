@@ -15,13 +15,14 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import ts from 'typescript';
 
 // ─── Utilidad para transpilar y ejecutar un .ts en un contexto dado ───────────
 
 function loadTs(relPath, globals = {}, mocks = {}) {
-  const source = fs.readFileSync(new URL(`../src/utils/${relPath}`, import.meta.url).pathname, 'utf8');
+  const source = fs.readFileSync(fileURLToPath(new URL(`../src/utils/${relPath}`, import.meta.url)), 'utf8');
   const { outputText } = ts.transpileModule(source, {
     fileName: relPath,
     compilerOptions: {
@@ -285,7 +286,7 @@ describe('createImageDecoder() — luminancia', () => {
   }
 
   function loadDecoder(zxingMock) {
-    const source = fs.readFileSync(new URL('../src/utils/zxingDecoder.ts', import.meta.url).pathname, 'utf8');
+    const source = fs.readFileSync(fileURLToPath(new URL('../src/utils/zxingDecoder.ts', import.meta.url)), 'utf8');
     const { outputText } = ts.transpileModule(source, {
       fileName: 'zxingDecoder.ts',
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, strict: false },
