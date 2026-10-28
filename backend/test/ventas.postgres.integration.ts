@@ -360,6 +360,9 @@ describe('Ventas / PostgreSQL aislado', () => {
       const commercial=await fetch(`${base}/productos/comercial`,{headers:cashierHeaders});expect(commercial.status).toBe(200);
       const catalog=await commercial.json() as any[];expect(catalog[0].precioVenta).toBe(10);expect(catalog[0].precioCosto).toBeUndefined();
       expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify({solicitudId:randomUUID(),detalles:[{productoId,cantidad:1,precioUnitario:1}]})})).status).toBe(409);
+      // Excepción de precio por HTTP: motivo validado por el DTO; un cajero no la obtiene aunque envíe un motivo.
+      expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify({solicitudId:randomUUID(),excepcionPrecio:{motivo:'corto'},detalles:[{productoId,cantidad:1,precioUnitario:1}]})})).status).toBe(400);
+      expect((await fetch(`${base}/ventas`,{method:'POST',headers:cashierHeaders,body:JSON.stringify({solicitudId:randomUUID(),excepcionPrecio:{motivo:'Precio negociado con el cliente'},detalles:[{productoId,cantidad:1,precioUnitario:1}]})})).status).toBe(403);
 
       const recoveryId = randomUUID();
       expect((await fetch(`${base}/ventas/solicitudes/${recoveryId}`, { headers: cashierHeaders })).status).toBe(200);

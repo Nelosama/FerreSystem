@@ -12,6 +12,7 @@ import { useTenant } from '../context/TenantContext';
 import type { ProductItem } from '../types';
 import { api } from '../utils/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { aplicarPreciosVigentes } from '../utils/preciosCarrito';
 import { readRecovery, saveDraft, type PendingSale, type CartItem } from '../utils/posRecovery';
 import { useI18n } from '../context/I18nContext';
 import {
@@ -45,6 +46,9 @@ const pagoElectronicoDesde = (metodo: string, aut: { referencia: string; termina
 
 // Tarjetas del catálogo pintadas a la vez: con catálogos grandes la búsqueda acota y «Mostrar más» amplía.
 const TARJETAS_POR_PAGINA = 120;
+
+// Mínimo entre lecturas del catálogo disparadas por la interacción del cajero (clic, tecla, volver a la ventana).
+const SINCRONIZACION_MINIMA_MS = 3_000;
 
 // Adapta un producto del catálogo comercial al formato del POS.
 const mapearProductoPOS = (p: any): ProductItem => ({
@@ -129,11 +133,16 @@ export const POSPage: React.FC = () => {
   const [providers,setProviders]=useState<any[]>([]);
   const [special,setSpecial]=useState(!!initialSale?.cart[0]?.sinInventario);
   const [specialProvider,setSpecialProvider]=useState(initialSale?.cart[0]?.proveedorId || '');
-  // Catálogo: se refresca solo cada 60 s. Solo reemplaza la lista de productos; no cambia precios del carrito
-  // (eso sigue siendo una acción explícita del cajero) ni muestra errores sobre una venta en curso.
-  useAutoRefresh<ProductItem[]>({
-    load: signal => api.get('/productos/comercial', { signal }).then(r => r.data.map(mapearProductoPOS)),
-    apply: data => setProductos(data),
+  // Cada lectura recibe un número al iniciarse; solo se aplica si es más reciente que la última aplicada.
+  const secuenciaLecturas = useRef(0);
+  const secuenciaAplicada = useRef(0);
+  const ultimoCatalogo = useRef<{ key: string; data: ProductItem[] } | null>(null);
+  // Catálogo y precios del carrito se sincronizan solos: cada 60 s y en la siguiente interacción del cajero
+  // (con un mínimo entre lecturas). Un cambio de precio hecho por el Admin actualiza el carrito y el total sin botón ni aviso.
+  // No se toca un carrito ya enviado (venta pendiente sin corregir) ni se muestran errores sobre una venta en curso.
+  useAutoRefresh<{ secuencia: number; data: ProductItem[] }>({
+    load: signal => { const secuencia = ++secuenciaLecturas.current; return api.get('/productos/comercial', { signal }).then(r => ({ secuencia, data: r.data.map(mapearProductoPOS) as ProductItem[] })); },
+    apply: ({ secuencia, data }) => aplicarCatalogoRef.current(data, secuencia),
     intervalMs: 60_000,
     immediate: false,
     deps: [tenant.id, user?.id],
@@ -154,6 +163,27 @@ export const POSPage: React.FC = () => {
   const [numeroVentaGenerado, setNumeroVentaGenerado] = useState<number | null>(null);
   const [ventaRegistrada, setVentaRegistrada] = useState<any>(null);
   const edicionBloqueada = procesandoVenta || comprobando || (!!ventaPendiente && !corrigiendoPendiente) || modalTicket || !!storageError || loadedKey !== pendingKey;
+  // Sincronización de precios: el carrito solo cambia cuando el cajero podría editarlo.
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
+  const carritoEditableRef = useRef(false);
+  carritoEditableRef.current = !edicionBloqueada;
+  const ultimaSincronizacion = useRef(0);
+  const lecturaCatalogo = useRef<{ key: string; promesa: Promise<ProductItem[] | null> } | null>(null);
+  const aplicarCatalogo = (data: ProductItem[], secuencia: number) => {
+    if (secuencia <= secuenciaAplicada.current) return;
+    secuenciaAplicada.current = secuencia;
+    ultimoCatalogo.current = { key: activeKey.current, data };
+    ultimaSincronizacion.current = Date.now();
+    setProductos(data);
+    if (!carritoEditableRef.current) return;
+    const vigente = aplicarPreciosVigentes(cartRef.current, data);
+    if (!vigente.cambios.length) return;
+    cartRef.current = vigente.carrito;
+    setCart(vigente.carrito);
+  };
+  const aplicarCatalogoRef = useRef(aplicarCatalogo);
+  aplicarCatalogoRef.current = aplicarCatalogo;
   // Cliente plegado: la mayoría de ventas son a consumidor final. Crédito exige un cliente registrado, así que se abre.
   const [clienteAbierto, setClienteAbierto] = useState(false);
   const clienteVisible = clienteAbierto || (metodoPago === 'CREDITO' && !clienteId);
@@ -294,14 +324,56 @@ export const POSPage: React.FC = () => {
     }
   }, []);
 
+  // Lectura del catálogo con un reintento ante fallos de red o del servidor. Devuelve null si la sesión o la venta
+  // cambiaron mientras tanto. El número de secuencia se toma al iniciar cada intento.
+  const consultarCatalogo = useCallback(async (): Promise<ProductItem[] | null> => {
+    const requestKey = activeKey.current;
+    for (let intento = 1; ; intento++) {
+      const secuencia = ++secuenciaLecturas.current;
+      try {
+        const response = await api.get('/productos/comercial');
+        if (requestKey !== activeKey.current) return null;
+        const data: ProductItem[] = response.data.map(mapearProductoPOS);
+        aplicarCatalogoRef.current(data, secuencia);
+        // También el consumidor (cobro) debe recibir la última respuesta aplicada. Descartar la respuesta
+        // antigua solo al pintar el catálogo permitía que handleCobrar revirtiera el carrito con ella.
+        return ultimoCatalogo.current?.key === requestKey ? ultimoCatalogo.current.data : null;
+      } catch (err: any) {
+        if (requestKey !== activeKey.current) return null;
+        const status = err?.response?.status;
+        if (intento >= 2 || status === 401 || status === 403) throw err;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+  }, []);
+  // Lecturas en segundo plano: una a la vez; las interacciones seguidas comparten la que está en curso.
+  const leerCatalogo = useCallback((): Promise<ProductItem[] | null> => {
+    const key = activeKey.current;
+    if (lecturaCatalogo.current?.key === key) return lecturaCatalogo.current.promesa;
+    const lectura = { key, promesa: consultarCatalogo().finally(() => {
+      if (lecturaCatalogo.current === lectura) lecturaCatalogo.current = null;
+    }) };
+    lecturaCatalogo.current = lectura;
+    return lectura.promesa;
+  }, [consultarCatalogo]);
+
+  // En segundo plano: un fallo no interrumpe al cajero; el cobro vuelve a validar los precios antes de enviar.
+  const sincronizarAlInteractuar = useCallback(() => {
+    if (lecturaCatalogo.current || Date.now() - ultimaSincronizacion.current < SINCRONIZACION_MINIMA_MS) return;
+    void leerCatalogo().catch(() => undefined);
+  }, [leerCatalogo]);
+  // Volver a la ventana del POS también cuenta como interacción.
+  useEffect(() => {
+    window.addEventListener('focus', sincronizarAlInteractuar);
+    return () => window.removeEventListener('focus', sincronizarAlInteractuar);
+  }, [sincronizarAlInteractuar]);
+
   const fetchProductos = useCallback(async () => {
     const requestKey=activeKey.current;
     setErrorText(null);
     try {
-      const response = await api.get('/productos/comercial');
-      if(requestKey!==activeKey.current)return;
-      const data = response.data.map(mapearProductoPOS);
-      setProductos(data);
+      const data = await leerCatalogo();
+      if(!data||requestKey!==activeKey.current)return;
       return data;
     } catch (err: any) {
       if(requestKey!==activeKey.current)return;
@@ -315,7 +387,7 @@ export const POSPage: React.FC = () => {
             ? 'El servidor no pudo cargar los productos. Intenta nuevamente en unos momentos.'
             : 'No se pudo conectar con la API de productos. Revisa la conexión e intenta nuevamente.');
     }
-  }, []);
+  }, [leerCatalogo]);
 
   useEffect(() => {
     setProductos([]);fetchProductos();
@@ -524,10 +596,47 @@ export const POSPage: React.FC = () => {
     let enviado = false;
     let requestIdentity = ventaPendiente?.solicitudId;
     try {
+      const borradorAntes = localStorage.getItem(draftKey);
+      // Precio vigente antes de enviar: sin confirmarlo no se cobra. Va antes de leer la recuperación para no abrir
+      // una espera entre esa lectura y la escritura del pendiente (otra pestaña podría haberlo cambiado). Si cambió, el total
+      // se actualiza en pantalla y la venta no se envía hasta que el cajero vea y cobre el total nuevo.
+      // Una venta pendiente sin corregir se reenvía idéntica (el servidor rechaza un precio antiguo con 409).
+      // El carrito que se valida es el que se enviará: al corregir una venta pendiente, el carrito corregido (el efecto
+      // del borrador lo guarda en el pendiente), no el que tenía el pendiente al crearse.
+      let carritoValidado: CartItem[] | null = null;
+      if (!ventaPendiente || corrigiendoPendiente) {
+        // Carrito tomado antes de la lectura: un cambio aplicado durante la espera no puede pasar inadvertido.
+        const carritoAEnviar = cartRef.current;
+        // Lectura propia de este intento: nunca se reutiliza una consulta que empezó antes del clic.
+        let catalogo: ProductItem[] | null = null;
+        try { catalogo = await consultarCatalogo(); } catch { catalogo = null; }
+        if (activeKey.current !== requestKey) return;
+        if (!ventaPendiente && localStorage.getItem(draftKey) !== borradorAntes) {
+          restoreRecovery();
+          setErrorText('El ticket cambió mientras se validaba el precio. Revíselo y vuelva a cobrar; la venta no se registró.'); return;
+        }
+        if (!catalogo) { setErrorText('No se pudo confirmar el precio vigente de los productos. Revise la conexión y vuelva a cobrar; la venta no se registró.'); return; }
+        const vigente = aplicarPreciosVigentes(carritoAEnviar, catalogo);
+        if (vigente.noDisponibles.length) { setErrorText(`Ya no se puede vender: ${vigente.noDisponibles.join(', ')}. Quítelo del ticket o consulte al administrador; la venta no se registró.`); return; }
+        // Precio distinto durante este intento: la línea y el total se actualizan en silencio (sin aviso, alerta ni mensaje)
+        // y la venta no se envía; el cajero vuelve a pulsar Cobrar con el total nuevo ya visible.
+        if (vigente.cambios.length) {
+          cartRef.current = vigente.carrito; setCart(vigente.carrito);
+          return;
+        }
+        carritoValidado = vigente.carrito;
+      }
       const stored = readRecovery(pendingKey, draftKey);
       if (stored.error) throw new Error(stored.error);
+      if (!ventaPendiente && localStorage.getItem(draftKey) !== borradorAntes) {
+        restoreRecovery();
+        setErrorText('El ticket cambió mientras se validaba el precio. Revíselo y vuelva a cobrar; la venta no se registró.'); return;
+      }
       if (stored.pending && stored.pending.solicitudId !== ventaPendiente?.solicitudId) {
         throw new Error('Hay una venta pendiente en otra pestaña. Recargue y revise esa venta antes de cobrar.');
+      }
+      if (carritoValidado && stored.pending && JSON.stringify(stored.pending.cart) !== JSON.stringify(carritoValidado)) {
+        setErrorText('El ticket cambió mientras se validaba el precio. Revíselo y vuelva a cobrar; la venta no se registró.'); return;
       }
       // Una consulta previa puede haberse quedado antigua o venir de otra pestaña.
       // Consultar cada reintento evita reenviar una venta que ya está registrada.
@@ -541,7 +650,7 @@ export const POSPage: React.FC = () => {
         if (status.estado !== 'NO_REGISTRADA') throw new Error('No se pudo comprobar el estado de la venta.');
       }
       const pending = stored.pending || {
-        solicitudId: pendingIdentity || crypto.randomUUID(), cart, clienteNombre, clienteRtn, clienteId,
+        solicitudId: pendingIdentity || crypto.randomUUID(), cart: carritoValidado || cart, clienteNombre, clienteRtn, clienteId,
         vencimiento: vencimiento || undefined, metodoPago, descuentoPorcentaje, modoEntrega,
         pagoElectronico: pagoElectronicoDesde(metodoPago, autorizacionBancaria),
       };
@@ -574,6 +683,8 @@ export const POSPage: React.FC = () => {
       } else {
         // Conservar identidad incluso ante rechazo: una petición anterior pudo confirmarse.
         setErrorText(err.response?.data?.message || 'No recibimos confirmación. Revise la venta pendiente antes de cobrar otra vez.');
+        // El servidor rechazó un precio antiguo: el catálogo se actualiza para la corrección.
+        if (err.response?.status === 409) void leerCatalogo().catch(() => undefined);
       }
     } finally {
       cobrandoRef.current = false;
@@ -605,7 +716,7 @@ export const POSPage: React.FC = () => {
   };
 
   return (
-    <div style={styles.container} className="ferre-pos">
+    <div style={styles.container} className="ferre-pos" onPointerDownCapture={sincronizarAlInteractuar} onKeyDownCapture={sincronizarAlInteractuar}>
       <TopBar title={t('pos.title')} subtitle={t('pos.subtitle')} />
 
       <main ref={contenidoRef} style={styles.content} className="ferre-pos-main">
@@ -660,7 +771,6 @@ export const POSPage: React.FC = () => {
           <div style={styles.catalogColumn}>
             {/* Caja, catálogo y venta sin inventario: controles del catálogo, no del ticket */}
             <div className="ferre-pos-notice"><Link to="/arqueo-caja">Abrir o revisar mi caja</Link> · <Link to="/cuentas">Cuentas y abonos</Link> · <Link to="/entregas">Entregas</Link>{estadoCajaVisible==='cerrada'&&<p>Abra su caja antes de cobrar.</p>}{estadoCajaVisible==='desconocida'&&<p role="alert">{syncCaja.phase==='offline'?'Sin conexión: no se pudo comprobar la caja. Se volverá a comprobar al recuperar la red.':'No se pudo comprobar el estado de la caja por un error de conexión o del servidor. Se reintentará automáticamente; no significa que la caja esté cerrada.'}</p>}</div>
-            <button className="btn btn-secondary pos-actualizar" disabled={edicionBloqueada} onClick={async()=>{const data=await fetchProductos();if(data)setCart(current=>current.map(i=>{const p=data.find((p:ProductItem)=>p.id===i.productoId);return p?{...i,precioUnitario:p.precioVenta}:i;}));}}>Actualizar catálogo y precios del carrito</button>
             <div className="ferre-pos-notice"><label><input type="checkbox" checked={special} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecial(e.target.checked)}/> Venta sin inventario: mercancía que no entra al local</label>{special&&<select aria-label="Proveedor de venta sin inventario" className="form-input" value={specialProvider} disabled={edicionBloqueada||cart.length>0} onChange={e=>setSpecialProvider(e.target.value)}><option value="">Seleccione proveedor</option>{providers.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}</select>}</div>
             <div style={styles.searchBox}>
               <Search size={18} strokeWidth={2.4} style={styles.searchIcon} />

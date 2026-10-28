@@ -130,6 +130,19 @@ describe('Devoluciones con crédito, saldo y reembolsos / PostgreSQL aislado', (
     expect((await reembolsosCaja(v.id))[0]).toEqual({ total: -1.01, n: 2 });
   });
 
+  it('PR202: cambiar el catálogo después del cobro no recalcula la venta ni su devolución', async () => {
+    const v = await venta(admin, { detalles: [{ productoId, cantidad: 2 }] });
+    expect(Number(v.total)).toBe(230);
+    await prisma.producto.update({ where: { id: productoId }, data: { precioVenta: 120, version: { increment: 1 } } });
+    const primera = await devolver(v.id, 1);
+    const segunda = await devolver(v.id, 1);
+    expect([Number(primera.monto), Number(segunda.monto)]).toEqual([115, 115]);
+    expect((await reembolsosCaja(v.id))[0]).toEqual({ total: -230, n: 2 });
+    const historica = await prisma.venta.findUniqueOrThrow({ where: { id: v.id }, include: { detalles: true } });
+    expect(Number(historica.total)).toBe(230);
+    expect(Number(historica.detalles[0].precioUnitario)).toBe(100);
+  });
+
   describe('devoluciones con crédito', () => {
     it('devolución parcial con deuda pendiente: cancela crédito proporcional y no reembolsa efectivo', async () => {
       const cliente = await prisma.cliente.create({ data: { tenantId: tenantA, nombre: 'Cliente Parcial', creditoHabilitado: true, limiteCredito: 10000, saldoPendiente: 0 } as any });

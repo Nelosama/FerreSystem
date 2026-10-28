@@ -150,10 +150,17 @@ test('el cliente HTTP acota la espera de red sin cambiar vigencia de sesión', (
   assert.match(source, /timeout: 30_000/);
 });
 
-test('la actualización de precios del carrito es un botón manual que reemplaza precios sin desglose', () => {
+test('los precios del carrito se sincronizan solos y se validan antes de cobrar; no hay botón manual', () => {
+  // Cambio intencional (sincronización automática de precios): sustituye al botón «Actualizar catálogo y precios del carrito».
   const source = fs.readFileSync('src/pages/POSPage.tsx', 'utf8');
-  assert.match(source, /Actualizar catálogo y precios del carrito/);
-  assert.match(source, /\{\.\.\.i,precioUnitario:p\.precioVenta\}/);
+  assert.doesNotMatch(source, /Actualizar catálogo y precios del carrito/);
+  assert.match(source, /onPointerDownCapture=\{sincronizarAlInteractuar\} onKeyDownCapture=\{sincronizarAlInteractuar\}/);
+  // Imperceptible: sin aviso, modal ni botón de actualización de precios.
+  assert.doesNotMatch(source, /avisoPrecios|avisoCobro|pos-aviso-cobro|El precio cambió al cobrar|Precio actualizado por el administrador|ferre-pos-precios|describirCambios/);
+  assert.match(source, /aplicarPreciosVigentes\(carritoAEnviar, catalogo\)/);
+  assert.match(source, /No se pudo confirmar el precio vigente/);
+  // La validación ocurre antes de crear la venta pendiente y de enviarla.
+  assert.ok(source.indexOf('aplicarPreciosVigentes(carritoAEnviar, catalogo)') < source.indexOf("api.post('/ventas'"));
 });
 
 // ───────────────────────── sesión y renovación (authInterceptors) ─────────────────────────

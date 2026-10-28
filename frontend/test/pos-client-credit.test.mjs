@@ -23,6 +23,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name.endsWith('/money')) return evaluate('src/offline/money.ts', {}, globals);
     if (name.endsWith('/posMoney')) return evaluate('src/utils/posMoney.ts', {}, globals);
     if (name.endsWith('/posCatalogo')) return evaluate('src/utils/posCatalogo.ts', {}, globals);
+    if (name.endsWith('/preciosCarrito')) return evaluate('src/utils/preciosCarrito.ts', {}, globals);
     if (name.endsWith('/posRecovery')) return evaluate('src/utils/posRecovery.ts', {}, globals);
     return new Proxy({}, { get: (_, key) => String(key) });
   } };

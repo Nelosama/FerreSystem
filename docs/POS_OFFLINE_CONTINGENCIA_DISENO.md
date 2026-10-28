@@ -18,7 +18,7 @@ Referencias a código en la base indicada. «Evidencia» = lo que se comprobó l
 | Función | Dependencia | Evidencia |
 |---|---|---|
 | Arranque de la app | Carga de assets desde el hosting; **no hay service worker** (`frontend/public` solo trae `manifest.webmanifest`; sin `serviceWorker`, `indexedDB`, `workbox` ni `caches` en `src`). Recargar sin red = pantalla en blanco. | prueba «no existe hoy service worker…» |
-| Catálogo y precios | `GET /productos/comercial` al montar y tras cada venta; vive solo en estado React (`POSPage.tsx` `fetchProductos`). Sin red tras recargar → catálogo vacío. Sin sondeo periódico. | pruebas «el catálogo… no se persiste», «botón manual…» |
+| Catálogo y precios | `GET /productos/comercial` al montar y tras cada venta; vive solo en estado React (`POSPage.tsx` `fetchProductos`). Sin red tras recargar → catálogo vacío. Sin sondeo periódico (**actualizado en #202:** ahora se sincroniza solo cada 60 s y en la siguiente interacción del cajero, sin aviso ni botón). | pruebas «el catálogo… no se persiste», «los precios del carrito se sincronizan solos…» |
 | Sesión | Token de acceso en `localStorage` (`ferre_token`), JWT 15 min (`JWT_ACCESS_EXPIRES_IN`); renovación por cookie HttpOnly de 7 días vía `POST /auth/refresh`. | `auth.service.ts`, `authInterceptors.ts` |
 | Cobro | `POST /ventas`: caja abierta, permisos, stock, precio, número correlativo, crédito, ISV, caja y auditoría en una transacción con bloqueo por empresa. | `ventas.service.ts` |
 | Numeración | `secuencias_tenant` tipo VENTA (servidor). El comprobante muestra «N° V-{n}». | `ReciboPDF.tsx` |
@@ -38,7 +38,7 @@ Referencias a código en la base indicada. «Evidencia» = lo que se comprobó l
 | H6 | **Una renovación de sesión fallida por falta de red borra el token y redirige a `/login`** cuando la respuesta original fue 401. Con red caída el error original es de red (no 401) y la sesión se conserva; pero al volver la red con el access token vencido, si el refresh falla se pierde la sesión de UI (los pendientes en `localStorage` sobreviven). | Alto | pruebas de `authInterceptors` |
 | H7 | Axios sin timeout: una conexión «medio muerta» deja `procesandoVenta` activo indefinidamente. No hay reintento con backoff ni distinción 5xx/red/negocio. | Medio | prueba «sin timeout» |
 | H8 | Dos pestañas pueden generar UUID distintos para el mismo carrito: la defensa es de lectura de `localStorage` y evento `storage`, no exclusión atómica. | Medio | análisis de `handleCobrar` |
-| H9 | Reemplazo de precios del carrito es manual, sin desglose ni consentimiento («Actualizar catálogo y precios del carrito»). | Medio (no es offline, pero define cómo se acepta un precio) | prueba |
+| H9 | ~~Reemplazo de precios manual~~ **Resuelto en #202:** el carrito se sincroniza en segundo plano de forma imperceptible (sin botón, modal ni aviso) y el cobro valida el precio vigente en el servidor antes de enviar; sin validación no se cobra. | Cerrado | `pos-precios-automaticos-simulado.spec.ts` |
 | H10 | No hay datos fiscales en el modelo (ni CAI, ni rango, ni fecha límite, ni número fiscal): el comprobante actual es un recibo interno. | Decisión legal previa (§4) | búsqueda en esquema/código: sin coincidencias |
 | H11 | Cuota/almacenamiento lleno o `localStorage` bloqueado: el POS bloquea el cobro (correcto), pero el cajero no tiene salida operativa. | Bajo | prueba «cuota lleno» |
 

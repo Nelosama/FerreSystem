@@ -1,4 +1,8 @@
 #!/bin/sh
+if [ "$VERCEL_GIT_COMMIT_REF" = "codex/pr202-auditoria-precios" ] || [ "$VERCEL_GIT_COMMIT_REF" = "claude/pos-sincronizacion-precios" ]; then
+  exit 0
+fi
+
 # Vercel: exit 0 omite el despliegue; exit 1 permite construir.
 # Va en un archivo porque Vercel rechaza un vercel.json cuyo ignoreCommand supera 256 caracteres.
 case "$VERCEL_GIT_COMMIT_REF" in
