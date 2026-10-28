@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-Última revisión: **2026-10-28 UTC** — consolidación #207 + #200 sobre `main` `a436584` (#203) en `claude/laughing-euler-tplk31`; ver la primera sección. Sin merge ni despliegue.
+Última revisión: **2026-10-28 UTC** — revisión de preparación de producción contra GitHub en `claude/preparacion-produccion-20261028` (PR #213, base `main` `848758b` tras el merge de #210); ver la primera sección. Sin merge ni despliegue. Anterior: **2026-10-28 UTC** — consolidación #207 + #200 sobre `main` `a436584` (#203) en `claude/laughing-euler-tplk31`. Sin merge ni despliegue.
 
 Última revisión: **2026-10-26 UTC** — consolidación de autenticación #200 + #201 en `claude/consolidate-auth-pr200-201-xz1q5m` (sin merge ni despliegue); ver la primera sección.
 
@@ -15,6 +15,14 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 **PR #180 (Contabilidad, Honduras):** actualizado con `main` `24ae784` por merge normal; motor contable, navegación del CONTADOR y libro mayor añadidos; persistencia de asientos automáticos bloqueada por autorización de esquema (propuesta NEXUS); ver su sección más abajo. Contabilidad permanece **apagada por defecto**; sin merge, despliegue ni migraciones en producción.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
+
+## Preparación de producción — revisión contra GitHub (2026-10-28 UTC, rama `claude/preparacion-produccion-20261028`, PR #213, sin merge ni despliegue)
+
+- **Estado vigente:** decisión **NO-GO**. Detalle y fuentes en [docs/PREPARACION_PRODUCCION_20261028.md](PREPARACION_PRODUCCION_20261028.md).
+- **Corregido:** PR #210 **mergeado** el 15:49:04Z (`848758b`); el documento anterior lo daba abierto. #211 y #212 ya no están «en curso»: su `validate` está en **failure** en el paso de Chromium (backend y PostgreSQL omitidos). #213 tiene el mismo fallo, con dos pruebas e2e nombradas (`auth-security.spec.ts:167`, `contabilidad-simulado.spec.ts:279`).
+- **Verificado:** estados de PR y checks por API de GitHub (14:10–15:50 UTC); logs de los jobs de #211, #212 y #213; `main` `848758b` fusionado en la rama sin conflictos (`bb40c2d`); política de excepciones de precio en código de `main`.
+- **Pendiente de evidencia:** resultado final del run de `main` tras #210 (en curso en la última consulta); causa concreta de los fallos de Chromium en #211 y #212; reproducción local de `contabilidad-simulado` (no hecha: sin dependencias instaladas); respuesta de Vercel y Render (el proxy rechazó la conexión hoy; el documento conserva las observaciones de la revisión anterior, marcadas como no reconfirmadas).
+- **No verificado:** respaldos, base de datos, migraciones en producción, configuración de Render y Vercel, endpoint de salud, validación física y aceptación del cliente.
 
 ## Consolidación #207 · #206 · #200 sobre `main` `a436584` — 2026-10-28 UTC (rama `claude/laughing-euler-tplk31`, sin merge ni despliegue)
 
