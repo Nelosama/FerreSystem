@@ -10,6 +10,7 @@ export class RecoveryRequestDto {
   /** Solo desde un enlace privado de empresa; acota la búsqueda a ese negocio. */
   @IsOptional() @IsString() @MaxLength(100) tenantId?: string;
 }
+/** `mfaCode` se conserva solo por compatibilidad con clientes anteriores: el MFA está retirado y el servidor lo ignora. */
 export class ActionDto {
   @IsString() @IsNotEmpty() @MaxLength(100) token: string;
   @IsOptional() @IsString() @MaxLength(64) mfaCode?: string;
@@ -35,20 +36,4 @@ export class AdminResetDto {
 export class UnlockDto {
   @IsString() @IsNotEmpty() @MaxLength(100) usuarioId: string;
   @IsOptional() @IsString() @MaxLength(100) tenantId?: string;
-}
-export class EnrollMfaDto {
-  @IsString() @IsNotEmpty() @MaxLength(128) currentPassword: string;
-}
-export class ConfirmMfaDto extends ActionDto {
-  @IsString() @MaxLength(128) secret: string;
-}
-export class BootstrapMfaDto extends ActionDto {
-  @IsString() @IsNotEmpty() @MaxLength(128) currentPassword: string;
-}
-/** Enrolamiento inicial del MFA de Super Admin: el mismo par de campos del login. */
-export class BootstrapRequestDto {
-  @ValidateIf((o) => o.email === undefined)
-  @IsString() @IsNotEmpty() @MaxLength(254) usuario?: string;
-  @IsOptional() @IsString() @MaxLength(254) email?: string;
-  @IsString() @IsNotEmpty() @MaxLength(128) password: string;
 }

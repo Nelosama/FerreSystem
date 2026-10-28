@@ -15,16 +15,25 @@ export type CuentaResuelta =
 export const normalizarIdentificador = (valor: unknown): string => (typeof valor === 'string' ? valor.toLowerCase().trim() : '');
 
 /**
+ * Filtro de búsqueda por identificador. El usuario/código se guarda en minúsculas (restricción usuarios_username_format), pero el
+ * correo no: una fila heredada «Juan@x.com» y otra «juan@x.com» en empresas distintas deben verse como el MISMO identificador,
+ * o el login resolvería una sola de ellas sin advertir la ambigüedad. Por eso el correo se compara sin distinguir mayúsculas.
+ */
+export const filtroIdentificador = (id: string) => (id.includes('@') ? { email: { equals: id, mode: 'insensitive' as const } } : { username: id });
+
+/**
  * `tenantId` solo llega desde un enlace privado de empresa (`/login?empresa=`), nunca de un campo visible: acota la búsqueda a
  * ese negocio para que una cuenta heredada con identificador repetido pueda entrar mientras se corrige.
  */
 export async function resolverCuenta(prisma: Pick<PrismaService, 'usuario' | 'superAdmin'>, identificador: string, tenantId?: string): Promise<CuentaResuelta> {
   const id = normalizarIdentificador(identificador);
   if (!id) return { estado: 'NO_EXISTE' };
-  const filtro = id.includes('@') ? { email: id } : { username: id };
+  const filtro = filtroIdentificador(id);
   if (tenantId) {
-    const usuario = await prisma.usuario.findFirst({ where: { tenantId, ...filtro }, include: { tenant: true } });
-    return usuario ? { estado: 'TENANT', cuenta: usuario } : { estado: 'NO_EXISTE' };
+    // Dentro de una empresa el correo es único solo con mayúsculas exactas: dos variantes heredadas también son ambiguas.
+    const usuarios = await prisma.usuario.findMany({ where: { tenantId, ...filtro }, take: 2, include: { tenant: true } });
+    if ((usuarios?.length ?? 0) > 1) return { estado: 'AMBIGUA' };
+    return usuarios?.length === 1 ? { estado: 'TENANT', cuenta: usuarios[0] } : { estado: 'NO_EXISTE' };
   }
   if (id.includes('@')) {
     // Los Super Admin solo se identifican por correo y tienen precedencia determinista: así un usuario de negocio con el mismo
@@ -48,7 +57,7 @@ export async function exigirIdentificadorUnico(tx: any, datos: { email?: string 
     const valor = normalizarIdentificador(bruto);
     if (!valor) continue;
     await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${`IDENT:${valor}`}, 0))`;
-    const filtro = valor.includes('@') ? { email: valor } : { username: valor };
+    const filtro = filtroIdentificador(valor);
     const usuario = await tx.usuario.findFirst({ where: { ...filtro, ...(datos.excluirId && { id: { not: datos.excluirId } }) }, select: { id: true } });
     const plataforma = valor.includes('@') ? await tx.superAdmin.findUnique({ where: { email: valor }, select: { id: true } }) : null;
     if (usuario || plataforma) {

@@ -2,10 +2,9 @@ import { Injectable, UnauthorizedException, ForbiddenException, BadRequestExcept
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { RecoveryMailService } from './recovery-mail.service';
-import { newTotpSecret, requireMfa, sealSecret, tokenHash, validStep } from './mfa';
+import { tokenHash } from './mfa';
 import { crearAccionAuth, registrarEventoAuth } from './auth-actions';
 import { emitirContrasenaTemporal, generarContrasenaTemporal } from './contrasena-temporal';
 import { FALLOS_PARA_RECUPERACION } from './bloqueo-cuenta';
@@ -14,7 +13,7 @@ import { clavesDeLogin, excepcionLimiteLogin, registrarFalloLogin, segundosBloqu
 import { leerConfiguracionAuth } from './auth-config';
 import { revocarSesionesDeSujeto } from './sesiones-auth';
 import { audit } from '../operaciones/ledger';
-import { AdminResetDto, ChangePasswordDto, ConfirmMfaDto, ForcedChangeDto, RecoveryRequestDto, ResetDto, UnlockDto } from './dto/recovery.dto';
+import { AdminResetDto, ChangePasswordDto, ForcedChangeDto, RecoveryRequestDto, ResetDto, UnlockDto } from './dto/recovery.dto';
 
 const accepted = { message: 'Si la cuenta cumple los requisitos, recibirá instrucciones en su correo verificado. Los demás usuarios deben contactar al Admin o Super Admin.' };
 const invalid = () => new UnauthorizedException('Solicitud vencida o verificación inválida');
@@ -49,10 +48,9 @@ export class RecoveryService {
     if (!account) throw invalid();
     return { account, platform };
   }
-  /** Reautenticación: contraseña actual y, para el Super Admin o quien lo configuró, el segundo factor. */
-  private async current(tx: any, account: any, platform: boolean, password: string, code?: string) {
+  /** Reautenticación con la contraseña actual (sin segundo factor por decisión del propietario). */
+  private async current(account: any, password: string) {
     if (!await bcrypt.compare(password, account.passwordHash)) throw invalid();
-    if (platform || account.mfaSecret) await requireMfa(tx, account, platform, code, this.config);
   }
   /** Contraseña nueva definida por el titular: reinicia contadores y bloqueo, invalida enlaces y temporales y cierra las sesiones. */
   private async aplicarPassword(tx: any, account: any, platform: boolean, passwordHash: string, motivo: string) {
@@ -64,8 +62,7 @@ export class RecoveryService {
     await tx.authAction.deleteMany({ where: { sujetoId: account.id } });
   }
   private elegibleRecuperacion(account: any, platform: boolean) {
-    // El Super Admin sin MFA no podría completar la recuperación (el segundo factor es obligatorio): no se le envía nada.
-    const rol = platform ? !!account.mfaSecret : account.rol === 'ADMIN' && account.tenant?.estado === 'ACTIVO';
+    const rol = platform || (account.rol === 'ADMIN' && account.tenant?.estado === 'ACTIVO');
     return rol && account.activo && !!account.email && !!account.emailVerifiedAt && account.intentosFallidos >= FALLOS_PARA_RECUPERACION;
   }
 
@@ -127,33 +124,6 @@ export class RecoveryService {
     return accepted;
   }
 
-  /** Enrolamiento inicial del MFA del Super Admin: requiere su contraseña y el control del correo de la cuenta. */
-  async requestBootstrap(identificador: string, password: string, ip?: string) {
-    const started = Date.now();
-    const email = normalizarIdentificador(identificador);
-    await this.limit(`bootstrap:${email}`, ip);
-    try {
-      const account = await this.prisma.superAdmin.findFirst({ where: { email, activo: true } });
-      if (account && !account.mfaSecret && await bcrypt.compare(password, account.passwordHash)) {
-        const token = await this.prisma.$transaction(async tx => {
-          await this.lock(tx, account.id); return this.action(tx, account, true, 'BOOTSTRAP_MFA');
-        });
-        await this.enviarEnlace(account.email, token, 'BOOTSTRAP_MFA');
-      }
-    } catch { this.logger.error('Enrolamiento inicial no entregado; revisar infraestructura de correo'); }
-    finally { await delay(Math.max(0, 8500 - (Date.now() - started))); }
-    return accepted;
-  }
-  bootstrapMfa(token: string, currentPassword: string) {
-    return this.consume(token, ['BOOTSTRAP_MFA'], async (tx, a, account, platform) => {
-      if (!platform || account.mfaSecret || a.passwordBinding !== tokenHash(account.passwordHash) || !await bcrypt.compare(currentPassword, account.passwordHash)) throw invalid();
-      await tx.superAdmin.update({ where: { id: account.id }, data: { emailVerifiedAt: new Date() } });
-      const secret = newTotpSecret();
-      const enrollment = await this.action(tx, account, true, 'MFA_ENROLL', tokenHash(account.passwordHash + secret));
-      await this.event(tx, account.id, account, true, 'MFA_BOOTSTRAP_EMAIL_VERIFIED');
-      return { token: enrollment, secret };
-    });
-  }
 
   // All consumers serialize per account, then re-read and delete the token in the same transaction.
   // A rollback retains it; successful reset removes all other outstanding actions.
@@ -215,7 +185,7 @@ export class RecoveryService {
     return this.prisma.$transaction(async tx => {
       await this.lock(tx, identity.sub);
       const { account, platform } = await this.account(tx, identity);
-      await this.current(tx, account, platform, dto.currentPassword, dto.mfaCode);
+      await this.current(account, dto.currentPassword);
       await this.aplicarPassword(tx, account, platform, passwordHash, 'PASSWORD_CHANGE');
       await this.event(tx, account.id, account, platform, 'PASSWORD_CHANGE');
       return { success: true };
@@ -233,11 +203,11 @@ export class RecoveryService {
     return this.prisma.$transaction(async tx => {
       await this.lock(tx, identity.sub);
       const { actor, platform, tenantId } = await this.actorDeGestion(tx, identity, dto.tenantId);
-      await this.current(tx, actor, platform, dto.currentPassword, dto.mfaCode);
+      await this.current(actor, dto.currentPassword);
       if (dto.usuarioId !== actor.id) await this.lock(tx, dto.usuarioId);
       const target = await tx.usuario.findFirst({ where: { id: dto.usuarioId, tenantId, activo: true, tenant: { estado: 'ACTIVO' } } });
-      // Un Admin solo restablece a otro Admin si él mismo tiene segundo factor; nunca su propia cuenta.
-      if (!target || target.id === actor.id || (!platform && target.rol === 'ADMIN' && !actor.mfaSecret)) throw new ForbiddenException('Restablecimiento no autorizado');
+      // Sin segundo factor, un Admin no restablece a otro Admin (solo el Super Admin); nunca su propia cuenta.
+      if (!target || target.id === actor.id || (!platform && target.rol === 'ADMIN')) throw new ForbiddenException('Restablecimiento no autorizado');
       const token = await this.action(tx, target, false, 'RESET_ADMIN');
       await revocarSesionesDeSujeto(tx, target.id, 'ADMIN_RESET_REQUEST');
       await this.event(tx, actor.id, target, false, 'ADMIN_RESET_REQUEST');
@@ -271,29 +241,6 @@ export class RecoveryService {
       where: { tenantId: account.tenantId, bloqueadoAt: { not: null } },
       select: { id: true, tenantId: true, nombre: true, username: true, email: true, rol: true, bloqueadoAt: true, intentosFallidos: true },
       orderBy: { bloqueadoAt: 'desc' }, take: 500,
-    });
-  }
-  async enroll(identity: Identity, currentPassword: string) {
-    return this.prisma.$transaction(async tx => {
-      await this.lock(tx, identity.sub);
-      const { account, platform } = await this.account(tx, identity);
-      if (account.mfaSecret || !account.emailVerifiedAt || (!platform && account.rol !== 'ADMIN') || !await bcrypt.compare(currentPassword, account.passwordHash)) throw invalid();
-      const secret = newTotpSecret();
-      const token = await this.action(tx, account, platform, 'MFA_ENROLL', tokenHash(account.passwordHash + secret));
-      return { secret, token, uri: `otpauth://totp/Jowa:${encodeURIComponent(account.email)}?secret=${secret}&issuer=Jowa&algorithm=SHA1&digits=6&period=30` };
-    });
-  }
-  confirmMfa(dto: ConfirmMfaDto) {
-    return this.consume(dto.token, ['MFA_ENROLL'], async (tx, a, account, platform) => {
-      const step = /^[A-Z2-7]{32}$/.test(dto.secret) ? validStep(dto.secret, dto.mfaCode || '') : null;
-      if (account.mfaSecret || step === null || a.passwordBinding !== tokenHash(account.passwordHash + dto.secret)) throw invalid();
-      await this.table(tx, platform).update({ where: { id: account.id }, data: { mfaSecret: sealSecret(dto.secret, account.id, this.config), mfaLastStep: step } });
-      const codes = Array.from({ length: 10 }, () => randomBytes(16).toString('hex'));
-      await tx.authRecoveryCode.deleteMany({ where: { sujetoId: account.id, tipo: a.tipo } });
-      await tx.authRecoveryCode.createMany({ data: codes.map(code => ({ hash: tokenHash(code), sujetoId: account.id, tipo: a.tipo })) });
-      await revocarSesionesDeSujeto(tx, account.id, 'MFA_ENROLLED');
-      await this.event(tx, account.id, account, platform, 'MFA_ENROLLED');
-      return { recoveryCodes: codes };
     });
   }
 }

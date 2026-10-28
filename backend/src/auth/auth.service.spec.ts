@@ -124,7 +124,7 @@ describe('AuthService', () => {
       expect(result.type).toBe('super_admin');
       expect(result.superAdmin.id).toBe('sa-1');
       expect(mockJwtService.sign).toHaveBeenCalledWith(
-        { sub: 'sa-1', email: 'admin@example.com', rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true, sid: expect.any(String) },
+        { sub: 'sa-1', email: 'admin@example.com', rol: 'SUPER_ADMIN', type: 'super_admin', sid: expect.any(String) },
         expect.any(Object),
       );
       expect(mockResponse.cookie).toHaveBeenCalledWith(
@@ -255,7 +255,7 @@ describe('AuthService', () => {
     it('no selecciona una empresa mediante la contraseña si el correo pertenece a varias', async () => {
       mockPrisma.usuario.findMany.mockResolvedValueOnce([{ tenantId: 'A' }, { tenantId: 'B' }]);
       await expect(service.login({ email: 'usuario@empresa.com', password: 'ClaveTenant2!' }, mockResponse)).rejects.toThrow(UnauthorizedException);
-      expect(mockPrisma.usuario.findMany).toHaveBeenCalledWith({ where: { email: 'usuario@empresa.com' }, take: 2, include: { tenant: true } });
+      expect(mockPrisma.usuario.findMany).toHaveBeenCalledWith({ where: { email: { equals: 'usuario@empresa.com', mode: 'insensitive' } }, take: 2, include: { tenant: true } });
       expect(mockPrisma.usuario.findFirst).not.toHaveBeenCalled();
     });
 
@@ -279,7 +279,7 @@ describe('AuthService', () => {
       );
 
       expect(mockPrisma.usuario.findMany).toHaveBeenCalledWith({
-        where: { email: 'usuario@empresa.com' }, take: 2, include: { tenant: true },
+        where: { email: { equals: 'usuario@empresa.com', mode: 'insensitive' } }, take: 2, include: { tenant: true },
       });
       expect(mockPrisma.usuario.findFirst).not.toHaveBeenCalled();
       expect(res.user.id).toBe('u-2');

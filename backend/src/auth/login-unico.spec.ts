@@ -68,10 +68,10 @@ describe('resolución de cuenta sin indicar empresa', () => {
 
   it('el enlace privado de empresa acota la búsqueda a ese negocio (cuentas heredadas repetidas)', async () => {
     const { service, prisma, res } = montar();
-    prisma.usuario.findFirst.mockResolvedValue(cuenta({ tenantId: 'B' }));
+    prisma.usuario.findMany.mockResolvedValue([cuenta({ tenantId: 'B' })]);
     await service.login({ usuario: '44556', password: claveCorrecta, tenantId: 'B' }, res);
-    expect(prisma.usuario.findFirst).toHaveBeenCalledWith({ where: { tenantId: 'B', username: '44556' }, include: { tenant: true } });
-    expect(prisma.usuario.findMany).not.toHaveBeenCalled();
+    expect(prisma.usuario.findMany).toHaveBeenCalledWith({ where: { tenantId: 'B', username: '44556' }, take: 2, include: { tenant: true } });
+    expect(prisma.usuario.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.superAdmin.findUnique).not.toHaveBeenCalled();
   });
 
@@ -94,7 +94,7 @@ describe('resolución de cuenta sin indicar empresa', () => {
     expect(consultas.some((q) => /pg_advisory_xact_lock/.test(q))).toBe(true);
     prisma.usuario.findFirst = vi.fn().mockResolvedValue(null);
     await expect(exigirIdentificadorUnico(prisma, { email: 'libre@jowa.test', excluirId: 'u-1' })).resolves.toBeUndefined();
-    expect(prisma.usuario.findFirst).toHaveBeenCalledWith({ where: { email: 'libre@jowa.test', id: { not: 'u-1' } }, select: { id: true } });
+    expect(prisma.usuario.findFirst).toHaveBeenCalledWith({ where: { email: { equals: 'libre@jowa.test', mode: 'insensitive' }, id: { not: 'u-1' } }, select: { id: true } });
     prisma.superAdmin.findUnique.mockResolvedValue({ id: 'sa' });
     const error: any = await exigirIdentificadorUnico(prisma, { email: 'Root@Jowa.test' }).catch((e) => e);
     expect(error).toBeInstanceOf(ConflictException);
@@ -250,54 +250,71 @@ describe('Admin y Super Admin: recuperación con contraseña temporal', () => {
   });
 });
 
-describe('MFA obligatorio del Super Admin', () => {
-  it('con la contraseña correcta pide el segundo factor sin contar un fallo y sin emitir sesión', async () => {
-    const { service, prisma, res, consultas } = montar();
-    prisma.superAdmin.findUnique.mockResolvedValue(superAdmin());
-    const error: any = await service.login({ usuario: 'sa@jowa.test', password: claveCorrecta }, res).catch((e) => e);
-    expect(error.getResponse()).toMatchObject({ code: 'MFA_REQUERIDO' });
-    expect(consultas.some((q) => /UPDATE super_admins/.test(q) || /INSERT INTO intentos_login/.test(q))).toBe(false);
-    expect(prisma.sesionAuth.create).not.toHaveBeenCalled();
-  });
-
-  it('un Super Admin sin MFA configurado no recibe sesión: debe enrolarlo', async () => {
-    const { service, prisma, res } = montar();
-    prisma.superAdmin.findUnique.mockResolvedValue(superAdmin({ mfaSecret: null }));
-    const error: any = await service.login({ usuario: 'sa@jowa.test', password: claveCorrecta, mfaCode: '123456' }, res).catch((e) => e);
-    expect(error.getResponse()).toMatchObject({ code: 'MFA_ENROLAMIENTO_REQUERIDO' });
-    expect(prisma.sesionAuth.create).not.toHaveBeenCalled();
-  });
-
-  it('un código incorrecto se rechaza y cuenta como intento', async () => {
-    const { service, prisma, res, consultas } = montar();
-    prisma.superAdmin.findUnique.mockResolvedValue(superAdmin());
-    await expect(service.login({ usuario: 'sa@jowa.test', password: claveCorrecta, mfaCode: '000000' === codigoMfa() ? '111111' : '000000' }, res)).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(consultas.some((q) => /INSERT INTO intentos_login/.test(q))).toBe(false);
-    expect(prisma.$executeRaw).toHaveBeenCalled();
-    expect(prisma.sesionAuth.create).not.toHaveBeenCalled();
-  });
-
-  it('con contraseña y código válidos emite una sesión marcada con mfa', async () => {
+describe('Super Admin sin MFA (decisión del propietario, 2026-10-27)', () => {
+  it('con la contraseña correcta entra sin segundo factor, aunque tenga un secreto MFA heredado', async () => {
     const { service, prisma, res, jwt } = montar();
     prisma.superAdmin.findUnique.mockResolvedValue(superAdmin());
-    await expect(service.login({ usuario: 'sa@jowa.test', password: claveCorrecta, mfaCode: codigoMfa() }, res)).resolves.toMatchObject({ type: 'super_admin' });
-    expect(jwt.sign).toHaveBeenCalledWith(expect.objectContaining({ type: 'super_admin', mfa: true }), expect.any(Object));
+    await expect(service.login({ usuario: 'sa@jowa.test', password: claveCorrecta }, res)).resolves.toMatchObject({ type: 'super_admin' });
+    expect(jwt.sign).toHaveBeenCalledWith(expect.not.objectContaining({ mfa: expect.anything() }), expect.any(Object));
+    expect(prisma.sesionAuth.create).toHaveBeenCalledTimes(1);
   });
 
-  it('la recuperación del Super Admin también exige MFA: la temporal sola no se consume ni entrega el token de cambio', async () => {
+  it('un mfaCode enviado por un cliente anterior se ignora: no autoriza ni rechaza', async () => {
+    const { service, prisma, res } = montar();
+    prisma.superAdmin.findUnique.mockResolvedValue(superAdmin({ mfaSecret: null }));
+    await expect(service.login({ usuario: 'sa@jowa.test', password: claveCorrecta, mfaCode: '123456' }, res)).resolves.toMatchObject({ type: 'super_admin' });
+    await expect(service.login({ usuario: 'sa@jowa.test', password: 'Clave-Incorrecta-1', mfaCode: codigoMfa() }, res)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('una contraseña incorrecta se rechaza con el 401 genérico, cuenta como fallo y no emite sesión', async () => {
+    const { service, prisma, res, consultas } = montar();
+    prisma.superAdmin.findUnique.mockResolvedValue(superAdmin());
+    const error: any = await service.login({ usuario: 'sa@jowa.test', password: 'Clave-Incorrecta-1' }, res).catch((e) => e);
+    expect(error).toBeInstanceOf(UnauthorizedException);
+    expect(error.getResponse().code).toBeUndefined();
+    expect(consultas.some((q) => /UPDATE super_admins/.test(q))).toBe(true);
+    expect(prisma.sesionAuth.create).not.toHaveBeenCalled();
+  });
+
+  it('la recuperación del Super Admin consume la temporal una sola vez y entrega solo el token de cambio obligatorio', async () => {
     const { service, prisma, res } = montar();
     const temporal = generarContrasenaTemporal();
     const dueño = superAdmin();
     prisma.superAdmin.findUnique.mockResolvedValue(dueño);
     prisma.authAction.findUnique.mockResolvedValue(accionTemporal(temporal, dueño, true));
-    const error: any = await service.login({ usuario: 'sa@jowa.test', password: temporal }, res).catch((e) => e);
-    expect(error.getResponse()).toMatchObject({ code: 'MFA_REQUERIDO' });
-    expect(prisma.authAction.deleteMany).not.toHaveBeenCalled();
-    expect(prisma.authAction.create).not.toHaveBeenCalled();
-    const r: any = await service.login({ usuario: 'sa@jowa.test', password: temporal, mfaCode: codigoMfa() }, res);
+    const r: any = await service.login({ usuario: 'sa@jowa.test', password: temporal }, res);
     expect(r).toMatchObject({ type: 'password_change_required' });
     expect(prisma.authAction.create).toHaveBeenCalledWith({ data: expect.objectContaining({ purpose: 'FORCED_CHANGE', tipo: 'SUPER_ADMIN', tenantId: null }) });
+    expect(prisma.sesionAuth.create).not.toHaveBeenCalled();
     // Usar la temporal del Super Admin corta también el soporte remoto que hubiera iniciado.
     expect(JSON.stringify(prisma.$executeRaw.mock.calls)).toContain('SUPER_ADMIN_CONTRASENA_TEMPORAL');
+  });
+});
+
+
+describe('identificadores repetidos entre empresas: nunca una autenticación ambigua', () => {
+  it('un correo heredado que solo difiere en mayúsculas en dos empresas es ambiguo: 401 genérico y sin probar contraseñas', async () => {
+    const { service, prisma, res, consultas } = montar();
+    prisma.usuario.findMany.mockResolvedValue([cuenta({ tenantId: 'A', email: 'Juan@x.test' }), cuenta({ id: 'u-2', tenantId: 'B', email: 'juan@x.test' })]);
+    const error: any = await service.login({ usuario: 'JUAN@x.test', password: claveCorrecta }, res).catch((e) => e);
+    expect(error).toBeInstanceOf(UnauthorizedException);
+    expect(prisma.usuario.findMany).toHaveBeenCalledWith({ where: { email: { equals: 'juan@x.test', mode: 'insensitive' } }, take: 2, include: { tenant: true } });
+    // Ninguna de las dos cuentas acumula un fallo: no se eligió ninguna para probar la contraseña.
+    expect(consultas.some((q) => /UPDATE usuarios/.test(q))).toBe(false);
+    expect(prisma.sesionAuth.create).not.toHaveBeenCalled();
+  });
+
+  it('dentro del enlace privado de una empresa, dos variantes del mismo correo también son ambiguas', async () => {
+    const { service, prisma, res } = montar();
+    prisma.usuario.findMany.mockResolvedValue([cuenta({ email: 'Ana@x.test' }), cuenta({ id: 'u-2', email: 'ana@x.test' })]);
+    await expect(service.login({ usuario: 'ana@x.test', password: claveCorrecta, tenantId: 't-1' }, res)).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.sesionAuth.create).not.toHaveBeenCalled();
+  });
+
+  it('las altas nuevas no pueden reutilizar un correo existente aunque cambien mayúsculas', async () => {
+    const { prisma } = montar();
+    prisma.usuario.findFirst = vi.fn().mockResolvedValue({ id: 'otra-empresa' });
+    await expect(exigirIdentificadorUnico(prisma, { email: 'JUAN@X.test' })).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.usuario.findFirst).toHaveBeenCalledWith({ where: { email: { equals: 'juan@x.test', mode: 'insensitive' } }, select: { id: true } });
   });
 });

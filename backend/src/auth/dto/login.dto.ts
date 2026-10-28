@@ -2,8 +2,7 @@ import { IsNotEmpty, IsOptional, IsString, MinLength, MaxLength, ValidateIf } fr
 
 /**
  * Inicio de sesión con dos campos: «Usuario» (usuario, código o correo) y «Contraseña».
- * La empresa y el rol los determina el servidor a partir de la cuenta. El código MFA solo se envía cuando el servidor lo pide
- * tras una contraseña correcta (obligatorio para el Super Admin).
+ * La empresa y el rol los determina el servidor a partir de la cuenta.
  */
 export class LoginDto {
   @ValidateIf((o) => o.email === undefined)
@@ -28,6 +27,7 @@ export class LoginDto {
   @IsOptional() @IsString() @MaxLength(100)
   tenantId?: string;
 
+  /** Retirado (sin MFA por decisión del propietario): se acepta y se ignora para no romper clientes anteriores. */
   @IsOptional() @IsString() @MaxLength(64)
   mfaCode?: string;
 }

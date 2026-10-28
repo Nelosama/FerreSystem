@@ -50,7 +50,7 @@ describe('SuperAdminService', () => {
 
     await expect(service.refresh('refresh-token', response)).resolves.toEqual({ accessToken: 'signed-token' });
     expect(jwt.sign).toHaveBeenCalledWith(
-      { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', mfa: true, sid: 's-1' },
+      { sub: admin.id, email: admin.email, rol: 'SUPER_ADMIN', type: 'super_admin', sid: 's-1' },
       expect.any(Object),
     );
     expect(response.cookie).toHaveBeenCalledWith('superAdminRefreshToken', 'signed-token', expect.objectContaining({ path: '/api/admin/auth', httpOnly: true }));
@@ -64,11 +64,13 @@ describe('SuperAdminService', () => {
     }));
   });
 
-  it('el login de plataforma exige MFA: sin código pide el segundo factor y no emite sesión', async () => {
+  it('el login de plataforma no pide segundo factor (decisión del propietario) y la contraseña incorrecta no emite sesión', async () => {
     prisma.superAdmin.findUnique.mockResolvedValue({ ...admin, passwordHash: await bcrypt.hash('test-password', 4) });
-    await expect(service.login({ email: admin.email, password: 'test-password' }, response)).rejects.toMatchObject({ response: expect.objectContaining({ code: 'MFA_REQUERIDO' }) });
+    prisma.authAction.findUnique = vi.fn().mockResolvedValue(null);
+    await expect(service.login({ email: admin.email, password: 'otra-password' }, response)).rejects.toThrow('Credenciales inválidas');
     expect(jwt.sign).not.toHaveBeenCalled();
-    expect(response.cookie).not.toHaveBeenCalled();
+    await expect(service.login({ email: admin.email, password: 'test-password' }, response)).resolves.toMatchObject({ accessToken: expect.any(String) });
+    expect(jwt.sign).toHaveBeenCalledWith(expect.not.objectContaining({ mfa: expect.anything() }), expect.any(Object));
   });
 
   it('el login de plataforma no acepta cuentas de negocio aunque la contraseña sea correcta', async () => {
@@ -214,7 +216,7 @@ describe('SuperAdminService', () => {
     };
     prisma.$transaction.mockImplementation((callback: (tx: any) => unknown) => callback(tx));
     await expect(service.createTenant({ nombreComercial: 'Negocio', adminNombre: 'Admin', adminEmail: 'Repetido@Example.test', adminPassword: 'TenantPassword123!' })).rejects.toThrow('no está disponible');
-    expect(tx.usuario.findFirst).toHaveBeenCalledWith({ where: { email: 'repetido@example.test' }, select: { id: true } });
+    expect(tx.usuario.findFirst).toHaveBeenCalledWith({ where: { email: { equals: 'repetido@example.test', mode: 'insensitive' } }, select: { id: true } });
     expect(tx.tenant.create).not.toHaveBeenCalled();
   });
 
