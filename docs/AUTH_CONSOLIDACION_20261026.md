@@ -3,7 +3,7 @@
 **Firma de esquema y persistencia:** NEXUS · **Fecha:** 2026-10-26 UTC · **Rama:** `claude/consolidate-auth-pr200-201-xz1q5m` (base `main` `2f6168d`, parte de #201 `3b347ec`).
 Sin merge, sin despliegue y sin acceso a producción. #200 y #201 quedan abiertos como referencia. #180 y #202 no se modificaron.
 
-Sustituye al diseño de #201 (`LOGIN_UNICO_RECUPERACION_20261026.md`, retirado de esta rama porque describía el MFA del Super Admin como eliminado) y actualiza [AUTH_RECOVERY_SECURITY.md](AUTH_RECOVERY_SECURITY.md) (MFA, cifrado TOTP y enrolamiento siguen vigentes).
+Sustituye al diseño de #201 (`LOGIN_UNICO_RECUPERACION_20261026.md`, retirado de esta rama porque describía el MFA del Super Admin como eliminado) y actualiza [AUTH_RECOVERY_SECURITY.md](AUTH_RECOVERY_SECURITY.md) (estado vigente: MFA retirado el 2026-10-27; el resto del texto sobre TOTP es históricoigentes).
 
 ## 1. Política consolidada
 
@@ -11,13 +11,13 @@ Sustituye al diseño de #201 (`LOGIN_UNICO_RECUPERACION_20261026.md`, retirado d
 |---|---|---|
 | Pantalla de acceso | Solo «Usuario» (usuario, código o correo) y «Contraseña». Sin selector de empresa, idioma, rol ni casilla de Super Admin. | `frontend/src/pages/LoginPage.tsx` |
 | Empresa y rol | Se resuelven por el identificador **antes** de comprobar ninguna contraseña. Un identificador que coincide con más de una cuenta no se resuelve y responde igual que uno inexistente. Un enlace privado `?empresa=` (no visible) acota la búsqueda para cuentas heredadas duplicadas. | `backend/src/auth/identidad-login.ts` |
-| MFA del Super Admin | **Obligatorio** en login, en la recuperación, en `refresh` y en cada petición (`mfa: true` + secreto configurado). El campo del código aparece solo después de la contraseña correcta (`MFA_REQUERIDO`). Sin MFA configurado: `MFA_ENROLAMIENTO_REQUERIDO` y enrolamiento inicial por correo. Las cuentas de negocio que configuraron MFA también lo usan. | `auth.service.ts` (`exigirSegundoFactor`), `jwt.strategy.ts`, `super-admin.service.ts` |
+| Segundo factor | **Retirado el 2026-10-27** por decisión del propietario. Sin TOTP, códigos de emergencia ni enrolamiento. El Super Admin entra con usuario/correo y contraseña. | `auth.service.ts`, `jwt.strategy.ts`, `super-admin.service.ts` |
 | Límites temporales | Por identificador (5 fallos → 15 min) y por IP (100), iguales exista o no la cuenta. Durante la pausa del identificador solo entra una contraseña temporal vigente; cualquier otro intento responde 429 y cuenta para la IP. | `login-rate-limit.ts`, `auth.service.ts` (`login`) |
 | Bloqueo permanente | Cuentas operativas (todo rol distinto de ADMIN: Cajero, Vendedor, Bodeguero, Contador de #180…) se bloquean en el **sexto** fallo consecutivo con una sola sentencia SQL atómica. El bloqueo revoca sesiones y anula enlaces pendientes. Una cuenta bloqueada no prueba la contraseña: la respuesta es el mismo 401 genérico (sin oráculo ni enumeración). Admin y Super Admin no se bloquean de forma permanente. | `bloqueo-cuenta.ts` |
 | Reactivación | `POST /auth/security/unlock`: Admin solo sobre cuentas operativas de **su** empresa; Super Admin en cualquier empresa. No cambia contraseñas ni reactiva cuentas desactivadas. Auditado en `auth_events` (`ACCOUNT_UNLOCKED`) y en `auditoria_operaciones` (`USUARIO_DESBLOQUEAR`). `GET /auth/security/locked`: Admin ve su empresa, Super Admin todas. | `recovery.service.ts` (`unlock`, `locked`) |
 | Recuperación Admin/Super Admin | Tras 3 fallos consecutivos y con correo verificado: contraseña temporal aleatoria (≈92 bits, `XXXX-XXXX-XXXX-XXXX`), un uso, 10 min, guardada solo como SHA-256 en `auth_actions` y ligada a cuenta, correo y contraseña vigente. Respuesta idéntica y de 8,5 s para cualquier identificador. El Super Admin debe aportar además su segundo factor; la temporal se consume solo después. Usarla revoca las sesiones previas (y el soporte remoto del Super Admin) y entrega un token de **cambio obligatorio** sin sesión ni cookie. | `recovery.service.ts` (`request`, `forcedChange`), `contrasena-temporal.ts` |
 | Roles operativos | Sin recuperación pública. Admin de la empresa (o Super Admin) emite un enlace privado de un uso (10 min); el titular define su contraseña (cambio obligatorio inherente), lo que también levanta el bloqueo. Un Admin solo restablece a otro Admin si él mismo tiene MFA. | `adminReset`, `reset` |
-| Cambio propio | Cualquier usuario con su contraseña actual (y su segundo factor si lo tiene; el Super Admin siempre). Revoca todas las sesiones. | `change` |
+| Cambio propio | Cualquier usuario con su contraseña actual. Revoca todas las sesiones. | `change` |
 | Auditoría | `ACCOUNT_LOCKED`, `ACCOUNT_UNLOCKED`, `TEMP_PASSWORD_ISSUED`, `TEMP_PASSWORD_USED`, `PASSWORD_FORCED_CHANGE`, `PASSWORD_CHANGE`, `RESET_ADMIN`, `ADMIN_RESET_REQUEST`, `MFA_*`. Nunca contraseñas, temporales ni tokens (comprobado en la matriz PostgreSQL). | `auth-actions.ts` |
 | Unicidad de identificadores | Altas y ediciones de usuarios, administradores y negocios rechazan (409, sin decir dónde) un usuario/correo usado en cualquier empresa o por un Super Admin, serializando por identificador con un bloqueo consultivo. | `exigirIdentificadorUnico` |
 
@@ -25,7 +25,7 @@ Sustituye al diseño de #201 (`LOGIN_UNICO_RECUPERACION_20261026.md`, retirado d
 
 | Aspecto | #200 | #201 | Consolidado (evidencia) |
 |---|---|---|---|
-| MFA del Super Admin | Retirado | Retirado | **Restaurado** (requisito). Ambos contradecían la instrucción. |
+| MFA del Super Admin | Retirado | Retirado | **Restaurado** el 2026-10-26 y **retirado de nuevo** el 2026-10-27 por decisión del propietario. |
 | Identificador duplicado | 401 con `IDENTIFICADOR_AMBIGUO` y mensaje propio | 401 genérico | **#201**: el código de #200 revela que el identificador existe en varias cuentas. |
 | Correo de usuario igual al del Super Admin | `AMBIGUA` (el Super Admin no entra) | Precedencia del Super Admin | **#201**: un dato heredado de un negocio no puede dejar fuera a la plataforma. |
 | Aviso de recuperación | El navegador cuenta 3 fallos | El servidor devuelve `recuperacionDisponible` | **#200**: el campo de #201 revela que la cuenta existe, es Admin/Super Admin, tiene correo verificado y ≥3 fallos. |
@@ -39,12 +39,12 @@ Sustituye al diseño de #201 (`LOGIN_UNICO_RECUPERACION_20261026.md`, retirado d
 | Unicidad global | Bloqueo consultivo por identificador; usuarios, admins y alta de negocio | Sin bloqueo (carrera); solo usuarios | **#200**. |
 | Desbloqueo | `/usuarios/:id/desbloquear` (también reactivaba cuentas desactivadas) y ruta de Super Admin | `/auth/security/unlock` único | **#201** + auditoría de negocio de #200; no toca `activo`. |
 | Asignar contraseña por Super Admin | Sí (el Super Admin la conoce) | No | **Descartado**: el enlace privado existente cumple el requisito sin que nadie más conozca la contraseña. |
-| Login `/admin/auth/login` | Lógica duplicada | Lógica duplicada | Delegado a `AuthService` (`soloPlataforma`): un solo flujo con MFA y límites. |
+| Login `/admin/auth/login` | Lógica duplicada | Lógica duplicada | Delegado a `AuthService` (`soloPlataforma`): un solo flujo con límites. |
 | Migración | 3 columnas `usuarios`, 2 `super_admins`, CHECK ≥ 0, 2 índices | 3 + 2 columnas, 2 índices, tabla nueva | Columnas de #201, CHECK de #200, sin tabla nueva, sin `debe_cambiar_password`. |
 
 ## 3. Vulnerabilidades detectadas y corregidas
 
-1. **Retirada del MFA del Super Admin** (#200 y #201): una contraseña filtrada daba control de todas las empresas. Restaurado en login, recuperación, refresh y estrategia JWT.
+1. **Retirada del MFA del Super Admin** (#200 y #201): una contraseña filtrada daba control de todas las empresas. Restaurado en la consolidación de 2026-10-26 y **retirado de nuevo el 2026-10-27** por decisión del propietario; la compensación es la contraseña temporal por correo verificado, el límite por IP y el bloqueo de cuentas operativas. Ver [MFA_RETIRO_PLAN_20261027.md](MFA_RETIRO_PLAN_20261027.md).
 2. **Enumeración por `recuperacionDisponible`** (#201): revelaba rol, correo verificado y fallos de una cuenta. Eliminado; el aviso se calcula en el navegador.
 3. **Enumeración por `IDENTIFICADOR_AMBIGUO`** (#200). Eliminado.
 4. **Oráculo de contraseña en cuentas bloqueadas** (#200) y **enumeración de bloqueadas** (#201, 403 sin contraseña). Corregido: respuesta genérica sin probar la contraseña.
@@ -60,13 +60,12 @@ Riesgos residuales aceptados (requisito o diseño previo): quien conozca el usua
 
 | Ruta | Cambio |
 |---|---|
-| `POST /auth/login` | Cuerpo `{ usuario, password, mfaCode?, tenantId? }` (`email` aceptado como alias). Respuestas: `tenant`, `super_admin` (`mfa: true`), `password_change_required` (`cambioToken`, 600 s), 401 `MFA_REQUERIDO`/`MFA_ENROLAMIENTO_REQUERIDO`, 401 genérico, 429. |
+| `POST /auth/login` | Cuerpo `{ usuario, password, tenantId? }` (`email` aceptado como alias; un `mfaCode` antiguo se descarta). Respuestas: `tenant`, `super_admin`, `password_change_required` (`cambioToken`, 600 s), 401 genérico, 429.
 | `POST /admin/auth/login` | Mismo flujo restringido a Super Admin. |
 | `POST /auth/security/request` | `{ usuario }` (alias `email`, `tenantId?` de enlace). Siempre 202 y 8,5 s. |
 | `POST /auth/security/forced-change` | `{ token, password }`. |
 | `POST /auth/security/unlock` · `GET /auth/security/locked` | Nuevos. |
 | `POST /auth/security/reset` | Solo enlaces `RESET_ADMIN`; `RESET_EMAIL` heredados (10 min de vida) ya no se aceptan. |
-| MFA (`mfa/bootstrap-request`, `mfa/bootstrap`, `mfa/enroll`, `mfa/confirm`) | Se conservan; `bootstrap-request` acepta `{ usuario, password }`. |
 
 ## 5. Base de datos (NEXUS)
 
@@ -119,7 +118,7 @@ Verificado en PostgreSQL 16 efímero: sobre una base con esta migración, `migra
 
 | Variable | Requerida | Uso |
 |---|---|---|
-| `AUTH_MFA_ENCRYPTION_KEY` | Sí | 64 hex, respaldada en el gestor de secretos. Sin ella ningún Super Admin entra |
+
 | `AUTH_MAIL_GMAIL_USER` | Sí (correo) | Dirección completa de la cuenta Gmail **dedicada** a Jowa System; también es el remitente |
 | `AUTH_MAIL_GMAIL_APP_PASSWORD` | Sí (correo) | Contraseña de aplicación de esa cuenta (16 caracteres). Nunca la contraseña normal |
 | `AUTH_MAIL_FROM_NAME` | No | Nombre visible del remitente; por defecto «Jowa System» |
@@ -142,7 +141,7 @@ Verificado en PostgreSQL 16 efímero: sobre una base con esta migración, `migra
   3. Definir las variables y probar una entrega real en un entorno no productivo antes de liberar.
 - **Si las contraseñas de aplicación no están disponibles** para esa cuenta (llaves de seguridad, Protección Avanzada o política de Workspace), la alternativa es Gmail API con OAuth 2.0. No está implementada; requiere un cliente OAuth y un refresh token de la cuenta dedicada.
 
-Además: enrolar el MFA del Super Admin propietario (sin él no entra); los Admin deben verificar su correo para poder recuperar; ejecutar el script de duplicados. No se envió ningún correo real.
+Además: verificar el correo Gmail de staging (entrega real pendiente); los Admin deben verificar su correo para poder recuperar; ejecutar el script de duplicados.
 
 ## 7. Pruebas
 

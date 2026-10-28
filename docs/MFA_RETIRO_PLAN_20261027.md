@@ -1,6 +1,6 @@
 # Retiro del MFA del Super Admin — verificación, plan y riesgos (PR #203)
 
-Fecha: 2026-10-27 UTC · Firma de esquema: **NEXUS** · Estado: **preparado, NO ejecutado**.
+Fecha: 2026-10-27 UTC · Firma de esquema: **NEXUS** · Estado: **ejecutado en la rama del PR #203 (2026-10-27)** por decisión del propietario, comunicada en la sesión de trabajo. Este documento conserva la verificación previa y los riesgos aceptados.
 
 ## 1. Verificación de la decisión contra la documentación vigente
 
@@ -44,6 +44,8 @@ Bloqueo al 6.º fallo, límites por cuenta/IP, 401 genérico sin enumeración, c
 - Contraseña larga obligatoria (≥ 16) con verificación de filtraciones, reautenticación para acciones críticas y cola de aprobación doble para crear/eliminar empresas.
 - Sin cambios para Admin y roles operativos: bloqueo, recuperación y revocación permanecen.
 
-## 6. Decisión requerida del propietario
+## 6. Decisión (registrada)
 
-Confirmar por escrito (a) que desea retirar el MFA del Super Admin, y (b) la opción de §5 que lo compensa. Mientras tanto el PR #203 mantiene el MFA obligatorio, coherente con la documentación vigente, y es el valor seguro por defecto.
+El propietario decidió retirar el MFA del Super Admin. Se ejecuta en esta rama conservando las compensaciones que no dependen del segundo factor: contraseña temporal de un uso por correo verificado, límites por identificador e IP, bloqueo permanente de cuentas operativas, cambio obligatorio y revocación de sesiones. Pendiente de decisión posterior, no incluida: la opción de §5 que se quiera añadir como control compensatorio (por ejemplo, restricción de red o passkeys).
+
+Las columnas `mfa_secret`/`mfa_last_step` y la tabla `auth_recovery_codes` **no se eliminan** en esta PR: borrarlas es destructivo y requiere autorización explícita y una migración propia.
