@@ -190,7 +190,32 @@ describe('Administración cloud / HTTP y PostgreSQL aislado', () => {
     expect((await http('GET', '/api/auth/me', token)).status).toBe(401);
     expect(await prisma.usuario.findUniqueOrThrow({ where: { id: usuario.id } })).toMatchObject({ activo: false, nombre: 'Editado', permisos: ['inventario.ver'] });
     expect((await http('PATCH', `${endpoint(A, 'usuarios')}/${usuario.id}`, sa, { activo: true })).status).toBe(200);
-    expect(await prisma.auditoriaOperacion.count({ where: { tenantId: A, entidadId: usuario.id, usuarioId: superAdminId } })).toBe(4);
+    const events = await prisma.auditoriaOperacion.findMany({ where: { tenantId: A, entidadId: usuario.id } });
+    expect(events).toHaveLength(5);
+    expect(events.every(e => e.usuarioId === superAdminId)).toBe(true);
+    expect(events.map(e => e.operacion).sort()).toEqual(['USUARIO_CREAR', 'USUARIO_EDITAR', 'USUARIO_DESACTIVAR', 'USUARIO_REACTIVAR', 'USUARIO_PERMISO_CONCEDER'].sort());
+    expect(events.find(e => e.operacion === 'USUARIO_PERMISO_CONCEDER')).toMatchObject({ datos: { actorId: superAdminId, beneficiarioId: usuario.id, permiso: 'inventario.ver', accion: 'CONCEDER' } });
+  });
+
+  it('SUPERADMIN concede y revoca excepción; cambiar rol la revoca aunque se reenvíe, con auditoría persistida', async () => {
+    const created = await http('POST', endpoint(A, 'usuarios'), sa, { nombre: 'Admin excepción', email: `excepcion-${randomUUID()}@cloud.test`, rol: 'ADMIN' });
+    expect(created.status).toBe(201);
+    const user = await created.json() as any;
+    const route = `${endpoint(A, 'usuarios')}/${user.id}`;
+    for (const permisos of [['pos.excepcion_precio'], [], ['pos.excepcion_precio']]) {
+      expect((await http('PATCH', route, sa, { permisos })).status).toBe(200);
+    }
+    expect((await http('PATCH', route, sa, { rol: 'VENDEDOR', permisos: ['pos.excepcion_precio', 'pos.vender'] })).status).toBe(200);
+    expect(await prisma.usuario.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ rol: 'VENDEDOR', permisos: ['pos.vender'] });
+    const events = await prisma.auditoriaOperacion.findMany({ where: { tenantId: A, entidadId: user.id, operacion: { in: ['USUARIO_PERMISO_CONCEDER', 'USUARIO_PERMISO_REVOCAR'] } }, orderBy: { createdAt: 'asc' } });
+    expect(events).toHaveLength(5);
+    const exception = events.filter(e => (e.datos as any).permiso === 'pos.excepcion_precio');
+    expect(exception.map(e => e.operacion)).toEqual(['USUARIO_PERMISO_CONCEDER', 'USUARIO_PERMISO_REVOCAR', 'USUARIO_PERMISO_CONCEDER', 'USUARIO_PERMISO_REVOCAR']);
+    expect(events.find(e => (e.datos as any).permiso === 'pos.vender')).toMatchObject({ operacion: 'USUARIO_PERMISO_CONCEDER', datos: { permiso: 'pos.vender', accion: 'CONCEDER' } });
+    for (const event of events) {
+      expect(event.usuarioId).toBe(superAdminId);
+      expect(event.datos).toMatchObject({ actorId: superAdminId, beneficiarioId: user.id, accion: event.operacion === 'USUARIO_PERMISO_CONCEDER' ? 'CONCEDER' : 'REVOCAR' });
+    }
   });
 
   it('rechaza el alta con una contraseña elegida por el administrador', async () => {

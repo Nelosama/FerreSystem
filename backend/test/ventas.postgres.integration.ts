@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { devolucionAutorizada } from './helpers/devolucion-autorizada';
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
@@ -670,17 +671,19 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect((await service.findAll(tenantId,'FAB-12')).map(p=>p.id)).toEqual([a.id]);
     await expect(service.create(tenantId,{...dto,codigoBarras:'123456789'},usuarioId)).rejects.toThrow('barras ya registrado');
   });
-  it('los permisos se persisten y desactivar conserva historial y al último administrador',async()=>{
+  it('ADMIN gestiona empleados y conserva historial, pero no desactiva su propia cuenta',async()=>{
     const service=new UsuariosService(prisma);
-    // Único administrador desactivándose a sí mismo: lo rechaza la autoprotección o la regla de último administrador.
-    await expect(service.remove(tenantId,usuarioId,usuarioId)).rejects.toThrow(/administrador activo|propia cuenta/);
+    // La autorización rechaza gestionar la cuenta ADMIN antes de evaluar último administrador.
+    await expect(service.remove(tenantId,usuarioId,usuarioId)).rejects.toBeInstanceOf(ForbiddenException);
     const cashier=await service.create(tenantId,{nombre:'Cajero',email:'cashier@example.test',permisos:['pos.vender'],descuentoMaximo:5},usuarioId);
     expect(cashier.rol).toBe('CAJERO');
     const saved=await prisma.usuario.findUniqueOrThrow({where:{id:cashier.id}});
     expect(saved.permisos).toEqual(['pos.vender']);expect(saved.permisosConfigurados).toBe(true);expect(Number(saved.descuentoMaximo)).toBe(5);
     await service.remove(tenantId,cashier.id,usuarioId);
     expect((await prisma.usuario.findUniqueOrThrow({where:{id:cashier.id}})).activo).toBe(false);
-    expect(await prisma.auditoriaOperacion.count({where:{tenantId,entidadId:cashier.id}})).toBe(2);
+    const events=await prisma.auditoriaOperacion.findMany({where:{tenantId,entidadId:cashier.id}});
+    expect(events.map(e=>e.operacion).sort()).toEqual(['USUARIO_CREAR','USUARIO_DESACTIVAR','USUARIO_PERMISO_CONCEDER'].sort());
+    expect(events.find(e=>e.operacion==='USUARIO_PERMISO_CONCEDER')).toMatchObject({usuarioId,datos:{actorId:usuarioId,beneficiarioId:cashier.id,permiso:'pos.vender',accion:'CONCEDER'}});
   });
 
   const authorizedReturn = async (credit=false) => {

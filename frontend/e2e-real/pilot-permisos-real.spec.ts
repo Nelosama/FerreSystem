@@ -8,7 +8,8 @@ const API = process.env.E2E_API_URL!;
 const PASSWORD = process.env.E2E_PASSWORD!;
 const headers = (token: string) => ({ Authorization: `Bearer ${token}` });
 const roles = ['ADMIN', 'CAJERO', 'BODEGUERO', 'VENDEDOR'] as const;
-const users = new Map<string, { email: string; token: string }>();
+const users = new Map<string, { id: string; email: string; token: string }>();
+let originalAdminId = '';
 const reads = [
   { route: '/usuarios', allowed: ['ADMIN'] },
   { route: '/operaciones/caja', allowed: ['ADMIN', 'CAJERO', 'VENDEDOR'] },
@@ -22,10 +23,17 @@ const reads = [
 test.beforeAll(async ({ request }) => {
   const login = await request.post(`${API}/auth/login`, { data: { email: 'admin.a@e2e.invalid', password: PASSWORD } });
   expect(login.status()).toBe(200);
-  const admin = (await login.json()).accessToken;
+  const session = await login.json();
+  const admin = session.accessToken;
+  originalAdminId = session.user.id;
+  const platformLogin = await request.post(`${API}/auth/login`, { data: { email: 'superadmin.e2e@e2e.invalid', password: PASSWORD } });
+  expect(platformLogin.status()).toBe(200);
+  const platform = (await platformLogin.json()).accessToken;
   for (const rol of roles) {
     const email = `pilot.${rol.toLowerCase()}.${randomUUID()}@e2e.invalid`;
-    const created = await request.post(`${API}/usuarios`, { headers: headers(admin), data: {
+    // Only the platform creates ADMIN; tenant ADMIN still creates the other roles.
+    const route = rol === 'ADMIN' ? `/admin/tenants/${session.tenant.id}/usuarios` : '/usuarios';
+    const created = await request.post(`${API}${route}`, { headers: headers(rol === 'ADMIN' ? platform : admin), data: {
       nombre: `Pilot permissions ${rol}`, email, rol,
       permisos: ['inventario.ver', 'inventario.editar', 'pos.vender', 'usuarios.gestionar', 'reportes.ver'],
     } });
@@ -35,7 +43,7 @@ test.beforeAll(async ({ request }) => {
     expect(authenticated.status()).toBe(200);
     const body = await authenticated.json();
     expect(body.user.rol).toBe(rol);
-    users.set(rol, { email, token: body.accessToken });
+    users.set(rol, { id: body.user.id, email, token: body.accessToken });
   }
 });
 
@@ -46,7 +54,20 @@ for (const rol of roles) {
       const response = await request.get(`${API}${read.route}`, { headers: headers(user.token) });
       expect(response.status(), `${rol} GET ${read.route}`).toBe(read.allowed.includes(rol) ? 200 : 403);
     }
-    if (rol !== 'ADMIN') {
+    if (rol === 'ADMIN') {
+      const deniedCreate = await request.post(`${API}/usuarios`, { headers: headers(user.token), data: {
+        nombre: 'Denied admin', email: `denied.${randomUUID()}@e2e.invalid`, rol: 'ADMIN',
+      } });
+      expect(deniedCreate.status(), 'tenant ADMIN cannot create ADMIN').toBe(403);
+      for (const id of [user.id, originalAdminId]) {
+        for (const data of [{ nombre: 'Denied edit' }, { permisos: ['pos.excepcion_precio'] }, { activo: false }]) {
+          expect((await request.put(`${API}/usuarios/${id}`, { headers: headers(user.token), data })).status()).toBe(403);
+        }
+        expect((await request.delete(`${API}/usuarios/${id}`, { headers: headers(user.token) })).status()).toBe(403);
+      }
+      const employee = users.get('CAJERO')!;
+      expect((await request.put(`${API}/usuarios/${employee.id}`, { headers: headers(user.token), data: { nombre: 'Pilot cashier edited' } })).status()).toBe(200);
+    } else {
       const response = await request.patch(`${API}/contingencia/configuracion`, { headers: headers(user.token), data: { habilitada: true } });
       expect(response.status(), 'a permission cannot grant ADMIN configuration rights').toBe(403);
       const create = await request.post(`${API}/usuarios`, { headers: headers(user.token), data: {
