@@ -375,21 +375,13 @@ Prompt corto para cualquier IA: **"Lee `docs/CONTEXTO_MAESTRO.md` hasta FIN DEL 
 
 ---
 
-## Línea base de pruebas en Windows — 2026-10-28 (rama local `claude/reconciliacion-main-20261028`, sin push)
+## Reconciliación con main y PR #212 (portabilidad de pruebas) — 2026-10-28 UTC (rama `claude/reconciliacion-main-20261028`, PR [#212](https://github.com/Nelosama/FerreSystem/pull/212), sin merge ni despliegue)
 
-- **Antes:** `npm test` en `frontend` daba 519 pass / 6 fail / 23 skip. Los 6 fallos eran de portabilidad del arnés: `URL.pathname` produce `C:\C:\...` en Windows (`barcode-scanner.test.mjs`), y una comparación con separador `\` (`pos-offline-caracterizacion.test.mjs`). Dos suites no cargaban por la misma causa.
-- **Corrección:** `fileURLToPath` y normalización de separadores. Sin cambios en aserciones ni en código de producto. Revisado por Codex (APROBADO, lectura estática).
-- **Después:** `node --test test/*.test.mjs` → 562 tests, 539 pass, 0 fail, 23 skip (las 23 son `vercel-pilot-guard`, omitidas en win32 por diseño).
-- **Dependencias:** la instalación de Codex (`npm ci` con EACCES) dejó `node_modules` sin TypeScript; se reparó con `npm ci` limpio.
-- **Informe de Codex:** `docs/evidencias/reconciliacion-20261028.md`. Afirma que el documento de contexto quedó intacto "por instrucción del usuario"; eso no es correcto: esa actualización la hice yo, a petición de dejar el estado guardado.
-- **Pendiente:** tarea 3 (cobro del POS), Playwright y lint; no se han ejecutado aún en esta rama.
-
-## Estado nocturno 2026-10-28 — trabajo en curso (rama local `claude/reconciliacion-main-20261028`, desde `main` 53e2cc95, sin push)
-
-- **Corrección:** la rama `claude/ux-ronda1-pos-marca` ya no es la referencia: PR #188 se integró en `main` (`86bd1d74`) y su rama remota se eliminó. Lo que quedaba pendiente se reevalúa sobre `main`.
-- **Codex (director, `codex exec` en workspace-write, en segundo plano):** tareas 1 y 2 del plan: confirmar la integración de #188 en `main` (informe en `docs/evidencias/reconciliacion-20261028.md`) y línea base de `npm test` sobre `main`, clasificando fallos. Sin commit, push ni merge.
-- **Próximo bloque (Claude):** revisar el informe de Codex; luego tarea 3 (cobro del POS: F2/F8/Enter, crédito y transferencia) con cambios pequeños, verificados y revisados por Codex.
-- **Límites:** no hubo pruebas ni cambios de código todavía en esta rama. Sin validación física (Safari/iPhone, impresoras). Sin merge ni despliegue.
+- **Base:** `main` = `848758b` (merge de #210). La rama se incorporó con un merge normal de `main` (sin force push). El PR contiene solo cambios de pruebas: `frontend/test/barcode-scanner.test.mjs` (`fileURLToPath` en lugar de `URL.pathname`, que producía `C:\C:\...` en Windows) y `frontend/test/pos-offline-caracterizacion.test.mjs` (normaliza separadores). Sin cambios en aserciones ni en código de producto; `git diff origin/main -- frontend/src` vacío.
+- **Fallos de CI del head anterior (`366209f`, sobre `53e2cc9`):** el check `validate` fallaba en dos pruebas e2e del navegador, ya resueltas por #210 y que no dependen de este PR: (1) `auth-security.spec.ts` buscaba «Seguridad de mi cuenta» en `/usuarios`; #210 la mueve a `/mi-cuenta`. (2) `contabilidad-simulado.spec.ts` (libro mayor) fallaba por `getByLabel('Cuenta')` ambiguo con el enlace del topbar; #210 quita el `aria-label` que colisionaba (`AdminTopbar.tsx`). Se reprodujeron en el head anterior y pasan tras el merge con `main`.
+- **Pruebas locales (Linux, Node 22.22.0, tras `main` `848758b`):** `npm test` en `frontend` → 562 tests, 562 pass, 0 fail, 0 skip. `npm run build` (con `VITE_API_URL=https://api.example.test/api`) correcto. `npx oxlint src test e2e` sin errores (solo warnings preexistentes en `ArqueoCajaPage.tsx`). Playwright completo con Chromium preinstalado → 416 pass, 26 skip, 0 fail; los dos archivos de la regresión: 38/38.
+- **Límites:** no se ejecutó en Windows/win32 (el informe previo declaraba 539 pass / 23 skip en win32; esa cifra no se ha vuelto a comprobar aquí). No se ejecutó PostgreSQL ni integración backend en esta sesión; `validate` del CI sí las cubre. Sin validación en dispositivo físico.
+- **Pendientes:** (1) confirmar en CI del push los checks `test`, `validate` y `guard-base-datos` sobre el nuevo head. (2) El informe `docs/evidencias/reconciliacion-20261028.md` afirma que este documento quedó intacto; no es correcto desde el commit `366209f`. (3) La tarea 3 del plan nocturno (cobro del POS F2/F8/Enter, crédito y transferencia) no se ha iniciado. (4) Merge pendiente de autorización del dueño.
 
 ## UX ronda 1 (P0+P1) — PR #188 terminado, 2026-10-22 UTC (rama `claude/ux-ronda1-pos-marca`, sin merge ni despliegue)
 
