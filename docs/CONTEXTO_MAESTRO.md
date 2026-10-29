@@ -1,5 +1,16 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+Última revisión: **2026-10-29 UTC** — auditoría funcional y fiscal (rama `claude/auditoria-funcional-20261029`, sobre `main` `3a6c669`). Módulos: [AUDITORIA_FUNCIONAL_MODULOS.md](AUDITORIA_FUNCIONAL_MODULOS.md); fiscal: [CONSOLIDACION_FISCAL.md](CONSOLIDACION_FISCAL.md); exenciones T6: [AUDITORIA_EXENCIONES_T6.md](AUDITORIA_EXENCIONES_T6.md); GO/NO-GO: [GO_NO_GO_PILOTO_20261029.md](GO_NO_GO_PILOTO_20261029.md) (**NO-GO**). Compras ISV en PR #218 (borrador). Sin merge, sin despliegue, sin datos reales.
+
+## Auditoría funcional y fiscal — 2026-10-29 UTC
+
+- **Módulos:** LISTO: POS, inventario, clientes, proveedores, caja, usuarios, Super Admin, entregas, levantamiento. PARCIAL: compras, garantías, contabilidad, reportes, contingencia. BLOQUEADO en `main`: cotizaciones (corregido en #217). NO IMPLEMENTADO: apartados, transferencias, pedidos especiales, listas de precio: ocultar en el piloto; hoy están activos por defecto (`DEFAULT_TENANT_MODULES`).
+- **Hallazgo:** `ApartadosPage`, `TransferenciasPage`, `PedidosEspecialesPage` y `ListasPrecioPage` no se importan y guardan datos de ejemplo en `localStorage`. No reactivar sin rehacer.
+- **Fiscal:** comparación medida de `calcularTotales`, propuesta #217 y desglose: mismos totales en los casos medidos; mecánica distinta. Propuesta de módulo único con política de redondeo como parámetro (D6). Sin conexión a operaciones.
+- **T6:** cualquier VENDEDOR o CAJERO marca líneas exentas sin autorización ni auditoría. Pruebas en `exenciones-t6.postgres.integration.ts` (5/5). Recomendación: no permitir exentas en el piloto.
+- **Compras:** ISV sin validar (acepta 10× el subtotal); sin conciliar con `fiscal_documentos`. Caracterizado en PR #218 (9/9).
+- **Pendiente:** ensayo de migración en preproducción; verificación de Render y respaldos (O1, O2); decisiones D1–D11.
+
 Última revisión: **2026-10-28 UTC** — interfaz de excepción de precio (POS y conversión de cotizaciones) en `claude/stoic-gates-sxbg8u` sobre `main` `53e2cc9` (#209); concesión del permiso bloqueada por decisión pendiente. Ver la primera sección. Sin merge ni despliegue.
 
 Última revisión: **2026-10-28 UTC** — consolidación #207 + #200 sobre `main` `a436584` (#203) en `claude/laughing-euler-tplk31`; ver la primera sección. Sin merge ni despliegue.
