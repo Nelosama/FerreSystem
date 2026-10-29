@@ -8,7 +8,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequiredModule } from '../common/decorators/required-module.decorator';
-import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
+import { CreateCotizacionDto, RegularizarIsvDto } from './dto/create-cotizacion.dto';
 
 @Controller('cotizaciones')
 @RequiredModule('cotizaciones')
@@ -58,6 +58,18 @@ export class CotizacionesController {
     @Param('id') id: string,
   ) {
     return this.cotizacionesService.duplicate(tenantId, usuarioId, id);
+  }
+
+  // P3: crea una cotización nueva con tasa autorizada a partir de una antigua con tasa no autorizada; la original no cambia.
+  @Post(':id/regularizar-isv')
+  @Roles('ADMIN')
+  async regularizarIsv(
+    @TenantId() tenantId: string,
+    @CurrentUser('sub') usuarioId: string,
+    @Param('id') id: string,
+    @Body() dto: RegularizarIsvDto,
+  ) {
+    return this.cotizacionesService.regularizarIsv(tenantId, usuarioId, id, dto);
   }
 
   @Patch(':id/estado')
