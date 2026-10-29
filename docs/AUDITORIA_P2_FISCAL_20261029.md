@@ -120,5 +120,5 @@ Propuesta de auditoría de datos (solo lectura, antes de cualquier CHECK en `cot
 
 - Backend unitarias **72 archivos / 814** (`main`: 70 / 750); build y lint sin errores (solo avisos existentes). Incluye P3.
 - Frontend **573/573**; `tsc -b`, `vite build` con `VITE_API_URL=/api` y lint sin errores.
-- Integración con PostgreSQL 16 real (clúster temporal, datos sintéticos): **67 archivos / 1207 aprobadas, 1 omitida** (caso de navegador sin `REAL_SETTINGS_BROWSER`).
+- Integración con PostgreSQL 16 real (clúster temporal, datos sintéticos): **67 archivos / 1208 aprobadas, 1 omitida** (incluye P3) (caso de navegador sin `REAL_SETTINGS_BROWSER`).
 - CI de `67abc39` (antes de P3): `validate`, `test` y `guard-base-datos` en verde. CI del commit de P3: pendiente al escribir. Sin merge, sin despliegue, sin acceso a producción ni datos reales.
