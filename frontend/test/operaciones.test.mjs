@@ -34,6 +34,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name.endsWith('/tenantSettings')) return evaluate('src/utils/tenantSettings.ts', {}, globals);
     if (name.endsWith('/storage')) return evaluate('src/utils/storage.ts', {}, globals);
     if (name.endsWith('/money')) return evaluate('src/offline/money.ts', {}, globals);
+    if (name.endsWith('/politica-isv')) return evaluate('src/utils/politica-isv.ts', {});
     if (name.endsWith('/colorMarca')) return evaluate('src/utils/colorMarca.ts', {});
     if (name.endsWith('/posMoney')) return evaluate('src/utils/posMoney.ts', {}, globals);
     if (name.endsWith('/posCatalogo')) return evaluate('src/utils/posCatalogo.ts', {}, globals);
@@ -333,6 +334,26 @@ test('editar cotización recupera porcentajes desde los montos guardados', async
   const percentageInputs = nodes.filter((n) => n.type === 'input' && n.props.type === 'number').map((n) => n.props.value);
   assert.ok(percentageInputs.includes(25));
   assert.ok(percentageInputs.includes(10));
+});
+
+test('P2-H1 la tasa de ISV de la cotización solo se elige entre las autorizadas; una antigua se muestra como no autorizada', async () => {
+  const cot = { id: 'cot-500', numeroCotizacion: 2, clienteNombre: 'Cliente', estado: 'BORRADOR', createdAt: '2026-10-02', fechaValidez: '2099-10-17', subtotal: 10, porcentajeIsv: 500, isv: 50, descuento: 0, descuentoGeneral: 0, tipoDescuentoGeneral: 'MONTO', total: 60,
+    detalles: [{ id: 'line-1', productoId: 'p1', productoNombre: 'Cable', cantidad: 1, medida: 1, totalMedida: 1, precioUnitario: 10, descuento: 0, tipoDescuento: 'MONTO', subtotal: 10, isv: 50, totalLinea: 60 }] };
+  const page = harness('src/pages/CotizacionesPage.tsx', 'CotizacionesPage', { '../utils/api': { api: { get: async (url) => ({ data: url === '/cotizaciones' ? [cot] : [] }) } } });
+  page.render(); await page.effects(); page.render(); await page.effects(); page.render();
+  page.find((n) => n.props.onClick?.toString().includes('handleAbrirEditar')).props.onClick();
+  const opciones = (nodes) => nodes.find((n) => n.type === 'select' && n.children.some((c) => c?.type === 'option' && String(c.props.value) === '15'));
+  let select = opciones(page.render());
+  assert.ok(select, 'la tasa es un selector, no un campo libre');
+  assert.equal(page.find((n) => n.type === 'input' && n.props.type === 'number' && n.props.step === '0.01' && n.props.value === 500), undefined);
+  const antigua = select.children.find((c) => c?.type === 'option' && c.props.value === '500');
+  assert.equal(antigua.props.disabled, true);
+  assert.ok(antigua.children.join('').includes('tasa_isv_no_autorizada'));
+  assert.deepEqual(select.children.filter((c) => c?.type === 'option' && !c.props.disabled).map((c) => c.props.value), ['15']);
+  select.props.onChange({ target: { value: '15' } });
+  select = opciones(page.render());
+  assert.equal(select.props.value, '15');
+  assert.equal(select.children.filter((c) => c?.type === 'option').length, 1);
 });
 
 test('selector busca por teléfono y descarta respuestas de búsquedas anteriores', async () => {

@@ -4,7 +4,8 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
 import { diaCalendario, inicioDiaEnZona, sumarDias } from '../common/zona-horaria';
-import { centavosADecimal, subtotalLinea } from '../common/dinero';
+import { centavosADecimal, subtotalLinea, TASA_ISV_PORCIENTO } from '../common/dinero';
+import { exigirTasaIsvAutorizada, tasaIsvEstructuralmenteValida } from '../common/politica-isv';
 import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 
@@ -107,7 +108,7 @@ export class CotizacionesService {
       const numeroCotizacion = result[0].ultimo_numero;
 
       // 2. Procesar ítems y realizar cálculos precisos
-      const porcentajeIsv = dto.porcentajeIsv !== undefined ? dto.porcentajeIsv : 15.0;
+      const porcentajeIsv = exigirTasaIsvAutorizada(dto.porcentajeIsv !== undefined ? dto.porcentajeIsv : TASA_ISV_PORCIENTO);
       const parsedDetails = await this.processLineItems(tx, tenantId, dto.detalles, porcentajeIsv);
 
       const subtotalCentavos = parsedDetails.reduce((sum, item) => sum + aCentavos(item.subtotal, 'Subtotal'), 0);
@@ -236,7 +237,8 @@ export class CotizacionesService {
       // Eliminar detalles previos
       await tx.detalleCotizacion.deleteMany({ where: { cotizacionId: id } });
 
-      const porcentajeIsv = dto.porcentajeIsv !== undefined ? dto.porcentajeIsv : Number(existing.porcentajeIsv);
+      // Una cotización antigua con tasa no autorizada no se recalcula con ella: hay que elegir una tasa autorizada.
+      const porcentajeIsv = exigirTasaIsvAutorizada(dto.porcentajeIsv !== undefined ? dto.porcentajeIsv : Number(existing.porcentajeIsv));
       const parsedDetails = await this.processLineItems(tx, tenantId, dto.detalles, porcentajeIsv);
 
       const subtotalCentavos = parsedDetails.reduce((sum, item) => sum + aCentavos(item.subtotal, 'Subtotal'), 0);
@@ -331,6 +333,8 @@ export class CotizacionesService {
     if (!original) {
       throw new NotFoundException('Cotización original no encontrada');
     }
+    // La copia conserva importes y tasa de la original: no se crea un documento nuevo con una tasa no autorizada.
+    exigirTasaIsvAutorizada(Number(original.porcentajeIsv));
 
     return this.prisma.$transaction(async (tx) => {
       const result = await tx.$queryRaw<[{ ultimo_numero: number }]>`
@@ -506,6 +510,9 @@ export class CotizacionesService {
       const excepcionPolitica = exigirPoliticaPrecio(user, cotizacion.detalles.map(d => ({ productoId: d.productoId, producto: d.producto.nombre, precioVigente: Number(d.producto.precioVenta), precioCobrado: Number(d.precioUnitario) })), excepcionPrecio);
       // La venta directa siempre aplica ISV 15 % sin exenciones. Igual que un precio modificado, una tasa distinta o una
       // línea exenta en la cotización cambia el impuesto facturado: solo el administrador la convierte.
+      // Las cotizaciones nuevas ya solo admiten tasas autorizadas (common/politica-isv.ts). Las antiguas se convierten con su
+      // importe histórico, pero ni un administrador factura una tasa imposible (p. ej. 500 %) creada antes de esa validación.
+      if(!tasaIsvEstructuralmenteValida(Number(cotizacion.porcentajeIsv))) throw new BadRequestException('La cotización tiene una tasa de ISV inválida: edítela con una tasa autorizada antes de convertirla');
       if(user.rol !== 'ADMIN' && (Number(cotizacion.porcentajeIsv)!==15 || cotizacion.detalles.some(d=>d.exento))) throw new BadRequestException('La cotización tiene ISV distinto de 15 % o líneas exentas: requiere validación del administrador');
       // Verificar y descontar stock por la cantidad solicitada con precisión decimal
       for (const d of cotizacion.detalles) {

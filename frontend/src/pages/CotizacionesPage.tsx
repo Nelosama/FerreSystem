@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { api } from '../utils/api';
+import { TASAS_ISV_AUTORIZADAS, esTasaIsvAutorizada } from '../utils/politica-isv';
 import type { ProductItem, QuotationItem, QuotationDetailItem } from '../types';
 import {
   FileText,
@@ -989,13 +990,17 @@ export const CotizacionesPage: React.FC = () => {
 
                   <div className="form-group">
                     <label className="form-label">{t('operational.impuesto_isv_default_15')}</label>
-                    <input
-                      type="number"
-                      step="0.01"
+                    {/* Solo tasas autorizadas (P2-H1); una línea sin impuesto se marca como exenta. */}
+                    <select
                       className="form-input"
-                      value={formPorcentajeIsv}
-                      onChange={(e) => setFormPorcentajeIsv(Math.max(0, parseFloat(e.target.value) || 0))}
-                    />
+                      value={String(formPorcentajeIsv)}
+                      onChange={(e) => setFormPorcentajeIsv(Number(e.target.value))}
+                    >
+                      {!esTasaIsvAutorizada(formPorcentajeIsv) && (
+                        <option value={String(formPorcentajeIsv)} disabled>{t('operational.tasa_isv_no_autorizada', { tasa: formPorcentajeIsv })}</option>
+                      )}
+                      {TASAS_ISV_AUTORIZADAS.map((tasa) => <option key={tasa} value={String(tasa)}>{tasa} %</option>)}
+                    </select>
                   </div>
                 </div>
 

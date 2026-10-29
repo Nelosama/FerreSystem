@@ -152,6 +152,49 @@ describe('FUNC-001 / HTTP and isolated PostgreSQL', () => {
     expect([Number(sale.subtotal), Number(sale.isv), Number(sale.total)]).toEqual([64.98, 9.75, 74.73]);
   });
 
+  it('P2-H1 la API rechaza tasas de ISV no autorizadas (500 %, 0 %, 18 %) al crear, editar, duplicar y convertir', async () => {
+    const api = (method: 'post' | 'put', url: string, body: object = {}) => request(app.getHttpServer())[method](`/api${url}`).auth(token, { type: 'bearer' }).send(body);
+    const producto = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'ISV-500', nombre: 'Tornillo', precioVenta: 100, precioCosto: 10, stockActual: 100 } });
+    const detalles = [{ productoId: producto.id, cantidad: 1 }];
+    const antes = await prisma.cotizacion.count({ where: { tenantId } });
+    for (const porcentajeIsv of [500, 0, 18, 15.5, -1, '15', null]) {
+      const r = await api('post', '/cotizaciones', { porcentajeIsv, detalles }).expect(400);
+      expect(JSON.stringify(r.body.message)).toMatch(/no autorizada|number/);
+    }
+    expect(await prisma.cotizacion.count({ where: { tenantId } })).toBe(antes);
+    const original = await prisma.cotizacion.findUniqueOrThrow({ where: { id: cotizacionId } });
+    await api('put', `/cotizaciones/${cotizacionId}`, { porcentajeIsv: 500, detalles }).expect(400);
+    expect(Number((await prisma.cotizacion.findUniqueOrThrow({ where: { id: cotizacionId } })).isv)).toBe(Number(original.isv));
+    // Dato anterior a la validación: una cotización con 500 % ya guardada no se duplica, no se recalcula con su tasa ni se vende.
+    await prisma.cotizacion.update({ where: { id: cotizacionId }, data: { porcentajeIsv: 500, estado: 'APROBADA' } });
+    await api('post', `/cotizaciones/${cotizacionId}/duplicar`).expect(400);
+    await post().expect(400);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
+    expect(await prisma.cotizacion.count({ where: { tenantId } })).toBe(antes);
+    await prisma.cotizacion.update({ where: { id: cotizacionId }, data: { estado: 'BORRADOR' } });
+    await api('put', `/cotizaciones/${cotizacionId}`, { detalles }).expect(400);
+    const corregida = await api('put', `/cotizaciones/${cotizacionId}`, { porcentajeIsv: 15, detalles }).expect(200);
+    expect(corregida.body).toMatchObject({ porcentajeIsv: 15, isv: 15, total: 115 });
+  });
+
+  it('P2-H2 líneas gravadas y exentas: la cotización guarda la marca por línea y la venta convertida conserva los importes históricos', async () => {
+    const api = (body: object) => request(app.getHttpServer()).post('/api/cotizaciones').auth(token, { type: 'bearer' }).send(body);
+    const grav = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'GRAV', nombre: 'Gravado', precioVenta: 100, precioCosto: 10, stockActual: 100 } });
+    const exen = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'EXEN', nombre: 'Exento', precioVenta: 50, precioCosto: 10, stockActual: 100 } });
+    const soloExenta = await api({ detalles: [{ productoId: exen.id, cantidad: 2, exento: true }] }).expect(201);
+    expect(soloExenta.body).toMatchObject({ subtotal: 100, isv: 0, total: 100 });
+    const combinada = await api({ descuentoGeneral: 15, tipoDescuentoGeneral: 'MONTO', detalles: [{ productoId: grav.id, cantidad: 1 }, { productoId: exen.id, cantidad: 1, exento: true }] }).expect(201);
+    expect(combinada.body).toMatchObject({ subtotal: 150, porcentajeIsv: 15, isv: 13.5, total: 148.5 });
+    const lineas = await prisma.detalleCotizacion.findMany({ where: { cotizacionId: combinada.body.id }, orderBy: { subtotal: 'desc' } });
+    expect(lineas.map(l => [l.exento, Number(l.subtotal), Number(l.isv), Number(l.totalLinea)])).toEqual([[false, 100, 15, 115], [true, 50, 0, 50]]);
+    const venta = await post(combinada.body.id).expect(201);
+    const sale = await prisma.venta.findUniqueOrThrow({ where: { id: venta.body.ventaId }, include: { detalles: true } });
+    expect([Number(sale.subtotal), Number(sale.descuento), Number(sale.isv), Number(sale.total)]).toEqual([150, 15, 13.5, 148.5]);
+    // H2: detalles_venta no tiene columna de exención; la condición solo sobrevive en detalles_cotizacion (enlazada por venta_id).
+    expect(Object.keys(sale.detalles[0])).not.toContain('exento');
+    expect(await prisma.cotizacion.findUniqueOrThrow({ where: { id: combinada.body.id } })).toMatchObject({ ventaId: sale.id });
+  });
+
   it('JW-11 una cotización RECHAZADA no se convierte en venta; reabierta (ENVIADA) sí', async () => {
     const patch = (estado: string) => request(app.getHttpServer()).patch(`/api/cotizaciones/${cotizacionId}/estado`).auth(token, { type: 'bearer' }).send({ estado });
     await patch('RECHAZADA').expect(200);

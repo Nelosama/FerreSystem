@@ -1,7 +1,8 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsDateString, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, IsArray, ValidateNested, IsOptional, IsDateString, IsIn, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 import { IsBoolean } from 'class-validator';
+import { TASAS_ISV_AUTORIZADAS, mensajeTasaNoAutorizada } from '../../common/politica-isv';
 
 export class DetalleCotizacionItemDto {
   @IsString()
@@ -83,9 +84,10 @@ export class CreateCotizacionDto {
   @IsOptional()
   tipoDescuentoGeneral?: 'PORCENTAJE' | 'MONTO';
 
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
+  // Solo tasas autorizadas (common/politica-isv.ts); el servicio vuelve a validarla. Antes se aceptaba cualquier valor ≥ 0, p. ej. 500.
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 2 })
+  @IsIn([...TASAS_ISV_AUTORIZADAS], { message: mensajeTasaNoAutorizada })
+  @ValidateIf((o) => o.porcentajeIsv !== undefined) // a diferencia de @IsOptional, null no se acepta como «sin tasa»
   porcentajeIsv?: number;
 
   @IsString()

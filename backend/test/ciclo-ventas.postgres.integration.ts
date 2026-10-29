@@ -261,7 +261,11 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email: cajero.email, password, tenantId }).expect(200);
     const tokenCajero = login.body.accessToken;
     const exenta = await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }, { productoId: b.id, cantidad: 1, exento: true }] }).expect(201);
-    const sinIsv = await http('post', '/cotizaciones', { porcentajeIsv: 0, detalles: [{ productoId: a.id, cantidad: 1 }] }).expect(201);
+    // P2-H1: la API ya no crea cotizaciones con una tasa no autorizada; una con 0 % solo existe como dato anterior a esa validación.
+    await http('post', '/cotizaciones', { porcentajeIsv: 0, detalles: [{ productoId: a.id, cantidad: 1 }] }).expect(400);
+    const sinIsv = await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }] }).expect(201);
+    await prisma.cotizacion.update({ where: { id: sinIsv.body.id }, data: { porcentajeIsv: 0, isv: 0, total: Number(sinIsv.body.total) - Number(sinIsv.body.isv) } });
+    await prisma.$executeRawUnsafe('UPDATE detalles_cotizacion SET isv = 0, total_linea = subtotal WHERE cotizacion_id = $1', sinIsv.body.id);
     for (const q of [exenta, sinIsv]) {
       const r = await http('post', `/cotizaciones/${q.body.id}/convertir`, { metodoPago: 'EFECTIVO' }, tokenCajero).expect(400);
       expect(r.body.message).toMatch(/administrador/);
