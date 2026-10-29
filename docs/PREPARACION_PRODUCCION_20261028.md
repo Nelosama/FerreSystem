@@ -120,11 +120,11 @@ Esta sección no reemplaza la actualización anterior. Se añade para conservar 
 
 | # | Decisión | Estado en el código de `main` | Recomendación |
 |---|---|---|---|
-| D1 | ¿Quién concede el permiso? | Cualquier ADMIN con `PUT /usuarios/:id`. | Otro ADMIN activo distinto del beneficiario, o confirmar la política de SUPERADMIN de plataforma que documenta #211. |
+| D1 | ¿Quién concede el permiso? | Cualquier ADMIN con `PUT /usuarios/:id` en `main`; #211 lo restringe. | **Decidido por el dueño:** solo el SUPERADMIN de plataforma (política de #211). Antecedente: la alternativa «otro ADMIN» quedó descartada. |
 | D2 | ¿Se permite la autoconcesión? | Sí, sin guarda en el servidor. | **No.** Rechazar (403) cualquier cambio de `pos.excepcion_precio` sobre la cuenta propia. |
 | D3 | ¿Cómo se audita la concesión? | Solo `USUARIO_EDITAR`. `VENTA_EXCEPCION_PRECIO` registra el uso, no la concesión. | Acciones propias `USUARIO_PERMISO_EXCEPCION_CONCEDIDO` y `..._REVOCADO` con actor, beneficiario y motivo. |
 | D4 | ¿Se cierra la lista de permisos? | No: `permisos` acepta cualquier cadena. | Lista blanca en backend, contra el catálogo de permisos reales. Cambia el contrato de la API: confirmar antes. |
 | D5 | ¿Qué pasa al cambiar de rol o desactivar? | Cambiar de rol restablece permisos; desactivar revoca sesiones. | Mantener el comportamiento actual. |
 | D6 | ¿Dónde se muestra el interruptor? | No aparece en Usuarios. | Solo después de D1–D3. |
 
-**Bloqueo humano:** #211 declara la política como «aprobada». Esta sección la trata como pendiente hasta que el dueño la confirme por escrito en esta conversación. Mientras tanto, #211 no debe fusionarse, porque cambia quién administra cuentas ADMIN en todos los negocios.
+**Estado de la política:** el dueño la confirmó en la conversación del 2026-10-28 (SUPERADMIN de plataforma administra cuentas ADMIN; autoconcesión prohibida; auditoría conservada). Lo pendiente es la **revisión técnica final de #211** sobre su SHA y el **merge por el dueño**. D1–D5 quedan como antecedentes de esa decisión. D6 (interfaz) sigue sin implementar.
