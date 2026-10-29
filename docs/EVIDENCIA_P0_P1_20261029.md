@@ -28,3 +28,35 @@ No demostrado: qué ruta usa Render como health check. No verificado; debe confi
 - Confirmar el health check configurado en Render y el SHA desplegado.
 - Confirmar frecuencia y verificación de respaldos de producción (Supabase).
 - Aprobar RPO y RTO objetivo.
+
+## Segunda pasada — verificación HTTP y lint (2026-10-29)
+
+Base: `origin/main` `3a6c6695`. Esta pasada corrige una afirmación previa: la evidencia de CI debe citarse por SHA completo.
+
+### Verificación HTTP sin PostgreSQL (manual, `dist/` compilado con `nest build`)
+
+| Petición | Resultado |
+| --- | --- |
+| `GET /api/health/live` | **200** `{"status":"ok"}`, sin consultar la base |
+| `GET /api/health` (PostgreSQL inaccesible) | **503** con mensaje genérico, sin detalles de conexión |
+| `GET /health/live` (sin prefijo) | **404**: el prefijo `/api` se aplica (`src/main.ts`, `setGlobalPrefix('api')`) |
+
+Arranque: el servicio rechaza `TRUST_PROXY=false` (espera un entero). Es el comportamiento esperado de la configuración.
+
+### Pruebas automatizadas (nuevas)
+
+- `src/common/health.controller.spec.ts`: 3 pruebas unitarias (readiness con base y sin base, liveness sin consulta).
+- `src/common/health.http.spec.ts`: 4 pruebas HTTP con Nest y prefijo global: live 200 con base caída; health 503 sin filtrar el error; health 200 con base; `/health/live` sin prefijo responde 404.
+- Ambos archivos: **7/7 aprobadas** (`npx vitest run src/common/health`).
+- Suite unitaria del backend en la pasada anterior: 748 aprobadas, 3 omitidas.
+
+### Lint (P5)
+
+- `oxlint src test e2e` sobre `53e2cc95` (antes de la integración reciente): **127** líneas con aviso.
+- Sobre `3a6c6695`: **127**. Comparación por archivo y regla: **idéntica**. **0 regresiones** introducidas por #210–#211.
+- El registro previo de 117 avisos estaba desactualizado; no se reproduce con el mismo binario.
+
+### Pendiente
+- CI de `eafcb654` y del commit final (`test`, `validate`): en curso al escribir este documento. No se declara éxito hasta que terminen.
+- Render: sin verificar qué ruta usa como health check ni qué SHA está desplegado.
+- Prueba de readiness con PostgreSQL real disponible (200): cubierta por el piloto de CI, no por la prueba manual de esta pasada.
