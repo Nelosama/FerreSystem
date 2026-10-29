@@ -42,6 +42,7 @@
     "cookie-parser": "^1.4.7",
     "multer": "^2.4.0",
     "nodemailer": "10.0.16",
+    "openai": "^6.49.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "prisma": "6.4.1",

@@ -10,6 +10,7 @@ import { errorDeConfiguracionContingencia } from './contingencia/clave-operacion
 import { createFrontendCorsOptions } from './common/frontend-cors';
 import { leerTrustProxy, validarConfiguracionAuth } from './auth/auth-config';
 import { validarConfiguracionCorreo } from './auth/recovery-mail.service';
+import { validarConfiguracionOpenAI } from './ia/openai.service';
 
 const cookieParser = (cookieParserImport as any).default || cookieParserImport;
 
@@ -33,6 +34,7 @@ async function bootstrap() {
   validarConfiguracionAuth(process.env);
   // Correo de seguridad (Gmail SMTP): configuración parcial o mal escrita impide arrancar; los avisos no incluyen valores.
   for (const aviso of validarConfiguracionCorreo(process.env)) new Logger('Correo').warn(aviso);
+  for (const aviso of validarConfiguracionOpenAI(process.env)) new Logger('OpenAI').warn(aviso);
   // Detrás de un proxy (Render), req.ip solo es el cliente real si el número de proxies confiables está configurado.
   const trustProxy = leerTrustProxy(process.env.TRUST_PROXY);
   if (trustProxy) app.getHttpAdapter().getInstance().set('trust proxy', trustProxy);
