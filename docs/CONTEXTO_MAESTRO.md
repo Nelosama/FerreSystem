@@ -4,6 +4,9 @@
 
 Última revisión: **2026-10-28 UTC** — consolidación #207 + #200 sobre `main` `a436584` (#203) en `claude/laughing-euler-tplk31`; ver la primera sección. Sin merge ni despliegue.
 Última revisión: **2026-10-28 UTC** — revisión de preparación de producción contra GitHub en `claude/preparacion-produccion-20261028` (PR #213, base `main` `848758b` tras el merge de #210); ver la primera sección. Sin merge ni despliegue. Anterior: **2026-10-28 UTC** — consolidación #207 + #200 sobre `main` `a436584` (#203) en `claude/laughing-euler-tplk31`. Sin merge ni despliegue.
+Última revisión: **2026-10-28 UTC** — PR #211 incorporado sobre `main` `848758b` (#210) en `claude/pr-211-permissions-analysis-6nwjcg`; fallos de navegador de `validate` corregidos por #210; decisiones de `pos.excepcion_precio` documentadas, no implementadas; ver la primera sección. Sin merge ni despliegue.
+
+Anterior: **2026-10-28 UTC** — consolidación #207 + #200 sobre `main` `a436584` (#203) en `claude/laughing-euler-tplk31`. Sin merge ni despliegue.
 
 Última revisión: **2026-10-26 UTC** — consolidación de autenticación #200 + #201 en `claude/consolidate-auth-pr200-201-xz1q5m` (sin merge ni despliegue); ver la primera sección.
 
@@ -61,6 +64,16 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 - **Verificado:** estados de PR y checks por API de GitHub (14:10–15:50 UTC); logs de los jobs de #211, #212 y #213; `main` `848758b` fusionado en la rama sin conflictos (`bb40c2d`); política de excepciones de precio en código de `main`.
 - **Pendiente de evidencia:** resultado final del run de `main` tras #210 (en curso en la última consulta); causa concreta de los fallos de Chromium en #211 y #212; reproducción local de `contabilidad-simulado` (no hecha: sin dependencias instaladas); respuesta de Vercel y Render (el proxy rechazó la conexión hoy; el documento conserva las observaciones de la revisión anterior, marcadas como no reconfirmadas).
 - **No verificado:** respaldos, base de datos, migraciones en producción, configuración de Render y Vercel, endpoint de salud, validación física y aceptación del cliente.
+
+## PR #211 (`claude/stoic-gates-sxbg8u`) sobre `main` 848758b (#210) — 2026-10-28 UTC (rama `claude/pr-211-permissions-analysis-6nwjcg`, borrador, sin merge ni despliegue)
+
+- **Base y estado:** `main` = `848758b` (#210 fusionado: quita el `aria-label` duplicado del enlace de perfil y actualiza `auth-security.spec.ts` a `/mi-cuenta`). PR #211 es borrador, con base `53e2cc9` (#209) y cabeza `6f902a6`. El job `validate` de `6f902a6` falló por **dos pruebas de navegador ajenas a la lógica de precios**: `auth-security.spec.ts:170` (no encuentra «Seguridad de mi cuenta» en `/usuarios`) y `contabilidad-simulado.spec.ts:285` (`getByLabel('Cuenta')` resuelve a dos elementos: el enlace de perfil y el `<select>`). Ambas causas están corregidas en `main` por #210.
+- **Incorporación:** `git merge origin/claude/stoic-gates-sxbg8u` sobre `main` 848758b, sin conflictos (commit `608f1b9`, 14 archivos de POS, cotizaciones y docs). La rama `claude/stoic-gates-sxbg8u` no se modificó.
+- **Pruebas locales sobre `608f1b9`:** `prisma validate` y `generate` correctos; backend build, lint y pruebas **731/731** (69 archivos), scripts **10/10**, `validar-inventario.test.py` OK; frontend build, lint y pruebas **572/572**; navegador de escritorio **427 pasan / 26 omitidas / 0 fallos**; navegador móvil (`playwright.session.mobile.config.ts`) **16/16**; guard de migraciones contra `origin/main`: 0 migraciones nuevas. Focalizadas: `auth-security`, `contabilidad-simulado` y los dos specs de excepción de precio, **49/49**.
+- **No ejecutado localmente:** pruebas de integración PostgreSQL (`test:integration`, `test:e2e` del backend, `auth-recovery`, `test:e2e-real`). No hubo PostgreSQL utilizable en este entorno (el intento de iniciar un clúster local falló por permisos del directorio de trabajo). El PR no toca backend; quedan para el CI.
+- **Entorno local:** Node 22.22.0; el CI usa Node 24.
+- **Decisiones pendientes (sin implementar):** en `docs/POLITICA_EXCEPCIONES_PRECIO.md`, sección «Decisiones pendientes y recomendación». Hallazgos verificados en código: (a) `UsuariosService.update` permite a cualquier ADMIN fijar `permisos` de cualquier usuario, incluido él mismo, sin guarda; (b) `UpdateUsuarioDto.permisos` acepta cualquier cadena; (c) la auditoría de la excepción registra quién la usó, no quién la concedió. Recomendación: D2 (prohibir la autoconcesión) y D3 (acción de auditoría propia para conceder y revocar) antes de cualquier interfaz; D4 (lista blanca) en la misma tanda; D1 (quién concede: otro ADMIN activo) y D6 (interruptor en Usuarios) solo con decisión del propietario.
+- **Pendientes reales:** (1) decisión del propietario sobre D1, D5 y D6; (2) PostgreSQL de integración en CI sobre el SHA final; (3) el PR sigue en borrador. No hay merge ni despliegue; el merge a `main` dispara el despliegue del backend en Render según los runbooks.
 
 ## Consolidación #207 · #206 · #200 sobre `main` `a436584` — 2026-10-28 UTC (rama `claude/laughing-euler-tplk31`, sin merge ni despliegue)
 
