@@ -98,7 +98,7 @@ describe('Reportes FS-05 / PostgreSQL aislado', () => {
       '20261012000000_conciliacion_pagos_bancarios',
       '20261012000000_entrega_eventos_y_cantidades',
       '20261013000000_balance_referencia_pagos',
-      '20261014000000_cliente_plazo_credito', '20261015000000_contingencia_revocar_ventanas_anteriores', '20261018000000_tenant_logotipo_privado', '20261022000000_guia_progreso', '20261023000000_auth_recovery', '20261026000000_auth_login_unico_bloqueo',
+      '20261014000000_cliente_plazo_credito', '20261015000000_contingencia_revocar_ventanas_anteriores', '20261018000000_tenant_logotipo_privado', '20261022000000_guia_progreso', '20261023000000_auth_recovery', '20261026000000_auth_login_unico_bloqueo', '20261029000000_desglose_fiscal_linea',
     ]) {
       psqlFile(resolve(`prisma/migrations/${migration}/migration.sql`));
     }

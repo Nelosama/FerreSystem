@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
 import { diaCalendario, inicioDiaEnZona, sumarDias } from '../common/zona-horaria';
 import { centavosADecimal, subtotalLinea } from '../common/dinero';
+import { desgloseFiscalPorLineaActivo, desgloseParaEscribir } from '../common/desglose-fiscal';
 import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 
@@ -533,6 +534,15 @@ export class CotizacionesService {
         }
       }
 
+      // Desglose histórico por línea (apagado salvo FISCAL_DESGLOSE_POR_LINEA): reparte el descuento general y el ISV ya
+      // calculados por la cotización; conserva la marca exenta de cada línea, que detalles_venta no guardaba.
+      const tasaCotizacion = Number(cotizacion.porcentajeIsv);
+      if (desgloseFiscalPorLineaActivo() && !(tasaCotizacion >= 0 && tasaCotizacion < 100)) throw new BadRequestException('La cotización tiene una tasa de ISV inválida: no se puede registrar su desglose fiscal');
+      const brutos = cotizacion.detalles.map((d) => brutoLinea(d));
+      const descuentosLinea = cotizacion.detalles.map((d, i) => brutos[i] - aCentavos(Number(d.subtotal), 'Subtotal de línea'));
+      const desglose = desgloseParaEscribir(
+        cotizacion.detalles.map((d, i) => ({ brutoCentavos: brutos[i], descuentoLineaCentavos: descuentosLinea[i], exento: Boolean(d.exento) })),
+        aCentavos(Number(cotizacion.descuento), 'Descuento') - descuentosLinea.reduce((a, b) => a + b, 0), aCentavos(Number(cotizacion.isv), 'ISV'), tasaCotizacion);
       // Crear la venta
       const venta = await tx.venta.create({
         data: {
@@ -555,7 +565,8 @@ export class CotizacionesService {
           estado: 'COMPLETADA',
           notas: `Convertida de Cotización #COT-${cotizacion.numeroCotizacion.toString().padStart(4, '0')}`,
           detalles: {
-            create: cotizacion.detalles.map((d) => ({
+            create: cotizacion.detalles.map((d, i) => ({
+              ...desglose[i],
               tenantId,
               productoId: d.productoId,
               cantidad: d.totalMedida,

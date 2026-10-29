@@ -51,6 +51,7 @@ const ETIQUETAS: Record<string, string> = {
   PRECIO_SIN_APROBACION: 'Producto sin precio aprobado al emitir el catálogo',
   APROBACION_REVOCADA_POSTERIOR: 'Se revocó la aprobación del precio después de emitir el catálogo',
   TOTAL_DIFERENTE: 'El total del equipo no cuadra con el servidor',
+  IMPORTE_FISCAL_INCONSISTENTE: 'ISV del equipo incoherente con su subtotal: no se puede aceptar como venta; ciérrela sin venta',
   EFECTIVO_INCONSISTENTE: 'Efectivo − cambio no es igual al total',
   SECUENCIA_DUPLICADA: 'Número local repetido',
   OPERACION_ALTERADA: 'Mismo identificador con otro contenido',
