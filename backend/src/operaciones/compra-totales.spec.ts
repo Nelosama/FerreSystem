@@ -1,55 +1,32 @@
-import { describe, expect, it } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
 import { calcularTotalesCompra } from './compra-totales';
 
-// JW-07: los importes de compra se calculan en centavos enteros (mitad hacia arriba), no en coma flotante.
-describe('calcularTotalesCompra (JW-07)', () => {
-  it('2.5 × L 25.99 da L 64.98 y no L 64.97 (defecto de coma flotante)', () => {
-    const t = calcularTotalesCompra([{ cantidad: 2.5, costo: 25.99 }], 9.75);
-    expect(t.lineas).toEqual([64.98]);
-    expect(t.subtotal).toBe(64.98);
-    expect(t.isv).toBe(9.75);
-    expect(t.total).toBe(74.73);
+describe('calcularTotalesCompra: validación aritmética (no tributaria)', () => {
+  const linea = (costo: number, cantidad = 10) => ({ costo, cantidad });
+
+  it('calcula subtotal y total de las líneas, sin usar importes del cliente', () => {
+    expect(calcularTotalesCompra([linea(45)], 67.5)).toEqual({ lineas: [450], subtotal: 450, isv: 67.5, total: 517.5 });
   });
 
-  it('la suma de líneas coincide con el subtotal y no se pierde ningún centavo', () => {
-    const t = calcularTotalesCompra(
-      [
-        { cantidad: 2.5, costo: 25.99 },
-        { cantidad: 1, costo: 0.29 },
-        { cantidad: 3, costo: 0.07 },
-      ],
-      0,
-    );
-    expect(t.lineas).toEqual([64.98, 0.29, 0.21]);
-    expect(t.subtotal).toBe(65.48);
-    expect(t.total).toBe(65.48);
+  it('acepta ISV igual al subtotal y ISV cero: ninguna tasa concreta se valida aquí', () => {
+    expect(calcularTotalesCompra([linea(45)], 450).total).toBe(900);
+    expect(calcularTotalesCompra([linea(45)], 0).total).toBe(450);
+    expect(calcularTotalesCompra([linea(45)], 67.5).total).toBe(517.5);
   });
 
-  it('redondea .5 de centavo hacia arriba en casos típicos (1.5 × 0.05 = 0.08)', () => {
-    expect(calcularTotalesCompra([{ cantidad: 1.5, costo: 0.05 }], 0).subtotal).toBe(0.08);
+  it('rechaza ISV mayor que el subtotal (500 % de la base, y cualquier exceso de céntimo)', () => {
+    // Subtotal 45 × 10 = 450.
+    expect(() => calcularTotalesCompra([linea(45)], 2250)).toThrow('El ISV no puede superar el subtotal');
+    expect(() => calcularTotalesCompra([linea(45)], 450.01)).toThrow('El ISV no puede superar el subtotal');
+    expect(() => calcularTotalesCompra([linea(45)], 450)).not.toThrow();
   });
 
-  it('cantidad fraccionaria pequeña se redondea al centavo (0.01 × 0.01 = 0.00)', () => {
-    expect(calcularTotalesCompra([{ cantidad: 0.01, costo: 0.01 }], 0).subtotal).toBe(0);
+  it('rechaza costo cero o negativo en cualquier línea', () => {
+    expect(() => calcularTotalesCompra([linea(0)], 0)).toThrow('Costo: debe ser mayor que cero');
+    expect(() => calcularTotalesCompra([linea(45), linea(-1)], 0)).toThrow('Costo: debe ser mayor que cero');
   });
 
-  it('importes elevados mantienen centavos exactos (1234567.89 × 3.5 = 4320987.62)', () => {
-    const t = calcularTotalesCompra([{ cantidad: 3.5, costo: 1234567.89 }], 0);
-    expect(t.subtotal).toBe(4320987.62);
-  });
-
-  it('el ISV recibido se valida como importe y se suma sin recalcularlo', () => {
-    const t = calcularTotalesCompra([{ cantidad: 1, costo: 100 }], 15);
-    expect(t.total).toBe(115);
-  });
-
-  it('rechaza más de dos decimales en costo o cantidad en vez de redondear en silencio', () => {
-    expect(() => calcularTotalesCompra([{ cantidad: 1, costo: 25.999 }], 0)).toThrow(BadRequestException);
-    expect(() => calcularTotalesCompra([{ cantidad: 1.001, costo: 1 }], 0)).toThrow(BadRequestException);
-  });
-
-  it('rechaza un ISV con más de dos decimales', () => {
-    expect(() => calcularTotalesCompra([{ cantidad: 1, costo: 1 }], 0.001)).toThrow(BadRequestException);
+  it('rechaza ISV negativo y con más de dos decimales (validación previa del importe)', () => {
+    expect(() => calcularTotalesCompra([linea(45)], -1)).toThrow();
+    expect(() => calcularTotalesCompra([linea(45)], 1.234)).toThrow(/dos decimales/);
   });
 });

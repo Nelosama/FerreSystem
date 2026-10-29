@@ -16,7 +16,7 @@ export class ProductoProveedorDto {
 export class CompraItemDto {
  @IsString() @IsNotEmpty() productoId!: string;
  @IsNumber({maxDecimalPlaces:2}) @Min(0.01) cantidad!: number;
- @IsNumber({maxDecimalPlaces:2}) @Min(0) costo!: number;
+ @IsNumber({maxDecimalPlaces:2}) @Min(0.01) costo!: number;
 }
 // Compra al contado (D1): la factura nace ya pagada por el total, sin caja (FS-09). Solo ADMIN puede pagarla.
 export class PagoContadoDto {
