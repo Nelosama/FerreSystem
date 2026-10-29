@@ -1,6 +1,7 @@
 # GO / NO-GO — piloto controlado de Jowa System — 2026-10-29
 
 **Decisión vigente: NO-GO.** No hay evidencia suficiente de controles críticos: falta auditoría funcional de todos los módulos, ensayo de migraciones en copia de preproducción, configuración de Render verificada y decisiones fiscales del contador. Esto no bloquea el trabajo técnico, pero sí cualquier piloto con datos de clientes.
+**Decisión vigente: NO-GO** (sin cambios desde la primera versión; esta actualización añade la clasificación por módulo). No hay evidencia suficiente de controles críticos: falta auditoría funcional de todos los módulos, ensayo de migraciones en copia de preproducción, configuración de Render verificada y decisiones fiscales del contador. Esto no bloquea el trabajo técnico, pero sí cualquier piloto con datos de clientes.
 
 Este documento no cambia producción ni fusiona ramas. Todos los SHA se comprobaron en GitHub el 2026-10-29 (ver §Estado de ramas).
 
@@ -13,6 +14,25 @@ Este documento no cambia producción ni fusiona ramas. Todos los SHA se comproba
 | rama | `claude/devoluciones-exenciones-20261029` | `874adc0` | sin PR (decisión del dueño pendiente) | no ejecutado en CI; pruebas locales abajo |
 
 Otros PR abiertos (no revisados en este bloque): #213 docs GO/NO-GO de otra rama, #214 análisis de permisos, #215 SDK OpenAI (**no integrar** sin función que lo justifique).
+
+## Clasificación funcional por módulo (actualización)
+
+Detalle en `docs/AUDITORIA_FUNCIONAL_MODULOS.md`.
+
+| Clasificación | Módulos |
+| --- | --- |
+| LISTO | POS, inventario, clientes, proveedores, caja, usuarios y permisos, Super Admin, entregas, levantamiento |
+| PARCIAL | compras (ISV sin validar), garantías (sin reclamo), contabilidad (sin asientos automáticos), reportes (solo resumen), contingencia offline (decisión D11) |
+| BLOQUEADO en `main` | cotizaciones (ISV 500 % aceptado y convertido por ADMIN); corregido en #217, pendiente de integrar |
+| NO IMPLEMENTADO | apartados, transferencias entre sucursales, pedidos especiales, listas de precio |
+
+**Acción inmediata para el piloto:** ocultar los cuatro módulos NO IMPLEMENTADO. Hoy están activos por defecto (`DEFAULT_TENANT_MODULES`) y aparecen en el menú de todo negocio nuevo, con un aviso de «módulo pendiente». Las páginas `ApartadosPage`, `TransferenciasPage`, `PedidosEspecialesPage` y `ListasPrecioPage` no se importan y guardan datos de ejemplo en `localStorage`; no deben reactivarse sin rehacerlas.
+
+## Estado de control T6 y compras
+
+- **T6 (exenciones):** cualquier VENDEDOR o CAJERO marca una línea exenta sin autorización ni auditoría. Pruebas de control en `test/exenciones-t6.postgres.integration.ts` (5/5, con casos DEFECTO CONOCIDO). Recomendación para el piloto: no permitir líneas exentas hasta D3 y D5. Detalle en `docs/AUDITORIA_EXENCIONES_T6.md`.
+- **Compras (ISV):** la factura del proveedor acepta cualquier ISV no negativo, incluido uno diez veces mayor que el subtotal; ISV y líneas no se relacionan; el libro toma el crédito de otra fuente. Pruebas de caracterización en `claude/auditoria-compras-isv-20261029` (PR #218, borrador, 9/9). Detalle en `docs/AUDITORIA_COMPRAS_ISV.md`.
+- **Permisos:** un cajero no puede concederse permisos administrativos. Verificado en código y con `saas-onboarding` (1/1) y `centinela-verificacion-atlas` (en `main`).
 
 ## Bloqueos técnicos
 
@@ -62,3 +82,48 @@ Un piloto controlado requiere, como mínimo: T1 completo con cada módulo clasif
 - #216: técnicamente listo para merge. Espera autorización del dueño.
 - #217: mantener en borrador. Las decisiones D1, D2, D5 y D6 son fiscales.
 - Rama de devoluciones: abrir PR en borrador solo si el dueño lo pide; no conectar el desglose hasta D3, D6 y D8.
+
+---
+
+## Dictamen tras la corrección de bloqueos (2026-10-29)
+
+**Dictamen: NO-GO.** Todos los defectos técnicos auditados tienen ya corrección en PR (en borrador). Ninguno está integrado en `main`, y la mayoría de las pruebas de integración de esas ramas están aún en CI o no se han ejecutado en preproducción.
+
+### PR de corrección
+
+| PR | Rama | Contenido | Estado |
+|---|---|---|---|
+| #216 | `claude/p1-liveness-20261029` | Liveness sin base de datos | Técnicamente listo; CI verde en su SHA |
+| #217 | `claude/p2-fiscal-20261029` | Tasas de ISV autorizadas; cotizaciones antiguas regularizables | CI verde en su SHA; mergeable |
+| #218 | `claude/auditoria-compras-isv-20261029` | Caracterización de compras (solo pruebas) | Su CI estaba en curso; **se vuelve obsoleto si #221 se integra** |
+| #219 | `claude/auditoria-funcional-20261029` | Auditoría, matriz y GO/NO-GO | Documentación |
+| #220 | `claude/modulos-no-implementados-20261029` | Ocultar apartados, transferencias, pedidos y listas de precio | Corregido un test e2e (17 → 13); CI en curso |
+| #221 | `claude/correccion-compras-isv-20261029` | ISV ≤ subtotal y costo > 0 en compras | CI en curso |
+| #222 | `claude/exenciones-politica-provisional-20261029` | Exenciones bloqueadas hasta D3 y D5, con auditoría de intentos | CI en curso |
+
+### Dependencias entre PR
+
+- **#221 y #218**: #218 fija el comportamiento anterior. Al integrar #221, retirar los casos DEFECTO CONOCIDO de #218 o usar solo su documento.
+- **#217, #222 y #219** tocan `cotizaciones.service.ts` y las pruebas de ciclo de ventas. Se espera conflicto en la integración; hay que resolverlo a mano, sin cambiar la lógica validada de cada uno.
+- **#219** incluye `exenciones-t6` con casos que fijan el comportamiento de exenciones anterior a #222. Retirar o sustituir al integrar #222.
+
+### Bloqueos técnicos restantes
+
+1. Integrar #217, #220, #221 y #222 en `main` tras CI completo y resolver conflictos.
+2. Ensayo de la migración del desglose en preproducción (no hecho; solo en clúster aislado).
+3. Pruebas de integración de #220 y #221 pendientes de confirmación de CI.
+4. Desglose fiscal por línea y conciliación compras-libros: pendientes de decisión (no bloquean la venta gravada, sí la exención y el libro de compras).
+
+### Bloqueos operativos (sin cambio)
+
+- O1: configuración de Render (ruta de health check y SHA desplegado) sin verificar.
+- O2: respaldos reales, RPO/RTO y restauración probada: sin verificar.
+- O3–O5: hardware, red y aceptación del cliente pendientes.
+
+### Bloqueos fiscales (sin cambio)
+
+D1–D11 pendientes del contador y del dueño. Sin ellas no se habilitan exenciones, no se fija tasa de compras, no se conecta el cálculo fiscal consolidado y no se activa el desglose en producción.
+
+### Condiciones para pasar a GO
+
+Todas las siguientes: #217, #220, #221 y #222 integrados con CI completo; #219 actualizado tras esas integraciones; ensayo de migración en preproducción con rollback verificado; O1 y O2 verificados; decisiones D1, D2, D3, D5 y D6 aprobadas.
