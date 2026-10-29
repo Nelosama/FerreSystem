@@ -81,3 +81,48 @@ Un piloto controlado requiere, como mínimo: T1 completo con cada módulo clasif
 - #216: técnicamente listo para merge. Espera autorización del dueño.
 - #217: mantener en borrador. Las decisiones D1, D2, D5 y D6 son fiscales.
 - Rama de devoluciones: abrir PR en borrador solo si el dueño lo pide; no conectar el desglose hasta D3, D6 y D8.
+
+---
+
+## Dictamen tras la corrección de bloqueos (2026-10-29)
+
+**Dictamen: NO-GO.** Todos los defectos técnicos auditados tienen ya corrección en PR (en borrador). Ninguno está integrado en `main`, y la mayoría de las pruebas de integración de esas ramas están aún en CI o no se han ejecutado en preproducción.
+
+### PR de corrección
+
+| PR | Rama | Contenido | Estado |
+|---|---|---|---|
+| #216 | `claude/p1-liveness-20261029` | Liveness sin base de datos | Técnicamente listo; CI verde en su SHA |
+| #217 | `claude/p2-fiscal-20261029` | Tasas de ISV autorizadas; cotizaciones antiguas regularizables | CI verde en su SHA; mergeable |
+| #218 | `claude/auditoria-compras-isv-20261029` | Caracterización de compras (solo pruebas) | Su CI estaba en curso; **se vuelve obsoleto si #221 se integra** |
+| #219 | `claude/auditoria-funcional-20261029` | Auditoría, matriz y GO/NO-GO | Documentación |
+| #220 | `claude/modulos-no-implementados-20261029` | Ocultar apartados, transferencias, pedidos y listas de precio | Corregido un test e2e (17 → 13); CI en curso |
+| #221 | `claude/correccion-compras-isv-20261029` | ISV ≤ subtotal y costo > 0 en compras | CI en curso |
+| #222 | `claude/exenciones-politica-provisional-20261029` | Exenciones bloqueadas hasta D3 y D5, con auditoría de intentos | CI en curso |
+
+### Dependencias entre PR
+
+- **#221 y #218**: #218 fija el comportamiento anterior. Al integrar #221, retirar los casos DEFECTO CONOCIDO de #218 o usar solo su documento.
+- **#217, #222 y #219** tocan `cotizaciones.service.ts` y las pruebas de ciclo de ventas. Se espera conflicto en la integración; hay que resolverlo a mano, sin cambiar la lógica validada de cada uno.
+- **#219** incluye `exenciones-t6` con casos que fijan el comportamiento de exenciones anterior a #222. Retirar o sustituir al integrar #222.
+
+### Bloqueos técnicos restantes
+
+1. Integrar #217, #220, #221 y #222 en `main` tras CI completo y resolver conflictos.
+2. Ensayo de la migración del desglose en preproducción (no hecho; solo en clúster aislado).
+3. Pruebas de integración de #220 y #221 pendientes de confirmación de CI.
+4. Desglose fiscal por línea y conciliación compras-libros: pendientes de decisión (no bloquean la venta gravada, sí la exención y el libro de compras).
+
+### Bloqueos operativos (sin cambio)
+
+- O1: configuración de Render (ruta de health check y SHA desplegado) sin verificar.
+- O2: respaldos reales, RPO/RTO y restauración probada: sin verificar.
+- O3–O5: hardware, red y aceptación del cliente pendientes.
+
+### Bloqueos fiscales (sin cambio)
+
+D1–D11 pendientes del contador y del dueño. Sin ellas no se habilitan exenciones, no se fija tasa de compras, no se conecta el cálculo fiscal consolidado y no se activa el desglose en producción.
+
+### Condiciones para pasar a GO
+
+Todas las siguientes: #217, #220, #221 y #222 integrados con CI completo; #219 actualizado tras esas integraciones; ensayo de migración en preproducción con rollback verificado; O1 y O2 verificados; decisiones D1, D2, D3, D5 y D6 aprobadas.
