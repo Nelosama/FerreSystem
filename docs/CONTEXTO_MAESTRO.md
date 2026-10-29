@@ -1,5 +1,64 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Fotografía vigente — 2026-10-29 UTC (verificada en GitHub; sustituye a las bitácoras de abajo)
+
+Las secciones posteriores son bitácora histórica. Donde contradigan esta fotografía, prevalece esta. Cada estado indica el SHA exacto consultado; un resultado de otro SHA no vale como evidencia.
+
+**Dictamen: NO-GO.** CI verde en un SHA no significa piloto ni producción listos. Ver «Bloqueos abiertos».
+
+### `main`
+
+- SHA: **`767888a`** (`merge: conservar avance concurrente de main durante consolidación`).
+- Workflow «Operación de ferretería» (run `40828624758`): **fallo** en el job `validate`. Causas registradas en el log: `test/saas-onboarding` (espera 16 módulos, hay 12) y `test/contingencia-rechazada` (`RangeError` en la comprobación P3 de contingencia). Ambas se corrigen en #223, que aún no está en `main`.
+- Workflow «Piloto con API y PostgreSQL reales» (run `40828624743`): **éxito**.
+- Ramas remotas: solo `main` y `claude/arranque-pos-20261029`. Las ramas integradas ya no existen en `origin`.
+- Despliegue en Render: **no verificado**. El runbook del repositorio describe despliegue automático desde `main`; no se ha consultado el panel.
+
+### PR integrados en `main` (ancestría de `git merge-base --is-ancestor` verificada para cada SHA)
+
+| PR | SHA consultado | Integrado | CI en ese SHA | Nota |
+| --- | --- | --- | --- | --- |
+| #213 | `a5050c6f` | sí | **no verificado**: solo el check de Vercel; sin workflows | Documentación de producción |
+| #214 | `210e0091` | sí | éxito (validate, test, guard) | Análisis de permisos |
+| #215 | `aec2262e` | sí | éxito (validate, test, guard) | SDK de OpenAI desactivado sin clave; **integrado sin función que lo justifique**, contra la instrucción del dueño. Pendiente de decisión |
+| #216 | `dce922b8` | sí, 2026-10-29 06:19:33 UTC (`Nelosama`) | éxito | Liveness sin base de datos |
+| #217 | `da48cb21` | sí, 2026-10-29 06:20:36 UTC (`Nelosama`) | éxito | Fusionado **en borrador** y sin la aprobación del contador para H2. Cambio con efecto: las cotizaciones ya no se crean con tasa distinta de 15 % |
+| #218 | `afab804e` | sí | éxito | Solo pruebas de caracterización |
+| #219 | `3f76b2f3` | sí | éxito | Documentación de auditoría |
+| #220 | `62d2ef6c` | sí | **`validate` en fallo** (`saas-onboarding`, 16 ≠ 12); `test` y `guard` en éxito | Corregido en #223, no en `main` |
+| #221 | `d03aefc8` | sí | éxito | ISV de compras aritmético |
+| #222 | `73a9721d` | sí | éxito | Exenciones bloqueadas hasta D3 y D5 |
+| devoluciones / desglose | `5982c7ea`, `874adc0`, `84f9b14` | sí (ancestros de `main`) | **no verificado**: no hay PR ni workflow para esa rama | Migración `20261029000000_desglose_fiscal_linea` incluida; desglose apagado por defecto |
+
+Los PR #213 a #222 se cerraron como fusionados en GitHub. El campo `merged` del listado aparecía en `false` en algunos casos; se confirmó por `merged_at` y por ancestría.
+
+### PR abierto: #223
+
+- Título: «Arranque del punto de venta: pruebas, validador de inventario con precios y documentación».
+- Estado: **abierto, en borrador**, base `main` `767888a`, cabeza `claude/arranque-pos-20261029` @ **`21d2b42`**, mergeable `clean` contra esa base.
+- CI en `21d2b42`: «Operación de ferretería» (run `40830962357`) en **éxito**; «Piloto con API y PostgreSQL reales» (run `40830962352`) en **éxito**.
+- Contenido: corrección de `saas-onboarding`; corrección de contingencia (P3 sin importes fiscales, `21d2b42`); validador de inventario que admite precios vacíos (`425c942`); documentación de operación del cliente (`c88310a`); plan de la noche.
+- **No está integrado.** No recomendar su merge sin revisión funcional de dos cambios: la corrección de la comprobación P3 en sincronización de contingencia, y la nueva regla de precios vacíos del validador de inventario.
+- El primer commit (`d15247d`) incluye el nombre de un modelo en `Co-Authored-By`; no se pudo corregir porque la reescritura de historia fue denegada.
+
+### Bloqueos abiertos (no se dan por verificados)
+
+| Área | Estado |
+| --- | --- |
+| Main en CI | Rojo en `767888a`. Se resuelve integrando #223 tras revisión |
+| Render (ruta de health check, SHA desplegado, variables) | **No verificado** |
+| Respaldos reales, restauración probada, RPO/RTO | **No verificado** |
+| Migración `20261029000000` en preproducción, con rollback | **No hecho** |
+| Decisiones fiscales D1–D11 (contador y dueño) | **Pendientes** |
+| Factura fiscal configurable por empresa | **No implementada** (decisión de CAI y del interruptor pendiente) |
+| Hardware de caja, impresora, lector, usuarios reales | **No probado** |
+| Aceptación del cliente | **Pendiente** |
+| SDK de OpenAI en `main` | Sin función que lo justifique; decisión pendiente |
+
+Ninguna fila anterior se considera verificada por el CI. La producción no está verificada.
+
+---
+
 ## Consolidación autorizada de las 12 ramas — 2026-10-29 (America/Tegucigalpa)
 
 - **Encargo del dueño:** unificar y fusionar las ramas para conservar únicamente `main`. Este encargo autoriza los merges y la retirada de las ramas integradas; sustituye los bloqueos históricos de merge que siguen como bitácora debajo. No concede decisiones fiscales pendientes ni activa funciones opcionales.

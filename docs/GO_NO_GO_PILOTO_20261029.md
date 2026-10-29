@@ -1,13 +1,13 @@
 # GO / NO-GO — piloto controlado de Jowa System — 2026-10-29
 
-**Actualización de consolidación (2026-10-29):** las 11 ramas de trabajo se integran en `main` por encargo expreso del dueño. El estado verificable y las pruebas definitivas están en la primera sección de `CONTEXTO_MAESTRO.md`; los estados de ramas y PR de abajo son fotografías anteriores. Se incorporan liveness, validación/regularización de ISV, límites aritméticos de compras, ocultación de módulos pendientes y bloqueo auditado de exenciones (incluida duplicación). El desglose por línea continúa apagado. Integrar código no certifica la preparación del piloto ni resuelve las decisiones fiscales y operativas pendientes.
+**Actualización de consolidación (2026-10-29):** las 11 ramas de trabajo se integran en `main` por encargo expreso del dueño. El estado verificable y las pruebas definitivas están en la primera sección de `CONTEXTO_MAESTRO.md`; los estados de ramas y PR de abajo son fotografías anteriores. La fotografía vigente, con SHA y CI verificados en GitHub, está en la sección superior de `CONTEXTO_MAESTRO.md`. Se incorporan liveness, validación/regularización de ISV, límites aritméticos de compras, ocultación de módulos pendientes y bloqueo auditado de exenciones (incluida duplicación). El desglose por línea continúa apagado. Integrar código no certifica la preparación del piloto ni resuelve las decisiones fiscales y operativas pendientes.
 
 **Decisión vigente: NO-GO.** No hay evidencia suficiente de controles críticos: falta auditoría funcional de todos los módulos, ensayo de migraciones en copia de preproducción, configuración de Render verificada y decisiones fiscales del contador. Esto no bloquea el trabajo técnico, pero sí cualquier piloto con datos de clientes.
 **Decisión vigente: NO-GO** (sin cambios desde la primera versión; esta actualización añade la clasificación por módulo). No hay evidencia suficiente de controles críticos: falta auditoría funcional de todos los módulos, ensayo de migraciones en copia de preproducción, configuración de Render verificada y decisiones fiscales del contador. Esto no bloquea el trabajo técnico, pero sí cualquier piloto con datos de clientes.
 
-Este documento no cambia producción ni fusiona ramas. Todos los SHA se comprobaron en GitHub el 2026-10-29 (ver §Estado de ramas).
+Este documento no cambia producción ni fusiona ramas. Los SHA de §Estado de ramas se comprobaron el 2026-10-29, antes de la consolidación; la fotografía vigente está en `CONTEXTO_MAESTRO.md`.
 
-## Estado de ramas (GitHub, 2026-10-29)
+## Estado de ramas — fotografía anterior a la consolidación (histórico)
 
 | PR | Rama | SHA | Estado | CI del SHA |
 | --- | --- | --- | --- | --- |
@@ -25,15 +25,15 @@ Detalle en `docs/AUDITORIA_FUNCIONAL_MODULOS.md`.
 | --- | --- |
 | LISTO | POS, inventario, clientes, proveedores, caja, usuarios y permisos, Super Admin, entregas, levantamiento |
 | PARCIAL | compras (ISV sin validar), garantías (sin reclamo), contabilidad (sin asientos automáticos), reportes (solo resumen), contingencia offline (decisión D11) |
-| BLOQUEADO en `main` | cotizaciones (ISV 500 % aceptado y convertido por ADMIN); corregido en #217, pendiente de integrar |
+| BLOQUEADO antes de la consolidación | cotizaciones (ISV 500 % aceptado y convertido por ADMIN); corregido en #217, integrado en `main` el 2026-10-29 (`da48cb21`) |
 | NO IMPLEMENTADO | apartados, transferencias entre sucursales, pedidos especiales, listas de precio |
 
-**Acción inmediata para el piloto:** ocultar los cuatro módulos NO IMPLEMENTADO. Hoy están activos por defecto (`DEFAULT_TENANT_MODULES`) y aparecen en el menú de todo negocio nuevo, con un aviso de «módulo pendiente». Las páginas `ApartadosPage`, `TransferenciasPage`, `PedidosEspecialesPage` y `ListasPrecioPage` no se importan y guardan datos de ejemplo en `localStorage`; no deben reactivarse sin rehacerlas.
+**Acción inmediata para el piloto:** ocultar los cuatro módulos NO IMPLEMENTADO. Integrada en `main` por #220 (`62d2ef6`, `b001bd1`); su `validate` falló en `62d2ef6` por una prueba desactualizada, corregida en #223, que aún no está en `main`. Hoy están activos por defecto (`DEFAULT_TENANT_MODULES`) y aparecen en el menú de todo negocio nuevo, con un aviso de «módulo pendiente». Las páginas `ApartadosPage`, `TransferenciasPage`, `PedidosEspecialesPage` y `ListasPrecioPage` no se importan y guardan datos de ejemplo en `localStorage`; no deben reactivarse sin rehacerlas.
 
 ## Estado de control T6 y compras
 
-- **T6 (exenciones):** cualquier VENDEDOR o CAJERO marca una línea exenta sin autorización ni auditoría. Pruebas de control en `test/exenciones-t6.postgres.integration.ts` (5/5, con casos DEFECTO CONOCIDO). Recomendación para el piloto: no permitir líneas exentas hasta D3 y D5. Detalle en `docs/AUDITORIA_EXENCIONES_T6.md`.
-- **Compras (ISV):** la factura del proveedor acepta cualquier ISV no negativo, incluido uno diez veces mayor que el subtotal; ISV y líneas no se relacionan; el libro toma el crédito de otra fuente. Pruebas de caracterización en `claude/auditoria-compras-isv-20261029` (PR #218, borrador, 9/9). Detalle en `docs/AUDITORIA_COMPRAS_ISV.md`.
+- **T6 (exenciones):** cualquier VENDEDOR o CAJERO marca una línea exenta sin autorización ni auditoría. La prueba `exenciones-t6` se retiró en `3f76b2f` (#219) por ser anterior a la política; la cobertura está en `test/exenciones-politica.postgres.integration.ts`, integrada con #222. Recomendación para el piloto: no permitir líneas exentas hasta D3 y D5. Detalle en `docs/AUDITORIA_EXENCIONES_T6.md`.
+- **Compras (ISV):** la factura del proveedor acepta cualquier ISV no negativo, incluido uno diez veces mayor que el subtotal; ISV y líneas no se relacionan; el libro toma el crédito de otra fuente. Pruebas de caracterización integradas en `main` con #218 (`afab804e`); la corrección aritmética está en #221, también integrada. Detalle en `docs/AUDITORIA_COMPRAS_ISV.md`.
 - **Permisos:** un cajero no puede concederse permisos administrativos. Verificado en código y con `saas-onboarding` (1/1) y `centinela-verificacion-atlas` (en `main`).
 
 ## Bloqueos técnicos
@@ -41,13 +41,13 @@ Detalle en `docs/AUDITORIA_FUNCIONAL_MODULOS.md`.
 | # | Bloqueo | Estado | Evidencia |
 | --- | --- | --- | --- |
 | T1 | Auditoría funcional de módulos (POS, cotizaciones, inventario, clientes, proveedores, compras, apartados, transferencias, pedidos especiales, listas de precio, garantías, devoluciones, caja, contabilidad, usuarios, reportes, Super Admin) | **Pendiente** | No hecha en este bloque. Requiere su propio informe por módulo |
-| T2 | Devoluciones con exención y redondeo | Resuelto en rama, sin desplegar | `874adc0`: 8/8 pruebas PostgreSQL del desglose; ejemplo obligatorio L 50 (no L 55) |
-| T3 | Migración `20261029000000_desglose_fiscal_linea` | Solo aditiva y en rama; **no ensayada** en copia de preproducción | Pruebas de ventas y reportes con la lista de migraciones actualizada: 70/70 |
+| T2 | Devoluciones con exención y redondeo | Integrado en `main` (ancestro verificado); sin despliegue verificado | `874adc0`: 8/8 pruebas PostgreSQL del desglose; ejemplo obligatorio L 50 (no L 55) |
+| T3 | Migración `20261029000000_desglose_fiscal_linea` | Integrada en `main`, solo aditiva; **no ensayada** en copia de preproducción | Pruebas de ventas y reportes con la lista de migraciones actualizada: 70/70 |
 | T4 | Rollback de la migración | Sin ensayo | Procedimiento: con el interruptor apagado no hace falta revertir; `DROP` exige `APROBACION-DESTRUCTIVA` |
 | T5 | Dos cálculos fiscales en paralelo | Deuda de diseño | `calculo-fiscal-propuesta.ts` (#217) y `desglose-fiscal.ts` (devoluciones) resuelven lo mismo con fórmulas distintas. Unificar antes de conectar cualquiera |
-| T6 | Auditoría de exenciones (quién marcó exento y por qué) | **Pendiente** | No existe registro de autorización de la marca exenta en cotizaciones. Depende de decisión D5 |
+| T6 | Auditoría de exenciones (quién marcó exento y por qué) | Política provisional integrada (#222): ninguna exención se concede. **Registro de autorización pendiente** | No existe registro de quién solicita ni de quién autoriza la marca exenta. Depende de D5 |
 | T7 | Políticas de tasas de ISV en #217 | Implementada y probada (`politica-isv.ts`) | 500 %, 0 %, 18 % rechazados; cotizaciones antiguas al 0 % regularizables solo por ADMIN con auditoría |
-| T8 | Liveness (#216) | Técnicamente listo para merge | Sin defectos en la revisión; `/api/health/live` no consulta PostgreSQL; `/api/health` conserva readiness |
+| T8 | Liveness (#216) | Integrado en `main` (`689fe4e`); CI verde en `dce922b` | Sin defectos en la revisión; `/api/health/live` no consulta PostgreSQL; `/api/health` conserva readiness |
 
 ## Bloqueos operativos (fuera de software)
 
@@ -79,15 +79,15 @@ Detalle en `docs/AUDITORIA_FUNCIONAL_MODULOS.md`.
 
 Un piloto controlado requiere, como mínimo: T1 completo con cada módulo clasificado; T3 ensayada en copia de preproducción con rollback; O1 y O2 verificados; D1–D6, D8 aprobadas por el contador; D9 decidida explícitamente. Hasta entonces, el sistema puede usarse en pruebas internas y ensayos, no con datos de clientes reales.
 
-## Recomendación
+## Recomendación (histórico, antes de la consolidación)
 
-- #216: técnicamente listo para merge. Espera autorización del dueño.
-- #217: mantener en borrador. Las decisiones D1, D2, D5 y D6 son fiscales.
+- #216: integrado en `main` el 2026-10-29 (ver fotografía vigente).
+- #217: integrado en `main` sin la aprobación del contador para H2 (ver fotografía vigente). Las decisiones D1, D2, D5 y D6 siguen pendientes.
 - Rama de devoluciones: abrir PR en borrador solo si el dueño lo pide; no conectar el desglose hasta D3, D6 y D8.
 
 ---
 
-## Dictamen tras la corrección de bloqueos (2026-10-29)
+## Dictamen tras la corrección de bloqueos (2026-10-29) — histórico, superado por la fotografía vigente de `CONTEXTO_MAESTRO.md`
 
 **Dictamen: NO-GO.** Todos los defectos técnicos auditados tienen ya corrección en PR (en borrador). Ninguno está integrado en `main`, y la mayoría de las pruebas de integración de esas ramas están aún en CI o no se han ejecutado en preproducción.
 
