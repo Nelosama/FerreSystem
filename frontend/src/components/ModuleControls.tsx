@@ -1,7 +1,7 @@
 import {
   CATALOGO_MODULOS,
-  PENDING_MODULES,
   MODULE_DEPENDENCIES,
+  PENDING_MODULES,
 } from "../config/modulesCatalog";
 import { useI18n } from "../context/I18nContext";
 export function ModuleControls({
@@ -46,7 +46,7 @@ export function ModuleControls({
         >
           <legend>{t("modules.groups." + group)}</legend>
           {CATALOGO_MODULOS.filter((item) =>
-            (categories as readonly string[]).includes(item.categoria),
+            (categories as readonly string[]).includes(item.categoria) && !PENDING_MODULES.has(item.key),
           ).map((item) => (
             <label
               key={item.key}
@@ -68,9 +68,6 @@ export function ModuleControls({
               {t(value.includes(item.key) ? "guide.enabled" : "guide.disabled")}
               <small style={{ display: "block" }}>
                 {t("moduleDescriptions." + item.key)}
-                {PENDING_MODULES.has(item.key)
-                  ? ` · ${t("pending.label")}`
-                  : ""}
               </small>
               {MODULE_DEPENDENCIES[item.key] && (
                 <small style={{ display: "block" }}>
