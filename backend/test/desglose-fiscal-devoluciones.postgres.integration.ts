@@ -132,6 +132,39 @@ describe('Desglose fiscal por línea y devoluciones / PostgreSQL aislado', () =>
     });
   });
 
+  it('ejemplo obligatorio: L 100 gravados + L 50 exentos; devolver solo la exenta reembolsa L 50 (no L 55)', async () => {
+    await conInterruptor(async () => {
+      const cot = await cotizaciones.create(tenant, admin, { detalles: [{ productoId: gravado, cantidad: 1 }, { productoId: exento, cantidad: 1, exento: true }] } as any);
+      expect([cot.subtotal, cot.isv, cot.total]).toEqual([150, 15, 165]);
+      const { ventaId } = await cotizaciones.convertirAVenta(tenant, admin, cot.id);
+      const e = (await lineas(ventaId)).find(l => l.exento)!;
+      const solicitud = randomUUID();
+      const d = await devolucionAutorizada(prisma, ops, tenant, admin, ventaId,
+        { solicitudId: solicitud, metodo: 'EFECTIVO', motivo: 'Devolución de la línea exenta', items: [{ detalleId: e.id, cantidad: 1, destino: await destino(ventaId) }] } as any);
+      expect(Number(d.monto)).toBe(50);
+      expect(Number(d.reembolso)).toBe(50);
+      expect(await desgloseDevuelto(d.id)).toEqual([{ base_gravada: 0, base_exenta: 50, isv: 0 }]);
+      // Reintento con la misma solicitud: devuelve la misma devolución, sin duplicar reembolso ni inventario.
+      const repetida = await devolucionAutorizada(prisma, ops, tenant, admin, ventaId,
+        { solicitudId: solicitud, metodo: 'EFECTIVO', motivo: 'Devolución de la línea exenta', items: [{ detalleId: e.id, cantidad: 1, destino: await destino(ventaId) }] } as any);
+      expect(repetida.id).toBe(d.id);
+      expect(await sql('SELECT COUNT(*)::int AS n FROM devoluciones WHERE venta_id=$1', ventaId)).toEqual([{ n: 1 }]);
+    });
+  });
+
+  it('redondeo: descuento general de 0.01 sobre gravado + exento; parciales de 1 de 3 suman exacto el reembolso de la línea', async () => {
+    await conInterruptor(async () => {
+      const v = await ventas.create(tenant, admin, { solicitudId: randomUUID(), metodoPago: 'EFECTIVO', descuento: 0.01, detalles: [{ productoId: gravado, cantidad: 3 }] } as any);
+      const [l] = await lineas(v.id);
+      const partes = [];
+      for (let i = 0; i < 3; i++) partes.push(await devolver(v.id, l.id, 1));
+      const total = partes.reduce((s, p) => s + Number(p.monto), 0);
+      expect(Math.round(total * 100) / 100).toBe(Number(v.total));
+      const isv = (await Promise.all(partes.map(p => desgloseDevuelto(p.id)))).flat().reduce((s, x) => s + Number(x.isv), 0);
+      expect(Math.round(isv * 100) / 100).toBe(Number(v.isv));
+    });
+  });
+
   it('venta mixta con descuento general: reparte el descuento y deja el ISV histórico de la cotización solo en lo gravado', async () => {
     await conInterruptor(async () => {
       const cot = await cotizaciones.create(tenant, admin, { descuentoGeneral: 15, tipoDescuentoGeneral: 'MONTO', detalles: [{ productoId: gravado, cantidad: 1 }, { productoId: exento, cantidad: 1, exento: true }] } as any);
