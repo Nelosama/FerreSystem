@@ -1,4 +1,5 @@
-import { IsString, IsEmail, IsEnum, IsBoolean, IsOptional, IsArray, IsNumber, Min, Max, ArrayMaxSize, Matches, MaxLength } from 'class-validator';
+import { PERMISOS_USUARIO } from '../permisos';
+import { IsIn, IsString, IsEmail, IsEnum, IsBoolean, IsOptional, IsArray, IsNumber, Min, Max, ArrayMaxSize, Matches, MaxLength } from 'class-validator';
 import { IsAllowedPassword } from '../../common/password-policy';
 import { Rol } from '../../types/prisma-enums';
 
@@ -24,7 +25,7 @@ export class CreateUsuarioDto {
   @IsOptional()
   @IsBoolean()
   activo?: boolean;
-  @IsOptional() @IsArray() @ArrayMaxSize(30) @IsString({each:true}) permisos?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(30) @IsString({each:true}) @IsIn(PERMISOS_USUARIO, {each:true}) permisos?: string[];
   @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) @Max(100) descuentoMaximo?: number;
 }
 

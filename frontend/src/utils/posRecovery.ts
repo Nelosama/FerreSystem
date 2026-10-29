@@ -21,7 +21,9 @@ export interface SaleDraft {
   pagoElectronico?: { referencia: string; terminal: string };
 }
 
-export interface PendingSale extends SaleDraft { solicitudId: string }
+// excepcionPrecio: motivo de la excepción de precio ya decidida para esta venta. Viaja con cada reintento de la misma
+// solicitud: el servidor compara el motivo con el auditado y rechaza un reintento que lo cambie u omita.
+export interface PendingSale extends SaleDraft { solicitudId: string; excepcionPrecio?: { motivo: string } }
 
 const optionalString = (value: unknown) => value === undefined || typeof value === 'string';
 const validDraft = (sale: SaleDraft) => sale && Array.isArray(sale.cart) && sale.cart.length > 0 &&
@@ -41,7 +43,8 @@ export function readRecovery(pendingKey: string, draftKey: string) {
     const rawPending = localStorage.getItem(pendingKey);
     const pending: PendingSale | null = rawPending ? JSON.parse(rawPending) : null;
     // Un pendiente inválido no se descarta ni se reemplaza por otra operación.
-    if (rawPending && (!pending || !validDraft(pending) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pending.solicitudId))) {
+    if (rawPending && (!pending || !validDraft(pending) ||
+      (pending.excepcionPrecio !== undefined && typeof pending.excepcionPrecio?.motivo !== 'string') || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pending.solicitudId))) {
       return { pending: null, draft: null, error: 'No se pudo recuperar la venta pendiente. Pida al administrador revisar las ventas antes de volver a cobrar.' };
     }
     const rawDraft = pending ? null : localStorage.getItem(draftKey);

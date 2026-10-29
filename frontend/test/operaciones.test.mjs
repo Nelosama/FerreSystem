@@ -38,6 +38,7 @@ const evaluate = (file, mocks, globals = {}) => {
     if (name.endsWith('/posMoney')) return evaluate('src/utils/posMoney.ts', {}, globals);
     if (name.endsWith('/posCatalogo')) return evaluate('src/utils/posCatalogo.ts', {}, globals);
     if (name.endsWith('/preciosCarrito')) return evaluate('src/utils/preciosCarrito.ts', {}, globals);
+    if (name.endsWith('/excepcionPrecio')) return evaluate('src/utils/excepcionPrecio.ts', {});
     if (name.endsWith('/posRecovery')) return evaluate('src/utils/posRecovery.ts', {}, globals);
     if (name.endsWith('/cotizacionesFilters')) return evaluate('src/utils/cotizacionesFilters.ts', {});
     if (name.endsWith('/numeroVenta')) return evaluate('src/utils/numeroVenta.ts', {});
