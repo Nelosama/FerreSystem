@@ -44,10 +44,11 @@ export class CotizacionesController {
   @Roles('ADMIN', 'VENDEDOR', 'CAJERO')
   async update(
     @TenantId() tenantId: string,
+    @CurrentUser('sub') usuarioId: string,
     @Param('id') id: string,
     @Body() dto: CreateCotizacionDto,
   ) {
-    return this.cotizacionesService.update(tenantId, id, dto);
+    return this.cotizacionesService.update(tenantId, id, dto, usuarioId);
   }
 
   @Post(':id/duplicar')

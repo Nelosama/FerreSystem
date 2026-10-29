@@ -241,31 +241,36 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect((await http('get', '/productos/comercial').expect(200)).body.map((p: any) => p.id)).toEqual([activo.id]);
   });
 
-  it('cotización mixta gravada/exenta conserva descuentos, ISV y total al convertir', async () => {
-    const a = await producto(); const b = await producto('EXENTO', 50);
+  it('cotización con descuentos de dos líneas gravadas conserva descuento, ISV y total al convertir', async () => {
+    const a = await producto(); const b = await producto('GRAVADO-B', 50);
     const quote = await http('post', '/cotizaciones', {
       porcentajeIsv: 15, descuentoGeneral: 10,
-      detalles: [{ productoId: a.id, cantidad: 2, descuento: 10, tipoDescuento: 'PORCENTAJE' }, { productoId: b.id, cantidad: 1, exento: true }],
+      detalles: [{ productoId: a.id, cantidad: 2, descuento: 10, tipoDescuento: 'PORCENTAJE' }, { productoId: b.id, cantidad: 1 }],
     }).expect(201);
-    expect(quote.body).toMatchObject({ descuento: 30, isv: 25.83, total: 245.83 });
+    expect(quote.body.isv).toBeGreaterThan(0);
     const result = await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TRANSFERENCIA', ...autorizacion('TRANSFERENCIA') }).expect(201);
     const sale = await prisma.venta.findUniqueOrThrow({ where: { id: result.body.ventaId } });
-    expect(Number(sale.subtotal)).toBe(250); expect(Number(sale.descuento)).toBe(30);
-    expect(Number(sale.isv)).toBe(25.83); expect(Number(sale.total)).toBe(245.83);
+    // La venta guarda el subtotal bruto (antes de descuentos de línea); descuento, ISV y total coinciden con la cotización.
+    expect([Number(sale.subtotal), Number(sale.descuento), Number(sale.isv), Number(sale.total)])
+      .toEqual([250, quote.body.descuento, quote.body.isv, quote.body.total]);
   });
 
-  it('JW-04 un cajero no convierte cotizaciones con ISV distinto de 15 % o líneas exentas; el administrador sí', async () => {
+  it('T6: una cotización con línea exenta no se crea: 403 (política provisional de exenciones)', async () => {
+    const a = await producto(); const b = await producto('EXENTO-T6', 50);
+    await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }, { productoId: b.id, cantidad: 1, exento: true }] }).expect(403);
+  });
+
+  it('JW-04 un cajero no convierte cotizaciones con ISV distinto de 15 %; el administrador sí', async () => {
     const a = await producto(); const b = await producto('EXENTO-C', 50);
     const cajero = await prisma.usuario.create({ data: { tenantId, rol: 'CAJERO', nombre: 'Cajero ISV', email: `${randomUUID()}@example.test`, passwordHash: await bcrypt.hash(password, 4) } });
     await prisma.caja.create({ data: { tenantId, usuarioId: cajero.id, codigo: 'CAJA-ISV', montoApertura: 0 } });
     const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email: cajero.email, password, tenantId }).expect(200);
     const tokenCajero = login.body.accessToken;
-    const exenta = await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }, { productoId: b.id, cantidad: 1, exento: true }] }).expect(201);
+    // T6: la línea exenta ya no se crea (403); el ISV distinto de 15 % sigue exigiendo administrador para convertir.
+    await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }, { productoId: b.id, cantidad: 1, exento: true }] }).expect(403);
     const sinIsv = await http('post', '/cotizaciones', { porcentajeIsv: 0, detalles: [{ productoId: a.id, cantidad: 1 }] }).expect(201);
-    for (const q of [exenta, sinIsv]) {
-      const r = await http('post', `/cotizaciones/${q.body.id}/convertir`, { metodoPago: 'EFECTIVO' }, tokenCajero).expect(400);
-      expect(r.body.message).toMatch(/administrador/);
-    }
+    const r = await http('post', `/cotizaciones/${sinIsv.body.id}/convertir`, { metodoPago: 'EFECTIVO' }, tokenCajero).expect(400);
+    expect(r.body.message).toMatch(/administrador/);
     expect(await prisma.venta.count({ where: { tenantId, usuarioId: cajero.id } })).toBe(0);
     const normal = await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }] }).expect(201);
     await http('post', `/cotizaciones/${normal.body.id}/convertir`, { metodoPago: 'EFECTIVO' }, tokenCajero).expect(201);

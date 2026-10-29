@@ -1,8 +1,9 @@
 import { account, authorizedActor, audit, cashMovement, id, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { exigirPoliticaPrecio } from '../ventas/politica-precio';
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
+import { exigirSinExencion } from './politica-exenciones';
 import { diaCalendario, inicioDiaEnZona, sumarDias } from '../common/zona-horaria';
 import { centavosADecimal, subtotalLinea } from '../common/dinero';
 import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
@@ -66,6 +67,7 @@ export class CotizacionesService {
   }
 
   async create(tenantId: string, usuarioId: string, dto: CreateCotizacionDto) {
+    await exigirSinExencion(this.prisma, tenantId, usuarioId, 'CREAR', null, dto.detalles);
     if (!dto.detalles || dto.detalles.length === 0) {
       throw new BadRequestException('La cotización debe tener al menos un ítem');
     }
@@ -194,7 +196,8 @@ export class CotizacionesService {
     });
   }
 
-  async update(tenantId: string, id: string, dto: CreateCotizacionDto) {
+  async update(tenantId: string, id: string, dto: CreateCotizacionDto, usuarioId: string) {
+    await exigirSinExencion(this.prisma, tenantId, usuarioId, 'EDITAR', id, dto.detalles);
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM cotizaciones WHERE id = ${id} AND tenant_id = ${tenantId} FOR UPDATE`;
       const existing = await tx.cotizacion.findFirst({
@@ -506,6 +509,8 @@ export class CotizacionesService {
       const excepcionPolitica = exigirPoliticaPrecio(user, cotizacion.detalles.map(d => ({ productoId: d.productoId, producto: d.producto.nombre, precioVigente: Number(d.producto.precioVenta), precioCobrado: Number(d.precioUnitario) })), excepcionPrecio);
       // La venta directa siempre aplica ISV 15 % sin exenciones. Igual que un precio modificado, una tasa distinta o una
       // línea exenta en la cotización cambia el impuesto facturado: solo el administrador la convierte.
+      // T6: una exención no autorizada no se factura, ni siquiera por ADMIN (política provisional, ver politica-exenciones.ts).
+      await exigirSinExencion(this.prisma, tenantId, usuarioId, 'CONVERTIR', cotizacion.id, cotizacion.detalles);
       if(user.rol !== 'ADMIN' && (Number(cotizacion.porcentajeIsv)!==15 || cotizacion.detalles.some(d=>d.exento))) throw new BadRequestException('La cotización tiene ISV distinto de 15 % o líneas exentas: requiere validación del administrador');
       // Verificar y descontar stock por la cantidad solicitada con precisión decimal
       for (const d of cotizacion.detalles) {
