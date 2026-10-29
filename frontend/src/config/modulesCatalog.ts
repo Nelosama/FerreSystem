@@ -135,6 +135,8 @@ export const OPT_IN_MODULES = new Set(['contabilidad']);
 export const modulosPorDefecto = () => CATALOGO_MODULOS.map(m => m.key).filter(k => !OPT_IN_MODULES.has(k));
 
 export const PENDING_MODULES = new Set(['apartados', 'transferencias_sucursal', 'pedidos_especiales', 'listas_precio']);
+/** Módulos que el backend acepta en PUT /modules (sin los pendientes, que lo rechaza con 400). */
+export const MODULOS_CONTRATABLES = CATALOGO_MODULOS.filter(m => !PENDING_MODULES.has(m.key));
 
 export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   pos: ['inventario', 'arqueo_caja', 'clientes'], cotizaciones: ['inventario', 'clientes'],

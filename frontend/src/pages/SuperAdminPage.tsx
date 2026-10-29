@@ -26,7 +26,7 @@ import { useTenant } from '../context/TenantContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SLUG_SECCION, seccionDePlataforma, type SeccionPlataforma } from '../config/platformNavigation';
 import { ModuleControls } from '../components/ModuleControls';
-import { CATALOGO_MODULOS, OPT_IN_MODULES, modulosPorDefecto } from '../config/modulesCatalog';
+import { CATALOGO_MODULOS, MODULOS_CONTRATABLES, OPT_IN_MODULES, modulosPorDefecto } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { alertas } from '../utils/alertas';
@@ -309,7 +309,7 @@ export const SuperAdminPage: React.FC = () => {
   const guardarModulosTenant = async () => {
     if (!modalModulosTenant) return;
     if ((modalModulosTenant.modulosHabilitados || modulosPorDefecto()).some(key => !tempModulosTenant.includes(key)) && !(await alertas.confirmar({ texto: t('modules.confirm'), peligroso: true }))) return;
-    const modulesPayload = CATALOGO_MODULOS.map((m) => ({
+    const modulesPayload = MODULOS_CONTRATABLES.map((m) => ({
       moduleKey: m.key,
       enabled: tempModulosTenant.includes(m.key),
     }));
@@ -743,7 +743,7 @@ export const SuperAdminPage: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px', marginTop: '20px' }}>
-              {CATALOGO_MODULOS.map((mod) => (
+              {MODULOS_CONTRATABLES.map((mod) => (
                 <div key={mod.key} className="industrial-card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span className="badge badge-dark" style={{ fontSize: '10px' }}>{t('moduleCategories.' + mod.categoria)}</span>
