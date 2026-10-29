@@ -377,6 +377,7 @@ export class CotizacionesService {
     }
     // La copia conserva importes y tasa de la original: no se crea un documento nuevo con una tasa no autorizada.
     exigirTasaIsvAutorizada(Number(original.porcentajeIsv));
+    await exigirSinExencion(this.prisma, tenantId, usuarioId, 'DUPLICAR', original.id, original.detalles);
 
     return this.prisma.$transaction(async (tx) => {
       const result = await tx.$queryRaw<[{ ultimo_numero: number }]>`

@@ -235,10 +235,10 @@ describe('CotizacionesService', () => {
 
     it('update de una cotización antigua con tasa no autorizada exige elegir una autorizada', async () => {
       mockPrisma.cotizacion.findFirst.mockResolvedValue({ id: 'cot-v', estado: 'BORRADOR', porcentajeIsv: 500, clienteNombre: 'X', subtotal: 100, descuentoGeneral: 0, tipoDescuentoGeneral: 'MONTO' });
-      await expect(service.update('t', 'cot-v', { detalles: [{ productoId: 'p-grav', cantidad: 1 }] } as any)).rejects.toThrow(/Tasa de ISV no autorizada/);
+      await expect(service.update('t', 'cot-v', { detalles: [{ productoId: 'p-grav', cantidad: 1 }] } as any, 'u')).rejects.toThrow(/Tasa de ISV no autorizada/);
       expect(mockPrisma.cotizacion.update).not.toHaveBeenCalled();
-      await expect(service.update('t', 'cot-v', { porcentajeIsv: 500, detalles: [{ productoId: 'p-grav', cantidad: 1 }] } as any)).rejects.toThrow(/no autorizada/);
-      await service.update('t', 'cot-v', { porcentajeIsv: 15, detalles: [{ productoId: 'p-grav', cantidad: 1 }] } as any);
+      await expect(service.update('t', 'cot-v', { porcentajeIsv: 500, detalles: [{ productoId: 'p-grav', cantidad: 1 }] } as any, 'u')).rejects.toThrow(/no autorizada/);
+      await service.update('t', 'cot-v', { porcentajeIsv: 15, detalles: [{ productoId: 'p-grav', cantidad: 1 }] } as any, 'u');
       expect(mockPrisma.cotizacion.update.mock.calls.at(-1)?.[0]?.data).toMatchObject({ porcentajeIsv: 15, isv: 15, total: 115 });
     });
 
@@ -273,7 +273,7 @@ describe('CotizacionesService', () => {
         clienteId: null, clienteNombre: 'Cliente', clienteRtn: null, clienteTelefono: null, clienteEmail: null, clienteDireccion: null, condicionesPago: 'CONTADO',
         detalles: [
           { productoId: 'p-grav', cantidad: 1, medida: null, precioUnitario: 100, descuento: 0, exento: false },
-          { productoId: 'p-exen', cantidad: 1, medida: null, precioUnitario: 50, descuento: 0, exento: true },
+          { productoId: 'p-exen', cantidad: 1, medida: null, precioUnitario: 50, descuento: 0, exento: false },
         ],
       };
       const admin = (rol = 'ADMIN') => mockPrisma.$queryRawUnsafe.mockImplementation(async (q: string) => q.includes('SELECT u.rol') ? [{ rol }] : []);
@@ -282,13 +282,13 @@ describe('CotizacionesService', () => {
         admin(); mockPrisma.cotizacion.findFirst.mockResolvedValue(original);
         await service.regularizarIsv('t', 'u', 'cot-0', { motivo: 'Cotización antigua al 0 % sin constancia' });
         const d = datosCreados();
-        expect(d).toMatchObject({ porcentajeIsv: 15, subtotal: 150, descuento: 15, isv: 13.5, total: 148.5, estado: 'BORRADOR' });
+        expect(d).toMatchObject({ porcentajeIsv: 15, subtotal: 150, descuento: 15, isv: 20.25, total: 155.25, estado: 'BORRADOR' });
         expect(d.notas).toMatch(/Regularización de ISV de COT-0007 \(tasa original 0 %\)/);
-        expect(d.detalles.create.map((l: any) => [l.productoId, l.exento, l.isv])).toEqual([['p-grav', false, 15], ['p-exen', true, 0]]);
+        expect(d.detalles.create.map((l: any) => [l.productoId, l.exento, l.isv])).toEqual([['p-grav', false, 15], ['p-exen', false, 7.5]]);
         expect(mockPrisma.cotizacion.update).not.toHaveBeenCalled();
         const auditoria = mockPrisma.$queryRawUnsafe.mock.calls.find((c: any[]) => String(c[0]).includes('auditoria_operaciones'));
         expect(auditoria?.[4]).toBe('COTIZACION_REGULARIZAR_ISV');
-        expect(JSON.parse(auditoria?.[6])).toMatchObject({ cotizacionOriginalId: 'cot-0', antes: { porcentajeIsv: 0, isv: 0 }, despues: { porcentajeIsv: 15, isv: 13.5 } });
+        expect(JSON.parse(auditoria?.[6])).toMatchObject({ cotizacionOriginalId: 'cot-0', antes: { porcentajeIsv: 0, isv: 0 }, despues: { porcentajeIsv: 15, isv: 20.25 } });
       });
 
       it('exige ADMIN, motivo y tasa autorizada; no regulariza lo que no lo necesita ni lo ya convertido', async () => {
@@ -314,30 +314,19 @@ describe('CotizacionesService', () => {
       expect(d).toMatchObject({ subtotal: 250, isv: 37.5, total: 287.5 });
     });
 
-    it('solo líneas exentas: ISV cero y total igual a la base', async () => {
-      await service.create('t', 'u', { detalles: [{ productoId: 'p-exen', cantidad: 3, exento: true }] } as any);
-      expect(datosCreados()).toMatchObject({ subtotal: 150, isv: 0, total: 150 });
-      expect(datosCreados().detalles.create[0]).toMatchObject({ exento: true, isv: 0, totalLinea: 150 });
+    it.each([false, true])('T6 bloquea crear líneas exentas, con mezcla gravada=%s', async (mixta) => {
+      const detalles = [{ productoId: 'p-exen', cantidad: 3, exento: true }, ...(mixta ? [{ productoId: 'p-grav', cantidad: 1 }] : [])];
+      await expect(service.create('t', 'u', { detalles } as any)).rejects.toThrow(/exenciones de línea están bloqueadas/);
+      expect(mockPrisma.cotizacion.create).not.toHaveBeenCalled();
     });
 
-    it('combinada con descuento general: el ISV solo grava la parte gravada, prorrateada tras el descuento', async () => {
-      await service.create('t', 'u', { descuentoGeneral: 15, tipoDescuentoGeneral: 'MONTO', detalles: [{ productoId: 'p-grav', cantidad: 1 }, { productoId: 'p-exen', cantidad: 1, exento: true }] } as any);
-      const d = datosCreados();
-      expect(d.detalles.create.map((l: any) => [l.exento, l.isv])).toEqual([[false, 15], [true, 0]]);
-      // ISV de líneas 15.00 × (150 − 15) / 150 = 13.50; total 135 + 13.50.
-      expect(d).toMatchObject({ subtotal: 150, descuento: 15, isv: 13.5, total: 148.5 });
-    });
-
-    it('duplicate conserva los importes históricos y la marca exenta de cada línea', async () => {
-      const lineas = [
-        { productoId: 'p-grav', exento: false, subtotal: 100, isv: 15, totalLinea: 115 },
-        { productoId: 'p-exen', exento: true, subtotal: 50, isv: 0, totalLinea: 50 },
-      ];
-      mockPrisma.cotizacion.findFirst.mockResolvedValue({ id: 'cot-o', numeroCotizacion: 4, diasValidez: 15, porcentajeIsv: 15, subtotal: 150, isv: 13.5, descuento: 15, total: 148.5, detalles: lineas });
-      await service.duplicate('t', 'u', 'cot-o');
-      const d = datosCreados();
-      expect(d).toMatchObject({ porcentajeIsv: 15, subtotal: 150, isv: 13.5, descuento: 15, total: 148.5 });
-      expect(d.detalles.create).toEqual(lineas.map((l) => expect.objectContaining(l)));
+    it('duplicate no crea otra cotización exenta histórica mientras T6 está bloqueada', async () => {
+      mockPrisma.cotizacion.findFirst.mockResolvedValue({ id: 'cot-o', porcentajeIsv: 15,
+        detalles: [{ productoId: 'p-exen', exento: true }] });
+      await expect(service.duplicate('t', 'u', 'cot-o')).rejects.toThrow(/exenciones de línea están bloqueadas/);
+      expect(mockPrisma.cotizacion.create).not.toHaveBeenCalled();
+      const auditoria = mockPrisma.$queryRawUnsafe.mock.calls.find((c: any[]) => String(c[0]).includes('auditoria_operaciones'));
+      expect(JSON.parse(auditoria?.[6])).toMatchObject({ intento: 'DUPLICAR', productoIds: ['p-exen'] });
     });
   });
 });

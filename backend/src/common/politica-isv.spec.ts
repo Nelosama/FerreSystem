@@ -27,8 +27,8 @@ describe('P2-H1 política de tasas de ISV', () => {
       expect(() => exigirTasaIsvAutorizada(valor)).toThrow(/Tasa de ISV no autorizada/);
     });
 
-  it('el mensaje orienta a marcar la línea exenta en lugar de usar una tasa de 0 %', () => {
-    expect(() => exigirTasaIsvAutorizada(0)).toThrow(/15 %.*exenta/);
+  it('el mensaje informa la tasa autorizada y el bloqueo provisional de exenciones', () => {
+    expect(() => exigirTasaIsvAutorizada(0)).toThrow(/15 %.*exenciones.*bloqueadas/);
   });
 });
 

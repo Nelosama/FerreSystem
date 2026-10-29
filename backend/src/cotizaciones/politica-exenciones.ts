@@ -15,7 +15,7 @@ export const EXENCIONES_HABILITADAS = false;
 export const MOTIVO_EXENCION_BLOQUEADA = 'DECISION_FISCAL_PENDIENTE';
 export const MENSAJE_EXENCION_BLOQUEADA = 'Las exenciones de línea están bloqueadas hasta la decisión fiscal del contador y del dueño. Venda la línea gravada.';
 
-export type IntentoExencion = 'CREAR' | 'EDITAR' | 'CONVERTIR';
+export type IntentoExencion = 'CREAR' | 'EDITAR' | 'CONVERTIR' | 'DUPLICAR';
 
 /** Lanza 403 si alguna línea pide exención y la política no la permite. `db` puede ser el cliente Prisma. */
 export async function exigirSinExencion(

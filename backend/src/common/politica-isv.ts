@@ -29,7 +29,7 @@ export function esTasaIsvAutorizada(valor: unknown): valor is number {
 }
 
 export const mensajeTasaNoAutorizada = () =>
-  `Tasa de ISV no autorizada. Tasas permitidas: ${TASAS_ISV_AUTORIZADAS.map((t) => `${t} %`).join(', ')}. Para una línea sin impuesto márquela como exenta`;
+  `Tasa de ISV no autorizada. Tasas permitidas: ${TASAS_ISV_AUTORIZADAS.map((t) => `${t} %`).join(', ')}. Las exenciones de línea están bloqueadas hasta la decisión fiscal`;
 
 /** Devuelve la tasa normalizada o rechaza con 400. Se usa en el servicio además del DTO: los consumidores internos no pasan por ValidationPipe. */
 export function exigirTasaIsvAutorizada(valor: unknown): number {

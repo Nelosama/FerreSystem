@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { VentasService } from '../src/ventas/ventas.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
-import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
+import { desgloseParaEscribir } from '../src/common/desglose-fiscal';
 
 // Desglose fiscal histórico por línea (migración 20261029000000_desglose_fiscal_linea) y devoluciones de ventas gravadas,
 // exentas y mixtas. PostgreSQL real en un clúster temporal, cadena completa de migraciones, servicios reales, datos sintéticos.
@@ -21,7 +21,6 @@ describe('Desglose fiscal por línea y devoluciones / PostgreSQL aislado', () =>
   let prisma: PrismaService;
   let ventas: VentasService;
   let ops: OperacionesService;
-  let cotizaciones: CotizacionesService;
   let tenant: string;
   let admin: string;
   let gravado: string;
@@ -42,6 +41,25 @@ describe('Desglose fiscal por línea y devoluciones / PostgreSQL aislado', () =>
   const desgloseDevuelto = (devolucionId: string) => sql(`SELECT base_gravada::float AS base_gravada, base_exenta::float AS base_exenta, isv::float AS isv
     FROM detalles_devolucion WHERE devolucion_id=$1`, devolucionId);
   const suma = (filas: any[], campo: string) => Math.round(filas.reduce((s, f) => s + Number(f[campo]), 0) * 100) / 100;
+
+  // Importación sintética de una venta mixta histórica: T6 impide crear o convertir exenciones nuevas.
+  // Se conserva la prueba del reembolso y del desglose sin desactivar la política de producción.
+  const ventaMixtaHistorica = async (cantidadExenta: number, descuento = 0) => {
+    const subtotal = 100 + 50 * cantidadExenta;
+    const isv = Math.round(15 * (subtotal - descuento) / subtotal * 100) / 100;
+    const total = subtotal - descuento + isv;
+    const v = await ventas.create(tenant, admin, { solicitudId: randomUUID(), metodoPago: 'EFECTIVO', descuento,
+      detalles: [{ productoId: gravado, cantidad: 1 }, { productoId: exento, cantidad: cantidadExenta }] } as any);
+    const desgloses = desgloseParaEscribir([
+      { brutoCentavos: 10000, exento: false }, { brutoCentavos: 5000 * cantidadExenta, exento: true },
+    ], Math.round(descuento * 100), Math.round(isv * 100), 15);
+    await prisma.$transaction(async tx => {
+      await tx.venta.update({ where: { id: v.id }, data: { isv, total } });
+      const detalles = await tx.detalleVenta.findMany({ where: { ventaId: v.id } });
+      for (const d of detalles) await tx.detalleVenta.update({ where: { id: d.id }, data: desgloses[d.productoId === gravado ? 0 : 1] });
+    });
+    return { id: v.id, subtotal, descuento, isv, total };
+  };
 
   beforeAll(async () => {
     if (!existsSync(exe('initdb'))) throw new Error(`PostgreSQL not installed at ${bin}`);
@@ -65,7 +83,6 @@ describe('Desglose fiscal por línea y devoluciones / PostgreSQL aislado', () =>
     await prisma.$connect();
     ventas = new VentasService(prisma);
     ops = new OperacionesService(prisma);
-    cotizaciones = new CotizacionesService(prisma);
   }, 180000);
 
   afterAll(async () => {
@@ -111,11 +128,11 @@ describe('Desglose fiscal por línea y devoluciones / PostgreSQL aislado', () =>
     });
   });
 
-  it('venta mixta desde cotización: la línea exenta conserva su condición y su devolución no reembolsa ISV', async () => {
+  it('venta mixta histórica: la línea exenta conserva su condición y su devolución no reembolsa ISV', async () => {
     await conInterruptor(async () => {
-      const cot = await cotizaciones.create(tenant, admin, { detalles: [{ productoId: gravado, cantidad: 1 }, { productoId: exento, cantidad: 2, exento: true }] } as any);
+      const cot = await ventaMixtaHistorica(2);
       expect([cot.subtotal, cot.isv, cot.total]).toEqual([200, 15, 215]);
-      const { ventaId } = await cotizaciones.convertirAVenta(tenant, admin, cot.id);
+      const ventaId = cot.id;
       const ls = await lineas(ventaId);
       const g = ls.find(l => l.producto_id === gravado)!, e = ls.find(l => l.producto_id === exento)!;
       expect([g.exento, g.base_gravada, g.base_exenta, g.isv]).toEqual([false, 100, 0, 15]);
@@ -134,9 +151,9 @@ describe('Desglose fiscal por línea y devoluciones / PostgreSQL aislado', () =>
 
   it('ejemplo obligatorio: L 100 gravados + L 50 exentos; devolver solo la exenta reembolsa L 50 (no L 55)', async () => {
     await conInterruptor(async () => {
-      const cot = await cotizaciones.create(tenant, admin, { detalles: [{ productoId: gravado, cantidad: 1 }, { productoId: exento, cantidad: 1, exento: true }] } as any);
+      const cot = await ventaMixtaHistorica(1);
       expect([cot.subtotal, cot.isv, cot.total]).toEqual([150, 15, 165]);
-      const { ventaId } = await cotizaciones.convertirAVenta(tenant, admin, cot.id);
+      const ventaId = cot.id;
       const e = (await lineas(ventaId)).find(l => l.exento)!;
       const solicitud = randomUUID();
       const d = await devolucionAutorizada(prisma, ops, tenant, admin, ventaId,
@@ -167,9 +184,9 @@ describe('Desglose fiscal por línea y devoluciones / PostgreSQL aislado', () =>
 
   it('venta mixta con descuento general: reparte el descuento y deja el ISV histórico de la cotización solo en lo gravado', async () => {
     await conInterruptor(async () => {
-      const cot = await cotizaciones.create(tenant, admin, { descuentoGeneral: 15, tipoDescuentoGeneral: 'MONTO', detalles: [{ productoId: gravado, cantidad: 1 }, { productoId: exento, cantidad: 1, exento: true }] } as any);
+      const cot = await ventaMixtaHistorica(1, 15);
       expect([cot.subtotal, cot.descuento, cot.isv, cot.total]).toEqual([150, 15, 13.5, 148.5]);
-      const { ventaId } = await cotizaciones.convertirAVenta(tenant, admin, cot.id);
+      const ventaId = cot.id;
       const ls = await lineas(ventaId);
       expect(ls.map(l => [l.exento, l.base_gravada, l.base_exenta, l.isv])).toEqual([[false, 90, 0, 13.5], [true, 0, 45, 0]]);
       const venta = await prisma.venta.findUniqueOrThrow({ where: { id: ventaId } });
