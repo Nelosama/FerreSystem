@@ -266,6 +266,14 @@ describe('SuperAdminService.updateTenantModules (Contabilidad)', () => {
     }
   });
 
+  it('no permite encender los módulos sin implementar (apartados, transferencias, pedidos, listas de precio)', async () => {
+    for (const moduleKey of ['apartados', 'transferencias_sucursal', 'pedidos_especiales', 'listas_precio']) {
+      const { service, tx } = crear();
+      await expect(service.updateTenantModules('t-1', [{ moduleKey, enabled: true }])).rejects.toThrow('Módulos inválidos');
+      expect(tx.tenantModule.upsert).not.toHaveBeenCalled();
+    }
+  });
+
   it('sigue rechazando claves fuera del catálogo y duplicados', async () => {
     const { service } = crear();
     await expect(service.updateTenantModules('t-1', [{ moduleKey: 'inexistente', enabled: true }])).rejects.toThrow('Módulos inválidos');

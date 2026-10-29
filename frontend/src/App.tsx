@@ -20,7 +20,6 @@ import ContingenciaAdminPage from './pages/ContingenciaAdminPage';
 
 import { CajaProvider } from './hooks/useEstadoCaja';
 import './App.css';
-import { ModuloPendiente } from './components/ModuloPendiente';
 
 import { useTenant } from './context/TenantContext';
 
@@ -67,16 +66,12 @@ const LoginPage = React.lazy(() =>
 );
 
 // Nuevos módulos con React.lazy
-const ApartadosPage=()=> <ModuloPendiente nombre="APARTADOS"/>;
 const ArqueoCajaPage = React.lazy(() =>
   import('./pages/ArqueoCajaPage').then(m => ({ default: m.ArqueoCajaPage }))
 );
 const OrdenesCompraPage = React.lazy(() =>
   import('./pages/OrdenesCompraPage').then(m => ({ default: m.OrdenesCompraPage }))
 );
-const TransferenciasPage=()=> <ModuloPendiente nombre="TRANSFERENCIAS ENTRE SUCURSALES"/>;
-const PedidosEspecialesPage=()=> <ModuloPendiente nombre="PEDIDOS ESPECIALES" especial/>;
-const ListasPrecioPage=()=> <ModuloPendiente nombre="LISTAS DE PRECIO"/>;
 const ComisionesPage = React.lazy(() =>
   import('./pages/ComisionesPage').then(m => ({ default: m.ComisionesPage }))
 );
@@ -352,16 +347,6 @@ export const App: React.FC = () => {
 
                   {/* Nuevos módulos */}
                   <Route
-                    path="/apartados"
-                    element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="apartados">
-                        <AppLayout>
-                          <ApartadosPage />
-                        </AppLayout>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
                     path="/arqueo-caja"
                     element={
                       <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="arqueo_caja">
@@ -382,41 +367,11 @@ export const App: React.FC = () => {
                     }
                   />
                   <Route
-                    path="/transferencias"
-                    element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'BODEGUERO']} requiredModule="transferencias_sucursal">
-                        <AppLayout>
-                          <TransferenciasPage />
-                        </AppLayout>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
                     path="/garantias"
                     element={
                       <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO']} requiredModule="garantias">
                         <AppLayout>
                           <GarantiasPage />
-                        </AppLayout>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/pedidos-especiales"
-                    element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'VENDEDOR', 'CAJERO']} requiredModule="pedidos_especiales">
-                        <AppLayout>
-                          <PedidosEspecialesPage />
-                        </AppLayout>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/listas-precio"
-                    element={
-                      <ProtectedRoute allowedRoles={['ADMIN', 'VENDEDOR']} requiredModule="listas_precio">
-                        <AppLayout>
-                          <ListasPrecioPage />
                         </AppLayout>
                       </ProtectedRoute>
                     }
