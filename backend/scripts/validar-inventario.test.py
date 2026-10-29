@@ -54,7 +54,7 @@ class InventarioEstricto(unittest.TestCase):
         filas.append(filas[1].copy())
         self.assertTrue(v.validar(filas, estricto=True)[1])
         self.assertTrue(v.validar(self.filas(), catalogo={'CAB-1'}, estricto=True)[1])
-        for datos in [{'codigo': 'EJ-1'}, {'precioCosto': ''}, {'precioVenta': '1,25'}, {'stockActual': '-1'}, {'precioVenta': '999999999999999999999'}]:
+        for datos in [{'codigo': 'EJ-1'}, {'precioVenta': '1,25'}, {'stockActual': '-1'}, {'precioVenta': '999999999999999999999'}]:
             self.assertTrue(v.validar(self.filas(**datos), estricto=True)[1], datos)
 
     def test_encabezados_y_columnas_ambiguas(self):
@@ -64,12 +64,17 @@ class InventarioEstricto(unittest.TestCase):
         self.assertTrue(v.validar(filas, estricto=True)[1])
         self.assertTrue(v.validar([v.ENCABEZADOS, ['Cable']], estricto=True)[1])
 
-    def test_perfil_candidato_no_finge_importar_precios(self):
-        self.assertTrue(v.validar(self.filas(), estricto=True, perfil='preproduccion')[1])
+    def test_precio_vacio_es_sin_precio_y_no_error(self):
+        # El importador deja el producto sin precio aprobado: no es un valor por defecto oculto.
+        self.assertFalse(v.validar(self.filas(precioCosto=''), estricto=True)[1])
+        self.assertFalse(v.validar(self.filas(precioVenta=''), estricto=True, perfil='preproduccion')[1])
+        self.assertFalse(v.validar(self.filas(precioVenta='', precioCosto=''), estricto=True)[1])
+
+    def test_columnas_de_precio_son_obligatorias_en_el_encabezado(self):
         filas = self.filas()
         filas = [[c for i, c in enumerate(fila) if i not in (3, 4)] for fila in filas]
-        self.assertFalse(v.validar(filas, estricto=True, perfil='preproduccion')[1])
         self.assertTrue(v.validar(filas, estricto=True)[1])
+        self.assertTrue(v.validar(filas, estricto=True, perfil='preproduccion')[1])
 
     def test_cli_y_codigos_salida(self):
         with tempfile.TemporaryDirectory() as directorio:
