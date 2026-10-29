@@ -163,7 +163,7 @@ describe('Barrido de aislamiento entre empresas y de roles / PostgreSQL aislado'
     }
   });
 
-  const PUBLICAS = new Set(['/api/auth/security/request', '/api/auth/security/reset', '/api/auth/security/verify-email', '/api/auth/security/forced-change', '/api/auth/login', '/api/auth/refresh', '/api/auth/logout', '/api/admin/auth/login', '/api/admin/auth/refresh', '/api/admin/auth/logout', '/api', '/api/health', '/api/health/db']);
+  const PUBLICAS = new Set(['/api/auth/security/request', '/api/auth/security/reset', '/api/auth/security/verify-email', '/api/auth/security/forced-change', '/api/auth/login', '/api/auth/refresh', '/api/auth/logout', '/api/admin/auth/login', '/api/admin/auth/refresh', '/api/admin/auth/logout', '/api', '/api/health', '/api/health/live', '/api/health/db']);
   const exitosa = (status: number) => status >= 200 && status < 300;
   const enviar = (metodo: string, ruta: string, token: string) =>
     (request(app.getHttpServer()) as any)[metodo](ruta).auth(token, { type: 'bearer' }).send(metodo === 'get' || metodo === 'delete' ? undefined : {});
