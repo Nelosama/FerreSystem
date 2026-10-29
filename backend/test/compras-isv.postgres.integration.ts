@@ -8,10 +8,10 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
 import { diaCalendario } from '../src/common/zona-horaria';
 
-// Auditoría del campo ISV de compras (docs/AUDITORIA_COMPRAS_ISV.md). Caracterización: los casos marcados DEFECTO CONOCIDO
-// documentan el comportamiento actual y deben cambiar cuando se corrija. Datos sintéticos, clúster temporal.
+// Corrección del ISV de compras (docs/AUDITORIA_COMPRAS_ISV.md, C-01 y C-03). Validación aritmética: ISV ≤ subtotal y costo > 0.
+// No fija tasas: 0 % y 15 % se aceptan porque la tasa aplicable es una decisión pendiente del contador. Datos sintéticos.
 // Crea un clúster temporal exclusivo; nunca lee DATABASE_URL. Llama al servicio real (sin mocks).
-describe('Compras: campo ISV y totales (auditoría) / PostgreSQL aislado', () => {
+describe('Compras: validación aritmética del ISV (corrección) / PostgreSQL aislado', () => {
   const bin = process.env.PG_BIN || (process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/18/bin' : '/usr/bin');
   const exe = (name: string) => join(bin, name + (process.platform === 'win32' ? '.exe' : ''));
   let directory: string, prisma: PrismaService, ops: OperacionesService;
@@ -30,7 +30,7 @@ describe('Compras: campo ISV y totales (auditoría) / PostgreSQL aislado', () =>
 
   beforeAll(async () => {
     if (!existsSync(exe('initdb'))) throw new Error(`PostgreSQL not installed at ${bin}`);
-    directory = mkdtempSync(join(tmpdir(), 'ferresystem-compras-isv-'));
+    directory = mkdtempSync(join(tmpdir(), 'ferresystem-compras-fix-'));
     const listener = createServer();
     await new Promise<void>((done, reject) => { listener.once('error', reject); listener.listen(0, '127.0.0.1', done); });
     const port = (listener.address() as { port: number }).port;
@@ -53,7 +53,7 @@ describe('Compras: campo ISV y totales (auditoría) / PostgreSQL aislado', () =>
     try { await prisma?.$disconnect(); }
     finally {
       if (started) execFileSync(exe('pg_ctl'), ['-D', join(directory, 'data'), '-m', 'immediate', '-w', 'stop'], { windowsHide: true, timeout: 15000, stdio: 'ignore' });
-      if (directory && resolve(directory).startsWith(resolve(tmpdir()) + sep) && directory.includes('ferresystem-compras-isv-')) {
+      if (directory && resolve(directory).startsWith(resolve(tmpdir()) + sep) && directory.includes('ferresystem-compras-fix-')) {
         rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
       }
     }
@@ -93,14 +93,15 @@ describe('Compras: campo ISV y totales (auditoría) / PostgreSQL aislado', () =>
     expect([Number(orden.subtotal), Number(orden.total)]).toEqual([450, 450]);
   });
 
-  it('DEFECTO CONOCIDO: acepta un ISV diez veces mayor que el subtotal y lo persiste en el encabezado', async () => {
-    const orden = await ops.compra(tenantId, users.ADMIN, compraDe('FAC-ISV1', 45, 10, { isv: 4500 }));
-    expect([Number(orden.subtotal), Number(orden.isv), Number(orden.total)]).toEqual([450, 4500, 4950]);
+  it('rechaza un ISV mayor que el subtotal y no crea orden ni CxP', async () => {
+    await expect(ops.compra(tenantId, users.ADMIN, compraDe('FAC-ISV1', 45, 10, { isv: 4500 }))).rejects.toThrow('El ISV no puede superar el subtotal');
+    expect(await ordenes(tenantId)).toEqual([]);
+    expect(await prisma.cuentaOperativa.count({ where: { tenantId, tipo: 'CXP' } })).toBe(0);
   });
 
-  it('DEFECTO CONOCIDO: acepta un costo de cero y una compra sin valor; el ISV sigue sin relación con las líneas', async () => {
-    const orden = await ops.compra(tenantId, users.ADMIN, compraDe('FAC-C0', 0, 10, { isv: 15 }));
-    expect([Number(orden.subtotal), Number(orden.isv), Number(orden.total)]).toEqual([0, 15, 15]);
+  it('rechaza un costo de cero: una línea sin costo no entra en el costo promedio', async () => {
+    await expect(ops.compra(tenantId, users.ADMIN, compraDe('FAC-C0', 0, 10, { isv: 0 }))).rejects.toThrow(/mayor a cero/);
+    expect(await ordenes(tenantId)).toEqual([]);
   });
 
   it('un costo negativo se rechaza en el servicio (la validación HTTP lo rechaza antes)', async () => {
@@ -108,16 +109,17 @@ describe('Compras: campo ISV y totales (auditoría) / PostgreSQL aislado', () =>
     expect(await ordenes(tenantId)).toEqual([]);
   });
 
-  it('el ISV del encabezado no tiene desglose por línea: detalles_orden_compra no guarda impuesto', async () => {
+  it('CARACTERIZACIÓN (pendiente de decisión D3): el ISV del encabezado no tiene desglose por línea', async () => {
     const columnas = (await sql("SELECT column_name FROM information_schema.columns WHERE table_name='detalles_orden_compra'")).map(c => c.column_name);
     expect(columnas).not.toContain('isv');
     expect(columnas).not.toContain('exento');
   });
 
-  it('el ISV de compras no se valida contra la tasa autorizada: la misma factura con 0 %, 15 % o 500 % se acepta', async () => {
-    for (const [numero, isv] of [['FAC-T0', 0], ['FAC-T15', 67.5], ['FAC-T500', 2250]] as const) {
+  it('acepta 0 % y 15 % (tasa pendiente de decisión del contador) y rechaza 500 % por aritmética', async () => {
+    for (const [numero, isv] of [['FAC-T0', 0], ['FAC-T15', 67.5]] as const) {
       await expect(ops.compra(tenantId, users.ADMIN, compraDe(numero, 45, 10, { isv }))).resolves.toBeDefined();
     }
+    await expect(ops.compra(tenantId, users.ADMIN, compraDe('FAC-T500', 45, 10, { isv: 2250 }))).rejects.toThrow('El ISV no puede superar el subtotal');
   });
 
   it('aislamiento: un ADMIN de otra empresa no puede registrar compras con el proveedor de esta', async () => {

@@ -75,3 +75,18 @@ Decisiones para el contador: si el crédito fiscal de compras se reconstruye del
 - Rama: `claude/auditoria-compras-isv-20261029`, desde `main` `3a6c6695`.
 - Prueba: `backend/test/compras-isv.postgres.integration.ts` (9/9).
 - Archivos revisados: `operaciones.dto.ts`, `compra-totales.ts`, `operaciones.service.ts`, `ledger.ts` (`decimal`), `redondeo-monetario.ts` (`aCentavos`), `contabilidad/libros.ts`, `prisma/schema.prisma` (`DetalleOrdenCompra`).
+
+## 8. Estado tras la corrección (#221)
+
+La prueba `backend/test/compras-isv.postgres.integration.ts` ya verifica el comportamiento corregido; no hay duplicados.
+
+| Hallazgo | Estado | Prueba |
+|---|---|---|
+| C-01: ISV mayor que el subtotal | **Corregido**: se rechaza y no se crea orden ni CxP | `rechaza un ISV mayor que el subtotal y no crea orden ni CxP` |
+| C-03: costo cero | **Corregido**: se rechaza en DTO, servicio y aritmética | `rechaza un costo de cero…` |
+| 0 % y 15 % | Aceptados. **No se fija tasa**: decisión pendiente del contador | `acepta 0 % y 15 %…` |
+| 500 % sobre la base | Rechazado por la regla aritmética ISV ≤ subtotal | incluido en el caso anterior |
+| C-02: crédito fiscal sin conciliar con el libro | **Pendiente** (no se corrige sin decisión) | — |
+| C-04: sin desglose por línea | **Pendiente** de decisión D3 | `CARACTERIZACIÓN (pendiente de decisión D3)…` |
+
+Las compras históricas no se modifican: la validación solo aplica a compras nuevas.
