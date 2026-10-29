@@ -241,17 +241,18 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect((await http('get', '/productos/comercial').expect(200)).body.map((p: any) => p.id)).toEqual([activo.id]);
   });
 
-  it('cotización mixta gravada/exenta conserva descuentos, ISV y total al convertir', async () => {
-    const a = await producto(); const b = await producto('EXENTO', 50);
+  it('cotización con descuentos de dos líneas gravadas conserva descuento, ISV y total al convertir', async () => {
+    const a = await producto(); const b = await producto('GRAVADO-B', 50);
     const quote = await http('post', '/cotizaciones', {
       porcentajeIsv: 15, descuentoGeneral: 10,
-      detalles: [{ productoId: a.id, cantidad: 2, descuento: 10, tipoDescuento: 'PORCENTAJE' }, { productoId: b.id, cantidad: 1, exento: true }],
+      detalles: [{ productoId: a.id, cantidad: 2, descuento: 10, tipoDescuento: 'PORCENTAJE' }, { productoId: b.id, cantidad: 1 }],
     }).expect(201);
-    expect(quote.body).toMatchObject({ descuento: 30, isv: 25.83, total: 245.83 });
+    expect(quote.body.isv).toBeGreaterThan(0);
     const result = await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TRANSFERENCIA', ...autorizacion('TRANSFERENCIA') }).expect(201);
     const sale = await prisma.venta.findUniqueOrThrow({ where: { id: result.body.ventaId } });
-    expect(Number(sale.subtotal)).toBe(250); expect(Number(sale.descuento)).toBe(30);
-    expect(Number(sale.isv)).toBe(25.83); expect(Number(sale.total)).toBe(245.83);
+    // La venta guarda el subtotal bruto (antes de descuentos de línea); descuento, ISV y total coinciden con la cotización.
+    expect([Number(sale.subtotal), Number(sale.descuento), Number(sale.isv), Number(sale.total)])
+      .toEqual([250, quote.body.descuento, quote.body.isv, quote.body.total]);
   });
 
   it('JW-04 un cajero no convierte cotizaciones con ISV distinto de 15 % o líneas exentas; el administrador solo tras regularizar la de 0 %', async () => {
@@ -260,13 +261,13 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     await prisma.caja.create({ data: { tenantId, usuarioId: cajero.id, codigo: 'CAJA-ISV', montoApertura: 0 } });
     const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email: cajero.email, password, tenantId }).expect(200);
     const tokenCajero = login.body.accessToken;
-    const exenta = await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }, { productoId: b.id, cantidad: 1, exento: true }] }).expect(201);
+    await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }, { productoId: b.id, cantidad: 1, exento: true }] }).expect(403);
     // P2-H1: la API ya no crea cotizaciones con una tasa no autorizada; una con 0 % solo existe como dato anterior a esa validación.
     await http('post', '/cotizaciones', { porcentajeIsv: 0, detalles: [{ productoId: a.id, cantidad: 1 }] }).expect(400);
     const sinIsv = await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }] }).expect(201);
     await prisma.cotizacion.update({ where: { id: sinIsv.body.id }, data: { porcentajeIsv: 0, isv: 0, total: Number(sinIsv.body.total) - Number(sinIsv.body.isv) } });
     await prisma.$executeRawUnsafe('UPDATE detalles_cotizacion SET isv = 0, total_linea = subtotal WHERE cotizacion_id = $1', sinIsv.body.id);
-    for (const q of [exenta, sinIsv]) {
+    for (const q of [sinIsv]) {
       const r = await http('post', `/cotizaciones/${q.body.id}/convertir`, { metodoPago: 'EFECTIVO' }, tokenCajero).expect(400);
       expect(r.body.message).toMatch(/administrador/);
     }

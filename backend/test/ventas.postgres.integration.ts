@@ -423,7 +423,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     expect(cot.clienteId).toBe(cliente.id);
     expect(cot.clienteNombre).toBe('Ana');
     expect((await cotizaciones.update(tenantId, cot.id, request(1))).clienteId).toBe(cliente.id);
-    const manual = await cotizaciones.update(tenantId, cot.id, { ...request(1), clienteId: null, clienteNombre: 'Manual' });
+    const manual = await cotizaciones.update(tenantId, cot.id, { ...request(1), clienteId: null, clienteNombre: 'Manual' }, usuarioId);
     expect(manual.clienteId).toBeNull();
     expect(manual.clienteNombre).toBe('Manual');
   });
@@ -486,12 +486,12 @@ describe('Ventas / PostgreSQL aislado', () => {
   it('guardar una edición sin cambiar descuento porcentual conserva el monto', async () => {
     const dto = { ...request(2), descuentoGeneral: 50, tipoDescuentoGeneral: 'PORCENTAJE' as const };
     const cot = await cotizaciones.create(tenantId, usuarioId, dto);
-    const updated = await cotizaciones.update(tenantId, cot.id, request(2));
+    const updated = await cotizaciones.update(tenantId, cot.id, request(2), usuarioId);
     expect(updated.descuentoGeneral).toBe(cot.descuentoGeneral);
     expect(updated.total).toBe(cot.total);
     await expect(cotizaciones.update(tenantId, cot.id, {
       ...dto, descuentoGeneral: 101,
-    })).rejects.toThrow('100%');
+    }, usuarioId)).rejects.toThrow('100%');
     expect((await cotizaciones.findById(tenantId, cot.id)).total).toBe(cot.total);
   });
 
@@ -501,7 +501,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const categoria = await prisma.categoria.create({ data: { tenantId: foreign.id, nombre: 'Ajena' } });
     await expect(ventas.create(tenantId, usuarioId, { ...request(), clienteId: cliente.id })).rejects.toThrow('Cliente');
     const cot = await cotizaciones.create(tenantId, usuarioId, request());
-    await expect(cotizaciones.update(tenantId, cot.id, { ...request(), clienteId: cliente.id })).rejects.toThrow('Cliente');
+    await expect(cotizaciones.update(tenantId, cot.id, { ...request(), clienteId: cliente.id }, usuarioId)).rejects.toThrow('Cliente');
     const productos = new ProductosService(prisma);
     const dto = { codigo: 'PIE-2', nombre: 'Por pie', precioVenta: 10, precioCosto: 1, stockActual: 2.75, stockMinimo: 0, unidadMedida: 'PIE' };
     await expect(productos.create(tenantId, { ...dto, categoriaId: categoria.id },usuarioId)).rejects.toThrow('Categoría');

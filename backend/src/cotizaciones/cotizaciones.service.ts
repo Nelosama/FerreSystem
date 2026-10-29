@@ -3,6 +3,7 @@ import { exigirPoliticaPrecio } from '../ventas/politica-precio';
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
+import { exigirSinExencion } from './politica-exenciones';
 import { diaCalendario, inicioDiaEnZona, sumarDias } from '../common/zona-horaria';
 import { centavosADecimal, subtotalLinea, TASA_ISV_PORCIENTO } from '../common/dinero';
 import { esTasaIsvAutorizada, exigirTasaIsvAutorizada } from '../common/politica-isv';
@@ -68,6 +69,7 @@ export class CotizacionesService {
   }
 
   async create(tenantId: string, usuarioId: string, dto: CreateCotizacionDto, alCrear?: (tx: any, cotizacion: any) => Promise<void>) {
+    await exigirSinExencion(this.prisma, tenantId, usuarioId, 'CREAR', null, dto.detalles);
     if (!dto.detalles || dto.detalles.length === 0) {
       throw new BadRequestException('La cotización debe tener al menos un ítem');
     }
@@ -234,7 +236,8 @@ export class CotizacionesService {
     });
   }
 
-  async update(tenantId: string, id: string, dto: CreateCotizacionDto) {
+  async update(tenantId: string, id: string, dto: CreateCotizacionDto, usuarioId: string) {
+    await exigirSinExencion(this.prisma, tenantId, usuarioId, 'EDITAR', id, dto.detalles);
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM cotizaciones WHERE id = ${id} AND tenant_id = ${tenantId} FOR UPDATE`;
       const existing = await tx.cotizacion.findFirst({
@@ -554,7 +557,7 @@ export class CotizacionesService {
       // P3: una tasa no autorizada (0 %, 500 %…) es un documento fiscalmente inválido: ni la autorización de un administrador lo
       // convierte en venta. Se regulariza con regularizarIsv (cotización nueva, original intacta) y se convierte la nueva.
       if(!esTasaIsvAutorizada(Number(cotizacion.porcentajeIsv))) throw new BadRequestException(`La cotización tiene una tasa de ISV no autorizada (${Number(cotizacion.porcentajeIsv)} %): no se puede convertir en venta. Un administrador debe regularizarla, lo que crea una cotización nueva sin modificar esta`);
-      if(user.rol !== 'ADMIN' && cotizacion.detalles.some(d=>d.exento)) throw new BadRequestException('La cotización tiene líneas exentas: requiere validación del administrador');
+      await exigirSinExencion(this.prisma, tenantId, usuarioId, 'CONVERTIR', cotizacion.id, cotizacion.detalles);
       // Verificar y descontar stock por la cantidad solicitada con precisión decimal
       for (const d of cotizacion.detalles) {
         await query(tx,'SELECT id FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.productoId,tenantId);

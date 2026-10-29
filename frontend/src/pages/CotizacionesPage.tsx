@@ -3,6 +3,8 @@ import { TopBar } from '../components/TopBar';
 import { useTenant } from '../context/TenantContext';
 import { api } from '../utils/api';
 import { TASAS_ISV_AUTORIZADAS, esTasaIsvAutorizada } from '../utils/politica-isv';
+// Política provisional T6: espejo de backend/src/cotizaciones/politica-exenciones.ts.
+const EXENCIONES_HABILITADAS = false;
 import type { ProductItem, QuotationItem, QuotationDetailItem } from '../types';
 import {
   FileText,
@@ -1144,9 +1146,12 @@ export const CotizacionesPage: React.FC = () => {
                               </div>
                             </td>
                             <td style={{ textAlign: 'center' }}>
+                              {/* T6: bloqueado hasta la decisión fiscal (D3, D5). El backend también rechaza la exención. */}
                               <input
                                 type="checkbox"
                                 checked={item.exento}
+                                disabled={!EXENCIONES_HABILITADAS}
+                                title="Bloqueado hasta la decisión fiscal del contador y del dueño"
                                 onChange={(e) => handleActualizarLinea(idx, 'exento', e.target.checked)}
                               />
                             </td>
