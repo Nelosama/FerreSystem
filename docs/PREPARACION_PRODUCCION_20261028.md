@@ -98,3 +98,33 @@ Ninguna de estas ejecuciones valida el SHA final de la salida. Antes de cualquie
 - **NO-GO** si queda cualquier bloqueo crítico abierto, si falta el respaldo verificado, o si algún check falla.
 
 Estado al cierre de la observación histórica: **NO-GO**. Motivos registrados entonces: `validate` en rojo en #211, #212 y #213; respaldo no verificado; aceptación del cliente sin evidencia.
+
+## Aporte de Claude — PR #214, PR #215 y decisiones pendientes (2026-10-28 UTC)
+
+Esta sección no reemplaza la actualización anterior. Se añade para conservar contenido único de otros PRs antes de cerrarlos.
+
+### #214 (duplicado parcial de #211)
+
+- Base anterior a `4c9ec9bc`; 17 archivos difieren de #211 y **no** contiene sus últimos commits de backend (`848f7d38`, `5a1faf0b`). Integrarlo tal cual revertiría la política de usuarios de #211.
+- Único contenido propio: los commits `210e0091` (documentación) y `608f1b95` (merge). Su aporte útil se conserva en la tabla de decisiones de abajo; ningún código de #214 se integra.
+- **Recomendación:** cerrar #214 como duplicado de #211, enlazando esta sección.
+
+### #215 (SDK de OpenAI)
+
+- Añade `openai` ^6.49.0, `OPENAI_API_KEY` y `OPENAI_MODEL` (solo `.env.example`), y un `IaModule` con `OpenAIService` registrado en `app.module.ts`.
+- **Ninguna ruta, controlador ni pantalla lo usa.** No hay función de producto que lo consuma.
+- Estado `dirty` (conflictos con `main`). Checks: solo Vercel Preview Comments.
+- **Recomendación:** no integrar. Mantener el PR abierto y aislado hasta que exista una función aprobada que lo use y una decisión sobre la clave y su coste.
+
+### Decisiones pendientes sobre `pos.excepcion_precio` (tomadas de #214; no implementadas)
+
+| # | Decisión | Estado en el código de `main` | Recomendación |
+|---|---|---|---|
+| D1 | ¿Quién concede el permiso? | Cualquier ADMIN con `PUT /usuarios/:id`. | Otro ADMIN activo distinto del beneficiario, o confirmar la política de SUPERADMIN de plataforma que documenta #211. |
+| D2 | ¿Se permite la autoconcesión? | Sí, sin guarda en el servidor. | **No.** Rechazar (403) cualquier cambio de `pos.excepcion_precio` sobre la cuenta propia. |
+| D3 | ¿Cómo se audita la concesión? | Solo `USUARIO_EDITAR`. `VENTA_EXCEPCION_PRECIO` registra el uso, no la concesión. | Acciones propias `USUARIO_PERMISO_EXCEPCION_CONCEDIDO` y `..._REVOCADO` con actor, beneficiario y motivo. |
+| D4 | ¿Se cierra la lista de permisos? | No: `permisos` acepta cualquier cadena. | Lista blanca en backend, contra el catálogo de permisos reales. Cambia el contrato de la API: confirmar antes. |
+| D5 | ¿Qué pasa al cambiar de rol o desactivar? | Cambiar de rol restablece permisos; desactivar revoca sesiones. | Mantener el comportamiento actual. |
+| D6 | ¿Dónde se muestra el interruptor? | No aparece en Usuarios. | Solo después de D1–D3. |
+
+**Bloqueo humano:** #211 declara la política como «aprobada». Esta sección la trata como pendiente hasta que el dueño la confirme por escrito en esta conversación. Mientras tanto, #211 no debe fusionarse, porque cambia quién administra cuentas ADMIN en todos los negocios.
