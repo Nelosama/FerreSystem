@@ -99,3 +99,15 @@ export class CreateCotizacionDto {
   @Type(() => DetalleCotizacionItemDto)
   detalles: DetalleCotizacionItemDto[];
 }
+
+/** P3: regularización explícita de una cotización con tasa no autorizada (crea una nueva; la original no cambia). */
+export class RegularizarIsvDto {
+  @IsString()
+  @IsNotEmpty()
+  motivo: string;
+
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 2 })
+  @IsIn([...TASAS_ISV_AUTORIZADAS], { message: mensajeTasaNoAutorizada })
+  @ValidateIf((o) => o.porcentajeIsv !== undefined)
+  porcentajeIsv?: number;
+}

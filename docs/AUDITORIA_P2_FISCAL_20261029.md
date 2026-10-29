@@ -9,7 +9,7 @@ Esta versión sustituye la del commit `60b924b`, que contenía un error en H3 (d
 | Hallazgo | Estado en esta rama | Depende de regla fiscal |
 | --- | --- | --- |
 | H1 — ISV arbitrario en cotizaciones (500 % aceptado) | **Corregido** (`0ad9e6b`) con política central | No: solo se admite la tasa que el sistema ya aplica |
-| H1b — tasa 0 % de cotización completa | Ya no se crea; las antiguas siguen convirtiéndose solo por ADMIN | **Sí** (exonerados) — decisión D2 |
+| H1b — cotizaciones antiguas al 0 % u otra tasa no autorizada | **P3**: ya no se crean y **ni ADMIN las convierte**; regularización explícita que crea una cotización nueva y deja la original intacta | Exonerados: **sí** — decisión D2 |
 | H2 — la exención se pierde fuera de la cotización | Diagnosticado; propuesta de cálculo común **no conectada** (`4184e16`) | **Sí** — decisiones D3–D6 |
 | H3 — `FiscalTasa` | Se usa en Contabilidad; no se conecta a ventas | Sí, para activarla en ventas — D7 |
 
@@ -43,6 +43,29 @@ Esta versión sustituye la del commit `60b924b`, que contenía un error en H3 (d
 - `backend/test/cotizaciones.postgres.integration.ts` (+1, PostgreSQL 16 real, HTTP): crear con 500/0/18/15.5/−1/'15'/null → 400 sin filas; PUT con 500 → 400 sin cambiar importes; cotización antigua al 500 % → duplicar 400, convertir 400 sin venta; corrección a 15 % → 200.
 - `backend/test/ciclo-ventas.postgres.integration.ts` JW-04: la cotización de 0 % ahora se crea como dato heredado (la API devuelve 400) y conserva la verificación «cajero 400, ADMIN convierte».
 - `frontend/test/operaciones.test.mjs` (+1): selector sin campo libre, opción antigua deshabilitada, solo 15 habilitado.
+
+## P3 — compatibilidad histórica: cotizaciones antiguas con tasa no autorizada
+
+**Antes:** la conversión de una cotización con tasa distinta de 15 % (0 %, 18 %, 500 %…) solo se restringía al rol: un ADMIN la convertía automáticamente en venta, copiando su ISV histórico.
+
+**Ahora** (`cotizaciones.service.ts` `convertirAVenta`): una tasa no autorizada (`esTasaIsvAutorizada`) es un documento fiscalmente inválido y **nadie** lo convierte, tampoco un ADMIN (400 con instrucción). Las líneas exentas con tasa autorizada siguen exigiendo ADMIN, como antes (no son inválidas por ninguna regla aprobada; D3).
+
+**Procedimiento de revisión y regularización** (sin modificar el historial original):
+1. Localizar las afectadas, solo lectura: `SELECT id, numero_cotizacion, estado, porcentaje_isv, isv, total FROM cotizaciones WHERE tenant_id=$1 AND porcentaje_isv <> 15 AND estado <> 'CONVERTIDA';`. No se ejecutó en ningún entorno real.
+2. Revisión con el contador: si el cliente estaba exonerado (constancia del SAR), **no** regularizar a 15 %. Queda pendiente de D2 (no hay flujo de exonerados).
+3. Si corresponde la tasa general, un ADMIN ejecuta `POST /api/cotizaciones/:id/regularizar-isv` con `{ "motivo": "…" }`. El motivo debe tener entre 10 y 300 caracteres, y `porcentajeIsv` es opcional pero solo admite una tasa autorizada.
+   - Crea una cotización **nueva** en BORRADOR. Copia el cliente y las líneas con sus precios unitarios, descuentos (como monto) y marcas exentas, y la recalcula con la tasa autorizada.
+   - Sus notas dicen «Regularización de ISV de COT-NNNN (tasa original X %)».
+   - Registra `COTIZACION_REGULARIZAR_ISV` en `auditoria_operaciones`, con el vínculo a la original y los importes antes y después.
+   - La original **no cambia**: misma tasa, importes, estado y líneas, y sigue sin poder convertirse en venta.
+   - No regulariza una cotización ya autorizada (409) ni una convertida (409: su corrección es contable).
+4. Se envía al cliente la cotización nueva, que puede tener un total distinto. Se convierte en venta con las reglas normales, incluida la política de precio vigente.
+5. Pendiente de interfaz: hoy el procedimiento es solo por API. La pantalla muestra el rechazo del servidor, pero no tiene botón de regularización.
+
+Pruebas:
+- Servicio (+3): conversión de una cotización al 0 % rechazada aunque sea ADMIN; regularización correcta con auditoría; permisos, motivo, tasa, «no requiere» y «ya convertida».
+- HTTP con PostgreSQL real (+1): la original queda idéntica campo por campo, se audita el vínculo, la cotización nueva es convertible y la original no.
+- JW-04 adaptado: el cajero sigue recibiendo 400; el ADMIN también recibe 400, regulariza y convierte la cotización nueva.
 
 ## H2 — exenciones
 
@@ -95,7 +118,7 @@ Propuesta de auditoría de datos (solo lectura, antes de cualquier CHECK en `cot
 
 ## Validación local
 
-- Backend unitarias **72 archivos / 811** (`main`: 70 / 750); build y lint sin errores (solo avisos existentes).
+- Backend unitarias **72 archivos / 814** (`main`: 70 / 750); build y lint sin errores (solo avisos existentes). Incluye P3.
 - Frontend **573/573**; `tsc -b`, `vite build` con `VITE_API_URL=/api` y lint sin errores.
 - Integración con PostgreSQL 16 real (clúster temporal, datos sintéticos): **67 archivos / 1207 aprobadas, 1 omitida** (caso de navegador sin `REAL_SETTINGS_BROWSER`).
-- CI de la rama: pendiente al escribir. Sin merge, sin despliegue, sin acceso a producción ni datos reales.
+- CI de `67abc39` (antes de P3): `validate`, `test` y `guard-base-datos` en verde. CI del commit de P3: pendiente al escribir. Sin merge, sin despliegue, sin acceso a producción ni datos reales.

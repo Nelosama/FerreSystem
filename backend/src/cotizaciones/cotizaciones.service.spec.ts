@@ -248,14 +248,63 @@ describe('CotizacionesService', () => {
       expect(mockPrisma.cotizacion.create).not.toHaveBeenCalled();
     });
 
-    it('ni el administrador convierte una cotización antigua con tasa imposible (500 %)', async () => {
+    it('P3: ni el administrador convierte una cotización antigua con tasa no autorizada (500 %)', async () => {
       mockPrisma.cotizacion.findFirst.mockResolvedValue({
         id: 'cot-v', estado: 'APROBADA', numeroCotizacion: 3, fechaValidez: new Date('2099-12-31T00:00:00.000Z'), descuento: 0, porcentajeIsv: 500, isv: 500, total: 600,
         detalles: [{ productoId: 'p-1', precioUnitario: 100, cantidad: 1, totalMedida: 1, exento: false, producto: { id: 'p-1', nombre: 'Cable', precioVenta: 100, precioAprobado: true, activo: true, stockActual: 3 } }],
       });
-      await expect(service.convertirAVenta('t', 'u', 'cot-v')).rejects.toThrow(/tasa de ISV inválida/);
+      await expect(service.convertirAVenta('t', 'u', 'cot-v')).rejects.toThrow(/no autorizada \(500 %\).*regularizarla/);
       expect(mockPrisma.producto.updateMany).not.toHaveBeenCalled();
       expect(mockPrisma.venta.create).not.toHaveBeenCalled();
+    });
+
+    it('P3: tampoco convierte una antigua al 0 % aunque sea ADMIN', async () => {
+      mockPrisma.cotizacion.findFirst.mockResolvedValue({
+        id: 'cot-0', estado: 'APROBADA', numeroCotizacion: 5, fechaValidez: new Date('2099-12-31T00:00:00.000Z'), descuento: 0, porcentajeIsv: 0, isv: 0, total: 100,
+        detalles: [{ productoId: 'p-1', precioUnitario: 100, cantidad: 1, totalMedida: 1, exento: false, producto: { id: 'p-1', nombre: 'Cable', precioVenta: 100, precioAprobado: true, activo: true, stockActual: 3 } }],
+      });
+      await expect(service.convertirAVenta('t', 'u', 'cot-0')).rejects.toThrow(/no autorizada \(0 %\)/);
+      expect(mockPrisma.venta.create).not.toHaveBeenCalled();
+    });
+
+    describe('P3 regularización explícita', () => {
+      const original = {
+        id: 'cot-0', numeroCotizacion: 7, estado: 'ENVIADA', porcentajeIsv: 0, subtotal: 150, isv: 0, total: 135, descuentoGeneral: 15, diasValidez: 10,
+        clienteId: null, clienteNombre: 'Cliente', clienteRtn: null, clienteTelefono: null, clienteEmail: null, clienteDireccion: null, condicionesPago: 'CONTADO',
+        detalles: [
+          { productoId: 'p-grav', cantidad: 1, medida: null, precioUnitario: 100, descuento: 0, exento: false },
+          { productoId: 'p-exen', cantidad: 1, medida: null, precioUnitario: 50, descuento: 0, exento: true },
+        ],
+      };
+      const admin = (rol = 'ADMIN') => mockPrisma.$queryRawUnsafe.mockImplementation(async (q: string) => q.includes('SELECT u.rol') ? [{ rol }] : []);
+
+      it('crea una cotización nueva con la tasa autorizada y las mismas líneas; no modifica la original y audita el vínculo', async () => {
+        admin(); mockPrisma.cotizacion.findFirst.mockResolvedValue(original);
+        await service.regularizarIsv('t', 'u', 'cot-0', { motivo: 'Cotización antigua al 0 % sin constancia' });
+        const d = datosCreados();
+        expect(d).toMatchObject({ porcentajeIsv: 15, subtotal: 150, descuento: 15, isv: 13.5, total: 148.5, estado: 'BORRADOR' });
+        expect(d.notas).toMatch(/Regularización de ISV de COT-0007 \(tasa original 0 %\)/);
+        expect(d.detalles.create.map((l: any) => [l.productoId, l.exento, l.isv])).toEqual([['p-grav', false, 15], ['p-exen', true, 0]]);
+        expect(mockPrisma.cotizacion.update).not.toHaveBeenCalled();
+        const auditoria = mockPrisma.$queryRawUnsafe.mock.calls.find((c: any[]) => String(c[0]).includes('auditoria_operaciones'));
+        expect(auditoria?.[4]).toBe('COTIZACION_REGULARIZAR_ISV');
+        expect(JSON.parse(auditoria?.[6])).toMatchObject({ cotizacionOriginalId: 'cot-0', antes: { porcentajeIsv: 0, isv: 0 }, despues: { porcentajeIsv: 15, isv: 13.5 } });
+      });
+
+      it('exige ADMIN, motivo y tasa autorizada; no regulariza lo que no lo necesita ni lo ya convertido', async () => {
+        mockPrisma.cotizacion.findFirst.mockResolvedValue(original);
+        admin();
+        await expect(service.regularizarIsv('t', 'u', 'cot-0', { motivo: 'corto' })).rejects.toThrow(/motivo/);
+        await expect(service.regularizarIsv('t', 'u', 'cot-0', { motivo: 'Motivo suficiente', porcentajeIsv: 0 })).rejects.toThrow(/no autorizada/);
+        admin('VENDEDOR');
+        await expect(service.regularizarIsv('t', 'u', 'cot-0', { motivo: 'Motivo suficiente' })).rejects.toThrow(/administrador/);
+        admin();
+        mockPrisma.cotizacion.findFirst.mockResolvedValue({ ...original, porcentajeIsv: 15 });
+        await expect(service.regularizarIsv('t', 'u', 'cot-0', { motivo: 'Motivo suficiente' })).rejects.toThrow(/no requiere/);
+        mockPrisma.cotizacion.findFirst.mockResolvedValue({ ...original, estado: 'CONVERTIDA' });
+        await expect(service.regularizarIsv('t', 'u', 'cot-0', { motivo: 'Motivo suficiente' })).rejects.toThrow(/convirtió/);
+        expect(mockPrisma.cotizacion.create).not.toHaveBeenCalled();
+      });
     });
 
     it('solo líneas gravadas: ISV 15 % por línea; sin marca por línea, el producto «exento» se grava (la exención no viene del producto)', async () => {

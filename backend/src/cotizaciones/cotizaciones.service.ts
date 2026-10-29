@@ -1,11 +1,11 @@
-import { account, authorizedActor, audit, cashMovement, id, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { account, actor, authorizedActor, audit, cashMovement, id, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
 import { exigirPoliticaPrecio } from '../ventas/politica-precio';
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
 import { diaCalendario, inicioDiaEnZona, sumarDias } from '../common/zona-horaria';
 import { centavosADecimal, subtotalLinea, TASA_ISV_PORCIENTO } from '../common/dinero';
-import { exigirTasaIsvAutorizada, tasaIsvEstructuralmenteValida } from '../common/politica-isv';
+import { esTasaIsvAutorizada, exigirTasaIsvAutorizada } from '../common/politica-isv';
 import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 
@@ -66,7 +66,7 @@ export class CotizacionesService {
     return this.formatCotizacion(c, hoy);
   }
 
-  async create(tenantId: string, usuarioId: string, dto: CreateCotizacionDto) {
+  async create(tenantId: string, usuarioId: string, dto: CreateCotizacionDto, alCrear?: (tx: any, cotizacion: any) => Promise<void>) {
     if (!dto.detalles || dto.detalles.length === 0) {
       throw new BadRequestException('La cotización debe tener al menos un ítem');
     }
@@ -190,8 +190,46 @@ export class CotizacionesService {
         },
       });
 
+      if (alCrear) await alCrear(tx, cotizacion);
       const hoy = new Date();
             return this.formatCotizacion(cotizacion, hoy);
+    });
+  }
+
+  /**
+   * P3 — regularización explícita de una cotización con tasa de ISV no autorizada (anterior a common/politica-isv.ts).
+   * No modifica la original ni su historial: crea una cotización nueva en BORRADOR con las mismas líneas, precios, descuentos
+   * (como monto) y marcas exentas, recalculada con una tasa autorizada, y registra el vínculo en la auditoría.
+   * Solo ADMIN, con motivo. La original sigue sin poder convertirse en venta.
+   */
+  async regularizarIsv(tenantId: string, usuarioId: string, id: string, dto: { motivo?: string; porcentajeIsv?: number }) {
+    const motivo = typeof dto?.motivo === 'string' ? dto.motivo.trim() : '';
+    if (motivo.length < 10 || motivo.length > 300) throw new BadRequestException('Indique el motivo de la regularización (10 a 300 caracteres)');
+    const porcentajeIsv = exigirTasaIsvAutorizada(dto?.porcentajeIsv ?? TASA_ISV_PORCIENTO);
+    const usuario = await actor(this.prisma as any, tenantId, usuarioId);
+    if (usuario.rol !== 'ADMIN') throw new ForbiddenException('Solo un administrador puede regularizar el ISV de una cotización');
+    const original = await this.prisma.cotizacion.findFirst({ where: { id, tenantId }, include: { detalles: true } });
+    if (!original) throw new NotFoundException('Cotización no encontrada');
+    if (esTasaIsvAutorizada(Number(original.porcentajeIsv))) throw new ConflictException('La cotización ya tiene una tasa autorizada: no requiere regularización');
+    if (original.estado === 'CONVERTIDA') throw new ConflictException('La cotización ya se convirtió en venta: su regularización es contable, no de la cotización');
+    const referencia = `COT-${original.numeroCotizacion.toString().padStart(4, '0')}`;
+    const antes = { porcentajeIsv: Number(original.porcentajeIsv), subtotal: Number(original.subtotal), isv: Number(original.isv), total: Number(original.total) };
+    return this.create(tenantId, usuarioId, {
+      clienteId: original.clienteId ?? undefined,
+      clienteNombre: original.clienteNombre ?? undefined, clienteRtn: original.clienteRtn ?? undefined, clienteTelefono: original.clienteTelefono ?? undefined,
+      clienteEmail: original.clienteEmail ?? undefined, clienteDireccion: original.clienteDireccion ?? undefined,
+      diasValidez: original.diasValidez, condicionesPago: original.condicionesPago ?? undefined,
+      descuentoGeneral: Number(original.descuentoGeneral), tipoDescuentoGeneral: 'MONTO', porcentajeIsv,
+      notas: `Regularización de ISV de ${referencia} (tasa original ${antes.porcentajeIsv} %). Motivo: ${motivo}`,
+      detalles: original.detalles.map((d) => ({
+        productoId: d.productoId, cantidad: Number(d.cantidad), medida: d.medida === null ? undefined : Number(d.medida),
+        precioUnitario: Number(d.precioUnitario), descuento: Number(d.descuento), tipoDescuento: 'MONTO' as const, exento: Boolean(d.exento),
+      })),
+    }, async (tx, nueva) => {
+      await audit(tx, tenantId, usuarioId, 'COTIZACION_REGULARIZAR_ISV', nueva.id, {
+        cotizacionOriginalId: original.id, cotizacionOriginal: referencia, motivo, antes,
+        despues: { porcentajeIsv, subtotal: Number(nueva.subtotal), isv: Number(nueva.isv), total: Number(nueva.total) },
+      });
     });
   }
 
@@ -512,8 +550,10 @@ export class CotizacionesService {
       // línea exenta en la cotización cambia el impuesto facturado: solo el administrador la convierte.
       // Las cotizaciones nuevas ya solo admiten tasas autorizadas (common/politica-isv.ts). Las antiguas se convierten con su
       // importe histórico, pero ni un administrador factura una tasa imposible (p. ej. 500 %) creada antes de esa validación.
-      if(!tasaIsvEstructuralmenteValida(Number(cotizacion.porcentajeIsv))) throw new BadRequestException('La cotización tiene una tasa de ISV inválida: edítela con una tasa autorizada antes de convertirla');
-      if(user.rol !== 'ADMIN' && (Number(cotizacion.porcentajeIsv)!==15 || cotizacion.detalles.some(d=>d.exento))) throw new BadRequestException('La cotización tiene ISV distinto de 15 % o líneas exentas: requiere validación del administrador');
+      // P3: una tasa no autorizada (0 %, 500 %…) es un documento fiscalmente inválido: ni la autorización de un administrador lo
+      // convierte en venta. Se regulariza con regularizarIsv (cotización nueva, original intacta) y se convierte la nueva.
+      if(!esTasaIsvAutorizada(Number(cotizacion.porcentajeIsv))) throw new BadRequestException(`La cotización tiene una tasa de ISV no autorizada (${Number(cotizacion.porcentajeIsv)} %): no se puede convertir en venta. Un administrador debe regularizarla, lo que crea una cotización nueva sin modificar esta`);
+      if(user.rol !== 'ADMIN' && cotizacion.detalles.some(d=>d.exento)) throw new BadRequestException('La cotización tiene líneas exentas: requiere validación del administrador');
       // Verificar y descontar stock por la cantidad solicitada con precisión decimal
       for (const d of cotizacion.detalles) {
         await query(tx,'SELECT id FROM productos WHERE id=$1 AND tenant_id=$2 FOR UPDATE',d.productoId,tenantId);

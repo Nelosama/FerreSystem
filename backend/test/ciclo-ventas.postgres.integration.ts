@@ -254,7 +254,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect(Number(sale.isv)).toBe(25.83); expect(Number(sale.total)).toBe(245.83);
   });
 
-  it('JW-04 un cajero no convierte cotizaciones con ISV distinto de 15 % o líneas exentas; el administrador sí', async () => {
+  it('JW-04 un cajero no convierte cotizaciones con ISV distinto de 15 % o líneas exentas; el administrador solo tras regularizar la de 0 %', async () => {
     const a = await producto(); const b = await producto('EXENTO-C', 50);
     const cajero = await prisma.usuario.create({ data: { tenantId, rol: 'CAJERO', nombre: 'Cajero ISV', email: `${randomUUID()}@example.test`, passwordHash: await bcrypt.hash(password, 4) } });
     await prisma.caja.create({ data: { tenantId, usuarioId: cajero.id, codigo: 'CAJA-ISV', montoApertura: 0 } });
@@ -273,7 +273,12 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     expect(await prisma.venta.count({ where: { tenantId, usuarioId: cajero.id } })).toBe(0);
     const normal = await http('post', '/cotizaciones', { detalles: [{ productoId: a.id, cantidad: 1 }] }).expect(201);
     await http('post', `/cotizaciones/${normal.body.id}/convertir`, { metodoPago: 'EFECTIVO' }, tokenCajero).expect(201);
-    await http('post', `/cotizaciones/${sinIsv.body.id}/convertir`, { metodoPago: 'EFECTIVO' }).expect(201);
+    // P3: el administrador tampoco convierte la cotización al 0 %; la regulariza (cotización nueva) y convierte la nueva.
+    const rechazo = await http('post', `/cotizaciones/${sinIsv.body.id}/convertir`, { metodoPago: 'EFECTIVO' }).expect(400);
+    expect(rechazo.body.message).toMatch(/no autorizada \(0 %\)/);
+    const regularizada = await http('post', `/cotizaciones/${sinIsv.body.id}/regularizar-isv`, { motivo: 'Cotización anterior a la política de ISV' }).expect(201);
+    expect(regularizada.body).toMatchObject({ porcentajeIsv: 15, estado: 'BORRADOR' });
+    await http('post', `/cotizaciones/${regularizada.body.id}/convertir`, { metodoPago: 'EFECTIVO' }).expect(201);
   });
 
   it('venta sin inventario exige proveedor y no altera stock ni crea una entrega física', async () => {

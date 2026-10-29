@@ -177,6 +177,29 @@ describe('FUNC-001 / HTTP and isolated PostgreSQL', () => {
     expect(corregida.body).toMatchObject({ porcentajeIsv: 15, isv: 15, total: 115 });
   });
 
+  it('P3 cotización antigua al 0 %: ni ADMIN la convierte; la regularización crea otra y deja la original intacta', async () => {
+    const api = (url: string, body: object = {}) => request(app.getHttpServer()).post(`/api${url}`).auth(token, { type: 'bearer' }).send(body);
+    await prisma.cotizacion.update({ where: { id: cotizacionId }, data: { porcentajeIsv: 0, isv: 0, estado: 'APROBADA' } });
+    await prisma.$executeRawUnsafe('UPDATE detalles_cotizacion SET isv = 0, total_linea = subtotal WHERE cotizacion_id = $1', cotizacionId);
+    const fotografia = async () => prisma.cotizacion.findUniqueOrThrow({ where: { id: cotizacionId }, include: { detalles: { orderBy: { productoId: 'asc' } } } });
+    const antes = await fotografia();
+    const r = await post().expect(400);
+    expect(r.body.message).toMatch(/no autorizada \(0 %\).*no se puede convertir/);
+    await api(`/cotizaciones/${cotizacionId}/regularizar-isv`, {}).expect(400);
+    await api(`/cotizaciones/${cotizacionId}/regularizar-isv`, { motivo: 'Cotización anterior a la política', porcentajeIsv: 0 }).expect(400);
+    const nueva = await api(`/cotizaciones/${cotizacionId}/regularizar-isv`, { motivo: 'Cotización anterior a la política de ISV' }).expect(201);
+    expect(nueva.body.id).not.toBe(cotizacionId);
+    expect(nueva.body).toMatchObject({ porcentajeIsv: 15, estado: 'BORRADOR', subtotal: Number(antes.subtotal) });
+    expect(nueva.body.isv).toBeGreaterThan(0);
+    expect(nueva.body.notas).toMatch(/Regularización de ISV de COT-\d{4} \(tasa original 0 %\)/);
+    expect(await fotografia()).toEqual(antes);
+    const [auditoria] = await prisma.$queryRawUnsafe<any[]>("SELECT entidad_id, datos FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='COTIZACION_REGULARIZAR_ISV'", tenantId);
+    expect(auditoria).toMatchObject({ entidad_id: nueva.body.id, datos: { cotizacionOriginalId: cotizacionId, antes: { porcentajeIsv: 0, isv: 0 } } });
+    await api(`/cotizaciones/${nueva.body.id}/regularizar-isv`, { motivo: 'Cotización anterior a la política de ISV' }).expect(409);
+    await post().expect(400);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
+  });
+
   it('P2-H2 líneas gravadas y exentas: la cotización guarda la marca por línea y la venta convertida conserva los importes históricos', async () => {
     const api = (body: object) => request(app.getHttpServer()).post('/api/cotizaciones').auth(token, { type: 'bearer' }).send(body);
     const grav = await prisma.producto.create({ data: { precioAprobado: true, tenantId, codigo: 'GRAV', nombre: 'Gravado', precioVenta: 100, precioCosto: 10, stockActual: 100 } });
