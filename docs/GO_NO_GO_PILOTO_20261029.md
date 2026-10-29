@@ -1,5 +1,7 @@
 # GO / NO-GO — piloto controlado de Jowa System — 2026-10-29
 
+**Actualización de consolidación (2026-10-29):** las 11 ramas de trabajo se integran en `main` por encargo expreso del dueño. El estado verificable y las pruebas definitivas están en la primera sección de `CONTEXTO_MAESTRO.md`; los estados de ramas y PR de abajo son fotografías anteriores. Se incorporan liveness, validación/regularización de ISV, límites aritméticos de compras, ocultación de módulos pendientes y bloqueo auditado de exenciones (incluida duplicación). El desglose por línea continúa apagado. Integrar código no certifica la preparación del piloto ni resuelve las decisiones fiscales y operativas pendientes.
+
 **Decisión vigente: NO-GO.** No hay evidencia suficiente de controles críticos: falta auditoría funcional de todos los módulos, ensayo de migraciones en copia de preproducción, configuración de Render verificada y decisiones fiscales del contador. Esto no bloquea el trabajo técnico, pero sí cualquier piloto con datos de clientes.
 **Decisión vigente: NO-GO** (sin cambios desde la primera versión; esta actualización añade la clasificación por módulo). No hay evidencia suficiente de controles críticos: falta auditoría funcional de todos los módulos, ensayo de migraciones en copia de preproducción, configuración de Render verificada y decisiones fiscales del contador. Esto no bloquea el trabajo técnico, pero sí cualquier piloto con datos de clientes.
 
