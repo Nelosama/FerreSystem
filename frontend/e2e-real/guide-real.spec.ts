@@ -2,7 +2,7 @@ import { test, expect, request, type Page } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { ACCESOS_NO_MOVILES_ADMIN } from '../src/utils/movilAdmin';
-import { CATALOGO_MODULOS, MODULE_DEPENDENCIES, PENDING_MODULES } from '../src/config/modulesCatalog';
+import { CATALOGO_MODULOS, MODULE_DEPENDENCIES, MODULOS_CONTRATABLES } from '../src/config/modulesCatalog';
 import { confirmarAlerta } from '../e2e/helpers/alertas';
 const { PrismaClient } = createRequire(resolve('../backend/package.json'))('@prisma/client');
 const prisma = new PrismaClient();
@@ -82,9 +82,11 @@ async function menuOfrece(page: Page, ruta: string): Promise<boolean> {
   return hallado;
 }
 
-test('17 módulos: URL, navegación y API reales, dependencias y recuperación administrativa', async ({ page }) => {
+test('13 módulos contratables: URL, navegación y API reales, dependencias y recuperación administrativa', async ({ page }) => {
   test.setTimeout(180000);
   expect(CATALOGO_MODULOS).toHaveLength(17);
+  // Los cuatro pendientes quedan fuera: el backend rechaza sus claves en PUT /modules.
+  expect(MODULOS_CONTRATABLES).toHaveLength(13);
   const api = await request.newContext({ baseURL: BASE });
   const platform = await api.post('auth/login', { data: { email: 'superadmin.e2e@e2e.invalid', password: PASSWORD } });
   expect(platform.status()).toBe(200);
@@ -95,7 +97,7 @@ test('17 módulos: URL, navegación y API reales, dependencias y recuperación a
   const initial = await api.get(`admin/tenants/${company}/modules`, { headers: auth });
   expect(initial.status()).toBe(200);
   const initialModules = await initial.json() as { moduleKey: string; enabled: boolean }[];
-  const saved = CATALOGO_MODULOS.map(({ key }) => ({ moduleKey: key, enabled: initialModules.find(m => m.moduleKey === key)?.enabled !== false }));
+  const saved = MODULOS_CONTRATABLES.map(({ key }) => ({ moduleKey: key, enabled: initialModules.find(m => m.moduleKey === key)?.enabled !== false }));
   const allOff = saved.map(m => ({ ...m, enabled: false }));
   const routes: Record<string, string> = {
     pos: '/pos', cotizaciones: '/cotizaciones', pedidos_especiales: '/pedidos-especiales', apartados: '/apartados',
@@ -123,7 +125,7 @@ test('17 módulos: URL, navegación y API reales, dependencias y recuperación a
   const update = (modules: typeof saved) => api.put(`admin/tenants/${company}/modules`, { headers: auth, data: { modules } });
   try {
     await login(page, 'admin.a@e2e.invalid');
-    for (const [index, { key }] of CATALOGO_MODULOS.entries()) {
+    for (const [index, { key }] of MODULOS_CONTRATABLES.entries()) {
       await page.setViewportSize({ width: [1280, 768, 390][index % 3], height: 900 });
       const enabled = new Set<string>();
       const enable = (moduleKey: string) => { if (enabled.has(moduleKey)) return; enabled.add(moduleKey); (MODULE_DEPENDENCIES[moduleKey] || []).forEach(enable); };
@@ -136,8 +138,7 @@ test('17 módulos: URL, navegación y API reales, dependencias y recuperación a
       if (key !== 'configuracion') {
         await expect(page.locator('[data-protected-content]')).toBeVisible();
         await expect(page.getByRole('heading', { name: /Acceso Denegado|Módulo No Contratado/i })).toHaveCount(0);
-        if (PENDING_MODULES.has(key)) await expect(page.getByRole('region', { name: 'Funciones pendientes' })).toBeVisible();
-        else if (ACCESOS_NO_MOVILES_ADMIN.has(key) && !(await page.locator('nav.app-rail').isVisible())) expect(await menuOfrece(page, routes[key]), `${key} no se ofrece al administrador en móvil`).toBe(false);
+        if (ACCESOS_NO_MOVILES_ADMIN.has(key) && !(await page.locator('nav.app-rail').isVisible())) expect(await menuOfrece(page, routes[key]), `${key} no se ofrece al administrador en móvil`).toBe(false);
         else expect(await menuOfrece(page, routes[key]), `${key} habilitado y ofrecido en el menú`).toBe(true);
         if (key === 'reportes') {
           await expect(page.getByRole('region', { name: 'Ventas por cajero' })).toBeVisible();

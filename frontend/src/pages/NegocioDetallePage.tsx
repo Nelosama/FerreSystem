@@ -4,7 +4,7 @@ import { NegocioNavigation } from '../components/NegocioNavigation';
 import { api } from '../utils/api';
 import { alertas } from '../utils/alertas';
 import { ModuleControls } from '../components/ModuleControls';
-import { CATALOGO_MODULOS } from '../config/modulesCatalog';
+import { MODULOS_CONTRATABLES } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { LogotipoNegocioEditor } from '../components/LogotipoNegocioEditor';
 import { AvisoColorMarca } from '../components/AvisoColorMarca';
@@ -114,7 +114,7 @@ export function NegocioDetallePage({ negocioId, tab = 'resumen' }: { negocioId: 
     if (tab === 'servicios' && negocio.modulosHabilitados?.some((key: string) => !modulos.includes(key)) && !(await alertas.confirmar({ texto: t('modules.confirm'), peligroso: true }))) return;
     setBusy(true); setError(''); setEstado('');
     try {
-      if (tab === 'servicios') await api.put(`/admin/tenants/${negocioId}/modules`, { modules: CATALOGO_MODULOS.map(m => ({ moduleKey: m.key, enabled: modulos.includes(m.key) })) });
+      if (tab === 'servicios') await api.put(`/admin/tenants/${negocioId}/modules`, { modules: MODULOS_CONTRATABLES.map(m => ({ moduleKey: m.key, enabled: modulos.includes(m.key) })) });
       else { const { data } = await api.put(`/admin/tenants/${negocioId}/settings`, marca); setNegocio(data); }
       const { data: updated } = await api.get(`/admin/tenants/${negocioId}/settings`); setNegocio(updated); setModulos(updated.modulosHabilitados || []);
       setEstado('Cambios guardados.');
@@ -132,7 +132,7 @@ export function NegocioDetallePage({ negocioId, tab = 'resumen' }: { negocioId: 
         <p className="platform-biz-metrics">
           <span><strong>{conteos.sucursales ?? '—'}</strong> sucursales</span>
           <span className="platform-metric--secundaria"><strong>{conteos.usuarios ?? '—'}</strong> usuarios</span>
-          <span className="platform-metric--secundaria"><strong>{modulos.length}</strong> de {CATALOGO_MODULOS.length} servicios</span>
+          <span className="platform-metric--secundaria"><strong>{modulos.length}</strong> de {MODULOS_CONTRATABLES.length} servicios</span>
         </p>
       </div>
     </header>
