@@ -56,7 +56,7 @@ export class OperacionesService {
    // JW-07: totales en centavos enteros (compra-totales.ts). Antes 2.5 × 25.99 daba L 64.97 en lugar de L 64.98.
    for(const item of dto.items){
     const prod=await tx.producto.findFirst({where:{id:item.productoId,tenantId,activo:true}});if(!prod)throw new NotFoundException('Producto no encontrado');
-    decimal(item.cantidad,'Cantidad',true);decimal(item.costo,'Costo');
+    decimal(item.cantidad,'Cantidad',true);decimal(item.costo,'Costo',true);
    }
    const {lineas,subtotal,isv:tax,total}=calcularTotalesCompra(dto.items,decimal(dto.isv,'Impuesto'));
    // D1: compra al contado. Pagar a proveedor es función de administrador (igual que pagar()).
