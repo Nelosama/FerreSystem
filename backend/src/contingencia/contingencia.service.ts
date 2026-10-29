@@ -723,9 +723,12 @@ export class ContingenciaService {
     // P3: aceptar una diferencia de total no puede crear una venta fiscalmente incoherente. Si el ISV del equipo no es el que
     // corresponde a su propio subtotal (o subtotal + ISV ≠ total), ningún administrador la convierte en venta: se cierra sin
     // venta (CERRAR_MANUAL, que concilia el efectivo) y se factura aparte.
-    const isvDeSuSubtotal = calcularTotales([{ precioCentavos: dto.subtotalCentavos, cantidadCentesimas: 100 }]).isv;
-    if (dto.subtotalCentavos + dto.isvCentavos !== dto.totalCentavos || dto.isvCentavos !== isvDeSuSubtotal) {
-      conflictos.push({ codigo: 'IMPORTE_FISCAL_INCONSISTENTE', severidad: 'DURO', detalle: { cliente: { subtotal: dto.subtotalCentavos, isv: dto.isvCentavos, total: dto.totalCentavos }, isvEsperado: isvDeSuSubtotal } });
+    // Las operaciones anteriores a DEF-04 no traen subtotal ni ISV: sin ellos no hay importe que comprobar, así que es un
+    // conflicto (no superable) y nunca una excepción que interrumpa la sincronización.
+    const importesFiscalesPresentes = Number.isSafeInteger(dto.subtotalCentavos) && Number.isSafeInteger(dto.isvCentavos);
+    const isvDeSuSubtotal = importesFiscalesPresentes ? calcularTotales([{ precioCentavos: dto.subtotalCentavos, cantidadCentesimas: 100 }]).isv : null;
+    if (!importesFiscalesPresentes || dto.subtotalCentavos + dto.isvCentavos !== dto.totalCentavos || dto.isvCentavos !== isvDeSuSubtotal) {
+      conflictos.push({ codigo: 'IMPORTE_FISCAL_INCONSISTENTE', severidad: 'DURO', detalle: { cliente: { subtotal: dto.subtotalCentavos ?? null, isv: dto.isvCentavos ?? null, total: dto.totalCentavos }, isvEsperado: isvDeSuSubtotal } });
     }
 
     // Nunca se crea una venta de importe cero o con líneas sin precio o sin cantidad. La operación se conserva en revisión.
