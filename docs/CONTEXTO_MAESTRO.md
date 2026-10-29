@@ -1,5 +1,7 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+Última revisión: **2026-10-29 UTC** — P1 (#216, liveness) con CI final de `264655e5` y corrección del barrido; P2 fiscal (ISV de cotizaciones, exenciones, `FiscalTasa`) en `claude/p2-fiscal-20261029`. Ver la primera sección. Sin merge ni despliegue.
+
 Última revisión: **2026-10-28 UTC** — interfaz de excepción de precio (POS y conversión de cotizaciones) en `claude/stoic-gates-sxbg8u` sobre `main` `53e2cc9` (#209); concesión del permiso bloqueada por decisión pendiente. Ver la primera sección. Sin merge ni despliegue.
 
 Última revisión: **2026-10-28 UTC** — consolidación #207 + #200 sobre `main` `a436584` (#203) en `claude/laughing-euler-tplk31`; ver la primera sección. Sin merge ni despliegue.
@@ -17,6 +19,18 @@ Antecedentes: #185 integró las mejoras operativas y seguridad #183; #188 incorp
 **PR #180 (Contabilidad, Honduras):** actualizado con `main` `24ae784` por merge normal; motor contable, navegación del CONTADOR y libro mayor añadidos; persistencia de asientos automáticos bloqueada por autorización de esquema (propuesta NEXUS); ver su sección más abajo. Contabilidad permanece **apagada por defecto**; sin merge, despliegue ni migraciones en producción.
 
 **Lectura económica:** leer desde el inicio hasta `FIN DEL CONTEXTO VIGENTE`. No cargar todo el archivo por defecto: después hay un anexo con los 20 documentos originales completos. Consultar únicamente la sección histórica relevante. La longitud del anexo no obliga a consumirlo en cada sesión.
+
+## P1 #216 y P2 fiscal — 2026-10-29 UTC (sin merge, sin despliegue, sin producción ni datos reales)
+
+- **P1 — PR #216 (`claude/p1-liveness-20261029`, borrador):** resultado final de CI del SHA `264655e5`: `test` (piloto API + PostgreSQL, run `40812744200`) **verde**; `guard-base-datos` **verde**; `validate` (run `40812744202`, job `123246724551`) **rojo**: integración 1204/1206, 2 fallos en `test/aislamiento-barrido.postgres.integration.ts` porque `GET /api/health/live` (pública por diseño, como `/api/health`) no estaba en `PUBLICAS`. Corregido en `dce922b` (solo el inventario de la prueba + evidencia en `docs/EVIDENCIA_P0_P1_20261029.md`); local con PostgreSQL 16 real: barrido 7/7. **CI de `dce922b` pendiente**: el PR sigue en borrador hasta verlo verde. Render (ruta de health check, SHA desplegado) sigue sin verificar.
+- **P2 — rama `claude/p2-fiscal-20261029`** (sobre `main` `3a6c6695`; diagnóstico completo en [AUDITORIA_P2_FISCAL_20261029.md](AUDITORIA_P2_FISCAL_20261029.md), que corrige el error de H3 de `60b924b`):
+  - **H1 corregido** (`0ad9e6b`): `backend/src/common/politica-isv.ts` centraliza las tasas autorizadas = solo `TASA_ISV_PORCIENTO` (la que ya aplican POS y configuración; ninguna tasa nueva). DTO de cotización (`@IsIn`, dos decimales, sin `null`) y servicio (create, update de cotización antigua, duplicate, límite estructural `0 ≤ t < 100` al convertir, también para ADMIN). Pantalla: selector en lugar de campo libre (`frontend/src/utils/politica-isv.ts`). **Cambio de comportamiento:** la API ya no crea cotizaciones al 0 %; las antiguas siguen convirtiéndose solo por ADMIN (JW-04 adaptado como dato heredado).
+  - **H2 diagnosticado, no conectado:** la exención solo existe como casilla por línea en cotizaciones; no hay marca en `productos` ni en `detalles_venta`; venta en línea y POS sin conexión gravan todo; la venta convertida conserva importes históricos pero pierde la marca por línea (Contabilidad la reconstruye desde la cotización); las devoluciones de ventas con líneas exentas reparten mal el ISV. Propuesta pura `backend/src/common/calculo-fiscal-propuesta.ts` (`4184e16`), idéntica a `calcularTotales` sin exentas; sin uso en rutas.
+  - **H3:** `fiscal_tasas` **sí se usa** en Contabilidad (tasas, libros, reportes; permisos `contabilidad.ver/configurar`). Conservar; no activarla en ventas sin D7.
+  - **Pruebas locales:** backend unitarias **72 archivos / 811** (`main`: 70 / 750; +39 política, +6 propuesta, +16 servicio), build y lint sin errores; frontend **573/573**, `tsc -b`, build (`VITE_API_URL=/api`) y lint sin errores; PostgreSQL 16 real: `cotizaciones` 10/10, `ciclo-ventas` 21/21 + 1 omitida (navegador); integración completa local **67 archivos / 1207 aprobadas, 1 omitida** (Chromium real sin `REAL_SETTINGS_BROWSER`); CI de la rama pendiente.
+  - **Pendientes reales:** decisiones D1–D8 del contador/dueño (tabla en el informe); CHECK en `cotizaciones.porcentaje_isv` solo tras auditar datos (consulta de solo lectura propuesta, no ejecutada); conexión del cálculo común (esquema NEXUS + espejo `money.ts`); PR P2 en borrador; aceptación del cliente, merge y despliegue no realizados.
+- **Entorno:** PostgreSQL como root con envolturas `runuser -u nobody` en `/var/tmp/ferre-pgbin` y `TMPDIR=/var/tmp/ferre-pg` (1777), según la nota de entorno existente.
+- **NEXUS:** sin cambios de esquema ni migraciones en P1 ni P2.
 
 ## PR #211 — corrección de expectativas de integración tras política ADMIN (2026-10-28 UTC)
 
