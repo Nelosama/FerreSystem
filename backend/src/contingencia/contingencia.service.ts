@@ -6,7 +6,8 @@ import { validate as validarDto } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { audit, authorizedActor, cashMovement, esIdInterno, id as nuevoId, idRecurso, idSolicitud, lockTenant, money, movement, query, Tx, fingerprint } from '../operaciones/ledger';
 import { huellaDeLineas, movimientoConEvento, registrarEvento } from '../entregas/entregas-core';
-import { calcularTotales, centavosADecimal } from '../common/dinero';
+import { calcularTotales, centavosADecimal, TASA_ISV_PORCIENTO } from '../common/dinero';
+import { desgloseParaEscribir } from '../common/desglose-fiscal';
 import { operacionEmitida, operacionesEmitidas } from './operaciones-emitidas';
 import { diaCalendario, rangoDiasEnZona, ZONA_HORARIA_NEGOCIO } from '../common/zona-horaria';
 import {
@@ -719,6 +720,13 @@ export class ContingenciaService {
         || dto.subtotalCentavos + dto.isvCentavos !== dto.totalCentavos) {
       conflictos.push({ codigo: 'TOTAL_DIFERENTE', severidad: 'DURO', detalle: { cliente: { subtotal: dto.subtotalCentavos, isv: dto.isvCentavos, total: dto.totalCentavos }, servidor: { subtotal: calculo.subtotal, isv: calculo.isv, total: calculo.total } } });
     }
+    // P3: aceptar una diferencia de total no puede crear una venta fiscalmente incoherente. Si el ISV del equipo no es el que
+    // corresponde a su propio subtotal (o subtotal + ISV ≠ total), ningún administrador la convierte en venta: se cierra sin
+    // venta (CERRAR_MANUAL, que concilia el efectivo) y se factura aparte.
+    const isvDeSuSubtotal = calcularTotales([{ precioCentavos: dto.subtotalCentavos, cantidadCentesimas: 100 }]).isv;
+    if (dto.subtotalCentavos + dto.isvCentavos !== dto.totalCentavos || dto.isvCentavos !== isvDeSuSubtotal) {
+      conflictos.push({ codigo: 'IMPORTE_FISCAL_INCONSISTENTE', severidad: 'DURO', detalle: { cliente: { subtotal: dto.subtotalCentavos, isv: dto.isvCentavos, total: dto.totalCentavos }, isvEsperado: isvDeSuSubtotal } });
+    }
 
     // Nunca se crea una venta de importe cero o con líneas sin precio o sin cantidad. La operación se conserva en revisión.
     if (dto.totalCentavos <= 0 || dto.lineas.length === 0 || dto.lineas.some((l) => l.precioCentavos <= 0 || l.cantidadCentesimas <= 0)) {
@@ -820,7 +828,7 @@ export class ContingenciaService {
 
     // Decisión: ¿qué conflictos duros se pueden aceptar por decisión de un administrador?
     // PRECIO_SIN_APROBACION, PRODUCTO_FUERA_DE_VENTANA, PRODUCTO_NO_ENCONTRADO, EFECTIVO_INCONSISTENTE y OPERACION_ALTERADA
-    // no son superables: ni ACEPTAR ni REINTENTAR los convierten en venta.
+    // no son superables: ni ACEPTAR ni REINTENTAR los convierten en venta. Tampoco IMPORTE_FISCAL_INCONSISTENTE (P3).
     // CAJA_CERRADA no es superable: sin caja abierta no hay dónde registrar la venta (CENTINELA N2).
     const superables = new Set(['USUARIO_NO_AUTORIZADO', 'STOCK_INSUFICIENTE', 'TOTAL_DIFERENTE', 'SECUENCIA_DUPLICADA']);
     const bloqueantes = conflictos.filter((c) => c.severidad === 'DURO' && !(forzar && superables.has(c.codigo)));
@@ -839,6 +847,10 @@ export class ContingenciaService {
     const numeroVenta = Number(sec.ultimo_numero);
     const actorFinal = opciones.resueltoPor ?? op.usuarioId;
     const idsLinea = dto.lineas.map(() => nuevoId());
+    // Desglose histórico (apagado salvo FISCAL_DESGLOSE_POR_LINEA). Solo si los importes guardados son los recalculados por el
+    // servidor: una diferencia aceptada por un administrador deja la venta sin desglose y su devolución usa la regla anterior.
+    const coincide = calculo.subtotal === dto.subtotalCentavos && calculo.isv === dto.isvCentavos && calculo.total === dto.totalCentavos;
+    const desglose = coincide ? desgloseParaEscribir(calculo.lineas.map((b) => ({ brutoCentavos: b, exento: false })), 0, calculo.isv, TASA_ISV_PORCIENTO) : dto.lineas.map(() => ({}));
     const venta = await tx.venta.create({
       data: {
         id: op.id, tenantId, numeroVenta, usuarioId: op.usuarioId, cajaId: cajaDestino.id,
@@ -851,6 +863,7 @@ export class ContingenciaService {
         notas: `Venta de contingencia ${op.correlativoLocal}`,
         detalles: {
           create: dto.lineas.map((l, i) => ({
+            ...desglose[i],
             id: idsLinea[i], tenantId, modoEntrega: 'MOSTRADOR', cantidadEntregada: l.cantidadCentesimas / 100,
             productoId: l.productoId, cantidad: l.cantidadCentesimas / 100, precioUnitario: centavosADecimal(l.precioCentavos),
             subtotal: centavosADecimal(calculo.lineas[i]), costoUnitario: centavosADecimal(enVentana.get(l.productoId)?.costoCentavos ?? 0), sinInventario: false,

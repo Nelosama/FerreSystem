@@ -1,6 +1,16 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
 Última revisión: **2026-10-29 UTC** — P1 (#216, liveness) con CI final de `264655e5` y corrección del barrido; P2 fiscal (ISV de cotizaciones, exenciones, `FiscalTasa`) en `claude/p2-fiscal-20261029`. Ver la primera sección. Sin merge ni despliegue.
+Última revisión: **2026-10-29 UTC** — consolidación fiscal en `claude/devoluciones-exenciones-20261029` (`874adc0`, sobre `main` `3a6c669`): desglose por línea apagado por defecto y ejemplo obligatorio de devolución exenta (L 50). Estado GO/NO-GO en [GO_NO_GO_PILOTO_20261029.md](GO_NO_GO_PILOTO_20261029.md): **NO-GO**. Sin merge, sin despliegue, sin datos reales.
+
+## Consolidación fiscal y GO/NO-GO — 2026-10-29 UTC
+
+- **Estado remoto comprobado en GitHub:** #216 `dce922b` (validate, test, guard-base-datos en success; borrador); #217 `da48cb2` (validate, test, guard-base-datos en success; borrador). Sin merge.
+- **Hallazgo de diseño:** `desglose-fiscal.ts` existe solo en esta rama (`84f9b14`). #217 tiene `calculo-fiscal-propuesta.ts`, con otra fórmula para lo mismo. Unificar antes de conectar cualquiera (T5 en el informe).
+- **Cambios:** `874adc0` añade la prueba obligatoria (L 100 gravado + L 50 exento; devolver la exenta reembolsa L 50; reintento idempotente) y redondeo con descuento de 0.01.
+- **Pruebas:** `test/desglose-fiscal-devoluciones.postgres.integration.ts` 8/8 en PostgreSQL 16 temporal; `ventas` y `reportes-zona-horaria` 70/70 con la lista de migraciones actualizada.
+- **Pendiente real:** auditoría funcional de módulos (T1), auditoría de exenciones (T6), ensayo de la migración en preproducción (T3), verificación de Render y respaldos (O1, O2). No declarado completo en esta ronda.
+- **NEXUS:** migración solo aditiva, probada en clúster temporal; no ejecutada contra datos reales.
 
 Última revisión: **2026-10-28 UTC** — interfaz de excepción de precio (POS y conversión de cotizaciones) en `claude/stoic-gates-sxbg8u` sobre `main` `53e2cc9` (#209); concesión del permiso bloqueada por decisión pendiente. Ver la primera sección. Sin merge ni despliegue.
 

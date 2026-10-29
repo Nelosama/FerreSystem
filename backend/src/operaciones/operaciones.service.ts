@@ -1,4 +1,5 @@
 import { aCentavos } from '../common/redondeo-monetario';
+import { desgloseDevolucionLinea, totalDesglose, type DesgloseLinea } from '../common/desglose-fiscal';
 import { calcularTotalesCompra } from './compra-totales';
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { Tx } from './ledger';
@@ -384,11 +385,22 @@ export class OperacionesService {
     }
     added+=entero(quantity)*entero(d.precio_unitario);
    }
+   // Venta con desglose histórico por línea (todas sus líneas): se revierte exactamente la base gravada, la base exenta y el
+   // ISV de lo devuelto, por cantidad y de forma acumulada. Sin desglose (ventas anteriores o interruptor apagado) se mantiene
+   // la regla vigente: parte proporcional del total de la venta.
+   if(details.every(d=>d.exento!==null&&d.exento!==undefined)){
+    const desgloses=new Map(dto.items.map(item=>{
+     const d=details.find(d=>d.id===item.detalleId)!;
+     return [d.id,desgloseDevolucionLinea({cantidadCentesimas:cent(d.cantidad),baseGravadaCentavos:aCentavos(Number(d.base_gravada)),baseExentaCentavos:aCentavos(Number(d.base_exenta)),isvCentavos:aCentavos(Number(d.isv))},cent(d.devuelto),cent(decimal(item.cantidad,'Cantidad',true)))];
+    }));
+    const monto=[...desgloses.values()].reduce((s,x)=>s+totalDesglose(x),0)/100;
+    return {v,details,monto,completa,desgloses};
+   }
    const [old]=await query(tx,'SELECT COALESCE(SUM(monto),0) AS monto FROM devoluciones WHERE venta_id=$1',v.id);
    const acumulado=gross>0n?(entero(v.total)*(before+added)*2n+gross)/(gross*2n):0n;
    const pendiente=acumulado-entero(old.monto);
    const monto=Number(pendiente>0n?pendiente:0n)/100;
-   return {v,details,monto,completa};
+   return {v,details,monto,completa,desgloses:null as Map<string,DesgloseLinea>|null};
  }
  async devolver(tenantId:string,userId:string,ventaId:string,dto:DevolucionDto){
   return this.prisma.$transaction(async tx=>{
@@ -496,7 +508,7 @@ export class OperacionesService {
    const hash=fingerprint({userId,ventaId,dto});
    const [previous]=await query(tx,'SELECT * FROM devoluciones WHERE id IN ($1,$3) AND tenant_id=$2',idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
    if(previous){if(previous.tenant_id!==tenantId||previous.solicitud_hash!==hash)throw new ConflictException('Solicitud utilizada para otra devolución');return previous;}
-   const {v,details,monto,completa}=await this.planDevolucion(tx,tenantId,ventaId,dto);
+   const {v,details,monto,completa,desgloses}=await this.planDevolucion(tx,tenantId,ventaId,dto);
    if(!autorizada && (completa || dto.anulacion))throw new ForbiddenException('Anular el total de una venta requiere solicitud y autorización de otro administrador');
    let credito=0;
    if(v.metodo_pago==='CREDITO'){
@@ -520,7 +532,8 @@ export class OperacionesService {
    const [result]=await query(tx,'INSERT INTO devoluciones(id,tenant_id,venta_id,usuario_id,solicitud_hash,motivo,monto,credito_cancelado,reembolso,metodo,caja_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,v.id,userId,hash,text(dto.motivo,'Motivo'),monto,credito,refund,metodo,caja?.id||null);
    for(const item of dto.items){
     const d=details.find(d=>d.id===item.detalleId);
-    await query(tx,'INSERT INTO detalles_devolucion(id,devolucion_id,detalle_venta_id,cantidad,destino) VALUES($1,$2,$3,$4,$5) RETURNING id',id(),result.id,d.id,item.cantidad,item.destino);
+    const x=desgloses?.get(d.id);
+    await query(tx,'INSERT INTO detalles_devolucion(id,devolucion_id,detalle_venta_id,cantidad,destino,base_gravada,base_exenta,isv) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',id(),result.id,d.id,item.cantidad,item.destino,x?x.baseGravadaCentavos/100:null,x?x.baseExentaCentavos/100:null,x?x.isvCentavos/100:null);
    }
    // Existencias y contadores por línea: reingreso (INVENTARIO), sin reingreso (DAÑADO, PROVEEDOR) o liberación de la reserva (NO_ENTREGADO).
    await aplicarDestinosDevolucion(tx,{tenantId,usuarioId:userId,ventaId:v.id,solicitudBase:dto.solicitudId,motivo:String(dto.motivo??'').trim(),items:dto.items.map(i=>({detalleId:i.detalleId,cantidad:i.cantidad,destino:i.destino as DestinoDevolucion}))});

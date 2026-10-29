@@ -5,7 +5,8 @@ import { aCentesimas, huellaCanonica, normalizarTexto } from '../common/huella-s
 import { cent, registrarEventosCobro, ROLES_ENTREGA } from '../entregas/entregas-core';
 import { Injectable, BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { calcularTotales, centavosADecimal } from '../common/dinero';
+import { calcularTotales, centavosADecimal, TASA_ISV_PORCIENTO } from '../common/dinero';
+import { desgloseParaEscribir } from '../common/desglose-fiscal';
 import { aCentavos } from '../common/redondeo-monetario';
 import { exigirPoliticaPrecio, LineaPrecio, PERMISO_EXCEPCION_PRECIO } from './politica-precio';
 
@@ -390,6 +391,8 @@ export class VentasService {
       const isv = centavosADecimal(totales.isv);
       const total = centavosADecimal(totales.total);
       if (!(total > 0)) throw new BadRequestException('La venta debe tener un importe mayor que cero');
+      // Desglose histórico por línea (apagado salvo FISCAL_DESGLOSE_POR_LINEA): el POS grava todas las líneas, sin exentas.
+      const desglose = desgloseParaEscribir(totales.lineas.map((b) => ({ brutoCentavos: b, exento: false })), aCentavos(descuento, 'Descuento'), totales.isv, TASA_ISV_PORCIENTO);
 
       if (tipoPago === 'CREDITO' && clienteCredito.limiteCredito !== null) {
         const nuevoSaldo = money(Number(clienteCredito.saldoPendiente) + total);
@@ -422,7 +425,8 @@ export class VentasService {
           estado: 'COMPLETADA',
           notas: dto.notas || null,
           detalles: {
-            create: detallesParaCrear.map((d) => ({
+            create: detallesParaCrear.map((d, i) => ({
+              ...desglose[i],
               productoId: d.productoId,
               cantidad: d.cantidad,
               precioUnitario: d.precioUnitario,
