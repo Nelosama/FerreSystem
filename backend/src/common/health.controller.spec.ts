@@ -11,3 +11,12 @@ describe('Disponibilidad del servicio',()=>{
   await expect(controller.ready()).rejects.toThrow('Servicio temporalmente no disponible');
  });
 });
+
+describe('Liveness del proceso',()=>{
+ it('responde sin consultar PostgreSQL, aunque la base esté caída',()=>{
+  const prisma={$queryRaw:vi.fn().mockRejectedValue(new Error('base caída'))} as any;
+  const controller=new HealthController(prisma);
+  expect(controller.live()).toEqual({status:'ok'});
+  expect(prisma.$queryRaw).not.toHaveBeenCalled();
+ });
+});
