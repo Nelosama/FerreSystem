@@ -89,12 +89,12 @@ test('Super Admin puede cambiar cada interruptor y conservarlos tras recarga', a
   const api = await setup(page, 'SUPERADMIN', { enabled: false });
   await page.goto('/admin/negocios/guide-company/servicios');
   const form = page.locator('form').filter({ hasText: 'Servicios del negocio' });
-  await expect(form.locator('input[type="checkbox"]')).toHaveCount(17);
+  await expect(form.locator('input[type="checkbox"]')).toHaveCount(13);
   for (const input of await form.locator('input[type="checkbox"]').all()) { await expect(input).toBeEnabled(); await input.check(); }
   await form.getByRole('button', { name: 'Guardar servicios' }).click();
   await expect(page.getByRole('status')).toContainText('Cambios guardados');
-  expect(api.settings().modulosHabilitados).toHaveLength(17);
-  await page.reload(); await expect(form.locator('input:checked')).toHaveCount(17);
+  expect(api.settings().modulosHabilitados).toHaveLength(13);
+  await page.reload(); await expect(form.locator('input:checked')).toHaveCount(13);
   for (const input of await form.locator('input[type="checkbox"]').all()) await input.uncheck();
   await form.getByRole('button', { name: 'Guardar servicios' }).click();
   await confirmarAlerta(page);
@@ -115,7 +115,7 @@ test('omitir persiste y Ayuda permite retomarla', async ({ page }) => {
 });
 
 for (const width of [1280, 390]) {
-  test(`integración #188: marca y navegación conservan los 17 controles (16 + Contabilidad, de activación explícita) y la guía en ${width}px`, async ({ page }) => {
+  test(`integración #188: marca y navegación conservan los 13 controles configurables (12 + Contabilidad, de activación explícita) y la guía en ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const api = await setup(page, 'SUPERADMIN', { modules: [] });
     await page.goto('/admin/negocios/guide-company/marca');
@@ -132,7 +132,7 @@ for (const width of [1280, 390]) {
     await expect(page.locator('aside.guide')).toBeVisible();
     await page.goto('/admin/negocios/guide-company/servicios');
     const inputs = page.locator('form input[type="checkbox"]');
-    await expect(inputs).toHaveCount(17);
+    await expect(inputs).toHaveCount(13);
     for (const input of await inputs.all()) { await expect(input).toBeEnabled(); await expect(input).not.toBeChecked(); }
   });
 }
