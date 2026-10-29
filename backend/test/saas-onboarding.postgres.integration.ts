@@ -391,7 +391,7 @@ describe('Alta SaaS, usuarios y formatos / HTTP y PostgreSQL aislado', () => {
     const auditHttp = await (await http('GET', `/api/admin/tenants/${A}/auditoria`, sa)).json();
     expect(auditHttp.find((row: any) => row.id === audit.id).usuario_nombre).toBe('Super Admin de prueba');
     expect(audit.usuarioId).toBe(superAdminId); expect(audit.createdAt).toBeInstanceOf(Date);
-    expect((audit.datos as any).before).toHaveLength(16); expect((audit.datos as any).modules).toHaveLength(16);
+    expect((audit.datos as any).before).toHaveLength(DEFAULT_TENANT_MODULES.length); expect((audit.datos as any).modules).toHaveLength(DEFAULT_TENANT_MODULES.length);
     expect((await put(off.map(item => ({ ...item, enabled: true })))).status).toBe(200);
     expect((await http('GET', '/api/usuarios', a)).status).toBe(200);
     expect((await http('GET', '/api/usuarios', c)).status).toBe(403);
