@@ -215,3 +215,42 @@ Pantalla ≠ función: un módulo se clasifica por lo que persiste, no por lo qu
 - Este documento, con la matriz de clasificación.
 - Evidencia de archivos: rutas en `App.tsx` (líneas 70–79, 355–429), `config/navigation.ts`, `common/tenant-modules.ts`, controladores y servicios citados.
 - Pruebas ejecutadas en esta fase: `compras-isv` (9/9) y las del módulo de devoluciones de la rama de devoluciones (8/8, ver su informe). No se ejecutó la suite completa de cada módulo.
+
+---
+
+## Actualización de la matriz (corrección de bloqueos preproducción, 2026-10-29)
+
+Cada clasificación se basa en evidencia de: persistencia real, seguridad (permisos y aislamiento), pruebas, integración frontend/backend y operaciones completas. Un módulo no es LISTO si tiene un defecto crítico conocido.
+
+| Módulo | Clasificación | Persistencia | Seguridad | Pruebas | Integración F/B | Operaciones completas | Defectos críticos conocidos | Estado en piloto |
+|---|---|---|---|---|---|---|---|---|
+| POS | LISTO | Sí | Sí (tenant, roles) | Sí | Sí | Sí | No (ISV fijo 15 %; sin exentas) | Habilitar |
+| Cotizaciones | LISTO **condicionado** a integrar #217 y #222 | Sí | Sí tras #222 (exenciones bloqueadas) | Sí | Sí | Sí, sin exentas | **Sí en `main`** (ISV 500 %, ADMIN convierte tasa inválida); corregido en #217; exenciones en #222 | Habilitar solo tras integrar #217 y #222 |
+| Inventario | LISTO | Sí | Sí | Sí | Sí | Sí | No | Habilitar |
+| Clientes | LISTO | Sí | Sí | Sí | Sí | Sí | No | Habilitar |
+| Proveedores | LISTO | Sí | Sí (solo ADMIN) | Sí | Sí | Sí | No | Habilitar |
+| Compras | PARCIAL | Sí | Sí | Sí | Sí | Parcial | ISV sin tasa ni conciliación con el libro (C-02) y sin desglose (C-04): pendientes de D3 y contador. Aritmética corregida en #221 (ISV ≤ subtotal, costo > 0) | Habilitar solo con revisión manual del documento del proveedor |
+| Apartados | NO IMPLEMENTADO | No | — | No | No | No | No aplica: oculto | **Ocultar** (#220) |
+| Transferencias | NO IMPLEMENTADO | No | — | No | No | No | No aplica: oculto | **Ocultar** (#220) |
+| Pedidos especiales | NO IMPLEMENTADO | No | — | No | No | No | No aplica: oculto | **Ocultar** (#220) |
+| Listas de precio | NO IMPLEMENTADO | No | — | No | No | No | No aplica: oculto | **Ocultar** (#220) |
+| Garantías | PARCIAL | Parcial (coberturas) | Sí | Parcial | Sí | Parcial (sin reclamos) | No | Solo consulta y coberturas |
+| Devoluciones | LISTO para ventas sin exentas | Sí | Sí | Sí | Sí | Sí | Reembolso de ISV incorrecto solo en ventas mixtas; las exentas están bloqueadas (#222) | Habilitar |
+| Caja y arqueo | LISTO | Sí | Sí | Sí | Sí | Sí | No | Habilitar |
+| Contabilidad | PARCIAL | Sí | Sí | Parcial | Sí | Parcial (sin asientos automáticos) | No | Ocultar (apagada por defecto) |
+| Usuarios y permisos | LISTO | Sí | Sí: cajero sin permisos administrativos, probado | Sí | Sí | Sí | No | Habilitar |
+| Reportes | PARCIAL | Lectura | Sí | Parcial | Sí | Solo resumen | No | Habilitar con alcance declarado |
+| Super Admin | LISTO | Sí | Sí (solo plataforma) | Sí | Sí | Sí | No; módulos sin implementar ya no se pueden encender (#220) | Habilitar |
+| Entregas | LISTO | Sí | Sí | Sí | Sí | Sí | No | Habilitar |
+| Levantamiento | LISTO | Sí | Sí | Sí | Sí | Sí | No | Habilitar |
+| Contingencia offline | PARCIAL | Sí | Sí | Sí | Sí | Sí, con conflictos en revisión | Decisión D11 pendiente | Con protocolo de apagón |
+
+### Alcance mínimo viable para el piloto
+
+Incluye, solo tras integrar #216, #217, #220, #221 y #222 y pasar CI:
+- POS (solo ventas gravadas), caja y arqueo, inventario, clientes, proveedores, devoluciones (sin ventas con exentas), usuarios y permisos, Super Admin, entregas y levantamiento.
+- Cotizaciones (sin líneas exentas), con la corrección del ISV.
+- Compras, solo con revisión manual del documento del proveedor.
+- Reportes con el alcance de resumen.
+
+Excluye: apartados, transferencias, pedidos especiales, listas de precio (ocultos), contabilidad (apagada), garantías con reclamos, y cualquier exención de línea hasta D3 y D5.
