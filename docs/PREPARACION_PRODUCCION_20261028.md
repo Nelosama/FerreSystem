@@ -128,3 +128,19 @@ Esta sección no reemplaza la actualización anterior. Se añade para conservar 
 | D6 | ¿Dónde se muestra el interruptor? | No aparece en Usuarios. | Solo después de D1–D3. |
 
 **Estado de la política:** el dueño la confirmó en la conversación del 2026-10-28 (SUPERADMIN de plataforma administra cuentas ADMIN; autoconcesión prohibida; auditoría conservada). Lo pendiente es la **revisión técnica final de #211** sobre su SHA y el **merge por el dueño**. D1–D5 quedan como antecedentes de esa decisión. D6 (interfaz) sigue sin implementar.
+
+## Después del merge de #211 — 2026-10-29 UTC
+
+| Elemento | Observado |
+| --- | --- |
+| `main` | `3a6c6695` (merge de #211, head `5a1faf0b`) |
+| CI sobre `3a6c6695` | «Operación de ferretería» (run 40801739101) y «Piloto con API y PostgreSQL reales» (run 40801739066): **success** |
+| Vercel producción | Deployment `7401783545` sobre `3a6c6695`, creado 01:40:03Z, estado **success** (`ferre-system-qz8ngumdh-nelspace.vercel.app`) |
+| Render API | `https://ferresystem.onrender.com/api` responde **404** (ruta raíz). **SHA desplegado no verificado**: no hay acceso a Render ni endpoint de salud documentado |
+| #211 | Fusionado por el dueño |
+| #214 | Pendiente de cierre por el dueño como sustituido por #211 |
+| #215 | CI verde en `aec2262e`; no integrado; revisión de Codex pendiente |
+
+Revisión técnica de #211 por Codex: **CONFORME** sobre `5a1faf0b` (ver sección anterior).
+
+**Estado: NO-GO.** Aún faltan: verificar el SHA desplegado en Render y su salud; validación sobre `main` (paso 5); respaldos y restauración; fiscalidad (ISV y exentas); dispositivos físicos; y aceptación del cliente.
