@@ -57,6 +57,7 @@ Arranque: el servicio rechaza `TRUST_PROXY=false` (espera un entero). Es el comp
 - El registro previo de 117 avisos estaba desactualizado; no se reproduce con el mismo binario.
 
 ### Pendiente
-- CI de `eafcb654` y del commit final (`test`, `validate`): en curso al escribir este documento. No se declara éxito hasta que terminen.
+- CI de `264655e5` (resultado final, 2026-10-29): `test` (piloto API + PostgreSQL) **verde**; `guard-base-datos` **verde**; `validate` **rojo**: integración 1204/1206, 2 fallos en `test/aislamiento-barrido.postgres.integration.ts` porque `GET /api/health/live` (pública por diseño, como `/api/health`) no estaba en el inventario `PUBLICAS` del barrido. No es un defecto de seguridad del endpoint: devuelve solo `{status:'ok'}` sin datos de negocio.
+- Corrección en el commit siguiente: `/api/health/live` añadida a `PUBLICAS`. Local con PostgreSQL 16 real: barrido **7/7**. CI del nuevo SHA pendiente; el PR sigue en borrador hasta verlo verde.
 - Render: sin verificar qué ruta usa como health check ni qué SHA está desplegado.
 - Prueba de readiness con PostgreSQL real disponible (200): cubierta por el piloto de CI, no por la prueba manual de esta pasada.
