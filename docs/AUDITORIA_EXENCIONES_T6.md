@@ -31,7 +31,7 @@ Lo que sí funciona y está probado:
 
 ## 3. Pruebas de autorización y aislamiento
 
-Archivo: `backend/test/exenciones-t6.postgres.integration.ts` (rama `claude/auditoria-funcional-20261029`). Resultado: **5/5**.
+La prueba que documentaba el comportamiento anterior (`exenciones-t6`) se **retira de esta rama**: su cobertura está en `backend/test/exenciones-politica.postgres.integration.ts` de #222, que prueba los mismos casos con la política aplicada y añade duplicar y editar. Esta rama no tiene la política, así que sus pruebas no pueden pasar por sí solas. Sin esta retirada, #219 quedaría en rojo antes de integrar #222.
 
 | Caso | Tipo | Resultado |
 | --- | --- | --- |
