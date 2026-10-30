@@ -38,7 +38,7 @@ describe('Contabilidad: módulo de activación explícita', () => {
 });
 
 describe('Módulos sin implementación: ocultos aunque existan registros antiguos', () => {
-  const NO_IMPLEMENTADOS = ['apartados', 'transferencias_sucursal', 'pedidos_especiales', 'listas_precio'];
+  const NO_IMPLEMENTADOS = ['apartados', 'transferencias_sucursal', 'pedidos_especiales', 'listas_precio', 'comisiones_venta'];
 
   it('no son predeterminados ni configurables, y no aparecen en el catálogo del Super Admin', () => {
     expect(MODULOS_NO_IMPLEMENTADOS).toEqual(NO_IMPLEMENTADOS);
