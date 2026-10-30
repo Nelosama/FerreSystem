@@ -88,7 +88,7 @@ def es_ejemplo(nombre, codigo):
 
 def validar(filas, catalogo=None, estricto=False, permitir_existencias=None, autorizar_ceros=None, perfil='maestro'):
     errores, avisos = [], []
-    campos = [c for c in ENCABEZADOS if perfil != 'preproduccion' or c not in ('precioCosto', 'precioVenta')]
+    campos = list(ENCABEZADOS)
     encabezado = filas[0]
     claves = {normalizar_clave(h): i for i, h in enumerate(encabezado)}
     if len(claves) != len(encabezado):
@@ -97,8 +97,6 @@ def validar(filas, catalogo=None, estricto=False, permitir_existencias=None, aut
     if faltan:
         errores.append(f'Encabezados faltantes: {", ".join(faltan)}. Use la plantilla importable.')
         return 0, errores, avisos
-    if perfil == 'preproduccion' and any(c in claves for c in ('preciocosto', 'precioventa')):
-        errores.append('El importador del candidato ignora precios: retire precioCosto/precioVenta y revíselos en el maestro. ADMIN debe fijarlos por separado.')
     if 'descripcion' in claves:
         avisos.append('Hay una columna "descripcion": el importador la usa como nombre si "nombre" está vacío. Use solo "nombre".')
 
@@ -125,6 +123,8 @@ def validar(filas, catalogo=None, estricto=False, permitir_existencias=None, aut
         for campo in campos:
             if campo in ('stockMinimo',):
                 continue  # vacío se toma como 5 en el importador; lo marcamos abajo
+            if campo in ('precioCosto', 'precioVenta'):
+                continue  # vacío = sin precio: el producto entra sin precio aprobado y no se vende hasta fijarlo
             if not celda(fila, campo):
                 errores.append(f'{ref}: "{campo}" vacío. El importador lo convertiría en valor por defecto sin aviso.')
         if not celda(fila, 'stockMinimo'):
@@ -187,7 +187,7 @@ def main(argv):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('archivo')
     parser.add_argument('--catalogo')
-    parser.add_argument('--perfil', choices=['maestro', 'preproduccion'], default='maestro', help='maestro con precios o CSV del candidato #153/#155 sin precios')
+    parser.add_argument('--perfil', choices=['maestro', 'preproduccion'], default='maestro', help='maestro con precios o CSV de preproducción; ambos admiten celdas de precio vacías (sin precio)')
     parser.add_argument('--estricto', action='store_true', help='bloquear existencias no cero y precios cero')
     parser.add_argument('--permitir-existencias-iniciales', metavar='MOTIVO_ADMIN')
     parser.add_argument('--autorizar-precios-cero', metavar='MOTIVO_ADMIN')
@@ -220,7 +220,7 @@ def main(argv):
     for a in avisos:
         print(f'  AVISO  {a}')
     listo = not errores and total > 0
-    correcto = ('maestro válido para revisión (el candidato no importa sus precios; revisar advertencias)'
+    correcto = ('maestro válido para revisión (revisar advertencias)'
                 if args.perfil == 'maestro' else 'CSV listo para importar en preproducción (revisar advertencias)')
     print('RESULTADO: ' + (correcto if listo else 'NO importar. Corrija los errores y vuelva a validar.'))
     return 0 if not errores and total > 0 else 1
