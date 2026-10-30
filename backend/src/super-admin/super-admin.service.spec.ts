@@ -199,6 +199,7 @@ describe('SuperAdminService', () => {
       ],
     });
     expect(tx.tenantModule.createMany).toHaveBeenCalledOnce();
+    expect(tx.tenantModule.createMany.mock.calls[0][0].data.map((m: { moduleKey: string }) => m.moduleKey)).not.toContain('comisiones_venta');
     expect(result.adminUsuario).toMatchObject({ id: 'user-1', email: 'admin@ferreteria.test', rol: 'ADMIN' });
     expect(await bcrypt.compare('TenantPassword123!', tx.usuario.create.mock.calls[0][0].data.passwordHash)).toBe(true);
   });

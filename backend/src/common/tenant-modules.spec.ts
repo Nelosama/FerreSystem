@@ -61,7 +61,7 @@ describe('Módulos sin implementación: ocultos aunque existan registros antiguo
   });
 
   it('no desactivan otros módulos: pos, inventario y clientes siguen encendidos sin registro', () => {
-    const activos = enabledTenantModules([{ moduleKey: 'apartados', enabled: true }]);
-    for (const key of ['pos', 'inventario', 'clientes', 'cotizaciones', 'garantias', 'reportes']) expect(activos).toContain(key);
+    const activos = enabledTenantModules(NO_IMPLEMENTADOS.map(moduleKey => ({ moduleKey, enabled: true })));
+    for (const key of ['pos', 'inventario', 'clientes', 'cotizaciones', 'garantias', 'usuarios', 'reportes']) expect(activos).toContain(key);
   });
 });
