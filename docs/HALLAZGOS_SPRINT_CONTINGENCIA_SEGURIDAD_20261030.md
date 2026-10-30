@@ -25,7 +25,7 @@ Sin cambios en idempotencia ni cobro. No se tocó `docs/CONTEXTO_MAESTRO.md`. Si
 
 ### Para Codex (idempotencia y transacciones centrales; no editado)
 
-- **H-C1 (P2, defensa en profundidad).** `backend/src/ventas/ventas.service.ts:232`: `tx.venta.findUnique({ where: { id: derivado } })` no compara después `anterior.tenantId === tenantId`. El rama `crudo` sí lo hace (línea 235). Hoy no es explotable: el identificador derivado incluye el tenant. Impacto si un id ajeno llegara a existir: la idempotencia devolvería una venta de otra empresa. Propuesta: añadir la comparación de `tenantId` también al resultado derivado.
+- **H-C1 (P2, defensa en profundidad).** `backend/src/ventas/ventas.service.ts:232`: `tx.venta.findUnique({ where: { id: derivado } })` no compara después `anterior.tenantId === tenantId`. La rama `crudo` sí lo hace (línea 235). Hoy no es explotable: el identificador derivado incluye el tenant. Impacto si un id ajeno llegara a existir: la idempotencia devolvería una venta de otra empresa. Propuesta: añadir la comparación de `tenantId` también al resultado derivado.
 
 ### Para desarrollo frontend (sin corregir en esta rama por tamaño)
 
