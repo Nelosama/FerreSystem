@@ -1,6 +1,6 @@
 # GO / NO-GO — piloto controlado de Jowa System — 2026-10-29
 
-**Actualización de consolidación (2026-10-29):** las 11 ramas de trabajo se integran en `main` por encargo expreso del dueño. El estado verificable y las pruebas definitivas están en la primera sección de `CONTEXTO_MAESTRO.md`; los estados de ramas y PR de abajo son fotografías anteriores. La fotografía vigente, con SHA y CI verificados en GitHub, está en la sección superior de `CONTEXTO_MAESTRO.md`. Se incorporan liveness, validación/regularización de ISV, límites aritméticos de compras, ocultación de módulos pendientes y bloqueo auditado de exenciones (incluida duplicación). El desglose por línea continúa apagado. Integrar código no certifica la preparación del piloto ni resuelve las decisiones fiscales y operativas pendientes.
+**Actualización de consolidación (2026-10-29):** las 11 ramas de trabajo se integran en `main` por encargo expreso del dueño. La fotografía vigente, con SHA y CI verificados, está en la primera sección de `CONTEXTO_MAESTRO.md`; los bloques marcados como históricos conservan los estados anteriores. Se incorporan liveness, validación/regularización de ISV, límites aritméticos de compras, ocultación de módulos pendientes y bloqueo auditado de exenciones (incluida duplicación). El desglose por línea continúa apagado. Integrar código no certifica la preparación del piloto ni resuelve las decisiones fiscales y operativas pendientes.
 
 **Decisión vigente: NO-GO para piloto con datos reales.** `main` `0d1b9252` tiene los dos workflows en verde: [Operación de ferretería 40980313884](https://github.com/Nelosama/FerreSystem/actions/runs/40980313884) y [Piloto API/PostgreSQL 40980313889](https://github.com/Nelosama/FerreSystem/actions/runs/40980313889). #223 ya está fusionado (merge `e254db28`) y corrige los dos fallos del SHA anterior `767888ac`. Siguen pendientes el ensayo con volumen en preproducción, Render, respaldos reales, decisiones fiscales, hardware y aceptación del cliente. La auditoría funcional está integrada; sus clasificaciones no equivalen a aceptación operativa.
 
@@ -18,13 +18,13 @@ Estado histórico de otros PR antes de la consolidación (ya integrados): #213 d
 
 ## Clasificación funcional por módulo (actualización)
 
-Detalle en `docs/AUDITORIA_FUNCIONAL_MODULOS.md`.
+Clasificación técnica basada en `docs/AUDITORIA_FUNCIONAL_MODULOS.md`, actualizada con los cambios integrados. «LISTO» en el informe no equivale a autorización de piloto ni aceptación del cliente.
 
 | Clasificación | Módulos |
 | --- | --- |
 | LISTO | POS, inventario, clientes, proveedores, caja, usuarios y permisos, Super Admin, entregas, levantamiento |
 | PARCIAL | compras (límites aritméticos validados; conciliación y desglose pendientes), garantías (sin reclamo), contabilidad (sin asientos automáticos), reportes (solo resumen), contingencia offline (decisión D11) |
-| BLOQUEADO antes de la consolidación | cotizaciones (ISV 500 % aceptado y convertido por ADMIN); corregido en #217, integrado en `main` el 2026-10-29 (`da48cb21`) |
+| PARCIAL fiscal | cotizaciones (validación de tasa y regularización integradas por #217; exenciones bloqueadas por #222; decisiones fiscales pendientes) |
 | NO IMPLEMENTADO | apartados, transferencias entre sucursales, pedidos especiales, listas de precio |
 
 **Módulos pendientes:** apartados, transferencias, pedidos especiales y listas de precio están ocultos por #220 (`62d2ef6c`). No forman parte de `DEFAULT_TENANT_MODULES` ni de los 13 módulos contratables (12 predeterminados y Contabilidad opt-in). Sus cuatro páginas de ejemplo fueron eliminadas. El fallo de CI del conteo de módulos se corrigió con #223 y `main` `0d1b9252` está verde. Reactivar un módulo exige implementar operaciones y persistencia reales.
