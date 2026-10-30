@@ -70,14 +70,14 @@ test.describe('Contingencia POS — fallos de red y del servidor', () => {
     await expect.poll(() => sim.operacionesRecibidas.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
     await expect.poll(async () => (await operacion(page))?.estado, { timeout: 10_000 }).toBe('ENVIANDO');
 
-    // El cajero recarga sin que el servidor haya respondido: nada indica que la venta esté confirmada.
+    // El cajero recarga mientras la primera petición sigue sin respuesta. Ninguna confirmación puede venir de ella.
     sim.retenerEnvio = false;
     await page.reload();
     await expect(botonTornillo(page)).toBeVisible();
-    expect((await diario(page)).some((o) => o.estado === 'SINCRONIZADA')).toBe(false);
 
-    // Al reconectar, la sincronización recupera el envío interrumpido y lo confirma una vez.
+    // Al reconectar, la sincronización recupera el envío interrumpido. La confirmación lleva el número que devolvió el servidor.
     await expect.poll(async () => (await operacion(page))?.estado, { timeout: 60_000 }).toBe('SINCRONIZADA');
+    expect((await operacion(page)).numeroVenta).toBe(7);
     expect(new Set(sim.operacionesRecibidas).size).toBe(1);
     expect(sim.operacionesRecibidas.length).toBeGreaterThanOrEqual(2);
     expect((await diario(page)).filter((o) => o.estado === 'SINCRONIZADA')).toHaveLength(1);
