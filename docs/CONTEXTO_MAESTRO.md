@@ -1,5 +1,13 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## PR #223 integrado — 2026-10-29 (America/Tegucigalpa)
+
+- **Autorización:** el dueño aprobó revisar e integrar #223, comprobar CI del resultado y retirar su rama integrada. #224 permanece separado, en borrador; no se modifica su rama ni se fusiona su fotografía documental.
+- **Revisión:** head `21d2b4271825410a84a4f4432f2633de127e8d16`, basado exactamente en `main` `767888ac`. Ocho archivos: guardia de importes fiscales ausentes en contingencia, expectativa de módulos SaaS, validador de inventario y documentación. Sin cambios de tasas, exenciones, esquema ni migraciones. Los importes ausentes quedan como conflicto DURO `IMPORTE_FISCAL_INCONSISTENTE`; no se convierten en venta.
+- **Evidencia previa al merge:** workflows de ese head aprobados: Operación de ferretería [40830962357](https://github.com/Nelosama/FerreSystem/actions/runs/40830962357) (validate y guard-base-datos success) y Piloto con API/PostgreSQL [40830962352](https://github.com/Nelosama/FerreSystem/actions/runs/40830962352) success. Repetición local: 30/30 PostgreSQL (`saas-onboarding`, `contingencia-rechazada`, `contingencia-p3-fiscal`) y 11/11 Python del validador, en base temporal.
+- **Merge:** #223 pasa de borrador a revisado y se fusiona mediante merge normal `e254db281b8560e5f825150b8f0ed9e3e433eb7c`, con comprobación del head esperado. Esta bitácora se publica después del merge; los workflows del `main` resultante deben comprobarse por su SHA propio, sin heredar los verdes del PR.
+- **Pendientes vigentes:** NO-GO de piloto. OpenAI/ISV y decisiones fiscales, ensayo en preproducción, Render, respaldos/restauración, hardware y aceptación del cliente conservan sus pendientes. No se ejecutaron comandos sobre bases reales ni cambios de hosting; el push puede activar las automatizaciones existentes.
+
 ## Consolidación autorizada de las 12 ramas — 2026-10-29 (America/Tegucigalpa)
 
 - **Encargo del dueño:** unificar y fusionar las ramas para conservar únicamente `main`. Este encargo autoriza los merges y la retirada de las ramas integradas; sustituye los bloqueos históricos de merge que siguen como bitácora debajo. No concede decisiones fiscales pendientes ni activa funciones opcionales.
