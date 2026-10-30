@@ -1,6 +1,6 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-## Fotografía vigente — 2026-10-30 (auditoría de salida a producción; rama `claude/sharp-fermi-ryjhpl`, PR en borrador)
+## Fotografía vigente — 2026-10-30 (auditoría de salida a producción; rama `claude/sharp-fermi-ryjhpl`, PR [#225](https://github.com/Nelosama/FerreSystem/pull/225) en borrador)
 
 Prevalece sobre la fotografía del 2026-10-29, que queda debajo como histórica. Detalle por módulo, defectos y comandos: [AUDITORIA_FUNCIONAL_MODULOS.md](AUDITORIA_FUNCIONAL_MODULOS.md) (sección vigente; la del 2026-10-29 queda como antecedente).
 
