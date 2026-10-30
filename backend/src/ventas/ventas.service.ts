@@ -235,6 +235,18 @@ export class VentasService {
           if (heredada && heredada.tenantId === tenantId) anterior = heredada;
         }
         if (anterior) {
+          // La huella v2 histórica no incluye el comprobante bancario. Comparar la autorización
+          // durable antes de devolver el reintento evita confundir otro pago con el original,
+          // sin invalidar las huellas ya persistidas ni volver a registrar la autorización.
+          if (autorizacion) {
+            const [aprobacionAnterior] = await query(tx,
+              "SELECT metodo, terminal, referencia FROM aprobaciones_bancarias WHERE tenant_id=$1 AND origen='VENTA' AND origen_id=$2",
+              tenantId, anterior.id);
+            if (!aprobacionAnterior || aprobacionAnterior.metodo !== autorizacion.metodo ||
+                aprobacionAnterior.terminal !== autorizacion.terminal || aprobacionAnterior.referencia !== autorizacion.referencia) {
+              throw new ConflictException('La solicitud ya fue utilizada para otra venta');
+            }
+          }
           // El motivo auditado es parte del contenido del reintento. Se consulta la traza durable para conservar
           // compatibilidad con las huellas v2 ya emitidas por #202, que no incluían excepcionPrecio.
           const [excepcionAnterior] = await query(tx, "SELECT datos->>'motivo' AS motivo FROM auditoria_operaciones WHERE tenant_id=$1 AND entidad_id=$2 AND operacion='VENTA_EXCEPCION_PRECIO' LIMIT 1", tenantId, anterior.id);
