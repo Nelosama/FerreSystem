@@ -28,7 +28,7 @@ Documentos anteriores (`01`–`07`) se conservan como referencia técnica. **No 
 
 Verificados en el candidato `85e4ff88` (PR #155, base PR #153), no en el enunciado anterior:
 
-1. **El importador no lee precios.** Crea productos con `nombre`, `codigo`, `categoria`, `stockActual`, `stockMinimo` y `unidadMedida`. Un producto creado sin precio queda **pendiente de aprobación** y **no se puede vender**.
+1. **El importador sí lee precios** (plantilla de nueve columnas). Con precio y la casilla «aprobar precios» del administrador, el producto se vende al cargar. Sin precio, la celda queda vacía, el producto entra con existencia y queda **pendiente de aprobación**: **no se puede vender** hasta que el administrador lo fije.
 2. **Precios iniciales:** ADMIN usa la pantalla existente «Precios y aprobación», producto por producto, con la hoja de revisión. «Aprobar para venta» registra también el costo inicial ausente/cero en la misma transacción, con ambas auditorías y sin mover stock ni CxP. Costo y venta deben ser positivos para esa aprobación inicial; preparar los productos que se venderán antes de abrir caja. No se importa la hoja de precios ni se habilita aprobación masiva.
 3. **Unidades de importación del candidato integrado:** las 12 unidades del inventario. `galón` y `galon` se normalizan a `GALON`; no se convierten cantidades. Ver §2 de `11-captura-inventario-simple.md`.
 4. **Las categorías se crean con cualquier texto.** Un error de tecleo crea una categoría nueva. Por eso la plantilla exige los 7 nombres existentes.

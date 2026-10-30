@@ -1,63 +1,64 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-## Fotografía vigente — 2026-10-29 UTC (verificada en GitHub; sustituye a las bitácoras de abajo)
+## Fotografía vigente — 2026-10-29 (America/Tegucigalpa; verificada en GitHub)
 
-Las secciones posteriores son bitácora histórica. Donde contradigan esta fotografía, prevalece esta. Cada estado indica el SHA exacto consultado; un resultado de otro SHA no vale como evidencia.
+Esta fotografía describe `main` en el SHA indicado. Las secciones posteriores conservan su valor de bitácora histórica; cuando difieran, prevalece esta fotografía. Los resultados de CI se vinculan a su propio SHA.
 
-**Dictamen: NO-GO.** CI verde en un SHA no significa piloto ni producción listos. Ver «Bloqueos abiertos».
+**Dictamen: NO-GO para piloto con datos reales.** El CI de `main` está verde; siguen pendientes las verificaciones operativas y las decisiones fiscales de abajo.
 
-### `main`
+### `main` y CI
 
-- SHA: **`767888a`** (`merge: conservar avance concurrente de main durante consolidación`).
-- Workflow «Operación de ferretería» (run `40828624758`): **fallo** en el job `validate`. Causas registradas en el log: `test/saas-onboarding` (espera 16 módulos, hay 12) y `test/contingencia-rechazada` (`RangeError` en la comprobación P3 de contingencia). Ambas se corrigen en #223, que aún no está en `main`.
-- Workflow «Piloto con API y PostgreSQL reales» (run `40828624743`): **éxito**.
-- Ramas remotas: solo `main` y `claude/arranque-pos-20261029`. Las ramas integradas ya no existen en `origin`.
-- Despliegue en Render: **no verificado**. El runbook del repositorio describe despliegue automático desde `main`; no se ha consultado el panel.
+- **SHA verificado:** `0d1b925275e73ea012bb5454a2c9c67a56db668f` (`0d1b9252`).
+- **Operación de ferretería:** [run 40980313884](https://github.com/Nelosama/FerreSystem/actions/runs/40980313884), evento `push`, SHA `0d1b9252`: **success**. Jobs `validate` y `guard-base-datos` aprobados; incluye navegador, backend e integración PostgreSQL.
+- **Piloto con API y PostgreSQL reales:** [run 40980313889](https://github.com/Nelosama/FerreSystem/actions/runs/40980313889), mismo SHA: **success**. El nombre del workflow no certifica aceptación de un piloto en el negocio.
+- **Antecedente resuelto:** `767888ac` tenía `validate` en rojo ([run 40828624758](https://github.com/Nelosama/FerreSystem/actions/runs/40828624758)): conteo desactualizado de módulos en `saas-onboarding` y `RangeError` de importes ausentes en `contingencia-rechazada`. #223 corrige ambos y ya está integrado. Ese rojo pertenece al SHA anterior.
+- **Vercel:** check de GitHub **success** en `0d1b9252`. No equivale a una prueba funcional del sitio ni acredita la configuración de Render.
+- **Referencias remotas comprobadas:** `main` y `docs/estado-real-20261029` (#224). La rama integrada de #223 fue retirada. Esta fotografía no incorpora #224 a `main`: #224 sigue en borrador.
 
-### PR integrados en `main` (ancestría de `git merge-base --is-ancestor` verificada para cada SHA)
+### Integraciones comprobadas por ancestría Git
 
-| PR | SHA consultado | Integrado | CI en ese SHA | Nota |
-| --- | --- | --- | --- | --- |
-| #213 | `a5050c6f` | sí | **no verificado**: solo el check de Vercel; sin workflows | Documentación de producción |
-| #214 | `210e0091` | sí | éxito (validate, test, guard) | Análisis de permisos |
-| #215 | `aec2262e` | sí | éxito (validate, test, guard) | SDK de OpenAI desactivado sin clave; **integrado sin función que lo justifique**, contra la instrucción del dueño. Pendiente de decisión |
-| #216 | `dce922b8` | sí, 2026-10-29 06:19:33 UTC (`Nelosama`) | éxito | Liveness sin base de datos |
-| #217 | `da48cb21` | sí, 2026-10-29 06:20:36 UTC (`Nelosama`) | éxito | Fusionado **en borrador** y sin la aprobación del contador para H2. Cambio con efecto: las cotizaciones ya no se crean con tasa distinta de 15 % |
-| #218 | `afab804e` | sí | éxito | Solo pruebas de caracterización |
-| #219 | `3f76b2f3` | sí | éxito | Documentación de auditoría |
-| #220 | `62d2ef6c` | sí | **`validate` en fallo** (`saas-onboarding`, 16 ≠ 12); `test` y `guard` en éxito | Corregido en #223, no en `main` |
-| #221 | `d03aefc8` | sí | éxito | ISV de compras aritmético |
-| #222 | `73a9721d` | sí | éxito | Exenciones bloqueadas hasta D3 y D5 |
-| devoluciones / desglose | `5982c7ea`, `874adc0`, `84f9b14` | sí (ancestros de `main`) | **no verificado**: no hay PR ni workflow para esa rama | Migración `20261029000000_desglose_fiscal_linea` incluida; desglose apagado por defecto |
+| PR / trabajo | SHA integrado | Situación vigente |
+| --- | --- | --- |
+| #213 | `a5050c6f` | Documentación de preparación; no se atribuyen workflows propios a ese SHA |
+| #214 | `210e0091` | Análisis histórico de permisos; prevalece la política SUPERADMIN de #211 |
+| #215 | `aec2262e` | SDK OpenAI instalado; sin consumidor funcional y desactivado sin clave. Decisión sobre utilidad o retirada pendiente |
+| #216 | `dce922b8` | Liveness independiente de PostgreSQL; readiness permanece separado |
+| #217 | `da48cb21` | Cotizaciones nuevas solo admiten 15 %; las antiguas con tasa no autorizada requieren regularización ADMIN auditada. La aprobación fiscal de D1–D11 no queda concedida por el merge |
+| #218 y #221 | `afab804e`, `d03aefc8` | Auditoría y corrección aritmética de compras: costo positivo e ISV no superior al subtotal; no resuelve conciliación con libros ni desglose por línea |
+| #219 | `3f76b2f3` | Auditoría funcional y fiscal integrada; se retiró la prueba T6 anterior a la política provisional |
+| #220 | `62d2ef6c` | Cuatro módulos pendientes ocultos y excluidos de servicios contratables. El fallo de conteo de `saas-onboarding` en esta rama quedó corregido por #223 |
+| #222 | `73a9721d` | Exenciones de línea bloqueadas para todos los roles; intentos auditados. `main` extiende el bloqueo a duplicar cotizaciones exentas |
+| Devoluciones / desglose | `84f9b14`, `874adc0`, `5982c7ea` | Migración aditiva integrada; escritura de desglose apagada por defecto. Propuesta sujeta a decisiones fiscales |
+| #223 | `21d2b427`; merge `e254db28` | Fusionado y rama retirada tras revisión autorizada. Corrige los dos fallos de `main`, el validador de inventario y la guía del cliente |
 
-Los PR #213 a #222 se cerraron como fusionados en GitHub. El campo `merged` del listado aparecía en `false` en algunos casos; se confirmó por `merged_at` y por ancestría.
+**#223 revisado:** sus dos workflows estaban verdes en `21d2b427`; se repitieron localmente 30/30 pruebas PostgreSQL de SaaS/contingencia y 11/11 Python del validador. El código de `0d1b9252` coincide con ese head; solo se añadió la bitácora del merge. Además, los dos workflows del `main` publicado terminaron en verde en su SHA propio, como se enlaza arriba.
 
-### PR abierto: #223
+### Bloqueos abiertos y alcance de la evidencia
 
-- Título: «Arranque del punto de venta: pruebas, validador de inventario con precios y documentación».
-- Estado: **abierto, en borrador**, base `main` `767888a`, cabeza `claude/arranque-pos-20261029` @ **`21d2b42`**, mergeable `clean` contra esa base.
-- CI en `21d2b42`: «Operación de ferretería» (run `40830962357`) en **éxito**; «Piloto con API y PostgreSQL reales» (run `40830962352`) en **éxito**.
-- Contenido: corrección de `saas-onboarding`; corrección de contingencia (P3 sin importes fiscales, `21d2b42`); validador de inventario que admite precios vacíos (`425c942`); documentación de operación del cliente (`c88310a`); plan de la noche.
-- **No está integrado.** No recomendar su merge sin revisión funcional de dos cambios: la corrección de la comprobación P3 en sincronización de contingencia, y la nueva regla de precios vacíos del validador de inventario.
-- El primer commit (`d15247d`) incluye el nombre de un modelo en `Co-Authored-By`; no se pudo corregir porque la reescritura de historia fue denegada.
-
-### Bloqueos abiertos (no se dan por verificados)
-
-| Área | Estado |
+| Área | Estado vigente |
 | --- | --- |
-| Main en CI | Rojo en `767888a`. Se resuelve integrando #223 tras revisión |
-| Render (ruta de health check, SHA desplegado, variables) | **No verificado** |
-| Respaldos reales, restauración probada, RPO/RTO | **No verificado** |
-| Migración `20261029000000` en preproducción, con rollback | **No hecho** |
-| Decisiones fiscales D1–D11 (contador y dueño) | **Pendientes** |
-| Factura fiscal configurable por empresa | **No implementada** (decisión de CAI y del interruptor pendiente) |
-| Hardware de caja, impresora, lector, usuarios reales | **No probado** |
+| CI de `main` | **Resuelto en `0d1b9252`**; comprobar de nuevo ante cualquier SHA posterior |
+| Render: health check, SHA desplegado y variables | **No verificado** |
+| Respaldos productivos, restauración probada y RPO/RTO | **No verificado**; los ensayos de CI usan bases efímeras |
+| Migración `20261029000000_desglose_fiscal_linea` y rollback | Ensayo aislado documentado; **pendiente en copia de preproducción con volumen representativo** |
+| D1–D11 y aprobación fiscal del contador/dueño | **Pendientes**; el merge no las sustituye y no activa `FISCAL_DESGLOSE_POR_LINEA` |
+| Factura fiscal configurable por empresa | **No implementada**; pendiente alcance de CAI e interruptor |
+| Auditoría funcional | Informe integrado en `AUDITORIA_FUNCIONAL_MODULOS.md`; quedan validación del alcance y aceptación del piloto |
+| Hardware de caja, impresora, lector y red física | **No probado** |
 | Aceptación del cliente | **Pendiente** |
-| SDK de OpenAI en `main` | Sin función que lo justifique; decisión pendiente |
+| SDK OpenAI | Presente, sin uso funcional; decisión de alcance pendiente |
 
-Ninguna fila anterior se considera verificada por el CI. La producción no está verificada.
+**Bitácora de #224:** sincronización por merge normal con `main` `0d1b9252`, conservación del registro de #223, actualización de esta fotografía y del GO/NO-GO, revisión de SHA citados y diff limitado a dos Markdown. Los checks propios del nuevo head de #224 se consultan por ese head; el verde de `main` no se les atribuye. Sin cambios de código, esquema o configuración operativa en este PR.
 
 ---
+
+## PR #223 integrado — 2026-10-29 (America/Tegucigalpa)
+
+- **Autorización:** el dueño aprobó revisar e integrar #223, comprobar CI del resultado y retirar su rama integrada. #224 permanece separado, en borrador; no se modifica su rama ni se fusiona su fotografía documental.
+- **Revisión:** head `21d2b4271825410a84a4f4432f2633de127e8d16`, basado exactamente en `main` `767888ac`. Ocho archivos: guardia de importes fiscales ausentes en contingencia, expectativa de módulos SaaS, validador de inventario y documentación. Sin cambios de tasas, exenciones, esquema ni migraciones. Los importes ausentes quedan como conflicto DURO `IMPORTE_FISCAL_INCONSISTENTE`; no se convierten en venta.
+- **Evidencia previa al merge:** workflows de ese head aprobados: Operación de ferretería [40830962357](https://github.com/Nelosama/FerreSystem/actions/runs/40830962357) (validate y guard-base-datos success) y Piloto con API/PostgreSQL [40830962352](https://github.com/Nelosama/FerreSystem/actions/runs/40830962352) success. Repetición local: 30/30 PostgreSQL (`saas-onboarding`, `contingencia-rechazada`, `contingencia-p3-fiscal`) y 11/11 Python del validador, en base temporal.
+- **Merge:** #223 pasa de borrador a revisado y se fusiona mediante merge normal `e254db281b8560e5f825150b8f0ed9e3e433eb7c`, con comprobación del head esperado. Esta bitácora se publica después del merge; los workflows del `main` resultante deben comprobarse por su SHA propio, sin heredar los verdes del PR.
+- **Pendientes vigentes:** NO-GO de piloto. OpenAI/ISV y decisiones fiscales, ensayo en preproducción, Render, respaldos/restauración, hardware y aceptación del cliente conservan sus pendientes. No se ejecutaron comandos sobre bases reales ni cambios de hosting; el push puede activar las automatizaciones existentes.
 
 ## Consolidación autorizada de las 12 ramas — 2026-10-29 (America/Tegucigalpa)
 

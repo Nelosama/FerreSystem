@@ -1,10 +1,12 @@
 # Control previo de importación del candidato integrado
 
-El CSV de inventario tiene exactamente estas seis columnas:
+El CSV de inventario tiene exactamente estas nueve columnas, en este orden (la misma que descarga la pantalla de importación):
 
 ```csv
-nombre,codigo,categoria,stockActual,stockMinimo,unidadMedida
+nombre,codigo,codigoBarras,categoria,unidadMedida,stockActual,stockMinimo,precioCosto,precioVenta
 ```
+
+Las celdas de precio pueden ir vacías: el producto entra **sin precio aprobado** y no se vende hasta que el administrador lo fije. Un precio cero se rechaza.
 
 Desde la raíz del repositorio:
 
@@ -22,7 +24,7 @@ python3 docs/operacion-cliente/herramientas/validar_plantilla.py inventario.csv 
 
 El programa es de solo lectura y no autentica al responsable. Conservar CSV, informe y autorización. Salida 0: datos válidos; 1: errores o sin filas; 2: lectura/argumentos inválidos. No importar si hay errores.
 
-Los precios no se importan. Para revisar una hoja de ocho columnas (`nombre,codigo,categoria,precioCosto,precioVenta,stockActual,stockMinimo,unidadMedida`), usar el perfil maestro:
+Para revisar una hoja de precios antes de cargarla, usar el perfil maestro (acepta las mismas columnas de precio):
 
 ```bash
 python3 backend/scripts/validar-inventario.py maestro-revision.csv --perfil maestro --estricto
