@@ -1,6 +1,37 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
-## Fotografía vigente — 2026-10-29 (America/Tegucigalpa; verificada en GitHub)
+## Fotografía vigente — 2026-10-30 (auditoría de salida a producción; rama `claude/sharp-fermi-ryjhpl`, PR en borrador)
+
+Prevalece sobre la fotografía del 2026-10-29, que queda debajo como histórica. Detalle por módulo, defectos y comandos: [AUDITORIA_FUNCIONAL_MODULOS.md](AUDITORIA_FUNCIONAL_MODULOS.md) (sección vigente; la del 2026-10-29 queda como antecedente).
+
+**Dictamen: NO-GO para producción con datos reales.** El código auditado pasa todas las suites ejecutadas; los bloqueos son fiscales, de infraestructura, de equipos físicos, de aceptación y el módulo Comisiones.
+
+- **SHA auditado:** `a4ab291aba1a8574e9c66d59b044e35f938bda38` (`origin/main`, merge de #224; incluye #223). Sin PR abiertos al empezar. La rama añade solo dos archivos de prueba y documentación; sin cambios de producto, esquema, migraciones, tasas, secretos ni hosting. **NEXUS:** sin cambios de esquema.
+- **Evidencia local (Node 22, PostgreSQL 16 temporal, Chromium 1243):** backend unitarias 836/836, scripts 52/52, Python 11/11, build y lint OK; **integración PostgreSQL completa 71 archivos / 1237 aprobadas / 0 fallidas / 0 omitidas** (con `REAL_SETTINGS_BROWSER=1`); backend e2e 6/6; frontend 575/575, build y lint OK; navegador simulado 427 aprobadas / 26 omitidas / 0 fallidas; móvil 16/16; **piloto real navegador → API → PostgreSQL 182 aprobadas / 4 omitidas / 0 fallidas**; respaldo cifrado con restic PASS (como `nobody`); simulacro de reinicio/restauración 14 PASS; actualización/reversión 25 PASS. Total: 3 356 aprobadas, 0 fallidas, 30 omitidas, 3 fallos esperados que documentan defectos. No ejecutado: WebKit, móvil real, hardware, hosting y bases reales.
+- **Pruebas nuevas:** `backend/test/auditoria-produccion-20261030.postgres.integration.ts` (14 + 2 `it.fails`): doble envío con identificadores distintos en venta por la última unidad, crédito sobre el límite, abono CxC, pago CxP, recepción, devolución, apertura de caja y ajuste — todas con una sola operación aplicada; barrido de roles VENDEDOR/BODEGUERO/CONTADOR sin violaciones; desglose apagado, Contabilidad opt-in, exenciones bloqueadas y cuatro módulos ocultos confirmados. `frontend/e2e-real/auditoria-comisiones-real.spec.ts` (`test.fail`).
+- **Estados:** VERIFICADO EN ENTORNO AISLADO: POS, Cotizaciones (solo 15 %, sin exentas), Inventario/precios/costos/kardex, Levantamiento, Clientes/crédito, Proveedores, Caja, Entregas, Devoluciones (gravadas), Usuarios/autenticación (SMTP real no verificado), Super Admin. PARCIAL: Compras (C-02/C-04), Garantías (sin reclamos), Contabilidad (opt-in apagado, sin asientos automáticos), Reportes (resumen), Configuración/comprobantes (AUD-FIS-01), Contingencia (D11). **BLOQUEADO: Comisiones.** NO IMPLEMENTADO/EXCLUIDO: apartados, transferencias, pedidos especiales, listas de precio (verificado que siguen ocultos).
+- **Defectos nuevos:** AUD-COM-01 (P1) Comisiones muestra siempre L 0: usa `fecha`/`vendedorNombre`, que `GET /ventas` no devuelve (navegador real: esperado L 345, mostrado L 0). AUD-COM-02 (P1) solo considera las 50 ventas más recientes. AUD-COM-03 (P2) periodo fijo de marzo, porcentaje sin persistir, atribución por primer nombre, sin devoluciones, día UTC. Ningún P0.
+- **Decisión fiscal nueva registrada (no dictaminada):** AUD-FIS-01 — el PDF de venta («COMPROBANTE DE VENTA») no lleva CAI ni leyenda de documento no fiscal; factura fiscal no implementada. Decide el contador.
+
+### Pendientes vigentes (lista única)
+
+| Área | Estado | Responsable |
+| --- | --- | --- |
+| Comisiones (AUD-COM-01/02/03) | Ocultar para la primera salida o corregir con regla de negocio; **no cambiado** | Dueño / desarrollo |
+| Documento de venta y CAI (AUD-FIS-01), D1–D11, ISV de compras C-02/C-04 | Pendiente de contador; exenciones bloqueadas, desglose apagado, Contabilidad opt-in | Contador / dueño |
+| Render, Vercel, Supabase, variables y SHA desplegado | **No verificado** | Dueño / infraestructura |
+| Respaldo productivo, restauración probada, RPO/RTO | **No verificado** (solo ensayos efímeros en verde) | Infraestructura |
+| Migración `20261029000000_desglose_fiscal_linea` en preproducción con volumen | Pendiente | NEXUS / infraestructura |
+| SMTP de recuperación en preproducción | **No verificado** | Infraestructura |
+| Impresora, lector, cajón, cámara, PWA instalada, red y apagón en tienda | **No probado** | QA en sitio |
+| Reclamos de garantía, asientos automáticos, reportes ampliados | Funciones ausentes; fuera del alcance inicial | Dueño |
+| Omisiones desactualizadas del piloto real (ARN-05) | Convertir en pruebas reales | QA |
+| SDK OpenAI | Sin uso; decidir utilidad o retirada | Dueño |
+| Aceptación del cliente | Pendiente | Cliente |
+
+**Bitácora 2026-10-30:** lectura de AGENTS/NEXUS/contexto vigente y auditoría anterior; `git fetch` (main `a4ab291`), consulta de PR abiertos (ninguno); cruce de catálogo, rutas y 22 controladores (detecta Comisiones sin backend); ejecución de todas las suites citadas; sondas nuevas y contrapruebas sin `fails` para comprobar que fallan por la causa correcta (dos errores propios del arnés corregidos: ARN-03/04). Sin merge, sin despliegue, sin escrituras en bases reales. Entorno: como root, `initdb` necesita envolturas `runuser -u nobody` y el guion de respaldo debe ejecutarse entero como `nobody`.
+
+## Fotografía anterior — 2026-10-29 (histórica; sustituida por la del 2026-10-30)
 
 Esta fotografía describe `main` en el SHA indicado. Las secciones posteriores conservan su valor de bitácora histórica; cuando difieran, prevalece esta fotografía. Los resultados de CI se vinculan a su propio SHA.
 
