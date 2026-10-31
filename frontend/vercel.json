@@ -54,7 +54,14 @@
       "codex/fix-camera-lifecycle-ios": false,
       "codex/estabilidad-operativa": false,
       "feat/contabilidad-honduras": false,
-      "codex/guia-control-modulos": false
+      "codex/guia-control-modulos": false,
+      "main": false,
+      "fix/fase3-idempotencia-20261030": false,
+      "claude/sprint-contingencia-seguridad-ux-20261030": false,
+      "claude/prod-matriz-fiscal-20261030": false,
+      "claude/prod-auditoria-infra-20261030": false,
+      "claude/sharp-fermi-ryjhpl": false,
+      "claude/sprint-seguimiento-20261030": false
     }
   },
   "ignoreCommand": "sh scripts/vercel-ignore.sh"

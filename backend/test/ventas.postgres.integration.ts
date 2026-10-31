@@ -464,6 +464,41 @@ describe('Ventas / PostgreSQL aislado', () => {
     await expect(ventas.create(randomUUID(), usuarioId, dto)).rejects.toThrow('no disponible');
   });
 
+  it('la identidad de venta incluye la referencia y terminal bancaria, también en reintentos concurrentes', async () => {
+    const dto = { ...request(0.5), metodoPago: 'TARJETA', pagoElectronico: { referencia: 'AUT-FASE3', terminal: 'POS-01' } };
+    const [primera, repetida] = await Promise.all([ventas.create(tenantId, usuarioId, dto), ventas.create(tenantId, usuarioId, dto)]);
+    expect(repetida.id).toBe(primera.id);
+    // Se pierde la respuesta confirmada y el cliente vuelve a enviar el mismo comando.
+    expect((await ventas.create(tenantId, usuarioId, { ...dto, pagoElectronico: { referencia: ' aut-fase3 ', terminal: 'pos-01' } })).id).toBe(primera.id);
+    for (const pagoElectronico of [{ referencia: 'OTRA-AUT', terminal: 'POS-01' }, { referencia: 'AUT-FASE3', terminal: 'POS-02' }]) {
+      await expect(ventas.create(tenantId, usuarioId, { ...dto, pagoElectronico })).rejects.toThrow('otra venta');
+    }
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
+    expect(await available()).toBe(2.25);
+    const aprobaciones = await prisma.$queryRawUnsafe<any[]>('SELECT * FROM aprobaciones_bancarias WHERE tenant_id=$1', tenantId);
+    expect(aprobaciones).toHaveLength(1);
+    expect(aprobaciones[0]).toMatchObject({ referencia: 'AUT-FASE3', terminal: 'POS-01', origen_id: primera.id });
+  });
+
+  it('una autorización ya usada revierte venta, inventario, caja, comprobante y auditoría; permite reintentar el comando fallido', async () => {
+    const dto = { ...request(0.5), metodoPago: 'TARJETA', pagoElectronico: { referencia: 'AUT-ROLLBACK', terminal: 'POS-01' } };
+    const primera = await ventas.create(tenantId, usuarioId, dto);
+    const nueva = { ...dto, solicitudId: randomUUID() };
+    await expect(ventas.create(tenantId, usuarioId, nueva)).rejects.toThrow('otra operación');
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(1);
+    expect(await available()).toBe(2.25);
+    expect((await prisma.secuenciaTenant.findFirstOrThrow({ where: { tenantId, tipo: 'VENTA' } })).ultimoNumero).toBe(1);
+    expect(await prisma.$queryRawUnsafe('SELECT COUNT(*)::int AS n FROM movimientos_caja WHERE referencia=$1', primera.id)).toEqual([{ n: 1 }]);
+    expect(await prisma.$queryRawUnsafe("SELECT COUNT(*)::int AS n FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='VENTA_CREAR'", tenantId)).toEqual([{ n: 1 }]);
+    expect(await ventas.findSolicitud(tenantId, usuarioId, nueva.solicitudId)).toEqual({ estado: 'NO_REGISTRADA' });
+    const reintento = { ...nueva, pagoElectronico: { referencia: 'AUT-NUEVA', terminal: 'POS-01' } };
+    const segunda = await ventas.create(tenantId, usuarioId, reintento);
+    expect(segunda.id).not.toBe(primera.id);
+    expect((await ventas.create(tenantId, usuarioId, reintento)).id).toBe(segunda.id);
+    expect(await available()).toBe(1.75);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(2);
+  });
+
   it('un tenant ajeno no puede descontar ni crear ventas sobre otro inventario', async () => {
     const foreign = await prisma.tenant.create({ data: { nombreComercial: 'Otro tenant' } });
     const foreignUser=await prisma.usuario.create({data:{tenantId:foreign.id,nombre:'Otro cajero',email:'foreign@example.test',passwordHash:'test'}});

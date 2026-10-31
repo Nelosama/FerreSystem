@@ -271,7 +271,7 @@ export class OperacionesService {
    // Idempotencia: el identificador de solicitud es el identificador del movimiento.
    const signed=dto.tipo==='EGRESO_MANUAL'?-monto:monto;
    const [previo]=await query(tx,'SELECT m.*,c.tenant_id AS caja_tenant_id FROM movimientos_caja m JOIN cajas c ON c.id=m.caja_id WHERE m.id IN ($1,$3) AND c.tenant_id=$2',idSolicitud(tenantId,dto.solicitudId),tenantId,dto.solicitudId);
-   if(previo){if(previo.caja_tenant_id!==tenantId||previo.caja_id!==cajaId||previo.tipo!==dto.tipo||Number(previo.monto)!==signed||previo.concepto!==concepto)throw new ConflictException('Solicitud utilizada para otro movimiento');return previo;}
+   if(previo){if(previo.caja_tenant_id!==tenantId||previo.caja_id!==cajaId||previo.usuario_id!==userId||previo.tipo!==dto.tipo||Number(previo.monto)!==signed||previo.concepto!==concepto||(previo.referencia??null)!==referencia)throw new ConflictException('Solicitud utilizada para otro movimiento');return previo;}
    const [c]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3 FOR UPDATE',cajaId,tenantId,userId);if(!c)throw new NotFoundException('Caja no encontrada');
    if(c.estado!=='ABIERTA')throw new ConflictException('La caja está cerrada');
    const movements=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1',c.id);
