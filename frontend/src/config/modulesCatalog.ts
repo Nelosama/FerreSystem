@@ -132,9 +132,9 @@ export const CATALOGO_MODULOS: ModuleDefinition[] = [
 // Opcionales: sin registro habilitado quedan apagados (igual que OPT_IN_TENANT_MODULES del backend).
 export const OPT_IN_MODULES = new Set(['contabilidad']);
 /** Módulos que se suponen activos cuando el servidor no envía la lista (compatibilidad con sesiones antiguas). */
-export const modulosPorDefecto = () => CATALOGO_MODULOS.map(m => m.key).filter(k => !OPT_IN_MODULES.has(k));
+export const modulosPorDefecto = () => CATALOGO_MODULOS.map(m => m.key).filter(k => !OPT_IN_MODULES.has(k) && !PENDING_MODULES.has(k));
 
-export const PENDING_MODULES = new Set(['apartados', 'transferencias_sucursal', 'pedidos_especiales', 'listas_precio']);
+export const PENDING_MODULES = new Set(['apartados', 'transferencias_sucursal', 'pedidos_especiales', 'listas_precio', 'comisiones_venta']);
 /** Módulos que el backend acepta en PUT /modules (sin los pendientes, que lo rechaza con 400). */
 export const MODULOS_CONTRATABLES = CATALOGO_MODULOS.filter(m => !PENDING_MODULES.has(m.key));
 

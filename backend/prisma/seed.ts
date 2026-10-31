@@ -78,7 +78,6 @@ async function main() {
     'garantias',
     'listas_precio',
     'usuarios',
-    'comisiones_venta',
     'arqueo_caja',
     'reportes',
     'configuracion',

@@ -38,7 +38,7 @@ describe('Contabilidad: módulo de activación explícita', () => {
 });
 
 describe('Módulos sin implementación: ocultos aunque existan registros antiguos', () => {
-  const NO_IMPLEMENTADOS = ['apartados', 'transferencias_sucursal', 'pedidos_especiales', 'listas_precio'];
+  const NO_IMPLEMENTADOS = ['apartados', 'transferencias_sucursal', 'pedidos_especiales', 'listas_precio', 'comisiones_venta'];
 
   it('no son predeterminados ni configurables, y no aparecen en el catálogo del Super Admin', () => {
     expect(MODULOS_NO_IMPLEMENTADOS).toEqual(NO_IMPLEMENTADOS);
@@ -61,7 +61,7 @@ describe('Módulos sin implementación: ocultos aunque existan registros antiguo
   });
 
   it('no desactivan otros módulos: pos, inventario y clientes siguen encendidos sin registro', () => {
-    const activos = enabledTenantModules([{ moduleKey: 'apartados', enabled: true }]);
-    for (const key of ['pos', 'inventario', 'clientes', 'cotizaciones', 'garantias', 'reportes']) expect(activos).toContain(key);
+    const activos = enabledTenantModules(NO_IMPLEMENTADOS.map(moduleKey => ({ moduleKey, enabled: true })));
+    for (const key of ['pos', 'inventario', 'clientes', 'cotizaciones', 'garantias', 'usuarios', 'reportes']) expect(activos).toContain(key);
   });
 });
