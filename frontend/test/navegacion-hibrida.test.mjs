@@ -142,3 +142,17 @@ test('menú desplegable: si no cabe en ningún lado se limita la altura para des
   assert.ok(p.maxHeight < 900);
   assert.ok(p.top >= 0 && p.top + p.maxHeight <= vista.alto);
 });
+
+
+test('Comisiones no es contratable ni navegable con sesiones antiguas; los módulos operativos permanecen', () => {
+  const catalogo = cargar('src/config/modulesCatalog.ts');
+  assert.ok(!catalogo.modulosPorDefecto().includes('comisiones_venta'));
+  assert.ok(!catalogo.MODULOS_CONTRATABLES.some(m => m.key === 'comisiones_venta'));
+  for (const modules of [undefined, TODOS, []]) {
+    const tasks = availableTasks({ id: 'u', rol: 'ADMIN', permisosConfigurados: true, permisos: ['comisiones_venta'] }, { id: 't', modulosHabilitados: modules });
+    assert.ok(!tasks.some(t => t.key === 'comisiones'));
+    if (modules?.length || modules === undefined) {
+      for (const key of ['pos', 'usuarios', 'reportes']) assert.ok(tasks.some(t => t.key === key), key);
+    }
+  }
+});
