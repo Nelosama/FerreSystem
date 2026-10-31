@@ -1,3 +1,34 @@
+# Seguimiento vigente — 2026-10-31 (continuidad tras agotarse Codex)
+
+Base comprobada: `main` `89369e2d69401387fa19a53e39a09abb7a60e05b` (merge de #227). Sustituye la sección del 2026-10-30 que sigue debajo, que queda como histórica.
+
+**Recuperación de Codex.** El contenedor de esta sesión es un clon nuevo: no hay cambios sin commit, `stash`, worktrees ni ramas `codex/*` de la sesión agotada; lo que exista solo en esa sesión no es accesible y no se reconstruye. Codex publica con la identidad Git del dueño («Daniel Castillo»). Su último trabajo publicado está en #227: diagnóstico temporal del E2E de logout (`5c535f0d`, `9b0bb48b`), retirada del workflow temporal (`ec69410a`) y espera del login renderizado antes de `goBack` (`987515f6`, sin relajar aserciones). Ese head tenía los tres checks en success; no quedó trabajo parcial.
+
+| PR | Estado verificado en GitHub | Head / merge |
+|---|---|---|
+| #225 Auditoría | Fusionado 2026-10-31 02:39Z | head `d48d9959`, merge `07243c20` |
+| #226 Comisiones excluido | Fusionado 2026-10-31 00:30Z | merge `46f7db7d` |
+| #227 Matriz fiscal | **Fusionado en esta sesión** tras revisión, CI verde del head y sin conflictos | head `987515f6`, merge `89369e2d` |
+| #228 Infraestructura | Fusionado 2026-10-31 02:38Z | head `43c7a1a9`, merge `1422d467` |
+| #229 Seguimiento | Este documento; actualizado con `main` `89369e2d` por merge normal | ver PR |
+| #230 Idempotencia | Fusionado 2026-10-31 01:51Z | head `f004abde`, merge `4faf3800` |
+| #231 Contingencia, seguridad, UX | Fusionado 2026-10-31 02:09Z | head `92412062`, merge `b89f5e6b` |
+
+`main` `07243c20` tenía ambos workflows en success (runs 41160988683 y 41160988785). Las ramas fusionadas ya fueron retiradas del remoto; ningún PR cerrado reciente contiene commits sin integrar.
+
+**Trabajo nuevo** en `claude/focused-hawking-52oiqz` (PR propio, sin cambios de producto ni esquema):
+
+- La rama no estaba en el bloqueo de Vercel: se añadió a `vercel.json`, `vercel-ignore.sh` y su prueba antes del primer push (`ca7d2fc4`, 38/38).
+- ARN-05 resuelto: las dos omisiones desactualizadas del piloto real (entrega parcial por línea y autorización del datáfono) son pruebas reales navegador→API→PostgreSQL. La primera ejecución detectó que la API responde 409 (`ConflictException`) y no 400; se corrigió la expectativa de la prueba, no el producto.
+
+**Pruebas ejecutadas (local, PostgreSQL 16 temporal, datos sintéticos):** backend 835/835, scripts 52/52, Python 11/11, frontend 585/585, builds y lint sin errores; integración PostgreSQL completa 73 archivos / 1261 aprobadas / 2 fallos esperados (7 fallos iniciales de entorno por la envoltura local de `pg_dump`, repetidos en verde tras corregirla); piloto real completo 186 aprobadas / 0 fallidas / 2 omitidas. El CI de cada PR se consulta por su propio SHA.
+
+**GO/NO-GO: NO-GO** para producción con datos reales. Persisten decisiones fiscales D1–D11, C-01/C-02/C-04 y AUD-FIS-01 (#227 solo las enumera); Render con health check vacío y migración en el arranque; respaldo/restauración y RPO/RTO reales; SMTP real; dispositivos físicos; aceptación del cliente. Comisiones sigue excluido hasta que exista especificación aprobada.
+
+Sin despliegues, sin bases reales, sin force push y sin eliminar ramas con trabajo pendiente.
+
+---
+
 # Seguimiento vigente — 2026-10-30 (America/Tegucigalpa)
 
 Base comprobada: `main` `46f7db7d74c04ce9c9fd3dbbe6e0eaa9e8810412`. #226 está fusionado; Comisiones excluido, sin implementar reglas ni cálculos. Ya no está pendiente decidir su merge. #225 ya incorporó esa base y sustituyó el E2E fallido de Comisiones por una prueba positiva de exclusión.
