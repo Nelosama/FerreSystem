@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: logout-probe-${{ github.event.pull_request.number }}-${{ matrix.wait_ready }}
+  group: logout-probe-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
   reproduce:
