@@ -26,7 +26,7 @@ import { useTenant } from '../context/TenantContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SLUG_SECCION, seccionDePlataforma, type SeccionPlataforma } from '../config/platformNavigation';
 import { ModuleControls } from '../components/ModuleControls';
-import { CATALOGO_MODULOS, MODULOS_CONTRATABLES, OPT_IN_MODULES, modulosPorDefecto } from '../config/modulesCatalog';
+import { MODULOS_CONTRATABLES, OPT_IN_MODULES, modulosPorDefecto } from '../config/modulesCatalog';
 import { useI18n } from '../context/I18nContext';
 import { api } from '../utils/api';
 import { alertas } from '../utils/alertas';
@@ -293,7 +293,7 @@ export const SuperAdminPage: React.FC = () => {
 
   const abrirModalModulos = (tenantItem: TenantItem) => {
     setModalModulosTenant(tenantItem);
-    setTempModulosTenant(tenantItem.modulosHabilitados || modulosPorDefecto());
+    setTempModulosTenant(MODULOS_CONTRATABLES.filter(m => (tenantItem.modulosHabilitados || modulosPorDefecto()).includes(m.key)).map(m => m.key));
   };
 
 
@@ -322,7 +322,7 @@ export const SuperAdminPage: React.FC = () => {
       registrarAuditoria(
         'ACTUALIZAR_SERVICIOS',
         modalModulosTenant.nombreComercial,
-        `Módulos activos actualizados: ${tempModulosTenant.length} de ${CATALOGO_MODULOS.length}`,
+        `Módulos activos actualizados: ${tempModulosTenant.length} de ${MODULOS_CONTRATABLES.length}`,
       );
       setMensajeExito(t('uxAudit.admin_success_1', { name: modalModulosTenant.nombreComercial }));
       setModalModulosTenant(null);
@@ -605,7 +605,7 @@ export const SuperAdminPage: React.FC = () => {
 
             <ul className="empresas-grid" aria-label={t('uxAudit.company_customer')}>
               {tenants.map((tItem) => {
-                const activeMods = tItem.modulosHabilitados || modulosPorDefecto();
+                const activeMods = MODULOS_CONTRATABLES.filter(m => (tItem.modulosHabilitados || modulosPorDefecto()).includes(m.key));
                 const modCount = activeMods.length;
                 const opcionesEmpresa: MenuItem[] = [
                   { key: 'servicios', label: t('uxAudit.services'), title: t('uxAudit.manage_subscribed_services'), icono: <Layers size={15} aria-hidden="true" />, onSelect: () => abrirModalModulos(tItem), guia: 'modules' },
@@ -651,7 +651,7 @@ export const SuperAdminPage: React.FC = () => {
                         data-guide="modules"
                         title={t('uxAudit.manage_subscribed_services_and_modules')}
                       >
-                        <Layers size={13} color="var(--color-primary-text)" aria-hidden="true" /> {modCount} / {CATALOGO_MODULOS.length} {t('uxAudit.services')}
+                        <Layers size={13} color="var(--color-primary-text)" aria-hidden="true" /> {modCount} / {MODULOS_CONTRATABLES.length} {t('uxAudit.services')}
                       </button>
                       <button
                         type="button"

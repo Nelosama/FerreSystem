@@ -296,3 +296,39 @@ for (const width of [390, 320]) test(`settings: controles completos dentro de la
   }));
   expect(fuera).toEqual([]);
 });
+
+for (const modules of [undefined, ['pos', 'usuarios', 'reportes', 'comisiones_venta']]) {
+  test(`Comisiones bloqueado con sesión heredada: ${modules ? 'enabled=true' : 'sin lista'}`, async ({ page }) => {
+    await setup(page, 'ADMIN', 'SIDEBAR', 'es', modules);
+    await page.goto('/');
+    await expect(page.locator('nav.app-rail')).toBeVisible();
+    const buttons = page.locator('nav.app-rail button.app-rail-item');
+    for (let i = 0; i < await buttons.count(); i++) {
+      await buttons.nth(i).click();
+      await expect(page.locator('a[href="/comisiones"]')).toHaveCount(0);
+      await buttons.nth(i).click();
+    }
+    await page.locator('.task-finder-toggle').click();
+    await page.locator('#task-search').fill('comisiones');
+    await expect(page.locator('.task-search-results a[href="/comisiones"]')).toHaveCount(0);
+    await page.goto('/comisiones');
+    await expect(page.getByRole('heading', { name: 'Acceso Denegado', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'COMISIONES DE VENTA', exact: true })).toHaveCount(0);
+    // Los permisos ADMIN heredados siguen permitiendo usuarios y reportes en navegación.
+    await page.goto('/');
+    await page.locator('.task-finder-toggle').click();
+    for (const [query, route] of [['venta', '/pos'], ['personal', '/usuarios'], ['reportes', '/reportes']]) {
+      await page.locator('#task-search').fill(query);
+      await expect(page.locator(`.task-search-results a[href="${route}"]`)).toBeVisible();
+    }
+  });
+}
+
+test('Comisiones heredado no aparece como control ni dependencia en administración', async ({ page }) => {
+  await setup(page, 'SUPERADMIN', 'SIDEBAR', 'es', ['comisiones_venta']);
+  await page.goto('/admin/negocios/ux-company/servicios');
+  const form = page.locator('form').filter({ hasText: 'Servicios del negocio' });
+  await expect(form.locator('input[type="checkbox"]')).toHaveCount(12);
+  await expect(form.getByText(/comisiones/i)).toHaveCount(0);
+  await expect(form.getByRole('alert')).toHaveCount(0);
+});
