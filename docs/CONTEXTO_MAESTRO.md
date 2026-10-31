@@ -1,5 +1,22 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Integración autorizada y bloqueo de despliegues — 2026-10-30 (America/Tegucigalpa)
+
+- El dueño confirmó «Yes» para integrar por merge los PR #230, #231, #227, #228, #225 y #229, verificando CI por SHA. Esta autorización sustituye la prohibición anterior de merge; siguen prohibidos despliegues, cambios en bases reales y eliminación de ramas.
+- Base remota comprobada: `main` `46f7db7d74c04ce9c9fd3dbbe6e0eaa9e8810412`. Los seis heads publicados mantienen ambos workflows en success. No se ha hecho todavía ningún merge de esta etapa.
+- Vercel: confirmado despliegue de producción de `main` `46f7db7`; antes de fusionar se bloquean despliegues automáticos para main y las seis ramas en `frontend/vercel.json` y `frontend/scripts/vercel-ignore.sh`. El sitio existente no se suspende. Reactivar despliegues requiere otra autorización y retirar deliberadamente este bloqueo.
+- Render (consulta autorizada en My Workspace): servicio FerreSystem `srv-datjl3ek1f9s738hmh6g`, rama main, `autoDeploy=yes`, trigger commit. Comando de arranque observado: `npx prisma migrate deploy && node dist/main.js`; healthCheckPath vacío. **No se puede fusionar mientras Auto-Deploy siga activo**, porque iniciaría un despliegue con posibilidad de migración de la base real. El conector disponible no permite cambiar ese ajuste; se pidió al dueño poner Auto-Deploy en Off, sin suspender el servicio. Debe confirmarse con una lectura nueva antes del primer merge.
+- Bloqueo de Vercel comprobado localmente: 45/45 pruebas de guardia y cabeceras; sin invocar despliegues. El CI del nuevo commit se verifica por su propio SHA.
+- NEXUS: no se añaden cambios de esquema ni migraciones. Persisten el NO-GO para datos reales, decisiones fiscales, respaldos, hardware y aceptación. Las fotografías siguientes conservan evidencia histórica; la autorización y el bloqueo de esta sección prevalecen.
+
+## Sincronización de PR — 2026-10-30 (America/Tegucigalpa)
+
+- Base remota confirmada: `main` `46f7db7d74c04ce9c9fd3dbbe6e0eaa9e8810412`; incluye el merge de #226 y su head `ba41159ff416f495fb0dc18eaf44ac0648308bcf`.
+- Comisiones está excluido del piloto: no contratable ni navegable, también con permisos históricos. No se implementó su cálculo; AUD-COM-01/02/03 describen código residual que requiere especificación e implementación antes de reactivarse. La exclusión ya está integrada; no requiere otro merge de #226.
+- #225, #227, #228, #229, #230 y #231 siguen separados de `main`. Esta actualización incorpora `origin/main` conservando historial; no integra los PR entre sí. La evidencia y el CI deben consultarse en cada PR por su SHA publicado, sin heredar resultados de heads anteriores.
+- NEXUS: no se añaden cambios de esquema ni migraciones. Integración y E2E usan exclusivamente PostgreSQL temporal y datos sintéticos. Sin bases reales, merge a main, despliegues ni eliminación de ramas.
+- Persisten decisiones fiscales D1–D11/CAI, infraestructura y respaldos reales, hardware y aceptación del cliente. Preparar un PR para integración no concede GO para producción.
+
 ## PR #226 — bloqueo de Comisiones auditado — 2026-10-30 UTC
 
 - Encargo vigente: auditar y corregir #226 sin merge, despliegues ni bases reales; fiscalidad, SMTP e infraestructura quedan en Claude. Head remoto inicial comprobado: `a9113213ff8c4f3e247a6f6944a65770668f2f03`; base `main` `a4ab291aba1a8574e9c66d59b044e35f938bda38`.
