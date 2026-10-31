@@ -134,6 +134,8 @@ test('logout captura el Bearer, limpia identidad y Atrás no reactiva módulos',
   await expect(page).toHaveURL(/\/login$/);
   await expect.poll(() => logoutBearer).toMatch(/^Bearer /);
   expect(await page.evaluate(() => localStorage.getItem('ferre_tenant'))).toBeNull();
+  // La URL cambia antes de que React termine la transición: probar Atrás tras completar la pantalla de logout.
+  await expect(page.locator('#login-correo')).toBeVisible();
   const calls = state.calls.length;
   await page.goBack();
   await expect(page).toHaveURL(/\/login$/);
