@@ -1,5 +1,30 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Fotografía vigente — 2026-10-31 (continuidad tras agotarse Codex; base `main` `89369e2d69401387fa19a53e39a09abb7a60e05b`)
+
+Prevalece sobre las fotografías siguientes, que quedan como historial. Seguimiento detallado: [SEGUIMIENTO_SPRINT_NOCTURNO_20261030.md](SEGUIMIENTO_SPRINT_NOCTURNO_20261030.md) (#229).
+
+- **Recuperación de Codex:** el contenedor es un clon nuevo, sin cambios sin commit, `stash`, worktrees ni ramas `codex/*`. Lo que exista solo en la sesión agotada no es accesible y no se reconstruye. Codex publica con la identidad Git del dueño; su último trabajo publicado (#227: corrección del E2E de logout `987515f6`, workflow temporal ya retirado en `ec69410a`) estaba completo y con CI verde. Ningún PR cerrado reciente contiene commits sin integrar; las cabezas de #225/#228/#230/#231 son ancestros de `main`.
+- **Integrado en `main`:** #226, #230, #231, #228, #225 (merge `07243c20`, ambos workflows success) y **#227** (merge `89369e2d` en esta sesión: revisión de código, CI verde del head `987515f6`, sin conflictos; la matriz no aprueba ninguna decisión fiscal). **Abierto:** #229 (seguimiento, solo documentación) y el PR de `claude/focused-hawking-52oiqz`.
+- **Trabajo de esta sesión (`claude/focused-hawking-52oiqz`):** `ca7d2fc4` añade la rama al bloqueo de Vercel antes del primer push (`vercel.json`, `vercel-ignore.sh`, `vercel-pilot-guard.test.mjs` 38/38). `ebae5402` resuelve ARN-05: entrega parcial por línea y autorización del datáfono pasan de `test.skip` a pruebas reales navegador→API→PostgreSQL. Sin cambios de producto, esquema ni migraciones. **NEXUS:** sin cambios de esquema.
+- **Evidencia local (Node 22, PostgreSQL 16 temporal con envolturas `runuser -u nobody`, Chromium 1243):** backend build/lint, unitarias 76 archivos / 835/835, scripts 52/52, Python 11/11; frontend build/lint, 585/585; integración dirigida `cobro-entrega` + `pagos-bancarios` 75/75; **piloto real completo 186 aprobadas / 0 fallidas / 2 omitidas** (las omitidas son el canal web para cliente final, alcance no confirmado). Integración PostgreSQL completa (`REAL_SETTINGS_BROWSER=1`): primera pasada 71/73 archivos, 1254 aprobadas, 7 fallos de entorno en `migrations` y `ventas` (`pg_dump` ejecutado como `nobody` por la envoltura local no podía escribir en el directorio de respaldo de root); con la envoltura corregida esos dos archivos pasan 58/58. Total **73 archivos / 1261 aprobadas / 2 fallos esperados** (`it.fails` del cálculo residual de Comisiones) / 0 fallos de producto. Nota de entorno: solo `initdb`/`pg_ctl`/`postgres` necesitan `runuser -u nobody`; los clientes (`pg_dump`, `pg_restore`, `psql`, `createdb`) deben ejecutarse como el usuario de la prueba. La primera ejecución de las pruebas nuevas falló por una expectativa propia (400 en lugar del 409 de `ConflictException`); se corrigió la prueba, no el producto.
+- **Barrido P0 de aislamiento (lectura de código):** las escrituras `update/delete` por `id` sin `tenantId` en levantamientos, productos, usuarios, proveedores y contingencia van precedidas de lecturas acotadas por tenant en la misma transacción; sin hallazgo nuevo.
+- **Sin despliegues:** Vercel bloquea `main` y las ramas abiertas; Render quedó con Auto-Deploy Off según la consulta del 2026-10-30 (no reconsultado en esta sesión: el conector de Render no está disponible aquí).
+
+### Pendientes canónicos de producción (NO-GO)
+
+| Área | Estado real | Responsable |
+|---|---|---|
+| Fiscalidad D1–D11, C-01/C-02/C-04, documento de venta y CAI (AUD-FIS-01) | Enumeradas en `MATRIZ_DECISIONES_FISCALES_20261030.md`; ninguna aprobada | Contador / dueño |
+| Render: arranque y salud | `healthCheckPath` vacío y `npx prisma migrate deploy && node dist/main.js` en el arranque. Propuesta: health check `/api/health/live` y migraciones como paso previo controlado; requiere autorización de infraestructura | Dueño / infraestructura |
+| Respaldos reales, restauración, RPO/RTO, migración en copia representativa | No certificados (solo ensayos efímeros) | Infraestructura / NEXUS |
+| Variables de hosting, SMTP real | No verificados | Infraestructura |
+| Dispositivos físicos y aceptación del cliente | Pendientes (`CHECKLIST_FISICO_Y_ACEPTACION_20261030.md`) | QA en sitio / cliente |
+| Comisiones y módulos fuera del piloto | Excluidos; reactivar exige especificación aprobada | Dueño |
+| SDK OpenAI | Sin uso; decidir utilidad o retirada | Dueño |
+
+**Bitácora 2026-10-31:** `git status/branch/log/worktree/stash`, `fetch` de ramas y `refs/pull/*`; consulta de PR, ramas y runs en GitHub; revisión del diff de #227/#229 y `merge-tree` sin conflictos; merge de #227 con SHA esperado; pruebas citadas arriba; documentación. Sin despliegues, bases reales, force push ni borrado de ramas.
+
 ## Fotografía de integración documental — base main `b89f5e6b17b8ada0e21485ed7374dd4eb3f894db`
 
 Esta fotografía corresponde a la base indicada, antes de incorporar la auditoría de #225. Los registros siguientes son históricos y no sustituyen el estado de esta sección. La actualización final de continuidad se completa en #229.
