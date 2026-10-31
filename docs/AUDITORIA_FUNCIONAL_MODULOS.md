@@ -1,3 +1,5 @@
+> Estado vigente tras sincronizar con `main` `46f7db7`: #226 está integrado y Comisiones está excluido del piloto. AUD-COM-01/02/03 se conservan como hallazgos del código residual, no como fallos de una función accesible. El E2E de esta rama verifica acceso denegado sin `test.fail`; las dos sondas `it.fails` caracterizan los cálculos residuales y no prueban activación. Las cifras de auditoría siguientes pertenecen a su SHA histórico; la nueva validación figura en el PR por SHA. Persisten los bloqueos fiscales, operativos y de aceptación.
+
 # Auditoría funcional de módulos — salida a producción (vigente, 2026-10-30)
 
 > **Estado vigente.** Esta sección sustituye a las matrices del 2026-10-29, que se conservan al final como **antecedente histórico** (revisión principalmente de código). Si difieren, prevalece esta sección. No es una aceptación del cliente, ni una certificación fiscal, ni una verificación del hosting.
