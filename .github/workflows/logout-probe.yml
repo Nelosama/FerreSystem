@@ -1,0 +1,47 @@
+name: Diagnóstico temporal de logout e historial
+on:
+  pull_request:
+    paths:
+      - frontend/e2e/session-lifecycle.spec.ts
+      - .github/workflows/logout-probe.yml
+permissions:
+  contents: read
+concurrency:
+  group: logout-probe-${{ github.event.pull_request.number }}-${{ matrix.wait_ready }}
+  cancel-in-progress: true
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        wait_ready: ['0', '1']
+    env:
+      VITE_API_URL: https://api.example.test/api
+      LOGOUT_PROBE_WAIT: ${{ matrix.wait_ready }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Repetir sin reintentos ni aumento de plazos
+        working-directory: frontend
+        run: |
+          desktop_status=0
+          npx playwright test -g 'logout captura' --repeat-each=20 --retries=0 --workers=2 || desktop_status=$?
+          mobile_status=0
+          npx playwright test -c playwright.session.mobile.config.ts -g 'logout captura' --repeat-each=20 --retries=0 --workers=2 || mobile_status=$?
+          test "$desktop_status" -eq 0 && test "$mobile_status" -eq 0
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: logout-probe-${{ matrix.wait_ready }}
+          path: frontend/test-results/
+          retention-days: 7

@@ -134,9 +134,23 @@ test('logout captura el Bearer, limpia identidad y Atrás no reactiva módulos',
   await expect(page).toHaveURL(/\/login$/);
   await expect.poll(() => logoutBearer).toMatch(/^Bearer /);
   expect(await page.evaluate(() => localStorage.getItem('ferre_tenant'))).toBeNull();
+  if (process.env.LOGOUT_PROBE_WAIT === '1') await expect(page.locator('#login-correo')).toBeVisible();
   const calls = state.calls.length;
   await page.goBack();
-  await expect(page).toHaveURL(/\/login$/);
+  try { await expect(page).toHaveURL(/\/login$/); }
+  catch (error) {
+    const diagnostic = await page.evaluate(() => ({
+      path: location.pathname,
+      visibility: document.visibilityState,
+      pending: document.documentElement.dataset.sessionPending,
+      loginMounted: !!document.querySelector('#login-correo'),
+      operationsMounted: document.querySelectorAll('.operation-page').length,
+      protectedHidden: Array.from(document.querySelectorAll('[data-protected-content]')).map(node => ({ hidden: (node as HTMLElement).hidden, inert: (node as HTMLElement).inert })),
+      stored: Object.fromEntries(['ferre_token','ferre_user','ferre_tenant','session-test-seeded'].map(key => [key, localStorage.getItem(key) !== null])),
+    }));
+    console.log('LOGOUT_RESTORE_DIAGNOSTIC', JSON.stringify({ ...diagnostic, callsAfterLogout: state.calls.slice(calls) }));
+    throw error;
+  }
   await expect(page.locator('.operation-page')).toHaveCount(0);
   expect(state.calls.length).toBe(calls);
 });
