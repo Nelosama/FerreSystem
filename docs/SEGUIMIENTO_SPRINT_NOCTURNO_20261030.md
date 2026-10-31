@@ -76,3 +76,10 @@ Comprobaciones de código:
 ## 8. Dictamen técnico
 
 **NO-GO técnico** para producción con datos reales. Motivo: decisiones humanas pendientes y verificaciones externas no hechas. Ninguna verificación en producción.
+
+## Actualización 2026-10-31 (verificada en GitHub)
+
+- **#226 fusionado** en `main` el 2026-10-31 00:30:47Z por Nelosama (`merge` `46f7db7`). El estado «listo para revisión» de la sección 1 queda superado.
+- **#225** tenía un conflicto documental en `docs/CONTEXTO_MAESTRO.md`. Resuelto con un merge normal de `main` (`a8ddd1b`, sin rebase). Su prueba de Comisiones pasó de `test.fail()` a verificar la exclusión (`19786a6`), comprobada en e2e-real contra el backend real (1/1).
+- **#227 y #228** pasaron a «listo para revisión» (no borrador) por Nelosama. Sus heads no cambiaron (`4cbffb0` y `1d5675a`); sus pruebas siguen siendo las de sus SHA.
+- **#231** (contingencia, seguridad y UX) sin conflictos con el nuevo `main`; CI en success en `4d68934`.
