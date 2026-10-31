@@ -1,5 +1,29 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Fotografía de integración documental — base main `b89f5e6b17b8ada0e21485ed7374dd4eb3f894db`
+
+Esta fotografía corresponde a la base indicada, antes de incorporar la auditoría de #225. Los registros siguientes son históricos y no sustituyen el estado de esta sección. La actualización final de continuidad se completa en #229.
+
+- **Autorización vigente:** el dueño autorizó los merges normales de #230, #231, #227, #228, #225 y #229, sin despliegues, cambios en bases reales ni eliminación de ramas.
+- **Integrado y verificado por Git:** #226 (exclusión de Comisiones), #230 (merge `4faf380089881c93aac277c165414c499764c09e`, idempotencia monetaria) y #231 (merge `b89f5e6b17b8ada0e21485ed7374dd4eb3f894db`, contingencia, relevo de pestaña y aislamiento por rol). No se atribuye a main ningún PR documental todavía abierto en esta base.
+- **Comisiones:** excluido del piloto, no contratable ni navegable incluso con permisos históricos. AUD-COM-01/02/03 son defectos del cálculo residual, no de una función accesible. Su reactivación exige especificación e implementación con pruebas. El E2E de esta auditoría comprueba la exclusión sin `test.fail`; las dos sondas `it.fails` caracterizan el cálculo residual.
+- **Sin despliegues:** Render quedó con Auto-Deploy Off por acción del dueño y consulta posterior (`autoDeploy=no`, trigger `off`), sin suspender el servicio. Vercel bloquea main y las seis ramas mediante configuración Git e ignoreCommand. Ambos sitios conservan el despliegue previo de `46f7db7`; el código fusionado no se declara desplegado.
+- **NEXUS:** sin cambios nuevos de esquema ni migraciones. Todas las pruebas usan PostgreSQL temporal, PGlite y datos sintéticos; no se ejecutan comandos contra bases reales. No se reactivan automatismos de publicación al cerrar esta integración.
+- **Evidencia:** ensayo local conjunto de los seis PR: backend 835/835, frontend 584/584 y PostgreSQL dirigido 106 aprobadas + 2 fallos esperados. Las cifras completas del CI de cada nuevo head se registran en su PR por SHA; el verde de un head anterior no certifica el head actual. Chromium 151 local tiene un defecto de emulación offline reproducido sin código del producto; los E2E completos se verifican con el navegador de CI.
+
+### Pendientes canónicos de producción (NO-GO)
+
+| Área | Estado real |
+|---|---|
+| Fiscalidad D1–D11, CAI/documento y decisiones de compras | Pendientes de contador/dueño; el merge no las aprueba |
+| Render y procedimiento de publicación | Auto-Deploy Off; start command observado usa migrate deploy directo; healthCheckPath vacío. Conciliar arranque y salud antes de autorizar despliegues |
+| Respaldos reales, restauración, RPO/RTO y migraciones en copia representativa | No certificados por los ensayos efímeros |
+| Variables y ambientes de hosting, SMTP real | Sin certificación; no se leyeron secretos ni se envió correo real |
+| Dispositivos físicos y aceptación del cliente | Pendientes |
+| Reactivación de Comisiones y funciones fuera del piloto | Requieren especificación y desarrollo, no retirar solamente el bloqueo |
+
+## Historial de esta integración (referencia, no estado vigente)
+
 ## Integración autorizada y bloqueo de despliegues — 2026-10-30 (America/Tegucigalpa)
 
 - El dueño confirmó «Yes» para integrar por merge los PR #230, #231, #227, #228, #225 y #229, verificando CI por SHA. Esta autorización sustituye la prohibición anterior de merge; siguen prohibidos despliegues, cambios en bases reales y eliminación de ramas.
@@ -17,6 +41,38 @@
 - NEXUS: no se añaden cambios de esquema ni migraciones. Integración y E2E usan exclusivamente PostgreSQL temporal y datos sintéticos. Sin bases reales, merge a main, despliegues ni eliminación de ramas.
 - Persisten decisiones fiscales D1–D11/CAI, infraestructura y respaldos reales, hardware y aceptación del cliente. Preparar un PR para integración no concede GO para producción.
 
+## Fotografía vigente — 2026-10-30 (auditoría de salida a producción; rama `claude/sharp-fermi-ryjhpl`, PR [#225](https://github.com/Nelosama/FerreSystem/pull/225) en borrador)
+
+Prevalece sobre la fotografía del 2026-10-29, que queda debajo como histórica. Detalle por módulo, defectos y comandos: [AUDITORIA_FUNCIONAL_MODULOS.md](AUDITORIA_FUNCIONAL_MODULOS.md) (sección vigente; la del 2026-10-29 queda como antecedente).
+
+**Dictamen: NO-GO para producción con datos reales.** El código auditado pasa todas las suites ejecutadas; los bloqueos son fiscales, de infraestructura, de equipos físicos, de aceptación ; Comisiones ya está excluido por #226.
+
+- **SHA auditado:** `a4ab291aba1a8574e9c66d59b044e35f938bda38` (`origin/main`, merge de #224; incluye #223). Sin PR abiertos al empezar. La rama añade solo dos archivos de prueba y documentación; sin cambios de producto, esquema, migraciones, tasas, secretos ni hosting. **NEXUS:** sin cambios de esquema.
+- **Evidencia local (Node 22, PostgreSQL 16 temporal, Chromium 1243):** backend unitarias 836/836, scripts 52/52, Python 11/11, build y lint OK; **integración PostgreSQL completa 71 archivos / 1237 aprobadas / 0 fallidas / 0 omitidas** (con `REAL_SETTINGS_BROWSER=1`); backend e2e 6/6; frontend 575/575, build y lint OK; navegador simulado 427 aprobadas / 26 omitidas / 0 fallidas; móvil 16/16; **piloto real navegador → API → PostgreSQL 182 aprobadas / 4 omitidas / 0 fallidas**; respaldo cifrado con restic PASS (como `nobody`); simulacro de reinicio/restauración 14 PASS; actualización/reversión 25 PASS. Total: 3 356 aprobadas, 0 fallidas, 30 omitidas, 3 fallos esperados históricos; tras #226 el E2E de Comisiones verifica exclusión sin `test.fail`. No ejecutado: WebKit, móvil real, hardware, hosting y bases reales.
+- **Pruebas nuevas:** `backend/test/auditoria-produccion-20261030.postgres.integration.ts` (14 + 2 `it.fails`): doble envío con identificadores distintos en venta por la última unidad, crédito sobre el límite, abono CxC, pago CxP, recepción, devolución, apertura de caja y ajuste — todas con una sola operación aplicada; barrido de roles VENDEDOR/BODEGUERO/CONTADOR sin violaciones; desglose apagado, Contabilidad opt-in, exenciones bloqueadas y cuatro módulos ocultos confirmados. `frontend/e2e-real/auditoria-comisiones-real.spec.ts` (verificación positiva de exclusión tras #226; sin `test.fail`).
+- **Estados:** VERIFICADO EN ENTORNO AISLADO: POS, Cotizaciones (solo 15 %, sin exentas), Inventario/precios/costos/kardex, Levantamiento, Clientes/crédito, Proveedores, Caja, Entregas, Devoluciones (gravadas), Usuarios/autenticación (SMTP real no verificado), Super Admin. PARCIAL: Compras (C-02/C-04), Garantías (sin reclamos), Contabilidad (opt-in apagado, sin asientos automáticos), Reportes (resumen), Configuración/comprobantes (AUD-FIS-01), Contingencia (D11). **EXCLUIDO DEL PILOTO: Comisiones (#226 integrado).** NO IMPLEMENTADO/EXCLUIDO: apartados, transferencias, pedidos especiales, listas de precio (verificado que siguen ocultos).
+- **Defectos históricos del código residual, inaccesible tras #226:** AUD-COM-01 (P1) Comisiones muestra siempre L 0: usa `fecha`/`vendedorNombre`, que `GET /ventas` no devuelve (navegador real: esperado L 345, mostrado L 0). AUD-COM-02 (P1) solo considera las 50 ventas más recientes. AUD-COM-03 (P2) periodo fijo de marzo, porcentaje sin persistir, atribución por primer nombre, sin devoluciones, día UTC. Ningún P0.
+- **Decisión fiscal nueva registrada (no dictaminada):** AUD-FIS-01 — el PDF de venta («COMPROBANTE DE VENTA») no lleva CAI ni leyenda de documento no fiscal; factura fiscal no implementada. Decide el contador.
+
+### Pendientes vigentes (lista única)
+
+| Área | Estado | Responsable |
+| --- | --- | --- |
+| Comisiones (AUD-COM-01/02/03) | **Excluido por #226**, fusionado en `main` `46f7db7` (el módulo no se contrata ni se navega). Reactivar exige especificación aprobada y backend | Dueño / desarrollo |
+| Documento de venta y CAI (AUD-FIS-01), D1–D11, ISV de compras C-02/C-04 | Pendiente de contador; exenciones bloqueadas, desglose apagado, Contabilidad opt-in | Contador / dueño |
+| Render, Vercel, Supabase, variables y SHA desplegado | **No verificado** | Dueño / infraestructura |
+| Respaldo productivo, restauración probada, RPO/RTO | **No verificado** (solo ensayos efímeros en verde) | Infraestructura |
+| Migración `20261029000000_desglose_fiscal_linea` en preproducción con volumen | Pendiente | NEXUS / infraestructura |
+| SMTP de recuperación en preproducción | **No verificado** | Infraestructura |
+| Impresora, lector, cajón, cámara, PWA instalada, red y apagón en tienda | **No probado** | QA en sitio |
+| Reclamos de garantía, asientos automáticos, reportes ampliados | Funciones ausentes; fuera del alcance inicial | Dueño |
+| Omisiones desactualizadas del piloto real (ARN-05) | Convertir en pruebas reales | QA |
+| SDK OpenAI | Sin uso; decidir utilidad o retirada | Dueño |
+| Aceptación del cliente | Pendiente | Cliente |
+
+**Bitácora 2026-10-30:** lectura de AGENTS/NEXUS/contexto vigente y auditoría anterior; `git fetch` (main `a4ab291`), consulta de PR abiertos (ninguno); cruce de catálogo, rutas y 22 controladores (detecta Comisiones sin backend); ejecución de todas las suites citadas; sondas nuevas y contrapruebas sin `fails` para comprobar que fallan por la causa correcta (dos errores propios del arnés corregidos: ARN-03/04). Sin merge, sin despliegue, sin escrituras en bases reales. Entorno: como root, `initdb` necesita envolturas `runuser -u nobody` y el guion de respaldo debe ejecutarse entero como `nobody`.
+
+
 ## PR #226 — bloqueo de Comisiones auditado — 2026-10-30 UTC
 
 - Encargo vigente: auditar y corregir #226 sin merge, despliegues ni bases reales; fiscalidad, SMTP e infraestructura quedan en Claude. Head remoto inicial comprobado: `a9113213ff8c4f3e247a6f6944a65770668f2f03`; base `main` `a4ab291aba1a8574e9c66d59b044e35f938bda38`.
@@ -27,7 +83,7 @@
 - Sin conflictos con `main` comprobado mediante `git merge-tree --write-tree HEAD origin/main`. Dictamen definitivo y resultados remotos: descripción de https://github.com/Nelosama/FerreSystem/pull/226. El GO de piloto sigue pendiente de decisiones fiscales, infraestructura, hardware y aceptación; la validación de este PR no concede GO.
 
 
-## Fotografía vigente — 2026-10-29 (America/Tegucigalpa; verificada en GitHub)
+## Fotografía anterior — 2026-10-29 (histórica; sustituida por la del 2026-10-30)
 
 Esta fotografía describe `main` en el SHA indicado. Las secciones posteriores conservan su valor de bitácora histórica; cuando difieran, prevalece esta fotografía. Los resultados de CI se vinculan a su propio SHA.
 
