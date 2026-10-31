@@ -1,5 +1,13 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Sincronización de PR — 2026-10-30 (America/Tegucigalpa)
+
+- Base remota confirmada: `main` `46f7db7d74c04ce9c9fd3dbbe6e0eaa9e8810412`; incluye el merge de #226 y su head `ba41159ff416f495fb0dc18eaf44ac0648308bcf`.
+- Comisiones está excluido del piloto: no contratable ni navegable, también con permisos históricos. No se implementó su cálculo; AUD-COM-01/02/03 describen código residual que requiere especificación e implementación antes de reactivarse. La exclusión ya está integrada; no requiere otro merge de #226.
+- #225, #227, #228, #229, #230 y #231 siguen separados de `main`. Esta actualización incorpora `origin/main` conservando historial; no integra los PR entre sí. La evidencia y el CI deben consultarse en cada PR por su SHA publicado, sin heredar resultados de heads anteriores.
+- NEXUS: no se añaden cambios de esquema ni migraciones. Integración y E2E usan exclusivamente PostgreSQL temporal y datos sintéticos. Sin bases reales, merge a main, despliegues ni eliminación de ramas.
+- Persisten decisiones fiscales D1–D11/CAI, infraestructura y respaldos reales, hardware y aceptación del cliente. Preparar un PR para integración no concede GO para producción.
+
 ## PR #226 — bloqueo de Comisiones auditado — 2026-10-30 UTC
 
 - Encargo vigente: auditar y corregir #226 sin merge, despliegues ni bases reales; fiscalidad, SMTP e infraestructura quedan en Claude. Head remoto inicial comprobado: `a9113213ff8c4f3e247a6f6944a65770668f2f03`; base `main` `a4ab291aba1a8574e9c66d59b044e35f938bda38`.
