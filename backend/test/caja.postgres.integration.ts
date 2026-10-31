@@ -94,6 +94,21 @@ describe('Caja y arqueo / PostgreSQL aislado', () => {
   const cerrar = (userId: string, cajaId: string, monto: number, notas?: string) => ops.cerrar(tenantId, userId, cajaId, { monto, notas } as any);
   const esperado = async (userId: string) => (await cajaDe(userId)).efectivoEsperado;
 
+  it('movimiento manual: duplicados concurrentes y respuesta perdida conservan un efecto; otra referencia es conflicto', async () => {
+    const caja = await abrir(cajeroPermisoId, 100);
+    const dto = { solicitudId: randomUUID(), tipo: 'INGRESO_MANUAL' as const, monto: 20, concepto: 'Fondo sintético', referencia: 'REF-1' };
+    const [primero, segundo] = await Promise.all([ops.movimientoCaja(tenantId, cajeroPermisoId, caja.id, dto), ops.movimientoCaja(tenantId, cajeroPermisoId, caja.id, dto)]);
+    expect(segundo.id).toBe(primero.id);
+    expect((await ops.movimientoCaja(tenantId, cajeroPermisoId, caja.id, dto)).id).toBe(primero.id);
+    await expect(ops.movimientoCaja(tenantId, cajeroPermisoId, caja.id, { ...dto, referencia: 'REF-2' })).rejects.toThrow('otro movimiento');
+    expect(await esperado(cajeroPermisoId)).toBe(120);
+    expect(await sql('SELECT COUNT(*)::int AS n FROM movimientos_caja WHERE id=$1', primero.id)).toEqual([{ n: 1 }]);
+    expect(await sql("SELECT COUNT(*)::int AS n FROM auditoria_operaciones WHERE entidad_id=$1 AND operacion='CAJA_MOVIMIENTO_MANUAL'", primero.id)).toEqual([{ n: 1 }]);
+    // Una identidad nueva sí representa un segundo ingreso legítimo.
+    await ops.movimientoCaja(tenantId, cajeroPermisoId, caja.id, { ...dto, solicitudId: randomUUID() });
+    expect(await esperado(cajeroPermisoId)).toBe(140);
+  });
+
   it('apertura: registra fondo, responsable y fecha; el reintento no duplica y una segunda caja abierta se rechaza', async () => {
     const solicitud = randomUUID();
     const primera = await ops.abrir(tenantId, cajeroId, { solicitudId: solicitud, monto: 500 } as any);
