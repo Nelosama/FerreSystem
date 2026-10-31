@@ -194,7 +194,21 @@ test.describe('2. Venta con tarjeta (POS bancario externo)', () => {
     expect(despues).toBe(antes);
   });
 
-  test.skip('2.2 datáfono: la venta guarda la referencia de autorización del POS bancario — PENDIENTE: no hay integración ni campo de autorización', async () => {});
+  // ARN-05: pagoElectronico.referencia/terminal se exige y se registra en aprobaciones_bancarias (pagos-bancarios [I]).
+  test('2.2 datáfono: la venta guarda la autorización del POS bancario; sin ella o repetida se rechaza', async ({ request }) => {
+    const ref = `aut-e2e-22-${RUN}`;
+    const sinAutorizacion = await venta(request, cajero1.token, { solicitudId: randomUUID(), metodoPago: 'TARJETA', detalles: [{ productoId: P1, cantidad: 1, precioUnitario: 100 }] });
+    expect(sinAutorizacion.status()).toBe(400);
+    const sid = randomUUID();
+    const res = await venta(request, cajero1.token, { solicitudId: sid, metodoPago: 'TARJETA', pagoElectronico: { referencia: ref, terminal: 'pos-e2e' }, detalles: [{ productoId: P1, cantidad: 1, precioUnitario: 100 }] });
+    expect(res.status(), await res.text()).toBe(201);
+    const filas = () => sql(`SELECT metodo||'|'||terminal||'|'||referencia||'|'||monto::float||'|'||origen FROM aprobaciones_bancarias WHERE tenant_id='${TENANT_A}' AND referencia='${ref.toUpperCase()}'`);
+    expect(filas()).toBe(`TARJETA|POS-E2E|${ref.toUpperCase()}|115|VENTA`);
+    const repetida = await venta(request, cajero1.token, { solicitudId: randomUUID(), metodoPago: 'TARJETA', pagoElectronico: { referencia: ref, terminal: 'POS-E2E' }, detalles: [{ productoId: P1, cantidad: 1, precioUnitario: 100 }] });
+    expect(repetida.status()).toBe(409);
+    expect(await repetida.text()).toContain('ya fue registrada');
+    expect(filas()).toBe(`TARJETA|POS-E2E|${ref.toUpperCase()}|115|VENTA`);
+  });
 });
 
 test.describe('3. Venta al crédito para cliente registrado', () => {
