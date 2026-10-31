@@ -23,7 +23,7 @@ import { noStore } from '../src/common/no-store.middleware';
 //  1. Doble envío con identificadores DISTINTOS (doble clic que genera otra solicitud, dos cajas o dos pestañas) en
 //     operaciones monetarias y de existencias: solo una operación puede consumir el mismo saldo/existencia.
 //  2. Barrido de roles para VENDEDOR, BODEGUERO y CONTADOR (el barrido existente cubre CAJERO).
-//  3. Contrato de Comisiones: la pantalla calcula en el navegador con campos que la API no devuelve.
+//  3. Contrato residual de Comisiones (inaccesible tras #226): el cálculo usa campos que la API no devuelve.
 //  4. Límites fiscales vigentes: desglose apagado, contabilidad opt-in y módulos pendientes ocultos.
 // Los defectos conocidos se expresan con `it.fails`: la aserción describe el comportamiento CORRECTO y la prueba
 // solo se aprueba mientras el defecto exista. Al corregirlo, la prueba falla y debe pasar a `it`.
@@ -249,7 +249,7 @@ describe('Auditoría de producción 2026-10-30 / AppModule y PostgreSQL aislado'
     }, 120000);
   });
 
-  describe('3. Comisiones de venta (módulo activo por defecto)', () => {
+  describe('3. Comisiones: caracterización del cálculo residual, módulo excluido por #226)', () => {
     // Réplica literal del cálculo de frontend/src/pages/ComisionesPage.tsx (líneas 88–104): filtra por `v.fecha` y por
     // `v.vendedorNombre` con coincidencia de primer nombre, y suma `v.total`. Comisiones no tiene endpoint propio.
     const calculoDePantalla = (ventas: any[], usuario: { nombre: string }, pct: number, desde: string, hasta: string) => {
