@@ -46,5 +46,7 @@ test('la lista del frontend coincide con MODULOS_NO_IMPLEMENTADOS del backend', 
   const backend = fs.readFileSync('../backend/src/common/tenant-modules.ts', 'utf8');
   const back = [...backend.match(/MODULOS_NO_IMPLEMENTADOS = \[([^\]]*)\]/)[1].matchAll(/'([a-z_]+)'/g)].map(m => m[1]).sort();
   assert.deepEqual(front, back);
-  assert.deepEqual(back, [...NO_IMPLEMENTADOS].sort());
+  assert.deepEqual(back, [...NO_IMPLEMENTADOS, 'comisiones_venta'].sort());
+  assert.match(fs.readFileSync('src/components/ProtectedRoute.tsx', 'utf8'), /PENDING_MODULES\.has\(requiredModule\)/);
+  assert.match(fs.readFileSync('src/utils/taskNavigation.ts', 'utf8'), /PENDING_MODULES\.has\(item\.moduleKey\)/);
 });

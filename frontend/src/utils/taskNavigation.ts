@@ -24,6 +24,7 @@ export function canNavigate(item: NavigationItem, user: UserInfo | null, tenant:
   if (!user || (item.allowedRoles?.length && !item.allowedRoles.includes(user.rol))) return false;
   if (item.requiredPermiso && user.rol !== 'ADMIN' && user.permisosConfigurados && !user.permisos?.includes(item.requiredPermiso)) return false;
   if (!item.moduleKey) return true;
+  if (PENDING_MODULES.has(item.moduleKey)) return false;
   return tenant.modulosHabilitados === undefined ? !OPT_IN_MODULES.has(item.moduleKey) : tenant.modulosHabilitados.includes(item.moduleKey);
 }
 const ordenMenu = (key: string) => { const i = NAVIGATION_ORDER.indexOf(key); return i < 0 ? NAVIGATION_ORDER.length : i; };

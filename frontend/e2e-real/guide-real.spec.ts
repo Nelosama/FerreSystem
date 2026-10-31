@@ -46,7 +46,7 @@ test('Modo Guía y módulos: navegador → NestJS → PostgreSQL, sin mocks', as
   await page.goto(`/admin/negocios/${company}/servicios`);
   const users = page.getByRole('checkbox', { name: /^Personal ·/ });
   const commissions = page.getByRole('checkbox', { name: /^Comisiones de venta ·/ });
-  await commissions.uncheck();
+  await expect(commissions).toHaveCount(0);
   await users.uncheck();
   await page.getByRole('button', { name: 'Guardar servicios' }).click();
   await confirmarAlerta(page);
@@ -57,7 +57,7 @@ test('Modo Guía y módulos: navegador → NestJS → PostgreSQL, sin mocks', as
   expect((await api.get('usuarios', { headers: { Authorization: `Bearer ${admin}` } })).status()).toBe(403);
   expect(await prisma.usuario.count({ where: { tenantId: company } })).toBe(beforeUsers);
   expect((await api.get(`admin/tenants/${company}/usuarios?gestion=true`, { headers: auth })).status()).toBe(200);
-  await users.check(); await commissions.check(); await page.getByRole('button', { name: 'Guardar servicios' }).click();
+  await users.check(); await expect(commissions).toHaveCount(0); await page.getByRole('button', { name: 'Guardar servicios' }).click();
   await expect(page.getByRole('status')).toContainText('Cambios guardados');
   expect((await api.get('usuarios', { headers: { Authorization: `Bearer ${admin}` } })).status()).toBe(200);
   await api.dispose();
@@ -82,11 +82,12 @@ async function menuOfrece(page: Page, ruta: string): Promise<boolean> {
   return hallado;
 }
 
-test('13 módulos contratables: URL, navegación y API reales, dependencias y recuperación administrativa', async ({ page }) => {
+test('12 módulos contratables: URL, navegación y API reales, dependencias y recuperación administrativa', async ({ page }) => {
   test.setTimeout(180000);
   expect(CATALOGO_MODULOS).toHaveLength(17);
-  // Los cuatro pendientes quedan fuera: el backend rechaza sus claves en PUT /modules.
-  expect(MODULOS_CONTRATABLES).toHaveLength(13);
+  // Los cinco pendientes quedan fuera: el backend rechaza sus claves en PUT /modules.
+  expect(MODULOS_CONTRATABLES).toHaveLength(12);
+  expect(MODULOS_CONTRATABLES.map(m => m.key)).not.toContain('comisiones_venta');
   const api = await request.newContext({ baseURL: BASE });
   const platform = await api.post('auth/login', { data: { email: 'superadmin.e2e@e2e.invalid', password: PASSWORD } });
   expect(platform.status()).toBe(200);
@@ -106,8 +107,8 @@ test('13 módulos contratables: URL, navegación y API reales, dependencias y re
     listas_precio: '/listas-precio', usuarios: '/usuarios', comisiones_venta: '/comisiones',
     arqueo_caja: '/arqueo-caja', reportes: '/reportes', configuracion: '/configuracion', contabilidad: '/contabilidad',
   };
-  // Las cuatro claves pendientes no tienen operaciones propias.
-  // Comisiones consume Usuarios/POS; Configuración conserva su recuperación exclusiva de plataforma.
+  // Las cinco claves pendientes no tienen operaciones propias.
+  // Configuración conserva su recuperación exclusiva de plataforma.
   const today = new Date().toISOString().slice(0, 10);
   const endpoints: Record<string, string> = {
     pos: 'ventas', cotizaciones: 'cotizaciones', inventario: 'productos', levantamiento: 'levantamientos',
@@ -157,6 +158,48 @@ test('13 módulos contratables: URL, navegación y API reales, dependencias y re
     expect((await api.get(`admin/tenants/${company}/settings`, { headers: auth })).status()).toBe(200);
   } finally {
     expect((await update(saved)).status()).toBe(200);
+    await api.dispose();
+  }
+});
+
+
+test('Comisiones histórico enabled=true permanece bloqueado en API, menú y URL; no afecta operación', async ({ page }) => {
+  const key = { tenantId_moduleKey: { tenantId: company, moduleKey: 'comisiones_venta' } };
+  const original = await prisma.tenantModule.findUnique({ where: key });
+  const api = await request.newContext({ baseURL: BASE });
+  try {
+    await prisma.tenantModule.upsert({ where: key, create: { tenantId: company, moduleKey: 'comisiones_venta', enabled: true }, update: { enabled: true } });
+    const platform = await api.post('auth/login', { data: { email: 'superadmin.e2e@e2e.invalid', password: PASSWORD } });
+    expect(platform.status()).toBe(200);
+    const platformAuth = { Authorization: `Bearer ${(await platform.json()).accessToken}` };
+    for (const enabled of [true, false]) {
+      expect((await api.put(`admin/tenants/${company}/modules`, { headers: platformAuth, data: { modules: [{ moduleKey: 'comisiones_venta', enabled }] } })).status()).toBe(400);
+    }
+    const response = await api.post('auth/login', { data: { email: 'admin.a@e2e.invalid', password: PASSWORD } });
+    expect(response.status()).toBe(200);
+    const session = await response.json();
+    expect(session.tenant.id).toBe(company);
+    const headers = { Authorization: `Bearer ${session.accessToken}` };
+    const settings = await api.get('tenant/settings', { headers });
+    expect(settings.status()).toBe(200);
+    expect((await settings.json()).modulosHabilitados).not.toContain('comisiones_venta');
+    for (const path of ['ventas', 'usuarios', 'operaciones/caja']) {
+      expect((await api.get(path, { headers })).status(), path).toBe(200);
+    }
+    await login(page, 'admin.a@e2e.invalid');
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/');
+      await expect(page.locator('[data-protected-content]')).toBeVisible();
+      expect(await menuOfrece(page, '/comisiones')).toBe(false);
+      await page.goto('/comisiones');
+      await expect(page.getByRole('heading', { name: 'Acceso Denegado', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'COMISIONES DE VENTA', exact: true })).toHaveCount(0);
+    }
+    expect((await prisma.tenantModule.findUniqueOrThrow({ where: key })).enabled).toBe(true);
+  } finally {
+    if (original) await prisma.tenantModule.update({ where: key, data: { enabled: original.enabled } });
+    else await prisma.tenantModule.delete({ where: key });
     await api.dispose();
   }
 });
