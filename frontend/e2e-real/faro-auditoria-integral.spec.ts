@@ -395,7 +395,32 @@ test.describe('4. Ventas, cotizaciones y POS', () => {
     expect(num(`SELECT stock_actual::float FROM productos WHERE id='${pAprob}'`)).toBe(fisico - 3);
   });
 
-  test.skip('entrega parcial de una venta — PENDIENTE: no implementada; POS_VENTA_ENTREGA_DECISION.md deja la decisión al propietario', async () => {});
+  // ARN-05: la entrega parcial por línea existe (POST /entregas/ventas/:id/entregas; cobro-entrega [I]).
+  test('entrega parcial por línea: cada entrega descuenta solo lo entregado; el reintento y el exceso no mueven existencia', async ({ request }) => {
+    const res = await venta(request, cajero, { solicitudId: randomUUID(), metodoPago: 'EFECTIVO', detalles: [{ productoId: pAprob, cantidad: 2, precioUnitario: 100, modoEntrega: 'BODEGA' }] });
+    expect(res.status(), await res.text()).toBe(201);
+    const id = (await res.json()).id;
+    const det = sql(`SELECT id FROM detalles_venta WHERE venta_id='${id}'`);
+    const estado = () => sql(`SELECT p.stock_actual::float||'|'||d.cantidad_entregada::float FROM productos p JOIN detalles_venta d ON d.producto_id=p.id WHERE d.id='${det}'`);
+    const fisico = num(`SELECT stock_actual::float FROM productos WHERE id='${pAprob}'`);
+    expect(estado()).toBe(`${fisico}|0`);
+    const url = `${API}/entregas/ventas/${id}/entregas`;
+    const primera = { solicitudId: randomUUID(), receptorNombre: 'Cliente QA FARO', lineas: [{ detalleId: det, cantidad: 1 }] };
+    expect((await request.post(url, { headers: auth(cajero.token), data: primera })).status()).toBe(403);
+    expect(estado()).toBe(`${fisico}|0`);
+    expect((await request.post(url, { headers: auth(bodeguero.token), data: primera })).status()).toBe(201);
+    expect(estado()).toBe(`${fisico - 1}|1`);
+    // Reintento con la misma solicitud: misma entrega, sin segundo descuento.
+    expect((await request.post(url, { headers: auth(bodeguero.token), data: primera })).status()).toBe(201);
+    expect(estado()).toBe(`${fisico - 1}|1`);
+    const exceso = await request.post(url, { headers: auth(bodeguero.token), data: { solicitudId: randomUUID(), receptorNombre: 'Cliente QA FARO', lineas: [{ detalleId: det, cantidad: 2 }] } });
+    expect(exceso.status()).toBe(409);
+    expect(await exceso.text()).toContain('pendientes de entrega');
+    expect(estado()).toBe(`${fisico - 1}|1`);
+    expect((await request.post(url, { headers: auth(bodeguero.token), data: { solicitudId: randomUUID(), receptorNombre: 'Cliente QA FARO', lineas: [{ detalleId: det, cantidad: 1 }] } })).status()).toBe(201);
+    expect(estado()).toBe(`${fisico - 2}|2`);
+    expect(num(`SELECT COUNT(*) FROM movimientos_inventario WHERE documento_id='${id}' AND detalle_venta_id='${det}'`)).toBe(2);
+  });
 
   test('devolución parcial acredita solo lo devuelto; devolver más de lo vendido se rechaza', async ({ request }) => {
     const res = await venta(request, cajero, { solicitudId: randomUUID(), metodoPago: 'EFECTIVO', detalles: [{ productoId: pAprob, cantidad: 3, precioUnitario: 100 }] });

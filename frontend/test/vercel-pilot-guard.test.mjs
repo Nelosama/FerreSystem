@@ -54,7 +54,7 @@ test('PR 195 no genera despliegues automáticos', () => {
 });
 
 // La integración autorizada conserva el sitio existente y requiere despliegue separado.
-for (const branch of ['main', 'fix/fase3-idempotencia-20261030', 'claude/sprint-contingencia-seguridad-ux-20261030', 'claude/prod-matriz-fiscal-20261030', 'claude/prod-auditoria-infra-20261030', 'claude/sharp-fermi-ryjhpl', 'claude/sprint-seguimiento-20261030']) {
+for (const branch of ['main', 'fix/fase3-idempotencia-20261030', 'claude/sprint-contingencia-seguridad-ux-20261030', 'claude/prod-matriz-fiscal-20261030', 'claude/prod-auditoria-infra-20261030', 'claude/sharp-fermi-ryjhpl', 'claude/sprint-seguimiento-20261030', 'claude/focused-hawking-52oiqz']) {
   test(`integración sin despliegue: ${branch} bloqueado por configuración y por ignoreCommand`, () => {
     assert.equal(configuration.git.deploymentEnabled[branch], false);
     const result = spawnSync('sh', ['-c', configuration.ignoreCommand], { cwd: frontendDir, env: { VERCEL_GIT_COMMIT_REF: branch }, encoding: 'utf8' });
