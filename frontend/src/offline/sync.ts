@@ -111,7 +111,7 @@ export async function sincronizarPendientes(
             : { ...cambiosSegunRespuesta(op, { operacionId: op.operacionId, estado: 'ERROR_TEMPORAL', mensaje: error?.message ?? 'Sin conexión' }) };
         await actualizarSincronizacion(op.operacionId, cambios);
       }
-      resultado.error = status === 401 || status === 403 ? 'Sesión no válida para enviar' : 'Sin conexión con el servidor';
+      resultado.error = mensajeErrorSincronizacion(status);
       break;
     }
   }
@@ -119,6 +119,16 @@ export async function sincronizarPendientes(
   const restantes = await listarOperaciones();
   resultado.pendientes = restantes.filter((o) => o.estado === 'PENDIENTE' || o.estado === 'ENVIANDO').length;
   return resultado;
+}
+
+/**
+ * Texto para el cajero según el fallo del lote. Un 5xx no es un corte de red: el servidor recibió la petición y falló.
+ * Decir «Sin conexión» llevaría a revisar el internet en lugar de esperar el reintento automático.
+ */
+export function mensajeErrorSincronizacion(status: number | undefined): string {
+  if (status === 401 || status === 403) return 'Sesión no válida para enviar';
+  if (status !== undefined && status >= 500) return 'El servidor no pudo procesar las ventas. Se reintentará automáticamente.';
+  return 'Sin conexión con el servidor';
 }
 
 /** Un 4xx que no es de autenticación ni de permisos: el servidor rechazó la solicitud (no se reintenta igual). */
