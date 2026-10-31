@@ -254,6 +254,21 @@ test.describe('POS offline de contingencia — backend real', () => {
     await segunda.close();
   });
 
+  test('5b. la pestaña operadora se cierra: la otra pestaña toma el relevo sin recargar y puede cobrar', async () => {
+    const { page, context } = await abrir();
+    await ingresar(page, CAJERO, '/pos-contingencia');
+    await expect(page.getByRole('button', { name: new RegExp(TALADRO) })).toBeVisible();
+    const segunda = await context.newPage();
+    await segunda.goto('/pos-contingencia');
+    await expect(segunda.getByRole('alert')).toContainText('Este POS está abierto en otra pestaña');
+    await page.close();
+    // Sin recargar: el aviso desaparece y el catálogo queda operable en la pestaña que estaba en espera.
+    await expect(segunda.getByRole('alert').filter({ hasText: 'Este POS está abierto en otra pestaña' })).toHaveCount(0, { timeout: 15_000 });
+    await expect(segunda.getByRole('status').filter({ hasText: 'Esta pestaña no cobra' })).toHaveCount(0);
+    await expect(segunda.getByRole('button', { name: new RegExp(TALADRO) })).toBeEnabled();
+    await segunda.close();
+  });
+
   test('6. recuperación tras cierre inesperado: una operación que quedó "enviando" vuelve a pendiente y se envía una sola vez', async () => {
     const { page, context } = await abrir();
     await ingresar(page, CAJERO, '/pos-contingencia');

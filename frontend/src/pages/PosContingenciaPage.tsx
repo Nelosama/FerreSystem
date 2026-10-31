@@ -68,15 +68,22 @@ export default function PosContingenciaPage() {
   }, []);
 
   // Pestaña operadora: solo una pestaña puede cobrar. Las demás muestran el aviso y no escriben en el diario.
+  // Si la operadora se cierra, una pestaña en espera toma el relevo sin recargar (antes quedaba bloqueada hasta recargar).
   useEffect(() => {
     if (!navigator.locks) { setOperador(true); return; }
+    const control = new AbortController();
     let liberar: (() => void) | undefined;
-    navigator.locks.request('ferre-pos-operador', { ifAvailable: true }, (lock) => {
-      if (!lock) { setOperador(false); return undefined; }
+    const ocupar = () => {
       setOperador(true);
       return new Promise<void>((resolve) => { liberar = resolve; });
+    };
+    navigator.locks.request('ferre-pos-operador', { ifAvailable: true }, (lock) => {
+      if (lock) return ocupar();
+      setOperador(false);
+      navigator.locks.request('ferre-pos-operador', { signal: control.signal }, ocupar).catch(() => undefined);
+      return undefined;
     }).catch(() => setOperador(true));
-    return () => liberar?.();
+    return () => { control.abort(); liberar?.(); };
   }, []);
 
   // Carga inicial desde el almacén local: no requiere red.
