@@ -1,3 +1,18 @@
+## Verificación adicional de solo lectura — 2026-10-30 (America/Tegucigalpa)
+
+Esta sección sustituye únicamente los puntos que ahora se pudieron consultar en los paneles conectados. No certifica producción ni acceso a datos reales.
+
+- **Render, My Workspace:** servicio `FerreSystem` (`srv-datjl3ek1f9s738hmh6g`), repositorio `Nelosama/FerreSystem`, rama `main`, directorio `backend/`. Auto-Deploy estaba en `yes` con trigger `commit`; el dueño lo cambió a Off y una consulta nueva confirmó `autoDeploy=no`, `autoDeployTrigger=off`, sin suspender el servicio.
+- **Despliegue Render observado:** `dep-dbijde95efls73d4sl30`, estado `live`, commit `46f7db7d74c04ce9c9fd3dbbe6e0eaa9e8810412`. No se disparó ningún despliegue desde esta auditoría.
+- **Arranque Render observado:** `npx prisma migrate deploy && node dist/main.js`. El campo `healthCheckPath` está vacío; no se presume un health check HTTP configurado. No se ejecutó ni modificó el arranque. Debe conciliarse con el procedimiento controlado del repositorio antes de autorizar despliegues y operaciones sobre bases reales.
+- **Vercel, equipo nelspace / proyecto ferre-system:** despliegue de producción observado `dpl_DdQ71e5TpcwZgdfo1xgHqMXM1qsC`, estado READY, commit `46f7db7d74c04ce9c9fd3dbbe6e0eaa9e8810412`, procedente de main. Se confirmó que los merges anteriores podían publicar automáticamente.
+- **Integración sin despliegue:** la guardia de Vercel en `frontend/vercel.json` y `frontend/scripts/vercel-ignore.sh` bloquea main y las seis ramas de esta ronda. El servicio existente se mantiene; reactivar publicación requiere una autorización posterior. No se consultaron valores de secretos ni se cambiaron variables, DNS, infraestructura de datos o comandos de arranque.
+- **Siguen pendientes:** variables y configuración de ambientes, respaldos/PITR reales, restauración productiva, historial y ensayo de migraciones en copia representativa, SMTP real, hardware y aceptación. No se consultó ni modificó ninguna base real.
+
+Las verificaciones aisladas y la fotografía anterior se conservan abajo con su alcance original.
+
+---
+
 # Auditoría de infraestructura, respaldos, migraciones y SMTP — 2026-10-30
 
 > Revisión de **lo que el repositorio puede demostrar** más las comprobaciones locales en entorno aislado. No hubo acceso a los paneles de Render, Vercel ni Supabase, ni a bases productivas. Cada punto que dependa de un panel figura como **NO VERIFICADO** con el dato que hay que mirar. Nada de esta auditoría se ejecutó contra servicios reales ni envió correo.
