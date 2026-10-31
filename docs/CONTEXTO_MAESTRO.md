@@ -1,5 +1,29 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Fotografía de integración documental — base main `b89f5e6b17b8ada0e21485ed7374dd4eb3f894db`
+
+Esta fotografía corresponde a la base indicada, antes de incorporar la auditoría de #225. Los registros siguientes son históricos y no sustituyen el estado de esta sección. La actualización final de continuidad se completa en #229.
+
+- **Autorización vigente:** el dueño autorizó los merges normales de #230, #231, #227, #228, #225 y #229, sin despliegues, cambios en bases reales ni eliminación de ramas.
+- **Integrado y verificado por Git:** #226 (exclusión de Comisiones), #230 (merge `4faf380089881c93aac277c165414c499764c09e`, idempotencia monetaria) y #231 (merge `b89f5e6b17b8ada0e21485ed7374dd4eb3f894db`, contingencia, relevo de pestaña y aislamiento por rol). No se atribuye a main ningún PR documental todavía abierto en esta base.
+- **Comisiones:** excluido del piloto, no contratable ni navegable incluso con permisos históricos. AUD-COM-01/02/03 son defectos del cálculo residual, no de una función accesible. Su reactivación exige especificación e implementación con pruebas. El E2E de esta auditoría comprueba la exclusión sin `test.fail`; las dos sondas `it.fails` caracterizan el cálculo residual.
+- **Sin despliegues:** Render quedó con Auto-Deploy Off por acción del dueño y consulta posterior (`autoDeploy=no`, trigger `off`), sin suspender el servicio. Vercel bloquea main y las seis ramas mediante configuración Git e ignoreCommand. Ambos sitios conservan el despliegue previo de `46f7db7`; el código fusionado no se declara desplegado.
+- **NEXUS:** sin cambios nuevos de esquema ni migraciones. Todas las pruebas usan PostgreSQL temporal, PGlite y datos sintéticos; no se ejecutan comandos contra bases reales. No se reactivan automatismos de publicación al cerrar esta integración.
+- **Evidencia:** ensayo local conjunto de los seis PR: backend 835/835, frontend 584/584 y PostgreSQL dirigido 106 aprobadas + 2 fallos esperados. Las cifras completas del CI de cada nuevo head se registran en su PR por SHA; el verde de un head anterior no certifica el head actual. Chromium 151 local tiene un defecto de emulación offline reproducido sin código del producto; los E2E completos se verifican con el navegador de CI.
+
+### Pendientes canónicos de producción (NO-GO)
+
+| Área | Estado real |
+|---|---|
+| Fiscalidad D1–D11, CAI/documento y decisiones de compras | Pendientes de contador/dueño; el merge no las aprueba |
+| Render y procedimiento de publicación | Auto-Deploy Off; start command observado usa migrate deploy directo; healthCheckPath vacío. Conciliar arranque y salud antes de autorizar despliegues |
+| Respaldos reales, restauración, RPO/RTO y migraciones en copia representativa | No certificados por los ensayos efímeros |
+| Variables y ambientes de hosting, SMTP real | Sin certificación; no se leyeron secretos ni se envió correo real |
+| Dispositivos físicos y aceptación del cliente | Pendientes |
+| Reactivación de Comisiones y funciones fuera del piloto | Requieren especificación y desarrollo, no retirar solamente el bloqueo |
+
+## Historial de esta integración (referencia, no estado vigente)
+
 ## Integración autorizada y bloqueo de despliegues — 2026-10-30 (America/Tegucigalpa)
 
 - El dueño confirmó «Yes» para integrar por merge los PR #230, #231, #227, #228, #225 y #229, verificando CI por SHA. Esta autorización sustituye la prohibición anterior de merge; siguen prohibidos despliegues, cambios en bases reales y eliminación de ramas.

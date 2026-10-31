@@ -1,3 +1,7 @@
+> Fotografía de esta ronda: base `main` `b89f5e6b17b8ada0e21485ed7374dd4eb3f894db`, con #226, #230 y #231 integrados. Comisiones está excluido del piloto; sus defectos documentados pertenecen al cálculo residual. Las cifras históricas de abajo no se trasladan al nuevo head: la verificación completa se registra por SHA en #225. El contexto maestro contiene la lista canónica de pendientes y mantiene NO-GO para producción. No se hicieron despliegues ni operaciones sobre bases reales.
+
+## Registro de auditoría anterior a esta integración
+
 > Estado vigente tras sincronizar con `main` `46f7db7`: #226 está integrado y Comisiones está excluido del piloto. AUD-COM-01/02/03 se conservan como hallazgos del código residual, no como fallos de una función accesible. El E2E de esta rama verifica acceso denegado sin `test.fail`; las dos sondas `it.fails` caracterizan los cálculos residuales y no prueban activación. Las cifras de auditoría siguientes pertenecen a su SHA histórico; la nueva validación figura en el PR por SHA. Persisten los bloqueos fiscales, operativos y de aceptación.
 
 # Auditoría funcional de módulos — salida a producción (vigente, 2026-10-30)
