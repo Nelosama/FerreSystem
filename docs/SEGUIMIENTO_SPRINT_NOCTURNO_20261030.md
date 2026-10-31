@@ -1,3 +1,24 @@
+# Seguimiento vigente — 2026-10-30 (America/Tegucigalpa)
+
+Base comprobada: `main` `46f7db7d74c04ce9c9fd3dbbe6e0eaa9e8810412`. #226 está fusionado; Comisiones excluido, sin implementar reglas ni cálculos. Ya no está pendiente decidir su merge. #225 ya incorporó esa base y sustituyó el E2E fallido de Comisiones por una prueba positiva de exclusión.
+
+| PR | Estado del trabajo |
+|---|---|
+| #225 | Auditoría histórica y pruebas; conciliación de Comisiones con #226. Sigue en borrador. |
+| #227 | Matriz de decisiones fiscales; abierto, no borrador. No contiene aprobación del contador. |
+| #228 | Auditoría de infraestructura y checklist; abierto, no borrador. Hosting, respaldo y hardware reales pendientes. |
+| #229 | Este seguimiento; abierto en borrador. |
+| #230 | Corrección de idempotencia monetaria en ventas/caja y regresiones PostgreSQL. Abierto, sin integrar. |
+| #231 | Relevo de pestaña de contingencia, tratamiento 5xx y aislamiento por rol. Abierto, sin integrar. |
+
+Esta ronda incorpora `origin/main` en las ramas existentes mediante merge cuando falta; #225 ya contenía esa base. No integra #230/#231 entre sí ni atribuye a main sus cambios. CI y validación se consultan por el head remoto de cada PR; los verdes históricos de abajo no certifican los nuevos heads.
+
+Fases 3–5 y UX tienen cambios y pruebas en #230/#231; no corresponde seguir declarándolas «no ejecutadas» como estado global. Su alcance es el descrito en esos PR; todavía falta su revisión e integración. El NO-GO para producción sigue por decisiones fiscales, infraestructura/respaldos reales, dispositivos físicos y aceptación. Reactivar Comisiones exige especificación aprobada e implementación con pruebas, no solo retirar el bloqueo.
+
+Sin merge a main, despliegue ni bases reales. Próximo paso: revisar los nuevos SHA, su CI y los pendientes humanos. Las secciones siguientes conservan la fotografía histórica del sprint; sus estados iniciales quedan sustituidos por esta sección.
+
+---
+
 # Seguimiento del sprint nocturno de cierre — Jowa System 1.0 (2026-10-30)
 
 Documento de continuidad. Distingue lo que está **implementado**, **probado en entorno aislado**, **validado en preproducción**, **pendiente de prueba física**, **pendiente de aprobación** y **verificado en producción**. Hasta esta fecha **nada está verificado en producción**.
