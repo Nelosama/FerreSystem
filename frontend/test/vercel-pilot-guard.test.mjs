@@ -31,7 +31,7 @@ for (const [branch, expected] of [
   ['feat/contabilidad-honduras', 0], ['feat/contabilidad-honduras-extra', 1],
   ['codex/guia-control-modulos', 0], ['codex/guia-control-modulos-extra', 1],
   ['claude/sweet-davinci-vh7br4', 0], ['claude/sweet-davinci-vh7br4-extra', 1],
-  ['main', 1], ['fix/auditoria-admin', 1], ['fix/pilot-readiness-extra', 1],
+  ['main', 0], ['fix/auditoria-admin', 1], ['fix/pilot-readiness-extra', 1],
   ['claude/revision-seguridad-jowa-20261020', 0], ['claude/revision-seguridad-jowa-20261020-extra', 1],
 ]) {
   test(`Vercel ignoreCommand: ${branch} exits ${expected}`, { skip: process.platform === 'win32' }, () => {
@@ -52,3 +52,12 @@ test('security review branch is excluded from automatic previews', () => {
 test('PR 195 no genera despliegues automáticos', () => {
   assert.equal(configuration.git.deploymentEnabled['claude/sweet-davinci-vh7br4'], false);
 });
+
+// La integración autorizada conserva el sitio existente y requiere despliegue separado.
+for (const branch of ['main', 'fix/fase3-idempotencia-20261030', 'claude/sprint-contingencia-seguridad-ux-20261030', 'claude/prod-matriz-fiscal-20261030', 'claude/prod-auditoria-infra-20261030', 'claude/sharp-fermi-ryjhpl', 'claude/sprint-seguimiento-20261030']) {
+  test(`integración sin despliegue: ${branch} bloqueado por configuración y por ignoreCommand`, () => {
+    assert.equal(configuration.git.deploymentEnabled[branch], false);
+    const result = spawnSync('sh', ['-c', configuration.ignoreCommand], { cwd: frontendDir, env: { VERCEL_GIT_COMMIT_REF: branch }, encoding: 'utf8' });
+    assert.equal(result.status, 0);
+  });
+}

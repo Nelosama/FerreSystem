@@ -173,8 +173,11 @@ describe('Pagos bancarios, crédito y conciliación / PostgreSQL aislado', () =>
       const cuenta = (await sql("SELECT id FROM cuentas_operativas WHERE documento_id=$1", v.id))[0];
       const solicitudId = randomUUID();
       const dto = { solicitudId, monto: 40, metodo: 'TARJETA', pagoElectronico: { referencia: 'ABN-5511', terminal: 'POS-01' } } as any;
-      const pago = await ops.pagar(tenantA, admin, cuenta.id, dto);
-      await ops.pagar(tenantA, admin, cuenta.id, dto);
+      const [pago, duplicado] = await Promise.all([ops.pagar(tenantA, admin, cuenta.id, dto), ops.pagar(tenantA, admin, cuenta.id, dto)]);
+      expect(duplicado.id).toBe(pago.id);
+      // Respuesta perdida después del commit: reenvío del mismo comando.
+      expect((await ops.pagar(tenantA, admin, cuenta.id, dto)).id).toBe(pago.id);
+      await expect(ops.pagar(tenantA, admin, cuenta.id, { ...dto, monto: 41 })).rejects.toThrow('otro pago');
       expect(await sql('SELECT COUNT(*)::int AS n FROM pagos_cuenta WHERE cuenta_id=$1', cuenta.id)).toEqual([{ n: 1 }]);
       expect(await aprobaciones()).toEqual(expect.arrayContaining([expect.objectContaining({ referencia: 'ABN-5511', origen: 'ABONO', monto: 40 })]));
       const [saldo] = await sql('SELECT saldo::float AS saldo FROM cuentas_operativas WHERE id=$1', cuenta.id);
