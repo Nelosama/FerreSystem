@@ -162,3 +162,12 @@ test('revisión: una operación ya aplicada en el servidor no se vuelve a escrib
   const ya = op({ estado: 'SINCRONIZADA', requiereRevision: false, correlativoDefinitivo: 'V-00000009', sincronizadaAt: '2026-10-10T13:00:00Z' });
   assert.equal(sync.cambiosDesdeServidor(ya, { operacionId: 'a', estado: 'APLICADA', numeroVenta: 9, correlativoDefinitivo: 'V-00000009', requiereRevision: false, conflictos: [] }), null);
 });
+
+test('error de lote: un 5xx no se presenta como corte de red; 401/403 y sin respuesta conservan su texto', () => {
+  assert.equal(sync.mensajeErrorSincronizacion(503), 'El servidor no pudo procesar las ventas. Se reintentará automáticamente.');
+  assert.equal(sync.mensajeErrorSincronizacion(500), 'El servidor no pudo procesar las ventas. Se reintentará automáticamente.');
+  assert.equal(sync.mensajeErrorSincronizacion(401), 'Sesión no válida para enviar');
+  assert.equal(sync.mensajeErrorSincronizacion(403), 'Sesión no válida para enviar');
+  assert.equal(sync.mensajeErrorSincronizacion(undefined), 'Sin conexión con el servidor');
+  assert.equal(sync.mensajeErrorSincronizacion(408), 'Sin conexión con el servidor');
+});
