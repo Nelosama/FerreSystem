@@ -17,7 +17,7 @@ Prevalece sobre la fotografía del 2026-10-29, que queda debajo como histórica.
 
 | Área | Estado | Responsable |
 | --- | --- | --- |
-| Comisiones (AUD-COM-01/02/03) | Ocultar para la primera salida o corregir con regla de negocio; **no cambiado** | Dueño / desarrollo |
+| Comisiones (AUD-COM-01/02/03) | **Excluido por #226**, fusionado en `main` `46f7db7` (el módulo no se contrata ni se navega). Reactivar exige especificación aprobada y backend | Dueño / desarrollo |
 | Documento de venta y CAI (AUD-FIS-01), D1–D11, ISV de compras C-02/C-04 | Pendiente de contador; exenciones bloqueadas, desglose apagado, Contabilidad opt-in | Contador / dueño |
 | Render, Vercel, Supabase, variables y SHA desplegado | **No verificado** | Dueño / infraestructura |
 | Respaldo productivo, restauración probada, RPO/RTO | **No verificado** (solo ensayos efímeros en verde) | Infraestructura |
@@ -30,6 +30,17 @@ Prevalece sobre la fotografía del 2026-10-29, que queda debajo como histórica.
 | Aceptación del cliente | Pendiente | Cliente |
 
 **Bitácora 2026-10-30:** lectura de AGENTS/NEXUS/contexto vigente y auditoría anterior; `git fetch` (main `a4ab291`), consulta de PR abiertos (ninguno); cruce de catálogo, rutas y 22 controladores (detecta Comisiones sin backend); ejecución de todas las suites citadas; sondas nuevas y contrapruebas sin `fails` para comprobar que fallan por la causa correcta (dos errores propios del arnés corregidos: ARN-03/04). Sin merge, sin despliegue, sin escrituras en bases reales. Entorno: como root, `initdb` necesita envolturas `runuser -u nobody` y el guion de respaldo debe ejecutarse entero como `nobody`.
+
+
+## PR #226 — bloqueo de Comisiones auditado — 2026-10-30 UTC
+
+- Encargo vigente: auditar y corregir #226 sin merge, despliegues ni bases reales; fiscalidad, SMTP e infraestructura quedan en Claude. Head remoto inicial comprobado: `a9113213ff8c4f3e247a6f6944a65770668f2f03`; base `main` `a4ab291aba1a8574e9c66d59b044e35f938bda38`.
+- Backend: `moduleEnabled` rechaza Comisiones incluso con `enabled=true`; no está en defaults ni catálogo configurable y el seed no lo crea. Frontend: guardia de URL y navegación rechazan el módulo incluso con sesiones antiguas. No se implementan cálculos ni se eliminan datos.
+- Correcciones de auditoría: indicadores del Super Admin cuentan solo módulos contratables; controles ignoran dependencias de módulos pendientes. Pruebas de navegador conservan todos los 12 controles operativos y excluyen Comisiones. Prueba HTTP real crea un registro histórico sintético, exige rechazo 400 al configurar Comisiones y comprueba POS/entregas/devoluciones/caja/cuentas. Regresión de navegación verifica ADMIN con lista antigua y sin lista; alta de tenant verifica ausencia de Comisiones.
+- Evidencia local inicial: backend 76 archivos / 835 pruebas aprobadas; frontend 575/575; scripts 52/52; builds backend/frontend y lint sin errores (avisos existentes). Regresión backend tras cambios: 49/49. Las pruebas PostgreSQL y navegador definitivas y CI se registran en la descripción del PR con su SHA y enlaces; no se heredan verdes de otro SHA.
+- Seguimiento de CI: el piloto de `63f0f820` detectó dos contratos antiguos adicionales en `frontend/e2e-real/guide-real.spec.ts` (control Comisiones y 13 contratables). Se conservan los escenarios operativos y se exige ausencia de Comisiones con 12 contratables. Se añade prueba real de registro histórico `enabled=true`, rechazo API 400, menú/URL en escritorio y móvil, preservación del registro y acceso a ventas/usuarios/caja. Resultados y SHA definitivo se publican en la descripción del PR.
+- Sin conflictos con `main` comprobado mediante `git merge-tree --write-tree HEAD origin/main`. Dictamen definitivo y resultados remotos: descripción de https://github.com/Nelosama/FerreSystem/pull/226. El GO de piloto sigue pendiente de decisiones fiscales, infraestructura, hardware y aceptación; la validación de este PR no concede GO.
+
 
 ## Fotografía anterior — 2026-10-29 (histórica; sustituida por la del 2026-10-30)
 

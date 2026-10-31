@@ -24,7 +24,7 @@ export function ModuleControls({
   ] as const;
   const conflicts = Object.entries(MODULE_DEPENDENCIES).flatMap(
     ([key, deps]) =>
-      value.includes(key)
+      !PENDING_MODULES.has(key) && value.includes(key)
         ? deps
             .filter((dep) => !value.includes(dep))
             .map((dep) => `${label(key)} → ${label(dep)}`)
