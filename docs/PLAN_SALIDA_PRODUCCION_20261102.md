@@ -21,7 +21,10 @@ Si el dueño quiere contingencia offline desde el día 1, se añade D11 a la rut
 
 ## 3. Fases
 
-### Fase 0 — Comparación contra SICOFI (ruta crítica, sustituye el cuestionario al contador)
+### Fase 0 — Decisiones fiscales y documento de venta
+
+**Actualización 2026-11-02 (decisión del dueño):** SICOFI pasa a ser **inspiración** del módulo contable, no referencia de conciliación; ya no se necesitan sus datos reales. Contabilidad es servicio de pago (ya opt-in; sin contratarla, el cliente lleva su contabilidad a mano). El documento de venta se configura por empresa desde el Super Admin: factura con CAI o comprobante interno ([DISENO_FACTURACION_CAI_20261102.md](DISENO_FACTURACION_CAI_20261102.md)). Lo que sigue de esta fase se conserva como antecedente.
+
 
 **Decisión del dueño (2026-11-02):** no se pedirá revisión aparte al contador. La referencia fiscal es **SICOFI**, el sistema que entregó el contador: FerreSystem debe producir los mismos resultados fiscales que SICOFI sobre las mismas operaciones. Las respuestas a la matriz se toman de lo que SICOFI hace y se registran como «según SICOFI», con la muestra que lo demuestra.
 
@@ -60,7 +63,7 @@ Si el dueño quiere contingencia offline desde el día 1, se añade D11 a la rut
 
 Rama propia desde `main`, PR con CI verde por SHA, merge con autorización.
 
-1. **Comprobante de venta (AUD-FIS-01):** igualar el documento al de SICOFI en `frontend/src/components/ReciboPDF.tsx` (hoy «COMPROBANTE DE VENTA», sin CAI ni leyenda). Si SICOFI emite factura con CAI, FerreSystem necesita emitir con correlativo dentro del rango autorizado: el esquema ya tiene `fiscal_cai` y `fiscal_documentos` (módulo Contabilidad), pero el POS no los usa; conectarlos es desarrollo nuevo y **retrasa la salida**. Alternativa rápida: comprobante interno + factura en SICOFI, enlazada con `referenciaFacturaExterna` (ya existe en el esquema).
+1. **Documento de venta (AUD-FIS-01):** desarrollar el módulo `facturacion_cai` según [DISENO_FACTURACION_CAI_20261102.md](DISENO_FACTURACION_CAI_20261102.md) (1–2 semanas, NEXUS) si el primer cliente tiene CAI; si no, basta la leyenda del comprobante interno. Antecedente: igualar el documento al de SICOFI en `frontend/src/components/ReciboPDF.tsx` (hoy «COMPROBANTE DE VENTA», sin CAI ni leyenda). Si SICOFI emite factura con CAI, FerreSystem necesita emitir con correlativo dentro del rango autorizado: el esquema ya tiene `fiscal_cai` y `fiscal_documentos` (módulo Contabilidad), pero el POS no los usa; conectarlos es desarrollo nuevo y **retrasa la salida**. Alternativa rápida: comprobante interno + factura en SICOFI, enlazada con `referenciaFacturaExterna` (ya existe en el esquema).
 2. **Diferencias de la comparación:** corregir cada diferencia clasificada como defecto de FerreSystem o regla distinta, con prueba que reproduzca el documento de SICOFI. **C-01:** limitar el ISV de compras a las tasas que usa SICOFI (hoy acepta 0–100 % del subtotal); pruebas en `compras-isv`.
 3. **OpenAI:** si se retira, eliminar `backend/src/ia/` y la dependencia `openai`; si no, dejarlo inerte.
 4. **Observabilidad mínima** (no existe en el repositorio): monitor externo de disponibilidad sobre `/api/health/live` y `/api/health`, y alerta por correo al dueño. Sin dependencias nuevas en el código si se usa un servicio externo de *uptime*.
@@ -151,3 +154,4 @@ Riesgo principal: si SICOFI emite factura con CAI y FerreSystem debe sustituirlo
 - 2026-11-02: plan creado sobre `main` `c436592`, sin PR abiertos, ambos workflows en success. Fuentes: contexto maestro (fotografía 2026-10-31), `MATRIZ_DECISIONES_FISCALES_20261030.md`, `AUDITORIA_INFRAESTRUCTURA_20261030.md`, `CHECKLIST_FISICO_Y_ACEPTACION_20261030.md`, `RUNBOOK_PREPRODUCCION_Y_PRODUCCION.md`. Sin despliegues, paneles ni bases reales.
 - 2026-11-02: comparación de reglas contra el código de SICOFI; prueba `backend/src/common/paridad-sicofi.spec.ts` 3/3.
 - 2026-11-02: el dueño decide que la referencia fiscal es SICOFI (entregado por el contador) y no un cuestionario aparte. Fase 0 reescrita como comparación contra SICOFI; Fase 1, criterio GO 1 y calendario ajustados.
+- 2026-11-02: SICOFI pasa a inspiración; Contabilidad confirmada como servicio de pago; documento de venta configurable por empresa (diseño `DISENO_FACTURACION_CAI_20261102.md`).

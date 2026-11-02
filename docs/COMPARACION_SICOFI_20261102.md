@@ -1,5 +1,7 @@
 # Comparación fiscal FerreSystem ↔ SICOFI — 2026-11-02
 
+> **Actualización (mismo día):** el dueño decidió que SICOFI es **inspiración** para el módulo contable, no un sistema contra el que se concilie. Este informe queda como referencia de diseño; la conciliación con datos reales (§6.1) ya no es necesaria. El documento de venta se resuelve en [DISENO_FACTURACION_CAI_20261102.md](DISENO_FACTURACION_CAI_20261102.md).
+
 > **Decisión del dueño (2026-11-02):** la referencia fiscal es SICOFI, el sistema entregado por el contador. Este informe compara las **reglas del código** de ambos sistemas. No se recibieron datos reales de SICOFI (facturas, libros): el paquete entregado es el **código fuente** de la aplicación. La comparación con un mes de datos reales sigue pendiente (§6).
 
 ## 1. Material analizado
