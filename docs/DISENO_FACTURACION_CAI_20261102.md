@@ -8,6 +8,12 @@
 2. **Contabilidad es un servicio de pago.** Si el cliente no lo paga, el módulo queda deshabilitado y el cliente lleva su contabilidad manualmente. **Ya implementado:** `contabilidad` es opt-in (`backend/src/common/tenant-modules.ts`, `OPT_IN_TENANT_MODULES`): sin registro habilitado queda apagado; solo el Super Admin lo enciende desde los servicios contratados del negocio; el servidor rechaza sus rutas y la navegación lo oculta. No requiere desarrollo.
 3. **Facturación con CAI configurable por el Super Admin, por empresa.** Un cliente puede no tener CAI: entonces el sistema emite comprobante interno.
 
+## Decisiones confirmadas (2026-11-02, después de la evaluación)
+
+- **Quién registra el CAI:** el ADMIN del negocio, con permiso propio que puede conceder al CONTADOR; el Super Admin solo asiste por soporte remoto auditado. Confirmado por el dueño.
+- **Primer cliente sin CAI:** la facturación con CAI **no bloquea la salida**; se desarrolla después.
+- **Empresas sin CAI:** documento con **formato de factura, sin línea de CAI y sin ninguna leyenda**. Implementado: desglose «Importe exento / Importe gravado / ISV», cantidad en letras, nombre comercial, dirección, teléfono, correo, sucursal y logotipo (`frontend/src/components/ReciboPDF.tsx`, `frontend/src/utils/montoEnLetras.ts`). El título se mantiene «COMPROBANTE DE VENTA» y no se usa la palabra «FACTURA» sin CAI (pendiente de confirmar por el dueño). El RTN de la empresa emisora no aparece: no existe ese dato en la configuración de la empresa.
+
 ## Problema actual
 
 - El POS siempre imprime «COMPROBANTE DE VENTA» sin CAI (`frontend/src/components/ReciboPDF.tsx:305`).

@@ -58,6 +58,10 @@ Las respuestas del contador se registran en este documento con fecha, nombre y r
 
 El dueño decidió que la referencia fiscal es SICOFI, el sistema entregado por el contador. Las respuestas, extraídas del código de SICOFI (commit `faf200bf`), están en [COMPARACION_SICOFI_20261102.md](COMPARACION_SICOFI_20261102.md) §4. Resumen: **D1** solo 15 %; **D3** marca IVA/EXE por producto; **D6** ISV sobre la base gravada total (POS ya cumple; cotizaciones por corregir); **D8** la nota de crédito recalcula el ISV sobre las líneas devueltas; **C-01** ISV de compras 15 % del gravado; **AUD-FIS-01** factura con CAI, rango, fecha límite y desglose. D4, D11 (contingencia) y el emisor de la factura los decide el dueño. Pendiente: conciliar con un mes de datos reales de SICOFI.
 
+## Confirmación del dueño — 2026-11-02
+
+SICOFI pasa a ser inspiración (no referencia). El dueño confirma para el piloto: **D1** solo 15 %; **D3/D4** sin productos exentos; **D6** ISV una sola vez sobre la base gravada total (POS ya cumplía; cotizaciones corregidas en `backend/src/common/isv-documento.ts`). **AUD-FIS-01:** sin CAI, documento con formato de factura sin línea de CAI ni leyenda; la factura con CAI será un servicio por empresa ([DISENO_FACTURACION_CAI_20261102.md](DISENO_FACTURACION_CAI_20261102.md)). Siguen pendientes D2, D5, D7–D11, C-01, C-02 y C-04, que solo bloquean si se activan exentas, contingencia, Contabilidad o compras como fuente de crédito fiscal.
+
 ## Historial
 
 - 2026-10-30: matriz creada desde la documentación del repositorio y la comprobación del código en `origin/main` `a4ab291`. Sin decisiones aprobadas.

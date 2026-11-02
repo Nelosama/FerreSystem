@@ -9,6 +9,7 @@ import { centavosADecimal, subtotalLinea, TASA_ISV_PORCIENTO } from '../common/d
 import { esTasaIsvAutorizada, exigirTasaIsvAutorizada } from '../common/politica-isv';
 import { desgloseFiscalPorLineaActivo, desgloseParaEscribir } from '../common/desglose-fiscal';
 import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
+import { isvDocumentoCentavos } from '../common/isv-documento';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 
 /** Fecha de solo día (YYYY-MM-DD) se guarda como inicio del día en la zona del negocio. */
@@ -131,10 +132,11 @@ export class CotizacionesService {
       }
 
       const descuentoTotal = descuentoLineas + descuentoGeneralMonto;
-      // ISV prorrateado tras el descuento general, en centavos enteros (mitad hacia arriba).
+      // ISV una sola vez sobre la base gravada tras el descuento general (misma regla que el POS), centavos enteros.
       const descGeneralCentavos = aCentavos(descuentoGeneralMonto, 'Descuento general');
-      const isvLineasCentavos = parsedDetails.reduce((sum, item) => sum + aCentavos(item.isv, 'ISV'), 0);
-      const isvTotal = centavosADecimal(subtotalCentavos > 0 ? divisionMitadArriba(isvLineasCentavos * (subtotalCentavos - descGeneralCentavos), subtotalCentavos) : 0);
+      const isvTotal = centavosADecimal(isvDocumentoCentavos(
+        parsedDetails.map((item) => ({ subtotalCentavos: aCentavos(item.subtotal, 'Subtotal'), exento: item.exento })),
+        descGeneralCentavos, porcentajeIsv));
       const total = centavosADecimal(subtotalCentavos - descGeneralCentavos + aCentavos(isvTotal, 'ISV total'));
 
       const diasVal = dto.diasValidez || 15;
@@ -302,10 +304,11 @@ export class CotizacionesService {
       }
 
       const descuentoTotal = descuentoLineas + descuentoGeneralMonto;
-      // ISV prorrateado tras el descuento general, en centavos enteros (mitad hacia arriba).
+      // ISV una sola vez sobre la base gravada tras el descuento general (misma regla que el POS), centavos enteros.
       const descGeneralCentavos = aCentavos(descuentoGeneralMonto, 'Descuento general');
-      const isvLineasCentavos = parsedDetails.reduce((sum, item) => sum + aCentavos(item.isv, 'ISV'), 0);
-      const isvTotal = centavosADecimal(subtotalCentavos > 0 ? divisionMitadArriba(isvLineasCentavos * (subtotalCentavos - descGeneralCentavos), subtotalCentavos) : 0);
+      const isvTotal = centavosADecimal(isvDocumentoCentavos(
+        parsedDetails.map((item) => ({ subtotalCentavos: aCentavos(item.subtotal, 'Subtotal'), exento: item.exento })),
+        descGeneralCentavos, porcentajeIsv));
       const total = centavosADecimal(subtotalCentavos - descGeneralCentavos + aCentavos(isvTotal, 'ISV total'));
 
       const diasVal = dto.diasValidez || existing.diasValidez;
