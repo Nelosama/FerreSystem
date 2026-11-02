@@ -6,7 +6,7 @@
 
 - `main` = `c436592f3df5e889c69d1eee0d35e8e505cb4bb7` (merge de #232). Ambos workflows en **success** en ese SHA: [Operación de ferretería 41174096543](https://github.com/Nelosama/FerreSystem/actions/runs/41174096543) y [Piloto con API y PostgreSQL reales 41174096545](https://github.com/Nelosama/FerreSystem/actions/runs/41174096545). **No hay PR abiertos.**
 - Última evidencia local completa (fotografía 2026-10-31): backend 835/835, frontend 585/585, integración PostgreSQL 1261 aprobadas / 2 fallos esperados, piloto real navegador→API→PostgreSQL 186/0/2 omitidas.
-- **Dictamen vigente: NO-GO.** El bloqueo no es de código: son decisiones fiscales, infraestructura sin verificar, respaldos reales, hardware y aceptación del cliente.
+- **Dictamen vigente: NO-GO.** El bloqueo no es de código: son la comparación fiscal contra SICOFI, infraestructura sin verificar, respaldos reales, hardware y aceptación del cliente.
 - Producción actual: Render y Vercel sirven `46f7db7` (anterior a #225–#232). Render con Auto-Deploy Off (consulta 2026-10-30); Vercel bloquea `main` por `frontend/vercel.json` y `frontend/scripts/vercel-ignore.sh`.
 
 ## 2. Alcance propuesto del primer arranque (sin decisiones nuevas)
@@ -21,23 +21,45 @@ Si el dueño quiere contingencia offline desde el día 1, se añade D11 a la rut
 
 ## 3. Fases
 
-### Fase 0 — Decisiones humanas (ruta crítica, empieza hoy)
+### Fase 0 — Comparación contra SICOFI (ruta crítica, sustituye el cuestionario al contador)
+
+**Decisión del dueño (2026-11-02):** no se pedirá revisión aparte al contador. La referencia fiscal es **SICOFI**, el sistema que entregó el contador: FerreSystem debe producir los mismos resultados fiscales que SICOFI sobre las mismas operaciones. Las respuestas a la matriz se toman de lo que SICOFI hace y se registran como «según SICOFI», con la muestra que lo demuestra.
+
+**Material necesario de SICOFI** (no está en el repositorio; solo hay dos menciones a SICOFI: `docs/CONTABILIDAD_HONDURAS.md:132` y `backend/src/contabilidad/motor/reglas.spec.ts:31`):
+
+| Material | Para qué decisión |
+|---|---|
+| Configuración de ISV (tasas activas) | D1, D7 |
+| Catálogo de productos con su marca gravado/exento/exonerado | D2, D3, D4 |
+| Un mes de facturas emitidas (exportación o PDF), con descuentos y al menos una exenta si existe | D3, D6, AUD-FIS-01 |
+| Factura impresa real: CAI, rango autorizado, fecha límite, establecimiento/punto/tipo, leyendas | AUD-FIS-01 |
+| Notas de crédito / devoluciones del mismo mes | D8 |
+| Facturas de compra registradas y libro de compras | C-01, C-02, C-04 |
+| Libro de ventas y declaración/resumen de ISV del mes | Cuadre global |
+| Catálogo de cuentas y asientos (solo si se activará Contabilidad) | D10 |
+
+**Método:**
+
+1. Cargar las mismas operaciones del mes en una base temporal de FerreSystem (nunca la productiva).
+2. Comparar documento por documento: base gravada 15 %, base 18 %, exento, exonerado, descuento, ISV y total; después los totales del libro de ventas, del libro de compras y del ISV del mes.
+3. Tolerancia: 0.00. Cada diferencia se clasifica como (a) defecto de FerreSystem → se corrige; (b) regla distinta (p. ej. redondeo por línea o sobre la base, D6) → se adopta la de SICOFI salvo que sea un defecto; (c) **defecto conocido de SICOFI** → no se copia y se documenta. Ya está documentado uno: en SICOFI el descuento descuadraba la factura y el costo de la nota de crédito iba en sentido contrario.
+4. Resultado: la matriz fiscal se rellena con «según SICOFI» y la muestra de respaldo; el informe de comparación queda en `docs/`.
+
+**Lo que SICOFI no puede responder** (decide el dueño): D11 (ventas de contingencia offline), D5 (quién marca exentas) y D9 (encender el desglose por línea).
 
 | # | Acción | Responsable | Salida verificable |
 |---|---|---|---|
-| 0.1 | Enviar al contador las 7 preguntas de `MATRIZ_DECISIONES_FISCALES_20261030.md` | Dueño | Respuesta escrita con fecha y nombre, registrada en la matriz |
-| 0.2 | Mínimo para arrancar con el alcance de §2: **D1** (solo 15 %), **D3** (no hay exentos o no se venden en el piloto), **AUD-FIS-01** (qué documento se emite y texto legal exacto), **C-01** (tasa máxima de compras) | Contador | Filas marcadas como aprobadas en la matriz |
+| 0.1 | Entregar el material de SICOFI de la tabla | Dueño | Archivos fuera del repositorio si contienen datos de clientes; en el repo solo muestras anonimizadas |
+| 0.2 | Ejecutar la comparación y publicar el informe | Desarrollo | Informe con 0 diferencias sin clasificar |
 | 0.3 | Aprobar alcance del piloto (§2), RPO/RTO y consentimiento de datos reales | Dueño | Checklist F1, F5, F8 firmados |
 | 0.4 | Decidir SDK OpenAI: retirar o mantener sin clave | Dueño | Decisión en el contexto maestro |
-
-D2, D4–D10, C-02 y C-04 pueden quedar pendientes **solo** si el alcance de §2 se mantiene; cada una reaparece al activar la función que la necesita.
 
 ### Fase 1 — Cambios de código derivados (1–3 días tras Fase 0)
 
 Rama propia desde `main`, PR con CI verde por SHA, merge con autorización.
 
-1. **Comprobante de venta (AUD-FIS-01):** aplicar el texto aprobado en `frontend/src/components/ReciboPDF.tsx` (título actual «COMPROBANTE DE VENTA», sin CAI ni leyenda). Si el contador exige factura con CAI propia, es un desarrollo nuevo (rango, correlativo, vencimiento) y **retrasa la salida**; la alternativa rápida es comprobante interno con leyenda + factura externa (`referenciaFacturaExterna` ya existe en el esquema).
-2. **C-01:** validar la tasa máxima de ISV de compras aprobada (hoy acepta 0–100 % del subtotal). Pruebas en `compras-isv`.
+1. **Comprobante de venta (AUD-FIS-01):** igualar el documento al de SICOFI en `frontend/src/components/ReciboPDF.tsx` (hoy «COMPROBANTE DE VENTA», sin CAI ni leyenda). Si SICOFI emite factura con CAI, FerreSystem necesita emitir con correlativo dentro del rango autorizado: el esquema ya tiene `fiscal_cai` y `fiscal_documentos` (módulo Contabilidad), pero el POS no los usa; conectarlos es desarrollo nuevo y **retrasa la salida**. Alternativa rápida: comprobante interno + factura en SICOFI, enlazada con `referenciaFacturaExterna` (ya existe en el esquema).
+2. **Diferencias de la comparación:** corregir cada diferencia clasificada como defecto de FerreSystem o regla distinta, con prueba que reproduzca el documento de SICOFI. **C-01:** limitar el ISV de compras a las tasas que usa SICOFI (hoy acepta 0–100 % del subtotal); pruebas en `compras-isv`.
 3. **OpenAI:** si se retira, eliminar `backend/src/ia/` y la dependencia `openai`; si no, dejarlo inerte.
 4. **Observabilidad mínima** (no existe en el repositorio): monitor externo de disponibilidad sobre `/api/health/live` y `/api/health`, y alerta por correo al dueño. Sin dependencias nuevas en el código si se usa un servicio externo de *uptime*.
 5. Preparar (sin fusionar) el PR que **retira el bloqueo de Vercel para `main`**; se fusiona solo en la ventana de Fase 5.
@@ -102,7 +124,7 @@ Orden expresa del dueño para: merge del PR de Vercel, migración productiva y d
 
 ## 4. Criterios GO (todos obligatorios)
 
-1. Matriz fiscal: D1, D3, C-01 y AUD-FIS-01 aprobadas por escrito; comprobante actualizado y aprobado (F2, F3).
+1. Comparación contra SICOFI de un mes completo sin diferencias sin clasificar; matriz rellenada «según SICOFI» (D1, D3, D6, C-01, AUD-FIS-01) y documento de venta igualado al de SICOFI (F2, F3).
 2. Render: Start Command `npm run start:prod`, Pre-Deploy vacío, health check configurado, variables completas.
 3. Respaldo productivo independiente activo y una restauración real medida dentro de RPO/RTO (F5).
 4. Preproducción: humo 22/22, ensayo de migraciones con volumen sin pérdida.
@@ -115,13 +137,14 @@ Orden expresa del dueño para: merge del PR de Vercel, migración productiva y d
 
 | Semana | Trabajo |
 |---|---|
-| 1 (3–7 nov) | Fase 0 enviada; Fase 2 completa; Fase 1 en cuanto llegue respuesta del contador |
+| 1 (3–7 nov) | Material de SICOFI entregado y comparación; Fase 2 completa; Fase 1 según las diferencias |
 | 2 (10–14 nov) | Fase 3 y Fase 4 en paralelo |
 | 3 (17–21 nov) | Revisión GO/NO-GO; Fase 5 en ventana acordada |
 | 4–5 | Fase 6 |
 
-Riesgo principal: si el contador exige factura con CAI propia, se añade un desarrollo de 1–2 semanas antes de la Fase 3.
+Riesgo principal: si SICOFI emite factura con CAI y FerreSystem debe sustituirlo como emisor, conectar el POS a `fiscal_cai`/`fiscal_documentos` añade 1–2 semanas antes de la Fase 3. Segundo riesgo: el material de SICOFI tarda o no se puede exportar.
 
 ## Historial
 
 - 2026-11-02: plan creado sobre `main` `c436592`, sin PR abiertos, ambos workflows en success. Fuentes: contexto maestro (fotografía 2026-10-31), `MATRIZ_DECISIONES_FISCALES_20261030.md`, `AUDITORIA_INFRAESTRUCTURA_20261030.md`, `CHECKLIST_FISICO_Y_ACEPTACION_20261030.md`, `RUNBOOK_PREPRODUCCION_Y_PRODUCCION.md`. Sin despliegues, paneles ni bases reales.
+- 2026-11-02: el dueño decide que la referencia fiscal es SICOFI (entregado por el contador) y no un cuestionario aparte. Fase 0 reescrita como comparación contra SICOFI; Fase 1, criterio GO 1 y calendario ajustados.
