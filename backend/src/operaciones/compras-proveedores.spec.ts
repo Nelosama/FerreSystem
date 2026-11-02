@@ -419,6 +419,7 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await app?.close();
   });
 
@@ -475,6 +476,8 @@ describe('Auditoría Compras y Proveedores — Escenarios 1 al 10', () => {
 
   // Escenario 3: Registrar vencimientos y estados de pago / deudas (vencidas)
   it('Escenario 3: Calcula correctamente el vencimiento y estado de deuda vencida (vencida=true)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-15T18:00:00Z'));
     // Registrar compra con fecha de vencimiento en el pasado
     await service.compra('tenant-A', 'admin-1', {
       solicitudId: 'sol-compra-vencida',

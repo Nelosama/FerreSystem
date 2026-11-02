@@ -38,6 +38,9 @@ describe('CotizacionesService', () => {
   };
 
   beforeEach(async () => {
+    // La vigencia de los fixtures se evalúa contra este reloj, no contra el host.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-15T18:00:00Z'));
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CotizacionesService,
@@ -53,6 +56,7 @@ describe('CotizacionesService', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
