@@ -72,3 +72,8 @@ El sistema **no exige CAI**: el modo por defecto es comprobante interno, así qu
 ## Estimación
 
 1–2 semanas (esquema + backend + PDF + panel + pruebas), antes de la Fase 3 del plan solo si el primer cliente tiene CAI.
+
+## RTN del emisor en el comprobante (implementado parcialmente, 2026-11-02)
+
+- **Hecho:** el RTN del emisor es opcional. Lo configura el Super Admin en la pestaña Marca del negocio y se guarda en `configuracion.rtn` (sin migración). Se valida con 14 dígitos o `null`; el comprobante lo imprime bajo el nombre comercial solo si existe. Pruebas: `backend/src/tenants/rtn-emisor.spec.ts`, `frontend/test/receipt-fiscal.test.mjs`.
+- **Pendiente (requiere revisión NEXUS):** guardar el RTN en cada venta al emitirla, con una columna nueva `ventas.emisor_rtn` nullable, rellenada al crear la venta. Sin esto, una reimpresión de una venta antigua muestra el RTN vigente y no el que tenía al emitirse. Cambio aditivo, sin relleno de históricos (las ventas anteriores quedan con `NULL`, que se imprime sin RTN).

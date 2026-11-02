@@ -50,3 +50,9 @@ test('cotización no lleva desglose de venta ni cantidad en letras',()=>{
   const html=render({ ...legacySale,tipo:'COTIZACION',tenant });
   assert.doesNotMatch(html,/Importe gravado|Cantidad en letras/);
 });
+test('comprobante muestra el RTN del emisor bajo el nombre solo cuando existe',()=>{
+  const con=render({ ...legacySale,tenant:{ ...tenant, rtn:'08019999000000' } });
+  assert.match(con,/RTN: 08019999000000/);
+  const sin=render({ ...legacySale,tenant:{ ...tenant, rtn:null } });
+  assert.doesNotMatch(sin,/RTN:/);
+});

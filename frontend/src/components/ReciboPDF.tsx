@@ -285,6 +285,7 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
               <Image src={logoDataUrl} style={styles.logo} />
             ) : null}
             <Text style={styles.companyName}>{tenant.nombreComercial}</Text>
+            {tenant.rtn ? <Text style={styles.companyMeta}>RTN: {tenant.rtn}</Text> : null}
             {tenant.direccion ? (
               <Text style={styles.companyMeta}>{tenant.direccion}</Text>
             ) : null}

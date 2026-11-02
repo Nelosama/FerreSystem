@@ -13,6 +13,7 @@ export function normalizeTenantSettings(data: any, local?: Pick<TenantInfo, 'suc
     modoNavegacion: data.modoNavegacion ?? 'SIDEBAR',
     modulosHabilitados: data.modulosHabilitados,
     modoGuia: configuration.modoGuia === true,
+    rtn: typeof configuration.rtn === 'string' && /^\d{14}$/.test(configuration.rtn) ? configuration.rtn : null,
     ...Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, configuration[key] ?? fallback])),
     moneda: { simbolo: 'L.', codigo: 'HNL' }, impuesto: { nombre: 'ISV', tasa: 15 },
     updatedAt: data.updatedAt, sucursal: local?.sucursal ?? data.sucursal ?? 'Sucursal Principal',
