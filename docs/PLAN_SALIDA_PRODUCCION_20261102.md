@@ -25,7 +25,9 @@ Si el dueño quiere contingencia offline desde el día 1, se añade D11 a la rut
 
 **Decisión del dueño (2026-11-02):** no se pedirá revisión aparte al contador. La referencia fiscal es **SICOFI**, el sistema que entregó el contador: FerreSystem debe producir los mismos resultados fiscales que SICOFI sobre las mismas operaciones. Las respuestas a la matriz se toman de lo que SICOFI hace y se registran como «según SICOFI», con la muestra que lo demuestra.
 
-**Material necesario de SICOFI** (no está en el repositorio; solo hay dos menciones a SICOFI: `docs/CONTABILIDAD_HONDURAS.md:132` y `backend/src/contabilidad/motor/reglas.spec.ts:31`):
+**Avance 2026-11-02:** el dueño entregó el código fuente de SICOFI (commit `faf200bf`). Comparación de reglas hecha: [COMPARACION_SICOFI_20261102.md](COMPARACION_SICOFI_20261102.md). El POS calcula igual que SICOFI (las diferencias de 1 centavo son errores de coma flotante de SICOFI); las cotizaciones difieren en 1–2 centavos (D6, por corregir); el documento de venta no equivale a la factura con CAI de SICOFI. Falta la conciliación con un mes de datos reales.
+
+**Material necesario de SICOFI** (código recibido; datos reales pendientes; antes de la entrega no estaba en el repositorio; solo hay dos menciones a SICOFI: `docs/CONTABILIDAD_HONDURAS.md:132` y `backend/src/contabilidad/motor/reglas.spec.ts:31`):
 
 | Material | Para qué decisión |
 |---|---|
@@ -147,4 +149,5 @@ Riesgo principal: si SICOFI emite factura con CAI y FerreSystem debe sustituirlo
 ## Historial
 
 - 2026-11-02: plan creado sobre `main` `c436592`, sin PR abiertos, ambos workflows en success. Fuentes: contexto maestro (fotografía 2026-10-31), `MATRIZ_DECISIONES_FISCALES_20261030.md`, `AUDITORIA_INFRAESTRUCTURA_20261030.md`, `CHECKLIST_FISICO_Y_ACEPTACION_20261030.md`, `RUNBOOK_PREPRODUCCION_Y_PRODUCCION.md`. Sin despliegues, paneles ni bases reales.
+- 2026-11-02: comparación de reglas contra el código de SICOFI; prueba `backend/src/common/paridad-sicofi.spec.ts` 3/3.
 - 2026-11-02: el dueño decide que la referencia fiscal es SICOFI (entregado por el contador) y no un cuestionario aparte. Fase 0 reescrita como comparación contra SICOFI; Fase 1, criterio GO 1 y calendario ajustados.

@@ -54,6 +54,11 @@ Estado del código: **verificado** = comprobado en esta revisión; **doc** = tom
 
 Las respuestas del contador se registran en este documento con fecha, nombre y referencia escrita. Hasta entonces, cada decisión figura como **pendiente**.
 
+## Respuestas según SICOFI — 2026-11-02
+
+El dueño decidió que la referencia fiscal es SICOFI, el sistema entregado por el contador. Las respuestas, extraídas del código de SICOFI (commit `faf200bf`), están en [COMPARACION_SICOFI_20261102.md](COMPARACION_SICOFI_20261102.md) §4. Resumen: **D1** solo 15 %; **D3** marca IVA/EXE por producto; **D6** ISV sobre la base gravada total (POS ya cumple; cotizaciones por corregir); **D8** la nota de crédito recalcula el ISV sobre las líneas devueltas; **C-01** ISV de compras 15 % del gravado; **AUD-FIS-01** factura con CAI, rango, fecha límite y desglose. D4, D11 (contingencia) y el emisor de la factura los decide el dueño. Pendiente: conciliar con un mes de datos reales de SICOFI.
+
 ## Historial
 
 - 2026-10-30: matriz creada desde la documentación del repositorio y la comprobación del código en `origin/main` `a4ab291`. Sin decisiones aprobadas.
+- 2026-11-02: respuestas tomadas de SICOFI por decisión del dueño; sin aprobación separada del contador.
