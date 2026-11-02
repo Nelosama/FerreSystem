@@ -6,7 +6,7 @@
 
 - **`main`** = `c436592f3df5e889c69d1eee0d35e8e505cb4bb7` (merge de #232). Ambos workflows en **success** en ese SHA: [Operación de ferretería 41174096543](https://github.com/Nelosama/FerreSystem/actions/runs/41174096543) y [Piloto con API y PostgreSQL reales 41174096545](https://github.com/Nelosama/FerreSystem/actions/runs/41174096545). **No hay PR abiertos.**
 - **Rama de trabajo** `claude/sweet-ritchie-wrwsbo`: 6 commits sobre `main` (hasta `e67c49a`), todavía **no integrados en `main`**. Contiene: cálculo del ISV de cotizaciones, comprobante de venta sin CAI, corrección de la prueba de Contabilidad, diseño de facturación CAI y comparación con SICOFI. Vercel bloquea esta rama por `frontend/vercel.json`.
-- **Evidencia local de la rama** (`e67c49a`): backend unitarias 842/842; frontend 591/591, compila y lint sin errores; integración PostgreSQL de cotizaciones, ventas, crédito, exenciones, aislamiento y contabilidad: 329 aprobadas, 1 omitida, 2 fallos esperados. **Suite completa de integración: pendiente de resultado** (en curso al cierre de este documento). Un head distinto de `e67c49a` requiere sus propios resultados.
+- **Evidencia local de la rama** (`e67c49a`): backend unitarias 842/842; frontend 591/591, compila y lint sin errores; integración PostgreSQL de cotizaciones, ventas, crédito, exenciones, aislamiento y contabilidad: 329 aprobadas, 1 omitida, 2 fallos esperados. **Suite completa de integración (73 archivos, PostgreSQL temporal, `REAL_SETTINGS_BROWSER=1`): 1261 aprobadas, 0 fallidas, 2 `it.fails` esperados.** Estos resultados corresponden a `e67c49a`; un head distinto requiere sus propios resultados.
 - **Producción actual:** Render y Vercel sirven `46f7db7` (anterior a #225–#232). Render con Auto-Deploy Off (consulta 2026-10-30); Vercel bloquea `main` y las ramas de trabajo.
 - **Dictamen vigente: NO-GO.** Lo que falta ya no es el cálculo fiscal del piloto: son infraestructura sin verificar, respaldos reales, preproducción, equipos físicos y aceptación del cliente.
 
@@ -151,4 +151,5 @@ Riesgos principales:
 - 2026-11-02: comparación de reglas contra SICOFI; prueba `backend/src/common/paridad-sicofi.spec.ts` 3/3.
 - 2026-11-02: SICOFI pasa a inspiración; Contabilidad confirmada como servicio de pago; documento de venta configurable por empresa.
 - 2026-11-02: decisiones del dueño (CAI por ADMIN, primer cliente sin CAI, formato sin leyenda, reglas del piloto); cambios en `e67c49a`.
+- 2026-11-02: suite completa de integración en `e67c49a`: 73/73 archivos, 1261 aprobadas, 2 esperadas.
 - 2026-11-02: plan actualizado: decisiones tomadas, pendientes reales, fases y criterios GO revisados. Sin despliegues, paneles, bases reales ni merges.
