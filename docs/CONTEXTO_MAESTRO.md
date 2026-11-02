@@ -1,5 +1,16 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Fotografía vigente — 2026-11-02 (plan de salida a producción; base `main` `c436592f3df5e889c69d1eee0d35e8e505cb4bb7`)
+
+Prevalece sobre la fotografía del 2026-10-31 en lo que cambia; sus pendientes canónicos siguen válidos.
+
+- **Estado comprobado:** `main` `c436592f` (merge de #232) con ambos workflows en success ([41174096543](https://github.com/Nelosama/FerreSystem/actions/runs/41174096543), [41174096545](https://github.com/Nelosama/FerreSystem/actions/runs/41174096545)). Sin PR abiertos. Producción sigue sirviendo `46f7db7`. **Dictamen: NO-GO.**
+- **Plan:** [PLAN_SALIDA_PRODUCCION_20261102.md](PLAN_SALIDA_PRODUCCION_20261102.md): alcance mínimo sin decisiones nuevas (solo gravado 15 %, contingencia apagada), fases 0–6 con responsables, criterios GO y calendario orientativo. Ruta crítica: respuestas del contador a D1, D3, C-01 y AUD-FIS-01, y cambio del Start Command de Render a `npm run start:prod`.
+- **Hallazgo nuevo:** no consta monitorización externa ni alertas en el repositorio; se propone como Fase 1.4.
+- **Rama `claude/sweet-ritchie-wrwsbo`:** añadida al bloqueo de Vercel antes del primer push (`vercel.json`, `vercel-ignore.sh`, guardia + cabeceras 47/47). Solo documentación y guardia; sin cambios de producto, esquema ni migraciones. **NEXUS:** sin cambios de esquema.
+
+**Bitácora 2026-11-02:** `git status/log`, `fetch` de `main`, consulta de PR abiertos y runs de `main` en GitHub; lectura de matriz fiscal, auditoría de infraestructura, checklist físico y runbook; comprobación en código de `start:prod`, `backend/src/ia/`, `ReciboPDF.tsx:305`. Sin despliegues, paneles, bases reales ni merge.
+
 ## Fotografía vigente — 2026-10-31 (continuidad tras agotarse Codex; base `main` `89369e2d69401387fa19a53e39a09abb7a60e05b`)
 
 Prevalece sobre las fotografías siguientes, que quedan como historial. Seguimiento detallado: [SEGUIMIENTO_SPRINT_NOCTURNO_20261030.md](SEGUIMIENTO_SPRINT_NOCTURNO_20261030.md) (#229).
