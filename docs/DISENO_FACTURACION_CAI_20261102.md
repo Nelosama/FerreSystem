@@ -19,7 +19,18 @@
 
 - Nuevo módulo opt-in **`facturacion_cai`** en `OPT_IN_TENANT_MODULES`, independiente de `contabilidad`. Se enciende o apaga desde el mismo panel de servicios del Super Admin, con auditoría (mecanismo ya existente).
 - Apagado (por defecto): comprobante interno. Encendido: cada venta emite factura con CAI.
-- Gestión de autorizaciones CAI (alta, desactivación) disponible con el módulo `facturacion_cai`, sin requerir Contabilidad. Quién las registra (Super Admin o ADMIN del negocio): **pendiente de decisión**.
+- Gestión de autorizaciones CAI (alta, desactivación) disponible con el módulo `facturacion_cai`, sin requerir Contabilidad. Quién las registra: ver «Evaluación» abajo.
+
+### Evaluación: quién registra el CAI (recomendación, pendiente de confirmar por el dueño)
+
+- **ADMIN del negocio por defecto**, mediante un permiso propio (`facturacion.cai.gestionar`). El CAI es una autorización del SAR al negocio y el dueño es quien la recibe; muchas empresas no tienen contador y el rol CONTADOR solo tiene uso real con Contabilidad (servicio de pago).
+- **CONTADOR opcional:** el ADMIN puede concederle el mismo permiso si la empresa tiene contador. No se exige.
+- **Super Admin solo como asistencia** en el alta del cliente, por el soporte remoto existente y con auditoría; no como dueño habitual del dato.
+- **Controles para quien no es experto:** vista previa de la factura antes de activar; validación de formato, rango y fecha límite; un CAI con documentos emitidos no se edita (solo se desactiva y se registra otro); aviso al ADMIN cuando queden pocos números o días.
+
+### Empresas sin CAI
+
+El sistema **no exige CAI**: el modo por defecto es comprobante interno, así que se puede ofrecer el servicio a cualquier empresa. El comprobante interno no es documento fiscal; la empresa sigue siendo responsable de emitir sus documentos fiscales por su cuenta (p. ej. talonario de imprenta autorizada). Para enlazarlos, la venta ya admite el número de factura externa (`referenciaFacturaExterna`); se propone mostrarlo en caja como campo opcional.
 
 ### Esquema (NEXUS, migración aditiva)
 
