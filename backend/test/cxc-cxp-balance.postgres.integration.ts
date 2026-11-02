@@ -137,7 +137,11 @@ describe('BALANCE: cuentas por cobrar y por pagar / PostgreSQL aislado', () => {
   const listar = (rol: string, query: string) => request(app.getHttpServer()).get(`/api/operaciones/cuentas?${query}`).auth(users[rol], { type: 'bearer' });
 
   // Cobros y pagos requieren caja abierta del usuario que los registra (igual que el resto de operaciones).
+  afterEach(() => vi.useRealTimers());
+
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-15T18:00:00Z'));
     for (const clave of ['ADMIN', 'CAJERO']) {
       const abierta = await prisma.caja.findFirst({ where: { tenantId, usuarioId: userIds[clave], estado: 'ABIERTA' } });
       if (!abierta) await ops.abrir(tenantId, userIds[clave], { solicitudId: randomUUID(), monto: 100 } as any);

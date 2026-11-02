@@ -62,9 +62,15 @@ test.describe('Garantías — backend real y PostgreSQL', () => {
     expect(auditoria).toBe(`GARANTIA_CREAR|${admin.id}`);
 
     // Persistencia tras recargar: la garantía sigue en la lista, leída del backend.
+    // El estado lo calcula la API con el día de Tegucigalpa, no el reloj del navegador.
+    // Acotamos la recarga por si cruza la medianoche del vencimiento.
+    const hoyAntes = sql("SELECT (clock_timestamp() AT TIME ZONE 'America/Tegucigalpa')::date::text");
     await page.reload();
     await expect(page.getByText('Taladro percutor 1/2" E2E').first()).toBeVisible();
-    await expect(page.getByText('VIGENTE').first()).toBeVisible();
+    const hoyDespues = sql("SELECT (clock_timestamp() AT TIME ZONE 'America/Tegucigalpa')::date::text");
+    const estadoAntes = vence >= hoyAntes ? 'VIGENTE' : 'VENCIDA';
+    const estadoDespues = vence >= hoyDespues ? 'VIGENTE' : 'VENCIDA';
+    await expect(page.getByText(new RegExp(`(${estadoAntes}|${estadoDespues})`)).first()).toBeVisible();
     await expect(page.getByText('90 DÍAS').or(page.getByText('90 días')).first()).toBeVisible();
   });
 

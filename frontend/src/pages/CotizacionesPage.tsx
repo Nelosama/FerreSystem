@@ -32,6 +32,7 @@ import { useI18n } from '../context/I18nContext';
 import { descargarReciboPDF, precargarGeneradorPDF } from '../components/descargarRecibo';
 import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
 import { filterCotizaciones } from '../utils/cotizacionesFilters';
+import { isvDocumentoCentavos } from '../utils/isv-documento';
 
 export const CotizacionesPage: React.FC = () => {
   const { tenant, user, isReadOnly } = useTenant();
@@ -441,8 +442,9 @@ export const CotizacionesPage: React.FC = () => {
     }
 
     const subtotalGravadoNeto = Math.max(0, subtotalLineas - descGenMonto);
-    const impuestoLineas=formItems.reduce((acc,item)=>acc+(item.exento?0:Math.round(item.subtotal*formPorcentajeIsv)/100),0);
-    const isvTotal=Math.round(impuestoLineas*(subtotalLineas>0?1-descGenMonto/subtotalLineas:0)*100)/100;
+    const isvTotal = isvDocumentoCentavos(
+      formItems.map((item) => ({ subtotalCentavos: Math.round(item.subtotal * 100), exento: Boolean(item.exento) })),
+      Math.round(descGenMonto * 100), formPorcentajeIsv) / 100;
 
     const totalFinal = Math.round((subtotalGravadoNeto + isvTotal) * 100) / 100;
 

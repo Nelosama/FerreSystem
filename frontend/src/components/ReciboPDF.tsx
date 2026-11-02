@@ -9,6 +9,7 @@ import {
 } from '@react-pdf/renderer';
 import type { TenantInfo } from '../types';
 import { esFormatoRollo, tamanoPaginaRecibo, type FormatoImpresion } from '../utils/formatoImpresion';
+import { montoEnLetras } from '../utils/montoEnLetras';
 
 export interface ReciboPDFItem {
   codigo?: string;
@@ -284,6 +285,7 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
               <Image src={logoDataUrl} style={styles.logo} />
             ) : null}
             <Text style={styles.companyName}>{tenant.nombreComercial}</Text>
+            {tenant.rtn ? <Text style={styles.companyMeta}>RTN: {tenant.rtn}</Text> : null}
             {tenant.direccion ? (
               <Text style={styles.companyMeta}>{tenant.direccion}</Text>
             ) : null}
@@ -411,6 +413,20 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
               </View>
             ) : null}
 
+            {tipo === 'VENTA' ? (
+              <>
+                {/* Formato de factura sin CAI (decisión del dueño 2026-11-02): desglose sin leyenda. Ventas solo gravadas. */}
+                <View style={styles.totalLine}>
+                  <Text style={{ color: '#78716C' }}>Importe exento:</Text>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>{formatMoney(0, currencySymbol)}</Text>
+                </View>
+                <View style={styles.totalLine}>
+                  <Text style={{ color: '#78716C' }}>Importe gravado:</Text>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>{formatMoney(Math.round((subtotal - descuento) * 100) / 100, currencySymbol)}</Text>
+                </View>
+              </>
+            ) : null}
+
             <View style={styles.totalLine}>
               <Text style={{ color: '#78716C' }}>
                 {taxName}{porcentajeIsv !== undefined && Number.isFinite(porcentajeIsv) ? ` (${porcentajeIsv}%, salvo exentos)` : ''}:
@@ -441,6 +457,15 @@ export const ReciboPDF: React.FC<ReciboPDFProps> = ({
             ) : null}
           </View>
         </View>
+
+        {tipo === 'VENTA' ? (
+          <View style={{ marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#E7E5E4' }}>
+            <Text style={{ fontSize: 8 }}>
+              <Text style={{ fontFamily: 'Helvetica-Bold' }}>Cantidad en letras: </Text>
+              {montoEnLetras(Math.round(total * 100))}
+            </Text>
+          </View>
+        ) : null}
 
         {/* Pie de Página */}
         <View style={styles.footer}>

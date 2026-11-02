@@ -40,6 +40,8 @@ type Registro = { documentos: unknown[]; errores: string[]; rutas: string[] };
 async function preparar(page: Page, baseURL: string | undefined, rol = 'CONTADOR', modulos = MODULOS): Promise<Registro> {
   const company = { id: 'cont-company', nombreComercial: 'Ferretería Contable', colorPrimario: '#1D4ED8', modoNavegacion: 'SIDEBAR', idioma: 'es', modulosHabilitados: modulos };
   const user = { id: `u-${rol}`, nombre: 'Carla', rol, permisos: [] };
+  // Reloj fijo en octubre de 2026: la pantalla usa el último mes cerrado (septiembre), que es el de los datos simulados.
+  await page.clock.setFixedTime(new Date('2026-10-15T12:00:00-06:00'));
   const registro: Registro = { documentos: [], errores: [], rutas: [] };
   page.on('pageerror', e => registro.errores.push(e.message));
   await page.addInitScript(({ company, user }) => {
@@ -321,3 +323,18 @@ test.describe('Contabilidad y Control Tributario (simulado)', () => {
     await capturar(page, 'contador-cartera-1366');
   });
 });
+
+for (const [ahora, periodo] of [
+  ['2026-11-15T12:00:00-06:00', '2026-10'],
+  ['2027-01-01T00:00:30-06:00', '2026-12'],
+]) {
+  test(`el período y la descarga siguen el reloj simulado ${ahora}`, async ({ page, baseURL }) => {
+    await preparar(page, baseURL);
+    await page.clock.setFixedTime(new Date(ahora));
+    await page.goto('/contabilidad/reportes');
+    await expect(page.locator('input[type=month]')).toHaveValue(periodo);
+    const descarga = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Libro contable del mes (Excel)' }).click();
+    expect((await descarga).suggestedFilename()).toBe(`libro-contable-${periodo}.xlsx`);
+  });
+}

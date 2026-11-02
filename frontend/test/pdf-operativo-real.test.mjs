@@ -11,10 +11,13 @@ const format = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/utils/formatoImpresion.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText, format);
+const letras = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/utils/montoEnLetras.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, letras);
 const context = { exports: {}, require: name => {
   if (name === 'react') return React;
   if (name === '@react-pdf/renderer') return renderer;
   if (name.endsWith('/utils/formatoImpresion')) return format.exports;
+  if (name.endsWith('/utils/montoEnLetras')) return letras.exports;
   throw new Error(name);
 } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/components/ReciboPDF.tsx', 'utf8'), {

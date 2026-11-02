@@ -338,7 +338,9 @@ describe('Contabilidad Honduras / PostgreSQL aislado', () => {
   });
 
   it('cierre de período: congela registros, detecta cambios posteriores y solo ADMIN reabre', async () => {
-    await como(u.contadorA).post('/contabilidad/periodos/2026/10/cerrar', { motivo: 'Mes en curso' }).expect(409);
+    // El mes en curso se calcula: la versión anterior fijaba octubre de 2026 y falló al empezar noviembre.
+    const [anioActual, mesActual] = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Tegucigalpa', year: 'numeric', month: '2-digit' }).format(new Date()).split('-').map(Number);
+    await como(u.contadorA).post(`/contabilidad/periodos/${anioActual}/${mesActual}/cerrar`, { motivo: 'Mes en curso' }).expect(409);
     const cierre = (await como(u.contadorA).post('/contabilidad/periodos/2026/9/cerrar', { motivo: 'Cierre mensual' }).expect(201)).body;
     expect(cierre.huella).toMatch(/^[0-9a-f]{64}$/);
     await como(u.contadorA).post('/contabilidad/documentos', { direccion: 'EMITIDO', tipoDocumento: '01', numero: '000-001-01-00000010', fechaEmision: '2026-09-25', nombreContraparte: 'Tarde', importeGravadoGeneral: 10, isvGeneral: 1.5 }).expect(409);

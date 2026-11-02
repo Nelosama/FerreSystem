@@ -6,11 +6,13 @@ import ts from 'typescript';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 const Block = ({ children }) => React.createElement('div', null, children);
+const letras={}; vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/utils/montoEnLetras.ts','utf8'),{ compilerOptions:{ module:ts.ModuleKind.CommonJS } }).outputText,{ exports:letras });
 const fmt={}; vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/utils/formatoImpresion.ts','utf8'),{ compilerOptions:{ module:ts.ModuleKind.CommonJS } }).outputText,{ exports:fmt, require:()=>{throw new Error('dep');} });
 const context={ exports:{}, require:name=>{
   if(name==='react')return React;
   if(name==='@react-pdf/renderer')return { Document:Block, Page:Block, Text:Block, View:Block, Image:()=>null, StyleSheet:{ create:value=>value } };
   if(name.endsWith('/utils/formatoImpresion'))return fmt;
+  if(name.endsWith('/utils/montoEnLetras'))return letras;
   throw new Error(name);
 } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/components/ReciboPDF.tsx','utf8'),{ compilerOptions:{ module:ts.ModuleKind.CommonJS, jsx:ts.JsxEmit.React, esModuleInterop:true } }).outputText,context);
@@ -35,4 +37,22 @@ test('usa tasa transaccional de cotización, incluido cero, cuando el contrato l
     const html=render({ ...legacySale,tipo:'COTIZACION',porcentajeIsv:rate,isv:rate,total:100+rate,tenant:{ ...tenant,impuesto:{nombre:'VAT',tasa:18} } });
     assert.ok(html.includes(`ISV (${rate}%, salvo exentos):`)); assert.doesNotMatch(html,/18%|VAT/);
   }
+});
+test('comprobante de venta con formato de factura sin CAI ni leyenda: desglose y cantidad en letras',()=>{
+  const html=render({ ...legacySale,subtotal:120,descuento:20,isv:15,total:115,tenant });
+  assert.match(html,/Importe exento:/); assert.match(html,/L\. 0\.00/);
+  assert.match(html,/Importe gravado:/); assert.match(html,/L\. 100\.00/);
+  assert.match(html,/CIENTO QUINCE LEMPIRAS CON 00\/100/);
+  assert.match(html,/Empresa/);
+  assert.doesNotMatch(html,/CAI|RANGO AUTORIZADO|no fiscal|FACTURA/i);
+});
+test('cotización no lleva desglose de venta ni cantidad en letras',()=>{
+  const html=render({ ...legacySale,tipo:'COTIZACION',tenant });
+  assert.doesNotMatch(html,/Importe gravado|Cantidad en letras/);
+});
+test('comprobante muestra el RTN del emisor bajo el nombre solo cuando existe',()=>{
+  const con=render({ ...legacySale,tenant:{ ...tenant, rtn:'08019999000000' } });
+  assert.match(con,/RTN: 08019999000000/);
+  const sin=render({ ...legacySale,tenant:{ ...tenant, rtn:null } });
+  assert.doesNotMatch(sin,/RTN:/);
 });

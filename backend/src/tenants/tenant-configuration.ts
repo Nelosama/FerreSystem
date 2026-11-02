@@ -25,6 +25,9 @@ export function validateTenantConfiguration(value: unknown): asserts value is Re
       if (!options[key].includes(field)) throw new BadRequestException(`Configuración inválida: ${key}`);
     } else if (key === 'modoGuia') {
       if (typeof field !== 'boolean') throw new BadRequestException('Modo Guía inválido');
+    } else if (key === 'rtn') {
+      // RTN del emisor (opcional): 14 dígitos, o null para quitarlo. Se imprime en el comprobante.
+      if (field !== null && (typeof field !== 'string' || !/^\d{14}$/.test(field))) throw new BadRequestException('RTN inválido: debe tener 14 dígitos');
     } else if (key === 'moneda') {
       if (!field || typeof field !== 'object' || Object.keys(field).some(k => !['simbolo', 'codigo'].includes(k)) || field.simbolo !== 'L.' || field.codigo !== 'HNL') throw new BadRequestException('Solo se admite HNL (L.); no hay conversión monetaria');
     } else if (key === 'impuesto') {
@@ -40,6 +43,7 @@ export function normalizeTenantConfiguration(value: unknown) {
   return {
     ...Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, options[key].includes(configuration[key] as string) ? configuration[key] : fallback])),
     modoGuia: configuration.modoGuia === true,
+    rtn: typeof configuration.rtn === 'string' && /^\d{14}$/.test(configuration.rtn) ? configuration.rtn : null,
     moneda: { simbolo: 'L.', codigo: 'HNL' }, impuesto: { nombre: 'ISV', tasa: 15 },
   };
 }

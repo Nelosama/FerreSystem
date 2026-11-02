@@ -59,6 +59,8 @@ export interface TenantInfo {
   direccion?: string;
   telefono?: string;
   email?: string;
+  /** RTN del emisor (14 dígitos), opcional. Lo configura el Super Admin. */
+  rtn?: string | null;
   rubro?: Rubro | keyof typeof Rubro;
   modulosHabilitados?: string[];
   modoGuia?: boolean;
