@@ -106,10 +106,16 @@ describe('Dashboard / PostgreSQL aislado', () => {
     expect(data.ultimasVentas.length).toBeGreaterThan(0);
   });
 
-  it('suma las ventas del día al centavo exacto (en PostgreSQL), cuenta solo las completadas y respeta la tendencia', async () => {
+  afterEach(() => vi.useRealTimers());
+
+  it.each(['2026-11-15T18:00:00Z', '2026-11-15T06:00:30Z', '2027-01-01T06:00:30Z'])(
+    'suma las ventas del día al centavo exacto, solo completadas y tendencia (reloj %s)', async (ahora) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(ahora));
     const usuario = await prisma.usuario.create({ data: { tenantId, nombre: 'Cajero', email: `s-${tenantId}@prueba.test`, passwordHash: 'x' } });
     // Diez ventas de L 0.10 suman 0.9999999999999999 en coma flotante; el total correcto es L 1.00.
-    const hoy = new Date(Date.now() - 60 * 1000);
+    // Las ventas pertenecen al día simulado, también durante su primer minuto.
+    const hoy = new Date();
     for (let i = 1; i <= 10; i++) await prisma.venta.create({ data: { tenantId, usuarioId: usuario.id, numeroVenta: i, subtotal: 0.1, isv: 0, total: 0.1, createdAt: hoy } });
     await prisma.venta.create({ data: { tenantId, usuarioId: usuario.id, numeroVenta: 11, subtotal: 500, isv: 0, total: 500, estado: 'ANULADA', createdAt: hoy } });
     const data = await dashboard.getDashboardData(tenantId);

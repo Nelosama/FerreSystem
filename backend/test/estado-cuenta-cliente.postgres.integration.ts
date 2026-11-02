@@ -122,6 +122,12 @@ describe('Estado de cuenta de cliente / PostgreSQL aislado', () => {
     }
   });
 
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-15T18:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
   it('ADMIN ve cuentas, abonos, vencimientos y si el saldo concilia con las cuentas', async () => {
     const cliente = await prisma.cliente.create({ data: { tenantId, nombre: 'Cliente Estado', creditoHabilitado: true, limiteCredito: 1000, saldoPendiente: 300 } as any });
     const vencida = await prisma.cuentaOperativa.create({ data: { tenantId, tipo: 'CXC', clienteId: cliente.id, documentoId: randomUUID(), monto: 500, saldo: 200, vencimiento: new Date('2026-01-01T00:00:00Z'), usuarioId: userIds.ADMIN } as any });

@@ -373,7 +373,11 @@ describe('Garantías / PostgreSQL aislado', () => {
       expect(fila).toEqual({ creado_por: users['ADMIN-A'].id, actualizado_por: users['ADMIN-A'].id });
     });
 
+    afterEach(() => vi.useRealTimers());
+
     it('el estado es VIGENTE hasta el vencimiento y VENCIDA después, con el día de negocio', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-15T18:00:00Z'));
       const v = await venta(tenantA, users['ADMIN-A'].id, '2025-01-01T18:00:00.000Z', [{ productoId: productoA }]);
       const vencida = await call('post', '/garantias/coberturas', 'ADMIN-A', { ventaId: v.id, detalleVentaId: v.detalles[0].id, diasGarantia: 30, solicitudId: randomUUID() }).expect(201);
       expect(vencida.body.estado).toBe('VENCIDA');
