@@ -4,18 +4,18 @@
 
 ## Estado de partida
 
-- `main` = `20f356c` (merge de #234: ISV de cotizaciones, comprobante sin CAI, RTN opcional, barrido de fechas). Checks de `main` en ese SHA: **en curso** al redactar este plan (último estado visto: en progreso desde 04:56 UTC). Hasta que terminen en verde, `main` no está verificado.
+- `main` = `20f356c` (merge de #234: ISV de cotizaciones, comprobante sin CAI, RTN opcional, barrido de fechas). Verificación actual del SHA `20f356cb82c7f002db6c950475f548277c5bd795`: `validate`, `test` y `guard-base-datos` completados con **success**; ambos workflows (`Operación de ferretería` y `Piloto con API y PostgreSQL reales`) están en verde. `main` está verificado por CI.
 - PR #233 cerrado sin integrar (superado por #234).
-- Ramas por borrar tras confirmar el CI de `main`: `claude/sweet-ritchie-wrwsbo`, `codex/barrido-fechas-20261102`.
+- Ramas remotas: en la consulta actual solo aparecen `main` y `docs/plan-ejecucion-20261102`; `claude/sweet-ritchie-wrwsbo` y `codex/barrido-fechas-20261102` ya no aparecen en la lista de ramas.
 - Producción sigue con `46f7db7`: Render con Auto-Deploy apagado y Vercel bloqueando `main`.
 
 ## Bloque A — Verificación y cierre de integración (yo)
 
 | # | Tarea | Estado | Criterio de salida |
 |---|---|---|---|
-| A1 | Confirmar checks de `main` en `20f356c` | En curso | Ambos workflows en success; si falla, corregir antes de cualquier otra cosa |
-| A2 | Borrar `claude/sweet-ritchie-wrwsbo` y `codex/barrido-fechas-20261102` | Pendiente de A1 | Ramas ya ancestro de `main` o contenido idéntico; borrado confirmado |
-| A3 | Actualizar `CONTEXTO_MAESTRO.md` y el plan con #234 integrado y el SHA verificado | Hecho en este plan; falta A1 | Fotografía 2026-11-02 refleja el estado real |
+| A1 | Confirmar checks de `main` en `20f356c` | Hecho: `validate`, `test`, `guard-base-datos` y ambos workflows en success sobre SHA `20f356cb82c7f002db6c950475f548277c5bd795` | Checks completados en el SHA exacto |
+| A2 | Confirmar estado de `claude/sweet-ritchie-wrwsbo` y `codex/barrido-fechas-20261102` | Hecho: ambas ya no aparecen en las ramas remotas consultadas; no se borraron en esta revisión | Ninguna rama de trabajo adicional pendiente de ese bloque |
+| A3 | Actualizar `CONTEXTO_MAESTRO.md` y este plan con #234 integrado y el SHA verificado | Hecho en esta actualización | Fotografía 2026-11-02 refleja el estado observado |
 
 ## Bloque B — Decisiones del dueño (bloquean implementación)
 
@@ -34,7 +34,7 @@ Sin decisión, B1–B4 usan su opción por defecto solo en código no fiscal; B1
 
 | # | Tarea | Quién | Dependencia | Estado |
 |---|---|---|---|---|
-| C1 | Copiar RTN a cada venta (`ventas.emisor_rtn`, nullable, sin relleno de históricos) | Yo: propuesta de migración para revisión NEXUS; no se aplica hasta aprobación | NEXUS | Propuesta a redactar en esta sesión |
+| C1 | Copiar RTN a cada venta (`ventas.emisor_rtn`, nullable, sin relleno de históricos) | Propuesta escrita en `NEXUS_PROPUESTA_VENTAS_EMISOR_RTN_20261102.md`; no se aplica hasta revisión NEXUS y decisión del dueño | NEXUS y dueño | Propuesta lista; implementación bloqueada |
 | C2 | Limitar ISV de compras | Codex, tras B1 | B1 | Bloqueada |
 | C3 | Retirar SDK OpenAI | Codex, tras B3 | B3 | Bloqueada |
 | C4 | Servicio `facturacion_cai` (1–2 semanas) | Codex por fases, con NEXUS | Después de la salida; no bloquea | Diseño listo |
@@ -75,11 +75,12 @@ Sin decisión, B1–B4 usan su opción por defecto solo en código no fiscal; B1
 
 ## Orden de ejecución propuesto
 
-1. **Hoy:** A1 y A2; A3 con el estado real.
-2. **En paralelo:** tú tomas B1–B5 y el bloque D; yo redacto C1 (propuesta NEXUS) y preparo la lista exacta de lo que necesito de cada panel.
-3. **Después de B y D:** C2, C3 y E1–E3.
-4. **Después de E:** E4–E6 y F1–F4.
-5. **Salida:** F5, con orden expresa.
+1. **Completado:** A1–A3; CI de `main` verde y las dos ramas anteriores ya no aparecen en el listado remoto.
+2. **Siguiente:** resolver B1–B5 y completar el bloque D; confirmar primero los valores observados en los paneles, sin compartir secretos.
+3. **En paralelo:** revisión NEXUS y decisión del dueño sobre C1; preparar lista exacta de evidencias de panel para D.
+4. **Después de B y D:** C2 y C3 solo tras decisión explícita; luego E1–E3.
+5. **Después de E:** E4–E6 y F1–F4.
+6. **Salida:** F5, con orden expresa.
 
 ## Qué no puedo hacer yo
 
@@ -91,3 +92,4 @@ Sin decisión, B1–B4 usan su opción por defecto solo en código no fiscal; B1
 ## Historial
 
 - 2026-11-02: plan de ejecución creado a partir de #234 integrado y de las decisiones tomadas. Sin cambios de producción.
+- 2026-11-02: A1–A3 actualizados; CI de `main` en `20f356c` confirmado verde, y las ramas `claude/sweet-ritchie-wrwsbo` y `codex/barrido-fechas-20261102` ya no aparecen en el listado remoto. Sin ramas borradas en esta actualización.
