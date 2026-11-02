@@ -40,6 +40,8 @@ type Registro = { documentos: unknown[]; errores: string[]; rutas: string[] };
 async function preparar(page: Page, baseURL: string | undefined, rol = 'CONTADOR', modulos = MODULOS): Promise<Registro> {
   const company = { id: 'cont-company', nombreComercial: 'Ferretería Contable', colorPrimario: '#1D4ED8', modoNavegacion: 'SIDEBAR', idioma: 'es', modulosHabilitados: modulos };
   const user = { id: `u-${rol}`, nombre: 'Carla', rol, permisos: [] };
+  // Reloj fijo en octubre de 2026: la pantalla usa el último mes cerrado (septiembre), que es el de los datos simulados.
+  await page.clock.setFixedTime(new Date('2026-10-15T12:00:00-06:00'));
   const registro: Registro = { documentos: [], errores: [], rutas: [] };
   page.on('pageerror', e => registro.errores.push(e.message));
   await page.addInitScript(({ company, user }) => {
