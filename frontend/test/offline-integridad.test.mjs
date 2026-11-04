@@ -28,14 +28,15 @@ function modulos(externos = {}) {
   }
   return cargar;
 }
-const usuario = { id: 'u', rol: 'CAJERO' };
+const usuario = { id: 'u', rol: 'CAJERO', tenantId: 'A' };
+const sesion = { usuarioId: 'u', rol: 'CAJERO', tenantId: 'A' };
 async function escenario(cantidad = 2) {
   globalThis.indexedDB = new IDBFactory();
   const cargar = modulos();
   const journal = cargar('src/offline/journal.ts'), sync = cargar('src/offline/sync.ts'), db = cargar('src/offline/db.ts');
   const ops = [], ids = Array.from({ length: cantidad }, (_, i) => `uuid-${i}`);
   for (let i = 0; i < cantidad; i++) ops.push(await journal.registrarOperacion({
-    dispositivoId: 'd', ventanaId: 'v', cajeroId: 'u', cajeroNombre: 'Ana', cajaId: 'c',
+    tenantId: 'A', dispositivoId: 'd', ventanaId: 'v', cajeroId: 'u', cajeroNombre: 'Ana', cajaId: 'c',
     ocurridoAtLocal: '2026-11-03T18:00:00Z', lineas: [{ productoId: 'p', codigo: 'P', nombre: 'Producto', cantidadCentesimas: 100, precioCentavos: 1000 }],
     subtotalCentavos: 1000, isvCentavos: 150, totalCentavos: 1150, efectivoRecibidoCentavos: 1200, cambioCentavos: 50,
     clienteNombre: '', clienteRtn: '', esquemaVersion: 1,
@@ -105,26 +106,27 @@ for (const status of [401, 403, 408, 409, 429, 500, undefined]) test(`regresión
 });
 test('lectura: cero real/base ausente difieren de fallos de enumeración/transacción', async () => {
   const e = await escenario(0);
-  assert.equal(await e.journal.contarVentasPorEnviar(), 0);
+  assert.equal(await e.journal.contarVentasPorEnviar(sesion), 0);
   const base = await e.db.abrirBase();
-  assert.equal(await e.journal.contarVentasPorEnviar(), 0);
+  assert.equal(await e.journal.contarVentasPorEnviar(sesion), 0);
   const transaction = base.transaction;
   base.transaction = () => { throw new Error('lectura rota'); };
-  await assert.rejects(e.journal.contarVentasPorEnviar(), /consultar las ventas/);
+  await assert.rejects(e.journal.contarVentasPorEnviar(sesion), /consultar las ventas/);
   base.transaction = transaction;
   indexedDB.databases = async () => { throw new Error('enumeración rota'); };
-  await assert.rejects(e.journal.contarVentasPorEnviar(), /consultar las ventas/);
+  await assert.rejects(e.journal.contarVentasPorEnviar(sesion), /consultar las ventas/);
   globalThis.indexedDB = undefined;
-  await assert.rejects(e.journal.contarVentasPorEnviar(), /consultar las ventas/);
+  await assert.rejects(e.journal.contarVentasPorEnviar(sesion), /consultar las ventas/);
 });
 test('useConexion: carga, error con último conteo, recuperación a cero y desmontaje', async () => {
   const estados = [], pendientes = [];
   let indice = 0, efecto, intervalo;
   const cargar = modulos({
+    '../context/TenantContext': { useTenant: () => ({ user: usuario, tenant: { id: 'A' }, authStatus: 'ready' }) },
     react: { useState: inicial => {
       const i = indice++;
       if (!(i in estados)) estados[i] = typeof inicial === 'function' ? inicial() : inicial;
-      return [estados[i], valor => { estados[i] = valor; }];
+      return [estados[i], valor => { estados[i] = typeof valor === 'function' ? valor(estados[i]) : valor; }];
     }, useEffect: fn => { efecto = fn; } },
     '../offline/journal': { contarVentasPorEnviar: () => new Promise((resolve, reject) => pendientes.push({ resolve, reject })) },
   });
@@ -206,7 +208,7 @@ for (const status of [400, 413]) test(`rechazo ${status} aislado: revisión sin 
 test('conteo positivo sin soporte de databases(): consulta el diario', async () => {
   const e = await escenario();
   indexedDB.databases = undefined;
-  assert.equal(await e.journal.contarVentasPorEnviar(), 2);
+  assert.equal(await e.journal.contarVentasPorEnviar(sesion), 2);
 });
 
 for (const estadoLectura of ['cargando', 'error', 'disponible']) test(`indicador visible: ${estadoLectura} no confunde el último conteo con una lectura válida`, () => {

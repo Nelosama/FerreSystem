@@ -324,3 +324,45 @@ test.describe('Contingencia — recuperación de sesión ante 502/503 y bloqueo 
     });
   }
 });
+
+
+test.describe('Contingencia — colas y contadores aislados posteriores a #236', () => {
+  test('cambios de empresa y cajero, recarga y contadores del mismo navegador', async ({ page }) => {
+    await ingresar(page, ID.cajeroA1);
+    await sembrar(page, SEMBRADAS);
+    for (const [quien, pendientes] of [['cajeroA1', 2], ['cajeroA2', 1], ['adminA', 2], ['cajeroB1', 1], ['adminB', 1]] as const) {
+      await ingresar(page, ID[quien]);
+      // La caja de contingencia es independiente del shell; el indicador global vive en el POS en línea.
+      await page.goto('/pos');
+      await expect(page.locator('.jowa-connection').first()).toContainText(`${pendientes} ventas por enviar`);
+      await page.reload();
+      await expect(page.locator('.jowa-connection').first()).toContainText(`${pendientes} ventas por enviar`);
+      expect((await diario(page)).map(o => o.operacionId).sort()).toEqual(SEMBRADAS.map(o => o.operacionId).sort());
+    }
+  });
+
+  test('ADMIN de A solo envía A; ADMIN de B solo envía B; históricos desconocidos sobreviven', async ({ page, sim }) => {
+    await ingresar(page, ID.adminA);
+    const iniciales = SEMBRADAS.map(o => ({ ...o, proximoIntentoAt: undefined }));
+    await sembrar(page, iniciales);
+    await abrirContingencia(page);
+    await expect.poll(() => sim.recibidas.length).toBeGreaterThan(0);
+    const idsA = iniciales.filter(o => o.tenantId === EMPRESA_A.id).map(o => o.operacionId).sort();
+    expect([...new Set(sim.recibidas)].sort()).toEqual(idsA);
+    const antesB = await diario(page);
+    const ajenaB = iniciales.find(o => o.tenantId === EMPRESA_B.id)!;
+    expect(antesB.find(o => o.operacionId === ajenaB.operacionId)).toEqual(ajenaB);
+    sim.recibidas.length = 0;
+    await ingresar(page, ID.adminB);
+    await abrirContingencia(page);
+    await expect.poll(() => sim.recibidas.length).toBeGreaterThan(0);
+    expect([...new Set(sim.recibidas)]).toEqual([ajenaB.operacionId]);
+    const final = await diario(page);
+    const historica = iniciales.find(o => o.cajeroId === ID.cajeroA1.id && !('tenantId' in o))!;
+    expect(final.find(o => o.operacionId === historica.operacionId)).toEqual(historica);
+    for (const o of iniciales) {
+      const despues = final.find(x => x.operacionId === o.operacionId);
+      for (const campo of ['tenantId', 'operacionId', 'secuenciaLocal', 'correlativoLocal', 'lineas', 'subtotalCentavos', 'isvCentavos', 'totalCentavos']) expect(despues[campo]).toEqual(o[campo as keyof typeof o]);
+    }
+  });
+});

@@ -151,10 +151,10 @@ export default function PosContingenciaPage() {
 
   // Envío del diario: al volver la conexión, periódicamente y tras cada venta. Un solo envío a la vez.
   const sincronizar = useCallback(async () => {
-    if (!enLinea || !dispositivo?.registrado || !user || operador === false || enSyncRef.current) return;
+    if (!enLinea || !dispositivo?.registrado || !user || !tenant?.id || operador === false || enSyncRef.current) return;
     enSyncRef.current = true;
     try {
-      const r = await sincronizarPendientes(api, dispositivo.id, { id: user.id, rol: user.rol });
+      const r = await sincronizarPendientes(api, dispositivo.id, { id: user.id, rol: user.rol, tenantId: tenant.id });
       setUltimaSync(new Date().toISOString());
       if (r.error && r.enviadas === 0) setMensaje({ tipo: 'aviso', texto: r.error });
       if (r.aplicadas) setMensaje({ tipo: 'ok', texto: `${r.aplicadas} venta(s) enviadas y confirmadas por la oficina.` });
@@ -165,7 +165,7 @@ export default function PosContingenciaPage() {
       enSyncRef.current = false;
       await recargarDiario();
     }
-  }, [enLinea, dispositivo, user, operador, recargarDiario]);
+  }, [enLinea, dispositivo, user, tenant?.id, operador, recargarDiario]);
 
   useEffect(() => {
     if (!enLinea) return;
@@ -300,8 +300,8 @@ export default function PosContingenciaPage() {
     guardandoRef.current = true;
     setGuardando(true);
     // La empresa se guarda en el mismo registro (misma transacción que la venta). No se envía al servidor: aOperacionDto
-    // copia solo los campos del contrato. Dependencia documentada: formalizar `tenantId` en OperacionLocal (journal.ts).
-    const nueva: NuevaOperacion & { tenantId: string } = {
+    // copia solo los campos del contrato; tenantId permanece como metadato local.
+    const nueva: NuevaOperacion = {
       tenantId: ventana.tenantId || tenant?.id || '',
       dispositivoId: dispositivo.id, ventanaId: ventana.ventanaId, cajeroId: user.id,
       cajeroNombre: user.nombre, cajaId: ventana.cajaId, ocurridoAtLocal: new Date().toISOString(), ferreteria: tenant?.nombreComercial ?? '',
