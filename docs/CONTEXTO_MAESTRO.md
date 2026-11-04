@@ -1,5 +1,16 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Integridad de contingencia — 2026-11-03 (America/Tegucigalpa)
+
+- Base remota verificada: `main` `20f356cb82c7f002db6c950475f548277c5bd795`. Única rama de trabajo: `codex/pwa-integridad-20261103`; PR contra main, sin merge ni despliegue.
+- H-F1 confirmado: el catch compartido entre HTTP y persistencia reiniciaba todo el lote cuando abortaba una escritura posterior a la respuesta, incluso confirmaciones ya guardadas. `frontend/src/offline/sync.ts` separa el HTTP de la persistencia tanto por lote como individualmente. Un fallo local se propaga; conserva confirmaciones guardadas y deja ENVIANDO las no persistidas. Recuperación por UUID original mediante el protocolo idempotente existente; sin nuevas reglas fiscales ni cambios de esquema.
+- Lectura: `contarVentasPorEnviar()` mantiene `Promise<number>` pero rechaza ante fallos (incluida API no disponible); cero corresponde a lectura válida o base ausente. `useConexion` añade `estadoLectura`, conserva el último conteo y descarta respuestas obsoletas. `IndicadorConexion` muestra carga/error en español e inglés y oculta el conteo obsoleto.
+- Pruebas: `frontend/test/offline-integridad.test.mjs` 25/25, usando fake-indexeddb con abort de transacción real del journal, reinicio de módulos, respuesta perdida, UUID/carga inmutables, errores HTTP, rechazo aislado, fallos de lectura, hook e indicador. Suite completa anterior a las últimas tres pruebas visuales: 615/615. Build con API sintética y lint aprobados (advertencias existentes). Navegador y CI del SHA final en verificación; sus resultados se informan en el PR y en la entrega, sin atribuir verde anticipado.
+- Bloqueo preventivo de despliegue de esta rama en `frontend/vercel.json` y `scripts/vercel-ignore.sh`, con prueba de guardia. Sin acceso a Render/Vercel/Supabase real ni migraciones.
+- Riesgos residuales: pérdida física/expulsión del almacenamiento y apagón real no certificados; la recuperación de una confirmación no persistida requiere reenvío y disponibilidad del servidor. El cliente depende de la idempotencia del servidor por UUID; los tests nuevos usan servidor sintético, la regresión PostgreSQL corresponde al CI aislado existente.
+
+**Bitácora:** lectura de AGENTS y contexto vigente, fetch de main y verificación de SHA, corrección y pruebas locales. Estado de CI debe comprobarse para el head exacto; no hay autorización de merge ni despliegue.
+
 ## Fotografía vigente — 2026-11-02 (plan de salida a producción; base `main` `c436592f3df5e889c69d1eee0d35e8e505cb4bb7`)
 
 Prevalece sobre la fotografía del 2026-10-31 en lo que cambia; sus pendientes canónicos siguen válidos.
