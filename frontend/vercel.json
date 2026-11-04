@@ -41,6 +41,7 @@
   ],
   "git": {
     "deploymentEnabled": {
+      "claude/persistencia-retencion-20261104": false,
       "claude/compassionate-mayer-73jljd": false,
       "codex/pwa-integridad-20261103": false,
       "claude/pos-sincronizacion-precios": false,
