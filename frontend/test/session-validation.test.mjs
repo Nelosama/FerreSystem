@@ -7,6 +7,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 function setup(read, superAdmin = false, offline = {}) {
   let now = Date.parse('2026-10-16T08:00:00Z');
   const values = new Map([['ferre_token','token'],['ferre_user',JSON.stringify({id:'u'})],['ferre_tenant',JSON.stringify({id:'t'})]]);
+  if (offline.validated) values.set('ferre_identidad_validada', offline.validated);
   const localStorage = { getItem: key => values.get(key) ?? null, setItem: (key,val) => values.set(key,val), removeItem: key => values.delete(key) };
   const window = new EventTarget(); window.location = { pathname: offline.path || '/levantamiento' };
   const document = new EventTarget(); document.visibilityState = 'visible'; document.documentElement = { dataset: {} };
@@ -89,4 +90,70 @@ for (const window of [{tenantId:'ajeno',cajeroId:'u',vigenteHasta:Infinity},{ten
 }
 test('un 403 explícito no puede evadirse usando la ventana local',async()=>{
   const h=setup(async()=>{throw {response:{status:403}};},false,{path:'/pos-contingencia',window:{tenantId:'t',cajeroId:'u',vigenteHasta:Infinity}});await tick();assert.equal(h.statuses.at(-1),'denied');h.stop();
+});
+
+// ───── P1-2: contingencia ante 502/503 solo con identidad confirmada antes por el servidor ─────
+const vigente = {tenantId:'t',cajeroId:'u',vigenteHasta:Date.parse('2026-10-16T10:00:00Z')};
+const conVentana = (failure, extra = {}) => setup(async()=>{throw failure;},false,{path:'/pos-contingencia',window:vigente,validated:'u:t',...extra});
+
+for (const status of [502, 503]) {
+  test(`${status} con identidad validada, misma empresa/usuario y ventana vigente abre la contingencia`,async()=>{
+    const h=conVentana({response:{status}});await tick();assert.equal(h.statuses.at(-1),'offline');assert.equal(h.localStorage.getItem('ferre_token'),'token');h.stop();
+  });
+  test(`${status} sin identidad validada previamente no abre la contingencia`,async()=>{
+    const h=conVentana({response:{status}},{validated:undefined});await tick();assert.equal(h.statuses.at(-1),'error');h.stop();
+  });
+  for (const validated of ['otro:t','u:otra','u','']) {
+    test(`${status} con identidad validada de otra cuenta (${JSON.stringify(validated)}) no abre la contingencia`,async()=>{
+      const h=conVentana({response:{status}},{validated});await tick();assert.equal(h.statuses.at(-1),'error');h.stop();
+    });
+  }
+  for (const window of [{...vigente,tenantId:'ajeno'},{...vigente,cajeroId:'ajeno'},{...vigente,vigenteHasta:0},undefined]) {
+    test(`${status} con ventana ajena, vencida o ausente no abre la contingencia: ${JSON.stringify(window)}`,async()=>{
+      const h=conVentana({response:{status}},{window});await tick();assert.equal(h.statuses.at(-1),'error');h.stop();
+    });
+  }
+  test(`${status} fuera de /pos-contingencia no abre la contingencia`,async()=>{
+    const h=conVentana({response:{status}},{path:'/levantamiento'});await tick();assert.equal(h.statuses.at(-1),'error');h.stop();
+  });
+  test(`${status} con token ausente no abre la contingencia`,async()=>{
+    let fallar;const h=setup(()=>new Promise((_,reject)=>{fallar=reject;}),false,{path:'/pos-contingencia',window:vigente,validated:'u:t'});
+    h.localStorage.removeItem('ferre_token');fallar({response:{status}});
+    await tick();assert.ok(!h.statuses.includes('offline'));h.stop();
+  });
+  test(`${status} con identidad cambiada durante la consulta no abre la contingencia`,async()=>{
+    let fallar;const h=setup(()=>new Promise((_,reject)=>{fallar=reject;}),false,{path:'/pos-contingencia',window:vigente,validated:'u:t'});
+    h.localStorage.setItem('ferre_user',JSON.stringify({id:'otro'}));fallar({response:{status}});
+    await tick();assert.ok(!h.statuses.includes('offline'));h.stop();
+  });
+}
+for (const [status, esperado] of [[401,'error'],[403,'denied'],[400,'error'],[404,'error'],[500,'error'],[504,'error']]) {
+  test(`${status} nunca habilita la contingencia aunque haya identidad validada y ventana vigente`,async()=>{
+    const h=conVentana({response:{status}});await tick();assert.equal(h.statuses.at(-1),esperado);assert.ok(!h.statuses.includes('offline'));h.stop();
+  });
+}
+test('sin respuesta (red) conserva el comportamiento previo: no exige identidad validada',async()=>{
+  const h=conVentana(new Error('Network Error'),{validated:undefined});await tick();assert.equal(h.statuses.at(-1),'offline');h.stop();
+});
+test('una validación correcta registra la identidad confirmada por el servidor',async()=>{
+  const h=setup(async()=>valid);await tick();assert.equal(h.localStorage.getItem('ferre_identidad_validada'),'u:t');h.stop();
+});
+test('un perfil de otra empresa no registra identidad validada',async()=>{
+  const h=setup(async()=>({data:{user:{sub:'u',tenantId:'otra',type:'tenant'}}}));await tick();assert.equal(h.localStorage.getItem('ferre_identidad_validada'),null);h.stop();
+});
+test('el Super Admin no registra identidad para contingencia',async()=>{
+  const h=setup(async()=>({data:{user:{sub:'u',type:'super_admin'}}}),true);await tick();assert.equal(h.localStorage.getItem('ferre_identidad_validada'),null);h.stop();
+});
+test('motivoContingencia: solo sin respuesta, 502 y 503',()=>{
+  const src=ts.transpileModule(fs.readFileSync('src/utils/sessionValidation.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
+  const ctx={exports:{},require:()=>({})};vm.runInNewContext(src,ctx);const m=ctx.exports.motivoContingencia;
+  assert.equal(m(new Error('x')),'sin-respuesta');assert.equal(m({code:'ECONNABORTED'}),'sin-respuesta');
+  assert.equal(m({response:{status:502}}),'servidor-no-disponible');assert.equal(m({response:{status:503}}),'servidor-no-disponible');
+  for (const s of [200,400,401,403,404,409,429,500,501,504]) assert.equal(m({response:{status:s}}),null);
+  assert.equal(ctx.exports.IDENTIDAD_VALIDADA_KEY,'ferre_identidad_validada');
+});
+test('cerrar o expirar la sesión borra la identidad validada',()=>{
+  const fuente=fs.readFileSync('src/utils/authInterceptors.ts','utf8');
+  const lista=fuente.match(/export function clearSessionStorage\(\) \{\s*for \(const key of (\[[^\]]*\])/);
+  assert.ok(lista);assert.ok(JSON.parse(lista[1].replace(/'/g,'"')).includes('ferre_identidad_validada'));
 });
