@@ -63,6 +63,8 @@ export default function PosContingenciaPage() {
   const guardandoRef = useRef(false);
   const enSyncRef = useRef(false);
   const borradorListo = useRef(false);
+  // `registrado` persistido no acredita el alta del mismo UUID en la empresa de otra sesión.
+  const dispositivoValidadoRef = useRef('');
 
   const recargarDiario = useCallback(async () => {
     setOps(await listarOperaciones());
@@ -130,10 +132,14 @@ export default function PosContingenciaPage() {
 
   // Registro del equipo y renovación de la ventana (solo con conexión).
   const prepararConexion = useCallback(async () => {
-    if (!dispositivo || !user || !enLinea) return;
+    if (!dispositivo || !user || !tenant?.id || !enLinea) return;
     try {
       let actual = dispositivo;
-      if (!actual.registrado) actual = await registrarDispositivoEnServidor(api, actual);
+      const identidadEquipo = JSON.stringify([tenant.id, user.id, actual.id]);
+      if (!actual.registrado || dispositivoValidadoRef.current !== identidadEquipo) {
+        actual = await registrarDispositivoEnServidor(api, actual);
+        dispositivoValidadoRef.current = identidadEquipo;
+      }
       setDispositivo(actual);
       const restante = ventana ? new Date(ventana.vigenteHasta).getTime() - Date.now() : 0;
       if (user.rol !== 'ADMIN' && (!ventana || restante < UMBRAL_RENOVAR_MS || ventana.cajeroId !== user.id)) {
@@ -152,6 +158,7 @@ export default function PosContingenciaPage() {
   // Envío del diario: al volver la conexión, periódicamente y tras cada venta. Un solo envío a la vez.
   const sincronizar = useCallback(async () => {
     if (!enLinea || !dispositivo?.registrado || !user || !tenant?.id || operador === false || enSyncRef.current) return;
+    if (dispositivoValidadoRef.current !== JSON.stringify([tenant.id, user.id, dispositivo.id])) return;
     enSyncRef.current = true;
     try {
       const r = await sincronizarPendientes(api, dispositivo.id, { id: user.id, rol: user.rol, tenantId: tenant.id });

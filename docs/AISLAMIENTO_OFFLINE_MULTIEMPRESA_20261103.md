@@ -18,6 +18,8 @@ El contador global del shell pasa a ser de la sesión. Al cambiar empresa, usuar
 
 Los ciclos de sincronización capturan sus credenciales. Antes de cada POST/GET se comprueba la identidad actual; no se usa el token de un nuevo login para enviar un lote anterior. Un resultado confirmado que ya se persistió se conserva si cambia la sesión. Las operaciones que no terminaron siguen recuperables con el mismo UUID. No se alteran la idempotencia, el protocolo HTTP ni los límites comerciales/fiscales.
 
+El indicador persistido `dispositivo.registrado` no prueba que el equipo esté registrado en otra empresa. El POS revalida el registro al montar/cambiar sesión, una vez por identidad y UUID, mediante el endpoint idempotente existente. Conserva el UUID público, el contador global y las operaciones antiguas; el servidor deriva el identificador interno por tenant (`registrarDispositivo`, `idSolicitud(tenantId, dispositivoId)`). Así una segunda empresa puede obtener ventana y sincronizar sin heredar la validez del alta de la primera. No se crean bases ni dispositivos públicos nuevos.
+
 ## Evaluación de bases físicas por tenant
 
 **Decisión de implementación en este PR:** conservar la base `ferresystem-contingencia`, versión 1 y los cuatro almacenes actuales. No se realiza una migración de datos. El aislamiento implementado es de aplicación; no impide a quien controle el perfil del navegador leer la base mediante DevTools. Bases distintas dentro del mismo origen tampoco son una frontera de seguridad ni cifran los datos.
