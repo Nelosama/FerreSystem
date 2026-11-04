@@ -140,14 +140,17 @@ export const cuentaPorEstado = (ops: OperacionLocal[]) => ({
   totalPendienteCentavos: ops.filter((o) => o.estado === 'PENDIENTE' || o.estado === 'ENVIANDO').reduce((a, o) => a + o.totalCentavos, 0),
 });
 
-/** Ventas de contingencia aún por enviar. No crea la base local si el equipo nunca vendió sin conexión. */
+/** Ventas por enviar. Cero solo tras lectura válida o base ausente; los fallos rechazan la promesa.
+ * No crea la base local si el equipo nunca vendió sin conexión. */
 export async function contarVentasPorEnviar(): Promise<number> {
   try {
-    if (typeof indexedDB === 'undefined') return 0;
+    if (typeof indexedDB === 'undefined') throw new Error('IndexedDB no está disponible');
     const bases = await indexedDB.databases?.();
     if (bases && !bases.some((b) => b.name === 'ferresystem-contingencia')) return 0;
     return cuentaPorEstado(await listarOperaciones()).pendientes;
-  } catch { return 0; }
+  } catch (cause) {
+    throw new Error('No se pudieron consultar las ventas pendientes en este equipo', { cause });
+  }
 }
 
 /** Cantidad ya vendida offline por producto dentro de una ventana (las no sincronizadas también cuentan). */

@@ -80,21 +80,13 @@ export async function sincronizarPendientes(
   for (let i = 0; i < candidatas.length; i += TAMANO_LOTE) {
     const lote = candidatas.slice(i, i + TAMANO_LOTE);
     for (const op of lote) await actualizarSincronizacion(op.operacionId, { estado: 'ENVIANDO' });
+    let data: { resultados: RespuestaOperacion[] };
     try {
-      const { data } = await api.post('/contingencia/operaciones', {
+      ({ data } = await api.post('/contingencia/operaciones', {
         dispositivoId,
         pendientesRestantes: todas.filter((o) => o.estado === 'PENDIENTE' && !lote.some((l) => l.operacionId === o.operacionId)).length,
         operaciones: lote.map(aOperacionDto),
-      }, { timeout: TIMEOUT_CONTINGENCIA_MS });
-      const porId = new Map<string, RespuestaOperacion>((data.resultados as RespuestaOperacion[]).map((r) => [r.operacionId, r]));
-      for (const op of lote) {
-        const r = porId.get(op.operacionId) ?? { operacionId: op.operacionId, estado: 'ERROR_TEMPORAL' as const, mensaje: 'Sin respuesta para esta operación' };
-        const cambios = cambiosSegunRespuesta(op, r);
-        await actualizarSincronizacion(op.operacionId, cambios);
-        resultado.enviadas++;
-        if (cambios.estado === 'SINCRONIZADA') resultado.aplicadas++;
-        if (cambios.estado === 'REVISION') resultado.enRevision++;
-      }
+      }, { timeout: TIMEOUT_CONTINGENCIA_MS }));
     } catch (error: any) {
       const status = error?.response?.status;
       if (esRechazoDeLote(status)) {
@@ -113,6 +105,16 @@ export async function sincronizarPendientes(
       }
       resultado.error = mensajeErrorSincronizacion(status);
       break;
+    }
+    // Fuera del catch HTTP: un fallo de persistencia conserva los estados ya confirmados.
+    const porId = new Map<string, RespuestaOperacion>((data.resultados as RespuestaOperacion[]).map((r) => [r.operacionId, r]));
+    for (const op of lote) {
+      const r = porId.get(op.operacionId) ?? { operacionId: op.operacionId, estado: 'ERROR_TEMPORAL' as const, mensaje: 'Sin respuesta para esta operación' };
+      const cambios = cambiosSegunRespuesta(op, r);
+      await actualizarSincronizacion(op.operacionId, cambios);
+      resultado.enviadas++;
+      if (cambios.estado === 'SINCRONIZADA') resultado.aplicadas++;
+      if (cambios.estado === 'REVISION') resultado.enRevision++;
     }
   }
   try { await refrescarRevisiones(api, usuario); } catch { /* sin conexión: se reintenta en el siguiente ciclo */ }
@@ -146,20 +148,14 @@ async function enviarUnaPorUna(
   op: OperacionLocal,
   resultado: ResultadoSync,
 ): Promise<void> {
+  await actualizarSincronizacion(op.operacionId, { estado: 'ENVIANDO' });
+  let data: { resultados: RespuestaOperacion[] };
   try {
-    await actualizarSincronizacion(op.operacionId, { estado: 'ENVIANDO' });
-    const { data } = await api.post('/contingencia/operaciones', {
+    ({ data } = await api.post('/contingencia/operaciones', {
       dispositivoId,
       pendientesRestantes: todas.filter((o) => o.estado === 'PENDIENTE' && o.operacionId !== op.operacionId).length,
       operaciones: [aOperacionDto(op)],
-    }, { timeout: TIMEOUT_CONTINGENCIA_MS });
-    const r = (data.resultados as RespuestaOperacion[]).find((x) => x.operacionId === op.operacionId)
-      ?? { operacionId: op.operacionId, estado: 'ERROR_TEMPORAL' as const, mensaje: 'Sin respuesta para esta operación' };
-    const cambios = cambiosSegunRespuesta(op, r);
-    await actualizarSincronizacion(op.operacionId, cambios);
-    resultado.enviadas++;
-    if (cambios.estado === 'SINCRONIZADA') resultado.aplicadas++;
-    if (cambios.estado === 'REVISION') resultado.enRevision++;
+    }, { timeout: TIMEOUT_CONTINGENCIA_MS }));
   } catch (error: any) {
     const status = error?.response?.status;
     if (esRechazoDeLote(status)) {
@@ -179,7 +175,16 @@ async function enviarUnaPorUna(
         ? { estado: 'PENDIENTE', ultimoError: 'Su usuario no tiene permiso para enviar estas ventas' }
         : { ...cambiosSegunRespuesta(op, { operacionId: op.operacionId, estado: 'ERROR_TEMPORAL', mensaje: error?.message ?? 'Sin conexión' }) };
     await actualizarSincronizacion(op.operacionId, cambios);
+    return;
   }
+  // La confirmación solo cuenta después del commit de IndexedDB. Si falla, queda ENVIANDO.
+  const r = (data.resultados as RespuestaOperacion[]).find((x) => x.operacionId === op.operacionId)
+    ?? { operacionId: op.operacionId, estado: 'ERROR_TEMPORAL' as const, mensaje: 'Sin respuesta para esta operación' };
+  const cambios = cambiosSegunRespuesta(op, r);
+  await actualizarSincronizacion(op.operacionId, cambios);
+  resultado.enviadas++;
+  if (cambios.estado === 'SINCRONIZADA') resultado.aplicadas++;
+  if (cambios.estado === 'REVISION') resultado.enRevision++;
 }
 
 export interface EstadoServidor {

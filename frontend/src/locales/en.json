@@ -809,6 +809,8 @@
     "needs_connection": "online",
     "online": "Online",
     "offline": "Offline",
+    "pending_sales_error": "Unable to read pending sales",
+    "pending_sales_loading": "Checking pending sales",
     "pending_sales": "{count} sales to send",
     "more_options": "More options for {name}",
     "more_short": "More",
