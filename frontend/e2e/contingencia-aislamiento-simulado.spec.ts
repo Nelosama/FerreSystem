@@ -21,7 +21,7 @@ const producto = { id: 'prod-1', codigo: 'TOR-1', nombre: 'Tornillo 2 pulgadas',
 const EMITIDAS = Array.from({ length: 500 }, (_, i) => `00000000-0000-4000-8000-${(i + 1).toString(16).padStart(12, '0')}`);
 const VIGENTE = () => new Date(Date.now() + 30 * 3_600_000).toISOString();
 
-type Sim = { registrados: Set<string>; caida?: number; recibidas: string[]; cuerpos: Record<string, unknown>[] };
+type Sim = { fallosRegistro?: number; registrados: Set<string>; caida?: number; recibidas: string[]; cuerpos: Record<string, unknown>[] };
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
     const sim: Sim = { registrados: new Set(), recibidas: [], cuerpos: [] };
@@ -50,6 +50,7 @@ const test = base.extend<{ sim: Sim }>({
       if (method === 'GET' && path === '/auth/me') return responder(route, 200, { user: { sub: ident.id, tenantId: ident.tenant.id, rol: ident.rol, permisos: ['pos.vender'], permisosConfigurados: true, descuentoMaximo: 0, nombre: ident.nombre } });
       if (method === 'GET' && path === '/contingencia/configuracion') return responder(route, 200, { habilitada: true, entornoHabilitado: true });
       if (method === 'POST' && path === '/contingencia/dispositivos') {
+        if (sim.fallosRegistro) { sim.fallosRegistro--; return responder(route, 503, { message: 'Registro temporalmente no disponible' }); }
         sim.registrados.add(ident.tenant.id);
         return responder(route, 201, { id: 'disp-1', codigo: '01', nombre: 'Caja de contingencia', activo: true });
       }
@@ -385,7 +386,11 @@ test('ventas nuevas en A y B conservan el UUID del equipo, secuencia global e id
   await expect.poll(() => sim.recibidas.includes(primera.operacionId)).toBe(true);
   await ingresar(page, ID.cajeroB1);
   sim.recibidas.length = 0;
+  sim.fallosRegistro = 1;
   await abrirContingencia(page);
+  await expect(page.getByText('Registro temporalmente no disponible')).toBeVisible();
+  // El reintento manual usa el mismo mecanismo que el intervalo, sin otra sesión ni nuevo UUID.
+  await page.getByRole('button', { name: 'Enviar pendientes ahora' }).click();
   await expect(botonTornillo(page)).toBeVisible();
   await botonTornillo(page).click();
   await page.locator('#pc-efectivo').fill('20');

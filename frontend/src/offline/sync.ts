@@ -69,7 +69,7 @@ export function puedeEnviar(op: OperacionLocal, usuario: UsuarioSincronizacion, 
 }
 
 /** Congela las credenciales del envío: un cambio de sesión nunca presta el token del nuevo usuario al lote anterior. */
-function credencialesDeEnvio(usuario: UsuarioSincronizacion): () => { Authorization?: string } {
+function credencialesDeEnvio(usuario: Pick<UsuarioSincronizacion, 'id' | 'tenantId'>): () => { Authorization?: string } {
   if (typeof window === 'undefined') return () => ({});
   const identidad = `${usuario.id}:${usuario.tenantId}`;
   const token = localStorage.getItem('ferre_token');
@@ -292,17 +292,21 @@ export function aOperacionDto(op: OperacionLocal) {
 import { guardarVentana, leerVentana, guardarDispositivo, type DispositivoLocal, type VentanaLocal } from './ventana';
 
 /** Pide una ventana nueva al servidor; conserva el catálogo anterior si el hash no cambió. Requiere caja abierta del cajero. */
-export async function renovarVentana(api: AxiosInstance, dispositivo: DispositivoLocal, usuario: { id: string; tenantId?: string }): Promise<VentanaLocal> {
-  const previa = await leerVentana();
+export async function renovarVentana(api: AxiosInstance, dispositivo: DispositivoLocal, usuario: { id: string; tenantId: string }): Promise<VentanaLocal> {
+  const credenciales = credencialesDeEnvio(usuario);
+  credenciales();
+  const almacenada = await leerVentana();
+  const previa = almacenada?.tenantId === usuario.tenantId ? almacenada : undefined;
   const { data } = await api.post('/contingencia/ventanas', {
     dispositivoId: dispositivo.id,
     catalogoHashActual: previa?.catalogoHash,
     relojLocal: new Date().toISOString(),
-  }, { timeout: TIMEOUT_CONTINGENCIA_MS });
+  }, { timeout: TIMEOUT_CONTINGENCIA_MS, headers: credenciales() });
+  credenciales();
   const v = data.ventana;
   const productos = data.catalogo ? data.catalogo.productos : previa?.productos ?? [];
   const nueva: VentanaLocal = {
-    ventanaId: v.id, tenantId: usuario.tenantId ?? previa?.tenantId ?? '', dispositivoId: dispositivo.id, cajaId: v.cajaId,
+    ventanaId: v.id, tenantId: usuario.tenantId, dispositivoId: dispositivo.id, cajaId: v.cajaId,
     cajeroId: v.usuarioId, vigenteHasta: v.vigenteHasta, catalogoHash: v.catalogoHash, productos,
     sincronizadaAt: new Date().toISOString(), limites: v.limites ?? {}, operacionesEmitidas: v.operacionesEmitidas ?? [],
   };
@@ -311,8 +315,10 @@ export async function renovarVentana(api: AxiosInstance, dispositivo: Dispositiv
 }
 
 /** Registra el equipo en el servidor. Un 409 por límite de cajas no impide el uso del equipo ya registrado. */
-export async function registrarDispositivoEnServidor(api: AxiosInstance, dispositivo: DispositivoLocal): Promise<DispositivoLocal> {
-  const { data } = await api.post('/contingencia/dispositivos', { dispositivoId: dispositivo.id, nombre: dispositivo.nombre }, { timeout: TIMEOUT_CONTINGENCIA_MS });
+export async function registrarDispositivoEnServidor(api: AxiosInstance, dispositivo: DispositivoLocal, usuario: Pick<UsuarioSincronizacion, 'id' | 'tenantId'>): Promise<DispositivoLocal> {
+  const credenciales = credencialesDeEnvio(usuario);
+  const { data } = await api.post('/contingencia/dispositivos', { dispositivoId: dispositivo.id, nombre: dispositivo.nombre }, { timeout: TIMEOUT_CONTINGENCIA_MS, headers: credenciales() });
+  credenciales();
   const actualizado = { ...dispositivo, codigo: data.codigo, nombre: data.nombre, registrado: true };
   await guardarDispositivo(actualizado);
   return actualizado;

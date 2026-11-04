@@ -181,3 +181,29 @@ test('useConexion invalida el conteo en el primer render al cambiar empresa/usua
     assert.equal(pendientes.length,0);
   } finally { limpiar?.(); globalThis.window=anterior; }
 });
+
+for (const accion of ['ventana', 'dispositivo']) test(`${accion}: una respuesta de la sesión anterior no reemplaza metadatos de otra empresa`, async () => {
+  const e=await escenario([]), anteriorWindow=globalThis.window, anteriorStorage=globalThis.localStorage;
+  const datos=new Map(), entrar=u=>{
+    datos.set('ferre_user',JSON.stringify({id:u.id})); datos.set('ferre_tenant',JSON.stringify({id:u.tenantId})); datos.set('ferre_token',`token-${u.tenantId}`);
+  };
+  const dispositivo={id:'d',codigo:'01',nombre:'Equipo',registrado:true};
+  const ventana={ventanaId:'v-A',tenantId:'A',productos:[{id:'producto-A'}],catalogoHash:'hash-A'};
+  await e.db.escribirClave('ventana','activa',ventana);
+  await e.db.escribirClave('meta','dispositivo',dispositivo);
+  globalThis.window={}; globalThis.localStorage={getItem:k=>datos.get(k)||null};
+  try {
+    entrar(B1);
+    const api={post:async (_url, cuerpo, config)=>{
+      assert.equal(config.headers.Authorization,'Bearer token-B');
+      if(accion==='ventana') assert.equal(cuerpo.catalogoHashActual,undefined,'no debe anunciar el catálogo de A en B');
+      entrar(A1);
+      return {data:accion==='ventana'?{ventana:{id:'v-B',usuarioId:'b1',cajaId:'c-B',catalogoHash:'hash-B'},catalogo:{productos:[]}}:{codigo:'02',nombre:'Equipo B'}};
+    }};
+    await assert.rejects(accion==='ventana'
+      ?e.sync.renovarVentana(api,dispositivo,B1)
+      :e.sync.registrarDispositivoEnServidor(api,dispositivo,B1),/sesión cambió/);
+    assert.deepEqual(await e.db.leerClave('ventana','activa'),ventana);
+    assert.deepEqual(await e.db.leerClave('meta','dispositivo'),dispositivo);
+  } finally {globalThis.window=anteriorWindow;if(anteriorStorage===undefined)delete globalThis.localStorage;else globalThis.localStorage=anteriorStorage;}
+});
