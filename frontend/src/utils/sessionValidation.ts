@@ -10,6 +10,25 @@ export function sessionProfile(read: () => Promise<any>): Promise<any> {
 }
 export type SessionStatus = 'checking' | 'ready' | 'error' | 'denied' | 'offline';
 
+/**
+ * Identidad (usuario:empresa) confirmada por el servidor en este navegador desde el último inicio de sesión.
+ * Se borra con la sesión (clearSessionStorage). Es requisito para abrir la contingencia ante un 502/503.
+ */
+export const IDENTIDAD_VALIDADA_KEY = 'ferre_identidad_validada';
+const identidad = (userId: string, tenantId: string) => `${userId}:${tenantId}`;
+
+/**
+ * Por qué un fallo del perfil podría abrir la contingencia (P1-2 de AUDITORIA_OFFLINE_ALMACENAMIENTO_20261104):
+ * - 'sin-respuesta': red caída o tiempo agotado (comportamiento previo).
+ * - 'servidor-no-disponible': 502 o 503 (borde de Render, Supabase inaccesible → 503 de JwtStrategy).
+ * Cualquier otra respuesta, incluidos 401 y 403, nunca habilita la contingencia.
+ */
+export function motivoContingencia(error: any): 'sin-respuesta' | 'servidor-no-disponible' | null {
+  if (!error?.response) return 'sin-respuesta';
+  const estado = error.response.status;
+  return estado === 502 || estado === 503 ? 'servidor-no-disponible' : null;
+}
+
 // Una sola validación en vuelo. La navegación nunca autoriza mediante el usuario guardado.
 export function startSessionValidation(options: {
   profile: () => Promise<any>;
@@ -35,6 +54,10 @@ export function startSessionValidation(options: {
         && JSON.parse(localStorage.getItem('ferre_tenant') || 'null')?.id === options.tenantId
         && !!localStorage.getItem('ferre_token');
     } catch { return false; }
+  };
+  // Solo la identidad que el servidor ya confirmó en este navegador puede usar la contingencia ante un 502/503.
+  const previouslyValidated = () => {
+    try { return localStorage.getItem(IDENTIDAD_VALIDADA_KEY) === identidad(options.userId, options.tenantId); } catch { return false; }
   };
   const contingency = async () => {
     if (window.location.pathname !== '/pos-contingencia') return false;
@@ -63,6 +86,7 @@ export function startSessionValidation(options: {
           options.onChanged(); return;
         }
         options.onProfile(profile);
+        if (!options.superAdmin) { try { localStorage.setItem(IDENTIDAD_VALIDADA_KEY, identidad(options.userId, options.tenantId)); } catch { /* almacenamiento bloqueado */ } }
         status('ready');
         clearTimeout(timer);
         const deadline = tokenExpiresAt(localStorage.getItem('ferre_token'));
@@ -70,7 +94,9 @@ export function startSessionValidation(options: {
       } catch (error: any) {
         // Una interfaz de red conectada no garantiza internet (PWA, Wi-Fi sin salida o timeout).
         // Ningún 401/403 del servidor admite esta recuperación local.
-        if (!error.response && !disposed && matches()) {
+        // 502/503 exigen además identidad confirmada antes por el servidor; 401/403 y demás nunca llegan aquí.
+        const motivo = motivoContingencia(error);
+        if (motivo && !disposed && matches() && (motivo === 'sin-respuesta' || previouslyValidated())) {
           try { if (await contingency()) return; } catch { /* almacén no disponible */ }
         }
         if (!disposed && matches() && (blocking || lastStatus === 'checking')) status(error.response?.status === 403 ? 'denied' : 'error');

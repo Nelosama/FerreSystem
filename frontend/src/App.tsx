@@ -200,7 +200,7 @@ export const App: React.FC = () => {
             <BrowserRouter>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
-                <Route path="/pos-contingencia" element={<ProtectedRoute allowedRoles={['ADMIN', 'CAJERO', 'VENDEDOR']} requiredModule="pos" requiredPermiso="pos.vender"><PosContingenciaPage /></ProtectedRoute>} />
+                <Route path="/pos-contingencia" element={<ProtectedRoute allowedRoles={['ADMIN', 'CAJERO']} requiredModule="pos" requiredPermiso="pos.vender"><PosContingenciaPage /></ProtectedRoute>} />
                 <Route path="/contingencia-admin" element={<ProtectedRoute allowedRoles={['ADMIN']} requiredModule="pos"><AppLayout><ContingenciaAdminPage /></AppLayout></ProtectedRoute>} />
                 <Route path="/contabilidad" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContadorInicioPage /></AppLayout></ProtectedRoute>} />
                 <Route path="/contabilidad/asientos" element={<ProtectedRoute allowedRoles={['ADMIN', 'CONTADOR']} requiredModule="contabilidad" requiredPermiso="contabilidad.ver"><AppLayout><ContabilidadPage key="entries" tabs={['asientos']} titleKey="accounting.nav.entries" /></AppLayout></ProtectedRoute>} />
