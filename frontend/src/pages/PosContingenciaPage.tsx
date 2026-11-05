@@ -39,6 +39,7 @@ function textoEstado(op: OperacionLocal) {
 
 export default function PosContingenciaPage() {
   const { user, tenant } = useTenant();
+  const tenantIdActual = tenant.id;
   const [operador, setOperador] = useState<boolean | null>(null);
   const [enLinea, setEnLinea] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [dispositivo, setDispositivo] = useState<DispositivoLocal | null>(null);
@@ -63,6 +64,9 @@ export default function PosContingenciaPage() {
   const guardandoRef = useRef(false);
   const enSyncRef = useRef(false);
   const borradorListo = useRef(false);
+  // `registrado` persistido no acredita el alta del mismo UUID en la empresa de otra sesión.
+  const dispositivoValidadoRef = useRef('');
+  const preparandoConexionRef = useRef(false);
 
   const recargarDiario = useCallback(async () => {
     setOps(await listarOperaciones());
@@ -130,31 +134,42 @@ export default function PosContingenciaPage() {
 
   // Registro del equipo y renovación de la ventana (solo con conexión).
   const prepararConexion = useCallback(async () => {
-    if (!dispositivo || !user || !enLinea) return;
+    if (!dispositivo || !user || !tenantIdActual || !enLinea || preparandoConexionRef.current) return;
+    preparandoConexionRef.current = true;
     try {
       let actual = dispositivo;
-      if (!actual.registrado) actual = await registrarDispositivoEnServidor(api, actual);
+      const identidadEquipo = JSON.stringify([tenantIdActual, user.id, actual.id]);
+      if (!actual.registrado || dispositivoValidadoRef.current !== identidadEquipo) {
+        actual = await registrarDispositivoEnServidor(api, actual, { id: user.id, tenantId: tenantIdActual });
+        dispositivoValidadoRef.current = identidadEquipo;
+      }
       setDispositivo(actual);
       const restante = ventana ? new Date(ventana.vigenteHasta).getTime() - Date.now() : 0;
       if (user.rol !== 'ADMIN' && (!ventana || restante < UMBRAL_RENOVAR_MS || ventana.cajeroId !== user.id)) {
-        const nueva = await renovarVentana(api, actual, { id: user.id, tenantId: tenant?.id });
+        const nueva = await renovarVentana(api, actual, { id: user.id, tenantId: tenantIdActual });
         setVentana(nueva);
       }
       setMensaje((m) => (m?.tipo === 'error' ? null : m));
     } catch (error: any) {
       const texto = error?.response?.data?.message;
       setMensaje({ tipo: 'aviso', texto: typeof texto === 'string' ? texto : 'No se pudo preparar la contingencia. Se intentará de nuevo al volver la conexión.' });
+    } finally {
+      preparandoConexionRef.current = false;
     }
-  }, [dispositivo, enLinea, user, ventana, tenant?.id]);
+  }, [dispositivo, enLinea, user, ventana, tenantIdActual]);
 
   useEffect(() => { void prepararConexion(); }, [prepararConexion]);
 
   // Envío del diario: al volver la conexión, periódicamente y tras cada venta. Un solo envío a la vez.
   const sincronizar = useCallback(async () => {
-    if (!enLinea || !dispositivo?.registrado || !user || operador === false || enSyncRef.current) return;
+    if (!enLinea || !dispositivo || !user || !tenantIdActual || operador === false || enSyncRef.current) return;
+    if (dispositivoValidadoRef.current !== JSON.stringify([tenantIdActual, user.id, dispositivo.id])) {
+      await prepararConexion();
+      return;
+    }
     enSyncRef.current = true;
     try {
-      const r = await sincronizarPendientes(api, dispositivo.id, { id: user.id, rol: user.rol });
+      const r = await sincronizarPendientes(api, dispositivo.id, { id: user.id, rol: user.rol, tenantId: tenantIdActual });
       setUltimaSync(new Date().toISOString());
       if (r.error && r.enviadas === 0) setMensaje({ tipo: 'aviso', texto: r.error });
       if (r.aplicadas) setMensaje({ tipo: 'ok', texto: `${r.aplicadas} venta(s) enviadas y confirmadas por la oficina.` });
@@ -165,7 +180,7 @@ export default function PosContingenciaPage() {
       enSyncRef.current = false;
       await recargarDiario();
     }
-  }, [enLinea, dispositivo, user, operador, recargarDiario]);
+  }, [enLinea, dispositivo, user, tenantIdActual, operador, recargarDiario, prepararConexion]);
 
   useEffect(() => {
     if (!enLinea) return;
@@ -190,7 +205,7 @@ export default function PosContingenciaPage() {
   // El cupo cuenta todas las ventas de la ventana (también las no visibles): nunca se vende de más.
   const vendido = useMemo(() => (ventana ? vendidoPorProducto(ops, ventana.ventanaId) : new Map<string, number>()), [ops, ventana]);
   // P1-3/P1-4: la sesión solo ve, reimprime y exporta lo que le corresponde. El resto sigue guardado y se sincroniza igual.
-  const tenantIdSesion = tenant?.id;
+  const tenantIdSesion = tenantIdActual;
   const sesionDiario = useMemo<SesionDiario | null>(() => (user && tenantIdSesion ? { usuarioId: user.id, rol: user.rol, tenantId: tenantIdSesion } : null), [user, tenantIdSesion]);
   const { visibles, noVisibles } = useMemo(() => diarioVisible(ops, sesionDiario, ventana), [ops, sesionDiario, ventana]);
   const contadores = useMemo(() => cuentaPorEstado(visibles), [visibles]);
@@ -263,7 +278,7 @@ export default function PosContingenciaPage() {
       if (dispositivo && !dispositivo.registrado) return 'Este equipo no está registrado para contingencia. Vea el aviso o pida al administrador revisar las cajas de contingencia.';
       return 'Preparando la contingencia…';
     }
-    if (ventana.tenantId && ventana.tenantId !== tenant?.id) return 'La ventana de contingencia pertenece a otra empresa. Conéctese a internet para renovarla.';
+    if (ventana.tenantId && ventana.tenantId !== tenantIdActual) return 'La ventana de contingencia pertenece a otra empresa. Conéctese a internet para renovarla.';
     if (!esCajeroDeVentana) return 'La ventana de contingencia pertenece a otro cajero. Inicie sesión con ese usuario.';
     if (!vigente) return 'La ventana de contingencia venció. Conéctese a internet para renovarla.';
     if (!ventana.operacionesEmitidas?.length) return 'Esta ventana es anterior a la protección de operaciones. Conéctese a internet para renovarla.';
@@ -300,9 +315,9 @@ export default function PosContingenciaPage() {
     guardandoRef.current = true;
     setGuardando(true);
     // La empresa se guarda en el mismo registro (misma transacción que la venta). No se envía al servidor: aOperacionDto
-    // copia solo los campos del contrato. Dependencia documentada: formalizar `tenantId` en OperacionLocal (journal.ts).
-    const nueva: NuevaOperacion & { tenantId: string } = {
-      tenantId: ventana.tenantId || tenant?.id || '',
+    // copia solo los campos del contrato; tenantId permanece como metadato local.
+    const nueva: NuevaOperacion = {
+      tenantId: ventana.tenantId || tenantIdActual || '',
       dispositivoId: dispositivo.id, ventanaId: ventana.ventanaId, cajeroId: user.id,
       cajeroNombre: user.nombre, cajaId: ventana.cajaId, ocurridoAtLocal: new Date().toISOString(), ferreteria: tenant?.nombreComercial ?? '',
       lineas: lineas.map(({ productoIdCatalogo: _ignorar, ...l }) => l),

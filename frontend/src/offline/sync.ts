@@ -1,4 +1,6 @@
 import type { AxiosInstance } from 'axios';
+import { empresaDeOperacion, puedeVerOperacion } from './acceso';
+import { sessionIdentity } from '../utils/authInterceptors';
 import { actualizarSincronizacion, listarOperaciones, recuperarEnvios, type Conflicto, type OperacionLocal } from './journal';
 
 // Sincronización del diario con el servidor. Idempotente por UUID: reenviar la misma operación no duplica nada.
@@ -59,9 +61,22 @@ export function debeEnviarse(op: OperacionLocal, ahora = Date.now()): boolean {
   return !op.proximoIntentoAt || new Date(op.proximoIntentoAt).getTime() <= ahora;
 }
 
-/** Solo el cajero de la operación o un administrador la envían; otros usuarios no tocan operaciones ajenas. */
-export function puedeEnviar(op: OperacionLocal, usuario: { id: string; rol: string }): boolean {
-  return usuario.rol === 'ADMIN' || usuario.id === op.cajeroId;
+export interface UsuarioSincronizacion { id: string; rol: string; tenantId: string }
+
+/** Mismo alcance que lectura/exportación: ADMIN de la empresa o CAJERO propietario. Sin empresa, denegado. */
+export function puedeEnviar(op: OperacionLocal, usuario: UsuarioSincronizacion, ventana?: VentanaLocal): boolean {
+  return puedeVerOperacion(op, { usuarioId: usuario.id, rol: usuario.rol, tenantId: usuario.tenantId }, ventana);
+}
+
+/** Congela las credenciales del envío: un cambio de sesión nunca presta el token del nuevo usuario al lote anterior. */
+function credencialesDeEnvio(usuario: Pick<UsuarioSincronizacion, 'id' | 'tenantId'>): () => { Authorization?: string } {
+  if (typeof window === 'undefined') return () => ({});
+  const identidad = `${usuario.id}:${usuario.tenantId}`;
+  const token = localStorage.getItem('ferre_token');
+  return () => {
+    if (!token || sessionIdentity() !== identidad) throw new Error('La sesión cambió durante la sincronización');
+    return { Authorization: `Bearer ${token}` };
+  };
 }
 
 export interface ResultadoSync { enviadas: number; aplicadas: number; enRevision: number; pendientes: number; sinSesion: boolean; error?: string }
@@ -69,12 +84,17 @@ export interface ResultadoSync { enviadas: number; aplicadas: number; enRevision
 export async function sincronizarPendientes(
   api: AxiosInstance,
   dispositivoId: string,
-  usuario: { id: string; rol: string },
+  usuario: UsuarioSincronizacion,
 ): Promise<ResultadoSync> {
-  await recuperarEnvios();
-  const todas = await listarOperaciones();
-  const candidatas = todas.filter((o) => debeEnviarse(o) && puedeEnviar(o, usuario));
-  const sinSesion = todas.some((o) => o.estado === 'PENDIENTE' && !puedeEnviar(o, usuario));
+  const credenciales = credencialesDeEnvio(usuario);
+  credenciales();
+  const ventana = await leerVentana();
+  const sesion = { usuarioId: usuario.id, rol: usuario.rol, tenantId: usuario.tenantId };
+  await recuperarEnvios(sesion, ventana);
+  const almacenadas = await listarOperaciones();
+  const todas = almacenadas.filter((o) => puedeEnviar(o, usuario, ventana));
+  const candidatas = todas.filter((o) => debeEnviarse(o));
+  const sinSesion = almacenadas.some((o) => o.estado === 'PENDIENTE' && empresaDeOperacion(o, ventana) === usuario.tenantId && !puedeEnviar(o, usuario, ventana));
   const resultado: ResultadoSync = { enviadas: 0, aplicadas: 0, enRevision: 0, pendientes: 0, sinSesion };
 
   for (let i = 0; i < candidatas.length; i += TAMANO_LOTE) {
@@ -86,12 +106,12 @@ export async function sincronizarPendientes(
         dispositivoId,
         pendientesRestantes: todas.filter((o) => o.estado === 'PENDIENTE' && !lote.some((l) => l.operacionId === o.operacionId)).length,
         operaciones: lote.map(aOperacionDto),
-      }, { timeout: TIMEOUT_CONTINGENCIA_MS }));
+      }, { timeout: TIMEOUT_CONTINGENCIA_MS, headers: credenciales() }));
     } catch (error: any) {
       const status = error?.response?.status;
       if (esRechazoDeLote(status)) {
         // Una operación mal formada no puede bloquear la cola: se reenvían una por una para aislarla.
-        for (const op of lote) await enviarUnaPorUna(api, dispositivoId, todas, op, resultado);
+        for (const op of lote) await enviarUnaPorUna(api, dispositivoId, todas, op, resultado, credenciales);
         continue;
       }
       // Red caída o timeout: no sabemos si el servidor guardó. Volver a pendiente es seguro: el UUID evita duplicados.
@@ -117,9 +137,10 @@ export async function sincronizarPendientes(
       if (cambios.estado === 'REVISION') resultado.enRevision++;
     }
   }
+  credenciales();
   try { await refrescarRevisiones(api, usuario); } catch { /* sin conexión: se reintenta en el siguiente ciclo */ }
   const restantes = await listarOperaciones();
-  resultado.pendientes = restantes.filter((o) => o.estado === 'PENDIENTE' || o.estado === 'ENVIANDO').length;
+  resultado.pendientes = restantes.filter((o) => puedeEnviar(o, usuario, ventana) && (o.estado === 'PENDIENTE' || o.estado === 'ENVIANDO')).length;
   return resultado;
 }
 
@@ -147,6 +168,7 @@ async function enviarUnaPorUna(
   todas: OperacionLocal[],
   op: OperacionLocal,
   resultado: ResultadoSync,
+  credenciales: () => { Authorization?: string },
 ): Promise<void> {
   await actualizarSincronizacion(op.operacionId, { estado: 'ENVIANDO' });
   let data: { resultados: RespuestaOperacion[] };
@@ -155,7 +177,7 @@ async function enviarUnaPorUna(
       dispositivoId,
       pendientesRestantes: todas.filter((o) => o.estado === 'PENDIENTE' && o.operacionId !== op.operacionId).length,
       operaciones: [aOperacionDto(op)],
-    }, { timeout: TIMEOUT_CONTINGENCIA_MS }));
+    }, { timeout: TIMEOUT_CONTINGENCIA_MS, headers: credenciales() }));
   } catch (error: any) {
     const status = error?.response?.status;
     if (esRechazoDeLote(status)) {
@@ -224,11 +246,14 @@ export function cambiosDesdeServidor(op: OperacionLocal, s: EstadoServidor, ahor
 }
 
 /** Consulta al servidor las operaciones que esperan revisión para que la caja vea la decisión del administrador. */
-export async function refrescarRevisiones(api: AxiosInstance, usuario: { id: string; rol: string }): Promise<number> {
+export async function refrescarRevisiones(api: AxiosInstance, usuario: UsuarioSincronizacion): Promise<number> {
+  const credenciales = credencialesDeEnvio(usuario);
+  credenciales();
+  const ventana = await leerVentana();
   const todas = await listarOperaciones();
-  const enRevision = todas.filter((o) => (o.estado === 'REVISION' || (o.estado === 'SINCRONIZADA' && o.requiereRevision)) && puedeEnviar(o, usuario));
+  const enRevision = todas.filter((o) => (o.estado === 'REVISION' || (o.estado === 'SINCRONIZADA' && o.requiereRevision)) && puedeEnviar(o, usuario, ventana));
   if (!enRevision.length) return 0;
-  const { data } = await api.get('/contingencia/operaciones/estados', { params: { ids: enRevision.slice(0, 100).map((o) => o.operacionId).join(',') }, timeout: TIMEOUT_CONTINGENCIA_MS });
+  const { data } = await api.get('/contingencia/operaciones/estados', { params: { ids: enRevision.slice(0, 100).map((o) => o.operacionId).join(',') }, timeout: TIMEOUT_CONTINGENCIA_MS, headers: credenciales() });
   let cambios = 0;
   for (const s of data as EstadoServidor[]) {
     const op = enRevision.find((o) => o.operacionId === s.operacionId);
@@ -267,17 +292,21 @@ export function aOperacionDto(op: OperacionLocal) {
 import { guardarVentana, leerVentana, guardarDispositivo, type DispositivoLocal, type VentanaLocal } from './ventana';
 
 /** Pide una ventana nueva al servidor; conserva el catálogo anterior si el hash no cambió. Requiere caja abierta del cajero. */
-export async function renovarVentana(api: AxiosInstance, dispositivo: DispositivoLocal, usuario: { id: string; tenantId?: string }): Promise<VentanaLocal> {
-  const previa = await leerVentana();
+export async function renovarVentana(api: AxiosInstance, dispositivo: DispositivoLocal, usuario: { id: string; tenantId: string }): Promise<VentanaLocal> {
+  const credenciales = credencialesDeEnvio(usuario);
+  credenciales();
+  const almacenada = await leerVentana();
+  const previa = almacenada?.tenantId === usuario.tenantId ? almacenada : undefined;
   const { data } = await api.post('/contingencia/ventanas', {
     dispositivoId: dispositivo.id,
     catalogoHashActual: previa?.catalogoHash,
     relojLocal: new Date().toISOString(),
-  }, { timeout: TIMEOUT_CONTINGENCIA_MS });
+  }, { timeout: TIMEOUT_CONTINGENCIA_MS, headers: credenciales() });
+  credenciales();
   const v = data.ventana;
   const productos = data.catalogo ? data.catalogo.productos : previa?.productos ?? [];
   const nueva: VentanaLocal = {
-    ventanaId: v.id, tenantId: usuario.tenantId ?? previa?.tenantId ?? '', dispositivoId: dispositivo.id, cajaId: v.cajaId,
+    ventanaId: v.id, tenantId: usuario.tenantId, dispositivoId: dispositivo.id, cajaId: v.cajaId,
     cajeroId: v.usuarioId, vigenteHasta: v.vigenteHasta, catalogoHash: v.catalogoHash, productos,
     sincronizadaAt: new Date().toISOString(), limites: v.limites ?? {}, operacionesEmitidas: v.operacionesEmitidas ?? [],
   };
@@ -286,8 +315,10 @@ export async function renovarVentana(api: AxiosInstance, dispositivo: Dispositiv
 }
 
 /** Registra el equipo en el servidor. Un 409 por límite de cajas no impide el uso del equipo ya registrado. */
-export async function registrarDispositivoEnServidor(api: AxiosInstance, dispositivo: DispositivoLocal): Promise<DispositivoLocal> {
-  const { data } = await api.post('/contingencia/dispositivos', { dispositivoId: dispositivo.id, nombre: dispositivo.nombre }, { timeout: TIMEOUT_CONTINGENCIA_MS });
+export async function registrarDispositivoEnServidor(api: AxiosInstance, dispositivo: DispositivoLocal, usuario: Pick<UsuarioSincronizacion, 'id' | 'tenantId'>): Promise<DispositivoLocal> {
+  const credenciales = credencialesDeEnvio(usuario);
+  const { data } = await api.post('/contingencia/dispositivos', { dispositivoId: dispositivo.id, nombre: dispositivo.nombre }, { timeout: TIMEOUT_CONTINGENCIA_MS, headers: credenciales() });
+  credenciales();
   const actualizado = { ...dispositivo, codigo: data.codigo, nombre: data.nombre, registrado: true };
   await guardarDispositivo(actualizado);
   return actualizado;

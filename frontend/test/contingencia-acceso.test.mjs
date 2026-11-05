@@ -112,7 +112,7 @@ test('la página lista, cuenta, reimprime y exporta desde el diario visible, no 
   assert.match(pagina, /vendidoPorProducto\(ops, ventana\.ventanaId\)/);
 });
 test('cada venta nueva guarda su empresa en el mismo registro y no la envía al servidor', () => {
-  assert.match(pagina, /const nueva: NuevaOperacion & \{ tenantId: string \} = \{\s*tenantId:/);
+  assert.match(pagina, /const nueva: NuevaOperacion = \{\s*tenantId:/);
   const sync = fs.readFileSync('src/offline/sync.ts', 'utf8');
   const dto = sync.slice(sync.indexOf('export function aOperacionDto'), sync.indexOf('// ─────────────', sync.indexOf('export function aOperacionDto')));
   assert.ok(!dto.includes('tenantId'), 'el DTO del servidor no debe cambiar');
