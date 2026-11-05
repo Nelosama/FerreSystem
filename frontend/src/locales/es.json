@@ -809,6 +809,8 @@
     "needs_connection": "en línea",
     "online": "En línea",
     "offline": "Sin conexión",
+    "pending_sales_error": "No se pudieron consultar las ventas pendientes",
+    "pending_sales_loading": "Consultando ventas pendientes",
     "pending_sales": "{count} ventas por enviar",
     "more_options": "Más opciones de {name}",
     "more_short": "Más",

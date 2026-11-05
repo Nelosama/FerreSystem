@@ -1,3 +1,25 @@
+
+> **Estado de cierre (2026-11-05, actualizado en la integración del sprint):** los hallazgos del informe original se
+> conservan sin cambios. Su estado actual es el siguiente; cada cierre remite al PR o commit de `main` que lo implementa.
+>
+> | Hallazgo | Estado | Referencia |
+> |---|---|---|
+> | P1-1 persistencia y cuota | Implementado en PR #239; pendiente de integración en `main` en el momento de esta nota | PR #239 |
+> | P1-2 recuperación de sesión con 502/503 | Cerrado en `main` | PR #236 (`8a43b06`) |
+> | P1-3 aislamiento por empresa | Cerrado a nivel de aplicación (sincronización, contadores y diario por empresa y sesión). **Separación física de almacenamiento: no implementada** | PR #236, PR #238 (`6a44703`) |
+> | P1-4 permisos del diario por rol | Cerrado en `main` (VENDEDOR sin acceso; CAJERO solo sus operaciones) | PR #236 (`8a43b06`) |
+> | P1-5 retención | Diseñado y probado, **no activado**: no borra nada hasta cumplir las puertas del contrato | PR #239; `docs/RETENCION_CONTRATO_20261104.md` |
+> | P2-1 registro del equipo por empresa | Corregido según PR #238 | PR #238 |
+> | P2-2 ADMIN de otra empresa intenta enviar | Corregido según PR #238 | PR #238 |
+> | P2-3 latido del dispositivo | Abierto | — |
+> | P2-4 borrador único por equipo | Abierto | — |
+> | P2-5 exportación del diario sin hash | Abierto (la exportación ya se limita a lo visible) | PR #236 |
+> | P2-6 mensaje al agotar identificadores | Abierto | — |
+> | P2-7 reloj local | Abierto (mitigado en servidor) | — |
+> | P2-8 fuentes sin caché offline | Abierto | — |
+>
+> **Contingencia PWA en producción:** sigue desactivada. Los cambios de código no la activan; hace falta una decisión explícita.
+
 # Auditoría offline, almacenamiento local y continuidad operativa — 2026-11-04
 
 **Proyecto:** Jowa System (`Nelosama/FerreSystem`) · **Rama documental:** `docs/plan-ejecucion-20261102`

@@ -16,7 +16,7 @@ export function tokenExpiresAt(token: string | null): number | undefined {
 }
 
 export function clearSessionStorage() {
-  for (const key of ['ferre_token', 'ferre_user', 'ferre_tenant', 'ferre_original_superadmin_token', 'ferre_original_superadmin_user', 'ferre_original_superadmin_tenant', 'ferre_support_target', 'ferre_is_read_only', 'ferre_active_support_session_id']) localStorage.removeItem(key);
+  for (const key of ['ferre_token', 'ferre_user', 'ferre_tenant', 'ferre_original_superadmin_token', 'ferre_original_superadmin_user', 'ferre_original_superadmin_tenant', 'ferre_support_target', 'ferre_is_read_only', 'ferre_active_support_session_id', 'ferre_identidad_validada']) localStorage.removeItem(key);
   // El diario offline tiene su propio aislamiento y conciliación: no se borra una venta pendiente.
 }
 

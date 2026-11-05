@@ -41,6 +41,9 @@
   ],
   "git": {
     "deploymentEnabled": {
+      "codex/pwa-aislamiento-20261103": false,
+      "claude/compassionate-mayer-73jljd": false,
+      "codex/pwa-integridad-20261103": false,
       "claude/pos-sincronizacion-precios": false,
       "codex/pr202-auditoria-precios": false,
       "claude/sweet-davinci-vh7br4": false,

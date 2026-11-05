@@ -9,13 +9,15 @@ import { useI18n } from '../context/I18nContext';
  */
 export const IndicadorConexion: React.FC<{ compacto?: boolean }> = ({ compacto = false }) => {
   const { t } = useI18n();
-  const { enLinea, ventasPorEnviar } = useConexion();
+  const { enLinea, ventasPorEnviar, estadoLectura } = useConexion();
   return (
     <div className={`jowa-connection${enLinea ? '' : ' offline'}${compacto ? ' jowa-connection--compacta' : ''}`} aria-live="polite" title={t('navigation.connection_status')}>
       {enLinea ? <span className="jowa-connection-dot" aria-hidden="true" /> : <WifiOff size={16} aria-hidden="true" />}
       <span>
         <strong>{t(enLinea ? 'navigation.online' : 'navigation.offline')}</strong>
-        {ventasPorEnviar > 0 && <> · {t('navigation.pending_sales', { count: ventasPorEnviar })}</>}
+        {estadoLectura === 'error' && <> · {t('navigation.pending_sales_error')}</>}
+        {estadoLectura === 'cargando' && <> · {t('navigation.pending_sales_loading')}</>}
+        {estadoLectura === 'disponible' && ventasPorEnviar > 0 && <> · {t('navigation.pending_sales', { count: ventasPorEnviar })}</>}
       </span>
     </div>
   );

@@ -1,4 +1,6 @@
 import { transaccion, leerClave, escribirClave } from './db';
+import { puedeVerOperacion, type SesionDiario } from './acceso';
+import { leerVentana, type VentanaLocal } from './ventana';
 
 // Diario local de operaciones. Una venta offline se confirma solo cuando su registro está guardado en IndexedDB.
 // Nunca se borra ni se reescribe la carga de una operación: solo cambia su estado de sincronización.
@@ -17,6 +19,8 @@ export interface Conflicto { codigo: string; severidad?: string; detalle?: Recor
 
 export interface OperacionLocal {
   operacionId: string;
+  /** Ausente únicamente en registros históricos; nunca se deduce de la empresa que tenga la sesión abierta. */
+  tenantId?: string;
   /** H-5: posición de `operacionId` dentro de las operaciones emitidas por la ventana. */
   indiceOperacion?: number;
   dispositivoId: string;
@@ -51,7 +55,7 @@ export interface OperacionLocal {
   requiereRevision?: boolean;
 }
 
-export type NuevaOperacion = Omit<OperacionLocal, 'operacionId' | 'indiceOperacion' | 'secuenciaLocal' | 'correlativoLocal' | 'estado' | 'intentos' | 'creadaAt' | 'conflictos'>;
+export type NuevaOperacion = Omit<OperacionLocal, 'operacionId' | 'indiceOperacion' | 'secuenciaLocal' | 'correlativoLocal' | 'estado' | 'intentos' | 'creadaAt' | 'conflictos' | 'tenantId'> & { tenantId: string };
 
 export const correlativoLocal = (codigoDispositivo: string, secuencia: number) =>
   `CT-${codigoDispositivo.padStart(2, '0')}-${String(secuencia).padStart(4, '0')}`;
@@ -62,6 +66,7 @@ export const correlativoLocal = (codigoDispositivo: string, secuencia: number) =
  * pestañas no reutilizan un identificador. Sin identificadores disponibles la transacción se aborta: no hay venta.
  */
 export function registrarOperacion(nueva: NuevaOperacion, codigoDispositivo: string, emitidas: string[]): Promise<OperacionLocal> {
+  if (!nueva.tenantId?.trim()) return Promise.reject(new Error('La operación necesita una empresa identificada'));
   if (nueva.totalCentavos <= 0) return Promise.reject(new Error('La venta debe tener un importe mayor que cero'));
   return transaccion<OperacionLocal>(['operaciones', 'meta'], 'readwrite', (tx, salida) => {
     const meta = tx.objectStore('meta');
@@ -126,9 +131,9 @@ export async function actualizarSincronizacion(operacionId: string, cambios: Par
 }
 
 /** Tras reiniciar el navegador, los envíos a medias vuelven a pendientes: el servidor es idempotente por UUID. */
-export async function recuperarEnvios(): Promise<number> {
+export async function recuperarEnvios(sesion: SesionDiario, ventana?: VentanaLocal): Promise<number> {
   const ops = await listarOperaciones();
-  const interrumpidas = ops.filter((o) => o.estado === 'ENVIANDO');
+  const interrumpidas = ops.filter((o) => o.estado === 'ENVIANDO' && puedeVerOperacion(o, sesion, ventana));
   for (const op of interrumpidas) await actualizarSincronizacion(op.operacionId, { estado: 'PENDIENTE' });
   return interrumpidas.length;
 }
@@ -140,14 +145,20 @@ export const cuentaPorEstado = (ops: OperacionLocal[]) => ({
   totalPendienteCentavos: ops.filter((o) => o.estado === 'PENDIENTE' || o.estado === 'ENVIANDO').reduce((a, o) => a + o.totalCentavos, 0),
 });
 
-/** Ventas de contingencia aún por enviar. No crea la base local si el equipo nunca vendió sin conexión. */
-export async function contarVentasPorEnviar(): Promise<number> {
+/** Ventas por enviar. Cero solo tras lectura válida o base ausente; los fallos rechazan la promesa.
+ * No crea la base local si el equipo nunca vendió sin conexión. */
+export async function contarVentasPorEnviar(sesion: SesionDiario | null): Promise<number> {
+  if (!sesion) return 0;
   try {
-    if (typeof indexedDB === 'undefined') return 0;
+    if (typeof indexedDB === 'undefined') throw new Error('IndexedDB no está disponible');
     const bases = await indexedDB.databases?.();
     if (bases && !bases.some((b) => b.name === 'ferresystem-contingencia')) return 0;
-    return cuentaPorEstado(await listarOperaciones()).pendientes;
-  } catch { return 0; }
+    const ventana = await leerVentana();
+    const visibles = (await listarOperaciones()).filter((op) => puedeVerOperacion(op, sesion, ventana));
+    return cuentaPorEstado(visibles).pendientes;
+  } catch (cause) {
+    throw new Error('No se pudieron consultar las ventas pendientes en este equipo', { cause });
+  }
 }
 
 /** Cantidad ya vendida offline por producto dentro de una ventana (las no sincronizadas también cuentan). */
