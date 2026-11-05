@@ -4,7 +4,7 @@
 >
 > | Hallazgo | Estado | Referencia |
 > |---|---|---|
-> | P1-1 persistencia y cuota | Implementado en PR #239; pendiente de integración en `main` en el momento de esta nota | PR #239 |
+> | P1-1 persistencia y cuota | Cerrado en `main` (`e2b12a0`) | PR #239 |
 > | P1-2 recuperación de sesión con 502/503 | Cerrado en `main` | PR #236 (`8a43b06`) |
 > | P1-3 aislamiento por empresa | Cerrado a nivel de aplicación (sincronización, contadores y diario por empresa y sesión). **Separación física de almacenamiento: no implementada** | PR #236, PR #238 (`6a44703`) |
 > | P1-4 permisos del diario por rol | Cerrado en `main` (VENDEDOR sin acceso; CAJERO solo sus operaciones) | PR #236 (`8a43b06`) |
