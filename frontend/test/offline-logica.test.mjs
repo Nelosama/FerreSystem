@@ -50,7 +50,7 @@ test('correlativo local: formato CT-NN-NNNN, secuencial y no confundible con V-N
 });
 
 const op = (extra = {}) => ({
-  operacionId: 'a', dispositivoId: 'd', ventanaId: 'v', cajeroId: 'u1', cajeroNombre: 'Ana', cajaId: 'c', secuenciaLocal: 1,
+  operacionId: 'a', tenantId: 'A', dispositivoId: 'd', ventanaId: 'v', cajeroId: 'u1', cajeroNombre: 'Ana', cajaId: 'c', secuenciaLocal: 1,
   correlativoLocal: 'CT-01-0001', creadaAt: '2026-10-10T12:00:00Z', ocurridoAtLocal: '2026-10-10T12:00:00Z',
   lineas: [{ productoId: 'p1', codigo: 'T', nombre: 'Tornillo', cantidadCentesimas: 200, precioCentavos: 1000 }],
   subtotalCentavos: 2000, isvCentavos: 300, totalCentavos: 2300, efectivoRecibidoCentavos: 2500, cambioCentavos: 200,
@@ -109,9 +109,9 @@ test('una operación solo se reenvía cuando es pendiente y su espera venció', 
 });
 
 test('solo el cajero de la operación o un administrador la envían', () => {
-  assert.equal(sync.puedeEnviar(op(), { id: 'u1', rol: 'CAJERO' }), true);
-  assert.equal(sync.puedeEnviar(op(), { id: 'u2', rol: 'CAJERO' }), false);
-  assert.equal(sync.puedeEnviar(op(), { id: 'u2', rol: 'ADMIN' }), true);
+  assert.equal(sync.puedeEnviar(op(), { id: 'u1', rol: 'CAJERO', tenantId: 'A' }), true);
+  assert.equal(sync.puedeEnviar(op(), { id: 'u2', rol: 'CAJERO', tenantId: 'A' }), false);
+  assert.equal(sync.puedeEnviar(op(), { id: 'u2', rol: 'ADMIN', tenantId: 'A' }), true);
 });
 
 test('el DTO enviado no incluye campos de sincronización ni datos internos del diario', () => {

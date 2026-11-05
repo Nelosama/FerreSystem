@@ -53,7 +53,7 @@ test('cuota agotada en el alta: registrarOperacion rechaza y no guarda nada (ni 
   IDBObjectStore.prototype.add = function () { throw new DOMException('Cuota excedida', 'QuotaExceededError'); };
   try {
     await assert.rejects(journal.registrarOperacion({
-      dispositivoId: 'd', ventanaId: 'v', cajeroId: 'u', cajeroNombre: 'Ana', cajaId: 'c', ocurridoAtLocal: '2026-11-04T10:00:00Z',
+      tenantId: 'empresa-1', dispositivoId: 'd', ventanaId: 'v', cajeroId: 'u', cajeroNombre: 'Ana', cajaId: 'c', ocurridoAtLocal: '2026-11-04T10:00:00Z',
       lineas: [{ productoId: 'p', codigo: 'P', nombre: 'Producto', cantidadCentesimas: 100, precioCentavos: 1000 }],
       subtotalCentavos: 1000, isvCentavos: 150, totalCentavos: 1150, efectivoRecibidoCentavos: 1200, cambioCentavos: 50,
       clienteNombre: '', clienteRtn: '', esquemaVersion: 1,
@@ -70,7 +70,7 @@ test('una venta guardada tras recuperarse de la cuota queda una sola vez, sin hu
     if (fallar) throw new DOMException('Cuota excedida', 'QuotaExceededError');
     return add.apply(this, args);
   };
-  const nueva = { dispositivoId: 'd', ventanaId: 'v', cajeroId: 'u', cajeroNombre: 'Ana', cajaId: 'c', ocurridoAtLocal: '2026-11-04T10:00:00Z',
+  const nueva = { tenantId: 'empresa-1', dispositivoId: 'd', ventanaId: 'v', cajeroId: 'u', cajeroNombre: 'Ana', cajaId: 'c', ocurridoAtLocal: '2026-11-04T10:00:00Z',
     lineas: [{ productoId: 'p', codigo: 'P', nombre: 'Producto', cantidadCentesimas: 100, precioCentavos: 1000 }],
     subtotalCentavos: 1000, isvCentavos: 150, totalCentavos: 1150, efectivoRecibidoCentavos: 1200, cambioCentavos: 50, clienteNombre: '', clienteRtn: '', esquemaVersion: 1 };
   try {

@@ -1,22 +1,29 @@
 import { useEffect, useState } from 'react';
 import { contarVentasPorEnviar } from '../offline/journal';
+import { useTenant } from '../context/TenantContext';
 
 export interface EstadoConexion { enLinea: boolean; ventasPorEnviar: number; estadoLectura: 'cargando' | 'disponible' | 'error' }
 
-/** Estado de la red y ventas de contingencia guardadas en este equipo. Solo informa: no sincroniza. */
+/** Red y pendientes de la sesión. El último conteo nunca se comparte entre empresas, usuarios o roles. */
 export function useConexion(): EstadoConexion {
+  const { user, tenant, authStatus } = useTenant();
+  const usuarioId = user?.id;
+  const rol = user?.rol;
+  const tenantId = tenant?.id;
+  const autorizada = authStatus === 'ready' || authStatus === 'offline';
+  const identidad = autorizada && usuarioId && tenantId && rol ? JSON.stringify([tenantId, usuarioId, rol]) : '';
   const [enLinea, setEnLinea] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
-  const [ventasPorEnviar, setVentasPorEnviar] = useState(0);
-  const [estadoLectura, setEstadoLectura] = useState<EstadoConexion['estadoLectura']>('cargando');
+  const [lectura, setLectura] = useState<{ identidad: string; ventasPorEnviar: number; estadoLectura: EstadoConexion['estadoLectura'] }>({ identidad: '', ventasPorEnviar: 0, estadoLectura: 'cargando' });
   useEffect(() => {
     let vigente = true;
     let consulta = 0;
     const contar = () => {
+      if (!identidad || !usuarioId || !tenantId || !rol) return;
       const actual = ++consulta;
-      void contarVentasPorEnviar().then(n => {
-        if (vigente && actual === consulta) { setVentasPorEnviar(n); setEstadoLectura('disponible'); }
+      void contarVentasPorEnviar({ usuarioId, tenantId, rol }).then(n => {
+        if (vigente && actual === consulta) setLectura({ identidad, ventasPorEnviar: n, estadoLectura: 'disponible' });
       }, () => {
-        if (vigente && actual === consulta) setEstadoLectura('error');
+        if (vigente && actual === consulta) setLectura(anterior => ({ identidad, ventasPorEnviar: anterior.identidad === identidad ? anterior.ventasPorEnviar : 0, estadoLectura: 'error' }));
       });
     };
     const enLineaAhora = () => { setEnLinea(true); contar(); };
@@ -26,6 +33,7 @@ export function useConexion(): EstadoConexion {
     window.addEventListener('online', enLineaAhora);
     window.addEventListener('offline', sinRed);
     return () => { vigente = false; window.clearInterval(intervalo); window.removeEventListener('online', enLineaAhora); window.removeEventListener('offline', sinRed); };
-  }, []);
-  return { enLinea, ventasPorEnviar, estadoLectura };
+  }, [identidad, usuarioId, tenantId, rol]);
+  if (!identidad || lectura.identidad !== identidad) return { enLinea, ventasPorEnviar: 0, estadoLectura: !user ? 'disponible' : 'cargando' };
+  return { enLinea, ventasPorEnviar: lectura.ventasPorEnviar, estadoLectura: lectura.estadoLectura };
 }

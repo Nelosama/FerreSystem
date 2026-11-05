@@ -21,10 +21,10 @@ const producto = { id: 'prod-1', codigo: 'TOR-1', nombre: 'Tornillo 2 pulgadas',
 const EMITIDAS = Array.from({ length: 500 }, (_, i) => `00000000-0000-4000-8000-${(i + 1).toString(16).padStart(12, '0')}`);
 const VIGENTE = () => new Date(Date.now() + 30 * 3_600_000).toISOString();
 
-type Sim = { caida?: number; recibidas: string[]; cuerpos: Record<string, unknown>[] };
+type Sim = { fallosRegistro?: number; registrados: Set<string>; caida?: number; recibidas: string[]; cuerpos: Record<string, unknown>[] };
 const test = base.extend<{ sim: Sim }>({
   sim: [async ({ page, baseURL }, use) => {
-    const sim: Sim = { recibidas: [], cuerpos: [] };
+    const sim: Sim = { registrados: new Set(), recibidas: [], cuerpos: [] };
     const origen = new URL(baseURL!).origin;
     const cabeceras = { 'access-control-allow-origin': origen, 'access-control-allow-credentials': 'true' };
     const responder = (route: Route, status: number, body: unknown) => route.fulfill({ status, json: body, headers: cabeceras });
@@ -49,10 +49,16 @@ const test = base.extend<{ sim: Sim }>({
       if (method === 'GET' && path === '/tenant/settings') return responder(route, 200, { ...ident.tenant, colorPrimario: '#EA580C', modoNavegacion: 'SIDEBAR' });
       if (method === 'GET' && path === '/auth/me') return responder(route, 200, { user: { sub: ident.id, tenantId: ident.tenant.id, rol: ident.rol, permisos: ['pos.vender'], permisosConfigurados: true, descuentoMaximo: 0, nombre: ident.nombre } });
       if (method === 'GET' && path === '/contingencia/configuracion') return responder(route, 200, { habilitada: true, entornoHabilitado: true });
-      if (method === 'POST' && path === '/contingencia/dispositivos') return responder(route, 201, { id: 'disp-1', codigo: '01', nombre: 'Caja de contingencia', activo: true });
+      if (method === 'POST' && path === '/contingencia/dispositivos') {
+        if (sim.fallosRegistro) { sim.fallosRegistro--; return responder(route, 503, { message: 'Registro temporalmente no disponible' }); }
+        sim.registrados.add(ident.tenant.id);
+        return responder(route, 201, { id: 'disp-1', codigo: '01', nombre: 'Caja de contingencia', activo: true });
+      }
+      // El UUID público se reutiliza, pero el alta interna del servidor es distinta por empresa.
+      if (method === 'POST' && ['/contingencia/ventanas', '/contingencia/operaciones'].includes(path) && !sim.registrados.has(ident.tenant.id)) return responder(route, 404, { message: 'Equipo no registrado en esta empresa' });
       if (method === 'POST' && path === '/contingencia/ventanas') {
         return responder(route, 201, {
-          ventana: { id: `ventana-${ident.id}`, dispositivoId: 'disp-1', cajaId: `caja-${ident.id}`, usuarioId: ident.id, vigenteHasta: VIGENTE(), catalogoHash: 'h1', limites: {}, operacionesEmitidas: EMITIDAS },
+          ventana: { id: `ventana-${ident.id}`, dispositivoId: 'disp-1', cajaId: `caja-${ident.id}`, usuarioId: ident.id, vigenteHasta: VIGENTE(), catalogoHash: 'h1', limites: {}, operacionesEmitidas: ident.tenant.id === EMPRESA_B.id ? EMITIDAS.map(id => id.replace('-8000-', '-9000-')) : EMITIDAS },
           catalogo: { hash: 'h1', productos: [producto] },
         });
       }
@@ -322,5 +328,90 @@ test.describe('Contingencia — recuperación de sesión ante 502/503 y bloqueo 
       await expect(page.getByText('No pudimos verificar la sesión. Revisa la conexión y vuelve a intentar.')).toBeVisible();
       await expect(botonTornillo(page)).toHaveCount(0);
     });
+  }
+});
+
+
+test.describe('Contingencia — colas y contadores aislados posteriores a #236', () => {
+  test('cambios de empresa y cajero, recarga y contadores del mismo navegador', async ({ page }) => {
+    await ingresar(page, ID.cajeroA1);
+    await sembrar(page, SEMBRADAS);
+    for (const [quien, pendientes] of [['cajeroA1', 2], ['cajeroA2', 1], ['adminA', 2], ['cajeroB1', 1], ['adminB', 1]] as const) {
+      await ingresar(page, ID[quien]);
+      // La caja de contingencia es independiente del shell; el indicador global vive en el POS en línea.
+      await page.goto('/pos');
+      await expect(page.locator('.jowa-connection').first()).toContainText(`${pendientes} ventas por enviar`);
+      await page.reload();
+      await expect(page.locator('.jowa-connection').first()).toContainText(`${pendientes} ventas por enviar`);
+      expect((await diario(page)).map(o => o.operacionId).sort()).toEqual(SEMBRADAS.map(o => o.operacionId).sort());
+    }
+  });
+
+  test('ADMIN de A solo envía A; ADMIN de B solo envía B; históricos desconocidos sobreviven', async ({ page, sim }) => {
+    await ingresar(page, ID.adminA);
+    const iniciales = SEMBRADAS.map(o => ({ ...o, proximoIntentoAt: undefined }));
+    await sembrar(page, iniciales);
+    await abrirContingencia(page);
+    await expect.poll(() => sim.recibidas.length).toBeGreaterThan(0);
+    const idsA = iniciales.filter(o => o.tenantId === EMPRESA_A.id).map(o => o.operacionId).sort();
+    expect([...new Set(sim.recibidas)].sort()).toEqual(idsA);
+    const antesB = await diario(page);
+    const ajenaB = iniciales.find(o => o.tenantId === EMPRESA_B.id)!;
+    expect(antesB.find(o => o.operacionId === ajenaB.operacionId)).toEqual(ajenaB);
+    sim.recibidas.length = 0;
+    await ingresar(page, ID.adminB);
+    await abrirContingencia(page);
+    await expect.poll(() => sim.recibidas.length).toBeGreaterThan(0);
+    expect([...new Set(sim.recibidas)]).toEqual([ajenaB.operacionId]);
+    expect([...sim.registrados].sort()).toEqual([EMPRESA_A.id, EMPRESA_B.id].sort());
+    const final = await diario(page);
+    const historica = iniciales.find(o => o.cajeroId === ID.cajeroA1.id && !('tenantId' in o))!;
+    expect(final.find(o => o.operacionId === historica.operacionId)).toEqual(historica);
+    for (const o of iniciales) {
+      const despues = final.find(x => x.operacionId === o.operacionId);
+      for (const campo of ['tenantId', 'operacionId', 'secuenciaLocal', 'correlativoLocal', 'lineas', 'subtotalCentavos', 'isvCentavos', 'totalCentavos']) expect(despues[campo]).toEqual(o[campo as keyof typeof o]);
+    }
+  });
+});
+
+
+test('ventas nuevas en A y B conservan el UUID del equipo, secuencia global e identidad propia tras reiniciar', async ({ page, sim }) => {
+  await ingresar(page, ID.cajeroA1);
+  await abrirContingencia(page);
+  await botonTornillo(page).click();
+  await page.locator('#pc-efectivo').fill('20');
+  await page.locator('#pc-cobrar').click();
+  await expect.poll(async () => (await diario(page)).length).toBe(1);
+  const [primera] = await diario(page);
+  await expect.poll(() => sim.recibidas.includes(primera.operacionId)).toBe(true);
+  await ingresar(page, ID.cajeroB1);
+  sim.recibidas.length = 0;
+  sim.fallosRegistro = 1;
+  await abrirContingencia(page);
+  await expect(page.getByText('Registro temporalmente no disponible')).toBeVisible();
+  // El reintento manual usa el mismo mecanismo que el intervalo, sin otra sesión ni nuevo UUID.
+  await page.getByRole('button', { name: 'Enviar pendientes ahora' }).click();
+  await expect(botonTornillo(page)).toBeVisible();
+  await botonTornillo(page).click();
+  await page.locator('#pc-efectivo').fill('20');
+  await page.locator('#pc-cobrar').click();
+  await expect.poll(async () => (await diario(page)).length).toBe(2);
+  const ventas = await diario(page);
+  const segunda = ventas.find(o => o.tenantId === EMPRESA_B.id)!;
+  await expect.poll(() => sim.recibidas.includes(segunda.operacionId)).toBe(true);
+  expect(sim.recibidas.every(id => id === segunda.operacionId)).toBe(true);
+  expect(primera.tenantId).toBe(EMPRESA_A.id);
+  expect(segunda.operacionId).not.toBe(primera.operacionId);
+  expect(segunda.dispositivoId).toBe(primera.dispositivoId);
+  expect(ventas.map(o => o.secuenciaLocal).sort()).toEqual([1, 2]);
+  expect(ventas.map(o => o.totalCentavos)).toEqual([1150, 1150]);
+  expect([...sim.registrados].sort()).toEqual([EMPRESA_A.id, EMPRESA_B.id].sort());
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Ventas de este equipo' })).toContainText(segunda.correlativoLocal);
+  await expect(page.getByRole('region', { name: 'Ventas de este equipo' })).not.toContainText(primera.correlativoLocal);
+  const final = await diario(page);
+  for (const antes of ventas) {
+    const despues = final.find(o => o.operacionId === antes.operacionId);
+    for (const campo of ['tenantId', 'operacionId', 'dispositivoId', 'secuenciaLocal', 'correlativoLocal', 'lineas', 'totalCentavos']) expect(despues[campo]).toEqual(antes[campo]);
   }
 });
