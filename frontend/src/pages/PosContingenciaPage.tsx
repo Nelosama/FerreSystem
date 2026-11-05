@@ -9,6 +9,7 @@ import {
   type LineaLocal, type NuevaOperacion, type OperacionLocal,
 } from '../offline/journal';
 import { diarioVisible, exportarDiarioVisible, puedeAbrirDiario, puedeVerOperacion, type SesionDiario } from '../offline/acceso';
+import { leerEstadoAlmacenamiento, motivoFalloLocal, solicitarPersistencia, leerPersistencia, type EstadoAlmacenamiento } from '../offline/almacenamiento';
 import {
   borrarBorrador, guardarBorrador, identificadorDispositivo, leerBorrador, leerVentana, ventanaVigente,
   type DispositivoLocal, type ProductoVenta, type VentanaLocal,
@@ -61,6 +62,8 @@ export default function PosContingenciaPage() {
   const [ultimaSync, setUltimaSync] = useState<string | undefined>(undefined);
   const [habilitada, setHabilitada] = useState<boolean | null>(null);
   const [almacen, setAlmacen] = useState<'ok' | 'no-disponible' | 'error'>('ok');
+  // P1-1: persistencia y cuota del almacén local. Solo informa; el bloqueo se decide en motivoBloqueo.
+  const [estadoAlmacen, setEstadoAlmacen] = useState<EstadoAlmacenamiento | null>(null);
   const guardandoRef = useRef(false);
   const enSyncRef = useRef(false);
   const borradorListo = useRef(false);
@@ -71,6 +74,22 @@ export default function PosContingenciaPage() {
   const recargarDiario = useCallback(async () => {
     setOps(await listarOperaciones());
   }, []);
+
+  const refrescarAlmacen = useCallback(async () => {
+    setEstadoAlmacen(await leerEstadoAlmacenamiento());
+  }, []);
+
+  // Al abrir: pide almacenamiento persistente si no lo tiene (el navegador puede rechazarlo) y mide el espacio.
+  // Después se mide cada minuto y tras cada venta.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      if ((await leerPersistencia()) === 'no-concedida') await solicitarPersistencia();
+      if (vivo) await refrescarAlmacen();
+    })().catch(() => undefined);
+    const id = window.setInterval(() => { void refrescarAlmacen(); }, 60_000);
+    return () => { vivo = false; window.clearInterval(id); };
+  }, [refrescarAlmacen]);
 
   // Pestaña operadora: solo una pestaña puede cobrar. Las demás muestran el aviso y no escriben en el diario.
   // Si la operadora se cierra, una pestaña en espera toma el relevo sin recargar (antes quedaba bloqueada hasta recargar).
@@ -291,6 +310,8 @@ export default function PosContingenciaPage() {
       return `La venta supera el límite de contingencia de ${formatearCentavos(ventana.limites.montoMaxVentaCentavos)}.`;
     }
     if (almacen !== 'ok') return 'No hay almacenamiento local disponible. No se puede cobrar sin conservar la venta.';
+    // P1-1 (§5.3): con menos de 50 MiB libres no se cobra sin conservar la venta. Antes de llegar a la cuota en plena venta.
+    if (estadoAlmacen?.nivel === 'critico') return 'Queda muy poco espacio en este equipo. Exporte el diario y avise al administrador antes de cobrar.';
     return null;
   };
 
@@ -333,13 +354,14 @@ export default function PosContingenciaPage() {
       setMensaje({ tipo: 'ok', texto: `Venta guardada en este equipo: ${guardada.correlativoLocal}. Entregue el cambio y la mercancía.` });
       // La venta ya está guardada: un fallo al releer la lista no puede presentarla como no guardada.
       recargarDiario().catch(() => setMensaje({ tipo: 'aviso', texto: `Venta guardada en este equipo: ${guardada.correlativoLocal}. No se pudo actualizar la lista; recargue la página antes de cerrar el turno.` }));
+      void refrescarAlmacen();
       void borrarBorrador().catch(() => undefined);
       if (enLinea) void sincronizar();
     } catch (error: any) {
       // Sin confirmación no hay venta: el cajero no entrega mercancía ni cierra el cobro.
       setMensaje({
         tipo: 'error',
-        texto: `La venta NO se guardó en este equipo (${error?.name === 'QuotaExceededError' ? 'espacio lleno' : error?.message ?? 'error local'}). No entregue la mercancía. Avise al administrador.`,
+        texto: `La venta NO se guardó en este equipo (${motivoFalloLocal(error)}). No entregue la mercancía. Avise al administrador.`,
       });
     } finally {
       guardandoRef.current = false;
@@ -391,6 +413,21 @@ export default function PosContingenciaPage() {
         </div>
       )}
       {bloqueo && <div className="pc-aviso error" role="alert">{bloqueo}</div>}
+      {estadoAlmacen?.persistencia === 'no-concedida' && (
+        <div className="pc-aviso" role="status" data-testid="pc-aviso-persistencia">
+          El navegador no garantiza que las ventas guardadas en este equipo se conserven. Exporte el diario al terminar cada turno.
+        </div>
+      )}
+      {estadoAlmacen?.nivel === 'aviso' && (
+        <div className="pc-aviso" role="status" data-testid="pc-aviso-espacio">
+          Espacio local bajo: quedan {Math.round((estadoAlmacen.libreBytes ?? 0) / 1048576)} MiB. Exporte el diario pronto.
+        </div>
+      )}
+      {estadoAlmacen?.nivel === 'critico' && (
+        <div className="pc-aviso error" role="alert" data-testid="pc-aviso-espacio-critico">
+          Espacio local casi agotado. No se puede cobrar hasta liberarlo: exporte el diario y avise al administrador.
+        </div>
+      )}
       {mensaje && <div className={`pc-aviso ${mensaje.tipo === 'error' ? 'error' : mensaje.tipo === 'ok' ? 'ok' : ''}`} role={mensaje.tipo === 'error' ? 'alert' : 'status'}>{mensaje.texto}</div>}
 
       {avisoImpresion && <div className="pc-aviso" role="status">{avisoImpresion}</div>}

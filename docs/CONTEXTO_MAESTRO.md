@@ -1,5 +1,19 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Persistencia, cuota y retención del diario — 2026-11-04 (base `main` `8a43b06d`, PR #236 fusionado)
+
+- **Rama y PR:** `claude/persistencia-retencion-20261104`, PR contra `main`. Sin merge ni despliegue. Guardia de Vercel de la rama en `vercel.json` y `scripts/vercel-ignore.sh` (42/42).
+- **P1-1 (cerrado en código):** `frontend/src/offline/almacenamiento.ts` lee y solicita `persisted()`/`persist()`, mide `estimate()` y clasifica el espacio (aviso <200 MiB libres o uso >70 %; crítico <50 MiB, que bloquea el cobro). Sin API o con error, `no-soportado`/`desconocido`; nunca se inventa una cifra. `PosContingenciaPage.tsx` muestra los avisos. El error de escritura dice «espacio lleno» solo con `QuotaExceededError`.
+- **Garantía de no anunciar una venta fallida:** la confirmación solo aparece tras el `complete` de la transacción de `registrarOperacion`. Probado: el contador no avanza y no queda ninguna operación a medias.
+- **P1-5 (diseño ejecutable, sin activar):** `frontend/src/offline/retencion.ts`. Puertas: estado SINCRONIZADA sin revisión; reconfirmación del servidor en los últimos 5 min como APLICADA; número, correlativo y hash del payload coincidentes; caja cerrada según el servidor. PENDIENTE, ENVIANDO y REVISION nunca son eliminables. El ejecutor relee y repite la decisión dentro de una transacción; el resumen de auditoría no contiene datos personales. **Sin llamadores:** no borra nada.
+- **Bloqueo real de la retención:** la respuesta actual de `GET /contingencia/operaciones/estados` no devuelve `payloadHash` ni `cajaCerrada`, así que hoy ninguna operación es eliminable. Requiere cambio de backend (NEXUS).
+- **Codex:** no se modificaron `journal.ts`, `sync.ts` ni `useConexion.ts`. Contrato y dependencias (tipo `tenantId`, punto de llamada de la retención, conteo por empresa) en [RETENCION_CONTRATO_20261104.md](RETENCION_CONTRATO_20261104.md), pendiente de coordinación.
+- **Pruebas locales (Node 22.23.4, Chromium 1243):** `npm test` 723/723 (nuevas: `almacenamiento` 23/23, `offline-cuota-retencion` 21/21). E2E nuevo `contingencia-almacenamiento-simulado` 7/7; contingencia, sesión, PWA, offline y auth 87/87. Contraprueba: 3 de los 7 nuevos fallan con la página de `main`, como se espera. `tsc`, build y lint (123, igual que `main`) correctos.
+- **Limitaciones:** no se logró forzar `QuotaExceededError` del motor en Chromium (la traducción está probada por unidad, no end-to-end). Los umbrales son política, no medidos en equipos reales. iOS/Safari sin verificar. Los resúmenes de auditoría no tienen purga.
+- **Pendiente:** acuerdo con Codex (punto de llamada y `tenantId`), contrato y revisión NEXUS del backend, validación de cuota en equipos reales, decisión del dueño sobre la purga de resúmenes.
+- **NEXUS:** sin cambios de esquema Prisma ni migraciones en esta rama; el contrato del backend está pendiente.
+
+**Bitácora 2026-11-04 (persistencia y retención):** rama nueva desde `main` `8a43b06d`; lectura de `AGENTS.md`, del contexto y de los archivos de contingencia; implementación de los módulos, integración en la página, pruebas unitarias, E2E y contraprueba; guardia de Vercel. Sin tocar archivos de Codex, sin despliegues, merges ni bases reales.
 ## Aislamiento multiempresa de contingencia — 2026-11-03 (America/Tegucigalpa)
 
 - **Base verificada:** `main` `8a43b06dfe85c80435fab7ac90f710803cc56bb6`, posterior al merge #236. Única rama del sprint: `codex/pwa-aislamiento-20261103`, un PR contra main, sin merge ni despliegue. El estado anterior de #236 abierto es histórico; el merge consta en Git.
