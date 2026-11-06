@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { payloadCanonico } from '../../frontend/src/offline/payload';
 import { idSolicitud } from '../src/operaciones/ledger';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -96,6 +98,60 @@ describe('Contingencia offline / PostgreSQL aislado', () => {
   const enviar = (e: Awaited<ReturnType<typeof empresa>>, ops: any[]) => svc.recibirLote(e.tenantId, e.cajero, 'CAJERO', { dispositivoId: e.dispositivoId, pendientesRestantes: 0, operaciones: ops } as any);
   const stock = async (id: string) => Number((await prisma.producto.findUniqueOrThrow({ where: { id } })).stockActual);
   const ventas = (tenantId: string) => prisma.venta.count({ where: { tenantId } });
+
+  describe('evidencia de retención', () => {
+    it('confirma hash exacto del DTO en JSONB y solo certifica cajas cerradas', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      const op = operacion(e, v.id, { metodoPago: 'EFECTIVO', clienteNombre: 'José sintético', clienteRtn: 'dato sintético' });
+      expect((await enviar(e, [op])).resultados[0].estado).toBe('APLICADA');
+      const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
+      const hashCliente = createHash('sha256').update(payloadCanonico(op as any)).digest('hex');
+      expect(fila.payloadHash).toBe(hashCliente);
+      expect(fila.payload).toEqual(op);
+      const consultar = async () => (await svc.estados(e.tenantId, e.cajero, 'CAJERO', [op.operacionId]))[0] as any;
+      const abierta = await consultar();
+      expect(abierta).toMatchObject({ tenantId: e.tenantId, cajaId: v.cajaId, estado: 'APLICADA', requiereRevision: false,
+        payloadHash: hashCliente, payloadHashVersion: 'dto-json-v1', cajaCerrada: false });
+      const antes = Date.now();
+      await prisma.caja.update({ where: { id: v.cajaId }, data: { estado: 'CERRADA', fechaCierre: new Date() } });
+      const cerrada = await consultar();
+      expect(cerrada.cajaCerrada).toBe(true);
+      expect(Date.parse(cerrada.reconfirmadaAt)).toBeGreaterThanOrEqual(antes);
+      expect(cerrada.correlativoDefinitivo).toBe(`V-${String(fila.numeroVenta).padStart(8, '0')}`);
+      await prisma.operacionContingencia.update({ where: { id: fila.id }, data: { requiereRevision: true } });
+      expect((await consultar()).cajaCerrada).toBeNull();
+      await expect(prisma.operacionContingencia.update({ where: { id: fila.id }, data: { payloadHash: 'otra huella' } })).rejects.toThrow(/inmutable/);
+    });
+
+    it('exige cierre de caja original y destino cuando administración aplica en otra caja', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      await prisma.caja.update({ where: { id: v.cajaId }, data: { estado: 'CERRADA', fechaCierre: new Date() } });
+      const op = operacion(e, v.id);
+      expect((await enviar(e, [op])).resultados[0].estado).toBe('REVISION');
+      const alterna = await prisma.caja.create({ data: { tenantId: e.tenantId, codigo: 'ALTERNA', usuarioId: e.cajero, montoApertura: 0, estado: 'ABIERTA' } as any });
+      await svc.resolver(e.tenantId, e.admin, op.operacionId, { accion: 'ACEPTAR', cajaId: alterna.id, nota: 'Conciliación sintética verificada' });
+      const consultar = async () => (await svc.estados(e.tenantId, e.admin, 'ADMIN', [op.operacionId]))[0] as any;
+      await prisma.operacionContingencia.update({ where: { id: idSolicitud(e.tenantId, op.operacionId) }, data: { requiereRevision: false } });
+      expect((await consultar()).cajaCerrada).toBe(false);
+      await prisma.caja.update({ where: { id: alterna.id }, data: { estado: 'CERRADA', fechaCierre: new Date() } });
+      expect((await consultar()).cajaCerrada).toBe(true);
+    });
+
+    it('no certifica una huella inicial incoherente con el payload persistido', async () => {
+      const e = await empresa();
+      const v = await ventana(e);
+      const op = operacion(e, v.id);
+      await enviar(e, [op]);
+      const fila = await prisma.operacionContingencia.findUniqueOrThrow({ where: { id: idSolicitud(e.tenantId, op.operacionId) } });
+      const id = randomUUID();
+      await prisma.operacionContingencia.create({ data: { ...fila, id, ventaId: null, numeroVenta: null, payloadHash: 'incoherente', estado: 'RECIBIDA' } as any });
+      const evidencia = (await svc.estados(e.tenantId, e.cajero, 'CAJERO', [id]))[0] as any;
+      expect(evidencia.payloadHash).toBeNull();
+      expect(evidencia.cajaCerrada).toBeNull();
+    });
+  });
 
   describe('activación', () => {
     it('apagada por defecto: sin bandera por empresa no se emite ventana ni se recibe nada', async () => {
