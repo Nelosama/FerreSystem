@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { payloadCanonico } from '../../frontend/src/offline/payload';
+import { payloadCanonico } from './helpers/payload-cliente';
 import { idSolicitud } from '../src/operaciones/ledger';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';

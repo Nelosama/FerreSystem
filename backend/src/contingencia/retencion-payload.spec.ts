@@ -3,7 +3,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { huellaPayloadContingencia } from './contingencia.service';
 import { OperacionContingenciaDto } from './dto/contingencia.dto';
-import { aOperacionDto, payloadCanonico } from '../../../frontend/src/offline/payload';
+import { aOperacionDto, payloadCanonico } from '../../test/helpers/payload-cliente';
 
 const op: any = {
   operacionId: 'd2a39691-8de8-4b93-893b-34eaeeff14e0', dispositivoId: 'e13e6405-8b2d-4493-871a-89b78fda38ea',
