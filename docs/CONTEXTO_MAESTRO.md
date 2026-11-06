@@ -1,5 +1,14 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Spec Kit instalado — 2026-11-06 (base `main` `54db069`)
+
+- **Rama:** `claude/optimistic-johnson-7m5dlr`. Sin merge ni despliegue; no toca código de la aplicación.
+- **Herramienta:** CLI `specify` de [github/spec-kit](https://github.com/github/spec-kit) instalado con `uv tool install specify-cli --from git+https://github.com/github/spec-kit.git` (global en el contenedor; cada máquina o sesión nueva debe repetir la instalación si quiere usar el CLI).
+- **Inicialización:** `specify init --here --force --integration claude --script sh --non-interactive --ignore-agent-tools`. Solo añadió `.specify/` (plantillas, scripts bash, flujo y `memory/constitution.md`) y `.claude/skills/speckit-*` (constitution, specify, clarify, plan, tasks, analyze, checklist, implement, converge). No sobrescribió ningún archivo existente.
+- **Pendiente:** `.specify/memory/constitution.md` sigue siendo la plantilla genérica; debe redactarse con `/speckit-constitution` a partir de las reglas de este documento y de `AGENTS.md` (multiempresa, NEXUS para Prisma, distinción tests/merge/despliegue/aceptación).
+
+**Bitácora 2026-11-06 (Spec Kit):** instalación del CLI, prueba en directorio temporal para confirmar que no hay colisiones, inicialización en la raíz del repo y registro aquí.
+
 ## Persistencia, cuota y retención del diario — 2026-11-04 (base `main` `8a43b06d`, PR #236 fusionado)
 
 - **Rama y PR:** `claude/persistencia-retencion-20261104`, PR contra `main`. Sin merge ni despliegue. Guardia de Vercel de la rama en `vercel.json` y `scripts/vercel-ignore.sh` (42/42).
