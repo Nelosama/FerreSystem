@@ -20,7 +20,7 @@
 - **Reglas respetadas:** sin force push; sin fusionar PR con CI fallido, conflictos o bloqueos; sin borrar operaciones offline; sin migraciones; sin tocar bases reales; sin activar retención; sin desplegar. `journal.ts`, `sync.ts` y `useConexion.ts` solo cambiaron por integración del trabajo de Codex (#238), no por cambios propios de esta sesión.
 - **NEXUS:** sin cambios de esquema Prisma ni migraciones en este sprint.
 
-**Bitácora 2026-11-05 (sprint de consolidación):** lectura del estado de #237, #238 y #239 en GitHub; revisión de #238 y ejecución local de sus pruebas; integración uno a uno con merge normal y `expectedHeadSha`; resolución de conflictos documentada; verificación de `main` final. Esta actualización de documentación va en una rama aparte con PR, sin fusionar.
+**Bitácora 2026-11-05 (sprint de consolidación):** lectura del estado de #237, #238 y #239 en GitHub; revisión de #238 y ejecución local de sus pruebas; integración uno a uno con merge normal y `expectedHeadSha`; resolución de conflictos documentada; verificación de `main` final. Este registro se presentó en el PR #240; describe `main` en `54db069` y no cambia el estado del producto.
 
 ## Persistencia, cuota y retención del diario — 2026-11-04 (base `main` `8a43b06d`, PR #236 fusionado)
 
