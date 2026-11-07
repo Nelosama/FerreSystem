@@ -85,17 +85,22 @@ carga canónica y edad efectiva de la evidencia antes de eliminar. Escribe el
 testigo en `meta` en la misma transacción. Un error aborta borrado y testigo.
 El testigo conserva empresa/operación/ventana/caja, correlativos/número, total,
 fechas, hash/version, estado confirmado y cierre; no nombres, RTN, cajero,
-productos ni token. Los testigos no se purgan automáticamente.
+productos ni token. Se conservan los testigos de las **30 ventanas cerradas más
+recientes por empresa**. Se purgan los de ventanas más antiguas solo cuando no
+son la ventana activa ni tienen operaciones locales pendientes. Si falta una
+empresa, ventana o fecha válida, el testigo se conserva por seguridad.
 
 El diario asignaba el próximo UUID como máximo índice aún almacenado + 1.
 Borrar el último habría reutilizado un UUID emitido: la retención preserva el
 máximo consumido por ventana en `meta` (`indice-retenido:<ventanaId>`), atómico
 con borrado/testigo. `registrarOperacion` lo lee en su propia transacción; conserva
 secuencia y rechaza agotamiento sin guardar. Pruebas cubren último índice y
-lotes desordenados. No cambia la versión de IndexedDB ni sus almacenes. Además, se conserva toda
-operación de la ventana local activa hasta que sea reemplazada: el POS usa sus
-ventas para calcular cupos, y purgarlas podría liberar cupo por accidente. Esta
-condición se comprueba bajo bloqueo de `ventana` en la misma transacción local.
+lotes desordenados. No cambia la versión de IndexedDB ni sus almacenes. Los
+marcadores de índice no se purgan: son pequeños y no existe evidencia del servidor
+en este contrato que permita demostrar que una ventana ya no puede reutilizarse.
+Además, se conserva toda operación de la ventana local activa y cualquier ventana
+con operaciones locales; el POS usa sus ventas para calcular cupos, y purgarlas
+podría liberar cupo por accidente. La limpieza de testigos no toca estos datos.
 
 ## Protección de main (solo consulta)
 
@@ -118,8 +123,9 @@ interruptores que los arneses existentes habilitan dentro del proceso de prueba
 no cambian configuración de una instancia ni una base real.
 
 No certifica producción: siguen pendientes separación física de almacenamiento
-por empresa, validación en equipos reales (Safari/iOS, expulsión, apagón,
-impresoras) y política de purga de testigos. El hash asegura igualdad de carga;
+por empresa y validación en equipos reales (Safari/iOS, expulsión, apagón,
+impresoras). El límite local de testigos no implica retención o borrado del
+registro de servidor. El hash asegura igualdad de carga;
 no es firma criptográfica de un dispositivo local comprometido. La evidencia
 representa el snapshot reciente del servidor, no un bloqueo distribuido entre
 PostgreSQL e IndexedDB. Reapertura futura de cajas o nuevos cambios de negocio

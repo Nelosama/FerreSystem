@@ -14,6 +14,8 @@ export { payloadCanonico } from './payload';
 export const ESTADOS_INTOCABLES = ['PENDIENTE', 'ENVIANDO', 'REVISION'] as const;
 /** Una reconfirmación solo vale durante este tiempo: evita borrar con una respuesta antigua. */
 export const VIGENCIA_EVIDENCIA_MS = 5 * 60_000;
+/** Ventanas cerradas con testigos detallados que se conservan localmente por empresa. */
+export const MAX_VENTANAS_TESTIGOS = 30;
 
 export type OperacionRetenible = OperacionLocal;
 
@@ -148,6 +150,7 @@ export async function retenerTrasSincronizar(api: Parameters<typeof reconfirmarC
   if (!claims?.sid || claims.sub !== usuario.id || claims.tenantId !== usuario.tenantId || !vigente()) return;
   const sesion = { tenantId: usuario.tenantId, usuarioId: usuario.id, rol: usuario.rol, vigente };
   const ops = (await listarOperaciones()).filter(o => mismaEmpresa(o, sesion) && o.estado === 'SINCRONIZADA' && !o.requiereRevision);
+  let eliminadasTotal = 0;
   for (let i = 0; i < ops.length; i += 100) {
     if (!vigente()) return;
     const lote = ops.slice(i, i + 100);
@@ -160,8 +163,86 @@ export async function retenerTrasSincronizar(api: Parameters<typeof reconfirmarC
       const hash = await hashPayload(op);
       if (evaluarRetencion(op, evidencia, hash).eliminable) candidatas.push({ op, evidencia, hash, canonico: payloadCanonico(op) });
     }
-    if (candidatas.length && vigente()) await eliminarConfirmadas(candidatas, Date.now(), sesion);
+    if (candidatas.length && vigente()) {
+      const resultado = await eliminarConfirmadas(candidatas, Date.now(), sesion);
+      eliminadasTotal += resultado.eliminadas.length;
+    }
   }
+  if (eliminadasTotal > 0 && vigente()) await depurarTestigosLocales();
+}
+
+/**
+ * Conserva los testigos de las 30 ventanas cerradas más recientes por empresa.
+ * Falla cerrado: testigos incompletos, ventanas activas y ventanas con operaciones
+ * locales se conservan. Los marcadores de índice nunca se eliminan aquí.
+ */
+export async function depurarTestigosLocales(maxVentanas = MAX_VENTANAS_TESTIGOS) {
+  const limite = Number.isSafeInteger(maxVentanas) && maxVentanas > 0 ? maxVentanas : MAX_VENTANAS_TESTIGOS;
+  return transaccion<number>(['operaciones', 'meta', 'ventana'], 'readwrite', (tx, salida) => {
+    const meta = tx.objectStore('meta');
+    const operaciones = tx.objectStore('operaciones');
+    const activa = tx.objectStore('ventana').get('activa');
+    const filas: Array<{ clave: IDBValidKey; valor: unknown }> = [];
+    let cursorListo = false;
+    let operacionesListas = false;
+    let ventanaLista = false;
+    let listaOps: OperacionLocal[] = [];
+    let ventanaActiva: { ventanaId?: string } | undefined;
+    let terminado = false;
+    salida.valor = 0;
+
+    const podar = () => {
+      if (terminado || !cursorListo || !operacionesListas || !ventanaLista) return;
+      terminado = true;
+      const conOperaciones = new Set(listaOps.map(o => o.ventanaId).filter(Boolean));
+      const porEmpresa = new Map<string, Map<string, { fecha: number }>>();
+      const conservarSiempre = new Set<string>();
+      for (const fila of filas) {
+        if (typeof fila.clave !== 'string' || !fila.clave.startsWith('auditoria:')) continue;
+        const testigo = fila.valor as { tenantId?: unknown; ventanaId?: unknown; eliminadaAt?: unknown; cajaCerrada?: unknown } | null;
+        if (!testigo || typeof testigo.tenantId !== 'string' || !testigo.tenantId
+          || typeof testigo.ventanaId !== 'string' || !testigo.ventanaId
+          || typeof testigo.eliminadaAt !== 'string') continue;
+        if (testigo.cajaCerrada !== true) { conservarSiempre.add(`${testigo.tenantId}\u0000${testigo.ventanaId}`); continue; }
+        const fecha = Date.parse(testigo.eliminadaAt);
+        // Un dato temporal inválido no se usa para inferir antigüedad ni borrar.
+        if (!Number.isFinite(fecha)) { conservarSiempre.add(`${testigo.tenantId}\u0000${testigo.ventanaId}`); continue; }
+        let ventanas = porEmpresa.get(testigo.tenantId);
+        if (!ventanas) { ventanas = new Map(); porEmpresa.set(testigo.tenantId, ventanas); }
+        let grupo = ventanas.get(testigo.ventanaId);
+        if (!grupo) { grupo = { fecha }; ventanas.set(testigo.ventanaId, grupo); }
+        grupo.fecha = Math.max(grupo.fecha, fecha);
+      }
+
+      const conservar = new Set<string>();
+      for (const [tenantId, ventanas] of porEmpresa) {
+        const ordenadas = [...ventanas.entries()].sort((a, b) => b[1].fecha - a[1].fecha);
+        for (const [ventanaId] of ordenadas.slice(0, limite)) conservar.add(`${tenantId}\u0000${ventanaId}`);
+      }
+      for (const llave of conservarSiempre) conservar.add(llave);
+      for (const fila of filas) {
+        if (typeof fila.clave !== 'string' || !fila.clave.startsWith('auditoria:')) continue;
+        const testigo = fila.valor as { tenantId?: unknown; ventanaId?: unknown } | null;
+        if (!testigo || typeof testigo.tenantId !== 'string' || typeof testigo.ventanaId !== 'string') continue;
+        const llave = `${testigo.tenantId}\u0000${testigo.ventanaId}`;
+        if (conservar.has(llave) || conOperaciones.has(testigo.ventanaId) || ventanaActiva?.ventanaId === testigo.ventanaId) continue;
+        meta.delete(fila.clave);
+        salida.valor = (salida.valor ?? 0) + 1;
+      }
+    };
+
+    const cursor = meta.openCursor();
+    cursor.onsuccess = () => {
+      const actual = cursor.result;
+      if (actual) {
+        filas.push({ clave: actual.key, valor: actual.value });
+        actual.continue();
+      } else { cursorListo = true; podar(); }
+    };
+    const peticionOps = operaciones.getAll();
+    peticionOps.onsuccess = () => { listaOps = peticionOps.result as OperacionLocal[]; operacionesListas = true; podar(); };
+    activa.onsuccess = () => { ventanaActiva = activa.result as { ventanaId?: string } | undefined; ventanaLista = true; podar(); };
+  });
 }
 
 export interface CandidataRetencion { op: OperacionRetenible; evidencia: EvidenciaServidor; hash: string; canonico: string }
