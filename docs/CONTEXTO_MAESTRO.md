@@ -1,5 +1,27 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Sprint de consolidación #237, #238 y #239 — 2026-11-05 (base y resultado `main` `54db0694`)
+
+- **Integrado en `main`, uno a uno, con CI verificado en el SHA de cada PR y en `main` después de cada merge:**
+  - #238 aislamiento de sincronización y contadores por empresa y sesión: `6a447032` (SHA del PR `29cfd856`).
+  - #239 persistencia, cuota y retención segura: `e2b12a0` (SHA del PR `cf1964d`). Antes se actualizó sobre #238, con conflictos en la guardia de Vercel y en el contexto, resueltos conservando las ramas bloqueadas de ambos PR.
+  - #237 documentación de auditoría y plan de ejecución: `54db069` (SHA del PR `3979b6e`). Su tabla de estado marca cada hallazgo con el PR que lo cierra.
+- **CI de `main`:** en `6a447032`, `Operación de ferretería` y `Piloto con API y PostgreSQL reales` en success. En `e2b12a0`, los dos en success. Los checks de cada PR (`validate`, `test`, `guard-base-datos`) también en success en su SHA.
+- **Pruebas sobre `main` `54db069` (local, Node 22.23.4, Chromium 1243):** `npm test` 740/740; `tsc -b` y build correctos; lint 122 advertencias (`main` previo: 123, ninguna nueva); E2E de contingencia, aislamiento multiempresa, almacenamiento, sesión, PWA, offline y auth 90/90. Todas son **simuladas** (backend interceptado en navegador). Las reales (`e2e-real`) y PostgreSQL solo las ejecutó el CI.
+- **Verificado por pruebas:** una empresa no ve ni envía operaciones de otra (16 pruebas multiempresa); cajero solo sus operaciones; cambiar de empresa, usuario o rol invalida el conteo; pendientes sobreviven a cierres y reinicios (simulado); venta no se confirma si falla IndexedDB; PENDIENTE, ENVIANDO y REVISION nunca se eliminan (puertas de retención); sincronización idempotente por UUID; contingencia apagada por defecto en el código.
+- **Pendiente:**
+  - P1-5 retención: sin llamadores. Requiere contrato del backend (`payloadHash` y `cajaCerrada` en `/contingencia/operaciones/estados`, revisión NEXUS) y acuerdo con Codex sobre el punto de llamada.
+  - `tenantId` en `OperacionLocal`: ya formalizado por #238 (opcional en históricos).
+  - P1-3: separación física de almacenamiento por empresa no implementada (evaluada y documentada en #238).
+  - P2-3 latido, P2-4 borrador por equipo, P2-5 hash en exportación, P2-6 mensaje de identificadores agotados, P2-7 reloj local, P2-8 fuentes offline: abiertos.
+  - Medición de cuota y umbrales sin validar en equipos reales; iOS/Safari sin verificar; cuota real del motor no forzada en Chromium.
+  - Resúmenes de auditoría de retención sin política de purga (decisión del dueño).
+- **Estado de producción — NO-GO para activar la contingencia PWA:** 1) sin cierre de P1-5 ni de la separación física (P1-3); 2) sin validación de cuota en equipos reales; 3) sin pruebas reales (`e2e-real`, PostgreSQL) ejecutadas por nosotros en este SHA; 4) sin aceptación del cliente; 5) el valor real de `POS_OFFLINE_ENABLED` en Render no se verificó desde esta sesión. El NO-GO general del plan de salida se mantiene.
+- **Reglas respetadas:** sin force push; sin fusionar PR con CI fallido, conflictos o bloqueos; sin borrar operaciones offline; sin migraciones; sin tocar bases reales; sin activar retención; sin desplegar. `journal.ts`, `sync.ts` y `useConexion.ts` solo cambiaron por integración del trabajo de Codex (#238), no por cambios propios de esta sesión.
+- **NEXUS:** sin cambios de esquema Prisma ni migraciones en este sprint.
+
+**Bitácora 2026-11-05 (sprint de consolidación):** lectura del estado de #237, #238 y #239 en GitHub; revisión de #238 y ejecución local de sus pruebas; integración uno a uno con merge normal y `expectedHeadSha`; resolución de conflictos documentada; verificación de `main` final. Este registro se presentó en el PR #240; describe `main` en `54db069` y no cambia el estado del producto.
+
 ## Persistencia, cuota y retención del diario — 2026-11-04 (base `main` `8a43b06d`, PR #236 fusionado)
 
 - **Rama y PR:** `claude/persistencia-retencion-20261104`, PR contra `main`. Sin merge ni despliegue. Guardia de Vercel de la rama en `vercel.json` y `scripts/vercel-ignore.sh` (42/42).
