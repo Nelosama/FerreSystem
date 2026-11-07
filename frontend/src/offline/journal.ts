@@ -72,16 +72,13 @@ export function registrarOperacion(nueva: NuevaOperacion, codigoDispositivo: str
     const meta = tx.objectStore('meta');
     const ops = tx.objectStore('operaciones');
     const todas = ops.getAll();
+    const retenido = meta.get(`indice-retenido:${nueva.ventanaId}`);
     const contador = meta.get('secuencia');
-    todas.onsuccess = () => {
-      const usados = (todas.result as OperacionLocal[]).filter((o) => o.ventanaId === nueva.ventanaId && typeof o.indiceOperacion === 'number');
-      const indice = usados.reduce((maximo, o) => Math.max(maximo, o.indiceOperacion ?? -1), -1) + 1;
-      if (indice >= emitidas.length) tx.abort();
-    };
     contador.onsuccess = () => {
       const siguiente = (Number(contador.result) || 0) + 1;
       const usados = (todas.result as OperacionLocal[]).filter((o) => o.ventanaId === nueva.ventanaId && typeof o.indiceOperacion === 'number');
-      const indice = usados.reduce((maximo, o) => Math.max(maximo, o.indiceOperacion ?? -1), -1) + 1;
+      const indice = Math.max(Number(retenido.result) || 0, usados.reduce((maximo, o) => Math.max(maximo, o.indiceOperacion ?? -1), -1) + 1);
+      if (indice >= emitidas.length) { tx.abort(); return; }
       const operacion: OperacionLocal = {
         ...nueva,
         operacionId: emitidas[indice],

@@ -59,6 +59,7 @@ const pad = (n: number, largo: number) => String(n).padStart(largo, '0');
 export const correlativoDefinitivo = (numeroVenta: number) => `V-${pad(numeroVenta, 8)}`;
 const canonico = (valor: unknown): string => JSON.stringify(valor, (_, v) =>
   v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v);
+export const huellaPayloadContingencia = (payload: unknown) => fingerprint(canonico(payload));
 const sha = (texto: string) => createHash('sha256').update(texto).digest('hex');
 
 /** Rechazos definitivos de la recepción (DEF-04, R-01): se conservan en el diario como REVISION con uno de estos conflictos DUROS no superables. */
@@ -357,17 +358,22 @@ export class ContingenciaService {
 
   /** Estado de varias operaciones sin efectos (consulta previa al reenvío, recuperación tras cierre inesperado). */
   async estados(tenantId: string, usuarioId: string, rol: string, ids: string[]) {
+    return this.prisma.$transaction((tx) => this.estadosSnapshot(tx, tenantId, usuarioId, rol, ids),
+      { isolationLevel: 'RepeatableRead', timeout: 30000 });
+  }
+
+  private async estadosSnapshot(db: Tx, tenantId: string, usuarioId: string, rol: string, ids: string[]) {
     // El equipo conoce su identificador; el registro puede estar guardado con el derivado por empresa o, si es anterior, con el crudo.
     // H-I (CENTINELA): un identificador que no es un UUID (con carácter nulo, demasiado largo, etc.) no puede existir; se responde sin consultarlo.
     const esUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     const invalidos = new Set(ids.filter((id) => !esUuid(id)));
     ids = ids.filter(esUuid);
     const candidatos = ids.map((id) => [id, idRecurso(tenantId, id)] as const);
-    const filas = await this.prisma.operacionContingencia.findMany({ where: { tenantId, id: { in: candidatos.flat() as string[] } } });
+    const filas = await db.operacionContingencia.findMany({ where: { tenantId, id: { in: candidatos.flat() as string[] } } });
     // CENTINELA F1/F4: un no administrador ve sus operaciones y los rechazos que él mismo envió; nunca los de otro.
     let visibles = filas;
     if (rol !== 'ADMIN' && filas.length) {
-      const remitidas = await this.prisma.auditoriaOperacion.findMany({
+      const remitidas = await db.auditoriaOperacion.findMany({
         where: { tenantId, usuarioId, operacion: { in: ['CONTINGENCIA_OPERACION_RECHAZADA', 'CONTINGENCIA_OPERACION_ALTERADA'] }, entidadId: { in: filas.map((f) => f.id) } },
         select: { entidadId: true },
       });
@@ -377,8 +383,22 @@ export class ContingenciaService {
     const porId = new Map(visibles.map((f) => [f.id, f]));
     const validos = await Promise.all(candidatos.map(async ([id, derivado]) => {
       const f = porId.get(derivado) ?? porId.get(id);
-      if (f) return this.resumenCliente(f, id);
-      return (await this.respuestaSinRegistro(this.prisma, tenantId, id, rol === 'ADMIN' ? undefined : usuarioId)) ?? { operacionId: id, estado: 'NO_REGISTRADA' };
+      if (f) {
+        const [cierre] = await query<any>(db, `SELECT c.estado AS original, d.estado AS destino,
+          v.numero_venta, v.solicitud_hash FROM ventas v
+          JOIN cajas c ON c.id=$3 AND c.tenant_id=v.tenant_id
+          JOIN cajas d ON d.id=v.caja_id AND d.tenant_id=v.tenant_id
+          WHERE v.id=$1 AND v.tenant_id=$2`, f.ventaId, tenantId, f.cajaId);
+        // Recalcular desde JSONB: nunca certificar una huella que describe otros datos.
+        const integra = f.payloadHash === huellaPayloadContingencia(f.payload);
+        const aplicada = f.estado === 'APLICADA' && !f.requiereRevision && integra
+          && cierre?.numero_venta === f.numeroVenta && cierre?.solicitud_hash === f.payloadHash;
+        return { ...this.resumenCliente(f, id), tenantId, cajaId: f.cajaId,
+          payloadHash: integra ? f.payloadHash : null, payloadHashVersion: 'dto-json-v1',
+          cajaCerrada: aplicada ? cierre.original === 'CERRADA' && cierre.destino === 'CERRADA' : null,
+          reconfirmadaAt: new Date().toISOString() };
+      }
+      return (await this.respuestaSinRegistro(db, tenantId, id, rol === 'ADMIN' ? undefined : usuarioId)) ?? { operacionId: id, estado: 'NO_REGISTRADA' };
     }));
     return [...validos, ...[...invalidos].map((id) => ({ operacionId: sanearTexto(id).slice(0, 64), estado: 'NO_REGISTRADA' }))];
   }
@@ -440,7 +460,7 @@ export class ContingenciaService {
     if (dto.lineas.some((l) => (l.precioCentavos * l.cantidadCentesimas) / 100 > MAX_CENTAVOS)) {
       throw new BadRequestException({ message: 'Una línea supera el importe máximo permitido; se conserva en el equipo para revisión del administrador', code: 'IMPORTE_INVALIDO' });
     }
-    const hash = fingerprint(canonico({ ...dto }));
+    const hash = huellaPayloadContingencia({ ...dto });
     const ventana = await db.contingenciaVentana.findFirst({ where: { id: dto.ventanaId, tenantId, dispositivoId } });
     if (!ventana) throw new BadRequestException({ message: 'Ventana de contingencia desconocida', code: 'VENTANA_DESCONOCIDA' });
     // H-5: la propiedad la fija la ventana emitida al cajero autenticado, no el cajeroId que declara el equipo. Un envío de
@@ -546,7 +566,7 @@ export class ContingenciaService {
     const codigo = error?.response?.code ?? 'RECHAZADA';
     const mensaje = error?.response?.message ?? error?.message ?? 'La operación fue rechazada';
     const idInterno = idSolicitud(tenantId, dto.operacionId);
-    const hash = fingerprint(canonico({ ...dto }));
+    const hash = huellaPayloadContingencia({ ...dto });
     const existente = await db.operacionContingencia.findFirst({ where: { tenantId, id: { in: [idInterno, dto.operacionId] } } });
     if (existente) {
       // H-1/H-2 (CENTINELA, 2c62c597): quien no es el cajero de una operación ya existente no altera su fila ni recibe sus datos.
