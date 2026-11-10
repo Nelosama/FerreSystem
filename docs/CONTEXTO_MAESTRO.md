@@ -1,5 +1,25 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Estado vigente de integración — 2026-11-09
+
+- **main:** `3b8de95b7910b02588722de6c55f96acd2ce9196`. Los workflows `Operación de ferretería` y `Piloto con API y PostgreSQL reales` finalizaron en verde en ese SHA (7-nov).
+- **PR #241, retención PWA:** head `432f53df2fc4e1c1d0fd2ec9841eb68f35372d7a`; ambos workflows están verdes en ese head y GitHub informa `mergeable`/sin conflictos. No agrega migraciones ni activa `POS_OFFLINE_ENABLED`. La revisión de código y la decisión de integración deben quedar registradas antes de merge. La contingencia PWA conserva NO-GO hasta separar físicamente los datos por empresa, validar cuota y operación en dispositivos reales y obtener aceptación operativa.
+- **PR #242, Spec Kit:** head `460ef6d7f522f6e6f4e6f6500846509ee23f99f5`; ambos workflows están verdes y GitHub informa `mergeable`/sin conflictos. Incorpora herramientas de especificación, no lógica de la aplicación. La constitución genérica se reemplazó en esta rama por una propuesta específica de Jowa System; falta ratificación del propietario.
+- **Autorización y límites:** integrar PR revisados con checks del SHA vigente y base sin conflictos. No desplegar, no activar la contingencia y no modificar bases reales. El merge y el GO de producción son decisiones separadas.
+- **Siguiente paso:** cerrar revisión, integrar secuencialmente los cambios aceptados y comprobar los workflows del SHA de `main` después de cada merge. Los resultados de un SHA anterior no certifican el nuevo.
+
+
+## Spec Kit instalado — 2026-11-06 (base original `main` `54db069`)
+
+- **Rama:** `claude/optimistic-johnson-7m5dlr`. PR #242 abierto; rama sincronizada con `main` mediante merge normal de `3b8de95`. Sin fusión del PR ni despliegue; no toca código de la aplicación.
+- **Herramienta:** CLI `specify` de [github/spec-kit](https://github.com/github/spec-kit) instalado con `uv tool install specify-cli --from git+https://github.com/github/spec-kit.git` (global en el contenedor; cada máquina o sesión nueva debe repetir la instalación si quiere usar el CLI).
+- **Inicialización:** `specify init --here --force --integration claude --script sh --non-interactive --ignore-agent-tools`. Solo añadió `.specify/` (plantillas, scripts bash, flujo y `memory/constitution.md`) y `.claude/skills/speckit-*` (constitution, specify, clarify, plan, tasks, analyze, checklist, implement, converge). No sobrescribió ningún archivo existente.
+- **Pendiente:** `.specify/memory/constitution.md` sigue siendo la plantilla genérica; debe redactarse con `/speckit-constitution` a partir de las reglas de este documento y de `AGENTS.md` (multiempresa, NEXUS para Prisma, distinción tests/merge/despliegue/aceptación).
+
+**Bitácora 2026-11-06 (Spec Kit):** instalación del CLI, prueba en directorio temporal para confirmar que no hay colisiones, inicialización en la raíz del repo y registro aquí.
+
+**Bitácora 2026-11-07 (actualización del PR #242):** merge normal de `main` `3b8de95` en la rama; conflicto en este documento resuelto conservando esta sección y el registro del sprint #237–#240. `git diff --check` limpio; no se ejecutó ni se modificó código de aplicación.
+
 ## Sprint de consolidación #237, #238 y #239 — 2026-11-05 (base y resultado `main` `54db0694`)
 
 - **Integrado en `main`, uno a uno, con CI verificado en el SHA de cada PR y en `main` después de cada merge:**
@@ -20,8 +40,7 @@
 - **Reglas respetadas:** sin force push; sin fusionar PR con CI fallido, conflictos o bloqueos; sin borrar operaciones offline; sin migraciones; sin tocar bases reales; sin activar retención; sin desplegar. `journal.ts`, `sync.ts` y `useConexion.ts` solo cambiaron por integración del trabajo de Codex (#238), no por cambios propios de esta sesión.
 - **NEXUS:** sin cambios de esquema Prisma ni migraciones en este sprint.
 
-**Bitácora 2026-11-05 (sprint de consolidación):** lectura del estado de #237, #238 y #239 en GitHub; revisión de #238 y ejecución local de sus pruebas; integración uno a uno con merge normal y `expectedHeadSha`; resolución de conflictos documentada; verificación de `main` final. Este registro se presentó en el PR #240; describe `main` en `54db069` y no cambia el estado del producto.
-
+**Bitácora 2026-11-05 (sprint de consolidación):** lectura del estado de #237, #238 y #239 en GitHub; revisión de #238 y ejecución local de sus pruebas; integración uno a uno con merge normal y `expectedHeadSha`; resolución de conflictos documentada; verificación de `main` final. Este registro se presentó en el PR #240 y describe el resultado de `main` en `54db069`; el PR se integró después mediante el merge `3b8de95`.
 ## Persistencia, cuota y retención del diario — 2026-11-04 (base `main` `8a43b06d`, PR #236 fusionado)
 
 - **Rama y PR:** `claude/persistencia-retencion-20261104`, PR contra `main`. Sin merge ni despliegue. Guardia de Vercel de la rama en `vercel.json` y `scripts/vercel-ignore.sh` (42/42).
