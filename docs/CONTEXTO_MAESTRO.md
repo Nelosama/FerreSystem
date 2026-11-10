@@ -1,5 +1,14 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Estado vigente de integración — 2026-11-09
+
+- **main:** `3b8de95b7910b02588722de6c55f96acd2ce9196`. Los workflows `Operación de ferretería` y `Piloto con API y PostgreSQL reales` finalizaron en verde en ese SHA (7-nov).
+- **PR #241, retención PWA:** head `432f53df2fc4e1c1d0fd2ec9841eb68f35372d7a`; ambos workflows están verdes en ese head y GitHub informa `mergeable`/sin conflictos. No agrega migraciones ni activa `POS_OFFLINE_ENABLED`. La revisión de código y la decisión de integración deben quedar registradas antes de merge. La contingencia PWA conserva NO-GO hasta separar físicamente los datos por empresa, validar cuota y operación en dispositivos reales y obtener aceptación operativa.
+- **PR #242, Spec Kit:** head `460ef6d7f522f6e6f4e6f6500846509ee23f99f5`; ambos workflows están verdes y GitHub informa `mergeable`/sin conflictos. Incorpora herramientas de especificación, no lógica de la aplicación. La constitución genérica se reemplazó en esta rama por una propuesta específica de Jowa System; falta ratificación del propietario.
+- **Autorización y límites:** integrar PR revisados con checks del SHA vigente y base sin conflictos. No desplegar, no activar la contingencia y no modificar bases reales. El merge y el GO de producción son decisiones separadas.
+- **Siguiente paso:** cerrar revisión, integrar secuencialmente los cambios aceptados y comprobar los workflows del SHA de `main` después de cada merge. Los resultados de un SHA anterior no certifican el nuevo.
+
+
 ## Spec Kit instalado — 2026-11-06 (base original `main` `54db069`)
 
 - **Rama:** `claude/optimistic-johnson-7m5dlr`. PR #242 abierto; rama sincronizada con `main` mediante merge normal de `3b8de95`. Sin fusión del PR ni despliegue; no toca código de la aplicación.
