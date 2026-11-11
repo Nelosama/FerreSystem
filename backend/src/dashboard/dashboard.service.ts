@@ -69,7 +69,7 @@ export class DashboardService {
       this.prisma.venta.findMany({
         where: { tenantId },
         select: {
-          id: true, numeroVenta: true, total: true, metodoPago: true, createdAt: true,
+          id: true, numeroVenta: true, total: true, metodoPago: true, createdAt: true, clienteNombre: true,
           cliente: { select: { nombre: true } },
           usuario: { select: { nombre: true } },
         },
@@ -112,7 +112,8 @@ export class DashboardService {
       ultimasVentas: ultimasVentas.map((v) => ({
         id: v.id,
         numeroVenta: v.numeroVenta,
-        cliente: v.cliente?.nombre || 'Consumidor Final',
+        // Cliente registrado o, si no lo hay, el nombre escrito en la venta; «Consumidor Final» solo cuando no hay ninguno.
+        cliente: v.cliente?.nombre || v.clienteNombre?.trim() || 'Consumidor Final',
         cajero: v.usuario.nombre,
         total: Number(v.total),
         metodoPago: v.metodoPago,

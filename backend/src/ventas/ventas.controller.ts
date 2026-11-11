@@ -9,6 +9,7 @@ import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequiredModule } from '../common/decorators/required-module.decorator';
 import { CreateVentaDto } from './dto/create-venta.dto';
+import { soloVentasPropias } from '../common/datos-por-rol';
 
 @Controller('ventas')
 @RequiredModule('pos')
@@ -22,7 +23,8 @@ export class VentasController {
   async findAll(@TenantId() tenantId: string, @Query('limit') limit?: string, @Query('page') page?: string, @CurrentUser() user?: any) {
     const take = Math.min(500,Math.max(1,Math.floor(Number(limit)) || 50));
     const pageNumber = Math.max(0,Math.floor(Number(page) || 0));
-    return this.ventasService.findAll(tenantId, take, pageNumber, user?.rol === 'CAJERO' ? user.sub : undefined);
+    // Cajero y Vendedor consultan solo las ventas que ellos registraron; la administración ve las del negocio.
+    return this.ventasService.findAll(tenantId, take, pageNumber, soloVentasPropias(user?.rol) ? user.sub : undefined);
   }
 
   @Get('solicitudes/:id')
@@ -30,8 +32,9 @@ export class VentasController {
     @TenantId() tenantId: string,
     @CurrentUser('sub') usuarioId: string,
     @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser('rol') rol?: string,
   ) {
-    return this.ventasService.findSolicitud(tenantId, usuarioId, id);
+    return this.ventasService.findSolicitud(tenantId, usuarioId, id, rol);
   }
 
   @Post('solicitudes/:id/descartar')
@@ -42,7 +45,7 @@ export class VentasController {
 
   @Get(':id')
   async findById(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser() user?: any) {
-    return this.ventasService.findById(tenantId, id, user?.rol === 'CAJERO' ? user.sub : undefined);
+    return this.ventasService.findById(tenantId, id, soloVentasPropias(user?.rol) ? user.sub : undefined, user?.rol);
   }
 
   @Post()

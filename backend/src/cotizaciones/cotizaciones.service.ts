@@ -11,6 +11,7 @@ import { desgloseFiscalPorLineaActivo, desgloseParaEscribir } from '../common/de
 import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
 import { isvDocumentoCentavos } from '../common/isv-documento';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
+import { clienteParaRol, empresaPublica } from '../common/datos-por-rol';
 
 /** Fecha de solo día (YYYY-MM-DD) se guarda como inicio del día en la zona del negocio. */
 const SOLO_DIA = /^\d{4}-\d{2}-\d{2}$/;
@@ -28,7 +29,7 @@ function diasEntre(desde: string, hasta: string): number {
 export class CotizacionesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(tenantId: string) {
+  async findAll(tenantId: string, rol?: string) {
     const cotizaciones = await this.prisma.cotizacion.findMany({
       where: { tenantId },
       include: {
@@ -45,10 +46,10 @@ export class CotizacionesService {
 
     const hoy = new Date();
 
-    return cotizaciones.map((c) => this.formatCotizacion(c, hoy));
+    return cotizaciones.map((c) => this.formatCotizacion(c, hoy, rol));
   }
 
-  async findById(tenantId: string, id: string) {
+  async findById(tenantId: string, id: string, rol?: string) {
     const c = await this.prisma.cotizacion.findFirst({
       where: { id, tenantId },
       include: {
@@ -66,10 +67,10 @@ export class CotizacionesService {
     }
 
     const hoy = new Date();
-    return this.formatCotizacion(c, hoy);
+    return this.formatCotizacion(c, hoy, rol);
   }
 
-  async create(tenantId: string, usuarioId: string, dto: CreateCotizacionDto, alCrear?: (tx: any, cotizacion: any) => Promise<void>) {
+  async create(tenantId: string, usuarioId: string, dto: CreateCotizacionDto, alCrear?: (tx: any, cotizacion: any) => Promise<void>, rol?: string) {
     await exigirSinExencion(this.prisma, tenantId, usuarioId, 'CREAR', null, dto.detalles);
     if (!dto.detalles || dto.detalles.length === 0) {
       throw new BadRequestException('La cotización debe tener al menos un ítem');
@@ -143,6 +144,8 @@ export class CotizacionesService {
       const fechaValidez = dto.fechaValidez
         ? fechaValidezDesdeDto(dto.fechaValidez)
         : new Date(Date.now() + diasVal * 24 * 60 * 60 * 1000);
+      // Los consumidores internos no pasan por el DTO: una vigencia fuera de rango responde 400, nunca un error de base.
+      if (Number.isNaN(fechaValidez.getTime())) throw new BadRequestException('La vigencia de la cotización no es válida');
 
       const cotizacion = await tx.cotizacion.create({
         data: {
@@ -197,7 +200,7 @@ export class CotizacionesService {
 
       if (alCrear) await alCrear(tx, cotizacion);
       const hoy = new Date();
-            return this.formatCotizacion(cotizacion, hoy);
+            return this.formatCotizacion(cotizacion, hoy, rol);
     });
   }
 
@@ -238,7 +241,7 @@ export class CotizacionesService {
     });
   }
 
-  async update(tenantId: string, id: string, dto: CreateCotizacionDto, usuarioId: string) {
+  async update(tenantId: string, id: string, dto: CreateCotizacionDto, usuarioId: string, rol?: string) {
     await exigirSinExencion(this.prisma, tenantId, usuarioId, 'EDITAR', id, dto.detalles);
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM cotizaciones WHERE id = ${id} AND tenant_id = ${tenantId} FOR UPDATE`;
@@ -365,11 +368,11 @@ export class CotizacionesService {
       });
 
       const hoy = new Date();
-            return this.formatCotizacion(updated, hoy);
+            return this.formatCotizacion(updated, hoy, rol);
     });
   }
 
-  async duplicate(tenantId: string, usuarioId: string, id: string) {
+  async duplicate(tenantId: string, usuarioId: string, id: string, rol?: string) {
     const original = await this.prisma.cotizacion.findFirst({
       where: { id, tenantId },
       include: { detalles: true },
@@ -446,11 +449,11 @@ export class CotizacionesService {
       });
 
       const hoy = new Date();
-            return this.formatCotizacion(duplicada, hoy);
+            return this.formatCotizacion(duplicada, hoy, rol);
     });
   }
 
-  async updateEstado(tenantId: string, id: string, estado: any) {
+  async updateEstado(tenantId: string, id: string, estado: any, rol?: string) {
     if (!['BORRADOR', 'ENVIADA', 'APROBADA', 'RECHAZADA', 'VENCIDA'].includes(estado)) {
       throw new BadRequestException('Estado de cotización no permitido; use convertir para generar una venta');
     }
@@ -478,7 +481,7 @@ export class CotizacionesService {
       });
 
       const hoy = new Date();
-            return this.formatCotizacion(updated, hoy);
+            return this.formatCotizacion(updated, hoy, rol);
     });
   }
 
@@ -736,12 +739,15 @@ export class CotizacionesService {
     return result;
   }
 
-  private formatCotizacion(c: any, hoy: Date) {
+  private formatCotizacion(c: any, hoy: Date, rol?: string) {
     // Vigencia por día calendario del negocio, no por la zona horaria del servidor.
     const diferenciaDias = diasEntre(diaCalendario(hoy), new Date(c.fechaValidez).toISOString().slice(0, 10));
 
     return {
       ...c,
+      // Cliente con el contacto que imprime la cotización, sin datos de crédito fuera de ADMIN; la empresa, solo lo público.
+      ...(c.cliente !== undefined ? { cliente: clienteParaRol(c.cliente, rol, true) } : {}),
+      ...(c.tenant !== undefined ? { tenant: empresaPublica(c.tenant) } : {}),
       subtotal: Number(c.subtotal),
       porcentajeIsv: Number(c.porcentajeIsv),
       isv: Number(c.isv),
