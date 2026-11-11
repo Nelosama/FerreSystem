@@ -1,42 +1,29 @@
 import { transaccion } from './db';
+import { listarOperaciones, type OperacionLocal } from './journal';
+import { payloadCanonico } from './payload';
+import { sessionIdentity, tokenClaims } from '../utils/authInterceptors';
+export { payloadCanonico } from './payload';
 
 // Retención del diario de contingencia (P1-5 de AUDITORIA_OFFLINE_ALMACENAMIENTO_20261104).
 // Diseño por evidencia, no por antigüedad. Puertas cerradas por defecto: una operación solo es eliminable si
 //   1) está SINCRONIZADA, sin revisión, y
 //   2) el servidor la reconfirma en esta misma sesión como APLICADA, con el mismo número, correlativo y hash del payload, y
 //   3) el servidor confirma que su caja está cerrada.
-// PENDIENTE, ENVIANDO y REVISION nunca son eliminables. Este módulo NO tiene llamadores: no borra nada hasta que el
-// contrato del servidor (hash y cierre de caja en /contingencia/operaciones/estados) exista y se active por coordinación.
+// PENDIENTE, ENVIANDO y REVISION nunca son eliminables. Se ejecuta tras sincronización online autenticada.
 
 export const ESTADOS_INTOCABLES = ['PENDIENTE', 'ENVIANDO', 'REVISION'] as const;
 /** Una reconfirmación solo vale durante este tiempo: evita borrar con una respuesta antigua. */
 export const VIGENCIA_EVIDENCIA_MS = 5 * 60_000;
 
-/** Campos del diario que la retención necesita. Declarado aquí para no depender de journal.ts (propiedad de otro agente). */
-export interface OperacionRetenible {
-  operacionId: string;
-  estado: string;
-  requiereRevision?: boolean;
-  numeroVenta?: number;
-  correlativoDefinitivo?: string;
-  sincronizadaAt?: string;
-  ventanaId: string;
-  cajaId: string;
-  cajeroId: string;
-  correlativoLocal: string;
-  ocurridoAtLocal: string;
-  totalCentavos: number;
-  subtotalCentavos: number;
-  isvCentavos: number;
-  efectivoRecibidoCentavos: number;
-  cambioCentavos: number;
-  lineas: { productoId: string; cantidadCentesimas: number; precioCentavos: number }[];
-  [campo: string]: unknown;
-}
+export type OperacionRetenible = OperacionLocal;
 
-/** Respuesta del servidor para una operación. `payloadHash` y `cajaCerrada` son el contrato pendiente. */
+/** Respuesta del servidor para una operación. Campos opcionales para rechazar de forma segura servidores antiguos o respuestas incompletas. */
 export interface EvidenciaServidor {
   operacionId: string;
+  tenantId?: string;
+  cajaId?: string;
+  requiereRevision?: boolean;
+  payloadHashVersion?: string;
   estado: string;
   numeroVenta?: number | null;
   correlativoDefinitivo?: string | null;
@@ -58,17 +45,6 @@ export type MotivoRetencion =
 
 export type DecisionRetencion = { eliminable: true } | { eliminable: false; motivo: MotivoRetencion };
 
-/** Forma canónica y estable de lo que se confirmó. Síncrona: se compara dentro de la transacción. */
-export function payloadCanonico(op: OperacionRetenible): string {
-  return JSON.stringify({
-    operacionId: op.operacionId, ventanaId: op.ventanaId, cajaId: op.cajaId, cajeroId: op.cajeroId,
-    correlativoLocal: op.correlativoLocal, ocurridoAtLocal: op.ocurridoAtLocal,
-    lineas: op.lineas.map((l) => [l.productoId, l.cantidadCentesimas, l.precioCentavos]),
-    subtotalCentavos: op.subtotalCentavos, isvCentavos: op.isvCentavos, totalCentavos: op.totalCentavos,
-    efectivoRecibidoCentavos: op.efectivoRecibidoCentavos, cambioCentavos: op.cambioCentavos,
-  });
-}
-
 /** SHA-256 hexadecimal del payload canónico. Requiere `crypto.subtle` (contexto seguro o Node). */
 export async function hashPayload(op: OperacionRetenible): Promise<string> {
   const bytes = new TextEncoder().encode(payloadCanonico(op));
@@ -87,14 +63,16 @@ export function evaluarRetencion(
   if (op.requiereRevision) return { eliminable: false, motivo: 'con-revision' };
   if (op.estado !== 'SINCRONIZADA') return { eliminable: false, motivo: 'estado-intocable' };
   if (!evidencia || evidencia.operacionId !== op.operacionId) return { eliminable: false, motivo: 'sin-evidencia' };
+  if (!op.tenantId || evidencia.tenantId !== op.tenantId || evidencia.cajaId !== op.cajaId
+    || evidencia.payloadHashVersion !== 'dto-json-v1') return { eliminable: false, motivo: 'datos-no-coinciden' };
   const reconfirmada = Date.parse(evidencia.reconfirmadaAt);
   if (!Number.isFinite(reconfirmada) || ahora - reconfirmada > VIGENCIA_EVIDENCIA_MS || reconfirmada > ahora + 60_000) {
     return { eliminable: false, motivo: 'evidencia-caducada' };
   }
   // Solo APLICADA cuenta. RESUELTA_MANUAL significa que la administración cerró la operación sin aplicarla.
-  if (evidencia.estado !== 'APLICADA') return { eliminable: false, motivo: 'estado-servidor' };
-  if (op.numeroVenta === undefined || evidencia.numeroVenta !== op.numeroVenta
-    || op.correlativoDefinitivo === undefined || evidencia.correlativoDefinitivo !== op.correlativoDefinitivo) {
+  if (evidencia.estado !== 'APLICADA' || evidencia.requiereRevision !== false) return { eliminable: false, motivo: 'estado-servidor' };
+  if (!Number.isSafeInteger(op.numeroVenta) || (op.numeroVenta ?? 0) <= 0 || evidencia.numeroVenta !== op.numeroVenta
+    || !op.correlativoDefinitivo || op.correlativoDefinitivo !== `V-${String(op.numeroVenta).padStart(8, '0')}` || evidencia.correlativoDefinitivo !== op.correlativoDefinitivo) {
     return { eliminable: false, motivo: 'datos-no-coinciden' };
   }
   if (!evidencia.payloadHash || !hashLocal) return { eliminable: false, motivo: 'hash-no-disponible' };
@@ -108,9 +86,10 @@ export function evaluarRetencion(
  * Resumen de auditoría sin datos personales innecesarios: sin nombre, RTN, cliente, cajero ni líneas de producto.
  * Conserva lo necesario para conciliar: identificadores, correlativos, importes totales y el hash del payload.
  */
-export function resumenAuditoria(op: OperacionRetenible, hash: string, ahora = new Date()) {
+export function resumenAuditoria(op: OperacionRetenible, hash: string, ahora = new Date(), evidencia?: EvidenciaServidor) {
   return {
     version: 1,
+    tenantId: op.tenantId,
     operacionId: op.operacionId,
     ventanaId: op.ventanaId,
     cajaId: op.cajaId,
@@ -121,20 +100,68 @@ export function resumenAuditoria(op: OperacionRetenible, hash: string, ahora = n
     ocurridoAtLocal: op.ocurridoAtLocal,
     sincronizadaAt: op.sincronizadaAt,
     payloadHash: hash,
+    payloadHashVersion: 'dto-json-v1',
     eliminadaAt: ahora.toISOString(),
     motivo: 'retencion-reconfirmada',
+    reconfirmadaAt: evidencia?.reconfirmadaAt,
+    estadoServidor: evidencia?.estado,
+    cajaCerrada: evidencia?.cajaCerrada,
   };
 }
 
 /** Reconfirma con el servidor las operaciones indicadas. Sin contrato completo, las evidencias no cerrarán ninguna puerta. */
 export async function reconfirmarConServidor(
-  api: { get: (url: string, config: { params: Record<string, string>; timeout: number }) => Promise<{ data: unknown }> },
+  api: { get: (url: string, config: { params: Record<string, string>; timeout: number; headers?: Record<string, string> }) => Promise<{ data: unknown }> },
   operacionIds: string[],
-  ahora = new Date(),
+  headers?: Record<string, string>,
 ): Promise<EvidenciaServidor[]> {
   if (!operacionIds.length) return [];
-  const { data } = await api.get('/contingencia/operaciones/estados', { params: { ids: operacionIds.slice(0, 100).join(',') }, timeout: 20_000 });
-  return (data as Omit<EvidenciaServidor, 'reconfirmadaAt'>[]).map((s) => ({ ...s, reconfirmadaAt: ahora.toISOString() }));
+  try {
+    const { data } = await api.get('/contingencia/operaciones/estados', {
+      params: { ids: operacionIds.slice(0, 100).join(',') }, timeout: 20_000, headers,
+    });
+    if (!Array.isArray(data)) return [];
+    const ids = new Set(operacionIds);
+    const repetidos = new Set(data.filter((s, i) => data.findIndex((t) => t?.operacionId === s?.operacionId) !== i).map(s => s?.operacionId));
+    return data.filter((s): s is EvidenciaServidor => !!s && typeof s === 'object'
+      && ids.has(s.operacionId) && !repetidos.has(s.operacionId));
+  } catch { return []; } // HTTP, timeout o formato desconocido: conservar, reintentar en otro ciclo.
+}
+
+export interface SesionRetencion {
+  tenantId: string; usuarioId: string; rol: string;
+  vigente: () => boolean;
+}
+const mismaEmpresa = (op: OperacionRetenible, sesion: SesionRetencion) =>
+  op.tenantId === sesion.tenantId && (sesion.rol === 'ADMIN' || (sesion.rol === 'CAJERO' && op.cajeroId === sesion.usuarioId));
+
+/** Solo después de sincronizar correctamente; el GET autenticado confirma la sesión en servidor. */
+export async function retenerTrasSincronizar(api: Parameters<typeof reconfirmarConServidor>[0],
+  usuario: { id: string; tenantId: string; rol: string }) {
+  if (typeof window === 'undefined' || !navigator.onLine) return;
+  const token = localStorage.getItem('ferre_token');
+  const claims = tokenClaims(token);
+  const identidad = `${usuario.id}:${usuario.tenantId}`;
+  const vigente = () => !!token && localStorage.getItem('ferre_token') === token
+    && sessionIdentity() === identidad && navigator.onLine
+    && JSON.parse(localStorage.getItem('ferre_user') || 'null')?.rol === usuario.rol;
+  if (!claims?.sid || claims.sub !== usuario.id || claims.tenantId !== usuario.tenantId || !vigente()) return;
+  const sesion = { tenantId: usuario.tenantId, usuarioId: usuario.id, rol: usuario.rol, vigente };
+  const ops = (await listarOperaciones()).filter(o => mismaEmpresa(o, sesion) && o.estado === 'SINCRONIZADA' && !o.requiereRevision);
+  for (let i = 0; i < ops.length; i += 100) {
+    if (!vigente()) return;
+    const lote = ops.slice(i, i + 100);
+    const evidencias = await reconfirmarConServidor(api, lote.map(o => o.operacionId), { Authorization: `Bearer ${token}` });
+    if (!vigente()) return;
+    const candidatas: CandidataRetencion[] = [];
+    for (const op of lote) {
+      const evidencia = evidencias.find(e => e.operacionId === op.operacionId);
+      if (!evidencia) continue;
+      const hash = await hashPayload(op);
+      if (evaluarRetencion(op, evidencia, hash).eliminable) candidatas.push({ op, evidencia, hash, canonico: payloadCanonico(op) });
+    }
+    if (candidatas.length && vigente()) await eliminarConfirmadas(candidatas, Date.now(), sesion);
+  }
 }
 
 export interface CandidataRetencion { op: OperacionRetenible; evidencia: EvidenciaServidor; hash: string; canonico: string }
@@ -142,24 +169,35 @@ export interface CandidataRetencion { op: OperacionRetenible; evidencia: Evidenc
 /**
  * Ejecutor atómico. Una sola transacción: relee cada operación, repite la decisión sobre el registro guardado y solo
  * entonces elimina y escribe su resumen. Si el estado o la carga cambió, la operación se omite y se conserva.
- * Sin llamadores en esta versión.
+ * La sesión y la empresa se revalidan antes de cada eliminación.
  */
-export async function eliminarConfirmadas(candidatas: CandidataRetencion[], ahora = Date.now()) {
-  return transaccion<{ eliminadas: string[]; omitidas: string[] }>(['operaciones', 'meta'], 'readwrite', (tx, salida) => {
+export async function eliminarConfirmadas(candidatas: CandidataRetencion[], ahora: number, sesion: SesionRetencion) {
+  return transaccion<{ eliminadas: string[]; omitidas: string[] }>(['operaciones', 'meta', 'ventana'], 'readwrite', (tx, salida) => {
+    const ventana = tx.objectStore('ventana').get('activa');
     const ops = tx.objectStore('operaciones');
     const meta = tx.objectStore('meta');
     const eliminadas: string[] = [];
     const omitidas: string[] = [];
+    const indices = new Map<string, number>();
     salida.valor = { eliminadas, omitidas };
     for (const c of candidatas) {
       const peticion = ops.get(c.op.operacionId);
       peticion.onsuccess = () => {
         const guardada = peticion.result as OperacionRetenible | undefined;
-        const coincide = !!guardada && payloadCanonico(guardada) === c.canonico;
-        const decision = guardada && coincide ? evaluarRetencion(guardada, c.evidencia, c.hash, ahora) : undefined;
+        const coincide = !!guardada && ventana.result?.ventanaId !== guardada.ventanaId && sesion.vigente() && mismaEmpresa(guardada, sesion) && payloadCanonico(guardada) === c.canonico;
+        const decision = guardada && coincide ? evaluarRetencion(guardada, c.evidencia, c.hash, Math.max(ahora, Date.now())) : undefined;
         if (!guardada || !decision || decision.eliminable !== true) { omitidas.push(c.op.operacionId); return; }
+        // El índice emitido no se puede reutilizar tras purgar el último registro de una ventana.
+        const claveIndice = `indice-retenido:${guardada.ventanaId}`;
+        const indice = meta.get(claveIndice);
+        indice.onsuccess = () => {
+          if (!sesion.vigente()) { tx.abort(); return; }
+          const maximo = Math.max(indices.get(claveIndice) ?? 0, Number(indice.result) || 0, (guardada.indiceOperacion ?? -1) + 1);
+          indices.set(claveIndice, maximo);
+          meta.put(maximo, claveIndice);
+        };
         ops.delete(c.op.operacionId);
-        meta.put(resumenAuditoria(guardada, c.hash, new Date(ahora)), `auditoria:${c.op.operacionId}`);
+        meta.put(resumenAuditoria(guardada, c.hash, new Date(ahora), c.evidencia), `auditoria:${c.op.operacionId}`);
         eliminadas.push(c.op.operacionId);
       };
     }

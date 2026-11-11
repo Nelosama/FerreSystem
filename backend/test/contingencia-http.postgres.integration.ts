@@ -162,6 +162,7 @@ describe('Contingencia H5 por HTTP: 4xx en recepción offline / PostgreSQL aisla
     expect(r1).toMatchObject({ estado: 'RECHAZADA_TECNICA', codigo: 'CAJERO_NO_AUTORIZADO' });
     // La operación está atribuida al administrador: la consulta la hace quien puede verla (un cajero no ve operaciones de otro).
     const consulta = await http('get', `/contingencia/operaciones/estados?ids=${op.operacionId}`, e.admin.token);
+    expect(consulta.headers['cache-control']).toBe('no-store');
     expect(consulta.status).toBe(200);
     expect(consulta.body[0]).toMatchObject({ estado: r1.estado, codigo: r1.codigo, mensaje: r1.mensaje, instruccion: r1.instruccion });
     const reenvio = await http('post', '/contingencia/operaciones', e.cajero.token, lote(e, [op]));
