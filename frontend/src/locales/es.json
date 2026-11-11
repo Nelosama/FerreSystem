@@ -117,7 +117,7 @@
   },
   "dashboard": {
     "title": "RESUMEN OPERATIVO",
-    "subtitle": "Turno Actual: 08:00 AM - 05:00 PM",
+    "subtitle": "Lo más importante de hoy",
     "sales_today": "VENTAS DEL DÍA",
     "stock_alerts": "ALERTAS DE STOCK",
     "pending_quotations": "COTIZACIONES PENDIENTES",
@@ -558,7 +558,7 @@
     "global_filter": "FILTRO DE FECHAS GLOBAL",
     "from": "Desde",
     "to": "Hasta",
-    "dates_utc_notice": "Fechas del reporte en hora de {zona}.",
+    "dates_utc_notice": "Fechas del reporte en hora de Honduras ({zona}).",
     "loading": "Cargando…",
     "fetch_error": "No se pudieron consultar los reportes",
     "net_sales": "Ventas netas",
@@ -792,7 +792,10 @@
     "more": "Más opciones",
     "close": "Cerrar menú",
     "denied": "Acceso Denegado",
-    "denied_help": "No tienes acceso a esta pantalla. Consulta al administrador.",
+    "denied_help": "No tienes acceso a esta pantalla. Si la necesitas para tu trabajo, pídele al administrador que te dé acceso.",
+    "denied_permission": "Tu usuario no tiene permiso para usar esta pantalla. Si la necesitas para tu trabajo, pídele al administrador que te dé el permiso.",
+    "module_off_help": "Esta función no está activada para {negocio}. Si la necesitas, pídele al administrador que la active.",
+    "denied_back": "Volver al inicio",
     "company": "Gestionar empresa",
     "support": "Iniciar soporte",
     "cash_help": "Consulta tu apertura y cierre en Caja",
@@ -848,7 +851,7 @@
     "guidance": {
       "ADMIN": "Elige una tarea frecuente. Encuentra las demás en el menú o el buscador de pantallas.",
       "CAJERO": "Primero abre la caja, luego registra las ventas. Al terminar, cuenta el efectivo y cierra la caja.",
-      "VENDEDOR": "Prepara ventas y cotizaciones y consulta tus clientes.",
+      "VENDEDOR": "Prepara ventas y cotizaciones. Busca al cliente dentro de la venta o de la cotización.",
       "BODEGUERO": "Revisa entregas y existencias antes de registrar movimientos."
     },
     "dashboard": {

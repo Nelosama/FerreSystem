@@ -474,8 +474,19 @@ export const POSPage: React.FC = () => {
     </button>
   )), [catalogoFiltrado, limiteCatalogo, t]);
 
+  // Mismo aviso que al agregar desde el catálogo: la cantidad escrita o aumentada con «+» también puede superar la existencia.
+  const avisarExistencia = (item: CartItem, cantidad: number) => {
+    const prod = productos.find(p => p.id === item.productoId);
+    if (!prod || item.sinInventario) return;
+    setAvisoExistencia(Number(prod.stockActual) < cantidad
+      ? `Sin existencia suficiente de ${prod.nombre}: disponibles ${prod.stockActual}. Revise la cantidad o registre un pedido especial autorizado.`
+      : null);
+  };
+
   const modificarCantidad = (productoId: string, delta: number) => {
     if (edicionBloqueada || cobrandoRef.current) return;
+    const linea = cart.find(i => i.productoId === productoId);
+    if (linea && linea.cantidad + delta > 0) avisarExistencia(linea, linea.cantidad + delta);
     setCart(
       cart
         .map((i) => {
@@ -804,7 +815,7 @@ export const POSPage: React.FC = () => {
           </div>
         )}
         {errorText && (
-          <div style={{
+          <div role="alert" style={{
             marginBottom: '16px',
             padding: '12px 16px',
             backgroundColor: '#FEE2E2',
@@ -976,7 +987,7 @@ export const POSPage: React.FC = () => {
                       >
                         <Minus size={16} strokeWidth={2.6} aria-hidden="true" />
                       </button>
-                      <input className="pos-cantidad-input" aria-label={`Cantidad ${item.nombre}`} type="number" min="0.01" step="0.01" value={item.cantidad} disabled={edicionBloqueada} onChange={e=>{const q=Number(e.target.value);if(q>0)setCart(cart.map(i=>i.productoId===item.productoId?{...i,cantidad:q}:i));}}/>
+                      <input className="pos-cantidad-input" aria-label={`Cantidad ${item.nombre}`} type="number" min="0.01" step="0.01" value={item.cantidad} disabled={edicionBloqueada} onChange={e=>{const q=Number(e.target.value);if(q>0){avisarExistencia(item,q);setCart(cart.map(i=>i.productoId===item.productoId?{...i,cantidad:q}:i));}}}/>
                       <button
                         type="button"
                         className="pos-cantidad-btn"

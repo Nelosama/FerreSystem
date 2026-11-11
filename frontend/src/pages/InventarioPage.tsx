@@ -250,6 +250,7 @@ const InventarioContent: React.FC = () => {
             <input
               type="text"
               placeholder={t('pos.search_products')}
+              aria-label={t('pos.search_products')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="form-input"
@@ -460,8 +461,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   searchWrapper: {
     position: 'relative',
-    minWidth: '0',
-    flex: 1,
+    // Con muchas categorías el buscador se encogía hasta ~50 px y tapaba el primer filtro: conserva un ancho útil y baja de fila si no cabe.
+    minWidth: 'min(100%, 260px)',
+    flex: '1 1 260px',
   },
   searchIcon: {
     position: 'absolute',
@@ -476,6 +478,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap',
   },
   catButton: {
+    minHeight: '44px',
     padding: '8px 12px',
     fontFamily: 'var(--font-display)',
     fontWeight: 700,

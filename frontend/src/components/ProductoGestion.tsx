@@ -7,6 +7,7 @@ import { alertas } from '../utils/alertas';
 import { formatLempiras } from '../utils/format';
 import { construirCambiosProducto, formularioDesde, validarFormularioProducto, type FormularioProducto } from '../utils/productoEdicion';
 import '../pages/OperacionesPage.css';
+import { etiquetaUnidad } from '../utils/unidadMedida';
 
 const UNIDADES = ['UNIDAD', 'PIE', 'METRO', 'METRO_CUADRADO', 'METRO_CUBICO', 'LIBRA', 'KG', 'GALON', 'LITRO', 'CAJA', 'PAQUETE', 'OTRO'];
 
@@ -130,9 +131,9 @@ export const ProductoGestion: React.FC<{ productos: any[]; onSaved: () => Promis
     const ayuda = campo.ayuda ? <small className="form-hint">{t(`product_edit.hint.${campo.ayuda}`)}</small> : null;
     if (campo.tipo === 'check') {
       return (
-        <label key={campo.k}>
+        <label key={campo.k} className="operation-check">
           <input type="checkbox" disabled={deshabilitado} checked={form[campo.k] === true}
-            onChange={e => setForm({ ...form, [campo.k]: e.target.checked })} /> {t(`product_edit.field.${campo.k}`)}
+            onChange={e => setForm({ ...form, [campo.k]: e.target.checked })} /> <span>{t(`product_edit.field.${campo.k}`)}</span>
           {ayuda}
         </label>
       );
@@ -142,7 +143,7 @@ export const ProductoGestion: React.FC<{ productos: any[]; onSaved: () => Promis
         <label key={campo.k}>{t(`product_edit.field.${campo.k}`)}
           <select className="form-input" disabled={deshabilitado} value={String(form[campo.k] ?? '')}
             onChange={e => setForm({ ...form, [campo.k]: e.target.value })}>
-            {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+            {UNIDADES.map(u => <option key={u} value={u}>{etiquetaUnidad(u)}</option>)}
           </select>
           {ayuda}
         </label>

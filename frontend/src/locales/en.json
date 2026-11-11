@@ -117,7 +117,7 @@
   },
   "dashboard": {
     "title": "OPERATIONAL SUMMARY",
-    "subtitle": "Current Shift: 08:00 AM - 05:00 PM",
+    "subtitle": "Today's highlights",
     "sales_today": "TODAY'S SALES",
     "stock_alerts": "STOCK ALERTS",
     "pending_quotations": "PENDING QUOTATIONS",
@@ -792,7 +792,10 @@
     "more": "More options",
     "close": "Close menu",
     "denied": "Access Denied",
-    "denied_help": "You do not have access to this screen. Contact your administrator.",
+    "denied_help": "You do not have access to this screen. If you need it for your work, ask your administrator for access.",
+    "denied_permission": "Your user does not have permission to use this screen. If you need it for your work, ask your administrator for the permission.",
+    "module_off_help": "This feature is not turned on for {negocio}. If you need it, ask your administrator to turn it on.",
+    "denied_back": "Back to home",
     "company": "Manage company",
     "support": "Start support",
     "cash_help": "View cash drawer opening and closing",
@@ -848,7 +851,7 @@
     "guidance": {
       "ADMIN": "Choose a frequent task. Find others in the menu or task finder.",
       "CAJERO": "First open cash drawer, then process sales. When finished, count cash and close drawer.",
-      "VENDEDOR": "Prepare sales and quotations and consult your customers.",
+      "VENDEDOR": "Prepare sales and quotations. Find the customer inside the sale or the quotation.",
       "BODEGUERO": "Review deliveries and stock before recording movements."
     },
     "dashboard": {

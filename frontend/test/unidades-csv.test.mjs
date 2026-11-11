@@ -7,7 +7,16 @@ import ts from 'typescript';
 const exports = {};
 const source = fs.readFileSync('src/utils/unidadMedida.ts', 'utf8');
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports });
-const { normalizarUnidadMedida, unidadCsvValida, UNIDADES_INVENTARIO } = exports;
+const { normalizarUnidadMedida, unidadCsvValida, UNIDADES_INVENTARIO, etiquetaUnidad } = exports;
+
+test('cada unidad de la API tiene un nombre legible y el valor desconocido se muestra tal cual', () => {
+  for (const unidad of UNIDADES_INVENTARIO) {
+    const etiqueta = etiquetaUnidad(unidad);
+    assert.ok(etiqueta && !etiqueta.includes('_') && etiqueta !== etiqueta.toUpperCase(), `${unidad} → ${etiqueta}`);
+  }
+  assert.equal(etiquetaUnidad('METRO_CUADRADO'), 'Metro cuadrado (m²)');
+  assert.equal(etiquetaUnidad('ROLLO'), 'ROLLO');
+});
 const evaluarModulo = (file, globals = {}) => {
   const salida = {};
   const contexto = { exports: salida, ...globals, require: name => (name.endsWith('/unidadMedida') ? exports : undefined) };

@@ -1238,6 +1238,12 @@ export const CotizacionesPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* El aviso general queda detrás del formulario: el error se repite aquí, junto a los botones. */}
+              {mensajeNotificacion?.tipo === 'error' && (
+                <p role="alert" style={{ margin: '12px 0 0', padding: '10px 12px', border: '1px solid #DC2626', borderRadius: '6px', backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 700, fontSize: '14px' }}>
+                  {mensajeNotificacion.texto}
+                </p>
+              )}
               {/* Botones de Guardado */}
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
                 <button

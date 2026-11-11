@@ -40,6 +40,8 @@ interface IconRailProps {
   /** Contenido sobre el avatar (por ejemplo, el estado de conexión). */
   pie?: React.ReactNode;
   avatar: { inicial: string; titulo?: string };
+  /** Identificador para pruebas (`data-testid`). */
+  testId?: string;
 }
 
 const rutaActiva = (pathname: string, to: string, end?: boolean) =>
@@ -49,7 +51,7 @@ const rutaActiva = (pathname: string, to: string, end?: boolean) =>
  * Rail lateral de iconos (84 px). Los paneles se abren con clic o teclado, se cierran con Escape o al pulsar fuera
  * o al cambiar de ruta, y devuelven el foco a su botón. El estado activo toma el color del negocio (`--color-primary`).
  */
-export const IconRail: React.FC<IconRailProps> = ({ className, ariaLabel, marca, marcaEtiqueta, entradas, pie, avatar }) => {
+export const IconRail: React.FC<IconRailProps> = ({ className, ariaLabel, marca, marcaEtiqueta, entradas, pie, avatar, testId }) => {
   const { pathname } = useLocation();
   // El panel guarda la ruta en la que se abrió: al navegar a otra ruta queda cerrado sin efectos adicionales.
   const [abierto, setAbierto] = React.useState<{ key: string; ruta: string } | null>(null);
@@ -73,7 +75,7 @@ export const IconRail: React.FC<IconRailProps> = ({ className, ariaLabel, marca,
   };
 
   return (
-    <nav ref={raiz} className={`app-rail ${className} desktop-sidebar-nav`} aria-label={ariaLabel} onKeyDown={alTeclado}>
+    <nav ref={raiz} className={`app-rail ${className} desktop-sidebar-nav`} aria-label={ariaLabel} data-testid={testId} onKeyDown={alTeclado}>
       <Link to="/" aria-label={marcaEtiqueta} className="app-rail-brand">{marca}</Link>
 
       <ul className="app-rail-list">

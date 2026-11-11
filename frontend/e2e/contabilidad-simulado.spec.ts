@@ -199,6 +199,11 @@ test.describe('Contabilidad y Control Tributario (simulado)', () => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/contabilidad');
     const rail = page.getByTestId('contador-rail');
+    // El rail usa el componente y los estilos compartidos: antes sus clases no existían y se veía como una lista de enlaces sin formato.
+    await expect(rail).toHaveClass(/app-rail/);
+    const caja = (await rail.boundingBox())!;
+    expect(caja.width).toBeLessThanOrEqual(100);
+    expect(caja.height).toBeGreaterThanOrEqual(700);
     for (const nombre of ['Inicio', 'Asientos', 'Reportes', 'Cierre']) await expect(rail.getByRole('link', { name: nombre, exact: true })).toBeVisible();
     await rail.getByRole('button', { name: 'Más' }).click();
     for (const nombre of ['Catálogo de cuentas', 'Documentos fiscales', 'Configuración fiscal', 'Excel', 'Auditoría']) await expect(page.getByRole('link', { name: nombre, exact: true }).first()).toBeVisible();
