@@ -125,6 +125,29 @@ test.describe('Cobro con tarjeta en el POS (simulado)', () => {
     await expect(page.getByText(/Método de Pago: Efectivo/)).toBeVisible();
   });
 
+  test('efectivo insuficiente: no se cobra hasta corregir el monto recibido o dejarlo vacío', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    const recibido = page.getByLabel('Efectivo recibido');
+    await recibido.fill('100');
+    await expect(page.getByTestId('pos-vuelto')).toHaveText(/Falta: L\.? ?15\.00/);
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect(page.getByText(/El efectivo recibido no cubre el total: faltan L\.? ?15\.00/)).toBeVisible();
+    expect(sim.ventas).toHaveLength(0);
+    // El campo sigue siendo opcional: vacío no bloquea el cobro.
+    await recibido.fill('');
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+  });
+
+  test('una búsqueda sin coincidencias lo dice con palabras en vez de dejar el catálogo vacío', async ({ page }) => {
+    await abrirPos(page);
+    await page.getByLabel('Buscar producto por código o nombre').fill('zzz-no-existe');
+    await expect(page.getByTestId('pos-sin-resultados')).toContainText('No se encontró ningún producto con «zzz-no-existe»');
+    await page.getByLabel('Buscar producto por código o nombre').fill('Taladro');
+    await expect(page.getByTestId('pos-sin-resultados')).toHaveCount(0);
+  });
+
   test('el comprobante en pantalla nombra la transferencia como tal y no como crédito', async ({ page, sim }) => {
     await abrirPos(page);
     await page.getByText('Taladro').first().click();
