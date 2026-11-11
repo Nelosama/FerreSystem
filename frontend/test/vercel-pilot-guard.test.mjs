@@ -32,6 +32,7 @@ for (const [branch, expected] of [
   ['codex/guia-control-modulos', 0], ['codex/guia-control-modulos-extra', 1],
   ['claude/sweet-davinci-vh7br4', 0], ['claude/sweet-davinci-vh7br4-extra', 1],
   ['claude/festive-lovelace-nfqn88', 0], ['claude/festive-lovelace-nfqn88-extra', 1],
+  ['claude/zealous-hypatia-n3fjte', 0], ['claude/zealous-hypatia-n3fjte-extra', 1],
   ['main', 0], ['fix/auditoria-admin', 1], ['fix/pilot-readiness-extra', 1],
   ['claude/revision-seguridad-jowa-20261020', 0], ['claude/revision-seguridad-jowa-20261020-extra', 1],
 ]) {
