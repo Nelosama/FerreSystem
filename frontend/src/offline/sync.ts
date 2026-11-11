@@ -1,3 +1,5 @@
+import { retenerTrasSincronizar } from './retencion';
+import { aOperacionDto } from './payload';
 import type { AxiosInstance } from 'axios';
 import { empresaDeOperacion, puedeVerOperacion } from './acceso';
 import { sessionIdentity } from '../utils/authInterceptors';
@@ -138,9 +140,14 @@ export async function sincronizarPendientes(
     }
   }
   credenciales();
-  try { await refrescarRevisiones(api, usuario); } catch { /* sin conexión: se reintenta en el siguiente ciclo */ }
+  let revisionesConfirmadas = false;
+  try { await refrescarRevisiones(api, usuario); revisionesConfirmadas = true; } catch { /* conservar y reintentar en el siguiente ciclo */ }
   const restantes = await listarOperaciones();
   resultado.pendientes = restantes.filter((o) => puedeEnviar(o, usuario, ventana) && (o.estado === 'PENDIENTE' || o.estado === 'ENVIANDO')).length;
+  if (!resultado.error && revisionesConfirmadas) {
+    try { await retenerTrasSincronizar(api, usuario); }
+    catch { /* Un fallo de retención conserva el diario y no invalida una sincronización confirmada. */ }
+  }
   return resultado;
 }
 
@@ -263,29 +270,7 @@ export async function refrescarRevisiones(api: AxiosInstance, usuario: UsuarioSi
   return cambios;
 }
 
-export function aOperacionDto(op: OperacionLocal) {
-  return {
-    operacionId: op.operacionId,
-    // H-5: el servidor verifica que el identificador sea el emitido para la ventana en esta posición. Sin el índice, toda venta se rechaza.
-    indiceOperacion: op.indiceOperacion,
-    dispositivoId: op.dispositivoId,
-    ventanaId: op.ventanaId,
-    secuenciaLocal: op.secuenciaLocal,
-    correlativoLocal: op.correlativoLocal,
-    ocurridoAtLocal: op.ocurridoAtLocal,
-    cajeroId: op.cajeroId,
-    lineas: op.lineas.map((l) => ({ productoId: l.productoId, cantidadCentesimas: l.cantidadCentesimas, precioCentavos: l.precioCentavos })),
-    subtotalCentavos: op.subtotalCentavos,
-    isvCentavos: op.isvCentavos,
-    totalCentavos: op.totalCentavos,
-    efectivoRecibidoCentavos: op.efectivoRecibidoCentavos,
-    cambioCentavos: op.cambioCentavos,
-    metodoPago: 'EFECTIVO' as const,
-    clienteNombre: op.clienteNombre || undefined,
-    clienteRtn: op.clienteRtn || undefined,
-    esquemaVersion: op.esquemaVersion,
-  };
-}
+export { aOperacionDto } from './payload';
 
 // ───────────── ventana y registro del equipo (requieren conexión) ─────────────
 
