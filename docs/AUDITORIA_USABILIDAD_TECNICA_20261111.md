@@ -1,7 +1,7 @@
 # Auditoría de facilidad de uso y revisión técnica — 2026-11-11
 
 - **Rama:** `claude/zealous-hypatia-n3fjte`. **Base:** `main` `2e72b43e3ff9d9f878ebdce961371b38c9aeee6a`.
-- **PR #241 no se usó:** sigue abierto, pero su alcance es la retención de la contingencia PWA (NEXUS). Mezclar usabilidad ahí ampliaría su revisión. Este trabajo va en una sola rama nueva; no se abrió PR.
+- **PR #241 no se usó:** al iniciar estaba abierto, pero su alcance es la retención de la contingencia PWA (NEXUS) y mezclar usabilidad ahí ampliaría su revisión. El dueño lo fusionó en `main` durante esta sesión (`ba312dda`); la rama integró ese `main` por merge normal, con conflicto solo en `docs/CONTEXTO_MAESTRO.md`. Este trabajo va en una sola rama nueva; no se abrió PR.
 - **Sin merge, despliegue, cambios de infraestructura, migraciones ni bases reales.** Sin cambios de esquema Prisma.
 - Resultados de pruebas y estado de CI: ver `docs/CONTEXTO_MAESTRO.md` (sección del 2026-11-11).
 
