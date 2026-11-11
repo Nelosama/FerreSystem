@@ -9,6 +9,7 @@ import { calcularTotales, centavosADecimal, TASA_ISV_PORCIENTO } from '../common
 import { desgloseParaEscribir } from '../common/desglose-fiscal';
 import { aCentavos } from '../common/redondeo-monetario';
 import { exigirPoliticaPrecio, LineaPrecio, PERMISO_EXCEPCION_PRECIO } from './politica-precio';
+import { clienteParaRol, empresaPublica } from '../common/datos-por-rol';
 
 /** Permiso explícito (no implícito por rol) para cobrar un precio distinto del vigente, con motivo y auditoría. */
 export { PERMISO_EXCEPCION_PRECIO };
@@ -28,7 +29,7 @@ export function cobroDeVenta(v: { total: unknown; tipoPago: string; saldoCredito
 export class VentasService {
   constructor(private prisma: PrismaService) {}
 
-  async findSolicitud(tenantId: string, usuarioId: string, solicitudId: string) {
+  async findSolicitud(tenantId: string, usuarioId: string, solicitudId: string, rol?: string) {
     // Esperar a una escritura en curso; consultar nunca registra ni cobra una venta.
     // Un identificador interno no es una solicitud: no se reconoce como venta registrada (P3).
     if (esIdInterno(solicitudId)) return { estado: 'NO_REGISTRADA' as const };
@@ -41,7 +42,7 @@ export class VentasService {
       });
       if (!venta && await this.solicitudDescartada(tx, tenantId, solicitudId)) return { estado: 'DESCARTADA' as const };
       return venta
-        ? { estado: 'REGISTRADA' as const, venta: this.formatVentaCreada(venta) }
+        ? { estado: 'REGISTRADA' as const, venta: this.formatVentaCreada(venta, rol) }
         : { estado: 'NO_REGISTRADA' as const };
     }, { timeout: 30000 });
   }
@@ -54,13 +55,13 @@ export class VentasService {
   async descartarSolicitud(tenantId: string, usuarioId: string, solicitudId: string) {
     return this.prisma.$transaction(async tx => {
       await lockTenant(tx, tenantId);
-      await authorizedActor(tx, tenantId, usuarioId, ['ADMIN', 'CAJERO', 'VENDEDOR'], 'pos.vender');
+      const actorVenta = await authorizedActor(tx, tenantId, usuarioId, ['ADMIN', 'CAJERO', 'VENDEDOR'], 'pos.vender');
       await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${'VENTA:' + tenantId + ':' + solicitudId}, 0))`;
       // Buscar sin filtrar por usuario: nunca invalidar una venta de otro actor con la misma solicitud.
       const venta = await tx.venta.findFirst({ where: { tenantId, id: { in: candidatosSolicitud(tenantId, solicitudId) } }, include: { cliente: true, detalles: { include: { producto: true } } } });
       if (venta) {
         if (venta.usuarioId !== usuarioId) throw new ConflictException('La solicitud pertenece a otra operación');
-        return { estado: 'REGISTRADA' as const, venta: this.formatVentaCreada(venta) };
+        return { estado: 'REGISTRADA' as const, venta: this.formatVentaCreada(venta, actorVenta.rol) };
       }
       // La auditoría es también la marca durable de descarte. El mismo bloqueo protege create,
       // consulta y descarte; una petición retrasada nunca podrá confirmar esta identidad después.
@@ -107,7 +108,7 @@ export class VentasService {
     }));
   }
 
-  async findById(tenantId: string, id: string, usuarioId?: string) {
+  async findById(tenantId: string, id: string, usuarioId?: string, rol?: string) {
     const v = await this.prisma.venta.findFirst({
       where: { id, tenantId, ...(usuarioId ? { usuarioId } : {}) },
       include: {
@@ -128,6 +129,9 @@ export class VentasService {
 
     return {
       ...v,
+      // Cliente y empresa limitados al rol que consulta (common/datos-por-rol.ts).
+      cliente: clienteParaRol(v.cliente, rol),
+      tenant: empresaPublica(v.tenant),
       ...cobroDeVenta(v),
       subtotal: Number(v.subtotal),
       isv: Number(v.isv),
@@ -271,7 +275,7 @@ export class VentasService {
               !mismosDetalles) {
             throw new ConflictException('La solicitud ya fue utilizada para otra venta');
           }
-          return this.formatVentaCreada(anterior);
+          return this.formatVentaCreada(anterior, user.rol);
         }
       }
 
@@ -485,12 +489,13 @@ export class VentasService {
       await cashMovement(tx,caja.id,usuarioId,'VENTA_POS',total,metodo,venta.id,`Venta ${numeroVenta}`);
       await audit(tx,tenantId,usuarioId,'VENTA_CREAR',venta.id,{total,metodo,cajaId:caja.id,aprobacion:autorizacion});
       if (excepcionPolitica) await audit(tx,tenantId,usuarioId,'VENTA_EXCEPCION_PRECIO',venta.id,excepcionPolitica);
-      return this.formatVentaCreada(venta);
+      return this.formatVentaCreada(venta, user.rol);
     },{timeout:30000});
   }
-  private formatVentaCreada(venta: any) {
+  private formatVentaCreada(venta: any, rol?: string) {
     return {
       ...venta,
+      cliente: clienteParaRol(venta.cliente, rol),
       subtotal: Number(venta.subtotal),
       isv: Number(venta.isv),
       descuento: Number(venta.descuento),

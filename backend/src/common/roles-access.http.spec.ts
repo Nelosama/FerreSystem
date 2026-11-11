@@ -62,10 +62,18 @@ describe('Roles and cashier HTTP access', () => {
     expect(response.body).toEqual([{ id: 'p', nombre: 'Cable', precioVenta: 10 }]);
     const sale = await request(app.getHttpServer()).get('/ventas/v').set('x-test-role', 'CAJERO').expect(200);
     expect(sale.body.detalles[0]).toEqual({ producto: { id: 'p', nombre: 'Cable', precioVenta: 10 } });
-    expect(sales.findById).toHaveBeenLastCalledWith('tenant-1', 'v', 'cashier-1');
+    // El rol viaja al servicio para limitar los datos de cliente y empresa de la respuesta.
+    expect(sales.findById).toHaveBeenLastCalledWith('tenant-1', 'v', 'cashier-1', 'CAJERO');
+    await request(app.getHttpServer()).get('/ventas/v').set('x-test-role', 'VENDEDOR').expect(200);
+    expect(sales.findById).toHaveBeenLastCalledWith('tenant-1', 'v', 'cashier-1', 'VENDEDOR');
+    await request(app.getHttpServer()).get('/ventas/v').set('x-test-role', 'ADMIN').expect(200);
+    expect(sales.findById).toHaveBeenLastCalledWith('tenant-1', 'v', undefined, 'ADMIN');
   });
   it('scopes history to cashier and leaves admin history unrestricted', async () => {
     await request(app.getHttpServer()).get('/ventas').set('x-test-role', 'CAJERO').expect(200);
+    expect(sales.findAll).toHaveBeenLastCalledWith('tenant-1', 50, 0, 'cashier-1');
+    // Misma regla para el vendedor: solo las ventas que él registró.
+    await request(app.getHttpServer()).get('/ventas').set('x-test-role', 'VENDEDOR').expect(200);
     expect(sales.findAll).toHaveBeenLastCalledWith('tenant-1', 50, 0, 'cashier-1');
     await request(app.getHttpServer()).get('/ventas').set('x-test-role', 'ADMIN').expect(200);
     expect(sales.findAll).toHaveBeenLastCalledWith('tenant-1', 50, 0, undefined);

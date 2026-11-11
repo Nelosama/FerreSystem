@@ -117,7 +117,7 @@
   },
   "dashboard": {
     "title": "RESUMEN OPERATIVO",
-    "subtitle": "Lo más importante de hoy",
+    "subtitle": "Lo más importante de su trabajo de hoy",
     "sales_today": "VENTAS DEL DÍA",
     "stock_alerts": "ALERTAS DE STOCK",
     "pending_quotations": "COTIZACIONES PENDIENTES",
@@ -214,7 +214,7 @@
   },
   "pos": {
     "title": "PUNTO DE VENTA",
-    "subtitle": "Terminal de Ventas y Cobro Rápido",
+    "subtitle": "Busque productos, cobre y entregue el comprobante",
     "cart": "Carrito de Compras",
     "total": "Total a Pagar",
     "checkout": "Procesar Venta",
@@ -553,12 +553,12 @@
     "caja_sin_verificar": "Caja sin verificar"
   },
   "reports": {
-    "title": "MÓDULO DE REPORTES & KPIS",
-    "subtitle": "Ventas, inventario y vencimientos desde la base de datos",
+    "title": "REPORTES DEL NEGOCIO",
+    "subtitle": "Ventas, inventario y cuentas por vencer",
     "global_filter": "FILTRO DE FECHAS GLOBAL",
     "from": "Desde",
     "to": "Hasta",
-    "dates_utc_notice": "Fechas del reporte en hora de Honduras ({zona}).",
+    "dates_utc_notice": "Las fechas del reporte usan la hora local del negocio ({zona}).",
     "loading": "Cargando…",
     "fetch_error": "No se pudieron consultar los reportes",
     "net_sales": "Ventas netas",

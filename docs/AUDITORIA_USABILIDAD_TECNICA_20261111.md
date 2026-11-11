@@ -3,6 +3,7 @@
 - **Rama:** `claude/zealous-hypatia-n3fjte`. **Base:** `main` `2e72b43e3ff9d9f878ebdce961371b38c9aeee6a`.
 - **PR #241 no se usó:** al iniciar estaba abierto, pero su alcance es la retención de la contingencia PWA (NEXUS) y mezclar usabilidad ahí ampliaría su revisión. El dueño lo fusionó en `main` durante esta sesión (`ba312dda`); la rama integró ese `main` por merge normal, con conflicto solo en `docs/CONTEXTO_MAESTRO.md`. Este trabajo va en una sola rama nueva; no se abrió PR.
 - **Sin merge, despliegue, cambios de infraestructura, migraciones ni bases reales.** Sin cambios de esquema Prisma.
+- **Relación con #243:** se fusionó en `main` (`389ebcf`) después de esta auditoría e incluye otra evaluación de uso (`docs/EVALUACION_USABILIDAD_20261110.md`). Los hallazgos de aquí se observaron sobre `2e72b43`. Al integrar `main` se conservó su texto para el subtítulo de Inicio (U-07) y la nota de fechas de Reportes (U-12). #243 ya impide cobrar cuando el efectivo escrito no cubre el total, lo que reduce P-02; el campo vacío sigue sin bloquear y no hay confirmación.
 - Resultados de pruebas y estado de CI: ver `docs/CONTEXTO_MAESTRO.md` (sección del 2026-11-11).
 
 ## Alcance y límites de la evidencia

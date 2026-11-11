@@ -193,7 +193,10 @@ test.describe('1. Matriz de roles: costos, márgenes y permisos por endpoint', (
       for (const [rol, sesion] of Object.entries(roles)) {
         const res = await request.get(`${API}${ruta}`, { headers: auth(sesion.token) });
         // Una devolución de otro usuario responde 404 para CAJERO y VENDEDOR: alcance por propietario, no fuga.
-        const alcance = ruta.startsWith('/operaciones/devoluciones/') && rol !== 'ADMIN' && res.status() === 404;
+        // Desde la consolidación del 10-nov-2026 el detalle de venta sigue la misma regla también para VENDEDOR
+        // (antes solo CAJERO): la venta de este caso la registró el cajero, así que el vendedor recibe 404.
+        const ventaAjena = ruta === `/ventas/${ventaId}` && rol === 'VENDEDOR' && res.status() === 404;
+        const alcance = ventaAjena || (ruta.startsWith('/operaciones/devoluciones/') && rol !== 'ADMIN' && res.status() === 404);
         const esperado = permitidos.includes(rol) ? 'OK' : 'DENEGADO';
         const obtenido = alcance ? 'OK' : res.status() === 403 ? 'DENEGADO' : res.status() < 300 ? 'OK' : `HTTP ${res.status()}`;
         if (alcance) continue;
@@ -208,6 +211,15 @@ test.describe('1. Matriz de roles: costos, márgenes y permisos por endpoint', (
       }
     }
     expect(incumplimientos, incumplimientos.join('\n')).toEqual([]);
+    // Regla de ventas propias, comprobada de forma explícita: el vendedor no abre la venta del cajero por su id y la
+    // búsqueda por número (necesaria para tramitar una devolución) le entrega solo los datos mínimos, sin costos.
+    expect((await request.get(`${API}/ventas/${ventaId}`, { headers: auth(vendedor.token) })).status()).toBe(404);
+    const minima = await (await request.get(`${API}/operaciones/ventas/buscar?numero=${numero}`, { headers: auth(vendedor.token) })).json();
+    expect(minima).toMatchObject({ id: ventaId, alcance: 'DEVOLUCION' });
+    for (const campo of ['cliente_id', 'cliente_rtn', 'notas', 'caja_id', 'usuario_id']) expect(minima).not.toHaveProperty(campo);
+    const propia = await (await request.get(`${API}/operaciones/ventas/buscar?numero=${numero}`, { headers: auth(cajero.token) })).json();
+    expect(propia).toHaveProperty('usuario_id');
+    expect(propia).not.toHaveProperty('alcance');
   });
 });
 

@@ -18,11 +18,13 @@ export function normalizarAutorizacion(metodo: string, pago: AutorizacionBancari
     if (pago && (pago.referencia || pago.terminal)) throw new BadRequestException('Solo los pagos con tarjeta o transferencia llevan autorización bancaria');
     return null;
   }
-  const referencia = (pago?.referencia ?? '').trim().toUpperCase();
+  // Un valor que no sea texto (número, objeto) se trata como ausente: responde 400, nunca un error interno.
+  const texto = (valor: unknown) => (typeof valor === 'string' ? valor : '');
+  const referencia = texto(pago?.referencia).trim().toUpperCase();
   if (!/^[A-Z0-9-]{3,40}$/.test(referencia)) {
     throw new BadRequestException('Registre la autorización bancaria antes de confirmar el pago (3 a 40 letras o números)');
   }
-  const terminal = metodo === 'TARJETA' ? (pago?.terminal ?? '').trim().toUpperCase() : '';
+  const terminal = metodo === 'TARJETA' ? texto(pago?.terminal).trim().toUpperCase() : '';
   if (metodo === 'TARJETA' && !/^[A-Z0-9-]{1,40}$/.test(terminal)) {
     throw new BadRequestException('Indique la terminal del POS bancario que aprobó el pago');
   }

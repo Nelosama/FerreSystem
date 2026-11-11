@@ -603,6 +603,11 @@ export const POSPage: React.FC = () => {
     if (!ventaPendiente && metodoPago === 'CREDITO' && !clienteId) {
       setErrorText('Seleccione un cliente registrado para vender a crédito'); return;
     }
+    // Usabilidad: si el cajero escribió el efectivo recibido y no cubre el total, no se cobra hasta corregirlo.
+    // El campo sigue siendo opcional (vacío no bloquea) y el importe no se envía al servidor.
+    if (!ventaPendiente && metodoPago === 'EFECTIVO' && vuelto.estado === 'FALTA') {
+      setErrorText(`El efectivo recibido no cubre el total: faltan ${formatLempiras(vuelto.centavos / 100)}. Corrija el monto recibido o borre el campo antes de cobrar.`); return;
+    }
     if (!ventaPendiente && (metodoPago === 'TARJETA' || metodoPago === 'TRANSFERENCIA')) {
       if (autorizacionBancaria.referencia.trim().length < 3) { setErrorText('Registre la autorización bancaria antes de confirmar la venta'); return; }
       if (metodoPago === 'TARJETA' && !autorizacionBancaria.terminal.trim()) { setErrorText('Indique la terminal del POS bancario'); return; }
@@ -864,6 +869,11 @@ export const POSPage: React.FC = () => {
             </div>
 
             <BarcodeScanner disabled={edicionBloqueada} onCode={code=>{const matches=buscarPorCodigo(indiceCatalogo,code);if(matches.length===1){agregarAlCarrito(matches[0]);setSearch('');}else{setSearch(code);if(matches.length)setErrorText('Código ambiguo; seleccione el producto');else void explicarCodigoNoVendible(code);}}}/>
+            {search.trim() !== '' && catalogoFiltrado.length === 0 && (
+              <p role="status" data-testid="pos-sin-resultados" style={{ margin: '12px 0', fontSize: '15px' }}>
+                No se encontró ningún producto con «{search.trim()}». Revise cómo está escrito o busque por el código.
+              </p>
+            )}
             <div style={styles.catalogGrid} className="ferre-pos-catalog">
               {tarjetasCatalogo}
             </div>
