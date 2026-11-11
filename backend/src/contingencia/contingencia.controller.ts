@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Header, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -76,6 +76,7 @@ export class ContingenciaController {
   }
 
   @Get('operaciones/estados')
+  @Header('Cache-Control', 'no-store')
   @Roles('ADMIN', 'CAJERO')
   estados(@TenantId() tenantId: string, @CurrentUser() user: any, @Query('ids') idsCrudo: unknown = '') {
     // H-N: un parámetro repetido llega como arreglo; se unen en una sola lista.
