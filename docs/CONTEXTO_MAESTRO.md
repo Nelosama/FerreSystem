@@ -2781,6 +2781,12 @@ Verificación: la ausencia de las rutas legadas se deduce de que el controlador 
 - Compatibilidad revisada contra #180 `3c84a7a`, #203 `5269b99` y #205 `2e20f9f`. #180/#205 comparten una espera de catálogo: combinación temporal resuelta conservando espera HTTP, tarjeta visible y latencia de la regresión; no se integran sus funcionalidades en #202 ni se modifican sus ramas. Resultados de builds, unitarias, PostgreSQL y E2E de las combinaciones, CI del HEAD final y dictamen actualizado: #202.
 - NEXUS: cero migraciones/esquema propios y bases de prueba efímeras. Las condiciones físicas y fiscales del informe anterior no certifican producción; el dictamen técnico de esta consolidación corresponde a los checks del nuevo HEAD de #202.
 
+## README de proyectos — 2026-11-10
+
+- **Verificado en GitHub:** se añadió `README.md` a la raíz de este repositorio para presentar Jowa System, resumir su propósito, organización y comandos disponibles, y enlazar documentación existente. Commit: `12ef621cc58862b4909cb64e0025c8722363321e`.
+- **Verificado en GitHub:** se completó el README inicial de [Nelosama/Lup](https://github.com/Nelosama/Lup) con su propósito de marketplace digital. El alcance de usuarios, categorías y funciones sigue pendiente de confirmación porque el repositorio no contiene documentación funcional ni código. Commit: `df4a7be8e9054e2d48db9333ea9bb2b107334e9f`.
+- **No se ejecutaron pruebas:** ambos cambios son documentación. No se modificó código, configuración, bases de datos, despliegues ni estado de producción.
+
 **FIN DEL CONTEXTO VIGENTE**
 
 
