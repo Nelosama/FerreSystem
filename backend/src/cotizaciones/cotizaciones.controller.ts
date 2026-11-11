@@ -8,7 +8,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequiredModule } from '../common/decorators/required-module.decorator';
-import { CreateCotizacionDto, RegularizarIsvDto } from './dto/create-cotizacion.dto';
+import { ConvertirCotizacionDto, CreateCotizacionDto, EstadoCotizacionDto, RegularizarIsvDto } from './dto/create-cotizacion.dto';
 
 @Controller('cotizaciones')
 @RequiredModule('cotizaciones')
@@ -19,13 +19,13 @@ export class CotizacionesController {
   constructor(private readonly cotizacionesService: CotizacionesService) {}
 
   @Get()
-  async findAll(@TenantId() tenantId: string) {
-    return this.cotizacionesService.findAll(tenantId);
+  async findAll(@TenantId() tenantId: string, @CurrentUser('rol') rol?: string) {
+    return this.cotizacionesService.findAll(tenantId, rol);
   }
 
   @Get(':id')
-  async findById(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.cotizacionesService.findById(tenantId, id);
+  async findById(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser('rol') rol?: string) {
+    return this.cotizacionesService.findById(tenantId, id, rol);
   }
 
   @Post()
@@ -35,8 +35,9 @@ export class CotizacionesController {
     @TenantId() tenantId: string,
     @CurrentUser('sub') usuarioId: string,
     @Body() dto: CreateCotizacionDto,
+    @CurrentUser('rol') rol?: string,
   ) {
-    return this.cotizacionesService.create(tenantId, usuarioId, dto);
+    return this.cotizacionesService.create(tenantId, usuarioId, dto, undefined, rol);
   }
 
   @Put(':id')
@@ -47,8 +48,9 @@ export class CotizacionesController {
     @CurrentUser('sub') usuarioId: string,
     @Param('id') id: string,
     @Body() dto: CreateCotizacionDto,
+    @CurrentUser('rol') rol?: string,
   ) {
-    return this.cotizacionesService.update(tenantId, id, dto, usuarioId);
+    return this.cotizacionesService.update(tenantId, id, dto, usuarioId, rol);
   }
 
   @Post(':id/duplicar')
@@ -57,8 +59,9 @@ export class CotizacionesController {
     @TenantId() tenantId: string,
     @CurrentUser('sub') usuarioId: string,
     @Param('id') id: string,
+    @CurrentUser('rol') rol?: string,
   ) {
-    return this.cotizacionesService.duplicate(tenantId, usuarioId, id);
+    return this.cotizacionesService.duplicate(tenantId, usuarioId, id, rol);
   }
 
   // P3: crea una cotización nueva con tasa autorizada a partir de una antigua con tasa no autorizada; la original no cambia.
@@ -79,9 +82,10 @@ export class CotizacionesController {
   async updateEstado(
     @TenantId() tenantId: string,
     @Param('id') id: string,
-    @Body('estado') estado: string,
+    @Body() dto: EstadoCotizacionDto,
+    @CurrentUser('rol') rol?: string,
   ) {
-    return this.cotizacionesService.updateEstado(tenantId, id, estado);
+    return this.cotizacionesService.updateEstado(tenantId, id, dto.estado, rol);
   }
 
   @RequiredModule('cotizaciones', 'pos')
@@ -92,11 +96,9 @@ export class CotizacionesController {
     @TenantId() tenantId: string,
     @CurrentUser('sub') usuarioId: string,
     @Param('id') cotizacionId: string,
-    @Body('metodoPago') metodoPago?: string,
-    @Body('pagoElectronico') pagoElectronico?: { referencia?: string; terminal?: string },
-    @Body('excepcionPrecio') excepcionPrecio?: { motivo?: string },
+    @Body() dto: ConvertirCotizacionDto,
   ) {
-    return this.cotizacionesService.convertirAVenta(tenantId, usuarioId, cotizacionId, metodoPago, pagoElectronico, excepcionPrecio);
+    return this.cotizacionesService.convertirAVenta(tenantId, usuarioId, cotizacionId, dto.metodoPago, dto.pagoElectronico, dto.excepcionPrecio);
   }
 }
 

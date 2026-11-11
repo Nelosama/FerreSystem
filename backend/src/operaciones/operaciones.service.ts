@@ -10,6 +10,7 @@ import { account, actor, authorizedActor, audit, cashMovement, decimal, fingerpr
 import type { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, EntregarVentaDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
 import { eliminarVinculoProveedor, guardarVinculoProveedor, listarProveedoresProducto, registrarCostoProveedor } from './productos-proveedores';
 import { estadoCuentaCliente } from './estado-cuenta-cliente';
+import { soloVentasPropias } from '../common/datos-por-rol';
 import { esMetodoElectronico, normalizarAutorizacion, registrarAprobacion } from './aprobaciones-bancarias';
 import { listarConciliaciones, registrarConciliacion } from './conciliacion-bancaria';
 import { aplicarDestinosDevolucion, cent, entregarLineas, ROLES_ENTREGA, ROLES_CONSULTA, type DestinoDevolucion } from '../entregas/entregas-core';
@@ -343,19 +344,29 @@ export class OperacionesService {
   const {inicio,fin}=rangoDiasEnZona(desde,hasta,zona);
   return {
    devoluciones:await query(this.prisma,"SELECT COUNT(*)::int AS cantidad,COALESCE(SUM(monto),0) AS monto FROM devoluciones WHERE tenant_id=$1 AND created_at>=($2::timestamptz AT TIME ZONE 'UTC') AND created_at<($3::timestamptz AT TIME ZONE 'UTC')",tenantId,inicio.toISOString(),fin.toISOString()),
-   metodos:await query(this.prisma,'SELECT metodo_pago,COUNT(*)::int AS cantidad,SUM(total) AS total,SUM(subtotal) AS base,SUM(isv) AS isv FROM ventas WHERE tenant_id=$1 AND estado=\'COMPLETADA\' AND created_at>=($2::timestamptz AT TIME ZONE \'UTC\') AND created_at<($3::timestamptz AT TIME ZONE \'UTC\') GROUP BY metodo_pago',tenantId,inicio.toISOString(),fin.toISOString()),
+   // «base» es la base imponible: subtotal menos descuento, la misma sobre la que se calcula el ISV (base + ISV = total).
+   metodos:await query(this.prisma,'SELECT metodo_pago,COUNT(*)::int AS cantidad,SUM(total) AS total,SUM(subtotal-descuento) AS base,SUM(subtotal) AS subtotal_bruto,SUM(descuento) AS descuento,SUM(isv) AS isv FROM ventas WHERE tenant_id=$1 AND estado=\'COMPLETADA\' AND created_at>=($2::timestamptz AT TIME ZONE \'UTC\') AND created_at<($3::timestamptz AT TIME ZONE \'UTC\') GROUP BY metodo_pago',tenantId,inicio.toISOString(),fin.toISOString()),
    // Ventas por usuario que las registró (cajero o vendedor) y método: mismo filtro de estado y día local que «metodos».
    cajeros:await query(this.prisma,'SELECT v.usuario_id,u.nombre AS usuario_nombre,v.metodo_pago,COUNT(*)::int AS cantidad,SUM(v.total) AS total FROM ventas v LEFT JOIN usuarios u ON u.id=v.usuario_id AND u.tenant_id=v.tenant_id WHERE v.tenant_id=$1 AND v.estado=\'COMPLETADA\' AND v.created_at>=($2::timestamptz AT TIME ZONE \'UTC\') AND v.created_at<($3::timestamptz AT TIME ZONE \'UTC\') GROUP BY v.usuario_id,u.nombre,v.metodo_pago ORDER BY u.nombre,v.usuario_id,v.metodo_pago',tenantId,inicio.toISOString(),fin.toISOString()),
    rotacion:await query(this.prisma,'SELECT p.id,p.codigo,p.nombre,SUM(d.cantidad) AS cantidad FROM detalles_venta d JOIN ventas v ON v.id=d.venta_id JOIN productos p ON p.id=d.producto_id WHERE v.tenant_id=$1 AND v.estado=\'COMPLETADA\' AND d.sin_inventario=false AND v.created_at>=($2::timestamptz AT TIME ZONE \'UTC\') AND v.created_at<($3::timestamptz AT TIME ZONE \'UTC\') GROUP BY p.id ORDER BY cantidad DESC LIMIT 30',tenantId,inicio.toISOString(),fin.toISOString()),
    // Alerta de 7 días por fecha calendario en la zona del negocio (día de hoy + 7 inclusive), no por instante.
    alertas:await query(this.prisma,'SELECT tipo,COUNT(*)::int AS cantidad,SUM(saldo) AS saldo FROM cuentas_operativas WHERE tenant_id=$1 AND saldo>0 AND vencimiento::date <= $2::date GROUP BY tipo',tenantId,sumarDias(diaCalendario(ahora,zona),7)),
   };
- } async buscarVenta(tenantId:string,numero:string,rol?:string){
+ } async buscarVenta(tenantId:string,numero:string,rol?:string,usuarioId?:string){
   const n=Number(numero);if(!Number.isSafeInteger(n)||n<1)throw new BadRequestException('Número de venta inválido');
   const [v]=await query(this.prisma,'SELECT * FROM ventas WHERE tenant_id=$1 AND numero_venta=$2',tenantId,n);if(!v)throw new NotFoundException('Venta no encontrada');
   // QA-COS-001 / regla definitiva del dueño: solo ADMIN consulta costos; para cualquier otro rol (o sin rol) se quita costo_unitario.
   v.items=(await query(this.prisma,'SELECT d.*,p.nombre,p.codigo,COALESCE((SELECT SUM(dd.cantidad) FROM detalles_devolucion dd WHERE dd.detalle_venta_id=d.id),0) AS devuelto FROM detalles_venta d JOIN productos p ON p.id=d.producto_id WHERE d.venta_id=$1',v.id)).map((linea:any)=>{if(rol==='ADMIN')return linea;const {costo_unitario:_costo,...sinCosto}=linea;return sinCosto;});
-  v.devoluciones=await query(this.prisma,'SELECT * FROM devoluciones WHERE venta_id=$1 AND tenant_id=$2 ORDER BY created_at',v.id,tenantId);return v;
+  v.devoluciones=await query(this.prisma,'SELECT * FROM devoluciones WHERE venta_id=$1 AND tenant_id=$2 ORDER BY created_at',v.id,tenantId);
+  // Cajero y Vendedor ven completas solo sus ventas (misma regla que GET /ventas). La búsqueda por número sigue abierta
+  // porque el cliente puede pedir la devolución a quien esté en caja, pero de una venta ajena solo se entrega lo necesario
+  // para tramitarla: número, importes, líneas y devoluciones previas, sin RTN, cliente registrado, notas ni datos de caja.
+  if(soloVentasPropias(rol)&&v.usuario_id!==usuarioId){
+   const campos=(fila:any,claves:string[])=>Object.fromEntries(claves.filter(k=>k in fila).map(k=>[k,fila[k]]));
+   return {...campos(v,['id','numero_venta','created_at','estado','subtotal','descuento','isv','total','metodo_pago','tipo_pago','reserva_pendiente','entregado_at','cliente_nombre']),alcance:'DEVOLUCION',items:v.items,
+    devoluciones:v.devoluciones.map((d:any)=>campos(d,['id','venta_id','motivo','monto','credito_cancelado','reembolso','metodo','created_at']))};
+  }
+  return v;
  }
  private async planDevolucion(tx:Tx,tenantId:string,ventaId:string,dto:DevolucionDto){
    const [v]=await query(tx,"SELECT * FROM ventas WHERE id=$1 AND tenant_id=$2 AND estado='COMPLETADA' FOR UPDATE",ventaId,tenantId);if(!v)throw new NotFoundException('Venta no encontrada');
@@ -367,9 +378,22 @@ export class OperacionesService {
    });
    if (dto.anulacion && (!completa || details.some(d => Number(d.devuelto) > 0))) throw new ConflictException('La anulación debe cubrir toda la venta sin devoluciones previas; revise los documentos existentes');
    const entero=(valor:unknown)=>BigInt(aCentavos(Number(valor)));
-   // Conservar el reparto proporcional acumulado existente, con pesos exactos en diezmilésimas.
+   // Venta convertida desde una cotización: cada línea pudo llevar su propio descuento. detalles_venta.subtotal guarda el
+   // importe bruto (precio × cantidad), así que el neto realmente cobrado por línea se lee de la cotización de origen,
+   // que queda inmutable al convertirse. Sin ese neto, el descuento de una línea se repartía entre todas y la devolución
+   // parcial reembolsaba de más por la línea descontada y de menos por las demás.
+   const netos=new Map<string,bigint>((await query(tx,'SELECT dc.producto_id,dc.subtotal FROM cotizaciones c JOIN detalles_cotizacion dc ON dc.cotizacion_id=c.id WHERE c.tenant_id=$1 AND c.venta_id=$2',tenantId,v.id)).map((l:any)=>[l.producto_id as string,entero(l.subtotal)]));
+   // Peso de una línea = cantidad × precio × (neto ÷ bruto). Sin descuento propio el factor es 1 y el reparto es el de siempre.
+   // Aritmética exacta: todos los pesos se llevan al denominador común (producto de los brutos con descuento propio).
+   const factores=new Map<string,{neto:bigint;bruto:bigint}>();
+   for(const d of details){
+    const bruto=(entero(d.cantidad)*entero(d.precio_unitario)*2n+100n)/200n,neto=netos.get(d.producto_id);
+    if(neto!==undefined&&bruto>0n&&neto>=0n&&neto<bruto)factores.set(d.id,{neto,bruto});
+   }
+   const comun=[...factores.values()].reduce((m,f)=>m*f.bruto,1n);
+   const peso=(d:any,cantidad:unknown)=>{const f=factores.get(d.id);return entero(cantidad)*entero(d.precio_unitario)*(f?f.neto*(comun/f.bruto):comun);};
    let gross=0n,before=0n,added=0n;
-   for(const d of details){gross+=entero(d.cantidad)*entero(d.precio_unitario);before+=entero(d.devuelto)*entero(d.precio_unitario);}
+   for(const d of details){gross+=peso(d,d.cantidad);before+=peso(d,d.devuelto);}
    for(const item of dto.items){
     const d=details.find(d=>d.id===item.detalleId),quantity=decimal(item.cantidad,'Cantidad',true);if(!d)throw new NotFoundException('Línea de venta no encontrada');
     if(d.sin_inventario){
@@ -383,7 +407,7 @@ export class OperacionesService {
       if(q>C-E-N)throw new BadRequestException(`Cantidad supera lo pendiente de entrega (pendiente: ${((C-E-N)/100).toFixed(2)}); la mercancía entregada requiere un destino físico`);
      }else if(q>E-R-S)throw new BadRequestException(`Cantidad supera lo vendido pendiente de devolver (disponible para devolver: ${((E-R-S)/100).toFixed(2)})`);
     }
-    added+=entero(quantity)*entero(d.precio_unitario);
+    added+=peso(d,quantity);
    }
    // Venta con desglose histórico por línea (todas sus líneas): se revierte exactamente la base gravada, la base exenta y el
    // ISV de lo devuelto, por cantidad y de forma acumulada. Sin desglose (ventas anteriores o interruptor apagado) se mantiene

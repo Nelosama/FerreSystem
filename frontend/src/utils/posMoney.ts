@@ -29,8 +29,9 @@ export type VueltoPOS =
   | { estado: 'CAMBIO'; recibidoCentavos: number; centavos: number };
 
 /**
- * Cambio a entregar en una venta en efectivo. Solo informa al cajero: no se envía al servidor
- * ni bloquea el cobro (misma lectura de importes que el POS de contingencia).
+ * Cambio a entregar en una venta en efectivo. No se envía al servidor (misma lectura de importes que el POS de
+ * contingencia). El campo es opcional: vacío no bloquea el cobro; si el cajero escribió un monto que no cubre el
+ * total (estado FALTA), el POS no cobra hasta que lo corrija o lo borre.
  */
 export function calcularVuelto(efectivoTexto: string, totalCentavos: number): VueltoPOS {
   if (!efectivoTexto.trim()) return { estado: 'VACIO' };

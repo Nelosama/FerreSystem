@@ -275,7 +275,7 @@ export const ClientesPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <TopBar title={t('clients.new_client')} subtitle={t('tasks.clientes.description')} />
+      <TopBar title={t('menu.clients')} subtitle={t('tasks.clientes.description')} />
 
       <main style={styles.content}>
         {errorBanner && (
