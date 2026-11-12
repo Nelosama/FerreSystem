@@ -17,5 +17,12 @@ export const UNIDADES_INVENTARIO = [
   'KG', 'GALON', 'LITRO', 'CAJA', 'PAQUETE', 'OTRO',
 ] as const;
 
+/** Nombre legible de cada unidad; el valor que se guarda y se envía a la API no cambia. */
+export const ETIQUETA_UNIDAD: Record<string, string> = {
+  UNIDAD: 'Unidad', PIE: 'Pie', METRO: 'Metro', METRO_CUADRADO: 'Metro cuadrado (m²)', METRO_CUBICO: 'Metro cúbico (m³)',
+  LIBRA: 'Libra', KG: 'Kilogramo (kg)', GALON: 'Galón', LITRO: 'Litro', CAJA: 'Caja', PAQUETE: 'Paquete', OTRO: 'Otra',
+};
+export const etiquetaUnidad = (valor: string): string => ETIQUETA_UNIDAD[valor] ?? valor;
+
 export const unidadCsvValida = (value: string): boolean =>
   (UNIDADES_INVENTARIO as readonly string[]).includes(normalizarUnidadMedida(value));

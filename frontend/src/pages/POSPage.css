@@ -9,8 +9,10 @@
 /* Ticket: el cuerpo (cliente, líneas, descuento) se desplaza y el pie (total, método, cobro) queda a la vista.
    .main-content tiene overflow propio; en el POS se libera el eje vertical para que el ticket pueda quedar fijo. */
 .main-content:has(.ferre-pos) { overflow-x:clip; overflow-y:visible; }
-.pos-ticket { min-height:0; }
-.pos-ticket-cuerpo { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; margin:0 -20px; padding:0 20px; }
+/* En pantallas bajas (laptops de 768–800 px de alto) el pie ocupaba todo el alto disponible y el cuerpo quedaba en 0 px:
+   no se veían el cliente ni los productos. El cuerpo conserva un alto mínimo y, si no cabe todo, se desplaza el ticket entero. */
+.pos-ticket { min-height:0; overflow-y:auto; }
+.pos-ticket-cuerpo { flex:1 1 auto; min-height:170px; overflow-y:auto; overscroll-behavior:contain; margin:0 -20px; padding:0 20px; }
 .pos-ticket-pie { flex:0 0 auto; padding-top:4px; border-top:1px solid var(--color-border-subtle); background:var(--color-surface); }
 .pos-paso h2 { font:inherit; letter-spacing:inherit; color:inherit; margin:0; }
 
@@ -54,7 +56,8 @@
 .pos-barra-movil { display:none; }
 @media (max-width:800px) {
   .pos-ticket { max-height:none !important; }
-  .pos-ticket-cuerpo { overflow:visible; margin:0; padding:0; }
+  .pos-ticket { overflow-y:visible; }
+  .pos-ticket-cuerpo { min-height:0; overflow:visible; margin:0; padding:0; }
   .pos-atajos { display:none; }
   .ferre-pos .ferre-pos-main { padding-bottom:160px !important; }
   .pos-barra-movil { position:fixed; left:0; right:0; bottom:calc(64px + env(safe-area-inset-bottom, 0px)); z-index:45; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px; background:var(--color-surface); border-top:1px solid var(--color-border); box-shadow:0 -4px 16px rgba(16,24,40,.08); }

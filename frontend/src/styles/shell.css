@@ -111,3 +111,6 @@
   .shell-page-header { padding: 20px 16px 12px; }
   .shell-page-header h1 { font-size: 19px; }
 }
+
+/* Área táctil mínima de 44 px para salir en tabletas y teléfonos (antes 36×28 px). */
+@media (max-width: 1024px) { .shell-topbar-logout { min-width: 44px; min-height: 44px; justify-content: center; } }

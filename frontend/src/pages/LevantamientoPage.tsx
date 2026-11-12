@@ -11,6 +11,7 @@ import { useI18n } from '../context/I18nContext';
 import { useRubroConfig } from '../hooks/useRubroConfig';
 import { newRequestId } from '../utils/requestId';
 import { readStoredJson } from '../utils/storage';
+import { etiquetaUnidad } from '../utils/unidadMedida';
 
 const blank = () => ({
   descripcion: '', cantidad: '1', unidad: 'UNIDAD',
@@ -439,7 +440,7 @@ export const LevantamientoPage: React.FC = () => {
                   </label>
                   <label>{t('stocktaking.unit')}
                     <select className="form-input" value={form.unidad} onChange={e => set('unidad', e.target.value)}>
-                      {['UNIDAD', 'PIE', 'METRO', 'METRO_CUADRADO', 'METRO_CUBICO', 'LIBRA', 'KG', 'GALON', 'LITRO', 'CAJA', 'PAQUETE', 'OTRO'].map(u => <option key={u}>{u}</option>)}
+                      {['UNIDAD', 'PIE', 'METRO', 'METRO_CUADRADO', 'METRO_CUBICO', 'LIBRA', 'KG', 'GALON', 'LITRO', 'CAJA', 'PAQUETE', 'OTRO'].map(u => <option key={u} value={u}>{etiquetaUnidad(u)}</option>)}
                     </select>
                   </label>
                   {(['codigo', 'codigoBarras', 'marca', 'categoria', 'ubicacion', 'notas'] as const).map(key => (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, matchPath, useLocation } from 'react-router-dom';
+import { Link, Navigate, matchPath, useLocation } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { NAVIGATION_ITEMS } from '../config/navigation';
 import { canNavigate } from '../utils/taskNavigation';
@@ -42,16 +42,20 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // El contador no tiene panel operativo: su inicio es Contabilidad (la ruta aplica módulo, rol y permiso).
   if (pathname === '/' && user.rol === 'CONTADOR') return <Navigate to="/contabilidad" replace />;
 
+  // Las pantallas de acceso denegado no tienen menú: siempre ofrecen una salida para no dejar al usuario atascado.
+  const volver = <Link to="/" className="btn btn-primary" style={{ marginTop: '8px', minHeight: '44px' }}>{t('navigation.denied_back')}</Link>;
+
   const entry = NAVIGATION_ITEMS.find(item => matchPath({ path: item.route, end: true }, pathname));
-  if (entry && !canNavigate(entry, user, tenant)) return <div role="alert" style={styles.deniedContainer}><Lock size={48} /><h2>{t('navigation.denied')}</h2><p>{t('navigation.denied_help')}</p></div>;
+  if (entry && !canNavigate(entry, user, tenant)) return <div role="alert" style={styles.deniedContainer}><Lock size={48} /><h2>{t('navigation.denied')}</h2><p>{t('navigation.denied_help')}</p>{pathname !== '/' && volver}</div>;
 
   // Verificar rol
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user.rol)) {
     return (
-      <div style={styles.deniedContainer}>
-        <Lock size={48} color="#DC2626" />
-        <h2 style={styles.title}>Acceso Denegado</h2>
-        <p style={styles.message}>No tienes permisos suficientes para acceder a esta vista.</p>
+      <div role="alert" style={styles.deniedContainer}>
+        <Lock size={48} color="#DC2626" aria-hidden="true" />
+        <h2 style={styles.title}>{t('navigation.denied')}</h2>
+        <p style={styles.message}>{t('navigation.denied_help')}</p>
+        {pathname !== '/' && volver}
       </div>
     );
   }
@@ -59,10 +63,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Verificar permiso específico
   if (requiredPermiso && user.rol !== 'ADMIN' && user.permisosConfigurados && !user.permisos?.includes(requiredPermiso)) {
     return (
-      <div style={styles.deniedContainer}>
-        <Lock size={48} color="#DC2626" />
-        <h2 style={styles.title}>Permiso Insuficiente</h2>
-        <p style={styles.message}>Su usuario no tiene el permiso necesario ({requiredPermiso}).</p>
+      <div role="alert" style={styles.deniedContainer}>
+        <Lock size={48} color="#DC2626" aria-hidden="true" />
+        <h2 style={styles.title}>{t('navigation.denied')}</h2>
+        <p style={styles.message}>{t('navigation.denied_permission')}</p>
+        {pathname !== '/' && volver}
       </div>
     );
   }
@@ -73,13 +78,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     if (PENDING_MODULES.has(requiredModule) || !activeModules.includes(requiredModule)) {
       return (
-        <div style={styles.deniedContainer}>
-          <Lock size={48} color="#EA580C" />
-          <h2 style={styles.title}>Módulo No Contratado / Deshabilitado</h2>
-          <p style={styles.message}>
-            El módulo requerido (<strong>{requiredModule}</strong>) no está habilitado para la empresa{' '}
-            <strong>{tenant.nombreComercial}</strong>. Contacte al administrador del sistema.
-          </p>
+        <div role="alert" style={styles.deniedContainer}>
+          <Lock size={48} color="#EA580C" aria-hidden="true" />
+          <h2 style={styles.title}>{t('navigation.denied')}</h2>
+          <p style={styles.message}>{t('navigation.module_off_help', { negocio: tenant.nombreComercial })}</p>
+          {pathname !== '/' && volver}
         </div>
       );
     }

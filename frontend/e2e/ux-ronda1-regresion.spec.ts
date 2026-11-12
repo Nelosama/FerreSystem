@@ -164,6 +164,23 @@ test.describe('POS: método de pago, colores de marca y cobro', () => {
     expect(sim.errores).toEqual([]);
   });
 
+  test('en una laptop de 1366×768 las líneas del carrito siguen a la vista y la cantidad sobre la existencia avisa', async ({ page }) => {
+    await prepararSesion(page, 'ADMIN');
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/pos');
+    await page.locator('.ferre-pos-catalog .pos-producto').nth(1).click();
+    // Antes el pie ocupaba todo el alto del ticket y el cuerpo (cliente y productos) quedaba en 0 px.
+    const cuerpo = page.locator('.pos-ticket-cuerpo');
+    expect((await cuerpo.boundingBox())!.height).toBeGreaterThanOrEqual(150);
+    await page.locator('.pos-linea').first().scrollIntoViewIfNeeded();
+    await expect(page.locator('.pos-linea').first()).toBeInViewport();
+    // Escribir una cantidad mayor que la existencia muestra el mismo aviso que al agregar desde el catálogo.
+    await page.locator('.pos-cantidad-input').first().fill('99999');
+    await expect(page.getByRole('status').filter({ hasText: 'Sin existencia suficiente' })).toBeVisible();
+    await page.locator('.pos-cantidad-input').first().fill('1');
+    await expect(page.getByRole('status').filter({ hasText: 'Sin existencia suficiente' })).toHaveCount(0);
+  });
+
   test('crédito abre el cliente: exige un cliente registrado antes de cobrar', async ({ page }) => {
     const sim = await prepararSesion(page, 'ADMIN');
     await page.goto('/pos');
