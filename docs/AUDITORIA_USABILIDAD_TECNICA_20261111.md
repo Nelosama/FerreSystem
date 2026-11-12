@@ -6,6 +6,37 @@
 - **Relación con #243:** se fusionó en `main` (`389ebcf`) después de esta auditoría e incluye otra evaluación de uso (`docs/EVALUACION_USABILIDAD_20261110.md`). Los hallazgos de aquí se observaron sobre `2e72b43`. Al integrar `main` se conservó su texto para el subtítulo de Inicio (U-07) y la nota de fechas de Reportes (U-12). #243 ya impide cobrar cuando el efectivo escrito no cubre el total, lo que reduce P-02; el campo vacío sigue sin bloquear y no hay confirmación.
 - Resultados de pruebas y estado de CI: ver `docs/CONTEXTO_MAESTRO.md` (sección del 2026-11-11).
 
+## Qué ya resolvió #243 y qué aporta esta rama
+
+Estado sobre `main` `389ebcf080823d7a4aec25a6951e0463e98dbeae`, que ya incluye #243. La comparación se hizo archivo por
+archivo después de integrar `main` en la rama; el diff de la rama contra `main` no revierte ningún cambio de #243.
+
+**Ya resuelto por #243 (no es aporte de esta rama):**
+
+| Hallazgo de este informe | Qué hizo #243 | Qué queda en esta rama |
+|---|---|---|
+| U-07, texto fijo de turno en Inicio | Cambió el subtítulo en `es.json` | Solo el texto equivalente en `en.json` |
+| U-12, nota de fechas de Reportes | Cambió la nota en `es.json` («hora local del negocio») | Solo `role="alert"` en el aviso de error del POS |
+| P-02, cobro sin comprobar el efectivo | El POS no cobra si el efectivo escrito no cubre el total | Sigue abierto: campo vacío sin bloqueo y sin confirmación |
+| P-06, jerga «REPORTES & KPIS» | Cambió el título de la pantalla de Reportes | Sigue abierto para el resto del vocabulario |
+| Búsqueda del POS sin resultados | Añadió el mensaje «No se encontró ningún producto…» | Nada |
+| Título equivocado de Clientes | Lo corrigió | Nada |
+| Validación de cotizaciones y conversión (500 por entradas inválidas) | DTO con límites y cuerpo validado | T-04 sigue abierto: precio o descuento libre por rol es decisión del negocio |
+| Devolución parcial con descuento por línea, base del resumen, datos por rol, ventas propias | Corregidos con pruebas | Nada; esta rama no toca esos archivos |
+
+**Aporte propio de esta rama (no está en `main`):**
+
+- U-01 carrito del POS visible en pantallas bajas; U-06 aviso de existencia al escribir la cantidad.
+- U-02 menú lateral del contador con el componente compartido.
+- U-03 error de cotización visible junto a los botones; U-04 buscador de inventario.
+- U-05 pantallas de acceso denegado con texto llano y salida; U-08 texto de inicio del vendedor.
+- U-09 unidades legibles; U-10 casillas junto a su texto; U-11 botón de salir de 44 px.
+- T-01 dependencias con avisos (`package-lock.json` de backend y frontend); T-03 largo máximo en datos de cliente.
+
+**Pendientes de `docs/EVALUACION_USABILIDAD_20261110.md` (de #243) que esta rama cierra:** P4 en lo que toca al botón de
+salir (los enlaces de 17 px siguen abiertos como P-07) y P9, carrito fuera de la vista al elegir el pago. El resto de esa
+lista sigue abierto.
+
 ## Alcance y límites de la evidencia
 
 - La aplicación se ejecutó completa en local: PostgreSQL 16 temporal, backend NestJS compilado y frontend construido, con los datos sintéticos de `frontend/e2e-real/seed.cjs` más un vendedor y un contador sintéticos. Se recorrió en Chromium a 1280×800, 1366×768 y 390×844 (teléfono) con los roles cajero, vendedor, bodeguero, administrador y contador.
@@ -25,12 +56,12 @@
 | U-04 | Media | Inventario con las categorías del rubro ferretería. | El buscador se encogía a unos 50 px y tapaba el filtro «Todas». | Ancho mínimo útil y salto de fila (`frontend/src/pages/InventarioPage.tsx:463-467`); filtros de 44 px de alto. |
 | U-05 | Media | Abrir una pantalla sin permiso (por ejemplo, cajero en `/inventario`). | Pantalla sin menú ni botón para volver, con claves internas («inventario.ver», nombre técnico del módulo). | Texto llano, qué hacer después y botón «Volver al inicio» (`frontend/src/components/ProtectedRoute.tsx:45-96`). |
 | U-06 | Media | POS: escribir una cantidad mayor que la existencia. | No había aviso; el rechazo llegaba al cobrar. Al agregar con clic sí avisaba. | Mismo aviso al escribir la cantidad o usar «+» (`frontend/src/pages/POSPage.tsx:477-490`). |
-| U-07 | Media | Inicio de cualquier rol. | Mostraba «Turno Actual: 08:00 AM - 05:00 PM», un horario fijo que no sale de ningún dato. | Texto neutro «Lo más importante de hoy» (`frontend/src/locales/es.json`, `en.json`). |
+| U-07 | Media | Inicio de cualquier rol. | Mostraba «Turno Actual: 08:00 AM - 05:00 PM», un horario fijo que no sale de ningún dato. | **Resuelto por #243** en `es.json`; esta rama solo aporta el texto equivalente en `en.json`. |
 | U-08 | Media | Inicio del vendedor. | Decía «consulta tus clientes», pero la pantalla Clientes es solo del administrador y respondía «Acceso denegado». | El texto indica buscar al cliente dentro de la venta o la cotización. La política de acceso no cambió. |
 | U-09 | Baja | Editar producto y levantamiento: unidad de medida. | Opciones como `METRO_CUADRADO`, `KG`, `GALON`. | Nombres legibles («Metro cuadrado (m²)»); el valor guardado no cambia (`frontend/src/utils/unidadMedida.ts`). |
 | U-10 | Baja | Editar producto: «Se vende por medida» y «Producto activo». | La casilla quedaba lejos de su texto. | Casilla y texto en la misma línea, 44 px de alto (`OperacionesPage.css`). |
 | U-11 | Baja | Teléfono y tableta: botón de salir. | Área táctil de 36×28 px. | 44×44 px (`frontend/src/styles/shell.css`). |
-| U-12 | Baja | POS: aviso de error; Reportes: nota de fechas. | El error no se anunciaba a lectores de pantalla; la nota decía «America/Tegucigalpa». | `role="alert"`; «hora de Honduras (America/Tegucigalpa)». |
+| U-12 | Baja | POS: aviso de error; Reportes: nota de fechas. | El error no se anunciaba a lectores de pantalla; la nota decía «America/Tegucigalpa». | `role="alert"` (esta rama). La nota de fechas la **resolvió #243** («hora local del negocio»). |
 
 ### Problemas observados sin corregir (requieren decisión o más alcance)
 
