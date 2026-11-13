@@ -16,6 +16,7 @@ import { ProductosModule } from './productos/productos.module';
 import { ClientesModule } from './clientes/clientes.module';
 import { VentasModule } from './ventas/ventas.module';
 import { CotizacionesModule } from './cotizaciones/cotizaciones.module';
+import { AutorizacionesModule } from './autorizaciones/autorizaciones.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { LevantamientosModule } from './levantamientos/levantamientos.module';
@@ -39,6 +40,7 @@ import { IaModule } from './ia/ia.module';
     ClientesModule,
     VentasModule,
     CotizacionesModule,
+    AutorizacionesModule,
     DashboardModule,
     UsuariosModule,
     LevantamientosModule,

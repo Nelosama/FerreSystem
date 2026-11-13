@@ -5,7 +5,8 @@ import { api } from '../utils/api';
 import { TASAS_ISV_AUTORIZADAS, esTasaIsvAutorizada } from '../utils/politica-isv';
 // Política provisional T6: espejo de backend/src/cotizaciones/politica-exenciones.ts.
 const EXENCIONES_HABILITADAS = false;
-import type { ProductItem, QuotationItem, QuotationDetailItem } from '../types';
+import type { AutorizacionDescuento, ProductItem, QuotationItem, QuotationDetailItem } from '../types';
+import { alertas } from '../utils/alertas';
 import {
   FileText,
   Plus,
@@ -25,6 +26,7 @@ import {
   DollarSign,
   PackageCheck,
   Download,
+  BadgePercent,
 } from 'lucide-react';
 import { formatLempiras } from '../utils/format';
 import { MOTIVO_EXCEPCION_MAX, MOTIVO_EXCEPCION_MIN, esRechazoPorPrecio, motivoExcepcionValido, puedeExcepcionPrecio } from '../utils/excepcionPrecio';
@@ -72,6 +74,7 @@ export const CotizacionesPage: React.FC = () => {
         total: Number(c.total),
         estado: c.estado,
         itemsCount: c.detalles ? c.detalles.length : 0,
+        autorizacionDescuento: c.autorizacionDescuento,
         notas: c.notas || '',
         detalles: (c.detalles || []).map((d: any) => ({
           id: d.id,
@@ -125,6 +128,19 @@ export const CotizacionesPage: React.FC = () => {
   // Permisos de usuario
   const isAdminOrSeller = user?.rol === 'ADMIN' || user?.rol === 'VENDEDOR' || user?.rol === 'SUPERADMIN';
   const canModifyPrice = user?.rol === 'ADMIN' || user?.rol === 'SUPERADMIN' || user?.permisos?.includes('configuracion.editar');
+  // Autorización de descuentos (decisión del dueño del 2026-11-12): solo ADMIN aprueba o rechaza; quien cotiza solicita,
+  // cancela o quita el descuento. El servidor valida todo: la pantalla solo ofrece las acciones.
+  const esAdmin = user?.rol === 'ADMIN';
+  const puedeGestionarDescuento = user?.rol === 'ADMIN' || user?.rol === 'VENDEDOR' || user?.rol === 'CAJERO';
+  const [modalAutorizacion, setModalAutorizacion] = useState<QuotationItem | null>(null);
+  const [motivoDecision, setMotivoDecision] = useState('');
+  const [decidiendo, setDecidiendo] = useState(false);
+  const autorizacionBloquea = (c: QuotationItem) => Boolean(c.autorizacionDescuento?.requerida && c.autorizacionDescuento.estado !== 'APROBADA');
+  const descuentosPorAutorizar = useMemo(
+    () => cotizaciones.filter((c) => c.estado !== 'CONVERTIDA' && c.autorizacionDescuento?.estado === 'PENDIENTE').length,
+    [cotizaciones],
+  );
+  const fechaHora = (iso: string | null) => (iso ? new Date(iso).toLocaleString('es-HN') : '');
 
   // Estados de Filtros y Búsqueda
   const [searchTerm, setSearchTerm] = useState('');
@@ -266,6 +282,40 @@ export const CotizacionesPage: React.FC = () => {
       mostrarNotificacion(err.response?.data?.message || 'Error al actualizar estado en el servidor', 'error');
     }
   };
+
+  // Acciones de autorización del descuento. Cada una relee la lista: el servidor decide el estado resultante.
+  const accionAutorizacion = async (accion: () => Promise<unknown>, exito: string) => {
+    if (decidiendo) return;
+    setDecidiendo(true);
+    try {
+      await accion();
+      await fetchCotizacionesYProductos();
+      setModalAutorizacion(null);
+      setMotivoDecision('');
+      mostrarNotificacion(exito);
+    } catch (err: any) {
+      // 409: otra persona decidió primero o la cotización cambió. Se recarga para mostrar el estado real.
+      await fetchCotizacionesYProductos();
+      mostrarNotificacion(err.response?.data?.message || 'No se pudo completar la acción en el servidor', 'error');
+    } finally {
+      setDecidiendo(false);
+    }
+  };
+  const decidirDescuento = (aut: AutorizacionDescuento, decision: 'aprobar' | 'rechazar') =>
+    accionAutorizacion(
+      () => api.post(`/autorizaciones/${aut.solicitudId}/${decision}`, motivoDecision.trim() ? { motivo: motivoDecision.trim() } : {}),
+      t(decision === 'aprobar' ? 'quotations.discount_auth_done_approved' : 'quotations.discount_auth_done_rejected'),
+    );
+  const cancelarSolicitudDescuento = async (aut: AutorizacionDescuento) => {
+    if (!(await alertas.confirmar({ texto: t('quotations.discount_auth_confirm_cancel'), peligroso: true }))) return;
+    await accionAutorizacion(() => api.post(`/autorizaciones/${aut.solicitudId}/cancelar`), t('quotations.discount_auth_done_cancelled'));
+  };
+  const quitarDescuento = async (c: QuotationItem) => {
+    if (!(await alertas.confirmar({ texto: t('quotations.discount_auth_confirm_remove'), peligroso: true }))) return;
+    await accionAutorizacion(() => api.post(`/cotizaciones/${c.id}/quitar-descuento`), t('quotations.discount_auth_done_removed'));
+  };
+  const solicitarAutorizacion = (c: QuotationItem) =>
+    accionAutorizacion(() => api.post(`/cotizaciones/${c.id}/autorizacion-descuento`), t('quotations.discount_auth_done_requested'));
 
   // Convertir A Venta
   const handleConfirmarConvertir = async (cot: QuotationItem) => {
@@ -510,10 +560,17 @@ export const CotizacionesPage: React.FC = () => {
         mostrarNotificacion(`Cotización actualizada exitosamente.`);
       } else {
         const res = await api.post('/cotizaciones', payloadData);
-        if (estadoGuardar === 'ENVIADA' && res.data?.id) {
-          await api.patch(`/cotizaciones/${res.data.id}/estado`, { estado: 'ENVIADA' });
+        const numero = res.data.numeroCotizacion?.toString().padStart(4, '0');
+        const aut: AutorizacionDescuento | undefined = res.data?.autorizacionDescuento;
+        if (aut?.requerida && aut.estado !== 'APROBADA') {
+          // Con descuento sin autorizar no se envía: queda en borrador hasta que un ADMIN lo apruebe.
+          mostrarNotificacion(t('quotations.discount_auth_saved_pending', { numero }));
+        } else {
+          if (estadoGuardar === 'ENVIADA' && res.data?.id) {
+            await api.patch(`/cotizaciones/${res.data.id}/estado`, { estado: 'ENVIADA' });
+          }
+          mostrarNotificacion(`Cotización #COT-${numero} creada con éxito.`);
         }
-        mostrarNotificacion(`Cotización #COT-${res.data.numeroCotizacion?.toString().padStart(4, '0')} creada con éxito.`);
       }
 
       await fetchCotizacionesYProductos();
@@ -594,6 +651,18 @@ export const CotizacionesPage: React.FC = () => {
           </div>
         )}
 
+        {/* Descuentos que esperan la decisión del ADMIN */}
+        {esAdmin && descuentosPorAutorizar > 0 && (
+          <div role="status" style={{ ...styles.successBanner, backgroundColor: '#FEF3C7', borderColor: '#B45309', justifyContent: 'space-between' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '13px', color: '#92400E' }}>
+              <BadgePercent size={20} color="#B45309" /> {t('shell.home.discounts_pending')}: {descuentosPorAutorizar}
+            </span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setFilterEstado('DESCUENTO_POR_AUTORIZAR')}>
+              {t('quotations.discount_auth_review')}
+            </button>
+          </div>
+        )}
+
         {/* Métricas Rápidas */}
         <div style={styles.metricsGrid}>
           <div style={styles.metricCard}>
@@ -666,6 +735,7 @@ export const CotizacionesPage: React.FC = () => {
               <option value="APROBADA">{t('operational.aprobada')}</option>
               <option value="RECHAZADA">{t('operational.rechazada')}</option>
               <option value="CONVERTIDA">{t('operational.convertida_a_venta')}</option>
+              <option value="DESCUENTO_POR_AUTORIZAR">{t('quotations.discount_auth_filter')}</option>
             </select>
 
             {/* Ordenamiento */}
@@ -752,7 +822,29 @@ export const CotizacionesPage: React.FC = () => {
                     >
                       {formatLempiras(c.total)}
                     </td>
-                    <td style={{ textAlign: 'center' }}>{getStatusBadge(c.estado)}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      {getStatusBadge(c.estado)}
+                      {c.estado !== 'CONVERTIDA' && c.autorizacionDescuento?.requerida && (
+                        <div style={{ marginTop: '4px' }}>
+                          <button
+                            type="button"
+                            className={`badge ${c.autorizacionDescuento.estado === 'APROBADA' ? 'badge-success' : c.autorizacionDescuento.estado === 'RECHAZADA' ? 'badge-danger' : 'badge-warning'}`}
+                            style={{ border: 'none', cursor: 'pointer' }}
+                            onClick={() => { setMotivoDecision(''); setModalAutorizacion(c); }}
+                            title={t('quotations.discount_auth_review')}
+                            data-testid={`autorizacion-descuento-${c.id}`}
+                          >
+                            <BadgePercent size={11} /> {t({
+                              APROBADA: 'quotations.discount_auth_approved',
+                              RECHAZADA: 'quotations.discount_auth_rejected',
+                              PENDIENTE: 'quotations.discount_auth_pending',
+                              SIN_SOLICITUD: 'quotations.discount_auth_missing',
+                              NO_REQUERIDA: 'quotations.discount_auth_missing',
+                            }[c.autorizacionDescuento.estado])}
+                          </button>
+                        </div>
+                      )}
+                    </td>
                     <td style={{ textAlign: 'center' }}>
                       <div className="table-actions-cell" style={{ display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' }}>
                         {/* Ver PDF Proforma */}
@@ -836,7 +928,7 @@ export const CotizacionesPage: React.FC = () => {
                         )}
 
                         {/* Convertir a Venta */}
-                        {(c.estado === 'APROBADA' || c.estado === 'ENVIADA' || c.estado === 'EMITIDA') && (
+                        {(c.estado === 'APROBADA' || c.estado === 'ENVIADA' || c.estado === 'EMITIDA') && !autorizacionBloquea(c) && (
                           <button
                             type="button"
                             className="btn btn-primary btn-sm"
@@ -872,6 +964,85 @@ export const CotizacionesPage: React.FC = () => {
           </table>
         </div>
       </main>
+
+      {/* Autorización del descuento: abrir la ventana nunca aprueba; solo los botones deciden. */}
+      {modalAutorizacion?.autorizacionDescuento && (() => {
+        const c = modalAutorizacion;
+        const aut = c.autorizacionDescuento!;
+        const lineas = (c.detalles || []).filter((d) => d.descuento > 0);
+        const esSolicitante = aut.solicitanteId === user?.id;
+        return (
+          <div style={styles.modalOverlay}>
+            <div className="industrial-card" role="dialog" aria-modal="true" aria-labelledby="titulo-autorizacion" style={{ ...styles.largeModalCard, maxWidth: '560px' }}>
+              <div style={styles.modalHeader}>
+                <h3 id="titulo-autorizacion" style={{ margin: 0, fontFamily: 'var(--font-display)', fontWeight: 800 }}>
+                  {t('quotations.discount_auth_title')} · COT-{c.numero.toString().padStart(4, '0')}
+                </h3>
+                <button type="button" onClick={() => setModalAutorizacion(null)} style={styles.clearBtn} aria-label={t('quotations.discount_auth_close')}>
+                  <X size={18} />
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
+                <div><strong>{c.cliente}</strong></div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                  <div>{t('operational.descuento')} <strong>{formatLempiras(c.descuento || 0)}</strong></div>
+                  <div>Total <strong>{formatLempiras(c.total)}</strong></div>
+                </div>
+                {lineas.length > 0 && (
+                  <div>
+                    <div style={{ fontWeight: 700, marginBottom: '4px' }}>{t('quotations.discount_auth_lines')}</div>
+                    <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                      {lineas.map((d) => (
+                        <li key={d.id ?? d.productoId}>{d.descripcionProducto || d.productoId}: {formatLempiras(d.descuento)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {(c.descuentoGeneral || 0) > 0 && <div>{t('operational.descuento_general')} {formatLempiras(c.descuentoGeneral || 0)}</div>}
+                {aut.solicitante && <div style={{ color: 'var(--color-text-muted)' }}>{t('quotations.discount_auth_requested_by', { nombre: aut.solicitante, fecha: fechaHora(aut.solicitadaAt) })}</div>}
+                {aut.decisor && <div style={{ color: 'var(--color-text-muted)' }}>{t('quotations.discount_auth_decided_by', { nombre: aut.decisor, fecha: fechaHora(aut.decididaAt) })}{aut.motivoDecision ? ` — ${aut.motivoDecision}` : ''}</div>}
+                {aut.estado !== 'APROBADA' && <div className="form-hint">{t('quotations.discount_auth_blocked_hint')}</div>}
+
+                {aut.estado === 'PENDIENTE' && esAdmin && (
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {t('quotations.discount_auth_reason_optional')}
+                    <textarea className="form-input" maxLength={300} rows={2} value={motivoDecision} disabled={decidiendo || isReadOnly} onChange={(e) => setMotivoDecision(e.target.value)} />
+                  </label>
+                )}
+                {aut.estado === 'PENDIENTE' && !esAdmin && <div className="form-hint">{t('quotations.discount_auth_admin_only')}</div>}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
+                {aut.estado === 'PENDIENTE' && esAdmin && (
+                  <>
+                    <button type="button" className="btn btn-secondary" disabled={decidiendo || isReadOnly} onClick={() => decidirDescuento(aut, 'rechazar')}>
+                      <XCircle size={15} /> {t('quotations.discount_auth_reject')}
+                    </button>
+                    <button type="button" className="btn btn-primary" disabled={decidiendo || isReadOnly} onClick={() => decidirDescuento(aut, 'aprobar')}>
+                      <CheckCircle2 size={15} /> {t('quotations.discount_auth_approve')}
+                    </button>
+                  </>
+                )}
+                {aut.estado === 'PENDIENTE' && (esSolicitante || esAdmin) && puedeGestionarDescuento && (
+                  <button type="button" className="btn btn-secondary" disabled={decidiendo || isReadOnly} onClick={() => cancelarSolicitudDescuento(aut)}>
+                    {t('quotations.discount_auth_cancel')}
+                  </button>
+                )}
+                {(aut.estado === 'RECHAZADA' || aut.estado === 'SIN_SOLICITUD') && puedeGestionarDescuento && (
+                  <>
+                    <button type="button" className="btn btn-secondary" disabled={decidiendo || isReadOnly} onClick={() => quitarDescuento(c)}>
+                      {t('quotations.discount_auth_remove')}
+                    </button>
+                    <button type="button" className="btn btn-primary" disabled={decidiendo || isReadOnly} onClick={() => solicitarAutorizacion(c)}>
+                      {t('quotations.discount_auth_request')}
+                    </button>
+                  </>
+                )}
+                <button type="button" className="btn btn-secondary" onClick={() => setModalAutorizacion(null)}>{t('quotations.discount_auth_close')}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal Crear/Editar Cotización */}
       {modalForm && (

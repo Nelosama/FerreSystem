@@ -3,6 +3,7 @@
 
 export type ClavePendiente =
   | 'contingencia_revision'
+  | 'descuentos_por_autorizar'
   | 'precios_pendientes'
   | 'entregas_pendientes'
   | 'cotizaciones_vencen_hoy'
@@ -16,12 +17,13 @@ export interface IndicadorPendiente {
 }
 
 export const CLAVES_PENDIENTES: readonly ClavePendiente[] = [
-  'contingencia_revision', 'precios_pendientes', 'entregas_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo',
+  'contingencia_revision', 'descuentos_por_autorizar', 'precios_pendientes', 'entregas_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo',
 ];
 
 /** Rutas que el servidor puede indicar para cada clave. Una ruta inesperada invalida el indicador. */
 const RUTAS: Record<ClavePendiente, string> = {
   contingencia_revision: '/contingencia-admin',
+  descuentos_por_autorizar: '/cotizaciones',
   precios_pendientes: '/precios',
   entregas_pendientes: '/entregas',
   cotizaciones_vencen_hoy: '/cotizaciones',

@@ -1,4 +1,4 @@
-import { account, actor, authorizedActor, audit, cashMovement, id, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { account, actor, authorizedActor, audit, cashMovement, decimal, id, lockTenant, money, openCash, query } from '../operaciones/ledger';
 import { exigirPoliticaPrecio } from '../ventas/politica-precio';
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +12,7 @@ import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
 import { isvDocumentoCentavos } from '../common/isv-documento';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 import { clienteParaRol, empresaPublica } from '../common/datos-por-rol';
+import { cancelarPendientes, evaluarAutorizacion, exigirDescuentoAutorizado, sincronizarAutorizacion, solicitudesDeCotizaciones, tieneDescuento, type AutorizacionDescuentoVista } from './autorizacion-descuento';
 
 /** Fecha de solo día (YYYY-MM-DD) se guarda como inicio del día en la zona del negocio. */
 const SOLO_DIA = /^\d{4}-\d{2}-\d{2}$/;
@@ -45,8 +46,9 @@ export class CotizacionesService {
     });
 
     const hoy = new Date();
+    const solicitudes = await solicitudesDeCotizaciones(this.prisma as any, tenantId, cotizaciones.filter((c) => tieneDescuento(c)).map((c) => c.id));
 
-    return cotizaciones.map((c) => this.formatCotizacion(c, hoy, rol));
+    return cotizaciones.map((c) => this.formatCotizacion(c, hoy, rol, evaluarAutorizacion(c, solicitudes)));
   }
 
   async findById(tenantId: string, id: string, rol?: string) {
@@ -67,7 +69,7 @@ export class CotizacionesService {
     }
 
     const hoy = new Date();
-    return this.formatCotizacion(c, hoy, rol);
+    return this.formatCotizacion(c, hoy, rol, evaluarAutorizacion(c, await solicitudesDeCotizaciones(this.prisma as any, tenantId, [c.id])));
   }
 
   async create(tenantId: string, usuarioId: string, dto: CreateCotizacionDto, alCrear?: (tx: any, cotizacion: any) => Promise<void>, rol?: string) {
@@ -199,8 +201,11 @@ export class CotizacionesService {
       });
 
       if (alCrear) await alCrear(tx, cotizacion);
+      // Todo descuento lo autoriza un ADMIN: queda aprobado si quien guarda lo es; si no, nace la solicitud pendiente.
+      const autor = await actor(tx, tenantId, usuarioId);
+      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId, rol: autor.rol }, cotizacion);
       const hoy = new Date();
-            return this.formatCotizacion(cotizacion, hoy, rol);
+            return this.formatCotizacion(cotizacion, hoy, rol, autorizacion);
     });
   }
 
@@ -319,7 +324,7 @@ export class CotizacionesService {
         ? fechaValidezDesdeDto(dto.fechaValidez)
         : new Date(Date.now() + diasVal * 24 * 60 * 60 * 1000);
 
-      const updated = await tx.cotizacion.update({
+      let updated = await tx.cotizacion.update({
         where: { id },
         data: {
           clienteId: dto.clienteId !== undefined ? dto.clienteId || null : existing.clienteId,
@@ -367,8 +372,17 @@ export class CotizacionesService {
         },
       });
 
+      // La aprobación corresponde a un contenido exacto: si cambió, hay que autorizar de nuevo (o queda aprobado si edita un ADMIN).
+      const autor = await actor(tx, tenantId, usuarioId);
+      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId, rol: autor.rol }, updated);
+      // Una cotización ya enviada cuyo descuento dejó de estar autorizado vuelve a borrador: no queda «enviada» sin aprobación.
+      if (autorizacion.requerida && autorizacion.estado !== 'APROBADA' && updated.estado === 'ENVIADA') {
+        await tx.cotizacion.update({ where: { id }, data: { estado: 'BORRADOR' } });
+        updated = { ...updated, estado: 'BORRADOR' };
+      }
+
       const hoy = new Date();
-            return this.formatCotizacion(updated, hoy, rol);
+            return this.formatCotizacion(updated, hoy, rol, autorizacion);
     });
   }
 
@@ -448,8 +462,11 @@ export class CotizacionesService {
         },
       });
 
+      // La copia es un documento nuevo: su descuento necesita su propia autorización.
+      const autor = await actor(tx, tenantId, usuarioId);
+      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId, rol: autor.rol }, duplicada);
       const hoy = new Date();
-            return this.formatCotizacion(duplicada, hoy, rol);
+            return this.formatCotizacion(duplicada, hoy, rol, autorizacion);
     });
   }
 
@@ -461,6 +478,7 @@ export class CotizacionesService {
       await tx.$queryRaw`SELECT id FROM cotizaciones WHERE id = ${id} AND tenant_id = ${tenantId} FOR UPDATE`;
       const c = await tx.cotizacion.findFirst({
         where: { id, tenantId },
+        include: { detalles: true },
       });
 
       if (!c) {
@@ -470,6 +488,8 @@ export class CotizacionesService {
       if (c.estado === 'CONVERTIDA' || c.ventaId) {
         throw new BadRequestException('No se puede cambiar el estado de una cotización convertida');
       }
+      // Enviar (o darla por aprobada por el cliente) exige que el descuento, si lo hay, esté autorizado por un ADMIN.
+      if (estado === 'ENVIADA' || estado === 'APROBADA') await exigirDescuentoAutorizado(tx, tenantId, c, 'enviar');
       const updated = await tx.cotizacion.update({
         where: { id },
         data: { estado },
@@ -481,8 +501,72 @@ export class CotizacionesService {
       });
 
       const hoy = new Date();
-            return this.formatCotizacion(updated, hoy, rol);
+            return this.formatCotizacion(updated, hoy, rol, evaluarAutorizacion(updated, await solicitudesDeCotizaciones(tx, tenantId, [id])));
     });
+  }
+
+  /**
+   * Pide la autorización del descuento de una cotización que no la tiene (anterior a esta regla, o rechazada y se insiste).
+   * Si quien la pide es ADMIN, queda aprobada con su cuenta.
+   */
+  async solicitarAutorizacionDescuento(tenantId: string, usuarioId: string, id: string, rol?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const c = await this.cotizacionBloqueada(tx, tenantId, id);
+      if (c.estado === 'CONVERTIDA' || c.ventaId) throw new BadRequestException('La cotización ya se convirtió en venta');
+      if (!tieneDescuento(c)) throw new BadRequestException('La cotización no tiene descuento: no necesita autorización');
+      const autor = await authorizedActor(tx, tenantId, usuarioId, ['ADMIN', 'CAJERO', 'VENDEDOR'], 'cotizaciones.crear');
+      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId, rol: autor.rol }, c, { volverASolicitar: true });
+      return this.formatCotizacion(c, new Date(), rol, autorizacion);
+    });
+  }
+
+  /**
+   * Quita todos los descuentos y deja la cotización al precio original, lista para enviarse sin autorización.
+   * Si había una solicitud pendiente, queda cancelada a nombre de quien lo hace. Los precios de las líneas no cambian.
+   */
+  async quitarDescuento(tenantId: string, usuarioId: string, id: string, rol?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const c = await this.cotizacionBloqueada(tx, tenantId, id);
+      if (c.estado === 'CONVERTIDA' || c.ventaId) throw new BadRequestException('La cotización ya se convirtió en venta');
+      await authorizedActor(tx, tenantId, usuarioId, ['ADMIN', 'CAJERO', 'VENDEDOR'], 'cotizaciones.crear');
+      const canceladas = await cancelarPendientes(tx, tenantId, usuarioId, id);
+      if (!tieneDescuento(c)) return this.formatCotizacion(c, new Date(), rol, evaluarAutorizacion(c, []));
+
+      const tasa = Number(c.porcentajeIsv);
+      const lineas = c.detalles.map((d) => {
+        const subtotalC = subtotalLinea(aCentavos(Number(d.precioUnitario), 'Precio unitario'), Math.round(Number(d.totalMedida) * 100));
+        const isvC = d.exento ? 0 : divisionMitadArriba(subtotalC * Math.round(tasa * 100), 10000);
+        return { id: d.id, exento: Boolean(d.exento), subtotalC, isvC };
+      });
+      const subtotalC = lineas.reduce((suma, l) => suma + l.subtotalC, 0);
+      const isvC = isvDocumentoCentavos(lineas.map((l) => ({ subtotalCentavos: l.subtotalC, exento: l.exento })), 0, tasa);
+      for (const l of lineas) {
+        await tx.detalleCotizacion.update({
+          where: { id: l.id },
+          data: { descuento: 0, subtotal: centavosADecimal(l.subtotalC), isv: centavosADecimal(l.isvC), totalLinea: centavosADecimal(l.subtotalC + l.isvC) },
+        });
+      }
+      const actualizada = await tx.cotizacion.update({
+        where: { id },
+        data: { subtotal: centavosADecimal(subtotalC), descuento: 0, descuentoGeneral: 0, isv: centavosADecimal(isvC), total: centavosADecimal(subtotalC + isvC) },
+        include: { cliente: true, usuario: { select: { id: true, nombre: true } }, detalles: { include: { producto: true } } },
+      });
+      await audit(tx, tenantId, usuarioId, 'COTIZACION_QUITAR_DESCUENTO', id, {
+        cotizacion: `COT-${c.numeroCotizacion.toString().padStart(4, '0')}`, solicitudesCanceladas: canceladas,
+        antes: { descuento: Number(c.descuento), total: Number(c.total) }, despues: { descuento: 0, total: Number(actualizada.total) },
+      });
+      return this.formatCotizacion(actualizada, new Date(), rol, evaluarAutorizacion(actualizada, []));
+    });
+  }
+
+  private async cotizacionBloqueada(tx: any, tenantId: string, id: string) {
+    await tx.$queryRaw`SELECT id FROM cotizaciones WHERE id = ${id} AND tenant_id = ${tenantId} FOR UPDATE`;
+    const c = await tx.cotizacion.findFirst({
+      where: { id, tenantId },
+      include: { cliente: true, usuario: { select: { id: true, nombre: true } }, detalles: { include: { producto: true } } },
+    });
+    if (!c) throw new NotFoundException('Cotización no encontrada');
+    return c;
   }
 
   async convertirAVenta(
@@ -554,7 +638,11 @@ export class CotizacionesService {
       // Importe bruto por línea en centavos enteros, misma regla que la cotización y la venta directa (common/dinero).
       const brutoLinea=(d:{totalMedida:unknown;precioUnitario:unknown})=>subtotalLinea(aCentavos(Number(d.precioUnitario),'Precio unitario'),Math.round(Number(d.totalMedida)*100));
       const bruto=centavosADecimal(cotizacion.detalles.reduce((sum,d)=>sum+brutoLinea(d),0));
-      validateDiscount(user,bruto,Number(cotizacion.descuento));
+      // El descuento de una cotización lo autoriza un ADMIN para este contenido exacto; esa aprobación sustituye al tope
+      // de descuento del usuario, que sigue rigiendo solo las ventas directas del POS.
+      decimal(Number(cotizacion.descuento), 'Descuento');
+      if (aCentavos(Number(cotizacion.descuento), 'Descuento') > aCentavos(bruto, 'Subtotal')) throw new BadRequestException('Descuento mayor al subtotal');
+      await exigirDescuentoAutorizado(tx, tenantId, cotizacion, 'convertir');
       // Misma política que la venta directa (ventas/politica-precio.ts): sin excepción 409, sin permiso 403, con permiso y motivo se audita.
       const excepcionPolitica = exigirPoliticaPrecio(user, cotizacion.detalles.map(d => ({ productoId: d.productoId, producto: d.producto.nombre, precioVigente: Number(d.producto.precioVenta), precioCobrado: Number(d.precioUnitario) })), excepcionPrecio);
       // La venta directa siempre aplica ISV 15 % sin exenciones. Igual que un precio modificado, una tasa distinta o una
@@ -739,7 +827,7 @@ export class CotizacionesService {
     return result;
   }
 
-  private formatCotizacion(c: any, hoy: Date, rol?: string) {
+  private formatCotizacion(c: any, hoy: Date, rol: string | undefined, autorizacionDescuento: AutorizacionDescuentoVista) {
     // Vigencia por día calendario del negocio, no por la zona horaria del servidor.
     const diferenciaDias = diasEntre(diaCalendario(hoy), new Date(c.fechaValidez).toISOString().slice(0, 10));
 
@@ -762,6 +850,7 @@ export class CotizacionesService {
       clienteEmail: c.clienteEmail || c.cliente?.email || null,
       clienteDireccion: c.clienteDireccion || c.cliente?.direccion || null,
       usuarioNombre: c.usuario?.nombre || 'Usuario Sistema',
+      autorizacionDescuento,
       detalles: (c.detalles || []).map((d: any) => ({
         id: d.id,
         productoId: d.productoId,

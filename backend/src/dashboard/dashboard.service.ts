@@ -137,6 +137,9 @@ export class DashboardService {
         case 'contingencia_revision':
           // Igual que el filtro «solo revisión» de /contingencia-admin.
           return this.prisma.operacionContingencia.count({ where: { tenantId, requiereRevision: true } });
+        case 'descuentos_por_autorizar':
+          // Solicitudes de descuento de cotización que esperan la decisión de un ADMIN.
+          return this.prisma.solicitudAutorizacion.count({ where: { tenantId, estado: 'PENDIENTE', tipo: 'DESCUENTO_COTIZACION' } });
         case 'precios_pendientes':
           // Igual que la pestaña «Pendientes» de /precios: productos activos sin precio aprobado.
           return this.prisma.producto.count({ where: { tenantId, activo: true, precioAprobado: false } });

@@ -6,8 +6,8 @@ describe('Pendientes del inicio — autorización por rol, módulo y permiso', (
   const claves = (rol: string, registros: { moduleKey: string; enabled: boolean }[] = [], extra: object = {}) =>
     reglasAutorizadas({ rol, ...extra }, registros).map((r) => r.clave);
 
-  it('ADMIN recibe los cinco indicadores, ordenados por prioridad', () => {
-    expect(claves('ADMIN')).toEqual(['contingencia_revision', 'precios_pendientes', 'entregas_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo']);
+  it('ADMIN recibe los seis indicadores, ordenados por prioridad', () => {
+    expect(claves('ADMIN')).toEqual(['contingencia_revision', 'descuentos_por_autorizar', 'precios_pendientes', 'entregas_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo']);
   });
 
   it('cada rol replica la autorización de la pantalla de destino', () => {
@@ -26,9 +26,9 @@ describe('Pendientes del inicio — autorización por rol, módulo y permiso', (
   });
 
   it('un módulo deshabilitado explícitamente oculta sus indicadores; sin registro se considera habilitado', () => {
-    expect(claves('ADMIN', [{ moduleKey: 'pos', enabled: false }])).toEqual(['precios_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo']);
+    expect(claves('ADMIN', [{ moduleKey: 'pos', enabled: false }])).toEqual(['descuentos_por_autorizar', 'precios_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo']);
     expect(claves('ADMIN', [{ moduleKey: 'inventario', enabled: false }, { moduleKey: 'cotizaciones', enabled: false }])).toEqual(['contingencia_revision', 'entregas_pendientes']);
-    expect(claves('ADMIN', [{ moduleKey: 'pos', enabled: true }])).toHaveLength(5);
+    expect(claves('ADMIN', [{ moduleKey: 'pos', enabled: true }])).toHaveLength(6);
   });
 
   it('el permiso solo restringe a usuarios con permisos configurados y nunca a ADMIN', () => {
@@ -45,6 +45,7 @@ describe('DashboardService.getPendientes', () => {
       operacionContingencia: { count: vi.fn().mockResolvedValue(2) },
       producto: { count: vi.fn().mockResolvedValue(3) },
       cotizacion: { count: vi.fn().mockResolvedValue(0) },
+      solicitudAutorizacion: { count: vi.fn().mockResolvedValue(1) },
       $queryRawUnsafe: vi.fn().mockImplementation(async (sql: string) => [{ cantidad: sql.includes('detalles_venta') ? 4 : 5 }]),
     };
   }
@@ -54,6 +55,7 @@ describe('DashboardService.getPendientes', () => {
     const r = await new DashboardService(prisma as any).getPendientes('t1', { sub: 'u1', rol: 'ADMIN' });
     expect(r.indicadores).toEqual([
       { clave: 'contingencia_revision', cantidad: 2, ruta: '/contingencia-admin', alcance: 'NEGOCIO' },
+      { clave: 'descuentos_por_autorizar', cantidad: 1, ruta: '/cotizaciones', alcance: 'NEGOCIO' },
       { clave: 'precios_pendientes', cantidad: 3, ruta: '/precios', alcance: 'NEGOCIO' },
       { clave: 'entregas_pendientes', cantidad: 4, ruta: '/entregas', alcance: 'NEGOCIO' },
       { clave: 'cotizaciones_vencen_hoy', cantidad: 0, ruta: '/cotizaciones', alcance: 'NEGOCIO' },
@@ -69,6 +71,7 @@ describe('DashboardService.getPendientes', () => {
     expect(prisma.operacionContingencia.count.mock.calls[0][0].where).toEqual({ tenantId: 't1', requiereRevision: true });
     expect(prisma.producto.count.mock.calls[0][0].where).toEqual({ tenantId: 't1', activo: true, precioAprobado: false });
     expect(prisma.cotizacion.count.mock.calls[0][0].where.tenantId).toBe('t1');
+    expect(prisma.solicitudAutorizacion.count.mock.calls[0][0].where).toEqual({ tenantId: 't1', estado: 'PENDIENTE', tipo: 'DESCUENTO_COTIZACION' });
     for (const [sql, tenant] of prisma.$queryRawUnsafe.mock.calls) {
       expect(sql).toContain('tenant_id = $1');
       expect(tenant).toBe('t1');
@@ -84,6 +87,7 @@ describe('DashboardService.getPendientes', () => {
     expect(prisma.$queryRawUnsafe.mock.calls[0][2]).toBe('cajero-1');
     expect(prisma.operacionContingencia.count).not.toHaveBeenCalled();
     expect(prisma.producto.count).not.toHaveBeenCalled();
+    expect(prisma.solicitudAutorizacion.count).not.toHaveBeenCalled();
   });
 
   it('ADMIN: las entregas no se filtran por usuario', async () => {

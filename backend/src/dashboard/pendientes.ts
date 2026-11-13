@@ -9,6 +9,7 @@ import { moduleEnabled } from '../common/tenant-modules';
  */
 export type ClavePendiente =
   | 'contingencia_revision'
+  | 'descuentos_por_autorizar'
   | 'precios_pendientes'
   | 'entregas_pendientes'
   | 'cotizaciones_vencen_hoy'
@@ -30,6 +31,8 @@ interface ReglaPendiente {
 export const REGLAS_PENDIENTES: readonly ReglaPendiente[] = [
   // GET /contingencia/operaciones?soloRevision=true y /contingencia-admin: solo ADMIN, módulo POS.
   { clave: 'contingencia_revision', ruta: '/contingencia-admin', roles: ['ADMIN'], modulo: 'pos' },
+  // POST /autorizaciones/:id/aprobar|rechazar: solo ADMIN; las solicitudes se revisan en /cotizaciones.
+  { clave: 'descuentos_por_autorizar', ruta: '/cotizaciones', roles: ['ADMIN'], modulo: 'cotizaciones' },
   // PATCH /productos/:id/precios y /precios: solo ADMIN; la pantalla lee /productos (módulo inventario).
   { clave: 'precios_pendientes', ruta: '/precios', roles: ['ADMIN'], modulo: 'inventario', permiso: 'inventario.editar' },
   // GET /entregas/pendientes: ADMIN y BODEGUERO ven todas; CAJERO, las suyas.
