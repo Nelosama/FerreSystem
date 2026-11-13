@@ -105,6 +105,35 @@ describe('Devoluciones y reembolsos con estado / PostgreSQL aislado', () => {
     expect(await validate(plainToInstance(DecisionDevolucionDto, { decision: 'AUTORIZADA' }))).toEqual([]);
   });
 
+  it('destinos explícitos (decisión del dueño en #247): el DTO acepta GARANTIA y MERMA, conserva los históricos y rechaza desconocidos', async () => {
+    const item = (destino: string) => plainToInstance(DevolucionDto, { solicitudId: randomUUID(), metodo: 'EFECTIVO', items: [{ detalleId: 'x', cantidad: 1, destino }] });
+    for (const destino of ['INVENTARIO', 'GARANTIA', 'MERMA', 'NO_ENTREGADO', 'DAÑADO', 'PROVEEDOR']) expect(await validate(item(destino)), destino).toEqual([]);
+    expect(JSON.stringify(await validate(item('BAJA')))).toMatch(/destino/);
+  });
+
+  it('cada destino se guarda tal cual: INVENTARIO reingresa existencias; GARANTIA, MERMA y el histórico DAÑADO no', async () => {
+    const v = await ventas.create(tenantA, admin, { solicitudId: randomUUID(), metodoPago: 'EFECTIVO', detalles: [{ productoId, cantidad: 6, modoEntrega: 'MOSTRADOR' }] } as any);
+    const stock = async () => Number((await sql('SELECT stock_actual FROM productos WHERE id=$1', productoId))[0].stock_actual);
+    const contadores = async () => (await sql('SELECT cantidad_devuelta_reingresada::float AS r, cantidad_devuelta_sin_reingreso::float AS s FROM detalles_venta WHERE venta_id=$1', v.id))[0];
+    expect(await stock()).toBe(94);
+    const devolver = async (destino: string) => {
+      const dev = await ops.devolver(tenantA, admin, v.id, { solicitudId: randomUUID(), metodo: 'EFECTIVO', items: [{ detalleId: await linea(v.id), cantidad: 1, destino }] } as any);
+      return (await sql('SELECT destino FROM detalles_devolucion WHERE devolucion_id=$1', dev.id))[0].destino;
+    };
+    expect(await devolver('INVENTARIO')).toBe('INVENTARIO');
+    expect([await stock(), await contadores()]).toEqual([95, { r: 1, s: 0 }]);
+    expect(await devolver('GARANTIA')).toBe('GARANTIA');
+    expect([await stock(), await contadores()]).toEqual([95, { r: 1, s: 1 }]);
+    expect(await devolver('MERMA')).toBe('MERMA');
+    expect([await stock(), await contadores()]).toEqual([95, { r: 1, s: 2 }]);
+    expect(await devolver('DAÑADO')).toBe('DAÑADO');
+    expect([await stock(), await contadores()]).toEqual([95, { r: 1, s: 3 }]);
+    // Un destino desconocido que llegue por una vía interna (sin DTO) no se trata como «sin reingreso»: se rechaza sin cambios.
+    await expect(ops.devolver(tenantA, admin, v.id, { solicitudId: randomUUID(), metodo: 'EFECTIVO', items: [{ detalleId: await linea(v.id), cantidad: 1, destino: 'BAJA' }] } as any)).rejects.toThrow(BadRequestException);
+    expect([await stock(), await contadores()]).toEqual([95, { r: 1, s: 3 }]);
+    expect(Number((await sql('SELECT COUNT(*) AS n FROM devoluciones WHERE venta_id=$1', v.id))[0].n)).toBe(4);
+  });
+
   it('cajero solicita sin motivo y con condición; ADMIN autoriza sin motivo; la venta original no se borra ni cambia', async () => {
     const v = await venta(cajero, 'EFECTIVO');
     const antes = (await sql('SELECT estado, total::float AS total, subtotal::float AS subtotal FROM ventas WHERE id=$1', v.id))[0];

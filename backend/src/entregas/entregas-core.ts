@@ -367,11 +367,11 @@ async function aplicarLiberacion(tx: Tx, p: {
 
 // ─── Devoluciones: reingreso, sin reingreso y liberación (llamado por la devolución formal) ──
 
-export type DestinoDevolucion = 'INVENTARIO' | 'DAÑADO' | 'PROVEEDOR' | 'NO_ENTREGADO';
+export type DestinoDevolucion = 'INVENTARIO' | 'GARANTIA' | 'MERMA' | 'NO_ENTREGADO' | 'DAÑADO' | 'PROVEEDOR';
 
 /**
  * Aplica los destinos de una devolución a los contadores y existencias.
- * INVENTARIO: reingreso (R, mueve existencias). DAÑADO o PROVEEDOR: sin reingreso (S, no mueve existencias).
+ * INVENTARIO: reingreso (R, mueve existencias). GARANTIA o MERMA (y los históricos DAÑADO o PROVEEDOR): sin reingreso (S, no mueve existencias).
  * NO_ENTREGADO: libera reserva pendiente (N). Tope: R + S + q ≤ E para las dos primeras; q ≤ Rr para la última.
  * Las líneas sin inventario no participan (su devolución se trata en la devolución formal).
  */
@@ -389,7 +389,9 @@ export async function aplicarDestinosDevolucion(tx: Tx, p: {
     const cantidadCentesimas = aCentesimas(item.cantidad, 'La cantidad', true);
     if (item.destino === 'NO_ENTREGADO') grupos.LIBERACION.push({ detalleId: item.detalleId, cantidadCentesimas });
     else if (item.destino === 'INVENTARIO') grupos.REINGRESO.push({ detalleId: item.detalleId, cantidadCentesimas });
-    else grupos.SIN_REINGRESO.push({ detalleId: item.detalleId, cantidadCentesimas });
+    else if (['GARANTIA', 'MERMA', 'DAÑADO', 'PROVEEDOR'].includes(item.destino)) grupos.SIN_REINGRESO.push({ detalleId: item.detalleId, cantidadCentesimas });
+    // Un destino desconocido nunca se trata como «sin reingreso» por omisión.
+    else throw new BadRequestException('Destino de devolución no válido');
   }
   const resultado: Record<string, string> = {};
   if (grupos.LIBERACION.length) {

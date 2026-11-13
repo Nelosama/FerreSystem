@@ -564,7 +564,7 @@ export class OperacionesService {
     const x=desgloses?.get(d.id);
     await query(tx,'INSERT INTO detalles_devolucion(id,devolucion_id,detalle_venta_id,cantidad,destino,base_gravada,base_exenta,isv,condicion) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',id(),result.id,d.id,item.cantidad,item.destino,x?x.baseGravadaCentavos/100:null,x?x.baseExentaCentavos/100:null,x?x.isvCentavos/100:null,textoOpcional(item.condicion,200));
    }
-   // Existencias y contadores por línea: reingreso (INVENTARIO), sin reingreso (DAÑADO, PROVEEDOR) o liberación de la reserva (NO_ENTREGADO).
+   // Existencias y contadores por línea: reingreso (INVENTARIO), sin reingreso (GARANTIA, MERMA y los históricos DAÑADO, PROVEEDOR) o liberación de la reserva (NO_ENTREGADO).
    await aplicarDestinosDevolucion(tx,{tenantId,usuarioId:userId,ventaId:v.id,solicitudBase:dto.solicitudId,
     // El motivo es opcional (decisión del 2026-11-12), pero el evento físico de entrega exige un texto (entregas_eventos_motivo_chk).
     motivo:textoOpcional(dto.motivo)??`Devolución de la venta ${v.numero_venta} (sin motivo indicado)`,items:dto.items.map(i=>({detalleId:i.detalleId,cantidad:i.cantidad,destino:i.destino as DestinoDevolucion}))});

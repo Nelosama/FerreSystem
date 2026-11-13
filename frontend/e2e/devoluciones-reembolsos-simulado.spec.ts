@@ -72,21 +72,23 @@ async function abrir(page: Page) {
 const tarjetaReembolso = (page: Page) => page.getByTestId('reembolso-reem-1');
 
 test.describe('Devoluciones y reembolsos (simulado)', () => {
-  test('cajero: solicita sin motivo; la condición se envía solo si se escribe; el destino sigue siendo obligatorio', async ({ page, sim }) => {
+  test('cajero: solicita sin motivo; la condición se envía solo si se escribe; se elige uno de los destinos acordados', async ({ page, sim }) => {
     await abrir(page);
     await page.getByLabel('Número del comprobante de venta').fill('12');
     await page.getByRole('button', { name: 'Buscar venta' }).click();
     const destino = page.getByLabel('Destino de Taladro');
-    // Etiquetas anteriores: la correspondencia con reintegro / garantía / baja-merma sigue pendiente del dueño.
-    await expect(destino.locator('option')).toHaveText(['Volver a existencias vendibles', 'Producto dañado (no aumenta existencias)', 'Devolver al proveedor (no aumenta existencias)']);
+    // Destinos acordados por el dueño (#247): reintegro, garantía y baja/merma, con códigos propios.
+    await expect(destino.locator('option')).toHaveText(['Reintegro al inventario (vuelve a existencias vendibles)', 'Garantía (no aumenta existencias)', 'Baja / merma (no aumenta existencias)']);
+    expect(await destino.locator('option').evaluateAll(opciones => opciones.map(o => (o as HTMLOptionElement).value))).toEqual(['INVENTARIO', 'GARANTIA', 'MERMA']);
     await expect(page.getByLabel('Motivo de la devolución (opcional)')).not.toHaveAttribute('required', /.*/);
     await page.getByLabel('Devolver Taladro').fill('1');
+    await destino.selectOption('GARANTIA');
     await page.getByLabel('Condición de Taladro').fill('Caja abierta, sin uso');
     await page.getByRole('button', { name: 'Enviar solicitud de autorización' }).click();
     await expect.poll(() => sim.llamadas.length).toBe(1);
     const dto = sim.llamadas[0].body;
     expect(dto.motivo).toBeUndefined();
-    expect(dto.items).toEqual([{ detalleId: 'det-1', cantidad: 1, destino: 'INVENTARIO', condicion: 'Caja abierta, sin uso' }]);
+    expect(dto.items).toEqual([{ detalleId: 'det-1', cantidad: 1, destino: 'GARANTIA', condicion: 'Caja abierta, sin uso' }]);
   });
 
   test('cajero: registra la referencia del reverso; no ve la decisión de tarjeta no revertida', async ({ page, sim }) => {

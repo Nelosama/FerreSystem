@@ -13,9 +13,16 @@ const estadosReembolso: Record<string, string> = { PENDIENTE: 'Pendiente', COMPL
 const metodosReembolso: Record<string, string> = { EFECTIVO: 'Efectivo', TARJETA: 'Reverso de tarjeta en el POS bancario', TRANSFERENCIA: 'Transferencia' };
 
 type Command = { kind: 'SOLICITAR' | 'EJECUTAR' | 'DECIDIR' | 'DIRECTA'; requestId: string; saleId?: string; dto?: any };
-// Destino obligatorio por producto (decisión del 2026-11-12). Las etiquetas son las anteriores: la correspondencia de estos
-// códigos con «reintegro / garantía / baja-merma» está pendiente de confirmar por el dueño (revisión de #247).
-const destinations: Record<string, string> = { INVENTARIO: 'Volver a existencias vendibles', 'DAÑADO': 'Producto dañado (no aumenta existencias)', PROVEEDOR: 'Devolver al proveedor (no aumenta existencias)', NO_ENTREGADO: 'Cancelar productos aún no entregados' };
+// Destino obligatorio por producto (decisión del 2026-11-12 y del dueño en #247): reintegro al inventario, garantía o
+// baja/merma, con códigos propios. DAÑADO y PROVEEDOR ya no se ofrecen, pero se conservan para mostrar datos anteriores.
+const destinations: Record<string, string> = {
+  INVENTARIO: 'Reintegro al inventario (vuelve a existencias vendibles)',
+  GARANTIA: 'Garantía (no aumenta existencias)',
+  MERMA: 'Baja / merma (no aumenta existencias)',
+  NO_ENTREGADO: 'Cancelar productos aún no entregados',
+  'DAÑADO': 'Producto dañado (registro anterior; no aumenta existencias)',
+  PROVEEDOR: 'Devuelto al proveedor (registro anterior; no aumenta existencias)',
+};
 const statuses: Record<string, string> = { PENDIENTE: 'Esperando al administrador', AUTORIZADA: 'Autorizada: falta confirmar devolución', RECHAZADA: 'Rechazada', EJECUTADA: 'Devolución registrada' };
 const errorMessage = (e: any) => {
   const message = e.response?.data?.message;
@@ -222,7 +229,7 @@ export const DevolucionesPage: React.FC = () => {
       {sale && <form className="operation-card" onSubmit={e => {
         e.preventDefault(); if (blocked) return;
         // Condición del producto y motivo son opcionales: solo se envían si se escriben.
-        const items = sale.items.map((item: any) => ({ detalleId: item.id, cantidad: Number(quantities[item.id] || 0), destino: targets[item.id] || (item.sin_inventario ? 'PROVEEDOR' : sale.reserva_pendiente ? 'NO_ENTREGADO' : 'INVENTARIO'), ...(conditions[item.id]?.trim() ? { condicion: conditions[item.id].trim() } : {}) })).filter((item: any) => item.cantidad > 0);
+        const items = sale.items.map((item: any) => ({ detalleId: item.id, cantidad: Number(quantities[item.id] || 0), destino: targets[item.id] || (item.sin_inventario ? 'GARANTIA' : sale.reserva_pendiente ? 'NO_ENTREGADO' : 'INVENTARIO'), ...(conditions[item.id]?.trim() ? { condicion: conditions[item.id].trim() } : {}) })).filter((item: any) => item.cantidad > 0);
         if (!items.length) { setError('Selecciona al menos un producto y la cantidad a devolver.'); return; }
         const requestId = correctionId || crypto.randomUUID();
         void run({ kind: 'SOLICITAR', requestId, saleId: sale.id, dto: { solicitudId: requestId, ...(motivo.trim() ? { motivo: motivo.trim() } : {}), metodo: method, items, ...(anulacion ? { anulacion: true } : {}) } });
@@ -238,7 +245,7 @@ export const DevolucionesPage: React.FC = () => {
           <div className="operation-table"><table><thead><tr><th>Producto</th><th>Disponible para devolver</th><th>Cantidad a devolver</th><th>Qué pasará con el producto</th><th>Condición (opcional)</th></tr></thead><tbody>
             {sale.items.map((item: any) => {
               const rest = Number(item.cantidad) - Number(item.devuelto);
-              const choices = item.sin_inventario ? ['PROVEEDOR', 'DAÑADO'] : sale.reserva_pendiente ? ['NO_ENTREGADO'] : ['INVENTARIO', 'DAÑADO', 'PROVEEDOR'];
+              const choices = item.sin_inventario ? ['GARANTIA', 'MERMA'] : sale.reserva_pendiente ? ['NO_ENTREGADO'] : ['INVENTARIO', 'GARANTIA', 'MERMA'];
               return <tr key={item.id}><td>{item.codigo} · {item.nombre}</td><td>{rest} (ya devuelto: {Number(item.devuelto)})</td>
                 <td><input aria-label={`Devolver ${item.nombre}`} type="number" step=".01" min="0" max={rest} disabled={rest <= 0 || anulacion} value={quantities[item.id] || '0'} onChange={e => setQuantities({ ...quantities, [item.id]: e.target.value })} /></td>
                 <td><select aria-label={`Destino de ${item.nombre}`} value={targets[item.id] || choices[0]} onChange={e => setTargets({ ...targets, [item.id]: e.target.value })}>{choices.map(value => <option key={value} value={value}>{destinations[value]}</option>)}</select></td>

@@ -78,10 +78,14 @@ export class AjusteDto {
  @IsNumber({maxDecimalPlaces:2}) @Min(0) stockAnterior!: number;
  @IsString() @IsNotEmpty() @MaxLength(500) motivo!: string;
 }
+export const DESTINOS_DEVOLUCION = ['INVENTARIO','GARANTIA','MERMA','NO_ENTREGADO','DAÑADO','PROVEEDOR'] as const;
 export class DevolucionItemDto {
  @IsString() @IsNotEmpty() detalleId!:string;
  @IsNumber({maxDecimalPlaces:2}) @Min(.01) cantidad!:number;
- @IsIn(['INVENTARIO','DAÑADO','PROVEEDOR','NO_ENTREGADO']) destino!:string;
+ // Destino obligatorio (decisión del 2026-11-12): reintegro al inventario (INVENTARIO), garantía (GARANTIA) o baja/merma
+ // (MERMA); NO_ENTREGADO libera lo no entregado. DAÑADO y PROVEEDOR se conservan por compatibilidad con datos y solicitudes
+ // anteriores (decisión del dueño en #247), aunque la pantalla ya no los ofrece.
+ @IsIn([...DESTINOS_DEVOLUCION]) destino!:string;
  // Condición del producto devuelto: opcional (decisión del 2026-11-12).
  @IsOptional() @IsString() @MaxLength(200) condicion?:string;
 }
