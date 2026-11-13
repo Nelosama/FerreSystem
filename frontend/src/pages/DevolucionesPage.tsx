@@ -13,9 +13,9 @@ const estadosReembolso: Record<string, string> = { PENDIENTE: 'Pendiente', COMPL
 const metodosReembolso: Record<string, string> = { EFECTIVO: 'Efectivo', TARJETA: 'Reverso de tarjeta en el POS bancario', TRANSFERENCIA: 'Transferencia' };
 
 type Command = { kind: 'SOLICITAR' | 'EJECUTAR' | 'DECIDIR' | 'DIRECTA'; requestId: string; saleId?: string; dto?: any };
-// Destino obligatorio por producto (decisión del 2026-11-12): reintegro al inventario, garantía o baja/merma.
-// Los códigos no cambian; «Garantía» corresponde a PROVEEDOR (supuesto pendiente de confirmar por el dueño).
-const destinations: Record<string, string> = { INVENTARIO: 'Reintegro al inventario (vuelve a existencias vendibles)', 'DAÑADO': 'Baja / merma (no aumenta existencias)', PROVEEDOR: 'Garantía: enviar al proveedor o fabricante (no aumenta existencias)', NO_ENTREGADO: 'Cancelar productos aún no entregados (libera la reserva)' };
+// Destino obligatorio por producto (decisión del 2026-11-12). Las etiquetas son las anteriores: la correspondencia de estos
+// códigos con «reintegro / garantía / baja-merma» está pendiente de confirmar por el dueño (revisión de #247).
+const destinations: Record<string, string> = { INVENTARIO: 'Volver a existencias vendibles', 'DAÑADO': 'Producto dañado (no aumenta existencias)', PROVEEDOR: 'Devolver al proveedor (no aumenta existencias)', NO_ENTREGADO: 'Cancelar productos aún no entregados' };
 const statuses: Record<string, string> = { PENDIENTE: 'Esperando al administrador', AUTORIZADA: 'Autorizada: falta confirmar devolución', RECHAZADA: 'Rechazada', EJECUTADA: 'Devolución registrada' };
 const errorMessage = (e: any) => {
   const message = e.response?.data?.message;

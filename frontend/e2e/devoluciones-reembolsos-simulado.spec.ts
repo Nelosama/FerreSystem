@@ -72,12 +72,13 @@ async function abrir(page: Page) {
 const tarjetaReembolso = (page: Page) => page.getByTestId('reembolso-reem-1');
 
 test.describe('Devoluciones y reembolsos (simulado)', () => {
-  test('cajero: solicita sin motivo; la condición se envía solo si se escribe; los destinos usan las etiquetas acordadas', async ({ page, sim }) => {
+  test('cajero: solicita sin motivo; la condición se envía solo si se escribe; el destino sigue siendo obligatorio', async ({ page, sim }) => {
     await abrir(page);
     await page.getByLabel('Número del comprobante de venta').fill('12');
     await page.getByRole('button', { name: 'Buscar venta' }).click();
     const destino = page.getByLabel('Destino de Taladro');
-    await expect(destino.locator('option')).toHaveText([/Reintegro al inventario/, /Baja \/ merma/, /Garantía/]);
+    // Etiquetas anteriores: la correspondencia con reintegro / garantía / baja-merma sigue pendiente del dueño.
+    await expect(destino.locator('option')).toHaveText(['Volver a existencias vendibles', 'Producto dañado (no aumenta existencias)', 'Devolver al proveedor (no aumenta existencias)']);
     await expect(page.getByLabel('Motivo de la devolución (opcional)')).not.toHaveAttribute('required', /.*/);
     await page.getByLabel('Devolver Taladro').fill('1');
     await page.getByLabel('Condición de Taladro').fill('Caja abierta, sin uso');
