@@ -1,0 +1,6 @@
+-- NEXUS: reversión manual de emergencia, ejecutar solo con respaldo y backend anterior.
+-- El backend anterior ignora esta tabla: revertir código no requiere borrarla.
+-- Borrarla elimina el registro de quién solicitó, aprobó, rechazó o canceló cada descuento. Exportarla antes.
+-- DROP TABLE solicitudes_autorizacion;
+-- DROP TYPE "EstadoSolicitudAutorizacion";
+-- DROP TYPE "TipoSolicitudAutorizacion";

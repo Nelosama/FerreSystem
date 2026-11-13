@@ -157,6 +157,7 @@ model Tenant {
   secuenciaCliente SecuenciaCliente?
   ventas           Venta[]
   cotizaciones     Cotizacion[]
+  solicitudesAutorizacion SolicitudAutorizacion[]
   secuencias       SecuenciaTenant[]
   modulos          TenantModule[]
   levantamientos   Levantamiento[]
@@ -250,6 +251,8 @@ model Usuario {
   tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ventas       Venta[]
   cotizaciones Cotizacion[]
+  autorizacionesSolicitadas SolicitudAutorizacion[] @relation("AutorizacionSolicitante")
+  autorizacionesDecididas   SolicitudAutorizacion[] @relation("AutorizacionDecisor")
 
   coberturasCreadas CoberturaGarantia[] @relation("GarantiaCreadaPor")
   coberturasActualizadas CoberturaGarantia[] @relation("GarantiaActualizadaPor")
@@ -1042,6 +1045,51 @@ model SolicitudDevolucion {
  @@index([tenantId,estado,createdAt])
  @@index([tenantId,solicitanteId])
  @@map("solicitudes_devolucion")
+}
+
+// ============================================================
+// SOLICITUDES DE AUTORIZACIÓN (NEXUS, 2026-11-13)
+// Registro genérico y auditable de lo que un ADMIN debe autorizar. En esta etapa solo se usa para el descuento de una
+// cotización (`entidad_id` = cotización). `operacion_hash` es la huella del contenido autorizado: si la cotización cambia,
+// la aprobación deja de corresponderle. `decisor_id` es quien aprobó, rechazó, canceló o invalidó.
+// La base permite una sola solicitud PENDIENTE por entidad (índice único parcial en la migración).
+// ============================================================
+
+enum TipoSolicitudAutorizacion {
+  DESCUENTO_COTIZACION
+}
+
+enum EstadoSolicitudAutorizacion {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+  CANCELADA
+  INVALIDADA
+}
+
+model SolicitudAutorizacion {
+  id             String                      @id @default(uuid())
+  tenantId       String                      @map("tenant_id")
+  tipo           TipoSolicitudAutorizacion
+  estado         EstadoSolicitudAutorizacion @default(PENDIENTE)
+  entidadId      String                      @map("entidad_id")
+  operacionHash  String                      @map("operacion_hash")
+  resumen        Json                        @default("{}")
+  solicitanteId  String                      @map("solicitante_id")
+  solicitadaAt   DateTime                    @default(now()) @map("solicitada_at") @db.Timestamptz
+  decisorId      String?                     @map("decisor_id")
+  decididaAt     DateTime?                   @map("decidida_at") @db.Timestamptz
+  motivoDecision String?                     @map("motivo_decision")
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "solicitudes_autorizacion_tenant_id_fkey")
+  // FK simples a usuarios(id): una FK compuesta dependería de usuarios_tenant_id_id_key, que la reversión manual de #148
+  // (prisma/propuestas/entregas-148/03_rollback_con_respaldo.sql) elimina. La empresa del usuario la exige el servicio.
+  solicitante Usuario  @relation("AutorizacionSolicitante", fields: [solicitanteId], references: [id], onDelete: Restrict, map: "solicitudes_autorizacion_solicitante_fkey")
+  decisor     Usuario? @relation("AutorizacionDecisor", fields: [decisorId], references: [id], onDelete: Restrict, map: "solicitudes_autorizacion_decisor_fkey")
+
+  @@index([tenantId, estado, solicitadaAt], map: "solicitudes_autorizacion_tenant_estado_idx")
+  @@index([tenantId, tipo, entidadId], map: "solicitudes_autorizacion_entidad_idx")
+  @@map("solicitudes_autorizacion")
 }
 
 // ============================================================

@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowUpRight, CalendarDays, ChevronRight, CircleDollarSign, ClipboardList, FileText, HandCoins, Package, PackagePlus, ShieldAlert, Tags, Truck, WalletCards, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, BadgePercent, CalendarDays, ChevronRight, CircleDollarSign, ClipboardList, FileText, HandCoins, Package, PackagePlus, ShieldAlert, Tags, Truck, WalletCards, type LucideIcon } from 'lucide-react';
 import { TopBar } from '../../components/TopBar';
 import { SyncStatus } from '../../components/SyncStatus';
 import { useTenant } from '../../context/TenantContext';
@@ -46,6 +46,7 @@ const etiquetaMetodo: Record<string, string> = { EFECTIVO: 'Efectivo', TARJETA: 
 // Presentación de cada pendiente. Las reglas (quién lo ve y cómo se cuenta) viven en el servidor.
 const PRESENTACION: Record<ClavePendiente, { icono: React.ReactNode; titulo: string; detalle: string }> = {
   contingencia_revision: { icono: <ShieldAlert size={18} aria-hidden="true" />, titulo: 'shell.home.review', detalle: 'shell.home.review_detail' },
+  descuentos_por_autorizar: { icono: <BadgePercent size={18} aria-hidden="true" />, titulo: 'shell.home.discounts_pending', detalle: 'shell.home.discounts_pending_detail' },
   precios_pendientes: { icono: <Tags size={18} aria-hidden="true" />, titulo: 'shell.home.prices', detalle: 'shell.home.prices_detail' },
   entregas_pendientes: { icono: <Truck size={18} aria-hidden="true" />, titulo: 'shell.home.deliveries', detalle: 'shell.home.deliveries_detail' },
   cotizaciones_vencen_hoy: { icono: <FileText size={18} aria-hidden="true" />, titulo: 'shell.home.quotes', detalle: 'shell.home.quotes_detail' },

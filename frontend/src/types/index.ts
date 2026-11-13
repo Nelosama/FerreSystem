@@ -179,5 +179,19 @@ export interface QuotationItem {
   porVencerHoy?: boolean;
   vencida?: boolean;
   createdAt?: string;
+  /** Autorización del descuento por un ADMIN (decisión del 2026-11-12). La calcula el servidor para el contenido actual. */
+  autorizacionDescuento?: AutorizacionDescuento;
+}
+
+export interface AutorizacionDescuento {
+  requerida: boolean;
+  estado: 'NO_REQUERIDA' | 'SIN_SOLICITUD' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA';
+  solicitudId: string | null;
+  solicitanteId: string | null;
+  solicitante: string | null;
+  solicitadaAt: string | null;
+  decisor: string | null;
+  decididaAt: string | null;
+  motivoDecision: string | null;
 }
 

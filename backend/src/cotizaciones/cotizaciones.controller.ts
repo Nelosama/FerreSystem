@@ -88,6 +88,32 @@ export class CotizacionesController {
     return this.cotizacionesService.updateEstado(tenantId, id, dto.estado, rol);
   }
 
+  // Pide al ADMIN que autorice el descuento (o lo vuelve a pedir tras un rechazo). Pedirlo nunca lo aprueba.
+  @Post(':id/autorizacion-descuento')
+  @RequiredPermission('cotizaciones.crear')
+  @Roles('ADMIN', 'VENDEDOR', 'CAJERO')
+  async solicitarAutorizacionDescuento(
+    @TenantId() tenantId: string,
+    @CurrentUser('sub') usuarioId: string,
+    @Param('id') id: string,
+    @CurrentUser('rol') rol?: string,
+  ) {
+    return this.cotizacionesService.solicitarAutorizacionDescuento(tenantId, usuarioId, id, rol);
+  }
+
+  // Cancela la solicitud pendiente (si la hay) y deja la cotización al precio original, sin descuentos.
+  @Post(':id/quitar-descuento')
+  @RequiredPermission('cotizaciones.crear')
+  @Roles('ADMIN', 'VENDEDOR', 'CAJERO')
+  async quitarDescuento(
+    @TenantId() tenantId: string,
+    @CurrentUser('sub') usuarioId: string,
+    @Param('id') id: string,
+    @CurrentUser('rol') rol?: string,
+  ) {
+    return this.cotizacionesService.quitarDescuento(tenantId, usuarioId, id, rol);
+  }
+
   @RequiredModule('cotizaciones', 'pos')
   @Post(':id/convertir')
   @RequiredPermission('cotizaciones.convertir_venta')

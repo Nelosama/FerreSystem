@@ -244,7 +244,12 @@ describe('Dashboard / PostgreSQL aislado', () => {
     const manana = new Date(Date.parse(`${hoy}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
     await prisma.cotizacion.create({ data: { tenantId: tenant, usuarioId: cajero.id, numeroCotizacion: 1, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date(`${hoy}T00:00:00Z`), estado: 'ENVIADA' } as any });
     await prisma.cotizacion.create({ data: { tenantId: tenant, usuarioId: cajero.id, numeroCotizacion: 2, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date(`${hoy}T00:00:00Z`), estado: 'CONVERTIDA' } as any });
-    await prisma.cotizacion.create({ data: { tenantId: tenant, usuarioId: cajero.id, numeroCotizacion: 3, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date(`${manana}T00:00:00Z`), estado: 'ENVIADA' } as any });
+    const cot3 = await prisma.cotizacion.create({ data: { tenantId: tenant, usuarioId: cajero.id, numeroCotizacion: 3, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date(`${manana}T00:00:00Z`), estado: 'ENVIADA' } as any });
+    // Descuentos por autorizar: uno pendiente; uno ya aprobado y uno cancelado no cuentan.
+    const otraCot = await prisma.cotizacion.create({ data: { tenantId: tenant, usuarioId: cajero.id, numeroCotizacion: 4, subtotal: 10, isv: 0, total: 10, fechaValidez: new Date(`${manana}T00:00:00Z`) } as any });
+    await prisma.solicitudAutorizacion.create({ data: { tenantId: tenant, tipo: 'DESCUENTO_COTIZACION', entidadId: cot3.id, operacionHash: 'h', solicitanteId: cajero.id } });
+    await prisma.solicitudAutorizacion.create({ data: { tenantId: tenant, tipo: 'DESCUENTO_COTIZACION', entidadId: otraCot.id, operacionHash: 'h1', solicitanteId: cajero.id, estado: 'APROBADA', decisorId: cajero.id, decididaAt: new Date() } });
+    await prisma.solicitudAutorizacion.create({ data: { tenantId: tenant, tipo: 'DESCUENTO_COTIZACION', entidadId: otraCot.id, operacionHash: 'h2', solicitanteId: cajero.id, estado: 'CANCELADA', decisorId: cajero.id, decididaAt: new Date() } });
     // Contingencia: dos operaciones requieren revisión y una ya se resolvió (APLICADA exige venta; no hace falta aquí).
     const dispositivo = await prisma.dispositivoPos.create({ data: { id: randomUUID(), tenantId: tenant, codigo: '01', nombre: 'Caja 1', registradoPor: cajero.id } });
     const caja = await prisma.caja.create({ data: { tenantId: tenant, codigo: `${prefijo}-CAJA`, usuarioId: cajero.id, montoApertura: 0 } as any });
@@ -264,8 +269,8 @@ describe('Dashboard / PostgreSQL aislado', () => {
   it('pendientes ADMIN: cuenta en PostgreSQL con las reglas de cada pantalla y conduce a su ruta', async () => {
     await sembrarPendientes(tenantId, 'a');
     const { body } = await request(app.getHttpServer()).get('/dashboard/pendientes').expect(200);
-    expect(mapa(body)).toEqual({ contingencia_revision: 2, precios_pendientes: 2, entregas_pendientes: 2, cotizaciones_vencen_hoy: 1, stock_bajo_minimo: 1 });
-    expect(body.indicadores.map((i: any) => i.ruta)).toEqual(['/contingencia-admin', '/precios', '/entregas', '/cotizaciones', '/inventario']);
+    expect(mapa(body)).toEqual({ contingencia_revision: 2, descuentos_por_autorizar: 1, precios_pendientes: 2, entregas_pendientes: 2, cotizaciones_vencen_hoy: 1, stock_bajo_minimo: 1 });
+    expect(body.indicadores.map((i: any) => i.ruta)).toEqual(['/contingencia-admin', '/cotizaciones', '/precios', '/entregas', '/cotizaciones', '/inventario']);
   });
 
   it('pendientes: coinciden con la lista de GET /entregas/pendientes', async () => {
@@ -286,7 +291,7 @@ describe('Dashboard / PostgreSQL aislado', () => {
     const otro = await prisma.tenant.create({ data: { nombreComercial: 'Otro negocio pendientes' } });
     await sembrarPendientes(otro.id, 'x');
     const { body } = await request(app.getHttpServer()).get('/dashboard/pendientes').expect(200);
-    expect(mapa(body)).toEqual({ contingencia_revision: 0, precios_pendientes: 0, entregas_pendientes: 0, cotizaciones_vencen_hoy: 0, stock_bajo_minimo: 0 });
+    expect(mapa(body)).toEqual({ contingencia_revision: 0, descuentos_por_autorizar: 0, precios_pendientes: 0, entregas_pendientes: 0, cotizaciones_vencen_hoy: 0, stock_bajo_minimo: 0 });
   });
 
   it('pendientes por rol: CAJERO solo sus entregas, VENDEDOR solo cotizaciones, BODEGUERO sin precios ni contingencia', async () => {
@@ -307,6 +312,6 @@ describe('Dashboard / PostgreSQL aislado', () => {
     await sembrarPendientes(tenantId, 'm');
     await prisma.tenantModule.create({ data: { tenantId, moduleKey: 'pos', enabled: false } as any });
     const { body } = await request(app.getHttpServer()).get('/dashboard/pendientes').expect(200);
-    expect(Object.keys(mapa(body))).toEqual(['precios_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo']);
+    expect(Object.keys(mapa(body))).toEqual(['descuentos_por_autorizar', 'precios_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo']);
   });
 });

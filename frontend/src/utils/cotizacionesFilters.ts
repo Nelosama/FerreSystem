@@ -8,7 +8,10 @@ export function filterCotizaciones(
 ): QuotationItem[] {
   return cotizaciones
     .filter((c) => {
-      if (filterEstado !== 'TODOS') {
+      if (filterEstado === 'DESCUENTO_POR_AUTORIZAR') {
+        // Descuentos que esperan la decisión de un ADMIN (estado calculado por el servidor).
+        if (c.estado === 'CONVERTIDA' || c.autorizacionDescuento?.estado !== 'PENDIENTE') return false;
+      } else if (filterEstado !== 'TODOS') {
         if (filterEstado === 'ENVIADA' || filterEstado === 'EMITIDA') {
           if (c.estado !== 'ENVIADA' && c.estado !== 'EMITIDA') {
             return false;
