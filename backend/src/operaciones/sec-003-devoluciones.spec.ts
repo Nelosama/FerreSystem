@@ -215,6 +215,11 @@ describe('SEC-003: Permisos y ejecución de devoluciones (Audit & Security Suite
         dbReturns[id] = ret;
         return [ret];
       }
+      if (sql.includes('INSERT INTO reembolsos')) {
+        // Reembolso con estado (etapa 2): efectivo queda COMPLETADO; tarjeta o transferencia, PENDIENTE.
+        const [id, tenant_id, devolucion_id, metodo, estado, monto] = params;
+        return [{ id, tenant_id, devolucion_id, metodo, estado, monto }];
+      }
       if (sql.includes('INSERT INTO detalles_devolucion')) {
         const [id, devolucion_id, detalle_venta_id, cantidad, destino] = params;
         if (dbReturns[devolucion_id]) {

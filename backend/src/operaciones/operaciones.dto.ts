@@ -82,17 +82,21 @@ export class DevolucionItemDto {
  @IsString() @IsNotEmpty() detalleId!:string;
  @IsNumber({maxDecimalPlaces:2}) @Min(.01) cantidad!:number;
  @IsIn(['INVENTARIO','DAÑADO','PROVEEDOR','NO_ENTREGADO']) destino!:string;
+ // Condición del producto devuelto: opcional (decisión del 2026-11-12).
+ @IsOptional() @IsString() @MaxLength(200) condicion?:string;
 }
 export class DevolucionDto {
  @IsOptional() @IsBoolean() anulacion?: boolean;
  @IsUUID('4') solicitudId!:string;
- @IsString() @IsNotEmpty() @MaxLength(500) motivo!:string;
+ // Motivo opcional (decisión del 2026-11-12): ADMIN decide aunque no se indique.
+ @IsOptional() @IsString() @MaxLength(500) motivo?:string;
  @IsIn(['EFECTIVO','TARJETA','TRANSFERENCIA']) metodo!:string;
  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({each:true}) @Type(()=>DevolucionItemDto) items!:DevolucionItemDto[];
 }
 export class DecisionDevolucionDto {
  @IsIn(['AUTORIZADA','RECHAZADA']) decision!:string;
- @IsString() @IsNotEmpty() @MaxLength(500) motivo!:string;
+ // Motivo de la decisión opcional (decisión del 2026-11-12).
+ @IsOptional() @IsString() @MaxLength(500) motivo?:string;
 }
 export class EntregarVentaDto {
  @IsUUID('4') solicitudId!:string;

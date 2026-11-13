@@ -57,6 +57,8 @@ const harness = (saved, api, role = 'ADMIN') => {
     '../utils/numeroVenta': { numeroVentaDesdeIdentificador: texto => texto },
     '../context/TenantContext': { useTenant: () => ({ tenant: { id: 'tenant-A' }, user: { id: 'user-A', rol: role }, isReadOnly: false }) },
     '../utils/api': { api }, '../utils/format': { formatLempiras: String, formatInstanteNegocio: String }, './OperacionesPage.css': {},
+    // Confirmaciones de la sección de reembolsos (etapa 2): estas pruebas no las abren.
+    '../utils/alertas': { alertas: { confirmar: async () => true } },
   };
   const source = fs.readFileSync('src/pages/DevolucionesPage.tsx', 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText;
