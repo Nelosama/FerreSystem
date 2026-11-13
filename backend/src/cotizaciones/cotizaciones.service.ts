@@ -12,7 +12,7 @@ import { aCentavos, divisionMitadArriba } from '../common/redondeo-monetario';
 import { isvDocumentoCentavos } from '../common/isv-documento';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 import { clienteParaRol, empresaPublica } from '../common/datos-por-rol';
-import { cancelarPendientes, evaluarAutorizacion, exigirDescuentoAutorizado, sincronizarAutorizacion, solicitudesDeCotizaciones, tieneDescuento, type AutorizacionDescuentoVista } from './autorizacion-descuento';
+import { cancelarPendientes, invalidarAprobacionesAnteriores, evaluarAutorizacion, exigirDescuentoAutorizado, sincronizarAutorizacion, solicitudesDeCotizaciones, tieneDescuento, type AutorizacionDescuentoVista } from './autorizacion-descuento';
 
 /** Fecha de solo día (YYYY-MM-DD) se guarda como inicio del día en la zona del negocio. */
 const SOLO_DIA = /^\d{4}-\d{2}-\d{2}$/;
@@ -530,6 +530,8 @@ export class CotizacionesService {
       if (c.estado === 'CONVERTIDA' || c.ventaId) throw new BadRequestException('La cotización ya se convirtió en venta');
       await authorizedActor(tx, tenantId, usuarioId, ['ADMIN', 'CAJERO', 'VENDEDOR'], 'cotizaciones.crear');
       const canceladas = await cancelarPendientes(tx, tenantId, usuarioId, id);
+      // Sin descuento ya no hay nada aprobado: si después se vuelve a poner, hace falta una aprobación nueva.
+      await invalidarAprobacionesAnteriores(tx, tenantId, usuarioId, id);
       if (!tieneDescuento(c)) return this.formatCotizacion(c, new Date(), rol, evaluarAutorizacion(c, []));
 
       const tasa = Number(c.porcentajeIsv);

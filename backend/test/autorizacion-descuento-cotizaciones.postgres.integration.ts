@@ -204,20 +204,60 @@ describe('Autorización de descuentos en cotizaciones / HTTP y PostgreSQL aislad
     // Cambia la cantidad con la solicitud pendiente: la anterior se invalida y nace otra para el contenido nuevo.
     const otraCantidad = conDescuento(); otraCantidad.detalles[0].descuento = 30; otraCantidad.detalles[1].cantidad = 3;
     await como(cajero).put(`/cotizaciones/${cot.id}`, otraCantidad).expect(200);
-    expect((await solicitudes(cot.id)).map((x) => [x.estado, x.decisorId])).toEqual([['APROBADA', admin], ['INVALIDADA', cajero], ['PENDIENTE', null]]);
+    // La aprobación original queda INVALIDADA para siempre; conserva quién la aprobó (decisor) y el motivo dice por qué cayó.
+    expect((await solicitudes(cot.id)).map((x) => [x.estado, x.decisorId])).toEqual([['INVALIDADA', admin], ['INVALIDADA', cajero], ['PENDIENTE', null]]);
+    expect((await solicitudes(cot.id))[0].motivoDecision).toMatch(/cambió después de aprobarse/);
     // La solicitud invalidada ya no se puede aprobar.
     const invalidada = (await solicitudes(cot.id))[1];
     await como(admin).post(`/autorizaciones/${invalidada.id}/aprobar`).expect(409);
 
-    // Volver a lo que el ADMIN aprobó al principio recupera esa aprobación: corresponde exactamente a ese contenido.
+    // Volver al contenido que el ADMIN aprobó al principio NO recupera esa aprobación: hace falta una nueva.
     const deVuelta = (await como(cajero).put(`/cotizaciones/${cot.id}`, conDescuento()).expect(200)).body;
-    expect(deVuelta.autorizacionDescuento).toMatchObject({ estado: 'APROBADA', decisor: expect.any(String) });
-    await como(cajero).patch(`/cotizaciones/${cot.id}/estado`, { estado: 'ENVIADA' }).expect(200);
+    expect(deVuelta.autorizacionDescuento).toMatchObject({ estado: 'PENDIENTE', solicitanteId: cajero });
+    await como(cajero).patch(`/cotizaciones/${cot.id}/estado`, { estado: 'ENVIADA' }).expect(409);
+    await como(cajero).post(`/cotizaciones/${cot.id}/convertir`).expect(409);
 
     // Quitar el descuento en la edición: no requiere autorización.
     const limpia = (await como(cajero).put(`/cotizaciones/${cot.id}`, sinDescuento()).expect(200)).body;
     expect(limpia.autorizacionDescuento).toMatchObject({ requerida: false });
     expect(await prisma.solicitudAutorizacion.count({ where: { tenantId, entidadId: cot.id, estado: 'PENDIENTE' } })).toBe(0);
+  });
+
+  it('aprobar → editar → restaurar el contenido aprobado: sigue bloqueada hasta una aprobación nueva explícita', async () => {
+    const cot = (await como(cajero).post('/cotizaciones', conDescuento()).expect(201)).body;
+    const [primera] = await solicitudes(cot.id);
+    await como(admin).post(`/autorizaciones/${primera.id}/aprobar`).expect(201);
+    const cambiada = conDescuento(); cambiada.detalles[1].cantidad = 2;
+    await como(cajero).put(`/cotizaciones/${cot.id}`, cambiada).expect(200);
+    const restaurada = (await como(cajero).put(`/cotizaciones/${cot.id}`, conDescuento()).expect(200)).body;
+    expect(restaurada.autorizacionDescuento.estado).toBe('PENDIENTE');
+    expect((await prisma.solicitudAutorizacion.findUniqueOrThrow({ where: { id: primera.id } }))).toMatchObject({ estado: 'INVALIDADA', decisorId: admin });
+    // La aprobación invalidada no puede volver a decidirse.
+    await como(admin).post(`/autorizaciones/${primera.id}/aprobar`).expect(409);
+    await como(cajero).patch(`/cotizaciones/${cot.id}/estado`, { estado: 'ENVIADA' }).expect(409);
+    await como(cajero).post(`/cotizaciones/${cot.id}/convertir`).expect(409);
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
+    // Solo una aprobación nueva y explícita la desbloquea.
+    const nueva = await prisma.solicitudAutorizacion.findFirstOrThrow({ where: { tenantId, entidadId: cot.id, estado: 'PENDIENTE' } });
+    expect(nueva.id).not.toBe(primera.id);
+    await como(admin2).post(`/autorizaciones/${nueva.id}/aprobar`).expect(201);
+    await como(cajero).patch(`/cotizaciones/${cot.id}/estado`, { estado: 'ENVIADA' }).expect(200);
+    expect((await auditoria('AUTORIZACION_INVALIDADA')).some((a) => a.entidadId === primera.id)).toBe(true);
+  });
+
+  it('aprobar → quitar el descuento (editando o con «quitar descuento») → volver a ponerlo: exige aprobación nueva', async () => {
+    for (const quitar of ['editar', 'quitar-descuento'] as const) {
+      const cot = (await como(cajero).post('/cotizaciones', conDescuento()).expect(201)).body;
+      const [primera] = await solicitudes(cot.id);
+      await como(admin).post(`/autorizaciones/${primera.id}/aprobar`).expect(201);
+      if (quitar === 'editar') await como(cajero).put(`/cotizaciones/${cot.id}`, sinDescuento()).expect(200);
+      else await como(cajero).post(`/cotizaciones/${cot.id}/quitar-descuento`).expect(201);
+      expect((await prisma.solicitudAutorizacion.findUniqueOrThrow({ where: { id: primera.id } })).estado).toBe('INVALIDADA');
+      const otraVez = (await como(cajero).put(`/cotizaciones/${cot.id}`, conDescuento()).expect(200)).body;
+      expect(otraVez.autorizacionDescuento.estado, quitar).toBe('PENDIENTE');
+      await como(cajero).post(`/cotizaciones/${cot.id}/convertir`).expect(409);
+    }
+    expect(await prisma.venta.count({ where: { tenantId } })).toBe(0);
   });
 
   it('una aprobación no sirve si la cotización cambió por otra vía después de la solicitud (409, sin aprobar)', async () => {
